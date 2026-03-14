@@ -1,0 +1,61 @@
+# 卡组配置文件
+# Loveca Card Game - 玩家卡组配置
+
+player_name: "Player1"
+description: "μ's 预组"
+
+# 主卡组 (60张: 48张成员卡 + 12张Live卡)
+main_deck:
+  # 成员卡 (48张)
+  members:
+    - card_code: "PL!-sd1-001-SD"
+      count: 4
+    - card_code: "PL!-sd1-002-SD"
+      count: 2
+    - card_code: "PL!-sd1-003-SD"
+      count: 4
+    - card_code: "PL!-sd1-004-SD"
+      count: 4
+    - card_code: "PL!-sd1-005-SD"
+      count: 2
+    - card_code: "PL!-sd1-006-SD"
+      count: 2
+    - card_code: "PL!-sd1-007-SD"
+      count: 2
+    - card_code: "PL!-sd1-008-SD"
+      count: 2
+    - card_code: "PL!-sd1-009-SD"
+      count: 2
+    - card_code: "PL!-sd1-010-SD"
+      count: 4
+    - card_code: "PL!-sd1-011-SD"
+      count: 2
+    - card_code: "PL!-sd1-012-SD"
+      count: 4
+    - card_code: "PL!-sd1-013-SD"
+      count: 4
+    - card_code: "PL!-sd1-014-SD"
+      count: 2
+    - card_code: "PL!-sd1-015-SD"
+      count: 2
+    - card_code: "PL!-sd1-016-SD"
+      count: 2
+    - card_code: "PL!-sd1-017-SD"
+      count: 2
+    - card_code: "PL!-sd1-018-SD"
+      count: 2
+  lives:
+    - card_code: "PL!-sd1-019-SD"
+      count: 4
+    - card_code: "PL!-sd1-020-SD"
+      count: 4
+    - card_code: "PL!-sd1-021-SD"
+      count: 2
+    - card_code: "PL!-sd1-022-SD"
+      count: 2
+      
+
+# 能量卡组 (12张)
+energy_deck:
+  - card_code: "LL-E-003-SD"
+    count: 12

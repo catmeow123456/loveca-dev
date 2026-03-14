@@ -1,0 +1,284 @@
+/**
+ * 阶段指示器
+ * 显示当前游戏阶段、子阶段和回合数，提供阶段流转按钮
+ */
+
+import { memo, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import { useShallow } from 'zustand/react/shallow';
+import { cn } from '@/lib/utils';
+import { GamePhase, SubPhase } from '@game/shared/types/enums';
+import { useGameStore } from '@/store/gameStore';
+import {
+  getPhaseConfig,
+  getSubPhaseConfig,
+  isUserActionRequired,
+  isPlayerActive,
+} from '@game/shared/phase-config';
+
+interface PhaseIndicatorProps {
+  phase: GamePhase;
+  turnNumber?: number;
+  /** 打开判定面板的回调 */
+  onOpenJudgment?: () => void;
+}
+
+/**
+ * 根据阶段和子阶段获取按钮配置
+ */
+function getPhaseActionConfig(
+  phase: GamePhase,
+  subPhase: SubPhase | undefined,
+  isFirstPlayerTurn: boolean
+): {
+  canAct: boolean;
+  buttonText: string;
+  buttonStyle: string;
+  secondaryButton?: { text: string; style: string; action: 'undo' | 'skip' };
+} | null {
+  // 根据子阶段决定按钮
+  if (subPhase && subPhase !== SubPhase.NONE) {
+    // 演出判定阶段：显示专用判定按钮（打开 JudgmentPanel）
+    if (subPhase === SubPhase.PERFORMANCE_JUDGMENT) {
+      return {
+        canAct: true,
+        buttonText: '📊 Live 判定',
+        buttonStyle: 'from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400',
+      };
+    }
+
+    if (isUserActionRequired(subPhase)) {
+      return {
+        canAct: true,
+        buttonText: '✅ 确认完成',
+        buttonStyle: 'from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400',
+        secondaryButton: {
+          text: '↩️ 撤销',
+          style: 'from-slate-500 to-slate-600 hover:from-slate-400 hover:to-slate-500',
+          action: 'undo',
+        },
+      };
+    }
+
+    return null; // 自动子阶段，不显示按钮
+  }
+
+  // 原有阶段按钮逻辑
+  switch (phase) {
+    case GamePhase.MAIN_PHASE:
+      return {
+        canAct: true,
+        buttonText: '🎵 Live Start!',
+        buttonStyle: 'from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400',
+      };
+    case GamePhase.LIVE_SET_PHASE:
+      return {
+        canAct: true,
+        buttonText: '✨ Live 准备就绪',
+        buttonStyle: 'from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400',
+      };
+    case GamePhase.PERFORMANCE_PHASE:
+      return {
+        canAct: true,
+        buttonText: isFirstPlayerTurn ? '🎤 进入后攻表演' : '📊 进入结算阶段',
+        buttonStyle: 'from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400',
+      };
+    case GamePhase.LIVE_RESULT_PHASE:
+      return {
+        canAct: true,
+        buttonText: '➡️ 进入下一回合',
+        buttonStyle: 'from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400',
+      };
+    default:
+      return null;
+  }
+}
+
+export const PhaseIndicator = memo(function PhaseIndicator({
+  phase,
+  turnNumber,
+  onOpenJudgment,
+}: PhaseIndicatorProps) {
+  // 状态选择器
+  const gameState = useGameStore((s) => s.gameState);
+  const viewingPlayerId = useGameStore((s) => s.viewingPlayerId);
+
+  // 方法选择器（使用 useShallow 保持引用稳定）
+  const { endPhase, advancePhase, skipLiveSet, confirmSubPhase, undoOperation } = useGameStore(
+    useShallow((s) => ({
+      endPhase: s.endPhase,
+      advancePhase: s.advancePhase,
+      skipLiveSet: s.skipLiveSet,
+      confirmSubPhase: s.confirmSubPhase,
+      undoOperation: s.undoOperation,
+    }))
+  );
+
+  // 使用 useMemo 计算 isMyTurn，避免在选择器中调用函数
+  const isMyTurn = useMemo(() => {
+    if (!gameState || !viewingPlayerId) return false;
+    return isPlayerActive(gameState, viewingPlayerId);
+  }, [gameState, viewingPlayerId]);
+
+  // 判断是否是先攻玩家的回合
+  const isFirstPlayerTurn = gameState?.activePlayerIndex === gameState?.firstPlayerIndex;
+  
+  // 获取当前子阶段
+  const currentSubPhase = gameState?.currentSubPhase ?? SubPhase.NONE;
+
+  // 从配置中获取阶段和子阶段信息
+  const phaseConfig = getPhaseConfig(phase);
+  const subPhaseConfig = currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase) : null;
+
+  const info = phaseConfig?.display ?? { name: phase, colorClass: 'bg-slate-500' };
+  const actionConfig = getPhaseActionConfig(phase, currentSubPhase, isFirstPlayerTurn);
+
+  // 是否显示操作按钮
+  const showActionButton = actionConfig && isMyTurn;
+
+  // 处理主按钮点击
+  const handleAction = () => {
+    // 演出判定阶段：打开判定面板（不直接 confirmSubPhase）
+    if (currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT && onOpenJudgment) {
+      onOpenJudgment();
+      return;
+    }
+
+    // 如果有子阶段，确认子阶段完成
+    if (currentSubPhase && currentSubPhase !== SubPhase.NONE) {
+      confirmSubPhase(currentSubPhase);
+      return;
+    }
+    
+    if (phase === GamePhase.MAIN_PHASE) {
+      // 主要阶段结束 -> 进入 Live 阶段
+      endPhase();
+    } else if (phase === GamePhase.LIVE_SET_PHASE) {
+      // Live 设置阶段 -> 完成设置
+      skipLiveSet();
+    } else {
+      // 其他阶段 -> 推进到下一阶段
+      advancePhase();
+    }
+  };
+
+  // 处理撤销按钮点击
+  const handleUndo = () => {
+    undoOperation();
+  };
+
+  return (
+    <div className="fixed right-4 bottom-4 z-50">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-slate-900/95 rounded-lg border border-slate-700 overflow-hidden shadow-xl w-64"
+      >
+        {/* 回合数 */}
+        {turnNumber !== undefined && (
+          <div className="bg-slate-800 px-4 py-1 border-b border-slate-700 text-center">
+            <span className="text-xs text-slate-400">回合</span>
+            <span className="text-lg font-bold text-white ml-2">{turnNumber}</span>
+          </div>
+        )}
+
+        {/* 阶段名称 */}
+        <div className="px-4 py-3">
+          <div className="flex items-center gap-2">
+            <motion.div
+              key={phase}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className={cn('w-3 h-3 rounded-full', info.colorClass)}
+            />
+            <span className="text-sm font-bold text-white">{info.name}阶段</span>
+          </div>
+
+          {/* 子阶段显示 */}
+          {subPhaseConfig && (
+            <motion.div
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="mt-2 ml-5 flex items-center gap-2 text-xs text-slate-300"
+            >
+              <span className="text-base">{subPhaseConfig.display.icon}</span>
+              <span className="font-medium">{subPhaseConfig.display.name}</span>
+              {subPhaseConfig.display.requiresUserAction && (
+                <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded text-xs">
+                  需要操作
+                </span>
+              )}
+            </motion.div>
+          )}
+
+          {/* 当前玩家指示 */}
+          <div
+            className={cn(
+              'mt-2 text-xs px-2 py-1 rounded text-center',
+              isMyTurn ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-400'
+            )}
+          >
+            {isMyTurn ? '你的回合' : '对手回合'}
+          </div>
+        </div>
+
+        {/* 操作按钮 */}
+        {showActionButton && (
+          <div className="px-4 pb-3 space-y-2">
+            {/* 主按钮 */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleAction}
+              className={cn(
+                'w-full py-2 rounded-lg text-sm font-bold',
+                'bg-gradient-to-r',
+                actionConfig.buttonStyle,
+                'text-white shadow-lg transition-colors'
+              )}
+            >
+              {actionConfig.buttonText}
+            </motion.button>
+            
+            {/* 次要按钮（撤销） */}
+            {actionConfig.secondaryButton && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleUndo}
+                className={cn(
+                  'w-full py-1.5 rounded-lg text-xs font-medium',
+                  'bg-gradient-to-r',
+                  actionConfig.secondaryButton.style,
+                  'text-white/90 shadow transition-colors'
+                )}
+              >
+                {actionConfig.secondaryButton.text}
+              </motion.button>
+            )}
+          </div>
+        )}
+
+        {/* 游戏结束提示 */}
+        {phase === GamePhase.GAME_END && (
+          <div className="px-4 pb-3">
+            <div className="text-center text-amber-400 font-bold">
+              🏆 游戏结束
+            </div>
+          </div>
+        )}
+
+        {/* 操作历史提示 */}
+        {gameState && gameState.operationHistory.length > 0 && (
+          <div className="px-4 pb-2 border-t border-slate-700/50 pt-2">
+            <div className="text-xs text-slate-500">
+              本阶段操作: {gameState.operationHistory.length} 步
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+});
+
+export default PhaseIndicator;

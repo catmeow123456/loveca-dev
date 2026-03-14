@@ -1,0 +1,623 @@
+@import "tailwindcss";
+
+/* ============================================
+   Loveca Card Game - Global Styles
+   ============================================ */
+
+/* Custom CSS Variables */
+:root {
+  /* Heart Colors */
+  --heart-pink: #ff69b4;
+  --heart-red: #dc2626;
+  --heart-yellow: #fbbf24;
+  --heart-green: #22c55e;
+  --heart-blue: #3b82f6;
+  --heart-purple: #a855f7;
+  --heart-rainbow: linear-gradient(
+    90deg,
+    #ff69b4,
+    #dc2626,
+    #fbbf24,
+    #22c55e,
+    #3b82f6,
+    #a855f7
+  );
+
+  /* 🎀 Cute Theme Colors */
+  --cute-pink: #ffb6c1;
+  --cute-rose: #ff9ec4;
+  --cute-hot-pink: #ff69b4;
+  --cute-lavender: #e6b3ff;
+  --cute-violet: #dda0dd;
+  --cute-cream: #fff5f7;
+  --cute-bg-light: #fef7f9;
+  --cute-bg-dark: #2d2438;
+  --cute-bg-panel: #3d3347;
+  --cute-border: rgba(255, 182, 193, 0.4);
+  --cute-text: #6b5b73;
+  --cute-text-light: #f8e8ee;
+  --cute-shadow: rgba(255, 105, 180, 0.2);
+  --cute-glow: rgba(255, 182, 193, 0.5);
+
+  /* Game UI Colors */
+  --bg-game: #1a1a2e;
+  --bg-zone: #16213e;
+  --bg-card: #0f3460;
+  --border-zone: #e94560;
+  --text-primary: #eaeaea;
+  --text-secondary: #a0a0a0;
+
+  /* Card Dimensions (standard card ratio: 63mm x 88mm ≈ 0.716) */
+  --card-width: 100px;
+  --card-height: 140px;
+  --card-width-sm: 70px;
+  --card-height-sm: 98px;
+  --card-width-lg: 140px;
+  --card-height-lg: 196px;
+}
+
+/* Base Styles */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    "Segoe UI",
+    "Roboto",
+    "Oxygen",
+    "Ubuntu",
+    "Cantarell",
+    sans-serif;
+  background: var(--bg-game);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* ============================================
+   Card Component Styles
+   ============================================ */
+
+.card {
+  width: var(--card-width);
+  height: var(--card-height);
+  border-radius: 8px;
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.card:hover {
+  transform: translateY(-8px) scale(1.05);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+}
+
+.card-small {
+  width: var(--card-width-sm);
+  height: var(--card-height-sm);
+}
+
+.card-large {
+  width: var(--card-width-lg);
+  height: var(--card-height-lg);
+}
+
+.card-back {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-back::after {
+  content: "♪";
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Card Overlay for stats */
+.card-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  padding: 4px 6px;
+  border-radius: 0 0 8px 8px;
+}
+
+/* Card Cost Badge */
+.card-cost {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  background: #e94560;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.875rem;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Card Blade Badge */
+.card-blade {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.card-blade::before {
+  content: "🔦";
+  font-size: 0.75rem;
+}
+
+/* Heart Icons */
+.heart-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+
+.heart-pink {
+  color: var(--heart-pink);
+}
+.heart-red {
+  color: var(--heart-red);
+}
+.heart-yellow {
+  color: var(--heart-yellow);
+}
+.heart-green {
+  color: var(--heart-green);
+}
+.heart-blue {
+  color: var(--heart-blue);
+}
+.heart-purple {
+  color: var(--heart-purple);
+}
+.heart-rainbow {
+  background: var(--heart-rainbow);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================================
+   Zone Styles
+   ============================================ */
+
+.zone {
+  background: var(--bg-zone);
+  border: 2px dashed rgba(233, 69, 96, 0.3);
+  border-radius: 12px;
+  padding: 8px;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.zone:hover {
+  border-color: rgba(233, 69, 96, 0.6);
+}
+
+.zone-active {
+  border-color: var(--border-zone);
+  background: rgba(233, 69, 96, 0.1);
+}
+
+.zone-label {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  background: var(--bg-zone);
+  padding: 0 8px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Member Slot */
+.member-slot {
+  width: calc(var(--card-width) + 16px);
+  height: calc(var(--card-height) + 16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.member-slot-empty {
+  border-style: dashed;
+  opacity: 0.5;
+}
+
+/* ============================================
+   Hand Area
+   ============================================ */
+
+.hand-area {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  perspective: 1000px;
+}
+
+.hand-card {
+  transition: transform 0.3s ease;
+}
+
+/* Fan effect for hand cards */
+.hand-card:nth-child(1) {
+  transform: rotate(-15deg);
+}
+.hand-card:nth-child(2) {
+  transform: rotate(-10deg);
+}
+.hand-card:nth-child(3) {
+  transform: rotate(-5deg);
+}
+.hand-card:nth-child(4) {
+  transform: rotate(0deg);
+}
+.hand-card:nth-child(5) {
+  transform: rotate(5deg);
+}
+.hand-card:nth-child(6) {
+  transform: rotate(10deg);
+}
+.hand-card:nth-child(7) {
+  transform: rotate(15deg);
+}
+
+/* ============================================
+   Deck / Pile Styles
+   ============================================ */
+
+.deck {
+  position: relative;
+  width: var(--card-width);
+  height: var(--card-height);
+}
+
+.deck-count {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+/* Stacked cards effect */
+.deck::before,
+.deck::after {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+}
+
+.deck::before {
+  top: 4px;
+  left: 2px;
+  z-index: -1;
+}
+
+.deck::after {
+  top: 8px;
+  left: 4px;
+  z-index: -2;
+}
+
+/* ============================================
+   Phase Banner
+   ============================================ */
+
+.phase-banner {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.9);
+  padding: 24px 48px;
+  border-radius: 16px;
+  border: 2px solid var(--border-zone);
+  font-size: 1.5rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  z-index: 1000;
+  animation: phase-appear 0.5s ease-out;
+}
+
+@keyframes phase-appear {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* ============================================
+   Game Log Panel
+   ============================================ */
+
+.game-log {
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  width: 300px;
+  max-height: 400px;
+  background: rgba(0, 0, 0, 0.85);
+  border-radius: 8px;
+  border: 1px solid rgba(233, 69, 96, 0.3);
+  overflow: hidden;
+  z-index: 500;
+}
+
+.game-log-header {
+  background: var(--bg-zone);
+  padding: 8px 12px;
+  font-weight: bold;
+  font-size: 0.875rem;
+  border-bottom: 1px solid rgba(233, 69, 96, 0.3);
+}
+
+.game-log-content {
+  padding: 8px 12px;
+  max-height: 350px;
+  overflow-y: auto;
+  font-size: 0.75rem;
+  font-family: "Fira Code", "Consolas", monospace;
+}
+
+.game-log-entry {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.game-log-entry:last-child {
+  border-bottom: none;
+}
+
+/* ============================================
+   Button Styles
+   ============================================ */
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  font-size: 0.875rem;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #e94560 0%, #c13148 100%);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #f05674 0%, #d4425a 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
+}
+
+.btn-secondary {
+  background: var(--bg-zone);
+  color: var(--text-primary);
+  border: 1px solid rgba(233, 69, 96, 0.5);
+}
+
+.btn-secondary:hover {
+  border-color: var(--border-zone);
+  background: rgba(233, 69, 96, 0.1);
+}
+
+/* ============================================
+   Utility Classes
+   ============================================ */
+
+.text-glow {
+  text-shadow: 0 0 10px currentColor;
+}
+
+.border-glow {
+  box-shadow: 0 0 15px rgba(233, 69, 96, 0.5);
+}
+
+/* Orientation states */
+.card-rested {
+  transform: rotate(90deg);
+}
+
+.card-waiting {
+  filter: grayscale(50%);
+  opacity: 0.7;
+}
+
+/* ============================================
+   🎀 Cute Scrollbar Styles
+   ============================================ */
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.cute-scrollbar::-webkit-scrollbar,
+.deck-manager ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.cute-scrollbar::-webkit-scrollbar-track,
+.deck-manager ::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, rgba(255, 182, 193, 0.15), rgba(230, 179, 255, 0.15));
+  border-radius: 10px;
+  margin: 4px;
+}
+
+.cute-scrollbar::-webkit-scrollbar-thumb,
+.deck-manager ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #ffb6c1, #e6b3ff);
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 0 6px rgba(255, 105, 180, 0.3);
+}
+
+.cute-scrollbar::-webkit-scrollbar-thumb:hover,
+.deck-manager ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #ff9ec4, #dda0dd);
+  box-shadow: 0 0 8px rgba(255, 105, 180, 0.5);
+}
+
+.cute-scrollbar::-webkit-scrollbar-corner,
+.deck-manager ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox */
+.cute-scrollbar,
+.deck-manager * {
+  scrollbar-width: thin;
+  scrollbar-color: #ffb6c1 rgba(255, 182, 193, 0.15);
+}
+
+/* ============================================
+   🎀 Cute Theme - Deck Manager Styles
+   ============================================ */
+
+.deck-manager {
+  background: linear-gradient(135deg, #2d2438 0%, #1f1a29 50%, #2a2235 100%);
+}
+
+.cute-panel {
+  background: linear-gradient(145deg, rgba(61, 51, 71, 0.95), rgba(45, 36, 56, 0.95));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 182, 193, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.cute-input {
+  background: rgba(45, 36, 56, 0.8);
+  border: 2px solid rgba(255, 182, 193, 0.3);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.cute-input:focus {
+  border-color: var(--cute-hot-pink);
+  box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.2), 0 0 20px rgba(255, 105, 180, 0.1);
+  outline: none;
+}
+
+.cute-button {
+  background: linear-gradient(135deg, #ff9ec4, #e6b3ff);
+  border: none;
+  border-radius: 20px;
+  color: #2d2438;
+  font-weight: 600;
+  padding: 8px 20px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(255, 105, 180, 0.3);
+}
+
+.cute-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 105, 180, 0.4);
+  background: linear-gradient(135deg, #ffb6c1, #f0c6ff);
+}
+
+.cute-button:active {
+  transform: translateY(0);
+}
+
+.cute-button-secondary {
+  background: rgba(255, 182, 193, 0.15);
+  border: 1px solid rgba(255, 182, 193, 0.3);
+  border-radius: 16px;
+  color: var(--cute-pink);
+  transition: all 0.3s ease;
+}
+
+.cute-button-secondary:hover {
+  background: rgba(255, 182, 193, 0.25);
+  border-color: var(--cute-pink);
+}
+
+.cute-card-hover:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(255, 105, 180, 0.3);
+}
+
+.cute-glow {
+  box-shadow: 0 0 20px rgba(255, 182, 193, 0.3);
+}
+
+.cute-border {
+  border: 1px solid rgba(255, 182, 193, 0.3);
+}
+
+.cute-gradient-text {
+  background: linear-gradient(135deg, #ff9ec4, #e6b3ff, #ffb6c1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Sparkle animation for decorative elements */
+@keyframes sparkle {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}

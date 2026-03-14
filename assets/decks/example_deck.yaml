@@ -1,0 +1,48 @@
+# 示例卡组配置文件
+# Loveca Card Game - 玩家卡组配置
+
+player_name: "Player1"
+description: "μ's 主题卡组示例"
+
+# 主卡组 (60张: 48张成员卡 + 12张Live卡)
+main_deck:
+  # 成员卡 (48张)
+  members:
+    - card_code: "PL!-bp3-001-P"
+      count: 4
+    - card_code: "PL!-bp3-002-P"
+      count: 4
+    - card_code: "PL!-bp3-003-P"
+      count: 4
+    - card_code: "PL!-bp3-004-P+"
+      count: 4
+    - card_code: "PL!-bp3-005-P"
+      count: 4
+    - card_code: "PL!-bp3-006-P"
+      count: 4
+    - card_code: "PL!-bp3-007-P"
+      count: 4
+    - card_code: "PL!-bp3-008-P+"
+      count: 4
+    - card_code: "PL!-bp3-009-P+"
+      count: 4
+    - card_code: "PL!-bp3-010-N"
+      count: 4
+    - card_code: "PL!-bp3-011-N"
+      count: 4
+    - card_code: "PL!-bp3-012-N"
+      count: 4
+
+  # Live卡 (12张)
+  lives:
+    - card_code: "PL!-bp3-019-L"
+      count: 4
+    - card_code: "PL!-bp3-020-L"
+      count: 4
+    - card_code: "PL!-bp3-021-L"
+      count: 4
+
+# 能量卡组 (12张)
+energy_deck:
+  - card_code: "LL-E-003-SD"
+    count: 12
