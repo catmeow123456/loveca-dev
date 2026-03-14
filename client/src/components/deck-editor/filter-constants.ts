@@ -21,11 +21,11 @@ export const GROUP_OPTIONS = [
 
 /** 作品名 -> 小组名映射 */
 export const GROUP_UNIT_MAP: Record<string, readonly string[]> = {
-  'ラブライブ！': ['「Printemps」', '「BiBi」', '「Lily white」'],
-  'ラブライブ！サンシャイン!!': ['「CYaRon!」', '「AZALEA」', '「Guilty Kiss」'],
+  'ラブライブ！': ['「Printemps」', '「BiBi」', '「lilywhite」'],
+  'ラブライブ！サンシャイン!!': ['「CYaRon！」', '「AZALEA」', '「GuiltyKiss」'],
   'ラブライブ！虹ヶ咲学園スクールアイドル同好会': ['「A・ZU・NA」', '「QU4RTZ」', '「DiverDiva」', '「R3BIRTH」'],
   'ラブライブ！スーパースター!!': ['「CatChu!」', '「KALEIDOSCORE」', '「5yncri5e!」'],
-  '蓮ノ空女学院スクールアイドルクラブ': ['「Cerise Bouquet」', '「DOLLCHESTRA」', '「Mira-Cra Park!」', '「Edel Note」'],
+  '蓮ノ空女学院スクールアイドルクラブ': ['「スリーズブーケ」', '「DOLLCHESTRA」', '「みらくらぱーく！」', '「EdelNote」'],
   '其他': ['「AiScReam」', '「SaintSnow」', '「SunnyPassion」', '「A-RISE」']
 };
 
@@ -40,7 +40,7 @@ export const PRODUCT_OPTIONS = [
   'スタートデッキラブライブ！虹ヶ咲学園スクールアイドル同好会',
   'ブースターパック SAPPHIRE MOON',
   'プレミアムブースター ラブライブ！',
-  'ブースターパック　夏、はじめる。',
+  'ブースターパック夏、はじまる。',
   'スタートデッキラブライブ！',
   'プレミアムブースター ラブライブ！サンシャイン!!',
   'ブースターパック NEXT STEP',

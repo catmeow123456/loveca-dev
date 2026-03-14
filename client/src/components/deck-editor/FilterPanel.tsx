@@ -41,16 +41,14 @@ interface CategoryPill {
 export function FilterPanel({ filters }: FilterPanelProps) {
   const [expandedCategory, setExpandedCategory] = useState<FilterCategory | null>(null);
 
-  if (filters.selectedCardType === CardType.ENERGY) return null;
-
   const categories: CategoryPill[] = [
     { key: 'rarity', label: '稀有度', isActive: filters.selectedRarity !== null },
     { key: 'group', label: '作品名', isActive: filters.selectedGroup !== null },
     { key: 'product', label: '收录商品', isActive: filters.selectedProduct !== null },
     { key: 'unit', label: '小组', isActive: filters.selectedUnit !== null, showFor: [CardType.MEMBER] },
     { key: 'cost', label: '费用', isActive: filters.costMin !== COST_MIN || filters.costMax !== COST_MAX, showFor: [CardType.MEMBER] },
-    { key: 'heart', label: filters.selectedCardType === CardType.LIVE ? '需求心' : '持有心', isActive: filters.selectedHeartColor !== null },
-    { key: 'blade', label: '判心', isActive: filters.selectedBladeHeart !== null },
+    { key: 'heart', label: filters.selectedCardType === CardType.LIVE ? '需求心' : '持有心', isActive: filters.selectedHeartColor !== null, showFor: [CardType.MEMBER, CardType.LIVE] },
+    { key: 'blade', label: '判心', isActive: filters.selectedBladeHeart !== null, showFor: [CardType.MEMBER, CardType.LIVE] },
     { key: 'score', label: '分数', isActive: filters.scoreMin !== SCORE_MIN || filters.scoreMax !== SCORE_MAX, showFor: [CardType.LIVE] },
   ];
 

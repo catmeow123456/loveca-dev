@@ -99,7 +99,8 @@ export function useCardFilters(): UseCardFiltersReturn {
     }
   }, []);
 
-  const hasActiveFilters = selectedCardType !== CardType.ENERGY && (
+  // 能量卡支持的筛选：稀有度、作品名、收录商品
+  const hasActiveFilters =
     selectedRarity !== null ||
     selectedGroup !== null ||
     selectedProduct !== null ||
@@ -107,8 +108,7 @@ export function useCardFilters(): UseCardFiltersReturn {
     (selectedCardType === CardType.MEMBER && (costMin !== COST_MIN || costMax !== COST_MAX)) ||
     selectedHeartColor !== null ||
     selectedBladeHeart !== null ||
-    (selectedCardType === CardType.LIVE && (scoreMin !== SCORE_MIN || scoreMax !== SCORE_MAX))
-  );
+    (selectedCardType === CardType.LIVE && (scoreMin !== SCORE_MIN || scoreMax !== SCORE_MAX));
 
   const sortedCards = useMemo(() => {
     const allCards = Array.from(cardDataRegistry.values());
@@ -122,20 +122,27 @@ export function useCardFilters(): UseCardFiltersReturn {
       );
     }
 
+    // 稀有度、作品名、收录商品筛选适用于所有卡牌类型（包括能量卡）
+    if (selectedRarity) {
+      filtered = filtered.filter(card => getRarityFromCode(card.cardCode) === selectedRarity);
+    }
+
+    if (selectedGroup) {
+      // 使用包含匹配，支持联动卡牌（多个作品名用换行分隔）
+      filtered = filtered.filter(card => card.groupName?.includes(selectedGroup));
+    }
+
+    if (selectedProduct) {
+      // 去除所有空格后进行匹配（支持全角/半角空格差异）
+      const normalizedSelected = selectedProduct.replace(/\s/g, '');
+      filtered = filtered.filter(card => {
+        const normalizedCardProduct = (card.product || '').replace(/\s/g, '');
+        return normalizedCardProduct === normalizedSelected;
+      });
+    }
+
+    // 以下筛选仅适用于非能量卡
     if (selectedCardType !== CardType.ENERGY) {
-      if (selectedRarity) {
-        filtered = filtered.filter(card => getRarityFromCode(card.cardCode) === selectedRarity);
-      }
-
-      if (selectedGroup) {
-        // 使用包含匹配，支持联动卡牌（多个作品名用换行分隔）
-        filtered = filtered.filter(card => card.groupName?.includes(selectedGroup));
-      }
-
-      if (selectedProduct) {
-        filtered = filtered.filter(card => card.product === selectedProduct);
-      }
-
       if (selectedCardType === CardType.MEMBER && selectedUnit) {
         filtered = filtered.filter(card => card.unitName === selectedUnit);
       }
