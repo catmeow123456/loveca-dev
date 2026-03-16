@@ -42,6 +42,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@loveca.app}
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
     ports:
       - "127.0.0.1:3007:3007"

@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { AuthLayout } from './AuthLayout';
-import { isApiConfigured } from '@/lib/apiClient';
+import { isApiConfigured, isEmailEnabled } from '@/lib/apiClient';
 
 interface RegisterPageProps {
   onSwitchToLogin: () => void;
@@ -43,13 +43,13 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
       return false;
     }
     
-    if (!email.trim()) {
+    if (email.trim()) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setLocalError('请输入有效的邮箱地址');
+        return false;
+      }
+    } else if (isEmailEnabled) {
       setLocalError('请输入邮箱');
-      return false;
-    }
-    
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setLocalError('请输入有效的邮箱地址');
       return false;
     }
     
@@ -92,7 +92,10 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
 
   if (success) {
     return (
-      <AuthLayout title="注册成功！" subtitle="请查收验证邮件">
+      <AuthLayout
+        title="注册成功！"
+        subtitle={isEmailEnabled ? '请查收验证邮件' : '欢迎加入 Loveca'}
+      >
         <div className="text-center space-y-6">
           <motion.div
             initial={{ scale: 0 }}
@@ -102,12 +105,18 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
           >
             🎉
           </motion.div>
-          
-          <p className="text-orange-700/80">
-            我们已向 <span className="text-orange-600 font-medium">{email}</span> 发送了验证邮件，
-            请点击邮件中的链接完成注册。
-          </p>
-          
+
+          {isEmailEnabled ? (
+            <p className="text-orange-700/80">
+              我们已向 <span className="text-orange-600 font-medium">{email}</span> 发送了验证邮件，
+              请点击邮件中的链接完成注册。
+            </p>
+          ) : (
+            <p className="text-orange-700/80">
+              账号已创建成功，现在可以直接登录了。
+            </p>
+          )}
+
           <button
             onClick={onSwitchToLogin}
             className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-lg shadow-orange-400/30 hover:shadow-orange-400/50 transition-all duration-300"
@@ -154,7 +163,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
         {/* 邮箱输入 */}
         <div>
           <label className="block text-orange-700 text-sm font-medium mb-2">
-            邮箱 <span className="text-red-500">*</span>
+            邮箱 {isEmailEnabled ? <span className="text-red-500">*</span> : <span className="text-orange-400/60">(可选)</span>}
           </label>
           <input
             type="email"

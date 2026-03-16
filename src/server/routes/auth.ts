@@ -68,43 +68,44 @@ authRouter.post('/register', validate(registerSchema), async (req, res, next) =>
     const userEmail =
       email || `${username}@placeholder.loveca.local`;
 
-    // Check for existing username
-    const { rows: existingUsername } = await pool.query(
-      'SELECT id FROM profiles WHERE username = $1',
-      [username]
-    );
-    if (existingUsername.length > 0) {
-      res.status(409).json({
-        data: null,
-        error: { code: 'USERNAME_TAKEN', message: '用户名已被使用' },
-      });
-      return;
-    }
-
-    // Check for existing email
-    const { rows: existingEmail } = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [userEmail]
-    );
-    if (existingEmail.length > 0) {
-      res.status(409).json({
-        data: null,
-        error: { code: 'EMAIL_TAKEN', message: '邮箱已被注册' },
-      });
-      return;
-    }
-
     const passwordHash = await hashPassword(password);
 
-    // Create user + profile in transaction
+    // Create user + profile in a single atomic transaction
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
+      // Check uniqueness inside the transaction to avoid race conditions
+      const { rows: existingUsername } = await client.query(
+        'SELECT id FROM profiles WHERE username = $1',
+        [username]
+      );
+      if (existingUsername.length > 0) {
+        await client.query('ROLLBACK');
+        res.status(409).json({
+          data: null,
+          error: { code: 'USERNAME_TAKEN', message: '用户名已被使用' },
+        });
+        return;
+      }
+
+      const { rows: existingEmail } = await client.query(
+        'SELECT id FROM users WHERE email = $1',
+        [userEmail]
+      );
+      if (existingEmail.length > 0) {
+        await client.query('ROLLBACK');
+        res.status(409).json({
+          data: null,
+          error: { code: 'EMAIL_TAKEN', message: '邮箱已被注册' },
+        });
+        return;
+      }
+
       const { rows: userRows } = await client.query(
         `INSERT INTO users (email, password_hash, email_verified)
          VALUES ($1, $2, $3) RETURNING id`,
-        [userEmail, passwordHash, !email || !config.emailEnabled] // Auto-verify if no real email or email disabled
+        [userEmail, passwordHash, !config.emailEnabled || !email]
       );
       const userId = userRows[0].id;
 
