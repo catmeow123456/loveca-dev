@@ -21,7 +21,7 @@ export function DeckSidebar({ deck, validation, onAddCard, onRemoveCard, onViewD
   const energyCount = deck.energy_deck.reduce((sum, e) => sum + e.count, 0);
 
   return (
-    <div className="w-[360px] flex flex-col bg-gradient-to-b from-[#332c22] to-[#2a2420] border-l border-orange-300/10">
+    <div className="h-full w-[480px] flex flex-col bg-gradient-to-b from-[#332c22] to-[#2a2420] border-l border-orange-300/10">
       {/* 紧凑统计汇总 */}
       <div className="px-4 py-3 border-b border-orange-300/10 bg-[#3d3020]/50">
         <div className="flex items-center justify-between text-xs">
@@ -56,7 +56,7 @@ export function DeckSidebar({ deck, validation, onAddCard, onRemoveCard, onViewD
       </div>
 
       {/* 卡牌列表 */}
-      <div className="flex-1 overflow-y-auto p-3 cute-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3 no-scrollbar">
         <DeckSectionList
           entries={deck.main_deck.members}
           title="成员卡"

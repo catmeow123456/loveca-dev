@@ -143,8 +143,8 @@ interface CardEntry {
 **文件路径**: `client/src/components/deck/DeckManager.tsx`
 
 **职责**:
-- 卡组列表展示
-- 创建/编辑/删除卡组
+- 卡组列表展示（无卡组时显示推荐预设卡组入口）
+- 创建/编辑/删除卡组（支持从预设卡组快速创建）
 - YAML 导入/导出
 - 管理员下载图片功能
 
@@ -163,11 +163,12 @@ const [downloadingDeckId, setDownloadingDeckId] = useState<string | null>(null);
 
 ### 3.2 CardEditor（卡牌编辑器）
 
-**文件路径**: `client/src/components/common/CardEditor.tsx`
+**文件路径**: `client/src/components/deck-editor/CardEditor.tsx`
 
 **职责**:
+- 顶部全宽卡牌类型筛选栏（成员卡 / Live 卡 / 能量卡）
 - 左侧卡牌库展示（仅显示 PUBLISHED 状态的卡牌）
-- 右侧当前卡组列表（可折叠分区）
+- 右侧卡组预览侧边栏（响应式：≥960px 常驻，<960px 可折叠悬浮）
 - 高级筛选功能
 - 卡牌详情弹窗
 
@@ -205,7 +206,7 @@ const [collapsedSections, setCollapsedSections] = useState<Record<string, boolea
 
 **双向操作交互**:
 - 左侧卡牌库：未在卡组中的卡牌点击直接添加；已在卡组中的卡牌悬停时显示 `+` / `−` 按钮覆盖层
-- 右侧卡组预览：每个条目显示 `+` / `−` 按钮，取代原来的"点击整条删除"行为
+- 右侧卡组预览（`DeckSidebarCardCell`）：以 6 列图片网格展示，每张卡显示数量遮罩和底部 `+` / `−` 控制条
 
 **同基础编号计数同步**:
 左侧卡牌库的数量徽章通过 `baseCodeCountInDeck` 按基础编号聚合计算。同基础编号的不同稀有度变体卡牌显示相同的总数，帮助玩家直观了解同类卡的使用情况。添加卡牌时，系统按基础编号检查 4 张上限，达到上限后所有同基础编号的变体均无法继续添加。

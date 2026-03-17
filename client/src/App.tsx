@@ -167,7 +167,7 @@ function App() {
   // 游戏进行中
   if (effectivePage === 'game' && gameState) {
     return (
-      <div className="h-screen">
+      <div className="h-screen overflow-hidden">
         <GameBoard />
       </div>
     );

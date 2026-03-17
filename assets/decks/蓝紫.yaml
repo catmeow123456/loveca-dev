@@ -1,0 +1,46 @@
+player_name: 蓝紫
+description: "蓝紫"
+main_deck:
+  members:
+    - card_code: PL!N-bp4-017-N
+      count: 4
+    - card_code: PL!HS-bp2-004-P
+      count: 2
+    - card_code: PL!-pb1-020-N
+      count: 3
+    - card_code: PL!N-bp4-013-N
+      count: 2
+    - card_code: PL!HS-PR-023-PR
+      count: 4
+    - card_code: PL!N-bp1-003-P+
+      count: 3
+    - card_code: PL!N-bp3-009-R+
+      count: 3
+    - card_code: PL!N-bp3-020-N
+      count: 4
+    - card_code: PL!N-bp4-004-P+
+      count: 4
+    - card_code: PL!SP-bp2-016-N
+      count: 4
+    - card_code: PL!-bp3-012-N
+      count: 4
+    - card_code: PL!SP-sd1-019-SD
+      count: 4
+    - card_code: LL-bp4-001-R+
+      count: 1
+    - card_code: PL!N-bp3-004-P
+      count: 2
+    - card_code: PL!N-pb1-004-P+
+      count: 4
+  lives:
+    - card_code: PL!N-bp4-029-L
+      count: 3
+    - card_code: PL!N-bp3-032-L
+      count: 2
+    - card_code: PL!N-bp4-030-L
+      count: 4
+    - card_code: PL!N-bp4-025-L
+      count: 3
+energy_deck:
+  - count: 12
+    card_code: LL-E-003-SD

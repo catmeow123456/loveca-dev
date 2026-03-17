@@ -15,6 +15,7 @@ import { useAuthStore } from '@/store/authStore';
 import { CardEditor } from '@/components/deck-editor';
 import { calculateDeckStats, DeckStatsRow } from '@/components/common';
 import { isApiConfigured, type DeckRecord } from '@/lib/apiClient';
+import { PRESET_DECKS, type PresetDeck } from './preset-decks';
 import type { DeckConfig, CardEntry } from '@game/domain/card-data/deck-loader';
 import * as yaml from 'yaml';
 import JSZip from 'jszip';
@@ -178,6 +179,17 @@ export function DeckManager({ onBack }: DeckManagerProps) {
     setEditingDeck(null);
     setEditingDeckId(null);
     setSaveError(null);
+  };
+
+  const handleUsePreset = (preset: PresetDeck) => {
+    const deck = { ...preset.deck };
+    setEditingDeck(deck);
+    setEditingDeckId(null);
+    setDeckName(preset.name);
+    setDeckDescription(preset.description);
+    setSaveError(null);
+    initialSnapshot.current = JSON.stringify(deck);
+    setViewMode('edit');
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -387,20 +399,57 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                 </div>
               )}
 
-              {/* Empty State */}
+              {/* Empty State with Presets */}
               {!isLoadingCloud && cloudDecks.length === 0 && (
-                <div className="flex items-center justify-center py-20">
-                  <div className="text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl border-2 border-dashed border-orange-300/20 flex items-center justify-center">
-                      <Plus size={24} className="text-orange-300/30" />
-                    </div>
+                <div className="py-8">
+                  <div className="text-center mb-6">
                     <div className="text-orange-300/50 text-base mb-1">还没有卡组</div>
-                    <div className="text-orange-300/30 text-sm mb-5">创建你的第一个卡组开始游戏吧</div>
+                    <div className="text-orange-300/30 text-sm">从推荐卡组开始，或自由创建</div>
+                  </div>
+
+                  <div className="mb-3 text-orange-300/40 text-xs font-semibold tracking-wider">推荐卡组</div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-8">
+                    {PRESET_DECKS.map((preset) => {
+                      const memberCount = preset.deck.main_deck.members.reduce((s, e) => s + e.count, 0);
+                      const liveCount = preset.deck.main_deck.lives.reduce((s, e) => s + e.count, 0);
+                      const energyCount = preset.deck.energy_deck.reduce((s, e) => s + e.count, 0);
+                      return (
+                        <div
+                          key={preset.id}
+                          onClick={() => handleUsePreset(preset)}
+                          className="p-4 bg-[#3d3020]/50 rounded-xl border border-orange-300/15 hover:border-orange-300/35 hover:bg-[#3d3020]/70 transition-all duration-200 cursor-pointer group"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h3 className="text-base font-bold text-orange-100 mb-0.5">{preset.name}</h3>
+                              <p className="text-xs text-orange-300/50">{preset.description}</p>
+                            </div>
+                            <span className="ml-3 flex-shrink-0 text-xs px-2 py-0.5 bg-orange-500/15 text-orange-300 rounded-full border border-orange-400/20">
+                              {preset.tag}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 text-xs text-orange-300/40">
+                              <span>成员 {memberCount}/48</span>
+                              <span>Live {liveCount}/12</span>
+                              <span>能量 {energyCount}/12</span>
+                            </div>
+                            <span className="text-xs text-orange-400/50 group-hover:text-orange-300 transition-colors">
+                              使用此卡组 →
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="text-center">
                     <button
                       onClick={handleCreateNew}
                       className="px-6 py-2.5 bg-gradient-to-r from-orange-400 to-amber-400 text-white rounded-full font-bold text-sm transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/30"
                     >
-                      创建卡组
+                      <Plus size={14} className="inline mr-1.5 -mt-0.5" />
+                      从空白创建
                     </button>
                   </div>
                 </div>
@@ -518,32 +567,30 @@ export function DeckManager({ onBack }: DeckManagerProps) {
             exit={{ opacity: 0, x: -20 }}
             className="flex-1 flex flex-col overflow-hidden"
           >
-            {/* Edit Header - 上下布局 */}
-            <div className="px-4 py-3 bg-[#3d3020]/50 border-b border-orange-300/15">
-              <div className="flex items-start justify-between gap-4">
-                {/* 名称和描述（上下排列） */}
-                <div className="flex-1 space-y-2">
-                  <input
-                    type="text"
-                    placeholder="卡组名称"
-                    value={deckName}
-                    onChange={(e) => setDeckName(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-lg text-orange-100 text-base font-semibold placeholder-orange-300/40 focus:outline-none focus:border-orange-400/50 transition-all"
-                  />
-                  <input
-                    type="text"
-                    placeholder="卡组描述（可选）"
-                    value={deckDescription}
-                    onChange={(e) => setDeckDescription(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-[#2d2820]/60 border border-orange-300/15 rounded-lg text-orange-200/80 text-sm placeholder-orange-300/30 focus:outline-none focus:border-orange-400/40 transition-all"
-                  />
-                </div>
-
-                {/* 操作区 */}
-                <div className="flex items-center gap-2 flex-shrink-0 pt-1">
+            {/* Edit Header - 单行：名称 + 描述 + 操作按钮 */}
+            <div className="px-4 py-2.5 bg-[#3d3020]/50 border-b border-orange-300/15">
+              <div className="flex items-center gap-3">
+                {/* 卡组名称 */}
+                <input
+                  type="text"
+                  placeholder="卡组名称"
+                  value={deckName}
+                  onChange={(e) => setDeckName(e.target.value)}
+                  className="w-40 flex-shrink-0 px-3 py-1.5 bg-[#2d2820]/80 border border-orange-300/20 rounded-lg text-orange-100 text-sm font-semibold placeholder-orange-300/40 focus:outline-none focus:border-orange-400/50 transition-all"
+                />
+                {/* 卡组描述 */}
+                <input
+                  type="text"
+                  placeholder="卡组描述（可选）"
+                  value={deckDescription}
+                  onChange={(e) => setDeckDescription(e.target.value)}
+                  className="flex-1 px-3 py-1.5 bg-[#2d2820]/60 border border-orange-300/15 rounded-lg text-orange-200/80 text-sm placeholder-orange-300/30 focus:outline-none focus:border-orange-400/40 transition-all"
+                />
+                {/* 操作按钮 */}
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <button
                     onClick={handleExport}
-                    className="px-3 py-2 text-orange-300/60 hover:text-orange-300 hover:bg-orange-500/10 rounded-lg transition-colors border border-orange-300/15 hover:border-orange-300/30 text-sm flex items-center gap-1.5"
+                    className="px-3 py-1.5 text-orange-300/60 hover:text-orange-300 hover:bg-orange-500/10 rounded-lg transition-colors border border-orange-300/15 hover:border-orange-300/30 text-sm flex items-center gap-1.5"
                   >
                     <Download size={14} />
                     导出
@@ -551,7 +598,7 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                   <button
                     onClick={handleSave}
                     disabled={isSaving || !deckName.trim()}
-                    className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-1.5 ${
+                    className={`px-4 py-1.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-1.5 ${
                       isSaving || !deckName.trim()
                         ? 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
                         : 'bg-gradient-to-r from-green-400 to-emerald-400 text-white hover:shadow-lg hover:shadow-green-500/20'

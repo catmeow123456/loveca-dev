@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, Check, Circle } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '@/store/gameStore';
-import { DeckSidebarEntry } from './DeckSidebarEntry';
+import { DeckSidebarCardCell } from './DeckSidebarCardCell';
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { CardEntry } from '@game/domain/card-data/deck-loader';
 
@@ -82,21 +82,21 @@ export function DeckSectionList({
       </div>
 
       {/* 可折叠内容 */}
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {!collapsed && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.15 }}
+            initial={{ height: 0 }}
+            animate={{ height: 'auto' }}
+            exit={{ height: 0 }}
+            transition={{ type: 'tween', duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="space-y-1.5 mt-2 pl-1">
+            <div className="grid grid-cols-6 gap-1 mt-2">
               {entries.map((entry) => {
                 const cardData = getCardData(entry.card_code);
                 if (!cardData) return null;
                 return (
-                  <DeckSidebarEntry
+                  <DeckSidebarCardCell
                     key={entry.card_code}
                     cardData={cardData}
                     imagePath={getCardImagePath(entry.card_code)}
@@ -108,7 +108,7 @@ export function DeckSectionList({
                 );
               })}
               {entries.length === 0 && (
-                <div className="text-center py-3 rounded-lg bg-[#2d2820]/30 border border-dashed border-orange-300/15">
+                <div className="col-span-6 text-center py-3 rounded-lg bg-[#2d2820]/30 border border-dashed border-orange-300/15">
                   <div className="text-orange-300/30 text-xs">点击左侧卡牌添加</div>
                 </div>
               )}
