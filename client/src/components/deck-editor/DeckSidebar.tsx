@@ -2,8 +2,10 @@
  * DeckSidebar - 卡组预览右侧面板
  */
 
-import { Users, Music, Zap, AlertTriangle, CheckCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Users, Music, Zap, AlertTriangle, CheckCircle, BarChart2, List } from 'lucide-react';
 import { DeckSectionList } from './DeckSectionList';
+import { DeckAnalysisPanel } from './DeckAnalysisPanel';
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
 
@@ -16,6 +18,7 @@ interface DeckSidebarProps {
 }
 
 export function DeckSidebar({ deck, validation, onAddCard, onRemoveCard, onViewDetail }: DeckSidebarProps) {
+  const [showAnalysis, setShowAnalysis] = useState(false);
   const memberCount = deck.main_deck.members.reduce((sum, e) => sum + e.count, 0);
   const liveCount = deck.main_deck.lives.reduce((sum, e) => sum + e.count, 0);
   const energyCount = deck.energy_deck.reduce((sum, e) => sum + e.count, 0);
@@ -45,73 +48,90 @@ export function DeckSidebar({ deck, validation, onAddCard, onRemoveCard, onViewD
               </span>
             </div>
           </div>
-          <span className={`text-xs px-2 py-0.5 rounded-full border ${
-            validation.valid
-              ? 'bg-green-500/15 text-green-300 border-green-400/30'
-              : 'bg-orange-500/15 text-orange-300 border-orange-400/30'
-          }`}>
-            {validation.valid ? '完整' : '未完成'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-2 py-0.5 rounded-full border ${
+              validation.valid
+                ? 'bg-green-500/15 text-green-300 border-green-400/30'
+                : 'bg-orange-500/15 text-orange-300 border-orange-400/30'
+            }`}>
+              {validation.valid ? '完整' : '未完成'}
+            </span>
+            <button
+              onClick={() => setShowAnalysis(v => !v)}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs transition-colors duration-150 ${
+                showAnalysis
+                  ? 'bg-orange-500/20 text-orange-200 border-orange-400/40'
+                  : 'bg-[#3d3020]/60 text-orange-300/60 border-orange-300/20 hover:text-orange-200 hover:border-orange-400/30'
+              }`}
+            >
+              {showAnalysis ? <List size={11} /> : <BarChart2 size={11} />}
+              <span>{showAnalysis ? '卡牌列表' : '数据分析'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 卡牌列表 */}
-      <div className="flex-1 overflow-y-auto p-3 no-scrollbar">
-        <DeckSectionList
-          entries={deck.main_deck.members}
-          title="成员卡"
-          expectedCount={48}
-          accentColor="orange"
-          onAddCard={onAddCard}
-          onRemoveCard={onRemoveCard}
-          onViewDetail={onViewDetail}
-        />
-        <DeckSectionList
-          entries={deck.main_deck.lives}
-          title="Live 卡"
-          expectedCount={12}
-          accentColor="rose"
-          onAddCard={onAddCard}
-          onRemoveCard={onRemoveCard}
-          onViewDetail={onViewDetail}
-        />
-        <DeckSectionList
-          entries={deck.energy_deck}
-          title="能量卡"
-          expectedCount={12}
-          accentColor="sky"
-          onAddCard={onAddCard}
-          onRemoveCard={onRemoveCard}
-          onViewDetail={onViewDetail}
-        />
+      {/* 内容区：卡牌列表 / 数据分析 */}
+      {showAnalysis ? (
+        <DeckAnalysisPanel deck={deck} />
+      ) : (
+        <div className="flex-1 overflow-y-auto p-3 no-scrollbar">
+          <DeckSectionList
+            entries={deck.main_deck.members}
+            title="成员卡"
+            expectedCount={48}
+            accentColor="orange"
+            onAddCard={onAddCard}
+            onRemoveCard={onRemoveCard}
+            onViewDetail={onViewDetail}
+          />
+          <DeckSectionList
+            entries={deck.main_deck.lives}
+            title="Live 卡"
+            expectedCount={12}
+            accentColor="rose"
+            onAddCard={onAddCard}
+            onRemoveCard={onRemoveCard}
+            onViewDetail={onViewDetail}
+          />
+          <DeckSectionList
+            entries={deck.energy_deck}
+            title="能量卡"
+            expectedCount={12}
+            accentColor="sky"
+            onAddCard={onAddCard}
+            onRemoveCard={onRemoveCard}
+            onViewDetail={onViewDetail}
+          />
 
-        {/* 验证错误 */}
-        {validation.errors.length > 0 && (
-          <div className="mt-3 p-3 bg-red-500/10 border border-red-400/20 rounded-xl">
-            <div className="flex items-center gap-2 text-red-300 text-xs font-semibold mb-2">
-              <AlertTriangle size={12} />
-              <span>卡组不完整</span>
+          {/* 验证错误 */}
+          {validation.errors.length > 0 && (
+            <div className="mt-3 p-3 bg-red-500/10 border border-red-400/20 rounded-xl">
+              <div className="flex items-center gap-2 text-red-300 text-xs font-semibold mb-2">
+                <AlertTriangle size={12} />
+                <span>卡组不完整</span>
+              </div>
+              <ul className="space-y-1">
+                {validation.errors.map((err, i) => (
+                  <li key={i} className="text-xs text-red-300/70 pl-4 relative before:content-['•'] before:absolute before:left-1 before:text-red-400/50">
+                    {err}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="space-y-1">
-              {validation.errors.map((err, i) => (
-                <li key={i} className="text-xs text-red-300/70 pl-4 relative before:content-['•'] before:absolute before:left-1 before:text-red-400/50">
-                  {err}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+          )}
 
-        {/* 验证成功 */}
-        {validation.valid && (
-          <div className="mt-3 p-3 bg-green-500/10 border border-green-400/20 rounded-xl">
-            <div className="flex items-center gap-2 text-green-300 text-xs font-medium">
-              <CheckCircle size={12} />
-              <span>卡组完整！</span>
+          {/* 验证成功 */}
+          {validation.valid && (
+            <div className="mt-3 p-3 bg-green-500/10 border border-green-400/20 rounded-xl">
+              <div className="flex items-center gap-2 text-green-300 text-xs font-medium">
+                <CheckCircle size={12} />
+                <span>卡组完整！</span>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
