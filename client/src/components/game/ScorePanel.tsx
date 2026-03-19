@@ -9,7 +9,7 @@ import { memo, useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
-import { SubPhase } from '@game/shared/types/enums';
+import { SubPhase, GameMode } from '@game/shared/types/enums';
 import { useGameStore } from '@/store/gameStore';
 import type { LiveCardData } from '@game/domain/entities/card';
 
@@ -150,6 +150,7 @@ export const ScorePanel = memo(function ScorePanel({
   // 状态选择器
   const gameState = useGameStore((s) => s.gameState);
   const viewingPlayerId = useGameStore((s) => s.viewingPlayerId);
+  const gameMode = useGameStore((s) => s.gameMode);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
   const { confirmScore, confirmSubPhase, getCardInstance } = useGameStore(
@@ -272,6 +273,22 @@ export const ScorePanel = memo(function ScorePanel({
   if (!shouldShow || !player1 || !player2) return null;
 
   const isMyTurn = viewingPlayerId === player1.id || viewingPlayerId === player2.id;
+  const isSolitaire = gameMode === GameMode.SOLITAIRE;
+
+  // 对墙打模式：确定己方玩家
+  const selfPlayer = isSolitaire
+    ? (viewingPlayerId === player1.id ? player1 : player2)
+    : null;
+  const selfScore = selfPlayer
+    ? viewingPlayerId === player1.id
+      ? player1Score
+      : player2Score
+    : 0;
+  const selfWinner = isSolitaire && (winner === 'player1' || winner === 'both')
+    ? viewingPlayerId === player1.id
+    : isSolitaire && (winner === 'player2' || winner === 'both')
+    ? viewingPlayerId === player2.id
+    : false;
 
   return (
     <AnimatePresence>
@@ -294,56 +311,112 @@ export const ScorePanel = memo(function ScorePanel({
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-full max-w-md"
           >
-            <div className="bg-slate-900 rounded-xl border border-slate-700 shadow-2xl overflow-hidden">
+            <div className={cn(
+              'rounded-xl border shadow-2xl overflow-hidden',
+              isSolitaire
+                ? 'bg-purple-950 border-purple-700'
+                : 'bg-slate-900 border-slate-700'
+            )}>
               {/* 标题栏 */}
-              <div className="px-6 py-4 border-b border-slate-700 bg-rose-500/10">
+              <div className={cn(
+                'px-6 py-4 border-b',
+                isSolitaire
+                  ? 'border-purple-700 bg-purple-500/10'
+                  : 'border-slate-700 bg-rose-500/10'
+              )}>
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">🧮</span>
-                  <h2 className="text-lg font-bold text-white">Live 分数确认</h2>
+                  <span className="text-2xl">{isSolitaire ? '🎯' : '🧮'}</span>
+                  <h2 className="text-lg font-bold text-white">
+                    {isSolitaire ? 'Live 判定结果' : 'Live 分数确认'}
+                  </h2>
                 </div>
               </div>
 
               {/* 内容区域 */}
               <div className="px-6 py-4">
-                {/* 分数对比 */}
-                <div className="flex gap-4">
-                  <PlayerScoreCard
-                    playerName={player1.name}
-                    baseScore={calculateBaseScore(player1.id)}
-                    bonusScore={calculateBonusScore(player1.id)}
-                    adjustedScore={player1Score}
-                    isWinner={winner === 'player1' || winner === 'both'}
-                    canEdit={isMyTurn && viewingPlayerId === player1.id}
-                    onScoreChange={setPlayer1Score}
-                  />
-                  <div className="flex items-center text-2xl font-bold text-slate-500">
-                    VS
-                  </div>
-                  <PlayerScoreCard
-                    playerName={player2.name}
-                    baseScore={calculateBaseScore(player2.id)}
-                    bonusScore={calculateBonusScore(player2.id)}
-                    adjustedScore={player2Score}
-                    isWinner={winner === 'player2' || winner === 'both'}
-                    canEdit={isMyTurn && viewingPlayerId === player2.id}
-                    onScoreChange={setPlayer2Score}
-                  />
-                </div>
+                {isSolitaire && selfPlayer ? (
+                  /* ===== 对墙打模式简化版 ===== */
+                  <div>
+                    {/* 己方分数（居中显示） */}
+                    <div className="flex justify-center">
+                      <div className={cn(
+                        'w-48 p-5 rounded-lg border text-center',
+                        selfWinner
+                          ? 'bg-emerald-500/10 border-emerald-500/50'
+                          : 'bg-slate-800/50 border-slate-700/50'
+                      )}>
+                        <div className="text-sm text-slate-400 mb-1">{selfPlayer.name}</div>
+                        <div className="text-4xl font-bold text-white mb-2">
+                          <input
+                            type="number"
+                            value={selfScore}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              if (viewingPlayerId === player1.id) setPlayer1Score(val);
+                              else setPlayer2Score(val);
+                            }}
+                            className="w-24 text-center bg-slate-700 rounded border border-slate-600 focus:border-purple-500 focus:outline-none"
+                          />
+                        </div>
+                        {selfWinner && (
+                          <div className="text-emerald-400 font-bold text-sm">
+                            🏆 自动胜出
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
-                {/* 胜者选择 */}
-                <WinnerSelection
-                  player1Name={player1.name}
-                  player2Name={player2.name}
-                  winner={winner}
-                  onWinnerChange={setWinner}
-                />
-
-                {/* 提示 */}
-                <div className="mt-4 p-3 bg-amber-500/10 rounded-lg border border-amber-500/30">
-                  <div className="text-xs text-amber-400">
-                    💡 分数可手动调整（因卡牌效果可能影响分数）
+                    {/* 提示 */}
+                    <div className="mt-4 p-3 bg-purple-500/10 rounded-lg border border-purple-500/30">
+                      <div className="text-xs text-purple-300">
+                        💡 分数可手动调整（因卡牌效果可能影响分数）。有成功 Live 卡则自动判定胜出。
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  /* ===== 调试模式完整版 ===== */
+                  <div>
+                    {/* 分数对比 */}
+                    <div className="flex gap-4">
+                      <PlayerScoreCard
+                        playerName={player1.name}
+                        baseScore={calculateBaseScore(player1.id)}
+                        bonusScore={calculateBonusScore(player1.id)}
+                        adjustedScore={player1Score}
+                        isWinner={winner === 'player1' || winner === 'both'}
+                        canEdit={isMyTurn && viewingPlayerId === player1.id}
+                        onScoreChange={setPlayer1Score}
+                      />
+                      <div className="flex items-center text-2xl font-bold text-slate-500">
+                        VS
+                      </div>
+                      <PlayerScoreCard
+                        playerName={player2.name}
+                        baseScore={calculateBaseScore(player2.id)}
+                        bonusScore={calculateBonusScore(player2.id)}
+                        adjustedScore={player2Score}
+                        isWinner={winner === 'player2' || winner === 'both'}
+                        canEdit={isMyTurn && viewingPlayerId === player2.id}
+                        onScoreChange={setPlayer2Score}
+                      />
+                    </div>
+
+                    {/* 胜者选择 */}
+                    <WinnerSelection
+                      player1Name={player1.name}
+                      player2Name={player2.name}
+                      winner={winner}
+                      onWinnerChange={setWinner}
+                    />
+
+                    {/* 提示 */}
+                    <div className="mt-4 p-3 bg-amber-500/10 rounded-lg border border-amber-500/30">
+                      <div className="text-xs text-amber-400">
+                        💡 分数可手动调整（因卡牌效果可能影响分数）
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 按钮区域 */}
@@ -362,9 +435,10 @@ export const ScorePanel = memo(function ScorePanel({
                   onClick={handleConfirm}
                   className={cn(
                     'flex-1 py-2.5 rounded-lg text-sm font-bold',
-                    'bg-gradient-to-r from-rose-500 to-pink-500',
-                    'hover:from-rose-400 hover:to-pink-400',
-                    'text-white shadow-lg transition-colors'
+                    'text-white shadow-lg transition-colors',
+                    isSolitaire
+                      ? 'bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-400 hover:to-violet-400'
+                      : 'bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400'
                   )}
                 >
                   ✅ 确认分数

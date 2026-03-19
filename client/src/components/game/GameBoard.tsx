@@ -27,7 +27,7 @@ import { Card } from '@/components/card/Card';
 import { MulliganPanel } from './MulliganPanel';
 import { getDeckBackUrl } from '@/lib/imageService';
 import { parseZoneId, findCardZone } from '@/lib/zoneUtils';
-import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType } from '@game/shared/types/enums';
+import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType, GameMode } from '@game/shared/types/enums';
 import type { AnyCardData } from '@game/domain/entities/card';
 
 export const GameBoard = memo(function GameBoard() {
@@ -43,6 +43,7 @@ export const GameBoard = memo(function GameBoard() {
   // 状态选择器
   const gameState = useGameStore((s) => s.gameState);
   const viewingPlayerId = useGameStore((s) => s.viewingPlayerId);
+  const gameMode = useGameStore((s) => s.gameMode);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
   const { setLiveCard, addLog, manualMoveCard, setDragHints } = useGameStore(
@@ -225,10 +226,30 @@ export const GameBoard = memo(function GameBoard() {
         }
       }
 
-      // LIVE卡移动限制：不能放入成员区
+      // LIVE卡移动限制：不能放入成员区和能量区和能量卡组
       if (cardInstance?.data.cardType === CardType.LIVE) {
         if (toZone === ZoneType.MEMBER_SLOT) {
           addLog('LIVE卡不能放入成员区', 'error');
+          return;
+        }
+        if (toZone === ZoneType.ENERGY_ZONE) {
+          addLog('LIVE卡不能放入能量区', 'error');
+          return;
+        }
+        if (toZone === ZoneType.ENERGY_DECK) {
+          addLog('LIVE卡不能放入能量卡组', 'error');
+          return;
+        }
+      }
+
+      // 成员卡移动限制：不能放入能量区和能量卡组
+      if (cardInstance?.data.cardType === CardType.MEMBER) {
+        if (toZone === ZoneType.ENERGY_ZONE) {
+          addLog('成员卡不能放入能量区', 'error');
+          return;
+        }
+        if (toZone === ZoneType.ENERGY_DECK) {
+          addLog('成员卡不能放入能量卡组', 'error');
           return;
         }
       }
@@ -322,6 +343,7 @@ export const GameBoard = memo(function GameBoard() {
   const selfIndex = gameState.players.findIndex((p) => p.id === viewingPlayerId);
   const self = gameState.players[selfIndex] ?? gameState.players[0];
   const opponent = gameState.players[selfIndex === 0 ? 1 : 0];
+  const isSolitaire = gameMode === GameMode.SOLITAIRE;
 
   return (
     <DndContext
@@ -343,7 +365,11 @@ export const GameBoard = memo(function GameBoard() {
         }}
       >
         {/* 对手区域 (顶部) - 包含成员槽位和对手 Live 区 */}
-        <div className="flex-[5] min-h-0 overflow-hidden">
+        <div
+          className={`flex-[5] min-h-0 overflow-hidden relative ${
+            isSolitaire ? 'opacity-[0.12] pointer-events-none' : ''
+          }`}
+        >
           <PlayerArea
             player={opponent}
             isOpponent={true}
@@ -352,9 +378,21 @@ export const GameBoard = memo(function GameBoard() {
           />
         </div>
 
-        {/* VS 分隔线 (中央) - 简化为视觉分隔 */}
-        <div className="flex-shrink-0 h-[32px] flex items-center justify-center relative border-y border-slate-700/50 bg-slate-800/30">
-          <span className="text-rose-500 font-bold text-lg px-4">VS</span>
+        {/* VS 分隔线 (中央) - 对墙打模式下弱化 */}
+        <div
+          className={`flex-shrink-0 h-[32px] flex items-center justify-center relative border-y ${
+            isSolitaire
+              ? 'border-slate-700/20 bg-slate-800/10'
+              : 'border-slate-700/50 bg-slate-800/30'
+          }`}
+        >
+          <span
+            className={`font-bold text-lg px-4 ${
+              isSolitaire ? 'text-slate-600/40' : 'text-rose-500'
+            }`}
+          >
+            VS
+          </span>
         </div>
 
         {/* 己方区域 (底部) - 包含己方 Live 区和成员槽位 */}

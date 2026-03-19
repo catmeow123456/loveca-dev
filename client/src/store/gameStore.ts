@@ -31,7 +31,7 @@ import {
   createUndoOperationAction,
   createPerformCheerAction,
 } from '@game/application/actions';
-import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType } from '@game/shared/types/enums';
+import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType, GameMode } from '@game/shared/types/enums';
 import { getCardById, getActivePlayer } from '@game/domain/entities/game';
 import { getPhaseName } from '@game/shared/phase-config';
 import { resolveCardImagePath } from '@/lib/imageService';
@@ -66,8 +66,6 @@ export interface UIState {
   inputRequestType: string | null;
   /** 游戏日志 */
   logs: GameLog[];
-  /** 调试模式（允许操作任意玩家） */
-  debugMode: boolean;
 }
 
 export interface GameStore {
@@ -78,6 +76,8 @@ export interface GameStore {
   cardDataRegistry: Map<string, AnyCardData>;
   /** 游戏会话实例（服务器角色） */
   gameSession: GameSession;
+  /** 当前游戏模式 */
+  gameMode: GameMode;
   /** UI 状态 */
   ui: UIState;
   /** 当前视角玩家 ID */
@@ -130,6 +130,8 @@ export interface GameStore {
   syncState: () => void;
   /** 设置拖拽提示状态（高亮推荐区域/变暗其他区域） */
   setDragHints: (isDragging: boolean, highlightedZones?: string[]) => void;
+  /** 设置游戏模式（支持游戏内切换） */
+  setGameMode: (mode: GameMode) => void;
 
   // ============ 查询辅助 ============
   /** 根据 instanceId 获取卡牌实例 */
@@ -180,6 +182,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     gameState: null,
     cardDataRegistry: new Map(),
     gameSession,
+    gameMode: GameMode.DEBUG,
     viewingPlayerId: null,
     ui: {
       selectedCardId: null,
@@ -191,7 +194,6 @@ export const useGameStore = create<GameStore>((set, get) => {
       waitingForInput: false,
       inputRequestType: null,
       logs: [],
-      debugMode: true, // 默认启用调试模式
     },
 
     // ============ 动作实现 ============
@@ -468,6 +470,16 @@ export const useGameStore = create<GameStore>((set, get) => {
             highlightedZones ?? (isDragging ? state.ui.highlightedZones : []),
         },
       }));
+    },
+
+    setGameMode: (mode) => {
+      const { gameSession } = get();
+      // 同步更新 store 和 session 的模式
+      gameSession.gameMode = mode;
+      set({ gameMode: mode });
+      get().addLog(`切换游戏模式: ${mode === GameMode.SOLITAIRE ? '对墙打' : '调试'}`, 'info');
+      // 同步状态以反映模式变更
+      get().syncState();
     },
 
     syncState: () => {
