@@ -8,13 +8,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Plus, Upload, Download, Save, Trash2,
   Pencil, Loader2, AlertTriangle, Wifi, WifiOff, Package,
-  Check, Circle, Zap,
+  Check, Circle, Zap, Globe,
 } from 'lucide-react';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
+import { useGameStore } from '@/store/gameStore';
+import { CardType } from '@game/shared/types/enums';
+import { apiClient, isApiConfigured, type DeckRecord } from '@/lib/apiClient';
 import { CardEditor } from '@/components/deck-editor';
 import { calculateDeckStats, DeckStatsRow } from '@/components/common';
-import { isApiConfigured, type DeckRecord } from '@/lib/apiClient';
 import { PRESET_DECKS, type PresetDeck } from './preset-decks';
 import type { DeckConfig, CardEntry } from '@game/domain/card-data/deck-loader';
 import * as yaml from 'yaml';
@@ -81,6 +83,15 @@ export function DeckManager({ onBack }: DeckManagerProps) {
   const isAdmin = profile?.role === 'admin';
 
   const [downloadingDeckId, setDownloadingDeckId] = useState<string | null>(null);
+
+  // DeckLog 导入
+  const [showDecklogDialog, setShowDecklogDialog] = useState(false);
+  const [decklogInput, setDecklogInput] = useState('');
+  const [decklogLoading, setDecklogLoading] = useState(false);
+  const [decklogError, setDecklogError] = useState<string | null>(null);
+  const [decklogWarnings, setDecklogWarnings] = useState<string[]>([]);
+
+  const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
 
   useEffect(() => {
     fetchCloudDecks();
@@ -219,6 +230,85 @@ export function DeckManager({ onBack }: DeckManagerProps) {
     e.target.value = '';
   };
 
+  const handleDecklogImport = async () => {
+    if (!decklogInput.trim()) {
+      setDecklogError('请输入 DeckLog 卡组 ID 或 URL');
+      return;
+    }
+
+    if (!isApiConfigured) {
+      setDecklogError('需要连接后端服务才能使用此功能');
+      return;
+    }
+
+    setDecklogLoading(true);
+    setDecklogError(null);
+    setDecklogWarnings([]);
+
+    try {
+      const result = await apiClient.post<{
+        cards: { card_code: string; count: number; raw_code: string }[];
+        deckName: string;
+      }>('/api/decks/scrape-decklog', { deck_id: decklogInput.trim() });
+
+      if (!result.data) {
+        setDecklogError(result.error?.message || '爬取失败');
+        return;
+      }
+
+      const { cards, deckName: scrapedName } = result.data;
+      const members: CardEntry[] = [];
+      const lives: CardEntry[] = [];
+      const energyDeck: CardEntry[] = [];
+      const warnings: string[] = [];
+
+      for (const card of cards) {
+        const cardData = cardDataRegistry.get(card.card_code);
+        if (!cardData) {
+          warnings.push(`未找到卡牌: ${card.card_code} (${card.raw_code})`);
+          continue;
+        }
+
+        const entry: CardEntry = { card_code: card.card_code, count: card.count };
+        if (cardData.cardType === CardType.MEMBER) {
+          members.push(entry);
+        } else if (cardData.cardType === CardType.LIVE) {
+          lives.push(entry);
+        } else if (cardData.cardType === CardType.ENERGY) {
+          energyDeck.push(entry);
+        }
+      }
+
+      if (members.length === 0 && lives.length === 0 && energyDeck.length === 0) {
+        setDecklogError('没有匹配到任何已知卡牌，请检查卡牌数据是否已加载');
+        return;
+      }
+
+      setDecklogWarnings(warnings);
+
+      const deck: DeckConfig = {
+        player_name: scrapedName || 'DeckLog 导入',
+        description: `从 DeckLog 导入 (${decklogInput.trim()})`,
+        main_deck: { members, lives },
+        energy_deck: energyDeck,
+      };
+
+      setEditingDeck(deck);
+      setEditingDeckId(null);
+      setDeckName(deck.player_name || 'DeckLog 导入');
+      setDeckDescription(deck.description || '');
+      setSaveError(null);
+      initialSnapshot.current = JSON.stringify(deck);
+      setViewMode('edit');
+      setShowDecklogDialog(false);
+      setDecklogInput('');
+    } catch {
+      setDecklogError('请求失败，请检查网络连接');
+    } finally {
+      setDecklogLoading(false);
+    }
+  };
+
   const handleExport = () => {
     if (!editingDeck) return;
 
@@ -353,6 +443,13 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                   共 {cloudDecks.length} 个卡组
                 </div>
                 <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { setShowDecklogDialog(true); setDecklogError(null); setDecklogWarnings([]); }}
+                    className="px-4 py-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 rounded-full text-sm font-medium transition-all duration-200 border border-orange-300/30 hover:border-orange-300/50 flex items-center gap-1.5"
+                  >
+                    <Globe size={14} />
+                    从 DeckLog 导入
+                  </button>
                   <label className="px-4 py-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 rounded-full text-sm font-medium transition-all duration-200 cursor-pointer border border-orange-300/30 hover:border-orange-300/50 flex items-center gap-1.5">
                     <Upload size={14} />
                     导入 YAML
@@ -637,6 +734,67 @@ export function DeckManager({ onBack }: DeckManagerProps) {
           </motion.main>
         )}
       </AnimatePresence>
+
+      {/* DeckLog 导入对话框 */}
+      {showDecklogDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#2d2820] border border-orange-300/20 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            <h2 className="text-lg font-bold text-orange-100 mb-1">从 DeckLog 导入</h2>
+            <p className="text-sm text-orange-300/50 mb-4">输入 DeckLog 卡组 ID 或完整 URL</p>
+
+            <input
+              type="text"
+              placeholder="例如: 2D6XL 或 https://decklog.bushiroad.com/view/2D6XL"
+              value={decklogInput}
+              onChange={(e) => { setDecklogInput(e.target.value); setDecklogError(null); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !decklogLoading) handleDecklogImport(); }}
+              className="w-full px-4 py-2.5 bg-[#1f1a15] border border-orange-300/20 rounded-xl text-orange-100 text-sm placeholder-orange-300/30 focus:outline-none focus:border-orange-400/50 transition-all mb-3"
+              autoFocus
+            />
+
+            {decklogError && (
+              <div className="flex items-center gap-2 text-red-300 text-xs mb-3 p-2 bg-red-500/10 rounded-lg">
+                <AlertTriangle size={12} />
+                <span>{decklogError}</span>
+              </div>
+            )}
+
+            {decklogWarnings.length > 0 && (
+              <div className="mb-3 p-2 bg-amber-500/10 border border-amber-400/20 rounded-lg">
+                <div className="text-xs text-amber-300 mb-1">以下卡牌未匹配到本地数据：</div>
+                <ul className="text-xs text-amber-300/70 space-y-0.5 max-h-24 overflow-y-auto">
+                  {decklogWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 mt-2">
+              <button
+                onClick={() => setShowDecklogDialog(false)}
+                className="px-4 py-2 text-orange-300/60 hover:text-orange-300 rounded-lg text-sm transition-colors"
+                disabled={decklogLoading}
+              >
+                取消
+              </button>
+              <button
+                onClick={handleDecklogImport}
+                disabled={decklogLoading || !decklogInput.trim()}
+                className={`px-5 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-1.5 ${
+                  decklogLoading || !decklogInput.trim()
+                    ? 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-orange-400 to-amber-400 text-white hover:shadow-lg hover:shadow-orange-500/20'
+                }`}
+              >
+                {decklogLoading ? (
+                  <><Loader2 size={14} className="animate-spin" /> 爬取中...</>
+                ) : (
+                  <><Globe size={14} /> 导入</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

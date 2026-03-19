@@ -92,10 +92,9 @@ cardsRouter.get('/status-map', requireAuth, requireAdmin, async (_req, res, next
 cardsRouter.get('/:code', async (req, res, next) => {
   try {
     const isAdmin = req.user?.role === 'admin';
-    const { rows } = await pool.query(
-      'SELECT * FROM cards WHERE card_code = $1',
-      [req.params.code]
-    );
+    const { rows } = await pool.query('SELECT * FROM cards WHERE card_code = $1', [
+      req.params.code,
+    ]);
 
     if (rows.length === 0) {
       res.status(404).json({
@@ -144,33 +143,49 @@ const createCardSchema = z.object({
   status: z.enum(['DRAFT', 'PUBLISHED']).optional(),
 });
 
-cardsRouter.post('/', requireAuth, requireAdmin, validate(createCardSchema), async (req, res, next) => {
-  try {
-    const b = req.body;
-    const { rows } = await pool.query(
-      `INSERT INTO cards (
+cardsRouter.post(
+  '/',
+  requireAuth,
+  requireAdmin,
+  validate(createCardSchema),
+  async (req, res, next) => {
+    try {
+      const b = req.body;
+      const { rows } = await pool.query(
+        `INSERT INTO cards (
         card_code, card_type, name, group_name, unit_name,
         cost, blade, hearts, blade_heart, blade_hearts,
         score, requirements, card_text, image_filename,
         rare, product, status, updated_by
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
       RETURNING *`,
-      [
-        b.card_code, b.card_type, b.name, b.group_name ?? null, b.unit_name ?? null,
-        b.cost ?? null, b.blade ?? null,
-        JSON.stringify(b.hearts ?? []), b.blade_heart ? JSON.stringify(b.blade_heart) : null,
-        b.blade_hearts ? JSON.stringify(b.blade_hearts) : null,
-        b.score ?? null, JSON.stringify(b.requirements ?? []),
-        b.card_text ?? null, b.image_filename ?? null,
-        b.rare ?? null, b.product ?? null, b.status ?? 'DRAFT',
-        req.user!.id,
-      ]
-    );
-    res.status(201).json({ data: rows[0], error: null });
-  } catch (err) {
-    next(err);
+        [
+          b.card_code,
+          b.card_type,
+          b.name,
+          b.group_name ?? null,
+          b.unit_name ?? null,
+          b.cost ?? null,
+          b.blade ?? null,
+          JSON.stringify(b.hearts ?? []),
+          b.blade_heart ? JSON.stringify(b.blade_heart) : null,
+          b.blade_hearts ? JSON.stringify(b.blade_hearts) : null,
+          b.score ?? null,
+          JSON.stringify(b.requirements ?? []),
+          b.card_text ?? null,
+          b.image_filename ?? null,
+          b.rare ?? null,
+          b.product ?? null,
+          b.status ?? 'DRAFT',
+          req.user!.id,
+        ]
+      );
+      res.status(201).json({ data: rows[0], error: null });
+    } catch (err) {
+      next(err);
+    }
   }
-});
+);
 
 // ============================================
 // PUT /api/cards/:code
@@ -185,19 +200,29 @@ cardsRouter.put('/:code', requireAuth, requireAdmin, async (req, res, next) => {
 
     // Dynamically build SET clause from provided fields
     const allowedFields = [
-      'card_type', 'name', 'group_name', 'unit_name',
-      'cost', 'blade', 'hearts', 'blade_heart', 'blade_hearts',
-      'score', 'requirements', 'card_text', 'image_filename',
-      'rare', 'product', 'status',
+      'card_type',
+      'name',
+      'group_name',
+      'unit_name',
+      'cost',
+      'blade',
+      'hearts',
+      'blade_heart',
+      'blade_hearts',
+      'score',
+      'requirements',
+      'card_text',
+      'image_filename',
+      'rare',
+      'product',
+      'status',
     ];
 
     for (const field of allowedFields) {
       if (field in updates) {
         const val = updates[field];
         fields.push(`${field} = $${idx}`);
-        values.push(
-          typeof val === 'object' && val !== null ? JSON.stringify(val) : val
-        );
+        values.push(typeof val === 'object' && val !== null ? JSON.stringify(val) : val);
         idx++;
       }
     }
@@ -241,10 +266,9 @@ cardsRouter.put('/:code', requireAuth, requireAdmin, async (req, res, next) => {
 
 cardsRouter.delete('/:code', requireAuth, requireAdmin, async (req, res, next) => {
   try {
-    const { rowCount } = await pool.query(
-      'DELETE FROM cards WHERE card_code = $1',
-      [req.params.code]
-    );
+    const { rowCount } = await pool.query('DELETE FROM cards WHERE card_code = $1', [
+      req.params.code,
+    ]);
 
     if (rowCount === 0) {
       res.status(404).json({
@@ -265,37 +289,44 @@ cardsRouter.delete('/:code', requireAuth, requireAdmin, async (req, res, next) =
 // ============================================
 
 const importSchema = z.object({
-  cards: z.array(z.object({
-    cardCode: z.string().min(1),
-    cardType: z.string().min(1),
-    name: z.string().min(1),
-    groupName: z.string().nullable().optional(),
-    unitName: z.string().nullable().optional(),
-    cost: z.number().int().nullable().optional(),
-    blade: z.number().int().nullable().optional(),
-    hearts: z.any().optional(),
-    bladeHearts: z.any().optional(),
-    score: z.number().int().nullable().optional(),
-    requirements: z.any().optional(),
-    cardText: z.string().nullable().optional(),
-    imageFilename: z.string().nullable().optional(),
-    rare: z.string().nullable().optional(),
-    product: z.string().nullable().optional(),
-    status: z.string().optional(),
-  })),
+  cards: z.array(
+    z.object({
+      cardCode: z.string().min(1),
+      cardType: z.string().min(1),
+      name: z.string().min(1),
+      groupName: z.string().nullable().optional(),
+      unitName: z.string().nullable().optional(),
+      cost: z.number().int().nullable().optional(),
+      blade: z.number().int().nullable().optional(),
+      hearts: z.any().optional(),
+      bladeHearts: z.any().optional(),
+      score: z.number().int().nullable().optional(),
+      requirements: z.any().optional(),
+      cardText: z.string().nullable().optional(),
+      imageFilename: z.string().nullable().optional(),
+      rare: z.string().nullable().optional(),
+      product: z.string().nullable().optional(),
+      status: z.string().optional(),
+    })
+  ),
 });
 
-cardsRouter.post('/import', requireAuth, requireAdmin, validate(importSchema), async (req, res, next) => {
-  try {
-    const { cards } = req.body;
-    let imported = 0;
-    let failed = 0;
-    const errors: string[] = [];
+cardsRouter.post(
+  '/import',
+  requireAuth,
+  requireAdmin,
+  validate(importSchema),
+  async (req, res, next) => {
+    try {
+      const { cards } = req.body;
+      let imported = 0;
+      let failed = 0;
+      const errors: string[] = [];
 
-    for (const card of cards) {
-      try {
-        await pool.query(
-          `INSERT INTO cards (
+      for (const card of cards) {
+        try {
+          await pool.query(
+            `INSERT INTO cards (
             card_code, card_type, name, group_name, unit_name,
             cost, blade, hearts, blade_hearts, score, requirements,
             card_text, image_filename, rare, product, status, updated_by
@@ -316,33 +347,42 @@ cardsRouter.post('/import', requireAuth, requireAdmin, validate(importSchema), a
             rare = EXCLUDED.rare,
             product = EXCLUDED.product,
             status = EXCLUDED.status`,
-          [
-            card.cardCode, card.cardType, card.name,
-            card.groupName ?? null, card.unitName ?? null,
-            card.cost ?? null, card.blade ?? null,
-            JSON.stringify(card.hearts ?? []),
-            card.bladeHearts ? JSON.stringify(card.bladeHearts) : null,
-            card.score ?? null, JSON.stringify(card.requirements ?? []),
-            card.cardText ?? null, card.imageFilename ?? null,
-            card.rare ?? null, card.product ?? null,
-            card.status ?? 'DRAFT', req.user!.id,
-          ]
-        );
-        imported++;
-      } catch (err) {
-        failed++;
-        errors.push(`${card.cardCode}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            [
+              card.cardCode,
+              card.cardType,
+              card.name,
+              card.groupName ?? null,
+              card.unitName ?? null,
+              card.cost ?? null,
+              card.blade ?? null,
+              JSON.stringify(card.hearts ?? []),
+              card.bladeHearts ? JSON.stringify(card.bladeHearts) : null,
+              card.score ?? null,
+              JSON.stringify(card.requirements ?? []),
+              card.cardText ?? null,
+              card.imageFilename ?? null,
+              card.rare ?? null,
+              card.product ?? null,
+              card.status ?? 'DRAFT',
+              req.user!.id,
+            ]
+          );
+          imported++;
+        } catch (err) {
+          failed++;
+          errors.push(`${card.cardCode}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
       }
-    }
 
-    res.json({
-      data: { success: true, imported, failed, errors },
-      error: null,
-    });
-  } catch (err) {
-    next(err);
+      res.json({
+        data: { success: true, imported, failed, errors },
+        error: null,
+      });
+    } catch (err) {
+      next(err);
+    }
   }
-});
+);
 
 // ============================================
 // PUT /api/cards/:code/publish

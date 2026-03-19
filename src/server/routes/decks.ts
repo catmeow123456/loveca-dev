@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { validate } from '../middleware/validate.js';
+import { scrapeDecklog, extractDecklogId } from '../services/decklog-scraper.js';
 
 export const decksRouter = Router();
 
@@ -38,15 +39,66 @@ decksRouter.get('/public', async (_req, res, next) => {
 });
 
 // ============================================
+// POST /api/decks/scrape-decklog
+// ============================================
+
+const scrapeDecklogSchema = z.object({
+  deck_id: z.string().min(1),
+});
+
+decksRouter.post(
+  '/scrape-decklog',
+  requireAuth,
+  validate(scrapeDecklogSchema),
+  async (req, res, next) => {
+    try {
+      const { deck_id: rawInput } = req.body;
+      const deckId = extractDecklogId(rawInput);
+
+      if (!deckId) {
+        res.status(400).json({
+          data: null,
+          error: {
+            code: 'INVALID_INPUT',
+            message: '无效的 DeckLog ID 或 URL',
+          },
+        });
+        return;
+      }
+
+      const result = await scrapeDecklog(deckId);
+
+      if (!result.success) {
+        res.status(422).json({
+          data: null,
+          error: {
+            code: 'SCRAPE_FAILED',
+            message: result.error || '爬取失败',
+          },
+        });
+        return;
+      }
+
+      res.json({
+        data: {
+          cards: result.cards,
+          deckName: result.deckName,
+        },
+        error: null,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ============================================
 // GET /api/decks/:id
 // ============================================
 
 decksRouter.get('/:id', requireAuth, async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      'SELECT * FROM decks WHERE id = $1',
-      [req.params.id]
-    );
+    const { rows } = await pool.query('SELECT * FROM decks WHERE id = $1', [req.params.id]);
 
     if (rows.length === 0) {
       res.status(404).json({
@@ -94,9 +146,14 @@ decksRouter.post('/', requireAuth, validate(createDeckSchema), async (req, res, 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [
-        req.user!.id, b.name, b.description ?? null,
-        JSON.stringify(b.main_deck), JSON.stringify(b.energy_deck),
-        b.is_valid, JSON.stringify(b.validation_errors), b.is_public,
+        req.user!.id,
+        b.name,
+        b.description ?? null,
+        JSON.stringify(b.main_deck),
+        JSON.stringify(b.energy_deck),
+        b.is_valid,
+        JSON.stringify(b.validation_errors),
+        b.is_public,
       ]
     );
     res.status(201).json({ data: rows[0], error: null });
@@ -112,10 +169,9 @@ decksRouter.post('/', requireAuth, validate(createDeckSchema), async (req, res, 
 decksRouter.put('/:id', requireAuth, async (req, res, next) => {
   try {
     // Verify ownership
-    const { rows: existing } = await pool.query(
-      'SELECT user_id FROM decks WHERE id = $1',
-      [req.params.id]
-    );
+    const { rows: existing } = await pool.query('SELECT user_id FROM decks WHERE id = $1', [
+      req.params.id,
+    ]);
 
     if (existing.length === 0) {
       res.status(404).json({
@@ -139,17 +195,20 @@ decksRouter.put('/:id', requireAuth, async (req, res, next) => {
     let idx = 1;
 
     const allowedFields = [
-      'name', 'description', 'main_deck', 'energy_deck',
-      'is_valid', 'validation_errors', 'is_public',
+      'name',
+      'description',
+      'main_deck',
+      'energy_deck',
+      'is_valid',
+      'validation_errors',
+      'is_public',
     ];
 
     for (const field of allowedFields) {
       if (field in updates) {
         const val = updates[field];
         fields.push(`${field} = $${idx}`);
-        values.push(
-          typeof val === 'object' && val !== null ? JSON.stringify(val) : val
-        );
+        values.push(typeof val === 'object' && val !== null ? JSON.stringify(val) : val);
         idx++;
       }
     }
@@ -180,10 +239,9 @@ decksRouter.put('/:id', requireAuth, async (req, res, next) => {
 
 decksRouter.delete('/:id', requireAuth, async (req, res, next) => {
   try {
-    const { rows: existing } = await pool.query(
-      'SELECT user_id FROM decks WHERE id = $1',
-      [req.params.id]
-    );
+    const { rows: existing } = await pool.query('SELECT user_id FROM decks WHERE id = $1', [
+      req.params.id,
+    ]);
 
     if (existing.length === 0) {
       res.status(404).json({

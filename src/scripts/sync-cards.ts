@@ -133,7 +133,9 @@ async function main() {
 
   const memberCount = fullCards.filter((c) => c.card_kind === 'M').length;
   const liveCount = fullCards.filter((c) => c.card_kind === 'L').length;
-  console.log(`  cards_full.json: ${fullCards.length} cards (MEMBER: ${memberCount}, LIVE: ${liveCount})`);
+  console.log(
+    `  cards_full.json: ${fullCards.length} cards (MEMBER: ${memberCount}, LIVE: ${liveCount})`
+  );
   console.log(`  cards_energy.json: ${energyCards.length} cards`);
 
   // Step 3: 转换并去重
@@ -153,15 +155,21 @@ async function main() {
 
   const allCards = Array.from(cardMap.values());
   const dupeCount = fullCards.length + energyCards.length - allCards.length;
-  console.log(`  Total after dedup: ${allCards.length} cards${dupeCount > 0 ? ` (${dupeCount} duplicates removed)` : ''}`);
+  console.log(
+    `  Total after dedup: ${allCards.length} cards${dupeCount > 0 ? ` (${dupeCount} duplicates removed)` : ''}`
+  );
 
   // Dry run: 展示所有转换后的卡牌，无需连接数据库
   if (DRY_RUN) {
     console.log('\nDry run - all transformed cards:');
     for (const card of allCards) {
-      console.log(`  ${card.card_code} [${card.card_type}] ${card.name}${card.blade != null ? ` blade=${card.blade}` : ''}`);
+      console.log(
+        `  ${card.card_code} [${card.card_type}] ${card.name}${card.blade != null ? ` blade=${card.blade}` : ''}`
+      );
     }
-    console.log(`\nTotal: ${allCards.length} cards would be checked against DB and new ones inserted.`);
+    console.log(
+      `\nTotal: ${allCards.length} cards would be checked against DB and new ones inserted.`
+    );
     return;
   }
 
@@ -229,7 +237,9 @@ async function main() {
           console.log(`  Batch ${batchNum}/${totalBatches}: ${batch.length} cards... OK`);
           insertedCount += batch.length;
         } catch (err) {
-          console.error(`  Batch ${batchNum}/${totalBatches}: FAILED (${err instanceof Error ? err.message : err})`);
+          console.error(
+            `  Batch ${batchNum}/${totalBatches}: FAILED (${err instanceof Error ? err.message : err})`
+          );
           failedCount += batch.length;
         }
       }
@@ -249,7 +259,9 @@ async function main() {
           console.log(`  Batch ${batchNum}/${totalBatches}: ${batch.length} cards... OK`);
           updatedCount += batch.length;
         } catch (err) {
-          console.error(`  Batch ${batchNum}/${totalBatches}: FAILED (${err instanceof Error ? err.message : err})`);
+          console.error(
+            `  Batch ${batchNum}/${totalBatches}: FAILED (${err instanceof Error ? err.message : err})`
+          );
           failedCount += batch.length;
         }
       }
@@ -283,7 +295,16 @@ async function insertBatch(pool: pg.Pool, cards: CardInsertRecord[]) {
       `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8})`
     );
     const c = cards[i];
-    values.push(c.card_code, c.card_type, c.name, c.card_text, c.image_filename, c.blade, c.rare, c.product);
+    values.push(
+      c.card_code,
+      c.card_type,
+      c.name,
+      c.card_text,
+      c.image_filename,
+      c.blade,
+      c.rare,
+      c.product
+    );
   }
 
   await pool.query(
@@ -303,7 +324,16 @@ async function upsertBatch(pool: pg.Pool, cards: CardInsertRecord[]) {
       `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8})`
     );
     const c = cards[i];
-    values.push(c.card_code, c.card_type, c.name, c.card_text, c.image_filename, c.blade, c.rare, c.product);
+    values.push(
+      c.card_code,
+      c.card_type,
+      c.name,
+      c.card_text,
+      c.image_filename,
+      c.blade,
+      c.rare,
+      c.product
+    );
   }
 
   await pool.query(

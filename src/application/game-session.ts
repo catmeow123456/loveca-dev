@@ -298,10 +298,7 @@ export class GameSession {
     }
 
     // 2. 玩家完成 Live 设置 → 自动跳过对手 Live 设置
-    if (
-      lastAction.type === 'SKIP_LIVE_SET' &&
-      state.currentPhase === GamePhase.LIVE_SET_PHASE
-    ) {
+    if (lastAction.type === 'SKIP_LIVE_SET' && state.currentPhase === GamePhase.LIVE_SET_PHASE) {
       const skipAction = createSkipLiveSetAction(opponentId);
       const result = this.gameService.processAction(this.authorityState, skipAction);
       if (result.success) {
@@ -317,20 +314,14 @@ export class GameSession {
     }
 
     // 3. 进入 PERFORMANCE_PHASE 且活跃玩家是对手 → 自动跳过对手演出
-    if (
-      state.currentPhase === GamePhase.PERFORMANCE_PHASE &&
-      this.isActivePlayer(opponentId)
-    ) {
+    if (state.currentPhase === GamePhase.PERFORMANCE_PHASE && this.isActivePlayer(opponentId)) {
       this.authorityState = this.skipOpponentPerformance(opponentId);
       return this.authorityState;
     }
 
     // 4. 对手通常阶段自动跳过：活跃/能量/抽卡已在 autoAdvance 中处理，
     //    主要阶段需要自动 END_PHASE
-    if (
-      state.currentPhase === GamePhase.MAIN_PHASE &&
-      this.isActivePlayer(opponentId)
-    ) {
+    if (state.currentPhase === GamePhase.MAIN_PHASE && this.isActivePlayer(opponentId)) {
       const endAction = createEndPhaseAction(opponentId);
       const result = this.gameService.processAction(this.authorityState, endAction);
       if (result.success) {
@@ -351,7 +342,10 @@ export class GameSession {
       state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
     ) {
       // 对手没有成功卡，直接跳过
-      const confirmAction = createConfirmSubPhaseAction(opponentId, SubPhase.RESULT_SECOND_SUCCESS_EFFECTS);
+      const confirmAction = createConfirmSubPhaseAction(
+        opponentId,
+        SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
+      );
       const result = this.gameService.processAction(this.authorityState, confirmAction);
       if (result.success) {
         this.authorityState = result.gameState;
@@ -371,7 +365,10 @@ export class GameSession {
       state.currentPhase === GamePhase.LIVE_SET_PHASE &&
       state.currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER
     ) {
-      const confirmAction = createConfirmSubPhaseAction(opponentId, SubPhase.LIVE_SET_SECOND_PLAYER);
+      const confirmAction = createConfirmSubPhaseAction(
+        opponentId,
+        SubPhase.LIVE_SET_SECOND_PLAYER
+      );
       const result = this.gameService.processAction(this.authorityState, confirmAction);
       if (result.success) {
         this.authorityState = result.gameState;

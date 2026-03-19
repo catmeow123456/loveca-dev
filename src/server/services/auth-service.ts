@@ -120,9 +120,7 @@ export async function createEmailVerificationToken(userId: string): Promise<stri
   return token;
 }
 
-export async function verifyEmailToken(
-  token: string
-): Promise<{ userId: string } | null> {
+export async function verifyEmailToken(token: string): Promise<{ userId: string } | null> {
   const { rows } = await pool.query(
     `DELETE FROM email_verification_tokens
      WHERE token = $1 AND expires_at > now()
@@ -159,8 +157,5 @@ export async function verifyPasswordResetToken(
 }
 
 export async function markPasswordResetTokenUsed(tokenId: string): Promise<void> {
-  await pool.query(
-    `UPDATE password_reset_tokens SET used_at = now() WHERE id = $1`,
-    [tokenId]
-  );
+  await pool.query(`UPDATE password_reset_tokens SET used_at = now() WHERE id = $1`, [tokenId]);
 }

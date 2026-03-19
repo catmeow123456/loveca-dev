@@ -20,10 +20,7 @@ import {
   verifyPasswordResetToken,
   markPasswordResetTokenUsed,
 } from '../services/auth-service.js';
-import {
-  sendVerificationEmail,
-  sendPasswordResetEmail,
-} from '../services/mail-service.js';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../services/mail-service.js';
 
 export const authRouter = Router();
 
@@ -54,7 +51,11 @@ function clearRefreshCookie(res: import('express').Response): void {
 // ============================================
 
 const registerSchema = z.object({
-  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/),
+  username: z
+    .string()
+    .min(3)
+    .max(30)
+    .regex(/^[a-zA-Z0-9_]+$/),
   email: z.string().email().optional(),
   password: z.string().min(6).max(128),
   displayName: z.string().max(50).optional(),
@@ -65,8 +66,7 @@ authRouter.post('/register', validate(registerSchema), async (req, res, next) =>
     const { username, email, password, displayName } = req.body;
 
     // Generate placeholder email if not provided
-    const userEmail =
-      email || `${username}@placeholder.loveca.local`;
+    const userEmail = email || `${username}@placeholder.loveca.local`;
 
     const passwordHash = await hashPassword(password);
 
@@ -89,10 +89,9 @@ authRouter.post('/register', validate(registerSchema), async (req, res, next) =>
         return;
       }
 
-      const { rows: existingEmail } = await client.query(
-        'SELECT id FROM users WHERE email = $1',
-        [userEmail]
-      );
+      const { rows: existingEmail } = await client.query('SELECT id FROM users WHERE email = $1', [
+        userEmail,
+      ]);
       if (existingEmail.length > 0) {
         await client.query('ROLLBACK');
         res.status(409).json({
@@ -127,9 +126,7 @@ authRouter.post('/register', validate(registerSchema), async (req, res, next) =>
         data: {
           id: userId,
           username,
-          message: email && config.emailEnabled
-            ? '注册成功，请查收验证邮件'
-            : '注册成功',
+          message: email && config.emailEnabled ? '注册成功，请查收验证邮件' : '注册成功',
         },
         error: null,
       });
@@ -411,10 +408,7 @@ authRouter.post('/verify-email', validate(verifyEmailSchema), async (req, res, n
       return;
     }
 
-    await pool.query(
-      'UPDATE users SET email_verified = true WHERE id = $1',
-      [result.userId]
-    );
+    await pool.query('UPDATE users SET email_verified = true WHERE id = $1', [result.userId]);
 
     res.json({ data: { message: '邮箱验证成功' }, error: null });
   } catch (err) {
@@ -497,10 +491,7 @@ authRouter.post('/reset-password', validate(resetPasswordSchema), async (req, re
 
     const { email } = req.body;
 
-    const { rows } = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    );
+    const { rows } = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
 
     // Always return success to not reveal email existence
     if (rows.length > 0) {
@@ -560,10 +551,7 @@ authRouter.put('/password', validate(updatePasswordSchema), async (req, res, nex
       }
       userId = req.user.id;
 
-      const { rows } = await pool.query(
-        'SELECT password_hash FROM users WHERE id = $1',
-        [userId]
-      );
+      const { rows } = await pool.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
       if (rows.length === 0) {
         res.status(404).json({
           data: null,

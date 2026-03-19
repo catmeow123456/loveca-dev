@@ -56,7 +56,9 @@ async function main() {
   if (!CONFIG.endpoint || !CONFIG.accessKey || !CONFIG.secretKey) {
     console.error('Error: MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY are required');
     console.log('\nUsage:');
-    console.log('MINIO_ENDPOINT=localhost MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xxx npx tsx src/scripts/upload-to-minio.ts');
+    console.log(
+      'MINIO_ENDPOINT=localhost MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xxx npx tsx src/scripts/upload-to-minio.ts'
+    );
     process.exit(1);
   }
 
@@ -80,7 +82,8 @@ async function main() {
   await ensureBucketExists(client);
 
   // 5. 扫描所有子目录中的图片文件
-  const sizeDirs = fs.readdirSync(CONFIG.compressedDir, { withFileTypes: true })
+  const sizeDirs = fs
+    .readdirSync(CONFIG.compressedDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
 

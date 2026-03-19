@@ -49,7 +49,9 @@ async function main() {
   if (!CONFIG.endpoint || !CONFIG.accessKey || !CONFIG.secretKey) {
     console.error('Error: MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY are required');
     console.log('\nUsage:');
-    console.log('MINIO_ENDPOINT=localhost MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xxx npx tsx src/scripts/upload-static-assets.ts');
+    console.log(
+      'MINIO_ENDPOINT=localhost MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xxx npx tsx src/scripts/upload-static-assets.ts'
+    );
     process.exit(1);
   }
 

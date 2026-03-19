@@ -69,7 +69,10 @@ function createSimpleDeck(): DeckConfig {
   return { mainDeck, energyDeck };
 }
 
-function skipMulligan(service: GameService, state: import('../../src/domain/entities/game').GameState) {
+function skipMulligan(
+  service: GameService,
+  state: import('../../src/domain/entities/game').GameState
+) {
   if (state.currentPhase !== GamePhase.MULLIGAN_PHASE) return state;
 
   const firstPlayerId = state.players[state.firstPlayerIndex].id;
@@ -104,10 +107,15 @@ describe('Live Set face state', () => {
     const p1 = getPlayerById(state, 'alice');
     expect(p1).toBeTruthy();
 
-    const memberCardId = p1!.hand.cardIds.find((id) => getCardById(state, id)?.data.cardType === CardType.MEMBER);
+    const memberCardId = p1!.hand.cardIds.find(
+      (id) => getCardById(state, id)?.data.cardType === CardType.MEMBER
+    );
     expect(memberCardId).toBeTruthy();
 
-    const setResult = service.processAction(state, createSetLiveCardAction('alice', memberCardId!, true));
+    const setResult = service.processAction(
+      state,
+      createSetLiveCardAction('alice', memberCardId!, true)
+    );
     expect(setResult.success).toBe(true);
     state = setResult.gameState;
 
@@ -126,4 +134,3 @@ describe('Live Set face state', () => {
     expect(p1InPerformance.liveZone.cardStates.get(memberCardId!)?.face).toBe(FaceState.FACE_UP);
   });
 });
-

@@ -233,6 +233,8 @@ export function HomePage({ onNavigateToDeckManager, onNavigateToGameSetup, onNav
       <footer className="h-12 flex items-center justify-center text-orange-300/30 text-sm border-t border-orange-300/10 gap-3">
         <span>Loveca Card Game © 2024</span>
         <span>v{__APP_VERSION__}</span>
+        <span>·</span>
+        <span>卡牌数据来源 <a href="https://github.com/wlt233/llocg_db" target="_blank" rel="noopener noreferrer" className="text-orange-300/50 hover:text-orange-300 transition-colors underline underline-offset-2">llocg_db</a></span>
       </footer>
     </div>
   );

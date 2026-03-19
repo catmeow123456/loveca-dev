@@ -25,6 +25,7 @@ flowchart TB
     subgraph DataAccess["数据访问层 (REST API)"]
         SB1[REST API<br/>decks 端点]
         SB2[MinIO<br/>卡牌图片]
+        DLS[decklog-scraper<br/>DeckLog 爬取]
     end
 
     subgraph Database["数据库层 (PostgreSQL)"]
@@ -40,6 +41,7 @@ flowchart TB
     CDO --> GDR
     DSE --> DS
     DS --> SB1
+    SB1 --> DLS
     GDR --> SB2
     SB1 --> DECKS
     SB1 --> PROFILES
@@ -485,7 +487,109 @@ function cardCodeToFilename(cardCode: string): string {
 5. 添加到 zip 文件
 6. 生成 zip 并通过 file-saver 触发下载
 
-## 8. 相关文件索引
+## 8. DeckLog 卡组导入
+
+### 8.1 架构概述
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant DM as DeckManager
+    participant API as POST /api/decks/scrape-decklog
+    participant DLS as decklog-scraper
+    participant DL as DeckLog 网站
+
+    User->>DM: 输入 DeckLog ID/URL
+    DM->>API: { deck_id: "2D6XL" }
+    API->>DLS: extractDecklogId() + scrapeDecklog()
+    DLS->>DL: POST /system/app/api/view/2D6XL
+    DL-->>DLS: JSON 响应 (卡牌列表)
+    DLS->>DLS: 解析 card_number + normalizeCardCode
+    DLS-->>API: { cards, deckName }
+    API-->>DM: { data: { cards, deckName } }
+    DM->>DM: cardDataRegistry 匹配卡牌类型
+    DM->>DM: 归类 members / lives / energy
+    DM-->>User: 进入编辑模式
+```
+
+### 8.2 后端爬取服务
+
+**文件路径**: `src/server/services/decklog-scraper.ts`
+
+**核心函数**:
+
+```typescript
+// 提取 DeckLog ID（支持纯 ID 和完整 URL）
+function extractDecklogId(input: string): string | null;
+
+// 通过 DeckLog JSON API 获取卡组数据
+async function scrapeDecklog(deckId: string, timeout?: number): Promise<DecklogScrapeResult>;
+```
+
+**解析策略**:
+- 调用 DeckLog 内部 JSON API：`POST https://decklog.bushiroad.com/system/app/api/view/{deckId}`（带浏览器 User-Agent 头和 Referer，15 秒超时，请求体为 `null`）
+- API 返回 JSON 结构，包含 `list`（主卡组）和 `sub_list`（副卡组）两个卡牌列表
+- 每个卡牌条目包含 `card_number`（卡牌编号）和 `num`（数量）
+- 全角加号 `＋` 标准化为半角 `+`
+- 使用 `normalizeCardCode()` 统一卡牌编号格式
+- 卡组名称来自 API 返回的 `title` 字段
+
+**返回类型**:
+```typescript
+interface ScrapedCard {
+  card_code: string;  // 标准化后的卡牌编号
+  raw_code: string;   // 原始卡牌编号（来自 DeckLog）
+  count: number;      // 在卡组中的数量
+}
+
+interface DecklogScrapeResult {
+  success: boolean;
+  cards: ScrapedCard[];
+  deckName: string;
+  error?: string;
+}
+```
+
+### 8.3 API 端点
+
+**路径**: `POST /api/decks/scrape-decklog`
+
+**请求体**: `{ deck_id: string }`
+
+**响应**:
+- `200`: `{ data: { cards: ScrapedCard[], deckName: string }, error: null }`
+- `400`: 无效输入格式
+- `422`: 爬取失败（页面为空、无卡牌数据等）
+
+**注意**: 此端点定义在 `/:id` 路由之前，避免 ID 参数冲突。
+
+### 8.4 前端匹配逻辑
+
+**文件路径**: `client/src/components/deck/DeckManager.tsx`
+
+`handleDecklogImport()` 函数实现：
+1. 调用后端 API 获取爬取结果
+2. 遍历 `cards`，在 `gameStore.cardDataRegistry` 中查找每张卡牌
+3. 根据 `cardData.cardType` 归类到 `members`、`lives`、`energyDeck`
+4. 未匹配的卡牌收集到 `warnings` 数组，在对话框中以警告展示
+5. 构造 `DeckConfig` 并进入编辑模式
+
+**状态管理**:
+```typescript
+const [showDecklogDialog, setShowDecklogDialog] = useState(false);
+const [decklogInput, setDecklogInput] = useState('');
+const [decklogLoading, setDecklogLoading] = useState(false);
+const [decklogError, setDecklogError] = useState<string | null>(null);
+const [decklogWarnings, setDecklogWarnings] = useState<string[]>([]);
+```
+
+### 8.5 已知限制
+
+- **API 稳定性**：依赖 DeckLog 内部 JSON API（非公开接口），若 DeckLog 变更 API 结构可能导致爬取失败。
+- **离线不可用**：此功能依赖后端代理请求 DeckLog，离线模式下按钮仍可见但点击会提示需要后端服务。
+- **卡牌版本差异**：若本地卡牌数据未同步最新卡包，部分卡牌可能无法匹配，以警告形式提示用户。
+
+## 9. 相关文件索引
 
 | 文件路径 | 说明 |
 |---------|------|
@@ -499,9 +603,11 @@ function cardCodeToFilename(cardCode: string): string {
 | `client/src/lib/supabase.ts` | Supabase 客户端与 DeckRecord 类型定义 |
 | `src/domain/rules/deck-validator.ts` | 卡组验证规则 |
 | `src/domain/card-data/deck-loader.ts` | 卡组加载器与 DeckConfig/CardEntry 类型定义 |
+| `src/server/services/decklog-scraper.ts` | DeckLog 爬取服务 |
+| `src/server/routes/decks.ts` | 卡组 REST API 路由（含 scrape-decklog 端点） |
 | `docs/migrations/001_init_profiles_decks.sql` | 数据库初始化脚本 |
 
-## 9. 相关文档
+## 10. 相关文档
 
 - [需求文档](./requirements.md)
 - [卡牌数据管理系统 - 设计文档](../card-data-management/design.md)

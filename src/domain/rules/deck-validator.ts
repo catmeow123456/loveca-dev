@@ -278,7 +278,9 @@ export function canAddCard(
   // 检查同基础编号数量限制（仅主卡组，不同稀有度视为同一张卡）
   if (deckType === 'main') {
     const baseCode = getBaseCardCode(cardToAdd.cardCode);
-    const sameBaseCount = currentDeck.filter((c) => getBaseCardCode(c.cardCode) === baseCode).length;
+    const sameBaseCount = currentDeck.filter(
+      (c) => getBaseCardCode(c.cardCode) === baseCode
+    ).length;
     if (sameBaseCount >= MAX_SAME_CODE_COUNT) {
       return {
         canAdd: false,

@@ -19,10 +19,7 @@ function getTransporter(): nodemailer.Transporter | null {
   return transporter;
 }
 
-export async function sendVerificationEmail(
-  email: string,
-  token: string
-): Promise<boolean> {
+export async function sendVerificationEmail(email: string, token: string): Promise<boolean> {
   const t = getTransporter();
   if (!t) {
     console.warn('SMTP not configured, skipping verification email');
@@ -46,10 +43,7 @@ export async function sendVerificationEmail(
   return true;
 }
 
-export async function sendPasswordResetEmail(
-  email: string,
-  token: string
-): Promise<boolean> {
+export async function sendPasswordResetEmail(email: string, token: string): Promise<boolean> {
   const t = getTransporter();
   if (!t) {
     console.warn('SMTP not configured, skipping password reset email');

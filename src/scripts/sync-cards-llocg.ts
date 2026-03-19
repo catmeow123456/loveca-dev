@@ -119,9 +119,9 @@ const BLADE_HEART_COLOR_MAP: Record<string, string> = {
 };
 
 const JP_TYPE_MAP: Record<string, 'MEMBER' | 'LIVE' | 'ENERGY'> = {
-  'メンバー': 'MEMBER',
-  'ライブ': 'LIVE',
-  'エネルギー': 'ENERGY',
+  メンバー: 'MEMBER',
+  ライブ: 'LIVE',
+  エネルギー: 'ENERGY',
 };
 
 const CN_TYPE_MAP: Record<number, 'MEMBER' | 'LIVE' | 'ENERGY'> = {
@@ -133,7 +133,6 @@ const CN_TYPE_MAP: Record<number, 'MEMBER' | 'LIVE' | 'ENERGY'> = {
 // ============================================
 // 字段转换
 // ============================================
-
 
 function convertHearts(heartObj: Record<string, number>): { color: string; count: number }[] {
   const result: { color: string; count: number }[] = [];
@@ -148,7 +147,9 @@ function convertHearts(heartObj: Record<string, number>): { color: string; count
   return result;
 }
 
-function convertBladeHearts(bladeHeartObj: Record<string, number>): { effect: string; heartColor?: string }[] {
+function convertBladeHearts(
+  bladeHeartObj: Record<string, number>
+): { effect: string; heartColor?: string }[] {
   const result: { effect: string; heartColor?: string }[] = [];
   for (const [key, count] of Object.entries(bladeHeartObj)) {
     const heartColor = BLADE_HEART_COLOR_MAP[key];
@@ -163,7 +164,9 @@ function convertBladeHearts(bladeHeartObj: Record<string, number>): { effect: st
   return result;
 }
 
-function convertSpecialHearts(specialObj: Record<string, number>): { effect: string; heartColor?: string }[] {
+function convertSpecialHearts(
+  specialObj: Record<string, number>
+): { effect: string; heartColor?: string }[] {
   const result: { effect: string; heartColor?: string }[] = [];
   for (const [key, count] of Object.entries(specialObj)) {
     const effect = key === 'draw' ? 'DRAW' : key === 'score' ? 'SCORE' : null;
@@ -265,7 +268,12 @@ function transformCnOnlyCard(cardNo: string, cn: LlocgCnCard): CardUpsertRecord 
   }
 
   const cnDetail = cn.detail;
-  const name = cnDetail?.card_name_cn || cn.card_name_cn || cnDetail?.card_name_org || cn.card_name_org || cardNo;
+  const name =
+    cnDetail?.card_name_cn ||
+    cn.card_name_cn ||
+    cnDetail?.card_name_org ||
+    cn.card_name_org ||
+    cardNo;
   const cardText = cnDetail?.ability || null;
   const imageFilename = cn._img ? cn._img.replace(/^.*\//, '') : null;
 
@@ -315,7 +323,9 @@ async function main() {
   const liveCount = jpCards.filter(([, c]) => c.type === 'ライブ').length;
   const energyCount = jpCards.filter(([, c]) => c.type === 'エネルギー').length;
 
-  console.log(`  cards.json: ${jpCards.length} cards (MEMBER: ${memberCount}, LIVE: ${liveCount}, ENERGY: ${energyCount})`);
+  console.log(
+    `  cards.json: ${jpCards.length} cards (MEMBER: ${memberCount}, LIVE: ${liveCount}, ENERGY: ${energyCount})`
+  );
   console.log(`  cards_cn.json: ${Object.keys(cnData).length} cards`);
 
   // 构建 CN 标准化索引
@@ -361,7 +371,9 @@ async function main() {
   }
 
   const allCards = Array.from(cardMap.values());
-  console.log(`  Total: ${allCards.length} cards (CN matched: ${cnMatchCount}, CN-only: ${cnOnlyCount}${transformErrors > 0 ? `, errors: ${transformErrors}` : ''})`);
+  console.log(
+    `  Total: ${allCards.length} cards (CN matched: ${cnMatchCount}, CN-only: ${cnOnlyCount}${transformErrors > 0 ? `, errors: ${transformErrors}` : ''})`
+  );
 
   // Dry run
   if (DRY_RUN) {
@@ -382,9 +394,9 @@ async function main() {
     }
 
     // 专门显示能量卡的 group/product 统计
-    const energyCards = allCards.filter(c => c.card_type === 'ENERGY');
-    const energyWithGroup = energyCards.filter(c => c.group_name);
-    const energyWithProduct = energyCards.filter(c => c.product);
+    const energyCards = allCards.filter((c) => c.card_type === 'ENERGY');
+    const energyWithGroup = energyCards.filter((c) => c.group_name);
+    const energyWithProduct = energyCards.filter((c) => c.product);
     console.log(`\nEnergy cards analysis:`);
     console.log(`  Total ENERGY cards: ${energyCards.length}`);
     console.log(`  With group_name: ${energyWithGroup.length}`);
@@ -393,7 +405,9 @@ async function main() {
     // 显示几个能量卡样本
     console.log('\nSample ENERGY cards:');
     for (const card of energyCards.slice(0, 5)) {
-      console.log(`  ${card.card_code}: name=${card.name}, unit=${card.unit_name || 'NULL'}, group=${card.group_name || 'NULL'}, product=${card.product || 'NULL'}`);
+      console.log(
+        `  ${card.card_code}: name=${card.name}, unit=${card.unit_name || 'NULL'}, group=${card.group_name || 'NULL'}, product=${card.product || 'NULL'}`
+      );
     }
 
     console.log(`\nTotal: ${allCards.length} cards would be synced to DB.`);
@@ -457,17 +471,32 @@ async function main() {
 
         try {
           for (const card of batch) {
-            await pool.query(`
+            await pool.query(
+              `
               INSERT INTO cards (card_code, card_type, name, card_text, image_filename,
                 cost, blade, hearts, blade_hearts, score, requirements,
                 unit_name, group_name, rare, product, status)
               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-            `, [
-              card.card_code, card.card_type, card.name, card.card_text, card.image_filename,
-              card.cost, card.blade, JSON.stringify(card.hearts), JSON.stringify(card.blade_hearts),
-              card.score, JSON.stringify(card.requirements), card.unit_name, card.group_name,
-              card.rare, card.product, card.status
-            ]);
+            `,
+              [
+                card.card_code,
+                card.card_type,
+                card.name,
+                card.card_text,
+                card.image_filename,
+                card.cost,
+                card.blade,
+                JSON.stringify(card.hearts),
+                JSON.stringify(card.blade_hearts),
+                card.score,
+                JSON.stringify(card.requirements),
+                card.unit_name,
+                card.group_name,
+                card.rare,
+                card.product,
+                card.status,
+              ]
+            );
           }
           console.log(`  Batch ${batchNum}/${totalBatches}: ${batch.length} cards... OK`);
           insertedCount += batch.length;
@@ -488,19 +517,34 @@ async function main() {
 
         try {
           for (const card of batch) {
-            await pool.query(`
+            await pool.query(
+              `
               UPDATE cards SET
                 card_type = $2, name = $3, card_text = $4, image_filename = $5,
                 cost = $6, blade = $7, hearts = $8, blade_hearts = $9, score = $10,
                 requirements = $11, unit_name = $12, group_name = $13, rare = $14,
                 product = $15, status = $16, updated_at = now()
               WHERE card_code = $1
-            `, [
-              card.card_code, card.card_type, card.name, card.card_text, card.image_filename,
-              card.cost, card.blade, JSON.stringify(card.hearts), JSON.stringify(card.blade_hearts),
-              card.score, JSON.stringify(card.requirements), card.unit_name, card.group_name,
-              card.rare, card.product, card.status
-            ]);
+            `,
+              [
+                card.card_code,
+                card.card_type,
+                card.name,
+                card.card_text,
+                card.image_filename,
+                card.cost,
+                card.blade,
+                JSON.stringify(card.hearts),
+                JSON.stringify(card.blade_hearts),
+                card.score,
+                JSON.stringify(card.requirements),
+                card.unit_name,
+                card.group_name,
+                card.rare,
+                card.product,
+                card.status,
+              ]
+            );
           }
           console.log(`  Batch ${batchNum}/${totalBatches}: ${batch.length} cards... OK`);
           updatedCount += batch.length;
@@ -513,13 +557,14 @@ async function main() {
 
     // Summary
     console.log('\nSummary:');
-    console.log(`  Read: ${allCards.length} (JP: ${jpCards.length}, CN matched: ${cnMatchCount}, CN-only: ${cnOnlyCount})`);
+    console.log(
+      `  Read: ${allCards.length} (JP: ${jpCards.length}, CN matched: ${cnMatchCount}, CN-only: ${cnOnlyCount})`
+    );
     console.log(`  Inserted: ${insertedCount}`);
     console.log(`  Updated: ${updatedCount}`);
     if (failedCount > 0) {
       console.log(`  Failed: ${failedCount}`);
     }
-
   } finally {
     await pool.end();
   }

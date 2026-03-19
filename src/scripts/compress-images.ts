@@ -219,7 +219,8 @@ async function compressImage(image: ImageInfo): Promise<CompressionResult[]> {
 
   // 检测图片方向：横向图片（宽>高，即 Live 卡）需要顺时针旋转 90°
   const metadata = await sharp(image.inputPath).metadata();
-  const isLandscape = metadata.width != null && metadata.height != null && metadata.width > metadata.height;
+  const isLandscape =
+    metadata.width != null && metadata.height != null && metadata.width > metadata.height;
 
   for (const [sizeName, sizeConfig] of Object.entries(CONFIG.sizes)) {
     const outputPath = path.join(CONFIG.outputDir, sizeName, `${image.cardCode}.webp`);

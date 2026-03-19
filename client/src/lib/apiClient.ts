@@ -69,6 +69,31 @@ export function getAccessToken(): string | null {
 
 const REQUEST_TIMEOUT = 15000; // 15 seconds
 
+/** Safely parse JSON from a response, returning an error ApiResponse for non-JSON bodies */
+async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('json')) {
+    return {
+      data: null,
+      error: {
+        code: 'INVALID_RESPONSE',
+        message: `服务器返回了非预期的响应 (${response.status})`,
+      },
+    };
+  }
+  try {
+    return await response.json() as ApiResponse<T>;
+  } catch {
+    return {
+      data: null,
+      error: {
+        code: 'INVALID_RESPONSE',
+        message: '服务器返回的 JSON 格式异常',
+      },
+    };
+  }
+}
+
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
@@ -106,7 +131,7 @@ async function apiFetch<T>(
 
     clearTimeout(timeout);
 
-    const body = await response.json() as ApiResponse<T>;
+    const body = await safeResponseJson<T>(response);
 
     // Auto-refresh on 401
     if (response.status === 401 && accessToken) {
@@ -119,7 +144,7 @@ async function apiFetch<T>(
           headers,
           credentials: 'include',
         });
-        return await retryResponse.json() as ApiResponse<T>;
+        return await safeResponseJson<T>(retryResponse);
       }
       // Refresh failed — clear token
       accessToken = null;

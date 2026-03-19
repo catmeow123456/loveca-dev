@@ -19,7 +19,12 @@ import {
   isEffectWindow,
 } from '../../src/shared/phase-config/sub-phase-registry';
 import type { GameState } from '../../src/domain/entities/game';
-import type { MemberCardData, LiveCardData, EnergyCardData, AnyCardData } from '../../src/domain/entities/card';
+import type {
+  MemberCardData,
+  LiveCardData,
+  EnergyCardData,
+  AnyCardData,
+} from '../../src/domain/entities/card';
 import { createHeartRequirement, createHeartIcon } from '../../src/domain/entities/card';
 import {
   createMulliganAction,
@@ -32,11 +37,7 @@ import {
 // 测试用卡组
 // ============================================
 
-function createTestMemberCard(
-  cardCode: string,
-  name: string,
-  cost: number
-): MemberCardData {
+function createTestMemberCard(cardCode: string, name: string, cost: number): MemberCardData {
   return {
     cardCode,
     name,
@@ -331,7 +332,10 @@ describe('完整游戏流程中的子阶段测试', () => {
 
     it('双方都完成 Live 设置后，应该进入演出阶段', () => {
       // 先攻跳过设置
-      let state = gameService.processAction(stateInLiveSet, createSkipLiveSetAction('p1')).gameState;
+      let state = gameService.processAction(
+        stateInLiveSet,
+        createSkipLiveSetAction('p1')
+      ).gameState;
 
       // 后攻跳过设置
       const result = gameService.processAction(state, createSkipLiveSetAction('p2'));

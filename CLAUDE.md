@@ -21,6 +21,9 @@ cd client && pnpm install
 cd client && pnpm dev    # Vite dev server (localhost:5173)
 pnpm build:client        # Build frontend (from root)
 
+# Docker (backend runs in Docker container)
+docker compose up -d --build api   # Rebuild & restart API container
+
 # Production
 pnpm start:prod          # Preview production build
 ```

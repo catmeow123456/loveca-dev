@@ -27,16 +27,16 @@ const DRY_RUN = process.argv.includes('--dry-run');
 
 /**
  * 小组名 → 作品名映射
- * 
+ *
  * group_name 字段语义变更：从"小组名"改为"作品名"
  */
 const GROUP_TO_SERIES_MAP: Record<string, string> = {
   "μ's": 'ラブライブ！',
-  'Aqours': 'ラブライブ！サンシャイン!!',
-  '虹ヶ咲学園スクールアイドル同好会': 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+  Aqours: 'ラブライブ！サンシャイン!!',
+  虹ヶ咲学園スクールアイドル同好会: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
   'Liella!': 'ラブライブ！スーパースター!!',
-  '蓮ノ空女学院スクールアイドルクラブ': '蓮ノ空女学院スクールアイドルクラブ',
-  '其他': '其他'
+  蓮ノ空女学院スクールアイドルクラブ: '蓮ノ空女学院スクールアイドルクラブ',
+  其他: '其他',
 };
 
 /** 有效的作品名列表 */
@@ -46,7 +46,7 @@ const VALID_SERIES_NAMES = [
   'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
   'ラブライブ！スーパースター!!',
   '蓮ノ空女学院スクールアイドルクラブ',
-  '其他'
+  '其他',
 ];
 
 // ============================================
@@ -123,7 +123,7 @@ async function main() {
 
 /**
  * 标准化单个 group_name 值
- * 
+ *
  * @param groupName 原始 group_name（可能是小组名或作品名）
  * @returns 标准化后的作品名，如果无需转换则返回原值，如果无法识别返回 null
  */
@@ -144,7 +144,7 @@ function normalizeGroupName(groupName: string | null): {
   // 统一分隔符：将逗号(,)和顿号(、)替换为换行符
   let normalizedInput = groupName;
   let separatorChanged = false;
-  
+
   if (normalizedInput.includes(',') || normalizedInput.includes('、')) {
     normalizedInput = normalizedInput.replace(/[,、]/g, '\n');
     separatorChanged = true;
@@ -290,14 +290,12 @@ async function migrateCards(client: PoolClient, report: MigrationReport) {
 
   // 执行更新
   for (const { card, normalized } of needNormalize) {
-    await client.query(
-      'UPDATE cards SET group_name = $1, updated_at = now() WHERE id = $2',
-      [normalized, card.id]
-    );
+    await client.query('UPDATE cards SET group_name = $1, updated_at = now() WHERE id = $2', [
+      normalized,
+      card.id,
+    ]);
     report.cards.updated++;
-    console.log(
-      `  更新: ${card.card_code} "${card.name}": "${card.group_name}" → "${normalized}"`
-    );
+    console.log(`  更新: ${card.card_code} "${card.name}": "${card.group_name}" → "${normalized}"`);
   }
 
   if (report.cards.updated === 0) {

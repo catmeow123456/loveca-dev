@@ -100,7 +100,10 @@ function createSimpleDeck(): DeckConfig {
 /**
  * 辅助函数：跳过换牌阶段
  */
-function skipMulliganPhase(service: GameService, state: import('../../src/domain/entities/game').GameState): import('../../src/domain/entities/game').GameState {
+function skipMulliganPhase(
+  service: GameService,
+  state: import('../../src/domain/entities/game').GameState
+): import('../../src/domain/entities/game').GameState {
   if (state.currentPhase !== GamePhase.MULLIGAN_PHASE) return state;
 
   // 先攻玩家确认不换牌

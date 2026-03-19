@@ -32,17 +32,17 @@ const VALID_SERIES_NAMES = [
   'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
   'ラブライブ！スーパースター!!',
   '蓮ノ空女学院スクールアイドルクラブ',
-  '其他'
+  '其他',
 ];
 
 /** 小组名 → 作品名映射（用于提示标准化建议） */
 const GROUP_TO_SERIES_MAP: Record<string, string> = {
   "μ's": 'ラブライブ！',
-  'Aqours': 'ラブライブ！サンシャイン!!',
-  '虹ヶ咲学園スクールアイドル同好会': 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+  Aqours: 'ラブライブ！サンシャイン!!',
+  虹ヶ咲学園スクールアイドル同好会: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
   'Liella!': 'ラブライブ！スーパースター!!',
-  '蓮ノ空女学院スクールアイドルクラブ': '蓮ノ空女学院スクールアイドルクラブ',
-  '其他': '其他'
+  蓮ノ空女学院スクールアイドルクラブ: '蓮ノ空女学院スクールアイドルクラブ',
+  其他: '其他',
 };
 
 // ============================================
@@ -100,7 +100,7 @@ function validateGroupName(groupName: string | null): {
   // 统一分隔符：将逗号(,)和顿号(、)替换为换行符进行检查
   let normalizedInput = groupName;
   let hasNonStandardSeparator = false;
-  
+
   if (normalizedInput.includes(',') || normalizedInput.includes('、')) {
     normalizedInput = normalizedInput.replace(/[,、]/g, '\n');
     hasNonStandardSeparator = true;
