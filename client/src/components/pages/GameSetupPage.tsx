@@ -17,7 +17,7 @@ import type { DeckConfig } from '@game/application/game-service';
 import { GameMode } from '@game/shared/types/enums';
 import defaultOpponentDeckYaml from '../../../../assets/decks/缪预组.yaml?raw';
 
-type SetupStep = 0 | 1 | 2;
+type SetupStep = 0 | 1 | 2 | 3;
 
 interface GameSetupPageProps {
   onBack: () => void;
@@ -31,6 +31,8 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
   const [selectedP2Deck, setSelectedP2Deck] = useState<DeckDisplayItem | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isDebugMode = gameMode === GameMode.DEBUG;
+  const maxStep: SetupStep = isDebugMode ? 3 : 2;
 
   // Deck store
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
@@ -82,6 +84,8 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
       } else if (gameMode === GameMode.SOLITAIRE && selectedP1Deck) {
         setCurrentStep(2);
       }
+    } else if (currentStep === 2 && gameMode === GameMode.DEBUG && selectedP2Deck) {
+      setCurrentStep(3);
     }
   };
 
@@ -91,6 +95,8 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
       setCurrentStep(0);
     } else if (currentStep === 2) {
       setCurrentStep(1);
+    } else if (currentStep === 3) {
+      setCurrentStep(2);
     }
   };
 
@@ -98,6 +104,7 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
   const canProceed = () => {
     if (currentStep === 0) return gameMode !== undefined;
     if (currentStep === 1) return selectedP1Deck !== null;
+    if (currentStep === 2 && gameMode === GameMode.DEBUG) return selectedP2Deck !== null;
     return false;
   };
 
@@ -202,8 +209,11 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
 
   // 步骤指示器
   const renderStepIndicator = () => {
-    const steps = gameMode === GameMode.SOLITAIRE ? [0, 1, 2] : [0, 1, 2];
-    const labels = ['模式', gameMode === GameMode.SOLITAIRE ? '卡组' : 'P1', gameMode === GameMode.SOLITAIRE ? '确认' : 'P2'];
+    const steps = gameMode === GameMode.SOLITAIRE ? [0, 1, 2] : [0, 1, 2, 3];
+    const labels =
+      gameMode === GameMode.SOLITAIRE
+        ? ['模式', '卡组', '确认']
+        : ['模式', 'P1', 'P2', '确认'];
 
     return (
       <div className="flex items-center justify-center gap-4 mb-8">
@@ -220,6 +230,7 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
             >
               {currentStep > step ? '✓' : idx + 1}
             </div>
+            <span className="text-xs text-orange-300/60 min-w-[32px] text-center">{labels[idx]}</span>
             {idx < steps.length - 1 && (
               <div
                 className={`w-12 h-0.5 transition-all duration-300 ${
@@ -241,6 +252,8 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
       case 1:
         return gameMode === GameMode.SOLITAIRE ? '选择己方卡组' : '选择 Player 1 的卡组';
       case 2:
+        return gameMode === GameMode.SOLITAIRE ? '确认并开始游戏' : '选择 Player 2 的卡组';
+      case 3:
         return '确认并开始游戏';
     }
   };
@@ -364,10 +377,34 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
               </motion.div>
             )}
 
-            {/* Step 2: Confirm */}
-            {currentStep === 2 && (
+            {/* Step 2: Select P2 Deck (debug only) */}
+            {currentStep === 2 && gameMode === GameMode.DEBUG && (
               <motion.div
-                key="step2"
+                key="step2-p2"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="absolute inset-0 flex justify-center"
+              >
+                <div className="w-full max-w-2xl h-full">
+                  <DeckSelector
+                    cloudDecks={validDecks}
+                    selectedId={selectedP2Deck?.id}
+                    onSelect={handleSelectP2}
+                    isLoading={isLoadingCloud}
+                    error={cloudError}
+                    onRefresh={fetchCloudDecks}
+                    title="Player 2 卡组"
+                    emptyText="没有可用的卡组，请先创建一个完整的卡组"
+                  />
+                </div>
+              </motion.div>
+            )}
+
+            {/* Confirm */}
+            {((currentStep === 2 && gameMode === GameMode.SOLITAIRE) || (currentStep === 3 && gameMode === GameMode.DEBUG)) && (
+              <motion.div
+                key="step-confirm"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
@@ -490,7 +527,7 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
             ← 上一步
           </button>
 
-          {currentStep < 2 && (
+          {currentStep < maxStep && (
             <button
               onClick={handleNext}
               disabled={!canProceed()}

@@ -22,7 +22,6 @@ import { LiveResultAnimation, type LiveResultType, type LiveScoreInfo } from './
 import { DebugControl } from './DebugControl';
 import { CardDetailOverlay } from './CardDetailOverlay';
 import { JudgmentPanel } from './JudgmentPanel';
-import { ScorePanel } from './ScorePanel';
 import { Card } from '@/components/card/Card';
 import { MulliganPanel } from './MulliganPanel';
 import { getDeckBackUrl } from '@/lib/imageService';
@@ -75,7 +74,6 @@ export const GameBoard = memo(function GameBoard() {
   const currentSubPhase = gameState?.currentSubPhase ?? SubPhase.NONE;
   const currentPhase = gameState?.currentPhase ?? null;
   const currentActivePlayerIndex = gameState?.activePlayerIndex ?? 0;
-  const scorePanelOpen = currentSubPhase === SubPhase.RESULT_SETTLEMENT;
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
 
   // judgmentPanel：记录用户打开面板时所对应的活跃玩家 index。
@@ -92,12 +90,6 @@ export const GameBoard = memo(function GameBoard() {
   const handleOpenJudgmentPanel = useCallback(() => {
     setJudgmentOpenedAtPlayerIndex(currentActivePlayerIndex);
   }, [currentActivePlayerIndex]);
-
-  // ScorePanel 通过 confirmSubPhase 推进阶段来关闭，无需额外回调
-  const handleScorePanelClose = useCallback(() => {
-    // ScorePanel 仅在 RESULT_SETTLEMENT 子阶段显示，
-    // 关闭时不做任何操作（面板会随子阶段切换自动消失）
-  }, []);
 
   // 监听阶段变化，触发 Live 结果动画（使用 setTimeout 避免同步 setState）
   useEffect(() => {
@@ -441,12 +433,6 @@ export const GameBoard = memo(function GameBoard() {
         <JudgmentPanel
           isOpen={judgmentPanelOpen}
           onClose={handleJudgmentPanelClose}
-        />
-
-        {/* 结算面板 */}
-        <ScorePanel
-          isOpen={scorePanelOpen}
-          onClose={handleScorePanelClose}
         />
 
         {/* 换牌面板 */}

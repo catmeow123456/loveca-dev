@@ -152,6 +152,21 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
     setPeekCardIds([]);
   }, [peekCardIds, manualMoveCard]);
 
+  // 把所有检视区的牌放入休息室
+  const moveAllToWaitingRoom = useCallback(() => {
+    if (peekCardIds.length === 0) return;
+
+    const remainingIds: string[] = [];
+    for (const cardId of peekCardIds) {
+      const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.WAITING_ROOM);
+      if (!result.success) {
+        remainingIds.push(cardId);
+      }
+    }
+
+    setPeekCardIds(remainingIds);
+  }, [peekCardIds, manualMoveCard]);
+
   // 移动卡牌到手牌
   const moveToHand = useCallback((cardId: string) => {
     const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.HAND);
@@ -214,7 +229,7 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
 
       {/* 面板 */}
       <motion.div
-        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800/95 rounded-lg p-4 shadow-xl border border-purple-500/50 z-[100] min-w-[400px] max-w-[700px]"
+        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800/95 rounded-lg p-4 shadow-xl border border-purple-500/50 z-[100] w-[560px] max-w-[calc(100vw-2rem)]"
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
@@ -267,10 +282,22 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
           >
             全部放回
           </button>
+          <button
+            onClick={moveAllToWaitingRoom}
+            disabled={peekCards.length === 0}
+            className={cn(
+              'px-3 py-1.5 rounded text-xs font-medium',
+              peekCards.length > 0
+                ? 'bg-rose-700 hover:bg-rose-600 text-white'
+                : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+            )}
+          >
+            全部放入休息室
+          </button>
         </div>
 
         {/* 检视区卡牌（可拖拽排序） */}
-        <div className="min-h-[150px] p-3 rounded bg-slate-900/50 border border-dashed border-purple-500/30 overflow-hidden">
+        <div className="h-[150px] p-3 rounded bg-slate-900/50 border border-dashed border-purple-500/30 overflow-hidden">
           {peekCards.length === 0 ? (
             <div className="h-[126px] flex items-center justify-center text-slate-500 text-sm">
               点击「翻开一张」从卡组顶检视卡牌
@@ -285,7 +312,8 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
                 items={peekCardIds}
                 strategy={horizontalListSortingStrategy}
               >
-                <div className="flex gap-2 flex-wrap">
+                <div className="h-full overflow-x-auto overflow-y-hidden pb-1">
+                  <div className="flex gap-2 flex-nowrap w-max">
                   {peekCards.map((card) => (
                     <div
                       key={card.instanceId}
@@ -323,6 +351,7 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
                       </div>
                     </div>
                   ))}
+                  </div>
                 </div>
               </SortableContext>
             </DndContext>

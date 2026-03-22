@@ -68,13 +68,14 @@ export const PlayerArea = memo(function PlayerArea({
   );
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { getCardInstance, getCardImagePath, selectCard, setHoveredCard, tapMember } = useGameStore(
+  const { getCardInstance, getCardImagePath, selectCard, setHoveredCard, tapMember, manualMoveCard } = useGameStore(
     useShallow((s) => ({
       getCardInstance: s.getCardInstance,
       getCardImagePath: s.getCardImagePath,
       selectCard: s.selectCard,
       setHoveredCard: s.setHoveredCard,
       tapMember: s.tapMember,
+      manualMoveCard: s.manualMoveCard,
     }))
   );
 
@@ -817,6 +818,47 @@ export const PlayerArea = memo(function PlayerArea({
             </div>
           );
         })}
+        {/* 手牌快捷操作 - 贴着手牌扇形右边缘 */}
+        <div className="ml-2 flex flex-col gap-1 self-end mb-2">
+          <button
+            type="button"
+            onClick={() => {
+              const topCardId = player.mainDeck.cardIds[0];
+              if (!topCardId) return;
+              manualMoveCard(topCardId, ZoneType.MAIN_DECK, ZoneType.HAND);
+            }}
+            disabled={player.mainDeck.cardIds.length === 0}
+            className={cn(
+              'w-7 h-7 rounded text-xs font-bold',
+              'transition-colors',
+              player.mainDeck.cardIds.length > 0
+                ? 'bg-cyan-700 hover:bg-cyan-600 text-white'
+                : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+            )}
+            title="抽一张（主卡组顶 → 手牌）"
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const rightmostHandCardId = player.hand.cardIds[player.hand.cardIds.length - 1];
+              if (!rightmostHandCardId) return;
+              manualMoveCard(rightmostHandCardId, ZoneType.HAND, ZoneType.MAIN_DECK, { position: 'TOP' });
+            }}
+            disabled={player.hand.cardIds.length === 0}
+            className={cn(
+              'w-7 h-7 rounded text-xs font-bold',
+              'transition-colors',
+              player.hand.cardIds.length > 0
+                ? 'bg-amber-700 hover:bg-amber-600 text-white'
+                : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+            )}
+            title="放回顶部（手牌最右 → 主卡组顶）"
+          >
+            →
+          </button>
+        </div>
       </DroppableZone>
     );
   };

@@ -658,7 +658,7 @@ export class GameService {
     };
 
     // 规则处理循环（规则 9.5.3.1）
-    do {
+    for (;;) {
       iterations++;
       if (iterations > MAX_ITERATIONS) {
         console.warn('检查时机处理达到最大迭代次数，可能存在无限循环');
@@ -706,7 +706,7 @@ export class GameService {
           triggeredEvents: ['GAME_ENDED'],
         };
       }
-    } while (true);
+    }
 
     // TODO: 步骤 2-3 处理自动能力（需要能力系统支持）
     // 目前采用"信任玩家"方案，自动能力由玩家手动执行
@@ -786,22 +786,39 @@ export class GameService {
     const firstPlayer = getFirstPlayer(game);
     const secondPlayer = getSecondPlayer(game);
 
-    // 8.4.2 计算双方基础分数（玩家可在 UI 中调整）
-    const firstScore = this.calculateLiveScore(game, firstPlayer.id);
-    const secondScore = this.calculateLiveScore(game, secondPlayer.id);
+    // 使用此前在 PERFORMANCE_JUDGMENT 已确认的结果（若缺失再补默认值）
+    const liveResults = new Map(game.liveResolution.liveResults);
+    for (const cardId of firstPlayer.liveZone.cardIds) {
+      if (!liveResults.has(cardId)) {
+        liveResults.set(cardId, true);
+      }
+    }
+    for (const cardId of secondPlayer.liveZone.cardIds) {
+      if (!liveResults.has(cardId)) {
+        liveResults.set(cardId, true);
+      }
+    }
 
-    const firstHasLiveCard = firstPlayer.liveZone.cardIds.length > 0;
-    const secondHasLiveCard = secondPlayer.liveZone.cardIds.length > 0;
+    // 8.4.2 计算双方基础分数（玩家可在 UI 中调整）
+    const firstScore = this.calculateLiveScore(game, firstPlayer.id, liveResults);
+    const secondScore = this.calculateLiveScore(game, secondPlayer.id, liveResults);
+
+    const firstHasSuccessfulLive = firstPlayer.liveZone.cardIds.some(
+      (cardId) => liveResults.get(cardId) !== false
+    );
+    const secondHasSuccessfulLive = secondPlayer.liveZone.cardIds.some(
+      (cardId) => liveResults.get(cardId) !== false
+    );
 
     // 8.4.3-8.4.6 决定推荐胜者（玩家可在 UI 中覆盖）
     const winnerIds: string[] = [];
 
-    if (!firstHasLiveCard && !secondHasLiveCard) {
+    if (!firstHasSuccessfulLive && !secondHasSuccessfulLive) {
       // 8.4.3.1 / 8.4.6.1: 双方都没有 Live 卡，无人获胜
-    } else if (firstHasLiveCard && !secondHasLiveCard) {
+    } else if (firstHasSuccessfulLive && !secondHasSuccessfulLive) {
       // 8.4.3.2: 先攻有卡，后攻无卡，先攻获胜
       winnerIds.push(firstPlayer.id);
-    } else if (!firstHasLiveCard && secondHasLiveCard) {
+    } else if (!firstHasSuccessfulLive && secondHasSuccessfulLive) {
       // 8.4.3.2: 后攻有卡，先攻无卡，后攻获胜
       winnerIds.push(secondPlayer.id);
     } else {
@@ -823,19 +840,6 @@ export class GameService {
     const playerScores = new Map<string, number>();
     playerScores.set(firstPlayer.id, firstScore);
     playerScores.set(secondPlayer.id, secondScore);
-
-    // 计算每张 Live 卡的判定结果
-    const liveResults = new Map<string, boolean>();
-
-    // 对于先攻玩家
-    for (const cardId of firstPlayer.liveZone.cardIds) {
-      liveResults.set(cardId, firstHasLiveCard);
-    }
-
-    // 对于后攻玩家
-    for (const cardId of secondPlayer.liveZone.cardIds) {
-      liveResults.set(cardId, secondHasLiveCard);
-    }
 
     state = {
       ...state,
@@ -953,13 +957,21 @@ export class GameService {
    * @param playerId 玩家 ID
    * @returns 分数
    */
-  private calculateLiveScore(game: GameState, playerId: string): number {
+  private calculateLiveScore(
+    game: GameState,
+    playerId: string,
+    liveResults?: ReadonlyMap<string, boolean>
+  ): number {
     const player = getPlayerById(game, playerId);
     if (!player) return 0;
 
     let totalScore = 0;
 
     for (const cardId of player.liveZone.cardIds) {
+      // 判定失败的 Live 不计分
+      if (liveResults && liveResults.get(cardId) === false) {
+        continue;
+      }
       const card = getCardById(game, cardId);
       if (card && isLiveCardData(card.data)) {
         totalScore += (card.data as LiveCardData).score;

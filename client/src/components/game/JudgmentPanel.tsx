@@ -141,19 +141,13 @@ const SortableCheerCard = memo(function SortableCheerCard({
   );
 });
 
-/** Live 卡判定行 */
+/** Live 卡展示行（只读） */
 const LiveCardJudgmentRow = memo(function LiveCardJudgmentRow({
-  cardId,
   cardName,
   requiredHearts,
-  isSuccess,
-  onToggle,
 }: {
-  cardId: string;
   cardName: string;
   requiredHearts: { color: HeartColor; count: number }[];
-  isSuccess: boolean;
-  onToggle: (cardId: string) => void;
 }) {
   return (
     <div className="flex items-center gap-3 p-2 bg-slate-800/30 rounded-lg border border-slate-700/30">
@@ -167,17 +161,6 @@ const LiveCardJudgmentRow = memo(function LiveCardJudgmentRow({
           ))}
         </div>
       </div>
-      <button
-        onClick={() => onToggle(cardId)}
-        className={cn(
-          'px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
-          isSuccess
-            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30'
-            : 'bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30'
-        )}
-      >
-        {isSuccess ? '✅ 成功' : '❌ 失败'}
-      </button>
     </div>
   );
 });
@@ -192,10 +175,19 @@ export const JudgmentPanel = memo(function JudgmentPanel({
 }: JudgmentPanelProps) {
   const gameState = useGameStore((s) => s.gameState);
 
-  const { confirmJudgment, confirmSubPhase, getCardInstance, getCardImagePath, manualMoveCard, setHoveredCard } =
+  const {
+    confirmJudgment,
+    confirmScore,
+    confirmSubPhase,
+    getCardInstance,
+    getCardImagePath,
+    manualMoveCard,
+    setHoveredCard,
+  } =
     useGameStore(
       useShallow((s) => ({
         confirmJudgment: s.confirmJudgment,
+        confirmScore: s.confirmScore,
         confirmSubPhase: s.confirmSubPhase,
         getCardInstance: s.getCardInstance,
         getCardImagePath: s.getCardImagePath,
@@ -224,20 +216,15 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     });
   }, [gameState, activePlayerId, getCardInstance]);
 
-  // 判定结果状态
-  const [judgmentResults, setJudgmentResults] = useState<Map<string, boolean>>(new Map());
+  // UI 阶段：judge=显示 LIVE失败/LIVE成功；success=显示分数输入+结算
+  const [uiStage, setUiStage] = useState<'judge' | 'success'>('judge');
+  const [adjustedScore, setAdjustedScore] = useState<number>(0);
 
-  // 初始化判定结果
+  // 初始化 UI 状态
   useEffect(() => {
-    if (currentPlayer && isOpen) {
-      const initial = new Map<string, boolean>();
-      currentPlayer.liveZone.cardIds.forEach((cardId) => {
-        const prevResult = gameState?.liveResolution.liveResults.get(cardId);
-        initial.set(cardId, prevResult ?? true);
-      });
-      setJudgmentResults(initial);
-    }
-  }, [currentPlayer, isOpen, gameState]);
+    if (!isOpen || !currentPlayer) return;
+    setUiStage('judge');
+  }, [isOpen, currentPlayer?.id]);
 
   // dnd-kit 传感器（用于应援区排序）
   const sensors = useSensors(
@@ -337,21 +324,79 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     return { totalDrawBonus: drawBonus, totalScoreBonus: scoreBonus };
   }, [cheerCards, currentPlayer, getCardInstance]);
 
+  const baseLiveScore = useMemo(() => {
+    if (!currentPlayer) return 0;
+    return currentPlayer.liveZone.cardIds.reduce((sum, cardId) => {
+      const card = getCardInstance(cardId);
+      if (!card || card.data.cardType !== 'LIVE') return sum;
+      return sum + (card.data as LiveCardData).score;
+    }, 0);
+  }, [currentPlayer, getCardInstance]);
+
+  useEffect(() => {
+    if (!isOpen || !currentPlayer) return;
+    setAdjustedScore(baseLiveScore + totalScoreBonus);
+  }, [isOpen, currentPlayer?.id, baseLiveScore, totalScoreBonus]);
+
   // ---- 判定操作 ----
 
-  const handleToggle = useCallback((cardId: string) => {
-    setJudgmentResults((prev) => {
-      const newMap = new Map(prev);
-      newMap.set(cardId, !prev.get(cardId));
-      return newMap;
-    });
-  }, []);
+  const handleLiveFailed = useCallback(() => {
+    if (!currentPlayer) return;
+    let hasMoveFailure = false;
 
-  const handleConfirm = useCallback(() => {
-    confirmJudgment(judgmentResults);
+    // 1) 当前玩家应援区全部移入休息室
+    for (const card of cheerCards) {
+      const result = manualMoveCard(card.instanceId, ZoneType.RESOLUTION_ZONE, ZoneType.WAITING_ROOM);
+      if (!result.success) {
+        hasMoveFailure = true;
+      }
+    }
+
+    // 2) 当前玩家 Live 区卡牌视为失败并移入休息室，确保本次无 Live 分数
+    for (const liveCardId of currentPlayer.liveZone.cardIds) {
+      const result = manualMoveCard(liveCardId, ZoneType.LIVE_ZONE, ZoneType.WAITING_ROOM);
+      if (!result.success) {
+        hasMoveFailure = true;
+      }
+    }
+
+    if (hasMoveFailure) {
+      return;
+    }
+
+    // 3) 记录判定结果（保留卡牌级结果）
+    const failedResults = new Map<string, boolean>();
+    currentPlayer.liveZone.cardIds.forEach((cardId) => {
+      failedResults.set(cardId, false);
+    });
+    confirmJudgment(failedResults);
+
+    // 4) 结束当前判定子阶段
     confirmSubPhase(SubPhase.PERFORMANCE_JUDGMENT);
     onClose();
-  }, [confirmJudgment, confirmSubPhase, judgmentResults, onClose]);
+  }, [currentPlayer, cheerCards, manualMoveCard, confirmJudgment, confirmSubPhase, onClose]);
+
+  const handleLiveSuccess = useCallback(() => {
+    setUiStage('success');
+  }, []);
+
+  const handleSettleSuccess = useCallback(() => {
+    if (!currentPlayer) return;
+
+    // 1) 本玩家当前 Live 卡全部标记为成功
+    const successResults = new Map<string, boolean>();
+    currentPlayer.liveZone.cardIds.forEach((cardId) => {
+      successResults.set(cardId, true);
+    });
+    confirmJudgment(successResults);
+
+    // 2) 记录玩家手动确认后的 Live 分数
+    confirmScore(adjustedScore);
+
+    // 3) 推进到后续流程（下一个演出玩家或结算阶段）
+    confirmSubPhase(SubPhase.PERFORMANCE_JUDGMENT);
+    onClose();
+  }, [currentPlayer, confirmJudgment, confirmScore, adjustedScore, confirmSubPhase, onClose]);
 
   // ESC 关闭
   useEffect(() => {
@@ -537,11 +582,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                   return (
                     <LiveCardJudgmentRow
                       key={cardId}
-                      cardId={cardId}
                       cardName={liveData.name}
                       requiredHearts={requiredHearts}
-                      isSuccess={judgmentResults.get(cardId) ?? true}
-                      onToggle={handleToggle}
                     />
                   );
                 })}
@@ -550,32 +592,73 @@ export const JudgmentPanel = memo(function JudgmentPanel({
               {/* 提示 */}
               <div className="mt-3 p-2 bg-amber-500/10 rounded-lg border border-amber-500/30">
                 <div className="text-[10px] text-amber-400 space-y-0.5">
-                  <div>💡 点击"成功/失败"按钮可调整判定结果</div>
+                  {uiStage === 'judge' ? (
+                    <>
+                      <div>💡 选择「LIVE失败」会立即结束当前判定，且本次无 Live 分数</div>
+                      <div>💡 选择「LIVE成功」后可手动发动成功效果并调整最终分数</div>
+                    </>
+                  ) : (
+                    <>
+                      <div>💡 当前为 LIVE 成功处理阶段：请先手动发动成功效果</div>
+                      <div>💡 完成后调整分数并点击「结算」进入下一环节</div>
+                    </>
+                  )}
                   <div>🎤 上方应援区可翻开卡组顶牌，悬停卡牌显示操作菜单</div>
                 </div>
               </div>
             </div>
 
             {/* ======== 底部按钮 ======== */}
-            <div className="mt-4 pt-3 border-t border-slate-600/50 flex gap-3">
-              <button
-                onClick={onClose}
-                className="flex-1 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleConfirm}
-                className={cn(
-                  'flex-1 py-2 rounded-lg text-sm font-bold',
-                  'bg-gradient-to-r from-pink-500 to-rose-500',
-                  'hover:from-pink-400 hover:to-rose-400',
-                  'text-white shadow-lg transition-colors'
-                )}
-              >
-                ✅ 确认判定结果
-              </button>
-            </div>
+            {uiStage === 'judge' ? (
+              <div className="mt-4 pt-3 border-t border-slate-600/50 flex gap-3">
+                <button
+                  onClick={handleLiveFailed}
+                  className={cn(
+                    'flex-1 py-2 rounded-lg text-sm font-bold',
+                    'bg-gradient-to-r from-slate-600 to-slate-500',
+                    'hover:from-slate-500 hover:to-slate-400',
+                    'text-white shadow-lg transition-colors'
+                  )}
+                >
+                  LIVE失败
+                </button>
+                <button
+                  onClick={handleLiveSuccess}
+                  className={cn(
+                    'flex-1 py-2 rounded-lg text-sm font-bold',
+                    'bg-gradient-to-r from-emerald-600 to-green-500',
+                    'hover:from-emerald-500 hover:to-green-400',
+                    'text-white shadow-lg transition-colors'
+                  )}
+                >
+                  LIVE成功
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4 pt-3 border-t border-slate-600/50 flex items-center gap-3">
+                <div className="flex-1 flex items-center gap-2">
+                  <span className="text-xs text-slate-300 whitespace-nowrap">LIVE分数</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={adjustedScore}
+                    onChange={(e) => setAdjustedScore(Math.max(0, Number.parseInt(e.target.value || '0', 10) || 0))}
+                    className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handleSettleSuccess}
+                  className={cn(
+                    'px-5 py-2 rounded-lg text-sm font-bold whitespace-nowrap',
+                    'bg-gradient-to-r from-pink-500 to-rose-500',
+                    'hover:from-pink-400 hover:to-rose-400',
+                    'text-white shadow-lg transition-colors'
+                  )}
+                >
+                  结算
+                </button>
+              </div>
+            )}
           </motion.div>
         </>
       )}

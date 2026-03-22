@@ -366,6 +366,33 @@ export function moveCardUniversal(
     const sourceSlot = options.sourceSlot;
     const targetSlot = options.targetSlot;
     state = updatePlayer(state, playerId, (player) => {
+      const sourceCardId = getCardInSlot(player.memberSlots, sourceSlot);
+      const targetCardId = getCardInSlot(player.memberSlots, targetSlot);
+
+      // 交换逻辑：成员卡拖到另一个已有成员卡的槽位时，双方位置互换，
+      // 且各自下方的能量卡（energyBelow）随成员一起移动。
+      if (sourceCardId && sourceCardId === cardId && targetCardId && targetCardId !== cardId) {
+        const sourceEnergyBelow = player.memberSlots.energyBelow?.[sourceSlot] ?? [];
+        const targetEnergyBelow = player.memberSlots.energyBelow?.[targetSlot] ?? [];
+
+        return {
+          ...player,
+          memberSlots: {
+            ...player.memberSlots,
+            slots: {
+              ...player.memberSlots.slots,
+              [sourceSlot]: targetCardId,
+              [targetSlot]: cardId,
+            },
+            energyBelow: {
+              ...player.memberSlots.energyBelow,
+              [sourceSlot]: [...targetEnergyBelow],
+              [targetSlot]: [...sourceEnergyBelow],
+            },
+          },
+        };
+      }
+
       // 1. 先从来源槽位移除成员卡（不清除 energyBelow）
       let updated = { ...player, memberSlots: removeCardFromSlot(player.memberSlots, sourceSlot) };
       // 2. 将成员卡放入目标槽位（换手：将目标槽原有成员移到休息室）

@@ -316,12 +316,18 @@ export const handleConfirmJudgment: ActionHandler<ConfirmJudgmentAction> = (
 ) => {
   const { playerId, judgmentResults } = action;
 
+  // 按卡牌合并判定结果，避免覆盖另一位玩家已确认的数据
+  const mergedResults = new Map(game.liveResolution.liveResults);
+  judgmentResults.forEach((result, cardId) => {
+    mergedResults.set(cardId, result);
+  });
+
   // 更新 liveResolution 中的判定结果
   const state: GameState = {
     ...game,
     liveResolution: {
       ...game.liveResolution,
-      liveResults: judgmentResults,
+      liveResults: mergedResults,
     },
   };
 
