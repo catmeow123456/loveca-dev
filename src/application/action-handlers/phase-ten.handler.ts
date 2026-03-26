@@ -29,11 +29,7 @@ import {
 } from '../../shared/types/enums';
 import { addAction, updatePlayer, getFirstPlayer } from '../../domain/entities/game';
 import { removeCardFromStatefulZone, addCardToZone, drawFromTop } from '../../domain/entities/zone';
-import {
-  removeCardFromPlayerZone,
-  addCardToPlayerZone,
-  moveCardUniversal,
-} from './zone-operations';
+import { removeCardFromPlayerZone, addCardToPlayerZone, moveCardUniversal } from './zone-operations';
 import { phaseManager, type SubPhaseAutoAction } from '../phase-manager';
 import { isUserActionRequired } from '../../shared/phase-config';
 
@@ -61,10 +57,11 @@ export const handleConfirmSubPhase: ActionHandler<ConfirmSubPhaseAction> = (
     operationHistory: [],
   };
 
-  // RESULT_SETTLEMENT 确认时自动清理：
-  // 将解决区域的应援牌和双方 Live 区失败的卡牌移入休息室
+  // RESULT_SETTLEMENT 需要双方先完成分数确认，才可结束子阶段
   if (subPhase === SubPhase.RESULT_SETTLEMENT) {
-    state = performSettlementCleanup(state, ctx);
+    if (state.liveResolution.scoreConfirmedBy.length < 2) {
+      return failure(game, '双方尚未确认分数');
+    }
   }
 
   // 记录动作
@@ -78,6 +75,10 @@ export const handleConfirmSubPhase: ActionHandler<ConfirmSubPhaseAction> = (
   while (true) {
     const subPhaseResult = phaseManager.advanceToNextSubPhase(state);
     state = phaseManager.applySubPhaseTransition(state, subPhaseResult);
+
+    if (subPhaseResult.newSubPhase === SubPhase.RESULT_SETTLEMENT) {
+      triggeredEvents.push(GameEventType.CALCULATE_LIVE_RESULT);
+    }
 
     // 执行子阶段自动处理
     for (const autoAction of subPhaseResult.autoActions) {
@@ -167,51 +168,6 @@ function revealLiveCards(game: GameState, playerId: string): GameState {
       liveZone: { ...player.liveZone, cardStates: newCardStates },
     };
   });
-}
-
-/**
- * RESULT_SETTLEMENT 确认时自动清理
- * - 将解决区域(RESOLUTION_ZONE)中所有卡牌移入对应玩家的休息室（应援牌）
- * - 将双方 Live 区中判定失败的卡牌移入休息室
- */
-function performSettlementCleanup(game: GameState, ctx: ActionHandlerContext): GameState {
-  let state = game;
-
-  // 1. 清理解决区域中的应援牌 → 各玩家的休息室
-  const resolutionCardIds = [...state.resolutionZone.cardIds];
-  if (resolutionCardIds.length > 0) {
-    // 将解决区域卡牌按 owner 分组，移到对应休息室
-    for (const cardId of resolutionCardIds) {
-      const card = ctx.getCardById(state, cardId);
-      if (!card) continue;
-      const ownerId = card.ownerId;
-      // 从解决区域移除
-      state = {
-        ...state,
-        resolutionZone: {
-          ...state.resolutionZone,
-          cardIds: state.resolutionZone.cardIds.filter((id) => id !== cardId),
-        },
-      };
-      // 加入对应玩家的休息室
-      state = addCardToPlayerZone(state, ownerId, cardId, ZoneType.WAITING_ROOM);
-    }
-  }
-
-  // 2. 清理双方 Live 区中判定失败的卡牌 → 休息室
-  const liveResults = state.liveResolution.liveResults;
-  for (const player of state.players) {
-    const failedCardIds = player.liveZone.cardIds.filter((cardId) => {
-      const result = liveResults.get(cardId);
-      return result === false; // 判定失败
-    });
-    for (const cardId of failedCardIds) {
-      state = removeCardFromPlayerZone(state, player.id, cardId, ZoneType.LIVE_ZONE);
-      state = addCardToPlayerZone(state, player.id, cardId, ZoneType.WAITING_ROOM);
-    }
-  }
-
-  return state;
 }
 
 /**
@@ -345,32 +301,50 @@ export const handleConfirmScore: ActionHandler<ConfirmScoreAction> = (
   action: ConfirmScoreAction,
   ctx: ActionHandlerContext
 ) => {
-  const { playerId, adjustedScore, winnerIds } = action;
+  const { playerId, adjustedScore } = action;
 
-  let state = game;
-
-  // 如果提供了调整后的分数，更新玩家分数
-  if (adjustedScore !== undefined) {
-    const newPlayerScores = new Map(game.liveResolution.playerScores);
-    newPlayerScores.set(playerId, adjustedScore);
-
-    state = {
-      ...state,
-      liveResolution: {
-        ...state.liveResolution,
-        playerScores: newPlayerScores,
-      },
-    };
+  if (game.currentSubPhase !== SubPhase.RESULT_SETTLEMENT) {
+    return failure(game, '当前不是分数最终确认子阶段');
   }
 
-  // 如果提供了胜者列表，更新胜者
-  if (winnerIds) {
-    state = {
-      ...state,
-      liveResolution: {
-        ...state.liveResolution,
-        liveWinnerIds: [...winnerIds],
-      },
+  const player = ctx.getPlayerById(game, playerId);
+  if (!player) {
+    return failure(game, '玩家不存在');
+  }
+
+  const newPlayerScores = new Map(game.liveResolution.playerScores);
+  const confirmedScore = adjustedScore ?? newPlayerScores.get(playerId) ?? 0;
+  newPlayerScores.set(playerId, confirmedScore);
+
+  const confirmedBy = game.liveResolution.scoreConfirmedBy.includes(playerId)
+    ? [...game.liveResolution.scoreConfirmedBy]
+    : [...game.liveResolution.scoreConfirmedBy, playerId];
+
+  let state: GameState = {
+    ...game,
+    liveResolution: {
+      ...game.liveResolution,
+      playerScores: newPlayerScores,
+      scoreConfirmedBy: confirmedBy,
+    },
+  };
+
+  state = addAction(state, 'LIVE_JUDGMENT', playerId, {
+    action: 'CONFIRM_SCORE',
+    adjustedScore: confirmedScore,
+    confirmedBy,
+  });
+
+  // 双方都确认分数后，自动判定胜负并推进到下一回合
+  if (confirmedBy.length >= 2) {
+    return {
+      success: true,
+      gameState: state,
+      triggeredEvents: [
+        GameEventType.RESOLVE_LIVE_WINNER,
+        GameEventType.FINALIZE_LIVE_RESULT,
+        GameEventType.ADVANCE_PHASE,
+      ],
     };
   }
 

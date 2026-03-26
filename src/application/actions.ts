@@ -226,8 +226,6 @@ export interface ConfirmScoreAction extends BaseGameAction {
   readonly type: GameActionType.CONFIRM_SCORE;
   /** 调整后的分数（可为 null 表示使用默认计算） */
   readonly adjustedScore?: number;
-  /** 胜者 ID 列表（用户手动选择的胜者） */
-  readonly winnerIds?: readonly string[];
 }
 
 /**
@@ -509,14 +507,12 @@ export function createConfirmJudgmentAction(
  */
 export function createConfirmScoreAction(
   playerId: string,
-  adjustedScore?: number,
-  winnerIds?: readonly string[]
+  adjustedScore?: number
 ): ConfirmScoreAction {
   return {
     type: GameActionType.CONFIRM_SCORE,
     playerId,
     adjustedScore,
-    winnerIds,
     timestamp: Date.now(),
   };
 }

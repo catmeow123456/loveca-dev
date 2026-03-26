@@ -237,19 +237,11 @@ export const ScorePanel = memo(function ScorePanel({
 
   // 确认分数
   const handleConfirm = useCallback(() => {
-    // 传递当前玩家的调整后分数和胜者
     const myScore = viewingPlayerId === player1?.id ? player1Score : player2Score;
-    const winnerPlayerIds: string[] = [];
-    if (winner === 'player1' && player1) winnerPlayerIds.push(player1.id);
-    if (winner === 'player2' && player2) winnerPlayerIds.push(player2.id);
-    if (winner === 'both') {
-      if (player1) winnerPlayerIds.push(player1.id);
-      if (player2) winnerPlayerIds.push(player2.id);
-    }
-    confirmScore(myScore, winnerPlayerIds);
+    confirmScore(myScore);
     confirmSubPhase(SubPhase.RESULT_SETTLEMENT);
     onClose();
-  }, [confirmScore, confirmSubPhase, onClose, viewingPlayerId, player1, player2, player1Score, player2Score, winner]);
+  }, [confirmScore, confirmSubPhase, onClose, viewingPlayerId, player1, player2, player1Score, player2Score]);
 
   // ESC 键关闭
   useEffect(() => {

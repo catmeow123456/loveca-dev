@@ -48,7 +48,7 @@ export const DebugControl = memo(function DebugControl() {
   };
 
   return (
-    <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[60]">
+    <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[140]">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

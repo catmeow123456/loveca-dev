@@ -152,8 +152,8 @@ export interface GameStore {
   ) => { success: boolean; error?: string };
   /** 确认 Live 判定结果 */
   confirmJudgment: (judgmentResults: Map<string, boolean>) => { success: boolean; error?: string };
-  /** 确认分数（用户可调整） */
-  confirmScore: (adjustedScore?: number, winnerIds?: readonly string[]) => { success: boolean; error?: string };
+  /** 确认分数（仅确认己方最终分数） */
+  confirmScore: (adjustedScore?: number) => { success: boolean; error?: string };
   /** 选择成功 Live 卡移到成功区 */
   selectSuccessCard: (cardId: string) => { success: boolean; error?: string };
   /** 撤销上一步操作 */
@@ -548,13 +548,13 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     },
 
-    confirmScore: (adjustedScore, winnerIds) => {
+    confirmScore: (adjustedScore) => {
       const { viewingPlayerId, gameSession } = get();
       if (!viewingPlayerId) {
         return { success: false, error: '未设置玩家' };
       }
 
-      const action = createConfirmScoreAction(viewingPlayerId, adjustedScore, winnerIds);
+      const action = createConfirmScoreAction(viewingPlayerId, adjustedScore);
       const result = gameSession.dispatch(action);
 
       if (result.success) {

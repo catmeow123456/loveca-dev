@@ -19,6 +19,7 @@ import {
   createMulliganAction,
   createEndPhaseAction,
   createConfirmSubPhaseAction,
+  createConfirmScoreAction,
 } from './actions';
 
 // ============================================
@@ -362,6 +363,48 @@ export class GameSession {
         this.emitEvent({
           type: 'ACTION_EXECUTED',
           action: confirmAction,
+          playerId: opponentId,
+        });
+        this.authorityState = this.autoAdvance(this.authorityState);
+
+        // 紧接着若已进入 RESULT_SETTLEMENT，继续自动为对手确认分数，
+        // 避免玩家下一步点"确认完成"时因为"双方未确认分数"而卡死。
+        if (
+          this.authorityState.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
+          this.authorityState.currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
+          !this.authorityState.liveResolution.scoreConfirmedBy.includes(opponentId)
+        ) {
+          const opponentScore = this.authorityState.liveResolution.playerScores.get(opponentId) ?? 0;
+          const confirmScoreAction = createConfirmScoreAction(opponentId, opponentScore);
+          const scoreResult = this.gameService.processAction(this.authorityState, confirmScoreAction);
+          if (scoreResult.success) {
+            this.authorityState = scoreResult.gameState;
+            this.emitEvent({
+              type: 'ACTION_EXECUTED',
+              action: confirmScoreAction,
+              playerId: opponentId,
+            });
+            this.authorityState = this.autoAdvance(this.authorityState);
+          }
+        }
+      }
+      return this.authorityState;
+    }
+
+    // 6. LIVE_RESULT_PHASE 的最终分数确认：自动为对手确认分数，避免墙打卡死
+    if (
+      state.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
+      state.currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
+      !state.liveResolution.scoreConfirmedBy.includes(opponentId)
+    ) {
+      const opponentScore = state.liveResolution.playerScores.get(opponentId) ?? 0;
+      const confirmScoreAction = createConfirmScoreAction(opponentId, opponentScore);
+      const result = this.gameService.processAction(this.authorityState, confirmScoreAction);
+      if (result.success) {
+        this.authorityState = result.gameState;
+        this.emitEvent({
+          type: 'ACTION_EXECUTED',
+          action: confirmScoreAction,
           playerId: opponentId,
         });
         this.authorityState = this.autoAdvance(this.authorityState);

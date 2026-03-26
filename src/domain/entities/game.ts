@@ -117,6 +117,8 @@ export interface LiveResolutionState {
   readonly liveResults: ReadonlyMap<string, boolean>;
   /** 各玩家的 Live 分数 */
   readonly playerScores: ReadonlyMap<string, number>;
+  /** 已确认分数的玩家 ID 列表 */
+  readonly scoreConfirmedBy: readonly string[];
   /** Live 胜利玩家 ID 列表 */
   readonly liveWinnerIds: readonly string[];
   /**
@@ -138,6 +140,7 @@ export function createEmptyLiveResolutionState(): LiveResolutionState {
     secondPlayerCheerCardIds: [],
     liveResults: new Map(),
     playerScores: new Map(),
+    scoreConfirmedBy: [],
     liveWinnerIds: [],
     successCardMovedBy: [],
   };

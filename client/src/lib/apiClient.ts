@@ -253,7 +253,20 @@ export const apiClient = {
         credentials: 'include',
       });
 
-      const body = await response.json();
+      // 未登录或刷新令牌失效：静默返回，不抛异常
+      if (response.status === 401) {
+        accessToken = null;
+        return {
+          data: null,
+          error: { code: 'UNAUTHORIZED', message: '未登录或登录已过期' },
+        };
+      }
+
+      const body = await safeResponseJson<{
+        accessToken: string;
+        user: { id: string; email: string; emailVerified: boolean };
+        profile: Profile;
+      }>(response);
 
       if (body.data?.accessToken) {
         accessToken = body.data.accessToken;

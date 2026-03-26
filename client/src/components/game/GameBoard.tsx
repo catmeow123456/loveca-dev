@@ -22,6 +22,7 @@ import { LiveResultAnimation, type LiveResultType, type LiveScoreInfo } from './
 import { DebugControl } from './DebugControl';
 import { CardDetailOverlay } from './CardDetailOverlay';
 import { JudgmentPanel } from './JudgmentPanel';
+import { ScoreConfirmModal } from './ScoreConfirmModal';
 import { Card } from '@/components/card/Card';
 import { MulliganPanel } from './MulliganPanel';
 import { getDeckBackUrl } from '@/lib/imageService';
@@ -73,23 +74,20 @@ export const GameBoard = memo(function GameBoard() {
   // 派生状态：直接从 gameState 读取，无需 useEffect + setState
   const currentSubPhase = gameState?.currentSubPhase ?? SubPhase.NONE;
   const currentPhase = gameState?.currentPhase ?? null;
-  const currentActivePlayerIndex = gameState?.activePlayerIndex ?? 0;
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
 
-  // judgmentPanel：记录用户打开面板时所对应的活跃玩家 index。
-  // 若当前活跃玩家已切换（index 不同），则面板自动关闭，无需任何 effect。
-  const [judgmentOpenedAtPlayerIndex, setJudgmentOpenedAtPlayerIndex] = useState<number | null>(null);
-  const judgmentPanelOpen = judgmentOpenedAtPlayerIndex === currentActivePlayerIndex;
+  // 左侧判定区抽屉开关（可在任意阶段手动唤出）
+  const [judgmentPanelOpen, setJudgmentPanelOpen] = useState(false);
 
   // 弹窗回调
   const handleJudgmentPanelClose = useCallback(() => {
-    setJudgmentOpenedAtPlayerIndex(null);
+    setJudgmentPanelOpen(false);
   }, []);
 
   // 打开判定面板（由 PhaseIndicator 的判定按钮调用）
   const handleOpenJudgmentPanel = useCallback(() => {
-    setJudgmentOpenedAtPlayerIndex(currentActivePlayerIndex);
-  }, [currentActivePlayerIndex]);
+    setJudgmentPanelOpen(true);
+  }, []);
 
   // 监听阶段变化，触发 Live 结果动画（使用 setTimeout 避免同步 setState）
   useEffect(() => {
@@ -404,6 +402,17 @@ export const GameBoard = memo(function GameBoard() {
           onOpenJudgment={handleOpenJudgmentPanel}
         />
 
+        {/* 左侧唤出按钮（判定区关闭时显示） */}
+        {!judgmentPanelOpen && (
+          <button
+            type="button"
+            onClick={handleOpenJudgmentPanel}
+            className="fixed left-0 top-1/2 -translate-y-1/2 z-[70] rounded-r-xl border border-l-0 border-pink-400/40 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-pink-200 shadow-lg hover:bg-slate-800"
+          >
+            判定区
+          </button>
+        )}
+
         {/* 游戏日志 */}
         <GameLog />
 
@@ -434,6 +443,9 @@ export const GameBoard = memo(function GameBoard() {
           isOpen={judgmentPanelOpen}
           onClose={handleJudgmentPanelClose}
         />
+
+        {/* Live 分数最终确认弹窗（居中） */}
+        <ScoreConfirmModal />
 
         {/* 换牌面板 */}
         <MulliganPanel isOpen={mulliganPanelOpen} />

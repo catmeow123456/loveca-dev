@@ -38,6 +38,15 @@ function getPhaseActionConfig(
 } | null {
   // 根据子阶段决定按钮
   if (subPhase && subPhase !== SubPhase.NONE) {
+    // Live 结算分数确认由中央弹窗处理，这里不展示操作按钮
+    if (
+      subPhase === SubPhase.RESULT_SETTLEMENT ||
+      subPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+      subPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
+    ) {
+      return null;
+    }
+
     // 演出判定阶段：显示专用判定按钮（打开 JudgmentPanel）
     if (subPhase === SubPhase.PERFORMANCE_JUDGMENT) {
       return {

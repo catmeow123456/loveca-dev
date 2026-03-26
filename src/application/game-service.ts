@@ -327,9 +327,11 @@ export class GameService {
    * 事件派发循环
    *
    * 按顺序处理事件队列：
-   * 1. FINALIZE_LIVE_RESULT — 先完成 Live 结算
-   * 2. ADVANCE_PHASE — 推进到下一主阶段（可能产生新事件）
-   * 3. RUN_CHECK_TIMING — 规则自动纠正
+   * 1. CALCULATE_LIVE_RESULT — 计算 Live 结算推荐值
+   * 2. RESOLVE_LIVE_WINNER — 基于双方确认分数判定胜者
+   * 3. FINALIZE_LIVE_RESULT — 完成 Live 结算收尾
+   * 4. ADVANCE_PHASE — 推进到下一主阶段（可能产生新事件）
+   * 5. RUN_CHECK_TIMING — 规则自动纠正
    */
   private dispatchEvents(
     initialState: GameState,
@@ -341,15 +343,33 @@ export class GameService {
     // 按优先级排序处理：FINALIZE 先于 ADVANCE 先于 CHECK_TIMING
     const sortedEvents = [...events].sort((a, b) => {
       const priority: Record<string, number> = {
-        [GameEventType.FINALIZE_LIVE_RESULT]: 0,
-        [GameEventType.ADVANCE_PHASE]: 1,
-        [GameEventType.RUN_CHECK_TIMING]: 2,
+        [GameEventType.CALCULATE_LIVE_RESULT]: 0,
+        [GameEventType.RESOLVE_LIVE_WINNER]: 1,
+        [GameEventType.FINALIZE_LIVE_RESULT]: 2,
+        [GameEventType.ADVANCE_PHASE]: 3,
+        [GameEventType.RUN_CHECK_TIMING]: 4,
       };
-      return (priority[a] ?? 1) - (priority[b] ?? 1);
+      return (priority[a] ?? 99) - (priority[b] ?? 99);
     });
 
     for (const event of sortedEvents) {
       switch (event) {
+        case GameEventType.CALCULATE_LIVE_RESULT: {
+          const calcResult = this.executeLiveResultPhase(state);
+          if (calcResult.success) {
+            state = calcResult.gameState;
+          }
+          processedEvents.push(event);
+          break;
+        }
+        case GameEventType.RESOLVE_LIVE_WINNER: {
+          const resolveResult = this.resolveLiveWinner(state);
+          if (resolveResult.success) {
+            state = resolveResult.gameState;
+          }
+          processedEvents.push(event);
+          break;
+        }
         case GameEventType.FINALIZE_LIVE_RESULT: {
           const finalizeResult = this.finalizeLiveResult(state);
           if (finalizeResult.success) {
@@ -503,8 +523,11 @@ export class GameService {
       state = { ...state, currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT };
     }
 
-    // LIVE_RESULT_PHASE: 执行结算逻辑（RESULT_SETTLEMENT 的自动动作）
-    if (newPhase === GamePhase.LIVE_RESULT_PHASE) {
+    // LIVE_RESULT_PHASE: 若直接进入 RESULT_SETTLEMENT（无成功效果窗口）则立即计算推荐分数/胜者
+    if (
+      newPhase === GamePhase.LIVE_RESULT_PHASE &&
+      state.currentSubPhase === SubPhase.RESULT_SETTLEMENT
+    ) {
       const resultPhaseResult = this.executeLiveResultPhase(state);
       if (resultPhaseResult.success) {
         state = resultPhaseResult.gameState;
@@ -801,37 +824,6 @@ export class GameService {
     const firstScore = this.calculateLiveScore(game, firstPlayer.id, liveResults);
     const secondScore = this.calculateLiveScore(game, secondPlayer.id, liveResults);
 
-    const firstHasSuccessfulLive = firstPlayer.liveZone.cardIds.some(
-      (cardId) => liveResults.get(cardId) !== false
-    );
-    const secondHasSuccessfulLive = secondPlayer.liveZone.cardIds.some(
-      (cardId) => liveResults.get(cardId) !== false
-    );
-
-    // 8.4.3-8.4.6 决定推荐胜者（玩家可在 UI 中覆盖）
-    const winnerIds: string[] = [];
-
-    if (!firstHasSuccessfulLive && !secondHasSuccessfulLive) {
-      // 8.4.3.1 / 8.4.6.1: 双方都没有 Live 卡，无人获胜
-    } else if (firstHasSuccessfulLive && !secondHasSuccessfulLive) {
-      // 8.4.3.2: 先攻有卡，后攻无卡，先攻获胜
-      winnerIds.push(firstPlayer.id);
-    } else if (!firstHasSuccessfulLive && secondHasSuccessfulLive) {
-      // 8.4.3.2: 后攻有卡，先攻无卡，后攻获胜
-      winnerIds.push(secondPlayer.id);
-    } else {
-      // 8.4.3.3 / 8.4.6.2: 双方都有卡，比较分数
-      if (firstScore > secondScore) {
-        winnerIds.push(firstPlayer.id);
-      } else if (secondScore > firstScore) {
-        winnerIds.push(secondPlayer.id);
-      } else {
-        // 分数相等，双方都获胜
-        winnerIds.push(firstPlayer.id);
-        winnerIds.push(secondPlayer.id);
-      }
-    }
-
     let state = game;
 
     // 更新 liveResolution 状态（用于 UI 显示）
@@ -845,8 +837,8 @@ export class GameService {
         ...state.liveResolution,
         liveResults,
         playerScores,
-        liveWinnerIds: winnerIds,
-        // 新增字段：追踪谁已移动卡牌到成功区
+        scoreConfirmedBy: [],
+        liveWinnerIds: [],
         successCardMovedBy: [],
       },
     };
@@ -857,8 +849,7 @@ export class GameService {
       secondPlayerId: secondPlayer.id,
       firstScore,
       secondScore,
-      recommendedWinnerIds: winnerIds,
-      note: '分数和胜者由系统推荐，玩家可在 UI 中调整',
+      note: '已生成分数草案，等待双方在结算阶段分别确认',
     });
 
     // 不再自动移动卡牌、不再自动清理、不再自动更新先攻
@@ -888,6 +879,17 @@ export class GameService {
 
     let state = game;
 
+    // 先统一执行结算清理，避免跨回合残留应援牌/失败 Live 卡
+    state = this.performSettlementCleanup(state);
+
+    // 若尚未完成胜者判定，则在 finalize 前补判一次（兜底）
+    if (state.liveResolution.liveWinnerIds.length === 0) {
+      const resolveResult = this.resolveLiveWinner(state);
+      if (resolveResult.success) {
+        state = resolveResult.gameState;
+      }
+    }
+
     // 8.4.13 更新先攻玩家
     // 规则：胜者成为下回合先攻
     const winnerIds = state.liveResolution.liveWinnerIds;
@@ -913,6 +915,7 @@ export class GameService {
         secondPlayerCheerCardIds: [],
         liveResults: new Map(),
         playerScores: new Map(),
+        scoreConfirmedBy: [],
         liveWinnerIds: [],
         successCardMovedBy: [],
       },
@@ -1031,6 +1034,88 @@ export class GameService {
       ...state,
       resolutionZone: { ...state.resolutionZone, cardIds: [] },
     };
+  }
+
+  /**
+   * 基于当前已确认分数判定 Live 胜者（8.4.3-8.4.6）
+   */
+  resolveLiveWinner(game: GameState): GameOperationResult {
+    const firstPlayer = getFirstPlayer(game);
+    const secondPlayer = getSecondPlayer(game);
+
+    const firstScore = game.liveResolution.playerScores.get(firstPlayer.id) ?? 0;
+    const secondScore = game.liveResolution.playerScores.get(secondPlayer.id) ?? 0;
+
+    const liveResults = game.liveResolution.liveResults;
+    const firstHasSuccessfulLive = firstPlayer.liveZone.cardIds.some((cardId) => liveResults.get(cardId) !== false);
+    const secondHasSuccessfulLive = secondPlayer.liveZone.cardIds.some((cardId) => liveResults.get(cardId) !== false);
+
+    const winnerIds: string[] = [];
+    if (!firstHasSuccessfulLive && !secondHasSuccessfulLive) {
+      // 双方都无成功 Live，无胜者
+    } else if (firstHasSuccessfulLive && !secondHasSuccessfulLive) {
+      winnerIds.push(firstPlayer.id);
+    } else if (!firstHasSuccessfulLive && secondHasSuccessfulLive) {
+      winnerIds.push(secondPlayer.id);
+    } else if (firstScore > secondScore) {
+      winnerIds.push(firstPlayer.id);
+    } else if (secondScore > firstScore) {
+      winnerIds.push(secondPlayer.id);
+    } else {
+      winnerIds.push(firstPlayer.id, secondPlayer.id);
+    }
+
+    const state: GameState = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        liveWinnerIds: winnerIds,
+      },
+    };
+
+    return { success: true, gameState: state };
+  }
+
+  /**
+   * RESULT_SETTLEMENT 收尾清理：
+   * 1) resolutionZone 的应援牌 -> 各自休息室
+   * 2) 双方判定失败的 Live -> 休息室
+   */
+  private performSettlementCleanup(game: GameState): GameState {
+    let state = game;
+
+    // 清理应援牌
+    const resolutionCardIds = [...state.resolutionZone.cardIds];
+    for (const cardId of resolutionCardIds) {
+      const card = getCardById(state, cardId);
+      if (!card) continue;
+      state = {
+        ...state,
+        resolutionZone: {
+          ...state.resolutionZone,
+          cardIds: state.resolutionZone.cardIds.filter((id) => id !== cardId),
+        },
+      };
+      state = updatePlayer(state, card.ownerId, (player) => ({
+        ...player,
+        waitingRoom: addCardToZone(player.waitingRoom, cardId),
+      }));
+    }
+
+    // 清理判定失败的 Live
+    const liveResults = state.liveResolution.liveResults;
+    for (const player of state.players) {
+      const failedCardIds = player.liveZone.cardIds.filter((cardId) => liveResults.get(cardId) === false);
+      for (const cardId of failedCardIds) {
+        state = updatePlayer(state, player.id, (p) => ({
+          ...p,
+          liveZone: removeCardFromStatefulZone(p.liveZone, cardId),
+          waitingRoom: addCardToZone(p.waitingRoom, cardId),
+        }));
+      }
+    }
+
+    return state;
   }
 }
 

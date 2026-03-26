@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { CardType, HeartColor } from '../../src/shared/types/enums';
+import { CardType, HeartColor, GamePhase, SubPhase } from '../../src/shared/types/enums';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { createCardInstance, createHeartRequirement } from '../../src/domain/entities/card';
 import { addCardToStatefulZone } from '../../src/domain/entities/zone';
 import { handleConfirmJudgment } from '../../src/application/action-handlers/phase-ten.handler';
 import { GameService } from '../../src/application/game-service';
+import { createConfirmSubPhaseAction } from '../../src/application/actions';
 
 describe('Live 判定与结算', () => {
   it('确认判定应合并 liveResults，而不是覆盖其他玩家结果', () => {
@@ -79,6 +80,64 @@ describe('Live 判定与结算', () => {
     expect(settleResult.success).toBe(true);
     expect(settleResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
     expect(settleResult.gameState.liveResolution.playerScores.get('p2')).toBe(3);
-    expect(settleResult.gameState.liveResolution.liveWinnerIds).toEqual(['p2']);
+    expect(settleResult.gameState.liveResolution.liveWinnerIds).toEqual([]);
+  });
+
+  it('应在进入 RESULT_SETTLEMENT 时才计算双方分数', () => {
+    const service = new GameService();
+    const p1LiveData = {
+      cardCode: 'P1-LIVE-2',
+      name: 'P1 Live 2',
+      cardType: CardType.LIVE as const,
+      score: 4,
+      requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+    };
+    const p2LiveData = {
+      cardCode: 'P2-LIVE-2',
+      name: 'P2 Live 2',
+      cardType: CardType.LIVE as const,
+      score: 6,
+      requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),
+    };
+
+    const p1Live = createCardInstance(p1LiveData, 'p1', 'p1-live-2');
+    const p2Live = createCardInstance(p2LiveData, 'p2', 'p2-live-2');
+
+    let game = createGameState('g-live-score-timing', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [p1Live, p2Live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, p1Live.instanceId),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, p2Live.instanceId),
+    }));
+
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_SECOND_SUCCESS_EFFECTS,
+      liveResolution: {
+        ...game.liveResolution,
+        liveResults: new Map<string, boolean>([
+          [p1Live.instanceId, true],
+          [p2Live.instanceId, true],
+        ]),
+        playerScores: new Map(),
+        scoreConfirmedBy: [],
+        liveWinnerIds: [],
+      },
+    };
+
+    const confirmResult = service.processAction(
+      game,
+      createConfirmSubPhaseAction('p2', SubPhase.RESULT_SECOND_SUCCESS_EFFECTS)
+    );
+    expect(confirmResult.success).toBe(true);
+    expect(confirmResult.gameState.currentSubPhase).toBe(SubPhase.RESULT_SETTLEMENT);
+    expect(confirmResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
+    expect(confirmResult.gameState.liveResolution.playerScores.get('p2')).toBe(6);
+    expect(confirmResult.gameState.liveResolution.liveWinnerIds).toEqual([]);
   });
 });

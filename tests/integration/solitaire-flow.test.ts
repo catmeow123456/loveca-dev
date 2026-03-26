@@ -32,6 +32,7 @@ import {
   createMulliganAction,
   createEndPhaseAction,
   createConfirmSubPhaseAction,
+  createConfirmScoreAction,
 } from '../../src/application/actions';
 import type { GameState } from '../../src/domain/entities/game';
 import { getPlayerById } from '../../src/domain/entities/game';
@@ -319,17 +320,19 @@ describe('对墙打模式（Solitaire）集成测试', () => {
 
         // 根据流程，应该进入下一回合：
         // PERFORMANCE → LIVE_RESULT → 新回合 ACTIVE → ENERGY → DRAW → MAIN
-        // 但可能停在中间需要确认的阶段
-        if (stateAfterLive.currentPhase === GamePhase.LIVE_RESULT_PHASE) {
-          // 如果停在 LIVE_RESULT_PHASE，需要手动确认
-          const subPhase = stateAfterLive.currentSubPhase;
-          if (subPhase && subPhase !== SubPhase.NONE) {
-            const confirmResult = session.dispatch(
-              createConfirmSubPhaseAction(PLAYER1, subPhase)
-            );
-            expect(confirmResult.success).toBe(true);
-          }
+        // LIVE_RESULT 阶段可能包含多个需要确认的子阶段，循环确认直到离开该阶段。
+        let safety = 0;
+        while (session.state!.currentPhase === GamePhase.LIVE_RESULT_PHASE && safety < 6) {
+          const subPhase = session.state!.currentSubPhase;
+          if (!subPhase || subPhase === SubPhase.NONE) break;
+          const confirmResult =
+            subPhase === SubPhase.RESULT_SETTLEMENT
+              ? session.dispatch(createConfirmScoreAction(PLAYER1, 0))
+              : session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+          expect(confirmResult.success).toBe(true);
+          safety++;
         }
+        expect(safety).toBeLessThan(6);
 
         if (session.state!.currentPhase === GamePhase.PERFORMANCE_PHASE) {
           // Performance 阶段需要确认判定
@@ -342,16 +345,19 @@ describe('对墙打模式（Solitaire）集成测试', () => {
           }
         }
 
-        // 可能还在 LIVE_RESULT_PHASE 的后续子阶段
-        if (session.state!.currentPhase === GamePhase.LIVE_RESULT_PHASE) {
+        // 保险兜底：若仍停留在 LIVE_RESULT_PHASE，再次循环确认
+        safety = 0;
+        while (session.state!.currentPhase === GamePhase.LIVE_RESULT_PHASE && safety < 6) {
           const subPhase = session.state!.currentSubPhase;
-          if (subPhase && subPhase !== SubPhase.NONE) {
-            const confirmResult = session.dispatch(
-              createConfirmSubPhaseAction(PLAYER1, subPhase)
-            );
-            expect(confirmResult.success).toBe(true);
-          }
+          if (!subPhase || subPhase === SubPhase.NONE) break;
+          const confirmResult =
+            subPhase === SubPhase.RESULT_SETTLEMENT
+              ? session.dispatch(createConfirmScoreAction(PLAYER1, 0))
+              : session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+          expect(confirmResult.success).toBe(true);
+          safety++;
         }
+        expect(safety).toBeLessThan(6);
 
         // 到此应该回到新回合的 MAIN_PHASE
         const finalState = session.state!;

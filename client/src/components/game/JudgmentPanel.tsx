@@ -10,7 +10,7 @@
  */
 
 import { memo, useState, useCallback, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   DndContext,
   closestCenter,
@@ -177,7 +177,6 @@ export const JudgmentPanel = memo(function JudgmentPanel({
 
   const {
     confirmJudgment,
-    confirmScore,
     confirmSubPhase,
     getCardInstance,
     getCardImagePath,
@@ -187,7 +186,6 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     useGameStore(
       useShallow((s) => ({
         confirmJudgment: s.confirmJudgment,
-        confirmScore: s.confirmScore,
         confirmSubPhase: s.confirmSubPhase,
         getCardInstance: s.getCardInstance,
         getCardImagePath: s.getCardImagePath,
@@ -216,9 +214,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     });
   }, [gameState, activePlayerId, getCardInstance]);
 
-  // UI 阶段：judge=显示 LIVE失败/LIVE成功；success=显示分数输入+结算
+  // UI 阶段：judge=显示 LIVE失败/LIVE成功；success=显示成功后处理提示
   const [uiStage, setUiStage] = useState<'judge' | 'success'>('judge');
-  const [adjustedScore, setAdjustedScore] = useState<number>(0);
 
   // 初始化 UI 状态
   useEffect(() => {
@@ -310,33 +307,24 @@ export const JudgmentPanel = memo(function JudgmentPanel({
   }, [currentPlayer, gameState, getCardInstance, cheerCards]);
 
   // 光棒心抽卡加成和分数加成（包括应援牌和 Live 区的 Live 卡）
-  const { totalDrawBonus, totalScoreBonus } = useMemo(() => {
+  const { totalDrawBonus } = useMemo(() => {
     let drawBonus = 0;
-    let scoreBonus = 0;
 
     // 从应援牌获取
     for (const card of cheerCards) {
       const effects = calculateCheerEffects(card.data);
       drawBonus += effects.drawBonus;
-      scoreBonus += effects.scoreBonus;
     }
 
-    return { totalDrawBonus: drawBonus, totalScoreBonus: scoreBonus };
+    return { totalDrawBonus: drawBonus };
   }, [cheerCards, currentPlayer, getCardInstance]);
 
-  const baseLiveScore = useMemo(() => {
-    if (!currentPlayer) return 0;
-    return currentPlayer.liveZone.cardIds.reduce((sum, cardId) => {
-      const card = getCardInstance(cardId);
-      if (!card || card.data.cardType !== 'LIVE') return sum;
-      return sum + (card.data as LiveCardData).score;
-    }, 0);
-  }, [currentPlayer, getCardInstance]);
-
-  useEffect(() => {
-    if (!isOpen || !currentPlayer) return;
-    setAdjustedScore(baseLiveScore + totalScoreBonus);
-  }, [isOpen, currentPlayer?.id, baseLiveScore, totalScoreBonus]);
+  const currentSubPhase = gameState?.currentSubPhase ?? SubPhase.NONE;
+  const isPerformanceJudgment = currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT;
+  const isLiveSuccessWindow =
+    currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+    currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS;
+  const isResultSettlement = currentSubPhase === SubPhase.RESULT_SETTLEMENT;
 
   // ---- 判定操作 ----
 
@@ -380,7 +368,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     setUiStage('success');
   }, []);
 
-  const handleSettleSuccess = useCallback(() => {
+  const handleFinishPerformanceSuccess = useCallback(() => {
     if (!currentPlayer) return;
 
     // 1) 本玩家当前 Live 卡全部标记为成功
@@ -390,13 +378,20 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     });
     confirmJudgment(successResults);
 
-    // 2) 记录玩家手动确认后的 Live 分数
-    confirmScore(adjustedScore);
-
-    // 3) 推进到后续流程（下一个演出玩家或结算阶段）
+    // 2) 推进到后续流程（下一个演出玩家或结算阶段）
     confirmSubPhase(SubPhase.PERFORMANCE_JUDGMENT);
     onClose();
-  }, [currentPlayer, confirmJudgment, confirmScore, adjustedScore, confirmSubPhase, onClose]);
+  }, [currentPlayer, confirmJudgment, confirmSubPhase, onClose]);
+
+  const handleSuccessEffectsDone = useCallback(() => {
+    if (
+      currentSubPhase !== SubPhase.RESULT_FIRST_SUCCESS_EFFECTS &&
+      currentSubPhase !== SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
+    ) {
+      return;
+    }
+    confirmSubPhase(currentSubPhase);
+  }, [confirmSubPhase, currentSubPhase]);
 
   // ESC 关闭
   useEffect(() => {
@@ -409,35 +404,42 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     }
   }, [isOpen, onClose]);
 
-  // 仅在判定子阶段显示
-  const currentSubPhase = gameState?.currentSubPhase;
-  const shouldShow = isOpen && currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT;
-  if (!shouldShow || !currentPlayer) return null;
+  if (!isOpen || !currentPlayer) return null;
 
   const totalHeartsCount = Array.from(totalHearts.values()).reduce((s, c) => s + c, 0);
 
   return (
-    <AnimatePresence>
-      {shouldShow && (
-        <>
-          {/* 背景遮罩 */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-[100]"
-            onClick={onClose}
-          />
+    <motion.aside
+      className="fixed left-0 top-0 z-[90] h-full w-full max-w-[420px] overflow-y-auto border-r border-pink-500/40 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-sm"
+      initial={{ x: -460, opacity: 0.8 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: -460, opacity: 0.8 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+    >
+      <div className="mb-3 flex items-center justify-between border-b border-pink-500/30 pb-2">
+        <div>
+          <div className="text-sm font-semibold text-pink-200">判定区 / 应援操作窗</div>
+          <div className="mt-0.5 text-[11px] text-slate-400">
+            {isPerformanceJudgment
+              ? '当前为 Live 判定阶段'
+              : isLiveSuccessWindow
+                ? '当前为 Live 成功效果窗口（可继续操作判定区）'
+                : isResultSettlement
+                  ? '当前为分数最终确认阶段'
+                  : '可随时查看并操作判定区卡牌'}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700"
+        >
+          收起
+        </button>
+      </div>
 
-          {/* 面板 - 悬浮窗风格 */}
-          <motion.div
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-full max-w-[640px] max-h-[85vh] overflow-y-auto bg-slate-800/95 rounded-lg p-4 shadow-xl border border-pink-500/50"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-          >
             {/* ======== 上方：应援区 ======== */}
-            <div className="mb-4">
+      <div className="mb-4">
               {/* 标题 + 操作 */}
               <div className="flex items-center justify-between mb-2 pb-2 border-b border-amber-500/30">
                 <span className="text-sm text-amber-300 font-medium">
@@ -527,10 +529,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                   </DndContext>
                 )}
               </div>
-            </div>
+      </div>
 
             {/* ======== 下方：Live 判定区 ======== */}
-            <div className="border-t border-slate-600/50 pt-3">
+      <div className="border-t border-slate-600/50 pt-3">
               {/* 心数汇总 */}
               <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 mb-3">
                 <div className="text-sm font-medium text-slate-300 mb-2">
@@ -592,77 +594,96 @@ export const JudgmentPanel = memo(function JudgmentPanel({
               {/* 提示 */}
               <div className="mt-3 p-2 bg-amber-500/10 rounded-lg border border-amber-500/30">
                 <div className="text-[10px] text-amber-400 space-y-0.5">
-                  {uiStage === 'judge' ? (
+                  {isPerformanceJudgment && uiStage === 'judge' ? (
                     <>
                       <div>💡 选择「LIVE失败」会立即结束当前判定，且本次无 Live 分数</div>
-                      <div>💡 选择「LIVE成功」后可手动发动成功效果并调整最终分数</div>
+                      <div>💡 选择「LIVE成功」后先进入成功效果发动窗口</div>
+                    </>
+                  ) : isResultSettlement ? (
+                    <>
+                      <div>💡 分数最终确认已移到页面中央确认框</div>
+                      <div>💡 双方在中央框确认后将自动判定胜负并进入下一回合</div>
+                    </>
+                  ) : isLiveSuccessWindow ? (
+                    <>
+                      <div>💡 当前为 Live 成功效果发动窗口</div>
+                      <div>💡 发动完成后点击下方「成功效果发动完毕」</div>
                     </>
                   ) : (
                     <>
-                      <div>💡 当前为 LIVE 成功处理阶段：请先手动发动成功效果</div>
-                      <div>💡 完成后调整分数并点击「结算」进入下一环节</div>
+                      <div>💡 当前为辅助查看窗口，可随时操作判定区卡牌</div>
                     </>
                   )}
                   <div>🎤 上方应援区可翻开卡组顶牌，悬停卡牌显示操作菜单</div>
+                  {isLiveSuccessWindow && (
+                    <div>🪄 当前窗口可继续发动 Live 成功效果，同时仍可操作主桌面的手牌/卡组/休息室</div>
+                  )}
                 </div>
               </div>
-            </div>
+      </div>
 
             {/* ======== 底部按钮 ======== */}
-            {uiStage === 'judge' ? (
-              <div className="mt-4 pt-3 border-t border-slate-600/50 flex gap-3">
-                <button
-                  onClick={handleLiveFailed}
-                  className={cn(
-                    'flex-1 py-2 rounded-lg text-sm font-bold',
-                    'bg-gradient-to-r from-slate-600 to-slate-500',
-                    'hover:from-slate-500 hover:to-slate-400',
-                    'text-white shadow-lg transition-colors'
-                  )}
-                >
-                  LIVE失败
-                </button>
-                <button
-                  onClick={handleLiveSuccess}
-                  className={cn(
-                    'flex-1 py-2 rounded-lg text-sm font-bold',
-                    'bg-gradient-to-r from-emerald-600 to-green-500',
-                    'hover:from-emerald-500 hover:to-green-400',
-                    'text-white shadow-lg transition-colors'
-                  )}
-                >
-                  LIVE成功
-                </button>
-              </div>
-            ) : (
-              <div className="mt-4 pt-3 border-t border-slate-600/50 flex items-center gap-3">
-                <div className="flex-1 flex items-center gap-2">
-                  <span className="text-xs text-slate-300 whitespace-nowrap">LIVE分数</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={adjustedScore}
-                    onChange={(e) => setAdjustedScore(Math.max(0, Number.parseInt(e.target.value || '0', 10) || 0))}
-                    className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                  />
-                </div>
-                <button
-                  onClick={handleSettleSuccess}
-                  className={cn(
-                    'px-5 py-2 rounded-lg text-sm font-bold whitespace-nowrap',
-                    'bg-gradient-to-r from-pink-500 to-rose-500',
-                    'hover:from-pink-400 hover:to-rose-400',
-                    'text-white shadow-lg transition-colors'
-                  )}
-                >
-                  结算
-                </button>
-              </div>
+      {isPerformanceJudgment ? (
+        uiStage === 'judge' ? (
+          <div className="mt-4 border-t border-slate-600/50 pt-3 flex gap-3">
+            <button
+              onClick={handleLiveFailed}
+              className={cn(
+                'flex-1 py-2 rounded-lg text-sm font-bold',
+                'bg-gradient-to-r from-slate-600 to-slate-500',
+                'hover:from-slate-500 hover:to-slate-400',
+                'text-white shadow-lg transition-colors'
+              )}
+            >
+              LIVE失败
+            </button>
+            <button
+              onClick={handleLiveSuccess}
+              className={cn(
+                'flex-1 py-2 rounded-lg text-sm font-bold',
+                'bg-gradient-to-r from-emerald-600 to-green-500',
+                'hover:from-emerald-500 hover:to-green-400',
+                'text-white shadow-lg transition-colors'
+              )}
+            >
+              LIVE成功
+            </button>
+          </div>
+        ) : (
+          <div className="mt-4 border-t border-slate-600/50 pt-3">
+            <button
+              onClick={handleFinishPerformanceSuccess}
+              className={cn(
+                'w-full py-2 rounded-lg text-sm font-bold',
+                'bg-gradient-to-r from-pink-500 to-rose-500',
+                'hover:from-pink-400 hover:to-rose-400',
+                'text-white shadow-lg transition-colors'
+              )}
+            >
+              成功效果发动完毕
+            </button>
+          </div>
+        )
+      ) : isLiveSuccessWindow ? (
+        <div className="mt-4 border-t border-slate-600/50 pt-3">
+          <button
+            onClick={handleSuccessEffectsDone}
+            className={cn(
+              'w-full py-2 rounded-lg text-sm font-bold',
+              'bg-gradient-to-r from-indigo-500 to-sky-500',
+              'hover:from-indigo-400 hover:to-sky-400',
+              'text-white shadow-lg transition-colors'
             )}
-          </motion.div>
-        </>
+          >
+            成功效果发动完毕
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 border-t border-slate-600/50 pt-3 text-xs text-slate-300">
+          当前不在 Live 判定确认子阶段，本面板保持为辅助操作窗口。
+        </div>
       )}
-    </AnimatePresence>
+    </motion.aside>
   );
 });
 
