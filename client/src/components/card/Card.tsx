@@ -46,6 +46,8 @@ export interface CardProps {
   onMouseLeave?: () => void;
   /** 自定义 className */
   className?: string;
+  /** 是否启用 framer-motion 的 layout 动画（默认关闭以减少大范围重排抖动） */
+  enableLayoutAnimation?: boolean;
 }
 
 // ============================================
@@ -229,6 +231,7 @@ export const Card = memo(function Card({
   onMouseEnter,
   onMouseLeave,
   className,
+  enableLayoutAnimation = false,
 }: CardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -275,7 +278,7 @@ export const Card = memo(function Card({
         zIndex: 100,
       } : undefined}
       whileTap={interactive ? { scale: 0.98 } : undefined}
-      layout
+      layout={enableLayoutAnimation}
       data-card-id={instanceId}
     >
       <AnimatePresence mode="wait">

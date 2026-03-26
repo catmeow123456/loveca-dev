@@ -66,6 +66,7 @@ export const PlayerArea = memo(function PlayerArea({
       selectedCardId: s.ui.selectedCardId,
     }))
   );
+  const isDragging = useGameStore((s) => s.ui.isDragging);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
   const { getCardInstance, getCardImagePath, selectCard, setHoveredCard, tapMember, manualMoveCard } = useGameStore(
@@ -177,7 +178,9 @@ export const PlayerArea = memo(function PlayerArea({
                   <div
                     className={cn(
                       'w-full h-full rounded-lg overflow-hidden shadow-md cursor-grab active:cursor-grabbing',
-                      'transition-all duration-200 hover:scale-105 hover:z-50 hover:shadow-xl',
+                      isDragging
+                        ? 'transition-none'
+                        : 'transition-[transform,box-shadow] duration-200 hover:scale-105 hover:z-50 hover:shadow-xl',
                       'border-2 border-indigo-400/50 bg-slate-800'
                     )}
                     onMouseEnter={() => energyCard && setHoveredCard(energyCard.instanceId)}
@@ -204,7 +207,9 @@ export const PlayerArea = memo(function PlayerArea({
             className={cn(
               // 响应式尺寸：使用 clamp 确保在合理范围内
               'w-[clamp(80px,10vw,140px)] aspect-[5/7] rounded-lg',
-              'border-2 border-dashed transition-all',
+              isDragging
+                ? 'border-2 border-dashed transition-none'
+                : 'border-2 border-dashed transition-[border-color,background-color,outline-color] duration-150',
               cardId ? 'border-transparent' : 'border-rose-500/30',
               'flex items-center justify-center',
               'bg-slate-800/50',
@@ -288,7 +293,9 @@ export const PlayerArea = memo(function PlayerArea({
               >
                 <div
                   className={cn(
-                    'w-5 h-7 rounded overflow-hidden shadow-sm cursor-pointer transition-transform hover:scale-110 hover:z-10',
+                    isDragging
+                      ? 'w-5 h-7 rounded overflow-hidden shadow-sm cursor-pointer transition-none'
+                      : 'w-5 h-7 rounded overflow-hidden shadow-sm cursor-pointer transition-transform hover:scale-110 hover:z-10',
                     !isActive && 'opacity-40 grayscale'
                   )}
                   onMouseEnter={() => card && setHoveredCard(card.instanceId)}
@@ -618,7 +625,6 @@ export const PlayerArea = memo(function PlayerArea({
         data={{ cardId, cardCode: card.data.cardCode, fromZone: ZoneType.LIVE_ZONE }}
       >
         <motion.div
-          layout
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
@@ -790,7 +796,11 @@ export const PlayerArea = memo(function PlayerArea({
           return (
             <div
               key={cardId}
-              className="transition-transform duration-200 hover:-translate-y-5 hover:scale-105 hover:z-50"
+              className={cn(
+                isDragging
+                  ? 'transition-none'
+                  : 'transition-transform duration-200 hover:-translate-y-5 hover:scale-105 hover:z-50'
+              )}
               style={{
                 marginLeft: idx > 0 ? '-15px' : 0,
                 transform: `rotate(${(idx - player.hand.cardIds.length / 2) * 5}deg)`,
