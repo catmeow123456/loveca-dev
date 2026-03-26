@@ -13,10 +13,10 @@ import { GameService, type DeckConfig, type GameOperationResult } from './game-s
 import { GamePhase, GameMode, SubPhase } from '../shared/types/enums';
 import type { GameState } from '../domain/entities/game';
 import { getActivePlayer } from '../domain/entities/game';
+import { isPlayerActive, getActivePlayerId as getActivePlayerIdFromConfig } from '../shared/phase-config';
 import type { GameAction } from './actions';
 import {
   createMulliganAction,
-  createSkipLiveSetAction,
   createEndPhaseAction,
   createConfirmSubPhaseAction,
 } from './actions';
@@ -250,19 +250,22 @@ export class GameSession {
 
   /**
    * 获取当前活跃玩家 ID
+   * 使用 phase-config 统一判断逻辑
    */
   getActivePlayerId(): string | null {
     if (!this.authorityState) {
       return null;
     }
-    return getActivePlayer(this.authorityState).id;
+    return getActivePlayerIdFromConfig(this.authorityState) ?? null;
   }
 
   /**
    * 检查指定玩家是否是当前活跃玩家
+   * 使用 phase-config 统一判断逻辑，支持子阶段派生的活跃玩家
    */
   isActivePlayer(playerId: string): boolean {
-    return this.getActivePlayerId() === playerId;
+    if (!this.authorityState) return false;
+    return isPlayerActive(this.authorityState, playerId);
   }
 
   // ============================================
@@ -297,15 +300,22 @@ export class GameSession {
       return this.authorityState;
     }
 
-    // 2. 玩家完成 Live 设置 → 自动跳过对手 Live 设置
-    if (lastAction.type === 'SKIP_LIVE_SET' && state.currentPhase === GamePhase.LIVE_SET_PHASE) {
-      const skipAction = createSkipLiveSetAction(opponentId);
-      const result = this.gameService.processAction(this.authorityState, skipAction);
+    // 2. LIVE_SET_PHASE 中对手的子阶段自动跳过
+    //    玩家完成盖牌后，子阶段链推进到对手的 LIVE_SET_SECOND_PLAYER，自动确认
+    if (
+      state.currentPhase === GamePhase.LIVE_SET_PHASE &&
+      state.currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER
+    ) {
+      const confirmAction = createConfirmSubPhaseAction(
+        opponentId,
+        SubPhase.LIVE_SET_SECOND_PLAYER
+      );
+      const result = this.gameService.processAction(this.authorityState, confirmAction);
       if (result.success) {
         this.authorityState = result.gameState;
         this.emitEvent({
           type: 'ACTION_EXECUTED',
-          action: skipAction,
+          action: confirmAction,
           playerId: opponentId,
         });
         this.authorityState = this.autoAdvance(this.authorityState);
@@ -345,29 +355,6 @@ export class GameSession {
       const confirmAction = createConfirmSubPhaseAction(
         opponentId,
         SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
-      );
-      const result = this.gameService.processAction(this.authorityState, confirmAction);
-      if (result.success) {
-        this.authorityState = result.gameState;
-        this.emitEvent({
-          type: 'ACTION_EXECUTED',
-          action: confirmAction,
-          playerId: opponentId,
-        });
-        this.authorityState = this.autoAdvance(this.authorityState);
-      }
-      return this.authorityState;
-    }
-
-    // 6. LIVE_SET_PHASE 中对手的子阶段自动跳过
-    //    处理 CONFIRM_SUB_PHASE 推进到对手盖牌子阶段的情况
-    if (
-      state.currentPhase === GamePhase.LIVE_SET_PHASE &&
-      state.currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER
-    ) {
-      const confirmAction = createConfirmSubPhaseAction(
-        opponentId,
-        SubPhase.LIVE_SET_SECOND_PLAYER
       );
       const result = this.gameService.processAction(this.authorityState, confirmAction);
       if (result.success) {

@@ -19,7 +19,6 @@ import {
   createPlayMemberAction,
   createEndPhaseAction,
   createSetLiveCardAction,
-  createSkipLiveSetAction,
   createMulliganAction,
   createTapMemberAction,
   // 阶段十新增动作
@@ -108,8 +107,6 @@ export interface GameStore {
   playMember: (cardId: string, slot: SlotPosition, isRelay?: boolean) => { success: boolean; error?: string };
   /** 放置 Live 卡到 Live 区 */
   setLiveCard: (cardId: string, faceDown?: boolean) => { success: boolean; error?: string };
-  /** 完成 Live 设置阶段 */
-  skipLiveSet: () => { success: boolean; error?: string };
   /** 换牌（Mulligan） */
   mulligan: (cardIdsToMulligan: string[]) => { success: boolean; error?: string };
   /** 切换成员状态（活跃/等待） */
@@ -324,34 +321,6 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       return result;
-    },
-
-    skipLiveSet: () => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const action = createSkipLiveSetAction(viewingPlayerId);
-      const result = gameSession.dispatch(action);
-
-      if (result.success) {
-        // 同步状态
-        get().syncState();
-        get().addLog('完成 Live 设置', 'action');
-
-        // 如果进入了新阶段，显示提示
-        const phaseName = getPhaseName(result.gameState.currentPhase);
-        if (result.gameState.currentPhase !== GamePhase.LIVE_SET_PHASE) {
-          get().showPhaseBannerFn(phaseName);
-          setTimeout(() => get().hidePhaseBanner(), 1500);
-        }
-
-        return { success: true };
-      } else {
-        get().addLog(`动作失败: ${result.error}`, 'error');
-        return { success: false, error: result.error };
-      }
     },
 
     mulligan: (cardIdsToMulligan) => {

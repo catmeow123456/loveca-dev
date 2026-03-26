@@ -16,6 +16,7 @@ import {
   GamePhase,
   HeartColor,
   SlotPosition,
+  SubPhase,
 } from '../../src/shared/types/enums';
 import type {
   AnyCardData,
@@ -29,7 +30,7 @@ import {
   createEndPhaseAction,
   createMulliganAction,
   createSetLiveCardAction,
-  createSkipLiveSetAction,
+  createConfirmSubPhaseAction,
 } from '../../src/application/actions';
 import { getPlayerById, getCardById } from '../../src/domain/entities/game';
 
@@ -85,7 +86,7 @@ function skipMulligan(
 }
 
 describe('Live Set face state', () => {
-  it('成员卡可以在 Live 设置阶段里侧放到 Live 区，并在表演阶段开始时自动翻为表侧', () => {
+  it('成员卡可以在 Live 设置阶段里侧放到 Live 区，进入表演阶段后规则自动清理', () => {
     const service = new GameService();
     const game = service.createGame('live-set-face', 'alice', 'Alice', 'bob', 'Bob');
     const init = service.initializeGame(game, createSimpleDeck(), createSimpleDeck());
@@ -103,7 +104,7 @@ describe('Live Set face state', () => {
 
     expect(state.currentPhase).toBe(GamePhase.LIVE_SET_PHASE);
 
-    // 从先攻玩家手牌找到一张“成员卡”，并里侧放到 Live 区
+    // 从先攻玩家手牌找到一张”成员卡”，并里侧放到 Live 区
     const p1 = getPlayerById(state, 'alice');
     expect(p1).toBeTruthy();
 
@@ -123,14 +124,28 @@ describe('Live Set face state', () => {
     expect(p1AfterSet.liveZone.cardIds.includes(memberCardId!)).toBe(true);
     expect(p1AfterSet.liveZone.cardStates.get(memberCardId!)?.face).toBe(FaceState.FACE_DOWN);
 
-    // 双方完成 Live 设置 -> 自动进入 PERFORMANCE_PHASE
-    state = service.processAction(state, createSkipLiveSetAction('alice')).gameState;
-    state = service.processAction(state, createSkipLiveSetAction('bob')).gameState;
+    // 双方完成 Live 设置 -> 进入 PERFORMANCE_PHASE
+    const aliceConfirm = service.processAction(
+      state,
+      createConfirmSubPhaseAction('alice', state.currentSubPhase)
+    );
+    expect(aliceConfirm.success).toBe(true);
+    state = aliceConfirm.gameState;
+
+    const bobConfirm = service.processAction(
+      state,
+      createConfirmSubPhaseAction('bob', state.currentSubPhase)
+    );
+    expect(bobConfirm.success).toBe(true);
+    state = bobConfirm.gameState;
 
     expect(state.currentPhase).toBe(GamePhase.PERFORMANCE_PHASE);
 
-    // 进入 PERFORMANCE_PHASE 时会自动翻开活跃表演方的 Live 区卡牌
+    // 规则 8.3.5 / 10.5.1：进入演出阶段后，Live 区的非 Live 卡被翻为表侧，
+    // 然后 checkTiming 自动将非 Live 类型的卡牌移到休息室。
+    // 这是正确的规则行为——成员卡不应留在 Live 区。
     const p1InPerformance = getPlayerById(state, 'alice')!;
-    expect(p1InPerformance.liveZone.cardStates.get(memberCardId!)?.face).toBe(FaceState.FACE_UP);
+    expect(p1InPerformance.liveZone.cardIds).not.toContain(memberCardId!);
+    expect(p1InPerformance.waitingRoom.cardIds).toContain(memberCardId!);
   });
 });

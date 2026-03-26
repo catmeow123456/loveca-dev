@@ -104,11 +104,10 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   const viewingPlayerId = useGameStore((s) => s.viewingPlayerId);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { endPhase, advancePhase, skipLiveSet, confirmSubPhase, undoOperation } = useGameStore(
+  const { endPhase, advancePhase, confirmSubPhase, undoOperation } = useGameStore(
     useShallow((s) => ({
       endPhase: s.endPhase,
       advancePhase: s.advancePhase,
-      skipLiveSet: s.skipLiveSet,
       confirmSubPhase: s.confirmSubPhase,
       undoOperation: s.undoOperation,
     }))
@@ -153,9 +152,6 @@ export const PhaseIndicator = memo(function PhaseIndicator({
     if (phase === GamePhase.MAIN_PHASE) {
       // 主要阶段结束 -> 进入 Live 阶段
       endPhase();
-    } else if (phase === GamePhase.LIVE_SET_PHASE) {
-      // Live 设置阶段 -> 完成设置
-      skipLiveSet();
     } else {
       // 其他阶段 -> 推进到下一阶段
       advancePhase();

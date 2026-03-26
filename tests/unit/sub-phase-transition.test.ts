@@ -29,7 +29,6 @@ import { createHeartRequirement, createHeartIcon } from '../../src/domain/entiti
 import {
   createMulliganAction,
   createEndPhaseAction,
-  createSkipLiveSetAction,
   createConfirmSubPhaseAction,
 } from '../../src/application/actions';
 
@@ -322,7 +321,7 @@ describe('完整游戏流程中的子阶段测试', () => {
 
     it('先攻玩家完成设置后，后攻玩家可以设置', () => {
       // 先攻跳过设置
-      const skip1 = createSkipLiveSetAction('p1');
+      const skip1 = createConfirmSubPhaseAction('p1', stateInLiveSet.currentSubPhase);
       const result1 = gameService.processAction(stateInLiveSet, skip1);
 
       expect(result1.success).toBe(true);
@@ -334,11 +333,11 @@ describe('完整游戏流程中的子阶段测试', () => {
       // 先攻跳过设置
       let state = gameService.processAction(
         stateInLiveSet,
-        createSkipLiveSetAction('p1')
+        createConfirmSubPhaseAction('p1', stateInLiveSet.currentSubPhase)
       ).gameState;
 
       // 后攻跳过设置
-      const result = gameService.processAction(state, createSkipLiveSetAction('p2'));
+      const result = gameService.processAction(state, createConfirmSubPhaseAction('p2', state.currentSubPhase));
       state = result.gameState;
 
       expect(result.success).toBe(true);

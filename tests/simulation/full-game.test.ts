@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { CardType, HeartColor, GamePhase, SlotPosition } from '../../src/shared/types/enums';
+import { CardType, HeartColor, GamePhase, SlotPosition, SubPhase } from '../../src/shared/types/enums';
 import type {
   MemberCardData,
   LiveCardData,
@@ -23,8 +23,8 @@ import { GameService, DeckConfig } from '../../src/application/game-service';
 import {
   createPlayMemberAction,
   createEndPhaseAction,
-  createSkipLiveSetAction,
   createMulliganAction,
+  createConfirmSubPhaseAction,
 } from '../../src/application/actions';
 import { getPlayerById, getCardById } from '../../src/domain/entities/game';
 import { GameVisualizer } from '../../src/debug/game-visualizer';
@@ -405,13 +405,13 @@ describe('模拟对局测试', () => {
 
     // 先攻玩家跳过/完成 Live 设置
     visualizer.printAction('Alice 完成 Live 设置');
-    result = service.processAction(state, createSkipLiveSetAction('alice'));
+    result = service.processAction(state, createConfirmSubPhaseAction('alice', state.currentSubPhase));
     expect(result.success).toBe(true);
     state = result.gameState;
 
     // 后攻玩家跳过/完成 Live 设置
     visualizer.printAction('Bob 完成 Live 设置');
-    result = service.processAction(state, createSkipLiveSetAction('bob'));
+    result = service.processAction(state, createConfirmSubPhaseAction('bob', state.currentSubPhase));
     expect(result.success).toBe(true);
     state = result.gameState;
 

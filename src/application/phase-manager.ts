@@ -28,6 +28,7 @@ import {
   getPhaseTriggerConditions,
   getNextSubPhase,
   canPlayerEndPhase as canPlayerEndPhaseFromConfig,
+  getSubPhaseConfig,
 } from '../shared/phase-config';
 import type { PhaseTransitionRule, PhaseAutoActionConfig } from '../shared/phase-config';
 
@@ -369,10 +370,27 @@ export class PhaseManager {
    * @returns 新的游戏状态
    */
   applySubPhaseTransition(game: GameState, result: SubPhaseTransitionResult): GameState {
-    return {
+    const newState = {
       ...game,
       currentSubPhase: result.newSubPhase,
     };
+
+    // 根据子阶段配置同步 activePlayerIndex
+    const subConfig = getSubPhaseConfig(result.newSubPhase);
+    if (subConfig) {
+      const secondPlayerIndex = game.firstPlayerIndex === 0 ? 1 : 0;
+      switch (subConfig.behavior.activePlayer) {
+        case 'FIRST':
+          newState.activePlayerIndex = game.firstPlayerIndex;
+          break;
+        case 'SECOND':
+          newState.activePlayerIndex = secondPlayerIndex;
+          break;
+        // 'BOTH' and 'CURRENT_ACTIVE' keep current activePlayerIndex
+      }
+    }
+
+    return newState;
   }
 
   /**

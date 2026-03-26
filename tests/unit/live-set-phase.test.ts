@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { CardType, HeartColor, GamePhase, TurnType, FaceState } from '../../src/shared/types/enums';
+import { CardType, HeartColor, GamePhase, TurnType, FaceState, SubPhase } from '../../src/shared/types/enums';
 import type {
   MemberCardData,
   LiveCardData,
@@ -27,7 +27,7 @@ import {
   createSetLiveCardAction,
   createEndPhaseAction,
   createMulliganAction,
-  createSkipLiveSetAction,
+  createConfirmSubPhaseAction,
 } from '../../src/application/actions';
 import type { GameState } from '../../src/domain/entities/game';
 import { getPlayerById, getCardById } from '../../src/domain/entities/game';
@@ -291,12 +291,12 @@ describe('Live 卡设置阶段测试', () => {
 
       expect(result.success).toBe(true);
 
-      // 放置后手牌减少1张（抽卡在 SKIP_LIVE_SET 时发生）
+      // 放置后手牌减少1张（抽卡在确认子阶段完成时发生）
       const playerAfterPlace = getPlayerById(result.gameState, 'player1')!;
       expect(playerAfterPlace.hand.cardIds.length).toBe(handCountBefore - 1);
 
       // 完成 Live 设置（触发抽卡）
-      const skipAction = createSkipLiveSetAction('player1');
+      const skipAction = createConfirmSubPhaseAction('player1', result.gameState.currentSubPhase);
       const skipResult = gameService.processAction(result.gameState, skipAction);
 
       expect(skipResult.success).toBe(true);

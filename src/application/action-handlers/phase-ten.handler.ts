@@ -18,6 +18,7 @@ import type {
 import type { ActionHandler, ActionHandlerContext } from './types';
 import { success, failure } from './types';
 import type { GameOperationResult } from '../game-service';
+import { GameEventType } from '../events';
 import {
   ZoneType,
   CardType,
@@ -71,7 +72,7 @@ export const handleConfirmSubPhase: ActionHandler<ConfirmSubPhaseAction> = (
     subPhaseConfirmed: subPhase,
   });
 
-  const triggeredEvents: string[] = [];
+  const triggeredEvents: (GameEventType | string)[] = [];
 
   // 推进子阶段：若进入的是"自动子阶段"，则自动连锁推进直到遇到需要用户操作的子阶段或主阶段结束。
   while (true) {
@@ -82,14 +83,14 @@ export const handleConfirmSubPhase: ActionHandler<ConfirmSubPhaseAction> = (
     for (const autoAction of subPhaseResult.autoActions) {
       if (autoAction.type === 'FINALIZE_LIVE_RESULT') {
         // 由 GameService 负责在正确时机调用 finalizeLiveResult()
-        triggeredEvents.push('FINALIZE_LIVE_RESULT');
+        triggeredEvents.push(GameEventType.FINALIZE_LIVE_RESULT);
       }
       state = executeSubPhaseAutoAction(state, autoAction, ctx);
     }
 
     // 子阶段结束：交由 GameService 推进主阶段
     if (subPhaseResult.shouldAdvancePhase) {
-      triggeredEvents.push('SHOULD_ADVANCE_PHASE');
+      triggeredEvents.push(GameEventType.ADVANCE_PHASE);
       break;
     }
 

@@ -80,6 +80,8 @@ import {
 } from '../domain/entities/zone';
 import { PhaseManager, phaseManager, PhaseAutoAction } from './phase-manager';
 import { isPlayerActive as isPlayerActiveByConfig } from '../shared/phase-config';
+import { getInitialSubPhase, getSubPhaseConfig } from '../shared/phase-config';
+import { GameEventType } from './events';
 import {
   GameAction,
   GameActionType,
@@ -87,7 +89,6 @@ import {
   ActivateAbilityAction,
   EndPhaseAction,
   SetLiveCardAction,
-  SkipLiveSetAction,
   SelectCardsAction,
   ConfirmOptionalAction,
   MulliganAction,
@@ -140,8 +141,8 @@ export interface GameOperationResult {
     minCount?: number;
     maxCount?: number;
   };
-  /** 触发的事件列表 */
-  readonly triggeredEvents?: readonly string[];
+  /** 触发的内部事件列表 */
+  readonly triggeredEvents?: readonly (GameEventType | string)[];
 }
 
 /**
@@ -256,13 +257,11 @@ export class GameService {
   processAction(game: GameState, action: GameAction): GameOperationResult {
     // 验证是否是该玩家的行动时机（依据 phase-config 的 activePlayerStrategy）
     const canActByTiming = isPlayerActiveByConfig(game, action.playerId);
-    const activePlayer = getActivePlayer(game);
 
     // Live 设置阶段双方玩家都可以放置卡牌和完成设置（规则 8.2）
     const isLiveSetPhaseAction =
       game.currentPhase === GamePhase.LIVE_SET_PHASE &&
-      (action.type === GameActionType.SET_LIVE_CARD ||
-        action.type === GameActionType.SKIP_LIVE_SET);
+      (action.type === GameActionType.SET_LIVE_CARD);
 
     // Mulligan 阶段双方玩家都可以换牌
     const isMulliganPhase = game.currentPhase === GamePhase.MULLIGAN_PHASE;
@@ -285,12 +284,12 @@ export class GameService {
       };
     }
 
-    // 特殊处理：END_PHASE 需要调用 advancePhase()
+    // END_PHASE: 验证后转化为 ADVANCE_PHASE 事件
     if (action.type === GameActionType.END_PHASE) {
       if (!this.phaseManager.canEndCurrentPhase(game)) {
         return { success: false, gameState: game, error: '当前阶段不能由玩家主动结束' };
       }
-      return this.advancePhase(game);
+      return this.dispatchEvents(game, [GameEventType.ADVANCE_PHASE]);
     }
 
     // 尝试使用动作处理器注册表
@@ -299,67 +298,12 @@ export class GameService {
       const context = this.createHandlerContext();
       const result = handler(game, action, context);
 
-      // 特殊处理：SKIP_LIVE_SET 完成后可能需要推进阶段
-      if (result.success && action.type === GameActionType.SKIP_LIVE_SET) {
-        const state = result.gameState;
-        // 检查双方是否都完成了 Live 设置
-        const firstPlayerId = state.players[state.firstPlayerIndex].id;
-        const secondPlayerId = state.players[state.firstPlayerIndex === 0 ? 1 : 0].id;
-        const bothCompleted =
-          state.liveSetCompletedPlayers.includes(firstPlayerId) &&
-          state.liveSetCompletedPlayers.includes(secondPlayerId);
-
-        if (bothCompleted) {
-          // 推进到演出阶段
-          const advanceResult = this.advancePhase(state);
-          // 清空 liveSetCompletedPlayers
-          return {
-            success: advanceResult.success,
-            gameState: {
-              ...advanceResult.gameState,
-              liveSetCompletedPlayers: [],
-            },
-            error: advanceResult.error,
-            triggeredEvents: advanceResult.triggeredEvents,
-          };
-        }
-      }
-
-      // 在动作成功后，自动执行检查时机（规则处理）
-      // 这是"信任玩家"方案的核心：系统自动清理非法状态
       if (result.success) {
-        let state = result.gameState;
-        const allTriggeredEvents: string[] = [...(result.triggeredEvents ?? [])];
-
-        // 处理 FINALIZE_LIVE_RESULT 事件（Live 结算阶段完成）
-        // 必须先 finalize，再推进主阶段；否则会在错误的主阶段上 finalize。
-        if (
-          state.currentSubPhase === SubPhase.RESULT_TURN_END ||
-          result.triggeredEvents?.includes('FINALIZE_LIVE_RESULT')
-        ) {
-          const finalizeResult = this.finalizeLiveResult(state);
-          if (finalizeResult.success) {
-            state = finalizeResult.gameState;
-            allTriggeredEvents.push('LIVE_RESULT_FINALIZED');
-          }
-        }
-
-        // 处理 SHOULD_ADVANCE_PHASE 事件（子阶段完成后需要推进主阶段）
-        if (result.triggeredEvents?.includes('SHOULD_ADVANCE_PHASE')) {
-          const advanceResult = this.advancePhase(state);
-          if (advanceResult.success) {
-            state = advanceResult.gameState;
-            allTriggeredEvents.push(...(advanceResult.triggeredEvents ?? []));
-          }
-        }
-
-        const checkResult = this.executeCheckTiming(state);
-        return {
-          success: checkResult.success,
-          gameState: checkResult.gameState,
-          error: checkResult.success ? result.error : checkResult.error,
-          triggeredEvents: [...allTriggeredEvents, ...(checkResult.triggeredEvents ?? [])],
-        };
+        // 收集处理器触发的事件，通过事件派发循环统一处理
+        const events: (GameEventType | string)[] = [...(result.triggeredEvents ?? [])];
+        // 始终追加 RUN_CHECK_TIMING
+        events.push(GameEventType.RUN_CHECK_TIMING);
+        return this.dispatchEvents(result.gameState, events);
       }
 
       return {
@@ -376,6 +320,70 @@ export class GameService {
       success: false,
       gameState: game,
       error: `未知的动作类型: ${(action as GameAction).type}`,
+    };
+  }
+
+  /**
+   * 事件派发循环
+   *
+   * 按顺序处理事件队列：
+   * 1. FINALIZE_LIVE_RESULT — 先完成 Live 结算
+   * 2. ADVANCE_PHASE — 推进到下一主阶段（可能产生新事件）
+   * 3. RUN_CHECK_TIMING — 规则自动纠正
+   */
+  private dispatchEvents(
+    initialState: GameState,
+    events: (GameEventType | string)[]
+  ): GameOperationResult {
+    let state = initialState;
+    const processedEvents: (GameEventType | string)[] = [];
+
+    // 按优先级排序处理：FINALIZE 先于 ADVANCE 先于 CHECK_TIMING
+    const sortedEvents = [...events].sort((a, b) => {
+      const priority: Record<string, number> = {
+        [GameEventType.FINALIZE_LIVE_RESULT]: 0,
+        [GameEventType.ADVANCE_PHASE]: 1,
+        [GameEventType.RUN_CHECK_TIMING]: 2,
+      };
+      return (priority[a] ?? 1) - (priority[b] ?? 1);
+    });
+
+    for (const event of sortedEvents) {
+      switch (event) {
+        case GameEventType.FINALIZE_LIVE_RESULT: {
+          const finalizeResult = this.finalizeLiveResult(state);
+          if (finalizeResult.success) {
+            state = finalizeResult.gameState;
+          }
+          processedEvents.push(event);
+          break;
+        }
+        case GameEventType.ADVANCE_PHASE: {
+          const advanceResult = this.advancePhase(state);
+          if (advanceResult.success) {
+            state = advanceResult.gameState;
+            processedEvents.push(...(advanceResult.triggeredEvents ?? []));
+          }
+          processedEvents.push(event);
+          break;
+        }
+        case GameEventType.RUN_CHECK_TIMING: {
+          const checkResult = this.executeCheckTiming(state);
+          state = checkResult.gameState;
+          processedEvents.push(event);
+          break;
+        }
+        default:
+          // 非内部事件（如 TriggerCondition），透传
+          processedEvents.push(event);
+          break;
+      }
+    }
+
+    return {
+      success: true,
+      gameState: state,
+      triggeredEvents: processedEvents,
     };
   }
 
@@ -411,19 +419,13 @@ export class GameService {
       transition.newPhase === GamePhase.LIVE_SET_PHASE &&
       game.currentPhase !== GamePhase.LIVE_SET_PHASE
     ) {
-      state = {
-        ...state,
-        liveSetCompletedPlayers: [],
-      };
+      state = { ...state, liveSetCompletedPlayers: [] };
     }
     if (
       game.currentPhase === GamePhase.LIVE_SET_PHASE &&
       transition.newPhase !== GamePhase.LIVE_SET_PHASE
     ) {
-      state = {
-        ...state,
-        liveSetCompletedPlayers: [],
-      };
+      state = { ...state, liveSetCompletedPlayers: [] };
     }
 
     // 执行阶段自动处理
@@ -440,80 +442,76 @@ export class GameService {
     // 触发相关能力
     state = this.triggerAbilities(state, transition.triggeredConditions);
 
-    // 处理 LIVE_SET_PHASE 的子阶段设置
-    if (transition.newPhase === GamePhase.LIVE_SET_PHASE) {
-      const firstPlayerId = state.players[state.firstPlayerIndex].id;
-      const secondPlayerId = state.players[state.firstPlayerIndex === 0 ? 1 : 0].id;
-      const completedPlayers = state.liveSetCompletedPlayers;
+    // 配置驱动的子阶段初始化
+    const initialSubPhase = this.resolveInitialSubPhase(state, transition.newPhase);
+    state = { ...state, currentSubPhase: initialSubPhase };
 
-      // 根据完成状态设置正确的子阶段
-      if (!completedPlayers.includes(firstPlayerId)) {
-        // 先手尚未完成 → 先手盖牌子阶段
-        state = {
-          ...state,
-          currentSubPhase: SubPhase.LIVE_SET_FIRST_PLAYER,
-        };
-      } else if (!completedPlayers.includes(secondPlayerId)) {
-        // 先手已完成，后手尚未完成 → 后手盖牌子阶段
-        state = {
-          ...state,
-          currentSubPhase: SubPhase.LIVE_SET_SECOND_PLAYER,
-        };
-      }
-      // 如果双方都完成了，子阶段会在进入 PERFORMANCE_PHASE 时设置
-    }
-
-    // 处理 PERFORMANCE_PHASE 的特殊逻辑
-    if (transition.newPhase === GamePhase.PERFORMANCE_PHASE) {
-      // 设置初始子阶段：翻开 Live 卡
-      state = {
-        ...state,
-        currentSubPhase: SubPhase.PERFORMANCE_REVEAL,
-      };
-
-      // 翻开 Live 卡（自动执行）
-      state = this.revealLiveCards(state);
-
-      // 翻开后直接进入判定子阶段（用户点击判定按钮打开 JudgmentPanel）
-      state = {
-        ...state,
-        currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
-      };
-
-      // 注意：Cheer（应援）现在由用户通过点击卡组翻牌到 CheerPeekModal 手动执行
-    }
-
-    // 处理 LIVE_RESULT_PHASE 的特殊逻辑（结算）
-    if (transition.newPhase === GamePhase.LIVE_RESULT_PHASE) {
-      // 设置初始子阶段：结算
-      state = {
-        ...state,
-        currentSubPhase: SubPhase.RESULT_SETTLEMENT,
-      };
-
-      const resultPhaseResult = this.executeLiveResultPhase(state);
-      if (resultPhaseResult.success) {
-        state = resultPhaseResult.gameState;
+    // 同步 activePlayerIndex（Phase 2: applySubPhaseTransition 已处理新子阶段的情况，
+    // 但 advancePhase 直接设置子阶段，需要手动同步）
+    if (initialSubPhase !== SubPhase.NONE) {
+      const subConfig = getSubPhaseConfig(initialSubPhase);
+      if (subConfig) {
+        const secondPlayerIndex = state.firstPlayerIndex === 0 ? 1 : 0;
+        if (subConfig.behavior.activePlayer === 'FIRST') {
+          state = { ...state, activePlayerIndex: state.firstPlayerIndex };
+        } else if (subConfig.behavior.activePlayer === 'SECOND') {
+          state = { ...state, activePlayerIndex: secondPlayerIndex };
+        }
       }
     }
 
-    // 进入非 Live 阶段时清除子阶段
-    if (
-      transition.newPhase !== GamePhase.LIVE_SET_PHASE &&
-      transition.newPhase !== GamePhase.PERFORMANCE_PHASE &&
-      transition.newPhase !== GamePhase.LIVE_RESULT_PHASE
-    ) {
-      state = {
-        ...state,
-        currentSubPhase: SubPhase.NONE,
-      };
-    }
+    // 执行子阶段入口的自动处理
+    state = this.executeSubPhaseEntryActions(state, transition.newPhase);
 
     return {
       success: true,
       gameState: state,
       triggeredEvents: transition.triggeredConditions,
     };
+  }
+
+  /**
+   * 解析阶段的初始子阶段
+   *
+   * 对于 LIVE_SET_PHASE，需要根据 liveSetCompletedPlayers 状态决定正确的起始子阶段。
+   * 其他阶段直接使用 phase-config 定义的 initialSubPhase。
+   */
+  private resolveInitialSubPhase(state: GameState, newPhase: GamePhase): SubPhase {
+    if (newPhase === GamePhase.LIVE_SET_PHASE) {
+      const firstPlayerId = state.players[state.firstPlayerIndex].id;
+      const completedPlayers = state.liveSetCompletedPlayers;
+
+      if (!completedPlayers.includes(firstPlayerId)) {
+        return SubPhase.LIVE_SET_FIRST_PLAYER;
+      }
+      return SubPhase.LIVE_SET_SECOND_PLAYER;
+    }
+
+    return getInitialSubPhase(newPhase) ?? SubPhase.NONE;
+  }
+
+  /**
+   * 执行子阶段入口的自动处理
+   *
+   * 当进入一个新阶段时，如果初始子阶段有自动动作，自动执行它们，
+   * 然后连续推进直到遇到需要用户操作的子阶段。
+   */
+  private executeSubPhaseEntryActions(state: GameState, newPhase: GamePhase): GameState {
+    // PERFORMANCE_PHASE: 翻开 Live 卡（PERFORMANCE_REVEAL 的自动动作），然后推进到 JUDGMENT
+    if (newPhase === GamePhase.PERFORMANCE_PHASE) {
+      state = this.revealLiveCards(state);
+      state = { ...state, currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT };
+    }
+
+    // LIVE_RESULT_PHASE: 执行结算逻辑（RESULT_SETTLEMENT 的自动动作）
+    if (newPhase === GamePhase.LIVE_RESULT_PHASE) {
+      const resultPhaseResult = this.executeLiveResultPhase(state);
+      if (resultPhaseResult.success) {
+        state = resultPhaseResult.gameState;
+      }
+    }
+
+    return state;
   }
 
   // ============================================

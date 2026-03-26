@@ -21,8 +21,6 @@ export enum GameActionType {
   END_PHASE = 'END_PHASE',
   /** 放置 Live 卡 */
   SET_LIVE_CARD = 'SET_LIVE_CARD',
-  /** 跳过 Live 放置 */
-  SKIP_LIVE_SET = 'SKIP_LIVE_SET',
   /** 选择卡牌（响应效果） */
   SELECT_CARDS = 'SELECT_CARDS',
   /** 确认可选效果 */
@@ -113,12 +111,6 @@ export interface SetLiveCardAction extends BaseGameAction {
   readonly faceDown: boolean;
 }
 
-/**
- * 跳过 Live 放置动作
- */
-export interface SkipLiveSetAction extends BaseGameAction {
-  readonly type: GameActionType.SKIP_LIVE_SET;
-}
 
 /**
  * 选择卡牌动作（响应效果选择）
@@ -277,7 +269,6 @@ export type GameAction =
   | ActivateAbilityAction
   | EndPhaseAction
   | SetLiveCardAction
-  | SkipLiveSetAction
   | SelectCardsAction
   | ConfirmOptionalAction
   | RelayAction
@@ -362,16 +353,6 @@ export function createSetLiveCardAction(
   };
 }
 
-/**
- * 创建跳过 Live 放置动作
- */
-export function createSkipLiveSetAction(playerId: string): SkipLiveSetAction {
-  return {
-    type: GameActionType.SKIP_LIVE_SET,
-    playerId,
-    timestamp: Date.now(),
-  };
-}
 
 /**
  * 创建选择卡牌动作

@@ -1,504 +1,442 @@
-# Loveca 游戏系统设计文档
+# Loveca 游戏系统设计文档（重构版）
+
+> 文档类型：设计文档  
+> 适用范围：Loveca 当前代码架构与关键流程设计（基于现状实现）  
+> 最后更新：2026-03-27
 
 ---
 
-## 第一部分：游戏规则逻辑整理
+## 1. 设计目标与范围
 
-### 1. 游戏概述 (Game Overview)
+本文档用于描述 Loveca 的系统设计方案，重点覆盖：
 
-| 属性       | 描述                                                   |
-| ---------- | ------------------------------------------------------ |
-| **游戏名称** | Loveca                                                 |
-| **对战人数** | 2 人                                                   |
-| **胜利条件** | 率先使"成功 Live 放置区"达到 **3 张卡牌**的玩家获胜      |
-| **核心主题** | 偶像 Live 表演竞技                                       |
+- 对局引擎分层与状态机设计
+- 规则处理与动作执行链路
+- 前后端边界与数据流
+- 持久化与资源服务设计
+- 已实现功能对应的代码路径
 
----
+不包含内容：
 
-### 2. 卡牌系统 (Card System)
-
-游戏中有三种基本卡牌类型，各司其职：
-
-| 卡牌类型   | 功能                         | 关键属性                                   |
-| ---------- | ---------------------------- | ------------------------------------------ |
-| **成员卡** | 部署至舞台，提供 Heart 资源    | `费用 (Cost)`, `Heart`, `Blade`, `Blade Heart` |
-| **Live 卡** | Live 目标，判定成功后计分     | `分数 (Score)`, `所需 Heart (Required Hearts)` |
-| **能量卡** | 资源卡，用于支付成员费用       | —                                          |
-
-#### 2.1 Heart 图标详解
-
-Heart 是 Live 成功判定的核心资源。
-
-*   **六色 Heart**: 桃、红、黄、绿、蓝、紫。
-*   **万能 Heart (Rainbow)**: 可视为任意颜色。
-
-#### 2.2 Blade 与 Cheer 机制
-
-*   **Blade**: 成员卡上的数值，决定 Cheer 时从卡组顶端公开多少张卡。
-*   **Blade Heart**: 公开卡牌上的图标，提供额外 Heart 资源或抽牌效果。
+- 具体实现代码
+- 逐行算法说明
+- 历史旧版 OOP 伪模型
 
 ---
 
-### 3. 区域系统 (Zone System)
+## 2. 总体架构设计
 
-游戏设定了多个功能区域，分为**公开区域**和**非公开区域**。
+```mermaid
+graph TB
+    subgraph Client[前端应用]
+        UI[页面与组件]
+        GS[gameStore/deckStore/authStore]
+        APIClient[API 客户端]
+    end
 
-| 区域名称           | 可见性   | 顺序管理 | 描述                                       |
-| ------------------ | -------- | -------- | ------------------------------------------ |
-| **成员区域 (Stage)** | 公开     | 否       | 包含 3 个槽位：左、中、右。放置出战成员。     |
-| **Live 放置区**      | 公开/隐藏 | 否       | 本回合正在进行判定的 Live 卡。              |
-| **成功 Live 放置区** | 公开     | 是       | 成功 Live 的记录堆，达到 3 张即获胜。        |
-| **能量放置区**       | 公开     | 否       | 能量卡资源池，卡牌有 活跃/待机 两种状态。     |
-| **主卡组放置区**     | 非公开   | 是       | 成员卡 + Live 卡的抽卡堆。                   |
-| **能量卡组放置区**   | 非公开   | 否       | 能量卡的补充堆。                             |
-| **手牌**           | 非公开   | 否       | 玩家持有的卡牌，仅自己可见。                 |
-| **休息室**         | 公开     | 否       | 弃牌堆 / 墓地。                              |
-| **除外区域**       | 公开     | 否       | 从游戏中移除的卡牌。                         |
-| **解决区域**       | 公开     | 否       | 临时区域，用于 Cheer 结算和能力解决。         |
+    subgraph Engine[共享对局引擎]
+        Session[GameSession]
+        Service[GameService]
+        Phase[PhaseManager + PhaseConfig]
+        Handlers[Action Handlers]
+        Rules[RuleActions + LiveResolver + Cost/Deck 校验]
+        Domain[Game/Player/Card/Zone 实体]
+    end
 
----
+    subgraph Server[服务端 API]
+        App[Express App]
+        Routes[Auth/Cards/Decks/Profiles/Images]
+        Middleware[鉴权与校验中间件]
+    end
 
-### 4. 回合结构与流程 (Game Loop)
+    subgraph Infra[基础设施]
+        PG[(PostgreSQL)]
+        MinIO[(MinIO)]
+    end
 
-每回合由两个**通常阶段** (先攻 + 后攻) 和一个共享的 **Live 阶段**组成。
+    UI --> GS
+    GS --> Session
+    Session --> Service
+    Service --> Phase
+    Service --> Handlers
+    Service --> Rules
+    Handlers --> Domain
+    Rules --> Domain
 
-```
-回合开始
-├── 先攻通常阶段
-│   ├── 活跃阶段: 恢复所有能量至活跃状态
-│   ├── 能量阶段: 从能量卡组补充 1 张能量
-│   ├── 抽卡阶段: 抽 1 张卡
-│   └── 主要阶段: 部署成员 / 发动触发能力 (可多次)
-│
-├── 后攻通常阶段 (同上)
-│
-└── Live 阶段
-    ├── Live 卡放置阶段: 双方秘密埋伏 Live 卡
-    ├── 先攻表演阶段: 揭示 Live 卡 → Cheer → 判定
-    ├── 后攻表演阶段 (同上)
-    └── Live 胜负判定阶段: 比较分数，移动成功卡牌
+    GS --> APIClient
+    APIClient --> App
+    App --> Middleware
+    Middleware --> Routes
+    Routes --> PG
+    Routes --> MinIO
 ```
 
----
+设计原则：
 
-### 5. Live 判定核心逻辑 (Live Resolution)
-
-#### 5.1 Heart 计算
-
-`Live 所有 Heart` = Σ(成员 Heart) + Σ(Cheer 公开卡的 Blade Heart)
-
-#### 5.2 成功判定
-
-对于每张 Live 卡的 `所需 Heart`：
-1.  检查是否有足够数量的**对应颜色** Heart。
-2.  检查 Heart **总数**是否满足要求。
-3.  满足条件时，从 `Live 所有 Heart` 中扣除消耗。
-
-> **Rainbow Heart** 可在此过程中动态指派为任意颜色。
-
-#### 5.3 分数计算与胜负
-
-*   `Live 分数` = Σ(成功 Live 卡的分数) + Cheer 加成
-*   分数高者获得本回合 **Live 胜利**，可将一张 Live 卡移入成功区。
+- 对局规则与 UI 展示解耦
+- 阶段规则配置化，减少硬编码
+- 动作处理器按职责拆分，便于扩展
+- 本地离线可运行，在线能力通过 API 增强
 
 ---
 
-### 6. 能力与效果系统 (Ability & Effect)
+## 3. 对局引擎分层设计
 
-| 能力类型     | 触发方式                         | 示例                           |
-| ------------ | -------------------------------- | ------------------------------ |
-| **触发能力** | 玩家在"播放时机"主动支付成本发动   | `[支付1]: 抽1张卡`              |
-| **自动能力** | 满足特定条件时自动进入待命状态     | `【登场】当该卡进入舞台时...`   |
-| **常驻能力** | 持续生效，无需播放               | `你的其他成员 Blade +1`         |
-
-#### 6.1 检查时机 (Check Timing)
-
-在游戏关键点（阶段切换、动作完成后）触发：
-1.  处理所有**规则处理** (如卡组刷新、非法卡牌清理)。
-2.  按优先级解决**自动能力** (主动玩家优先)。
-
----
-
-### 7. 特殊规则与处理
-
-*   **刷新 (Refresh)**: 当卡组为空时，将休息室洗回卡组。
-*   **接力传递 (Relay)**: 部署成员时，可将同一区域的旧成员送入休息室以减少费用。
-*   **无限循环处理**: 若游戏陷入无法打破的循环，判定为平局。
-
----
-
----
-
-## 第二部分：面向对象系统架构设计 (OOP Architecture)
-
-本节以面向对象编程思想，将游戏系统抽象为可复用的类与模块。
-
----
-
-### 1. 卡牌抽象层 (Card Abstraction Layer)
-
-```
-┌───────────────────────────────────────────────────────┐
-│                      <<abstract>>                     │
-│                        BaseCard                       │
-├───────────────────────────────────────────────────────┤
-│ - id: String                                          │
-│ - name: String                                        │
-│ - groupName: String (组合名)                           │
-│ - unitName: String (小组名)                            │
-│ - cardText: String                                    │
-│ - cardType: CardType (Enum: MEMBER, LIVE, ENERGY)     │
-│ - abilities: List<Ability>                            │
-├───────────────────────────────────────────────────────┤
-│ + getAbilities(): List<Ability>                       │
-│ + isType(CardType): Boolean                           │
-└───────────────────────────────────────────────────────┘
-             ▲                  ▲                  ▲
-             │                  │                  │
-    ┌────────┴────────┐ ┌──────┴──────┐ ┌─────────┴─────────┐
-    │   MemberCard    │ │  LiveCard   │ │    EnergyCard     │
-    ├─────────────────┤ ├─────────────┤ ├───────────────────┤
-    │ - cost: Int     │ │ - score: Int│ │ (无额外属性)       │
-    │ - blade: Int    │ │ - required  │ │                   │
-    │ - hearts: List  │ │   Hearts:   │ │                   │
-    │   <HeartIcon>   │ │   HeartReq  │ │                   │
-    │ - bladeHeart:   │ │             │ │                   │
-    │   BladeHeart    │ │             │ │                   │
-    └─────────────────┘ └─────────────┘ └───────────────────┘
+```mermaid
+graph LR
+    Session[会话层\nGameSession] --> Service[应用服务层\nGameService]
+    Service --> Handlers[动作处理层\nAction Handlers]
+    Service --> PhaseCfg[阶段配置层\nphase-registry/sub-phase-registry]
+    Service --> RuleLayer[规则层\nRuleActions/LiveResolver]
+    Handlers --> Domain[领域实体层\nGame/Player/Card/Zone]
+    RuleLayer --> Domain
 ```
 
-#### 支撑类型
+### 3.1 会话层
 
-```typescript
-enum HeartColor { PINK, RED, YELLOW, GREEN, BLUE, PURPLE, RAINBOW }
+职责：
 
-class HeartIcon {
-    color: HeartColor
-    count: Int
-}
+- 维护权威状态
+- 接收并派发玩家动作
+- 处理自动推进与模式差异（DEBUG/SOLITAIRE）
+- 提供玩家视角状态读取接口
 
-class HeartRequirement {
-    conditions: List<HeartIcon>  // 各颜色需求
-    totalRequired: Int           // 总数需求
-    
-    isSatisfiedBy(pool: HeartPool): Boolean
-}
+代码路径：
 
-enum BladeHeartEffect { DRAW, ADD_HEART_PINK, ADD_HEART_RED, ... }
-```
+- `src/application/game-session.ts`
 
----
+### 3.2 应用服务层
 
-### 2. 区域与容器层 (Zone & Container Layer)
+职责：
 
-```
-┌─────────────────────────────────────────────────┐
-│                  <<abstract>>                   │
-│                      Zone                       │
-├─────────────────────────────────────────────────┤
-│ - cards: List<Card>                             │
-│ - owner: Player                                 │
-│ - visibility: Visibility (PUBLIC / PRIVATE)    │
-│ - isOrdered: Boolean                            │
-├─────────────────────────────────────────────────┤
-│ + add(card: Card, position?: Int): void         │
-│ + remove(card: Card): Card                      │
-│ + getCount(): Int                               │
-│ + peek(count: Int): List<Card>                  │
-│ + shuffle(): void                               │
-└─────────────────────────────────────────────────┘
-                     ▲
-      ┌──────────────┼──────────────┬────────────────┐
-      │              │              │                │
-┌─────┴─────┐ ┌──────┴─────┐ ┌──────┴──────┐ ┌───────┴───────┐
-│ DeckZone  │ │ HandZone   │ │ SlotZone    │ │ EnergyZone    │
-│ (ordered) │ │ (private)  │ │ (3 slots)   │ │ (with state)  │
-└───────────┘ └────────────┘ └─────────────┘ └───────────────┘
-```
+- 初始化对局
+- 统一动作执行与结果返回
+- 驱动阶段流转
+- 触发检查时机与规则处理
 
-#### SlotZone 特化 (成员区域)
+代码路径：
 
-```typescript
-enum SlotPosition { LEFT, CENTER, RIGHT }
+- `src/application/game-service.ts`
 
-class MemberSlotZone extends Zone {
-    slots: Map<SlotPosition, MemberCard | null>
-    
-    placeAt(position: SlotPosition, card: MemberCard): void
-    removeAt(position: SlotPosition): MemberCard
-    getAdjacent(position: SlotPosition): List<SlotPosition>
-}
-```
+### 3.3 阶段配置层
 
-#### EnergyZone 特化
+职责：
 
-```typescript
-enum EnergyState { ACTIVE, WAITING }
+- 统一定义主阶段行为、转换条件、自动动作
+- 统一定义子阶段顺序与是否需要用户操作
+- 提供活跃玩家判定策略
 
-class EnergyZone extends Zone {
-    cardStates: Map<EnergyCard, EnergyState>
-    
-    tap(card: EnergyCard): void        // 切换至 WAITING
-    untapAll(): void                    // 全部恢复至 ACTIVE
-    getActiveCount(): Int
-}
-```
+代码路径：
 
----
+- `src/shared/phase-config/phase-registry.ts`
+- `src/shared/phase-config/sub-phase-registry.ts`
+- `src/shared/phase-config/active-player.ts`
+- `src/application/phase-manager.ts`
 
-### 3. 玩家状态层 (Player State Layer)
+### 3.4 动作处理层
 
-```typescript
-class Player {
-    id: String
-    name: String
-    isFirstPlayer: Boolean  // 先攻/后攻标识
-    
-    // 区域容器
-    deck: DeckZone
-    energyDeck: DeckZone
-    hand: HandZone
-    memberZone: MemberSlotZone
-    energyZone: EnergyZone
-    liveZone: Zone
-    successZone: Zone
-    waitingRoom: Zone
-    exileZone: Zone
-    
-    // 核心方法
-    draw(count: Int): List<Card>
-    shuffleDeck(): void
-    payCost(amount: Int): Boolean
-    performRelay(slot: SlotPosition, newCard: MemberCard): Int  // 返回减免费用
-    
-    // 状态查询
-    getSuccessLiveCount(): Int
-    hasWon(): Boolean { return getSuccessLiveCount() >= 3 }
-}
-```
+职责：
+
+- 按动作类型分发处理器
+- 落地卡牌移动、子阶段确认、分数确认、撤销、应援等动作
+- 统一动作成功/失败结果语义
+
+代码路径：
+
+- `src/application/action-handlers/index.ts`
+- `src/application/action-handlers/play-member.handler.ts`
+- `src/application/action-handlers/live-set.handler.ts`
+- `src/application/action-handlers/mulligan.handler.ts`
+- `src/application/action-handlers/tap-member.handler.ts`
+- `src/application/action-handlers/phase-ten.handler.ts`
+- `src/application/action-handlers/zone-operations.ts`
+- `src/application/actions.ts`
+
+### 3.5 规则层
+
+职责：
+
+- 处理 Live 判定、应援、胜负结果
+- 处理规则动作（刷新、胜利检测、非法状态清理）
+- 提供费用与卡组校验能力
+
+代码路径：
+
+- `src/domain/rules/live-resolver.ts`
+- `src/domain/rules/rule-actions.ts`
+- `src/domain/rules/check-timing.ts`
+- `src/domain/rules/cost-calculator.ts`
+- `src/domain/rules/deck-validator.ts`
+- `src/domain/value-objects/heart.ts`
+
+### 3.6 领域实体层
+
+职责：
+
+- 承载对局状态结构与不可变更新语义
+- 管理玩家、区域、卡牌实例与历史记录
+
+代码路径：
+
+- `src/domain/entities/game.ts`
+- `src/domain/entities/player.ts`
+- `src/domain/entities/zone.ts`
+- `src/domain/entities/card.ts`
 
 ---
 
-### 4. 游戏引擎与流程控制层 (Game Engine)
+## 4. 对局流程状态机设计
 
-```typescript
-enum GamePhase {
-    // 通常阶段
-    ACTIVE_PHASE,
-    ENERGY_PHASE,
-    DRAW_PHASE,
-    MAIN_PHASE,
-    // Live 阶段
-    LIVE_SET_PHASE,
-    PERFORMANCE_PHASE,
-    LIVE_RESULT_PHASE
-}
+```mermaid
+flowchart TD
+    Setup[SETUP] --> Mulligan[MULLIGAN_PHASE]
+    Mulligan --> Active1[ACTIVE_PHASE\n先攻]
+    Active1 --> Energy1[ENERGY_PHASE\n先攻]
+    Energy1 --> Draw1[DRAW_PHASE\n先攻]
+    Draw1 --> Main1[MAIN_PHASE\n先攻]
 
-class GameManager {
-    players: [Player, Player]
-    activePlayerIndex: Int
-    currentPhase: GamePhase
-    turnCount: Int
-    
-    // 流程控制
-    startGame(): void
-    nextPhase(): void
-    endTurn(): void
-    
-    // 核心逻辑
-    getActivePlayer(): Player
-    getNonActivePlayer(): Player
-    switchFirstPlayer(): void
-    
-    // 检查时机处理器
-    handleCheckTiming(): void {
-        processRuleActions()
-        while (hasPendingAutoAbilities()) {
-            resolveAutoAbilities()
-            processRuleActions()
-        }
+    Main1 --> Active2[ACTIVE_PHASE\n后攻]
+    Active2 --> Energy2[ENERGY_PHASE\n后攻]
+    Energy2 --> Draw2[DRAW_PHASE\n后攻]
+    Draw2 --> Main2[MAIN_PHASE\n后攻]
+
+    Main2 --> LiveSet[LIVE_SET_PHASE]
+    LiveSet --> Performance1[PERFORMANCE_PHASE\n先攻演出]
+    Performance1 --> Performance2[PERFORMANCE_PHASE\n后攻演出]
+    Performance2 --> LiveResult[LIVE_RESULT_PHASE]
+    LiveResult --> Active1
+```
+
+子阶段设计原则：
+
+- 主阶段下沉到可观察子阶段，支持 UI 精细控制
+- 子阶段标注是否需要玩家确认
+- 自动子阶段用于抽牌、推进与清理
+
+代码路径：
+
+- `src/shared/types/enums.ts`
+- `src/shared/phase-config/sub-phase-registry.ts`
+
+---
+
+## 5. 动作执行链路设计
+
+```mermaid
+sequenceDiagram
+    participant UI as 前端组件
+    participant Store as gameStore
+    participant Session as GameSession
+    participant Service as GameService
+    participant Handler as ActionHandler
+    participant Rule as RuleActions
+
+    UI->>Store: 发起动作
+    Store->>Session: dispatch(action)
+    Session->>Service: processAction
+    Service->>Handler: 执行对应处理器
+    Handler-->>Service: 返回新状态
+    Service->>Rule: 执行检查时机与规则处理
+    Rule-->>Service: 返回修正后状态
+    Service-->>Session: 操作结果
+    Session-->>Store: 更新权威状态快照
+    Store-->>UI: 重渲染
+```
+
+关键设计点：
+
+- 动作是唯一状态入口，避免绕过规则层改状态
+- 规则处理在动作后统一执行，保障状态一致性
+- 会话层负责自动推进，不把流程控制分散到组件层
+
+代码路径：
+
+- `client/src/store/gameStore.ts`
+- `src/application/game-session.ts`
+- `src/application/game-service.ts`
+- `src/application/action-handlers/`
+
+---
+
+## 6. 规则校正与“信任玩家”设计
+
+```mermaid
+flowchart TD
+    ActionDone[动作执行完成] --> CheckLoop[进入检查时机循环]
+    CheckLoop --> Collect[收集待执行规则动作]
+    Collect --> HasPending{是否存在规则动作}
+    HasPending -- 是 --> Apply[批量应用规则动作]
+    Apply --> Victory{是否触发胜利/平局}
+    Victory -- 是 --> End[结束对局]
+    Victory -- 否 --> Collect
+    HasPending -- 否 --> Stable[状态稳定，返回]
+```
+
+设计说明：
+
+- 用户可在特定窗口进行自由移动与确认
+- 系统负责兜底纠偏，清理非法或不完整状态
+- 胜利检测由规则层统一处理
+
+代码路径：
+
+- `src/application/game-service.ts`
+- `src/domain/rules/rule-actions.ts`
+- `src/domain/rules/check-timing.ts`
+
+---
+
+## 7. 前端架构设计
+
+```mermaid
+graph TB
+    App[App.tsx] --> Auth[authStore]
+    App --> Deck[deckStore]
+    App --> Game[gameStore]
+
+    Game --> SetupPage[GameSetupPage]
+    Game --> Board[GameBoard]
+
+    Board --> PhaseUI[PhaseIndicator/PhaseBanner]
+    Board --> Panels[Mulligan/Judgment/Score/Effect]
+    Board --> Areas[PlayerArea/Card/DnD Zone]
+    Board --> Logs[GameLog]
+```
+
+职责划分：
+
+- `gameStore`：对局状态桥接与动作封装
+- `deckStore`：卡组编辑与云端卡组管理
+- `authStore`：认证、会话恢复、离线模式
+- `GameBoard`：拖拽与对局主交互容器
+
+代码路径：
+
+- `client/src/store/gameStore.ts`
+- `client/src/store/deckStore.ts`
+- `client/src/store/authStore.ts`
+- `client/src/components/game/`
+- `client/src/components/pages/GameSetupPage.tsx`
+
+---
+
+## 8. 服务端与数据设计
+
+### 8.1 API 模块设计
+
+```mermaid
+graph LR
+    App[Express App] --> AuthR[Auth Route]
+    App --> CardsR[Cards Route]
+    App --> DecksR[Decks Route]
+    App --> ProfilesR[Profiles Route]
+    App --> ImagesR[Images Route]
+
+    AuthR --> AuthSvc[auth-service + mail-service]
+    DecksR --> Scraper[decklog-scraper]
+    ImagesR --> MinioSvc[minio-service]
+```
+
+代码路径：
+
+- `src/server/app.ts`
+- `src/server/routes/auth.ts`
+- `src/server/routes/cards.ts`
+- `src/server/routes/decks.ts`
+- `src/server/routes/profiles.ts`
+- `src/server/routes/images.ts`
+- `src/server/services/`
+
+### 8.2 数据模型设计
+
+```mermaid
+erDiagram
+    USERS ||--|| PROFILES : has
+    USERS ||--o{ REFRESH_TOKENS : owns
+    USERS ||--o{ EMAIL_VERIFICATION_TOKENS : receives
+    USERS ||--o{ PASSWORD_RESET_TOKENS : receives
+    PROFILES ||--o{ DECKS : owns
+    USERS ||--o{ CARDS : updates
+
+    USERS {
+      uuid id
+      text email
+      text password_hash
+      bool email_verified
     }
-    
-    // 规则处理
-    processRuleActions(): void {
-        checkRefresh()
-        checkVictory()
-        checkIllegalCards()
+    PROFILES {
+      uuid id
+      text username
+      text display_name
+      text role
     }
-}
+    DECKS {
+      uuid id
+      uuid user_id
+      jsonb main_deck
+      jsonb energy_deck
+      bool is_valid
+    }
+    CARDS {
+      uuid id
+      text card_code
+      text card_type
+      text status
+      jsonb hearts
+      jsonb blade_hearts
+      jsonb requirements
+    }
 ```
+
+代码路径：
+
+- `src/server/db/schema.ts`
+- `src/server/db/drizzle.ts`
+- `src/server/db/pool.ts`
 
 ---
 
-### 5. 能力与效果系统 (Ability & Effect System)
+## 9. 测试设计与覆盖结构
 
-```
-┌────────────────────────────────────────────────────────┐
-│                    <<interface>>                       │
-│                       Ability                          │
-├────────────────────────────────────────────────────────┤
-│ + getSource(): Card                                    │
-│ + canActivate(context: GameContext): Boolean           │
-│ + resolve(context: GameContext): void                  │
-└────────────────────────────────────────────────────────┘
-                        ▲
-         ┌──────────────┼──────────────┐
-         │              │              │
-┌────────┴───────┐ ┌────┴────┐ ┌───────┴───────┐
-│ ActivatedAbility│ │AutoAbility│ │ StaticAbility │
-│ (触发能力)      │ │ (自动能力) │ │ (常驻能力)    │
-├────────────────┤ ├──────────┤ ├───────────────┤
-│ - cost: Cost   │ │ - trigger│ │ - effect:     │
-│ - effect:      │ │   Cond.  │ │   Continuous  │
-│   Effect       │ │ - effect │ │   Effect      │
-└────────────────┘ └──────────┘ └───────────────┘
+```mermaid
+graph TD
+    Tests[测试体系] --> Unit[Unit]
+    Tests --> Integration[Integration]
+    Tests --> Simulation[Simulation]
+    Tests --> E2E[Client E2E]
 ```
 
-#### 自动能力触发系统
+代码路径：
 
-```typescript
-enum TriggerCondition {
-    ON_ENTER_STAGE,       // 登场
-    ON_LIVE_START,        // Live 开始时
-    ON_LIVE_SUCCESS,      // Live 成功时
-    ON_TURN_START,        // 回合开始时
-    ON_TURN_END,          // 回合结束时
-    ON_CHEER,             // Cheer 时
-    // ...
-}
-
-class AutoAbility implements Ability {
-    triggerCondition: TriggerCondition
-    effect: Effect
-    isPending: Boolean = false  // 待命状态
-    
-    checkTrigger(event: GameEvent): void {
-        if (event.matches(triggerCondition)) {
-            isPending = true
-        }
-    }
-}
-```
-
-#### 效果类型
-
-```typescript
-abstract class Effect {
-    abstract apply(context: GameContext): void
-}
-
-class OneTimeEffect extends Effect {
-    // 一次性效果：抽卡、移动卡牌等
-}
-
-class ContinuousEffect extends Effect {
-    duration: Duration (TURN_END | GAME_END | UNTIL_LEAVE)
-    modifiers: List<Modifier>
-}
-
-class ReplacementEffect extends Effect {
-    originalEvent: EventType
-    replacementAction: () => void
-}
-```
+- 单元与集成：`tests/unit/`、`tests/integration/`
+- 流程仿真：`tests/simulation/`
+- 前端端到端：`client/e2e/specs/`
 
 ---
 
-### 6. Live 判定模块 (Live Resolution Module)
+## 10. 当前落地边界（设计视角）
 
-```typescript
-class HeartPool {
-    hearts: Map<HeartColor, Int>
-    rainbowCount: Int
-    
-    addHeart(color: HeartColor, count: Int): void
-    getTotalCount(): Int
-    canSatisfy(requirement: HeartRequirement): Boolean
-    consume(requirement: HeartRequirement): Boolean  // 满足并扣除
-}
+### 10.1 已落地
 
-class LiveResolver {
-    performCheer(player: Player): CheerResult {
-        totalBlade = player.memberZone.slots.values()
-            .filter(c => c != null)
-            .map(c => c.blade)
-            .sum()
-        
-        revealedCards = player.deck.peek(totalBlade)
-        // 移动至解决区域，处理 BladeHeart 效果
-        return CheerResult(revealedCards, heartGained, cardsDrawn)
-    }
-    
-    calculateLiveHearts(player: Player, cheerResult: CheerResult): HeartPool {
-        pool = new HeartPool()
-        // 合计成员 Heart
-        for (member in player.memberZone.getAll()) {
-            pool.addHearts(member.hearts)
-        }
-        // 合计 Cheer Heart
-        pool.addHearts(cheerResult.heartGained)
-        return pool
-    }
-    
-    judgeLive(liveCard: LiveCard, pool: HeartPool): Boolean {
-        return pool.canSatisfy(liveCard.requiredHearts)
-    }
-    
-    calculateScore(player: Player, successCards: List<LiveCard>, cheerBonus: Int): Int {
-        return successCards.map(c => c.score).sum() + cheerBonus
-    }
-}
-```
+- 配置化阶段/子阶段驱动的主流程
+- 动作处理器体系与检查时机校正
+- Live 判定、应援与结算链路
+- 本地双人调试模式与对墙打模式
+- 认证、卡组、卡牌、图片管理 API
+- 云端卡组与离线模式并存
+
+### 10.2 规划中
+
+- 实时联机对战（房间/同步/重连）
+- 对局持久化与回放
+- 更完整的自动能力编排
+- 更高覆盖的性能与稳定性专项测试
 
 ---
 
-### 7. 系统交互示意图 (System Interaction)
+## 11. 文档维护约定
 
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                          GameManager                              │
-│   (状态机驱动回合流程, 调度 CheckTiming)                            │
-└───────────────────────────────────┬───────────────────────────────┘
-                                    │
-         ┌──────────────────────────┼──────────────────────────┐
-         ▼                          ▼                          ▼
-┌─────────────────┐      ┌──────────────────┐       ┌─────────────────┐
-│     Player      │      │   AbilitySystem  │       │  LiveResolver   │
-│ (状态 + 区域)    │◄────►│ (能力触发与解决)  │◄─────►│ (Live 判定逻辑) │
-└─────────────────┘      └──────────────────┘       └─────────────────┘
-         │                                                   │
-         └───────────────────────┬───────────────────────────┘
-                                 ▼
-                     ┌───────────────────────┐
-                     │    Zone / Card Layer  │
-                     │  (数据模型 + 容器操作)  │
-                     └───────────────────────┘
-```
-
----
-
-## 附录
-
-### A. 枚举汇总
-
-```typescript
-enum CardType { MEMBER, LIVE, ENERGY }
-enum HeartColor { PINK, RED, YELLOW, GREEN, BLUE, PURPLE, RAINBOW }
-enum SlotPosition { LEFT, CENTER, RIGHT }
-enum EnergyState { ACTIVE, WAITING }
-enum Visibility { PUBLIC, PRIVATE }
-enum GamePhase { ACTIVE_PHASE, ENERGY_PHASE, DRAW_PHASE, MAIN_PHASE, LIVE_SET_PHASE, PERFORMANCE_PHASE, LIVE_RESULT_PHASE }
-enum TriggerCondition { ON_ENTER_STAGE, ON_LIVE_START, ON_LIVE_SUCCESS, ON_TURN_START, ON_TURN_END, ... }
-```
-
-### B. 卡组构筑规则
-
-| 卡组类型   | 数量 | 内容                     |
-| ---------- | ---- | ------------------------ |
-| **主卡组** | 60张 | 48 张成员卡 + 12 张 Live 卡 |
-| **能量卡组** | 12张 | 12 张能量卡               |
-
----
-
-*文档版本: 1.0*
-*基于 detail_rules.md 整理*
+- 本文档为“设计文档”，新增已实现模块时需补充对应代码路径
+- 架构和流程图统一使用 Mermaid
+- 需求变更先更新需求文档，再同步更新本设计文档
+- 与外部系统强耦合时，需在相关模块文档中补充原始链接

@@ -137,7 +137,7 @@ Coverage requirements: 90-95% for rules/live judgment, 90% for ability/zone oper
 
 - `detail_rules.md` - Official game rules (Chinese)
 - `docs/PROJECT_REQUIREMENTS.md` - Project requirements overview
-- `docs/DEV_STANDARD.md` - Backend development spec
+- `docs/coding-standard/` - Development spec
 - `docs/self-hosted-migration.md` - Self-hosted migration design (Supabase → PostgreSQL + MinIO + Express)
 - `docs/minio-requirements.md` - MinIO deployment requirements
 - `docs/doc_writing_guide.md` - Documentation writing guide

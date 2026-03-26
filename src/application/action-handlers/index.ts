@@ -13,7 +13,7 @@ import type { ActionHandler, ActionHandlerContext } from './types';
 // 导入各处理器
 import { handleMulligan } from './mulligan.handler';
 import { handlePlayMember } from './play-member.handler';
-import { handleSetLiveCard, handleSkipLiveSet } from './live-set.handler';
+import { handleSetLiveCard } from './live-set.handler';
 import { handleTapMember } from './tap-member.handler';
 import {
   handleConfirmSubPhase,
@@ -67,7 +67,6 @@ const ACTION_HANDLERS: Partial<Record<GameActionType, ActionHandler>> = {
 
   // Live 设置
   [GameActionType.SET_LIVE_CARD]: handleSetLiveCard as ActionHandler,
-  [GameActionType.SKIP_LIVE_SET]: handleSkipLiveSet as ActionHandler,
 
   // 成员状态切换
   [GameActionType.TAP_MEMBER]: handleTapMember as ActionHandler,
@@ -146,7 +145,7 @@ export function createHandlerContext(options: {
 
 export { handleMulligan } from './mulligan.handler';
 export { handlePlayMember } from './play-member.handler';
-export { handleSetLiveCard, handleSkipLiveSet } from './live-set.handler';
+export { handleSetLiveCard } from './live-set.handler';
 export { handleTapMember } from './tap-member.handler';
 export {
   handleConfirmSubPhase,
