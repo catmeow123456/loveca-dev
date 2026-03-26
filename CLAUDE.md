@@ -16,6 +16,13 @@ pnpm lint             # ESLint check
 pnpm lint:fix         # Auto-fix lint issues
 pnpm typecheck        # Type check without emit
 
+# Database (Drizzle ORM)
+pnpm db:generate      # Generate migration from schema diff
+pnpm db:migrate       # Run pending migrations
+pnpm db:push          # Push schema directly (dev only)
+pnpm db:pull          # Pull schema from existing DB
+pnpm db:studio        # Open Drizzle Studio (DB GUI)
+
 # Frontend (from client/)
 cd client && pnpm install
 cd client && pnpm dev    # Vite dev server (localhost:5173)
@@ -52,6 +59,8 @@ src/
 │   ├── index.ts             # Server entry point
 │   ├── config.ts            # Environment configuration
 │   ├── db/pool.ts           # PostgreSQL connection pool
+│   ├── db/drizzle.ts        # Drizzle ORM instance (wraps pool)
+│   ├── db/schema.ts         # Drizzle table definitions (mirrors init.sql)
 │   ├── middleware/           # authenticate, require-auth, require-admin, validate, error-handler
 │   ├── routes/              # auth, cards, decks, profiles, images
 │   └── services/            # auth-service, mail-service, minio-service
