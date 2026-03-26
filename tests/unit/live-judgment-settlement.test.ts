@@ -140,4 +140,107 @@ describe('Live 判定与结算', () => {
     expect(confirmResult.gameState.liveResolution.playerScores.get('p2')).toBe(6);
     expect(confirmResult.gameState.liveResolution.liveWinnerIds).toEqual([]);
   });
+
+  it('分数相等时，成功区卡数 < 2 的玩家获胜', () => {
+    const service = new GameService();
+
+    const mkLive = (code: string, owner: string, id: string, score: number) => {
+      const data = {
+        cardCode: code,
+        name: code,
+        cardType: CardType.LIVE as const,
+        score,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      };
+      return createCardInstance(data, owner, id);
+    };
+
+    const p1Live = mkLive('TIE-P1', 'p1', 'tie-p1-live', 5);
+    const p2Live = mkLive('TIE-P2', 'p2', 'tie-p2-live', 5);
+
+    let game = createGameState('g-tie-breaker', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [p1Live, p2Live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, p1Live.instanceId),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, p2Live.instanceId),
+      // p2 已有 2 张成功区卡
+      successZone: { ...player.successZone, cardIds: ['dummy-s1', 'dummy-s2'] },
+    }));
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        liveResults: new Map<string, boolean>([
+          [p1Live.instanceId, true],
+          [p2Live.instanceId, true],
+        ]),
+        playerScores: new Map<string, number>([
+          ['p1', 5],
+          ['p2', 5],
+        ]),
+        scoreConfirmedBy: ['p1', 'p2'],
+        liveWinnerIds: [],
+      },
+    };
+
+    const result = service.resolveLiveWinner(game);
+    expect(result.success).toBe(true);
+    // p1 成功区 0 < 2 → 获胜；p2 成功区 2 >= 2 → 不获胜
+    expect(result.gameState.liveResolution.liveWinnerIds).toEqual(['p1']);
+  });
+
+  it('分数相等且双方成功区均 < 2 时，双方都获胜', () => {
+    const service = new GameService();
+
+    const mkLive = (code: string, owner: string, id: string, score: number) => {
+      const data = {
+        cardCode: code,
+        name: code,
+        cardType: CardType.LIVE as const,
+        score,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      };
+      return createCardInstance(data, owner, id);
+    };
+
+    const p1Live = mkLive('TIE2-P1', 'p1', 'tie2-p1-live', 3);
+    const p2Live = mkLive('TIE2-P2', 'p2', 'tie2-p2-live', 3);
+
+    let game = createGameState('g-tie-both', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [p1Live, p2Live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, p1Live.instanceId),
+      successZone: { ...player.successZone, cardIds: ['dummy-1'] }, // 1 < 2
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, p2Live.instanceId),
+      // 0 < 2
+    }));
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        liveResults: new Map<string, boolean>([
+          [p1Live.instanceId, true],
+          [p2Live.instanceId, true],
+        ]),
+        playerScores: new Map<string, number>([
+          ['p1', 3],
+          ['p2', 3],
+        ]),
+        scoreConfirmedBy: ['p1', 'p2'],
+        liveWinnerIds: [],
+      },
+    };
+
+    const result = service.resolveLiveWinner(game);
+    expect(result.success).toBe(true);
+    expect(result.gameState.liveResolution.liveWinnerIds).toEqual(['p1', 'p2']);
+  });
 });

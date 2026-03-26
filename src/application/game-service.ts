@@ -1061,8 +1061,14 @@ export class GameService {
       winnerIds.push(firstPlayer.id);
     } else if (secondScore > firstScore) {
       winnerIds.push(secondPlayer.id);
+    } else if (firstScore === secondScore && firstScore > 0) {
+      // 分数相等且 > 0：成功区卡数 < 2 的玩家获胜
+      const firstSuccessCount = firstPlayer.successZone.cardIds.length;
+      const secondSuccessCount = secondPlayer.successZone.cardIds.length;
+      if (firstSuccessCount < 2) winnerIds.push(firstPlayer.id);
+      if (secondSuccessCount < 2) winnerIds.push(secondPlayer.id);
     } else {
-      winnerIds.push(firstPlayer.id, secondPlayer.id);
+      // 双方分数都为 0 且都有成功 Live，无胜者
     }
 
     const state: GameState = {
