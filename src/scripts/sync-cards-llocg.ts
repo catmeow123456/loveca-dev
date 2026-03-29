@@ -6,7 +6,7 @@
  * 中文数据优先：有中文时 name/card_text 使用中文，否则 fallback 日文
  *
  * 同步策略:
- * - 新卡: INSERT (status=DRAFT)
+ * - 新卡: INSERT (status=PUBLISHED)
  * - 已有卡: UPSERT (覆盖，包括 PUBLISHED 状态)
  *
  * 使用方法:
@@ -91,7 +91,38 @@ interface CardUpsertRecord {
   group_name: string | null;
   rare: string | null;
   product: string | null;
-  status: 'DRAFT';
+  status: 'PUBLISHED';
+}
+
+interface ChangedCardSummary {
+  card_code: string;
+  name: string;
+  action: 'INSERT' | 'UPDATE';
+  changedFields?: string[];
+}
+
+interface ExistingCardRow {
+  card_code: string;
+  card_type: 'MEMBER' | 'LIVE' | 'ENERGY';
+  name: string;
+  card_text: string | null;
+  image_filename: string | null;
+  cost: number | null;
+  blade: number | null;
+  hearts: { color: string; count: number }[] | null;
+  blade_hearts: { effect: string; heartColor?: string }[] | null;
+  score: number | null;
+  requirements: { color: string; count: number }[] | null;
+  unit_name: string | null;
+  group_name: string | null;
+  rare: string | null;
+  product: string | null;
+  status: 'DRAFT' | 'PUBLISHED';
+}
+
+interface PendingUpdate {
+  card: CardUpsertRecord;
+  changedFields: string[];
 }
 
 // ============================================
@@ -181,6 +212,36 @@ function convertSpecialHearts(
   return result;
 }
 
+function stableJson(value: unknown): string {
+  return JSON.stringify(value ?? null);
+}
+
+function getChangedFields(existing: ExistingCardRow, next: CardUpsertRecord): string[] {
+  const changedFields: string[] = [];
+
+  if (existing.card_type !== next.card_type) changedFields.push('card_type');
+  if (existing.name !== next.name) changedFields.push('name');
+  if (existing.card_text !== next.card_text) changedFields.push('card_text');
+  if (existing.image_filename !== next.image_filename) changedFields.push('image_filename');
+  if (existing.cost !== next.cost) changedFields.push('cost');
+  if (existing.blade !== next.blade) changedFields.push('blade');
+  if (stableJson(existing.hearts) !== stableJson(next.hearts)) changedFields.push('hearts');
+  if (stableJson(existing.blade_hearts) !== stableJson(next.blade_hearts)) {
+    changedFields.push('blade_hearts');
+  }
+  if (existing.score !== next.score) changedFields.push('score');
+  if (stableJson(existing.requirements) !== stableJson(next.requirements)) {
+    changedFields.push('requirements');
+  }
+  if (existing.unit_name !== next.unit_name) changedFields.push('unit_name');
+  if (existing.group_name !== next.group_name) changedFields.push('group_name');
+  if (existing.rare !== next.rare) changedFields.push('rare');
+  if (existing.product !== next.product) changedFields.push('product');
+  if (existing.status !== next.status) changedFields.push('status');
+
+  return changedFields;
+}
+
 /** 从 JP 卡 + CN 数据构建入库记录 */
 function transformJpCard(jp: LlocgJpCard, cn: LlocgCnCard | undefined): CardUpsertRecord {
   const cardType = JP_TYPE_MAP[jp.type];
@@ -255,7 +316,7 @@ function transformJpCard(jp: LlocgJpCard, cn: LlocgCnCard | undefined): CardUpse
     group_name: jp.series || null,
     rare: jp.rare || null,
     product: jp.product || null,
-    status: 'DRAFT',
+    status: 'PUBLISHED',
   };
 }
 
@@ -293,7 +354,7 @@ function transformCnOnlyCard(cardNo: string, cn: LlocgCnCard): CardUpsertRecord 
     group_name: null,
     rare: cnDetail?.rarity || null,
     product: null,
-    status: 'DRAFT',
+    status: 'PUBLISHED',
   };
 }
 
@@ -420,13 +481,19 @@ async function main() {
   const pool = new Pool({ connectionString: CONFIG.databaseUrl });
 
   try {
-    const { rows: existingRows } = await pool.query<{ card_code: string; status: string }>(
-      'SELECT card_code, status FROM cards'
-    );
+    const { rows: existingRows } = await pool.query<ExistingCardRow>(`
+      SELECT
+        card_code, card_type, name, card_text, image_filename,
+        cost, blade, hearts, blade_hearts, score, requirements,
+        unit_name, group_name, rare, product, status
+      FROM cards
+    `);
 
     const publishedCodes = new Set<string>();
     const draftCodes = new Set<string>();
+    const existingByCode = new Map<string, ExistingCardRow>();
     for (const r of existingRows) {
+      existingByCode.set(r.card_code, r);
       if (r.status === 'PUBLISHED') {
         publishedCodes.add(r.card_code);
       } else {
@@ -435,13 +502,20 @@ async function main() {
     }
     console.log(`  Found ${publishedCodes.size} published + ${draftCodes.size} draft cards`);
 
-    // Step 4: 分类 - 新卡插入，已有卡（包括 PUBLISHED）更新
+    // Step 4: 分类 - 新卡插入，已有卡仅在字段有变化时更新
     const newCards: CardUpsertRecord[] = [];
-    const updateCards: CardUpsertRecord[] = [];
+    const updateCards: PendingUpdate[] = [];
+    let unchangedCount = 0;
 
     for (const card of allCards) {
-      if (publishedCodes.has(card.card_code) || draftCodes.has(card.card_code)) {
-        updateCards.push(card);
+      const existing = existingByCode.get(card.card_code);
+      if (existing) {
+        const changedFields = getChangedFields(existing, card);
+        if (changedFields.length > 0) {
+          updateCards.push({ card, changedFields });
+        } else {
+          unchangedCount++;
+        }
       } else {
         newCards.push(card);
       }
@@ -450,6 +524,7 @@ async function main() {
     console.log(`\nStep 4: Categorizing cards...`);
     console.log(`  New cards to insert: ${newCards.length}`);
     console.log(`  Existing cards to update (DRAFT + PUBLISHED): ${updateCards.length}`);
+    console.log(`  Unchanged existing cards: ${unchangedCount}`);
 
     if (newCards.length === 0 && updateCards.length === 0) {
       console.log('\nNo changes needed. Database is up to date.');
@@ -460,6 +535,7 @@ async function main() {
     let insertedCount = 0;
     let updatedCount = 0;
     let failedCount = 0;
+    const changedCards: ChangedCardSummary[] = [];
 
     if (newCards.length > 0) {
       console.log(`\nStep 5a: Inserting ${newCards.length} new cards...`);
@@ -500,6 +576,13 @@ async function main() {
           }
           console.log(`  Batch ${batchNum}/${totalBatches}: ${batch.length} cards... OK`);
           insertedCount += batch.length;
+          changedCards.push(
+            ...batch.map((card) => ({
+              card_code: card.card_code,
+              name: card.name,
+              action: 'INSERT' as const,
+            }))
+          );
         } catch (err) {
           console.error(`  Batch ${batchNum}/${totalBatches}: FAILED`, err);
           failedCount += batch.length;
@@ -508,7 +591,7 @@ async function main() {
     }
 
     if (updateCards.length > 0) {
-      console.log(`\nStep 5b: Updating ${updateCards.length} draft cards...`);
+      console.log(`\nStep 5b: Updating ${updateCards.length} existing cards...`);
       const totalBatches = Math.ceil(updateCards.length / CONFIG.batchSize);
 
       for (let i = 0; i < updateCards.length; i += CONFIG.batchSize) {
@@ -516,7 +599,7 @@ async function main() {
         const batch = updateCards.slice(i, i + CONFIG.batchSize);
 
         try {
-          for (const card of batch) {
+          for (const { card } of batch) {
             await pool.query(
               `
               UPDATE cards SET
@@ -548,6 +631,14 @@ async function main() {
           }
           console.log(`  Batch ${batchNum}/${totalBatches}: ${batch.length} cards... OK`);
           updatedCount += batch.length;
+          changedCards.push(
+            ...batch.map(({ card, changedFields }) => ({
+              card_code: card.card_code,
+              name: card.name,
+              action: 'UPDATE' as const,
+              changedFields,
+            }))
+          );
         } catch (err) {
           console.error(`  Batch ${batchNum}/${totalBatches}: FAILED`, err);
           failedCount += batch.length;
@@ -562,9 +653,11 @@ async function main() {
     );
     console.log(`  Inserted: ${insertedCount}`);
     console.log(`  Updated: ${updatedCount}`);
+    console.log(`  Unchanged: ${unchangedCount}`);
     if (failedCount > 0) {
       console.log(`  Failed: ${failedCount}`);
     }
+    printChangedCards(changedCards);
   } finally {
     await pool.end();
   }
@@ -581,6 +674,21 @@ function readJsonFile<T>(filePath: string, displayName: string): T {
     process.exit(1);
   }
   return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
+}
+
+function printChangedCards(changedCards: ChangedCardSummary[]) {
+  if (changedCards.length === 0) {
+    return;
+  }
+
+  console.log('\nChanged rows:');
+  for (const card of changedCards) {
+    const changedFields =
+      card.action === 'UPDATE' && card.changedFields && card.changedFields.length > 0
+        ? ` fields=${card.changedFields.join(',')}`
+        : '';
+    console.log(`  [${card.action}] ${card.card_code} ${card.name}${changedFields}`);
+  }
 }
 
 main().catch(console.error);

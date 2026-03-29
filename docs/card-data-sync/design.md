@@ -1,230 +1,284 @@
-# 卡牌数据同步管线 - 设计文档
+# 卡牌数据同步管线
 
-> 版本: 1.0.0
-> 创建日期: 2026-03-09
-> 状态: 待实现
+> 更新时间: 2026-03-30
+> 状态: 以当前代码实现为准
 
-## 1. 系统架构
+本文档只描述仓库里已经存在的两条卡牌数据同步脚本，以及它们现在实际会做什么。
 
-```mermaid
-flowchart TB
-    subgraph Upstream["上游数据源"]
-        API[Bushiroad Deck Log API]
-        WEB[官网卡牌列表]
-    end
+## 1. 总览
 
-    subgraph Crawler["爬虫层 (Python, 已有)"]
-        AC[api_crawler.py]
-        DC[detail_crawler.py]
-    end
+当前有两条独立脚本：
 
-    subgraph LocalData["本地数据"]
-        CF[cards_full.json<br/>普通卡 1244张]
-        CE[cards_energy.json<br/>能量卡 558张]
-    end
+| 脚本 | 数据源 | 写入字段范围 | 已存在卡牌的处理 |
+| --- | --- | --- | --- |
+| `src/scripts/sync-cards.ts` | `test/data/cards_full.json` + `test/data/cards_energy.json` | 基础字段 | `PUBLISHED` 跳过，`DRAFT` 覆盖更新 |
+| `src/scripts/sync-cards-llocg.ts` | `llocg_db/json/cards.json` + `llocg_db/json/cards_cn.json` | 基础字段 + 大部分游戏字段 | 所有已存在卡牌都会更新 |
 
-    subgraph SyncScript["同步脚本 (TypeScript, 新建)"]
-        READ[读取 JSON]
-        TRANSFORM[字段转换]
-        DEDUP[去重]
-        DIFF[差异检测<br/>查询已有 card_code]
-        INSERT[批量 INSERT]
-    end
+两条脚本都通过 `DATABASE_URL` 直连 PostgreSQL 的 `cards` 表。两者都支持 `--dry-run`。
 
-    subgraph Database["PostgreSQL"]
-        CARDS[(cards 表)]
-    end
+## 2. 共同规则
 
-    API --> AC
-    WEB --> DC
-    AC --> CF
-    AC --> CE
-    DC --> CF
-    CF --> READ
-    CE --> READ
-    READ --> TRANSFORM
-    TRANSFORM --> DEDUP
-    DEDUP --> DIFF
-    DIFF --> INSERT
-    INSERT --> CARDS
+### 2.1 卡牌编号标准化
+
+两条脚本在入库前都会调用 `normalizeCardCode()`：
+
+- 统一卡号格式
+- 统一全角 `＋` / 半角 `+`
+- 用标准化后的 `card_code` 做去重和数据库匹配
+
+### 2.2 数据库匹配方式
+
+两条脚本都会先执行：
+
+```sql
+SELECT card_code, status FROM cards
 ```
 
-## 2. 数据库变更
+然后按 `card_code` 判断是新增还是更新。
 
-### 2.1 新增字段迁移
+### 2.3 dry-run
 
-- `docs/migrations/005_add_rare_product.sql` — 新增 `rare TEXT` 和 `product TEXT`
-- `docs/migrations/006_add_card_status.sql` — 新增 `status TEXT`（DRAFT/PUBLISHED），更新 RLS SELECT 策略
+两条脚本在 `--dry-run` 下都不会连接数据库，也不会写入数据。
 
-### 2.2 类型定义更新
+## 3. 爬虫 JSON 管线
 
-`client/src/lib/cardService.ts` 中 `CardDbRecord` 接口需新增：
+脚本：`src/scripts/sync-cards.ts`
 
-```typescript
-rare: string | null;
-product: string | null;
-status: 'DRAFT' | 'PUBLISHED';
-```
+### 3.1 输入
 
-## 3. 同步脚本设计
+- `test/data/cards_full.json`
+- `test/data/cards_energy.json`
 
-### 3.1 文件路径
+### 3.2 转换字段
 
-`src/scripts/sync-cards.ts`
+写入以下字段：
 
-### 3.2 数据流
+- `card_code`
+- `card_type`
+- `name`
+- `card_text`
+- `image_filename`
+- `blade`
+- `rare`
+- `product`
 
-```mermaid
-flowchart LR
-    subgraph Step1["Step 1: 读取"]
-        JSON1[cards_full.json] --> PARSE[JSON.parse]
-        JSON2[cards_energy.json] --> PARSE
-    end
+不会写入以下游戏字段：
 
-    subgraph Step2["Step 2: 转换"]
-        PARSE --> MAP[字段映射]
-        MAP --> BLADE[blade 解析]
-        BLADE --> KIND[card_kind→card_type]
-    end
+- `cost`
+- `hearts`
+- `blade_hearts`
+- `score`
+- `requirements`
+- `group_name`
+- `unit_name`
 
-    subgraph Step3["Step 3: 去重"]
-        KIND --> DEDUP[按 card_code 去重<br/>full 优先]
-    end
+### 3.3 类型映射
 
-    subgraph Step4["Step 4: 差异检测"]
-        DEDUP --> QUERY[SELECT card_code<br/>FROM cards]
-        QUERY --> FILTER[过滤已存在]
-    end
-
-    subgraph Step5["Step 5: 插入"]
-        FILTER --> BATCH[分批 INSERT<br/>batch=100]
-        BATCH --> DB[(cards 表)]
-    end
-```
-
-### 3.3 字段转换规则
-
-#### card_kind → card_type
-
-| 爬虫值 | 数据库值 |
-|-------|---------|
+| 源值 | 入库值 |
+| --- | --- |
 | `M` | `MEMBER` |
 | `L` | `LIVE` |
 | `E` | `ENERGY` |
 
-#### blade 解析（字符串 → 整数）
+### 3.4 blade 解析
 
-| 爬虫值 | 数据库值 | 说明 |
-|-------|---------|------|
-| `""` / `"-"` | `null` | 无应援棒 |
-| `"1"` ~ `"4"` | `1` ~ `4` | 直接转换 |
-| `"ALL1"` | `1` | 全色应援棒 |
-| 带颜色前缀如 `"桃1"` | 提取尾部数字 | 特定颜色应援棒 |
-| `"[全ブレード]"` | `1` | 全色应援棒（日文表记） |
-| 其他未知格式 | `null` | 记录警告日志 |
+`parseBlade()` 的当前行为：
 
-#### status 默认值
+- 空字符串或 `-` -> `null`
+- 纯数字 -> 对应整数
+- 以 `ALL` 开头或包含 `全ブレード` -> 提取数字；没数字时返回 `1`
+- 末尾带数字的颜色前缀字符串，例如 `桃1` -> 提取末尾数字
+- 其他格式 -> 打 warning，并写 `null`
 
-同步脚本插入的新卡牌 `status` 固定为 `'DRAFT'`，管理员审核上线后改为 `'PUBLISHED'`。
+### 3.5 去重
 
-#### 不填充的字段（留空）
+脚本先写入 `cards_energy.json`，再写入 `cards_full.json` 到同一个 `Map`。
 
-以下字段在插入时使用数据库默认值（null 或空数组），由管理员后续手动补充：
+这意味着：
 
-`cost`, `hearts`, `blade_hearts`, `score`, `requirements`, `group_name`, `unit_name`
+- 去重键是标准化后的 `card_code`
+- 冲突时 `cards_full.json` 覆盖 `cards_energy.json`
 
-### 3.4 去重策略
+### 3.6 写库策略
 
-合并两个 JSON 文件时，按 `card_code` 去重：
-- 如果同一 `card_code` 同时出现在 `cards_full.json` 和 `cards_energy.json` 中，优先保留 `cards_full.json` 版本（包含 `effect_text` 和 `product`）
+当前代码的真实行为：
 
-### 3.5 同步策略
+- 数据库中不存在 -> `INSERT`
+- 数据库中存在且 `status = 'DRAFT'` -> `ON CONFLICT DO UPDATE`
+- 数据库中存在且 `status = 'PUBLISHED'` -> 跳过
 
-INSERT-only：
-1. 查询数据库中所有已有的 `card_code`（单次 SELECT 查询）
-2. 将已有的 `card_code` 构建为 Set
-3. 过滤掉已存在的卡牌，仅保留新卡
-4. 分批 INSERT（每批 100 条）
+`INSERT` 和 `UPDATE` 都只覆盖这几个基础字段：
 
-### 3.6 PostgreSQL 连接
+- `card_type`
+- `name`
+- `card_text`
+- `image_filename`
+- `blade`
+- `rare`
+- `product`
 
-使用 `pg` 库直接连接数据库，绕过 RLS 策略（管理员连接）：
+脚本没有显式写入 `status`，所以：
 
-```typescript
-import { Pool } from 'pg';
+- 新卡会使用数据库默认状态
+- 已有 `DRAFT` 卡更新后保留原状态
+- 已有 `PUBLISHED` 卡不会被修改
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-```
+## 4. llocg_db 管线
 
-### 3.7 CLI 接口
+脚本：`src/scripts/sync-cards-llocg.ts`
+
+### 4.1 输入
+
+- `llocg_db/json/cards.json`
+- `llocg_db/json/cards_cn.json`
+
+如果缺少文件，脚本会提示先执行：
 
 ```bash
-# 正式同步
-npx tsx src/scripts/sync-cards.ts
-
-# 预览模式（不写入数据库）
-npx tsx src/scripts/sync-cards.ts --dry-run
+git submodule update --init
 ```
 
-### 3.8 错误处理
+### 4.2 数据合并方式
 
-| 场景 | 处理方式 |
-|-----|---------|
-| 缺少 `DATABASE_URL` | 打印用法说明，退出 |
-| JSON 文件不存在或解析失败 | 打印错误，退出 |
-| 数据库查询失败 | 打印错误，退出 |
-| 单批插入失败 | 记录错误和批次范围，继续处理下一批 |
-| blade 解析遇到未知格式 | 记录警告，置为 null |
+- `cards.json` 是主数据源
+- `cards_cn.json` 用于补充中文名称和中文效果文本
+- 会先把 CN key 标准化后建立索引
+- JP 卡按标准化后的 card code 去匹配 CN 卡
+- JP 没有、但 CN 有的卡，会按 CN-only 逻辑补一条记录
 
-### 3.9 输出日志示例
+### 4.3 中文优先规则
 
+`transformJpCard()` 的当前行为：
+
+- `name` 优先使用 CN 名称
+- 但如果 CN 名称是 `能量` 或 `エネルギー`，会回退到 JP 名称
+- `card_text` 优先使用 CN `detail.ability`，否则回退到 JP `ability`
+
+### 4.4 类型映射
+
+JP：
+
+| 源值 | 入库值 |
+| --- | --- |
+| `メンバー` | `MEMBER` |
+| `ライブ` | `LIVE` |
+| `エネルギー` | `ENERGY` |
+
+CN-only：
+
+| 源值 | 入库值 |
+| --- | --- |
+| `13` | `MEMBER` |
+| `14` | `LIVE` |
+| `15` | `ENERGY` |
+
+### 4.5 写入字段
+
+此脚本会写入：
+
+- `card_code`
+- `card_type`
+- `name`
+- `card_text`
+- `image_filename`
+- `cost`
+- `blade`
+- `hearts`
+- `blade_hearts`
+- `score`
+- `requirements`
+- `unit_name`
+- `group_name`
+- `rare`
+- `product`
+- `status`
+
+### 4.6 hearts / blade_hearts / requirements 转换
+
+`convertHearts()`：
+
+- `heart01` -> `PINK`
+- `heart02` -> `RED`
+- `heart03` -> `YELLOW`
+- `heart04` -> `GREEN`
+- `heart05` -> `BLUE`
+- `heart06` -> `PURPLE`
+- `heart0` -> `RAINBOW`
+
+输出格式：
+
+```json
+[{ "color": "PINK", "count": 1 }]
 ```
-Card Data Sync
 
-Step 1: Reading JSON sources...
-  cards_full.json: 1244 cards (MEMBER: 1069, LIVE: 175)
-  cards_energy.json: 558 cards
-  Total: 1802 cards (after dedup)
+`convertBladeHearts()`：
 
-Step 2: Checking existing cards in DB...
-  Found 500 existing cards
+- `b_heart01` 到 `b_heart06` -> `effect: "HEART"` + 对应颜色
+- `b_all` -> `effect: "HEART", heartColor: "RAINBOW"`
+- 数量大于 1 时会展开成多项数组
 
-Step 3: Filtering new cards...
-  New cards to insert: 1302
-  Skipped (already exist): 500
+`convertSpecialHearts()`：
 
-Step 4: Inserting new cards...
-  Batch 1/14: 100 cards... OK
-  Batch 2/14: 100 cards... OK
-  ...
+- `draw` -> `{ "effect": "DRAW" }`
+- `score` -> `{ "effect": "SCORE" }`
 
-Summary:
-  Read: 1802
-  Skipped: 500
-  Inserted: 1302
-  Failed: 0
+### 4.7 group / unit 的当前处理
+
+- `group_name` 直接写 `jp.series`
+- `unit_name` 直接写 `jp.unit`
+- 如果 `unit_name` 不以 `「` 开头，会自动包成 `「...」`
+- 非 `LIVE` 卡如果缺少 `unit`，会输出 warning
+- 任意卡如果缺少 `series`，会输出 warning
+
+### 4.8 CN-only 卡
+
+CN-only 卡的当前行为：
+
+- 可以写 `card_type` / `name` / `card_text` / `cost` / `blade` / `rare`
+- `hearts` / `blade_hearts` / `score` / `requirements` / `unit_name` / `group_name` / `product` 都会写 `null`
+
+### 4.9 写库策略
+
+当前代码的真实行为：
+
+- 数据库中不存在 -> `INSERT`
+- 数据库中已存在，不区分 `DRAFT` / `PUBLISHED` -> `UPDATE`
+
+更新时覆盖：
+
+- `card_type`
+- `name`
+- `card_text`
+- `image_filename`
+- `cost`
+- `blade`
+- `hearts`
+- `blade_hearts`
+- `score`
+- `requirements`
+- `unit_name`
+- `group_name`
+- `rare`
+- `product`
+- `status`
+- `updated_at = now()`
+
+注意：脚本构建的记录里 `status` 固定为 `PUBLISHED`，所以无论是新插入还是更新已有卡牌，最终都会写成 `PUBLISHED`。
+
+## 5. 运行方式
+
+```bash
+# 爬虫 JSON 管线
+DATABASE_URL=postgres://... npx tsx src/scripts/sync-cards.ts
+DATABASE_URL=postgres://... npx tsx src/scripts/sync-cards.ts --dry-run
+
+# llocg_db 管线
+DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-llocg.ts
+DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-llocg.ts --dry-run
 ```
 
-## 4. 相关文件索引
+## 6. 代码入口
 
-| 文件路径 | 说明 |
-|---------|------|
-| `src/scripts/sync-cards.ts` | 同步脚本（新建） |
-| `docs/migrations/005_add_rare_product.sql` | 数据库迁移 - rare/product 字段 |
-| `docs/migrations/006_add_card_status.sql` | 数据库迁移 - status 字段 + RLS 更新 |
-| `docs/card-data-sync/requirements.md` | 需求文档 |
-| `client/src/lib/cardService.ts` | 前端卡牌服务（需更新类型） |
-| `src/scripts/upload-to-minio.ts` | 图片上传脚本（参考模式） |
-| `test/data/cards_full.json` | 爬虫输出 - 普通卡牌 |
-| `test/data/cards_energy.json` | 爬虫输出 - 能量卡 |
-| `test/crawler/api_crawler.py` | 爬虫 - API 数据抓取 |
-| `test/crawler/detail_crawler.py` | 爬虫 - 官网详情补充 |
-
-## 5. 相关文档
-
-- [需求文档](./requirements.md)
-- [爬虫项目文档](../../test/docs/crawl.md)
-- [卡牌数据管理 - 设计文档](../card-data-management/design.md)
-- [数据库迁移脚本](../migrations/003_create_cards_table.sql)
+- `src/scripts/sync-cards.ts`
+- `src/scripts/sync-cards-llocg.ts`
+- `src/shared/utils/card-code.ts`
