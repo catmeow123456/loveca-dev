@@ -7,9 +7,24 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ArrowLeft,
+  Bot,
+  Bug,
+  ChevronLeft,
+  ChevronRight,
+  Gamepad2,
+  Layers3,
+  Play,
+  Target,
+  Users,
+  UserRound,
+  WandSparkles,
+  Zap,
+} from 'lucide-react';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
-import { DeckSelector, type DeckDisplayItem } from '@/components/common';
+import { DeckSelector, ThemeToggle, type DeckDisplayItem } from '@/components/common';
 import { DeckLoader } from '@game/domain/card-data/deck-loader';
 import { CardDataRegistry } from '@game/domain/card-data/loader';
 import { loadSolitaireOpponentDeck } from '@game/application/solitaire-deck';
@@ -216,25 +231,26 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
         : ['模式', 'P1', 'P2', '确认'];
 
     return (
-      <div className="flex items-center justify-center gap-4 mb-8">
+      <div className="mb-8 flex items-center justify-center gap-4">
         {steps.map((step, idx) => (
           <div key={step} className="flex items-center gap-2">
             <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 ${
+              className={`flex h-10 w-10 items-center justify-center rounded-full font-bold transition-all duration-300 ${
                 currentStep === step
-                  ? 'bg-gradient-to-r from-orange-400 to-amber-400 text-white shadow-lg shadow-orange-500/30'
+                  ? 'text-white shadow-[var(--shadow-glow)]'
                   : currentStep > step
-                  ? 'bg-green-500/20 text-green-300 border border-green-400/30'
-                  : 'bg-[#3d3020]/60 text-orange-300/50 border border-orange-300/20'
+                  ? 'border border-[color:color-mix(in_srgb,var(--semantic-success)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_14%,transparent)] text-[var(--semantic-success)]'
+                  : 'border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-muted)]'
               }`}
+              style={currentStep === step ? { background: 'var(--gradient-button)' } : undefined}
             >
-              {currentStep > step ? '✓' : idx + 1}
+              {currentStep > step ? <WandSparkles size={16} /> : idx + 1}
             </div>
-            <span className="text-xs text-orange-300/60 min-w-[32px] text-center">{labels[idx]}</span>
+            <span className="min-w-[32px] text-center text-xs text-[var(--text-secondary)]">{labels[idx]}</span>
             {idx < steps.length - 1 && (
               <div
                 className={`w-12 h-0.5 transition-all duration-300 ${
-                  currentStep > step ? 'bg-green-400' : 'bg-orange-300/20'
+                  currentStep > step ? 'bg-[var(--semantic-success)]' : 'bg-[var(--border-default)]'
                 }`}
               />
             )}
@@ -259,46 +275,42 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#2d2820] via-[#1f1a15] to-[#2d2820] flex flex-col">
-      {/* Header */}
-      <header className="h-16 bg-[#3d3020]/80 backdrop-blur-sm border-b border-orange-300/15 flex items-center justify-between px-6">
+    <div className="app-shell flex min-h-screen flex-col">
+      <header className="relative z-10 mx-4 mt-4 flex h-16 items-center justify-between rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-frosted)] px-6 shadow-[var(--shadow-md)] backdrop-blur-xl">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-orange-300/70 hover:text-orange-300 transition-colors"
+          className="button-ghost inline-flex items-center gap-2 px-3 py-2"
         >
-          <span>←</span>
+          <ArrowLeft size={16} />
           <span>返回</span>
         </button>
 
         <div className="flex items-center gap-3">
-          <span className="text-2xl">🎮</span>
-          <h1 className="text-xl font-bold bg-gradient-to-r from-orange-300 to-amber-300 bg-clip-text text-transparent">
+          <Gamepad2 size={20} className="text-[var(--accent-primary)]" />
+          <h1 className="text-xl font-bold text-gradient-brand">
             游戏准备
           </h1>
         </div>
 
-        <div className="w-20" /> {/* Spacer */}
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+        </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col p-6 overflow-hidden">
-        {/* Step Indicator */}
+      <main className="relative z-10 flex flex-1 flex-col overflow-hidden p-6">
         {renderStepIndicator()}
 
-        {/* Step Title */}
         <motion.h2
           key={currentStep}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-2xl font-bold text-center text-orange-100 mb-6"
+          className="mb-6 text-center text-2xl font-bold text-[var(--text-primary)]"
         >
           {getStepTitle()}
         </motion.h2>
 
-        {/* Step Content */}
         <div className="flex-1 min-h-0 relative">
           <AnimatePresence mode="wait">
-            {/* Step 0: Mode Selection */}
             {currentStep === 0 && (
               <motion.div
                 key="step0"
@@ -308,45 +320,51 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
                 className="absolute inset-0 flex justify-center items-center"
               >
                 <div className="w-full max-w-2xl grid md:grid-cols-2 gap-6">
-                  {/* Debug Mode */}
                   <button
                     onClick={() => handleSelectMode(GameMode.DEBUG)}
-                    className={`p-6 rounded-xl border-2 transition-all duration-300 text-left ${
+                    className={`surface-panel group p-6 text-left transition-all duration-300 ${
                       gameMode === GameMode.DEBUG
-                        ? 'bg-orange-500/10 border-orange-400/60 shadow-lg shadow-orange-500/10'
-                        : 'bg-[#3d3020]/60 border-orange-300/20 hover:border-orange-300/40'
+                        ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))] shadow-[var(--shadow-glow)]'
+                        : 'hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]'
                     }`}
                   >
-                    <div className="text-4xl mb-4">🔧</div>
-                    <h3 className="text-xl font-bold text-orange-100 mb-2">调试模式</h3>
-                    <p className="text-sm text-orange-300/60 leading-relaxed">
-                      双人本地对战，手动切换双方视角操作。适用于规则验证和对局复现。
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--accent-primary)]">
+                      <Bug size={24} />
+                    </div>
+                    <h3 className="mb-2 text-xl font-bold text-[var(--text-primary)]">调试模式</h3>
+                    <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+                      为双方分别选择卡组，进入双人对战。
                     </p>
-                    <div className="mt-4 flex items-center gap-2 text-xs text-orange-300/40">
-                      <span>👥 2 人</span>
+                    <div className="mt-4 flex items-center gap-2 text-xs text-[var(--text-muted)]">
+                      <Users size={12} />
+                      <span>2 人</span>
                       <span>·</span>
-                      <span>📦 选 2 副卡组</span>
+                      <Layers3 size={12} />
+                      <span>选 2 副卡组</span>
                     </div>
                   </button>
 
-                  {/* Solitaire Mode */}
                   <button
                     onClick={() => handleSelectMode(GameMode.SOLITAIRE)}
-                    className={`p-6 rounded-xl border-2 transition-all duration-300 text-left ${
+                    className={`surface-panel group p-6 text-left transition-all duration-300 ${
                       gameMode === GameMode.SOLITAIRE
-                        ? 'bg-purple-500/10 border-purple-400/60 shadow-lg shadow-purple-500/10'
-                        : 'bg-[#3d3020]/60 border-orange-300/20 hover:border-purple-300/40'
+                        ? 'border-[color:color-mix(in_srgb,var(--heart-green)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--heart-green)_10%,var(--bg-surface))] shadow-[0_0_18px_rgba(52,211,153,0.18)]'
+                        : 'hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]'
                     }`}
                   >
-                    <div className="text-4xl mb-4">🎯</div>
-                    <h3 className="text-xl font-bold text-orange-100 mb-2">对墙打模式</h3>
-                    <p className="text-sm text-orange-300/60 leading-relaxed">
-                      单人测试卡组，系统自动跳过对手所有阶段。专注于测试己方卡组在各回合的表现。
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--heart-green)]">
+                      <Target size={24} />
+                    </div>
+                    <h3 className="mb-2 text-xl font-bold text-[var(--text-primary)]">对墙打模式</h3>
+                    <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+                      只选择己方卡组，快速开始单人测试。
                     </p>
-                    <div className="mt-4 flex items-center gap-2 text-xs text-orange-300/40">
-                      <span>👤 1 人</span>
+                    <div className="mt-4 flex items-center gap-2 text-xs text-[var(--text-muted)]">
+                      <UserRound size={12} />
+                      <span>1 人</span>
                       <span>·</span>
-                      <span>📦 选 1 副卡组</span>
+                      <Layers3 size={12} />
+                      <span>选 1 副卡组</span>
                     </div>
                   </button>
                 </div>
@@ -411,98 +429,92 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
                 className="absolute inset-0 flex justify-center items-center"
               >
                 <div className="w-full max-w-2xl flex flex-col items-center">
-                  {/* Mode Badge */}
-                  <div className="mb-6 px-4 py-2 rounded-full text-sm font-medium bg-gradient-to-r from-orange-400/20 to-amber-400/20 border border-orange-300/30 text-orange-200">
-                    {gameMode === GameMode.SOLITAIRE ? '🎯 对墙打模式' : '🔧 调试模式'}
+                  <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-2 text-sm font-medium text-[var(--text-primary)]">
+                    {gameMode === GameMode.SOLITAIRE ? <Target size={16} className="text-[var(--heart-green)]" /> : <Bug size={16} className="text-[var(--accent-primary)]" />}
+                    {gameMode === GameMode.SOLITAIRE ? '对墙打模式' : '调试模式'}
                   </div>
 
-                  {/* Summary Cards */}
                   <div className={`w-full grid gap-6 mb-8 ${gameMode === GameMode.SOLITAIRE ? 'grid-cols-1 max-w-md mx-auto' : 'md:grid-cols-2'}`}>
-                    {/* P1 Summary */}
-                    <div className="p-6 bg-[#3d3020]/60 rounded-xl border border-orange-300/20">
+                    <div className="surface-panel p-6">
                       <div className="flex items-center gap-3 mb-4">
-                        <span className="text-3xl">👤</span>
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] text-[var(--accent-primary)]">
+                          <UserRound size={22} />
+                        </div>
                         <div>
-                          <div className="text-xs text-orange-300/50 uppercase tracking-wider">
+                          <div className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
                             {gameMode === GameMode.SOLITAIRE ? '己方' : 'Player 1'}
                           </div>
-                          <div className="text-lg font-bold text-orange-100">
+                          <div className="text-lg font-bold text-[var(--text-primary)]">
                             {selectedP1Deck?.name || '未选择'}
                           </div>
                         </div>
                       </div>
                       {selectedP1Deck && (
-                        <div className="flex items-center gap-4 text-sm text-orange-300/60">
-                          <span>👤 {selectedP1Deck.memberCount}/48</span>
-                          <span>🎵 {selectedP1Deck.liveCount}/12</span>
-                          <span>⚡ {selectedP1Deck.energyCount}/12</span>
+                        <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)]">
+                          <span className="inline-flex items-center gap-1"><Users size={14} />{selectedP1Deck.memberCount}/48</span>
+                          <span className="inline-flex items-center gap-1"><Layers3 size={14} />{selectedP1Deck.liveCount}/12</span>
+                          <span className="inline-flex items-center gap-1"><Zap size={14} />{selectedP1Deck.energyCount}/12</span>
                         </div>
                       )}
                     </div>
 
-                    {/* P2 Summary (only in debug mode) */}
                     {gameMode === GameMode.DEBUG && (
-                      <div className="p-6 bg-[#3d3020]/60 rounded-xl border border-orange-300/20">
+                      <div className="surface-panel p-6">
                         <div className="flex items-center gap-3 mb-4">
-                          <span className="text-3xl">👤</span>
+                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:color-mix(in_srgb,var(--accent-secondary)_12%,transparent)] text-[var(--accent-secondary)]">
+                            <UserRound size={22} />
+                          </div>
                           <div>
-                            <div className="text-xs text-orange-300/50 uppercase tracking-wider">Player 2</div>
-                            <div className="text-lg font-bold text-orange-100">
+                            <div className="text-xs uppercase tracking-wider text-[var(--text-muted)]">Player 2</div>
+                            <div className="text-lg font-bold text-[var(--text-primary)]">
                               {selectedP2Deck?.name || '未选择'}
                             </div>
                           </div>
                         </div>
                         {selectedP2Deck && (
-                          <div className="flex items-center gap-4 text-sm text-orange-300/60">
-                            <span>👤 {selectedP2Deck.memberCount}/48</span>
-                            <span>🎵 {selectedP2Deck.liveCount}/12</span>
-                            <span>⚡ {selectedP2Deck.energyCount}/12</span>
+                          <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)]">
+                            <span className="inline-flex items-center gap-1"><Users size={14} />{selectedP2Deck.memberCount}/48</span>
+                            <span className="inline-flex items-center gap-1"><Layers3 size={14} />{selectedP2Deck.liveCount}/12</span>
+                            <span className="inline-flex items-center gap-1"><Zap size={14} />{selectedP2Deck.energyCount}/12</span>
                           </div>
                         )}
                       </div>
                     )}
 
-                    {/* Solitaire opponent info */}
                     {gameMode === GameMode.SOLITAIRE && (
-                      <div className="p-4 bg-[#3d3020]/40 rounded-xl border border-orange-300/10 flex items-center gap-3">
-                        <span className="text-2xl opacity-30">🤖</span>
-                        <div className="text-sm text-orange-300/40">
-                          对手卡组由系统自动提供，无需选择
+                      <div className="surface-panel flex items-center gap-3 p-4">
+                        <Bot size={22} className="text-[var(--text-muted)]" />
+                        <div className="text-sm text-[var(--text-secondary)]">
+                          对手卡组已自动准备完成
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Error Message */}
                   {error && (
-                    <div className="w-full mb-6 p-4 bg-red-500/10 border border-red-400/30 rounded-xl">
-                      <div className="flex items-center gap-2 text-red-300 text-sm">
-                        <span>⚠️</span>
+                    <div className="mb-6 w-full rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-4">
+                      <div className="flex items-center gap-2 text-sm text-[var(--semantic-error)]">
+                        <WandSparkles size={16} />
                         <span>{error}</span>
                       </div>
                     </div>
                   )}
 
-                  {/* Start Button */}
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleStartGame}
                     disabled={isStarting}
-                    className={`px-12 py-4 rounded-2xl font-bold text-lg transition-all duration-300 ${
-                      isStarting
-                        ? 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-green-400 to-emerald-400 text-white shadow-lg shadow-green-500/30 hover:shadow-green-500/50'
-                    }`}
+                    className={`button-gold px-12 py-4 text-lg font-bold ${isStarting ? 'cursor-not-allowed opacity-50' : ''}`}
                   >
                     {isStarting ? (
                       <span className="flex items-center gap-2">
-                        <span className="animate-spin">⏳</span>
+                        <WandSparkles size={18} className="animate-spin" />
                         <span>准备中...</span>
                       </span>
                     ) : (
                       <span className="flex items-center gap-2">
-                        <span>🎮</span>
+                        <Play size={18} />
                         <span>开始游戏！</span>
                       </span>
                     )}
@@ -513,31 +525,28 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
           </AnimatePresence>
         </div>
 
-        {/* Navigation Buttons */}
         <div className="flex justify-between mt-6 max-w-2xl mx-auto w-full">
           <button
             onClick={handlePrev}
             disabled={currentStep === 0}
-            className={`px-6 py-2 rounded-full font-medium transition-all duration-300 ${
+            className={`button-ghost inline-flex items-center gap-2 px-6 py-2 font-medium ${
               currentStep === 0
-                ? 'text-orange-300/30 cursor-not-allowed'
-                : 'text-orange-300 hover:bg-orange-500/10 border border-orange-300/30 hover:border-orange-300/50'
+                ? 'cursor-not-allowed opacity-30'
+                : 'border border-[var(--border-default)]'
             }`}
           >
-            ← 上一步
+            <ChevronLeft size={16} />
+            上一步
           </button>
 
           {currentStep < maxStep && (
             <button
               onClick={handleNext}
               disabled={!canProceed()}
-              className={`px-6 py-2 rounded-full font-medium transition-all duration-300 ${
-                !canProceed()
-                  ? 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-orange-400 to-amber-400 text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40'
-              }`}
+              className={`button-primary inline-flex items-center gap-2 px-6 py-2 font-medium ${!canProceed() ? 'cursor-not-allowed opacity-50' : ''}`}
             >
-              下一步 →
+              下一步
+              <ChevronRight size={16} />
             </button>
           )}
         </div>

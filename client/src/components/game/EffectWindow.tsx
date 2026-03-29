@@ -7,6 +7,7 @@
 
 import { memo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Check, FastForward, RotateCcw, Sparkles } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { SubPhase, EffectWindowType } from '@game/shared/types/enums';
@@ -84,14 +85,14 @@ const AbilityHints = memo(function AbilityHints() {
   return (
     <div className="space-y-2">
       <div className="text-xs text-slate-400 mb-2">
-        💡 提示：以下能力可能可以发动（需手动确认）
+        提示：以下能力可能可以发动（需手动确认）
       </div>
-      <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-        <div className="text-xs text-slate-500 text-center">
+      <div className="rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_50%,transparent)] p-3">
+        <div className="text-center text-xs text-[var(--text-muted)]">
           暂无检测到的可发动能力
         </div>
       </div>
-      <div className="text-xs text-slate-500 mt-2">
+      <div className="mt-2 text-xs text-[var(--text-muted)]">
         请检查场上成员卡的能力文本，手动执行需要的效果。
       </div>
     </div>
@@ -104,8 +105,8 @@ const AbilityHints = memo(function AbilityHints() {
 const OperationHints = memo(function OperationHints() {
   return (
     <div className="mt-4 p-3 bg-amber-500/10 rounded-lg border border-amber-500/30">
-      <div className="text-sm font-medium text-amber-400 mb-2">📋 自由操作说明</div>
-      <ul className="text-xs text-slate-300 space-y-1">
+      <div className="mb-2 text-sm font-medium text-[var(--accent-secondary)]">自由操作说明</div>
+      <ul className="space-y-1 text-xs text-[var(--text-secondary)]">
         <li>• 拖拽卡牌到目标区域执行移动</li>
         <li>• 点击卡组顶部抽取卡牌</li>
         <li>• 使用撤销按钮可回退操作</li>
@@ -185,7 +186,7 @@ export const EffectWindow = memo(function EffectWindow({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[100]"
+            className="modal-backdrop z-[100]"
             onClick={onClose}
           />
 
@@ -197,75 +198,64 @@ export const EffectWindow = memo(function EffectWindow({
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-full max-w-md"
           >
-            <div className="bg-slate-900 rounded-xl border border-slate-700 shadow-2xl overflow-hidden">
-              {/* 标题栏 */}
-              <div className={cn('px-6 py-4 border-b border-slate-700', config.color + '/20')}>
+            <div className="modal-surface modal-accent-rose">
+              <div className="modal-header px-6 py-4">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{config.icon}</span>
-                  <h2 className="text-lg font-bold text-white">{config.title}</h2>
+                  <Sparkles size={20} className="text-[var(--accent-primary)]" />
+                  <h2 className="text-lg font-bold text-[var(--text-primary)]">{config.title}</h2>
                 </div>
               </div>
 
-              {/* 内容区域 */}
               <div className="px-6 py-4">
-                {/* 说明文本 */}
-                <p className="text-sm text-slate-300 leading-relaxed">
+                <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
                   {config.description}
                 </p>
 
-                {/* 可发动能力列表 */}
                 <div className="mt-4">
                   <AbilityHints />
                 </div>
 
-                {/* 操作提示 */}
                 <OperationHints />
 
-                {/* 操作历史 */}
                 {gameState && gameState.operationHistory.length > 0 && (
-                  <div className="mt-4 p-3 bg-slate-800/50 rounded-lg">
-                    <div className="text-xs text-slate-400">
-                      本窗口已执行 <span className="text-white font-bold">{gameState.operationHistory.length}</span> 步操作
+                  <div className="mt-4 rounded-lg bg-[color:color-mix(in_srgb,var(--bg-overlay)_52%,transparent)] p-3">
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      本窗口已执行 <span className="font-bold text-[var(--text-primary)]">{gameState.operationHistory.length}</span> 步操作
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* 按钮区域 */}
-              <div className="px-6 py-4 bg-slate-800/50 border-t border-slate-700 flex gap-3">
-                {/* 跳过按钮 */}
+              <div className="modal-footer flex gap-3 px-6 py-4">
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleSkip}
-                  className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+                  className="button-secondary flex-1 py-2.5 text-sm font-medium inline-flex items-center justify-center gap-2"
                 >
-                  ⏭️ 跳过效果
+                  <FastForward size={16} />
+                  跳过效果
                 </motion.button>
 
-                {/* 撤销按钮 */}
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleUndo}
-                  className="py-2.5 px-4 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+                  className="button-secondary py-2.5 px-4 text-sm font-medium"
                 >
-                  ↩️
+                  <RotateCcw size={16} />
                 </motion.button>
 
-                {/* 确认按钮 */}
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleConfirm}
                   className={cn(
-                    'flex-1 py-2.5 rounded-lg text-sm font-bold',
-                    'bg-gradient-to-r from-emerald-500 to-green-500',
-                    'hover:from-emerald-400 hover:to-green-400',
-                    'text-white shadow-lg transition-colors'
+                    'button-primary flex-1 py-2.5 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2'
                   )}
                 >
-                  ✅ 确认完成
+                  <Check size={16} />
+                  确认完成
                 </motion.button>
               </div>
             </div>

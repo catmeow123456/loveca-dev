@@ -8,3 +8,4 @@ export {
   formatRelativeTime, 
   type DeckStatsData 
 } from './DeckStats';
+export { ThemeToggle } from './ThemeToggle';

@@ -11,6 +11,7 @@
 
 import { useState, useCallback, memo } from 'react';
 import { motion } from 'framer-motion';
+import { ArrowDownToLine, ArrowUpToLine, Eye, Layers3, Trash2, X } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -221,85 +222,88 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
 
   return (
     <>
-      {/* 背景遮罩 */}
       <div
-        className="fixed inset-0 bg-black/60 z-[90]"
+        className="modal-backdrop z-[90]"
         onClick={handleClose}
       />
 
-      {/* 面板 */}
       <motion.div
-        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800/95 rounded-lg p-4 shadow-xl border border-purple-500/50 z-[100] w-[560px] max-w-[calc(100vw-2rem)]"
+        className="modal-surface modal-accent-indigo fixed left-1/2 top-1/2 z-[100] w-[560px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 p-4"
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
       >
-        {/* 标题栏 */}
-        <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-600">
-          <span className="text-sm text-purple-300 font-medium">
-            检视卡组顶 ({peekCards.length} 张)
-          </span>
-          <span className="text-xs text-slate-400">
-            主卡组剩余: {mainDeckCount} 张
-          </span>
+        <div className="modal-header -mx-4 -mt-4 mb-3 flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Eye size={16} className="text-[var(--heart-purple)]" />
+            <span className="text-sm font-medium text-[var(--text-primary)]">检视卡组顶 ({peekCards.length} 张)</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-[var(--text-secondary)]">主卡组剩余: {mainDeckCount} 张</span>
+            <button onClick={handleClose} className="button-icon h-8 w-8">
+              <X size={14} />
+            </button>
+          </div>
         </div>
 
-        {/* 操作按钮 */}
         <div className="flex gap-2 mb-3">
           <button
             onClick={drawFromDeck}
             disabled={mainDeckCount === 0}
             className={cn(
-              'px-3 py-1.5 rounded text-xs font-medium',
+              'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
               mainDeckCount > 0
-                ? 'bg-purple-600 hover:bg-purple-500 text-white'
-                : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                ? 'button-primary'
+                : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
             )}
           >
-            ↓ 翻开一张
+            <ArrowDownToLine size={14} />
+            翻开一张
           </button>
           <button
             onClick={returnToDeck}
             disabled={peekCards.length === 0}
             className={cn(
-              'px-3 py-1.5 rounded text-xs font-medium',
+              'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
               peekCards.length > 0
-                ? 'bg-amber-600 hover:bg-amber-500 text-white'
-                : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                ? 'button-gold'
+                : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
             )}
           >
-            ↑ 放回顶部
+            <ArrowUpToLine size={14} />
+            放回顶部
           </button>
           <button
             onClick={returnAllToDeck}
             disabled={peekCards.length === 0}
             className={cn(
-              'px-3 py-1.5 rounded text-xs font-medium',
+              'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
               peekCards.length > 0
-                ? 'bg-slate-600 hover:bg-slate-500 text-white'
-                : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                ? 'button-secondary'
+                : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
             )}
           >
+            <Layers3 size={14} />
             全部放回
           </button>
           <button
             onClick={moveAllToWaitingRoom}
             disabled={peekCards.length === 0}
             className={cn(
-              'px-3 py-1.5 rounded text-xs font-medium',
+              'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
               peekCards.length > 0
-                ? 'bg-rose-700 hover:bg-rose-600 text-white'
-                : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                ? 'rounded border border-[color:color-mix(in_srgb,var(--semantic-error)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_16%,transparent)] text-[var(--semantic-error)]'
+                : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
             )}
           >
+            <Trash2 size={14} />
             全部放入休息室
           </button>
         </div>
 
-        {/* 检视区卡牌（可拖拽排序） */}
-        <div className="h-[150px] p-3 rounded bg-slate-900/50 border border-dashed border-purple-500/30 overflow-hidden">
+        <div className="h-[150px] overflow-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_56%,transparent)] p-3">
           {peekCards.length === 0 ? (
-            <div className="h-[126px] flex items-center justify-center text-slate-500 text-sm">
+            <div className="flex h-[126px] items-center justify-center text-sm text-[var(--text-muted)]">
               点击「翻开一张」从卡组顶检视卡牌
             </div>
           ) : (
@@ -326,7 +330,7 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
                         imagePath={getCardImagePath(card.data.cardCode)}
                       />
                       {/* 卡牌操作菜单 */}
-                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 flex gap-0.5 bg-slate-800/90 rounded px-1 py-0.5 z-10">
+                      <div className="absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100">
                         <button
                           onClick={() => moveToHand(card.instanceId)}
                           className="text-[10px] px-1.5 py-0.5 bg-cyan-600 hover:bg-cyan-500 rounded text-white"
@@ -358,8 +362,7 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
           )}
         </div>
 
-        {/* 提示文字 */}
-        <div className="mt-2 text-[10px] text-slate-500 text-center">
+        <div className="mt-2 text-center text-[10px] text-[var(--text-muted)]">
           拖拽卡牌可调整顺序 · 悬停卡牌显示操作菜单 · 点击外部关闭并放回所有卡牌
         </div>
       </motion.div>

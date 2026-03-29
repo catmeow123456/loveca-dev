@@ -105,30 +105,30 @@ export const BLADE_HEART_OPTIONS = [
     icon: '♥' as const,
   })),
   { value: 'SCORE' as const, label: '+1', colorClass: 'bg-amber-400', icon: '♪' as const },
-  { value: 'DRAW' as const, label: '抽卡', colorClass: 'bg-cyan-400', icon: '🃏' as const },
+  { value: 'DRAW' as const, label: '抽卡', colorClass: 'bg-cyan-400', icon: '抽' as const },
 ];
 
 /** 卡牌类型色彩主题 */
 export const CARD_TYPE_COLORS = {
   MEMBER: {
     accent: 'orange',
-    bg: 'bg-orange-500/20',
-    border: 'border-orange-400/50',
-    text: 'text-orange-300',
-    dot: 'bg-orange-400',
+    bg: 'bg-[color:color-mix(in_srgb,var(--accent-secondary)_14%,transparent)]',
+    border: 'border-[color:color-mix(in_srgb,var(--accent-secondary)_34%,transparent)]',
+    text: 'text-[var(--accent-secondary)]',
+    dot: 'bg-[var(--accent-secondary)]',
   },
   LIVE: {
     accent: 'rose',
-    bg: 'bg-rose-500/20',
-    border: 'border-rose-400/50',
-    text: 'text-rose-300',
-    dot: 'bg-rose-400',
+    bg: 'bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)]',
+    border: 'border-[color:color-mix(in_srgb,var(--accent-primary)_34%,transparent)]',
+    text: 'text-[var(--accent-primary)]',
+    dot: 'bg-[var(--accent-primary)]',
   },
   ENERGY: {
     accent: 'sky',
-    bg: 'bg-sky-500/20',
-    border: 'border-sky-400/50',
-    text: 'text-sky-300',
-    dot: 'bg-sky-400',
+    bg: 'bg-[color:color-mix(in_srgb,var(--semantic-info)_14%,transparent)]',
+    border: 'border-[color:color-mix(in_srgb,var(--semantic-info)_34%,transparent)]',
+    text: 'text-[var(--semantic-info)]',
+    dot: 'bg-[var(--semantic-info)]',
   },
 } as const;

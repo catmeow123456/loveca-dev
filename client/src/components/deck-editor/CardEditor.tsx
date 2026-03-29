@@ -55,20 +55,17 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
   };
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-[#2d2820] to-[#1f1a15] overflow-hidden">
-      {/* 行2：卡牌类型筛选（全宽，位于侧边栏之上） */}
-      <div className="px-3 pt-2.5 pb-2 border-b border-orange-300/10 bg-[#3d3020]/40 flex-shrink-0">
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="workspace-toolbar flex-shrink-0 px-3 pb-2 pt-2.5">
         <CardTypeTabs
           selected={filters.selectedCardType}
           onSelect={filters.setSelectedCardType}
         />
       </div>
 
-      {/* 主区域 */}
       <div className="relative flex-1 flex overflow-hidden">
-        {/* 卡牌库 */}
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="p-3 pb-2 border-b border-orange-300/10 bg-[#3d3020]/40 space-y-2">
+          <div className="workspace-toolbar space-y-2 p-3 pb-2">
             <SearchBar
               value={filters.searchQuery}
               onChange={filters.setSearchQuery}
@@ -86,12 +83,10 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
           />
         </div>
 
-        {/* >= 960px：侧边栏常驻，普通流布局 */}
         {isWide && (
           <DeckSidebar {...sidebarProps} />
         )}
 
-        {/* < 960px：侧边栏悬浮覆盖，可折叠 */}
         {!isWide && (
           <motion.div
             className="absolute right-0 top-0 bottom-0 z-20 w-[480px]"
@@ -100,7 +95,7 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
           >
             <button
               onClick={() => setSidebarOpen((v) => !v)}
-              className="absolute left-0 -translate-x-full top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 px-1 py-3 rounded-l-lg bg-[#3d3020]/80 hover:bg-[#4d3a20]/90 border border-r-0 border-orange-300/20 text-orange-300/70 hover:text-orange-200 transition-colors duration-150 shadow-lg"
+              className="absolute left-0 top-1/2 flex -translate-x-full -translate-y-1/2 flex-col items-center gap-1 rounded-l-lg border border-r-0 border-[var(--border-default)] bg-[var(--bg-frosted)] px-1 py-3 text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl transition-colors duration-150 hover:text-[var(--text-primary)]"
             >
               {sidebarOpen ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
               <span className="text-[10px] font-medium [writing-mode:vertical-lr]">卡组</span>
@@ -110,7 +105,6 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
         )}
       </div>
 
-      {/* 卡牌详情抽屉 */}
       <CardDetailDrawer
         card={selectedCard}
         onClose={() => setSelectedCard(null)}

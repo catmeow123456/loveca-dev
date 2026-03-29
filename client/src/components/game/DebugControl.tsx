@@ -6,6 +6,7 @@
 import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
+import { ArrowRightLeft, Crosshair, Eye, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
 import { GameMode } from '@game/shared/types/enums';
@@ -37,7 +38,7 @@ export const DebugControl = memo(function DebugControl() {
   const handleSwitchView = () => {
     if (otherPlayer) {
       setViewingPlayer(otherPlayer.id);
-      addLog(`🔄 视角切换为: ${otherPlayer.name}`, 'info');
+      addLog(`视角切换为: ${otherPlayer.name}`, 'info');
     }
   };
 
@@ -53,50 +54,57 @@ export const DebugControl = memo(function DebugControl() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className={cn(
-          'rounded-lg border shadow-xl px-4 py-2 flex items-center gap-4',
-          isSolitaire
-            ? 'bg-purple-900/95 border-purple-600'
-            : 'bg-amber-900/95 border-amber-600'
+          'surface-panel-frosted flex items-center gap-3 rounded-2xl px-4 py-2 shadow-[var(--shadow-lg)]'
         )}
       >
         {/* 模式标记 */}
         <div className="flex items-center gap-2">
-          <span
+          <div
             className={cn(
-              'text-xs font-bold uppercase tracking-wider',
-              isSolitaire ? 'text-purple-300' : 'text-amber-300'
+              'flex h-8 w-8 items-center justify-center rounded-full border',
+              isSolitaire
+                ? 'border-[var(--semantic-info)]/25 bg-[var(--semantic-info)]/12 text-[var(--semantic-info)]'
+                : 'border-[var(--accent-secondary)]/25 bg-[var(--accent-secondary)]/12 text-[var(--accent-secondary)]'
             )}
           >
-            {isSolitaire ? '🎯 对墙打模式' : '🔧 调试模式'}
-          </span>
+            {isSolitaire ? <Crosshair size={15} /> : <Settings2 size={15} />}
+          </div>
+          <div className="flex flex-col leading-none">
+            <span className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">
+              模式
+            </span>
+            <span className="text-sm font-semibold text-[var(--text-primary)]">
+              {isSolitaire ? '对墙打' : '调试'}
+            </span>
+          </div>
         </div>
 
         {/* 分隔线 */}
         <div
           className={cn(
-            'w-px h-6',
-            isSolitaire ? 'bg-purple-600/50' : 'bg-amber-600/50'
+            'h-6 w-px bg-[var(--border-default)]'
           )}
         />
 
         {/* 回合数 */}
-        <div className="flex items-center gap-2">
-          <span className={cn('text-xs', isSolitaire ? 'text-purple-400' : 'text-amber-400')}>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-xs text-[var(--text-muted)]">
             回合:
           </span>
-          <span className="text-sm font-bold text-white">T{gameState.turnCount}</span>
+          <span className="font-bold text-[var(--text-primary)]">T{gameState.turnCount}</span>
         </div>
 
         {/* 调试模式专属：当前视角 + 切换按钮 */}
         {!isSolitaire && (
           <>
             {/* 分隔线 */}
-            <div className="w-px h-6 bg-amber-600/50" />
+            <div className="h-6 w-px bg-[var(--border-default)]" />
 
             {/* 当前视角 */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-amber-400">当前视角:</span>
-              <span className="text-sm font-bold text-white">
+              <Eye size={14} className="text-[var(--text-muted)]" />
+              <span className="text-xs text-[var(--text-muted)]">当前视角:</span>
+              <span className="text-sm font-bold text-[var(--text-primary)]">
                 {currentViewingPlayer?.name ?? '未知'}
               </span>
             </div>
@@ -106,14 +114,10 @@ export const DebugControl = memo(function DebugControl() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleSwitchView}
-              className={cn(
-                'px-3 py-1 rounded text-sm font-bold',
-                'bg-gradient-to-r from-amber-500 to-orange-500',
-                'hover:from-amber-400 hover:to-orange-400',
-                'text-white shadow transition-colors'
-              )}
+              className="button-primary flex items-center gap-1.5 px-3 py-1 text-sm font-semibold"
             >
-              🔄 切换至 {otherPlayer?.name ?? '对手'}
+              <ArrowRightLeft size={14} />
+              切换至 {otherPlayer?.name ?? '对手'}
             </motion.button>
           </>
         )}
@@ -123,15 +127,10 @@ export const DebugControl = memo(function DebugControl() {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={handleSwitchMode}
-          className={cn(
-            'px-3 py-1 rounded text-sm font-medium',
-            'bg-white/10 hover:bg-white/20',
-            'text-white/70 hover:text-white',
-            'transition-colors border border-white/10'
-          )}
+          className="button-secondary flex h-9 w-9 items-center justify-center p-0"
           title={isSolitaire ? '切换到调试模式' : '切换到对墙打模式'}
         >
-          {isSolitaire ? '🔧' : '🎯'}
+          {isSolitaire ? <Settings2 size={15} /> : <Crosshair size={15} />}
         </motion.button>
       </motion.div>
     </div>

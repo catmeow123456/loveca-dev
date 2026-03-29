@@ -42,29 +42,29 @@ function getHeartColorClass(color: HeartColor): string {
     [HeartColor.PURPLE]: 'text-purple-400',
     [HeartColor.RAINBOW]: 'text-gray-400',
   };
-  return classes[color] || 'text-slate-400';
+  return classes[color] || 'text-[var(--text-muted)]';
 }
 
 /** 成员卡详情 */
 export const MemberCardDetails = memo(function MemberCardDetails({ data }: { data: MemberCardData }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {/* 基础信息 */}
       <div className="flex items-center gap-4 text-sm">
-        <div className="flex items-center gap-1">
-          <span className="text-slate-400">费用:</span>
-          <span className="text-rose-400 font-bold">{data.cost}</span>
+        <div className="chip-badge px-2.5 py-1">
+          <span className="text-[var(--text-muted)]">费用</span>
+          <span className="font-bold text-[var(--accent-primary)]">{data.cost}</span>
         </div>
-        <div className="flex items-center gap-1">
-          <span className="text-slate-400">光棒:</span>
-          <span className="text-amber-400 font-bold">{data.blade}</span>
+        <div className="chip-badge px-2.5 py-1">
+          <span className="text-[var(--text-muted)]">光棒</span>
+          <span className="font-bold text-[var(--accent-gold)]">{data.blade}</span>
         </div>
       </div>
 
       {/* Hearts */}
       {data.hearts && data.hearts.length > 0 && (
-        <div>
-          <span className="text-slate-400 text-sm">Hearts:</span>
+        <div className="surface-panel rounded-2xl p-3">
+          <span className="text-sm text-[var(--text-muted)]">Hearts</span>
           <div className="flex flex-wrap gap-1 mt-1">
             {data.hearts.map((heart, idx) => (
               <span key={idx} className={cn('text-lg', getHeartColorClass(heart.color))}>
@@ -77,7 +77,7 @@ export const MemberCardDetails = memo(function MemberCardDetails({ data }: { dat
 
       {/* 组合/小组 */}
       {(data.groupName || data.unitName) && (
-        <div className="text-xs text-slate-500">
+        <div className="text-xs text-[var(--text-muted)]">
           {data.groupName && <span className="mr-2">组合: {data.groupName}</span>}
           {data.unitName && <span>小组: {data.unitName}</span>}
         </div>
@@ -94,27 +94,27 @@ export const LiveCardDetails = memo(function LiveCardDetails({ data }: { data: L
     : Object.entries(data.requirements.colorRequirements);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {/* 分数 */}
-      <div className="flex items-center gap-1 text-sm">
-        <span className="text-slate-400">分数:</span>
-        <span className="text-amber-400 font-bold text-lg">♪ {data.score}</span>
+      <div className="chip-badge px-2.5 py-1 text-sm">
+        <span className="text-[var(--text-muted)]">分数</span>
+        <span className="text-lg font-bold text-[var(--accent-gold)]">♪ {data.score}</span>
       </div>
 
       {/* Heart 需求 */}
-      <div>
-        <span className="text-slate-400 text-sm">需要 Hearts:</span>
+      <div className="surface-panel rounded-2xl p-3">
+        <span className="text-sm text-[var(--text-muted)]">需要 Hearts</span>
         <div className="flex flex-wrap gap-2 mt-1">
           {requirements.map(([color, count]) => (
             <div key={color} className="flex items-center gap-1">
               <span className={cn('text-lg', getHeartColorClass(color as HeartColor))}>
                 {'♥'.repeat(count as number)}
               </span>
-              <span className="text-xs text-slate-500">({getHeartColorName(color as HeartColor)})</span>
+              <span className="text-xs text-[var(--text-muted)]">({getHeartColorName(color as HeartColor)})</span>
             </div>
           ))}
         </div>
-        <div className="text-xs text-slate-500 mt-1">
+        <div className="mt-1 text-xs text-[var(--text-muted)]">
           总计需要 {data.requirements.totalRequired} 个心
         </div>
       </div>
@@ -139,9 +139,8 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
           transition={{ duration: 0.2 }}
           className={cn(
             'fixed right-4 top-1/2 -translate-y-1/2 z-[200]',
-            'bg-slate-900/95 backdrop-blur-sm',
-            'rounded-xl border border-slate-700',
-            'shadow-2xl p-4',
+            'surface-panel-frosted p-4',
+            'border-[var(--border-default)] shadow-[var(--shadow-lg)]',
             'max-w-[280px] w-[280px]',
             'pointer-events-none'
           )}
@@ -160,12 +159,12 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
           </div>
 
           {/* 卡牌名称 */}
-          <h3 className="text-white font-bold text-lg text-center mb-2">
+          <h3 className="mb-2 text-center text-lg font-bold text-[var(--text-primary)]">
             {card.data.name}
           </h3>
 
           {/* 卡牌编号 */}
-          <div className="text-xs text-slate-500 text-center mb-3">
+          <div className="mb-3 text-center text-xs text-[var(--text-muted)]">
             {card.data.cardCode}
           </div>
 
@@ -179,9 +178,9 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
 
           {/* 卡牌效果文本 */}
           {card.data.cardText && (
-            <div className="mt-3 pt-3 border-t border-slate-700">
-              <span className="text-slate-400 text-xs">效果:</span>
-              <p className="text-white text-sm mt-1 leading-relaxed">
+            <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
+              <span className="text-xs text-[var(--text-muted)]">效果</span>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--text-secondary)]">
                 {card.data.cardText}
               </p>
             </div>

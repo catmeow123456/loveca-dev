@@ -10,6 +10,7 @@ import { HomePage, GameSetupPage } from '@/components/pages';
 import { CardAdminPage } from '@/components/admin/CardAdminPage';
 import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from '@/components/auth';
 import { isEmailEnabled } from '@/lib/apiClient';
+import { applyTheme, readTheme } from '@/lib/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
@@ -45,6 +46,10 @@ function App() {
   const initDeckStore = useDeckStore((s) => s.init);
 
   // 初始化认证 - 使用 ref 确保只执行一次
+  useEffect(() => {
+    applyTheme(readTheme());
+  }, []);
+
   useEffect(() => {
     if (authInitRef.current) return;
     authInitRef.current = true;
@@ -89,10 +94,10 @@ function App() {
   // 等待认证初始化
   if (!authInitialized) {
     return (
-      <div className="h-screen flex items-center justify-center bg-slate-900">
+      <div className="app-shell h-screen flex items-center justify-center px-4">
         <div className="text-center">
-          <div className="animate-spin w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-slate-400">初始化中...</p>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-[var(--accent-primary)] border-t-transparent" />
+          <p className="text-sm text-[var(--text-secondary)]">初始化中...</p>
         </div>
       </div>
     );
@@ -101,10 +106,10 @@ function App() {
   // 显示加载状态
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-slate-900">
+      <div className="app-shell h-screen flex items-center justify-center px-4">
         <div className="text-center">
-          <div className="animate-spin w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-slate-400">加载卡牌数据...</p>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-[var(--accent-primary)] border-t-transparent" />
+          <p className="text-sm text-[var(--text-secondary)]">加载卡牌数据...</p>
         </div>
       </div>
     );
@@ -115,22 +120,22 @@ function App() {
     const errorLines = error.split('\n');
     return (
       <div className="h-screen flex items-center justify-center bg-slate-900 p-4">
-        <div className="text-center max-w-2xl">
-          <h2 className="text-red-400 text-xl font-bold mb-4">卡牌数据加载错误</h2>
-          <div className="bg-slate-800 rounded-lg p-4 mb-4 max-h-96 overflow-y-auto">
+        <div className="surface-panel max-w-2xl p-6 text-center">
+          <h2 className="mb-4 text-xl font-bold text-[var(--semantic-error)]">卡牌数据加载错误</h2>
+          <div className="mb-4 max-h-96 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
             {errorLines.length > 1 ? (
-              <ul className="text-left text-red-300 text-sm space-y-2">
+              <ul className="space-y-2 text-left text-sm text-[var(--semantic-error)]">
                 {errorLines.map((line, index) => (
                   <li key={index} className="break-all">• {line}</li>
                 ))}
               </ul>
             ) : (
-              <p className="text-red-300 text-sm">{error}</p>
+              <p className="text-sm text-[var(--semantic-error)]">{error}</p>
             )}
           </div>
           <button 
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
+            className="button-primary px-4 py-2"
           >
             重新加载
           </button>

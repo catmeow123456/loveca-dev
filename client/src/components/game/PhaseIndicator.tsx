@@ -5,6 +5,7 @@
 
 import { memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { BarChart3, Check, Mic, Sparkles, Trophy, Undo2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { GamePhase, SubPhase } from '@game/shared/types/enums';
@@ -51,7 +52,7 @@ function getPhaseActionConfig(
     if (subPhase === SubPhase.PERFORMANCE_JUDGMENT) {
       return {
         canAct: true,
-        buttonText: '📊 Live 判定',
+        buttonText: 'Live 判定',
         buttonStyle: 'from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400',
       };
     }
@@ -59,10 +60,10 @@ function getPhaseActionConfig(
     if (isUserActionRequired(subPhase)) {
       return {
         canAct: true,
-        buttonText: '✅ 确认完成',
+        buttonText: '确认完成',
         buttonStyle: 'from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400',
         secondaryButton: {
-          text: '↩️ 撤销',
+          text: '撤销',
           style: 'from-slate-500 to-slate-600 hover:from-slate-400 hover:to-slate-500',
           action: 'undo',
         },
@@ -77,25 +78,25 @@ function getPhaseActionConfig(
     case GamePhase.MAIN_PHASE:
       return {
         canAct: true,
-        buttonText: '🎵 Live Start!',
+        buttonText: 'Live Start!',
         buttonStyle: 'from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400',
       };
     case GamePhase.LIVE_SET_PHASE:
       return {
         canAct: true,
-        buttonText: '✨ Live 准备就绪',
+        buttonText: 'Live 准备就绪',
         buttonStyle: 'from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400',
       };
     case GamePhase.PERFORMANCE_PHASE:
       return {
         canAct: true,
-        buttonText: isFirstPlayerTurn ? '🎤 进入后攻表演' : '📊 进入结算阶段',
+        buttonText: isFirstPlayerTurn ? '进入后攻表演' : '进入结算阶段',
         buttonStyle: 'from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400',
       };
     case GamePhase.LIVE_RESULT_PHASE:
       return {
         canAct: true,
-        buttonText: '➡️ 进入下一回合',
+        buttonText: '进入下一回合',
         buttonStyle: 'from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400',
       };
     default:
@@ -144,6 +145,17 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   // 是否显示操作按钮
   const showActionButton = actionConfig && isMyTurn;
 
+  const mainButtonIcon =
+    currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT
+      ? <BarChart3 size={16} />
+      : currentSubPhase && currentSubPhase !== SubPhase.NONE
+        ? <Check size={16} />
+        : phase === GamePhase.MAIN_PHASE
+          ? <Sparkles size={16} />
+          : phase === GamePhase.PERFORMANCE_PHASE
+            ? <Mic size={16} />
+            : <Check size={16} />;
+
   // 处理主按钮点击
   const handleAction = () => {
     // 演出判定阶段：打开判定面板（不直接 confirmSubPhase）
@@ -173,21 +185,19 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   };
 
   return (
-    <div className="fixed right-4 bottom-4 z-50">
+    <div className="fixed right-4 bottom-4 z-[var(--z-phase-indicator)]">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-slate-900/95 rounded-lg border border-slate-700 overflow-hidden shadow-xl w-64"
+        className="w-64 overflow-hidden rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
       >
-        {/* 回合数 */}
         {turnNumber !== undefined && (
-          <div className="bg-slate-800 px-4 py-1 border-b border-slate-700 text-center">
-            <span className="text-xs text-slate-400">回合</span>
-            <span className="text-lg font-bold text-white ml-2">{turnNumber}</span>
+          <div className="border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-1 text-center">
+            <span className="text-xs text-[var(--text-muted)]">回合</span>
+            <span className="ml-2 text-lg font-bold text-[var(--text-primary)]">{turnNumber}</span>
           </div>
         )}
 
-        {/* 阶段名称 */}
         <div className="px-4 py-3">
           <div className="flex items-center gap-2">
             <motion.div
@@ -196,41 +206,40 @@ export const PhaseIndicator = memo(function PhaseIndicator({
               animate={{ scale: 1 }}
               className={cn('w-3 h-3 rounded-full', info.colorClass)}
             />
-            <span className="text-sm font-bold text-white">{info.name}阶段</span>
+            <span className="text-sm font-bold text-[var(--text-primary)]">{info.name}阶段</span>
           </div>
 
-          {/* 子阶段显示 */}
           {subPhaseConfig && (
             <motion.div
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              className="mt-2 ml-5 flex items-center gap-2 text-xs text-slate-300"
+              className="mt-2 ml-5 flex items-center gap-2 text-xs text-[var(--text-secondary)]"
             >
               <span className="text-base">{subPhaseConfig.display.icon}</span>
               <span className="font-medium">{subPhaseConfig.display.name}</span>
               {subPhaseConfig.display.requiresUserAction && (
-                <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded text-xs">
+                <span className="rounded px-1.5 py-0.5 text-xs text-[var(--semantic-warning)]" style={{ background: 'color-mix(in srgb, var(--semantic-warning) 16%, transparent)' }}>
                   需要操作
                 </span>
               )}
             </motion.div>
           )}
 
-          {/* 当前玩家指示 */}
           <div
             className={cn(
               'mt-2 text-xs px-2 py-1 rounded text-center',
-              isMyTurn ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-400'
+              isMyTurn
+                ? 'text-[var(--semantic-success)]'
+                : 'bg-[var(--bg-overlay)] text-[var(--text-muted)]'
             )}
+            style={isMyTurn ? { background: 'color-mix(in srgb, var(--semantic-success) 16%, transparent)' } : undefined}
           >
             {isMyTurn ? '你的回合' : '对手回合'}
           </div>
         </div>
 
-        {/* 操作按钮 */}
         {showActionButton && (
           <div className="px-4 pb-3 space-y-2">
-            {/* 主按钮 */}
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -242,10 +251,10 @@ export const PhaseIndicator = memo(function PhaseIndicator({
                 'text-white shadow-lg transition-colors'
               )}
             >
+              <span className="mr-2 inline-flex align-middle">{mainButtonIcon}</span>
               {actionConfig.buttonText}
             </motion.button>
             
-            {/* 次要按钮（撤销） */}
             {actionConfig.secondaryButton && (
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -258,25 +267,25 @@ export const PhaseIndicator = memo(function PhaseIndicator({
                   'text-white/90 shadow transition-colors'
                 )}
               >
+                <span className="mr-2 inline-flex align-middle"><Undo2 size={14} /></span>
                 {actionConfig.secondaryButton.text}
               </motion.button>
             )}
           </div>
         )}
 
-        {/* 游戏结束提示 */}
         {phase === GamePhase.GAME_END && (
           <div className="px-4 pb-3">
-            <div className="text-center text-amber-400 font-bold">
-              🏆 游戏结束
+            <div className="flex items-center justify-center gap-2 text-center font-bold text-[var(--accent-gold)]">
+              <Trophy size={16} />
+              游戏结束
             </div>
           </div>
         )}
 
-        {/* 操作历史提示 */}
         {gameState && gameState.operationHistory.length > 0 && (
-          <div className="px-4 pb-2 border-t border-slate-700/50 pt-2">
-            <div className="text-xs text-slate-500">
+          <div className="border-t border-[var(--border-subtle)] px-4 pb-2 pt-2">
+            <div className="text-xs text-[var(--text-muted)]">
               本阶段操作: {gameState.operationHistory.length} 步
             </div>
           </div>

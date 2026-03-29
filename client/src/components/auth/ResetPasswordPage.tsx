@@ -5,6 +5,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { ArrowLeft, CheckCircle2, KeyRound } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { AuthLayout } from './AuthLayout';
 
@@ -56,18 +57,18 @@ export function ResetPasswordPage({ onSwitchToLogin }: ResetPasswordPageProps) {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200 }}
-            className="text-6xl"
+            className="flex justify-center text-[var(--semantic-success)]"
           >
-            🔐
+            <CheckCircle2 size={56} />
           </motion.div>
 
-          <p className="text-orange-700/80">
+          <p className="text-[var(--text-secondary)]">
             你的密码已成功重置，请使用新密码登录。
           </p>
 
           <button
             onClick={onSwitchToLogin}
-            className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-lg shadow-orange-400/30 hover:shadow-orange-400/50 transition-all duration-300"
+            className="button-primary w-full py-3 font-bold"
           >
             前往登录
           </button>
@@ -81,14 +82,14 @@ export function ResetPasswordPage({ onSwitchToLogin }: ResetPasswordPageProps) {
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* 新密码输入 */}
         <div>
-          <label className="block text-orange-700 text-sm font-medium mb-2">
+          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
             新密码
           </label>
           <input
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            className="w-full px-4 py-3 bg-white/80 border border-orange-300/50 rounded-xl text-gray-800 placeholder-orange-400/50 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 transition-all"
+            className="input-field px-4 py-3"
             placeholder="至少 6 个字符"
             autoComplete="new-password"
           />
@@ -96,39 +97,33 @@ export function ResetPasswordPage({ onSwitchToLogin }: ResetPasswordPageProps) {
 
         {/* 确认密码输入 */}
         <div>
-          <label className="block text-orange-700 text-sm font-medium mb-2">
+          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
             确认新密码
           </label>
           <input
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full px-4 py-3 bg-white/80 border border-orange-300/50 rounded-xl text-gray-800 placeholder-orange-400/50 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 transition-all"
+            className="input-field px-4 py-3"
             placeholder="再次输入新密码"
             autoComplete="new-password"
           />
         </div>
 
-        {/* 错误提示 */}
         {displayError && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-3 bg-red-100 border border-red-300 rounded-lg text-red-600 text-sm"
+            className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]"
           >
             {displayError}
           </motion.div>
         )}
 
-        {/* 重置按钮 */}
         <button
           type="submit"
           disabled={isLoading}
-          className={`w-full py-3 rounded-xl font-bold text-white transition-all duration-300 ${
-            isLoading
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-lg shadow-orange-400/30 hover:shadow-orange-400/50 hover:scale-[1.02]'
-          }`}
+          className={`button-primary flex w-full items-center justify-center gap-2 py-3 font-bold ${isLoading ? 'cursor-not-allowed opacity-50' : ''}`}
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
@@ -136,17 +131,20 @@ export function ResetPasswordPage({ onSwitchToLogin }: ResetPasswordPageProps) {
               重置中...
             </span>
           ) : (
-            '确认重置密码'
+            <>
+              <KeyRound size={18} />
+              确认重置密码
+            </>
           )}
         </button>
 
-        {/* 返回登录链接 */}
-        <p className="text-center text-orange-600/70">
+        <p className="text-center text-[var(--text-secondary)]">
           <button
             type="button"
             onClick={onSwitchToLogin}
-            className="text-orange-600 hover:text-orange-500 font-medium transition-colors"
+            className="inline-flex items-center gap-1 font-medium text-[var(--accent-primary)] transition-colors hover:text-[var(--accent-primary-hover)]"
           >
+            <ArrowLeft size={14} />
             返回登录
           </button>
         </p>

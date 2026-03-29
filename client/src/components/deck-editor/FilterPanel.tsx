@@ -85,7 +85,7 @@ export function FilterPanel({ filters }: FilterPanelProps) {
           ? GROUP_UNIT_MAP[filters.selectedGroup] || []
           : ALL_UNIT_OPTIONS;
         if (unitOptions.length === 0) {
-          return <span className="text-orange-300/40 text-xs">该组合暂无小组</span>;
+          return <span className="text-xs text-[var(--text-muted)]">该作品暂无小组</span>;
         }
         return (
           <FilterChipGroup
@@ -160,31 +160,30 @@ export function FilterPanel({ filters }: FilterPanelProps) {
 
   return (
     <div className="space-y-2">
-      {/* 类别药丸行 */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        <SlidersHorizontal size={14} className="text-orange-300/50 mr-1" />
+        <SlidersHorizontal size={14} className="mr-1 text-[var(--text-muted)]" />
         {visibleCategories.map((cat) => (
           <button
             key={cat.key}
             onClick={() => toggleCategory(cat.key)}
-            className={`px-2.5 py-1 text-xs rounded-lg border transition-all duration-200 flex items-center gap-1 ${
+            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs transition-all duration-200 ${
               expandedCategory === cat.key
-                ? 'bg-orange-500/25 border-orange-400/50 text-orange-200'
+                ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
                 : cat.isActive
-                  ? 'bg-orange-500/15 border-orange-400/40 text-orange-300'
-                  : 'bg-[#3d3020]/40 border-orange-300/15 text-orange-300/50 hover:text-orange-300/80 hover:border-orange-300/30'
+                  ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] text-[var(--accent-primary)]'
+                  : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_74%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
             }`}
           >
             {cat.label}
             {cat.isActive && (
-              <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-primary)]" />
             )}
           </button>
         ))}
         {filters.hasActiveFilters && (
           <button
             onClick={filters.clearFilters}
-            className="px-2 py-1 text-xs text-orange-300/50 hover:text-orange-300 transition-colors flex items-center gap-1"
+            className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
           >
             <X size={12} />
             清除
@@ -192,7 +191,6 @@ export function FilterPanel({ filters }: FilterPanelProps) {
         )}
       </div>
 
-      {/* 展开的筛选内容 */}
       <AnimatePresence>
         {expandedCategory && (
           <motion.div
@@ -203,7 +201,7 @@ export function FilterPanel({ filters }: FilterPanelProps) {
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="p-3 bg-[#2a2520]/60 rounded-xl border border-orange-300/10">
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] p-3">
               {renderCategoryContent(expandedCategory)}
             </div>
           </motion.div>

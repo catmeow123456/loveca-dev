@@ -6,6 +6,7 @@
 
 import { memo, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowRightLeft, Check, Sparkles } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { GamePhase, SubPhase } from '@game/shared/types/enums';
@@ -111,15 +112,13 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
     <AnimatePresence>
       {shouldShow && (
         <>
-          {/* 背景遮罩 */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 z-[100]"
+            className="modal-backdrop z-[100]"
           />
 
-          {/* 弹窗内容 */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -127,28 +126,26 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[101] w-full max-w-4xl px-4"
           >
-            <div className="bg-slate-900 rounded-xl border border-slate-700 shadow-2xl overflow-hidden">
-              {/* 标题栏 */}
-              <div className="px-6 py-4 border-b border-slate-700 bg-gradient-to-r from-amber-500/20 to-orange-500/20">
+            <div className="modal-surface modal-accent-amber">
+              <div className="modal-header px-6 py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">🔄</span>
+                    <ArrowRightLeft size={22} className="text-[var(--accent-secondary)]" />
                     <div>
-                      <h2 className="text-lg font-bold text-white">换牌阶段</h2>
-                      <p className="text-sm text-slate-400">
+                      <h2 className="text-lg font-bold text-[var(--text-primary)]">换牌阶段</h2>
+                      <p className="text-sm text-[var(--text-secondary)]">
                         {playerName} ({isFirstPlayer ? '先攻' : '后攻'})
                       </p>
                     </div>
                   </div>
 
-                  {/* 状态指示 */}
                   <div className="flex items-center gap-2">
                     {isMyMulliganTurn ? (
-                      <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-sm rounded-full border border-emerald-500/30">
+                      <span className="rounded-full border border-[color:color-mix(in_srgb,var(--semantic-success)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_14%,transparent)] px-3 py-1 text-sm text-[var(--semantic-success)]">
                         轮到你换牌
                       </span>
                     ) : (
-                      <span className="px-3 py-1 bg-slate-500/20 text-slate-400 text-sm rounded-full border border-slate-500/30">
+                      <span className="rounded-full border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-1 text-sm text-[var(--text-muted)]">
                         等待对手...
                       </span>
                     )}
@@ -156,25 +153,22 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
                 </div>
               </div>
 
-              {/* 提示区域 */}
-              <div className="px-6 py-3 bg-slate-800/50 border-b border-slate-700/50">
-                <p className="text-sm text-slate-300">
-                  💡 点击选择要换掉的卡牌（可选 0-6 张），确认后将这些牌洗入牌库并重新抽取相同数量的牌
+              <div className="px-6 py-3 border-b border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_8%,transparent)]">
+                <p className="text-sm text-[var(--text-secondary)]">
+                  点击选择要换掉的卡牌（可选 0-6 张），确认后将这些牌洗入牌库并重新抽取相同数量的牌
                 </p>
               </div>
 
-              {/* 手牌区域 */}
               <div className="px-6 py-6">
-                <div className="text-sm font-medium text-slate-300 mb-4">
-                  📜 你的手牌 ({currentPlayer.hand.cardIds.length} 张)
+                <div className="mb-4 text-sm font-medium text-[var(--text-secondary)]">
+                  你的手牌 ({currentPlayer.hand.cardIds.length} 张)
                   {selectedCardIds.size > 0 && (
-                    <span className="ml-2 text-amber-400">
+                    <span className="ml-2 text-[var(--accent-secondary)]">
                       - 已选择 {selectedCardIds.size} 张要换的牌
                     </span>
                   )}
                 </div>
 
-                {/* 卡牌网格 */}
                 <div className="flex flex-wrap gap-4 justify-center">
                   {currentPlayer.hand.cardIds.map((cardId) => {
                     const card = getCardInstance(cardId);
@@ -193,7 +187,7 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
                         className={cn(
                           'relative cursor-pointer transition-all duration-200',
                           !isMyMulliganTurn && 'cursor-not-allowed opacity-50',
-                          isSelected && 'ring-4 ring-amber-400 ring-offset-2 ring-offset-slate-900 rounded-lg'
+                          isSelected && 'ring-4 ring-[var(--accent-secondary)] ring-offset-2 ring-offset-[var(--bg-elevated)] rounded-lg'
                         )}
                       >
                         <Card
@@ -202,18 +196,16 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
                           size="md"
                         />
 
-                        {/* 选中标记 */}
                         {isSelected && (
                           <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="absolute -top-2 -right-2 w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-lg"
+                            className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent-secondary)] shadow-[var(--shadow-md)]"
                           >
-                            <span className="text-white font-bold">✓</span>
+                            <Check size={16} className="text-white" />
                           </motion.div>
                         )}
 
-                        {/* 卡牌信息覆盖层 */}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 rounded-b-lg">
                           <p className="text-xs text-white truncate font-medium">{cardData.name}</p>
                           {cardData.cardType === 'MEMBER' && (
@@ -230,16 +222,14 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
                   })}
                 </div>
 
-                {/* 空手牌提示 */}
                 {currentPlayer.hand.cardIds.length === 0 && (
-                  <div className="text-center text-slate-500 py-8">
+                  <div className="py-8 text-center text-[var(--text-muted)]">
                     手牌为空
                   </div>
                 )}
               </div>
 
-              {/* 按钮区域 */}
-              <div className="px-6 py-4 bg-slate-800/50 border-t border-slate-700 flex gap-3">
+              <div className="modal-footer flex gap-3 px-6 py-4">
                 <motion.button
                   whileHover={{ scale: isMyMulliganTurn ? 1.02 : 1 }}
                   whileTap={{ scale: isMyMulliganTurn ? 0.98 : 1 }}
@@ -248,8 +238,8 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
                   className={cn(
                     'flex-1 py-3 rounded-lg text-sm font-medium transition-colors',
                     isMyMulliganTurn
-                      ? 'bg-slate-700 hover:bg-slate-600 text-white'
-                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      ? 'button-secondary'
+                      : 'bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
                   )}
                 >
                   不换牌
@@ -261,13 +251,14 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
                   onClick={handleConfirm}
                   disabled={!isMyMulliganTurn || selectedCardIds.size === 0}
                   className={cn(
-                    'flex-1 py-3 rounded-lg text-sm font-bold transition-colors',
+                    'flex-1 py-3 rounded-lg text-sm font-bold transition-colors inline-flex items-center justify-center gap-2',
                     isMyMulliganTurn && selectedCardIds.size > 0
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white shadow-lg'
-                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      ? 'button-gold'
+                      : 'bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
                   )}
                 >
-                  🔄 确认换牌 ({selectedCardIds.size} 张)
+                  <Sparkles size={16} />
+                  确认换牌 ({selectedCardIds.size} 张)
                 </motion.button>
               </div>
             </div>

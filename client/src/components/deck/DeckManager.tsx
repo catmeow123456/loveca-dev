@@ -16,7 +16,7 @@ import { useGameStore } from '@/store/gameStore';
 import { CardType } from '@game/shared/types/enums';
 import { apiClient, isApiConfigured, type DeckRecord } from '@/lib/apiClient';
 import { CardEditor } from '@/components/deck-editor';
-import { calculateDeckStats, DeckStatsRow } from '@/components/common';
+import { calculateDeckStats, DeckStatsRow, ThemeToggle } from '@/components/common';
 import { PRESET_DECKS, type PresetDeck } from './preset-decks';
 import type { DeckConfig, CardEntry } from '@game/domain/card-data/deck-loader';
 import * as yaml from 'yaml';
@@ -397,60 +397,58 @@ export function DeckManager({ onBack }: DeckManagerProps) {
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-[#2d2820] via-[#1f1a15] to-[#2d2820] flex flex-col">
-      {/* Header */}
-      <header className="h-14 bg-[#3d3020]/80 backdrop-blur-sm border-b border-orange-300/15 flex items-center justify-between px-5 flex-shrink-0">
+    <div className="app-shell flex h-screen flex-col">
+      <header className="relative z-10 mx-4 mt-4 flex h-14 flex-shrink-0 items-center justify-between rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-frosted)] px-5 shadow-[var(--shadow-md)] backdrop-blur-xl">
         <button
           onClick={viewMode === 'edit' ? handleCancelEdit : onBack}
-          className="flex items-center gap-1.5 text-orange-300/70 hover:text-orange-300 transition-colors text-sm"
+          className="button-ghost inline-flex items-center gap-1.5 px-3 py-2 text-sm"
         >
           <ArrowLeft size={16} />
           <span>{viewMode === 'edit' ? '取消' : '返回'}</span>
         </button>
 
-        <h1 className="text-base font-bold text-orange-200">
+        <h1 className="text-base font-bold text-[var(--text-primary)]">
           {viewMode === 'list' ? '卡组管理' : (editingDeckId ? '编辑卡组' : '创建卡组')}
         </h1>
 
-        {/* User Info */}
-        <div className="flex items-center gap-2 px-2.5 py-1 bg-[#2d2820]/80 rounded-full border border-orange-300/15 text-xs">
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <div className="status-pill px-2.5 py-1 text-xs">
           {offlineMode ? (
-            <WifiOff size={12} className="text-amber-400" />
+            <WifiOff size={12} className="text-[var(--semantic-warning)]" />
           ) : isApiConfigured ? (
-            <Wifi size={12} className="text-green-400" />
+            <Wifi size={12} className="text-[var(--semantic-success)]" />
           ) : (
-            <Zap size={12} className="text-gray-400" />
+            <Zap size={12} className="text-[var(--text-secondary)]" />
           )}
-          <span className="text-orange-200 font-medium">{displayUsername}</span>
+          <span className="font-medium text-[var(--text-primary)]">{displayUsername}</span>
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
       <AnimatePresence mode="wait">
         {viewMode === 'list' ? (
-          /* 卡组列表视图 */
           <motion.main
             key="list"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="flex-1 p-6 overflow-y-auto"
+            className="relative z-10 flex-1 overflow-y-auto p-6"
           >
-            <div className="max-w-4xl mx-auto">
-              {/* Action Bar */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="text-orange-300/50 text-sm">
+            <div className="workspace-shell mx-auto max-w-5xl p-6">
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                <div className="text-sm text-[var(--text-secondary)]">
                   共 {cloudDecks.length} 个卡组
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => { setShowDecklogDialog(true); setDecklogError(null); setDecklogWarnings([]); }}
-                    className="px-4 py-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 rounded-full text-sm font-medium transition-all duration-200 border border-orange-300/30 hover:border-orange-300/50 flex items-center gap-1.5"
+                    className="button-secondary inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
                   >
                     <Globe size={14} />
                     从 DeckLog 导入
                   </button>
-                  <label className="px-4 py-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 rounded-full text-sm font-medium transition-all duration-200 cursor-pointer border border-orange-300/30 hover:border-orange-300/50 flex items-center gap-1.5">
+                  <label className="button-secondary inline-flex cursor-pointer items-center gap-1.5 px-4 py-2 text-sm font-medium">
                     <Upload size={14} />
                     导入 YAML
                     <input
@@ -462,7 +460,7 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                   </label>
                   <button
                     onClick={handleCreateNew}
-                    className="px-5 py-2 bg-gradient-to-r from-orange-400 to-amber-400 text-white rounded-full font-bold text-sm transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/30 flex items-center gap-1.5"
+                    className="button-primary inline-flex items-center gap-1.5 px-5 py-2 text-sm font-bold"
                   >
                     <Plus size={14} />
                     创建新卡组
@@ -470,25 +468,23 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                 </div>
               </div>
 
-              {/* Loading State */}
               {isLoadingCloud && cloudDecks.length === 0 && (
                 <div className="flex items-center justify-center py-20">
                   <div className="text-center">
-                    <Loader2 size={32} className="animate-spin text-orange-300/40 mx-auto mb-3" />
-                    <div className="text-orange-300/50 text-sm">加载卡组中...</div>
+                    <Loader2 size={32} className="mx-auto mb-3 animate-spin text-[var(--accent-primary)]" />
+                    <div className="text-sm text-[var(--text-secondary)]">加载卡组中...</div>
                   </div>
                 </div>
               )}
 
-              {/* Error State */}
               {cloudError && (
-                <div className="mb-6 p-4 bg-red-500/10 border border-red-400/30 rounded-xl">
-                  <div className="flex items-center gap-2 text-red-300 text-sm">
+                <div className="mb-6 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-4">
+                  <div className="flex items-center gap-2 text-sm text-[var(--semantic-error)]">
                     <AlertTriangle size={14} />
                     <span>{cloudError}</span>
                     <button
                       onClick={fetchCloudDecks}
-                      className="ml-auto text-red-300 hover:text-red-200 text-sm"
+                      className="ml-auto text-sm underline underline-offset-2"
                     >
                       重试
                     </button>
@@ -500,11 +496,11 @@ export function DeckManager({ onBack }: DeckManagerProps) {
               {!isLoadingCloud && cloudDecks.length === 0 && (
                 <div className="py-8">
                   <div className="text-center mb-6">
-                    <div className="text-orange-300/50 text-base mb-1">还没有卡组</div>
-                    <div className="text-orange-300/30 text-sm">从推荐卡组开始，或自由创建</div>
+                    <div className="mb-1 text-base text-[var(--text-secondary)]">还没有卡组</div>
+                    <div className="text-sm text-[var(--text-muted)]">从推荐卡组开始，或自由创建</div>
                   </div>
 
-                  <div className="mb-3 text-orange-300/40 text-xs font-semibold tracking-wider">推荐卡组</div>
+                  <div className="mb-3 text-xs font-semibold tracking-wider text-[var(--text-muted)]">推荐卡组</div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-8">
                     {PRESET_DECKS.map((preset) => {
                       const memberCount = preset.deck.main_deck.members.reduce((s, e) => s + e.count, 0);
@@ -514,24 +510,24 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                         <div
                           key={preset.id}
                           onClick={() => handleUsePreset(preset)}
-                          className="p-4 bg-[#3d3020]/50 rounded-xl border border-orange-300/15 hover:border-orange-300/35 hover:bg-[#3d3020]/70 transition-all duration-200 cursor-pointer group"
+                          className="group cursor-pointer rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_84%,transparent)] p-4 transition-all duration-200 hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]"
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div>
-                              <h3 className="text-base font-bold text-orange-100 mb-0.5">{preset.name}</h3>
-                              <p className="text-xs text-orange-300/50">{preset.description}</p>
+                              <h3 className="mb-0.5 text-base font-bold text-[var(--text-primary)]">{preset.name}</h3>
+                              <p className="text-xs text-[var(--text-secondary)]">{preset.description}</p>
                             </div>
-                            <span className="ml-3 flex-shrink-0 text-xs px-2 py-0.5 bg-orange-500/15 text-orange-300 rounded-full border border-orange-400/20">
+                            <span className="chip-badge ml-3 flex-shrink-0 px-2 py-0.5 text-xs">
                               {preset.tag}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 text-xs text-orange-300/40">
+                            <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
                               <span>成员 {memberCount}/48</span>
                               <span>Live {liveCount}/12</span>
                               <span>能量 {energyCount}/12</span>
                             </div>
-                            <span className="text-xs text-orange-400/50 group-hover:text-orange-300 transition-colors">
+                            <span className="text-xs text-[var(--accent-primary)] transition-colors">
                               使用此卡组 →
                             </span>
                           </div>
@@ -543,7 +539,7 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                   <div className="text-center">
                     <button
                       onClick={handleCreateNew}
-                      className="px-6 py-2.5 bg-gradient-to-r from-orange-400 to-amber-400 text-white rounded-full font-bold text-sm transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/30"
+                      className="button-primary px-6 py-2.5 text-sm font-bold"
                     >
                       <Plus size={14} className="inline mr-1.5 -mt-0.5" />
                       从空白创建
@@ -564,27 +560,27 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.04 }}
-                      className={`p-4 bg-[#3d3020]/50 rounded-xl border transition-all duration-200 ${
+                      className={`rounded-xl border p-4 transition-all duration-200 ${
                         isDeleting
-                          ? 'border-red-400/50'
-                          : 'border-orange-300/15 hover:border-orange-300/30'
+                          ? 'border-[color:color-mix(in_srgb,var(--semantic-error)_45%,transparent)]'
+                          : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_84%,transparent)] hover:border-[var(--border-default)]'
                       }`}
                     >
                       {isDeleting ? (
                         <div className="flex items-center justify-between">
-                          <div className="text-red-300 text-sm">
+                          <div className="text-sm text-[var(--semantic-error)]">
                             确定要删除 "{deck.name}" 吗？此操作不可撤销。
                           </div>
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => setDeleteConfirm(null)}
-                              className="px-3 py-1.5 text-orange-300 hover:bg-orange-500/10 rounded-lg transition-colors text-sm"
+                              className="button-ghost px-3 py-1.5 text-sm"
                             >
                               取消
                             </button>
                             <button
                               onClick={() => handleDelete(deck.id)}
-                              className="px-3 py-1.5 bg-red-500/20 text-red-300 hover:bg-red-500/30 rounded-lg border border-red-400/30 transition-colors text-sm"
+                              className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_14%,transparent)] px-3 py-1.5 text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_20%,transparent)]"
                             >
                               确认删除
                             </button>
@@ -594,18 +590,18 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                         <>
                           <div className="flex items-start justify-between mb-2">
                             <div>
-                              <h3 className="text-base font-bold text-orange-100 mb-0.5">{deck.name}</h3>
+                              <h3 className="mb-0.5 text-base font-bold text-[var(--text-primary)]">{deck.name}</h3>
                               {deck.description && (
-                                <p className="text-sm text-orange-300/40 line-clamp-1">{deck.description}</p>
+                                <p className="line-clamp-1 text-sm text-[var(--text-secondary)]">{deck.description}</p>
                               )}
                             </div>
                             <div className="flex items-center gap-1.5">
                               {deck.is_valid ? (
-                                <span className="text-xs px-2 py-0.5 bg-green-500/15 text-green-300 rounded-full border border-green-400/20 flex items-center gap-1">
+                                <span className="chip-badge text-[var(--semantic-success)] px-2 py-0.5 text-xs flex items-center gap-1">
                                   <Check size={10} /> 完整
                                 </span>
                               ) : (
-                                <span className="text-xs px-2 py-0.5 bg-orange-500/15 text-orange-300 rounded-full border border-orange-400/20 flex items-center gap-1">
+                                <span className="chip-badge px-2 py-0.5 text-xs flex items-center gap-1">
                                   <Circle size={8} /> 未完成
                                 </span>
                               )}
@@ -619,10 +615,10 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                                 <button
                                   onClick={() => handleDownloadImages(deck)}
                                   disabled={downloadingDeckId === deck.id}
-                                  className={`px-3 py-1.5 rounded-lg transition-colors border text-xs flex items-center gap-1 ${
+                                  className={`rounded-lg border px-3 py-1.5 text-xs flex items-center gap-1 transition-colors ${
                                     downloadingDeckId === deck.id
-                                      ? 'text-blue-300/50 border-blue-300/15 cursor-wait'
-                                      : 'text-blue-300 hover:bg-blue-500/10 border-blue-300/20 hover:border-blue-300/40'
+                                      ? 'cursor-wait text-[var(--semantic-info)]/50 border-[color:color-mix(in_srgb,var(--semantic-info)_20%,transparent)]'
+                                      : 'text-[var(--semantic-info)] hover:bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,transparent)] border-[color:color-mix(in_srgb,var(--semantic-info)_30%,transparent)]'
                                   }`}
                                   title="下载卡组图片"
                                 >
@@ -634,13 +630,13 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                               )}
                               <button
                                 onClick={() => handleEdit(deck)}
-                                className="px-3 py-1.5 text-orange-300 hover:bg-orange-500/10 rounded-lg transition-colors border border-orange-300/20 hover:border-orange-300/40 text-xs flex items-center gap-1"
+                                className="button-secondary px-3 py-1.5 text-xs flex items-center gap-1"
                               >
                                 <Pencil size={12} /> 编辑
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm(deck.id)}
-                                className="p-1.5 text-red-300/50 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                                className="rounded-lg p-1.5 text-[var(--semantic-error)]/60 transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] hover:text-[var(--semantic-error)]"
                                 title="删除卡组"
                               >
                                 <Trash2 size={14} />
@@ -656,38 +652,34 @@ export function DeckManager({ onBack }: DeckManagerProps) {
             </div>
           </motion.main>
         ) : (
-          /* 卡组编辑视图 */
           <motion.main
             key="edit"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="flex-1 flex flex-col overflow-hidden"
+            className="relative z-10 flex flex-1 flex-col overflow-hidden p-4 pt-6"
           >
-            {/* Edit Header - 单行：名称 + 描述 + 操作按钮 */}
-            <div className="px-4 py-2.5 bg-[#3d3020]/50 border-b border-orange-300/15">
+            <div className="workspace-shell flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="workspace-toolbar px-4 py-3">
               <div className="flex items-center gap-3">
-                {/* 卡组名称 */}
                 <input
                   type="text"
                   placeholder="卡组名称"
                   value={deckName}
                   onChange={(e) => setDeckName(e.target.value)}
-                  className="w-40 flex-shrink-0 px-3 py-1.5 bg-[#2d2820]/80 border border-orange-300/20 rounded-lg text-orange-100 text-sm font-semibold placeholder-orange-300/40 focus:outline-none focus:border-orange-400/50 transition-all"
+                  className="input-field w-40 flex-shrink-0 px-3 py-1.5 text-sm font-semibold"
                 />
-                {/* 卡组描述 */}
                 <input
                   type="text"
                   placeholder="卡组描述（可选）"
                   value={deckDescription}
                   onChange={(e) => setDeckDescription(e.target.value)}
-                  className="flex-1 px-3 py-1.5 bg-[#2d2820]/60 border border-orange-300/15 rounded-lg text-orange-200/80 text-sm placeholder-orange-300/30 focus:outline-none focus:border-orange-400/40 transition-all"
+                  className="input-field flex-1 px-3 py-1.5 text-sm"
                 />
-                {/* 操作按钮 */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
                     onClick={handleExport}
-                    className="px-3 py-1.5 text-orange-300/60 hover:text-orange-300 hover:bg-orange-500/10 rounded-lg transition-colors border border-orange-300/15 hover:border-orange-300/30 text-sm flex items-center gap-1.5"
+                    className="button-secondary px-3 py-1.5 text-sm flex items-center gap-1.5"
                   >
                     <Download size={14} />
                     导出
@@ -695,10 +687,10 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                   <button
                     onClick={handleSave}
                     disabled={isSaving || !deckName.trim()}
-                    className={`px-4 py-1.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-1.5 ${
+                    className={`button-primary px-4 py-1.5 text-sm font-semibold flex items-center gap-1.5 ${
                       isSaving || !deckName.trim()
-                        ? 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-green-400 to-emerald-400 text-white hover:shadow-lg hover:shadow-green-500/20'
+                        ? 'cursor-not-allowed opacity-50'
+                        : ''
                     }`}
                   >
                     <Save size={14} />
@@ -711,17 +703,15 @@ export function DeckManager({ onBack }: DeckManagerProps) {
               </div>
             </div>
 
-            {/* Save Error */}
             {saveError && (
-              <div className="mx-4 mt-2 p-2.5 bg-red-500/10 border border-red-400/20 rounded-lg">
-                <div className="flex items-center gap-2 text-red-300 text-xs">
+              <div className="mx-4 mt-2 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-2.5">
+                <div className="flex items-center gap-2 text-xs text-[var(--semantic-error)]">
                   <AlertTriangle size={12} />
                   <span>{saveError}</span>
                 </div>
               </div>
             )}
 
-            {/* Card Editor */}
             <div className="flex-1 min-h-0 overflow-hidden">
               {editingDeck && (
                 <CardEditor
@@ -731,16 +721,16 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                 />
               )}
             </div>
+            </div>
           </motion.main>
         )}
       </AnimatePresence>
 
-      {/* DeckLog 导入对话框 */}
       {showDecklogDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#2d2820] border border-orange-300/20 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
-            <h2 className="text-lg font-bold text-orange-100 mb-1">从 DeckLog 导入</h2>
-            <p className="text-sm text-orange-300/50 mb-4">输入 DeckLog 卡组 ID 或完整 URL</p>
+        <div className="modal-backdrop z-50 flex items-center justify-center">
+          <div className="modal-surface modal-accent-amber mx-4 w-full max-w-md p-6">
+            <h2 className="mb-1 text-lg font-bold text-[var(--text-primary)]">从 DeckLog 导入</h2>
+            <p className="mb-4 text-sm text-[var(--text-secondary)]">输入 DeckLog 卡组 ID 或完整 URL</p>
 
             <input
               type="text"
@@ -748,12 +738,12 @@ export function DeckManager({ onBack }: DeckManagerProps) {
               value={decklogInput}
               onChange={(e) => { setDecklogInput(e.target.value); setDecklogError(null); }}
               onKeyDown={(e) => { if (e.key === 'Enter' && !decklogLoading) handleDecklogImport(); }}
-              className="w-full px-4 py-2.5 bg-[#1f1a15] border border-orange-300/20 rounded-xl text-orange-100 text-sm placeholder-orange-300/30 focus:outline-none focus:border-orange-400/50 transition-all mb-3"
+              className="input-field mb-3 px-4 py-2.5 text-sm"
               autoFocus
             />
 
             {decklogError && (
-              <div className="flex items-center gap-2 text-red-300 text-xs mb-3 p-2 bg-red-500/10 rounded-lg">
+              <div className="mb-3 flex items-center gap-2 rounded-lg bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-2 text-xs text-[var(--semantic-error)]">
                 <AlertTriangle size={12} />
                 <span>{decklogError}</span>
               </div>

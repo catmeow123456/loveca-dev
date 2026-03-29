@@ -5,6 +5,7 @@
 
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Check, Cloud, Database, Layers3, RefreshCw, TriangleAlert, UserRound, Zap } from 'lucide-react';
 import type { DeckRecord } from '@/lib/apiClient';
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
 import { calculateDeckStats, formatRelativeTime } from './DeckStats';
@@ -115,13 +116,12 @@ export function DeckSelector({
   }, [cloudDecks, localDecks]);
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-[#2d2820] to-[#1f1a15]">
-      {/* Header */}
-      <div className="p-4 border-b border-orange-300/15 bg-[#3d3020]/50 backdrop-blur-sm">
+    <div className="surface-panel-frosted flex h-full flex-col overflow-hidden">
+      <div className="border-b border-[var(--border-subtle)] bg-[color:var(--bg-frosted)] p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xl">🎴</span>
-            <h2 className="text-lg font-bold bg-gradient-to-r from-orange-300 to-amber-300 bg-clip-text text-transparent">
+            <Layers3 size={20} className="text-[var(--accent-primary)]" />
+            <h2 className="text-lg font-bold text-[var(--text-primary)]">
               {title}
             </h2>
           </div>
@@ -129,50 +129,45 @@ export function DeckSelector({
             <button
               onClick={onRefresh}
               disabled={isLoading}
-              className="px-3 py-1.5 text-orange-300/70 hover:text-orange-300 hover:bg-orange-500/10 rounded-lg transition-all duration-300 disabled:opacity-50"
+              className="button-icon h-9 w-9 disabled:opacity-50"
             >
-              {isLoading ? '⏳' : '🔄'}
+              <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
             </button>
           )}
         </div>
-        <div className="mt-1 text-xs text-orange-300/50">
+        <div className="mt-1 text-xs text-[var(--text-muted)]">
           共 {displayDecks.length} 个卡组
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 cute-scrollbar">
-        {/* Loading State */}
+      <div className="cute-scrollbar flex-1 overflow-y-auto p-4">
         {isLoading && displayDecks.length === 0 && (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <div className="animate-spin text-4xl mb-3">🌟</div>
-              <div className="text-orange-300/60">加载中...</div>
+              <RefreshCw size={32} className="mx-auto mb-3 animate-spin text-[var(--accent-primary)]" />
+              <div className="text-[var(--text-secondary)]">加载中...</div>
             </div>
           </div>
         )}
 
-        {/* Error State */}
         {error && (
-          <div className="mb-4 p-4 bg-red-500/10 border border-red-400/30 rounded-xl">
-            <div className="flex items-center gap-2 text-red-300 text-sm">
-              <span>⚠️</span>
+          <div className="mb-4 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-4">
+            <div className="flex items-center gap-2 text-sm text-[var(--semantic-error)]">
+              <TriangleAlert size={16} />
               <span>{error}</span>
             </div>
           </div>
         )}
 
-        {/* Empty State */}
         {!isLoading && displayDecks.length === 0 && (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <div className="text-5xl mb-4">📭</div>
-              <div className="text-orange-300/60">{emptyText}</div>
+              <Database size={42} className="mx-auto mb-4 text-[var(--text-muted)]" />
+              <div className="text-[var(--text-secondary)]">{emptyText}</div>
             </div>
           </div>
         )}
 
-        {/* Deck List */}
         <AnimatePresence>
           <div className="grid gap-3">
             {displayDecks.map((deck, index) => (
@@ -185,69 +180,70 @@ export function DeckSelector({
               >
                 <button
                   onClick={() => onSelect(deck)}
-                  className={`w-full text-left p-4 rounded-xl transition-all duration-300 border ${
+                  className={`w-full rounded-xl border p-4 text-left transition-all duration-300 ${
                     selectedId === deck.id
-                      ? 'bg-gradient-to-r from-orange-500/20 to-amber-500/20 border-orange-400/50 shadow-lg shadow-orange-500/10'
-                      : 'bg-[#3d3020]/60 border-transparent hover:bg-orange-500/10 hover:border-orange-300/30'
+                      ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))] border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] shadow-[var(--shadow-glow)]'
+                      : 'bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]'
                   }`}
                 >
-                  {/* Top Row */}
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
                       {selectedId === deck.id && (
-                        <span className="text-orange-400">✓</span>
+                        <Check size={16} className="text-[var(--accent-primary)]" />
                       )}
                       <h3 className={`font-bold ${
-                        selectedId === deck.id ? 'text-orange-200' : 'text-orange-100'
+                        selectedId === deck.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]'
                       }`}>
                         {deck.name}
                       </h3>
                     </div>
                     <div className="flex items-center gap-2">
                       {deck.isCloud ? (
-                        <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full border border-blue-400/30">
-                          ☁️ 云端
+                        <span className="chip-badge px-2 py-0.5 text-xs">
+                          <Cloud size={12} />
+                          云端
                         </span>
                       ) : (
-                        <span className="text-xs px-2 py-0.5 bg-gray-500/20 text-gray-300 rounded-full border border-gray-400/30">
-                          💾 本地
+                        <span className="chip-badge px-2 py-0.5 text-xs">
+                          <Database size={12} />
+                          本地
                         </span>
                       )}
                       {deck.isValid ? (
-                        <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-300 rounded-full border border-green-400/30">
-                          ✓ 有效
+                        <span className="chip-badge px-2 py-0.5 text-xs text-[var(--semantic-success)]">
+                          <Check size={12} />
+                          有效
                         </span>
                       ) : (
-                        <span className="text-xs px-2 py-0.5 bg-red-500/20 text-red-300 rounded-full border border-red-400/30">
-                          ○ 不完整
+                        <span className="chip-badge px-2 py-0.5 text-xs text-[var(--semantic-error)]">
+                          <TriangleAlert size={12} />
+                          不完整
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Description */}
                   {deck.description && (
-                    <p className="text-sm text-orange-300/60 mb-3 line-clamp-2">
+                    <p className="mb-3 line-clamp-2 text-sm text-[var(--text-secondary)]">
                       {deck.description}
                     </p>
                   )}
 
-                  {/* Stats Row */}
                   <div className="flex items-center gap-4 text-xs">
-                    <div className="flex items-center gap-1.5 text-orange-300/60">
-                      <span>👤</span>
+                    <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                      <UserRound size={12} />
                       <span>{deck.memberCount}/48</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-orange-300/60">
-                      <span>🎵</span>
+                    <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                      <Layers3 size={12} />
                       <span>{deck.liveCount}/12</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-orange-300/60">
-                      <span>⚡</span>
+                    <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                      <Zap size={12} />
                       <span>{deck.energyCount}/12</span>
                     </div>
                     <div className="flex-1" />
-                    <div className="text-orange-300/40">
+                    <div className="text-[var(--text-muted)]">
                       {formatRelativeTime(deck.updatedAt)}
                     </div>
                   </div>

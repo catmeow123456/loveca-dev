@@ -24,44 +24,43 @@ export function DeckSidebar({ deck, validation, onAddCard, onRemoveCard, onViewD
   const energyCount = deck.energy_deck.reduce((sum, e) => sum + e.count, 0);
 
   return (
-    <div className="h-full w-[480px] flex flex-col bg-gradient-to-b from-[#332c22] to-[#2a2420] border-l border-orange-300/10">
-      {/* 紧凑统计汇总 */}
-      <div className="px-4 py-3 border-b border-orange-300/10 bg-[#3d3020]/50">
+    <div className="workspace-sidebar flex h-full w-[480px] flex-col">
+      <div className="workspace-toolbar px-4 py-3">
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5">
-              <Users size={12} className="text-orange-400" />
-              <span className={memberCount === 48 ? 'text-green-300' : 'text-orange-300/70'}>
+              <Users size={12} className="text-[var(--accent-primary)]" />
+              <span className={memberCount === 48 ? 'text-[var(--semantic-success)]' : 'text-[var(--text-secondary)]'}>
                 {memberCount}/48
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <Music size={12} className="text-rose-400" />
-              <span className={liveCount === 12 ? 'text-green-300' : 'text-orange-300/70'}>
+              <Music size={12} className="text-[var(--heart-pink)]" />
+              <span className={liveCount === 12 ? 'text-[var(--semantic-success)]' : 'text-[var(--text-secondary)]'}>
                 {liveCount}/12
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <Zap size={12} className="text-sky-400" />
-              <span className={energyCount === 12 ? 'text-green-300' : 'text-orange-300/70'}>
+              <Zap size={12} className="text-[var(--heart-blue)]" />
+              <span className={energyCount === 12 ? 'text-[var(--semantic-success)]' : 'text-[var(--text-secondary)]'}>
                 {energyCount}/12
               </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`text-xs px-2 py-0.5 rounded-full border ${
+            <span className={`rounded-full border px-2 py-0.5 text-xs ${
               validation.valid
-                ? 'bg-green-500/15 text-green-300 border-green-400/30'
-                : 'bg-orange-500/15 text-orange-300 border-orange-400/30'
+                ? 'border-[color:color-mix(in_srgb,var(--semantic-success)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_14%,transparent)] text-[var(--semantic-success)]'
+                : 'border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_14%,transparent)] text-[var(--accent-secondary)]'
             }`}>
               {validation.valid ? '完整' : '未完成'}
             </span>
             <button
               onClick={() => setShowAnalysis(v => !v)}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs transition-colors duration-150 ${
+              className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors duration-150 ${
                 showAnalysis
-                  ? 'bg-orange-500/20 text-orange-200 border-orange-400/40'
-                  : 'bg-[#3d3020]/60 text-orange-300/60 border-orange-300/20 hover:text-orange-200 hover:border-orange-400/30'
+                  ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] text-[var(--text-primary)]'
+                  : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)]'
               }`}
             >
               {showAnalysis ? <List size={11} /> : <BarChart2 size={11} />}
@@ -75,7 +74,7 @@ export function DeckSidebar({ deck, validation, onAddCard, onRemoveCard, onViewD
       {showAnalysis ? (
         <DeckAnalysisPanel deck={deck} />
       ) : (
-        <div className="flex-1 overflow-y-auto p-3 no-scrollbar">
+        <div className="no-scrollbar flex-1 overflow-y-auto p-3">
           <DeckSectionList
             entries={deck.main_deck.members}
             title="成员卡"
@@ -106,14 +105,14 @@ export function DeckSidebar({ deck, validation, onAddCard, onRemoveCard, onViewD
 
           {/* 验证错误 */}
           {validation.errors.length > 0 && (
-            <div className="mt-3 p-3 bg-red-500/10 border border-red-400/20 rounded-xl">
-              <div className="flex items-center gap-2 text-red-300 text-xs font-semibold mb-2">
+            <div className="mt-3 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--semantic-error)]">
                 <AlertTriangle size={12} />
                 <span>卡组不完整</span>
               </div>
               <ul className="space-y-1">
                 {validation.errors.map((err, i) => (
-                  <li key={i} className="text-xs text-red-300/70 pl-4 relative before:content-['•'] before:absolute before:left-1 before:text-red-400/50">
+                  <li key={i} className="relative pl-4 text-xs text-[var(--semantic-error)]/80 before:absolute before:left-1 before:content-['•'] before:text-[var(--semantic-error)]/60">
                     {err}
                   </li>
                 ))}
@@ -123,8 +122,8 @@ export function DeckSidebar({ deck, validation, onAddCard, onRemoveCard, onViewD
 
           {/* 验证成功 */}
           {validation.valid && (
-            <div className="mt-3 p-3 bg-green-500/10 border border-green-400/20 rounded-xl">
-              <div className="flex items-center gap-2 text-green-300 text-xs font-medium">
+            <div className="mt-3 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-success)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] p-3">
+              <div className="flex items-center gap-2 text-xs font-medium text-[var(--semantic-success)]">
                 <CheckCircle size={12} />
                 <span>卡组完整！</span>
               </div>

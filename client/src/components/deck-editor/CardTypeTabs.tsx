@@ -20,17 +20,17 @@ const TABS = [
 
 export function CardTypeTabs({ selected, onSelect }: CardTypeTabsProps) {
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-1">
       {TABS.map(({ type, label, Icon, colors }) => {
         const isActive = selected === type;
         return (
           <button
             key={type}
             onClick={() => onSelect(type)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border-b-2 transition-all duration-200 text-sm font-medium ${
+            className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200 ${
               isActive
-                ? `${colors.bg} ${colors.border} ${colors.text}`
-                : 'bg-transparent border-transparent text-orange-300/50 hover:text-orange-300/80 hover:bg-[#3d3020]/30'
+                ? `${colors.bg} ${colors.border} ${colors.text} shadow-[var(--shadow-sm)]`
+                : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
             }`}
           >
             <Icon size={16} />

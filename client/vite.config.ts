@@ -7,6 +7,8 @@ import { readFileSync } from 'fs';
 
 // 从 package.json 读取版本号
 const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
+const appVersion = pkg.version;
+const cacheVersion = `v${appVersion}`;
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -15,7 +17,7 @@ export default defineConfig(({ mode }) => {
 
   return {
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_VERSION__: JSON.stringify(appVersion),
   },
   plugins: [
     react(), 
@@ -39,6 +41,8 @@ export default defineConfig(({ mode }) => {
         ],
       },
       workbox: {
+        cacheId: `loveca-${cacheVersion}`,
+        cleanupOutdatedCaches: true,
         // 运行时缓存配置
         runtimeCaching: [
           // Remote card images (Nginx proxy to MinIO)
@@ -46,7 +50,7 @@ export default defineConfig(({ mode }) => {
             urlPattern: /\/images\/(thumb|medium|large)\/.*\.webp$/,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'remote-card-images',
+              cacheName: `remote-card-images-${cacheVersion}`,
               expiration: {
                 maxEntries: 1500,
                 maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
@@ -61,7 +65,7 @@ export default defineConfig(({ mode }) => {
             urlPattern: /\/images\/static\//,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'remote-static-assets',
+              cacheName: `remote-static-assets-${cacheVersion}`,
               expiration: {
                 maxEntries: 50,
                 maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
@@ -76,7 +80,7 @@ export default defineConfig(({ mode }) => {
             urlPattern: /\/card\/.*\.(jpg|png|webp)$/,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'local-card-images',
+              cacheName: `local-card-images-${cacheVersion}`,
               expiration: {
                 maxEntries: 500,
                 maxAgeSeconds: 30 * 24 * 60 * 60, // 30 天
@@ -91,7 +95,7 @@ export default defineConfig(({ mode }) => {
             urlPattern: /\/energy\/.*\.(jpg|png|webp)$/,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'energy-card-images',
+              cacheName: `energy-card-images-${cacheVersion}`,
               expiration: {
                 maxEntries: 50,
                 maxAgeSeconds: 30 * 24 * 60 * 60, // 30 天
@@ -106,7 +110,7 @@ export default defineConfig(({ mode }) => {
             urlPattern: /\/compressed\/.*\.(jpg|png|webp)$/,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'compressed-card-images',
+              cacheName: `compressed-card-images-${cacheVersion}`,
               expiration: {
                 maxEntries: 1500, // thumb + medium + large
                 maxAgeSeconds: 30 * 24 * 60 * 60, // 30 天

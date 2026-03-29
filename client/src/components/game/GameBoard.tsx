@@ -25,6 +25,7 @@ import { JudgmentPanel } from './JudgmentPanel';
 import { ScoreConfirmModal } from './ScoreConfirmModal';
 import { Card } from '@/components/card/Card';
 import { MulliganPanel } from './MulliganPanel';
+import { ThemeToggle } from '@/components/common';
 import { getDeckBackUrl } from '@/lib/imageService';
 import { parseZoneId, findCardZone } from '@/lib/zoneUtils';
 import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType, GameMode } from '@game/shared/types/enums';
@@ -354,9 +355,17 @@ export const GameBoard = memo(function GameBoard() {
           backgroundRepeat: 'no-repeat'
         }}
       >
+        <div className="pointer-events-none absolute inset-0 bg-[var(--board-overlay)]" />
+        <div className="pointer-events-none absolute inset-0" style={{ background: 'var(--gradient-spotlight)' }} />
+        <div className="pointer-events-none absolute inset-0" style={{ background: 'var(--gradient-stage-glow)' }} />
+
+        <div className="absolute right-4 top-4 z-[80]">
+          <ThemeToggle />
+        </div>
+
         {/* 对手区域 (顶部) - 包含成员槽位和对手 Live 区 */}
         <div
-          className={`flex-[5] min-h-0 overflow-hidden relative ${
+          className={`relative flex-[5] min-h-0 overflow-hidden ${
             isSolitaire ? 'opacity-[0.12] pointer-events-none' : ''
           }`}
         >
@@ -370,16 +379,20 @@ export const GameBoard = memo(function GameBoard() {
 
         {/* VS 分隔线 (中央) - 对墙打模式下弱化 */}
         <div
-          className={`flex-shrink-0 h-[32px] flex items-center justify-center relative border-y ${
-            isSolitaire
-              ? 'border-slate-700/20 bg-slate-800/10'
-              : 'border-slate-700/50 bg-slate-800/30'
-          }`}
+          className="relative flex h-[32px] flex-shrink-0 items-center justify-center border-y"
+          style={{
+            borderColor: isSolitaire ? 'color-mix(in srgb, var(--border-default) 30%, transparent)' : 'var(--border-default)',
+            background: isSolitaire
+              ? 'color-mix(in srgb, var(--bg-overlay) 16%, transparent)'
+              : 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-primary) 12%, transparent), color-mix(in srgb, var(--accent-secondary) 12%, transparent), transparent)',
+          }}
         >
           <span
-            className={`font-bold text-lg px-4 ${
-              isSolitaire ? 'text-slate-600/40' : 'text-rose-500'
-            }`}
+            className="px-4 text-lg font-bold tracking-[0.2em]"
+            style={{
+              color: isSolitaire ? 'var(--text-muted)' : 'var(--accent-primary)',
+              textShadow: isSolitaire ? 'none' : '0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent)',
+            }}
           >
             VS
           </span>
@@ -407,7 +420,7 @@ export const GameBoard = memo(function GameBoard() {
           <button
             type="button"
             onClick={handleOpenJudgmentPanel}
-            className="fixed left-0 top-1/2 -translate-y-1/2 z-[70] rounded-r-xl border border-l-0 border-pink-400/40 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-pink-200 shadow-lg hover:bg-slate-800"
+            className="fixed left-0 top-1/2 z-[70] -translate-y-1/2 rounded-r-xl border border-l-0 border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 py-2 text-xs font-semibold text-[var(--accent-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
           >
             判定区
           </button>

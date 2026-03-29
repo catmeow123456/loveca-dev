@@ -42,8 +42,8 @@ export const BrowserCardCell = memo(function BrowserCardCell({
 
         {/* 同类卡数量遮罩 */}
         {baseCount > 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-blue-500/25 rounded-lg">
-            <span className="text-blue-100 text-5xl font-bold opacity-50 drop-shadow-md">
+          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-[color:color-mix(in_srgb,var(--semantic-info)_18%,transparent)] pointer-events-none">
+            <span className="text-5xl font-bold text-[var(--semantic-info)] opacity-55 drop-shadow-md">
               {baseCount}
             </span>
           </div>
@@ -51,7 +51,7 @@ export const BrowserCardCell = memo(function BrowserCardCell({
 
         {/* [-] 数量 [+] 固定在底部 */}
         <div
-          className="absolute bottom-0 inset-x-0 z-10 flex items-center justify-center gap-1 py-1 bg-gradient-to-t from-black/60 to-transparent rounded-b-lg"
+          className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-1 rounded-b-lg bg-gradient-to-t from-black/70 via-black/30 to-transparent py-1"
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -59,8 +59,8 @@ export const BrowserCardCell = memo(function BrowserCardCell({
             disabled={exactCount === 0}
             className={`w-6 h-6 flex items-center justify-center rounded-full shadow-sm ${
               exactCount > 0
-                ? 'bg-red-500/80 text-white'
-                : 'bg-gray-500/40 text-gray-400 cursor-default'
+                ? 'border border-white/15 bg-[var(--semantic-error)]/85 text-white'
+                : 'cursor-default border border-white/10 bg-black/35 text-white/35'
             }`}
           >
             <Minus size={12} />
@@ -70,7 +70,7 @@ export const BrowserCardCell = memo(function BrowserCardCell({
           </span>
           <button
             onClick={onAdd}
-            className="w-6 h-6 flex items-center justify-center rounded-full bg-green-500/80 text-white shadow-sm"
+            className="flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-[var(--semantic-success)]/85 text-white shadow-sm"
           >
             <Plus size={12} />
           </button>
@@ -78,7 +78,7 @@ export const BrowserCardCell = memo(function BrowserCardCell({
       </div>
 
       <span
-        className="mt-1.5 text-xs text-orange-300/50 truncate max-w-full"
+        className="mt-1.5 max-w-full truncate text-xs text-[var(--text-muted)]"
         title={card.cardCode}
       >
         {card.name}

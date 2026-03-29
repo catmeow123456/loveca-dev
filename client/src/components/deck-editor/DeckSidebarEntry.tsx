@@ -18,7 +18,7 @@ interface DeckSidebarEntryProps {
 export function DeckSidebarEntry({ cardData, imagePath, count, onAdd, onRemove, onViewDetail }: DeckSidebarEntryProps) {
   return (
     <div
-      className="flex items-center bg-[#3d3020]/50 hover:bg-orange-500/10 rounded-xl p-2 transition-all duration-200 border border-transparent hover:border-orange-300/15"
+      className="surface-panel flex items-center rounded-2xl p-2 transition-all duration-200 hover:-translate-y-[1px] hover:border-[var(--border-active)] hover:shadow-[var(--shadow-sm)]"
       onContextMenu={(e) => {
         e.preventDefault();
         onViewDetail();
@@ -41,10 +41,10 @@ export function DeckSidebarEntry({ cardData, imagePath, count, onAdd, onRemove, 
 
       {/* 卡名 & 编号 */}
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium truncate text-orange-100">
+        <div className="truncate text-sm font-medium text-[var(--text-primary)]">
           {cardData.name}
         </div>
-        <div className="text-xs text-orange-300/40 truncate">
+        <div className="truncate text-xs text-[var(--text-muted)]">
           {cardData.cardCode}
         </div>
       </div>
@@ -53,14 +53,14 @@ export function DeckSidebarEntry({ cardData, imagePath, count, onAdd, onRemove, 
       <div className="flex items-center gap-1 ml-2 flex-shrink-0">
         <button
           onClick={onRemove}
-          className="w-6 h-6 flex items-center justify-center rounded-full bg-red-500/15 text-red-300/70 border border-red-400/20"
+          className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--semantic-error)]/25 bg-[var(--semantic-error)]/12 text-[var(--semantic-error)]"
         >
           <Minus size={12} />
         </button>
-        <span className="text-sm font-bold text-orange-200 min-w-[20px] text-center">{count}</span>
+        <span className="min-w-[20px] text-center text-sm font-bold text-[var(--text-primary)]">{count}</span>
         <button
           onClick={onAdd}
-          className="w-6 h-6 flex items-center justify-center rounded-full bg-green-500/15 text-green-300/70 border border-green-400/20"
+          className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--semantic-success)]/25 bg-[var(--semantic-success)]/12 text-[var(--semantic-success)]"
         >
           <Plus size={12} />
         </button>

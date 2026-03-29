@@ -3,6 +3,7 @@
  * 显示卡组的成员卡、Live卡、能量卡数量统计
  */
 
+import { Check, Cloud, Database, Layers3, UserRound, Zap } from 'lucide-react';
 import type { DeckRecord } from '@/lib/apiClient';
 
 // 卡组统计数据
@@ -78,22 +79,22 @@ export function DeckStatsRow({
   
   return (
     <div className={`flex items-center ${gapSize} ${textSize} ${className}`}>
-      <div className="flex items-center gap-1.5 text-orange-300/60">
-        <span>👤</span>
+      <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+        <UserRound size={size === 'sm' ? 12 : 14} />
         <span>{stats.memberCount}{showMax && '/48'}</span>
       </div>
-      <div className="flex items-center gap-1.5 text-orange-300/60">
-        <span>🎵</span>
+      <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+        <Layers3 size={size === 'sm' ? 12 : 14} />
         <span>{stats.liveCount}{showMax && '/12'}</span>
       </div>
-      <div className="flex items-center gap-1.5 text-orange-300/60">
-        <span>⚡</span>
+      <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+        <Zap size={size === 'sm' ? 12 : 14} />
         <span>{stats.energyCount}{showMax && '/12'}</span>
       </div>
       {updatedAt && (
         <>
           <div className="flex-1" />
-          <div className="text-orange-300/40">
+          <div className="text-[var(--text-muted)]">
             {formatRelativeTime(updatedAt)}
           </div>
         </>
@@ -120,8 +121,8 @@ export function DeckValidityBadge({ stats, className = '' }: DeckValidityBadgePr
     stats.energyCount === 12;
   
   return isValid ? (
-    <span className={`text-xs px-2 py-0.5 bg-green-500/20 text-green-300 rounded-full border border-green-400/30 ${className}`}>
-      ✓ 完整
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-500/20 text-green-300 rounded-full border border-green-400/30 ${className}`}>
+      <Check size={11} /> 完整
     </span>
   ) : (
     <span className={`text-xs px-2 py-0.5 bg-red-500/20 text-red-300 rounded-full border border-red-400/30 ${className}`}>
@@ -171,7 +172,7 @@ export function DeckCard({
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           {isSelected && (
-            <span className="text-orange-400">✓</span>
+            <Check size={14} className="text-[var(--accent-primary)]" />
           )}
           <h3 className={`font-bold ${
             isSelected ? 'text-orange-200' : 'text-orange-100'
@@ -181,17 +182,17 @@ export function DeckCard({
         </div>
         <div className="flex items-center gap-2">
           {isCloud ? (
-            <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full border border-blue-400/30">
-              ☁️ 云端
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full border border-blue-400/30">
+              <Cloud size={11} /> 云端
             </span>
           ) : (
-            <span className="text-xs px-2 py-0.5 bg-gray-500/20 text-gray-300 rounded-full border border-gray-400/30">
-              💾 本地
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-gray-500/20 text-gray-300 rounded-full border border-gray-400/30">
+              <Database size={11} /> 本地
             </span>
           )}
           {validity ? (
-            <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-300 rounded-full border border-green-400/30">
-              ✓ 完整
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-500/20 text-green-300 rounded-full border border-green-400/30">
+              <Check size={11} /> 完整
             </span>
           ) : (
             <span className="text-xs px-2 py-0.5 bg-red-500/20 text-red-300 rounded-full border border-red-400/30">

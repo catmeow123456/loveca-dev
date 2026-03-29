@@ -22,10 +22,10 @@ export function FilterChipGroup({ options, selected, onSelect }: FilterChipGroup
         <button
           key={opt.value}
           onClick={() => onSelect(selected === opt.value ? null : opt.value)}
-          className={`px-2.5 py-1 text-xs rounded-lg border transition-all duration-200 flex items-center gap-1.5 ${
+          className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-all duration-200 ${
             selected === opt.value
-              ? 'bg-orange-500/30 border-orange-400/60 text-orange-200'
-              : 'bg-[#3d3020]/40 border-orange-300/20 text-orange-300/60 hover:border-orange-300/40 hover:text-orange-300'
+              ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
+              : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_74%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
           }`}
         >
           {opt.colorClass && (

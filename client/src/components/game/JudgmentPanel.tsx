@@ -11,6 +11,7 @@
 
 import { memo, useState, useCallback, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { BarChart3, EyeOff, Mic, Sparkles } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -410,16 +411,19 @@ export const JudgmentPanel = memo(function JudgmentPanel({
 
   return (
     <motion.aside
-      className="fixed left-0 top-0 z-[90] h-full w-full max-w-[420px] overflow-y-auto border-r border-pink-500/40 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-sm"
+      className="fixed left-0 top-0 z-[90] h-full w-full max-w-[420px] overflow-y-auto border-r border-[var(--border-default)] bg-[var(--bg-frosted)] p-4 shadow-[var(--shadow-lg)] backdrop-blur-xl"
       initial={{ x: -460, opacity: 0.8 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: -460, opacity: 0.8 }}
       transition={{ type: 'spring', stiffness: 320, damping: 30 }}
     >
-      <div className="mb-3 flex items-center justify-between border-b border-pink-500/30 pb-2">
+      <div className="mb-3 flex items-center justify-between border-b border-[var(--border-default)] pb-2">
         <div>
-          <div className="text-sm font-semibold text-pink-200">判定区 / 应援操作窗</div>
-          <div className="mt-0.5 text-[11px] text-slate-400">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+            <BarChart3 size={16} className="text-[var(--accent-primary)]" />
+            判定区 / 应援操作窗
+          </div>
+          <div className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
             {isPerformanceJudgment
               ? '当前为 Live 判定阶段'
               : isLiveSuccessWindow
@@ -432,25 +436,24 @@ export const JudgmentPanel = memo(function JudgmentPanel({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700"
+          className="button-secondary inline-flex items-center gap-1 px-2 py-1 text-xs"
         >
+          <EyeOff size={12} />
           收起
         </button>
       </div>
 
-            {/* ======== 上方：应援区 ======== */}
       <div className="mb-4">
-              {/* 标题 + 操作 */}
-              <div className="flex items-center justify-between mb-2 pb-2 border-b border-amber-500/30">
-                <span className="text-sm text-amber-300 font-medium">
-                  🎤 {currentPlayer.name} 的应援 ({cheerCards.length} 张)
+              <div className="mb-2 flex items-center justify-between border-b border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] pb-2">
+                <span className="flex items-center gap-2 text-sm font-medium text-[var(--accent-secondary)]">
+                  <Mic size={15} />
+                  {currentPlayer.name} 的应援 ({cheerCards.length} 张)
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-[var(--text-muted)]">
                   主卡组剩余: {mainDeckCount}
                 </span>
               </div>
 
-              {/* 操作按钮 */}
               <div className="flex gap-2 mb-2">
                 <button
                   onClick={drawCheerCard}
@@ -458,18 +461,17 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                   className={cn(
                     'px-3 py-1.5 rounded text-xs font-medium',
                     mainDeckCount > 0
-                      ? 'bg-amber-600 hover:bg-amber-500 text-white'
-                      : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                      ? 'button-gold'
+                      : 'bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
                   )}
                 >
                   ↓ 翻开一张
                 </button>
               </div>
 
-              {/* 应援区卡牌 */}
-              <div className="h-[140px] p-2 rounded bg-slate-900/50 border border-dashed border-amber-500/30 overflow-x-auto overflow-y-hidden">
+              <div className="cute-scrollbar h-[140px] overflow-x-auto overflow-y-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_56%,transparent)] p-2">
                 {cheerCards.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-slate-500 text-xs">
+                  <div className="flex h-full items-center justify-center text-xs text-[var(--text-muted)]">
                     点击「翻开一张」从卡组顶翻开应援牌
                   </div>
                 ) : (
@@ -489,7 +491,6 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                                 cardId={card.instanceId}
                                 imagePath={getCardImagePath(card.data.cardCode)}
                               />
-                              {/* 光棒心效果 */}
                               <div className="flex gap-0.5 text-[10px]">
                                 {effects.penLightHearts.map((heart, i) => (
                                   <span key={i} className={getHeartColorClass(heart.color)}>
@@ -500,8 +501,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                                   <span className="text-cyan-400">📄+{effects.drawBonus}</span>
                                 )}
                               </div>
-                              {/* 悬停操作菜单 */}
-                              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 flex gap-0.5 bg-slate-800/90 rounded px-1 py-0.5 z-10 whitespace-nowrap">
+                              <div className="absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100">
                                 <button
                                   onClick={() => moveToHand(card.instanceId)}
                                   className="text-[10px] px-1.5 py-0.5 bg-cyan-600 hover:bg-cyan-500 rounded text-white"
@@ -532,11 +532,11 @@ export const JudgmentPanel = memo(function JudgmentPanel({
       </div>
 
             {/* ======== 下方：Live 判定区 ======== */}
-      <div className="border-t border-slate-600/50 pt-3">
-              {/* 心数汇总 */}
-              <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 mb-3">
-                <div className="text-sm font-medium text-slate-300 mb-2">
-                  📊 Live 所有心 (总计: {totalHeartsCount})
+      <div className="border-t border-[var(--border-subtle)] pt-3">
+              <div className="mb-3 rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_54%,transparent)] p-3">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
+                  <BarChart3 size={15} className="text-[var(--accent-primary)]" />
+                  Live 所有心 (总计: {totalHeartsCount})
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {Array.from(totalHearts.entries()).map(([color, count]) => {
@@ -545,11 +545,11 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                     const bladeCount = bladeHearts.get(color) ?? 0;
                     const config = heartColorConfig[color];
                     return (
-                      <div key={color} className="flex items-center gap-1 px-2 py-1 bg-slate-700/50 rounded">
-                        <Heart className={cn('w-4 h-4', config.colorClass, config.fill)} />
-                        <span className="text-white font-bold">{count}</span>
+                      <div key={color} className="flex items-center gap-1 rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] px-2 py-1">
+                        <Heart className={cn('h-4 w-4', config.colorClass, config.fill)} />
+                        <span className="font-bold text-[var(--text-primary)]">{count}</span>
                         {bladeCount > 0 && (
-                          <span className="text-[10px] text-amber-400">
+                          <span className="text-[10px] text-[var(--accent-secondary)]">
                             ({memberCount}+{bladeCount})
                           </span>
                         )}
@@ -558,19 +558,18 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                   })}
                   {totalDrawBonus > 0 && (
                     <div className="flex items-center gap-1 px-2 py-1 bg-slate-700/50 rounded">
-                      <span className="text-cyan-400 text-sm">📄 +{totalDrawBonus}</span>
+                      <span className="text-sm text-cyan-400">📄 +{totalDrawBonus}</span>
                     </div>
                   )}
                 </div>
-                <div className="mt-1.5 text-[10px] text-slate-500 flex items-center gap-1">
+                <div className="mt-1.5 flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
                   <Heart className="w-3 h-3 text-pink-400 fill-pink-400 inline" /> All 心可视为任意颜色
                   {cheerCards.length > 0 && ' · 括号内为 (成员心 + 光棒心)'}
                 </div>
               </div>
 
-              {/* Live 卡列表 */}
               <div className="space-y-2">
-                <div className="text-sm font-medium text-slate-300">🎵 Live 卡判定结果</div>
+                <div className="text-sm font-medium text-[var(--text-primary)]">Live 卡判定结果</div>
                 {currentPlayer.liveZone.cardIds.map((cardId) => {
                   const card = getCardInstance(cardId);
                   if (!card || card.data.cardType !== 'LIVE') return null;
@@ -591,9 +590,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                 })}
               </div>
 
-              {/* 提示 */}
-              <div className="mt-3 p-2 bg-amber-500/10 rounded-lg border border-amber-500/30">
-                <div className="text-[10px] text-amber-400 space-y-0.5">
+              <div className="mt-3 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_12%,transparent)] p-2">
+                <div className="space-y-0.5 text-[10px] text-[var(--accent-secondary)]">
                   {isPerformanceJudgment && uiStage === 'judge' ? (
                     <>
                       <div>💡 选择「LIVE失败」会立即结束当前判定，且本次无 Live 分数</div>
@@ -625,14 +623,11 @@ export const JudgmentPanel = memo(function JudgmentPanel({
             {/* ======== 底部按钮 ======== */}
       {isPerformanceJudgment ? (
         uiStage === 'judge' ? (
-          <div className="mt-4 border-t border-slate-600/50 pt-3 flex gap-3">
+          <div className="mt-4 flex gap-3 border-t border-[var(--border-subtle)] pt-3">
             <button
               onClick={handleLiveFailed}
               className={cn(
-                'flex-1 py-2 rounded-lg text-sm font-bold',
-                'bg-gradient-to-r from-slate-600 to-slate-500',
-                'hover:from-slate-500 hover:to-slate-400',
-                'text-white shadow-lg transition-colors'
+                'button-secondary flex-1 py-2 rounded-lg text-sm font-bold'
               )}
             >
               LIVE失败
@@ -640,46 +635,39 @@ export const JudgmentPanel = memo(function JudgmentPanel({
             <button
               onClick={handleLiveSuccess}
               className={cn(
-                'flex-1 py-2 rounded-lg text-sm font-bold',
-                'bg-gradient-to-r from-emerald-600 to-green-500',
-                'hover:from-emerald-500 hover:to-green-400',
-                'text-white shadow-lg transition-colors'
+                'button-gold flex-1 py-2 rounded-lg text-sm font-bold'
               )}
             >
               LIVE成功
             </button>
           </div>
         ) : (
-          <div className="mt-4 border-t border-slate-600/50 pt-3">
+          <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
             <button
               onClick={handleFinishPerformanceSuccess}
               className={cn(
-                'w-full py-2 rounded-lg text-sm font-bold',
-                'bg-gradient-to-r from-pink-500 to-rose-500',
-                'hover:from-pink-400 hover:to-rose-400',
-                'text-white shadow-lg transition-colors'
+                'button-primary inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold'
               )}
             >
+              <Sparkles size={16} />
               成功效果发动完毕
             </button>
           </div>
         )
       ) : isLiveSuccessWindow ? (
-        <div className="mt-4 border-t border-slate-600/50 pt-3">
+        <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
           <button
             onClick={handleSuccessEffectsDone}
             className={cn(
-              'w-full py-2 rounded-lg text-sm font-bold',
-              'bg-gradient-to-r from-indigo-500 to-sky-500',
-              'hover:from-indigo-400 hover:to-sky-400',
-              'text-white shadow-lg transition-colors'
+              'button-primary inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold'
             )}
           >
+            <Sparkles size={16} />
             成功效果发动完毕
           </button>
         </div>
       ) : (
-        <div className="mt-4 border-t border-slate-600/50 pt-3 text-xs text-slate-300">
+        <div className="mt-4 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-secondary)]">
           当前不在 Live 判定确认子阶段，本面板保持为辅助操作窗口。
         </div>
       )}

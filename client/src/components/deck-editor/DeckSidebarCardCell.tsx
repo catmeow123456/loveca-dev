@@ -38,8 +38,8 @@ export const DeckSidebarCardCell = memo(function DeckSidebarCardCell({
 
       {/* 数量遮罩 */}
       {count > 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-blue-500/20 rounded">
-          <span className="text-blue-100 text-2xl font-bold opacity-60 drop-shadow-md">
+        <div className="absolute inset-0 flex items-center justify-center rounded bg-[color:color-mix(in_srgb,var(--semantic-info)_18%,transparent)] pointer-events-none">
+          <span className="text-2xl font-bold text-[var(--semantic-info)] opacity-60 drop-shadow-md">
             {count}
           </span>
         </div>
@@ -55,8 +55,8 @@ export const DeckSidebarCardCell = memo(function DeckSidebarCardCell({
           disabled={count === 0}
           className={`w-5 h-5 flex items-center justify-center rounded-full shadow-sm ${
             count > 0
-              ? 'bg-red-500/80 text-white'
-              : 'bg-gray-500/40 text-gray-400 cursor-default'
+              ? 'border border-white/15 bg-[var(--semantic-error)]/85 text-white'
+              : 'cursor-default border border-white/10 bg-black/35 text-white/35'
           }`}
         >
           <Minus size={10} />
@@ -66,7 +66,7 @@ export const DeckSidebarCardCell = memo(function DeckSidebarCardCell({
         </span>
         <button
           onClick={onAdd}
-          className="w-5 h-5 flex items-center justify-center rounded-full bg-green-500/80 text-white shadow-sm"
+          className="flex h-5 w-5 items-center justify-center rounded-full border border-white/15 bg-[var(--semantic-success)]/85 text-white shadow-sm"
         >
           <Plus size={10} />
         </button>

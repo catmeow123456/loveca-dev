@@ -343,6 +343,13 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
     ? [...new Set(selectedGroups.flatMap(g => GROUP_UNIT_MAP[g] || []))]
     : [];
 
+  const fieldLabelClass = 'mb-1 block text-sm text-[var(--text-secondary)]';
+  const inputClass = 'input-field w-full px-3 py-2';
+  const chipButtonClass = 'flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-2 py-1 text-xs text-[var(--text-secondary)] transition-all hover:border-[var(--border-default)] hover:text-[var(--text-primary)]';
+  const selectedChipClass = 'flex items-center gap-1 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] px-2 py-1 text-sm text-[var(--text-primary)]';
+  const sectionClass = 'rounded-2xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_74%,transparent)] p-4';
+  const sectionTitleClass = 'mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]';
+
   if (!isOpen) return null;
 
   return (
@@ -356,25 +363,24 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
       <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 20 }}
-        className="relative bg-gradient-to-b from-[#3d3020] to-[#2d2820] rounded-2xl border border-orange-300/30 shadow-2xl shadow-orange-500/20 w-full max-w-2xl max-h-[90vh] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-orange-300/20">
-          <h2 className="text-lg font-bold text-orange-100">
+      initial={{ scale: 0.9, opacity: 0, y: 20 }}
+      animate={{ scale: 1, opacity: 1, y: 0 }}
+      exit={{ scale: 0.9, opacity: 0, y: 20 }}
+      className="modal-surface modal-accent-rose relative w-full max-w-2xl max-h-[90vh] overflow-hidden"
+      onClick={(e) => e.stopPropagation()}
+    >
+        <div className="modal-header flex items-center justify-between px-6 py-4">
+          <h2 className="text-lg font-bold text-[var(--text-primary)]">
             {isCreating ? '创建新卡牌' : `编辑卡牌: ${card?.cardCode}`}
           </h2>
           <div className="flex items-center gap-2">
-            <div className="flex rounded-lg overflow-hidden border border-orange-300/20">
+            <div className="flex overflow-hidden rounded-lg border border-[var(--border-default)]">
               <button
                 onClick={() => editMode === 'yaml' ? switchToForm() : undefined}
                 className={`px-3 py-1.5 text-xs transition-all ${
                   editMode === 'form'
-                    ? 'bg-orange-500/25 text-orange-200'
-                    : 'bg-transparent text-orange-300/50 hover:text-orange-300'
+                    ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
+                    : 'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 表单
@@ -383,8 +389,8 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                 onClick={() => editMode === 'form' ? switchToYaml() : undefined}
                 className={`px-3 py-1.5 text-xs transition-all ${
                   editMode === 'yaml'
-                    ? 'bg-orange-500/25 text-orange-200'
-                    : 'bg-transparent text-orange-300/50 hover:text-orange-300'
+                    ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
+                    : 'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 YAML
@@ -392,17 +398,16 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
             </div>
             <button
               onClick={onClose}
-              className="w-7 h-7 flex items-center justify-center rounded-full text-orange-300/60 hover:text-orange-300 hover:bg-orange-500/15 transition-all"
+              className="button-icon h-7 w-7"
             >
               <X size={16} />
             </button>
           </div>
         </div>
 
-        {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] cute-scrollbar">
           {error && (
-            <div className="mb-4 p-3 bg-red-500/20 border border-red-400/30 rounded-xl text-red-300 text-sm">
+            <div className="mb-4 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
               {error}
             </div>
           )}
@@ -410,7 +415,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
           {editMode === 'yaml' ? (
             <div className="space-y-3">
               {yamlError && (
-                <div className="p-3 bg-red-500/20 border border-red-400/30 rounded-xl text-red-300 text-sm">
+                <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
                   YAML 解析错误: {yamlError}
                 </div>
               )}
@@ -420,36 +425,37 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                   setYamlText(e.target.value);
                   setYamlError(null);
                 }}
-                className="w-full px-4 py-3 bg-[#1a1510] border border-orange-300/20 rounded-xl text-orange-100 font-mono text-sm focus:outline-none focus:border-orange-400/50 resize-y"
+                className="input-field w-full resize-y px-4 py-3 font-mono text-sm"
                 style={{ minHeight: '400px' }}
                 spellCheck={false}
               />
-              <p className="text-xs text-orange-300/40">
-                直接编辑 YAML 格式的卡牌数据。切回表单模式时会自动解析并应用更改。
+              <p className="text-xs text-[var(--text-muted)]">
+                编辑 YAML 后切回表单模式即可应用更改。
               </p>
             </div>
           ) : (
           <div className="space-y-4">
-            {/* 基本信息 */}
+            <section className={sectionClass}>
+            <div className={sectionTitleClass}>基本信息</div>
             <div className="grid grid-cols-2 gap-4">
               {isCreating && (
                 <>
                   <div>
-                    <label className="block text-sm text-orange-300/70 mb-1">卡牌编号 *</label>
+                    <label className={fieldLabelClass}>卡牌编号 *</label>
                     <input
                       type="text"
                       value={formData.cardCode || ''}
                       onChange={(e) => setFormData({ ...formData, cardCode: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-xl text-orange-100 focus:outline-none focus:border-orange-400/50"
+                      className={inputClass}
                       placeholder="PL-sd1-001"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-orange-300/70 mb-1">卡牌类型 *</label>
+                    <label className={fieldLabelClass}>卡牌类型 *</label>
                     <select
                       value={formData.cardType || 'MEMBER'}
                       onChange={(e) => setFormData({ ...formData, cardType: e.target.value as 'MEMBER' | 'LIVE' | 'ENERGY' })}
-                      className="w-full px-3 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-xl text-orange-100 focus:outline-none focus:border-orange-400/50"
+                      className={inputClass}
                     >
                       <option value="MEMBER">成员卡</option>
                       <option value="LIVE">Live 卡</option>
@@ -460,19 +466,22 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
               )}
 
               <div className={isCreating ? 'col-span-2' : ''}>
-                <label className="block text-sm text-orange-300/70 mb-1">卡牌名称 *</label>
+                <label className={fieldLabelClass}>卡牌名称 *</label>
                 <input
                   type="text"
                   value={formData.name || ''}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-xl text-orange-100 focus:outline-none focus:border-orange-400/50"
+                  className={inputClass}
                 />
               </div>
             </div>
+            </section>
 
+            <section className={sectionClass}>
+              <div className={sectionTitleClass}>作品与收录</div>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm text-orange-300/70 mb-2">作品名（可多选）</label>
+                <label className="mb-2 block text-sm text-[var(--text-secondary)]">作品名（可多选）</label>
                 {/* 可选作品名标签面板 */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {GROUP_OPTIONS.map((g) => {
@@ -485,8 +494,8 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                         onClick={() => toggleGroup(g)}
                         className={`px-2 py-1 text-xs rounded-lg border transition-all ${
                           isSelected
-                            ? 'bg-orange-500/25 text-orange-200 border-orange-400/50'
-                            : 'border-orange-300/20 bg-[#3d3020]/40 text-orange-300/70 hover:border-orange-300/40 hover:text-orange-300'
+                            ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
+                            : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]'
                         }`}
                       >
                         {displayLabel}
@@ -500,8 +509,8 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                     selectedGroups.map((g) => {
                       const displayLabel = g === '' ? '()' : g;
                       return (
-                        <div key={g === '' ? '__empty__' : g} className="flex items-center gap-1 px-2 py-1 bg-orange-500/15 border border-orange-400/30 rounded-lg text-sm">
-                          <span className="text-orange-100">{displayLabel}</span>
+                        <div key={g === '' ? '__empty__' : g} className={selectedChipClass}>
+                          <span>{displayLabel}</span>
                           <button
                             type="button"
                             onClick={() => toggleGroup(g)}
@@ -513,16 +522,16 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                       );
                     })
                   ) : (
-                    <div className="text-sm text-orange-300/40 py-1">点击上方标签添加作品名</div>
+                    <div className="py-1 text-sm text-[var(--text-muted)]">点击上方标签添加作品名</div>
                   )}
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-orange-300/70 mb-1">小组</label>
+                <label className={fieldLabelClass}>小组</label>
                 <select
                   value={formData.unitName || ''}
                   onChange={(e) => setFormData({ ...formData, unitName: e.target.value || null })}
-                  className="w-full px-3 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-xl text-orange-100 focus:outline-none focus:border-orange-400/50"
+                  className={inputClass}
                   disabled={selectedGroups.length === 0}
                 >
                   <option value="">无</option>
@@ -535,11 +544,11 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-orange-300/70 mb-1">稀有度</label>
+                <label className={fieldLabelClass}>稀有度</label>
                 <select
                   value={formData.rare || ''}
                   onChange={(e) => setFormData({ ...formData, rare: e.target.value || null })}
-                  className="w-full px-3 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-xl text-orange-100 focus:outline-none focus:border-orange-400/50"
+                  className={inputClass}
                 >
                   <option value="">自动（从编号推断）</option>
                   {RARITY_OPTIONS.map((r) => (
@@ -548,52 +557,53 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-orange-300/70 mb-1">收录商品</label>
+                <label className={fieldLabelClass}>收录商品</label>
                 <input
                   type="text"
                   value={formData.product || ''}
                   onChange={(e) => setFormData({ ...formData, product: e.target.value || null })}
-                  className="w-full px-3 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-xl text-orange-100 focus:outline-none focus:border-orange-400/50"
+                  className={inputClass}
                   placeholder="例: ブースターパック vol.1"
                 />
               </div>
             </div>
+            </section>
 
-            {/* 成员卡专属字段 */}
             {cardType === CardType.MEMBER && (
-              <>
+              <section className={sectionClass}>
+                <div className={sectionTitleClass}>成员属性</div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm text-orange-300/70 mb-1">费用</label>
+                    <label className={fieldLabelClass}>费用</label>
                     <input
                       type="number"
                       value={formData.cost ?? 0}
                       onChange={(e) => setFormData({ ...formData, cost: parseInt(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-xl text-orange-100 focus:outline-none focus:border-orange-400/50"
+                      className={inputClass}
                       min="0"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-orange-300/70 mb-1">应援棒 (Blade)</label>
+                    <label className={fieldLabelClass}>应援棒 (Blade)</label>
                     <input
                       type="number"
                       value={formData.blade ?? 0}
                       onChange={(e) => setFormData({ ...formData, blade: parseInt(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-xl text-orange-100 focus:outline-none focus:border-orange-400/50"
+                      className={inputClass}
                       min="0"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-sm text-orange-300/70 mb-2 block">心图标 (Hearts)</label>
+                  <label className="mb-2 block text-sm text-[var(--text-secondary)]">心图标 (Hearts)</label>
                   {/* 颜色面板 */}
                   <div className="flex flex-wrap gap-1.5 mb-2">
                     {HEART_COLOR_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
                         onClick={() => addOrIncrementHeart(opt.value as HeartColor)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg border border-orange-300/20 bg-[#3d3020]/40 text-orange-300/70 hover:border-orange-300/40 hover:text-orange-300 transition-all"
+                        className={chipButtonClass}
                       >
                         <span className={`inline-block w-2.5 h-2.5 rounded-full ${opt.colorClass}`} />
                         {opt.label}
@@ -605,47 +615,47 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                     {(formData.hearts || []).map((heart, i) => {
                       const opt = HEART_COLOR_OPTIONS.find(o => o.value === heart.color);
                       return (
-                        <div key={i} className="flex items-center gap-1 px-2 py-1 bg-[#2d2820]/80 border border-orange-300/20 rounded-lg text-sm">
+                        <div key={i} className={selectedChipClass}>
                           <span className={`inline-block w-2.5 h-2.5 rounded-full ${opt?.colorClass ?? 'bg-gray-400'}`} />
-                          <span className="text-orange-100">{opt?.label ?? heart.color}</span>
-                          <span className="text-orange-300/50 mx-0.5">×{heart.count}</span>
-                          <button onClick={() => decrementHeart(i)} className="px-1 text-orange-300/60 hover:text-orange-200">−</button>
-                          <button onClick={() => incrementHeart(i)} className="px-1 text-orange-300/60 hover:text-orange-200">+</button>
+                          <span>{opt?.label ?? heart.color}</span>
+                          <span className="mx-0.5 text-[var(--text-muted)]">×{heart.count}</span>
+                          <button onClick={() => decrementHeart(i)} className="px-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">−</button>
+                          <button onClick={() => incrementHeart(i)} className="px-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">+</button>
                           <button onClick={() => removeHeart(i)} className="px-1 text-red-400/70 hover:text-red-300">✕</button>
                         </div>
                       );
                     })}
                     {(formData.hearts || []).length === 0 && (
-                      <div className="text-sm text-orange-300/40 py-2">点击上方颜色添加心图标</div>
+                      <div className="py-2 text-sm text-[var(--text-muted)]">点击上方颜色添加心图标</div>
                     )}
                   </div>
                 </div>
-              </>
+              </section>
             )}
 
-            {/* Live 卡专属字段 */}
             {cardType === CardType.LIVE && (
-              <>
+              <section className={sectionClass}>
+                <div className={sectionTitleClass}>Live 属性</div>
                 <div>
-                  <label className="block text-sm text-orange-300/70 mb-1">分数</label>
+                  <label className={fieldLabelClass}>分数</label>
                   <input
                     type="number"
                     value={formData.score ?? 1}
                     onChange={(e) => setFormData({ ...formData, score: parseInt(e.target.value) || 1 })}
-                    className="w-32 px-3 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-xl text-orange-100 focus:outline-none focus:border-orange-400/50"
+                    className="input-field w-32 px-3 py-2"
                     min="1"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm text-orange-300/70 mb-2 block">心需求 (Requirements)</label>
+                  <label className="mb-2 block text-sm text-[var(--text-secondary)]">心需求 (Requirements)</label>
                   {/* 颜色面板 */}
                   <div className="flex flex-wrap gap-1.5 mb-2">
                     {HEART_COLOR_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
                         onClick={() => addOrIncrementReq(opt.value as HeartColor)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg border border-orange-300/20 bg-[#3d3020]/40 text-orange-300/70 hover:border-orange-300/40 hover:text-orange-300 transition-all"
+                        className={chipButtonClass}
                       >
                         <span className={`inline-block w-2.5 h-2.5 rounded-full ${opt.colorClass}`} />
                         {opt.label}
@@ -657,50 +667,51 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                     {(formData.requirements || []).map((req, i) => {
                       const opt = HEART_COLOR_OPTIONS.find(o => o.value === req.color);
                       return (
-                        <div key={i} className="flex items-center gap-1 px-2 py-1 bg-[#2d2820]/80 border border-orange-300/20 rounded-lg text-sm">
+                        <div key={i} className={selectedChipClass}>
                           <span className={`inline-block w-2.5 h-2.5 rounded-full ${opt?.colorClass ?? 'bg-gray-400'}`} />
-                          <span className="text-orange-100">{opt?.label ?? req.color}</span>
-                          <span className="text-orange-300/50 mx-0.5">×{req.count}</span>
-                          <button onClick={() => decrementReq(i)} className="px-1 text-orange-300/60 hover:text-orange-200">−</button>
-                          <button onClick={() => incrementReq(i)} className="px-1 text-orange-300/60 hover:text-orange-200">+</button>
+                          <span>{opt?.label ?? req.color}</span>
+                          <span className="mx-0.5 text-[var(--text-muted)]">×{req.count}</span>
+                          <button onClick={() => decrementReq(i)} className="px-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">−</button>
+                          <button onClick={() => incrementReq(i)} className="px-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">+</button>
                           <button onClick={() => removeRequirement(i)} className="px-1 text-red-400/70 hover:text-red-300">✕</button>
                         </div>
                       );
                     })}
                     {(formData.requirements || []).length === 0 && (
-                      <div className="text-sm text-orange-300/40 py-2">点击上方颜色添加心需求</div>
+                      <div className="py-2 text-sm text-[var(--text-muted)]">点击上方颜色添加心需求</div>
                     )}
                   </div>
                 </div>
-              </>
+              </section>
             )}
 
-            {/* BladeHearts 编辑 */}
             {(cardType === CardType.MEMBER || cardType === CardType.LIVE) && (
+              <section className={sectionClass}>
+                <div className={sectionTitleClass}>附加效果</div>
               <div>
-                <label className="text-sm text-orange-300/70 mb-2 block">
+                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
                   应援棒心效果 (BladeHearts) {cardType === CardType.LIVE && '- Live 成功奖励'}
                 </label>
                 {/* 效果按钮面板 */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   <button
                     onClick={() => addBladeHeart(BladeHeartEffect.DRAW)}
-                    className="px-2 py-1 text-xs rounded-lg border border-orange-300/20 bg-[#3d3020]/40 text-orange-300/70 hover:border-orange-300/40 hover:text-orange-300 transition-all"
+                    className={chipButtonClass}
                   >
                     抽卡
                   </button>
                   <button
                     onClick={() => addBladeHeart(BladeHeartEffect.SCORE)}
-                    className="px-2 py-1 text-xs rounded-lg border border-orange-300/20 bg-[#3d3020]/40 text-orange-300/70 hover:border-orange-300/40 hover:text-orange-300 transition-all"
+                    className={chipButtonClass}
                   >
                     加分
                   </button>
-                  <span className="border-l border-orange-300/20 mx-1" />
+                  <span className="mx-1 border-l border-[var(--border-subtle)]" />
                   {HEART_COLOR_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
                       onClick={() => addBladeHeart(BladeHeartEffect.HEART, opt.value as HeartColor)}
-                      className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg border border-orange-300/20 bg-[#3d3020]/40 text-orange-300/70 hover:border-orange-300/40 hover:text-orange-300 transition-all"
+                      className={chipButtonClass}
                     >
                       <span className={`inline-block w-2.5 h-2.5 rounded-full ${opt.value === HeartColor.RAINBOW ? 'bg-pink-400' : opt.colorClass}`} />
                       {opt.value === HeartColor.RAINBOW ? 'All' : opt.label}
@@ -722,29 +733,32 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                       pillLabel = item.heartColor === HeartColor.RAINBOW ? 'All' : (opt?.label ?? item.heartColor);
                     }
                     return (
-                      <div key={i} className="flex items-center gap-1 px-2 py-1 bg-[#2d2820]/80 border border-orange-300/20 rounded-lg text-sm">
+                      <div key={i} className={selectedChipClass}>
                         {pillColor && <span className={`inline-block w-2.5 h-2.5 rounded-full ${pillColor}`} />}
-                        <span className="text-orange-100">{pillLabel}</span>
+                        <span>{pillLabel}</span>
                         <button onClick={() => removeBladeHeart(i)} className="px-1 text-red-400/70 hover:text-red-300">✕</button>
                       </div>
                     );
                   })}
                   {(formData.bladeHearts || []).length === 0 && (
-                    <div className="text-sm text-orange-300/40 py-2">点击上方按钮添加应援棒心效果</div>
+                    <div className="py-2 text-sm text-[var(--text-muted)]">点击上方按钮添加应援棒心效果</div>
                   )}
                 </div>
               </div>
+              </section>
             )}
 
-            {/* 卡牌文本 */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-sm text-orange-300/70">卡牌文本</label>
+            <section className={sectionClass}>
+              <div className="mb-3 flex items-center justify-between">
+                <div className={sectionTitleClass}>卡牌文本</div>
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm text-[var(--text-secondary)]">卡牌文本</label>
                 <button
                   type="button"
                   onClick={handleAiExtract}
                   disabled={aiExtracting || (!card?.imageFilename && !imagePreview)}
-                  className="px-2 py-0.5 text-xs rounded-lg bg-purple-600/60 text-purple-100 hover:bg-purple-500/70 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                  className="rounded-lg bg-[color:color-mix(in_srgb,var(--heart-purple)_40%,transparent)] px-2 py-1 text-xs text-[var(--text-primary)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--heart-purple)_55%,transparent)] disabled:cursor-not-allowed disabled:opacity-40 flex items-center gap-1"
                 >
                   {aiExtracting ? (
                     <>
@@ -759,14 +773,14 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
               <textarea
                 value={formData.cardText || ''}
                 onChange={(e) => setFormData({ ...formData, cardText: e.target.value || null })}
-                className="w-full px-3 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-xl text-orange-100 focus:outline-none focus:border-orange-400/50 min-h-[80px] resize-y"
+                className="input-field min-h-[80px] w-full resize-y px-3 py-2"
                 placeholder="【登场】效果描述..."
               />
-            </div>
+            </section>
 
-            {/* 卡牌图片上传 */}
-            <div>
-              <label className="block text-sm text-orange-300/70 mb-2">卡牌图片</label>
+            <section className={sectionClass}>
+              <div className={sectionTitleClass}>卡牌图片</div>
+              <label className="mb-2 block text-sm text-[var(--text-secondary)]">卡牌图片</label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -789,13 +803,13 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
               />
 
               <div className="flex gap-4 items-start">
-                <div className="w-32 rounded-xl border-2 border-dashed border-orange-300/30 flex items-center justify-center overflow-hidden bg-[#2d2820]/40" style={{ aspectRatio: '63/88' }}>
+                <div className="flex w-32 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)]" style={{ aspectRatio: '63/88' }}>
                   {imagePreview ? (
                     <img src={imagePreview} alt="预览" className="w-full h-full object-cover" />
                   ) : card?.imageFilename ? (
                     <img src={resolveCardImagePath(card, 'medium')} alt={card.name} className="w-full h-full object-cover" />
                   ) : (
-                    <span className="text-orange-300/30 text-xs text-center px-2">暂无图片</span>
+                    <span className="px-2 text-center text-xs text-[var(--text-muted)]">暂无图片</span>
                   )}
                 </div>
 
@@ -803,30 +817,30 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-xl text-orange-300 hover:border-orange-300/40 transition-all text-sm flex items-center gap-1.5"
+                    className="button-secondary flex items-center gap-1.5 px-4 py-2 text-sm"
                   >
                     <Upload size={14} />
                     {imageFile || card?.imageFilename ? '更换图片' : '选择图片'}
                   </button>
 
                   {imageFile && (
-                    <div className="text-xs text-orange-300/60">
+                    <div className="text-xs text-[var(--text-secondary)]">
                       已选择: {imageFile.name} ({(imageFile.size / 1024).toFixed(1)}KB)
                     </div>
                   )}
 
                   {uploadProgress && (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-xs text-orange-300/70">
+                    <div className="rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_54%,transparent)] p-3 space-y-1">
+                      <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
                         <span>{uploadProgress.message}</span>
                         <span>{uploadProgress.progress}%</span>
                       </div>
-                      <div className="h-2 bg-[#2d2820] rounded-full overflow-hidden">
+                      <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-overlay)]">
                         <div
                           className={`h-full transition-all ${
                             uploadProgress.status === 'error' ? 'bg-red-500'
                             : uploadProgress.status === 'done' ? 'bg-green-500'
-                            : 'bg-orange-500'
+                            : 'bg-[var(--accent-primary)]'
                           }`}
                           style={{ width: `${uploadProgress.progress}%` }}
                         />
@@ -834,18 +848,18 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                     </div>
                   )}
 
-                  <p className="text-xs text-orange-300/40">
+                  <p className="text-xs text-[var(--text-muted)]">
                     支持 JPG, PNG, WebP 格式，最大 10MB
                   </p>
                 </div>
               </div>
-            </div>
+            </section>
           </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-orange-300/20 bg-[#2d2820]/50">
+        <div className="modal-footer flex items-center justify-between px-6 py-4">
           <div>
             {!isCreating && (
               <button
@@ -861,14 +875,14 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
             <button
               onClick={onClose}
               disabled={saving}
-              className="px-4 py-2 text-orange-300/70 hover:text-orange-300 rounded-xl transition-all text-sm"
+              className="button-ghost px-4 py-2 text-sm"
             >
               取消
             </button>
             <button
               onClick={handleSubmit}
               disabled={saving}
-              className="px-6 py-2 bg-gradient-to-r from-orange-400 to-amber-400 text-white rounded-xl font-medium transition-all hover:shadow-lg hover:shadow-orange-500/30 disabled:opacity-50 text-sm"
+              className="button-primary px-6 py-2 text-sm font-medium disabled:opacity-50"
             >
               {saving ? '保存中...' : (isCreating ? '创建' : '保存')}
             </button>

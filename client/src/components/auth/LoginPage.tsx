@@ -5,6 +5,7 @@
 
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { ArrowRight, LogIn, Mail, WifiOff } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { AuthLayout } from './AuthLayout';
 import { isApiConfigured, isEmailEnabled } from '@/lib/apiClient';
@@ -97,41 +98,38 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
   return (
     <AuthLayout title="欢迎回来" subtitle="登录你的 Loveca 账号">
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* 用户名/邮箱输入 */}
         <div>
-          <label className="block text-orange-700 text-sm font-medium mb-2">
+          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
             用户名或邮箱
           </label>
           <input
             type="text"
             value={usernameOrEmail}
             onChange={(e) => setUsernameOrEmail(e.target.value)}
-            className="w-full px-4 py-3 bg-white/80 border border-orange-300/50 rounded-xl text-gray-800 placeholder-orange-400/50 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 transition-all"
+            className="input-field px-4 py-3"
             placeholder="输入你的用户名或邮箱"
             autoComplete="username"
           />
         </div>
 
-        {/* 密码输入 */}
         <div>
-          <label className="block text-orange-700 text-sm font-medium mb-2">
+          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
             密码
           </label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 bg-white/80 border border-orange-300/50 rounded-xl text-gray-800 placeholder-orange-400/50 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 transition-all"
+            className="input-field px-4 py-3"
             placeholder="输入你的密码"
             autoComplete="current-password"
           />
-          {/* 忘记密码链接 */}
           {isApiConfigured && isEmailEnabled && (
             <div className="text-right mt-1.5">
               <button
                 type="button"
                 onClick={onSwitchToForgotPassword}
-                className="text-orange-500/70 hover:text-orange-600 text-sm transition-colors"
+                className="button-ghost px-2 py-1 text-sm"
               >
                 忘记密码？
               </button>
@@ -139,26 +137,24 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
           )}
         </div>
 
-        {/* 错误提示 */}
         {displayError && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-3 bg-red-100 border border-red-300 rounded-lg text-red-600 text-sm"
+            className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]"
           >
             {displayError}
           </motion.div>
         )}
 
-        {/* 重新发送验证邮件 */}
         {showResendVerification && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-700 text-sm space-y-2"
+            className="space-y-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-warning)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,transparent)] p-3 text-sm text-[var(--semantic-warning)]"
           >
             {resendSuccess ? (
-              <p>验证邮件已重新发送，请查收邮箱。</p>
+              <p className="flex items-center gap-2"><Mail size={14} />验证邮件已重新发送，请查收邮箱。</p>
             ) : (
               <>
                 <p>未收到验证邮件？</p>
@@ -169,8 +165,8 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
                   type="button"
                   onClick={handleResendVerification}
                   disabled={resendLoading || resendCooldown > 0}
-                  className={`text-orange-600 font-medium transition-colors ${
-                    resendLoading || resendCooldown > 0 ? 'opacity-50 cursor-not-allowed' : 'hover:text-orange-500'
+                  className={`font-medium transition-colors ${
+                    resendLoading || resendCooldown > 0 ? 'cursor-not-allowed opacity-50' : 'text-[var(--accent-primary)] hover:text-[var(--accent-primary-hover)]'
                   }`}
                 >
                   {resendLoading
@@ -184,22 +180,17 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
           </motion.div>
         )}
 
-        {/* API 未配置提示 */}
         {!isApiConfigured && (
-          <div className="p-3 bg-amber-100 border border-amber-300 rounded-lg text-amber-700 text-sm">
+          <div className="flex items-center gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-warning)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,transparent)] p-3 text-sm text-[var(--semantic-warning)]">
+            <WifiOff size={16} />
             服务器未配置，仅支持离线模式
           </div>
         )}
 
-        {/* 登录按钮 */}
         <button
           type="submit"
           disabled={isLoading || !isApiConfigured}
-          className={`w-full py-3 rounded-xl font-bold text-white transition-all duration-300 ${
-            isLoading || !isApiConfigured
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-lg shadow-orange-400/30 hover:shadow-orange-400/50 hover:scale-[1.02]'
-          }`}
+          className={`button-primary flex w-full items-center justify-center gap-2 py-3 font-bold ${isLoading || !isApiConfigured ? 'cursor-not-allowed opacity-50' : ''}`}
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
@@ -207,39 +198,41 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
               登录中...
             </span>
           ) : (
-            '登录'
+            <>
+              <LogIn size={18} />
+              登录
+            </>
           )}
         </button>
 
-        {/* 离线模式按钮 */}
         <button
           type="button"
           onClick={handleOfflineMode}
-          className="w-full py-3 rounded-xl font-medium text-orange-700 bg-amber-100/80 border border-orange-300/50 hover:bg-amber-200/80 hover:border-orange-400/50 transition-all duration-300"
+          className="button-secondary flex w-full items-center justify-center gap-2 py-3 font-medium"
         >
+          <WifiOff size={18} />
           离线模式游玩
         </button>
 
-        {/* 分隔线 */}
         <div className="relative py-4">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-orange-300/30" />
+            <div className="w-full border-t border-[var(--border-subtle)]" />
           </div>
           <div className="relative flex justify-center">
-            <span className="px-4 text-orange-500/60 text-sm bg-white/70">
+            <span className="bg-[var(--bg-surface)] px-4 text-sm text-[var(--text-muted)]">
               或者
             </span>
           </div>
         </div>
 
-        {/* 注册链接 */}
-        <p className="text-center text-orange-600/70">
+        <p className="text-center text-[var(--text-secondary)]">
           还没有账号？{' '}
           <button
             type="button"
             onClick={onSwitchToRegister}
-            className="text-orange-600 hover:text-orange-500 font-medium transition-colors"
+            className="inline-flex items-center gap-1 font-medium text-[var(--accent-primary)] transition-colors hover:text-[var(--accent-primary-hover)]"
           >
+            <ArrowRight size={14} />
             立即注册
           </button>
         </p>

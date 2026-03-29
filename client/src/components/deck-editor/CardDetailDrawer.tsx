@@ -43,7 +43,7 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-40 bg-black/30"
+            className="modal-backdrop fixed inset-0 z-40"
             onClick={onClose}
           />
 
@@ -52,15 +52,15 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 bottom-0 z-50 w-[400px] bg-gradient-to-b from-[#3d3020] to-[#2d2820] shadow-2xl shadow-black/50 flex flex-col border-l border-orange-300/20"
+            className="workspace-sidebar fixed bottom-0 right-0 top-0 z-50 flex w-[400px] flex-col border-l border-[var(--border-default)] shadow-[var(--shadow-lg)]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-orange-300/15">
-              <h3 className="text-sm font-semibold text-orange-200">卡牌详情</h3>
+            <div className="workspace-toolbar flex items-center justify-between px-5 py-3">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">卡牌详情</h3>
               <button
                 onClick={onClose}
-                className="w-7 h-7 flex items-center justify-center rounded-full text-orange-300/60 hover:text-orange-300 hover:bg-orange-500/15 transition-all"
+                className="button-icon h-7 w-7"
               >
                 <X size={16} />
               </button>
@@ -77,20 +77,20 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
                   faceUp={true}
                   interactive={false}
                   showHover={false}
-                  className="ring-1 ring-orange-300/30 rounded-lg"
+                  className="rounded-lg ring-1 ring-[var(--border-default)]"
                 />
               </div>
 
               {/* 卡牌名称 & 编号 */}
-              <h3 className="text-xl font-bold text-orange-100 text-center mb-1">
+              <h3 className="mb-1 text-center text-xl font-bold text-[var(--text-primary)]">
                 {card.name}
               </h3>
-              <div className="text-center text-xs text-orange-300/40 mb-5">
+              <div className="mb-5 text-center text-xs text-[var(--text-muted)]">
                 {card.cardCode}
               </div>
 
               {/* 分隔线 */}
-              <div className="h-px bg-gradient-to-r from-transparent via-orange-300/20 to-transparent mb-5" />
+              <div className="mb-5 h-px bg-gradient-to-r from-transparent via-[var(--border-default)] to-transparent" />
 
               {/* 卡牌详情 */}
               <div className="space-y-4">
@@ -100,9 +100,9 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
 
               {/* 卡牌效果描述 */}
               {card.cardText && (
-                <div className="mt-5 p-3 bg-[#2d2820]/80 rounded-xl border border-orange-300/15">
-                  <div className="text-xs text-orange-300/60 mb-2">效果描述</div>
-                  <p className="text-orange-100/90 text-sm leading-relaxed">
+                <div className="surface-panel mt-5 rounded-2xl p-3">
+                  <div className="mb-2 text-xs text-[var(--text-muted)]">效果描述</div>
+                  <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
                     {card.cardText}
                   </p>
                 </div>

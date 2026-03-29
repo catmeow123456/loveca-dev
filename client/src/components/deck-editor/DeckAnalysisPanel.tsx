@@ -43,7 +43,7 @@ interface BarDatum {
 function BarChart({ data, emptyText = '暂无数据' }: { data: BarDatum[]; emptyText?: string }) {
   if (data.length === 0 || data.every(d => d.value === 0)) {
     return (
-      <div className="flex items-center justify-center h-14 text-xs text-orange-300/30">
+      <div className="flex h-14 items-center justify-center text-xs text-[var(--text-muted)]">
         {emptyText}
       </div>
     );
@@ -67,16 +67,16 @@ function BarChart({ data, emptyText = '暂无数据' }: { data: BarDatum[]; empt
   return (
     <svg width="100%" viewBox={`0 0 ${viewW} ${viewH}`} className="overflow-visible">
       {/* axes */}
-      <line x1={mL} y1={mT} x2={mL} y2={mT + innerH} stroke="rgba(251,191,36,0.15)" strokeWidth="1" />
-      <line x1={mL} y1={mT + innerH} x2={mL + innerW} y2={mT + innerH} stroke="rgba(251,191,36,0.15)" strokeWidth="1" />
+      <line x1={mL} y1={mT} x2={mL} y2={mT + innerH} stroke="color-mix(in srgb, var(--border-default) 70%, transparent)" strokeWidth="1" />
+      <line x1={mL} y1={mT + innerH} x2={mL + innerW} y2={mT + innerH} stroke="color-mix(in srgb, var(--border-default) 70%, transparent)" strokeWidth="1" />
 
       {/* y-axis ticks */}
       {yTicks.map(tick => {
         const y = mT + innerH - (tick / maxValue) * innerH;
         return (
           <g key={tick}>
-            <line x1={mL - 3} y1={y} x2={mL} y2={y} stroke="rgba(251,191,36,0.15)" strokeWidth="1" />
-            <text x={mL - 5} y={y + 3.5} textAnchor="end" fontSize="8" fill="rgba(253,186,116,0.45)">
+            <line x1={mL - 3} y1={y} x2={mL} y2={y} stroke="color-mix(in srgb, var(--border-default) 70%, transparent)" strokeWidth="1" />
+            <text x={mL - 5} y={y + 3.5} textAnchor="end" fontSize="8" fill="var(--text-muted)">
               {tick}
             </text>
           </g>
@@ -92,11 +92,11 @@ function BarChart({ data, emptyText = '暂无数据' }: { data: BarDatum[]; empt
           <g key={`${d.label}-${i}`}>
             <rect x={x} y={y} width={barW} height={barH} fill={d.color} fillOpacity={0.82} rx="2" />
             {d.value > 0 && (
-              <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize="8.5" fill="rgba(253,230,138,0.85)">
+              <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize="8.5" fill="var(--text-secondary)">
                 {d.value}
               </text>
             )}
-            <text x={x + barW / 2} y={mT + innerH + 14} textAnchor="middle" fontSize="9" fill="rgba(253,186,116,0.6)">
+            <text x={x + barW / 2} y={mT + innerH + 14} textAnchor="middle" fontSize="9" fill="var(--text-muted)">
               {d.label}
             </text>
           </g>
@@ -171,29 +171,29 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
   }, [deck, getCardData]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 no-scrollbar space-y-4">
+    <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto p-3">
       {/* 费用分布 */}
       <section>
-        <h4 className="text-xs font-semibold text-orange-200/80 mb-2 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
+        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[var(--text-primary)]">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent-secondary)]" />
           成员卡费用分布
         </h4>
-        <div className="bg-[#2d2820]/60 rounded-xl px-2 py-1 border border-orange-300/10">
+        <div className="surface-panel rounded-2xl border border-[var(--border-subtle)] px-2 py-1">
           <BarChart data={costData} emptyText="尚未添加成员卡" />
         </div>
-        <p className="text-[10px] text-orange-300/35 mt-1 text-right">X 轴：费用值 · Y 轴：张数</p>
+        <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">X 轴：费用值 · Y 轴：张数</p>
       </section>
 
       {/* Blade Heart 效果统计 */}
       <section>
-        <h4 className="text-xs font-semibold text-orange-200/80 mb-2 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-rose-400 inline-block" />
+        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[var(--text-primary)]">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent-primary)]" />
           Blade Heart 效果统计
         </h4>
-        <div className="bg-[#2d2820]/60 rounded-xl px-2 py-1 border border-orange-300/10">
+        <div className="surface-panel rounded-2xl border border-[var(--border-subtle)] px-2 py-1">
           <BarChart data={bladeData} emptyText="卡组中暂无 Blade Heart 效果" />
         </div>
-        <p className="text-[10px] text-orange-300/35 mt-1 text-right">抽卡 · 加分 · ♥各色</p>
+        <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">抽卡 · 加分 · ♥各色</p>
       </section>
     </div>
   );

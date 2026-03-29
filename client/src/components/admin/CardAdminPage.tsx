@@ -11,6 +11,7 @@ import {
   AlertTriangle, Lock, Pencil, ArrowUp, ArrowDown,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
 } from 'lucide-react';
+import { ThemeToggle } from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
 import { cardService, type CardUpdateInput, type CardCreateInput } from '@/lib/cardService';
 import { resolveCardImagePath, preloadCardImages, getRecommendedImageSize } from '@/lib/imageService';
@@ -153,41 +154,41 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
 
   if (offlineMode) {
     return (
-      <div className="h-screen flex items-center justify-center bg-slate-900">
-        <div className="text-center">
-          <Lock size={40} className="mx-auto mb-4 text-orange-300/40" />
-          <h2 className="text-xl text-orange-300 mb-2">离线模式</h2>
-          <p className="text-orange-300/60 mb-4">卡牌管理功能需要登录后使用</p>
-          <button onClick={onBack} className="px-4 py-2 bg-orange-500 text-white rounded-xl">返回</button>
+      <div className="app-shell flex h-screen items-center justify-center">
+        <div className="surface-panel p-8 text-center">
+          <Lock size={40} className="mx-auto mb-4 text-[var(--text-muted)]" />
+          <h2 className="mb-2 text-xl text-[var(--text-primary)]">离线模式</h2>
+          <p className="mb-4 text-[var(--text-secondary)]">卡牌管理需要登录后使用</p>
+          <button onClick={onBack} className="button-primary px-4 py-2">返回</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-b from-[#2d2820] to-[#1f1a15]">
-      {/* Header */}
-      <div className="flex-shrink-0 bg-[#3d3020]/95 backdrop-blur-sm border-b border-orange-300/20">
-        <div className="max-w-7xl mx-auto px-4 py-3">
+    <div className="app-shell flex h-screen flex-col">
+      <div className="relative z-10 mx-4 mt-4 flex-shrink-0 rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+        <div className="mx-auto max-w-7xl px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button onClick={onBack} className="p-2 text-orange-300/70 hover:text-orange-300 hover:bg-orange-500/10 rounded-lg transition-all">
+              <button onClick={onBack} className="button-ghost p-2">
                 <ArrowLeft size={18} />
               </button>
-              <h1 className="text-lg font-bold text-orange-200">卡牌数据管理</h1>
+              <h1 className="text-lg font-bold text-[var(--text-primary)]">卡牌数据管理</h1>
             </div>
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               <button
                 onClick={handleExport}
                 disabled={exporting}
-                className="px-3 py-2 bg-[#2d2820]/80 text-orange-300 border border-orange-300/20 rounded-lg hover:border-orange-300/40 transition-all disabled:opacity-50 text-sm flex items-center gap-1.5"
+                className="button-secondary flex items-center gap-1.5 px-3 py-2 text-sm disabled:opacity-50"
               >
                 <Download size={14} />
                 {exporting ? '导出中...' : '导出 JSON'}
               </button>
               <button
                 onClick={() => { setIsCreating(true); setSelectedCard(null); }}
-                className="px-3 py-2 bg-gradient-to-r from-orange-400 to-amber-400 text-white rounded-lg font-medium transition-all hover:shadow-lg hover:shadow-orange-500/30 text-sm flex items-center gap-1.5"
+                className="button-primary flex items-center gap-1.5 px-3 py-2 text-sm font-medium"
               >
                 <Plus size={14} /> 新建卡牌
               </button>
@@ -197,13 +198,13 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
           {/* 搜索和筛选 */}
           <div className="flex items-center gap-3 mt-3">
             <div className="relative flex-1 max-w-md">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-300/40" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="搜索卡牌名称或编号..."
-                className="w-full pl-9 pr-4 py-2 bg-[#2d2820]/80 border border-orange-300/20 rounded-lg text-orange-100 text-sm placeholder-orange-300/40 focus:outline-none focus:border-orange-400/50"
+                className="input-field w-full py-2 pl-9 pr-4 text-sm"
               />
             </div>
             <div className="flex gap-1.5">
@@ -218,18 +219,18 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                   onClick={() => setSelectedType(opt.value as CardType | 'ALL')}
                   className={`px-2.5 py-1.5 rounded-lg text-xs transition-all border ${
                     selectedType === opt.value
-                      ? 'bg-orange-500/25 text-orange-200 border-orange-400/50'
-                      : 'bg-[#2d2820]/70 text-orange-300/50 border-orange-300/15 hover:text-orange-300'
+                      ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)] border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)]'
+                      : 'bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   {opt.label}
                 </button>
               ))}
             </div>
-            <div className="w-px h-6 bg-orange-300/15" />
+            <div className="h-6 w-px bg-[var(--border-subtle)]" />
             <div className="flex gap-1.5">
               {([
-                { value: 'ALL' as const, label: '全部状态', active: 'bg-orange-500/25 text-orange-200 border-orange-400/50' },
+                { value: 'ALL' as const, label: '全部状态', active: 'bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)] border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)]' },
                 { value: 'DRAFT' as const, label: '草稿', active: 'bg-yellow-500/25 text-yellow-200 border-yellow-400/50' },
                 { value: 'PUBLISHED' as const, label: '已上线', active: 'bg-green-500/25 text-green-200 border-green-400/50' },
               ]).map((opt) => (
@@ -239,19 +240,19 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                   className={`px-2.5 py-1.5 rounded-lg text-xs transition-all border ${
                     selectedStatus === opt.value
                       ? opt.active
-                      : 'bg-[#2d2820]/70 text-orange-300/50 border-orange-300/15 hover:text-orange-300'
+                      : 'bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   {opt.label}
                 </button>
               ))}
             </div>
-            <button onClick={loadCards} disabled={loading} className="p-2 text-orange-300/50 hover:text-orange-300 transition-all">
+            <button onClick={loadCards} disabled={loading} className="button-icon h-9 w-9">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
 
-          <div className="flex items-center gap-3 mt-2 text-xs text-orange-300/40">
+          <div className="mt-2 flex items-center gap-3 text-xs text-[var(--text-muted)]">
             <span>共 {cards.length} 张</span>
             <span>·</span>
             <span>筛选: {filteredCards.length} 张</span>
@@ -278,11 +279,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto p-4">
+      <div className="relative z-10 flex-1 overflow-y-auto p-4">
+        <div className="workspace-shell mx-auto max-w-7xl p-4">
           {error && (
-            <div className="mb-4 p-3 bg-red-500/15 border border-red-400/20 rounded-xl text-red-300 text-sm flex items-center gap-2">
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
               <AlertTriangle size={14} />
               {error}
               <button onClick={loadCards} className="ml-2 underline">重试</button>
@@ -291,7 +291,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
 
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 size={28} className="animate-spin text-orange-300/40" />
+              <Loader2 size={28} className="animate-spin text-[var(--accent-primary)]" />
             </div>
           ) : (
             <>
@@ -318,11 +318,11 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                       )}
                     </div>
                     <div className="mt-1.5 text-center">
-                      <div className="text-xs text-orange-300/60 truncate">{card.cardCode}</div>
-                      <div className="text-xs text-orange-300/35 truncate">{card.name}</div>
+                      <div className="truncate text-xs text-[var(--text-secondary)]">{card.cardCode}</div>
+                      <div className="truncate text-xs text-[var(--text-muted)]">{card.name}</div>
                     </div>
                     <div className="mt-1 flex justify-center gap-1">
-                      <span className="px-2 py-0.5 text-xs bg-orange-500/15 text-orange-300/70 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                      <span className="flex items-center gap-1 rounded px-2 py-0.5 text-xs bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] text-[var(--accent-primary)] opacity-0 transition-opacity group-hover:opacity-100">
                         <Pencil size={10} /> 编辑
                       </span>
                       {cardStatusMap.get(card.cardCode) === 'DRAFT' ? (
@@ -331,7 +331,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                             e.stopPropagation();
                             cardService.publishCard(card.cardCode).then(() => loadCards()).catch((err) => setError(err instanceof Error ? err.message : '上线失败'));
                           }}
-                          className="px-2 py-0.5 text-xs bg-green-500/15 text-green-300/70 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-green-500/30 flex items-center gap-0.5"
+                          className="flex items-center gap-0.5 rounded px-2 py-0.5 text-xs bg-green-500/15 text-green-300/80 opacity-0 transition-opacity hover:bg-green-500/30 group-hover:opacity-100"
                         >
                           <ArrowUp size={10} /> 上线
                         </button>
@@ -341,7 +341,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                             e.stopPropagation();
                             cardService.unpublishCard(card.cardCode).then(() => loadCards()).catch((err) => setError(err instanceof Error ? err.message : '下线失败'));
                           }}
-                          className="px-2 py-0.5 text-xs bg-yellow-500/15 text-yellow-300/70 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-yellow-500/30 flex items-center gap-0.5"
+                          className="flex items-center gap-0.5 rounded px-2 py-0.5 text-xs bg-yellow-500/15 text-yellow-300/80 opacity-0 transition-opacity hover:bg-yellow-500/30 group-hover:opacity-100"
                         >
                           <ArrowDown size={10} /> 下线
                         </button>
@@ -354,10 +354,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
               {/* 分页 */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-1.5 mt-6">
-                  <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="p-2 text-orange-300/50 hover:text-orange-300 disabled:opacity-30 transition-all">
+                  <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="button-ghost p-2 disabled:opacity-30">
                     <ChevronsLeft size={16} />
                   </button>
-                  <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 text-orange-300/50 hover:text-orange-300 disabled:opacity-30 transition-all">
+                  <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="button-ghost p-2 disabled:opacity-30">
                     <ChevronLeft size={16} />
                   </button>
 
@@ -374,8 +374,8 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                           onClick={() => goToPage(pageNum)}
                           className={`w-8 h-8 rounded-lg text-xs font-medium transition-all ${
                             currentPage === pageNum
-                              ? 'bg-orange-500/25 text-orange-200 border border-orange-400/50'
-                              : 'text-orange-300/50 hover:text-orange-300 hover:bg-orange-500/10'
+                              ? 'border border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
+                              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]'
                           }`}
                         >
                           {pageNum}
@@ -384,12 +384,12 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                     })}
                   </div>
 
-                  <span className="text-orange-300/40 text-xs px-2">{currentPage}/{totalPages}</span>
+                  <span className="px-2 text-xs text-[var(--text-muted)]">{currentPage}/{totalPages}</span>
 
-                  <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 text-orange-300/50 hover:text-orange-300 disabled:opacity-30 transition-all">
+                  <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="button-ghost p-2 disabled:opacity-30">
                     <ChevronRight size={16} />
                   </button>
-                  <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="p-2 text-orange-300/50 hover:text-orange-300 disabled:opacity-30 transition-all">
+                  <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="button-ghost p-2 disabled:opacity-30">
                     <ChevronsRight size={16} />
                   </button>
                 </div>
@@ -399,10 +399,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
 
           {filteredCards.length === 0 && !loading && (
             <div className="text-center py-20">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl border-2 border-dashed border-orange-300/20 flex items-center justify-center">
-                <Search size={24} className="text-orange-300/30" />
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_78%,transparent)]">
+                <Search size={24} className="text-[var(--text-muted)]" />
               </div>
-              <div className="text-orange-300/50 text-sm">没有找到匹配的卡牌</div>
+              <div className="text-sm text-[var(--text-secondary)]">没有找到匹配的卡牌</div>
             </div>
           )}
         </div>

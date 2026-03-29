@@ -27,11 +27,11 @@ export function CardBrowserGrid({ cards, baseCodeCountInDeck, exactCodeCountInDe
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center py-16">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl border-2 border-dashed border-orange-300/20 flex items-center justify-center">
-            <span className="text-orange-300/30 text-2xl">?</span>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_78%,transparent)]">
+            <span className="text-2xl text-[var(--text-muted)]">?</span>
           </div>
-          <div className="text-orange-300/50 text-sm">没有找到匹配的卡牌</div>
-          <div className="text-orange-300/30 text-xs mt-1">试试其他搜索条件</div>
+          <div className="text-sm text-[var(--text-secondary)]">没有找到匹配的卡牌</div>
+          <div className="mt-1 text-xs text-[var(--text-muted)]">试试其他搜索条件</div>
         </div>
       </div>
     );

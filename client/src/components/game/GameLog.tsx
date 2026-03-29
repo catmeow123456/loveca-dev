@@ -5,6 +5,7 @@
 
 import { memo, useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronLeft, ChevronRight, ScrollText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
 
@@ -21,37 +22,34 @@ export const GameLog = memo(function GameLog() {
   }, [logs, isExpanded]);
 
   const typeColors = {
-    info: 'text-slate-400',
+    info: 'text-[var(--text-muted)]',
     action: 'text-cyan-400',
-    phase: 'text-amber-400',
-    error: 'text-red-400',
+    phase: 'text-[var(--accent-gold)]',
+    error: 'text-[var(--semantic-error)]',
   };
 
   return (
-    <div className="fixed left-0 top-0 h-full z-50 flex">
-      {/* 展开/收起按钮 */}
+    <div className="fixed left-0 top-0 z-[var(--z-game-log)] flex h-full">
       <motion.button
         onClick={() => setIsExpanded(!isExpanded)}
         className={cn(
-          'h-full w-8 flex items-center justify-center',
-          'bg-slate-300/20 hover:bg-slate-200/20',
-          'border-r border-slate-100/20',
-          'text-slate-400 hover:text-white',
+          'flex h-full w-8 items-center justify-center border-r',
+          'border-[var(--border-default)] bg-[var(--bg-frosted)]',
+          'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
           'transition-colors'
         )}
         whileHover={{ width: 36 }}
         whileTap={{ scale: 0.95 }}
       >
-        <motion.span
+        <motion.div
           animate={{ rotate: isExpanded ? 180 : 0 }}
           transition={{ duration: 0.2 }}
-          className="text-lg"
+          className="flex items-center justify-center"
         >
-          {isExpanded ? '◀' : '▶'}
-        </motion.span>
+          {isExpanded ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+        </motion.div>
       </motion.button>
 
-      {/* 侧边栏内容 */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
@@ -59,18 +57,19 @@ export const GameLog = memo(function GameLog() {
             animate={{ width: 280, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="h-full bg-slate-600/95 border-r border-slate-700 overflow-hidden shadow-xl flex flex-col"
+            className="flex h-full flex-col overflow-hidden border-r border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
           >
-            {/* 标题栏 */}
-            <div className="flex-shrink-0 bg-slate-600 px-3 py-2 border-b border-slate-200 flex items-center justify-between">
-              <span className="text-sm font-bold text-slate-200">📜 游戏日志</span>
-              <span className="text-xs text-slate-400">{logs.length} 条</span>
+            <div className="modal-header flex flex-shrink-0 items-center justify-between px-3 py-2">
+              <span className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
+                <ScrollText size={16} className="text-[var(--accent-primary)]" />
+                游戏日志
+              </span>
+              <span className="text-xs text-[var(--text-muted)]">{logs.length} 条</span>
             </div>
 
-            {/* 日志内容 - 可滚动 */}
             <div
               ref={scrollRef}
-              className="flex-1 overflow-y-auto p-2 space-y-1 font-mono text-xs"
+              className="cute-scrollbar flex-1 space-y-1 overflow-y-auto p-2 font-mono text-xs"
             >
               <AnimatePresence initial={false}>
                 {logs.map((log) => (
@@ -80,12 +79,12 @@ export const GameLog = memo(function GameLog() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0 }}
                     className={cn(
-                      'py-1 px-2 rounded',
-                      'bg-slate-300/50',
+                      'rounded border border-[var(--border-subtle)] py-1 px-2',
+                      'bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)]',
                       typeColors[log.type]
                     )}
                   >
-                    <div className="text-slate-300 text-[10px] mb-0.5">
+                    <div className="mb-0.5 text-[10px] text-[var(--text-muted)]">
                       {new Date(log.timestamp).toLocaleTimeString('zh-CN', {
                         hour12: false,
                         hour: '2-digit',
@@ -93,25 +92,24 @@ export const GameLog = memo(function GameLog() {
                         second: '2-digit',
                       })}
                     </div>
-                    <div className="text-slate-300/70 break-words">{log.message}</div>
+                    <div className="break-words text-[var(--text-secondary)]">{log.message}</div>
                   </motion.div>
                 ))}
               </AnimatePresence>
 
               {logs.length === 0 && (
-                <div className="text-slate-600 text-center py-4">
+                <div className="py-4 text-center text-[var(--text-muted)]">
                   暂无日志
                 </div>
               )}
             </div>
 
-            {/* 清空按钮 */}
-            <div className="flex-shrink-0 p-2 border-t border-slate-700">
+            <div className="modal-footer flex-shrink-0 p-2">
               <button
                 onClick={() => {
                   // 这里可以添加清空日志的功能
                 }}
-                className="w-full text-xs text-slate-500 hover:text-slate-300 py-1 rounded bg-slate-800/50 hover:bg-slate-700/50 transition-colors"
+                className="w-full rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)] py-1 text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
               >
                 点击展开按钮收起
               </button>
