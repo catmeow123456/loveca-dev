@@ -17,16 +17,16 @@ export function SearchBar({ value, onChange, resultCount }: SearchBarProps) {
       <input
         type="text"
         placeholder="搜索卡牌名称或编号..."
-        className="input-field w-full py-2 pl-9 pr-18 text-sm"
+        className="input-field w-full py-2.5 pl-9 pr-12 text-sm sm:pr-18"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
       <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
-        <span className="text-xs text-[var(--text-muted)]">{resultCount} 张</span>
+        <span className="hidden text-xs text-[var(--text-muted)] sm:inline">{resultCount} 张</span>
         {value && (
           <button
             onClick={() => onChange('')}
-            className="text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+            className="rounded-full p-1 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]"
           >
             <X size={14} />
           </button>

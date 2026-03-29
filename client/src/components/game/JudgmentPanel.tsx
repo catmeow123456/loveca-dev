@@ -18,10 +18,8 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
   horizontalListSortingStrategy,
   useSortable,
@@ -243,23 +241,32 @@ export const JudgmentPanel = memo(function JudgmentPanel({
 
   const moveToHand = useCallback(
     (cardId: string) => {
-      manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.HAND);
+      const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.HAND);
+      if (result.success) {
+        setHoveredCard(null);
+      }
     },
-    [manualMoveCard]
+    [manualMoveCard, setHoveredCard]
   );
 
   const moveToWaitingRoom = useCallback(
     (cardId: string) => {
-      manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.WAITING_ROOM);
+      const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.WAITING_ROOM);
+      if (result.success) {
+        setHoveredCard(null);
+      }
     },
-    [manualMoveCard]
+    [manualMoveCard, setHoveredCard]
   );
 
   const returnToDeckTop = useCallback(
     (cardId: string) => {
-      manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.MAIN_DECK, { position: 'TOP' });
+      const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.MAIN_DECK, { position: 'TOP' });
+      if (result.success) {
+        setHoveredCard(null);
+      }
     },
-    [manualMoveCard]
+    [manualMoveCard, setHoveredCard]
   );
 
   // 应援卡牌实例
@@ -349,6 +356,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({
       }
     }
 
+    setHoveredCard(null);
+
     if (hasMoveFailure) {
       return;
     }
@@ -363,7 +372,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     // 4) 结束当前判定子阶段
     confirmSubPhase(SubPhase.PERFORMANCE_JUDGMENT);
     onClose();
-  }, [currentPlayer, cheerCards, manualMoveCard, confirmJudgment, confirmSubPhase, onClose]);
+  }, [currentPlayer, cheerCards, manualMoveCard, confirmJudgment, confirmSubPhase, onClose, setHoveredCard]);
 
   const handleLiveSuccess = useCallback(() => {
     setUiStage('success');

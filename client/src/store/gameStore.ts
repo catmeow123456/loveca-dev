@@ -453,17 +453,26 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     syncState: () => {
       const { gameSession, viewingPlayerId } = get();
-      
+      let nextState: GameState | null;
+
       if (!viewingPlayerId) {
         // 如果没有设置视角玩家，使用权威状态
-        const state = gameSession.state;
-        set({ gameState: state });
-        return;
+        nextState = gameSession.state;
+      } else {
+        // 获取指定玩家视角的状态
+        nextState = gameSession.getStateForPlayer(viewingPlayerId);
       }
 
-      // 获取指定玩家视角的状态
-      const playerState = gameSession.getStateForPlayer(viewingPlayerId);
-      set({ gameState: playerState });
+      set((state) => ({
+        gameState: nextState,
+        ui: {
+          ...state.ui,
+          hoveredCardId:
+            state.ui.hoveredCardId && nextState && getCardById(nextState, state.ui.hoveredCardId)
+              ? state.ui.hoveredCardId
+              : null,
+        },
+      }));
     },
 
     // ============ 查询辅助实现 ============
@@ -511,7 +520,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     manualMoveCard: (cardId, fromZone, toZone, options) => {
-      const { viewingPlayerId, gameSession } = get();
+      const { viewingPlayerId, gameSession, ui } = get();
       if (!viewingPlayerId) {
         return { success: false, error: '未设置玩家' };
       }
@@ -521,6 +530,9 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       if (result.success) {
         get().syncState();
+        if (ui.hoveredCardId === cardId) {
+          get().setHoveredCard(null);
+        }
         get().addLog(`移动卡牌: ${fromZone} → ${toZone}`, 'action');
         return { success: true };
       } else {

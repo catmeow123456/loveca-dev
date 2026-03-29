@@ -51,13 +51,13 @@ export const BrowserCardCell = memo(function BrowserCardCell({
 
         {/* [-] 数量 [+] 固定在底部 */}
         <div
-          className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-1 rounded-b-lg bg-gradient-to-t from-black/70 via-black/30 to-transparent py-1"
+          className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-1 rounded-b-lg bg-gradient-to-t from-black/75 via-black/35 to-transparent px-1 py-1.5"
           onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={exactCount > 0 ? onRemove : undefined}
             disabled={exactCount === 0}
-            className={`w-6 h-6 flex items-center justify-center rounded-full shadow-sm ${
+            className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm sm:h-7 sm:w-7 ${
               exactCount > 0
                 ? 'border border-white/15 bg-[var(--semantic-error)]/85 text-white'
                 : 'cursor-default border border-white/10 bg-black/35 text-white/35'
@@ -65,12 +65,12 @@ export const BrowserCardCell = memo(function BrowserCardCell({
           >
             <Minus size={12} />
           </button>
-          <span className="text-white text-xs font-bold min-w-[20px] text-center">
+          <span className="min-w-[24px] text-center text-xs font-bold text-white">
             {exactCount}
           </span>
           <button
             onClick={onAdd}
-            className="flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-[var(--semantic-success)]/85 text-white shadow-sm"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-[var(--semantic-success)]/85 text-white shadow-sm sm:h-7 sm:w-7"
           >
             <Plus size={12} />
           </button>
@@ -78,7 +78,7 @@ export const BrowserCardCell = memo(function BrowserCardCell({
       </div>
 
       <span
-        className="mt-1.5 max-w-full truncate text-xs text-[var(--text-muted)]"
+        className="mt-1.5 line-clamp-2 max-w-full text-center text-[11px] leading-snug text-[var(--text-muted)] sm:truncate sm:text-xs"
         title={card.cardCode}
       >
         {card.name}

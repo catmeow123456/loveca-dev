@@ -198,6 +198,7 @@ select {
 .app-shell {
   position: relative;
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--gradient-page);
   color: var(--text-primary);
 }
@@ -267,6 +268,18 @@ select {
   inset: 0;
   background: var(--modal-backdrop);
   backdrop-filter: blur(4px);
+}
+
+.safe-top {
+  padding-top: max(0px, env(safe-area-inset-top));
+}
+
+.safe-bottom {
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
+}
+
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-surface {
@@ -506,6 +519,19 @@ select {
   font-size: 0.875rem;
   font-weight: 700;
   box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 767px) {
+  .surface-panel-frosted,
+  .surface-panel-gradient,
+  .workspace-shell,
+  .modal-surface {
+    border-radius: 18px;
+  }
+
+  .workspace-sidebar {
+    border-left: 0;
+  }
 }
 
 .card-blade {

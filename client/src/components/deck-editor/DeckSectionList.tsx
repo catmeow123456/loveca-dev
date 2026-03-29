@@ -90,9 +90,9 @@ export function DeckSectionList({
             animate={{ height: 'auto' }}
             exit={{ height: 0 }}
             transition={{ type: 'tween', duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden"
+            className="overflow-hidden touch-pan-y"
           >
-            <div className="grid grid-cols-6 gap-1 mt-2">
+            <div className="mt-2 grid grid-cols-6 gap-1 touch-pan-y">
               {entries.map((entry) => {
                 const cardData = getCardData(entry.card_code);
                 if (!cardData) return null;

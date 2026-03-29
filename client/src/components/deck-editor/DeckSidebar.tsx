@@ -15,19 +15,27 @@ interface DeckSidebarProps {
   onAddCard: (card: AnyCardData) => void;
   onRemoveCard: (card: AnyCardData) => void;
   onViewDetail: (card: AnyCardData) => void;
+  compactHeader?: boolean;
 }
 
-export function DeckSidebar({ deck, validation, onAddCard, onRemoveCard, onViewDetail }: DeckSidebarProps) {
+export function DeckSidebar({
+  deck,
+  validation,
+  onAddCard,
+  onRemoveCard,
+  onViewDetail,
+  compactHeader = false,
+}: DeckSidebarProps) {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const memberCount = deck.main_deck.members.reduce((sum, e) => sum + e.count, 0);
   const liveCount = deck.main_deck.lives.reduce((sum, e) => sum + e.count, 0);
   const energyCount = deck.energy_deck.reduce((sum, e) => sum + e.count, 0);
 
   return (
-    <div className="workspace-sidebar flex h-full w-[480px] flex-col">
-      <div className="workspace-toolbar px-4 py-3">
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-4">
+    <div className="workspace-sidebar flex h-full min-h-0 w-full flex-col overflow-hidden md:w-[420px] xl:w-[480px]">
+      <div className={`workspace-toolbar shrink-0 ${compactHeader ? 'px-3 py-2.5' : 'px-4 py-3'}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <div className="flex items-center gap-1.5">
               <Users size={12} className="text-[var(--accent-primary)]" />
               <span className={memberCount === 48 ? 'text-[var(--semantic-success)]' : 'text-[var(--text-secondary)]'}>
@@ -74,7 +82,7 @@ export function DeckSidebar({ deck, validation, onAddCard, onRemoveCard, onViewD
       {showAnalysis ? (
         <DeckAnalysisPanel deck={deck} />
       ) : (
-        <div className="no-scrollbar flex-1 overflow-y-auto p-3">
+        <div className="touch-scroll no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 touch-pan-y sm:p-4">
           <DeckSectionList
             entries={deck.main_deck.members}
             title="成员卡"

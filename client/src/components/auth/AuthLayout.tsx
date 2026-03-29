@@ -16,25 +16,25 @@ interface AuthLayoutProps {
 
 export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
   return (
-    <div className="app-shell fixed inset-0 overflow-y-auto">
-      <div className="absolute right-4 top-4 z-10">
+    <div className="app-shell safe-top fixed inset-0 overflow-y-auto">
+      <div className="absolute right-3 top-3 z-10 sm:right-4 sm:top-4">
         <ThemeToggle />
       </div>
-      <div className="relative flex min-h-screen items-center justify-center p-4 sm:p-8">
+      <div className="safe-bottom relative flex min-h-screen min-h-dvh items-start justify-center px-4 pb-6 pt-20 sm:items-center sm:p-8">
         <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.5, ease: 'easeOut' }}
-          className="relative w-full max-w-md"
+          className="relative w-full max-w-md sm:max-w-lg"
         >
-          <div className="mb-6 flex items-center justify-center gap-4">
+          <div className="mb-5 flex flex-col items-center justify-center gap-3 text-center sm:mb-6 sm:flex-row sm:items-center sm:justify-center sm:gap-4 sm:text-left">
             <img
               src="/icon.jpg"
               alt="Loveca Logo"
-              className="h-18 w-18 rounded-[22px] border border-[var(--border-default)] object-cover shadow-[var(--shadow-md)]"
+              className="h-16 w-16 rounded-[20px] border border-[var(--border-default)] object-cover shadow-[var(--shadow-md)] sm:h-18 sm:w-18 sm:rounded-[22px]"
             />
-            <div className="text-left">
-              <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[color:var(--bg-overlay)] px-3 py-1 text-xs font-semibold tracking-[0.12em] text-[var(--text-secondary)] uppercase">
+            <div className="text-center sm:text-left">
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[color:var(--bg-overlay)] px-3 py-1 text-[11px] font-semibold tracking-[0.12em] text-[var(--text-secondary)] uppercase sm:mb-1 sm:text-xs">
                 <ShieldCheck size={14} />
                 Account Portal
               </div>
@@ -42,7 +42,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
-                className="text-3xl font-bold tracking-[-0.02em] text-[var(--text-primary)]"
+                className="text-2xl font-bold tracking-[-0.02em] text-[var(--text-primary)] sm:text-3xl"
               >
                 {title}
               </motion.h1>
@@ -51,7 +51,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.3 }}
-                  className="mt-2 text-sm text-[var(--text-secondary)]"
+                  className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]"
                 >
                   {subtitle}
                 </motion.p>
@@ -63,12 +63,12 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.25 }}
-            className="surface-panel p-8"
+            className="surface-panel p-5 sm:p-8"
           >
             {children}
           </motion.div>
 
-          <div className="mt-5 text-center text-sm text-[var(--text-muted)]">
+          <div className="mt-4 px-2 text-center text-xs text-[var(--text-muted)] sm:mt-5 sm:text-sm">
             Loveca Card Game · ラブライブ！
           </div>
         </motion.div>

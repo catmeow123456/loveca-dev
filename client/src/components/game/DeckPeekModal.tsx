@@ -166,24 +166,27 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
       }
     }
 
+    setHoveredCard(null);
     setPeekCardIds(remainingIds);
-  }, [peekCardIds, manualMoveCard]);
+  }, [peekCardIds, manualMoveCard, setHoveredCard]);
 
   // 移动卡牌到手牌
   const moveToHand = useCallback((cardId: string) => {
     const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.HAND);
     if (result.success) {
+      setHoveredCard(null);
       setPeekCardIds((prev) => prev.filter((id) => id !== cardId));
     }
-  }, [manualMoveCard]);
+  }, [manualMoveCard, setHoveredCard]);
 
   // 移动卡牌到休息室
   const moveToWaitingRoom = useCallback((cardId: string) => {
     const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.WAITING_ROOM);
     if (result.success) {
+      setHoveredCard(null);
       setPeekCardIds((prev) => prev.filter((id) => id !== cardId));
     }
-  }, [manualMoveCard]);
+  }, [manualMoveCard, setHoveredCard]);
 
   // 移动卡牌到卡组底
   const moveToDeckBottom = useCallback((cardId: string) => {
@@ -191,9 +194,10 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
       position: 'BOTTOM',
     });
     if (result.success) {
+      setHoveredCard(null);
       setPeekCardIds((prev) => prev.filter((id) => id !== cardId));
     }
-  }, [manualMoveCard]);
+  }, [manualMoveCard, setHoveredCard]);
 
   // 处理拖拽排序结束
   const handleDragEnd = useCallback((event: DragEndEvent) => {

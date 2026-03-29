@@ -78,7 +78,7 @@ export function DeckStatsRow({
   const gapSize = size === 'sm' ? 'gap-4' : 'gap-5';
   
   return (
-    <div className={`flex items-center ${gapSize} ${textSize} ${className}`}>
+    <div className={`flex flex-wrap items-center ${gapSize} ${textSize} ${className}`}>
       <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
         <UserRound size={size === 'sm' ? 12 : 14} />
         <span>{stats.memberCount}{showMax && '/48'}</span>
@@ -93,8 +93,8 @@ export function DeckStatsRow({
       </div>
       {updatedAt && (
         <>
-          <div className="flex-1" />
-          <div className="text-[var(--text-muted)]">
+          <div className="hidden min-[480px]:flex-1" />
+          <div className="w-full text-[var(--text-muted)] min-[480px]:w-auto">
             {formatRelativeTime(updatedAt)}
           </div>
         </>

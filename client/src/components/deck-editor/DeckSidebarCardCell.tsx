@@ -22,7 +22,7 @@ export const DeckSidebarCardCell = memo(function DeckSidebarCardCell({
 }: DeckSidebarCardCellProps) {
   return (
     <div
-      className="relative w-full cursor-pointer transition-[filter] duration-200 hover:brightness-110"
+      className="relative w-full cursor-pointer touch-pan-y transition-[filter] duration-200 hover:brightness-110"
       style={{ aspectRatio: '63/88' }}
       onClick={onViewDetail}
       onContextMenu={(e) => { e.preventDefault(); onViewDetail(); }}

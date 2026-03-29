@@ -62,48 +62,51 @@ export function HomePage({ onNavigateToDeckManager, onNavigateToGameSetup, onNav
 
   return (
     <div className="app-shell flex min-h-screen flex-col">
-      <header className="relative z-10 mx-4 mt-4 flex h-16 items-center justify-between rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-frosted)] px-6 shadow-[var(--shadow-md)] backdrop-blur-xl">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)]">
-            <Layers3 size={20} className="text-[var(--accent-primary)]" />
+      <header className="safe-top relative z-10 mx-3 mt-3 rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 py-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:mx-4 sm:mt-4 sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)]">
+              <Layers3 size={20} className="text-[var(--accent-primary)]" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-bold text-gradient-brand sm:text-xl">
+                Loveca Card Game
+              </h1>
+            </div>
           </div>
-          <div>
-            <div className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">Lobby</div>
-            <h1 className="text-xl font-bold text-gradient-brand">
-            Loveca Card Game
-            </h1>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-3">
-          <div className="status-pill px-4 py-2">
-            <connectionStatus.icon size={16} className={connectionStatus.tone} />
-            <span className="font-medium text-[var(--text-primary)]">{displayUsername}</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3">
+            <div className="status-pill min-w-0 max-w-full px-3 py-2 sm:px-4">
+              <connectionStatus.icon size={16} className={connectionStatus.tone} />
+              <span className="truncate font-medium text-[var(--text-primary)] max-[420px]:max-w-[110px] sm:max-w-none">{displayUsername}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <button
+                onClick={() => signOut()}
+                className="button-ghost inline-flex min-h-11 items-center gap-2 px-3 py-2 sm:px-4"
+                title="登出"
+              >
+                <LogOut size={16} />
+                <span className="hidden sm:inline">登出</span>
+              </button>
+            </div>
           </div>
-          <ThemeToggle />
-          <button
-            onClick={() => signOut()}
-            className="button-ghost inline-flex items-center gap-2 px-4 py-2"
-            title="登出"
-          >
-            <LogOut size={16} />
-            登出
-          </button>
         </div>
       </header>
 
-      <main className="relative z-10 flex flex-1 items-center justify-center p-6 md:p-8">
+      <main className="relative z-10 flex flex-1 items-center justify-center px-4 pb-6 pt-5 sm:p-6 md:p-8">
         <div className="w-full max-w-5xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="mb-12 text-center"
+            className="mb-8 text-center sm:mb-12"
           >
             <img 
               src="/icon.jpg" 
               alt="Loveca Logo" 
-              className="mx-auto mb-5 h-24 w-24 rounded-[28px] border border-[var(--border-default)] object-cover shadow-[var(--shadow-lg)]"
+              className="mx-auto mb-4 h-20 w-20 rounded-[24px] border border-[var(--border-default)] object-cover shadow-[var(--shadow-lg)] sm:mb-5 sm:h-24 sm:w-24 sm:rounded-[28px]"
             />
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[color:var(--bg-overlay)] px-4 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
               <Wifi size={14} />
@@ -117,7 +120,7 @@ export function HomePage({ onNavigateToDeckManager, onNavigateToGameSetup, onNav
             </div>
           </motion.div>
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 md:gap-6">
             {actions.map((action, index) => (
               <motion.button
                 key={action.title}
@@ -127,16 +130,16 @@ export function HomePage({ onNavigateToDeckManager, onNavigateToGameSetup, onNav
                 whileHover={{ y: -4, scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
                 onClick={action.onClick}
-                className="surface-panel-frosted group relative overflow-hidden p-8 text-left"
+                className="surface-panel-frosted group relative overflow-hidden p-5 text-left sm:p-8"
               >
                 <div className="absolute inset-y-0 left-0 w-1.5" style={{ background: action.accent }} />
-                <div className="flex items-start gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-primary)] shadow-[var(--shadow-sm)]">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-primary)] shadow-[var(--shadow-sm)] sm:h-14 sm:w-14">
                     <action.icon size={26} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="mb-2 text-2xl font-bold text-[var(--text-primary)]">{action.title}</h3>
-                    <p className="mb-6 text-[var(--text-secondary)]">{action.description}</p>
+                    <h3 className="mb-2 text-xl font-bold text-[var(--text-primary)] sm:text-2xl">{action.title}</h3>
+                    <p className="mb-5 text-sm leading-relaxed text-[var(--text-secondary)] sm:mb-6 sm:text-base">{action.description}</p>
                     <div className="flex items-center gap-2 font-medium text-[var(--accent-primary)]">
                       <span>{action.cta}</span>
                       <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
@@ -166,9 +169,9 @@ export function HomePage({ onNavigateToDeckManager, onNavigateToGameSetup, onNav
                 whileHover={{ y: -3, scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={onNavigateToCardAdmin}
-                className="surface-panel-frosted group flex w-full items-center gap-4 p-6 text-left"
+                className="surface-panel-frosted group flex w-full flex-col items-start gap-4 p-5 text-left sm:flex-row sm:items-center sm:p-6"
               >
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-secondary)] shadow-[var(--shadow-sm)]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-secondary)] shadow-[var(--shadow-sm)] sm:h-14 sm:w-14">
                   <Settings size={24} />
                 </div>
                 <div className="flex-1">
@@ -204,7 +207,7 @@ export function HomePage({ onNavigateToDeckManager, onNavigateToGameSetup, onNav
         </div>
       </main>
 
-      <footer className="relative z-10 flex h-14 items-center justify-center gap-3 border-t border-[var(--border-subtle)] px-4 text-sm text-[var(--text-muted)]">
+      <footer className="safe-bottom relative z-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-[var(--border-subtle)] px-4 py-3 text-center text-xs text-[var(--text-muted)] sm:h-14 sm:py-0 sm:text-sm">
         <span>Loveca Card Game © 2024</span>
         <span>v{__APP_VERSION__}</span>
         <span>·</span>

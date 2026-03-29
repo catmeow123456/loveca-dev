@@ -23,6 +23,7 @@ import * as yaml from 'yaml';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { getCardImageUrl, isStorageEnabled } from '@/lib/imageService';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 /**
  * 将 cardCode 转换为图片文件名（用于 MinIO Storage）
@@ -90,6 +91,8 @@ export function DeckManager({ onBack }: DeckManagerProps) {
   const [decklogLoading, setDecklogLoading] = useState(false);
   const [decklogError, setDecklogError] = useState<string | null>(null);
   const [decklogWarnings, setDecklogWarnings] = useState<string[]>([]);
+  const [mobileMetaExpanded, setMobileMetaExpanded] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 767px)');
 
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
 
@@ -398,7 +401,7 @@ export function DeckManager({ onBack }: DeckManagerProps) {
 
   return (
     <div className="app-shell flex h-screen flex-col">
-      <header className="relative z-10 mx-4 mt-4 flex h-14 flex-shrink-0 items-center justify-between rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-frosted)] px-5 shadow-[var(--shadow-md)] backdrop-blur-xl">
+      <header className="safe-top relative z-10 mx-3 mt-3 flex min-h-14 flex-shrink-0 flex-wrap items-center justify-between gap-3 rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 py-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:mx-4 sm:mt-4 sm:px-5 sm:py-2">
         <button
           onClick={viewMode === 'edit' ? handleCancelEdit : onBack}
           className="button-ghost inline-flex items-center gap-1.5 px-3 py-2 text-sm"
@@ -411,9 +414,9 @@ export function DeckManager({ onBack }: DeckManagerProps) {
           {viewMode === 'list' ? '卡组管理' : (editingDeckId ? '编辑卡组' : '创建卡组')}
         </h1>
 
-        <div className="flex items-center gap-2">
+        <div className="flex max-w-full items-center gap-2">
           <ThemeToggle />
-          <div className="status-pill px-2.5 py-1 text-xs">
+          <div className="status-pill min-w-0 max-w-full px-2.5 py-1 text-xs">
           {offlineMode ? (
             <WifiOff size={12} className="text-[var(--semantic-warning)]" />
           ) : isApiConfigured ? (
@@ -421,7 +424,7 @@ export function DeckManager({ onBack }: DeckManagerProps) {
           ) : (
             <Zap size={12} className="text-[var(--text-secondary)]" />
           )}
-          <span className="font-medium text-[var(--text-primary)]">{displayUsername}</span>
+          <span className="truncate font-medium text-[var(--text-primary)] max-[420px]:max-w-[92px] sm:max-w-none">{displayUsername}</span>
           </div>
         </div>
       </header>
@@ -436,19 +439,19 @@ export function DeckManager({ onBack }: DeckManagerProps) {
             className="relative z-10 flex-1 overflow-y-auto p-6"
           >
             <div className="workspace-shell mx-auto max-w-5xl p-6">
-              <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <div className="text-sm text-[var(--text-secondary)]">
                   共 {cloudDecks.length} 个卡组
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
                   <button
                     onClick={() => { setShowDecklogDialog(true); setDecklogError(null); setDecklogWarnings([]); }}
-                    className="button-secondary inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+                    className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium"
                   >
                     <Globe size={14} />
                     从 DeckLog 导入
                   </button>
-                  <label className="button-secondary inline-flex cursor-pointer items-center gap-1.5 px-4 py-2 text-sm font-medium">
+                  <label className="button-secondary inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium">
                     <Upload size={14} />
                     导入 YAML
                     <input
@@ -460,7 +463,7 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                   </label>
                   <button
                     onClick={handleCreateNew}
-                    className="button-primary inline-flex items-center gap-1.5 px-5 py-2 text-sm font-bold"
+                    className="button-primary inline-flex min-h-11 items-center justify-center gap-1.5 px-5 py-2 text-sm font-bold"
                   >
                     <Plus size={14} />
                     创建新卡组
@@ -567,11 +570,11 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                       }`}
                     >
                       {isDeleting ? (
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="text-sm text-[var(--semantic-error)]">
                             确定要删除 "{deck.name}" 吗？此操作不可撤销。
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
                             <button
                               onClick={() => setDeleteConfirm(null)}
                               className="button-ghost px-3 py-1.5 text-sm"
@@ -588,14 +591,14 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
+                          <div className="mb-3 flex flex-col gap-2 min-[480px]:flex-row min-[480px]:items-start min-[480px]:justify-between">
+                            <div className="min-w-0">
                               <h3 className="mb-0.5 text-base font-bold text-[var(--text-primary)]">{deck.name}</h3>
                               {deck.description && (
-                                <p className="line-clamp-1 text-sm text-[var(--text-secondary)]">{deck.description}</p>
+                                <p className="line-clamp-2 text-sm text-[var(--text-secondary)]">{deck.description}</p>
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 self-start">
                               {deck.is_valid ? (
                                 <span className="chip-badge text-[var(--semantic-success)] px-2 py-0.5 text-xs flex items-center gap-1">
                                   <Check size={10} /> 完整
@@ -608,14 +611,14 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between">
-                            <DeckStatsRow stats={stats} updatedAt={deck.updated_at} size="md" />
-                            <div className="flex items-center gap-1.5">
-                              {isAdmin && (
+                          <div className="flex flex-col gap-3 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
+                            <DeckStatsRow stats={stats} updatedAt={deck.updated_at} size="md" className="min-w-0" />
+                            <div className="flex flex-wrap items-center gap-2 min-[560px]:gap-1.5">
+                              {isAdmin && !isMobile && (
                                 <button
                                   onClick={() => handleDownloadImages(deck)}
                                   disabled={downloadingDeckId === deck.id}
-                                  className={`rounded-lg border px-3 py-1.5 text-xs flex items-center gap-1 transition-colors ${
+                                  className={`rounded-lg border px-3 py-2 text-xs flex min-h-10 items-center justify-center gap-1 transition-colors min-[560px]:min-h-0 min-[560px]:py-1.5 ${
                                     downloadingDeckId === deck.id
                                       ? 'cursor-wait text-[var(--semantic-info)]/50 border-[color:color-mix(in_srgb,var(--semantic-info)_20%,transparent)]'
                                       : 'text-[var(--semantic-info)] hover:bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,transparent)] border-[color:color-mix(in_srgb,var(--semantic-info)_30%,transparent)]'
@@ -630,16 +633,19 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                               )}
                               <button
                                 onClick={() => handleEdit(deck)}
-                                className="button-secondary px-3 py-1.5 text-xs flex items-center gap-1"
+                                className="button-secondary px-3 py-2 text-xs flex min-h-10 items-center justify-center gap-1 min-[560px]:min-h-0 min-[560px]:py-1.5"
                               >
                                 <Pencil size={12} /> 编辑
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm(deck.id)}
-                                className="rounded-lg p-1.5 text-[var(--semantic-error)]/60 transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] hover:text-[var(--semantic-error)]"
+                                className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_18%,transparent)] px-3 py-2 text-xs text-[var(--semantic-error)]/70 transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] hover:text-[var(--semantic-error)] min-[560px]:border-0 min-[560px]:p-1.5"
                                 title="删除卡组"
                               >
-                                <Trash2 size={14} />
+                                <span className="inline-flex items-center justify-center gap-1">
+                                  <Trash2 size={14} />
+                                  <span className={isMobile ? 'inline' : 'min-[560px]:hidden'}>删除</span>
+                                </span>
                               </button>
                             </div>
                           </div>
@@ -660,47 +666,104 @@ export function DeckManager({ onBack }: DeckManagerProps) {
             className="relative z-10 flex flex-1 flex-col overflow-hidden p-4 pt-6"
           >
             <div className="workspace-shell flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="workspace-toolbar px-4 py-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="卡组名称"
-                  value={deckName}
-                  onChange={(e) => setDeckName(e.target.value)}
-                  className="input-field min-w-[180px] flex-[0.8] px-3 py-2 text-sm font-semibold"
-                />
-                <input
-                  type="text"
-                  placeholder="卡组备注 / 描述（可选）"
-                  value={deckDescription}
-                  onChange={(e) => setDeckDescription(e.target.value)}
-                  className="input-field min-w-[260px] flex-[1.6] px-3 py-2 text-sm"
-                />
-                <div className="ml-auto flex items-center gap-2">
-                  <button
-                    onClick={handleExport}
-                    className="button-secondary flex items-center gap-1.5 px-3 py-2 text-sm"
-                  >
-                    <Download size={14} />
-                    导出
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={isSaving || !deckName.trim()}
-                    className={`button-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold ${
-                      isSaving || !deckName.trim()
-                        ? 'cursor-not-allowed opacity-50'
-                        : ''
-                    }`}
-                  >
-                    <Save size={14} />
-                    {isSaving ? '保存中...' : '保存'}
-                    {isDirty && !isSaving && (
-                      <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
-                    )}
-                  </button>
+            <div className="workspace-toolbar px-3 py-2 sm:px-4 sm:py-3">
+              {isMobile ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="卡组名称"
+                      value={deckName}
+                      onChange={(e) => setDeckName(e.target.value)}
+                      className="input-field min-w-0 flex-1 px-3 py-2 text-sm font-semibold"
+                    />
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving || !deckName.trim()}
+                      className={`button-primary inline-flex h-10 shrink-0 items-center justify-center gap-1.5 px-3 text-sm font-semibold ${
+                        isSaving || !deckName.trim()
+                          ? 'cursor-not-allowed opacity-50'
+                          : ''
+                      }`}
+                    >
+                      <Save size={14} />
+                      <span>{isSaving ? '保存中' : '保存'}</span>
+                      {isDirty && !isSaving && (
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMobileMetaExpanded((v) => !v)}
+                      className="button-ghost inline-flex h-8 items-center gap-1 px-2 py-1 text-[11px]"
+                    >
+                      <Pencil size={12} />
+                      {mobileMetaExpanded ? '收起备注' : '编辑备注'}
+                    </button>
+                    <button
+                      onClick={handleExport}
+                      className="button-ghost inline-flex h-8 items-center gap-1 px-2 py-1 text-[11px]"
+                    >
+                      <Download size={12} />
+                      导出
+                    </button>
+                  </div>
+
+                  {mobileMetaExpanded && (
+                    <input
+                      type="text"
+                      placeholder="卡组备注 / 描述（可选）"
+                      value={deckDescription}
+                      onChange={(e) => setDeckDescription(e.target.value)}
+                      className="input-field w-full px-3 py-2 text-sm"
+                    />
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+                  <input
+                    type="text"
+                    placeholder="卡组名称"
+                    value={deckName}
+                    onChange={(e) => setDeckName(e.target.value)}
+                    className="input-field w-full px-3 py-2 text-sm font-semibold md:min-w-[180px] md:flex-[0.8]"
+                  />
+                  <input
+                    type="text"
+                    placeholder="卡组备注 / 描述（可选）"
+                    value={deckDescription}
+                    onChange={(e) => setDeckDescription(e.target.value)}
+                    className="input-field w-full px-3 py-2 text-sm md:min-w-[260px] md:flex-[1.6]"
+                  />
+                  <div className="flex items-center gap-2 md:ml-auto">
+                    <button
+                      onClick={handleExport}
+                      className="button-secondary flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm md:flex-initial"
+                    >
+                      <Download size={14} />
+                      导出
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving || !deckName.trim()}
+                      className={`button-primary flex min-h-11 flex-1 items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold md:flex-initial ${
+                        isSaving || !deckName.trim()
+                          ? 'cursor-not-allowed opacity-50'
+                          : ''
+                      }`}
+                    >
+                      <Save size={14} />
+                      {isSaving ? '保存中...' : '保存'}
+                      {isDirty && !isSaving && (
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {saveError && (

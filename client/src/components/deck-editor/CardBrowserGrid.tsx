@@ -38,8 +38,8 @@ export function CardBrowserGrid({ cards, baseCodeCountInDeck, exactCodeCountInDe
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 cute-scrollbar">
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+    <div className="flex-1 overflow-y-auto p-3 cute-scrollbar sm:p-4">
+      <div className="grid grid-cols-2 gap-3 min-[420px]:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
         {cards.map((card) => (
           <MemoizedCellWrapper
             key={card.cardCode}

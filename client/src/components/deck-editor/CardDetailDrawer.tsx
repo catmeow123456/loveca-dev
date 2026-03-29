@@ -12,6 +12,7 @@ import { Card } from '@/components/card/Card';
 import { MemberCardDetails, LiveCardDetails } from '@/components/game/CardDetailOverlay';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface CardDetailDrawerProps {
   card: AnyCardData | null;
@@ -28,6 +29,7 @@ function MetaRow({ label, value }: { label: string; value: string }) {
 }
 
 export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
+  const isMobile = useMediaQuery('(max-width: 767px)');
   const { getCardImagePath } = useGameStore(
     useShallow((s) => ({ getCardImagePath: s.getCardImagePath }))
   );
@@ -57,15 +59,15 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
           />
 
           <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            initial={isMobile ? { y: '100%' } : { x: '100%' }}
+            animate={isMobile ? { y: 0 } : { x: 0 }}
+            exit={isMobile ? { y: '100%' } : { x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="workspace-sidebar fixed bottom-0 right-0 top-0 z-50 flex w-[min(92vw,760px)] flex-col border-l border-[var(--border-default)] shadow-[var(--shadow-lg)]"
+            className="workspace-sidebar safe-bottom fixed inset-x-0 bottom-0 top-auto z-50 flex max-h-[88dvh] flex-col rounded-t-[28px] border-t border-[var(--border-default)] shadow-[var(--shadow-lg)] md:inset-y-0 md:left-auto md:right-0 md:top-0 md:max-h-none md:w-[min(92vw,760px)] md:rounded-none md:border-l md:border-t-0"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
-            <div className="workspace-toolbar flex items-center justify-between px-5 py-3">
+            <div className="workspace-toolbar flex items-center justify-between px-4 py-3 sm:px-5">
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">卡牌详情</h3>
               <button
                 onClick={onClose}
@@ -76,14 +78,14 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
             </div>
 
             {/* 内容区域 */}
-            <div className="flex-1 overflow-y-auto p-5 cute-scrollbar">
-              <div className="grid gap-5 xl:grid-cols-[252px_minmax(0,1fr)] xl:grid-rows-[auto_1fr]">
+            <div className="flex-1 overflow-y-auto p-4 cute-scrollbar sm:p-5">
+              <div className="grid gap-4 lg:gap-5 xl:grid-cols-[252px_minmax(0,1fr)] xl:grid-rows-[auto_1fr]">
                 <div className="surface-panel-gradient rounded-[28px] p-4 xl:row-span-2">
                   <div className="flex justify-center">
                     <Card
                       cardData={card}
                       imagePath={getCardImagePath(card.cardCode)}
-                      size="lg"
+                      size={isMobile ? 'responsive' : 'lg'}
                       faceUp={true}
                       interactive={false}
                       showHover={false}
