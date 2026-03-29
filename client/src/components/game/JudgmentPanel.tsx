@@ -11,7 +11,7 @@
 
 import { memo, useState, useCallback, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, EyeOff, Mic, Sparkles } from 'lucide-react';
+import { BarChart3, ChevronLeft, Mic, Sparkles } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -411,14 +411,24 @@ export const JudgmentPanel = memo(function JudgmentPanel({
 
   return (
     <motion.aside
-      className="fixed left-0 top-0 z-[90] h-full w-full max-w-[420px] overflow-y-auto border-r border-[var(--border-default)] bg-[var(--bg-frosted)] p-4 shadow-[var(--shadow-lg)] backdrop-blur-xl"
+      className="fixed left-0 top-0 z-[90] h-full w-full max-w-[420px] overflow-visible border-r border-[var(--border-default)] bg-[var(--bg-frosted)] p-4 shadow-[var(--shadow-lg)] backdrop-blur-xl"
       initial={{ x: -460, opacity: 0.8 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: -460, opacity: 0.8 }}
       transition={{ type: 'spring', stiffness: 320, damping: 30 }}
     >
-      <div className="mb-3 flex items-center justify-between border-b border-[var(--border-default)] pb-2">
-        <div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute -right-8 top-1/2 z-10 flex h-16 w-8 -translate-y-1/2 items-center justify-center rounded-r-2xl border border-l-0 border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] text-[var(--accent-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl transition-all hover:w-9 hover:text-[var(--text-primary)]"
+        aria-label="收起判定区"
+        title="收起判定区"
+      >
+        <ChevronLeft size={16} />
+      </button>
+
+      <div className="mb-3 flex items-start justify-between border-b border-[var(--border-default)] pb-2">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
             <BarChart3 size={16} className="text-[var(--accent-primary)]" />
             判定区 / 应援操作窗
@@ -433,16 +443,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                   : '可随时查看并操作判定区卡牌'}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="button-secondary inline-flex items-center gap-1 px-2 py-1 text-xs"
-        >
-          <EyeOff size={12} />
-          收起
-        </button>
       </div>
 
+      <div className="cute-scrollbar h-[calc(100%-4rem)] overflow-y-auto pr-1">
       <div className="mb-4">
               <div className="mb-2 flex items-center justify-between border-b border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] pb-2">
                 <span className="flex items-center gap-2 text-sm font-medium text-[var(--accent-secondary)]">
@@ -671,6 +674,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
           当前不在 Live 判定确认子阶段，本面板保持为辅助操作窗口。
         </div>
       )}
+      </div>
     </motion.aside>
   );
 });

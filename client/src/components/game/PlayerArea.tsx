@@ -16,12 +16,14 @@
 
 import { memo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
 import { Card } from '@/components/card/Card';
 import { DraggableCard, DroppableZone } from './interaction';
 import { DeckPeekModal } from './DeckPeekModal';
+import { Layers3, X } from 'lucide-react';
 import type { PlayerState } from '@game/domain/entities/player';
 import type { AnyCardData, LiveCardData } from '@game/domain/entities/card';
 import { isLiveCardData } from '@game/domain/entities/card';
@@ -358,7 +360,7 @@ export const PlayerArea = memo(function PlayerArea({
         className="flex flex-col items-center gap-0.5"
         activeClassName="ring-2 ring-amber-500 bg-amber-500/20"
       >
-        <span className="text-[10px] text-slate-600 font-medium">{label}</span>
+        <span className="text-[10px] font-medium text-[var(--text-muted)]">{label}</span>
         <div
           className={cn(
             'relative w-[40px] h-[56px]',
@@ -385,7 +387,7 @@ export const PlayerArea = memo(function PlayerArea({
               )}
             </>
           )}
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-slate-800 px-1.5 py-0.5 rounded text-[10px] font-bold z-10">
+          <div className="absolute -bottom-1 left-1/2 z-10 -translate-x-1/2 rounded-full border border-[var(--border-default)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--text-primary)] shadow-[var(--shadow-sm)]">
             {count}
           </div>
         </div>
@@ -405,18 +407,18 @@ export const PlayerArea = memo(function PlayerArea({
         className="flex flex-col items-center gap-1 relative"
         activeClassName="ring-2 ring-slate-500 bg-slate-500/20"
       >
-        <span className="text-xs text-slate-600 font-medium">休息室</span>
+        <span className="text-xs font-medium text-[var(--text-muted)]">休息室</span>
 
         {count === 0 ? (
           // 空休息室占位
-          <div className="w-[45px] h-[63px] rounded border border-dashed border-slate-600 flex items-center justify-center">
-            <span className="text-slate-600 text-[10px]">0</span>
+          <div className="flex h-[63px] w-[45px] items-center justify-center rounded border border-dashed border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_40%,transparent)]">
+            <span className="text-[10px] text-[var(--text-muted)]">0</span>
           </div>
         ) : (
           // 卡片叠放显示，点击展开
           <>
             <div
-              className="relative w-[45px] h-[63px] cursor-pointer"
+              className="relative h-[63px] w-[45px] cursor-pointer transition-transform duration-200 hover:-translate-y-0.5"
               onClick={() => setWaitingRoomExpanded(true)}
             >
               {/* 叠放的迷你卡片 */}
@@ -427,7 +429,7 @@ export const PlayerArea = memo(function PlayerArea({
                 return (
                   <div
                     key={cardId}
-                    className="absolute w-[45px] h-[63px] rounded bg-gradient-to-br from-slate-600 to-slate-700 border border-slate-500/50 flex items-center justify-center overflow-hidden"
+                    className="absolute flex h-[63px] w-[45px] items-center justify-center overflow-hidden rounded border border-[var(--border-default)] bg-[var(--bg-overlay)] shadow-[var(--shadow-sm)]"
                     style={{
                       left: Math.min(idx * 2, 8),
                       top: Math.min(idx * 1.5, 6),
@@ -441,66 +443,91 @@ export const PlayerArea = memo(function PlayerArea({
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-slate-400 text-[8px]">♪</span>
+                      <span className="text-[8px] text-[var(--text-muted)]">♪</span>
                     )}
                   </div>
                 );
               })}
 
               {/* 数量标签 */}
-              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-300 z-10">
+              <div className="absolute -bottom-1 left-1/2 z-10 -translate-x-1/2 rounded-full border border-[var(--border-default)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--text-primary)] shadow-[var(--shadow-sm)]">
                 {count}
               </div>
             </div>
 
             {/* 展开的浮窗 */}
-            {waitingRoomExpanded && (
-              <>
-                {/* 背景遮罩 - 点击关闭 */}
-                <div
-                  className="fixed inset-0 bg-black/50 z-[90]"
-                  onClick={() => setWaitingRoomExpanded(false)}
-                />
+            {waitingRoomExpanded && (() => {
+              const waitingRoomModal = (
+                <>
+                  <div
+                    className="modal-backdrop z-[90]"
+                    onClick={() => setWaitingRoomExpanded(false)}
+                  />
 
-                {/* 卡片浮窗 */}
-                <motion.div
-                  className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800/95 rounded-lg p-4 shadow-xl border border-slate-600 z-[100] flex flex-wrap gap-2 max-w-[500px] max-h-[80vh] overflow-auto"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                >
-                  {/* 标题 */}
-                  <div className="w-full text-center text-sm text-slate-300 mb-2 pb-2 border-b border-slate-600">
-                    休息室 ({count} 张) - 点击外部关闭
+                  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <motion.div
+                      className="modal-surface modal-accent-amber w-[min(92vw,720px)] max-h-[82vh] overflow-hidden"
+                      initial={{ opacity: 0, scale: 0.94 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.94 }}
+                    >
+                      <div className="modal-header flex items-center justify-between px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_84%,transparent)] text-[var(--accent-secondary)]">
+                            <Layers3 size={16} />
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-[var(--text-primary)]">休息室</div>
+                            <div className="text-xs text-[var(--text-secondary)]">共 {count} 张卡牌</div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setWaitingRoomExpanded(false)}
+                          className="button-icon h-8 w-8"
+                          title="关闭休息室"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+
+                      <div className="cute-scrollbar max-h-[calc(82vh-76px)] overflow-y-auto p-5">
+                        <div className="grid grid-cols-4 gap-3 sm:grid-cols-5 md:grid-cols-6">
+                          {waitingCardIds.map((cardId: string) => {
+                            const card = getCardInstance(cardId);
+                            if (!card) return null;
+
+                            return (
+                              <DraggableCard
+                                key={cardId}
+                                id={cardId}
+                                disabled={isOpponent}
+                                data={{ cardId, cardCode: card.data.cardCode, fromZone: ZoneType.WAITING_ROOM }}
+                              >
+                                <Card
+                                  cardData={card.data as AnyCardData}
+                                  instanceId={card.instanceId}
+                                  imagePath={getCardImagePath(card.data.cardCode)}
+                                  size="sm"
+                                  faceUp={true}
+                                  showHover={true}
+                                  onMouseEnter={() => setHoveredCard(card.instanceId)}
+                                  onMouseLeave={() => setHoveredCard(null)}
+                                />
+                              </DraggableCard>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </motion.div>
                   </div>
+                </>
+              );
 
-                  {waitingCardIds.map((cardId: string) => {
-                    const card = getCardInstance(cardId);
-                    if (!card) return null;
-
-                    return (
-                      <DraggableCard
-                        key={cardId}
-                        id={cardId}
-                        disabled={isOpponent}
-                        data={{ cardId, cardCode: card.data.cardCode, fromZone: ZoneType.WAITING_ROOM }}
-                      >
-                        <Card
-                          cardData={card.data as AnyCardData}
-                          instanceId={card.instanceId}
-                          imagePath={getCardImagePath(card.data.cardCode)}
-                          size="sm"
-                          faceUp={true}
-                          showHover={true}
-                          onMouseEnter={() => setHoveredCard(card.instanceId)}
-                          onMouseLeave={() => setHoveredCard(null)}
-                        />
-                      </DraggableCard>
-                    );
-                  })}
-                </motion.div>
-              </>
-            )}
+              return typeof document === 'undefined'
+                ? waitingRoomModal
+                : createPortal(waitingRoomModal, document.body);
+            })()}
           </>
         )}
       </DroppableZone>

@@ -56,22 +56,23 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="workspace-toolbar flex-shrink-0 px-3 pb-2 pt-2.5">
-        <CardTypeTabs
-          selected={filters.selectedCardType}
-          onSelect={filters.setSelectedCardType}
-        />
-      </div>
-
       <div className="relative flex-1 flex overflow-hidden">
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="workspace-toolbar space-y-2 p-3 pb-2">
-            <SearchBar
-              value={filters.searchQuery}
-              onChange={filters.setSearchQuery}
-              resultCount={filters.sortedCards.length}
-            />
-            <FilterPanel filters={filters} />
+          <div className="workspace-toolbar p-3">
+            <div className="grid gap-2 xl:grid-cols-[340px_minmax(0,1fr)]">
+              <CardTypeTabs
+                selected={filters.selectedCardType}
+                onSelect={filters.setSelectedCardType}
+              />
+              <SearchBar
+                value={filters.searchQuery}
+                onChange={filters.setSearchQuery}
+                resultCount={filters.sortedCards.length}
+              />
+            </div>
+            <div className="mt-2">
+              <FilterPanel filters={filters} />
+            </div>
           </div>
           <CardBrowserGrid
             cards={filters.sortedCards}

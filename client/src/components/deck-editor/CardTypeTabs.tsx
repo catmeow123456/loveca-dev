@@ -27,13 +27,13 @@ export function CardTypeTabs({ selected, onSelect }: CardTypeTabsProps) {
           <button
             key={type}
             onClick={() => onSelect(type)}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200 ${
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-all duration-200 ${
               isActive
                 ? `${colors.bg} ${colors.border} ${colors.text} shadow-[var(--shadow-sm)]`
                 : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
             }`}
           >
-            <Icon size={16} />
+            <Icon size={15} />
             <span>{label}</span>
           </button>
         );

@@ -661,25 +661,25 @@ export function DeckManager({ onBack }: DeckManagerProps) {
           >
             <div className="workspace-shell flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="workspace-toolbar px-4 py-3">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="text"
                   placeholder="卡组名称"
                   value={deckName}
                   onChange={(e) => setDeckName(e.target.value)}
-                  className="input-field w-40 flex-shrink-0 px-3 py-1.5 text-sm font-semibold"
+                  className="input-field min-w-[180px] flex-[0.8] px-3 py-2 text-sm font-semibold"
                 />
                 <input
                   type="text"
-                  placeholder="卡组描述（可选）"
+                  placeholder="卡组备注 / 描述（可选）"
                   value={deckDescription}
                   onChange={(e) => setDeckDescription(e.target.value)}
-                  className="input-field flex-1 px-3 py-1.5 text-sm"
+                  className="input-field min-w-[260px] flex-[1.6] px-3 py-2 text-sm"
                 />
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="ml-auto flex items-center gap-2">
                   <button
                     onClick={handleExport}
-                    className="button-secondary px-3 py-1.5 text-sm flex items-center gap-1.5"
+                    className="button-secondary flex items-center gap-1.5 px-3 py-2 text-sm"
                   >
                     <Download size={14} />
                     导出
@@ -687,7 +687,7 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                   <button
                     onClick={handleSave}
                     disabled={isSaving || !deckName.trim()}
-                    className={`button-primary px-4 py-1.5 text-sm font-semibold flex items-center gap-1.5 ${
+                    className={`button-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold ${
                       isSaving || !deckName.trim()
                         ? 'cursor-not-allowed opacity-50'
                         : ''
@@ -696,7 +696,7 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                     <Save size={14} />
                     {isSaving ? '保存中...' : '保存'}
                     {isDirty && !isSaving && (
-                      <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
                     )}
                   </button>
                 </div>

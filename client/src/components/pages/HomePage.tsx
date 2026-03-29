@@ -115,12 +115,6 @@ export function HomePage({ onNavigateToDeckManager, onNavigateToGameSetup, onNav
                 <span className="text-[var(--accent-primary)]">v{__APP_VERSION__}</span>
               </div>
             </div>
-            <h2 className="mb-4 text-4xl font-bold tracking-[-0.03em] text-[var(--text-primary)] md:text-5xl">
-              为下一场 Live 准备你的桌面。
-            </h2>
-            <p className="mx-auto max-w-2xl text-lg text-[var(--text-secondary)]">
-              选择一个入口继续。
-            </p>
           </motion.div>
 
           <div className="grid gap-6 md:grid-cols-2">

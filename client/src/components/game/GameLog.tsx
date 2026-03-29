@@ -8,11 +8,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ScrollText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
+import { GameMode } from '@game/shared/types/enums';
 
 export const GameLog = memo(function GameLog() {
   const logs = useGameStore((s) => s.ui.logs);
+  const gameMode = useGameStore((s) => s.gameMode);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const isDebugMode = gameMode === GameMode.DEBUG;
 
   // 自动滚动到底部
   useEffect(() => {
@@ -20,6 +23,8 @@ export const GameLog = memo(function GameLog() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [logs, isExpanded]);
+
+  if (!isDebugMode) return null;
 
   const typeColors = {
     info: 'text-[var(--text-muted)]',

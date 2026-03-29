@@ -13,15 +13,15 @@ interface SearchBarProps {
 export function SearchBar({ value, onChange, resultCount }: SearchBarProps) {
   return (
     <div className="relative">
-      <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
       <input
         type="text"
         placeholder="搜索卡牌名称或编号..."
-        className="input-field w-full py-2.5 pl-10 pr-20 text-sm"
+        className="input-field w-full py-2 pl-9 pr-18 text-sm"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+      <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
         <span className="text-xs text-[var(--text-muted)]">{resultCount} 张</span>
         {value && (
           <button

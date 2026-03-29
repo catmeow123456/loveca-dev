@@ -160,13 +160,13 @@ export function FilterPanel({ filters }: FilterPanelProps) {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <SlidersHorizontal size={14} className="mr-1 text-[var(--text-muted)]" />
+      <div className="flex flex-wrap items-center gap-1.5">
+        <SlidersHorizontal size={13} className="mr-0.5 text-[var(--text-muted)]" />
         {visibleCategories.map((cat) => (
           <button
             key={cat.key}
             onClick={() => toggleCategory(cat.key)}
-            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs transition-all duration-200 ${
+            className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-all duration-200 ${
               expandedCategory === cat.key
                 ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
                 : cat.isActive
@@ -201,7 +201,7 @@ export function FilterPanel({ filters }: FilterPanelProps) {
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] p-3">
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] p-2.5">
               {renderCategoryContent(expandedCategory)}
             </div>
           </motion.div>

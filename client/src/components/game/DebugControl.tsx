@@ -27,8 +27,7 @@ export const DebugControl = memo(function DebugControl() {
   );
 
   if (!gameState) return null;
-
-  const isSolitaire = gameMode === GameMode.SOLITAIRE;
+  const isDebugMode = gameMode === GameMode.DEBUG;
 
   // 获取当前视角玩家信息
   const currentViewingPlayer = gameState.players.find((p) => p.id === viewingPlayerId);
@@ -44,8 +43,7 @@ export const DebugControl = memo(function DebugControl() {
 
   // 切换游戏模式
   const handleSwitchMode = () => {
-    const newMode = isSolitaire ? GameMode.DEBUG : GameMode.SOLITAIRE;
-    setGameMode(newMode);
+    setGameMode(isDebugMode ? GameMode.SOLITAIRE : GameMode.DEBUG);
   };
 
   return (
@@ -62,19 +60,19 @@ export const DebugControl = memo(function DebugControl() {
           <div
             className={cn(
               'flex h-8 w-8 items-center justify-center rounded-full border',
-              isSolitaire
-                ? 'border-[var(--semantic-info)]/25 bg-[var(--semantic-info)]/12 text-[var(--semantic-info)]'
-                : 'border-[var(--accent-secondary)]/25 bg-[var(--accent-secondary)]/12 text-[var(--accent-secondary)]'
+              isDebugMode
+                ? 'border-[var(--accent-secondary)]/25 bg-[var(--accent-secondary)]/12 text-[var(--accent-secondary)]'
+                : 'border-[var(--semantic-info)]/25 bg-[var(--semantic-info)]/12 text-[var(--semantic-info)]'
             )}
           >
-            {isSolitaire ? <Crosshair size={15} /> : <Settings2 size={15} />}
+            {isDebugMode ? <Settings2 size={15} /> : <Crosshair size={15} />}
           </div>
           <div className="flex flex-col leading-none">
             <span className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">
               模式
             </span>
             <span className="text-sm font-semibold text-[var(--text-primary)]">
-              {isSolitaire ? '对墙打' : '调试'}
+              {isDebugMode ? '调试' : '对墙打'}
             </span>
           </div>
         </div>
@@ -94,13 +92,10 @@ export const DebugControl = memo(function DebugControl() {
           <span className="font-bold text-[var(--text-primary)]">T{gameState.turnCount}</span>
         </div>
 
-        {/* 调试模式专属：当前视角 + 切换按钮 */}
-        {!isSolitaire && (
+        {isDebugMode && (
           <>
-            {/* 分隔线 */}
             <div className="h-6 w-px bg-[var(--border-default)]" />
 
-            {/* 当前视角 */}
             <div className="flex items-center gap-2">
               <Eye size={14} className="text-[var(--text-muted)]" />
               <span className="text-xs text-[var(--text-muted)]">当前视角:</span>
@@ -109,7 +104,6 @@ export const DebugControl = memo(function DebugControl() {
               </span>
             </div>
 
-            {/* 切换按钮 */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -128,9 +122,9 @@ export const DebugControl = memo(function DebugControl() {
           whileTap={{ scale: 0.95 }}
           onClick={handleSwitchMode}
           className="button-secondary flex h-9 w-9 items-center justify-center p-0"
-          title={isSolitaire ? '切换到调试模式' : '切换到对墙打模式'}
+          title={isDebugMode ? '切换到对墙打模式' : '切换到调试模式'}
         >
-          {isSolitaire ? <Settings2 size={15} /> : <Crosshair size={15} />}
+          {isDebugMode ? <Crosshair size={15} /> : <Settings2 size={15} />}
         </motion.button>
       </motion.div>
     </div>

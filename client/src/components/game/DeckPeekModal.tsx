@@ -11,6 +11,7 @@
 
 import { useState, useCallback, memo } from 'react';
 import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { ArrowDownToLine, ArrowUpToLine, Eye, Layers3, Trash2, X } from 'lucide-react';
 import {
   DndContext,
@@ -220,154 +221,161 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
     .map((id) => getCardInstance(id))
     .filter((card): card is CardInstance => card !== null);
 
-  return (
+  const modalContent = (
     <>
       <div
         className="modal-backdrop z-[90]"
         onClick={handleClose}
       />
 
-      <motion.div
-        className="modal-surface modal-accent-indigo fixed left-1/2 top-1/2 z-[100] w-[560px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 p-4"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-      >
-        <div className="modal-header -mx-4 -mt-4 mb-3 flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Eye size={16} className="text-[var(--heart-purple)]" />
-            <span className="text-sm font-medium text-[var(--text-primary)]">检视卡组顶 ({peekCards.length} 张)</span>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <motion.div
+          className="modal-surface modal-accent-indigo w-[560px] max-w-[calc(100vw-2rem)] p-4"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+        >
+          <div className="modal-header -mx-4 -mt-4 mb-3 flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Eye size={16} className="text-[var(--heart-purple)]" />
+              <span className="text-sm font-medium text-[var(--text-primary)]">检视卡组顶 ({peekCards.length} 张)</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-[var(--text-secondary)]">主卡组剩余: {mainDeckCount} 张</span>
+              <button onClick={handleClose} className="button-icon h-8 w-8">
+                <X size={14} />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[var(--text-secondary)]">主卡组剩余: {mainDeckCount} 张</span>
-            <button onClick={handleClose} className="button-icon h-8 w-8">
-              <X size={14} />
+
+          <div className="mb-3 flex gap-2">
+            <button
+              onClick={drawFromDeck}
+              disabled={mainDeckCount === 0}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
+                mainDeckCount > 0
+                  ? 'button-primary'
+                  : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+              )}
+            >
+              <ArrowDownToLine size={14} />
+              翻开一张
+            </button>
+            <button
+              onClick={returnToDeck}
+              disabled={peekCards.length === 0}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
+                peekCards.length > 0
+                  ? 'button-gold'
+                  : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+              )}
+            >
+              <ArrowUpToLine size={14} />
+              放回顶部
+            </button>
+            <button
+              onClick={returnAllToDeck}
+              disabled={peekCards.length === 0}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
+                peekCards.length > 0
+                  ? 'button-secondary'
+                  : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+              )}
+            >
+              <Layers3 size={14} />
+              全部放回
+            </button>
+            <button
+              onClick={moveAllToWaitingRoom}
+              disabled={peekCards.length === 0}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
+                peekCards.length > 0
+                  ? 'rounded border border-[color:color-mix(in_srgb,var(--semantic-error)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_16%,transparent)] text-[var(--semantic-error)]'
+                  : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+              )}
+            >
+              <Trash2 size={14} />
+              全部放入休息室
             </button>
           </div>
-        </div>
 
-        <div className="flex gap-2 mb-3">
-          <button
-            onClick={drawFromDeck}
-            disabled={mainDeckCount === 0}
-            className={cn(
-              'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
-              mainDeckCount > 0
-                ? 'button-primary'
-                : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
-            )}
-          >
-            <ArrowDownToLine size={14} />
-            翻开一张
-          </button>
-          <button
-            onClick={returnToDeck}
-            disabled={peekCards.length === 0}
-            className={cn(
-              'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
-              peekCards.length > 0
-                ? 'button-gold'
-                : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
-            )}
-          >
-            <ArrowUpToLine size={14} />
-            放回顶部
-          </button>
-          <button
-            onClick={returnAllToDeck}
-            disabled={peekCards.length === 0}
-            className={cn(
-              'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
-              peekCards.length > 0
-                ? 'button-secondary'
-                : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
-            )}
-          >
-            <Layers3 size={14} />
-            全部放回
-          </button>
-          <button
-            onClick={moveAllToWaitingRoom}
-            disabled={peekCards.length === 0}
-            className={cn(
-              'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
-              peekCards.length > 0
-                ? 'rounded border border-[color:color-mix(in_srgb,var(--semantic-error)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_16%,transparent)] text-[var(--semantic-error)]'
-                : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
-            )}
-          >
-            <Trash2 size={14} />
-            全部放入休息室
-          </button>
-        </div>
-
-        <div className="h-[150px] overflow-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_56%,transparent)] p-3">
-          {peekCards.length === 0 ? (
-            <div className="flex h-[126px] items-center justify-center text-sm text-[var(--text-muted)]">
-              点击「翻开一张」从卡组顶检视卡牌
-            </div>
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={peekCardIds}
-                strategy={horizontalListSortingStrategy}
+          <div className="h-[150px] overflow-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_56%,transparent)] p-3">
+            {peekCards.length === 0 ? (
+              <div className="flex h-[126px] items-center justify-center text-sm text-[var(--text-muted)]">
+                点击「翻开一张」从卡组顶检视卡牌
+              </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
               >
-                <div className="h-full overflow-x-auto overflow-y-hidden pb-1">
-                  <div className="flex gap-2 flex-nowrap w-max">
-                  {peekCards.map((card) => (
-                    <div
-                      key={card.instanceId}
-                      className="relative group"
-                      onMouseEnter={() => setHoveredCard(card.instanceId)}
-                      onMouseLeave={() => setHoveredCard(null)}
-                    >
-                      <SortableCard
-                        cardId={card.instanceId}
-                        imagePath={getCardImagePath(card.data.cardCode)}
-                      />
-                      {/* 卡牌操作菜单 */}
-                      <div className="absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100">
-                        <button
-                          onClick={() => moveToHand(card.instanceId)}
-                          className="text-[10px] px-1.5 py-0.5 bg-cyan-600 hover:bg-cyan-500 rounded text-white"
-                          title="加入手牌"
-                        >
-                          手牌
-                        </button>
-                        <button
-                          onClick={() => moveToWaitingRoom(card.instanceId)}
-                          className="text-[10px] px-1.5 py-0.5 bg-slate-600 hover:bg-slate-500 rounded text-white"
-                          title="放入休息室"
-                        >
-                          弃置
-                        </button>
-                        <button
-                          onClick={() => moveToDeckBottom(card.instanceId)}
-                          className="text-[10px] px-1.5 py-0.5 bg-amber-600 hover:bg-amber-500 rounded text-white"
-                          title="放到卡组底"
-                        >
-                          底部
-                        </button>
+                <SortableContext
+                  items={peekCardIds}
+                  strategy={horizontalListSortingStrategy}
+                >
+                  <div className="h-full overflow-x-auto overflow-y-hidden pb-1">
+                    <div className="flex w-max flex-nowrap gap-2">
+                    {peekCards.map((card) => (
+                      <div
+                        key={card.instanceId}
+                        className="group relative"
+                        onMouseEnter={() => setHoveredCard(card.instanceId)}
+                        onMouseLeave={() => setHoveredCard(null)}
+                      >
+                        <SortableCard
+                          cardId={card.instanceId}
+                          imagePath={getCardImagePath(card.data.cardCode)}
+                        />
+                        <div className="absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100">
+                          <button
+                            onClick={() => moveToHand(card.instanceId)}
+                            className="text-[10px] px-1.5 py-0.5 bg-cyan-600 hover:bg-cyan-500 rounded text-white"
+                            title="加入手牌"
+                          >
+                            手牌
+                          </button>
+                          <button
+                            onClick={() => moveToWaitingRoom(card.instanceId)}
+                            className="text-[10px] px-1.5 py-0.5 bg-slate-600 hover:bg-slate-500 rounded text-white"
+                            title="放入休息室"
+                          >
+                            弃置
+                          </button>
+                          <button
+                            onClick={() => moveToDeckBottom(card.instanceId)}
+                            className="text-[10px] px-1.5 py-0.5 bg-amber-600 hover:bg-amber-500 rounded text-white"
+                            title="放到卡组底"
+                          >
+                            底部
+                          </button>
+                        </div>
                       </div>
+                    ))}
                     </div>
-                  ))}
                   </div>
-                </div>
-              </SortableContext>
-            </DndContext>
-          )}
-        </div>
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
 
-        <div className="mt-2 text-center text-[10px] text-[var(--text-muted)]">
-          拖拽卡牌可调整顺序 · 悬停卡牌显示操作菜单 · 点击外部关闭并放回所有卡牌
-        </div>
-      </motion.div>
+          <div className="mt-2 text-center text-[10px] text-[var(--text-muted)]">
+            拖拽卡牌可调整顺序 · 悬停卡牌显示操作菜单 · 点击外部关闭并放回所有卡牌
+          </div>
+        </motion.div>
+      </div>
     </>
   );
+
+  if (typeof document === 'undefined') {
+    return modalContent;
+  }
+
+  return createPortal(modalContent, document.body);
 }
 
 export default DeckPeekModal;

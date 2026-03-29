@@ -28,6 +28,7 @@ import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
 import { getDeckBackUrl } from '@/lib/imageService';
 import { parseZoneId, findCardZone } from '@/lib/zoneUtils';
+import { ChevronRight } from 'lucide-react';
 import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType, GameMode } from '@game/shared/types/enums';
 import type { AnyCardData } from '@game/domain/entities/card';
 
@@ -420,8 +421,9 @@ export const GameBoard = memo(function GameBoard() {
           <button
             type="button"
             onClick={handleOpenJudgmentPanel}
-            className="fixed left-0 top-1/2 z-[70] -translate-y-1/2 rounded-r-xl border border-l-0 border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 py-2 text-xs font-semibold text-[var(--accent-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
+            className="fixed left-0 top-1/2 z-[70] flex -translate-y-1/2 items-center gap-1 rounded-r-2xl border border-l-0 border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 py-2 text-xs font-semibold text-[var(--accent-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl transition-colors hover:text-[var(--text-primary)]"
           >
+            <ChevronRight size={14} />
             判定区
           </button>
         )}

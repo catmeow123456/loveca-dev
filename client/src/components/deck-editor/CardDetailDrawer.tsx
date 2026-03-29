@@ -5,7 +5,7 @@
 
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { Layers3, Package, Sparkles, Tag, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '@/store/gameStore';
 import { Card } from '@/components/card/Card';
@@ -16,6 +16,15 @@ import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
 interface CardDetailDrawerProps {
   card: AnyCardData | null;
   onClose: () => void;
+}
+
+function MetaRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-[var(--border-subtle)] py-2 last:border-b-0 last:pb-0">
+      <span className="text-xs font-medium text-[var(--text-muted)]">{label}</span>
+      <span className="text-right text-sm text-[var(--text-primary)]">{value}</span>
+    </div>
+  );
 }
 
 export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
@@ -52,7 +61,7 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="workspace-sidebar fixed bottom-0 right-0 top-0 z-50 flex w-[400px] flex-col border-l border-[var(--border-default)] shadow-[var(--shadow-lg)]"
+            className="workspace-sidebar fixed bottom-0 right-0 top-0 z-50 flex w-[min(92vw,760px)] flex-col border-l border-[var(--border-default)] shadow-[var(--shadow-lg)]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
@@ -68,45 +77,89 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
 
             {/* 内容区域 */}
             <div className="flex-1 overflow-y-auto p-5 cute-scrollbar">
-              {/* 卡牌图片 */}
-              <div className="flex justify-center mb-5">
-                <Card
-                  cardData={card}
-                  imagePath={getCardImagePath(card.cardCode)}
-                  size="lg"
-                  faceUp={true}
-                  interactive={false}
-                  showHover={false}
-                  className="rounded-lg ring-1 ring-[var(--border-default)]"
-                />
-              </div>
+              <div className="grid gap-5 xl:grid-cols-[252px_minmax(0,1fr)] xl:grid-rows-[auto_1fr]">
+                <div className="surface-panel-gradient rounded-[28px] p-4 xl:row-span-2">
+                  <div className="flex justify-center">
+                    <Card
+                      cardData={card}
+                      imagePath={getCardImagePath(card.cardCode)}
+                      size="lg"
+                      faceUp={true}
+                      interactive={false}
+                      showHover={false}
+                      className="rounded-lg ring-1 ring-[var(--border-default)]"
+                    />
+                  </div>
 
-              {/* 卡牌名称 & 编号 */}
-              <h3 className="mb-1 text-center text-xl font-bold text-[var(--text-primary)]">
-                {card.name}
-              </h3>
-              <div className="mb-5 text-center text-xs text-[var(--text-muted)]">
-                {card.cardCode}
-              </div>
-
-              {/* 分隔线 */}
-              <div className="mb-5 h-px bg-gradient-to-r from-transparent via-[var(--border-default)] to-transparent" />
-
-              {/* 卡牌详情 */}
-              <div className="space-y-4">
-                {isMemberCardData(card) && <MemberCardDetails data={card} />}
-                {isLiveCardData(card) && <LiveCardDetails data={card} />}
-              </div>
-
-              {/* 卡牌效果描述 */}
-              {card.cardText && (
-                <div className="surface-panel mt-5 rounded-2xl p-3">
-                  <div className="mb-2 text-xs text-[var(--text-muted)]">效果描述</div>
-                  <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-                    {card.cardText}
-                  </p>
+                  <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
+                    <div className="mb-1 text-lg font-bold text-[var(--text-primary)]">
+                      {card.name}
+                    </div>
+                    <div className="mb-3 text-xs text-[var(--text-muted)]">
+                      {card.cardCode}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="chip-badge px-2.5 py-1 text-xs">
+                        <Tag size={12} />
+                        {card.cardType}
+                      </span>
+                      {card.rare && (
+                        <span className="chip-badge px-2.5 py-1 text-xs">
+                          <Sparkles size={12} />
+                          {card.rare}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              )}
+
+                <div className="surface-panel rounded-2xl p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                    <Sparkles size={15} className="text-[var(--accent-primary)]" />
+                    效果描述
+                  </div>
+                  {card.cardText ? (
+                    <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+                      {card.cardText}
+                    </p>
+                  ) : (
+                    <p className="text-sm leading-relaxed text-[var(--text-muted)]">
+                      该卡牌没有效果描述。
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="surface-panel h-full rounded-2xl p-4">
+                    <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                      <Layers3 size={15} className="text-[var(--accent-secondary)]" />
+                      卡牌信息
+                    </div>
+                    <div>
+                      {card.groupName && <MetaRow label="作品" value={card.groupName} />}
+                      {card.unitName && <MetaRow label="小组" value={card.unitName} />}
+                      {card.product && <MetaRow label="商品" value={card.product} />}
+                      {!card.groupName && !card.unitName && !card.product && (
+                        <div className="text-sm text-[var(--text-muted)]">暂无额外信息</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="surface-panel h-full rounded-2xl p-4">
+                    <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                      <Package size={15} className="text-[var(--semantic-info)]" />
+                      判定与属性
+                    </div>
+                    <div className="space-y-4">
+                      {isMemberCardData(card) && <MemberCardDetails data={card} />}
+                      {isLiveCardData(card) && <LiveCardDetails data={card} />}
+                      {!isMemberCardData(card) && !isLiveCardData(card) && (
+                        <div className="text-sm text-[var(--text-muted)]">该卡牌没有额外判定属性</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </motion.div>
         </>
