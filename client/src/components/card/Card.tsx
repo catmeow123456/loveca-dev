@@ -34,6 +34,8 @@ export interface CardProps {
   interactive?: boolean;
   /** 是否显示悬停效果 */
   showHover?: boolean;
+  /** 是否显示卡面覆盖层信息 */
+  showInfoOverlay?: boolean;
   /** 数量提示 */
   count?: number;
   /** 点击事件 */
@@ -225,6 +227,7 @@ export const Card = memo(function Card({
   selected = false,
   interactive = true,
   showHover = true,
+  showInfoOverlay = true,
   count = undefined,
   onClick,
   onDoubleClick,
@@ -311,13 +314,13 @@ export const Card = memo(function Card({
             )}
 
             {/* 覆盖层信息 */}
-            {isMemberCardData(cardData) && (
+            {showInfoOverlay && isMemberCardData(cardData) && (
               <MemberCardOverlay data={cardData} size={overlaySize} />
             )}
-            {isLiveCardData(cardData) && (
+            {showInfoOverlay && isLiveCardData(cardData) && (
               <LiveCardOverlay data={cardData} size={overlaySize} />
             )}
-            {isEnergyCardData(cardData) && (
+            {showInfoOverlay && isEnergyCardData(cardData) && (
               <EnergyCardOverlay size={overlaySize} />
             )}
           </motion.div>

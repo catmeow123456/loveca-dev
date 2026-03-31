@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   boolean,
   check,
   index,
@@ -125,6 +126,12 @@ export const decks = pgTable(
     isValid: boolean('is_valid').notNull().default(false),
     validationErrors: jsonb('validation_errors').$type<string[]>().default(sql`'[]'::jsonb`),
     isPublic: boolean('is_public').notNull().default(false),
+    shareId: uuid('share_id').default(sql`gen_random_uuid()`).unique(),
+    shareEnabled: boolean('share_enabled').notNull().default(false),
+    sharedAt: timestamp('shared_at', { withTimezone: true }),
+    forkedFromDeckId: uuid('forked_from_deck_id').references((): AnyPgColumn => decks.id, { onDelete: 'set null' }),
+    forkedFromShareId: uuid('forked_from_share_id'),
+    forkedAt: timestamp('forked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -133,6 +140,10 @@ export const decks = pgTable(
     index('idx_decks_is_public')
       .on(table.isPublic)
       .where(sql`${table.isPublic} = true`),
+    index('idx_decks_share_id').on(table.shareId),
+    index('idx_decks_share_enabled')
+      .on(table.shareEnabled)
+      .where(sql`${table.shareEnabled} = true`),
   ]
 );
 

@@ -12,6 +12,7 @@ import { Card } from '@/components/card/Card';
 import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
 import { HeartColor } from '@game/shared/types/enums';
+import { getCardPoint } from '@game/domain/rules/deck-construction';
 
 /**
  * 获取心颜色的中文名称
@@ -128,6 +129,7 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
   const getCardImagePath = useGameStore((s) => s.getCardImagePath);
 
   const card = hoveredCardId ? getCardInstance(hoveredCardId) : null;
+  const point = card ? getCardPoint(card.data.cardCode) : 0;
 
   return (
     <AnimatePresence>
@@ -166,6 +168,13 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
           {/* 卡牌编号 */}
           <div className="mb-3 text-center text-xs text-[var(--text-muted)]">
             {card.data.cardCode}
+          </div>
+
+          <div className="mb-3 flex justify-center">
+            <span className="chip-badge px-2.5 py-1 text-sm">
+              <span className="text-[var(--text-muted)]">点数</span>
+              <span className="font-bold text-[var(--accent-primary)]">{point}pt</span>
+            </span>
           </div>
 
           {/* 类型特定详情 */}

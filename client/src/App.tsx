@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { GameBoard } from '@/components/game';
 import { DeckManager } from '@/components/deck/DeckManager';
-import { HomePage, GameSetupPage } from '@/components/pages';
+import { HomePage, GameSetupPage, SharedDeckPage } from '@/components/pages';
 import { CardAdminPage } from '@/components/admin/CardAdminPage';
 import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from '@/components/auth';
 import { isEmailEnabled } from '@/lib/apiClient';
@@ -19,11 +19,19 @@ import { cardService } from '@/lib/cardService';
 type AuthPage = 'login' | 'register' | 'forgot-password' | 'reset-password';
 type AppPage = 'home' | 'deck-manager' | 'game-setup' | 'game' | 'card-admin';
 
+function getInitialPage(): AppPage {
+  const page = new URLSearchParams(window.location.search).get('page');
+  if (page === 'deck-manager' || page === 'game-setup' || page === 'game' || page === 'card-admin') {
+    return page;
+  }
+  return 'home';
+}
+
 function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authPage, setAuthPage] = useState<AuthPage>('login');
-  const [currentPage, setCurrentPage] = useState<AppPage>('home');
+  const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
   
   // 防止 React 19 Strict Mode 下重复初始化
   const authInitRef = useRef(false);
@@ -146,10 +154,24 @@ function App() {
 
   // 未登录且不是离线模式，显示登录/注册页面
   const isAuthenticated = !!(user && profile) || (offlineMode && !!offlineUser);
+  const shareMatch = window.location.pathname.match(/^\/decks\/share\/([^/]+)$/);
+  const shareId = shareMatch?.[1] ?? null;
+  const shareLoginRequested = new URLSearchParams(window.location.search).get('login') === '1';
+  const initialOpenDeckId = new URLSearchParams(window.location.search).get('openDeckId');
 
   // 密码重置页面需要特殊处理：用户通过邮件链接进入时应显示重置页面
   if (authPage === 'reset-password') {
     return <ResetPasswordPage onSwitchToLogin={() => setAuthPage('login')} />;
+  }
+
+  if (shareId && (isAuthenticated || !shareLoginRequested)) {
+    return (
+      <SharedDeckPage
+        shareId={shareId}
+        onBackHome={() => { window.location.href = '/'; }}
+        onRequestLogin={() => { window.location.href = `/decks/share/${encodeURIComponent(shareId)}?login=1`; }}
+      />
+    );
   }
 
   if (!isAuthenticated) {
@@ -193,6 +215,7 @@ function App() {
     return (
       <DeckManager
         onBack={() => setCurrentPage('home')}
+        initialOpenDeckId={initialOpenDeckId}
       />
     );
   }

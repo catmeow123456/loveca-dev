@@ -155,6 +155,8 @@ body,
 html {
   color-scheme: light dark;
   background-color: var(--bg-deep);
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
   transition: background-color 300ms ease, color 300ms ease;
 }
 

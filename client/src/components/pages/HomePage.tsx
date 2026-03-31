@@ -62,35 +62,33 @@ export function HomePage({ onNavigateToDeckManager, onNavigateToGameSetup, onNav
 
   return (
     <div className="app-shell flex min-h-screen flex-col">
-      <header className="safe-top relative z-10 mx-3 mt-3 rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 py-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:mx-4 sm:mt-4 sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)]">
-              <Layers3 size={20} className="text-[var(--accent-primary)]" />
+      <header className="safe-top relative z-10 mx-3 mt-3 rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 py-2 shadow-[var(--shadow-md)] backdrop-blur-xl sm:mx-4 sm:mt-4 sm:min-h-[72px] sm:rounded-[24px] sm:px-6 sm:py-0">
+        <div className="grid min-h-10 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:min-h-[72px] sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-3">
+          <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] sm:h-11 sm:w-11">
+              <Layers3 size={18} className="text-[var(--accent-primary)] sm:size-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-bold text-gradient-brand sm:text-xl">
+              <h1 className="truncate text-base leading-none font-bold text-gradient-brand sm:text-xl">
                 Loveca Card Game
               </h1>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3">
-            <div className="status-pill min-w-0 max-w-full px-3 py-2 sm:px-4">
-              <connectionStatus.icon size={16} className={connectionStatus.tone} />
-              <span className="truncate font-medium text-[var(--text-primary)] max-[420px]:max-w-[110px] sm:max-w-none">{displayUsername}</span>
+          <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-3">
+            <div className="status-pill min-w-0 max-w-[108px] px-2.5 py-1.5 sm:max-w-none sm:px-4 sm:py-2">
+              <connectionStatus.icon size={14} className={connectionStatus.tone} />
+              <span className="truncate text-sm font-medium text-[var(--text-primary)] sm:text-base">{displayUsername}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <button
-                onClick={() => signOut()}
-                className="button-ghost inline-flex min-h-11 items-center gap-2 px-3 py-2 sm:px-4"
-                title="登出"
-              >
-                <LogOut size={16} />
-                <span className="hidden sm:inline">登出</span>
-              </button>
-            </div>
+            <ThemeToggle />
+            <button
+              onClick={() => signOut()}
+              className="button-ghost inline-flex h-10 items-center justify-center gap-2 px-2.5 py-2 sm:min-h-11 sm:px-4"
+              title="登出"
+            >
+              <LogOut size={16} />
+              <span className="hidden sm:inline">登出</span>
+            </button>
           </div>
         </div>
       </header>

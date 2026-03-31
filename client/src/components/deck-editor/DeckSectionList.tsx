@@ -2,13 +2,14 @@
  * DeckSectionList - 可折叠的卡组分区列表
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, Check, Circle } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '@/store/gameStore';
 import { DeckSidebarCardCell } from './DeckSidebarCardCell';
 import type { AnyCardData } from '@game/domain/entities/card';
+import { isLiveCardData, isMemberCardData } from '@game/domain/entities/card';
 import type { CardEntry } from '@game/domain/card-data/deck-loader';
 
 interface DeckSectionListProps {
@@ -58,6 +59,21 @@ export function DeckSectionList({
   const styles = ACCENT_STYLES[accentColor];
 
   const toggle = useCallback(() => setCollapsed(prev => !prev), []);
+  const sortedEntries = useMemo(() => {
+    const getSortValue = (entry: CardEntry): number => {
+      const cardData = getCardData(entry.card_code);
+      if (!cardData) return Number.POSITIVE_INFINITY;
+      if (isMemberCardData(cardData)) return cardData.cost;
+      if (isLiveCardData(cardData)) return cardData.score;
+      return Number.POSITIVE_INFINITY;
+    };
+
+    return [...entries].sort((a, b) => {
+      const valueDiff = getSortValue(a) - getSortValue(b);
+      if (valueDiff !== 0) return valueDiff;
+      return a.card_code.localeCompare(b.card_code);
+    });
+  }, [entries, getCardData]);
 
   return (
     <div className="mb-3">
@@ -93,7 +109,7 @@ export function DeckSectionList({
             className="overflow-hidden touch-pan-y"
           >
             <div className="mt-2 grid grid-cols-6 gap-1 touch-pan-y">
-              {entries.map((entry) => {
+              {sortedEntries.map((entry) => {
                 const cardData = getCardData(entry.card_code);
                 if (!cardData) return null;
                 return (
@@ -108,7 +124,7 @@ export function DeckSectionList({
                   />
                 );
               })}
-              {entries.length === 0 && (
+              {sortedEntries.length === 0 && (
                 <div className="col-span-6 rounded-xl border border-dashed border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_46%,transparent)] py-3 text-center">
                   <div className="text-xs text-[var(--text-muted)]">点击左侧卡牌添加</div>
                 </div>

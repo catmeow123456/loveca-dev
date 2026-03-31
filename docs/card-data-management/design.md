@@ -142,6 +142,13 @@ interface EnergyCardData extends BaseCardData {
 type AnyCardData = MemberCardData | LiveCardData | EnergyCardData;
 ```
 
+**特殊点数字典（非数据库字段）**
+
+- 卡牌 `pt` 不写入 `cards` 表，也不进入 `BaseCardData`
+- 前端/规则层通过硬编码字典按 `card_code` 基础编号计算点数
+- 未命中的卡牌默认 `0pt`
+- 当前实现位置：`src/domain/rules/deck-construction.ts`
+
 ### 2.3 数据转换流程
 
 ```mermaid

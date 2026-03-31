@@ -5,10 +5,11 @@
 
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Cloud, Database, Layers3, RefreshCw, TriangleAlert, UserRound, Zap } from 'lucide-react';
+import { Check, Cloud, Database, Layers3, RefreshCw, Star, TriangleAlert, UserRound, Zap } from 'lucide-react';
 import type { DeckRecord } from '@/lib/apiClient';
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
-import { calculateDeckStats, formatRelativeTime } from './DeckStats';
+import { calculateDeckStats, formatRelativeTime, getDeckPointTextClass } from './DeckStats';
+import { calculateDeckConfigStats, validateDeckConfig } from '@game/domain/rules/deck-construction';
 
 // 本地卡组类型（用于离线模式或临时卡组）
 export interface LocalDeck {
@@ -31,6 +32,7 @@ export interface DeckDisplayItem {
   memberCount: number;
   liveCount: number;
   energyCount: number;
+  pointTotal: number;
   // 原始数据引用
   cloudDeck?: DeckRecord;
   localDeck?: LocalDeck;
@@ -81,21 +83,32 @@ export function DeckSelector({
         id: deck.id,
         name: deck.name,
         description: deck.description || undefined,
-        isValid: deck.is_valid,
+        isValid: validateDeckConfig({
+          player_name: deck.name,
+          description: deck.description || '',
+          main_deck: {
+            members: deck.main_deck
+              .filter((entry) => entry.card_type === 'MEMBER')
+              .map((entry) => ({ card_code: entry.card_code, count: entry.count })),
+            lives: deck.main_deck
+              .filter((entry) => entry.card_type === 'LIVE')
+              .map((entry) => ({ card_code: entry.card_code, count: entry.count })),
+          },
+          energy_deck: deck.energy_deck || [],
+        }).valid,
         isCloud: true,
         updatedAt: new Date(deck.updated_at),
         memberCount: stats.memberCount,
         liveCount: stats.liveCount,
         energyCount: stats.energyCount,
+        pointTotal: stats.pointTotal,
         cloudDeck: deck,
       });
     }
     
     // 本地卡组
     for (const deck of localDecks) {
-      const memberCount = deck.config.main_deck.members.reduce((sum, e) => sum + e.count, 0);
-      const liveCount = deck.config.main_deck.lives.reduce((sum, e) => sum + e.count, 0);
-      const energyCount = deck.config.energy_deck.reduce((sum, e) => sum + e.count, 0);
+      const stats = calculateDeckConfigStats(deck.config);
       
       items.push({
         id: deck.id,
@@ -104,9 +117,10 @@ export function DeckSelector({
         isValid: deck.isValid,
         isCloud: false,
         updatedAt: deck.updatedAt,
-        memberCount,
-        liveCount,
-        energyCount,
+        memberCount: stats.memberCount,
+        liveCount: stats.liveCount,
+        energyCount: stats.energyCount,
+        pointTotal: stats.pointTotal,
         localDeck: deck,
       });
     }
@@ -241,6 +255,10 @@ export function DeckSelector({
                     <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
                       <Zap size={12} />
                       <span>{deck.energyCount}/12</span>
+                    </div>
+                    <div className={`flex items-center gap-1.5 ${getDeckPointTextClass(deck.pointTotal)}`}>
+                      <Star size={12} />
+                      <span>{deck.pointTotal}/12pt</span>
                     </div>
                     <div className="flex-1" />
                     <div className="text-[var(--text-muted)]">

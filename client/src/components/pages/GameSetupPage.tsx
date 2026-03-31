@@ -16,6 +16,7 @@ import {
   Gamepad2,
   Layers3,
   Play,
+  Star,
   Target,
   Users,
   UserRound,
@@ -24,13 +25,12 @@ import {
 } from 'lucide-react';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
-import { DeckSelector, ThemeToggle, type DeckDisplayItem } from '@/components/common';
+import { DeckSelector, getDeckPointTextClass, PageHeader, ThemeToggle, type DeckDisplayItem } from '@/components/common';
 import { DeckLoader } from '@game/domain/card-data/deck-loader';
 import { CardDataRegistry } from '@game/domain/card-data/loader';
 import { loadSolitaireOpponentDeck } from '@game/application/solitaire-deck';
 import type { DeckConfig } from '@game/application/game-service';
 import { GameMode } from '@game/shared/types/enums';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
 import defaultOpponentDeckYaml from '../../../../assets/decks/缪预组.yaml?raw';
 
 type SetupStep = 0 | 1 | 2 | 3;
@@ -49,7 +49,6 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
   const [error, setError] = useState<string | null>(null);
   const isDebugMode = gameMode === GameMode.DEBUG;
   const maxStep: SetupStep = isDebugMode ? 3 : 2;
-  const isMobile = useMediaQuery('(max-width: 767px)');
 
   // Deck store
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
@@ -278,26 +277,21 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
 
   return (
     <div className="app-shell flex min-h-screen flex-col">
-      <header className="safe-top relative z-10 mx-3 mt-3 flex min-h-16 items-center justify-between gap-3 rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 py-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:mx-4 sm:mt-4 sm:px-6 sm:py-0">
-        <button
-          onClick={onBack}
-          className="button-ghost inline-flex min-h-11 items-center gap-2 px-3 py-2"
-        >
-          <ArrowLeft size={16} />
-          <span className={isMobile ? 'hidden' : 'inline'}>返回</span>
-        </button>
-
-        <div className="flex min-w-0 items-center gap-3">
-          <Gamepad2 size={20} className="shrink-0 text-[var(--accent-primary)]" />
-          <h1 className="truncate text-lg font-bold text-gradient-brand sm:text-xl">
-            游戏准备
-          </h1>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-        </div>
-      </header>
+      <PageHeader
+        title="游戏准备"
+        icon={<Gamepad2 size={20} />}
+        left={(
+          <button
+            onClick={onBack}
+            className="button-ghost inline-flex h-10 items-center justify-center gap-2 px-2.5 py-2 sm:min-h-11 sm:px-3"
+          >
+            <ArrowLeft size={16} />
+            <span className="hidden sm:inline">返回</span>
+          </button>
+        )}
+        right={<ThemeToggle />}
+        className="sm:px-6"
+      />
 
       <main className="safe-bottom relative z-10 flex flex-1 flex-col overflow-hidden px-4 pb-4 pt-5 sm:p-6">
         {renderStepIndicator()}
@@ -456,6 +450,7 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
                           <span className="inline-flex items-center gap-1"><Users size={14} />{selectedP1Deck.memberCount}/48</span>
                           <span className="inline-flex items-center gap-1"><Layers3 size={14} />{selectedP1Deck.liveCount}/12</span>
                           <span className="inline-flex items-center gap-1"><Zap size={14} />{selectedP1Deck.energyCount}/12</span>
+                          <span className={`inline-flex items-center gap-1 ${getDeckPointTextClass(selectedP1Deck.pointTotal)}`}><Star size={14} />{selectedP1Deck.pointTotal}/12pt</span>
                         </div>
                       )}
                     </div>
@@ -478,6 +473,7 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
                             <span className="inline-flex items-center gap-1"><Users size={14} />{selectedP2Deck.memberCount}/48</span>
                             <span className="inline-flex items-center gap-1"><Layers3 size={14} />{selectedP2Deck.liveCount}/12</span>
                             <span className="inline-flex items-center gap-1"><Zap size={14} />{selectedP2Deck.energyCount}/12</span>
+                            <span className={`inline-flex items-center gap-1 ${getDeckPointTextClass(selectedP2Deck.pointTotal)}`}><Star size={14} />{selectedP2Deck.pointTotal}/12pt</span>
                           </div>
                         )}
                       </div>

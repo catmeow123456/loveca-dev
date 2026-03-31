@@ -7,6 +7,7 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import type { DeckConfig, CardEntry } from '@game/domain/card-data/deck-loader';
 import { CardType } from '@game/shared/types/enums';
 import { MAX_SAME_CODE_COUNT } from '../../../../src/domain/rules/deck-validator';
+import { validateDeckConfig } from '../../../../src/domain/rules/deck-construction';
 import { getBaseCardCode } from '@/lib/cardUtils';
 
 export interface UseDeckMutationsReturn {
@@ -60,16 +61,8 @@ export function useDeckMutations(
     if (onValidate) {
       return onValidate(deck);
     }
-    const errors: string[] = [];
-    const memberCount = deck.main_deck.members.reduce((sum, e) => sum + e.count, 0);
-    const liveCount = deck.main_deck.lives.reduce((sum, e) => sum + e.count, 0);
-    const energyCount = deck.energy_deck.reduce((sum, e) => sum + e.count, 0);
-
-    if (memberCount !== 48) errors.push(`成员卡必须为 48 张 (当前 ${memberCount})`);
-    if (liveCount !== 12) errors.push(`Live 卡必须为 12 张 (当前 ${liveCount})`);
-    if (energyCount !== 12) errors.push(`能量卡必须为 12 张 (当前 ${energyCount})`);
-
-    return { valid: errors.length === 0, errors };
+    const result = validateDeckConfig(deck);
+    return { valid: result.valid, errors: result.errors };
   }, [deck, onValidate]);
 
   const addCard = useCallback((card: AnyCardData) => {

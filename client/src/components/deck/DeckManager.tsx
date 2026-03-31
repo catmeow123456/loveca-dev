@@ -7,8 +7,8 @@ import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Plus, Upload, Download, Save, Trash2,
-  Pencil, Loader2, AlertTriangle, Wifi, WifiOff, Package,
-  Check, Circle, Zap, Globe,
+  Pencil, Loader2, AlertTriangle, Wifi, WifiOff,
+  Check, Circle, Zap, Globe, Copy, ExternalLink, EyeOff,
 } from 'lucide-react';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
@@ -16,28 +16,18 @@ import { useGameStore } from '@/store/gameStore';
 import { CardType } from '@game/shared/types/enums';
 import { apiClient, isApiConfigured, type DeckRecord } from '@/lib/apiClient';
 import { CardEditor } from '@/components/deck-editor';
-import { calculateDeckStats, DeckStatsRow, ThemeToggle } from '@/components/common';
+import { calculateDeckStats, DeckStatsRow, getDeckPointTextClass, PageHeader, ThemeToggle } from '@/components/common';
 import { PRESET_DECKS, type PresetDeck } from './preset-decks';
 import type { DeckConfig, CardEntry } from '@game/domain/card-data/deck-loader';
+import { calculateDeckConfigStats, validateDeckConfig } from '@game/domain/rules/deck-construction';
 import * as yaml from 'yaml';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
-import { getCardImageUrl, isStorageEnabled } from '@/lib/imageService';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-
-/**
- * 将 cardCode 转换为图片文件名（用于 MinIO Storage）
- */
-function cardCodeToFilename(cardCode: string): string {
-  let filename = cardCode.replace(/!/g, '');
-  filename = filename.replace(/-[A-Za-z]+\+?$/, '');
-  return filename;
-}
 
 type ViewMode = 'list' | 'edit';
 
 interface DeckManagerProps {
   onBack: () => void;
+  initialOpenDeckId?: string | null;
 }
 
 function createEmptyDeck(name: string = '新卡组'): DeckConfig {
@@ -49,7 +39,7 @@ function createEmptyDeck(name: string = '新卡组'): DeckConfig {
   };
 }
 
-export function DeckManager({ onBack }: DeckManagerProps) {
+export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [editingDeck, setEditingDeck] = useState<DeckConfig | null>(null);
   const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
@@ -57,10 +47,14 @@ export function DeckManager({ onBack }: DeckManagerProps) {
   const [deckDescription, setDeckDescription] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [sharingDeckId, setSharingDeckId] = useState<string | null>(null);
 
   // 初始快照用于 dirty 检测
   const initialSnapshot = useRef<string>('');
+  const initialOpenHandled = useRef(false);
+  const toastTimerRef = useRef<number | null>(null);
   const isDirty = editingDeck
     ? JSON.stringify(editingDeck) !== initialSnapshot.current ||
       deckName !== editingDeck.player_name ||
@@ -81,9 +75,6 @@ export function DeckManager({ onBack }: DeckManagerProps) {
   const displayUsername = offlineMode
     ? offlineUser?.displayName || 'Guest'
     : profile?.display_name || profile?.username || 'User';
-  const isAdmin = profile?.role === 'admin';
-
-  const [downloadingDeckId, setDownloadingDeckId] = useState<string | null>(null);
 
   // DeckLog 导入
   const [showDecklogDialog, setShowDecklogDialog] = useState(false);
@@ -99,6 +90,35 @@ export function DeckManager({ onBack }: DeckManagerProps) {
   useEffect(() => {
     fetchCloudDecks();
   }, [fetchCloudDecks]);
+
+  useEffect(() => {
+    if (!initialOpenDeckId || initialOpenHandled.current || cloudDecks.length === 0) return;
+    const targetDeck = cloudDecks.find((deck) => deck.id === initialOpenDeckId);
+    if (!targetDeck) return;
+
+    initialOpenHandled.current = true;
+    handleEdit(targetDeck);
+    window.history.replaceState({}, '', '/');
+  }, [cloudDecks, initialOpenDeckId]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+      toastTimerRef.current = null;
+    }, 2200);
+  };
 
   const handleCreateNew = () => {
     const newDeck = createEmptyDeck('新卡组');
@@ -150,6 +170,71 @@ export function DeckManager({ onBack }: DeckManagerProps) {
     setDeleteConfirm(null);
   };
 
+  const getShareUrl = (deck: DeckRecord) => `${window.location.origin}/decks/share/${deck.share_id}`;
+
+  const handleEnableShare = async (deckId: string) => {
+    setSharingDeckId(deckId);
+    setSaveError(null);
+
+    try {
+      const result = await apiClient.post<DeckRecord>(`/api/decks/${deckId}/share`);
+      if (result.error || !result.data?.share_id) {
+        setSaveError(result.error?.message || '开启分享失败');
+        return;
+      }
+
+      await fetchCloudDecks();
+
+      try {
+        await navigator.clipboard.writeText(getShareUrl(result.data));
+        showToast('分享已开启，链接已复制');
+      } catch {
+        showToast('分享已开启，可以点击“复制链接”手动复制');
+      }
+    } finally {
+      setSharingDeckId(null);
+    }
+  };
+
+  const handleDisableShare = async (deckId: string) => {
+    setSharingDeckId(deckId);
+    setSaveError(null);
+
+    try {
+      const result = await apiClient.delete<DeckRecord>(`/api/decks/${deckId}/share`);
+      if (result.error) {
+        setSaveError(result.error.message);
+        return;
+      }
+      await fetchCloudDecks();
+      showToast('已关闭分享');
+    } finally {
+      setSharingDeckId(null);
+    }
+  };
+
+  const handleCopyShareLink = async (deck: DeckRecord) => {
+    if (!deck.share_id) {
+      setSaveError('该卡组尚未生成分享链接');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(getShareUrl(deck));
+      showToast('分享链接已复制');
+    } catch {
+      setSaveError('复制链接失败，请检查浏览器权限');
+    }
+  };
+
+  const handleOpenShare = (deck: DeckRecord) => {
+    if (!deck.share_id) {
+      setSaveError('该卡组尚未生成分享链接');
+      return;
+    }
+    window.location.href = getShareUrl(deck);
+  };
+
   const handleSave = async () => {
     if (!editingDeck || !deckName.trim()) {
       setSaveError('请输入卡组名称');
@@ -167,20 +252,40 @@ export function DeckManager({ onBack }: DeckManagerProps) {
       };
 
       if (editingDeckId) {
-        await deleteCloudDeck(editingDeckId);
-      }
+        const mainDeck = [
+          ...deckToSave.main_deck.members.map((e) => ({ card_code: e.card_code, count: e.count, card_type: 'MEMBER' as const })),
+          ...deckToSave.main_deck.lives.map((e) => ({ card_code: e.card_code, count: e.count, card_type: 'LIVE' as const })),
+        ];
+        const energyDeck = deckToSave.energy_deck.map((e) => ({ card_code: e.card_code, count: e.count }));
+        const validation = validateDeck(deckToSave);
 
-      useDeckStore.setState({ player1Deck: deckToSave });
-      const result = await saveToCloud('player1', deckName.trim(), deckDescription.trim());
+        const result = await apiClient.put<DeckRecord>(`/api/decks/${editingDeckId}`, {
+          name: deckName.trim(),
+          description: deckDescription.trim(),
+          main_deck: mainDeck,
+          energy_deck: energyDeck,
+          is_valid: validation.valid,
+          validation_errors: validation.errors,
+        });
 
-      if (!result.success) {
-        setSaveError(result.error || '保存失败');
+        if (result.error) {
+          setSaveError(result.error.message || '保存失败');
+          return;
+        }
       } else {
-        await fetchCloudDecks();
-        setViewMode('list');
-        setEditingDeck(null);
-        setEditingDeckId(null);
+        useDeckStore.setState({ player1Deck: deckToSave });
+        const result = await saveToCloud('player1', deckName.trim(), deckDescription.trim());
+
+        if (!result.success) {
+          setSaveError(result.error || '保存失败');
+          return;
+        }
       }
+
+      await fetchCloudDecks();
+      setViewMode('list');
+      setEditingDeck(null);
+      setEditingDeckId(null);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : '保存失败');
     } finally {
@@ -333,101 +438,35 @@ export function DeckManager({ onBack }: DeckManagerProps) {
     URL.revokeObjectURL(url);
   };
 
-  const handleDownloadImages = async (deck: DeckRecord) => {
-    setDownloadingDeckId(deck.id);
-
-    try {
-      const zip = new JSZip();
-      const imageFolder = zip.folder('images');
-      if (!imageFolder) throw new Error('创建文件夹失败');
-
-      const cardList: { code: string; type: 'card' | 'energy'; index: number }[] = [];
-
-      for (const entry of deck.main_deck) {
-        for (let i = 0; i < entry.count; i++) {
-          cardList.push({ code: entry.card_code, type: 'card', index: i + 1 });
-        }
-      }
-
-      for (const entry of deck.energy_deck) {
-        for (let i = 0; i < entry.count; i++) {
-          cardList.push({ code: entry.card_code, type: 'energy', index: i + 1 });
-        }
-      }
-
-      console.log(`准备下载 ${cardList.length} 张卡牌图片 (使用 ${isStorageEnabled ? '远程存储' : '本地文件'})...`);
-
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const card of cardList) {
-        const filename = cardCodeToFilename(card.code);
-        const url = getCardImageUrl(filename, 'large');
-        const ext = isStorageEnabled ? 'webp' : (card.type === 'energy' ? 'png' : 'jpg');
-
-        try {
-          const response = await fetch(url);
-          if (!response.ok) {
-            console.warn(`下载失败: ${url}`);
-            failCount++;
-            continue;
-          }
-
-          const blob = await response.blob();
-          const zipFileName = `${card.code}_${card.index}.${ext}`;
-          imageFolder.file(zipFileName, blob);
-          successCount++;
-        } catch (err) {
-          console.warn(`下载失败: ${url}`, err);
-          failCount++;
-        }
-      }
-
-      console.log(`下载完成: 成功 ${successCount}, 失败 ${failCount}`);
-
-      if (successCount === 0) {
-        throw new Error('没有成功下载任何图片');
-      }
-
-      const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `${deck.name}-images.zip`);
-    } catch (err) {
-      console.error('下载图片失败:', err);
-      setSaveError(err instanceof Error ? err.message : '下载失败');
-    } finally {
-      setDownloadingDeckId(null);
-    }
-  };
-
   return (
     <div className="app-shell flex h-screen flex-col">
-      <header className="safe-top relative z-10 mx-3 mt-3 flex min-h-14 flex-shrink-0 flex-wrap items-center justify-between gap-3 rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 py-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:mx-4 sm:mt-4 sm:px-5 sm:py-2">
-        <button
-          onClick={viewMode === 'edit' ? handleCancelEdit : onBack}
-          className="button-ghost inline-flex items-center gap-1.5 px-3 py-2 text-sm"
-        >
-          <ArrowLeft size={16} />
-          <span>{viewMode === 'edit' ? '取消' : '返回'}</span>
-        </button>
-
-        <h1 className="text-base font-bold text-[var(--text-primary)]">
-          {viewMode === 'list' ? '卡组管理' : (editingDeckId ? '编辑卡组' : '创建卡组')}
-        </h1>
-
-        <div className="flex max-w-full items-center gap-2">
-          <ThemeToggle />
-          <div className="status-pill min-w-0 max-w-full px-2.5 py-1 text-xs">
-          {offlineMode ? (
-            <WifiOff size={12} className="text-[var(--semantic-warning)]" />
-          ) : isApiConfigured ? (
-            <Wifi size={12} className="text-[var(--semantic-success)]" />
-          ) : (
-            <Zap size={12} className="text-[var(--text-secondary)]" />
-          )}
-          <span className="truncate font-medium text-[var(--text-primary)] max-[420px]:max-w-[92px] sm:max-w-none">{displayUsername}</span>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        title={viewMode === 'list' ? '卡组管理' : (editingDeckId ? '编辑卡组' : '创建卡组')}
+        left={(
+          <button
+            onClick={viewMode === 'edit' ? handleCancelEdit : onBack}
+            className="button-ghost inline-flex h-10 items-center justify-center gap-1.5 px-2.5 py-2 text-sm sm:px-3"
+          >
+            <ArrowLeft size={16} />
+            <span className="hidden sm:inline">{viewMode === 'edit' ? '取消' : '返回'}</span>
+          </button>
+        )}
+        right={(
+          <>
+            <ThemeToggle />
+            <div className="status-pill min-w-0 max-w-full px-2.5 py-1 text-xs">
+              {offlineMode ? (
+                <WifiOff size={12} className="text-[var(--semantic-warning)]" />
+              ) : isApiConfigured ? (
+                <Wifi size={12} className="text-[var(--semantic-success)]" />
+              ) : (
+                <Zap size={12} className="text-[var(--text-secondary)]" />
+              )}
+              <span className="truncate font-medium text-[var(--text-primary)] max-[420px]:max-w-[92px] sm:max-w-none">{displayUsername}</span>
+            </div>
+          </>
+        )}
+      />
 
       <AnimatePresence mode="wait">
         {viewMode === 'list' ? (
@@ -436,9 +475,9 @@ export function DeckManager({ onBack }: DeckManagerProps) {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="relative z-10 flex-1 overflow-y-auto p-6"
+            className="relative z-10 flex-1 overflow-y-auto p-3 sm:p-6"
           >
-            <div className="workspace-shell mx-auto max-w-5xl p-6">
+            <div className="workspace-shell mx-auto max-w-5xl p-3 sm:p-6">
               <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <div className="text-sm text-[var(--text-secondary)]">
                   共 {cloudDecks.length} 个卡组
@@ -495,6 +534,15 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                 </div>
               )}
 
+              {saveError && (
+                <div className="mb-6 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-4">
+                  <div className="flex items-center gap-2 text-sm text-[var(--semantic-error)]">
+                    <AlertTriangle size={14} />
+                    <span>{saveError}</span>
+                  </div>
+                </div>
+              )}
+
               {/* Empty State with Presets */}
               {!isLoadingCloud && cloudDecks.length === 0 && (
                 <div className="py-8">
@@ -506,9 +554,7 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                   <div className="mb-3 text-xs font-semibold tracking-wider text-[var(--text-muted)]">推荐卡组</div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-8">
                     {PRESET_DECKS.map((preset) => {
-                      const memberCount = preset.deck.main_deck.members.reduce((s, e) => s + e.count, 0);
-                      const liveCount = preset.deck.main_deck.lives.reduce((s, e) => s + e.count, 0);
-                      const energyCount = preset.deck.energy_deck.reduce((s, e) => s + e.count, 0);
+                      const { memberCount, liveCount, energyCount, pointTotal } = calculateDeckConfigStats(preset.deck);
                       return (
                         <div
                           key={preset.id}
@@ -529,6 +575,7 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                               <span>成员 {memberCount}/48</span>
                               <span>Live {liveCount}/12</span>
                               <span>能量 {energyCount}/12</span>
+                              <span className={getDeckPointTextClass(pointTotal)}>点数 {pointTotal}/12pt</span>
                             </div>
                             <span className="text-xs text-[var(--accent-primary)] transition-colors">
                               使用此卡组 →
@@ -555,6 +602,20 @@ export function DeckManager({ onBack }: DeckManagerProps) {
               <div className="grid gap-3">
                 {cloudDecks.map((deck, index) => {
                   const stats = calculateDeckStats(deck);
+                  const deckConfig = {
+                    player_name: deck.name,
+                    description: deck.description || '',
+                    main_deck: {
+                      members: deck.main_deck
+                        .filter((entry) => entry.card_type === 'MEMBER')
+                        .map((entry) => ({ card_code: entry.card_code, count: entry.count })),
+                      lives: deck.main_deck
+                        .filter((entry) => entry.card_type === 'LIVE')
+                        .map((entry) => ({ card_code: entry.card_code, count: entry.count })),
+                    },
+                    energy_deck: deck.energy_deck || [],
+                  };
+                  const deckValidity = validateDeckConfig(deckConfig).valid;
                   const isDeleting = deleteConfirm === deck.id;
 
                   return (
@@ -563,7 +624,7 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.04 }}
-                      className={`rounded-xl border p-4 transition-all duration-200 ${
+                      className={`rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
                         isDeleting
                           ? 'border-[color:color-mix(in_srgb,var(--semantic-error)_45%,transparent)]'
                           : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_84%,transparent)] hover:border-[var(--border-default)]'
@@ -591,55 +652,92 @@ export function DeckManager({ onBack }: DeckManagerProps) {
                         </div>
                       ) : (
                         <>
-                          <div className="mb-3 flex flex-col gap-2 min-[480px]:flex-row min-[480px]:items-start min-[480px]:justify-between">
-                            <div className="min-w-0">
-                              <h3 className="mb-0.5 text-base font-bold text-[var(--text-primary)]">{deck.name}</h3>
+                          <div className="mb-2.5 flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <h3 className="mb-0.5 truncate text-[15px] font-bold text-[var(--text-primary)] sm:text-base">{deck.name}</h3>
                               {deck.description && (
-                                <p className="line-clamp-2 text-sm text-[var(--text-secondary)]">{deck.description}</p>
+                                <p className="line-clamp-1 text-xs text-[var(--text-secondary)] sm:line-clamp-2 sm:text-sm">{deck.description}</p>
                               )}
+                              <div className="mt-1 text-[11px] text-[var(--text-muted)] sm:hidden">
+                                {new Date(deck.updated_at).toLocaleDateString('zh-CN')}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5 self-start">
-                              {deck.is_valid ? (
-                                <span className="chip-badge text-[var(--semantic-success)] px-2 py-0.5 text-xs flex items-center gap-1">
+                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                              {deck.share_enabled && (
+                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-info)]">
+                                  <Globe size={10} /> 已分享
+                                </span>
+                              )}
+                              {deckValidity ? (
+                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-success)]">
                                   <Check size={10} /> 完整
                                 </span>
                               ) : (
-                                <span className="chip-badge px-2 py-0.5 text-xs flex items-center gap-1">
+                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px]">
                                   <Circle size={8} /> 未完成
                                 </span>
                               )}
                             </div>
                           </div>
 
-                          <div className="flex flex-col gap-3 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
-                            <DeckStatsRow stats={stats} updatedAt={deck.updated_at} size="md" className="min-w-0" />
-                            <div className="flex flex-wrap items-center gap-2 min-[560px]:gap-1.5">
-                              {isAdmin && !isMobile && (
+                          <div className="flex flex-col gap-2.5 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
+                            <DeckStatsRow stats={stats} updatedAt={isMobile ? undefined : deck.updated_at} size={isMobile ? 'sm' : 'md'} className="min-w-0" />
+                            <div className={`${isMobile ? 'flex items-center gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]' : 'flex flex-wrap items-center gap-2 min-[560px]:gap-1.5'}`}>
+                              {deck.share_enabled && deck.share_id ? (
+                                <>
+                                  <button
+                                    onClick={() => handleCopyShareLink(deck)}
+                                    className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_22%,transparent)] px-2.5 py-1.5 text-xs text-[var(--semantic-success)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] min-[560px]:px-3 min-[560px]:py-1.5"
+                                  >
+                                    <span className="inline-flex items-center justify-center gap-1">
+                                      <Copy size={12} />
+                                      <span className="sm:hidden">复制</span>
+                                      <span className="hidden sm:inline">复制链接</span>
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenShare(deck)}
+                                    className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-info)_22%,transparent)] px-2.5 py-1.5 text-xs text-[var(--semantic-info)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,transparent)] min-[560px]:px-3 min-[560px]:py-1.5"
+                                  >
+                                    <span className="inline-flex items-center justify-center gap-1">
+                                      <ExternalLink size={12} />
+                                      <span className="sm:hidden">打开</span>
+                                      <span className="hidden sm:inline">打开分享页</span>
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDisableShare(deck.id)}
+                                    disabled={sharingDeckId === deck.id}
+                                    className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_22%,transparent)] px-2.5 py-1.5 text-xs text-[var(--semantic-warning)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,transparent)] disabled:cursor-wait disabled:opacity-60 min-[560px]:px-3 min-[560px]:py-1.5"
+                                  >
+                                    <span className="inline-flex items-center justify-center gap-1">
+                                      {sharingDeckId === deck.id ? <Loader2 size={12} className="animate-spin" /> : <EyeOff size={12} />}
+                                      <span className="sm:hidden">关闭</span>
+                                      <span className="hidden sm:inline">关闭分享</span>
+                                    </span>
+                                  </button>
+                                </>
+                              ) : (
                                 <button
-                                  onClick={() => handleDownloadImages(deck)}
-                                  disabled={downloadingDeckId === deck.id}
-                                  className={`rounded-lg border px-3 py-2 text-xs flex min-h-10 items-center justify-center gap-1 transition-colors min-[560px]:min-h-0 min-[560px]:py-1.5 ${
-                                    downloadingDeckId === deck.id
-                                      ? 'cursor-wait text-[var(--semantic-info)]/50 border-[color:color-mix(in_srgb,var(--semantic-info)_20%,transparent)]'
-                                      : 'text-[var(--semantic-info)] hover:bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,transparent)] border-[color:color-mix(in_srgb,var(--semantic-info)_30%,transparent)]'
-                                  }`}
-                                  title="下载卡组图片"
+                                  onClick={() => handleEnableShare(deck.id)}
+                                  disabled={sharingDeckId === deck.id}
+                                  className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_22%,transparent)] px-2.5 py-1.5 text-xs text-[var(--accent-primary)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] disabled:cursor-wait disabled:opacity-60 min-[560px]:px-3 min-[560px]:py-1.5"
                                 >
-                                  {downloadingDeckId === deck.id
-                                    ? <><Loader2 size={12} className="animate-spin" /> 下载中</>
-                                    : <><Package size={12} /> 下载图片</>
-                                  }
+                                  <span className="inline-flex items-center justify-center gap-1">
+                                    {sharingDeckId === deck.id ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
+                                    分享
+                                  </span>
                                 </button>
                               )}
                               <button
                                 onClick={() => handleEdit(deck)}
-                                className="button-secondary px-3 py-2 text-xs flex min-h-10 items-center justify-center gap-1 min-[560px]:min-h-0 min-[560px]:py-1.5"
+                                className="button-secondary flex shrink-0 items-center justify-center gap-1 px-2.5 py-1.5 text-xs min-[560px]:px-3 min-[560px]:py-1.5"
                               >
                                 <Pencil size={12} /> 编辑
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm(deck.id)}
-                                className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_18%,transparent)] px-3 py-2 text-xs text-[var(--semantic-error)]/70 transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] hover:text-[var(--semantic-error)] min-[560px]:border-0 min-[560px]:p-1.5"
+                                className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_18%,transparent)] px-2.5 py-1.5 text-xs text-[var(--semantic-error)]/70 transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] hover:text-[var(--semantic-error)] min-[560px]:border-0 min-[560px]:p-1.5"
                                 title="删除卡组"
                               >
                                 <span className="inline-flex items-center justify-center gap-1">
@@ -848,6 +946,23 @@ export function DeckManager({ onBack }: DeckManagerProps) {
           </div>
         </div>
       )}
+
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+            className="pointer-events-none fixed right-4 top-20 z-[70] max-w-[min(88vw,360px)]"
+          >
+            <div className="flex items-center gap-2 rounded-2xl border border-[color:color-mix(in_srgb,var(--semantic-success)_35%,transparent)] bg-[var(--bg-frosted)] px-4 py-3 text-sm text-[var(--semantic-success)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+              <Check size={16} />
+              <span>{toastMessage}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

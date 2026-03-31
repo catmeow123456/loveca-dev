@@ -3,14 +3,16 @@
  * 显示卡组的成员卡、Live卡、能量卡数量统计
  */
 
-import { Check, Cloud, Database, Layers3, UserRound, Zap } from 'lucide-react';
+import { Check, Cloud, Database, Layers3, Star, UserRound, Zap } from 'lucide-react';
 import type { DeckRecord } from '@/lib/apiClient';
+import { calculateDeckPointTotal, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
 
 // 卡组统计数据
 export interface DeckStatsData {
   memberCount: number;
   liveCount: number;
   energyCount: number;
+  pointTotal: number;
 }
 
 // 从云端卡组计算统计数据
@@ -30,8 +32,22 @@ export function calculateDeckStats(deck: DeckRecord): DeckStatsData {
   }
   
   const energyCount = (deck.energy_deck || []).reduce((sum, e) => sum + e.count, 0);
+  const pointTotal = calculateDeckPointTotal([...mainDeck, ...(deck.energy_deck || [])]);
   
-  return { memberCount, liveCount, energyCount };
+  return { memberCount, liveCount, energyCount, pointTotal };
+}
+
+export function isDeckStatsValid(stats: DeckStatsData): boolean {
+  return (
+    stats.memberCount === 48 &&
+    stats.liveCount === 12 &&
+    stats.energyCount === 12 &&
+    stats.pointTotal <= DECK_POINT_LIMIT
+  );
+}
+
+export function getDeckPointTextClass(pointTotal: number): string {
+  return pointTotal > DECK_POINT_LIMIT ? 'text-[var(--semantic-error)]' : 'text-[var(--text-secondary)]';
 }
 
 // 格式化时间的辅助函数
@@ -91,6 +107,10 @@ export function DeckStatsRow({
         <Zap size={size === 'sm' ? 12 : 14} />
         <span>{stats.energyCount}{showMax && '/12'}</span>
       </div>
+      <div className={`flex items-center gap-1.5 ${getDeckPointTextClass(stats.pointTotal)}`}>
+        <Star size={size === 'sm' ? 12 : 14} />
+        <span>{stats.pointTotal}{showMax && '/12'}pt</span>
+      </div>
       {updatedAt && (
         <>
           <div className="hidden min-[480px]:flex-1" />
@@ -115,10 +135,7 @@ interface DeckValidityBadgeProps {
  * 显示卡组是否完整（48+12+12）
  */
 export function DeckValidityBadge({ stats, className = '' }: DeckValidityBadgeProps) {
-  const isValid = 
-    stats.memberCount === 48 && 
-    stats.liveCount === 12 && 
-    stats.energyCount === 12;
+  const isValid = isDeckStatsValid(stats);
   
   return isValid ? (
     <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-500/20 text-green-300 rounded-full border border-green-400/30 ${className}`}>
@@ -161,9 +178,7 @@ export function DeckCard({
   actions,
 }: DeckCardProps) {
   const validity = isValid ?? (
-    stats.memberCount === 48 && 
-    stats.liveCount === 12 && 
-    stats.energyCount === 12
+    isDeckStatsValid(stats)
   );
 
   const CardContent = (

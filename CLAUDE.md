@@ -48,7 +48,7 @@ Monorepo implementing the Love Live card game (Loveca):
 src/
 ├── domain/           # Core game logic
 │   ├── entities/     # GameState, PlayerState, CardInstance, Zone
-│   └── rules/        # live-resolver, cost-calculator, check-timing
+│   └── rules/        # live-resolver, cost-calculator, check-timing, deck-construction
 ├── application/      # Orchestration
 │   ├── game-service.ts      # Main game engine
 │   ├── game-session.ts      # Session manager with events

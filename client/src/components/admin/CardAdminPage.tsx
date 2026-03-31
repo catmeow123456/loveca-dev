@@ -11,7 +11,7 @@ import {
   AlertTriangle, Lock, Pencil, ArrowUp, ArrowDown,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
 } from 'lucide-react';
-import { ThemeToggle } from '@/components/common';
+import { PageHeader, ThemeToggle } from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
 import { cardService, type CardUpdateInput, type CardCreateInput } from '@/lib/cardService';
 import { resolveCardImagePath, preloadCardImages, getRecommendedImageSize } from '@/lib/imageService';
@@ -167,120 +167,124 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
 
   return (
     <div className="app-shell flex h-screen flex-col">
-      <div className="relative z-10 mx-4 mt-4 flex-shrink-0 rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-md)] backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button onClick={onBack} className="button-ghost p-2">
-                <ArrowLeft size={18} />
-              </button>
-              <h1 className="text-lg font-bold text-[var(--text-primary)]">卡牌数据管理</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <button
-                onClick={handleExport}
-                disabled={exporting}
-                className="button-secondary flex items-center gap-1.5 px-3 py-2 text-sm disabled:opacity-50"
-              >
-                <Download size={14} />
-                {exporting ? '导出中...' : '导出 JSON'}
-              </button>
-              <button
-                onClick={() => { setIsCreating(true); setSelectedCard(null); }}
-                className="button-primary flex items-center gap-1.5 px-3 py-2 text-sm font-medium"
-              >
-                <Plus size={14} /> 新建卡牌
-              </button>
-            </div>
-          </div>
+      <PageHeader
+        title="卡牌数据管理"
+        left={(
+          <button onClick={onBack} className="button-ghost inline-flex h-10 items-center justify-center gap-2 px-2.5 py-2 sm:min-h-11 sm:px-3">
+            <ArrowLeft size={16} />
+            <span className="hidden sm:inline">返回</span>
+          </button>
+        )}
+        right={<ThemeToggle />}
+      />
 
-          {/* 搜索和筛选 */}
-          <div className="flex items-center gap-3 mt-3">
-            <div className="relative flex-1 max-w-md">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜索卡牌名称或编号..."
-                className="input-field w-full py-2 pl-9 pr-4 text-sm"
-              />
-            </div>
-            <div className="flex gap-1.5">
-              {([
-                { value: 'ALL' as const, label: '全部' },
-                { value: CardType.MEMBER, label: '成员卡' },
-                { value: CardType.LIVE, label: 'Live 卡' },
-                { value: CardType.ENERGY, label: '能量卡' },
-              ]).map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setSelectedType(opt.value as CardType | 'ALL')}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs transition-all border ${
-                    selectedType === opt.value
-                      ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)] border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)]'
-                      : 'bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <div className="h-6 w-px bg-[var(--border-subtle)]" />
-            <div className="flex gap-1.5">
-              {([
-                { value: 'ALL' as const, label: '全部状态', active: 'bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)] border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)]' },
-                { value: 'DRAFT' as const, label: '草稿', active: 'bg-yellow-500/25 text-yellow-200 border-yellow-400/50' },
-                { value: 'PUBLISHED' as const, label: '已上线', active: 'bg-green-500/25 text-green-200 border-green-400/50' },
-              ]).map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setSelectedStatus(opt.value)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs transition-all border ${
-                    selectedStatus === opt.value
-                      ? opt.active
-                      : 'bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <button onClick={loadCards} disabled={loading} className="button-icon h-9 w-9">
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+      <div className="relative z-10 flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="mx-auto mb-4 flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-[var(--text-secondary)]">
+            卡牌检索、状态维护与发布操作集中在这里处理。
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="button-secondary inline-flex min-h-10 items-center gap-1.5 px-3 py-2 text-sm disabled:opacity-50"
+            >
+              <Download size={14} />
+              {exporting ? '导出中...' : '导出 JSON'}
+            </button>
+            <button
+              onClick={() => { setIsCreating(true); setSelectedCard(null); }}
+              className="button-primary inline-flex min-h-10 items-center gap-1.5 px-3 py-2 text-sm font-medium"
+            >
+              <Plus size={14} /> 新建卡牌
             </button>
           </div>
-
-          <div className="mt-2 flex items-center gap-3 text-xs text-[var(--text-muted)]">
-            <span>共 {cards.length} 张</span>
-            <span>·</span>
-            <span>筛选: {filteredCards.length} 张</span>
-            {filteredCards.length > 0 && (
-              <>
-                <span>·</span>
-                <button
-                  onClick={() => handleBatchStatus('PUBLISHED')}
-                  disabled={batchWorking}
-                  className="text-green-300/70 hover:text-green-300 disabled:opacity-40 flex items-center gap-0.5"
-                >
-                  <ArrowUp size={10} /> 全部上线
-                </button>
-                <button
-                  onClick={() => handleBatchStatus('DRAFT')}
-                  disabled={batchWorking}
-                  className="text-yellow-300/70 hover:text-yellow-300 disabled:opacity-40 flex items-center gap-0.5"
-                >
-                  <ArrowDown size={10} /> 全部转草稿
-                </button>
-              </>
-            )}
-          </div>
         </div>
-      </div>
 
-      <div className="relative z-10 flex-1 overflow-y-auto p-4">
-        <div className="workspace-shell mx-auto max-w-7xl p-4">
+        <div className="workspace-shell mx-auto max-w-7xl p-4 sm:p-5">
+          <div className="mb-4 flex flex-col gap-3 border-b border-[var(--border-subtle)] pb-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative w-full lg:max-w-md lg:flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="搜索卡牌名称或编号..."
+                  className="input-field w-full py-2 pl-9 pr-4 text-sm"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {([
+                  { value: 'ALL' as const, label: '全部' },
+                  { value: CardType.MEMBER, label: '成员卡' },
+                  { value: CardType.LIVE, label: 'Live 卡' },
+                  { value: CardType.ENERGY, label: '能量卡' },
+                ]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setSelectedType(opt.value as CardType | 'ALL')}
+                    className={`rounded-lg border px-2.5 py-1.5 text-xs transition-all ${
+                      selectedType === opt.value
+                        ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
+                        : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                {([
+                  { value: 'ALL' as const, label: '全部状态', active: 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]' },
+                  { value: 'DRAFT' as const, label: '草稿', active: 'border-yellow-400/50 bg-yellow-500/25 text-yellow-200' },
+                  { value: 'PUBLISHED' as const, label: '已上线', active: 'border-green-400/50 bg-green-500/25 text-green-200' },
+                ]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setSelectedStatus(opt.value)}
+                    className={`rounded-lg border px-2.5 py-1.5 text-xs transition-all ${
+                      selectedStatus === opt.value
+                        ? opt.active
+                        : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                <button onClick={loadCards} disabled={loading} className="button-icon h-9 w-9">
+                  <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--text-muted)]">
+                <span>共 {cards.length} 张</span>
+                <span>筛选: {filteredCards.length} 张</span>
+                {filteredCards.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => handleBatchStatus('PUBLISHED')}
+                      disabled={batchWorking}
+                      className="flex items-center gap-0.5 text-green-300/70 hover:text-green-300 disabled:opacity-40"
+                    >
+                      <ArrowUp size={10} /> 全部上线
+                    </button>
+                    <button
+                      onClick={() => handleBatchStatus('DRAFT')}
+                      disabled={batchWorking}
+                      className="flex items-center gap-0.5 text-yellow-300/70 hover:text-yellow-300 disabled:opacity-40"
+                    >
+                      <ArrowDown size={10} /> 全部转草稿
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
           {error && (
             <div className="mb-4 flex items-center gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
               <AlertTriangle size={14} />

@@ -5,7 +5,10 @@ export {
   DeckValidityBadge, 
   DeckCard, 
   calculateDeckStats, 
+  getDeckPointTextClass,
+  isDeckStatsValid,
   formatRelativeTime, 
   type DeckStatsData 
 } from './DeckStats';
+export { PageHeader } from './PageHeader';
 export { ThemeToggle } from './ThemeToggle';

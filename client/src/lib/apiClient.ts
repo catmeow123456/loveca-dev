@@ -39,8 +39,19 @@ export interface DeckRecord {
   is_valid: boolean;
   validation_errors: string[];
   is_public: boolean;
+  share_id?: string | null;
+  share_enabled?: boolean;
+  shared_at?: string | null;
+  forked_from_deck_id?: string | null;
+  forked_from_share_id?: string | null;
+  forked_at?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SharedDeckRecord extends DeckRecord {
+  author_display_name: string | null;
+  author_username: string;
 }
 
 export interface ApiResponse<T = unknown> {

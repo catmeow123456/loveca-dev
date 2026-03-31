@@ -1,6 +1,6 @@
 # 用户卡组管理系统 - 设计文档
 
-> 版本: 1.2.0
+> 版本: 1.3.0
 > 创建日期: 2026-03-03
 > 最后更新: 2026-03-12
 > 状态: 已实现
@@ -138,6 +138,14 @@ interface CardEntry {
 - 将 `members` 标记 `card_type: 'MEMBER'`，`lives` 标记 `card_type: 'LIVE'`，合并为 `main_deck`
 - `energy_deck` 直接映射
 
+### 2.4 点数规则
+
+- 系统维护一份硬编码的特殊点数字典，按卡牌基础编号计算点数
+- 未命中的卡牌默认 `0pt`
+- 卡组总点数 = 主卡组与能量卡组全部条目的 `单卡点数 × 数量` 之和
+- 合法卡组要求总点数 `<= 12pt`
+- 统一实现位置：`src/domain/rules/deck-construction.ts`
+
 ## 3. 核心组件
 
 ### 3.1 DeckManager（卡组管理页面）
@@ -210,6 +218,11 @@ const [collapsedSections, setCollapsedSections] = useState<Record<string, boolea
 - 左侧卡牌库：未在卡组中的卡牌点击直接添加；已在卡组中的卡牌悬停时显示 `+` / `−` 按钮覆盖层
 - 右侧卡组预览（`DeckSidebarCardCell`）：以 6 列图片网格展示，每张卡显示数量遮罩和底部 `+` / `−` 控制条
 
+**卡组预览排序**:
+- 成员卡分区按费用（`cost`）从低到高排序；费用相同时按卡牌编号（`cardCode`）字典序排序
+- Live 卡分区按分数（`score`）从低到高排序；分数相同时按卡牌编号（`cardCode`）字典序排序
+- 能量卡分区保持原始顺序
+
 **同基础编号计数同步**:
 左侧卡牌库的数量徽章通过 `baseCodeCountInDeck` 按基础编号聚合计算。同基础编号的不同稀有度变体卡牌显示相同的总数，帮助玩家直观了解同类卡的使用情况。添加卡牌时，系统按基础编号检查 4 张上限，达到上限后所有同基础编号的变体均无法继续添加。
 
@@ -219,6 +232,7 @@ const [collapsedSections, setCollapsedSections] = useState<Record<string, boolea
 
 **职责**:
 - 计算并展示卡组的成员卡/Live卡/能量卡数量统计
+- 计算并展示卡组总点数（`xx/12pt`）
 - 提供相对时间格式化（如"5 分钟前"）
 - `DeckValidityBadge` 组件展示卡组完成度状态
 - `DeckCard` 组件在列表中展示单个卡组的完整信息

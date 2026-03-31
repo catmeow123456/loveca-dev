@@ -3,11 +3,12 @@
  */
 
 import { useState } from 'react';
-import { Users, Music, Zap, AlertTriangle, CheckCircle, BarChart2, List } from 'lucide-react';
+import { Users, Music, Zap, AlertTriangle, CheckCircle, BarChart2, List, Star } from 'lucide-react';
 import { DeckSectionList } from './DeckSectionList';
 import { DeckAnalysisPanel } from './DeckAnalysisPanel';
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
+import { calculateDeckConfigStats, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
 
 interface DeckSidebarProps {
   deck: DeckConfig;
@@ -27,9 +28,7 @@ export function DeckSidebar({
   compactHeader = false,
 }: DeckSidebarProps) {
   const [showAnalysis, setShowAnalysis] = useState(false);
-  const memberCount = deck.main_deck.members.reduce((sum, e) => sum + e.count, 0);
-  const liveCount = deck.main_deck.lives.reduce((sum, e) => sum + e.count, 0);
-  const energyCount = deck.energy_deck.reduce((sum, e) => sum + e.count, 0);
+  const { memberCount, liveCount, energyCount, pointTotal } = calculateDeckConfigStats(deck);
 
   return (
     <div className="workspace-sidebar flex h-full min-h-0 w-full flex-col overflow-hidden md:w-[420px] xl:w-[480px]">
@@ -52,6 +51,12 @@ export function DeckSidebar({
               <Zap size={12} className="text-[var(--heart-blue)]" />
               <span className={energyCount === 12 ? 'text-[var(--semantic-success)]' : 'text-[var(--text-secondary)]'}>
                 {energyCount}/12
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Star size={12} className="text-[var(--accent-primary)]" />
+              <span className={pointTotal <= DECK_POINT_LIMIT ? 'text-[var(--semantic-success)]' : 'text-[var(--semantic-error)]'}>
+                {pointTotal}/{DECK_POINT_LIMIT}pt
               </span>
             </div>
           </div>
