@@ -199,4 +199,3 @@
 
 - [设计文档](./design.md)
 - [卡牌数据管理系统 - 设计文档](../card-data-management/design.md)
-- [自托管迁移文档](../self-hosted-migration.md)

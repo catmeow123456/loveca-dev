@@ -16,6 +16,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as readline from 'readline/promises';
 import { Pool } from 'pg';
 import { normalizeCardCode } from '../shared/utils/card-code';
 
@@ -121,6 +122,7 @@ interface ExistingCardRow {
 }
 
 interface PendingUpdate {
+  existing: ExistingCardRow;
   card: CardUpsertRecord;
   changedFields: string[];
 }
@@ -214,6 +216,16 @@ function convertSpecialHearts(
 
 function stableJson(value: unknown): string {
   return JSON.stringify(value ?? null);
+}
+
+function formatValue(value: unknown): string {
+  if (value == null) {
+    return 'null';
+  }
+  if (typeof value === 'string') {
+    return JSON.stringify(value);
+  }
+  return JSON.stringify(value, null, 2);
 }
 
 function getChangedFields(existing: ExistingCardRow, next: CardUpsertRecord): string[] {
@@ -512,7 +524,7 @@ async function main() {
       if (existing) {
         const changedFields = getChangedFields(existing, card);
         if (changedFields.length > 0) {
-          updateCards.push({ card, changedFields });
+          updateCards.push({ existing, card, changedFields });
         } else {
           unchangedCount++;
         }
@@ -531,14 +543,25 @@ async function main() {
       return;
     }
 
-    // Step 5: 同步
+    let approvedUpdateCards = updateCards;
+    let skippedUpdateCount = 0;
+
+    if (updateCards.length > 0) {
+      console.log('\nStep 5: Reviewing pending updates...');
+      approvedUpdateCards = await promptUpdateDecisions(updateCards);
+      skippedUpdateCount = updateCards.length - approvedUpdateCards.length;
+      console.log(`  Approved updates: ${approvedUpdateCards.length}`);
+      console.log(`  Skipped updates: ${skippedUpdateCount}`);
+    }
+
+    // Step 6: 同步
     let insertedCount = 0;
     let updatedCount = 0;
     let failedCount = 0;
     const changedCards: ChangedCardSummary[] = [];
 
     if (newCards.length > 0) {
-      console.log(`\nStep 5a: Inserting ${newCards.length} new cards...`);
+      console.log(`\nStep 6a: Inserting ${newCards.length} new cards...`);
       const totalBatches = Math.ceil(newCards.length / CONFIG.batchSize);
 
       for (let i = 0; i < newCards.length; i += CONFIG.batchSize) {
@@ -590,13 +613,13 @@ async function main() {
       }
     }
 
-    if (updateCards.length > 0) {
-      console.log(`\nStep 5b: Updating ${updateCards.length} existing cards...`);
-      const totalBatches = Math.ceil(updateCards.length / CONFIG.batchSize);
+    if (approvedUpdateCards.length > 0) {
+      console.log(`\nStep 6b: Updating ${approvedUpdateCards.length} approved existing cards...`);
+      const totalBatches = Math.ceil(approvedUpdateCards.length / CONFIG.batchSize);
 
-      for (let i = 0; i < updateCards.length; i += CONFIG.batchSize) {
+      for (let i = 0; i < approvedUpdateCards.length; i += CONFIG.batchSize) {
         const batchNum = Math.floor(i / CONFIG.batchSize) + 1;
-        const batch = updateCards.slice(i, i + CONFIG.batchSize);
+        const batch = approvedUpdateCards.slice(i, i + CONFIG.batchSize);
 
         try {
           for (const { card } of batch) {
@@ -654,6 +677,7 @@ async function main() {
     console.log(`  Inserted: ${insertedCount}`);
     console.log(`  Updated: ${updatedCount}`);
     console.log(`  Unchanged: ${unchangedCount}`);
+    console.log(`  Skipped after review: ${skippedUpdateCount}`);
     if (failedCount > 0) {
       console.log(`  Failed: ${failedCount}`);
     }
@@ -689,6 +713,72 @@ function printChangedCards(changedCards: ChangedCardSummary[]) {
         : '';
     console.log(`  [${card.action}] ${card.card_code} ${card.name}${changedFields}`);
   }
+}
+
+function printPendingUpdateCodes(updateCards: PendingUpdate[]) {
+  if (updateCards.length === 0) {
+    return;
+  }
+
+  console.log('\nPending update card codes:');
+  console.log(`  ${updateCards.map(({ card }) => card.card_code).join(', ')}`);
+}
+
+function printUpdateDiff(update: PendingUpdate, index: number, total: number) {
+  console.log(
+    `\n[${index}/${total}] ${update.card.card_code} ${update.card.name} fields=${update.changedFields.join(',')}`
+  );
+
+  for (const field of update.changedFields) {
+    const key = field as keyof ExistingCardRow & keyof CardUpsertRecord;
+    console.log(`  ${field}:`);
+    console.log(`    before: ${formatValue(update.existing[key])}`);
+    console.log(`    after:  ${formatValue(update.card[key])}`);
+  }
+}
+
+async function promptUpdateDecisions(updateCards: PendingUpdate[]): Promise<PendingUpdate[]> {
+  if (updateCards.length === 0) {
+    return [];
+  }
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error('Interactive review requires a TTY terminal');
+  }
+
+  printPendingUpdateCodes(updateCards);
+  console.log('\nReviewing pending updates one by one. Input y to apply, n to skip.');
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const approved: PendingUpdate[] = [];
+
+  try {
+    for (let i = 0; i < updateCards.length; i++) {
+      const update = updateCards[i];
+      printUpdateDiff(update, i + 1, updateCards.length);
+
+      while (true) {
+        const answer = (await rl.question('  Apply this update? [y/n] ')).trim().toLowerCase();
+        if (answer === 'y') {
+          approved.push(update);
+          console.log('  Decision: apply');
+          break;
+        }
+        if (answer === 'n') {
+          console.log('  Decision: skip');
+          break;
+        }
+        console.log('  Please input y or n.');
+      }
+    }
+  } finally {
+    rl.close();
+  }
+
+  return approved;
 }
 
 main().catch(console.error);

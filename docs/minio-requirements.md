@@ -12,7 +12,7 @@
 
 ### 1.1 迁移背景
 
-原有图片存储使用 Supabase Storage（公开桶 `loveca-cards`），存储卡牌图片的三种尺寸（thumb/medium/large）和静态资源。迁移原因见 `docs/self-hosted-migration.md` 第 1 节。
+原有图片存储使用 Supabase Storage（公开桶 `loveca-cards`），存储卡牌图片的三种尺寸（thumb/medium/large）和静态资源。当前方案改为自托管 MinIO，以摆脱对 Supabase Storage 的运行时依赖，并保持现有图片目录结构与访问方式。
 
 ### 1.2 目标
 
@@ -332,7 +332,6 @@ MINIO_ENDPOINT=10.0.0.2 MINIO_PORT=9000 MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xx
 
 ## 10. 相关文档
 
-- `docs/self-hosted-migration.md` — 完整自托管迁移方案
 - `docs/loveca_supabase.md` — 原有 Supabase 设计文档（迁移后归档）
 - `docs/image_optimization.md` — 图片压缩和优化策略
 - MinIO 官方文档：https://min.io/docs/minio/container/index.html

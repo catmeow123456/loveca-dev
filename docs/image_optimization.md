@@ -283,7 +283,6 @@ export default defineConfig({
 ## 相关文档
 
 - `docs/minio-requirements.md` — MinIO 独立服务器部署方案
-- `docs/self-hosted-migration.md` — 自托管迁移完整方案
 
 ---
 

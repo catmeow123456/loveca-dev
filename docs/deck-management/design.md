@@ -625,4 +625,3 @@ const [decklogWarnings, setDecklogWarnings] = useState<string[]>([]);
 
 - [需求文档](./requirements.md)
 - [卡牌数据管理系统 - 设计文档](../card-data-management/design.md)
-- [自托管迁移文档](../self-hosted-migration.md)

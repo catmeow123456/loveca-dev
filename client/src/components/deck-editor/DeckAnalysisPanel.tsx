@@ -111,7 +111,7 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
     useShallow((s) => ({ getCardData: s.getCardData }))
   );
 
-  const { costData, bladeData } = useMemo(() => {
+  const { costData, liveScoreData, bladeData } = useMemo(() => {
     // 费用分布（成员卡）
     const costMap = new Map<number, number>();
     for (const entry of deck.main_deck.members) {
@@ -132,19 +132,42 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
       });
     }
 
+    // Live 分数分布
+    const liveScoreMap = new Map<number, number>();
+    for (const entry of deck.main_deck.lives) {
+      const card = getCardData(entry.card_code);
+      if (card && isLiveCardData(card)) {
+        liveScoreMap.set(card.score, (liveScoreMap.get(card.score) ?? 0) + entry.count);
+      }
+    }
+
+    const maxLiveScore = liveScoreMap.size > 0 ? Math.max(...liveScoreMap.keys()) : 0;
+    const liveScoreData: BarDatum[] = [];
+    for (let score = 0; score <= maxLiveScore; score++) {
+      liveScoreData.push({
+        label: String(score),
+        value: liveScoreMap.get(score) ?? 0,
+        color: '#38bdf8',
+      });
+    }
+
     // Blade Heart 效果统计（成员卡 + Live 卡）
     const effectCounts: Record<BladeHeartEffect, number> = {
       [BladeHeartEffect.DRAW]: 0,
       [BladeHeartEffect.HEART]: 0,
       [BladeHeartEffect.SCORE]: 0,
     };
+    let noJudgmentCount = 0;
     const colorCounts = new Map<HeartColor, number>();
 
     const allEntries = [...deck.main_deck.members, ...deck.main_deck.lives];
     for (const entry of allEntries) {
       const card = getCardData(entry.card_code);
       if (!card || (!isMemberCardData(card) && !isLiveCardData(card))) continue;
-      if (!card.bladeHearts) continue;
+      if (!card.bladeHearts || card.bladeHearts.length === 0) {
+        noJudgmentCount += entry.count;
+        continue;
+      }
       for (const item of card.bladeHearts) {
         effectCounts[item.effect] += entry.count;
         if (item.effect === BladeHeartEffect.HEART && item.heartColor) {
@@ -164,10 +187,11 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
     const bladeData: BarDatum[] = [
       { label: '抽卡', value: effectCounts[BladeHeartEffect.DRAW], color: '#38bdf8' },
       { label: '加分', value: effectCounts[BladeHeartEffect.SCORE], color: '#fbbf24' },
-      ...colorBars,      
+      { label: '无判', value: noJudgmentCount, color: '#94a3b8' },
+      ...colorBars,
     ];
 
-    return { costData, bladeData };
+    return { costData, liveScoreData, bladeData };
   }, [deck, getCardData]);
 
   return (
@@ -184,6 +208,18 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
         <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">X 轴：费用值 · Y 轴：张数</p>
       </section>
 
+      {/* Live 分数分布 */}
+      <section>
+        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[var(--text-primary)]">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-sky-400" />
+          LIVE 分数分布
+        </h4>
+        <div className="surface-panel rounded-2xl border border-[var(--border-subtle)] px-2 py-1">
+          <BarChart data={liveScoreData} emptyText="尚未添加 Live 卡" />
+        </div>
+        <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">X 轴：分数值 · Y 轴：张数</p>
+      </section>
+
       {/* Blade Heart 效果统计 */}
       <section>
         <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[var(--text-primary)]">
@@ -193,7 +229,7 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
         <div className="surface-panel rounded-2xl border border-[var(--border-subtle)] px-2 py-1">
           <BarChart data={bladeData} emptyText="卡组中暂无 Blade Heart 效果" />
         </div>
-        <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">抽卡 · 加分 · ♥各色</p>
+        <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">抽卡 · 加分 · 无判 · ♥各色</p>
       </section>
     </div>
   );
