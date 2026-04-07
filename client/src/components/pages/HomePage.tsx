@@ -11,6 +11,7 @@ import {
   Layers3,
   LogOut,
   Settings,
+  Users,
   Wifi,
   WifiOff,
   Zap,
@@ -22,11 +23,18 @@ import { isApiConfigured } from '@/lib/apiClient';
 interface HomePageProps {
   onNavigateToDeckManager: () => void;
   onNavigateToGameSetup: () => void;
+  onNavigateToOnlineDebug: () => void;
   onNavigateToCardAdmin: () => void;
 }
 
-export function HomePage({ onNavigateToDeckManager, onNavigateToGameSetup, onNavigateToCardAdmin }: HomePageProps) {
+export function HomePage({
+  onNavigateToDeckManager,
+  onNavigateToGameSetup,
+  onNavigateToOnlineDebug,
+  onNavigateToCardAdmin,
+}: HomePageProps) {
   const { profile, offlineMode, offlineUser, signOut } = useAuthStore();
+  const hasOnlineDebugEntry = Boolean(import.meta.env.VITE_DEBUG_SEAT);
   
   // 获取显示的用户名
   const displayUsername = offlineMode 
@@ -58,7 +66,21 @@ export function HomePage({ onNavigateToDeckManager, onNavigateToGameSetup, onNav
       onClick: onNavigateToGameSetup,
       chips: ['调试模式', '对墙打', '开局确认'],
     },
-  ];
+  ].concat(
+    hasOnlineDebugEntry
+      ? [
+          {
+            title: '联机调试',
+            description: '固定到当前调试服务 seat，和另一端口一起进入同一个联机调试房间。',
+            cta: '进入调试房间',
+            accent: 'var(--accent-secondary)',
+            icon: Users,
+            onClick: onNavigateToOnlineDebug,
+            chips: ['双端口', '各选一卡组', '同步对局'],
+          },
+        ]
+      : []
+  );
 
   return (
     <div className="app-shell flex min-h-screen flex-col">
@@ -118,7 +140,7 @@ export function HomePage({ onNavigateToDeckManager, onNavigateToGameSetup, onNav
             </div>
           </motion.div>
 
-          <div className="grid gap-4 md:grid-cols-2 md:gap-6">
+          <div className={`grid gap-4 md:gap-6 ${actions.length > 2 ? 'lg:grid-cols-3' : 'md:grid-cols-2'}`}>
             {actions.map((action, index) => (
               <motion.button
                 key={action.title}

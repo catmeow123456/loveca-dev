@@ -4,16 +4,16 @@
  * 包含：发动能力、结束阶段、选择卡牌、确认可选效果等
  */
 
-import type { GameState } from '../../domain/entities/game';
+import type { GameState } from '../../domain/entities/game.js';
 import type {
   ActivateAbilityAction,
   EndPhaseAction,
   SelectCardsAction,
   ConfirmOptionalAction,
-} from '../actions';
-import type { ActionHandler, ActionHandlerContext } from './types';
-import { success, failure } from './types';
-import { addAction } from '../../domain/entities/game';
+} from '../actions.js';
+import type { ActionHandler, ActionHandlerContext } from './types.js';
+import { success, failure } from './types.js';
+import { addAction } from '../../domain/entities/game.js';
 
 /**
  * 处理使用起动能力动作

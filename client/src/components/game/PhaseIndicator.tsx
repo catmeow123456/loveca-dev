@@ -5,7 +5,7 @@
 
 import { memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, Check, Mic, Sparkles, Trophy, Undo2 } from 'lucide-react';
+import { BarChart3, Check, Mic, Sparkles, Trophy } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { GamePhase, SubPhase } from '@game/shared/types/enums';
@@ -14,7 +14,6 @@ import {
   getPhaseConfig,
   getSubPhaseConfig,
   isUserActionRequired,
-  isPlayerActive,
 } from '@game/shared/phase-config';
 
 interface PhaseIndicatorProps {
@@ -35,7 +34,6 @@ function getPhaseActionConfig(
   canAct: boolean;
   buttonText: string;
   buttonStyle: string;
-  secondaryButton?: { text: string; style: string; action: 'undo' | 'skip' };
 } | null {
   // 根据子阶段决定按钮
   if (subPhase && subPhase !== SubPhase.NONE) {
@@ -62,11 +60,6 @@ function getPhaseActionConfig(
         canAct: true,
         buttonText: '确认完成',
         buttonStyle: 'from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400',
-        secondaryButton: {
-          text: '撤销',
-          style: 'from-slate-500 to-slate-600 hover:from-slate-400 hover:to-slate-500',
-          action: 'undo',
-        },
       };
     }
 
@@ -111,30 +104,29 @@ export const PhaseIndicator = memo(function PhaseIndicator({
 }: PhaseIndicatorProps) {
   // 状态选择器
   const gameState = useGameStore((s) => s.gameState);
-  const viewingPlayerId = useGameStore((s) => s.viewingPlayerId);
+  const permissionView = useGameStore((s) => s.getPermissionView());
+  const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
+  const currentTurnCount = useGameStore((s) => s.getTurnCountView());
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { endPhase, advancePhase, confirmSubPhase, undoOperation } = useGameStore(
+  const { endPhase, advancePhase, confirmSubPhase } = useGameStore(
     useShallow((s) => ({
       endPhase: s.endPhase,
       advancePhase: s.advancePhase,
       confirmSubPhase: s.confirmSubPhase,
-      undoOperation: s.undoOperation,
     }))
   );
 
-  // 使用 useMemo 计算 isMyTurn，避免在选择器中调用函数
   const isMyTurn = useMemo(() => {
-    if (!gameState || !viewingPlayerId) return false;
-    return isPlayerActive(gameState, viewingPlayerId);
-  }, [gameState, viewingPlayerId]);
+    if (permissionView) {
+      return permissionView.canAct;
+    }
+    return false;
+  }, [permissionView]);
 
   // 判断是否是先攻玩家的回合
   const isFirstPlayerTurn = gameState?.activePlayerIndex === gameState?.firstPlayerIndex;
   
-  // 获取当前子阶段
-  const currentSubPhase = gameState?.currentSubPhase ?? SubPhase.NONE;
-
   // 从配置中获取阶段和子阶段信息
   const phaseConfig = getPhaseConfig(phase);
   const subPhaseConfig = currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase) : null;
@@ -179,11 +171,6 @@ export const PhaseIndicator = memo(function PhaseIndicator({
     }
   };
 
-  // 处理撤销按钮点击
-  const handleUndo = () => {
-    undoOperation();
-  };
-
   return (
     <div className="fixed right-4 bottom-4 z-[var(--z-phase-indicator)]">
       <motion.div
@@ -194,7 +181,9 @@ export const PhaseIndicator = memo(function PhaseIndicator({
         {turnNumber !== undefined && (
           <div className="border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-1 text-center">
             <span className="text-xs text-[var(--text-muted)]">回合</span>
-            <span className="ml-2 text-lg font-bold text-[var(--text-primary)]">{turnNumber}</span>
+            <span className="ml-2 text-lg font-bold text-[var(--text-primary)]">
+              {currentTurnCount ?? turnNumber}
+            </span>
           </div>
         )}
 
@@ -254,23 +243,6 @@ export const PhaseIndicator = memo(function PhaseIndicator({
               <span className="mr-2 inline-flex align-middle">{mainButtonIcon}</span>
               {actionConfig.buttonText}
             </motion.button>
-            
-            {actionConfig.secondaryButton && (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleUndo}
-                className={cn(
-                  'w-full py-1.5 rounded-lg text-xs font-medium',
-                  'bg-gradient-to-r',
-                  actionConfig.secondaryButton.style,
-                  'text-white/90 shadow transition-colors'
-                )}
-              >
-                <span className="mr-2 inline-flex align-middle"><Undo2 size={14} /></span>
-                {actionConfig.secondaryButton.text}
-              </motion.button>
-            )}
           </div>
         )}
 
@@ -279,14 +251,6 @@ export const PhaseIndicator = memo(function PhaseIndicator({
             <div className="flex items-center justify-center gap-2 text-center font-bold text-[var(--accent-gold)]">
               <Trophy size={16} />
               游戏结束
-            </div>
-          </div>
-        )}
-
-        {gameState && gameState.operationHistory.length > 0 && (
-          <div className="border-t border-[var(--border-subtle)] px-4 pb-2 pt-2">
-            <div className="text-xs text-[var(--text-muted)]">
-              本阶段操作: {gameState.operationHistory.length} 步
             </div>
           </div>
         )}

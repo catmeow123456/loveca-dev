@@ -3,8 +3,8 @@
  * 单一数据源：所有子阶段的元数据集中定义
  */
 
-import { SubPhase } from '../types/enums';
-import type { SubPhaseConfig } from './types';
+import { SubPhase } from '../types/enums.js';
+import type { SubPhaseConfig } from './types.js';
 
 // ============================================
 // 子阶段配置定义

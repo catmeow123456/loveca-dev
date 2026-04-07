@@ -88,6 +88,8 @@ export enum ZoneType {
   EXILE_ZONE = 'EXILE_ZONE',
   /** 解决区域 - 共享 */
   RESOLUTION_ZONE = 'RESOLUTION_ZONE',
+  /** 检视区域 - 共享，检视者正面/对手背面 */
+  INSPECTION_ZONE = 'INSPECTION_ZONE',
 }
 
 /**

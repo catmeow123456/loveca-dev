@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { GameBoard } from '@/components/game';
 import { DeckManager } from '@/components/deck/DeckManager';
-import { HomePage, GameSetupPage, SharedDeckPage } from '@/components/pages';
+import { HomePage, GameSetupPage, OnlineDebugPage, SharedDeckPage } from '@/components/pages';
 import { CardAdminPage } from '@/components/admin/CardAdminPage';
 import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from '@/components/auth';
 import { isEmailEnabled } from '@/lib/apiClient';
@@ -17,11 +17,17 @@ import { useAuthStore } from '@/store/authStore';
 import { cardService } from '@/lib/cardService';
 
 type AuthPage = 'login' | 'register' | 'forgot-password' | 'reset-password';
-type AppPage = 'home' | 'deck-manager' | 'game-setup' | 'game' | 'card-admin';
+type AppPage = 'home' | 'deck-manager' | 'game-setup' | 'online-debug' | 'game' | 'card-admin';
 
 function getInitialPage(): AppPage {
   const page = new URLSearchParams(window.location.search).get('page');
-  if (page === 'deck-manager' || page === 'game-setup' || page === 'game' || page === 'card-admin') {
+  if (
+    page === 'deck-manager' ||
+    page === 'game-setup' ||
+    page === 'online-debug' ||
+    page === 'game' ||
+    page === 'card-admin'
+  ) {
     return page;
   }
   return 'home';
@@ -210,6 +216,10 @@ function App() {
     );
   }
 
+  if (effectivePage === 'online-debug') {
+    return <OnlineDebugPage onBack={() => setCurrentPage('home')} />;
+  }
+
   // 卡组管理页面
   if (effectivePage === 'deck-manager') {
     return (
@@ -234,6 +244,7 @@ function App() {
     <HomePage
       onNavigateToDeckManager={() => setCurrentPage('deck-manager')}
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
+      onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToCardAdmin={() => setCurrentPage('card-admin')}
     />
   );

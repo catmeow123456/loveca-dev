@@ -5,7 +5,7 @@
  * 基于 "信任玩家" 设计方案
  */
 
-import type { GameState } from '../../domain/entities/game';
+import type { GameState } from '../../domain/entities/game.js';
 import type {
   ConfirmSubPhaseAction,
   ManualMoveCardAction,
@@ -14,11 +14,11 @@ import type {
   SelectSuccessCardAction,
   UndoOperationAction,
   PerformCheerAction,
-} from '../actions';
-import type { ActionHandler, ActionHandlerContext } from './types';
-import { success, failure } from './types';
-import type { GameOperationResult } from '../game-service';
-import { GameEventType } from '../events';
+} from '../actions.js';
+import type { ActionHandler, ActionHandlerContext } from './types.js';
+import { success, failure } from './types.js';
+import type { GameOperationResult } from '../game-service.js';
+import { GameEventType } from '../events.js';
 import {
   ZoneType,
   CardType,
@@ -26,12 +26,12 @@ import {
   SubPhase,
   OrientationState,
   FaceState,
-} from '../../shared/types/enums';
-import { addAction, updatePlayer, getFirstPlayer } from '../../domain/entities/game';
-import { removeCardFromStatefulZone, addCardToZone, drawFromTop } from '../../domain/entities/zone';
-import { removeCardFromPlayerZone, addCardToPlayerZone, moveCardUniversal } from './zone-operations';
-import { phaseManager, type SubPhaseAutoAction } from '../phase-manager';
-import { isUserActionRequired } from '../../shared/phase-config';
+} from '../../shared/types/enums.js';
+import { addAction, updatePlayer, getFirstPlayer } from '../../domain/entities/game.js';
+import { removeCardFromStatefulZone, addCardToZone, drawFromTop } from '../../domain/entities/zone.js';
+import { removeCardFromPlayerZone, addCardToPlayerZone, moveCardUniversal } from './zone-operations.js';
+import { phaseManager, type SubPhaseAutoAction } from '../phase-manager.js';
+import { isUserActionRequired } from '../../shared/phase-config/index.js';
 
 /**
  * 处理确认子阶段完成动作

@@ -4,11 +4,11 @@
  * 处理游戏开始时的换牌动作
  */
 
-import type { GameState } from '../../domain/entities/game';
-import type { MulliganAction } from '../actions';
-import type { ActionHandler, ActionHandlerContext } from './types';
-import { success, failure } from './types';
-import { GamePhase, SubPhase } from '../../shared/types/enums';
+import type { GameState } from '../../domain/entities/game.js';
+import type { MulliganAction } from '../actions.js';
+import type { ActionHandler, ActionHandlerContext } from './types.js';
+import { success, failure } from './types.js';
+import { GamePhase, SubPhase } from '../../shared/types/enums.js';
 import {
   getFirstPlayer,
   getSecondPlayer,
@@ -18,8 +18,8 @@ import {
   setSubPhase,
   addAction,
   updatePlayer,
-} from '../../domain/entities/game';
-import { removeCardFromZone, shuffleZone } from '../../domain/entities/zone';
+} from '../../domain/entities/game.js';
+import { removeCardFromZone, shuffleZone } from '../../domain/entities/zone.js';
 
 /**
  * 处理换牌动作（Mulligan）

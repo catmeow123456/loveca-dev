@@ -180,7 +180,7 @@ function findCardInPlayerZones(cardId: string, player: PlayerState): ZoneType | 
  * @example
  * const fromZone = findCardZone('card-123', gameState, viewingPlayerId);
  * if (fromZone) {
- *   manualMoveCard('card-123', fromZone, toZone);
+ *   moveTableCard('card-123', fromZone, toZone);
  * }
  */
 export function findCardZone(
@@ -191,6 +191,11 @@ export function findCardZone(
   // 解决区域（共享）
   if (gameState.resolutionZone.cardIds.includes(cardId)) {
     return ZoneType.RESOLUTION_ZONE;
+  }
+
+  // 检视区域（共享）
+  if (gameState.inspectionZone.cardIds.includes(cardId)) {
+    return ZoneType.INSPECTION_ZONE;
   }
 
   // 优先搜索指定玩家
@@ -225,6 +230,9 @@ export function findCardSlotPosition(
 ): SlotPosition | null {
   for (const slot of Object.values(SlotPosition)) {
     if (player.memberSlots.slots[slot] === cardId) {
+      return slot;
+    }
+    if (player.memberSlots.energyBelow?.[slot]?.includes(cardId)) {
       return slot;
     }
   }

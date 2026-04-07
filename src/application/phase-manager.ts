@@ -19,8 +19,8 @@ import {
   TriggerCondition,
   SubPhase,
   EffectWindowType,
-} from '../shared/types/enums';
-import type { GameState } from '../domain/entities/game';
+} from '../shared/types/enums.js';
+import type { GameState } from '../domain/entities/game.js';
 import {
   getPhaseConfig,
   getPhaseTransitions,
@@ -29,8 +29,8 @@ import {
   getNextSubPhase,
   canPlayerEndPhase as canPlayerEndPhaseFromConfig,
   getSubPhaseConfig,
-} from '../shared/phase-config';
-import type { PhaseTransitionRule, PhaseAutoActionConfig } from '../shared/phase-config';
+} from '../shared/phase-config/index.js';
+import type { PhaseTransitionRule, PhaseAutoActionConfig } from '../shared/phase-config/index.js';
 
 // ============================================
 // 阶段转换结果

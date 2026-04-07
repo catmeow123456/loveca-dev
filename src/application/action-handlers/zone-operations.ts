@@ -4,10 +4,10 @@
  * 使用映射表替代 switch-case，消除重复代码
  */
 
-import type { GameState } from '../../domain/entities/game';
-import type { PlayerState } from '../../domain/entities/player';
-import { updatePlayer } from '../../domain/entities/game';
-import { ZoneType, SlotPosition } from '../../shared/types/enums';
+import type { GameState } from '../../domain/entities/game.js';
+import type { PlayerState } from '../../domain/entities/player.js';
+import { updatePlayer } from '../../domain/entities/game.js';
+import { ZoneType, SlotPosition } from '../../shared/types/enums.js';
 import {
   addCardToZone,
   removeCardFromZone,
@@ -20,7 +20,7 @@ import {
   removeEnergyBelowMember,
   findEnergyBelowSlot,
   moveEnergyBelowWithMember,
-} from '../../domain/entities/zone';
+} from '../../domain/entities/zone.js';
 
 // ============================================
 // 区域访问器类型
@@ -328,6 +328,83 @@ export function removeCardFromResolutionZone(game: GameState, cardId: string): G
     resolutionZone: {
       ...game.resolutionZone,
       cardIds: game.resolutionZone.cardIds.filter((id) => id !== cardId),
+      revealedCardIds: game.resolutionZone.revealedCardIds.filter((id) => id !== cardId),
+    },
+  };
+}
+
+// ============================================
+// 检视区域操作（共享区域，独立于解决区域）
+// ============================================
+
+/**
+ * 添加卡牌到检视区域
+ */
+export function addCardToInspectionZone(game: GameState, cardId: string): GameState {
+  return {
+    ...game,
+    inspectionZone: {
+      ...game.inspectionZone,
+      cardIds: [...game.inspectionZone.cardIds, cardId],
+    },
+  };
+}
+
+/**
+ * 从检视区域移除卡牌
+ */
+export function removeCardFromInspectionZone(game: GameState, cardId: string): GameState {
+  return {
+    ...game,
+    inspectionZone: {
+      ...game.inspectionZone,
+      cardIds: game.inspectionZone.cardIds.filter((id) => id !== cardId),
+      revealedCardIds: game.inspectionZone.revealedCardIds.filter((id) => id !== cardId),
+    },
+  };
+}
+
+/**
+ * 将检视区中的卡牌公开给双方
+ */
+export function revealInspectionZoneCard(game: GameState, cardId: string): GameState {
+  if (!game.inspectionZone.cardIds.includes(cardId)) {
+    return game;
+  }
+
+  if (game.inspectionZone.revealedCardIds.includes(cardId)) {
+    return game;
+  }
+
+  return {
+    ...game,
+    inspectionZone: {
+      ...game.inspectionZone,
+      revealedCardIds: [...game.inspectionZone.revealedCardIds, cardId],
+    },
+  };
+}
+
+/**
+ * 重新排列检视区域中的卡牌
+ */
+export function reorderInspectionZoneCard(
+  game: GameState,
+  cardId: string,
+  toIndex: number
+): GameState {
+  const cardIds = [...game.inspectionZone.cardIds];
+  const fromIndex = cardIds.indexOf(cardId);
+  if (fromIndex < 0 || toIndex < 0 || toIndex >= cardIds.length) {
+    return game;
+  }
+  cardIds.splice(fromIndex, 1);
+  cardIds.splice(toIndex, 0, cardId);
+  return {
+    ...game,
+    inspectionZone: {
+      ...game.inspectionZone,
+      cardIds,
     },
   };
 }

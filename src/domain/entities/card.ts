@@ -9,7 +9,7 @@ import {
   BladeHeartEffect,
   OrientationState,
   FaceState,
-} from '../../shared/types/enums';
+} from '../../shared/types/enums.js';
 
 // ============================================
 // 值对象定义

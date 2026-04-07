@@ -11,7 +11,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { SubPhase, GameMode } from '@game/shared/types/enums';
 import { useGameStore } from '@/store/gameStore';
-import type { LiveCardData } from '@game/domain/entities/card';
 
 interface ScorePanelProps {
   /** 是否显示 */
@@ -148,48 +147,52 @@ export const ScorePanel = memo(function ScorePanel({
   onClose,
 }: ScorePanelProps) {
   // 状态选择器
-  const gameState = useGameStore((s) => s.gameState);
+  const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView());
+  const permissionView = useGameStore((s) => s.getPermissionView());
+  const viewingPlayer = useGameStore((s) => s.getViewingPlayerState());
+  const firstPlayer = useGameStore((s) => s.getFirstPlayerState());
+  const secondPlayer = useGameStore((s) => s.getSecondPlayerState());
   const viewingPlayerId = useGameStore((s) => s.viewingPlayerId);
   const gameMode = useGameStore((s) => s.gameMode);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { confirmScore, confirmSubPhase, getCardInstance } = useGameStore(
+  const { confirmScore, confirmSubPhase } = useGameStore(
     useShallow((s) => ({
       confirmScore: s.confirmScore,
       confirmSubPhase: s.confirmSubPhase,
-      getCardInstance: s.getCardInstance,
     }))
   );
 
   // 获取双方玩家
   const [player1, player2] = useMemo(() => {
-    if (!gameState) return [null, null];
-    return [gameState.players[0], gameState.players[1]];
-  }, [gameState]);
+    return [firstPlayer, secondPlayer];
+  }, [firstPlayer, secondPlayer]);
+  const player1Id = player1?.id ?? null;
+  const player2Id = player2?.id ?? null;
+  const player1BaseScore = useGameStore((s) => (player1Id ? s.getLiveScoreForPlayer(player1Id) : 0));
+  const player2BaseScore = useGameStore((s) => (player2Id ? s.getLiveScoreForPlayer(player2Id) : 0));
+  const player1Won = useGameStore((s) => (player1Id ? s.isLiveWinner(player1Id) : false));
+  const player2Won = useGameStore((s) => (player2Id ? s.isLiveWinner(player2Id) : false));
+  const isDraw = useGameStore((s) => s.isLiveDraw());
 
   // 计算基础分数
   const calculateBaseScore = useCallback(
     (playerId: string): number => {
-      const player = gameState?.players.find((p) => p.id === playerId);
-      if (!player) return 0;
-
-      let score = 0;
-      player.liveZone.cardIds.forEach((cardId) => {
-        const card = getCardInstance(cardId);
-        if (card && card.data.cardType === 'LIVE') {
-          const liveData = card.data as LiveCardData;
-          score += liveData.score;
-        }
-      });
-      return score;
+      if (playerId === player1Id) {
+        return player1BaseScore;
+      }
+      if (playerId === player2Id) {
+        return player2BaseScore;
+      }
+      return 0;
     },
-    [gameState, getCardInstance]
+    [player1BaseScore, player1Id, player2BaseScore, player2Id]
   );
 
   // 计算应援加分（音符+1效果）
   const calculateBonusScore = useCallback(
-    (playerId: string): number => {
-      // TODO: 从 liveResolution 中获取应援加分
+    (_playerId: string): number => {
+      // TODO: 从联机结算 selector 中补齐应援加分
       // 目前简化为0
       return 0;
     },
@@ -216,24 +219,21 @@ export const ScorePanel = memo(function ScorePanel({
       setPlayer2Score(total2);
 
       // 自动判断胜者
-      const p1HasCards = player1.liveZone.cardIds.length > 0;
-      const p2HasCards = player2.liveZone.cardIds.length > 0;
-
-      if (!p1HasCards && !p2HasCards) {
-        setWinner('none');
-      } else if (p1HasCards && !p2HasCards) {
+      if (isDraw) {
+        setWinner('both');
+      } else if (player1Won) {
         setWinner('player1');
-      } else if (!p1HasCards && p2HasCards) {
+      } else if (player2Won) {
         setWinner('player2');
       } else if (total1 > total2) {
         setWinner('player1');
       } else if (total2 > total1) {
         setWinner('player2');
       } else {
-        setWinner('both');
+        setWinner('none');
       }
     }
-  }, [player1, player2, isOpen, calculateBaseScore, calculateBonusScore]);
+  }, [player1, player2, isOpen, calculateBaseScore, calculateBonusScore, isDraw, player1Won, player2Won]);
 
   // 确认分数
   const handleConfirm = useCallback(() => {
@@ -258,18 +258,17 @@ export const ScorePanel = memo(function ScorePanel({
   }, [isOpen, onClose]);
 
   // 检查是否应该显示
-  const currentSubPhase = gameState?.currentSubPhase;
   const shouldShow =
     isOpen && currentSubPhase === SubPhase.RESULT_SETTLEMENT;
 
   if (!shouldShow || !player1 || !player2) return null;
 
-  const isMyTurn = viewingPlayerId === player1.id || viewingPlayerId === player2.id;
+  const isMyTurn = permissionView?.canAct ?? (viewingPlayerId === player1.id || viewingPlayerId === player2.id);
   const isSolitaire = gameMode === GameMode.SOLITAIRE;
 
   // 对墙打模式：确定己方玩家
   const selfPlayer = isSolitaire
-    ? (viewingPlayerId === player1.id ? player1 : player2)
+    ? (viewingPlayer?.id === player1.id ? player1 : player2)
     : null;
   const selfScore = selfPlayer
     ? viewingPlayerId === player1.id
@@ -425,12 +424,17 @@ export const ScorePanel = memo(function ScorePanel({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleConfirm}
+                  disabled={!isMyTurn}
                   className={cn(
                     'flex-1 py-2.5 rounded-lg text-sm font-bold',
-                    'text-white shadow-lg transition-colors',
-                    isSolitaire
-                      ? 'bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-400 hover:to-violet-400'
-                      : 'bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400'
+                    isMyTurn
+                      ? [
+                          'text-white shadow-lg transition-colors',
+                          isSolitaire
+                            ? 'bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-400 hover:to-violet-400'
+                            : 'bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400',
+                        ]
+                      : 'bg-slate-700 text-slate-500 cursor-not-allowed'
                   )}
                 >
                   ✅ 确认分数

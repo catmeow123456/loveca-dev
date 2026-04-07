@@ -8,6 +8,7 @@ import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
+import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { Card } from '@/components/card/Card';
 import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
@@ -90,9 +91,7 @@ export const MemberCardDetails = memo(function MemberCardDetails({ data }: { dat
 /** Live 卡详情 */
 export const LiveCardDetails = memo(function LiveCardDetails({ data }: { data: LiveCardData }) {
   // 将 Map 转换为数组进行遍历
-  const requirements = data.requirements.colorRequirements instanceof Map
-    ? Array.from(data.requirements.colorRequirements.entries())
-    : Object.entries(data.requirements.colorRequirements);
+  const requirements = getHeartRequirementEntries(data.requirements?.colorRequirements);
 
   return (
     <div className="space-y-3">
@@ -127,13 +126,15 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
   const hoveredCardId = useGameStore((s) => s.ui.hoveredCardId);
   const getCardInstance = useGameStore((s) => s.getCardInstance);
   const getCardImagePath = useGameStore((s) => s.getCardImagePath);
+  const canSeeCardFront = useGameStore((s) => s.canSeeCardFront);
 
   const card = hoveredCardId ? getCardInstance(hoveredCardId) : null;
+  const isVisibleToViewer = hoveredCardId ? canSeeCardFront(hoveredCardId) : false;
   const point = card ? getCardPoint(card.data.cardCode) : 0;
 
   return (
     <AnimatePresence>
-      {card && (
+      {card && isVisibleToViewer && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}

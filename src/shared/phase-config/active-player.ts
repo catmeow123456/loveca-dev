@@ -3,9 +3,9 @@
  * 解决问题 2: "回合"概念在不同阶段含义不同
  */
 
-import type { GameState } from '../../domain/entities/game';
-import { getPhaseConfig } from './phase-registry';
-import { getSubPhaseConfig } from './sub-phase-registry';
+import type { GameState } from '../../domain/entities/game.js';
+import { getPhaseConfig } from './phase-registry.js';
+import { getSubPhaseConfig } from './sub-phase-registry.js';
 
 // ============================================
 // 核心判断函数

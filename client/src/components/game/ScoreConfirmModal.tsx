@@ -5,41 +5,34 @@ import { useGameStore } from '@/store/gameStore';
 import { GameMode, GamePhase, SubPhase } from '@game/shared/types/enums';
 
 export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
-  const gameState = useGameStore((s) => s.gameState);
-  const viewingPlayerId = useGameStore((s) => s.viewingPlayerId);
+  const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
+  const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView());
+  const permissionView = useGameStore((s) => s.getPermissionView());
+  const selfPlayer = useGameStore((s) => s.getViewingPlayerState());
+  const opponentPlayer = useGameStore((s) => s.getOpponentPlayerState());
+  const confirmedScoreCount = useGameStore((s) => s.getConfirmedScoreCount());
   const gameMode = useGameStore((s) => s.gameMode);
   const confirmScore = useGameStore((s) => s.confirmScore);
+  const selfPlayerId = selfPlayer?.id ?? null;
+  const opponentPlayerId = opponentPlayer?.id ?? null;
+  const selfScore = useGameStore((s) => (selfPlayerId ? s.getLiveScoreForPlayer(selfPlayerId) : 0));
+  const opponentScore = useGameStore((s) =>
+    opponentPlayerId ? s.getLiveScoreForPlayer(opponentPlayerId) : 0
+  );
+  const selfConfirmed = useGameStore((s) =>
+    selfPlayerId ? s.isScoreConfirmed(selfPlayerId) : false
+  );
+  const opponentConfirmed = useGameStore((s) =>
+    opponentPlayerId ? s.isScoreConfirmed(opponentPlayerId) : false
+  );
 
   const shouldShow = useMemo(() => {
-    if (!gameState) return false;
     return (
-      gameState.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-      gameState.currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
-      gameState.liveResolution.scoreConfirmedBy.length < 2
+      currentPhase === GamePhase.LIVE_RESULT_PHASE &&
+      currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
+      confirmedScoreCount < 2
     );
-  }, [gameState]);
-
-  const selfPlayer = useMemo(() => {
-    if (!gameState || !viewingPlayerId) return null;
-    return gameState.players.find((p) => p.id === viewingPlayerId) ?? null;
-  }, [gameState, viewingPlayerId]);
-
-  const opponentPlayer = useMemo(() => {
-    if (!gameState || !viewingPlayerId) return null;
-    return gameState.players.find((p) => p.id !== viewingPlayerId) ?? null;
-  }, [gameState, viewingPlayerId]);
-
-  const selfScore = selfPlayer ? gameState?.liveResolution.playerScores.get(selfPlayer.id) ?? 0 : 0;
-  const opponentScore = opponentPlayer
-    ? gameState?.liveResolution.playerScores.get(opponentPlayer.id) ?? 0
-    : 0;
-
-  const selfConfirmed = !!(
-    selfPlayer && gameState?.liveResolution.scoreConfirmedBy.includes(selfPlayer.id)
-  );
-  const opponentConfirmed = !!(
-    opponentPlayer && gameState?.liveResolution.scoreConfirmedBy.includes(opponentPlayer.id)
-  );
+  }, [confirmedScoreCount, currentPhase, currentSubPhase]);
 
   const [adjustedScore, setAdjustedScore] = useState(0);
 
@@ -51,6 +44,8 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
   if (!shouldShow || !selfPlayer || !opponentPlayer) return null;
 
   const isDebugMode = gameMode === GameMode.DEBUG;
+  const canAct = permissionView?.canAct ?? true;
+  const canConfirm = canAct && !selfConfirmed;
 
   return (
     <AnimatePresence>
@@ -102,7 +97,7 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
               onChange={(e) =>
                 setAdjustedScore(Math.max(0, Number.parseInt(e.target.value || '0', 10) || 0))
               }
-              disabled={selfConfirmed}
+              disabled={!canConfirm}
               className="input-field w-full px-2 py-1.5 text-sm disabled:opacity-50"
             />
           </div>
@@ -110,14 +105,18 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
           <button
             type="button"
             onClick={() => confirmScore(adjustedScore)}
-            disabled={selfConfirmed}
+            disabled={!canConfirm}
             className={
-              selfConfirmed
+              !canConfirm
                 ? 'mt-4 w-full cursor-not-allowed rounded-lg bg-[var(--bg-overlay)] py-2 text-sm font-semibold text-[var(--text-muted)]'
                 : 'button-primary mt-4 flex w-full items-center justify-center gap-2 py-2 text-sm font-semibold'
             }
           >
-            {selfConfirmed ? '已确认我的分数' : <><CheckCircle2 size={16} />确认我的分数</>}
+            {!canAct
+              ? '等待对手操作'
+              : selfConfirmed
+                ? '已确认我的分数'
+                : <><CheckCircle2 size={16} />确认我的分数</>}
           </button>
         </motion.div>
       </motion.div>

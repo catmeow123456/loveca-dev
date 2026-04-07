@@ -26,6 +26,7 @@ import {
 } from '@dnd-kit/sortable';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
+import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { SubPhase, HeartColor, ZoneType, BladeHeartEffect } from '@game/shared/types/enums';
 import { useGameStore } from '@/store/gameStore';
 import type { CardInstance, LiveCardData, MemberCardData, BaseCardData, BladeHearts } from '@game/domain/entities/card';
@@ -173,45 +174,63 @@ export const JudgmentPanel = memo(function JudgmentPanel({
   onClose,
 }: JudgmentPanelProps) {
   const gameState = useGameStore((s) => s.gameState);
+  const activePlayer = useGameStore((s) => s.getActivePlayerState());
+  const getPlayerStateById = useGameStore((s) => s.getPlayerStateById);
+  const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
+  const permissionView = useGameStore((s) => s.getPermissionView());
+  const getZoneCardIds = useGameStore((s) => s.getZoneCardIds);
+  const getViewZone = useGameStore((s) => s.getViewZone);
+  const getCardViewObject = useGameStore((s) => s.getCardViewObject);
 
   const {
-    confirmJudgment,
     confirmSubPhase,
+    confirmPerformanceOutcome,
     getCardInstance,
     getCardImagePath,
-    manualMoveCard,
+    moveResolutionCardToZone,
+    revealCheerCard,
     setHoveredCard,
   } =
     useGameStore(
       useShallow((s) => ({
-        confirmJudgment: s.confirmJudgment,
         confirmSubPhase: s.confirmSubPhase,
+        confirmPerformanceOutcome: s.confirmPerformanceOutcome,
         getCardInstance: s.getCardInstance,
         getCardImagePath: s.getCardImagePath,
-        manualMoveCard: s.manualMoveCard,
+        moveResolutionCardToZone: s.moveResolutionCardToZone,
+        revealCheerCard: s.revealCheerCard,
         setHoveredCard: s.setHoveredCard,
       }))
     );
 
-  // 活跃玩家（判定对象）
-  const currentPlayer = useMemo(() => {
-    if (!gameState) return null;
-    return gameState.players[gameState.activePlayerIndex] ?? null;
-  }, [gameState]);
+  const focusedPlayerId = gameState?.liveResolution.performingPlayerId ?? activePlayer?.id ?? null;
+  const currentPlayer = focusedPlayerId ? getPlayerStateById(focusedPlayerId) : activePlayer;
+  const currentPlayerSeat = useMemo(() => {
+    if (!gameState || !currentPlayer) {
+      return null;
+    }
 
-  const activePlayerId = currentPlayer?.id ?? '';
+    const playerIndex = gameState.players.findIndex((player) => player.id === currentPlayer.id);
+    if (playerIndex === 0) {
+      return 'FIRST';
+    }
+    if (playerIndex === 1) {
+      return 'SECOND';
+    }
+    return null;
+  }, [currentPlayer, gameState]);
+
   const mainDeckCount = currentPlayer?.mainDeck.cardIds.length ?? 0;
 
-  // ---- 应援区状态（直接从后端 resolutionZone 获取，按 ownerId 过滤） ----
-  // 不再使用本地状态追踪，避免与后端状态不同步
   const cheerCardIds = useMemo(() => {
-    if (!gameState) return [];
-    // 从 resolutionZone 获取属于当前活跃玩家的应援牌
-    return gameState.resolutionZone.cardIds.filter((cardId) => {
-      const card = getCardInstance(cardId);
-      return card !== null && card.ownerId === activePlayerId;
-    });
-  }, [gameState, activePlayerId, getCardInstance]);
+    if (!currentPlayerSeat) return [];
+    const sharedResolutionZone = getViewZone('SHARED_RESOLUTION_ZONE');
+    if (!sharedResolutionZone?.objectIds) return [];
+
+    return getZoneCardIds('SHARED_RESOLUTION_ZONE').filter(
+      (cardId) => getCardViewObject(cardId)?.ownerSeat === currentPlayerSeat
+    );
+  }, [currentPlayerSeat, getCardViewObject, getViewZone, getZoneCardIds]);
 
   // UI 阶段：judge=显示 LIVE失败/LIVE成功；success=显示成功后处理提示
   const [uiStage, setUiStage] = useState<'judge' | 'success'>('judge');
@@ -228,53 +247,55 @@ export const JudgmentPanel = memo(function JudgmentPanel({
   );
 
   // ---- 应援区操作 ----
-  // 注意：所有操作直接通过 manualMoveCard 更新后端状态
-  // 前端应援区列表会自动从 gameState.resolutionZone.cardIds 同步
+  // 前端应援区列表会自动从共享解决区视图同步
 
   const drawCheerCard = useCallback(() => {
     if (!currentPlayer || mainDeckCount === 0) return;
-    const topCardId = currentPlayer.mainDeck.cardIds[0];
-    if (!topCardId) return;
-    // 移动卡牌到解决区域，前端状态会自动同步
-    manualMoveCard(topCardId, ZoneType.MAIN_DECK, ZoneType.RESOLUTION_ZONE);
-  }, [currentPlayer, mainDeckCount, manualMoveCard]);
+    revealCheerCard();
+  }, [currentPlayer, mainDeckCount, revealCheerCard]);
 
   const moveToHand = useCallback(
     (cardId: string) => {
-      const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.HAND);
+      const result = moveResolutionCardToZone(cardId, ZoneType.HAND);
       if (result.success) {
         setHoveredCard(null);
       }
     },
-    [manualMoveCard, setHoveredCard]
+    [moveResolutionCardToZone, setHoveredCard]
   );
 
   const moveToWaitingRoom = useCallback(
     (cardId: string) => {
-      const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.WAITING_ROOM);
+      const result = moveResolutionCardToZone(cardId, ZoneType.WAITING_ROOM);
       if (result.success) {
         setHoveredCard(null);
       }
     },
-    [manualMoveCard, setHoveredCard]
+    [moveResolutionCardToZone, setHoveredCard]
   );
 
   const returnToDeckTop = useCallback(
     (cardId: string) => {
-      const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.MAIN_DECK, { position: 'TOP' });
+      const result = moveResolutionCardToZone(cardId, ZoneType.MAIN_DECK, { position: 'TOP' });
       if (result.success) {
         setHoveredCard(null);
       }
     },
-    [manualMoveCard, setHoveredCard]
+    [moveResolutionCardToZone, setHoveredCard]
   );
 
   // 应援卡牌实例
   const cheerCards = useMemo(() => {
-    return cheerCardIds
-      .map((id) => getCardInstance(id))
-      .filter((card): card is CardInstance => card !== null);
-  }, [cheerCardIds, getCardInstance]);
+    return cheerCardIds.map((id) => {
+      const card = getCardInstance(id);
+      const viewObject = getCardViewObject(id);
+      return {
+        id,
+        card,
+        viewObject,
+      };
+    });
+  }, [cheerCardIds, getCardInstance, getCardViewObject]);
 
   // ---- 心数汇总（成员心 + 光棒心） ----
 
@@ -283,7 +304,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     const blades = new Map<HeartColor, number>();
     Object.values(HeartColor).forEach((c) => { members.set(c, 0); blades.set(c, 0); });
 
-    if (!currentPlayer || !gameState) return { memberHearts: members, bladeHearts: blades, totalHearts: members };
+    if (!currentPlayer) return { memberHearts: members, bladeHearts: blades, totalHearts: members };
 
     // 成员心
     Object.values(currentPlayer.memberSlots.slots).forEach((cardId) => {
@@ -298,7 +319,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     });
 
     // 光棒心（从应援牌 - 包括成员卡和 Live 卡）
-    for (const card of cheerCards) {
+    for (const { card } of cheerCards) {
+      if (!card) {
+        continue;
+      }
       const effects = calculateCheerEffects(card.data);
       for (const heart of effects.penLightHearts) {
         blades.set(heart.color, (blades.get(heart.color) ?? 0) + heart.count);
@@ -312,67 +336,42 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     });
 
     return { memberHearts: members, bladeHearts: blades, totalHearts: total };
-  }, [currentPlayer, gameState, getCardInstance, cheerCards]);
+  }, [currentPlayer, getCardInstance, cheerCards]);
 
   // 光棒心抽卡加成和分数加成（包括应援牌和 Live 区的 Live 卡）
   const { totalDrawBonus } = useMemo(() => {
     let drawBonus = 0;
 
     // 从应援牌获取
-    for (const card of cheerCards) {
+    for (const { card } of cheerCards) {
+      if (!card) {
+        continue;
+      }
       const effects = calculateCheerEffects(card.data);
       drawBonus += effects.drawBonus;
     }
 
     return { totalDrawBonus: drawBonus };
-  }, [cheerCards, currentPlayer, getCardInstance]);
+  }, [cheerCards]);
 
-  const currentSubPhase = gameState?.currentSubPhase ?? SubPhase.NONE;
   const isPerformanceJudgment = currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT;
   const isLiveSuccessWindow =
     currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
     currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS;
   const isResultSettlement = currentSubPhase === SubPhase.RESULT_SETTLEMENT;
+  const canAct = permissionView?.canAct ?? true;
 
   // ---- 判定操作 ----
 
   const handleLiveFailed = useCallback(() => {
     if (!currentPlayer) return;
-    let hasMoveFailure = false;
-
-    // 1) 当前玩家应援区全部移入休息室
-    for (const card of cheerCards) {
-      const result = manualMoveCard(card.instanceId, ZoneType.RESOLUTION_ZONE, ZoneType.WAITING_ROOM);
-      if (!result.success) {
-        hasMoveFailure = true;
-      }
-    }
-
-    // 2) 当前玩家 Live 区卡牌视为失败并移入休息室，确保本次无 Live 分数
-    for (const liveCardId of currentPlayer.liveZone.cardIds) {
-      const result = manualMoveCard(liveCardId, ZoneType.LIVE_ZONE, ZoneType.WAITING_ROOM);
-      if (!result.success) {
-        hasMoveFailure = true;
-      }
-    }
-
+    const result = confirmPerformanceOutcome(false);
     setHoveredCard(null);
-
-    if (hasMoveFailure) {
+    if (!result.success) {
       return;
     }
-
-    // 3) 记录判定结果（保留卡牌级结果）
-    const failedResults = new Map<string, boolean>();
-    currentPlayer.liveZone.cardIds.forEach((cardId) => {
-      failedResults.set(cardId, false);
-    });
-    confirmJudgment(failedResults);
-
-    // 4) 结束当前判定子阶段
-    confirmSubPhase(SubPhase.PERFORMANCE_JUDGMENT);
     onClose();
-  }, [currentPlayer, cheerCards, manualMoveCard, confirmJudgment, confirmSubPhase, onClose, setHoveredCard]);
+  }, [currentPlayer, confirmPerformanceOutcome, onClose, setHoveredCard]);
 
   const handleLiveSuccess = useCallback(() => {
     setUiStage('success');
@@ -380,18 +379,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({
 
   const handleFinishPerformanceSuccess = useCallback(() => {
     if (!currentPlayer) return;
-
-    // 1) 本玩家当前 Live 卡全部标记为成功
-    const successResults = new Map<string, boolean>();
-    currentPlayer.liveZone.cardIds.forEach((cardId) => {
-      successResults.set(cardId, true);
-    });
-    confirmJudgment(successResults);
-
-    // 2) 推进到后续流程（下一个演出玩家或结算阶段）
-    confirmSubPhase(SubPhase.PERFORMANCE_JUDGMENT);
+    const result = confirmPerformanceOutcome(true);
+    if (!result.success) {
+      return;
+    }
     onClose();
-  }, [currentPlayer, confirmJudgment, confirmSubPhase, onClose]);
+  }, [currentPlayer, confirmPerformanceOutcome, onClose]);
 
   const handleSuccessEffectsDone = useCallback(() => {
     if (
@@ -444,7 +437,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
           </div>
           <div className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
             {isPerformanceJudgment
-              ? '当前为 Live 判定阶段'
+              ? `当前为 ${currentPlayer?.name ?? '当前玩家'} 的 Live 判定阶段`
               : isLiveSuccessWindow
                 ? '当前为 Live 成功效果窗口（可继续操作判定区）'
                 : isResultSettlement
@@ -469,10 +462,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({
               <div className="flex gap-2 mb-2">
                 <button
                   onClick={drawCheerCard}
-                  disabled={mainDeckCount === 0}
+                  disabled={!canAct || mainDeckCount === 0}
                   className={cn(
                     'px-3 py-1.5 rounded text-xs font-medium',
-                    mainDeckCount > 0
+                    canAct && mainDeckCount > 0
                       ? 'button-gold'
                       : 'bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
                   )}
@@ -490,19 +483,30 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                   <DndContext sensors={sensors} collisionDetection={closestCenter}>
                     <SortableContext items={cheerCardIds} strategy={horizontalListSortingStrategy}>
                       <div className="flex gap-2 items-start" style={{ minWidth: 'min-content' }}>
-                        {cheerCards.map((card) => {
-                          const effects = calculateCheerEffects(card.data);
+                        {cheerCards.map(({ id, card, viewObject }) => {
+                          const effects = card ? calculateCheerEffects(card.data) : {
+                            penLightHearts: [],
+                            drawBonus: 0,
+                            scoreBonus: 0,
+                          };
+                          const canInspectFront = viewObject?.surface === 'FRONT' && card !== null;
                           return (
                             <div
-                              key={card.instanceId}
+                              key={id}
                               className="relative group flex flex-col items-center gap-0.5"
-                              onMouseEnter={() => setHoveredCard(card.instanceId)}
+                              onMouseEnter={() => canInspectFront && setHoveredCard(id)}
                               onMouseLeave={() => setHoveredCard(null)}
                             >
-                              <SortableCheerCard
-                                cardId={card.instanceId}
-                                imagePath={getCardImagePath(card.data.cardCode)}
-                              />
+                              {canInspectFront && card ? (
+                                <SortableCheerCard
+                                  cardId={id}
+                                  imagePath={getCardImagePath(card.data.cardCode)}
+                                />
+                              ) : (
+                                <div className="h-[100px] w-[72px] overflow-hidden rounded-lg shadow-md">
+                                  <img src="/back.jpg" alt="" className="h-full w-full object-cover" draggable={false} />
+                                </div>
+                              )}
                               <div className="flex gap-0.5 text-[10px]">
                                 {effects.penLightHearts.map((heart, i) => (
                                   <span key={i} className={getHeartColorClass(heart.color)}>
@@ -515,20 +519,32 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                               </div>
                               <div className="absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100">
                                 <button
-                                  onClick={() => moveToHand(card.instanceId)}
-                                  className="text-[10px] px-1.5 py-0.5 bg-cyan-600 hover:bg-cyan-500 rounded text-white"
+                                  disabled={!canAct || !canInspectFront}
+                                  onClick={() => moveToHand(id)}
+                                  className={cn(
+                                    'text-[10px] px-1.5 py-0.5 rounded text-white',
+                                    canAct && canInspectFront ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-slate-600 cursor-not-allowed'
+                                  )}
                                 >
                                   手牌
                                 </button>
                                 <button
-                                  onClick={() => moveToWaitingRoom(card.instanceId)}
-                                  className="text-[10px] px-1.5 py-0.5 bg-slate-600 hover:bg-slate-500 rounded text-white"
+                                  disabled={!canAct || !canInspectFront}
+                                  onClick={() => moveToWaitingRoom(id)}
+                                  className={cn(
+                                    'text-[10px] px-1.5 py-0.5 rounded text-white',
+                                    canAct && canInspectFront ? 'bg-slate-600 hover:bg-slate-500' : 'bg-slate-600 cursor-not-allowed'
+                                  )}
                                 >
                                   弃置
                                 </button>
                                 <button
-                                  onClick={() => returnToDeckTop(card.instanceId)}
-                                  className="text-[10px] px-1.5 py-0.5 bg-amber-600 hover:bg-amber-500 rounded text-white"
+                                  disabled={!canAct || !canInspectFront}
+                                  onClick={() => returnToDeckTop(id)}
+                                  className={cn(
+                                    'text-[10px] px-1.5 py-0.5 rounded text-white',
+                                    canAct && canInspectFront ? 'bg-amber-600 hover:bg-amber-500' : 'bg-slate-600 cursor-not-allowed'
+                                  )}
                                 >
                                   放回
                                 </button>
@@ -584,14 +600,20 @@ export const JudgmentPanel = memo(function JudgmentPanel({
                 <div className="text-sm font-medium text-[var(--text-primary)]">Live 卡判定结果</div>
                 {currentPlayer.liveZone.cardIds.map((cardId) => {
                   const card = getCardInstance(cardId);
-                  if (!card || card.data.cardType !== 'LIVE') return null;
-                  const liveData = card.data as LiveCardData;
-                  const requiredHearts: { color: HeartColor; count: number }[] = [];
-                  if (liveData.requirements?.colorRequirements) {
-                    liveData.requirements.colorRequirements.forEach((count, color) => {
-                      if (count > 0) requiredHearts.push({ color, count });
-                    });
+                  if (!card) {
+                    return (
+                      <LiveCardJudgmentRow
+                        key={cardId}
+                        cardName="里侧 Live"
+                        requiredHearts={[]}
+                      />
+                    );
                   }
+                  if (card.data.cardType !== 'LIVE') return null;
+                  const liveData = card.data as LiveCardData;
+                  const requiredHearts = getHeartRequirementEntries(
+                    liveData.requirements?.colorRequirements
+                  ).map(([color, count]) => ({ color, count }));
                   return (
                     <LiveCardJudgmentRow
                       key={cardId}
@@ -638,16 +660,22 @@ export const JudgmentPanel = memo(function JudgmentPanel({
           <div className="mt-4 flex gap-3 border-t border-[var(--border-subtle)] pt-3">
             <button
               onClick={handleLiveFailed}
+              disabled={!canAct}
               className={cn(
-                'button-secondary flex-1 py-2 rounded-lg text-sm font-bold'
+                canAct
+                  ? 'button-secondary flex-1 py-2 rounded-lg text-sm font-bold'
+                  : 'flex-1 py-2 rounded-lg text-sm font-bold bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
               )}
             >
               LIVE失败
             </button>
             <button
               onClick={handleLiveSuccess}
+              disabled={!canAct}
               className={cn(
-                'button-gold flex-1 py-2 rounded-lg text-sm font-bold'
+                canAct
+                  ? 'button-gold flex-1 py-2 rounded-lg text-sm font-bold'
+                  : 'flex-1 py-2 rounded-lg text-sm font-bold bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
               )}
             >
               LIVE成功
@@ -657,8 +685,11 @@ export const JudgmentPanel = memo(function JudgmentPanel({
           <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
             <button
               onClick={handleFinishPerformanceSuccess}
+              disabled={!canAct}
               className={cn(
-                'button-primary inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold'
+                canAct
+                  ? 'button-primary inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold'
+                  : 'inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
               )}
             >
               <Sparkles size={16} />
@@ -670,8 +701,11 @@ export const JudgmentPanel = memo(function JudgmentPanel({
         <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
           <button
             onClick={handleSuccessEffectsDone}
+            disabled={!canAct}
             className={cn(
-              'button-primary inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold'
+              canAct
+                ? 'button-primary inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold'
+                : 'inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
             )}
           >
             <Sparkles size={16} />

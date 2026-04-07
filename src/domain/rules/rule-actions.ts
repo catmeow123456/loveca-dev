@@ -3,9 +3,9 @@
  * 基于 detail_rules.md 第 10 章 - 规则处理
  */
 
-import { CardType, ZoneType, SlotPosition } from '../../shared/types/enums';
-import type { GameState } from '../entities/game';
-import type { PlayerState } from '../entities/player';
+import { CardType, ZoneType, SlotPosition } from '../../shared/types/enums.js';
+import type { GameState } from '../entities/game.js';
+import type { PlayerState } from '../entities/player.js';
 
 // ============================================
 // 规则处理类型
@@ -491,7 +491,7 @@ export class RuleActionProcessor {
 // 规则处理应用函数
 // ============================================
 
-import { updatePlayer } from '../entities/game';
+import { updatePlayer } from '../entities/game.js';
 import {
   addCardToZone,
   removeCardFromZone,
@@ -499,7 +499,7 @@ import {
   shuffleZone,
   removeEnergyBelowMember,
   findEnergyBelowSlot,
-} from '../entities/zone';
+} from '../entities/zone.js';
 
 /**
  * 应用规则处理结果到游戏状态

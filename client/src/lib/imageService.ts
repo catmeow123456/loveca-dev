@@ -14,7 +14,9 @@ import { CardType } from '@game/shared/types/enums';
 
 /** Base URL for images (proxied via Nginx to MinIO) */
 const IMAGES_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL
+  import.meta.env.DEV
+    ? '/images'
+    : import.meta.env.VITE_API_BASE_URL
     ? `${import.meta.env.VITE_API_BASE_URL}/images`
     : null;
 

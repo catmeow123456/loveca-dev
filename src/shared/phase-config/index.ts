@@ -24,7 +24,7 @@ export type {
   PhaseTransitionRule,
   PhaseTransitionCondition,
   PhaseAutoActionConfig,
-} from './types';
+} from './types.js';
 
 // ============================================
 // 阶段配置注册表
@@ -46,7 +46,7 @@ export {
   getPhaseTransitions,
   getPhaseAutoActions,
   getPhaseTriggerConditions,
-} from './phase-registry';
+} from './phase-registry.js';
 
 // ============================================
 // 子阶段配置注册表
@@ -62,7 +62,7 @@ export {
   isUserActionRequired,
   isEffectWindow,
   getNextSubPhase,
-} from './sub-phase-registry';
+} from './sub-phase-registry.js';
 
 // ============================================
 // 行动玩家判断
@@ -73,4 +73,4 @@ export {
   getActivePlayerIds,
   getActivePlayerId,
   isCurrentlySharedPhase,
-} from './active-player';
+} from './active-player.js';

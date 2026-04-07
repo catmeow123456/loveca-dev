@@ -19,6 +19,7 @@ import { motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
+import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { useGameStore } from '@/store/gameStore';
 import { Card } from '@/components/card/Card';
 import { DraggableCard, DroppableZone } from './interaction';
@@ -29,9 +30,11 @@ import type { AnyCardData, LiveCardData } from '@game/domain/entities/card';
 import { isLiveCardData } from '@game/domain/entities/card';
 import type { StatefulZoneState } from '@game/domain/entities/zone';
 import { SlotPosition, OrientationState, FaceState, HeartColor, ZoneType } from '@game/shared/types/enums';
+import type { Seat, ViewZoneKey, ViewZoneState } from '@game/online';
 
 interface PlayerAreaProps {
   player: PlayerState;
+  playerSeat: Seat;
   isOpponent: boolean;
   isActive: boolean;
   liveZone: StatefulZoneState;
@@ -55,6 +58,7 @@ function getHeartColorClass(color: HeartColor): string {
 
 export const PlayerArea = memo(function PlayerArea({
   player,
+  playerSeat,
   isOpponent,
   isActive,
   liveZone,
@@ -71,16 +75,33 @@ export const PlayerArea = memo(function PlayerArea({
   const isDragging = useGameStore((s) => s.ui.isDragging);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { getCardInstance, getCardImagePath, selectCard, setHoveredCard, tapMember, manualMoveCard } = useGameStore(
+  const { getCardInstance, getCardImagePath, selectCard, setHoveredCard, tapMember, tapEnergy, drawCardToHand, returnHandCardToTop, getCardViewObject, getViewZone, getZoneCardIds } = useGameStore(
     useShallow((s) => ({
       getCardInstance: s.getCardInstance,
       getCardImagePath: s.getCardImagePath,
       selectCard: s.selectCard,
       setHoveredCard: s.setHoveredCard,
       tapMember: s.tapMember,
-      manualMoveCard: s.manualMoveCard,
+      tapEnergy: s.tapEnergy,
+      drawCardToHand: s.drawCardToHand,
+      returnHandCardToTop: s.returnHandCardToTop,
+      getCardViewObject: s.getCardViewObject,
+      getViewZone: s.getViewZone,
+      getZoneCardIds: s.getZoneCardIds,
     }))
   );
+
+  const getSeatZone = (suffix: string): ViewZoneState | null => {
+    return getViewZone(`${playerSeat}_${suffix}` as ViewZoneKey);
+  };
+
+  const handZoneView = getSeatZone('HAND');
+  const mainDeckZoneView = getSeatZone('MAIN_DECK');
+  const energyDeckZoneView = getSeatZone('ENERGY_DECK');
+  const liveZoneView = getSeatZone('LIVE_ZONE');
+  const inspectionZoneView = getSeatZone('INSPECTION_ZONE');
+  const displayedHandCount = handZoneView?.count ?? player.hand.cardIds.length;
+  const inspectionCardIds = getZoneCardIds(`${playerSeat}_INSPECTION_ZONE` as ViewZoneKey);
 
   // 获取 Live 判定结果
   const liveResults = gameState?.liveResolution.liveResults;
@@ -98,7 +119,7 @@ export const PlayerArea = memo(function PlayerArea({
   // 判断是否可以放置卡牌到 Live 区（己方可操作）
   const canDropToLiveZone = canOperateOwnZone;
   // 检查 Live 区是否已达上限（最多3张）
-  const liveZoneIsFull = liveZone.cardIds.length >= 3;
+  const liveZoneIsFull = (liveZoneView?.count ?? liveZone.cardIds.length) >= 3;
 
   // 判断是否可以放置成员（己方可操作）
   const canDropMember = canOperateOwnZone;
@@ -300,9 +321,14 @@ export const PlayerArea = memo(function PlayerArea({
                       : 'w-5 h-7 rounded overflow-hidden shadow-sm cursor-pointer transition-transform hover:scale-110 hover:z-10',
                     !isActive && 'opacity-40 grayscale'
                   )}
+                  onClick={() => {
+                    if (!isOpponent && !isDragging) {
+                      tapEnergy(cardId);
+                    }
+                  }}
                   onMouseEnter={() => card && setHoveredCard(card.instanceId)}
                   onMouseLeave={() => setHoveredCard(null)}
-                  title={isActive ? '活跃' : '等待'}
+                  title={isOpponent ? (isActive ? '活跃' : '等待') : '单击切换活跃/等待'}
                 >
                   {imagePath ? (
                     <img src={imagePath} alt="能量" className="w-full h-full object-cover" />
@@ -327,8 +353,7 @@ export const PlayerArea = memo(function PlayerArea({
     const isMainDeck = deckType === 'main';
 
     // 获取能量卡组顶层卡牌（用于拖拽）
-    const topCardId = !isMainDeck && count > 0 ? player.energyDeck.cardIds[count - 1] : null;
-    const topCard = topCardId ? getCardInstance(topCardId) : null;
+    const topCardId = !isMainDeck && count > 0 ? player.energyDeck.cardIds[0] : null;
 
     // 点击主卡组打开检视面板（演出阶段时打开应援面板）
     const handleClick = () => {
@@ -371,11 +396,11 @@ export const PlayerArea = memo(function PlayerArea({
           {count > 0 && (
             <>
               {/* 能量卡组：顶层卡牌可拖拽 */}
-              {!isMainDeck && topCard && topCardId ? (
+              {!isMainDeck && topCardId ? (
                 <DraggableCard
                   id={topCardId}
                   disabled={isOpponent}
-                  data={{ cardId: topCardId, cardCode: topCard.data.cardCode, fromZone: ZoneType.ENERGY_DECK }}
+                  data={{ cardId: topCardId, fromZone: ZoneType.ENERGY_DECK }}
                 >
                   <div className="absolute inset-0 cursor-grab active:cursor-grabbing">
                     {renderTopCard()}
@@ -613,13 +638,13 @@ export const PlayerArea = memo(function PlayerArea({
     // 己方顺序：主卡组 → 休息室 → 能量卡组
     // 对手方顺序（镜像）：能量卡组 → 休息室 → 主卡组
     const content = reversed ? [
-      <div key="energy-deck">{renderDeck(player.energyDeck.cardIds.length, '能量卡组', 'energy')}</div>,
+      <div key="energy-deck">{renderDeck(energyDeckZoneView?.count ?? player.energyDeck.cardIds.length, '能量卡组', 'energy')}</div>,
       <div key="waiting-room">{renderWaitingRoom()}</div>,
-      <div key="main-deck">{renderDeck(player.mainDeck.cardIds.length, '主卡组', 'main')}</div>,
+      <div key="main-deck">{renderDeck(mainDeckZoneView?.count ?? player.mainDeck.cardIds.length, '主卡组', 'main')}</div>,
     ] : [
-      <div key="main-deck">{renderDeck(player.mainDeck.cardIds.length, '主卡组', 'main')}</div>,
+      <div key="main-deck">{renderDeck(mainDeckZoneView?.count ?? player.mainDeck.cardIds.length, '主卡组', 'main')}</div>,
       <div key="waiting-room">{renderWaitingRoom()}</div>,
-      <div key="energy-deck">{renderDeck(player.energyDeck.cardIds.length, '能量卡组', 'energy')}</div>,
+      <div key="energy-deck">{renderDeck(energyDeckZoneView?.count ?? player.energyDeck.cardIds.length, '能量卡组', 'energy')}</div>,
     ];
 
     return (
@@ -631,25 +656,28 @@ export const PlayerArea = memo(function PlayerArea({
 
   // 渲染单个 Live 卡（横置）
   const renderLiveCard = (cardId: string) => {
+    const viewObject = getCardViewObject(cardId);
     const card = getCardInstance(cardId);
-    if (!card) return null;
+    const isFaceUp = viewObject ? viewObject.surface === 'FRONT' : false;
+    if (!card && isFaceUp) return null;
+    if (!viewObject && !card) return null;
 
     const state = liveZone.cardStates.get(cardId);
-    // 根据卡牌状态决定是否正面显示（由后端 revealLiveCards 控制）
-    const isFaceUp = state?.face !== FaceState.FACE_DOWN;
+    // 联机视图优先决定当前观察者看到 FRONT 还是 BACK。
+    const shouldShowFront = viewObject ? viewObject.surface === 'FRONT' : state?.face !== FaceState.FACE_DOWN;
 
     // 获取判定结果
     const judgmentResult = liveResults?.get(cardId);
-    const showJudgment = isFaceUp && judgmentResult !== undefined;
+    const showJudgment = shouldShowFront && judgmentResult !== undefined;
 
     // 获取 Live 卡所需心数
-    const liveData = isLiveCardData(card.data) ? card.data as LiveCardData : null;
+    const liveData = card && isLiveCardData(card.data) ? card.data as LiveCardData : null;
 
     return (
       <DraggableCard
         id={cardId}
         disabled={isOpponent}
-        data={{ cardId, cardCode: card.data.cardCode, fromZone: ZoneType.LIVE_ZONE }}
+        data={{ cardId, cardCode: card?.data.cardCode, fromZone: ZoneType.LIVE_ZONE }}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -660,18 +688,24 @@ export const PlayerArea = memo(function PlayerArea({
         >
           {/* 横置卡牌 - 逆时针旋转90度 */}
           <div className="-rotate-90 origin-center">
-            <Card
-              cardData={card.data as AnyCardData}
-              instanceId={card.instanceId}
-              imagePath={getCardImagePath(card.data.cardCode)}
-              size="sm"
-              faceUp={isFaceUp}
-              interactive={!isOpponent}
-              showHover={false}
-              onMouseEnter={() => isFaceUp && setHoveredCard(card.instanceId)}
-              onMouseLeave={() => setHoveredCard(null)}
-              className="w-[80px] h-[112px]"
-            />
+            {card ? (
+              <Card
+                cardData={card.data as AnyCardData}
+                instanceId={card.instanceId}
+                imagePath={getCardImagePath(card.data.cardCode)}
+                size="sm"
+                faceUp={shouldShowFront}
+                interactive={!isOpponent}
+                showHover={false}
+                onMouseEnter={() => shouldShowFront && setHoveredCard(card.instanceId)}
+                onMouseLeave={() => setHoveredCard(null)}
+                className="w-[80px] h-[112px]"
+              />
+            ) : (
+              <div className="h-[112px] w-[80px] overflow-hidden rounded-lg shadow-md">
+                <img src="/back.jpg" alt="Card Back" className="h-full w-full object-cover" />
+              </div>
+            )}
           </div>
 
           {/* 判定结果指示器 */}
@@ -693,9 +727,9 @@ export const PlayerArea = memo(function PlayerArea({
           )}
 
           {/* Live 卡所需心展示 */}
-          {isFaceUp && liveData && (
+          {shouldShowFront && liveData && (
             <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 text-[8px] whitespace-nowrap">
-              {Array.from(liveData.requirements.colorRequirements.entries()).map(([color, count], i) => (
+              {getHeartRequirementEntries(liveData.requirements?.colorRequirements).map(([color, count], i) => (
                 <span key={i} className={getHeartColorClass(color as HeartColor)}>
                   {'♥'.repeat(count as number)}
                 </span>
@@ -775,6 +809,42 @@ export const PlayerArea = memo(function PlayerArea({
     );
   };
 
+  const renderInspectionZone = () => {
+    if (!inspectionZoneView || inspectionZoneView.count === 0) {
+      return null;
+    }
+
+    return (
+      <div
+        className={cn(
+          'pointer-events-none absolute left-1/2 z-30 -translate-x-1/2',
+          isOpponent ? 'bottom-[88px]' : 'top-[88px]'
+        )}
+      >
+        <div className="pointer-events-none flex items-center gap-3 rounded-2xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_88%,transparent)] px-4 py-3 shadow-[var(--shadow-lg)] backdrop-blur-xl">
+          {inspectionCardIds.map((cardId) => {
+            const viewObject = getCardViewObject(cardId);
+            const card = getCardInstance(cardId);
+            const showFront = viewObject?.surface === 'FRONT' && !!card;
+            const imagePath = showFront && card ? getCardImagePath(card.data.cardCode) : '/back.jpg';
+
+            return (
+              <div
+                key={cardId}
+                className="pointer-events-none h-[68px] w-[48px] overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] shadow-[var(--shadow-md)]"
+              >
+                <img src={imagePath} alt="" className="h-full w-full object-cover" draggable={false} />
+              </div>
+            );
+          })}
+          <div className="pointer-events-none rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_88%,transparent)] px-2 py-1 text-[11px] font-semibold text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
+            {inspectionZoneView.count}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // 判断手牌是否可拖拽
   // "信任玩家"原则：己方区域允许自由拖拽，系统自动纠正非法状态
   const canDragFromHand = canOperateOwnZone;
@@ -783,22 +853,23 @@ export const PlayerArea = memo(function PlayerArea({
   const renderHand = () => {
     if (isOpponent) {
       // 对手手牌显示背面 - 使用真实卡背图片，无动画以避免回合切换时的跳动
+      const visibleBackCount = Math.min(displayedHandCount, 10);
       return (
         <div className="flex justify-center gap-1 py-2 w-full">
-          {player.hand.cardIds.slice(0, 10).map((cardId, idx) => (
+          {Array.from({ length: visibleBackCount }, (_, idx) => (
             <div
-              key={cardId}
+              key={`opponent-hand-back-${idx}`}
               className="w-[60px] h-[84px] rounded-lg overflow-hidden shadow-md"
               style={{
-                transform: `rotate(${(idx - player.hand.cardIds.length / 2) * 3}deg)`,
+                transform: `rotate(${(idx - displayedHandCount / 2) * 3}deg)`,
               }}
             >
               <img src="/back.jpg" alt="Card Back" className="w-full h-full object-cover" />
             </div>
           ))}
-          {player.hand.cardIds.length > 10 && (
+          {displayedHandCount > 10 && (
             <span className="text-slate-400 text-xs self-center ml-2">
-              +{player.hand.cardIds.length - 10}
+              +{displayedHandCount - 10}
             </span>
           )}
         </div>
@@ -862,7 +933,7 @@ export const PlayerArea = memo(function PlayerArea({
             onClick={() => {
               const topCardId = player.mainDeck.cardIds[0];
               if (!topCardId) return;
-              manualMoveCard(topCardId, ZoneType.MAIN_DECK, ZoneType.HAND);
+              drawCardToHand();
             }}
             disabled={player.mainDeck.cardIds.length === 0}
             className={cn(
@@ -881,7 +952,7 @@ export const PlayerArea = memo(function PlayerArea({
             onClick={() => {
               const rightmostHandCardId = player.hand.cardIds[player.hand.cardIds.length - 1];
               if (!rightmostHandCardId) return;
-              manualMoveCard(rightmostHandCardId, ZoneType.HAND, ZoneType.MAIN_DECK, { position: 'TOP' });
+              returnHandCardToTop(rightmostHandCardId);
             }}
             disabled={player.hand.cardIds.length === 0}
             className={cn(
@@ -908,7 +979,7 @@ export const PlayerArea = memo(function PlayerArea({
     return (
       <div
         className={cn(
-          'h-full flex flex-col p-2 transition-colors',
+          'relative h-full flex flex-col p-2 transition-colors',
           isActive && 'bg-rose-500/10',
           'border-b border-slate-700'
         )}
@@ -931,9 +1002,9 @@ export const PlayerArea = memo(function PlayerArea({
           )}>
             {player.name}
           </div>
-          <div className="text-[10px] text-slate-600 font-medium">
-            手牌: {player.hand.cardIds.length}
-          </div>
+        <div className="text-[10px] text-slate-600 font-medium">
+            手牌: {displayedHandCount}
+        </div>
         </div>
 
         {/* 主区域 - 绝对定位布局（成员槽和Live区在底部，靠近中央分隔线） */}
@@ -963,6 +1034,7 @@ export const PlayerArea = memo(function PlayerArea({
             {renderSuccessZone()}
           </div>
         </div>
+        {renderInspectionZone()}
       </div>
     );
   }
@@ -971,7 +1043,7 @@ export const PlayerArea = memo(function PlayerArea({
   return (
     <div
       className={cn(
-        'h-full flex flex-col p-2 transition-colors overflow-x-hidden',
+        'relative h-full flex flex-col p-2 transition-colors overflow-x-hidden',
         isActive && 'bg-rose-500/10',
         'border-t border-slate-700'
       )}
@@ -1012,19 +1084,21 @@ export const PlayerArea = memo(function PlayerArea({
           {player.name}
         </div>
         <div className="text-[10px] text-slate-600 font-medium">
-          手牌: {player.hand.cardIds.length}
+          手牌: {displayedHandCount}
         </div>
       </div>
 
       {/* 己方：手牌和能量区在最下方 */}
       <div className="flex-shrink-0 w-full flex items-center gap-2 relative">
         {/* 能量区 - 左下角 */}
-        <div className="absolute left-2 bottom-2">
-          {renderEnergyZone()}
+          <div className="absolute left-2 bottom-2">
+            {renderEnergyZone()}
+          </div>
+          {/* 手牌区 - 居中 */}
+          {renderHand()}
         </div>
-        {/* 手牌区 - 居中 */}
-        {renderHand()}
-      </div>
+
+      {renderInspectionZone()}
 
       {/* 卡组检视面板 */}
       <DeckPeekModal

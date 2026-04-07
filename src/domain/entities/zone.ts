@@ -9,7 +9,7 @@ import {
   SlotPosition,
   OrientationState,
   FaceState,
-} from '../../shared/types/enums';
+} from '../../shared/types/enums.js';
 import {
   CardInstance,
   CardWithState,
@@ -17,7 +17,7 @@ import {
   MemberCardInstance,
   EnergyCardInstance,
   createDefaultCardState,
-} from './card';
+} from './card.js';
 
 // ============================================
 // 区域引用（用于跨区域操作）
@@ -134,6 +134,12 @@ export const ZONE_CONFIGS: Record<ZoneType, ZoneConfig> = {
     isOrdered: false,
     hasCardState: false,
   },
+  [ZoneType.INSPECTION_ZONE]: {
+    zoneType: ZoneType.INSPECTION_ZONE,
+    visibility: ZoneVisibility.PUBLIC,
+    isOrdered: true,
+    hasCardState: false,
+  },
 };
 
 // ============================================
@@ -192,6 +198,20 @@ export interface ResolutionZoneState {
   readonly zoneType: ZoneType.RESOLUTION_ZONE;
   /** 卡牌实例 ID 列表 */
   readonly cardIds: readonly string[];
+  /** 当前已在解决区中翻开的卡牌 ID 列表 */
+  readonly revealedCardIds: readonly string[];
+}
+
+/**
+ * 检视区域状态（共享区域）
+ * 用于卡组检视流程（检视者可见正面，对手只见背面）
+ * 与解决区域（应援翻牌，双方可见正面）分离
+ */
+export interface InspectionZoneState {
+  /** 卡牌实例 ID 列表（有序） */
+  readonly cardIds: readonly string[];
+  /** 已公开给双方看到正面的卡牌实例 ID 列表 */
+  readonly revealedCardIds: readonly string[];
 }
 
 // ============================================
@@ -411,6 +431,24 @@ export function toggleMemberOrientation(
   newCardStates.set(cardId, { ...currentState, orientation: newOrientation });
 
   return { ...zone, cardStates: newCardStates };
+}
+
+/**
+ * 切换能量卡的方向状态（活跃 ↔ 等待）
+ */
+export function toggleEnergyOrientation(
+  zone: StatefulZoneState,
+  cardId: string
+): StatefulZoneState {
+  const currentState = zone.cardStates.get(cardId);
+  if (!currentState) return zone;
+
+  const newOrientation =
+    currentState.orientation === OrientationState.ACTIVE
+      ? OrientationState.WAITING
+      : OrientationState.ACTIVE;
+
+  return updateCardState(zone, cardId, { orientation: newOrientation });
 }
 
 /**
@@ -750,6 +788,17 @@ export function createEmptyResolutionZone(): ResolutionZoneState {
   return {
     zoneType: ZoneType.RESOLUTION_ZONE,
     cardIds: [],
+    revealedCardIds: [],
+  };
+}
+
+/**
+ * 创建空的检视区域
+ */
+export function createEmptyInspectionZone(): InspectionZoneState {
+  return {
+    cardIds: [],
+    revealedCardIds: [],
   };
 }
 

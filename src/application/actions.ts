@@ -3,7 +3,7 @@
  * 定义所有玩家可执行的游戏动作类型
  */
 
-import { SlotPosition, ZoneType, SubPhase } from '../shared/types/enums';
+import { SlotPosition, ZoneType, SubPhase } from '../shared/types/enums.js';
 
 // ============================================
 // 动作类型枚举
@@ -33,6 +33,8 @@ export enum GameActionType {
   MULLIGAN = 'MULLIGAN',
   /** 切换成员状态（活跃/等待） */
   TAP_MEMBER = 'TAP_MEMBER',
+  /** 切换能量状态（活跃/等待） */
+  TAP_ENERGY = 'TAP_ENERGY',
 
   // ============ 阶段十新增动作 ============
   /** 确认当前子阶段完成 */
@@ -174,6 +176,16 @@ export interface TapMemberAction extends BaseGameAction {
   readonly slot: SlotPosition;
 }
 
+/**
+ * 切换能量状态动作
+ * 将能量卡在活跃（ACTIVE）和等待（WAITING）状态之间切换
+ */
+export interface TapEnergyAction extends BaseGameAction {
+  readonly type: GameActionType.TAP_ENERGY;
+  /** 要切换状态的能量卡实例 ID */
+  readonly cardId: string;
+}
+
 // ============================================
 // 阶段十新增动作接口
 // ============================================
@@ -273,6 +285,7 @@ export type GameAction =
   | SelectSlotAction
   | MulliganAction
   | TapMemberAction
+  | TapEnergyAction
   // 阶段十新增
   | ConfirmSubPhaseAction
   | ManualMoveCardAction
@@ -441,6 +454,21 @@ export function createTapMemberAction(
     playerId,
     cardId,
     slot,
+    timestamp: Date.now(),
+  };
+}
+
+/**
+ * 创建切换能量状态动作
+ */
+export function createTapEnergyAction(
+  playerId: string,
+  cardId: string
+): TapEnergyAction {
+  return {
+    type: GameActionType.TAP_ENERGY,
+    playerId,
+    cardId,
     timestamp: Date.now(),
   };
 }

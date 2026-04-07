@@ -2,7 +2,7 @@
 
 > 文档类型：联机设计草案
 > 适用范围：定义联机首版中检视区的牌桌模型、即时生效语义、原子操作与建议命令集合。
-> 最后更新：2026-04-02
+> 最后更新：2026-04-06
 
 ---
 
@@ -47,6 +47,13 @@
 ## 3. 检视区的正式语义
 
 联机首版中，`INSPECTION_ZONE` 应视为正式区域，而不是临时上下文。
+
+重要说明：检视区（`INSPECTION_ZONE`）与解决区（`RESOLUTION_ZONE`）是物理独立的两个区域，不共用存储。两者的可见性语义不同：
+
+- **解决区**：用于 Live 应援翻牌，翻出的牌正面对双方都可见（`FRONT`），通过 `revealedCardIds` 机制控制。
+- **检视区**：检视者看到正面（`FRONT`），对手看到背面（`BACK`），除非牌被公开移入休息室等公开区。
+
+在 `GameState` 中，`inspectionZone` 和 `resolutionZone` 各自独立存在，投影层始终同时投影两者。
 
 补充约束：
 
@@ -189,7 +196,7 @@
 
 用途：
 
-- 打开一次正式检视流程。
+- 打开一次正式检视流程，或向已存在的检视流程中追加新的对象。
 - 将指定来源区中的若干对象移动到 `INSPECTION_ZONE`。
 
 典型场景：
@@ -197,6 +204,13 @@
 - 检视主卡组顶 N 张
 - 检视能量卡组顶 N 张
 - 检视某规则效果指定的一组对象
+- 逐张翻开：前端每次发送 `OpenInspection(count=1)`，重复调用以逐张将对象加入检视区
+
+追加语义：
+
+- 若当前已有进行中的检视流程（`inspectionContext` 已存在），且操作者与检视拥有者一致，则该命令不会创建新的检视流程，而是向现有检视区追加对象。
+- 追加的对象从同一来源区顶部取出，追加到检视区末尾。
+- 每次追加都会产出对应的 `CardsInspectedSummary` 和 `CardMovedPublic` 事件。
 
 最低职责：
 
@@ -298,7 +312,24 @@
 3. 对 3 张逐张执行 `MoveInspectedCardToTop`
 4. `FinishInspection`
 
-### 8.3 看顶 5 张，公开 1 张加入手牌，其余进休息室
+### 8.3 逐张翻开模式：看顶 5 张，选 1 张加入手牌，其余放底
+
+流程：
+
+1. `OpenInspection(source=MAIN_DECK_TOP, count=1)` — 翻开第 1 张
+2. `OpenInspection(source=MAIN_DECK_TOP, count=1)` — 追加第 2 张
+3. 重复上述步骤，直到翻开 5 张
+4. `MoveInspectedCardToZone(cardA, HAND)` — 选中的牌加入手牌
+5. 对剩余 4 张逐张执行 `MoveInspectedCardToBottom`
+6. `FinishInspection`
+
+说明：
+
+- 前端可选择逐张发送 `OpenInspection(count=1)`，也可一次发送 `OpenInspection(count=5)`，两种方式在权威状态上等价。
+- 逐张翻开的优势在于对手可以实时感知"对方正在逐张查看"的过程，提升联机体验。
+- 每次 `OpenInspection` 追加时，对手看到检视区中新增一个 `BACK` 对象。
+
+### 8.4 看顶 5 张，公开 1 张加入手牌，其余进休息室
 
 流程：
 

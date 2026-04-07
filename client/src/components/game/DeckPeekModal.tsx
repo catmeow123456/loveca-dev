@@ -9,10 +9,10 @@
  * - 可从检视区拖拽卡牌到其他区域（手牌、休息室等）
  */
 
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, memo, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
-import { ArrowDownToLine, ArrowUpToLine, Eye, Layers3, Trash2, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpToLine, Eye, Layers3, Megaphone, Trash2, X } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -87,18 +87,37 @@ const SortableCard = memo(function SortableCard({
 });
 
 export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps) {
+  const permissionView = useGameStore((s) => s.getPermissionView());
   const gameState = useGameStore((s) => s.gameState);
+  const viewerSeat = useGameStore((s) => s.getViewerSeat());
+  const player = useGameStore((s) => s.getPlayerStateById(playerId));
+  const getSeatZone = useGameStore((s) => s.getSeatZone);
+  const getZoneCardIds = useGameStore((s) => s.getZoneCardIds);
   const getCardInstance = useGameStore((s) => s.getCardInstance);
   const getCardImagePath = useGameStore((s) => s.getCardImagePath);
   const setHoveredCard = useGameStore((s) => s.setHoveredCard);
-  const manualMoveCard = useGameStore((s) => s.manualMoveCard);
+  const openInspection = useGameStore((s) => s.openInspection);
+  const moveInspectedCardToTop = useGameStore((s) => s.moveInspectedCardToTop);
+  const revealInspectedCard = useGameStore((s) => s.revealInspectedCard);
+  const moveInspectedCardToBottom = useGameStore((s) => s.moveInspectedCardToBottom);
+  const moveInspectedCardToZone = useGameStore((s) => s.moveInspectedCardToZone);
+  const reorderInspectedCard = useGameStore((s) => s.reorderInspectedCard);
+  const finishInspection = useGameStore((s) => s.finishInspection);
 
   // 检视区卡牌 ID 列表（本地状态，用于排序）
   const [peekCardIds, setPeekCardIds] = useState<string[]>([]);
 
-  // 获取当前玩家
-  const player = gameState?.players.find((p) => p.id === playerId);
   const mainDeckCount = player?.mainDeck.cardIds.length ?? 0;
+  const inspectionZone = viewerSeat ? getSeatZone(viewerSeat, 'INSPECTION_ZONE') : null;
+  const resolutionCardIds = useMemo(() => {
+    if (viewerSeat && inspectionZone?.objectIds) {
+      return getZoneCardIds(`${viewerSeat}_INSPECTION_ZONE`);
+    }
+
+    return [];
+  }, [getZoneCardIds, inspectionZone?.objectIds, viewerSeat]);
+  const canAct = permissionView?.canAct ?? true;
+  const revealedInspectionCardIds = gameState?.inspectionZone.revealedCardIds ?? [];
 
   // 拖拽传感器
   const sensors = useSensors(
@@ -109,6 +128,18 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
     })
   );
 
+  useEffect(() => {
+    setPeekCardIds((prev) => {
+      const next = prev.filter((cardId) => resolutionCardIds.includes(cardId));
+      for (const cardId of resolutionCardIds) {
+        if (!next.includes(cardId)) {
+          next.push(cardId);
+        }
+      }
+      return next;
+    });
+  }, [resolutionCardIds]);
+
   // 从卡组顶抽一张牌到检视区
   const drawFromDeck = useCallback(() => {
     if (!player || mainDeckCount === 0) return;
@@ -117,12 +148,12 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
     if (!topCardId) return;
 
     // 移动到解决区域
-    const result = manualMoveCard(topCardId, ZoneType.MAIN_DECK, ZoneType.RESOLUTION_ZONE);
+    const result = openInspection(ZoneType.MAIN_DECK, 1);
     if (result.success) {
       // 添加到本地检视列表尾部
       setPeekCardIds((prev) => [...prev, topCardId]);
     }
-  }, [player, mainDeckCount, manualMoveCard]);
+  }, [player, mainDeckCount, openInspection]);
 
   // 把检视区尾部的牌放回卡组顶
   const returnToDeck = useCallback(() => {
@@ -131,14 +162,12 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
     const lastCardId = peekCardIds[peekCardIds.length - 1];
 
     // 移动回主卡组
-    const result = manualMoveCard(lastCardId, ZoneType.RESOLUTION_ZONE, ZoneType.MAIN_DECK, {
-      position: 'TOP',
-    });
+    const result = moveInspectedCardToTop(lastCardId);
     if (result.success) {
       // 从本地检视列表移除
       setPeekCardIds((prev) => prev.slice(0, -1));
     }
-  }, [peekCardIds, manualMoveCard]);
+  }, [peekCardIds, moveInspectedCardToTop]);
 
   // 把所有检视区的牌按顺序放回卡组顶
   const returnAllToDeck = useCallback(() => {
@@ -147,12 +176,10 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
     // 从尾部开始逐一放回，这样顺序会保持（最后放回的在最上面）
     const reversedIds = [...peekCardIds].reverse();
     for (const cardId of reversedIds) {
-      manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.MAIN_DECK, {
-        position: 'TOP',
-      });
+      moveInspectedCardToTop(cardId);
     }
     setPeekCardIds([]);
-  }, [peekCardIds, manualMoveCard]);
+  }, [peekCardIds, moveInspectedCardToTop]);
 
   // 把所有检视区的牌放入休息室
   const moveAllToWaitingRoom = useCallback(() => {
@@ -160,7 +187,7 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
 
     const remainingIds: string[] = [];
     for (const cardId of peekCardIds) {
-      const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.WAITING_ROOM);
+      const result = moveInspectedCardToZone(cardId, ZoneType.WAITING_ROOM);
       if (!result.success) {
         remainingIds.push(cardId);
       }
@@ -168,36 +195,41 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
 
     setHoveredCard(null);
     setPeekCardIds(remainingIds);
-  }, [peekCardIds, manualMoveCard, setHoveredCard]);
+  }, [peekCardIds, moveInspectedCardToZone, setHoveredCard]);
 
   // 移动卡牌到手牌
   const moveToHand = useCallback((cardId: string) => {
-    const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.HAND);
+    const result = moveInspectedCardToZone(cardId, ZoneType.HAND);
     if (result.success) {
       setHoveredCard(null);
       setPeekCardIds((prev) => prev.filter((id) => id !== cardId));
     }
-  }, [manualMoveCard, setHoveredCard]);
+  }, [moveInspectedCardToZone, setHoveredCard]);
+
+  const revealToOpponent = useCallback((cardId: string) => {
+    const result = revealInspectedCard(cardId);
+    if (result.success) {
+      setHoveredCard(null);
+    }
+  }, [revealInspectedCard, setHoveredCard]);
 
   // 移动卡牌到休息室
   const moveToWaitingRoom = useCallback((cardId: string) => {
-    const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.WAITING_ROOM);
+    const result = moveInspectedCardToZone(cardId, ZoneType.WAITING_ROOM);
     if (result.success) {
       setHoveredCard(null);
       setPeekCardIds((prev) => prev.filter((id) => id !== cardId));
     }
-  }, [manualMoveCard, setHoveredCard]);
+  }, [moveInspectedCardToZone, setHoveredCard]);
 
   // 移动卡牌到卡组底
   const moveToDeckBottom = useCallback((cardId: string) => {
-    const result = manualMoveCard(cardId, ZoneType.RESOLUTION_ZONE, ZoneType.MAIN_DECK, {
-      position: 'BOTTOM',
-    });
+    const result = moveInspectedCardToBottom(cardId);
     if (result.success) {
       setHoveredCard(null);
       setPeekCardIds((prev) => prev.filter((id) => id !== cardId));
     }
-  }, [manualMoveCard, setHoveredCard]);
+  }, [moveInspectedCardToBottom, setHoveredCard]);
 
   // 处理拖拽排序结束
   const handleDragEnd = useCallback((event: DragEndEvent) => {
@@ -207,16 +239,26 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
       setPeekCardIds((items) => {
         const oldIndex = items.indexOf(active.id as string);
         const newIndex = items.indexOf(over.id as string);
+        if (oldIndex < 0 || newIndex < 0) {
+          return items;
+        }
+
+        const result = reorderInspectedCard(active.id as string, newIndex);
+        if (!result.success) {
+          return items;
+        }
+
         return arrayMove(items, oldIndex, newIndex);
       });
     }
-  }, []);
+  }, [reorderInspectedCard]);
 
   // 关闭面板时，把所有牌放回卡组
   const handleClose = useCallback(() => {
     returnAllToDeck();
+    finishInspection();
     onClose();
-  }, [returnAllToDeck, onClose]);
+  }, [returnAllToDeck, finishInspection, onClose]);
 
   if (!isOpen) return null;
 
@@ -255,10 +297,10 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
           <div className="mb-3 flex gap-2">
             <button
               onClick={drawFromDeck}
-              disabled={mainDeckCount === 0}
+              disabled={!canAct || mainDeckCount === 0}
               className={cn(
                 'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
-                mainDeckCount > 0
+                canAct && mainDeckCount > 0
                   ? 'button-primary'
                   : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
               )}
@@ -268,10 +310,10 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
             </button>
             <button
               onClick={returnToDeck}
-              disabled={peekCards.length === 0}
+              disabled={!canAct || peekCards.length === 0}
               className={cn(
                 'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
-                peekCards.length > 0
+                canAct && peekCards.length > 0
                   ? 'button-gold'
                   : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
               )}
@@ -281,10 +323,10 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
             </button>
             <button
               onClick={returnAllToDeck}
-              disabled={peekCards.length === 0}
+              disabled={!canAct || peekCards.length === 0}
               className={cn(
                 'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
-                peekCards.length > 0
+                canAct && peekCards.length > 0
                   ? 'button-secondary'
                   : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
               )}
@@ -294,10 +336,10 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
             </button>
             <button
               onClick={moveAllToWaitingRoom}
-              disabled={peekCards.length === 0}
+              disabled={!canAct || peekCards.length === 0}
               className={cn(
                 'inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium',
-                peekCards.length > 0
+                canAct && peekCards.length > 0
                   ? 'rounded border border-[color:color-mix(in_srgb,var(--semantic-error)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_16%,transparent)] text-[var(--semantic-error)]'
                   : 'cursor-not-allowed bg-[var(--bg-overlay)] text-[var(--text-muted)]'
               )}
@@ -331,28 +373,59 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
                         onMouseEnter={() => setHoveredCard(card.instanceId)}
                         onMouseLeave={() => setHoveredCard(null)}
                       >
+                        {revealedInspectionCardIds.includes(card.instanceId) ? (
+                          <div className="pointer-events-none absolute left-2 top-2 z-10 rounded-full bg-[color:color-mix(in_srgb,var(--semantic-success)_88%,black_12%)] px-2 py-0.5 text-[10px] font-semibold text-white shadow-[var(--shadow-md)]">
+                            已公开
+                          </div>
+                        ) : null}
                         <SortableCard
                           cardId={card.instanceId}
                           imagePath={getCardImagePath(card.data.cardCode)}
                         />
                         <div className="absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100">
                           <button
+                            disabled={!canAct || revealedInspectionCardIds.includes(card.instanceId)}
+                            onClick={() => revealToOpponent(card.instanceId)}
+                            className={cn(
+                              'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-white',
+                              canAct && !revealedInspectionCardIds.includes(card.instanceId)
+                                ? 'bg-emerald-600 hover:bg-emerald-500'
+                                : 'cursor-not-allowed bg-slate-600'
+                            )}
+                            title="公开给对手"
+                          >
+                            <Megaphone size={10} />
+                            公开
+                          </button>
+                          <button
+                            disabled={!canAct}
                             onClick={() => moveToHand(card.instanceId)}
-                            className="text-[10px] px-1.5 py-0.5 bg-cyan-600 hover:bg-cyan-500 rounded text-white"
+                            className={cn(
+                              'text-[10px] px-1.5 py-0.5 rounded text-white',
+                              canAct ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-slate-600 cursor-not-allowed'
+                            )}
                             title="加入手牌"
                           >
                             手牌
                           </button>
                           <button
+                            disabled={!canAct}
                             onClick={() => moveToWaitingRoom(card.instanceId)}
-                            className="text-[10px] px-1.5 py-0.5 bg-slate-600 hover:bg-slate-500 rounded text-white"
+                            className={cn(
+                              'text-[10px] px-1.5 py-0.5 rounded text-white',
+                              canAct ? 'bg-slate-600 hover:bg-slate-500' : 'bg-slate-600 cursor-not-allowed'
+                            )}
                             title="放入休息室"
                           >
                             弃置
                           </button>
                           <button
+                            disabled={!canAct}
                             onClick={() => moveToDeckBottom(card.instanceId)}
-                            className="text-[10px] px-1.5 py-0.5 bg-amber-600 hover:bg-amber-500 rounded text-white"
+                            className={cn(
+                              'text-[10px] px-1.5 py-0.5 rounded text-white',
+                              canAct ? 'bg-amber-600 hover:bg-amber-500' : 'bg-slate-600 cursor-not-allowed'
+                            )}
                             title="放到卡组底"
                           >
                             底部
@@ -368,7 +441,7 @@ export function DeckPeekModal({ isOpen, onClose, playerId }: DeckPeekModalProps)
           </div>
 
           <div className="mt-2 text-center text-[10px] text-[var(--text-muted)]">
-            拖拽卡牌可调整顺序 · 悬停卡牌显示操作菜单 · 点击外部关闭并放回所有卡牌
+            拖拽卡牌可调整顺序 · 可单独公开检视牌 · 点击外部关闭并放回所有卡牌
           </div>
         </motion.div>
       </div>

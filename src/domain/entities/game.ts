@@ -11,16 +11,16 @@ import {
   ZoneType,
   SubPhase,
   EffectWindowType,
-} from '../../shared/types/enums';
-import { CardInstance } from './card';
-import { ResolutionZoneState, createEmptyResolutionZone } from './zone';
+} from '../../shared/types/enums.js';
+import { CardInstance } from './card.js';
+import { ResolutionZoneState, InspectionZoneState, createEmptyResolutionZone, createEmptyInspectionZone } from './zone.js';
 import {
   PlayerState,
   createPlayerState,
   hasReachedVictoryCondition,
   getSuccessLiveCount,
   needsRefresh,
-} from './player';
+} from './player.js';
 
 // ============================================
 // 游戏配置常量
@@ -77,7 +77,8 @@ export type GameActionType =
   | 'TRIGGER_ABILITY'
   | 'RESOLVE_ABILITY'
   | 'RULE_ACTION'
-  | 'TAP_MEMBER';
+  | 'TAP_MEMBER'
+  | 'TAP_ENERGY';
 
 /**
  * 游戏动作记录
@@ -144,6 +145,13 @@ export function createEmptyLiveResolutionState(): LiveResolutionState {
     liveWinnerIds: [],
     successCardMovedBy: [],
   };
+}
+
+export interface InspectionContextState {
+  /** 当前检视流程的拥有者 */
+  readonly ownerPlayerId: string;
+  /** 检视来源区域 */
+  readonly sourceZone: ZoneType.MAIN_DECK | ZoneType.ENERGY_DECK;
 }
 
 // ============================================
@@ -304,6 +312,10 @@ export interface GameState {
    * 参考规则 4.14
    */
   readonly resolutionZone: ResolutionZoneState;
+  /** 检视区域（独立于解决区域） */
+  readonly inspectionZone: InspectionZoneState;
+  /** 当前进行中的检视流程上下文 */
+  readonly inspectionContext: InspectionContextState | null;
 
   // ---- Live 相关状态 ----
 
@@ -416,6 +428,8 @@ export function createGameState(
     liveSetCardCounts: new Map(),
 
     resolutionZone: createEmptyResolutionZone(),
+    inspectionZone: createEmptyInspectionZone(),
+    inspectionContext: null,
     liveResolution: createEmptyLiveResolutionState(),
 
     isStarted: false,
@@ -740,6 +754,29 @@ export function updateResolutionZone(
   return {
     ...game,
     resolutionZone: updater(game.resolutionZone),
+  };
+}
+
+/**
+ * 更新检视区域
+ */
+export function updateInspectionZone(
+  game: GameState,
+  updater: (zone: InspectionZoneState) => InspectionZoneState
+): GameState {
+  return {
+    ...game,
+    inspectionZone: updater(game.inspectionZone),
+  };
+}
+
+export function setInspectionContext(
+  game: GameState,
+  inspectionContext: InspectionContextState | null
+): GameState {
+  return {
+    ...game,
+    inspectionContext,
   };
 }
 

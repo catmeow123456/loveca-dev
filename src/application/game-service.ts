@@ -21,8 +21,8 @@ import {
   FaceState,
   GameEndReason,
   SubPhase,
-} from '../shared/types/enums';
-import type { GameState, GameAction as GameHistoryAction } from '../domain/entities/game';
+} from '../shared/types/enums.js';
+import type { GameState, GameAction as GameHistoryAction } from '../domain/entities/game.js';
 import {
   createGameState,
   getActivePlayer,
@@ -45,23 +45,22 @@ import {
   isAllMulliganCompleted,
   markMulliganCompleted,
   setSubPhase,
-} from '../domain/entities/game';
-import type { PlayerState } from '../domain/entities/player';
+} from '../domain/entities/game.js';
+import type { PlayerState } from '../domain/entities/player.js';
 import {
   getHandCount,
-  getAvailableEnergyCount,
   findCardZone,
   hasMovedToStageThisTurn,
   recordMoveToStage,
-} from '../domain/entities/player';
+} from '../domain/entities/player.js';
 import type {
   CardInstance,
   MemberCardData,
   LiveCardData,
   BaseCardData,
   AnyCardData,
-} from '../domain/entities/card';
-import { createCardInstance, isMemberCardData, isLiveCardData } from '../domain/entities/card';
+} from '../domain/entities/card.js';
+import { createCardInstance, isMemberCardData, isLiveCardData } from '../domain/entities/card.js';
 import {
   addCardToZone,
   removeCardFromZone,
@@ -69,19 +68,17 @@ import {
   removeCardFromStatefulZone,
   placeCardInSlot,
   removeCardFromSlot,
-  tapEnergy,
   untapAllEnergy,
   shuffleZone,
   drawFromTop,
-  getActiveEnergyIds,
   getAllMemberCardIds,
   getCardInSlot,
   isSlotEmpty,
-} from '../domain/entities/zone';
-import { PhaseManager, phaseManager, PhaseAutoAction } from './phase-manager';
-import { isPlayerActive as isPlayerActiveByConfig } from '../shared/phase-config';
-import { getInitialSubPhase, getSubPhaseConfig } from '../shared/phase-config';
-import { GameEventType } from './events';
+} from '../domain/entities/zone.js';
+import { PhaseManager, phaseManager, PhaseAutoAction } from './phase-manager.js';
+import { isPlayerActive as isPlayerActiveByConfig } from '../shared/phase-config/index.js';
+import { getInitialSubPhase, getSubPhaseConfig } from '../shared/phase-config/index.js';
+import { GameEventType } from './events.js';
 import {
   GameAction,
   GameActionType,
@@ -99,20 +96,20 @@ import {
   SelectSuccessCardAction,
   UndoOperationAction,
   PerformCheerAction,
-} from './actions';
+} from './actions.js';
 // 导入动作处理器模块
 import {
   getActionHandler,
   hasActionHandler,
   createHandlerContext,
   type ActionHandlerContext,
-} from './action-handlers';
+} from './action-handlers/index.js';
 // 导入规则处理模块
 import {
   ruleActionProcessor,
   applyAllRuleActions,
   RuleActionType,
-} from '../domain/rules/rule-actions';
+} from '../domain/rules/rule-actions.js';
 // 注意：采用新方案后，不再自动执行卡牌效果
 // 玩家通过手动拖拽执行效果，系统只负责规则处理（自动清理非法状态）
 
@@ -261,7 +258,7 @@ export class GameService {
     // Live 设置阶段双方玩家都可以放置卡牌和完成设置（规则 8.2）
     const isLiveSetPhaseAction =
       game.currentPhase === GamePhase.LIVE_SET_PHASE &&
-      (action.type === GameActionType.SET_LIVE_CARD);
+      action.type === GameActionType.SET_LIVE_CARD;
 
     // Mulligan 阶段双方玩家都可以换牌
     const isMulliganPhase = game.currentPhase === GamePhase.MULLIGAN_PHASE;
@@ -1032,7 +1029,7 @@ export class GameService {
     // 清空解决区域
     return {
       ...state,
-      resolutionZone: { ...state.resolutionZone, cardIds: [] },
+      resolutionZone: { ...state.resolutionZone, cardIds: [], revealedCardIds: [] },
     };
   }
 
@@ -1047,8 +1044,12 @@ export class GameService {
     const secondScore = game.liveResolution.playerScores.get(secondPlayer.id) ?? 0;
 
     const liveResults = game.liveResolution.liveResults;
-    const firstHasSuccessfulLive = firstPlayer.liveZone.cardIds.some((cardId) => liveResults.get(cardId) !== false);
-    const secondHasSuccessfulLive = secondPlayer.liveZone.cardIds.some((cardId) => liveResults.get(cardId) !== false);
+    const firstHasSuccessfulLive = firstPlayer.liveZone.cardIds.some(
+      (cardId) => liveResults.get(cardId) !== false
+    );
+    const secondHasSuccessfulLive = secondPlayer.liveZone.cardIds.some(
+      (cardId) => liveResults.get(cardId) !== false
+    );
 
     const winnerIds: string[] = [];
     if (!firstHasSuccessfulLive && !secondHasSuccessfulLive) {
@@ -1100,6 +1101,7 @@ export class GameService {
         resolutionZone: {
           ...state.resolutionZone,
           cardIds: state.resolutionZone.cardIds.filter((id) => id !== cardId),
+          revealedCardIds: state.resolutionZone.revealedCardIds.filter((id) => id !== cardId),
         },
       };
       state = updatePlayer(state, card.ownerId, (player) => ({
@@ -1111,7 +1113,9 @@ export class GameService {
     // 清理判定失败的 Live
     const liveResults = state.liveResolution.liveResults;
     for (const player of state.players) {
-      const failedCardIds = player.liveZone.cardIds.filter((cardId) => liveResults.get(cardId) === false);
+      const failedCardIds = player.liveZone.cardIds.filter(
+        (cardId) => liveResults.get(cardId) === false
+      );
       for (const cardId of failedCardIds) {
         state = updatePlayer(state, player.id, (p) => ({
           ...p,

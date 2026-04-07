@@ -7,7 +7,7 @@
 
 import { memo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, FastForward, RotateCcw, Sparkles } from 'lucide-react';
+import { Check, FastForward, Sparkles } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { SubPhase, EffectWindowType } from '@game/shared/types/enums';
@@ -109,7 +109,6 @@ const OperationHints = memo(function OperationHints() {
       <ul className="space-y-1 text-xs text-[var(--text-secondary)]">
         <li>• 拖拽卡牌到目标区域执行移动</li>
         <li>• 点击卡组顶部抽取卡牌</li>
-        <li>• 使用撤销按钮可回退操作</li>
         <li>• 完成后点击"确认完成"继续游戏</li>
       </ul>
     </div>
@@ -121,19 +120,19 @@ export const EffectWindow = memo(function EffectWindow({
   onClose,
 }: EffectWindowProps) {
   // 状态选择器
-  const gameState = useGameStore((s) => s.gameState);
+  const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
+  const permissionView = useGameStore((s) => s.getPermissionView());
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { confirmSubPhase, undoOperation } = useGameStore(
+  const { confirmSubPhase } = useGameStore(
     useShallow((s) => ({
       confirmSubPhase: s.confirmSubPhase,
-      undoOperation: s.undoOperation,
     }))
   );
 
-  const currentSubPhase = gameState?.currentSubPhase ?? SubPhase.NONE;
   const effectType = getEffectWindowType(currentSubPhase);
   const config = effectWindowConfig[effectType];
+  const canAct = permissionView?.canAct ?? true;
 
   // 处理确认完成
   const handleConfirm = useCallback(() => {
@@ -148,21 +147,11 @@ export const EffectWindow = memo(function EffectWindow({
     onClose();
   }, [confirmSubPhase, currentSubPhase, onClose]);
 
-  // 处理撤销
-  const handleUndo = useCallback(() => {
-    undoOperation();
-  }, [undoOperation]);
-
   // ESC 键关闭
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
-      }
-      // Ctrl+Z 撤销
-      if (e.ctrlKey && e.key === 'z') {
-        e.preventDefault();
-        handleUndo();
       }
     };
 
@@ -170,7 +159,7 @@ export const EffectWindow = memo(function EffectWindow({
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isOpen, onClose, handleUndo, effectType]);
+  }, [isOpen, onClose, effectType]);
 
   // 如果不是效果发动窗口，不显示
   if (effectType === EffectWindowType.NONE) {
@@ -216,14 +205,6 @@ export const EffectWindow = memo(function EffectWindow({
                 </div>
 
                 <OperationHints />
-
-                {gameState && gameState.operationHistory.length > 0 && (
-                  <div className="mt-4 rounded-lg bg-[color:color-mix(in_srgb,var(--bg-overlay)_52%,transparent)] p-3">
-                    <div className="text-xs text-[var(--text-secondary)]">
-                      本窗口已执行 <span className="font-bold text-[var(--text-primary)]">{gameState.operationHistory.length}</span> 步操作
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="modal-footer flex gap-3 px-6 py-4">
@@ -231,7 +212,13 @@ export const EffectWindow = memo(function EffectWindow({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleSkip}
-                  className="button-secondary flex-1 py-2.5 text-sm font-medium inline-flex items-center justify-center gap-2"
+                  disabled={!canAct}
+                  className={cn(
+                    'flex-1 py-2.5 text-sm font-medium inline-flex items-center justify-center gap-2',
+                    canAct
+                      ? 'button-secondary'
+                      : 'rounded-lg bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
+                  )}
                 >
                   <FastForward size={16} />
                   跳过效果
@@ -240,18 +227,13 @@ export const EffectWindow = memo(function EffectWindow({
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={handleUndo}
-                  className="button-secondary py-2.5 px-4 text-sm font-medium"
-                >
-                  <RotateCcw size={16} />
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
                   onClick={handleConfirm}
+                  disabled={!canAct}
                   className={cn(
-                    'button-primary flex-1 py-2.5 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2'
+                    'flex-1 py-2.5 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2',
+                    canAct
+                      ? 'button-primary'
+                      : 'bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
                   )}
                 >
                   <Check size={16} />

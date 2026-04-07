@@ -22,6 +22,11 @@ interface MulliganPanelProps {
 export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPanelProps) {
   // 状态选择器
   const gameState = useGameStore((s) => s.gameState);
+  const permissionView = useGameStore((s) => s.getPermissionView());
+  const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
+  const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView());
+  const currentPlayer = useGameStore((s) => s.getViewingPlayerState());
+  const firstPlayer = useGameStore((s) => s.getFirstPlayerState());
   const viewingPlayerId = useGameStore((s) => s.viewingPlayerId);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
@@ -36,12 +41,6 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
   // 选中要换的卡牌 ID
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
 
-  // 获取当前玩家
-  const currentPlayer = useMemo(() => {
-    if (!gameState || !viewingPlayerId) return null;
-    return gameState.players.find((p) => p.id === viewingPlayerId);
-  }, [gameState, viewingPlayerId]);
-
   // 检查是否已完成换牌
   const hasCompletedMulligan = useMemo(() => {
     if (!gameState || !viewingPlayerId) return false;
@@ -50,23 +49,16 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
 
   // 检查当前是否轮到该玩家换牌
   const isMyMulliganTurn = useMemo(() => {
-    if (!gameState || !viewingPlayerId) return false;
-
-    const firstPlayerId = gameState.players[gameState.firstPlayerIndex].id;
-    const secondPlayerId = gameState.players[gameState.firstPlayerIndex === 0 ? 1 : 0].id;
-
-    // 先攻子阶段时，只有先攻玩家可以换牌
-    if (gameState.currentSubPhase === SubPhase.MULLIGAN_FIRST_PLAYER) {
-      return viewingPlayerId === firstPlayerId;
-    }
-
-    // 后攻子阶段时，只有后攻玩家可以换牌
-    if (gameState.currentSubPhase === SubPhase.MULLIGAN_SECOND_PLAYER) {
-      return viewingPlayerId === secondPlayerId;
+    if (
+      permissionView &&
+      (currentSubPhase === SubPhase.MULLIGAN_FIRST_PLAYER ||
+        currentSubPhase === SubPhase.MULLIGAN_SECOND_PLAYER)
+    ) {
+      return permissionView.canAct;
     }
 
     return false;
-  }, [gameState, viewingPlayerId]);
+  }, [currentSubPhase, permissionView]);
 
   // 切换卡牌选中状态
   const toggleCardSelection = useCallback((cardId: string) => {
@@ -96,17 +88,17 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
 
   // 判断是否应该显示面板
   const shouldShow = useMemo(() => {
-    if (!isOpen || !gameState) return false;
-    if (gameState.currentPhase !== GamePhase.MULLIGAN_PHASE) return false;
+    if (!isOpen || !currentPhase) return false;
+    if (currentPhase !== GamePhase.MULLIGAN_PHASE) return false;
     if (hasCompletedMulligan) return false;
     return true;
-  }, [isOpen, gameState, hasCompletedMulligan]);
+  }, [currentPhase, hasCompletedMulligan, isOpen]);
 
   if (!shouldShow || !currentPlayer || !gameState) return null;
 
   // 获取玩家名称用于显示
   const playerName = currentPlayer.name;
-  const isFirstPlayer = currentPlayer.id === gameState.players[gameState.firstPlayerIndex].id;
+  const isFirstPlayer = currentPlayer.id === firstPlayer?.id;
 
   return (
     <AnimatePresence>
