@@ -9,7 +9,7 @@ import { Check, Cloud, Database, Layers3, RefreshCw, Star, TriangleAlert, UserRo
 import type { DeckRecord } from '@/lib/apiClient';
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
 import { calculateDeckStats, formatRelativeTime, getDeckPointTextClass } from './DeckStats';
-import { calculateDeckConfigStats, validateDeckConfig } from '@game/domain/rules/deck-construction';
+import { calculateDeckConfigStats, validateDeckConfig, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
 
 // 本地卡组类型（用于离线模式或临时卡组）
 export interface LocalDeck {
@@ -258,7 +258,7 @@ export function DeckSelector({
                     </div>
                     <div className={`flex items-center gap-1.5 ${getDeckPointTextClass(deck.pointTotal)}`}>
                       <Star size={12} />
-                      <span>{deck.pointTotal}/12pt</span>
+                      <span>{deck.pointTotal}/{DECK_POINT_LIMIT}pt</span>
                     </div>
                     <div className="flex-1" />
                     <div className="text-[var(--text-muted)]">

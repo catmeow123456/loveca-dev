@@ -26,6 +26,7 @@ import {
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { DeckSelector, getDeckPointTextClass, PageHeader, ThemeToggle, type DeckDisplayItem } from '@/components/common';
+import { DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
 import { DeckLoader } from '@game/domain/card-data/deck-loader';
 import { CardDataRegistry } from '@game/domain/card-data/loader';
 import { loadSolitaireOpponentDeck } from '@game/application/solitaire-deck';
@@ -450,7 +451,7 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
                           <span className="inline-flex items-center gap-1"><Users size={14} />{selectedP1Deck.memberCount}/48</span>
                           <span className="inline-flex items-center gap-1"><Layers3 size={14} />{selectedP1Deck.liveCount}/12</span>
                           <span className="inline-flex items-center gap-1"><Zap size={14} />{selectedP1Deck.energyCount}/12</span>
-                          <span className={`inline-flex items-center gap-1 ${getDeckPointTextClass(selectedP1Deck.pointTotal)}`}><Star size={14} />{selectedP1Deck.pointTotal}/12pt</span>
+                          <span className={`inline-flex items-center gap-1 ${getDeckPointTextClass(selectedP1Deck.pointTotal)}`}><Star size={14} />{selectedP1Deck.pointTotal}/{DECK_POINT_LIMIT}pt</span>
                         </div>
                       )}
                     </div>
@@ -473,7 +474,7 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
                             <span className="inline-flex items-center gap-1"><Users size={14} />{selectedP2Deck.memberCount}/48</span>
                             <span className="inline-flex items-center gap-1"><Layers3 size={14} />{selectedP2Deck.liveCount}/12</span>
                             <span className="inline-flex items-center gap-1"><Zap size={14} />{selectedP2Deck.energyCount}/12</span>
-                            <span className={`inline-flex items-center gap-1 ${getDeckPointTextClass(selectedP2Deck.pointTotal)}`}><Star size={14} />{selectedP2Deck.pointTotal}/12pt</span>
+                            <span className={`inline-flex items-center gap-1 ${getDeckPointTextClass(selectedP2Deck.pointTotal)}`}><Star size={14} />{selectedP2Deck.pointTotal}/{DECK_POINT_LIMIT}pt</span>
                           </div>
                         )}
                       </div>

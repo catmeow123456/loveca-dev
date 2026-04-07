@@ -38,25 +38,6 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
   const point = card ? getCardPoint(card.cardCode) : 0;
   const isLivePreview = !!card && isLiveCardData(card);
 
-  useEffect(() => {
-    if (!card) return;
-
-    const { body, documentElement } = document;
-    const previousOverflow = body.style.overflow;
-    const previousPaddingRight = body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - documentElement.clientWidth;
-
-    body.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-
-    return () => {
-      body.style.overflow = previousOverflow;
-      body.style.paddingRight = previousPaddingRight;
-    };
-  }, [card]);
-
   // ESC 关闭
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

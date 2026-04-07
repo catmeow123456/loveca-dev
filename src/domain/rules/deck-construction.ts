@@ -2,7 +2,7 @@ import type { CardEntry, DeckConfig } from '../card-data/deck-loader';
 import { getBaseCardCode } from '../../shared/utils/card-code';
 import { MAX_SAME_CODE_COUNT } from './deck-validator';
 
-export const DECK_POINT_LIMIT = 12;
+export const DECK_POINT_LIMIT = 9;
 
 const CARD_POINT_MAP: Record<string, number> = {
   'PL!N-bp1-003': 4,

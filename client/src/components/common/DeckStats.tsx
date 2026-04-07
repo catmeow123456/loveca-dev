@@ -109,7 +109,7 @@ export function DeckStatsRow({
       </div>
       <div className={`flex items-center gap-1.5 ${getDeckPointTextClass(stats.pointTotal)}`}>
         <Star size={size === 'sm' ? 12 : 14} />
-        <span>{stats.pointTotal}{showMax && '/12'}pt</span>
+        <span>{stats.pointTotal}{showMax && `/${DECK_POINT_LIMIT}`}pt</span>
       </div>
       {updatedAt && (
         <>

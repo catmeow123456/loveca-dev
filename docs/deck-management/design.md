@@ -143,7 +143,7 @@ interface CardEntry {
 - 系统维护一份硬编码的特殊点数字典，按卡牌基础编号计算点数
 - 未命中的卡牌默认 `0pt`
 - 卡组总点数 = 主卡组与能量卡组全部条目的 `单卡点数 × 数量` 之和
-- 合法卡组要求总点数 `<= 12pt`
+- 合法卡组要求总点数 `<= 9pt`（DECK_POINT_LIMIT）
 - 统一实现位置：`src/domain/rules/deck-construction.ts`
 
 ## 3. 核心组件
@@ -232,7 +232,7 @@ const [collapsedSections, setCollapsedSections] = useState<Record<string, boolea
 
 **职责**:
 - 计算并展示卡组的成员卡/Live卡/能量卡数量统计
-- 计算并展示卡组总点数（`xx/12pt`）
+- 计算并展示卡组总点数（`xx/9pt`）
 - 提供相对时间格式化（如"5 分钟前"）
 - `DeckValidityBadge` 组件展示卡组完成度状态
 - `DeckCard` 组件在列表中展示单个卡组的完整信息

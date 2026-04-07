@@ -19,7 +19,7 @@ import { CardEditor } from '@/components/deck-editor';
 import { calculateDeckStats, DeckStatsRow, getDeckPointTextClass, PageHeader, ThemeToggle } from '@/components/common';
 import { PRESET_DECKS, type PresetDeck } from './preset-decks';
 import type { DeckConfig, CardEntry } from '@game/domain/card-data/deck-loader';
-import { calculateDeckConfigStats, validateDeckConfig } from '@game/domain/rules/deck-construction';
+import { calculateDeckConfigStats, validateDeckConfig, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
 import * as yaml from 'yaml';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
@@ -575,7 +575,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                               <span>成员 {memberCount}/48</span>
                               <span>Live {liveCount}/12</span>
                               <span>能量 {energyCount}/12</span>
-                              <span className={getDeckPointTextClass(pointTotal)}>点数 {pointTotal}/12pt</span>
+                              <span className={getDeckPointTextClass(pointTotal)}>点数 {pointTotal}/{DECK_POINT_LIMIT}pt</span>
                             </div>
                             <span className="text-xs text-[var(--accent-primary)] transition-colors">
                               使用此卡组 →
