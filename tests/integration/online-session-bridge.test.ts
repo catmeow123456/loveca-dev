@@ -18,8 +18,9 @@ import {
 } from '../../src/domain/entities/card';
 import type { DeckConfig } from '../../src/application/game-service';
 import { createMulliganAction } from '../../src/application/actions';
-import { createOpenInspectionCommand } from '../../src/application/game-commands';
+import { GameCommandType, createOpenInspectionCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { createPublicObjectId } from '../../src/online';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -98,7 +99,11 @@ describe('GameSession 联机桥接层', () => {
     expect(view?.match.viewerSeat).toBe('FIRST');
     expect(view?.match.subPhase).toBe(SubPhase.MULLIGAN_FIRST_PLAYER);
     expect(view?.match.seq).toBe(session.getCurrentPublicEventSeq());
-    expect(view?.permissions.availableActionTypes).toContain('MULLIGAN');
+    expect(
+      view?.permissions.availableCommands.some(
+        (hint) => hint.command === GameCommandType.MULLIGAN && hint.enabled
+      )
+    ).toBe(true);
 
     const events = session.getPublicEventsSince(0);
     expect(events.some((event) => event.type === 'PhaseStarted' && event.phase === 'MULLIGAN_PHASE')).toBe(true);
@@ -120,7 +125,7 @@ describe('GameSession 联机桥接层', () => {
     ).toBe(true);
   });
 
-  it('兼容态会保留对手隐藏区数量，但不会暴露真实卡牌 ID 和实例', () => {
+  it('PlayerViewState 会保留对手隐藏区数量，但不会暴露真实卡牌 ID 和实例', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
@@ -128,13 +133,47 @@ describe('GameSession 联机桥接层', () => {
     session.initializeGame(deck, deck);
 
     const authorityState = session.state!;
-    const playerViewState = session.getStateForPlayer(PLAYER1)!;
+    const playerViewState = session.getPlayerViewState(PLAYER1)!;
     const opponentHiddenCardId = authorityState.players[1].hand.cardIds[0];
+    const ownHandCardIds = authorityState.players[0].hand.cardIds;
+    const opponentHandZone = playerViewState.table.zones.SECOND_HAND;
+    const ownHandZone = playerViewState.table.zones.FIRST_HAND;
 
-    expect(playerViewState.players[1].hand.cardIds).toHaveLength(authorityState.players[1].hand.cardIds.length);
-    expect(playerViewState.players[1].hand.cardIds).not.toContain(opponentHiddenCardId);
-    expect(playerViewState.cardRegistry.has(opponentHiddenCardId)).toBe(false);
-    expect(playerViewState.players[0].hand.cardIds).toEqual(authorityState.players[0].hand.cardIds);
+    expect(opponentHandZone.count).toBe(authorityState.players[1].hand.cardIds.length);
+    expect(opponentHandZone.objectIds).toBeUndefined();
+    expect(playerViewState.objects[createPublicObjectId(opponentHiddenCardId)]).toBeUndefined();
+    expect(ownHandZone.objectIds).toEqual(ownHandCardIds.map((cardId) => createPublicObjectId(cardId)));
+  });
+
+  it('PlayerViewState 不会向对手暴露检视区中的真实实例 ID', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-bridge-inspection-redacted', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const openResult = session.executeCommand(createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 2));
+    expect(openResult.success).toBe(true);
+
+    const authorityInspectionCardIds = [...(session.state?.inspectionZone.cardIds ?? [])];
+    expect(authorityInspectionCardIds).toHaveLength(2);
+
+    const opponentViewState = session.getPlayerViewState(PLAYER2)!;
+    const inspectionZone = opponentViewState.table.zones.FIRST_INSPECTION_ZONE;
+
+    expect(inspectionZone.objectIds).toEqual(
+      authorityInspectionCardIds.map((cardId) => createPublicObjectId(cardId))
+    );
+    expect(
+      authorityInspectionCardIds.every((cardId) => !inspectionZone.objectIds?.includes(cardId))
+    ).toBe(true);
+    expect(
+      authorityInspectionCardIds.every((cardId) => {
+        const object = opponentViewState.objects[createPublicObjectId(cardId)];
+        return object?.surface === 'BACK' && object.frontInfo === undefined;
+      })
+    ).toBe(true);
   });
 
   it('玩家动作会进入公共事件流，并推动视图 seq 递增', () => {

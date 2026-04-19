@@ -10,9 +10,8 @@
  */
 
 import { create } from 'zustand';
-import type { GameState } from '@game/domain/entities/game';
-import type { PlayerState } from '@game/domain/entities/player';
-import type { CardInstance, AnyCardData } from '@game/domain/entities/card';
+import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
+import { createHeartRequirement } from '@game/domain/entities/card';
 import type { DeckConfig } from '@game/application/game-service';
 import { GameSession, createGameSession, type GameSessionEvent } from '@game/application/game-session';
 import {
@@ -20,12 +19,14 @@ import {
   type DebugMatchSnapshot,
   type PlayerViewState,
   type Seat,
+  type ViewCommandHint,
+  type ViewFrontCardInfo,
   type ViewCardObject,
   type ViewZoneKey,
   type ViewZoneState,
 } from '@game/online';
-import { type GameAction } from '@game/application/actions';
 import {
+  GameCommandType,
   type GameCommand,
   createEndPhaseCommand,
   createMulliganCommand,
@@ -38,6 +39,8 @@ import {
   createAttachEnergyToMemberCommand,
   createMoveInspectedCardToBottomCommand,
   createMoveMemberToSlotCommand,
+  createMoveOwnedCardToZoneCommand,
+  createMovePublicCardToEnergyDeckCommand,
   createMovePublicCardToWaitingRoomCommand,
   createMovePublicCardToHandCommand,
   createReorderInspectedCardCommand,
@@ -57,9 +60,9 @@ import {
   createTapMemberCommand,
 } from '@game/application/game-commands';
 import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType, GameMode } from '@game/shared/types/enums';
-import { getCardById, getActivePlayer } from '@game/domain/entities/game';
 import { getPhaseName } from '@game/shared/phase-config';
 import { resolveCardImagePath } from '@/lib/imageService';
+import { type ParsedZoneId } from '@/lib/zoneUtils';
 import {
   advanceOnlineDebugPhase,
   executeOnlineDebugCommand,
@@ -75,6 +78,24 @@ export interface GameLog {
   timestamp: number;
   message: string;
   type: 'info' | 'action' | 'phase' | 'error';
+}
+
+export interface PlayerIdentity {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface VisibleCardPresentation {
+  readonly instanceId: string;
+  readonly cardCode: string;
+  readonly cardData: AnyCardData;
+  readonly imagePath: string;
+}
+
+export interface CommandDispatchResult {
+  readonly success: boolean;
+  readonly error?: string;
+  readonly pending?: boolean;
 }
 
 export interface UIState {
@@ -106,8 +127,6 @@ interface RemoteDebugSessionState {
 
 export interface GameStore {
   // ============ 状态 ============
-  /** 游戏状态 (当前视角玩家的快照) */
-  gameState: GameState | null;
   /** 联机视图状态（按当前视角投影） */
   playerViewState: PlayerViewState | null;
   /** 卡牌数据注册表 (cardCode -> AnyCardData) */
@@ -136,38 +155,59 @@ export interface GameStore {
   ) => void;
   /** 初始化游戏（设置卡组） */
   initializeGame: (player1Deck: DeckConfig, player2Deck: DeckConfig) => void;
-  /** 执行游戏动作 */
-  executeAction: (action: GameAction) => { success: boolean; error?: string };
   /** 推进阶段 */
   advancePhase: () => void;
   /** 选择卡牌 */
   selectCard: (cardId: string | null) => void;
   /** 取消选择 */
   deselectCard: () => void;
-  /** 打出成员卡 */
-  playMember: (cardId: string, slot: SlotPosition, isRelay?: boolean) => { success: boolean; error?: string };
   /** 通过命令层将手牌成员登场到成员槽位 */
-  playMemberToSlot: (cardId: string, slot: SlotPosition) => { success: boolean; error?: string };
+  playMemberToSlot: (cardId: string, slot: SlotPosition) => CommandDispatchResult;
   /** 将公开区卡牌移入休息室 */
   movePublicCardToWaitingRoom: (
     cardId: string,
     fromZone: ZoneType.MEMBER_SLOT | ZoneType.LIVE_ZONE | ZoneType.SUCCESS_ZONE,
     sourceSlot?: SlotPosition
-  ) => { success: boolean; error?: string };
+  ) => CommandDispatchResult;
   /** 将公开区卡牌移入手牌 */
   movePublicCardToHand: (
     cardId: string,
-    fromZone: ZoneType.MEMBER_SLOT | ZoneType.LIVE_ZONE | ZoneType.SUCCESS_ZONE,
+    fromZone:
+      | ZoneType.MEMBER_SLOT
+      | ZoneType.LIVE_ZONE
+      | ZoneType.SUCCESS_ZONE
+      | ZoneType.WAITING_ROOM,
     sourceSlot?: SlotPosition
-  ) => { success: boolean; error?: string };
+  ) => CommandDispatchResult;
+  /** 将公开的能量牌移回能量卡组 */
+  movePublicCardToEnergyDeck: (
+    cardId: string,
+    fromZone: ZoneType.ENERGY_ZONE
+  ) => CommandDispatchResult;
+  /** 将己方私有区卡牌移动到目标区域 */
+  moveOwnedCardToZone: (
+    cardId: string,
+    fromZone: ZoneType.HAND | ZoneType.MAIN_DECK | ZoneType.ENERGY_DECK,
+    toZone:
+      | ZoneType.HAND
+      | ZoneType.MAIN_DECK
+      | ZoneType.ENERGY_DECK
+      | ZoneType.MEMBER_SLOT
+      | ZoneType.ENERGY_ZONE
+      | ZoneType.LIVE_ZONE
+    | ZoneType.SUCCESS_ZONE
+      | ZoneType.WAITING_ROOM
+      | ZoneType.EXILE_ZONE,
+    options?: { targetSlot?: SlotPosition; position?: 'TOP' | 'BOTTOM' }
+  ) => CommandDispatchResult;
   /** 放置 Live 卡到 Live 区 */
-  setLiveCard: (cardId: string, faceDown?: boolean) => { success: boolean; error?: string };
+  setLiveCard: (cardId: string, faceDown?: boolean) => CommandDispatchResult;
   /** 换牌（Mulligan） */
-  mulligan: (cardIdsToMulligan: string[]) => { success: boolean; error?: string };
+  mulligan: (cardIdsToMulligan: string[]) => CommandDispatchResult;
   /** 切换成员状态（活跃/等待） */
-  tapMember: (cardId: string, slot: SlotPosition) => { success: boolean; error?: string };
+  tapMember: (cardId: string, slot: SlotPosition) => CommandDispatchResult;
   /** 切换能量状态（活跃/等待） */
-  tapEnergy: (cardId: string) => { success: boolean; error?: string };
+  tapEnergy: (cardId: string) => CommandDispatchResult;
   /** 结束当前阶段 */
   endPhase: () => void;
   /** 设置视角玩家 */
@@ -196,20 +236,18 @@ export interface GameStore {
   isRemoteDebugMode: () => boolean;
 
   // ============ 查询辅助 ============
-  /** 根据 instanceId 获取卡牌实例 */
-  getCardInstance: (cardId: string) => CardInstance | null;
   /** 根据 cardCode 获取卡牌数据 */
   getCardData: (cardCode: string) => AnyCardData | undefined;
   /** 获取卡牌图片路径 */
   getCardImagePath: (cardCode: string) => string;
-  /** 获取当前活跃玩家 ID */
-  getCurrentPlayer: () => string | null;
   /** 获取当前视角 seat */
   getViewerSeat: () => Seat | null;
   /** 获取当前联机 match 视图 */
   getMatchView: () => PlayerViewState['match'] | null;
   /** 获取当前联机权限视图 */
   getPermissionView: () => PlayerViewState['permissions'] | null;
+  /** 获取指定命令提示 */
+  getCommandHint: (command: string) => ViewCommandHint | null;
   /** 获取当前回合数 */
   getTurnCountView: () => number | null;
   /** 获取当前主阶段 */
@@ -218,98 +256,156 @@ export interface GameStore {
   getCurrentSubPhaseView: () => SubPhase | null;
   /** 获取当前活跃 seat */
   getActiveSeatView: () => Seat | null;
-  /** 获取当前视角玩家状态 */
-  getViewingPlayerState: () => PlayerState | null;
-  /** 获取当前对手玩家状态 */
-  getOpponentPlayerState: () => PlayerState | null;
-  /** 按玩家 ID 获取玩家状态 */
-  getPlayerStateById: (playerId: string) => PlayerState | null;
-  /** 获取当前活跃玩家状态 */
-  getActivePlayerState: () => PlayerState | null;
-  /** 获取先攻玩家状态 */
-  getFirstPlayerState: () => PlayerState | null;
-  /** 获取后攻玩家状态 */
-  getSecondPlayerState: () => PlayerState | null;
+  /** 获取当前视角玩家身份信息 */
+  getViewingPlayerIdentity: () => PlayerIdentity | null;
+  /** 获取当前对手身份信息 */
+  getOpponentPlayerIdentity: () => PlayerIdentity | null;
+  /** 按 seat 获取玩家身份信息 */
+  getPlayerIdentityForSeat: (seat: Seat) => PlayerIdentity | null;
   /** 根据实例 ID 获取投影视图中的卡牌对象 */
   getCardViewObject: (cardId: string) => ViewCardObject | null;
-  /** 获取视图区域 */
-  getViewZone: (zoneKey: ViewZoneKey) => ViewZoneState | null;
+  /** 根据实例 ID 获取投影视图中的正面信息 */
+  getCardFrontInfo: (cardId: string) => ViewFrontCardInfo | null;
+  /** 获取当前视角可见卡牌的展示数据 */
+  getVisibleCardPresentation: (cardId: string) => VisibleCardPresentation | null;
+  /** 获取当前视角已知的卡牌类型 */
+  getKnownCardType: (cardId: string) => CardType | null;
+  /** 获取区域中的公开对象 ID 列表 */
+  getZonePublicObjectIds: (zoneKey: ViewZoneKey) => readonly string[];
   /** 获取 seat 归属区域 */
   getSeatZone: (seat: Seat, suffix: string) => ViewZoneState | null;
+  /** 获取 seat 归属区域中的实例 ID 列表 */
+  getSeatZoneCardIds: (seat: Seat, suffix: string) => string[];
   /** 获取区域中的实例 ID 列表 */
   getZoneCardIds: (zoneKey: ViewZoneKey) => string[];
-  /** 当前视角是否可见该卡牌正面 */
-  canSeeCardFront: (cardId: string) => boolean;
-  /** 获取指定玩家的 Live 分数 */
-  getLiveScoreForPlayer: (playerId: string) => number;
-  /** 指定玩家是否为 Live 胜者 */
-  isLiveWinner: (playerId: string) => boolean;
+  /** 获取共享解决区中指定 seat 拥有的实例 ID 列表 */
+  getResolutionCardIdsForSeat: (seat: Seat) => string[];
+  /** 获取 seat 指定成员槽位中的成员实例 ID */
+  getSeatMemberSlotCardId: (seat: Seat, slot: SlotPosition) => string | null;
+  /** 获取 seat 指定成员槽位下方附着能量实例 ID 列表 */
+  getSeatMemberOverlayCardIds: (seat: Seat, slot: SlotPosition) => string[];
+  /** 查找当前视角下卡牌所在区域 */
+  findViewerCardZone: (cardId: string) => ZoneType | null;
+  /** 根据卡牌实例解析其可落点区域信息 */
+  resolveCardDropTarget: (targetCardId: string) => ParsedZoneId | null;
+  /** 查找卡牌所在成员槽位 */
+  getCardSlotPosition: (cardId: string) => SlotPosition | null;
+  /** 检视区卡牌是否已正式公开 */
+  isInspectionCardPubliclyRevealed: (cardId: string) => boolean;
+  /** 当前视角是否处于自己的检视流程 */
+  isInspectionOpenForViewer: () => boolean;
+  /** 当前视角是否已完成换牌 */
+  hasViewerCompletedMulligan: () => boolean;
+  /** 获取指定 Live 卡的判定结果 */
+  getLiveResultForCard: (cardId: string) => boolean | undefined;
+  /** 获取当前视角玩家的 Live 分数 */
+  getViewerLiveScore: () => number;
+  /** 获取当前对手的 Live 分数 */
+  getOpponentLiveScore: () => number;
+  /** 当前视角玩家是否为 Live 胜者 */
+  isViewerLiveWinner: () => boolean;
+  /** 当前对手是否为 Live 胜者 */
+  isOpponentLiveWinner: () => boolean;
   /** 当前 Live 是否平局 */
   isLiveDraw: () => boolean;
   /** 当前已确认分数的玩家数量 */
   getConfirmedScoreCount: () => number;
-  /** 指定玩家是否已确认分数 */
-  isScoreConfirmed: (playerId: string) => boolean;
+  /** 当前视角玩家是否已确认分数 */
+  isViewerScoreConfirmed: () => boolean;
+  /** 当前对手是否已确认分数 */
+  isOpponentScoreConfirmed: () => boolean;
 
   // ============ 阶段十新增动作 ============
   /** 确认子阶段完成 */
-  confirmSubPhase: (subPhase: SubPhase) => { success: boolean; error?: string };
+  confirmSubPhase: (subPhase: SubPhase) => CommandDispatchResult;
   /** 确认 Live 判定结果 */
-  confirmJudgment: (judgmentResults: Map<string, boolean>) => { success: boolean; error?: string };
+  confirmJudgment: (judgmentResults: Map<string, boolean>) => CommandDispatchResult;
   /** 确认分数（仅确认己方最终分数） */
-  confirmScore: (adjustedScore?: number) => { success: boolean; error?: string };
+  confirmScore: (adjustedScore?: number) => CommandDispatchResult;
   /** 选择成功 Live 卡移到成功区 */
-  selectSuccessCard: (cardId: string) => { success: boolean; error?: string };
+  selectSuccessCard: (cardId: string) => CommandDispatchResult;
   /** 通过命令层移动牌桌卡牌 */
   moveTableCard: (
     cardId: string,
     fromZone: ZoneType,
     toZone: ZoneType,
     options?: { targetSlot?: SlotPosition; sourceSlot?: SlotPosition; position?: 'TOP' | 'BOTTOM' }
-  ) => { success: boolean; error?: string };
+  ) => CommandDispatchResult;
   /** 将成员从一个槽位移动到另一个槽位 */
-  moveMemberToSlot: (cardId: string, sourceSlot: SlotPosition, targetSlot: SlotPosition) => { success: boolean; error?: string };
+  moveMemberToSlot: (
+    cardId: string,
+    sourceSlot: SlotPosition,
+    targetSlot: SlotPosition
+  ) => CommandDispatchResult;
   /** 将能量附着到指定成员槽位 */
   attachEnergyToMember: (
     cardId: string,
     fromZone: ZoneType.MEMBER_SLOT | ZoneType.ENERGY_ZONE | ZoneType.ENERGY_DECK,
-    targetSlot: SlotPosition
-  ) => { success: boolean; error?: string };
+    targetSlot: SlotPosition,
+    sourceSlot?: SlotPosition
+  ) => CommandDispatchResult;
   /** 从牌库打开检视流程 */
-  openInspection: (sourceZone: ZoneType.MAIN_DECK | ZoneType.ENERGY_DECK, count?: number) => { success: boolean; error?: string };
+  openInspection: (
+    sourceZone: ZoneType.MAIN_DECK | ZoneType.ENERGY_DECK,
+    count?: number
+  ) => CommandDispatchResult;
   /** 将检视区卡牌放回来源区顶部 */
-  moveInspectedCardToTop: (cardId: string) => { success: boolean; error?: string };
+  moveInspectedCardToTop: (cardId: string) => CommandDispatchResult;
   /** 将检视区卡牌公开给双方 */
-  revealInspectedCard: (cardId: string) => { success: boolean; error?: string };
+  revealInspectedCard: (cardId: string) => CommandDispatchResult;
   /** 将检视区卡牌放回来源区底部 */
-  moveInspectedCardToBottom: (cardId: string) => { success: boolean; error?: string };
+  moveInspectedCardToBottom: (cardId: string) => CommandDispatchResult;
   /** 将检视区卡牌移动到指定区域 */
-  moveInspectedCardToZone: (cardId: string, toZone: ZoneType.HAND | ZoneType.WAITING_ROOM | ZoneType.EXILE_ZONE) => { success: boolean; error?: string };
+  moveInspectedCardToZone: (
+    cardId: string,
+    toZone: ZoneType.HAND | ZoneType.WAITING_ROOM | ZoneType.EXILE_ZONE
+  ) => CommandDispatchResult;
   /** 调整检视区卡牌顺序 */
-  reorderInspectedCard: (cardId: string, toIndex: number) => { success: boolean; error?: string };
+  reorderInspectedCard: (cardId: string, toIndex: number) => CommandDispatchResult;
   /** 声明当前检视流程完成 */
-  finishInspection: () => { success: boolean; error?: string };
+  finishInspection: () => CommandDispatchResult;
   /** 翻开一张应援牌到解决区 */
-  revealCheerCard: () => { success: boolean; error?: string };
+  revealCheerCard: () => CommandDispatchResult;
   /** 将解决区卡牌移到指定区域 */
   moveResolutionCardToZone: (
     cardId: string,
     toZone: ZoneType.HAND | ZoneType.WAITING_ROOM | ZoneType.MAIN_DECK | ZoneType.EXILE_ZONE,
     options?: { position?: 'TOP' | 'BOTTOM' }
-  ) => { success: boolean; error?: string };
+  ) => CommandDispatchResult;
   /** 提交当前 Live 判定结果并推进子阶段 */
-  confirmPerformanceOutcome: (success: boolean) => { success: boolean; error?: string };
+  confirmPerformanceOutcome: (success: boolean) => CommandDispatchResult;
   /** 主卡组顶抽一张到手牌 */
-  drawCardToHand: () => { success: boolean; error?: string };
+  drawCardToHand: () => CommandDispatchResult;
   /** 将能量卡组顶的一张能量牌放到能量区 */
-  drawEnergyToZone: (cardId: string) => { success: boolean; error?: string };
+  drawEnergyToZone: (cardId: string) => CommandDispatchResult;
   /** 将手牌一张放回主卡组顶 */
-  returnHandCardToTop: (cardId: string) => { success: boolean; error?: string };
+  returnHandCardToTop: (cardId: string) => CommandDispatchResult;
+  /** 当前视角是否可使用指定联机命令 */
+  canUseAction: (actionType: string) => boolean;
+  /** 指定区域是否在命令作用域内 */
+  isZoneInCommandScope: (command: string, zoneKey: ViewZoneKey) => boolean;
+  /** 指定卡牌是否在命令作用域内 */
+  isCardInCommandScope: (command: string, cardId: string) => boolean;
 }
 
 // ============================================
 // Store 实现
 // ============================================
+
+const EMPTY_PUBLIC_OBJECT_IDS: readonly string[] = [];
+const EMPTY_CARD_IDS: readonly string[] = [];
+
+function getCardIdFromPublicObjectId(publicObjectId: string): string {
+  return publicObjectId.startsWith('obj_') ? publicObjectId.slice(4) : publicObjectId;
+}
+
+interface StoreCommandOptions {
+  readonly failureMessage: string;
+  readonly successMessage?: string;
+  readonly clearHoveredCardId?: string;
+  readonly deselectCard?: boolean;
+  readonly logError?: boolean;
+}
 
 export const useGameStore = create<GameStore>((set, get) => {
   // 创建游戏会话，设置事件监听
@@ -319,9 +415,57 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
   });
 
+  const applyCommandSuccessEffects = (options: Omit<StoreCommandOptions, 'failureMessage'>): void => {
+    if (options.clearHoveredCardId && get().ui.hoveredCardId === options.clearHoveredCardId) {
+      get().setHoveredCard(null);
+    }
+    if (options.deselectCard) {
+      get().deselectCard();
+    }
+    if (options.successMessage) {
+      get().addLog(options.successMessage, 'action');
+    }
+  };
+
+  const runStoreCommand = (
+    command: GameCommand,
+    options: StoreCommandOptions
+  ): CommandDispatchResult => {
+    if (
+      dispatchRemoteCommand(command, options.failureMessage, () => {
+        applyCommandSuccessEffects(options);
+      })
+    ) {
+      return { success: false, pending: true };
+    }
+
+    const result = get().gameSession.executeCommand(command);
+    if (!result.success) {
+      if (options.logError) {
+        get().addLog(`${options.failureMessage}: ${result.error}`, 'error');
+      }
+      return { success: false, error: result.error };
+    }
+
+    get().syncState();
+    applyCommandSuccessEffects(options);
+    return { success: true };
+  };
+
+  const runViewerCommand = (
+    buildCommand: (playerId: string) => GameCommand,
+    options: StoreCommandOptions
+  ): CommandDispatchResult => {
+    const viewingPlayerId = get().viewingPlayerId;
+    if (!viewingPlayerId) {
+      return { success: false, error: '未设置玩家' };
+    }
+
+    return runStoreCommand(buildCommand(viewingPlayerId), options);
+  };
+
   return {
     // ============ 初始状态 ============
-    gameState: null,
     playerViewState: null,
     cardDataRegistry: new Map(),
     gameSession,
@@ -381,34 +525,6 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     },
 
-    executeAction: (action) => {
-      const { gameSession } = get();
-
-      const result = gameSession.dispatch(action);
-
-      if (result.success) {
-        // 同步状态
-        get().syncState();
-        get().addLog(`执行动作: ${action.type}`, 'action');
-
-        // 如果需要输入，更新 UI 状态
-        if (result.needsInput) {
-          set((state) => ({
-            ui: {
-              ...state.ui,
-              waitingForInput: true,
-              inputRequestType: result.inputRequest?.type || null,
-            },
-          }));
-        }
-
-        return { success: true };
-      } else {
-        get().addLog(`动作失败: ${result.error}`, 'error');
-        return { success: false, error: result.error };
-      }
-    },
-
     advancePhase: () => {
       if (dispatchRemoteAdvancePhase()) {
         return;
@@ -422,10 +538,13 @@ export const useGameStore = create<GameStore>((set, get) => {
         // 同步状态
         get().syncState();
 
-        const phaseName = getPhaseName(result.gameState.currentPhase);
-        get().addLog(`进入 ${phaseName}`, 'phase');
-        get().showPhaseBannerFn(phaseName);
-        setTimeout(() => get().hidePhaseBanner(), 1500);
+        const currentPhase = get().getCurrentPhaseView();
+        if (currentPhase) {
+          const phaseName = getPhaseName(currentPhase);
+          get().addLog(`进入 ${phaseName}`, 'phase');
+          get().showPhaseBannerFn(phaseName);
+          setTimeout(() => get().hidePhaseBanner(), 1500);
+        }
       }
     },
 
@@ -441,115 +560,59 @@ export const useGameStore = create<GameStore>((set, get) => {
       }));
     },
 
-    playMember: (cardId, slot, isRelay = false) => {
-      const result = get().playMemberToSlot(cardId, slot);
-      if (!result.success && isRelay) {
-        return result;
-      }
-      return result;
-    },
-
     playMemberToSlot: (cardId, slot) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createPlayMemberToSlotCommand(viewingPlayerId, cardId, slot);
-      if (dispatchRemoteCommand(command, '成员登场失败')) {
-        get().deselectCard();
-        get().addLog(`成员登场到 ${slot}`, 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        get().deselectCard();
-        get().addLog(`成员登场到 ${slot}`, 'action');
-        return { success: true };
-      }
-
-      get().addLog(`成员登场失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createPlayMemberToSlotCommand(playerId, cardId, slot), {
+        failureMessage: '成员登场失败',
+        successMessage: `成员登场到 ${slot}`,
+        deselectCard: true,
+        logError: true,
+      });
     },
 
     movePublicCardToWaitingRoom: (cardId, fromZone, sourceSlot) => {
-      const { viewingPlayerId, gameSession, ui } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createMovePublicCardToWaitingRoomCommand(viewingPlayerId, cardId, fromZone, sourceSlot);
-      if (dispatchRemoteCommand(command, '公开区卡牌移动失败')) {
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
+      return runViewerCommand(
+        (playerId) => createMovePublicCardToWaitingRoomCommand(playerId, cardId, fromZone, sourceSlot),
+        {
+        failureMessage: '公开区卡牌移动失败',
+        clearHoveredCardId: cardId,
         }
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        return { success: true };
-      }
-
-      return { success: false, error: result.error };
+      );
     },
 
     movePublicCardToHand: (cardId, fromZone, sourceSlot) => {
-      const { viewingPlayerId, gameSession, ui } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createMovePublicCardToHandCommand(viewingPlayerId, cardId, fromZone, sourceSlot);
-      if (dispatchRemoteCommand(command, '公开区卡牌回手失败')) {
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
+      return runViewerCommand(
+        (playerId) => createMovePublicCardToHandCommand(playerId, cardId, fromZone, sourceSlot),
+        {
+        failureMessage: '公开区卡牌回手失败',
+        clearHoveredCardId: cardId,
         }
-        return { success: true };
-      }
+      );
+    },
 
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
+    movePublicCardToEnergyDeck: (cardId, fromZone) => {
+      return runViewerCommand((playerId) => createMovePublicCardToEnergyDeckCommand(playerId, cardId, fromZone), {
+        failureMessage: '公开能量回到能量卡组失败',
+        clearHoveredCardId: cardId,
+      });
+    },
+
+    moveOwnedCardToZone: (cardId, fromZone, toZone, options) => {
+      return runViewerCommand(
+        (playerId) => createMoveOwnedCardToZoneCommand(playerId, cardId, fromZone, toZone, options),
+        {
+        failureMessage: '己方卡牌移动失败',
+        clearHoveredCardId: cardId,
         }
-        return { success: true };
-      }
-
-      return { success: false, error: result.error };
+      );
     },
 
     setLiveCard: (cardId, faceDown = true) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createSetLiveCardCommand(viewingPlayerId, cardId, faceDown);
-      if (dispatchRemoteCommand(command, '放置 Live 卡失败')) {
-        get().deselectCard();
-        get().addLog('放置卡牌到 Live 区', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-
-      if (result.success) {
-        get().syncState();
-        get().deselectCard();
-        get().addLog('放置卡牌到 Live 区', 'action');
-        return { success: true };
-      }
-
-      get().addLog(`放置 Live 卡失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createSetLiveCardCommand(playerId, cardId, faceDown), {
+        failureMessage: '放置 Live 卡失败',
+        successMessage: '放置卡牌到 Live 区',
+        deselectCard: true,
+        logError: true,
+      });
     },
 
     mulligan: (cardIdsToMulligan) => {
@@ -559,13 +622,24 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       const command = createMulliganCommand(viewingPlayerId, cardIdsToMulligan);
-      if (dispatchRemoteCommand(command, '换牌失败')) {
-        if (cardIdsToMulligan.length > 0) {
-          get().addLog(`换牌: 换掉 ${cardIdsToMulligan.length} 张卡牌`, 'action');
-        } else {
-          get().addLog('确认不换牌', 'action');
-        }
-        return { success: true };
+      const successMessage =
+        cardIdsToMulligan.length > 0
+          ? `换牌: 换掉 ${cardIdsToMulligan.length} 张卡牌`
+          : '确认不换牌';
+
+      if (
+        dispatchRemoteCommand(command, '换牌失败', () => {
+          get().addLog(successMessage, 'action');
+
+          const currentPhase = useGameStore.getState().getCurrentPhaseView();
+          if (currentPhase && currentPhase !== GamePhase.MULLIGAN_PHASE) {
+            const phaseName = getPhaseName(currentPhase);
+            useGameStore.getState().showPhaseBannerFn(phaseName);
+            setTimeout(() => useGameStore.getState().hidePhaseBanner(), 1500);
+          }
+        })
+      ) {
+        return { success: false, pending: true };
       }
 
       const result = gameSession.executeCommand(command);
@@ -581,8 +655,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         }
 
         // 如果换牌阶段结束，显示提示
-        const currentPhase = result.gameState.currentPhase;
-        if (currentPhase !== GamePhase.MULLIGAN_PHASE) {
+        const currentPhase = get().getCurrentPhaseView();
+        if (currentPhase && currentPhase !== GamePhase.MULLIGAN_PHASE) {
           const phaseName = getPhaseName(currentPhase);
           get().showPhaseBannerFn(phaseName);
           setTimeout(() => get().hidePhaseBanner(), 1500);
@@ -596,72 +670,27 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     tapMember: (cardId, slot) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createTapMemberCommand(viewingPlayerId, cardId, slot);
-      if (dispatchRemoteCommand(command, '切换状态失败')) {
-        get().addLog('切换成员状态', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-
-      if (result.success) {
-        get().syncState();
-        get().addLog('切换成员状态', 'action');
-        return { success: true };
-      } else {
-        get().addLog(`切换状态失败: ${result.error}`, 'error');
-        return { success: false, error: result.error };
-      }
+      return runViewerCommand((playerId) => createTapMemberCommand(playerId, cardId, slot), {
+        failureMessage: '切换状态失败',
+        successMessage: '切换成员状态',
+        logError: true,
+      });
     },
 
     tapEnergy: (cardId) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createTapEnergyCommand(viewingPlayerId, cardId);
-      if (dispatchRemoteCommand(command, '切换能量状态失败')) {
-        get().addLog('切换能量状态', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-
-      if (result.success) {
-        get().syncState();
-        get().addLog('切换能量状态', 'action');
-        return { success: true };
-      }
-
-      get().addLog(`切换能量状态失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createTapEnergyCommand(playerId, cardId), {
+        failureMessage: '切换能量状态失败',
+        successMessage: '切换能量状态',
+        logError: true,
+      });
     },
 
     endPhase: () => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) return;
-
-      const command = createEndPhaseCommand(viewingPlayerId);
-      if (dispatchRemoteCommand(command, '结束阶段失败')) {
-        get().addLog('结束当前阶段', 'action');
-        return;
-      }
-
-      const result = gameSession.executeCommand(command);
-      
-      if (result.success) {
-        // 同步状态
-        get().syncState();
-        get().addLog('结束当前阶段', 'action');
-      } else {
-        get().addLog(`结束阶段失败: ${result.error}`, 'error');
-      }
+      void runViewerCommand((playerId) => createEndPhaseCommand(playerId), {
+        failureMessage: '结束阶段失败',
+        successMessage: '结束当前阶段',
+        logError: true,
+      });
     },
 
     setViewingPlayer: (playerId) => {
@@ -744,7 +773,6 @@ export const useGameStore = create<GameStore>((set, get) => {
     disconnectRemoteDebugSession: () => {
       set({
         remoteDebugSession: null,
-        gameState: null,
         playerViewState: null,
         viewingPlayerId: null,
       });
@@ -768,42 +796,30 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       const { gameSession, viewingPlayerId } = get();
-      let nextState: GameState | null;
-      let nextPlayerViewState: PlayerViewState | null = null;
-
       if (!viewingPlayerId) {
-        // 如果没有设置视角玩家，使用权威状态
-        nextState = gameSession.state;
-      } else {
-        // 获取指定玩家视角的状态
-        nextState = gameSession.getStateForPlayer(viewingPlayerId);
-        nextPlayerViewState = gameSession.getPlayerViewState(viewingPlayerId);
+        set((state) => ({
+          playerViewState: null,
+          ui: {
+            ...state.ui,
+            hoveredCardId: null,
+          },
+        }));
+        return;
       }
 
+      const nextPlayerViewState = gameSession.getPlayerViewState(viewingPlayerId);
+      const normalizedPlayerViewState = normalizePlayerViewState(nextPlayerViewState);
+
       set((state) => ({
-        gameState: nextState,
-        playerViewState: nextPlayerViewState,
-        ui: {
-          ...state.ui,
-          hoveredCardId:
-            resolveHoveredCardId(state.ui.hoveredCardId, nextState, nextPlayerViewState),
-        },
-      }));
+          playerViewState: normalizedPlayerViewState,
+          ui: {
+            ...state.ui,
+            hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
+          },
+        }));
     },
 
     // ============ 查询辅助实现 ============
-
-    getCardInstance: (cardId) => {
-      const { gameState, playerViewState } = get();
-      if (!gameState) return null;
-      if (playerViewState) {
-        const viewObject = playerViewState.objects[createPublicObjectId(cardId)];
-        if (!viewObject || viewObject.surface !== 'FRONT') {
-          return null;
-        }
-      }
-      return getCardById(gameState, cardId);
-    },
 
     getCardData: (cardCode) => {
       return get().cardDataRegistry.get(cardCode);
@@ -812,12 +828,6 @@ export const useGameStore = create<GameStore>((set, get) => {
     getCardImagePath: (cardCode) => {
       const cardData = get().cardDataRegistry.get(cardCode);
       return resolveCardImagePath(cardData ?? { cardCode, cardType: CardType.MEMBER });
-    },
-
-    getCurrentPlayer: () => {
-      const { gameState } = get();
-      if (!gameState) return null;
-      return getActivePlayer(gameState).id;
     },
 
     getViewerSeat: () => {
@@ -832,68 +842,74 @@ export const useGameStore = create<GameStore>((set, get) => {
       return get().playerViewState?.permissions ?? null;
     },
 
+    getCommandHint: (command) => {
+      const permissionView = get().playerViewState?.permissions;
+      if (!permissionView) {
+        return null;
+      }
+
+      const availableCommands = permissionView.availableCommands ?? [];
+      return availableCommands.find((hint) => hint.command === command) ?? null;
+    },
+
+    canUseAction: (actionType) => {
+      return get().getCommandHint(actionType)?.enabled === true;
+    },
+
+    isZoneInCommandScope: (command, zoneKey) => {
+      const hint = get().getCommandHint(command);
+      if (!hint?.scope?.zoneKeys || hint.scope.zoneKeys.length === 0) {
+        return false;
+      }
+
+      return hint.scope.zoneKeys.includes(zoneKey);
+    },
+
+    isCardInCommandScope: (command, cardId) => {
+      const hint = get().getCommandHint(command);
+      const objectIds = hint?.scope?.objectIds;
+      if (!objectIds || objectIds.length === 0) {
+        return false;
+      }
+
+      return objectIds.includes(createPublicObjectId(cardId));
+    },
+
     getTurnCountView: () => {
-      return get().playerViewState?.match.turnCount ?? get().gameState?.turnCount ?? null;
+      return get().playerViewState?.match.turnCount ?? null;
     },
 
     getCurrentPhaseView: () => {
-      return (get().playerViewState?.match.phase as GamePhase | undefined) ?? get().gameState?.currentPhase ?? null;
+      return (get().playerViewState?.match.phase as GamePhase | undefined) ?? null;
     },
 
     getCurrentSubPhaseView: () => {
-      return (get().playerViewState?.match.subPhase as SubPhase | undefined) ?? get().gameState?.currentSubPhase ?? null;
+      return (get().playerViewState?.match.subPhase as SubPhase | undefined) ?? null;
     },
 
     getActiveSeatView: () => {
       return get().playerViewState?.match.activeSeat ?? null;
     },
 
-    getViewingPlayerState: () => {
-      const { gameState, viewingPlayerId } = get();
-      if (!gameState || !viewingPlayerId) {
+    getViewingPlayerIdentity: () => {
+      const viewerSeat = get().getViewerSeat();
+      if (!viewerSeat) {
         return null;
       }
-      return gameState.players.find((player) => player.id === viewingPlayerId) ?? null;
+      return get().getPlayerIdentityForSeat(viewerSeat);
     },
 
-    getOpponentPlayerState: () => {
-      const { gameState, viewingPlayerId } = get();
-      if (!gameState || !viewingPlayerId) {
+    getOpponentPlayerIdentity: () => {
+      const viewerSeat = get().getViewerSeat();
+      if (!viewerSeat) {
         return null;
       }
-      return gameState.players.find((player) => player.id !== viewingPlayerId) ?? null;
+      return get().getPlayerIdentityForSeat(viewerSeat === 'FIRST' ? 'SECOND' : 'FIRST');
     },
 
-    getPlayerStateById: (playerId) => {
-      const { gameState } = get();
-      if (!gameState) {
-        return null;
-      }
-      return gameState.players.find((player) => player.id === playerId) ?? null;
-    },
-
-    getActivePlayerState: () => {
-      const { gameState } = get();
-      if (!gameState) {
-        return null;
-      }
-      return gameState.players[gameState.activePlayerIndex] ?? null;
-    },
-
-    getFirstPlayerState: () => {
-      const { gameState } = get();
-      if (!gameState) {
-        return null;
-      }
-      return gameState.players[gameState.firstPlayerIndex] ?? null;
-    },
-
-    getSecondPlayerState: () => {
-      const { gameState } = get();
-      if (!gameState) {
-        return null;
-      }
-      return gameState.players[gameState.firstPlayerIndex === 0 ? 1 : 0] ?? null;
+    getPlayerIdentityForSeat: (seat) => {
+      const participant = get().playerViewState?.match.participants[seat];
+      return participant ?? null;
     },
 
     getCardViewObject: (cardId) => {
@@ -902,10 +918,35 @@ export const useGameStore = create<GameStore>((set, get) => {
       return playerViewState.objects[createPublicObjectId(cardId)] ?? null;
     },
 
-    getViewZone: (zoneKey) => {
+    getCardFrontInfo: (cardId) => {
+      return get().getCardViewObject(cardId)?.frontInfo ?? null;
+    },
+
+    getVisibleCardPresentation: (cardId) => {
+      const frontInfo = get().getCardFrontInfo(cardId);
+      if (!frontInfo) {
+        return null;
+      }
+
+      const cardData = get().getCardData(frontInfo.cardCode) ?? buildFallbackCardData(frontInfo);
+      return {
+        instanceId: cardId,
+        cardCode: frontInfo.cardCode,
+        cardData,
+        imagePath: get().getCardImagePath(frontInfo.cardCode),
+      };
+    },
+
+    getKnownCardType: (cardId) => {
+      return get().getCardViewObject(cardId)?.cardType ?? null;
+    },
+
+    getZonePublicObjectIds: (zoneKey) => {
       const { playerViewState } = get();
-      if (!playerViewState) return null;
-      return playerViewState.table.zones[zoneKey] ?? null;
+      if (!playerViewState) {
+        return EMPTY_PUBLIC_OBJECT_IDS;
+      }
+      return playerViewState.table.zones[zoneKey]?.objectIds ?? EMPTY_PUBLIC_OBJECT_IDS;
     },
 
     getSeatZone: (seat, suffix) => {
@@ -914,568 +955,329 @@ export const useGameStore = create<GameStore>((set, get) => {
       return playerViewState.table.zones[`${seat}_${suffix}` as ViewZoneKey] ?? null;
     },
 
+    getSeatZoneCardIds: (seat, suffix) => {
+      return get().getZoneCardIds(`${seat}_${suffix}` as ViewZoneKey);
+    },
+
     getZoneCardIds: (zoneKey) => {
-      const zone = get().getViewZone(zoneKey);
-      if (!zone?.objectIds) {
-        return [];
+      const objectIds = get().getZonePublicObjectIds(zoneKey);
+      if (objectIds.length === 0) {
+        return EMPTY_CARD_IDS as string[];
       }
-      return zone.objectIds.map((publicObjectId) =>
-        publicObjectId.startsWith('obj_') ? publicObjectId.slice(4) : publicObjectId
+      return objectIds.map(getCardIdFromPublicObjectId);
+    },
+
+    getResolutionCardIdsForSeat: (seat) => {
+      const { playerViewState } = get();
+      if (!playerViewState) {
+        return EMPTY_CARD_IDS as string[];
+      }
+
+      const resolutionObjectIds =
+        playerViewState.table.zones.SHARED_RESOLUTION_ZONE?.objectIds ?? EMPTY_PUBLIC_OBJECT_IDS;
+      if (resolutionObjectIds.length === 0) {
+        return EMPTY_CARD_IDS as string[];
+      }
+
+      return resolutionObjectIds
+        .filter((publicObjectId) => playerViewState.objects[publicObjectId]?.ownerSeat === seat)
+        .map(getCardIdFromPublicObjectId);
+    },
+
+    getSeatMemberSlotCardId: (seat, slot) => {
+      const zone = get().getSeatZone(seat, `MEMBER_${slot}`);
+      const publicObjectId = zone?.slotMap?.[slot] ?? null;
+      return publicObjectId ? getCardIdFromPublicObjectId(publicObjectId) : null;
+    },
+
+    getSeatMemberOverlayCardIds: (seat, slot) => {
+      const zone = get().getSeatZone(seat, `MEMBER_${slot}`);
+      const overlayIds = zone?.overlays?.[slot] ?? EMPTY_PUBLIC_OBJECT_IDS;
+      if (overlayIds.length === 0) {
+        return EMPTY_CARD_IDS as string[];
+      }
+      return overlayIds.map(getCardIdFromPublicObjectId);
+    },
+
+    findViewerCardZone: (cardId) => {
+      return findCardLocationInView(get().playerViewState, cardId)?.zoneType ?? null;
+    },
+
+    resolveCardDropTarget: (targetCardId) => {
+      return findCardLocationInView(get().playerViewState, targetCardId);
+    },
+
+    getCardSlotPosition: (cardId) => {
+      const location = findCardLocationInView(get().playerViewState, cardId);
+      return location?.zoneType === ZoneType.MEMBER_SLOT ? location.slotPosition ?? null : null;
+    },
+
+    isInspectionCardPubliclyRevealed: (cardId) => {
+      return get().getCardViewObject(cardId)?.publiclyRevealed === true;
+    },
+
+    isInspectionOpenForViewer: () => {
+      const { playerViewState } = get();
+      return (
+        playerViewState?.match.window?.windowType === 'INSPECTION' &&
+        get().getCommandHint(GameCommandType.FINISH_INSPECTION) !== null
       );
     },
 
-    canSeeCardFront: (cardId) => {
-      const viewObject = get().getCardViewObject(cardId);
-      return viewObject?.surface === 'FRONT';
-    },
-
-    getLiveScoreForPlayer: (playerId) => {
-      const { gameState } = get();
-      if (!gameState) {
-        return 0;
-      }
-      return gameState.liveResolution.playerScores.get(playerId) ?? 0;
-    },
-
-    isLiveWinner: (playerId) => {
-      const { gameState } = get();
-      if (!gameState) {
+    hasViewerCompletedMulligan: () => {
+      const { playerViewState } = get();
+      if (!playerViewState) {
         return false;
       }
-      return gameState.liveResolution.liveWinnerIds.includes(playerId);
+
+      if (playerViewState.match.phase !== GamePhase.MULLIGAN_PHASE) {
+        return true;
+      }
+
+      if (
+        playerViewState.match.subPhase === SubPhase.MULLIGAN_SECOND_PLAYER &&
+        playerViewState.match.viewerSeat === 'FIRST'
+      ) {
+        return true;
+      }
+
+      return false;
+    },
+
+    getLiveResultForCard: (cardId) => {
+      return get().getCardViewObject(cardId)?.judgmentResult;
+    },
+
+    getViewerLiveScore: () => {
+      const viewerSeat = get().getViewerSeat();
+      return viewerSeat ? get().playerViewState?.match.liveResult?.scores[viewerSeat] ?? 0 : 0;
+    },
+
+    getOpponentLiveScore: () => {
+      const viewerSeat = get().getViewerSeat();
+      if (!viewerSeat) {
+        return 0;
+      }
+      const opponentSeat: Seat = viewerSeat === 'FIRST' ? 'SECOND' : 'FIRST';
+      return get().playerViewState?.match.liveResult?.scores[opponentSeat] ?? 0;
+    },
+
+    isViewerLiveWinner: () => {
+      const viewerSeat = get().getViewerSeat();
+      return viewerSeat
+        ? get().playerViewState?.match.liveResult?.winnerSeats.includes(viewerSeat) ?? false
+        : false;
+    },
+
+    isOpponentLiveWinner: () => {
+      const viewerSeat = get().getViewerSeat();
+      if (!viewerSeat) {
+        return false;
+      }
+      const opponentSeat: Seat = viewerSeat === 'FIRST' ? 'SECOND' : 'FIRST';
+      return get().playerViewState?.match.liveResult?.winnerSeats.includes(opponentSeat) ?? false;
     },
 
     isLiveDraw: () => {
-      const { gameState } = get();
-      if (!gameState) {
-        return false;
-      }
-      return gameState.liveResolution.liveWinnerIds.length === 2;
+      return (get().playerViewState?.match.liveResult?.winnerSeats.length ?? 0) === 2;
     },
 
     getConfirmedScoreCount: () => {
-      const { gameState } = get();
-      if (!gameState) {
-        return 0;
-      }
-      return gameState.liveResolution.scoreConfirmedBy.length;
+      return get().playerViewState?.match.liveResult?.confirmedSeats.length ?? 0;
     },
 
-    isScoreConfirmed: (playerId) => {
-      const { gameState } = get();
-      if (!gameState) {
+    isViewerScoreConfirmed: () => {
+      const viewerSeat = get().getViewerSeat();
+      return viewerSeat
+        ? get().playerViewState?.match.liveResult?.confirmedSeats.includes(viewerSeat) ?? false
+        : false;
+    },
+
+    isOpponentScoreConfirmed: () => {
+      const viewerSeat = get().getViewerSeat();
+      if (!viewerSeat) {
         return false;
       }
-      return gameState.liveResolution.scoreConfirmedBy.includes(playerId);
+      const opponentSeat: Seat = viewerSeat === 'FIRST' ? 'SECOND' : 'FIRST';
+      return get().playerViewState?.match.liveResult?.confirmedSeats.includes(opponentSeat) ?? false;
     },
 
     // ============ 阶段十新增动作实现 ============
 
     confirmSubPhase: (subPhase) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createConfirmStepCommand(viewingPlayerId, subPhase);
-      if (dispatchRemoteCommand(command, '确认子阶段失败')) {
-        get().addLog(`确认子阶段完成: ${subPhase}`, 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-
-      if (result.success) {
-        get().syncState();
-        get().addLog(`确认子阶段完成: ${subPhase}`, 'action');
-        return { success: true };
-      } else {
-        get().addLog(`确认子阶段失败: ${result.error}`, 'error');
-        return { success: false, error: result.error };
-      }
+      return runViewerCommand((playerId) => createConfirmStepCommand(playerId, subPhase), {
+        failureMessage: '确认子阶段失败',
+        successMessage: `确认子阶段完成: ${subPhase}`,
+        logError: true,
+      });
     },
 
     confirmJudgment: (judgmentResults) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createSubmitJudgmentCommand(viewingPlayerId, judgmentResults);
-      if (dispatchRemoteCommand(command, '确认判定失败')) {
-        get().addLog('确认 Live 判定结果', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-
-      if (result.success) {
-        get().syncState();
-        get().addLog('确认 Live 判定结果', 'action');
-        return { success: true };
-      } else {
-        get().addLog(`确认判定失败: ${result.error}`, 'error');
-        return { success: false, error: result.error };
-      }
+      return runViewerCommand((playerId) => createSubmitJudgmentCommand(playerId, judgmentResults), {
+        failureMessage: '确认判定失败',
+        successMessage: '确认 Live 判定结果',
+        logError: true,
+      });
     },
 
     confirmScore: (adjustedScore) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createSubmitScoreCommand(viewingPlayerId, adjustedScore);
-      if (dispatchRemoteCommand(command, '确认分数失败')) {
-        get().addLog(`确认分数${adjustedScore !== undefined ? `: ${adjustedScore}` : ''}`, 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-
-      if (result.success) {
-        get().syncState();
-        get().addLog(`确认分数${adjustedScore !== undefined ? `: ${adjustedScore}` : ''}`, 'action');
-        return { success: true };
-      } else {
-        get().addLog(`确认分数失败: ${result.error}`, 'error');
-        return { success: false, error: result.error };
-      }
+      return runViewerCommand((playerId) => createSubmitScoreCommand(playerId, adjustedScore), {
+        failureMessage: '确认分数失败',
+        successMessage: `确认分数${adjustedScore !== undefined ? `: ${adjustedScore}` : ''}`,
+        logError: true,
+      });
     },
 
     selectSuccessCard: (cardId) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createSelectSuccessLiveCommand(viewingPlayerId, cardId);
-      if (dispatchRemoteCommand(command, '选择成功卡失败')) {
-        get().addLog('选择成功 Live 卡移到成功区', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-
-      if (result.success) {
-        get().syncState();
-        get().addLog('选择成功 Live 卡移到成功区', 'action');
-        return { success: true };
-      } else {
-        get().addLog(`选择成功卡失败: ${result.error}`, 'error');
-        return { success: false, error: result.error };
-      }
+      return runViewerCommand((playerId) => createSelectSuccessLiveCommand(playerId, cardId), {
+        failureMessage: '选择成功卡失败',
+        successMessage: '选择成功 Live 卡移到成功区',
+        logError: true,
+      });
     },
 
     moveTableCard: (cardId, fromZone, toZone, options) => {
-      const { viewingPlayerId, gameSession, ui } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createMoveTableCardCommand(viewingPlayerId, cardId, fromZone, toZone, options);
-      if (dispatchRemoteCommand(command, '移动卡牌失败')) {
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
+      return runViewerCommand(
+        (playerId) => createMoveTableCardCommand(playerId, cardId, fromZone, toZone, options),
+        {
+        failureMessage: '移动卡牌失败',
+        clearHoveredCardId: cardId,
         }
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        return { success: true };
-      }
-
-      return { success: false, error: result.error };
+      );
     },
 
     moveMemberToSlot: (cardId, sourceSlot, targetSlot) => {
-      const { viewingPlayerId, gameSession, ui } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createMoveMemberToSlotCommand(viewingPlayerId, cardId, sourceSlot, targetSlot);
-      if (dispatchRemoteCommand(command, '成员换位失败')) {
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
+      return runViewerCommand(
+        (playerId) => createMoveMemberToSlotCommand(playerId, cardId, sourceSlot, targetSlot),
+        {
+        failureMessage: '成员换位失败',
+        clearHoveredCardId: cardId,
         }
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        return { success: true };
-      }
-
-      return { success: false, error: result.error };
+      );
     },
 
-    attachEnergyToMember: (cardId, fromZone, targetSlot) => {
-      const { viewingPlayerId, gameSession, ui } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createAttachEnergyToMemberCommand(viewingPlayerId, cardId, fromZone, targetSlot);
-      if (dispatchRemoteCommand(command, '附着能量失败')) {
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
+    attachEnergyToMember: (cardId, fromZone, targetSlot, sourceSlot) => {
+      return runViewerCommand(
+        (playerId) =>
+          createAttachEnergyToMemberCommand(playerId, cardId, fromZone, targetSlot, sourceSlot),
+        {
+        failureMessage: '附着能量失败',
+        clearHoveredCardId: cardId,
         }
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        return { success: true };
-      }
-
-      return { success: false, error: result.error };
+      );
     },
 
     openInspection: (sourceZone, count = 1) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createOpenInspectionCommand(viewingPlayerId, sourceZone, count);
-      if (dispatchRemoteCommand(command, '开始检视失败')) {
-        get().addLog(`开始检视: ${sourceZone} 顶 ${count} 张`, 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        get().addLog(`开始检视: ${sourceZone} 顶 ${count} 张`, 'action');
-        return { success: true };
-      }
-
-      get().addLog(`开始检视失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createOpenInspectionCommand(playerId, sourceZone, count), {
+        failureMessage: '开始检视失败',
+        successMessage: `开始检视: ${sourceZone} 顶 ${count} 张`,
+        logError: true,
+      });
     },
 
     moveInspectedCardToTop: (cardId) => {
-      const { viewingPlayerId, gameSession, ui } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createMoveInspectedCardToTopCommand(viewingPlayerId, cardId);
-      if (dispatchRemoteCommand(command, '检视牌放回顶部失败')) {
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        get().addLog('检视牌放回顶部', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        get().addLog('检视牌放回顶部', 'action');
-        return { success: true };
-      }
-
-      get().addLog(`检视牌放回顶部失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createMoveInspectedCardToTopCommand(playerId, cardId), {
+        failureMessage: '检视牌放回顶部失败',
+        successMessage: '检视牌放回顶部',
+        clearHoveredCardId: cardId,
+        logError: true,
+      });
     },
 
     revealInspectedCard: (cardId) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createRevealInspectedCardCommand(viewingPlayerId, cardId);
-      if (dispatchRemoteCommand(command, '公开检视牌失败')) {
-        get().addLog('公开检视牌', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        get().addLog('公开检视牌', 'action');
-        return { success: true };
-      }
-
-      get().addLog(`公开检视牌失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createRevealInspectedCardCommand(playerId, cardId), {
+        failureMessage: '公开检视牌失败',
+        successMessage: '公开检视牌',
+        logError: true,
+      });
     },
 
     moveInspectedCardToBottom: (cardId) => {
-      const { viewingPlayerId, gameSession, ui } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createMoveInspectedCardToBottomCommand(viewingPlayerId, cardId);
-      if (dispatchRemoteCommand(command, '检视牌放回底部失败')) {
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        get().addLog('检视牌放回底部', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        get().addLog('检视牌放回底部', 'action');
-        return { success: true };
-      }
-
-      get().addLog(`检视牌放回底部失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createMoveInspectedCardToBottomCommand(playerId, cardId), {
+        failureMessage: '检视牌放回底部失败',
+        successMessage: '检视牌放回底部',
+        clearHoveredCardId: cardId,
+        logError: true,
+      });
     },
 
     moveInspectedCardToZone: (cardId, toZone) => {
-      const { viewingPlayerId, gameSession, ui } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createMoveInspectedCardToZoneCommand(viewingPlayerId, cardId, toZone);
-      if (dispatchRemoteCommand(command, '检视牌移动失败')) {
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        get().addLog(`检视牌移动到 ${toZone}`, 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        get().addLog(`检视牌移动到 ${toZone}`, 'action');
-        return { success: true };
-      }
-
-      get().addLog(`检视牌移动失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createMoveInspectedCardToZoneCommand(playerId, cardId, toZone), {
+        failureMessage: '检视牌移动失败',
+        successMessage: `检视牌移动到 ${toZone}`,
+        clearHoveredCardId: cardId,
+        logError: true,
+      });
     },
 
     reorderInspectedCard: (cardId, toIndex) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createReorderInspectedCardCommand(viewingPlayerId, cardId, toIndex);
-      if (dispatchRemoteCommand(command, '调整检视顺序失败')) {
-        get().addLog(`调整检视顺序到位置 ${toIndex + 1}`, 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        get().addLog(`调整检视顺序到位置 ${toIndex + 1}`, 'action');
-        return { success: true };
-      }
-
-      get().addLog(`调整检视顺序失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createReorderInspectedCardCommand(playerId, cardId, toIndex), {
+        failureMessage: '调整检视顺序失败',
+        successMessage: `调整检视顺序到位置 ${toIndex + 1}`,
+        logError: true,
+      });
     },
 
     finishInspection: () => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createFinishInspectionCommand(viewingPlayerId);
-      if (dispatchRemoteCommand(command, '检视流程结束失败')) {
-        get().addLog('检视流程结束', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        get().addLog('检视流程结束', 'action');
-        return { success: true };
-      }
-
-      get().addLog(`检视流程结束失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createFinishInspectionCommand(playerId), {
+        failureMessage: '检视流程结束失败',
+        successMessage: '检视流程结束',
+        logError: true,
+      });
     },
 
     revealCheerCard: () => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createRevealCheerCardCommand(viewingPlayerId);
-      if (dispatchRemoteCommand(command, '翻开应援牌失败')) {
-        get().addLog('翻开一张应援牌', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        get().addLog('翻开一张应援牌', 'action');
-        return { success: true };
-      }
-
-      get().addLog(`翻开应援牌失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createRevealCheerCardCommand(playerId), {
+        failureMessage: '翻开应援牌失败',
+        successMessage: '翻开一张应援牌',
+        logError: true,
+      });
     },
 
     moveResolutionCardToZone: (cardId, toZone, options) => {
-      const { viewingPlayerId, gameSession, ui } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createMoveResolutionCardToZoneCommand(viewingPlayerId, cardId, toZone, options?.position);
-      if (dispatchRemoteCommand(command, '解决区卡牌移动失败')) {
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
+      return runViewerCommand(
+        (playerId) =>
+          createMoveResolutionCardToZoneCommand(playerId, cardId, toZone, options?.position),
+        {
+        failureMessage: '解决区卡牌移动失败',
+        successMessage: `解决区卡牌移动到 ${toZone}`,
+        clearHoveredCardId: cardId,
+        logError: true,
         }
-        get().addLog(`解决区卡牌移动到 ${toZone}`, 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        get().addLog(`解决区卡牌移动到 ${toZone}`, 'action');
-        return { success: true };
-      }
-
-      get().addLog(`解决区卡牌移动失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      );
     },
 
     confirmPerformanceOutcome: (success) => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createConfirmPerformanceOutcomeCommand(viewingPlayerId, success);
-      if (dispatchRemoteCommand(command, '提交 Live 判定结果失败')) {
-        get().addLog(success ? '确认 Live 成功' : '确认 Live 失败', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        get().addLog(success ? '确认 Live 成功' : '确认 Live 失败', 'action');
-        return { success: true };
-      }
-
-      get().addLog(`提交 Live 判定结果失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createConfirmPerformanceOutcomeCommand(playerId, success), {
+        failureMessage: '提交 Live 判定结果失败',
+        successMessage: success ? '确认 Live 成功' : '确认 Live 失败',
+        logError: true,
+      });
     },
 
     drawCardToHand: () => {
-      const { viewingPlayerId, gameSession } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createDrawCardToHandCommand(viewingPlayerId);
-      if (dispatchRemoteCommand(command, '抽卡失败')) {
-        get().addLog('抽一张到手牌', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        get().addLog('抽一张到手牌', 'action');
-        return { success: true };
-      }
-
-      get().addLog(`抽卡失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createDrawCardToHandCommand(playerId), {
+        failureMessage: '抽卡失败',
+        successMessage: '抽一张到手牌',
+        logError: true,
+      });
     },
 
     drawEnergyToZone: (cardId) => {
-      const { viewingPlayerId, gameSession, ui } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createDrawEnergyToZoneCommand(viewingPlayerId, cardId);
-      if (dispatchRemoteCommand(command, '放置能量失败')) {
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        return { success: true };
-      }
-
-      get().addLog(`放置能量失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createDrawEnergyToZoneCommand(playerId, cardId), {
+        failureMessage: '放置能量失败',
+        clearHoveredCardId: cardId,
+        logError: true,
+      });
     },
 
     returnHandCardToTop: (cardId) => {
-      const { viewingPlayerId, gameSession, ui } = get();
-      if (!viewingPlayerId) {
-        return { success: false, error: '未设置玩家' };
-      }
-
-      const command = createReturnHandCardToTopCommand(viewingPlayerId, cardId);
-      if (dispatchRemoteCommand(command, '放回顶部失败')) {
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        get().addLog('手牌放回主卡组顶', 'action');
-        return { success: true };
-      }
-
-      const result = gameSession.executeCommand(command);
-      if (result.success) {
-        get().syncState();
-        if (ui.hoveredCardId === cardId) {
-          get().setHoveredCard(null);
-        }
-        get().addLog('手牌放回主卡组顶', 'action');
-        return { success: true };
-      }
-
-      get().addLog(`放回顶部失败: ${result.error}`, 'error');
-      return { success: false, error: result.error };
+      return runViewerCommand((playerId) => createReturnHandCardToTopCommand(playerId, cardId), {
+        failureMessage: '放回顶部失败',
+        successMessage: '手牌放回主卡组顶',
+        clearHoveredCardId: cardId,
+        logError: true,
+      });
     },
   };
 });
@@ -1517,15 +1319,10 @@ function handleGameSessionEvent(
 
 function resolveHoveredCardId(
   hoveredCardId: string | null,
-  gameState: GameState | null,
   playerViewState: PlayerViewState | null
 ): string | null {
-  if (!hoveredCardId || !gameState || !getCardById(gameState, hoveredCardId)) {
+  if (!hoveredCardId || !playerViewState) {
     return null;
-  }
-
-  if (!playerViewState) {
-    return hoveredCardId;
   }
 
   const viewObject = playerViewState.objects[createPublicObjectId(hoveredCardId)];
@@ -1536,26 +1333,133 @@ function resolveHoveredCardId(
   return viewObject.surface === 'FRONT' ? hoveredCardId : null;
 }
 
+function buildFallbackCardData(frontInfo: ViewFrontCardInfo): AnyCardData {
+  switch (frontInfo.cardType) {
+    case CardType.MEMBER:
+      return {
+        cardCode: frontInfo.cardCode,
+        name: frontInfo.name,
+        cardType: CardType.MEMBER,
+        cost: frontInfo.cost ?? 0,
+        blade: 0,
+        hearts: Array.isArray(frontInfo.hearts)
+          ? (frontInfo.hearts as MemberCardData['hearts'])
+          : [],
+        bladeHearts: frontInfo.bladeHearts as MemberCardData['bladeHearts'],
+        cardText: frontInfo.text,
+      };
+
+    case CardType.LIVE:
+      return {
+        cardCode: frontInfo.cardCode,
+        name: frontInfo.name,
+        cardType: CardType.LIVE,
+        score: frontInfo.score ?? 0,
+        requirements: frontInfo.requiredHearts
+          ? (frontInfo.requiredHearts as LiveCardData['requirements'])
+          : createHeartRequirement({}, 0),
+        bladeHearts: frontInfo.bladeHearts as LiveCardData['bladeHearts'],
+        cardText: frontInfo.text,
+      };
+
+    case CardType.ENERGY:
+    default:
+      return {
+        cardCode: frontInfo.cardCode,
+        name: frontInfo.name,
+        cardType: CardType.ENERGY,
+        cardText: frontInfo.text,
+      };
+  }
+}
+
+function findCardLocationInView(
+  playerViewState: PlayerViewState | null,
+  cardId: string
+): ParsedZoneId | null {
+  if (!playerViewState) {
+    return null;
+  }
+
+  const publicObjectId = createPublicObjectId(cardId);
+  for (const zone of Object.values(playerViewState.table.zones)) {
+    if (!isZoneType(zone.zone)) {
+      continue;
+    }
+
+    if (zone.objectIds?.includes(publicObjectId)) {
+      return { zoneType: zone.zone };
+    }
+
+    for (const [slot, occupantId] of Object.entries(zone.slotMap ?? {})) {
+      if (occupantId === publicObjectId) {
+        return {
+          zoneType: zone.zone,
+          slotPosition: parseSlotPosition(slot),
+        };
+      }
+    }
+
+    for (const [slot, overlayIds] of Object.entries(zone.overlays ?? {})) {
+      if (overlayIds.includes(publicObjectId)) {
+        return {
+          zoneType: zone.zone,
+          slotPosition: parseSlotPosition(slot),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function parseSlotPosition(slot: string): SlotPosition | undefined {
+  return Object.values(SlotPosition).includes(slot as SlotPosition)
+    ? (slot as SlotPosition)
+    : undefined;
+}
+
+function isZoneType(zone: string): zone is ZoneType {
+  return Object.values(ZoneType).includes(zone as ZoneType);
+}
+
 function applyRemoteDebugSnapshot(
   snapshot: DebugMatchSnapshot,
   set: (partial: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void
 ): void {
+  const normalizedPlayerViewState = normalizePlayerViewState(snapshot.playerViewState);
   set((state) => ({
     viewingPlayerId: snapshot.playerId,
-    gameState: snapshot.gameState,
-    playerViewState: snapshot.playerViewState,
+    playerViewState: normalizedPlayerViewState,
     ui: {
       ...state.ui,
       hoveredCardId: resolveHoveredCardId(
         state.ui.hoveredCardId,
-        snapshot.gameState,
-        snapshot.playerViewState
+        normalizedPlayerViewState
       ),
     },
   }));
 }
 
-function dispatchRemoteCommand(command: GameCommand, failureMessage: string): boolean {
+function normalizePlayerViewState(playerViewState: PlayerViewState | null): PlayerViewState | null {
+  if (!playerViewState) {
+    return null;
+  }
+
+  return {
+    ...playerViewState,
+    permissions: {
+      ...playerViewState.permissions,
+      availableCommands: playerViewState.permissions?.availableCommands ?? [],
+    },
+  };
+}
+
+function dispatchRemoteCommand(
+  command: GameCommand,
+  failureMessage: string,
+  onSuccess?: () => void
+): boolean {
   const store = useGameStore.getState();
   const remoteSession = store.remoteDebugSession;
   if (!remoteSession) {
@@ -1573,6 +1477,7 @@ function dispatchRemoteCommand(command: GameCommand, failureMessage: string): bo
       }
 
       applyRemoteDebugSnapshot(result.snapshot, useGameStore.setState);
+      onSuccess?.();
     })
     .catch((error) => {
       useGameStore.getState().addLog(
@@ -1602,10 +1507,13 @@ function dispatchRemoteAdvancePhase(): boolean {
       }
 
       applyRemoteDebugSnapshot(result.snapshot, useGameStore.setState);
-      const phaseName = getPhaseName(result.snapshot.gameState.currentPhase);
-      useGameStore.getState().addLog(`进入 ${phaseName}`, 'phase');
-      useGameStore.getState().showPhaseBannerFn(phaseName);
-      setTimeout(() => useGameStore.getState().hidePhaseBanner(), 1500);
+      const currentPhase = result.snapshot.playerViewState.match.phase as GamePhase | undefined;
+      if (currentPhase) {
+        const phaseName = getPhaseName(currentPhase);
+        useGameStore.getState().addLog(`进入 ${phaseName}`, 'phase');
+        useGameStore.getState().showPhaseBannerFn(phaseName);
+        setTimeout(() => useGameStore.getState().hidePhaseBanner(), 1500);
+      }
     })
     .catch((error) => {
       useGameStore.getState().addLog(

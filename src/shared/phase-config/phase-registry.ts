@@ -267,7 +267,7 @@ const PHASE_CONFIG_MAP: Record<GamePhase, PhaseConfig> = {
       canPlayerEndPhase: false,
       isSharedPhase: true,
       activePlayerStrategy: 'DERIVE_FROM_SUB_PHASE',
-      initialSubPhase: SubPhase.RESULT_SETTLEMENT,
+      initialSubPhase: SubPhase.RESULT_SCORE_CONFIRM,
       transitions: [
         // 结算完成 → 新回合活跃阶段
         {

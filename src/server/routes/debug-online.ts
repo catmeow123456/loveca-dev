@@ -9,7 +9,6 @@ import { fromTransport, toTransport } from '../../online/serde.js';
 import {
   advanceDebugMatchPhase,
   executeDebugMatchCommand,
-  getDebugMatchRecovery,
   getDebugMatchSnapshot,
   getDebugMatchStatus,
   resetDebugMatch,
@@ -70,23 +69,6 @@ debugOnlineRouter.get('/matches/:matchId/snapshot', (req, res) => {
   }
 
   res.json({ data: toTransport(snapshot), error: null });
-});
-
-debugOnlineRouter.get('/matches/:matchId/recovery', (req, res) => {
-  const seat = parseSeat(req.query.seat);
-  const requestedSeq = Number(req.query.fromSeq ?? 0);
-  if (!seat || !Number.isFinite(requestedSeq) || requestedSeq < 0) {
-    res.status(400).json({ data: null, error: { code: 'INVALID_REQUEST', message: '恢复参数非法' } });
-    return;
-  }
-
-  const recovery = getDebugMatchRecovery(req.params.matchId, seat, requestedSeq);
-  if (!recovery) {
-    res.status(404).json({ data: null, error: { code: 'MATCH_NOT_READY', message: '调试对局尚未开始' } });
-    return;
-  }
-
-  res.json({ data: toTransport(recovery), error: null });
 });
 
 debugOnlineRouter.post('/matches/:matchId/command', (req, res) => {

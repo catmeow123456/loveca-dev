@@ -18,6 +18,7 @@ import {
   isUserActionRequired,
   isEffectWindow,
 } from '../../src/shared/phase-config/sub-phase-registry';
+import { getInitialSubPhase } from '../../src/shared/phase-config/phase-registry';
 import type { GameState } from '../../src/domain/entities/game';
 import type {
   MemberCardData,
@@ -126,9 +127,12 @@ describe('子阶段流转配置测试', () => {
   });
 
   describe('演出阶段子阶段流转', () => {
-    it('翻开 → 判定 → NONE', () => {
+    it('翻开 → 判定', () => {
       expect(getNextSubPhase(SubPhase.PERFORMANCE_REVEAL)).toBe(SubPhase.PERFORMANCE_JUDGMENT);
-      expect(getNextSubPhase(SubPhase.PERFORMANCE_JUDGMENT)).toBe(SubPhase.NONE);
+    });
+
+    it('成功效果窗口确认后应结束当前侧表演', () => {
+      expect(getNextSubPhase(SubPhase.PERFORMANCE_SUCCESS_EFFECTS)).toBe(SubPhase.NONE);
     });
 
     it('翻开子阶段不需要用户操作（自动执行）', () => {
@@ -137,6 +141,10 @@ describe('子阶段流转配置测试', () => {
 
     it('判定子阶段需要用户操作', () => {
       expect(isUserActionRequired(SubPhase.PERFORMANCE_JUDGMENT)).toBe(true);
+    });
+
+    it('成功效果窗口需要用户操作', () => {
+      expect(isUserActionRequired(SubPhase.PERFORMANCE_SUCCESS_EFFECTS)).toBe(true);
     });
   });
 
@@ -215,6 +223,42 @@ describe('PhaseManager 子阶段推进测试', () => {
       const result = pm.advanceToNextSubPhase(mockGame);
 
       expect(result.newSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
+    });
+
+    it('判定成功时应该进入表演阶段成功效果窗口', () => {
+      const mockGame = {
+        currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+        activePlayerIndex: 0,
+        firstPlayerIndex: 0,
+        players: [{ id: 'p1' }, { id: 'p2' }],
+        liveResolution: {
+          liveResults: new Map([['live-1', true]]),
+        },
+        cardRegistry: new Map([['live-1', { ownerId: 'p1' }]]),
+      } as unknown as GameState;
+
+      const result = pm.advanceToNextSubPhase(mockGame);
+
+      expect(result.newSubPhase).toBe(SubPhase.PERFORMANCE_SUCCESS_EFFECTS);
+      expect(result.shouldAdvancePhase).toBe(false);
+    });
+
+    it('判定失败时应该直接结束当前侧表演', () => {
+      const mockGame = {
+        currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+        activePlayerIndex: 0,
+        firstPlayerIndex: 0,
+        players: [{ id: 'p1' }, { id: 'p2' }],
+        liveResolution: {
+          liveResults: new Map([['live-1', false]]),
+        },
+        cardRegistry: new Map([['live-1', { ownerId: 'p1' }]]),
+      } as unknown as GameState;
+
+      const result = pm.advanceToNextSubPhase(mockGame);
+
+      expect(result.newSubPhase).toBe(SubPhase.NONE);
+      expect(result.shouldAdvancePhase).toBe(true);
     });
   });
 
@@ -343,6 +387,22 @@ describe('完整游戏流程中的子阶段测试', () => {
       expect(result.success).toBe(true);
       expect(state.currentPhase).toBe(GamePhase.PERFORMANCE_PHASE);
     });
+
+    it('后攻表演结束后，应该进入结果阶段的分数确认', () => {
+      const performanceEndState = {
+        ...game,
+        currentPhase: GamePhase.PERFORMANCE_PHASE,
+        currentTurnType: TurnType.SECOND_PLAYER_TURN,
+        currentSubPhase: SubPhase.NONE,
+        activePlayerIndex: 1,
+      };
+
+      const result = gameService.advancePhase(performanceEndState);
+
+      expect(result.success).toBe(true);
+      expect(result.gameState.currentPhase).toBe(GamePhase.LIVE_RESULT_PHASE);
+      expect(result.gameState.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
+    });
   });
 });
 
@@ -351,6 +411,10 @@ describe('完整游戏流程中的子阶段测试', () => {
 // ============================================
 
 describe('子阶段配置完整性测试', () => {
+  it('Live 结算阶段应直接进入分数确认', () => {
+    expect(getInitialSubPhase(GamePhase.LIVE_RESULT_PHASE)).toBe(SubPhase.RESULT_SCORE_CONFIRM);
+  });
+
   it('所有子阶段都应该有配置', () => {
     const allSubPhases = Object.values(SubPhase);
 
@@ -380,7 +444,7 @@ describe('子阶段配置完整性测试', () => {
       SubPhase.MULLIGAN_FIRST_PLAYER,
       SubPhase.LIVE_SET_FIRST_PLAYER,
       SubPhase.PERFORMANCE_REVEAL,
-      SubPhase.RESULT_FIRST_SUCCESS_EFFECTS,
+      SubPhase.RESULT_SCORE_CONFIRM,
     ];
 
     for (const startPhase of chains) {

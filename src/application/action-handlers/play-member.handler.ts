@@ -103,7 +103,14 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
     energyPayment: 'MANUAL',
   });
 
+  const triggeredEvents: TriggerCondition[] = [TriggerCondition.ON_ENTER_STAGE];
+  if (replacedCardId) {
+    triggeredEvents.unshift(TriggerCondition.ON_ENTER_WAITING_ROOM);
+    triggeredEvents.unshift(TriggerCondition.ON_LEAVE_STAGE);
+    triggeredEvents.push(TriggerCondition.ON_RELAY);
+  }
+
   return success(state, {
-    triggeredEvents: [TriggerCondition.ON_ENTER_STAGE],
+    triggeredEvents,
   });
 };

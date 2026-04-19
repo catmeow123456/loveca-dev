@@ -1,4 +1,11 @@
 import { GameCommandType } from '../application/game-commands.js';
+import {
+  MAIN_PHASE_MANUAL_COMMAND_TYPES,
+  PERFORMANCE_LIVE_START_COMMAND_TYPES,
+  PERFORMANCE_SUCCESS_EFFECT_COMMAND_TYPES,
+  PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES,
+  isPerformanceSuccessEffectSubPhase,
+} from '../application/command-availability.js';
 import type { GameState } from '../domain/entities/game.js';
 import type { PlayerState } from '../domain/entities/player.js';
 import type {
@@ -19,12 +26,15 @@ import {
 } from '../shared/types/enums.js';
 import { isPlayerActive } from '../shared/phase-config/index.js';
 import type {
+  LiveResultViewState,
   MatchViewState,
   PermissionViewState,
   PlayerViewState,
   Seat,
   UiHintViewState,
   ViewCardObject,
+  ViewCommandHint,
+  ViewCommandScope,
   ViewFrontCardInfo,
   ViewWindowState,
   ViewZoneKey,
@@ -43,8 +53,7 @@ interface ProjectPlayerViewStateOptions {
 }
 
 type VisibleSurface = Extract<ViewCardObject['surface'], 'BACK' | 'FRONT'>;
-
-const HIDDEN_OWNER_ZONE_ACTIONS: readonly string[] = [];
+type WindowDescriptor = Omit<ViewWindowState, 'status'>;
 
 interface BaseZoneProjectionSpec {
   readonly key: string;
@@ -93,81 +102,104 @@ export function createPublicObjectId(instanceId: string): string {
   return `obj_${instanceId}`;
 }
 
-export function buildViewWindowState(game: GameState): ViewWindowState | null {
-  const waitingForSeat =
+function createOwnedViewZoneKey(seat: Seat, suffix: string): ViewZoneKey {
+  return `${seat}_${suffix}` as ViewZoneKey;
+}
+
+const BLOCKED_DURING_INSPECTION_COMMAND_TYPES: readonly GameCommandType[] = [
+  GameCommandType.END_PHASE,
+  GameCommandType.CONFIRM_STEP,
+  GameCommandType.CONFIRM_PERFORMANCE_OUTCOME,
+  GameCommandType.SUBMIT_JUDGMENT,
+  GameCommandType.SUBMIT_SCORE,
+  GameCommandType.SELECT_SUCCESS_LIVE,
+];
+
+function buildWindowDescriptor(game: GameState): WindowDescriptor | null {
+  const waitingSeat =
     game.waitingPlayerId !== null ? getSeatForPlayer(game, game.waitingPlayerId) : null;
   const activeSeat = getSeatByPlayerIndex(game.activePlayerIndex);
+  const winnerSeats = game.liveResolution.liveWinnerIds
+    .map((playerId) => getSeatForPlayer(game, playerId))
+    .filter((seat): seat is Seat => seat !== null);
 
   if (game.inspectionContext) {
     const inspectionSeat = getSeatForPlayer(game, game.inspectionContext.ownerPlayerId);
     return {
-      type: 'INSPECTION',
+      windowType: 'INSPECTION',
       actingSeat: inspectionSeat,
-      waitingForSeat: inspectionSeat,
-      subPhase: game.currentSubPhase,
-      sourceZone: game.inspectionContext.sourceZone,
+      waitingSeats: inspectionSeat ? [inspectionSeat] : [],
+      context: {
+        sourceZone: game.inspectionContext.sourceZone,
+      },
     };
   }
 
   if (game.waitingForInput) {
     return {
-      type: 'INPUT',
+      windowType: 'SHARED_CONFIRM',
       actingSeat: activeSeat,
-      waitingForSeat,
-      subPhase: game.currentSubPhase,
+      waitingSeats: waitingSeat ? [waitingSeat] : [],
     };
   }
 
-  if (game.currentPhase === GamePhase.MULLIGAN_PHASE) {
+  if (
+    game.currentPhase === GamePhase.MULLIGAN_PHASE ||
+    game.currentPhase === GamePhase.LIVE_SET_PHASE ||
+    game.currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM ||
+    game.currentSubPhase === SubPhase.RESULT_SETTLEMENT
+  ) {
     return {
-      type: 'MULLIGAN',
+      windowType: 'SIMULTANEOUS_COMMIT',
       actingSeat: activeSeat,
-      waitingForSeat,
-      subPhase: game.currentSubPhase,
+      waitingSeats: waitingSeat ? [waitingSeat] : [],
     };
   }
 
-  if (game.currentPhase === GamePhase.LIVE_SET_PHASE) {
+  if (game.currentSubPhase === SubPhase.RESULT_ANIMATION) {
     return {
-      type: 'LIVE_SET',
+      windowType: 'RESULT_ANIMATION',
       actingSeat: activeSeat,
-      waitingForSeat,
-      subPhase: game.currentSubPhase,
+      waitingSeats: waitingSeat ? [waitingSeat] : [],
+      context: {
+        winnerSeats,
+      },
     };
   }
 
   if (game.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) {
     return {
-      type: 'JUDGMENT',
+      windowType: 'SERIAL_PRIORITY',
       actingSeat: activeSeat,
-      waitingForSeat,
-      subPhase: game.currentSubPhase,
+      waitingSeats: waitingSeat ? [waitingSeat] : [],
     };
   }
 
-  if (
-    game.currentPhase === GamePhase.LIVE_RESULT_PHASE ||
-    game.currentSubPhase === SubPhase.RESULT_SETTLEMENT
-  ) {
+  if (game.currentSubPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS) {
     return {
-      type: 'RESULT',
+      windowType: 'SERIAL_PRIORITY',
       actingSeat: activeSeat,
-      waitingForSeat,
-      subPhase: game.currentSubPhase,
+      waitingSeats: waitingSeat ? [waitingSeat] : [],
     };
   }
 
   if (game.effectWindowType !== EffectWindowType.NONE) {
     return {
-      type: 'EFFECT',
+      windowType: 'SERIAL_PRIORITY',
       actingSeat: activeSeat,
-      waitingForSeat,
-      subPhase: game.currentSubPhase,
-      effectWindowType: game.effectWindowType,
+      waitingSeats: waitingSeat ? [waitingSeat] : [],
+      context: {
+        effectWindowType: game.effectWindowType,
+      },
     };
   }
 
   return null;
+}
+
+export function buildViewWindowState(game: GameState): ViewWindowState | null {
+  const descriptor = buildWindowDescriptor(game);
+  return descriptor ? { ...descriptor, status: 'OPENED' } : null;
 }
 
 export function getWindowSignature(window: ViewWindowState | null): string {
@@ -175,7 +207,12 @@ export function getWindowSignature(window: ViewWindowState | null): string {
     return 'NONE';
   }
 
-  return JSON.stringify(window);
+  return JSON.stringify({
+    windowType: window.windowType,
+    actingSeat: window.actingSeat ?? null,
+    waitingSeats: [...window.waitingSeats],
+    context: window.context ?? null,
+  });
 }
 
 export function projectPlayerViewState(
@@ -192,6 +229,10 @@ export function projectPlayerViewState(
   const match: MatchViewState = {
     matchId: game.gameId,
     viewerSeat,
+    participants: {
+      FIRST: { id: game.players[0].id, name: game.players[0].name },
+      SECOND: { id: game.players[1].id, name: game.players[1].name },
+    },
     turnCount: game.turnCount,
     phase: game.currentPhase,
     subPhase: game.currentSubPhase,
@@ -199,6 +240,7 @@ export function projectPlayerViewState(
     prioritySeat:
       game.waitingPlayerId !== null ? getSeatForPlayer(game, game.waitingPlayerId) : activeSeat,
     window: buildViewWindowState(game),
+    liveResult: buildLiveResultView(game),
     seq: options.seq ?? 0,
   };
 
@@ -239,7 +281,15 @@ function projectPlayerZones(
     projectBaseZone(game, spec.getZone(player), ownerSeat, viewerSeat, spec.key, objects, zones);
   }
 
-  addMemberSlotZones(game, player.memberSlots, ownerSeat, viewerSeat, objects, zones);
+  addMemberSlotZones(
+    game,
+    player.memberSlots,
+    player.movedToStageThisTurn,
+    ownerSeat,
+    viewerSeat,
+    objects,
+    zones
+  );
   for (const spec of PUBLIC_STATEFUL_ZONE_SPECS) {
     projectStatefulZone(
       game,
@@ -298,13 +348,16 @@ function projectBaseZone(
       continue;
     }
 
-    upsertViewObject(objects, card, ownerSeat, surface);
+    upsertViewObject(objects, card, ownerSeat, surface, undefined, undefined, {
+      knownCardType: card.data.cardType,
+    });
   }
 }
 
 function addMemberSlotZones(
   game: GameState,
   zone: MemberSlotZoneState,
+  movedToStageThisTurn: readonly string[],
   ownerSeat: Seat,
   viewerSeat: Seat,
   objects: Record<string, ViewCardObject>,
@@ -332,7 +385,9 @@ function addMemberSlotZones(
       const occupant = game.cardRegistry.get(occupantId);
       const state = zone.cardStates.get(occupantId);
       if (occupant) {
-        upsertViewObject(objects, occupant, ownerSeat, 'FRONT', state?.orientation, state?.face);
+        upsertViewObject(objects, occupant, ownerSeat, 'FRONT', state?.orientation, state?.face, {
+          enteredStageThisTurn: movedToStageThisTurn.includes(occupantId),
+        });
       }
     }
 
@@ -385,7 +440,12 @@ function projectStatefulZone(
       actualFaceState: cardState?.face,
     });
 
-    upsertViewObject(objects, card, ownerSeat, surface, cardState?.orientation, faceState);
+    upsertViewObject(objects, card, ownerSeat, surface, cardState?.orientation, faceState, {
+      judgmentResult:
+        zone.zoneType === ZoneType.LIVE_ZONE
+          ? game.liveResolution.liveResults.get(cardId)
+          : undefined,
+    });
   }
 }
 
@@ -441,7 +501,9 @@ function projectInspectionZones(
       if (surface === 'NONE') {
         continue;
       }
-      upsertViewObject(objects, card, seat, surface);
+      upsertViewObject(objects, card, seat, surface, undefined, undefined, {
+        publiclyRevealed: game.inspectionZone.revealedCardIds.includes(cardId),
+      });
     }
   }
 }
@@ -475,7 +537,9 @@ function projectResolutionZone(
     if (surface === 'NONE') {
       continue;
     }
-    upsertViewObject(objects, card, ownerSeat, surface);
+    upsertViewObject(objects, card, ownerSeat, surface, undefined, undefined, {
+      publiclyRevealed: zone.revealedCardIds.includes(cardId),
+    });
   }
 }
 
@@ -485,18 +549,42 @@ function upsertViewObject(
   ownerSeat: Seat,
   surface: VisibleSurface,
   orientation?: ViewCardObject['orientation'],
-  faceState?: ViewCardObject['faceState']
+  faceState?: ViewCardObject['faceState'],
+  metadata?: Pick<ViewCardObject, 'publiclyRevealed' | 'judgmentResult' | 'enteredStageThisTurn'> & {
+    readonly knownCardType?: ViewCardObject['cardType'];
+  }
 ): void {
   const publicObjectId = createPublicObjectId(card.instanceId);
   objects[publicObjectId] = {
     publicObjectId,
     ownerSeat,
     controllerSeat: ownerSeat,
-    cardType: surface === 'FRONT' ? card.data.cardType : undefined,
+    cardType: metadata?.knownCardType ?? (surface === 'FRONT' ? card.data.cardType : undefined),
     surface,
     orientation,
     faceState,
+    publiclyRevealed: metadata?.publiclyRevealed,
+    judgmentResult: metadata?.judgmentResult,
+    enteredStageThisTurn: metadata?.enteredStageThisTurn,
     frontInfo: surface === 'FRONT' ? buildFrontInfo(card) : undefined,
+  };
+}
+
+function buildLiveResultView(game: GameState): LiveResultViewState {
+  const firstPlayerId = game.players[0]?.id;
+  const secondPlayerId = game.players[1]?.id;
+
+  return {
+    scores: {
+      FIRST: firstPlayerId ? game.liveResolution.playerScores.get(firstPlayerId) ?? 0 : 0,
+      SECOND: secondPlayerId ? game.liveResolution.playerScores.get(secondPlayerId) ?? 0 : 0,
+    },
+    winnerSeats: game.liveResolution.liveWinnerIds
+      .map((playerId) => getSeatForPlayer(game, playerId))
+      .filter((seat): seat is Seat => seat !== null),
+    confirmedSeats: game.liveResolution.scoreConfirmedBy
+      .map((playerId) => getSeatForPlayer(game, playerId))
+      .filter((seat): seat is Seat => seat !== null),
   };
 }
 
@@ -508,6 +596,7 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
       cardType: card.data.cardType,
       cost: card.data.cost,
       hearts: card.data.hearts,
+      bladeHearts: card.data.bladeHearts,
       text: card.data.cardText,
     };
   }
@@ -519,6 +608,7 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
       cardType: card.data.cardType,
       score: card.data.score,
       requiredHearts: card.data.requirements,
+      bladeHearts: card.data.bladeHearts,
       text: card.data.cardText,
     };
   }
@@ -536,99 +626,498 @@ function buildPermissionViewState(
   viewerPlayerId: string,
   viewerSeat: Seat
 ): PermissionViewState {
-  if (game.inspectionContext) {
-    const inspectionSeat = getSeatForPlayer(game, game.inspectionContext.ownerPlayerId);
-    const canAct = inspectionSeat === viewerSeat;
+  const phaseHints = canViewerUsePhaseCommands(game, viewerPlayerId, viewerSeat)
+    ? buildPhaseCommandHints(game, viewerPlayerId, viewerSeat)
+    : [];
+
+  if (!game.inspectionContext) {
     return {
-      canAct,
-      waitingForSeat: inspectionSeat,
-      availableActionTypes: canAct
-        ? inferInspectionActionTypes(game, viewerPlayerId)
-        : HIDDEN_OWNER_ZONE_ACTIONS,
+      availableCommands: phaseHints,
     };
+  }
+
+  const inspectionSeat = getSeatForPlayer(game, game.inspectionContext.ownerPlayerId);
+  if (inspectionSeat !== viewerSeat) {
+    return {
+      availableCommands: phaseHints,
+    };
+  }
+
+  return {
+    availableCommands: mergeCommandHints(
+      phaseHints,
+      buildInspectionCommandHints(game, viewerPlayerId, viewerSeat)
+    ),
+  };
+}
+
+function canViewerUsePhaseCommands(
+  game: GameState,
+  viewerPlayerId: string,
+  viewerSeat: Seat
+): boolean {
+  if (game.currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM) {
+    return true;
+  }
+
+  if (
+    game.currentSubPhase === SubPhase.RESULT_ANIMATION ||
+    game.currentSubPhase === SubPhase.RESULT_SETTLEMENT
+  ) {
+    return game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
   }
 
   const waitingForSeat =
     game.waitingPlayerId !== null ? getSeatForPlayer(game, game.waitingPlayerId) : null;
-  const canAct =
-    waitingForSeat !== null ? waitingForSeat === viewerSeat : isPlayerActive(game, viewerPlayerId);
-
-  return {
-    canAct,
-    waitingForSeat,
-    availableActionTypes: canAct ? inferAvailableActionTypes(game) : HIDDEN_OWNER_ZONE_ACTIONS,
-  };
+  return waitingForSeat !== null ? waitingForSeat === viewerSeat : isPlayerActive(game, viewerPlayerId);
 }
 
-function inferAvailableActionTypes(game: GameState): readonly string[] {
+function mergeCommandHints(
+  phaseHints: readonly ViewCommandHint[],
+  inspectionHints: readonly ViewCommandHint[]
+): readonly ViewCommandHint[] {
+  const merged = new Map<string, ViewCommandHint>();
+  for (const hint of phaseHints) {
+    merged.set(hint.command, hint);
+  }
+  for (const hint of inspectionHints) {
+    merged.set(hint.command, hint);
+  }
+  return [...merged.values()];
+}
+
+function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] {
   switch (game.currentPhase) {
     case GamePhase.MULLIGAN_PHASE:
       return [GameCommandType.MULLIGAN];
     case GamePhase.MAIN_PHASE:
       return [
-        GameCommandType.OPEN_INSPECTION,
-        GameCommandType.PLAY_MEMBER_TO_SLOT,
-        GameCommandType.TAP_MEMBER,
-        GameCommandType.TAP_ENERGY,
-        GameCommandType.MOVE_TABLE_CARD,
-        GameCommandType.MOVE_MEMBER_TO_SLOT,
-        GameCommandType.ATTACH_ENERGY_TO_MEMBER,
-        GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM,
-        GameCommandType.DRAW_CARD_TO_HAND,
-        GameCommandType.DRAW_ENERGY_TO_ZONE,
-        GameCommandType.RETURN_HAND_CARD_TO_TOP,
+        ...MAIN_PHASE_MANUAL_COMMAND_TYPES,
         GameCommandType.END_PHASE,
       ];
     case GamePhase.LIVE_SET_PHASE:
       return [
         GameCommandType.SET_LIVE_CARD,
+        GameCommandType.DRAW_ENERGY_TO_ZONE,
         GameCommandType.MOVE_PUBLIC_CARD_TO_HAND,
+        GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK,
         GameCommandType.CONFIRM_STEP,
       ];
     case GamePhase.PERFORMANCE_PHASE:
       if (game.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) {
-        return [
-          GameCommandType.REVEAL_CHEER_CARD,
-          GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE,
-          GameCommandType.CONFIRM_PERFORMANCE_OUTCOME,
-          GameCommandType.SUBMIT_JUDGMENT,
-        ];
+        return PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES;
+      }
+      if (game.currentSubPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS) {
+        return PERFORMANCE_LIVE_START_COMMAND_TYPES;
+      }
+      if (isPerformanceSuccessEffectSubPhase(game.currentSubPhase)) {
+        return PERFORMANCE_SUCCESS_EFFECT_COMMAND_TYPES;
       }
       return [GameCommandType.CONFIRM_STEP];
     case GamePhase.LIVE_RESULT_PHASE:
-      switch (game.currentSubPhase) {
-        case SubPhase.RESULT_SETTLEMENT:
-          return [GameCommandType.SUBMIT_SCORE];
-        case SubPhase.RESULT_FIRST_SUCCESS_EFFECTS:
-        case SubPhase.RESULT_SECOND_SUCCESS_EFFECTS:
-          return [GameCommandType.SELECT_SUCCESS_LIVE, GameCommandType.CONFIRM_STEP];
-        default:
-          return [GameCommandType.CONFIRM_STEP];
+      if (game.currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM) {
+        return [GameCommandType.SUBMIT_SCORE];
       }
+      if (game.currentSubPhase === SubPhase.RESULT_ANIMATION) {
+        return [GameCommandType.CONFIRM_STEP];
+      }
+      if (game.currentSubPhase === SubPhase.RESULT_SETTLEMENT) {
+        return [GameCommandType.SELECT_SUCCESS_LIVE, GameCommandType.CONFIRM_STEP];
+      }
+      return [GameCommandType.CONFIRM_STEP];
     default:
       return [];
   }
 }
 
-function inferInspectionActionTypes(game: GameState, viewerPlayerId: string): readonly string[] {
-  if (game.inspectionContext?.ownerPlayerId !== viewerPlayerId) {
-    return HIDDEN_OWNER_ZONE_ACTIONS;
-  }
+function buildPhaseCommandHints(
+  game: GameState,
+  viewerPlayerId: string,
+  viewerSeat: Seat
+): readonly ViewCommandHint[] {
+  return inferAvailableActionTypes(game)
+    .map((command) => buildPhaseCommandHint(command, game, viewerPlayerId, viewerSeat))
+    .filter((hint): hint is ViewCommandHint => hint !== null);
+}
 
+function buildInspectionCommandHints(
+  game: GameState,
+  viewerPlayerId: string,
+  viewerSeat: Seat
+): readonly ViewCommandHint[] {
   const ownedCardCount = game.inspectionZone.cardIds.filter(
     (cardId) => game.cardRegistry.get(cardId)?.ownerId === viewerPlayerId
   ).length;
-  const actionTypes = [
-    GameCommandType.REVEAL_INSPECTED_CARD,
-    GameCommandType.MOVE_INSPECTED_CARD_TO_TOP,
-    GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM,
-    GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE,
-    GameCommandType.FINISH_INSPECTION,
+  const ownedCardIds = getOwnedCardIds(game.inspectionZone.cardIds, game, viewerPlayerId);
+  const unrevealedOwnedCardIds = ownedCardIds.filter(
+    (cardId) => !game.inspectionZone.revealedCardIds.includes(cardId)
+  );
+  const sourceSuffix = game.inspectionContext?.sourceZone === ZoneType.ENERGY_DECK
+    ? 'ENERGY_DECK'
+    : 'MAIN_DECK';
+  const inspectionZoneKey = createOwnedViewZoneKey(viewerSeat, 'INSPECTION_ZONE');
+  const hints: ViewCommandHint[] = [
+    buildCommandHint(GameCommandType.OPEN_INSPECTION, {
+      scope: createCommandScope({
+        zoneKeys: [createOwnedViewZoneKey(viewerSeat, sourceSuffix)],
+      }),
+      params: {
+        sourceZone: game.inspectionContext?.sourceZone,
+      },
+    }),
   ];
 
-  if (ownedCardCount > 1) {
-    actionTypes.splice(4, 0, GameCommandType.REORDER_INSPECTED_CARD);
+  if (unrevealedOwnedCardIds.length > 0) {
+    hints.push(
+      buildCommandHint(GameCommandType.REVEAL_INSPECTED_CARD, {
+        scope: createCommandScope({
+          zoneKeys: [inspectionZoneKey],
+          cardIds: unrevealedOwnedCardIds,
+        }),
+      })
+    );
   }
 
-  return actionTypes;
+  if (ownedCardIds.length > 0) {
+    const inspectionScope = createCommandScope({
+      zoneKeys: [inspectionZoneKey],
+      cardIds: ownedCardIds,
+    });
+    hints.push(
+      buildCommandHint(GameCommandType.MOVE_INSPECTED_CARD_TO_TOP, {
+        scope: inspectionScope,
+      }),
+      buildCommandHint(GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM, {
+        scope: inspectionScope,
+      }),
+      buildCommandHint(GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE, {
+        scope: inspectionScope,
+      })
+    );
+  }
+
+  if (ownedCardCount > 1) {
+    hints.push(
+      buildCommandHint(GameCommandType.REORDER_INSPECTED_CARD, {
+        scope: createCommandScope({
+          zoneKeys: [inspectionZoneKey],
+          cardIds: ownedCardIds,
+        }),
+      })
+    );
+  }
+
+  hints.push(
+    buildCommandHint(GameCommandType.FINISH_INSPECTION, {
+      enabled: ownedCardCount === 0,
+      reason: ownedCardCount === 0 ? undefined : '仍有未处理的检视区卡牌',
+      scope: createCommandScope({
+        zoneKeys: [inspectionZoneKey],
+      }),
+      params: {
+        requiresEmptyInspectionZone: true,
+      },
+    })
+  );
+
+  for (const command of BLOCKED_DURING_INSPECTION_COMMAND_TYPES) {
+    hints.push(
+      buildCommandHint(command, {
+        enabled: false,
+        reason: '当前处于检视流程，请先完成检视',
+      })
+    );
+  }
+
+  return hints;
+}
+
+function buildPhaseCommandHint(
+  command: GameCommandType,
+  game: GameState,
+  viewerPlayerId: string,
+  viewerSeat: Seat
+): ViewCommandHint | null {
+  switch (command) {
+    case GameCommandType.MULLIGAN:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'HAND')],
+        }),
+      });
+    case GameCommandType.SET_LIVE_CARD:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'HAND')],
+        }),
+      });
+    case GameCommandType.OPEN_INSPECTION:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [
+            createOwnedViewZoneKey(viewerSeat, 'MAIN_DECK'),
+            createOwnedViewZoneKey(viewerSeat, 'ENERGY_DECK'),
+          ],
+        }),
+      });
+    case GameCommandType.REVEAL_CHEER_CARD:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'MAIN_DECK'), 'SHARED_RESOLUTION_ZONE'],
+        }),
+      });
+    case GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE: {
+      const ownedResolutionCardIds = getOwnedCardIds(
+        game.resolutionZone.cardIds,
+        game,
+        viewerPlayerId
+      );
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: ['SHARED_RESOLUTION_ZONE'],
+          cardIds: ownedResolutionCardIds,
+        }),
+      });
+    }
+    case GameCommandType.MOVE_TABLE_CARD:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_LEFT'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),
+            createOwnedViewZoneKey(viewerSeat, 'ENERGY_ZONE'),
+            createOwnedViewZoneKey(viewerSeat, 'LIVE_ZONE'),
+            createOwnedViewZoneKey(viewerSeat, 'SUCCESS_ZONE'),
+            createOwnedViewZoneKey(viewerSeat, 'WAITING_ROOM'),
+            createOwnedViewZoneKey(viewerSeat, 'EXILE_ZONE'),
+          ],
+        }),
+      });
+    case GameCommandType.MOVE_MEMBER_TO_SLOT:
+    case GameCommandType.PLAY_MEMBER_TO_SLOT:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [
+            createOwnedViewZoneKey(viewerSeat, 'HAND'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_LEFT'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),
+          ],
+        }),
+      });
+    case GameCommandType.ATTACH_ENERGY_TO_MEMBER:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [
+            createOwnedViewZoneKey(viewerSeat, 'ENERGY_ZONE'),
+            createOwnedViewZoneKey(viewerSeat, 'ENERGY_DECK'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_LEFT'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),
+          ],
+        }),
+      });
+    case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_LEFT'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),
+            createOwnedViewZoneKey(viewerSeat, 'LIVE_ZONE'),
+            createOwnedViewZoneKey(viewerSeat, 'SUCCESS_ZONE'),
+          ],
+        }),
+      });
+    case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_LEFT'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),
+            createOwnedViewZoneKey(viewerSeat, 'LIVE_ZONE'),
+            createOwnedViewZoneKey(viewerSeat, 'SUCCESS_ZONE'),
+            createOwnedViewZoneKey(viewerSeat, 'WAITING_ROOM'),
+          ],
+        }),
+      });
+    case GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'ENERGY_ZONE')],
+        }),
+      });
+    case GameCommandType.MOVE_OWNED_CARD_TO_ZONE:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [
+            createOwnedViewZoneKey(viewerSeat, 'HAND'),
+            createOwnedViewZoneKey(viewerSeat, 'MAIN_DECK'),
+            createOwnedViewZoneKey(viewerSeat, 'ENERGY_DECK'),
+          ],
+        }),
+      });
+    case GameCommandType.END_PHASE:
+      return buildCommandHint(command);
+    case GameCommandType.CONFIRM_STEP:
+      return buildResultConfirmStepHint(game, viewerPlayerId, viewerSeat);
+    case GameCommandType.CONFIRM_PERFORMANCE_OUTCOME:
+    case GameCommandType.SUBMIT_JUDGMENT:
+    case GameCommandType.SUBMIT_SCORE:
+      return buildCommandHint(command);
+    case GameCommandType.SELECT_SUCCESS_LIVE:
+      return buildSettlementSelectionHint(game, viewerPlayerId, viewerSeat);
+    case GameCommandType.DRAW_CARD_TO_HAND:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'MAIN_DECK')],
+        }),
+      });
+    case GameCommandType.DRAW_ENERGY_TO_ZONE:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'ENERGY_DECK')],
+        }),
+      });
+    case GameCommandType.RETURN_HAND_CARD_TO_TOP:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'HAND')],
+        }),
+      });
+    default:
+      return null;
+  }
+}
+
+function buildResultConfirmStepHint(
+  game: GameState,
+  viewerPlayerId: string,
+  viewerSeat: Seat
+): ViewCommandHint {
+  if (game.currentSubPhase === SubPhase.RESULT_ANIMATION) {
+    const isWinner = game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
+    const hasConfirmed = game.liveResolution.animationConfirmedBy.includes(viewerPlayerId);
+    return buildCommandHint(GameCommandType.CONFIRM_STEP, {
+      enabled: isWinner && !hasConfirmed,
+      reason: !isWinner
+        ? '当前玩家不需要播放胜者动画'
+        : hasConfirmed
+          ? '已完成胜者动画'
+          : undefined,
+      params: {
+        subPhase: game.currentSubPhase,
+      },
+    });
+  }
+
+  if (game.currentSubPhase === SubPhase.RESULT_SETTLEMENT) {
+    const isWinner = game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
+    const hasConfirmedSettlement = game.liveResolution.settlementConfirmedBy.includes(viewerPlayerId);
+    return buildCommandHint(GameCommandType.CONFIRM_STEP, {
+      enabled: isWinner && !hasConfirmedSettlement,
+      reason: !isWinner
+        ? '当前玩家不是本轮胜者'
+        : hasConfirmedSettlement
+          ? '已确认结算'
+          : undefined,
+      params: {
+        subPhase: game.currentSubPhase,
+      },
+    });
+  }
+
+  return buildCommandHint(GameCommandType.CONFIRM_STEP, {
+    params: {
+      subPhase: game.currentSubPhase,
+    },
+  });
+}
+
+function buildSettlementSelectionHint(
+  game: GameState,
+  viewerPlayerId: string,
+  viewerSeat: Seat
+): ViewCommandHint {
+  const isWinner = game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
+  const hasMoved = game.liveResolution.successCardMovedBy.includes(viewerPlayerId);
+  const isActivePerformer = game.players[game.activePlayerIndex]?.id === viewerPlayerId;
+  const canSelectDuringPerformance =
+    game.currentPhase === GamePhase.PERFORMANCE_PHASE &&
+    (game.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ||
+      game.currentSubPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS);
+  const ownedLiveCardIds = getOwnedCardIds(
+    game.players.find((player) => player.id === viewerPlayerId)?.liveZone.cardIds ?? [],
+    game,
+    viewerPlayerId
+  );
+  const enabled = hasMoved
+    ? false
+    : canSelectDuringPerformance
+      ? isActivePerformer
+      : isWinner;
+  const reason = hasMoved
+    ? '已选择成功 Live 卡'
+    : canSelectDuringPerformance
+      ? isActivePerformer
+        ? undefined
+        : '当前不是你的表演阶段'
+      : !isWinner
+        ? '当前玩家不是本轮胜者'
+        : undefined;
+
+  return buildCommandHint(GameCommandType.SELECT_SUCCESS_LIVE, {
+    enabled,
+    reason,
+    scope: createCommandScope({
+      zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'LIVE_ZONE')],
+      cardIds: ownedLiveCardIds,
+    }),
+  });
+}
+
+function buildCommandHint(
+  command: GameCommandType,
+  options: {
+    enabled?: boolean;
+    reason?: string;
+    scope?: ViewCommandScope;
+    params?: Readonly<Record<string, unknown>>;
+  } = {}
+): ViewCommandHint {
+  return {
+    command,
+    enabled: options.enabled ?? true,
+    reason: options.reason,
+    scope: options.scope,
+    params: options.params,
+  };
+}
+
+function createCommandScope(options: {
+  zoneKeys?: readonly ViewZoneKey[];
+  cardIds?: readonly string[];
+}): ViewCommandScope | undefined {
+  const zoneKeys = options.zoneKeys?.filter((zoneKey): zoneKey is ViewZoneKey => !!zoneKey) ?? [];
+  const objectIds =
+    options.cardIds?.map((cardId) => createPublicObjectId(cardId)).filter(Boolean) ?? [];
+
+  if (zoneKeys.length === 0 && objectIds.length === 0) {
+    return undefined;
+  }
+
+  return {
+    zoneKeys: zoneKeys.length > 0 ? zoneKeys : undefined,
+    objectIds: objectIds.length > 0 ? objectIds : undefined,
+  };
+}
+
+function getOwnedCardIds(
+  cardIds: readonly string[],
+  game: GameState,
+  viewerPlayerId: string
+): readonly string[] {
+  return cardIds.filter((cardId) => game.cardRegistry.get(cardId)?.ownerId === viewerPlayerId);
 }

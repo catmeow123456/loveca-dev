@@ -24,6 +24,10 @@ const DEBUG_SERVICE_NAME =
 const DEBUG_SEAT = import.meta.env.VITE_DEBUG_SEAT as Seat | undefined;
 const STATUS_POLL_INTERVAL_MS = 1200;
 
+function isUnauthorizedErrorMessage(message: string): boolean {
+  return message.includes('未登录') || message.includes('登录已过期');
+}
+
 interface OnlineDebugPageProps {
   onBack: () => void;
 }
@@ -39,7 +43,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
   const disconnectRemoteDebugSession = useGameStore((s) => s.disconnectRemoteDebugSession);
   const syncRemoteDebugState = useGameStore((s) => s.syncRemoteDebugState);
   const remoteDebugSession = useGameStore((s) => s.remoteDebugSession);
-  const gameState = useGameStore((s) => s.gameState);
+  const matchView = useGameStore((s) => s.getMatchView());
 
   const profile = useAuthStore((s) => s.profile);
   const offlineMode = useAuthStore((s) => s.offlineMode);
@@ -49,6 +53,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
   const [status, setStatus] = useState<DebugMatchStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pollingPaused, setPollingPaused] = useState(false);
 
   const mySeat = DEBUG_SEAT ?? null;
   const opponentSeat: Seat | null =
@@ -66,7 +71,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
   }, [fetchCloudDecks]);
 
   useEffect(() => {
-    if (!mySeat) {
+    if (!mySeat || pollingPaused) {
       return;
     }
 
@@ -81,7 +86,13 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
         }
       } catch (pollError) {
         if (!cancelled) {
-          setError(pollError instanceof Error ? pollError.message : '读取调试状态失败');
+          const message = pollError instanceof Error ? pollError.message : '读取调试状态失败';
+          setError(message);
+          if (isUnauthorizedErrorMessage(message)) {
+            setPollingPaused(true);
+            setStatus(null);
+            disconnectRemoteDebugSession();
+          }
         }
       }
     };
@@ -95,7 +106,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [mySeat]);
+  }, [disconnectRemoteDebugSession, mySeat, pollingPaused]);
 
   useEffect(() => {
     if (!mySeat || !status) {
@@ -147,6 +158,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
 
     setIsSubmitting(true);
     setError(null);
+    setPollingPaused(false);
 
     try {
       const deck = buildApplicationDeckConfig(selectedDeck, cardDataRegistry);
@@ -167,6 +179,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
   const handleReset = async () => {
     setIsSubmitting(true);
     setError(null);
+    setPollingPaused(false);
 
     try {
       const nextStatus = await resetOnlineDebugMatch(DEBUG_MATCH_ID);
@@ -205,7 +218,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
     );
   }
 
-  if (isMatchStarted && gameState) {
+  if (isMatchStarted && matchView) {
     return (
       <div className="h-screen overflow-hidden">
         <GameBoard />

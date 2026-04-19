@@ -2,8 +2,7 @@
  * 游戏会话管理
  *
  * 充当服务器角色，维护权威游戏状态，处理动作并自动推进阶段。
- * 为每个玩家提供独立的游戏状态读取接口。
- * 当前尚未实现联机所需的状态脱敏，仍返回权威状态副本。
+ * 为每个玩家提供独立的联机视图读取接口。
  *
  * 支持 GameMode：
  * - DEBUG: 调试模式，双人同设备手动操作
@@ -12,6 +11,12 @@
 
 import { GameService, type DeckConfig, type GameOperationResult } from './game-service.js';
 import {
+  isPerformanceSuccessEffectSubPhase,
+  isPerformanceFreeInteractionSubPhase,
+} from './command-availability.js';
+import { getModeAutomationPolicy, type ModeAutomationStep } from './mode-automation.js';
+import {
+  CardType,
   FaceState,
   GamePhase,
   GameMode,
@@ -20,9 +25,7 @@ import {
   ZoneType,
 } from '../shared/types/enums.js';
 import type { GameState, InspectionContextState } from '../domain/entities/game.js';
-import { getActivePlayer } from '../domain/entities/game.js';
-import type { PlayerState } from '../domain/entities/player.js';
-import type { BaseZoneState } from '../domain/entities/zone.js';
+import { addAction, getActivePlayer, getPlayerById } from '../domain/entities/game.js';
 import {
   isPlayerActive,
   getActivePlayerId as getActivePlayerIdFromConfig,
@@ -68,7 +71,6 @@ import type {
   PublicEvent,
   PublicEventDraft,
   PublicEventSource,
-  PublicWindowType,
   PublicZoneRef,
   SealedAuditRecord,
   SealedAuditRecordDraft,
@@ -96,6 +98,8 @@ import type {
   PlayMemberToSlotCommand,
   MovePublicCardToWaitingRoomCommand,
   MovePublicCardToHandCommand,
+  MovePublicCardToEnergyDeckCommand,
+  MoveOwnedCardToZoneCommand,
   FinishInspectionCommand,
   ConfirmStepCommand,
   ConfirmPerformanceOutcomeCommand,
@@ -115,6 +119,11 @@ import {
   removeCardFromPlayerZone,
   addCardToPlayerZone,
 } from './action-handlers/zone-operations.js';
+import {
+  RuleActionType,
+  applyRuleActionResult,
+  ruleActionProcessor,
+} from '../domain/rules/rule-actions.js';
 
 // ============================================
 // 类型定义
@@ -137,6 +146,11 @@ const AUTO_ADVANCE_PHASES: readonly GamePhase[] = [
  * 自动推进的最大次数限制，防止无限循环
  */
 const MAX_AUTO_ADVANCE_ITERATIONS = 20;
+
+/**
+ * 模式自动化的最大执行次数限制，防止策略死循环。
+ */
+const MAX_MODE_AUTOMATION_ITERATIONS = 20;
 
 /**
  * 游戏会话事件类型
@@ -327,13 +341,7 @@ export class GameSession {
         playerId: action.playerId,
       });
 
-      // 自动推进阶段
-      this.autoAdvance(this.authorityState);
-
-      // 对墙打模式：自动处理对手阶段
-      if (this._gameMode === GameMode.SOLITAIRE) {
-        this.handleSolitaireAutoSkip(action);
-      }
+      this.runPostCommitAutomation(action.playerId);
     }
 
     return {
@@ -413,10 +421,7 @@ export class GameSession {
     });
     this.recordCommand(command, 'ACCEPTED');
 
-    this.autoAdvance(this.authorityState);
-    if (this._gameMode === GameMode.SOLITAIRE) {
-      this.handleSolitaireAutoSkipAfterCommand(command.playerId);
-    }
+    this.runPostCommitAutomation(command.playerId);
 
     return {
       success: true,
@@ -520,20 +525,86 @@ export class GameSession {
     };
   }
 
-  /**
-   * 获取指定玩家视角的游戏状态
-   *
-   * 返回兼容旧 UI 的脱敏快照：
-   * - 保留公开区域与当前玩家自有区域的真实对象
-   * - 对对手隐藏区只保留数量，不暴露真实卡牌 ID
-   * - 移除不应继续由联机 UI 直接消费的私密历史细节
-   */
-  getStateForPlayer(playerId: string): GameState | null {
+  private runPostCommitAutomation(triggerPlayerId: string): void {
     if (!this.authorityState) {
-      return null;
+      return;
     }
 
-    return createPlayerCompatibilityGameState(this.authorityState, playerId);
+    this.autoAdvance(this.authorityState);
+    this.runModeAutomationLoop(triggerPlayerId);
+  }
+
+  private runModeAutomationLoop(triggerPlayerId: string): void {
+    if (!this.authorityState) {
+      return;
+    }
+
+    const policy = getModeAutomationPolicy(this._gameMode);
+    let iterations = 0;
+
+    while (
+      this.authorityState &&
+      iterations < MAX_MODE_AUTOMATION_ITERATIONS &&
+      this.authorityState.currentPhase !== GamePhase.GAME_END
+    ) {
+      const automation = policy.getNextAutomation(this.authorityState, triggerPlayerId);
+      if (!automation) {
+        break;
+      }
+
+      const handled = this.applyModeAutomationStep(automation);
+      if (!handled) {
+        break;
+      }
+
+      iterations++;
+    }
+
+    if (iterations >= MAX_MODE_AUTOMATION_ITERATIONS) {
+      console.error('[GameSession] 模式自动化达到最大迭代次数，可能存在无限循环');
+    }
+  }
+
+  private applyModeAutomationStep(automation: ModeAutomationStep): boolean {
+    if (!this.authorityState) {
+      return false;
+    }
+
+    switch (automation.kind) {
+      case 'ACTION':
+        return this.applySystemAutomationAction(automation.action, automation.actorPlayerId);
+      case 'SKIP_OPPONENT_PERFORMANCE':
+        this.skipOpponentPerformance(automation.actorPlayerId);
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private applySystemAutomationAction(action: GameAction, actorPlayerId: string): boolean {
+    if (!this.authorityState) {
+      return false;
+    }
+
+    const result = this.gameService.processAction(this.authorityState, action);
+    if (!result.success) {
+      console.warn('[GameSession] 模式自动化动作执行失败:', action.type, result.error);
+      return false;
+    }
+
+    this.setAuthorityState(result.gameState, {
+      source: 'SYSTEM',
+      actorPlayerId,
+      declarationActionType: action.type,
+    });
+    this.emitEvent({
+      type: 'ACTION_EXECUTED',
+      action,
+      playerId: actorPlayerId,
+    });
+    this.autoAdvance(this.authorityState);
+
+    return true;
   }
 
   /**
@@ -619,7 +690,6 @@ export class GameSession {
       viewerSeat: seat,
       snapshotPublicSeq: snapshotSeq,
       currentPublicSeq: this.publicEventSeq,
-      gameState: createPlayerCompatibilityGameState(clonedSnapshot, playerId),
       playerViewState: projectPlayerViewState(clonedSnapshot, playerId, {
         seq: snapshotSeq,
         gameMode: this._gameMode,
@@ -775,8 +845,19 @@ export class GameSession {
         }
         const sourceZone =
           command.sourceZone === ZoneType.ENERGY_DECK ? player.energyDeck : player.mainDeck;
-        if (sourceZone.cardIds.length < command.count) {
+        const availableCount =
+          command.sourceZone === ZoneType.MAIN_DECK
+            ? sourceZone.cardIds.length + player.waitingRoom.cardIds.length
+            : sourceZone.cardIds.length;
+        if (availableCount < command.count) {
           return '来源区域卡牌数量不足';
+        }
+        if (
+          state.inspectionContext &&
+          state.inspectionContext.ownerPlayerId === command.playerId &&
+          state.inspectionContext.sourceZone !== command.sourceZone
+        ) {
+          return '进行中的检视流程只能从同一来源区追加';
         }
         return null;
       }
@@ -785,7 +866,7 @@ export class GameSession {
         if (!player) {
           return '玩家不存在';
         }
-        if (player.mainDeck.cardIds.length === 0) {
+        if (player.mainDeck.cardIds.length === 0 && player.waitingRoom.cardIds.length === 0) {
           return '主卡组没有可翻开的应援牌';
         }
         return null;
@@ -857,7 +938,9 @@ export class GameSession {
         if (command.toZone === ZoneType.MEMBER_SLOT && !command.targetSlot) {
           return '成员区目标移动必须声明目标槽位';
         }
-        return null;
+        return validateCardMoveTarget(state, command.cardId, command.toZone, {
+          fromZone: command.fromZone,
+        });
       case GameCommandType.MOVE_MEMBER_TO_SLOT: {
         if (command.sourceSlot === command.targetSlot) {
           return '目标槽位不能与来源槽位相同';
@@ -903,7 +986,8 @@ export class GameSession {
         return null;
       }
       case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
-      case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND: {
+      case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
+      case GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK: {
         const player = state.players.find((candidate) => candidate.id === command.playerId);
         if (!player) {
           return '玩家不存在';
@@ -918,12 +1002,33 @@ export class GameSession {
             command.playerId,
             command.fromZone,
             command.cardId,
-            command.sourceSlot
+            'sourceSlot' in command ? command.sourceSlot : undefined
           )
         ) {
           return '卡牌当前不在声明的公开区域';
         }
-        return null;
+        return command.type === GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK
+          ? validateCardMoveTarget(state, command.cardId, ZoneType.ENERGY_DECK)
+          : null;
+      }
+      case GameCommandType.MOVE_OWNED_CARD_TO_ZONE: {
+        if (!isCardInOwnedZone(state, command.playerId, command.fromZone, command.cardId)) {
+          return '卡牌当前不在声明的己方区域';
+        }
+        if (command.toZone === ZoneType.MEMBER_SLOT && !command.targetSlot) {
+          return '成员区目标移动必须声明目标槽位';
+        }
+        const card = state.cardRegistry.get(command.cardId);
+        if (
+          card?.data.cardType === CardType.MEMBER &&
+          command.fromZone === ZoneType.HAND &&
+          command.toZone === ZoneType.MEMBER_SLOT
+        ) {
+          return '手牌成员登场到成员区必须使用专用登场命令';
+        }
+        return validateCardMoveTarget(state, command.cardId, command.toZone, {
+          fromZone: command.fromZone,
+        });
       }
       case GameCommandType.FINISH_INSPECTION:
         if (getOwnedInspectionCardIds(state, command.playerId).length > 0) {
@@ -941,7 +1046,7 @@ export class GameSession {
         if (!player) {
           return '玩家不存在';
         }
-        if (player.mainDeck.cardIds.length === 0) {
+        if (player.mainDeck.cardIds.length === 0 && player.waitingRoom.cardIds.length === 0) {
           return '主卡组没有可抽取的卡牌';
         }
         return null;
@@ -988,6 +1093,11 @@ export class GameSession {
   }
 
   private validateCommandAvailability(state: GameState, command: GameCommand): string | null {
+    const isSuccessEffectWindow = isPerformanceSuccessEffectSubPhase(state.currentSubPhase);
+    const isPerformanceFreeInteraction = isPerformanceFreeInteractionSubPhase(
+      state.currentSubPhase
+    );
+
     switch (command.type) {
       case GameCommandType.MULLIGAN:
         return state.currentPhase === GamePhase.MULLIGAN_PHASE ? null : '当前不是换牌阶段';
@@ -996,6 +1106,11 @@ export class GameSession {
       case GameCommandType.TAP_ENERGY:
         return null;
       case GameCommandType.OPEN_INSPECTION:
+        return state.currentPhase === GamePhase.MAIN_PHASE ||
+          isSuccessEffectWindow ||
+          isPerformanceFreeInteraction
+          ? null
+          : '当前不是主要阶段';
       case GameCommandType.TAP_MEMBER:
       case GameCommandType.MOVE_TABLE_CARD:
       case GameCommandType.MOVE_MEMBER_TO_SLOT:
@@ -1003,14 +1118,34 @@ export class GameSession {
       case GameCommandType.PLAY_MEMBER_TO_SLOT:
       case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
       case GameCommandType.DRAW_CARD_TO_HAND:
-      case GameCommandType.DRAW_ENERGY_TO_ZONE:
       case GameCommandType.RETURN_HAND_CARD_TO_TOP:
-        return state.currentPhase === GamePhase.MAIN_PHASE ? null : '当前不是主要阶段';
-      case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
         return state.currentPhase === GamePhase.MAIN_PHASE ||
+          isSuccessEffectWindow ||
+          isPerformanceFreeInteraction
+          ? null
+          : '当前不是主要阶段';
+      case GameCommandType.DRAW_ENERGY_TO_ZONE:
+        return state.currentPhase === GamePhase.MAIN_PHASE ||
+          isSuccessEffectWindow ||
+          isPerformanceFreeInteraction ||
+          state.currentPhase === GamePhase.LIVE_SET_PHASE
+          ? null
+          : '当前不是可放置能量阶段';
+      case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
+      case GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK:
+        return state.currentPhase === GamePhase.MAIN_PHASE ||
+          isSuccessEffectWindow ||
+          isPerformanceFreeInteraction ||
           state.currentPhase === GamePhase.LIVE_SET_PHASE
           ? null
           : '当前不是可回手阶段';
+      case GameCommandType.MOVE_OWNED_CARD_TO_ZONE:
+        return state.currentPhase === GamePhase.MAIN_PHASE ||
+          isSuccessEffectWindow ||
+          isPerformanceFreeInteraction ||
+          state.currentPhase === GamePhase.LIVE_SET_PHASE
+          ? null
+          : '当前不是可拖拽阶段';
       case GameCommandType.REVEAL_CHEER_CARD:
       case GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE:
       case GameCommandType.CONFIRM_PERFORMANCE_OUTCOME:
@@ -1019,12 +1154,15 @@ export class GameSession {
           ? null
           : '当前不是 Live 判定子阶段';
       case GameCommandType.SUBMIT_SCORE:
-        return state.currentSubPhase === SubPhase.RESULT_SETTLEMENT ? null : '当前不是分数确认阶段';
-      case GameCommandType.SELECT_SUCCESS_LIVE:
-        return state.currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
-          state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
+        return state.currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM
           ? null
-          : '当前不是成功 Live 选择阶段';
+          : '当前不是分数确认阶段';
+      case GameCommandType.SELECT_SUCCESS_LIVE:
+        return state.currentSubPhase === SubPhase.RESULT_SETTLEMENT ||
+          state.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ||
+          state.currentSubPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS
+          ? null
+          : '当前不是成功 Live 结算阶段';
       default:
         return null;
     }
@@ -1034,14 +1172,7 @@ export class GameSession {
     const inspectionContext = state.inspectionContext;
 
     if (!inspectionContext) {
-      if (
-        command.type === GameCommandType.MOVE_INSPECTED_CARD_TO_TOP ||
-        command.type === GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM ||
-        command.type === GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE ||
-        command.type === GameCommandType.REVEAL_INSPECTED_CARD ||
-        command.type === GameCommandType.REORDER_INSPECTED_CARD ||
-        command.type === GameCommandType.FINISH_INSPECTION
-      ) {
+      if (isInspectionCommandType(command.type)) {
         return '当前没有进行中的检视流程';
       }
       return null;
@@ -1051,15 +1182,7 @@ export class GameSession {
       return '当前正在等待检视玩家完成操作';
     }
 
-    if (
-      command.type !== GameCommandType.OPEN_INSPECTION &&
-      command.type !== GameCommandType.REVEAL_INSPECTED_CARD &&
-      command.type !== GameCommandType.MOVE_INSPECTED_CARD_TO_TOP &&
-      command.type !== GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM &&
-      command.type !== GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE &&
-      command.type !== GameCommandType.REORDER_INSPECTED_CARD &&
-      command.type !== GameCommandType.FINISH_INSPECTION
-    ) {
+    if (isBlockedDuringInspection(command.type)) {
       return '当前处于检视流程，请先完成检视';
     }
 
@@ -1170,6 +1293,10 @@ export class GameSession {
         return this.applyMovePublicCardToWaitingRoomCommand(state, command);
       case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
         return this.applyMovePublicCardToHandCommand(state, command);
+      case GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK:
+        return this.applyMovePublicCardToEnergyDeckCommand(state, command);
+      case GameCommandType.MOVE_OWNED_CARD_TO_ZONE:
+        return this.applyMoveOwnedCardToZoneCommand(state, command);
       case GameCommandType.FINISH_INSPECTION:
         return this.applyFinishInspectionCommand(state, command);
       case GameCommandType.CONFIRM_STEP:
@@ -1340,16 +1467,87 @@ export class GameSession {
     };
   }
 
+  private applyPreCommandRefreshIfNeeded(
+    state: GameState,
+    playerId: string,
+    options?: {
+      checkTopCount?: number;
+    }
+  ): { gameState: GameState; extraPublicEvents: PublicEventDraft[] } {
+    const refreshActions = ruleActionProcessor.collectPendingRefreshActions(state, {
+      checkTopPlayerId: playerId,
+      checkTopCount: options?.checkTopCount,
+    });
+
+    if (refreshActions.length === 0) {
+      return {
+        gameState: state,
+        extraPublicEvents: [],
+      };
+    }
+
+    let workingState = state;
+    const extraPublicEvents: PublicEventDraft[] = [];
+
+    for (const action of refreshActions) {
+      if (action.type !== RuleActionType.REFRESH || !action.affectedPlayerId) {
+        continue;
+      }
+
+      const beforePlayer = getPlayerById(workingState, action.affectedPlayerId);
+      const nextState = applyRuleActionResult(workingState, action, (cardId) => {
+        const card = workingState.cardRegistry.get(cardId);
+        return card?.data.cardType ?? null;
+      });
+      const afterPlayer = getPlayerById(nextState, action.affectedPlayerId);
+      const ownerSeat = getSeatForPlayer(nextState, action.affectedPlayerId);
+      const movedCount = beforePlayer?.waitingRoom.cardIds.length ?? 0;
+      const mainDeckCountAfter = afterPlayer?.mainDeck.cardIds.length ?? 0;
+
+      workingState = addAction(nextState, 'RULE_ACTION', null, {
+        type: action.type,
+        description: action.description,
+        affectedPlayerId: action.affectedPlayerId,
+        movedCount,
+        mainDeckCountAfter,
+        publicEventHandled: true,
+      });
+
+      if (ownerSeat) {
+        extraPublicEvents.push({
+          type: 'DeckRefreshed',
+          source: 'SYSTEM',
+          ownerSeat,
+          movedCount,
+          mainDeckCountAfter,
+        });
+      }
+    }
+
+    return {
+      gameState: workingState,
+      extraPublicEvents,
+    };
+  }
+
   private applyOpenInspectionCommand(
     initialState: GameState,
     command: OpenInspectionCommand
   ): CommandExecutionResult {
-    const player = initialState.players.find((candidate) => candidate.id === command.playerId);
+    const preRefreshResult =
+      command.sourceZone === ZoneType.MAIN_DECK
+        ? this.applyPreCommandRefreshIfNeeded(initialState, command.playerId, {
+            checkTopCount: command.count,
+          })
+        : { gameState: initialState, extraPublicEvents: [] };
+    let workingState = preRefreshResult.gameState;
+
+    const player = workingState.players.find((candidate) => candidate.id === command.playerId);
     if (!player) {
       return { success: false, gameState: initialState, error: '玩家不存在' };
     }
 
-    const actorSeat = getSeatForPlayer(initialState, command.playerId);
+    const actorSeat = getSeatForPlayer(workingState, command.playerId);
     if (!actorSeat) {
       return { success: false, gameState: initialState, error: '玩家不存在' };
     }
@@ -1357,8 +1555,8 @@ export class GameSession {
     const sourceZone =
       command.sourceZone === ZoneType.ENERGY_DECK ? player.energyDeck : player.mainDeck;
     const cardIds = sourceZone.cardIds.slice(0, command.count);
-    let workingState = initialState;
     const extraPublicEvents: PublicEventDraft[] = [
+      ...preRefreshResult.extraPublicEvents,
       {
         type: 'CardsInspectedSummary',
         source: 'PLAYER',
@@ -1371,7 +1569,12 @@ export class GameSession {
 
     for (const cardId of cardIds) {
       // Remove from source deck
-      workingState = removeCardFromPlayerZone(workingState, command.playerId, cardId, command.sourceZone);
+      workingState = removeCardFromPlayerZone(
+        workingState,
+        command.playerId,
+        cardId,
+        command.sourceZone
+      );
       // Add to inspection zone
       workingState = addCardToInspectionZone(workingState, cardId);
 
@@ -1381,6 +1584,12 @@ export class GameSession {
           to: createInspectionZoneRef(actorSeat, workingState.inspectionZone.cardIds.length - 1),
         })
       );
+    }
+
+    if (command.sourceZone === ZoneType.MAIN_DECK) {
+      const postRefreshResult = this.applyPreCommandRefreshIfNeeded(workingState, command.playerId);
+      workingState = postRefreshResult.gameState;
+      extraPublicEvents.push(...postRefreshResult.extraPublicEvents);
     }
 
     // Set or keep inspection context (append semantics)
@@ -1425,14 +1634,17 @@ export class GameSession {
     state: GameState,
     command: RevealCheerCardCommand
   ): CommandExecutionResult {
-    const actorSeat = getSeatForPlayer(state, command.playerId);
+    const preRefreshResult = this.applyPreCommandRefreshIfNeeded(state, command.playerId);
+    const actorSeat = getSeatForPlayer(preRefreshResult.gameState, command.playerId);
     if (!actorSeat) {
       return { success: false, gameState: state, error: '玩家不存在' };
     }
 
-    const beforeOwnedResolution = new Set(getOwnedResolutionCardIds(state, command.playerId));
+    const beforeOwnedResolution = new Set(
+      getOwnedResolutionCardIds(preRefreshResult.gameState, command.playerId)
+    );
     const result = this.gameService.processAction(
-      state,
+      preRefreshResult.gameState,
       createPerformCheerAction(command.playerId, 1)
     );
     if (!result.success) {
@@ -1449,6 +1661,7 @@ export class GameSession {
         gameState: result.gameState,
         declarationType: 'CHEER_REVEALED',
         declarationPublicValue: 0,
+        extraPublicEvents: [...preRefreshResult.extraPublicEvents],
       };
     }
 
@@ -1460,10 +1673,17 @@ export class GameSession {
       declarationType: 'CHEER_REVEALED',
       declarationPublicValue: 1,
       extraPublicEvents: [
-        buildCardMovedPublicEvent(state, result.gameState, actorSeat, revealedCardId, {
-          from: createOwnedZoneRef(ZoneType.MAIN_DECK, actorSeat, { index: 0 }),
-          to: createResolutionZoneRef(getResolutionIndex(result.gameState, revealedCardId)),
-        }),
+        ...preRefreshResult.extraPublicEvents,
+        buildCardMovedPublicEvent(
+          preRefreshResult.gameState,
+          result.gameState,
+          actorSeat,
+          revealedCardId,
+          {
+            from: createOwnedZoneRef(ZoneType.MAIN_DECK, actorSeat, { index: 0 }),
+            to: createResolutionZoneRef(getResolutionIndex(result.gameState, revealedCardId)),
+          }
+        ),
         buildCardRevealedPublicEvent(revealedState, actorSeat, revealedCardId, {
           from: createResolutionZoneRef(getResolutionIndex(revealedState, revealedCardId)),
           reason: 'CHEER_REVEAL',
@@ -1731,6 +1951,11 @@ export class GameSession {
       return { success: false, gameState: state, error: '玩家不存在' };
     }
 
+    const playerBefore = state.players.find((p) => p.id === command.playerId);
+    const displacedCardId = playerBefore?.memberSlots.slots[command.targetSlot] ?? null;
+    const sourceEnergyBelowBefore = playerBefore?.memberSlots.energyBelow[command.sourceSlot] ?? [];
+    const targetEnergyBelowBefore = playerBefore?.memberSlots.energyBelow[command.targetSlot] ?? [];
+
     const result = this.gameService.processAction(
       state,
       createManualMoveCardAction(
@@ -1748,27 +1973,90 @@ export class GameSession {
       return { success: false, gameState: state, error: result.error };
     }
 
-    return {
-      success: true,
-      gameState: result.gameState,
-      declarationType: 'MEMBER_MOVED_TO_SLOT',
-      declarationPublicValue: `${command.sourceSlot}->${command.targetSlot}`,
-      extraPublicEvents: [
-        buildCardMovedPublicEvent(state, result.gameState, actorSeat, command.cardId, {
-          from: buildZoneRefForMove(state, command.playerId, command.cardId, ZoneType.MEMBER_SLOT, {
+    const extraPublicEvents = [
+      // 主成员：sourceSlot -> targetSlot
+      buildCardMovedPublicEvent(state, result.gameState, actorSeat, command.cardId, {
+        from: buildZoneRefForMove(state, command.playerId, command.cardId, ZoneType.MEMBER_SLOT, {
+          slot: command.sourceSlot,
+        }),
+        to: buildZoneRefForMove(
+          result.gameState,
+          command.playerId,
+          command.cardId,
+          ZoneType.MEMBER_SLOT,
+          {
+            slot: command.targetSlot,
+          }
+        ),
+      }),
+    ];
+
+    // 被置换的成员：targetSlot -> sourceSlot（仅当 swap 场景，target 原本有成员）
+    if (displacedCardId && displacedCardId !== command.cardId) {
+      extraPublicEvents.push(
+        buildCardMovedPublicEvent(state, result.gameState, actorSeat, displacedCardId, {
+          from: buildZoneRefForMove(
+            state,
+            command.playerId,
+            displacedCardId,
+            ZoneType.MEMBER_SLOT,
+            { slot: command.targetSlot }
+          ),
+          to: buildZoneRefForMove(
+            result.gameState,
+            command.playerId,
+            displacedCardId,
+            ZoneType.MEMBER_SLOT,
+            { slot: command.sourceSlot }
+          ),
+        })
+      );
+    }
+
+    // 随主成员迁移的 energyBelow：sourceSlot -> targetSlot
+    sourceEnergyBelowBefore.forEach((energyCardId) => {
+      extraPublicEvents.push(
+        buildCardMovedPublicEvent(state, result.gameState, actorSeat, energyCardId, {
+          from: buildZoneRefForMove(state, command.playerId, energyCardId, ZoneType.MEMBER_SLOT, {
             slot: command.sourceSlot,
           }),
           to: buildZoneRefForMove(
             result.gameState,
             command.playerId,
-            command.cardId,
+            energyCardId,
             ZoneType.MEMBER_SLOT,
-            {
-              slot: command.targetSlot,
-            }
+            { slot: command.targetSlot }
           ),
-        }),
-      ],
+        })
+      );
+    });
+
+    // 随被置换成员迁移的 energyBelow：targetSlot -> sourceSlot（仅 swap 场景）
+    if (displacedCardId && displacedCardId !== command.cardId) {
+      targetEnergyBelowBefore.forEach((energyCardId) => {
+        extraPublicEvents.push(
+          buildCardMovedPublicEvent(state, result.gameState, actorSeat, energyCardId, {
+            from: buildZoneRefForMove(state, command.playerId, energyCardId, ZoneType.MEMBER_SLOT, {
+              slot: command.targetSlot,
+            }),
+            to: buildZoneRefForMove(
+              result.gameState,
+              command.playerId,
+              energyCardId,
+              ZoneType.MEMBER_SLOT,
+              { slot: command.sourceSlot }
+            ),
+          })
+        );
+      });
+    }
+
+    return {
+      success: true,
+      gameState: result.gameState,
+      declarationType: 'MEMBER_MOVED_TO_SLOT',
+      declarationPublicValue: `${command.sourceSlot}->${command.targetSlot}`,
+      extraPublicEvents,
     };
   }
 
@@ -1781,7 +2069,15 @@ export class GameSession {
       return { success: false, gameState: state, error: '玩家不存在' };
     }
 
-    const fromRef = buildZoneRefForMove(state, command.playerId, command.cardId, command.fromZone);
+    const fromRef = buildZoneRefForMove(
+      state,
+      command.playerId,
+      command.cardId,
+      command.fromZone,
+      command.fromZone === ZoneType.MEMBER_SLOT && command.sourceSlot
+        ? { slot: command.sourceSlot }
+        : undefined
+    );
     const result = this.gameService.processAction(
       state,
       createManualMoveCardAction(
@@ -1791,6 +2087,7 @@ export class GameSession {
         ZoneType.MEMBER_SLOT,
         {
           targetSlot: command.targetSlot,
+          sourceSlot: command.sourceSlot,
         }
       )
     );
@@ -1978,21 +2275,126 @@ export class GameSession {
     };
   }
 
+  private applyMovePublicCardToEnergyDeckCommand(
+    state: GameState,
+    command: MovePublicCardToEnergyDeckCommand
+  ): CommandExecutionResult {
+    const actorSeat = getSeatForPlayer(state, command.playerId);
+    if (!actorSeat) {
+      return { success: false, gameState: state, error: '玩家不存在' };
+    }
+
+    const result = this.gameService.processAction(
+      state,
+      createManualMoveCardAction(
+        command.playerId,
+        command.cardId,
+        command.fromZone,
+        ZoneType.ENERGY_DECK,
+        {
+          position: 'TOP',
+        }
+      )
+    );
+    if (!result.success) {
+      return { success: false, gameState: state, error: result.error };
+    }
+
+    return {
+      success: true,
+      gameState: result.gameState,
+      declarationType: 'MOVE_PUBLIC_CARD_TO_ENERGY_DECK',
+      declarationPublicValue: command.fromZone,
+      extraPublicEvents: [
+        buildCardMovedPublicEvent(state, result.gameState, actorSeat, command.cardId, {
+          from: buildZoneRefForMove(state, command.playerId, command.cardId, command.fromZone),
+          to: buildZoneRefForMove(
+            result.gameState,
+            command.playerId,
+            command.cardId,
+            ZoneType.ENERGY_DECK,
+            {
+              position: 'TOP',
+            }
+          ),
+        }),
+      ],
+    };
+  }
+
+  private applyMoveOwnedCardToZoneCommand(
+    state: GameState,
+    command: MoveOwnedCardToZoneCommand
+  ): CommandExecutionResult {
+    const actorSeat = getSeatForPlayer(state, command.playerId);
+    if (!actorSeat) {
+      return { success: false, gameState: state, error: '玩家不存在' };
+    }
+
+    const result = this.gameService.processAction(
+      state,
+      createManualMoveCardAction(
+        command.playerId,
+        command.cardId,
+        command.fromZone,
+        command.toZone,
+        {
+          targetSlot: command.targetSlot,
+          position: command.position,
+        }
+      )
+    );
+    if (!result.success) {
+      return { success: false, gameState: state, error: result.error };
+    }
+
+    return {
+      success: true,
+      gameState: result.gameState,
+      declarationType: 'MOVE_OWNED_CARD_TO_ZONE',
+      declarationPublicValue: `${command.fromZone}->${command.toZone}`,
+      extraPublicEvents: [
+        buildCardMovedPublicEvent(state, result.gameState, actorSeat, command.cardId, {
+          from: buildZoneRefForMove(state, command.playerId, command.cardId, command.fromZone),
+          to: buildZoneRefForMove(
+            result.gameState,
+            command.playerId,
+            command.cardId,
+            command.toZone,
+            {
+              slot: command.targetSlot,
+              position: command.position,
+            }
+          ),
+        }),
+      ],
+    };
+  }
+
   private applyFinishInspectionCommand(
     state: GameState,
     command: FinishInspectionCommand
   ): CommandExecutionResult {
+    const remainingCardIds = getOwnedInspectionCardIds(state, command.playerId);
+    if (remainingCardIds.length > 0) {
+      return {
+        success: false,
+        gameState: state,
+        error: '检视区仍有未处理的卡牌',
+      };
+    }
+
     return {
       success: true,
       gameState: withInspectionContext(state, null),
       declarationType: 'INSPECTION_FINISHED',
-      declarationPublicValue: getOwnedInspectionCardIds(state, command.playerId).length,
+      declarationPublicValue: remainingCardIds.length,
       sealedAuditRecords: [
         {
           type: 'INSPECTION_FINISHED',
           actorSeat: getSeatForPlayer(state, command.playerId) ?? undefined,
           payload: {
-            remainingCardIds: [...getOwnedInspectionCardIds(state, command.playerId)],
+            remainingCardIds: [...remainingCardIds],
           },
         },
       ],
@@ -2135,7 +2537,10 @@ export class GameSession {
     state: GameState,
     command: DrawCardToHandCommand
   ): CommandExecutionResult {
-    const player = state.players.find((candidate) => candidate.id === command.playerId);
+    const preRefreshResult = this.applyPreCommandRefreshIfNeeded(state, command.playerId);
+    const player = preRefreshResult.gameState.players.find(
+      (candidate) => candidate.id === command.playerId
+    );
     if (!player) {
       return { success: false, gameState: state, error: '玩家不存在' };
     }
@@ -2146,7 +2551,7 @@ export class GameSession {
     }
 
     const result = this.gameService.processAction(
-      state,
+      preRefreshResult.gameState,
       createManualMoveCardAction(command.playerId, topCardId, ZoneType.MAIN_DECK, ZoneType.HAND)
     );
     if (!result.success) {
@@ -2158,8 +2563,9 @@ export class GameSession {
       gameState: result.gameState,
       declarationType: 'DRAW_TO_HAND',
       declarationPublicValue: 1,
+      extraPublicEvents: [...preRefreshResult.extraPublicEvents],
       privateEventsBySeat: {
-        [getSeatForPlayer(state, command.playerId) ?? 'FIRST']: [
+        [getSeatForPlayer(preRefreshResult.gameState, command.playerId) ?? 'FIRST']: [
           {
             type: 'DRAW_RESOLVED',
             payload: {
@@ -2172,7 +2578,7 @@ export class GameSession {
       sealedAuditRecords: [
         {
           type: 'DRAW_RESOLVED',
-          actorSeat: getSeatForPlayer(state, command.playerId) ?? undefined,
+          actorSeat: getSeatForPlayer(preRefreshResult.gameState, command.playerId) ?? undefined,
           payload: {
             cardIds: [topCardId],
             count: 1,
@@ -2332,260 +2738,6 @@ export class GameSession {
   }
 
   /**
-   * 对墙打模式：自动跳过对手阶段
-   *
-   * 根据刚刚执行的动作类型和当前状态，决定是否需要自动触发对手的跳过动作。
-   */
-  private handleSolitaireAutoSkip(lastAction: GameAction): GameState {
-    if (!this.authorityState) throw new Error('Solitaire auto-skip: authorityState is null');
-
-    const state = this.authorityState;
-    const opponentId = this.getOpponentId(lastAction.playerId);
-    if (!opponentId) return state;
-
-    // 1. 玩家完成换牌 → 自动跳过对手换牌
-    if (lastAction.type === 'MULLIGAN' && state.currentPhase === GamePhase.MULLIGAN_PHASE) {
-      const mulliganAction = createMulliganAction(opponentId, []);
-      const result = this.gameService.processAction(state, mulliganAction);
-      if (result.success) {
-        this.setAuthorityState(result.gameState, {
-          source: 'SYSTEM',
-          actorPlayerId: opponentId,
-          declarationActionType: mulliganAction.type,
-        });
-        this.emitEvent({
-          type: 'ACTION_EXECUTED',
-          action: mulliganAction,
-          playerId: opponentId,
-        });
-        this.autoAdvance(this.authorityState);
-      }
-      return this.authorityState!;
-    }
-
-    // 2. LIVE_SET_PHASE 中对手的子阶段自动跳过
-    //    玩家完成盖牌后，子阶段链推进到对手的 LIVE_SET_SECOND_PLAYER，自动确认
-    if (
-      state.currentPhase === GamePhase.LIVE_SET_PHASE &&
-      state.currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER
-    ) {
-      const confirmAction = createConfirmSubPhaseAction(
-        opponentId,
-        SubPhase.LIVE_SET_SECOND_PLAYER
-      );
-      const result = this.gameService.processAction(this.authorityState, confirmAction);
-      if (result.success) {
-        this.setAuthorityState(result.gameState, {
-          source: 'SYSTEM',
-          actorPlayerId: opponentId,
-          declarationActionType: confirmAction.type,
-        });
-        this.emitEvent({
-          type: 'ACTION_EXECUTED',
-          action: confirmAction,
-          playerId: opponentId,
-        });
-        this.autoAdvance(this.authorityState);
-      }
-      return this.authorityState!;
-    }
-
-    // 3. 进入 PERFORMANCE_PHASE 且活跃玩家是对手 → 自动跳过对手演出
-    if (state.currentPhase === GamePhase.PERFORMANCE_PHASE && this.isActivePlayer(opponentId)) {
-      return this.skipOpponentPerformance(opponentId);
-    }
-
-    // 4. 对手通常阶段自动跳过：活跃/能量/抽卡已在 autoAdvance 中处理，
-    //    主要阶段需要自动 END_PHASE
-    if (state.currentPhase === GamePhase.MAIN_PHASE && this.isActivePlayer(opponentId)) {
-      const endAction = createEndPhaseAction(opponentId);
-      const result = this.gameService.processAction(this.authorityState, endAction);
-      if (result.success) {
-        this.setAuthorityState(result.gameState, {
-          source: 'SYSTEM',
-          actorPlayerId: opponentId,
-          declarationActionType: endAction.type,
-        });
-        this.emitEvent({
-          type: 'ACTION_EXECUTED',
-          action: endAction,
-          playerId: opponentId,
-        });
-        this.autoAdvance(this.authorityState);
-      }
-      return this.authorityState!;
-    }
-
-    // 5. LIVE_RESULT_PHASE 中对手的成功效果子阶段自动跳过
-    if (
-      state.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-      state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
-    ) {
-      // 对手没有成功卡，直接跳过
-      const confirmAction = createConfirmSubPhaseAction(
-        opponentId,
-        SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
-      );
-      const result = this.gameService.processAction(this.authorityState, confirmAction);
-      if (result.success) {
-        this.setAuthorityState(result.gameState, {
-          source: 'SYSTEM',
-          actorPlayerId: opponentId,
-          declarationActionType: confirmAction.type,
-        });
-        this.emitEvent({
-          type: 'ACTION_EXECUTED',
-          action: confirmAction,
-          playerId: opponentId,
-        });
-        this.autoAdvance(this.authorityState);
-
-        // 紧接着若已进入 RESULT_SETTLEMENT，继续自动为对手确认分数，
-        // 避免玩家下一步点"确认完成"时因为"双方未确认分数"而卡死。
-        if (
-          this.authorityState.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-          this.authorityState.currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
-          !this.authorityState.liveResolution.scoreConfirmedBy.includes(opponentId)
-        ) {
-          const opponentScore =
-            this.authorityState.liveResolution.playerScores.get(opponentId) ?? 0;
-          const confirmScoreAction = createConfirmScoreAction(opponentId, opponentScore);
-          const scoreResult = this.gameService.processAction(
-            this.authorityState,
-            confirmScoreAction
-          );
-          if (scoreResult.success) {
-            this.setAuthorityState(scoreResult.gameState, {
-              source: 'SYSTEM',
-              actorPlayerId: opponentId,
-              declarationActionType: confirmScoreAction.type,
-            });
-            this.emitEvent({
-              type: 'ACTION_EXECUTED',
-              action: confirmScoreAction,
-              playerId: opponentId,
-            });
-            this.autoAdvance(this.authorityState);
-          }
-        }
-      }
-      return this.authorityState!;
-    }
-
-    // 6. LIVE_RESULT_PHASE 的最终分数确认：自动为对手确认分数，避免墙打卡死
-    if (
-      state.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-      state.currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
-      !state.liveResolution.scoreConfirmedBy.includes(opponentId)
-    ) {
-      const opponentScore = state.liveResolution.playerScores.get(opponentId) ?? 0;
-      const confirmScoreAction = createConfirmScoreAction(opponentId, opponentScore);
-      const result = this.gameService.processAction(this.authorityState, confirmScoreAction);
-      if (result.success) {
-        this.setAuthorityState(result.gameState, {
-          source: 'SYSTEM',
-          actorPlayerId: opponentId,
-          declarationActionType: confirmScoreAction.type,
-        });
-        this.emitEvent({
-          type: 'ACTION_EXECUTED',
-          action: confirmScoreAction,
-          playerId: opponentId,
-        });
-        this.autoAdvance(this.authorityState);
-      }
-      return this.authorityState!;
-    }
-
-    return this.authorityState!;
-  }
-
-  private handleSolitaireAutoSkipAfterCommand(playerId: string): GameState {
-    if (!this.authorityState) {
-      throw new Error('Solitaire auto-skip after command: authorityState is null');
-    }
-
-    const state = this.authorityState;
-    const opponentId = this.getOpponentId(playerId);
-    if (!opponentId) {
-      return state;
-    }
-
-    if (state.currentPhase === GamePhase.PERFORMANCE_PHASE && this.isActivePlayer(opponentId)) {
-      return this.skipOpponentPerformance(opponentId);
-    }
-
-    if (state.currentPhase === GamePhase.MAIN_PHASE && this.isActivePlayer(opponentId)) {
-      const endAction = createEndPhaseAction(opponentId);
-      const result = this.gameService.processAction(this.authorityState, endAction);
-      if (result.success) {
-        this.setAuthorityState(result.gameState, {
-          source: 'SYSTEM',
-          actorPlayerId: opponentId,
-          declarationActionType: endAction.type,
-        });
-        this.emitEvent({
-          type: 'ACTION_EXECUTED',
-          action: endAction,
-          playerId: opponentId,
-        });
-        this.autoAdvance(this.authorityState);
-      }
-      return this.authorityState!;
-    }
-
-    if (
-      state.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-      state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
-    ) {
-      const confirmAction = createConfirmSubPhaseAction(
-        opponentId,
-        SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
-      );
-      const result = this.gameService.processAction(this.authorityState, confirmAction);
-      if (result.success) {
-        this.setAuthorityState(result.gameState, {
-          source: 'SYSTEM',
-          actorPlayerId: opponentId,
-          declarationActionType: confirmAction.type,
-        });
-        this.emitEvent({
-          type: 'ACTION_EXECUTED',
-          action: confirmAction,
-          playerId: opponentId,
-        });
-        this.autoAdvance(this.authorityState);
-      }
-      return this.authorityState!;
-    }
-
-    if (
-      state.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-      state.currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
-      !state.liveResolution.scoreConfirmedBy.includes(opponentId)
-    ) {
-      const opponentScore = state.liveResolution.playerScores.get(opponentId) ?? 0;
-      const confirmScoreAction = createConfirmScoreAction(opponentId, opponentScore);
-      const result = this.gameService.processAction(this.authorityState, confirmScoreAction);
-      if (result.success) {
-        this.setAuthorityState(result.gameState, {
-          source: 'SYSTEM',
-          actorPlayerId: opponentId,
-          declarationActionType: confirmScoreAction.type,
-        });
-        this.emitEvent({
-          type: 'ACTION_EXECUTED',
-          action: confirmScoreAction,
-          playerId: opponentId,
-        });
-        this.autoAdvance(this.authorityState);
-      }
-    }
-
-    return this.authorityState!;
-  }
-
-  /**
    * 跳过对手的演出阶段
    *
    * 对手没有放置 Live 卡，演出阶段的翻卡/效果/判定均无实际操作。
@@ -2619,7 +2771,8 @@ export class GameSession {
         });
       } else if (
         subPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS ||
-        subPhase === SubPhase.PERFORMANCE_JUDGMENT
+        subPhase === SubPhase.PERFORMANCE_JUDGMENT ||
+        subPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS
       ) {
         // 效果窗口/判定子阶段：dispatch CONFIRM_SUB_PHASE 跳过
         const confirmAction = createConfirmSubPhaseAction(opponentId, subPhase);
@@ -2655,15 +2808,6 @@ export class GameSession {
 
     this.setAuthorityState(state, { source: 'SYSTEM' });
     return state;
-  }
-
-  /**
-   * 获取对手玩家 ID
-   */
-  private getOpponentId(playerId: string): string | null {
-    if (!this.authorityState) return null;
-    const opponent = this.authorityState.players.find((p) => p.id !== playerId);
-    return opponent?.id ?? null;
   }
 
   /**
@@ -2721,12 +2865,12 @@ export class GameSession {
 
   private setAuthorityState(nextState: GameState, options: StateTransitionOptions = {}): void {
     const previousState = this.authorityState;
-    const normalizedState = normalizeInspectionState(nextState);
-    this.authorityState = normalizedState;
-    this.recordPublicStateTransition(previousState, normalizedState, options);
-    this.recordPrivateStateTransition(normalizedState, options);
-    this.recordSealedAuditTransition(normalizedState, options);
-    this.recordAuthoritySnapshot(normalizedState);
+    assertInspectionStateInvariant(nextState);
+    this.authorityState = nextState;
+    this.recordPublicStateTransition(previousState, nextState, options);
+    this.recordPrivateStateTransition(nextState, options);
+    this.recordSealedAuditTransition(nextState, options);
+    this.recordAuthoritySnapshot(nextState);
   }
 
   private recordPublicStateTransition(
@@ -2752,6 +2896,12 @@ export class GameSession {
 
     for (const event of options.extraPublicEvents ?? []) {
       this.appendPublicEvent(nextState, event);
+    }
+
+    if (previousState) {
+      for (const event of buildDeckRefreshPublicEvents(previousState, nextState)) {
+        this.appendPublicEvent(nextState, event);
+      }
     }
 
     if (!previousState || previousState.currentPhase !== nextState.currentPhase) {
@@ -2782,15 +2932,16 @@ export class GameSession {
     const nextWindowSignature = getWindowSignature(nextWindow);
 
     if (!previousState || previousWindowSignature !== nextWindowSignature) {
+      const status = deriveWindowStatus(previousWindow, nextWindow);
       this.appendPublicEvent(nextState, {
         type: 'WindowStatusChanged',
         source,
         actorSeat: actorSeat ?? undefined,
-        windowType: mapWindowType(nextWindow),
-        status: deriveWindowStatus(previousWindow, nextWindow),
+        windowType: nextWindow?.windowType ?? null,
+        status,
         actingSeat: nextWindow?.actingSeat ?? null,
-        waitingSeats: nextWindow?.waitingForSeat ? [nextWindow.waitingForSeat] : [],
-        window: nextWindow,
+        waitingSeats: nextWindow?.waitingSeats ?? [],
+        window: nextWindow ? { ...nextWindow, status } : null,
       });
     }
 
@@ -3004,6 +3155,50 @@ function buildCardRevealedAndMovedPublicEvent(
     to: options.to,
     reason: options.reason,
   };
+}
+
+function buildDeckRefreshPublicEvents(
+  previousState: GameState,
+  nextState: GameState
+): PublicEventDraft[] {
+  const newActions = nextState.actionHistory.slice(previousState.actionHistory.length);
+  const events: PublicEventDraft[] = [];
+
+  for (const action of newActions) {
+    if (action.type !== 'RULE_ACTION') {
+      continue;
+    }
+    if (action.payload.type !== RuleActionType.REFRESH) {
+      continue;
+    }
+    if (action.payload.publicEventHandled === true) {
+      continue;
+    }
+
+    const affectedPlayerId =
+      typeof action.payload.affectedPlayerId === 'string' ? action.payload.affectedPlayerId : null;
+    if (!affectedPlayerId) {
+      continue;
+    }
+
+    const ownerSeat = getSeatForPlayer(nextState, affectedPlayerId);
+    if (!ownerSeat) {
+      continue;
+    }
+
+    events.push({
+      type: 'DeckRefreshed',
+      source: 'SYSTEM',
+      ownerSeat,
+      movedCount: typeof action.payload.movedCount === 'number' ? action.payload.movedCount : 0,
+      mainDeckCountAfter:
+        typeof action.payload.mainDeckCountAfter === 'number'
+          ? action.payload.mainDeckCountAfter
+          : 0,
+    });
+  }
+
+  return events;
 }
 
 function buildSystemDerivedPublicEvents(
@@ -3224,28 +3419,6 @@ function areZoneRefsEqual(left: PublicZoneRef, right: PublicZoneRef): boolean {
   );
 }
 
-function mapWindowType(window: ReturnType<typeof buildViewWindowState>): PublicWindowType | null {
-  if (!window) {
-    return null;
-  }
-
-  switch (window.type) {
-    case 'INSPECTION':
-      return 'INSPECTION';
-    case 'EFFECT':
-    case 'JUDGMENT':
-      return 'SERIAL_PRIORITY';
-    case 'MULLIGAN':
-    case 'RESULT':
-      return 'SIMULTANEOUS_COMMIT';
-    case 'LIVE_SET':
-    case 'INPUT':
-    case 'NONE':
-    default:
-      return 'SHARED_CONFIRM';
-  }
-}
-
 function deriveWindowStatus(
   previousWindow: ReturnType<typeof buildViewWindowState>,
   nextWindow: ReturnType<typeof buildViewWindowState>
@@ -3275,7 +3448,10 @@ function buildDetailedPublicCardInfo(state: GameState, cardId: string): PublicCa
   };
 }
 
-function createInspectionZoneRef(ownerSeat: Seat, index?: number): PublicZoneRef & { readonly zone: ZoneType.INSPECTION_ZONE } {
+function createInspectionZoneRef(
+  ownerSeat: Seat,
+  index?: number
+): PublicZoneRef & { readonly zone: ZoneType.INSPECTION_ZONE } {
   return {
     zone: ZoneType.INSPECTION_ZONE,
     ownerSeat,
@@ -3319,6 +3495,28 @@ function createOwnedZoneRef(
   };
 }
 
+function isInspectionCommandType(commandType: GameCommandType): boolean {
+  return (
+    commandType === GameCommandType.REVEAL_INSPECTED_CARD ||
+    commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_TOP ||
+    commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM ||
+    commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE ||
+    commandType === GameCommandType.REORDER_INSPECTED_CARD ||
+    commandType === GameCommandType.FINISH_INSPECTION
+  );
+}
+
+function isBlockedDuringInspection(commandType: GameCommandType): boolean {
+  return (
+    commandType === GameCommandType.END_PHASE ||
+    commandType === GameCommandType.CONFIRM_STEP ||
+    commandType === GameCommandType.CONFIRM_PERFORMANCE_OUTCOME ||
+    commandType === GameCommandType.SUBMIT_JUDGMENT ||
+    commandType === GameCommandType.SUBMIT_SCORE ||
+    commandType === GameCommandType.SELECT_SUCCESS_LIVE
+  );
+}
+
 function withInspectionContext(
   state: GameState,
   inspectionContext: InspectionContextState | null
@@ -3329,19 +3527,12 @@ function withInspectionContext(
   };
 }
 
-function normalizeInspectionState(state: GameState): GameState {
-  if (!state.inspectionContext) {
-    return state;
+function assertInspectionStateInvariant(state: GameState): void {
+  if (!state.inspectionContext && state.inspectionZone.cardIds.length > 0) {
+    throw new Error(
+      'Inspection state invariant violated: inspection zone contains cards without context'
+    );
   }
-
-  if (
-    state.currentPhase === GamePhase.PERFORMANCE_PHASE ||
-    state.currentPhase === GamePhase.LIVE_RESULT_PHASE
-  ) {
-    return withInspectionContext(state, null);
-  }
-
-  return state;
 }
 
 function getInspectionSourceZone(
@@ -3450,6 +3641,65 @@ function isCardInOwnedZone(
     }
     default:
       return false;
+  }
+}
+
+function validateCardMoveTarget(
+  state: GameState,
+  cardId: string,
+  toZone: ZoneType,
+  options?: {
+    fromZone?: ZoneType;
+  }
+): string | null {
+  const card = state.cardRegistry.get(cardId);
+  if (!card) {
+    return '卡牌不存在';
+  }
+
+  switch (card.data.cardType) {
+    case CardType.ENERGY:
+      if (toZone === ZoneType.HAND) {
+        return '能量牌不能移动到手牌';
+      }
+      if (toZone === ZoneType.LIVE_ZONE) {
+        return '能量牌不能移动到LIVE区';
+      }
+      if (toZone === ZoneType.SUCCESS_ZONE) {
+        return '能量牌不能移动到成功LIVE卡区';
+      }
+      if (toZone === ZoneType.WAITING_ROOM) {
+        return '能量牌不能移动到休息室（请移动到能量卡组）';
+      }
+      return null;
+    case CardType.LIVE:
+      if (toZone === ZoneType.MEMBER_SLOT) {
+        return 'LIVE卡不能放入成员区';
+      }
+      if (toZone === ZoneType.ENERGY_ZONE) {
+        return 'LIVE卡不能放入能量区';
+      }
+      if (toZone === ZoneType.ENERGY_DECK) {
+        return 'LIVE卡不能放入能量卡组';
+      }
+      return null;
+    case CardType.MEMBER:
+      if (
+        options?.fromZone === ZoneType.HAND &&
+        toZone === ZoneType.LIVE_ZONE &&
+        state.currentPhase === GamePhase.MAIN_PHASE
+      ) {
+        return '主要阶段不能把成员卡从手牌移动到LIVE区';
+      }
+      if (toZone === ZoneType.ENERGY_ZONE) {
+        return '成员卡不能放入能量区';
+      }
+      if (toZone === ZoneType.ENERGY_DECK) {
+        return '成员卡不能放入能量卡组';
+      }
+      return null;
+    default:
+      return null;
   }
 }
 
@@ -3620,127 +3870,6 @@ function reorderOwnedResolutionCard(
   toIndex: number
 ): GameState {
   return reorderInspectionZoneCard(state, cardId, toIndex);
-}
-
-function createPlayerCompatibilityGameState(state: GameState, viewerPlayerId: string): GameState {
-  const viewer = state.players.find((player) => player.id === viewerPlayerId);
-  if (!viewer) {
-    return state;
-  }
-
-  const visibleCardIds = collectVisibleCardIdsForPlayer(state, viewerPlayerId);
-
-  return {
-    ...state,
-    players: state.players.map((player) => createCompatiblePlayerState(player, viewerPlayerId)) as [
-      PlayerState,
-      PlayerState,
-    ],
-    cardRegistry: new Map(
-      Array.from(state.cardRegistry.entries()).filter(([cardId]) => visibleCardIds.has(cardId))
-    ),
-    availableAbilityIds: [],
-    operationHistory: [],
-    resolutionZone: {
-      ...state.resolutionZone,
-      cardIds: state.resolutionZone.cardIds.filter((cardId) => visibleCardIds.has(cardId)),
-      revealedCardIds: state.resolutionZone.revealedCardIds.filter((cardId) =>
-        visibleCardIds.has(cardId)
-      ),
-    },
-    liveResolution: {
-      ...state.liveResolution,
-      firstPlayerCheerCardIds: state.liveResolution.firstPlayerCheerCardIds.filter((cardId) =>
-        visibleCardIds.has(cardId)
-      ),
-      secondPlayerCheerCardIds: state.liveResolution.secondPlayerCheerCardIds.filter((cardId) =>
-        visibleCardIds.has(cardId)
-      ),
-      liveResults: new Map(
-        Array.from(state.liveResolution.liveResults.entries()).filter(([cardId]) =>
-          visibleCardIds.has(cardId)
-        )
-      ),
-    },
-    actionHistory: [],
-  };
-}
-
-function collectVisibleCardIdsForPlayer(state: GameState, viewerPlayerId: string): Set<string> {
-  const visibleCardIds = new Set<string>();
-  const viewer = state.players.find((player) => player.id === viewerPlayerId);
-  if (viewer) {
-    addAllPlayerCardIds(viewer, visibleCardIds);
-  }
-
-  const playerView = projectPlayerViewState(state, viewerPlayerId);
-  for (const publicObjectId of Object.keys(playerView.objects)) {
-    visibleCardIds.add(stripPublicObjectId(publicObjectId));
-  }
-
-  return visibleCardIds;
-}
-
-function addAllPlayerCardIds(player: PlayerState, visibleCardIds: Set<string>): void {
-  for (const cardId of player.hand.cardIds) {
-    visibleCardIds.add(cardId);
-  }
-  for (const cardId of player.mainDeck.cardIds) {
-    visibleCardIds.add(cardId);
-  }
-  for (const cardId of player.energyDeck.cardIds) {
-    visibleCardIds.add(cardId);
-  }
-  for (const cardId of player.energyZone.cardIds) {
-    visibleCardIds.add(cardId);
-  }
-  for (const cardId of player.liveZone.cardIds) {
-    visibleCardIds.add(cardId);
-  }
-  for (const cardId of player.successZone.cardIds) {
-    visibleCardIds.add(cardId);
-  }
-  for (const cardId of player.waitingRoom.cardIds) {
-    visibleCardIds.add(cardId);
-  }
-  for (const cardId of player.exileZone.cardIds) {
-    visibleCardIds.add(cardId);
-  }
-  for (const slot of Object.values(SlotPosition)) {
-    const occupantId = player.memberSlots.slots[slot];
-    if (occupantId) {
-      visibleCardIds.add(occupantId);
-    }
-    for (const cardId of player.memberSlots.energyBelow[slot]) {
-      visibleCardIds.add(cardId);
-    }
-  }
-}
-
-function createCompatiblePlayerState(player: PlayerState, viewerPlayerId: string): PlayerState {
-  if (player.id === viewerPlayerId) {
-    return player;
-  }
-
-  return {
-    ...player,
-    hand: maskHiddenZone(player.hand, 'HAND'),
-    mainDeck: maskHiddenZone(player.mainDeck, 'MAIN_DECK'),
-    energyDeck: maskHiddenZone(player.energyDeck, 'ENERGY_DECK'),
-    movedToStageThisTurn: [],
-    pendingAutoAbilities: [],
-  };
-}
-
-function maskHiddenZone(zone: BaseZoneState, zoneLabel: string): BaseZoneState {
-  return {
-    ...zone,
-    cardIds: zone.cardIds.map((_, index) => `hidden:${zone.playerId}:${zoneLabel}:${index}`),
-  };
-}
-
-function stripPublicObjectId(publicObjectId: string): string {
-  return publicObjectId.startsWith('obj_') ? publicObjectId.slice(4) : publicObjectId;
 }
 
 function buildLegacyActionPrivateEvents(

@@ -55,7 +55,7 @@ function App() {
   const initializeAuth = useAuthStore((s) => s.initialize);
 
   // Game state
-  const gameState = useGameStore((s) => s.gameState);
+  const matchView = useGameStore((s) => s.getMatchView());
   const loadCardData = useGameStore((s) => s.loadCardData);
   const initDeckStore = useDeckStore((s) => s.init);
 
@@ -103,7 +103,7 @@ function App() {
   }, [authInitialized, loadCardData, initDeckStore]);
 
   // 计算实际显示的页面（游戏结束后自动回到首页）
-  const effectivePage: AppPage = (currentPage === 'game' && !gameState) ? 'home' : currentPage;
+  const effectivePage: AppPage = (currentPage === 'game' && !matchView) ? 'home' : currentPage;
 
   // 等待认证初始化
   if (!authInitialized) {
@@ -198,7 +198,7 @@ function App() {
   }
 
   // 游戏进行中
-  if (effectivePage === 'game' && gameState) {
+  if (effectivePage === 'game' && matchView) {
     return (
       <div className="h-screen overflow-hidden">
         <GameBoard />

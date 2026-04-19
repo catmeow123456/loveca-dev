@@ -226,13 +226,15 @@ export enum SubPhase {
   PERFORMANCE_LIVE_START_EFFECTS = 'PERFORMANCE_LIVE_START_EFFECTS',
   /** Live 判定 - 含应援统计 + 成功/失败确认 */
   PERFORMANCE_JUDGMENT = 'PERFORMANCE_JUDGMENT',
+  /** "Live成功时"效果发动窗口 */
+  PERFORMANCE_SUCCESS_EFFECTS = 'PERFORMANCE_SUCCESS_EFFECTS',
 
   // ---- Live 胜败判定阶段子阶段 ----
-  /** 先攻 "Live成功时" 效果发动窗口 */
-  RESULT_FIRST_SUCCESS_EFFECTS = 'RESULT_FIRST_SUCCESS_EFFECTS',
-  /** 后攻 "Live成功时" 效果发动窗口 */
-  RESULT_SECOND_SUCCESS_EFFECTS = 'RESULT_SECOND_SUCCESS_EFFECTS',
-  /** 结算 - 分数确认 + 胜者决定 + 成功卡移动 + 清理（一站式） */
+  /** 双方确认 Live 分数 */
+  RESULT_SCORE_CONFIRM = 'RESULT_SCORE_CONFIRM',
+  /** 结算前胜者动画 */
+  RESULT_ANIMATION = 'RESULT_ANIMATION',
+  /** 胜者选择成功 Live 并确认结算 */
   RESULT_SETTLEMENT = 'RESULT_SETTLEMENT',
   /** 回合结束处理 */
   RESULT_TURN_END = 'RESULT_TURN_END',

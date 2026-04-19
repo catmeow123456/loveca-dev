@@ -122,12 +122,16 @@ export interface LiveResolutionState {
   readonly scoreConfirmedBy: readonly string[];
   /** Live 胜利玩家 ID 列表 */
   readonly liveWinnerIds: readonly string[];
+  /** 已完成结果动画的玩家 ID 列表 */
+  readonly animationConfirmedBy: readonly string[];
   /**
    * 已移动卡牌到成功区的玩家 ID 列表
    * 用于追踪谁执行了 SELECT_SUCCESS_CARD 动作
-   * 在 finalizeLiveResult() 中用于更新先攻玩家
+   * 在结算阶段用于追踪哪些胜者已完成选卡
    */
   readonly successCardMovedBy: readonly string[];
+  /** 已确认结算完成的玩家 ID 列表 */
+  readonly settlementConfirmedBy: readonly string[];
 }
 
 /**
@@ -143,7 +147,9 @@ export function createEmptyLiveResolutionState(): LiveResolutionState {
     playerScores: new Map(),
     scoreConfirmedBy: [],
     liveWinnerIds: [],
+    animationConfirmedBy: [],
     successCardMovedBy: [],
+    settlementConfirmedBy: [],
   };
 }
 

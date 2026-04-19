@@ -137,6 +137,14 @@ export function createHandlerContext(options: {
   ) => GameState;
   drawCard: (game: GameState, playerId: string) => GameState;
   drawEnergy: (game: GameState, playerId: string) => GameState;
+  drawTopMainDeckCard: (
+    game: GameState,
+    playerId: string
+  ) => {
+    gameState: GameState;
+    cardId: string | null;
+    ruleActions: readonly import('../../domain/rules/rule-actions.js').RuleActionResult[];
+  };
 }): ActionHandlerContext {
   return options;
 }

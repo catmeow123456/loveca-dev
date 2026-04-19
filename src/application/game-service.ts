@@ -107,8 +107,9 @@ import {
 // 导入规则处理模块
 import {
   ruleActionProcessor,
-  applyAllRuleActions,
+  applyRuleActionResult,
   RuleActionType,
+  type RuleActionResult,
 } from '../domain/rules/rule-actions.js';
 // 注意：采用新方案后，不再自动执行卡牌效果
 // 玩家通过手动拖拽执行效果，系统只负责规则处理（自动清理非法状态）
@@ -140,6 +141,8 @@ export interface GameOperationResult {
   };
   /** 触发的内部事件列表 */
   readonly triggeredEvents?: readonly (GameEventType | string)[];
+  /** 本次处理过程中即时执行的规则处理 */
+  readonly ruleActions?: readonly RuleActionResult[];
 }
 
 /**
@@ -324,11 +327,10 @@ export class GameService {
    * 事件派发循环
    *
    * 按顺序处理事件队列：
-   * 1. CALCULATE_LIVE_RESULT — 计算 Live 结算推荐值
-   * 2. RESOLVE_LIVE_WINNER — 基于双方确认分数判定胜者
-   * 3. FINALIZE_LIVE_RESULT — 完成 Live 结算收尾
-   * 4. ADVANCE_PHASE — 推进到下一主阶段（可能产生新事件）
-   * 5. RUN_CHECK_TIMING — 规则自动纠正
+   * 1. RESOLVE_LIVE_WINNER — 基于双方确认分数判定胜者
+   * 2. FINALIZE_LIVE_RESULT — 完成 Live 结算收尾
+   * 3. ADVANCE_PHASE — 推进到下一主阶段（可能产生新事件）
+   * 4. RUN_CHECK_TIMING — 规则自动纠正
    */
   private dispatchEvents(
     initialState: GameState,
@@ -340,31 +342,48 @@ export class GameService {
     // 按优先级排序处理：FINALIZE 先于 ADVANCE 先于 CHECK_TIMING
     const sortedEvents = [...events].sort((a, b) => {
       const priority: Record<string, number> = {
-        [GameEventType.CALCULATE_LIVE_RESULT]: 0,
-        [GameEventType.RESOLVE_LIVE_WINNER]: 1,
-        [GameEventType.FINALIZE_LIVE_RESULT]: 2,
-        [GameEventType.ADVANCE_PHASE]: 3,
-        [GameEventType.RUN_CHECK_TIMING]: 4,
+        [GameEventType.RESOLVE_LIVE_WINNER]: 0,
+        [GameEventType.FINALIZE_LIVE_RESULT]: 1,
+        [GameEventType.ADVANCE_PHASE]: 2,
+        [GameEventType.RUN_CHECK_TIMING]: 3,
       };
       return (priority[a] ?? 99) - (priority[b] ?? 99);
     });
 
     for (const event of sortedEvents) {
       switch (event) {
-        case GameEventType.CALCULATE_LIVE_RESULT: {
-          const calcResult = this.executeLiveResultPhase(state);
-          if (calcResult.success) {
-            state = calcResult.gameState;
-          }
-          processedEvents.push(event);
-          break;
-        }
         case GameEventType.RESOLVE_LIVE_WINNER: {
           const resolveResult = this.resolveLiveWinner(state);
           if (resolveResult.success) {
             state = resolveResult.gameState;
           }
           processedEvents.push(event);
+          if (state.liveResolution.liveWinnerIds.length === 0) {
+            const finalizeResult = this.finalizeLiveResult(state);
+            if (finalizeResult.success) {
+              state = finalizeResult.gameState;
+            }
+            processedEvents.push(GameEventType.FINALIZE_LIVE_RESULT);
+
+            const advanceResult = this.advancePhase(state);
+            if (advanceResult.success) {
+              state = advanceResult.gameState;
+              processedEvents.push(...(advanceResult.triggeredEvents ?? []));
+            }
+            processedEvents.push(GameEventType.ADVANCE_PHASE);
+            break;
+          }
+
+          state = {
+            ...state,
+            currentSubPhase: SubPhase.RESULT_ANIMATION,
+            liveResolution: {
+              ...state.liveResolution,
+              animationConfirmedBy: [],
+              successCardMovedBy: [],
+              settlementConfirmedBy: [],
+            },
+          };
           break;
         }
         case GameEventType.FINALIZE_LIVE_RESULT: {
@@ -416,6 +435,7 @@ export class GameService {
       addAction: (game, type, playerId, details) => addAction(game, type, playerId, details),
       drawCard: (game, playerId) => this.drawCard(game, playerId),
       drawEnergy: (game, playerId) => this.drawEnergy(game, playerId),
+      drawTopMainDeckCard: (game, playerId) => this.drawTopMainDeckCard(game, playerId),
     });
   }
 
@@ -518,16 +538,13 @@ export class GameService {
     if (newPhase === GamePhase.PERFORMANCE_PHASE) {
       state = this.revealLiveCards(state);
       state = { ...state, currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT };
+      return state;
     }
 
-    // LIVE_RESULT_PHASE: 若直接进入 RESULT_SETTLEMENT（无成功效果窗口）则立即计算推荐分数/胜者
-    if (
-      newPhase === GamePhase.LIVE_RESULT_PHASE &&
-      state.currentSubPhase === SubPhase.RESULT_SETTLEMENT
-    ) {
-      const resultPhaseResult = this.executeLiveResultPhase(state);
-      if (resultPhaseResult.success) {
-        state = resultPhaseResult.gameState;
+    if (newPhase === GamePhase.LIVE_RESULT_PHASE) {
+      const result = this.executeLiveResultPhase(state);
+      if (result.success) {
+        return result.gameState;
       }
     }
 
@@ -584,15 +601,15 @@ export class GameService {
    * 抽一张卡
    */
   private drawCard(game: GameState, playerId: string): GameState {
-    return updatePlayer(game, playerId, (player) => {
-      const { zone: newDeck, cardId } = drawFromTop(player.mainDeck);
-      if (!cardId) return player;
-      return {
-        ...player,
-        mainDeck: newDeck,
-        hand: addCardToZone(player.hand, cardId),
-      };
-    });
+    const { gameState, cardId } = this.drawTopMainDeckCard(game, playerId);
+    if (!cardId) {
+      return gameState;
+    }
+
+    return updatePlayer(gameState, playerId, (player) => ({
+      ...player,
+      hand: addCardToZone(player.hand, cardId),
+    }));
   }
 
   /**
@@ -608,6 +625,90 @@ export class GameService {
         energyZone: addCardToStatefulZone(player.energyZone, cardId),
       };
     });
+  }
+
+  private drawTopMainDeckCard(
+    game: GameState,
+    playerId: string
+  ): { gameState: GameState; cardId: string | null; ruleActions: readonly RuleActionResult[] } {
+    let state = game;
+    const appliedRuleActions: RuleActionResult[] = [];
+
+    const preRefresh = this.applyImmediateRefreshes(state);
+    state = preRefresh.gameState;
+    appliedRuleActions.push(...preRefresh.ruleActions);
+
+    let drawnCardId: string | null = null;
+    state = updatePlayer(state, playerId, (player) => {
+      const { zone: newDeck, cardId } = drawFromTop(player.mainDeck);
+      drawnCardId = cardId;
+      return {
+        ...player,
+        mainDeck: newDeck,
+      };
+    });
+
+    if (!drawnCardId) {
+      return {
+        gameState: state,
+        cardId: null,
+        ruleActions: appliedRuleActions,
+      };
+    }
+
+    const postRefresh = this.applyImmediateRefreshes(state);
+    state = postRefresh.gameState;
+    appliedRuleActions.push(...postRefresh.ruleActions);
+
+    return {
+      gameState: state,
+      cardId: drawnCardId,
+      ruleActions: appliedRuleActions,
+    };
+  }
+
+  private applyImmediateRefreshes(
+    game: GameState,
+    options?: {
+      checkTopPlayerId?: string;
+      checkTopCount?: number;
+    }
+  ): { gameState: GameState; ruleActions: readonly RuleActionResult[] } {
+    let state = game;
+    const ruleActions = ruleActionProcessor.collectPendingRefreshActions(state, options);
+
+    for (const action of ruleActions) {
+      state = this.applyRuleActionWithLog(state, action);
+    }
+
+    return {
+      gameState: state,
+      ruleActions,
+    };
+  }
+
+  private applyRuleActionWithLog(game: GameState, result: RuleActionResult): GameState {
+    const beforePlayer =
+      result.affectedPlayerId !== null ? getPlayerById(game, result.affectedPlayerId) : null;
+    const nextState = applyRuleActionResult(game, result, (cardId) => {
+      const card = getCardById(game, cardId);
+      return card?.data.cardType ?? null;
+    });
+    const afterPlayer =
+      result.affectedPlayerId !== null ? getPlayerById(nextState, result.affectedPlayerId) : null;
+
+    const payload: Record<string, unknown> = {
+      type: result.type,
+      description: result.description,
+      affectedPlayerId: result.affectedPlayerId,
+    };
+
+    if (result.type === RuleActionType.REFRESH && beforePlayer && afterPlayer) {
+      payload.movedCount = beforePlayer.waitingRoom.cardIds.length;
+      payload.mainDeckCountAfter = afterPlayer.mainDeck.cardIds.length;
+    }
+
+    return addAction(nextState, 'RULE_ACTION', null, payload);
   }
 
   /**
@@ -668,6 +769,7 @@ export class GameService {
     let hasChanges = false;
     let iterations = 0;
     const MAX_ITERATIONS = 100; // 防止无限循环
+    const appliedRuleActions: RuleActionResult[] = [];
 
     // 获取卡牌类型的辅助函数
     const getCardType = (cardId: string): CardType | null => {
@@ -693,22 +795,20 @@ export class GameService {
       hasChanges = true;
 
       // 应用所有规则处理
-      const {
-        state: newState,
-        hasVictory,
-        winnerId,
-        isDraw,
-      } = applyAllRuleActions(state, pendingActions, getCardType);
+      let hasVictory = false;
+      let winnerId: string | null = null;
+      let isDraw = false;
 
-      state = newState;
-
-      // 记录规则处理到日志
       for (const action of pendingActions) {
-        state = addAction(state, 'RULE_ACTION', null, {
-          type: action.type,
-          description: action.description,
-          affectedPlayerId: action.affectedPlayerId,
-        });
+        appliedRuleActions.push(action);
+        if (action.type === RuleActionType.VICTORY) {
+          hasVictory = true;
+          winnerId = action.winnerId ?? null;
+          isDraw = action.description.includes('平局');
+          continue;
+        }
+
+        state = this.applyRuleActionWithLog(state, action);
       }
 
       // 如果有胜利处理，结束游戏
@@ -722,6 +822,7 @@ export class GameService {
           success: true,
           gameState: state,
           triggeredEvents: ['GAME_ENDED'],
+          ruleActions: appliedRuleActions,
         };
       }
     }
@@ -733,6 +834,7 @@ export class GameService {
       success: true,
       gameState: state,
       triggeredEvents: hasChanges ? ['RULE_ACTIONS_EXECUTED'] : undefined,
+      ruleActions: appliedRuleActions,
     };
   }
 
@@ -836,7 +938,9 @@ export class GameService {
         playerScores,
         scoreConfirmedBy: [],
         liveWinnerIds: [],
+        animationConfirmedBy: [],
         successCardMovedBy: [],
+        settlementConfirmedBy: [],
       },
     };
 
@@ -914,7 +1018,9 @@ export class GameService {
         playerScores: new Map(),
         scoreConfirmedBy: [],
         liveWinnerIds: [],
+        animationConfirmedBy: [],
         successCardMovedBy: [],
+        settlementConfirmedBy: [],
       },
     };
 
@@ -960,20 +1066,20 @@ export class GameService {
     playerId: string,
     liveResults?: ReadonlyMap<string, boolean>
   ): number {
-    const player = getPlayerById(game, playerId);
-    if (!player) return 0;
-
     let totalScore = 0;
+    const evaluatedResults = liveResults ?? game.liveResolution.liveResults;
 
-    for (const cardId of player.liveZone.cardIds) {
-      // 判定失败的 Live 不计分
-      if (liveResults && liveResults.get(cardId) === false) {
+    for (const [cardId, result] of evaluatedResults.entries()) {
+      if (result === false) {
         continue;
       }
+
       const card = getCardById(game, cardId);
-      if (card && isLiveCardData(card.data)) {
-        totalScore += (card.data as LiveCardData).score;
+      if (!card || card.ownerId !== playerId || !isLiveCardData(card.data)) {
+        continue;
       }
+
+      totalScore += (card.data as LiveCardData).score;
     }
 
     // 8.4.2.1: 应援的 [音符+1] 效果加分
@@ -1037,28 +1143,18 @@ export class GameService {
    * 基于当前已确认分数判定 Live 胜者（8.4.3-8.4.6）
    */
   resolveLiveWinner(game: GameState): GameOperationResult {
+    if (!this.haveAllPlayersConfirmedScores(game)) {
+      return { success: true, gameState: game };
+    }
+
     const firstPlayer = getFirstPlayer(game);
     const secondPlayer = getSecondPlayer(game);
 
     const firstScore = game.liveResolution.playerScores.get(firstPlayer.id) ?? 0;
     const secondScore = game.liveResolution.playerScores.get(secondPlayer.id) ?? 0;
 
-    const liveResults = game.liveResolution.liveResults;
-    const firstHasSuccessfulLive = firstPlayer.liveZone.cardIds.some(
-      (cardId) => liveResults.get(cardId) !== false
-    );
-    const secondHasSuccessfulLive = secondPlayer.liveZone.cardIds.some(
-      (cardId) => liveResults.get(cardId) !== false
-    );
-
     const winnerIds: string[] = [];
-    if (!firstHasSuccessfulLive && !secondHasSuccessfulLive) {
-      // 双方都无成功 Live，无胜者
-    } else if (firstHasSuccessfulLive && !secondHasSuccessfulLive) {
-      winnerIds.push(firstPlayer.id);
-    } else if (!firstHasSuccessfulLive && secondHasSuccessfulLive) {
-      winnerIds.push(secondPlayer.id);
-    } else if (firstScore > secondScore) {
+    if (firstScore > secondScore) {
       winnerIds.push(firstPlayer.id);
     } else if (secondScore > firstScore) {
       winnerIds.push(secondPlayer.id);
@@ -1069,7 +1165,7 @@ export class GameService {
       if (firstSuccessCount < 2) winnerIds.push(firstPlayer.id);
       if (secondSuccessCount < 2) winnerIds.push(secondPlayer.id);
     } else {
-      // 双方分数都为 0 且都有成功 Live，无胜者
+      // 双方分数都为 0，无胜者
     }
 
     const state: GameState = {
@@ -1082,11 +1178,14 @@ export class GameService {
 
     return { success: true, gameState: state };
   }
+  private haveAllPlayersConfirmedScores(game: GameState): boolean {
+    return game.players.every((player) => game.liveResolution.scoreConfirmedBy.includes(player.id));
+  }
 
   /**
    * RESULT_SETTLEMENT 收尾清理：
    * 1) resolutionZone 的应援牌 -> 各自休息室
-   * 2) 双方判定失败的 Live -> 休息室
+   * 2) LIVE_ZONE 中剩余的本轮 Live 全部 -> 休息室
    */
   private performSettlementCleanup(game: GameState): GameState {
     let state = game;
@@ -1110,13 +1209,12 @@ export class GameService {
       }));
     }
 
-    // 清理判定失败的 Live
-    const liveResults = state.liveResolution.liveResults;
+    // 清理 LIVE_ZONE 中剩余的 Live。
+    // 胜者已选择进入 SUCCESS_ZONE 的卡牌此前已经从 LIVE_ZONE 移除，
+    // 因此这里将剩余卡牌全部移入休息室即可。
     for (const player of state.players) {
-      const failedCardIds = player.liveZone.cardIds.filter(
-        (cardId) => liveResults.get(cardId) === false
-      );
-      for (const cardId of failedCardIds) {
+      const remainingLiveCardIds = [...player.liveZone.cardIds];
+      for (const cardId of remainingLiveCardIds) {
         state = updatePlayer(state, player.id, (p) => ({
           ...p,
           liveZone: removeCardFromStatefulZone(p.liveZone, cardId),

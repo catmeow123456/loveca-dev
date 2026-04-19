@@ -13,10 +13,10 @@ import { GameMode } from '@game/shared/types/enums';
 
 export const DebugControl = memo(function DebugControl() {
   // 状态选择器
-  const gameState = useGameStore((s) => s.gameState);
+  const matchView = useGameStore((s) => s.getMatchView());
   const currentTurnCount = useGameStore((s) => s.getTurnCountView());
-  const currentViewingPlayer = useGameStore((s) => s.getViewingPlayerState());
-  const otherPlayer = useGameStore((s) => s.getOpponentPlayerState());
+  const currentViewingPlayer = useGameStore((s) => s.getViewingPlayerIdentity());
+  const otherPlayer = useGameStore((s) => s.getOpponentPlayerIdentity());
   const gameMode = useGameStore((s) => s.gameMode);
   const isRemoteDebugMode = useGameStore((s) => s.isRemoteDebugMode());
 
@@ -29,7 +29,7 @@ export const DebugControl = memo(function DebugControl() {
     }))
   );
 
-  if (!gameState || isRemoteDebugMode) return null;
+  if (!matchView || isRemoteDebugMode) return null;
   const isDebugMode = gameMode === GameMode.DEBUG;
 
   // 切换视角（仅调试模式）
@@ -89,7 +89,7 @@ export const DebugControl = memo(function DebugControl() {
             回合:
           </span>
           <span className="font-bold text-[var(--text-primary)]">
-            T{currentTurnCount ?? gameState.turnCount}
+            T{currentTurnCount ?? matchView.turnCount}
           </span>
         </div>
 

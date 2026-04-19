@@ -16,6 +16,7 @@ export type PublicWindowType =
   | 'SERIAL_PRIORITY'
   | 'INSPECTION'
   | 'SIMULTANEOUS_COMMIT'
+  | 'RESULT_ANIMATION'
   | 'SHARED_CONFIRM';
 
 export type WindowStatus = 'OPENED' | 'UPDATED' | 'CLOSED';
@@ -23,32 +24,36 @@ export type WindowStatus = 'OPENED' | 'UPDATED' | 'CLOSED';
 export type ViewZoneKey = `${Seat}_${string}` | 'SHARED_RESOLUTION_ZONE';
 
 export interface ViewWindowState {
-  readonly type:
-    | 'MULLIGAN'
-    | 'LIVE_SET'
-    | 'INSPECTION'
-    | 'EFFECT'
-    | 'JUDGMENT'
-    | 'RESULT'
-    | 'INPUT'
-    | 'NONE';
+  readonly windowType: PublicWindowType;
+  readonly status: WindowStatus;
   readonly actingSeat?: Seat | null;
-  readonly waitingForSeat?: Seat | null;
-  readonly subPhase?: string;
-  readonly effectWindowType?: string;
-  readonly sourceZone?: string;
+  readonly waitingSeats: readonly Seat[];
+  readonly context?: Readonly<Record<string, unknown>>;
 }
 
 export interface MatchViewState {
   readonly matchId: string;
   readonly viewerSeat: Seat;
+  readonly participants: Readonly<Record<Seat, ViewParticipant>>;
   readonly turnCount: number;
   readonly phase: string;
   readonly subPhase: string;
   readonly activeSeat: Seat | null;
   readonly prioritySeat: Seat | null;
   readonly window: ViewWindowState | null;
+  readonly liveResult?: LiveResultViewState;
   readonly seq: number;
+}
+
+export interface ViewParticipant {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface LiveResultViewState {
+  readonly scores: Readonly<Record<Seat, number>>;
+  readonly winnerSeats: readonly Seat[];
+  readonly confirmedSeats: readonly Seat[];
 }
 
 export interface ViewZoneState {
@@ -73,6 +78,7 @@ export interface ViewFrontCardInfo {
   readonly score?: number;
   readonly requiredHearts?: unknown;
   readonly hearts?: unknown;
+  readonly bladeHearts?: unknown;
   readonly text?: string;
 }
 
@@ -84,13 +90,27 @@ export interface ViewCardObject {
   readonly surface: ViewerSurface;
   readonly orientation?: OrientationState;
   readonly faceState?: FaceState;
+  readonly publiclyRevealed?: boolean;
+  readonly judgmentResult?: boolean;
+  readonly enteredStageThisTurn?: boolean;
   readonly frontInfo?: ViewFrontCardInfo;
 }
 
+export interface ViewCommandScope {
+  readonly zoneKeys?: readonly ViewZoneKey[];
+  readonly objectIds?: readonly string[];
+}
+
+export interface ViewCommandHint {
+  readonly command: string;
+  readonly enabled: boolean;
+  readonly reason?: string;
+  readonly scope?: ViewCommandScope;
+  readonly params?: Readonly<Record<string, unknown>>;
+}
+
 export interface PermissionViewState {
-  readonly canAct: boolean;
-  readonly waitingForSeat: Seat | null;
-  readonly availableActionTypes: readonly string[];
+  readonly availableCommands: readonly ViewCommandHint[];
 }
 
 export interface UiHintViewState {
@@ -169,7 +189,6 @@ export interface PlayerRecoveryFrame {
   readonly viewerSeat: Seat;
   readonly snapshotPublicSeq: number;
   readonly currentPublicSeq: number;
-  readonly gameState: GameState;
   readonly playerViewState: PlayerViewState;
   readonly publicEvents: readonly PublicEvent[];
   readonly privateEvents: readonly PrivateEvent[];
@@ -252,6 +271,13 @@ export interface CardRevealedAndMovedPublicEvent extends BasePublicEvent {
   readonly reason?: string;
 }
 
+export interface DeckRefreshedPublicEvent extends BasePublicEvent {
+  readonly type: 'DeckRefreshed';
+  readonly ownerSeat: Seat;
+  readonly movedCount: number;
+  readonly mainDeckCountAfter: number;
+}
+
 export type PublicEvent =
   | PhaseStartedPublicEvent
   | SubPhaseStartedPublicEvent
@@ -260,7 +286,8 @@ export type PublicEvent =
   | CardMovedPublicEvent
   | CardsInspectedSummaryPublicEvent
   | CardRevealedPublicEvent
-  | CardRevealedAndMovedPublicEvent;
+  | CardRevealedAndMovedPublicEvent
+  | DeckRefreshedPublicEvent;
 
 export type PublicEventDraft =
   | Omit<PhaseStartedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
@@ -270,7 +297,8 @@ export type PublicEventDraft =
   | Omit<CardMovedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<CardsInspectedSummaryPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<CardRevealedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
-  | Omit<CardRevealedAndMovedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>;
+  | Omit<CardRevealedAndMovedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
+  | Omit<DeckRefreshedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>;
 
 export type PrivateEventDraft = Omit<
   PrivateEvent,

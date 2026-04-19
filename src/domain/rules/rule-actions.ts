@@ -158,6 +158,30 @@ export class RuleActionProcessor {
     };
   }
 
+  collectPendingRefreshActions(
+    game: GameState,
+    options?: {
+      checkTopPlayerId?: string;
+      checkTopCount?: number;
+    }
+  ): RuleActionResult[] {
+    const results: RuleActionResult[] = [];
+    const orderedPlayers =
+      game.firstPlayerIndex === 0 ? [...game.players] : [game.players[1], game.players[0]];
+
+    for (const player of orderedPlayers) {
+      const refreshCheck = this.checkRefreshNeeded(
+        player,
+        player.id === options?.checkTopPlayerId ? options?.checkTopCount : undefined
+      );
+      if (refreshCheck.needsRefresh && refreshCheck.playerId) {
+        results.push(this.executeRefresh(refreshCheck.playerId));
+      }
+    }
+
+    return results;
+  }
+
   /**
    * 检查胜利条件
    * 参考规则 10.3
@@ -453,12 +477,7 @@ export class RuleActionProcessor {
     const results: RuleActionResult[] = [];
 
     // 1. 检查刷新处理（双方玩家）- 规则 10.2
-    for (const player of game.players) {
-      const refreshCheck = this.checkRefreshNeeded(player);
-      if (refreshCheck.needsRefresh && refreshCheck.playerId) {
-        results.push(this.executeRefresh(refreshCheck.playerId));
-      }
-    }
+    results.push(...this.collectPendingRefreshActions(game));
 
     // 2. 检查胜利条件 - 规则 10.3
     const victoryCheck = this.checkVictoryCondition(game.players);
@@ -518,29 +537,22 @@ export function applyRuleActionResult(
 
   switch (result.type) {
     case RuleActionType.REFRESH: {
-      // 刷新处理：将休息室所有卡牌洗牌后放入卡组底部
+      // 刷新处理：仅将休息室洗牌后压到现有主卡组下方，保留原主卡组顺序。
       if (result.affectedPlayerId) {
         state = updatePlayer(state, result.affectedPlayerId, (player) => {
-          // 获取休息室所有卡牌
           const waitingRoomCards = [...player.waitingRoom.cardIds];
-
-          // 清空休息室
-          let newWaitingRoom = player.waitingRoom;
-          for (const cardId of waitingRoomCards) {
-            newWaitingRoom = removeCardFromZone(newWaitingRoom, cardId);
-          }
-
-          // 将卡牌添加到卡组（先洗牌）
           const shuffledCards = shuffleArray(waitingRoomCards);
-          let newMainDeck = player.mainDeck;
-          for (const cardId of shuffledCards) {
-            newMainDeck = addCardToZone(newMainDeck, cardId);
-          }
 
           return {
             ...player,
-            waitingRoom: newWaitingRoom,
-            mainDeck: shuffleZone(newMainDeck), // 再次洗牌确保随机性
+            waitingRoom: {
+              ...player.waitingRoom,
+              cardIds: [],
+            },
+            mainDeck: {
+              ...player.mainDeck,
+              cardIds: [...player.mainDeck.cardIds, ...shuffledCards],
+            },
           };
         });
       }

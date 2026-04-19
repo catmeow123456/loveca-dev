@@ -7,34 +7,47 @@
 import { memo, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRightLeft, Check, Sparkles } from 'lucide-react';
+import { GameCommandType } from '@game/application/game-commands';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { GamePhase, SubPhase } from '@game/shared/types/enums';
 import { useGameStore } from '@/store/gameStore';
 import { Card } from '@/components/card/Card';
 import type { MemberCardData, AnyCardData } from '@game/domain/entities/card';
+import type { ViewZoneKey } from '@game/online';
 
 interface MulliganPanelProps {
   /** 是否显示 */
   isOpen: boolean;
 }
 
+const EMPTY_PUBLIC_OBJECT_IDS: readonly string[] = [];
+
 export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPanelProps) {
   // 状态选择器
-  const gameState = useGameStore((s) => s.gameState);
-  const permissionView = useGameStore((s) => s.getPermissionView());
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView());
-  const currentPlayer = useGameStore((s) => s.getViewingPlayerState());
-  const firstPlayer = useGameStore((s) => s.getFirstPlayerState());
-  const viewingPlayerId = useGameStore((s) => s.viewingPlayerId);
+  const viewerSeat = useGameStore((s) => s.getViewerSeat());
+  const canMulligan = useGameStore((s) => s.canUseAction(GameCommandType.MULLIGAN));
+  const currentPlayerIdentity = useGameStore((s) => s.getViewingPlayerIdentity());
+  const handObjectIds = useGameStore((s) =>
+    viewerSeat
+      ? s.getZonePublicObjectIds(`${viewerSeat}_HAND` as ViewZoneKey)
+      : EMPTY_PUBLIC_OBJECT_IDS
+  );
+  const hasViewerCompletedMulligan = useGameStore((s) => s.hasViewerCompletedMulligan());
+
+  const handCardIds = useMemo(() => {
+    return handObjectIds.map((publicObjectId) =>
+      publicObjectId.startsWith('obj_') ? publicObjectId.slice(4) : publicObjectId
+    );
+  }, [handObjectIds]);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { mulligan, getCardInstance, getCardImagePath } = useGameStore(
+  const { mulligan, getVisibleCardPresentation } = useGameStore(
     useShallow((s) => ({
       mulligan: s.mulligan,
-      getCardInstance: s.getCardInstance,
-      getCardImagePath: s.getCardImagePath,
+      getVisibleCardPresentation: s.getVisibleCardPresentation,
     }))
   );
 
@@ -42,23 +55,14 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
 
   // 检查是否已完成换牌
-  const hasCompletedMulligan = useMemo(() => {
-    if (!gameState || !viewingPlayerId) return false;
-    return gameState.mulliganCompletedPlayers.includes(viewingPlayerId);
-  }, [gameState, viewingPlayerId]);
-
   // 检查当前是否轮到该玩家换牌
   const isMyMulliganTurn = useMemo(() => {
-    if (
-      permissionView &&
+    return (
       (currentSubPhase === SubPhase.MULLIGAN_FIRST_PLAYER ||
-        currentSubPhase === SubPhase.MULLIGAN_SECOND_PLAYER)
-    ) {
-      return permissionView.canAct;
-    }
-
-    return false;
-  }, [currentSubPhase, permissionView]);
+        currentSubPhase === SubPhase.MULLIGAN_SECOND_PLAYER) &&
+      canMulligan
+    );
+  }, [canMulligan, currentSubPhase]);
 
   // 切换卡牌选中状态
   const toggleCardSelection = useCallback((cardId: string) => {
@@ -90,15 +94,15 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
   const shouldShow = useMemo(() => {
     if (!isOpen || !currentPhase) return false;
     if (currentPhase !== GamePhase.MULLIGAN_PHASE) return false;
-    if (hasCompletedMulligan) return false;
+    if (hasViewerCompletedMulligan) return false;
     return true;
-  }, [currentPhase, hasCompletedMulligan, isOpen]);
+  }, [currentPhase, hasViewerCompletedMulligan, isOpen]);
 
-  if (!shouldShow || !currentPlayer || !gameState) return null;
+  if (!shouldShow || !currentPlayerIdentity || !viewerSeat) return null;
 
   // 获取玩家名称用于显示
-  const playerName = currentPlayer.name;
-  const isFirstPlayer = currentPlayer.id === firstPlayer?.id;
+  const playerName = currentPlayerIdentity.name;
+  const isFirstPlayer = viewerSeat === 'FIRST';
 
   return (
     <AnimatePresence>
@@ -153,7 +157,7 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
 
               <div className="px-6 py-6">
                 <div className="mb-4 text-sm font-medium text-[var(--text-secondary)]">
-                  你的手牌 ({currentPlayer.hand.cardIds.length} 张)
+                  你的手牌 ({handCardIds.length} 张)
                   {selectedCardIds.size > 0 && (
                     <span className="ml-2 text-[var(--accent-secondary)]">
                       - 已选择 {selectedCardIds.size} 张要换的牌
@@ -162,13 +166,13 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
                 </div>
 
                 <div className="flex flex-wrap gap-4 justify-center">
-                  {currentPlayer.hand.cardIds.map((cardId) => {
-                    const card = getCardInstance(cardId);
+                  {handCardIds.map((cardId) => {
+                    const card = getVisibleCardPresentation(cardId);
                     if (!card) return null;
 
                     const isSelected = selectedCardIds.has(cardId);
-                    const cardData = card.data;
-                    const imagePath = getCardImagePath(cardData.cardCode);
+                    const cardData = card.cardData;
+                    const imagePath = card.imagePath;
 
                     return (
                       <motion.div
@@ -214,7 +218,7 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
                   })}
                 </div>
 
-                {currentPlayer.hand.cardIds.length === 0 && (
+                {handCardIds.length === 0 && (
                   <div className="py-8 text-center text-[var(--text-muted)]">
                     手牌为空
                   </div>

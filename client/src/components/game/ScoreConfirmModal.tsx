@@ -1,35 +1,28 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, ShieldCheck } from 'lucide-react';
+import { GameCommandType } from '@game/application/game-commands';
 import { useGameStore } from '@/store/gameStore';
 import { GameMode, GamePhase, SubPhase } from '@game/shared/types/enums';
 
 export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView());
-  const permissionView = useGameStore((s) => s.getPermissionView());
-  const selfPlayer = useGameStore((s) => s.getViewingPlayerState());
-  const opponentPlayer = useGameStore((s) => s.getOpponentPlayerState());
+  const canSubmitScore = useGameStore((s) => s.canUseAction(GameCommandType.SUBMIT_SCORE));
+  const selfPlayer = useGameStore((s) => s.getViewingPlayerIdentity());
+  const opponentPlayer = useGameStore((s) => s.getOpponentPlayerIdentity());
   const confirmedScoreCount = useGameStore((s) => s.getConfirmedScoreCount());
   const gameMode = useGameStore((s) => s.gameMode);
   const confirmScore = useGameStore((s) => s.confirmScore);
-  const selfPlayerId = selfPlayer?.id ?? null;
-  const opponentPlayerId = opponentPlayer?.id ?? null;
-  const selfScore = useGameStore((s) => (selfPlayerId ? s.getLiveScoreForPlayer(selfPlayerId) : 0));
-  const opponentScore = useGameStore((s) =>
-    opponentPlayerId ? s.getLiveScoreForPlayer(opponentPlayerId) : 0
-  );
-  const selfConfirmed = useGameStore((s) =>
-    selfPlayerId ? s.isScoreConfirmed(selfPlayerId) : false
-  );
-  const opponentConfirmed = useGameStore((s) =>
-    opponentPlayerId ? s.isScoreConfirmed(opponentPlayerId) : false
-  );
+  const selfScore = useGameStore((s) => s.getViewerLiveScore());
+  const opponentScore = useGameStore((s) => s.getOpponentLiveScore());
+  const selfConfirmed = useGameStore((s) => s.isViewerScoreConfirmed());
+  const opponentConfirmed = useGameStore((s) => s.isOpponentScoreConfirmed());
 
   const shouldShow = useMemo(() => {
     return (
       currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-      currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
+      currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM &&
       confirmedScoreCount < 2
     );
   }, [confirmedScoreCount, currentPhase, currentSubPhase]);
@@ -44,8 +37,7 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
   if (!shouldShow || !selfPlayer || !opponentPlayer) return null;
 
   const isDebugMode = gameMode === GameMode.DEBUG;
-  const canAct = permissionView?.canAct ?? true;
-  const canConfirm = canAct && !selfConfirmed;
+  const canConfirm = canSubmitScore && !selfConfirmed;
 
   return (
     <AnimatePresence>
@@ -70,7 +62,9 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
               <ShieldCheck size={16} />
               Live 分数最终确认
             </div>
-            <div className="mt-1 text-xs text-[var(--text-secondary)]">双方都确认后将自动判定胜负并进入下一回合</div>
+            <div className="mt-1 text-xs text-[var(--text-secondary)]">
+              双方都确认后将判定胜者，并进入胜者动画与 Live 结算
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -112,7 +106,7 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
                 : 'button-primary mt-4 flex w-full items-center justify-center gap-2 py-2 text-sm font-semibold'
             }
           >
-            {!canAct
+            {!canSubmitScore
               ? '等待对手操作'
               : selfConfirmed
                 ? '已确认我的分数'

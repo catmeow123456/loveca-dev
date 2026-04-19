@@ -61,6 +61,7 @@ export {
   getSubPhaseIcon,
   isUserActionRequired,
   isEffectWindow,
+  isSuccessEffectSubPhase,
   getNextSubPhase,
 } from './sub-phase-registry.js';
 

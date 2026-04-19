@@ -158,31 +158,45 @@ const SUB_PHASE_CONFIG_MAP: Record<SubPhase, SubPhaseConfig> = {
     },
   },
 
-  // ---- Live 胜败判定阶段子阶段 ----
-  [SubPhase.RESULT_FIRST_SUCCESS_EFFECTS]: {
-    subPhase: SubPhase.RESULT_FIRST_SUCCESS_EFFECTS,
+  [SubPhase.PERFORMANCE_SUCCESS_EFFECTS]: {
+    subPhase: SubPhase.PERFORMANCE_SUCCESS_EFFECTS,
     display: {
-      name: '先攻成功效果',
+      name: '成功效果',
       icon: '⚡',
       requiresUserAction: true,
     },
     behavior: {
-      activePlayer: 'FIRST',
+      activePlayer: 'CURRENT_ACTIVE',
       isEffectWindow: true,
-      nextSubPhase: SubPhase.RESULT_SECOND_SUCCESS_EFFECTS,
+      nextSubPhase: SubPhase.NONE,
     },
   },
 
-  [SubPhase.RESULT_SECOND_SUCCESS_EFFECTS]: {
-    subPhase: SubPhase.RESULT_SECOND_SUCCESS_EFFECTS,
+  // ---- Live 胜败判定阶段子阶段 ----
+  [SubPhase.RESULT_SCORE_CONFIRM]: {
+    subPhase: SubPhase.RESULT_SCORE_CONFIRM,
     display: {
-      name: '后攻成功效果',
-      icon: '⚡',
+      name: '分数确认',
+      icon: '🧮',
       requiresUserAction: true,
     },
     behavior: {
-      activePlayer: 'SECOND',
-      isEffectWindow: true,
+      activePlayer: 'BOTH',
+      isEffectWindow: false,
+      nextSubPhase: SubPhase.RESULT_ANIMATION,
+    },
+  },
+
+  [SubPhase.RESULT_ANIMATION]: {
+    subPhase: SubPhase.RESULT_ANIMATION,
+    display: {
+      name: '胜者演出',
+      icon: '🎆',
+      requiresUserAction: true,
+    },
+    behavior: {
+      activePlayer: 'BOTH',
+      isEffectWindow: false,
       nextSubPhase: SubPhase.RESULT_SETTLEMENT,
     },
   },
@@ -190,7 +204,7 @@ const SUB_PHASE_CONFIG_MAP: Record<SubPhase, SubPhaseConfig> = {
   [SubPhase.RESULT_SETTLEMENT]: {
     subPhase: SubPhase.RESULT_SETTLEMENT,
     display: {
-      name: 'Live 结算',
+      name: '成功 Live 结算',
       icon: '🏆',
       requiresUserAction: true,
     },
@@ -300,6 +314,10 @@ export function isUserActionRequired(subPhase: SubPhase): boolean {
  */
 export function isEffectWindow(subPhase: SubPhase): boolean {
   return SUB_PHASE_CONFIGS.get(subPhase)?.behavior.isEffectWindow ?? false;
+}
+
+export function isSuccessEffectSubPhase(subPhase: SubPhase): boolean {
+  return subPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS;
 }
 
 /**

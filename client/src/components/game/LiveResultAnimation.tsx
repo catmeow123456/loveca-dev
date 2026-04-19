@@ -1,13 +1,11 @@
 /**
- * Live 判定结果动画组件
- * 显示 Live 成功/失败的全屏动画效果
+ * Live 胜者动画组件
+ * 仅在当前观察者属于本轮胜者时显示全屏结果动画
  */
 
 import { memo, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-
-export type LiveResultType = 'success' | 'failure' | null;
 
 /**
  * Live 分数信息
@@ -26,8 +24,10 @@ export interface LiveScoreInfo {
 }
 
 interface LiveResultAnimationProps {
-  /** 结果类型 */
-  result: LiveResultType;
+  /** 是否显示胜者动画 */
+  visible: boolean;
+  /** 当前观察者是否为胜者 */
+  isViewerWinner: boolean;
   /** 分数信息 */
   scoreInfo?: LiveScoreInfo | null;
   /** 动画结束回调 */
@@ -37,221 +37,163 @@ interface LiveResultAnimationProps {
 }
 
 export const LiveResultAnimation = memo(function LiveResultAnimation({
-  result,
+  visible,
+  isViewerWinner,
   scoreInfo,
   onComplete,
   duration = 2500,
 }: LiveResultAnimationProps) {
-  // 使用 ref 追踪上一次的 result，避免重复触发
-  const prevResultRef = useRef<LiveResultType>(null);
+  const prevVisibleRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 直接使用 result 作为可见性判断
-  const visible = result !== null;
-
-  // 仅在 result 从 null 变为非 null 时启动定时器
   useEffect(() => {
-    if (result !== null && prevResultRef.current === null) {
-      // 清除之前的定时器
+    if (visible && !prevVisibleRef.current) {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
-      // 启动新定时器
       timerRef.current = setTimeout(() => {
         onComplete?.();
       }, duration);
     }
-    prevResultRef.current = result;
+    prevVisibleRef.current = visible;
 
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
     };
-  }, [result, duration, onComplete]);
+  }, [duration, onComplete, visible]);
 
-  const config = result === 'success'
-    ? {
-        text: '🎉 LIVE SUCCESS!',
-        subText: '演出成功！',
-        bgClass: 'from-amber-500/30 via-yellow-500/20 to-orange-500/30',
-        textClass: 'text-amber-400',
-        glowClass: 'shadow-amber-500/50',
-      }
-    : {
-        text: '💔 LIVE FAILED',
-        subText: '演出失败...',
-        bgClass: 'from-slate-500/30 via-gray-500/20 to-slate-600/30',
-        textClass: 'text-slate-400',
-        glowClass: 'shadow-slate-500/50',
-      };
+  const title = scoreInfo?.isDraw ? 'DOUBLE VICTORY!' : 'LIVE VICTORY!';
+  const subtitle = scoreInfo?.isDraw ? '双方都赢下了本轮 Live！' : '你赢下了本轮 Live！';
 
   return (
     <AnimatePresence>
-      {visible && result && (
+      {visible && isViewerWinner && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center"
+          className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none"
         >
-          {/* 背景渐变 */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className={cn(
-              'absolute inset-0 bg-gradient-to-br',
-              config.bgClass
-            )}
+            className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.28),transparent_62%)]"
           />
 
-          {/* 主要内容 */}
           <motion.div
             initial={{ scale: 0.5, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.8, opacity: 0, y: -20 }}
-            transition={{
-              type: 'spring',
-              stiffness: 300,
-              damping: 20,
-            }}
+            exit={{ scale: 0.85, opacity: 0, y: -16 }}
+            transition={{ type: 'spring', stiffness: 280, damping: 22 }}
             className="relative z-10 text-center"
           >
-            {/* 主标题 */}
             <motion.h1
               initial={{ letterSpacing: '0.5em', opacity: 0 }}
-              animate={{ letterSpacing: '0.1em', opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
+              animate={{ letterSpacing: '0.08em', opacity: 1 }}
+              transition={{ delay: 0.15, duration: 0.45 }}
               className={cn(
-                'text-5xl md:text-7xl font-black',
-                config.textClass,
-                'drop-shadow-2xl',
-                config.glowClass
+                'text-5xl md:text-7xl font-black text-[var(--accent-gold)] drop-shadow-2xl'
               )}
               style={{
-                textShadow: result === 'success'
-                  ? '0 0 40px rgba(251, 191, 36, 0.8), 0 0 80px rgba(251, 191, 36, 0.4)'
-                  : '0 0 40px rgba(100, 116, 139, 0.6)',
+                textShadow:
+                  '0 0 40px rgba(251, 191, 36, 0.8), 0 0 80px rgba(251, 191, 36, 0.35)',
               }}
             >
-              {config.text}
+              {title}
             </motion.h1>
 
-            {/* 副标题 */}
             <motion.p
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.3 }}
-              className={cn('text-xl md:text-2xl mt-4 font-bold', config.textClass)}
+              transition={{ delay: 0.45, duration: 0.3 }}
+              className="mt-4 text-xl font-bold text-amber-100 md:text-2xl"
             >
-              {config.subText}
+              {subtitle}
             </motion.p>
 
-            {/* 分数展示 */}
             {scoreInfo && (
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7, duration: 0.4 }}
+                transition={{ delay: 0.65, duration: 0.35 }}
                 className="mt-6 flex items-center justify-center gap-8"
               >
-                {/* 己方分数 */}
-                <div className={cn(
-                  'flex flex-col items-center px-6 py-3 rounded-lg',
-                  scoreInfo.selfWon ? 'bg-amber-500/20' : 'bg-slate-700/50'
-                )}>
-                  <span className="text-slate-400 text-sm">己方</span>
-                  <span className={cn(
-                    'text-4xl font-black',
-                    scoreInfo.selfWon ? 'text-amber-400' : 'text-slate-300'
-                  )}>
+                <div
+                  className={cn(
+                    'flex flex-col items-center rounded-lg px-6 py-3',
+                    scoreInfo.selfWon ? 'bg-amber-500/20' : 'bg-slate-700/50'
+                  )}
+                >
+                  <span className="text-sm text-slate-300">己方</span>
+                  <span
+                    className={cn(
+                      'text-4xl font-black',
+                      scoreInfo.selfWon ? 'text-amber-300' : 'text-slate-200'
+                    )}
+                  >
                     {scoreInfo.selfScore}
                   </span>
-                  {scoreInfo.selfWon && (
-                    <span className="text-amber-400 text-xs mt-1">🏆 WIN</span>
-                  )}
                 </div>
 
-                {/* VS */}
-                <div className="text-slate-500 text-2xl font-bold">VS</div>
+                <div className="text-2xl font-bold text-amber-200/70">VS</div>
 
-                {/* 对手分数 */}
-                <div className={cn(
-                  'flex flex-col items-center px-6 py-3 rounded-lg',
-                  scoreInfo.opponentWon ? 'bg-rose-500/20' : 'bg-slate-700/50'
-                )}>
-                  <span className="text-slate-400 text-sm">对手</span>
-                  <span className={cn(
-                    'text-4xl font-black',
-                    scoreInfo.opponentWon ? 'text-rose-400' : 'text-slate-300'
-                  )}>
+                <div
+                  className={cn(
+                    'flex flex-col items-center rounded-lg px-6 py-3',
+                    scoreInfo.opponentWon ? 'bg-amber-500/20' : 'bg-slate-700/50'
+                  )}
+                >
+                  <span className="text-sm text-slate-300">对手</span>
+                  <span
+                    className={cn(
+                      'text-4xl font-black',
+                      scoreInfo.opponentWon ? 'text-amber-300' : 'text-slate-200'
+                    )}
+                  >
                     {scoreInfo.opponentScore}
                   </span>
-                  {scoreInfo.opponentWon && !scoreInfo.selfWon && (
-                    <span className="text-rose-400 text-xs mt-1">🏆 WIN</span>
-                  )}
                 </div>
               </motion.div>
             )}
 
-            {/* 平局提示 */}
-            {scoreInfo?.isDraw && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1, duration: 0.3 }}
-                className="text-amber-300 text-lg mt-4"
-              >
-                ⚡ 双方平局！
-              </motion.p>
-            )}
-
-            {/* 成功时的星星特效 */}
-            {result === 'success' && (
-              <motion.div
-                className="absolute inset-0 pointer-events-none"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                {[...Array(8)].map((_, i) => (
+            <motion.div
+              className="absolute inset-0 pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              {[...Array(12)].map((_, index) => {
+                const hue = (index % 6) * 55;
+                return (
                   <motion.span
-                    key={i}
-                    initial={{
-                      opacity: 0,
-                      scale: 0,
-                      x: 0,
-                      y: 0,
-                    }}
+                    key={index}
+                    initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
                     animate={{
                       opacity: [0, 1, 0],
-                      scale: [0, 1.5, 0],
-                      x: Math.cos((i / 8) * Math.PI * 2) * 150,
-                      y: Math.sin((i / 8) * Math.PI * 2) * 100,
+                      scale: [0, 1.6, 0],
+                      x: Math.cos((index / 12) * Math.PI * 2) * 180,
+                      y: Math.sin((index / 12) * Math.PI * 2) * 110,
                     }}
-                    transition={{
-                      delay: 0.3 + i * 0.1,
-                      duration: 1,
-                    }}
-                    className="absolute top-1/2 left-1/2 text-3xl"
+                    transition={{ delay: 0.25 + index * 0.06, duration: 1 }}
+                    className="absolute left-1/2 top-1/2 text-3xl"
+                    style={{ filter: `drop-shadow(0 0 10px hsla(${hue}, 90%, 70%, 0.9))` }}
                   >
-                    ⭐
+                    ✦
                   </motion.span>
-                ))}
-              </motion.div>
-            )}
+                );
+              })}
+            </motion.div>
           </motion.div>
 
-          {/* 底部光晕 */}
-          {result === 'success' && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ opacity: 0.5, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5 }}
-              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[200%] h-32 bg-gradient-to-t from-amber-500/40 to-transparent blur-3xl"
-            />
-          )}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.65 }}
+            animate={{ opacity: 0.5, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.45 }}
+            className="absolute bottom-0 left-1/2 h-32 w-[200%] -translate-x-1/2 bg-gradient-to-t from-amber-500/40 to-transparent blur-3xl"
+          />
         </motion.div>
       )}
     </AnimatePresence>

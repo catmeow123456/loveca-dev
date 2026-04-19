@@ -2,7 +2,6 @@ import { createGameSession, type GameSession } from '../../application/game-sess
 import type { GameCommand } from '../../application/game-commands.js';
 import type {
   DebugCommandResult,
-  DebugMatchRecovery,
   DebugMatchSnapshot,
   DebugMatchStatus,
   DebugSeatDeckSelection,
@@ -75,10 +74,9 @@ export function getDebugMatchSnapshot(matchId: string, seat: Seat): DebugMatchSn
   }
 
   const playerId = match.seats[seat].playerId;
-  const gameState = match.session.getStateForPlayer(playerId);
   const playerViewState = match.session.getPlayerViewState(playerId);
 
-  if (!gameState || !playerViewState) {
+  if (!playerViewState) {
     return null;
   }
 
@@ -87,36 +85,10 @@ export function getDebugMatchSnapshot(matchId: string, seat: Seat): DebugMatchSn
     seat,
     playerId,
     seq: match.session.getCurrentPublicEventSeq(),
-    gameState,
     playerViewState,
     publicEvents: match.session.getPublicEventsSince(0),
     privateEvents: match.session.getPrivateEventsSince(playerId, 0),
     snapshots: match.session.getSnapshotHistory(),
-  };
-}
-
-export function getDebugMatchRecovery(
-  matchId: string,
-  seat: Seat,
-  requestedSeq: number
-): DebugMatchRecovery | null {
-  const match = getOrCreateDebugMatch(matchId);
-  if (!match.session) {
-    return null;
-  }
-
-  const playerId = match.seats[seat].playerId;
-  const playerRecovery = match.session.getPlayerRecoveryFrame(playerId, requestedSeq);
-  if (!playerRecovery) {
-    return null;
-  }
-
-  return {
-    matchId,
-    seat,
-    playerId,
-    requestedSeq,
-    playerRecovery,
   };
 }
 

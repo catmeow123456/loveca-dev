@@ -20,6 +20,8 @@ export enum GameCommandType {
   PLAY_MEMBER_TO_SLOT = 'PLAY_MEMBER_TO_SLOT',
   MOVE_PUBLIC_CARD_TO_WAITING_ROOM = 'MOVE_PUBLIC_CARD_TO_WAITING_ROOM',
   MOVE_PUBLIC_CARD_TO_HAND = 'MOVE_PUBLIC_CARD_TO_HAND',
+  MOVE_PUBLIC_CARD_TO_ENERGY_DECK = 'MOVE_PUBLIC_CARD_TO_ENERGY_DECK',
+  MOVE_OWNED_CARD_TO_ZONE = 'MOVE_OWNED_CARD_TO_ZONE',
   FINISH_INSPECTION = 'FINISH_INSPECTION',
   CONFIRM_STEP = 'CONFIRM_STEP',
   CONFIRM_PERFORMANCE_OUTCOME = 'CONFIRM_PERFORMANCE_OUTCOME',
@@ -130,6 +132,7 @@ export interface AttachEnergyToMemberCommand extends BaseGameCommand {
   readonly cardId: string;
   readonly fromZone: ZoneType.MEMBER_SLOT | ZoneType.ENERGY_ZONE | ZoneType.ENERGY_DECK;
   readonly targetSlot: SlotPosition;
+  readonly sourceSlot?: SlotPosition;
 }
 
 export interface PlayMemberToSlotCommand extends BaseGameCommand {
@@ -148,8 +151,36 @@ export interface MovePublicCardToWaitingRoomCommand extends BaseGameCommand {
 export interface MovePublicCardToHandCommand extends BaseGameCommand {
   readonly type: GameCommandType.MOVE_PUBLIC_CARD_TO_HAND;
   readonly cardId: string;
-  readonly fromZone: ZoneType.MEMBER_SLOT | ZoneType.LIVE_ZONE | ZoneType.SUCCESS_ZONE;
+  readonly fromZone:
+    | ZoneType.MEMBER_SLOT
+    | ZoneType.LIVE_ZONE
+    | ZoneType.SUCCESS_ZONE
+    | ZoneType.WAITING_ROOM;
   readonly sourceSlot?: SlotPosition;
+}
+
+export interface MovePublicCardToEnergyDeckCommand extends BaseGameCommand {
+  readonly type: GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK;
+  readonly cardId: string;
+  readonly fromZone: ZoneType.ENERGY_ZONE;
+}
+
+export interface MoveOwnedCardToZoneCommand extends BaseGameCommand {
+  readonly type: GameCommandType.MOVE_OWNED_CARD_TO_ZONE;
+  readonly cardId: string;
+  readonly fromZone: ZoneType.HAND | ZoneType.MAIN_DECK | ZoneType.ENERGY_DECK;
+  readonly toZone:
+    | ZoneType.HAND
+    | ZoneType.MAIN_DECK
+    | ZoneType.ENERGY_DECK
+    | ZoneType.MEMBER_SLOT
+    | ZoneType.ENERGY_ZONE
+    | ZoneType.LIVE_ZONE
+    | ZoneType.SUCCESS_ZONE
+    | ZoneType.WAITING_ROOM
+    | ZoneType.EXILE_ZONE;
+  readonly targetSlot?: SlotPosition;
+  readonly position?: 'TOP' | 'BOTTOM';
 }
 
 export interface FinishInspectionCommand extends BaseGameCommand {
@@ -215,6 +246,8 @@ export type GameCommand =
   | PlayMemberToSlotCommand
   | MovePublicCardToWaitingRoomCommand
   | MovePublicCardToHandCommand
+  | MovePublicCardToEnergyDeckCommand
+  | MoveOwnedCardToZoneCommand
   | FinishInspectionCommand
   | ConfirmStepCommand
   | ConfirmPerformanceOutcomeCommand
@@ -265,10 +298,7 @@ export function createTapMemberCommand(
   };
 }
 
-export function createTapEnergyCommand(
-  playerId: string,
-  cardId: string
-): TapEnergyCommand {
+export function createTapEnergyCommand(playerId: string, cardId: string): TapEnergyCommand {
   return {
     type: GameCommandType.TAP_ENERGY,
     playerId,
@@ -431,7 +461,8 @@ export function createAttachEnergyToMemberCommand(
   playerId: string,
   cardId: string,
   fromZone: AttachEnergyToMemberCommand['fromZone'],
-  targetSlot: SlotPosition
+  targetSlot: SlotPosition,
+  sourceSlot?: SlotPosition
 ): AttachEnergyToMemberCommand {
   return {
     type: GameCommandType.ATTACH_ENERGY_TO_MEMBER,
@@ -439,6 +470,7 @@ export function createAttachEnergyToMemberCommand(
     cardId,
     fromZone,
     targetSlot,
+    sourceSlot,
     timestamp: Date.now(),
   };
 }
@@ -489,6 +521,42 @@ export function createMovePublicCardToHandCommand(
   };
 }
 
+export function createMovePublicCardToEnergyDeckCommand(
+  playerId: string,
+  cardId: string,
+  fromZone: MovePublicCardToEnergyDeckCommand['fromZone']
+): MovePublicCardToEnergyDeckCommand {
+  return {
+    type: GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK,
+    playerId,
+    cardId,
+    fromZone,
+    timestamp: Date.now(),
+  };
+}
+
+export function createMoveOwnedCardToZoneCommand(
+  playerId: string,
+  cardId: string,
+  fromZone: MoveOwnedCardToZoneCommand['fromZone'],
+  toZone: MoveOwnedCardToZoneCommand['toZone'],
+  options?: {
+    targetSlot?: SlotPosition;
+    position?: 'TOP' | 'BOTTOM';
+  }
+): MoveOwnedCardToZoneCommand {
+  return {
+    type: GameCommandType.MOVE_OWNED_CARD_TO_ZONE,
+    playerId,
+    cardId,
+    fromZone,
+    toZone,
+    targetSlot: options?.targetSlot,
+    position: options?.position,
+    timestamp: Date.now(),
+  };
+}
+
 export function createFinishInspectionCommand(playerId: string): FinishInspectionCommand {
   return {
     type: GameCommandType.FINISH_INSPECTION,
@@ -497,10 +565,7 @@ export function createFinishInspectionCommand(playerId: string): FinishInspectio
   };
 }
 
-export function createConfirmStepCommand(
-  playerId: string,
-  subPhase: SubPhase
-): ConfirmStepCommand {
+export function createConfirmStepCommand(playerId: string, subPhase: SubPhase): ConfirmStepCommand {
   return {
     type: GameCommandType.CONFIRM_STEP,
     playerId,

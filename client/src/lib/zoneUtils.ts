@@ -5,8 +5,8 @@
  */
 
 import { ZoneType, SlotPosition } from '@game/shared/types/enums';
-import type { GameState } from '@game/domain/entities/game';
-import type { PlayerState } from '@game/domain/entities/player';
+
+const SCOPED_ZONE_DELIMITER = '::';
 
 // ============================================
 // 类型定义
@@ -48,6 +48,11 @@ const ZONE_TYPE_TO_ID: Partial<Record<ZoneType, string>> = {
   [ZoneType.RESOLUTION_ZONE]: 'resolution-zone',
 };
 
+function extractLogicalZoneId(zoneId: string): string {
+  const delimiterIndex = zoneId.lastIndexOf(SCOPED_ZONE_DELIMITER);
+  return delimiterIndex >= 0 ? zoneId.slice(delimiterIndex + SCOPED_ZONE_DELIMITER.length) : zoneId;
+}
+
 // ============================================
 // 核心解析函数
 // ============================================
@@ -65,9 +70,11 @@ const ZONE_TYPE_TO_ID: Partial<Record<ZoneType, string>> = {
  * parseZoneId('unknown')      // null
  */
 export function parseZoneId(zoneId: string): ParsedZoneId | null {
+  const logicalZoneId = extractLogicalZoneId(zoneId);
+
   // 处理成员槽位: slot-LEFT, slot-CENTER, slot-RIGHT
-  if (zoneId.startsWith('slot-')) {
-    const slotName = zoneId.replace('slot-', '') as keyof typeof SlotPosition;
+  if (logicalZoneId.startsWith('slot-')) {
+    const slotName = logicalZoneId.replace('slot-', '') as keyof typeof SlotPosition;
     const slot = SlotPosition[slotName];
     if (slot) {
       return { zoneType: ZoneType.MEMBER_SLOT, slotPosition: slot };
@@ -76,7 +83,7 @@ export function parseZoneId(zoneId: string): ParsedZoneId | null {
   }
 
   // 查找映射表
-  const zoneType = ZONE_ID_MAP[zoneId];
+  const zoneType = ZONE_ID_MAP[logicalZoneId];
   if (zoneType) {
     return { zoneType };
   }
@@ -103,138 +110,10 @@ export function createZoneId(zoneType: ZoneType, slotPosition?: SlotPosition): s
   return ZONE_TYPE_TO_ID[zoneType] || '';
 }
 
-// ============================================
-// 卡牌位置查找函数
-// ============================================
-
-/**
- * 在玩家的各区域中查找卡牌所在的区域类型
- *
- * @param cardId 卡牌实例 ID
- * @param player 玩家状态
- * @returns 卡牌所在的区域类型，如果找不到则返回 null
- */
-function findCardInPlayerZones(cardId: string, player: PlayerState): ZoneType | null {
-  // 手牌
-  if (player.hand.cardIds.includes(cardId)) {
-    return ZoneType.HAND;
-  }
-
-  // 成员槽位（包括成员卡和其下方的能量卡，规则 4.5.5）
-  for (const slot of Object.values(SlotPosition)) {
-    if (player.memberSlots.slots[slot] === cardId) {
-      return ZoneType.MEMBER_SLOT;
-    }
-    // 检查成员下方的能量卡（energyBelow）
-    if (player.memberSlots.energyBelow?.[slot]?.includes(cardId)) {
-      return ZoneType.MEMBER_SLOT;
-    }
-  }
-
-  // Live 区
-  if (player.liveZone.cardIds.includes(cardId)) {
-    return ZoneType.LIVE_ZONE;
-  }
-
-  // 能量区
-  if (player.energyZone.cardIds.includes(cardId)) {
-    return ZoneType.ENERGY_ZONE;
-  }
-
-  // 成功区
-  if (player.successZone.cardIds.includes(cardId)) {
-    return ZoneType.SUCCESS_ZONE;
-  }
-
-  // 休息室
-  if (player.waitingRoom.cardIds.includes(cardId)) {
-    return ZoneType.WAITING_ROOM;
-  }
-
-  // 主卡组
-  if (player.mainDeck.cardIds.includes(cardId)) {
-    return ZoneType.MAIN_DECK;
-  }
-
-  // 能量卡组
-  if (player.energyDeck.cardIds.includes(cardId)) {
-    return ZoneType.ENERGY_DECK;
-  }
-
-  // 除外区
-  if (player.exileZone.cardIds.includes(cardId)) {
-    return ZoneType.EXILE_ZONE;
-  }
-
-  return null;
-}
-
-/**
- * 在游戏状态中查找卡牌所在的区域类型
- *
- * @param cardId 卡牌实例 ID
- * @param gameState 游戏状态
- * @param playerId 优先搜索的玩家 ID（通常是当前视角玩家）
- * @returns 卡牌所在的区域类型，如果找不到则返回 null
- *
- * @example
- * const fromZone = findCardZone('card-123', gameState, viewingPlayerId);
- * if (fromZone) {
- *   moveTableCard('card-123', fromZone, toZone);
- * }
- */
-export function findCardZone(
-  cardId: string,
-  gameState: GameState,
-  playerId?: string
-): ZoneType | null {
-  // 解决区域（共享）
-  if (gameState.resolutionZone.cardIds.includes(cardId)) {
-    return ZoneType.RESOLUTION_ZONE;
-  }
-
-  // 检视区域（共享）
-  if (gameState.inspectionZone.cardIds.includes(cardId)) {
-    return ZoneType.INSPECTION_ZONE;
-  }
-
-  // 优先搜索指定玩家
-  if (playerId) {
-    const player = gameState.players.find((p) => p.id === playerId);
-    if (player) {
-      const zone = findCardInPlayerZones(cardId, player);
-      if (zone) return zone;
-    }
-  }
-
-  // 搜索所有玩家
-  for (const player of gameState.players) {
-    if (player.id === playerId) continue; // 已经搜索过
-    const zone = findCardInPlayerZones(cardId, player);
-    if (zone) return zone;
-  }
-
-  return null;
-}
-
-/**
- * 获取卡牌所在的槽位位置（仅用于成员区域）
- *
- * @param cardId 卡牌实例 ID
- * @param player 玩家状态
- * @returns 槽位位置，如果卡牌不在成员区域则返回 null
- */
-export function findCardSlotPosition(
-  cardId: string,
-  player: PlayerState
-): SlotPosition | null {
-  for (const slot of Object.values(SlotPosition)) {
-    if (player.memberSlots.slots[slot] === cardId) {
-      return slot;
-    }
-    if (player.memberSlots.energyBelow?.[slot]?.includes(cardId)) {
-      return slot;
-    }
-  }
-  return null;
+export function createScopedZoneId(
+  scope: string,
+  zoneType: ZoneType,
+  slotPosition?: SlotPosition
+): string {
+  return `${scope}${SCOPED_ZONE_DELIMITER}${createZoneId(zoneType, slotPosition)}`;
 }

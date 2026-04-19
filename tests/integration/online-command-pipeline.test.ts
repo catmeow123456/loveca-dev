@@ -30,6 +30,8 @@ import {
   createMoveInspectedCardToTopCommand,
   createMoveInspectedCardToBottomCommand,
   createMoveMemberToSlotCommand,
+  createMoveOwnedCardToZoneCommand,
+  createMovePublicCardToEnergyDeckCommand,
   createMoveResolutionCardToZoneCommand,
   createMovePublicCardToHandCommand,
   createMovePublicCardToWaitingRoomCommand,
@@ -46,6 +48,7 @@ import {
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { createPublicObjectId } from '../../src/online/projector';
+import { fromTransport, toTransport } from '../../src/online/serde';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -189,6 +192,44 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
+  it('主卡组检视数量不足但总张数足够时，会先卡更再打开检视区', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-refresh-inspection', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state as unknown as {
+      players: Array<{
+        mainDeck: { cardIds: string[] };
+        waitingRoom: { cardIds: string[] };
+      }>;
+    };
+    const [topA, topB, refreshCard] = state.players[0].mainDeck.cardIds.slice(0, 3);
+    state.players[0].mainDeck = {
+      ...state.players[0].mainDeck,
+      cardIds: [topA, topB],
+    };
+    state.players[0].waitingRoom = {
+      ...state.players[0].waitingRoom,
+      cardIds: [refreshCard],
+    };
+
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    const result = session.executeCommand(createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 3));
+
+    expect(result.success).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).toEqual([topA, topB, refreshCard]);
+
+    const events = session.getPublicEventsSince(beforeSeq);
+    const deckRefreshIndex = events.findIndex((event) => event.type === 'DeckRefreshed');
+    const inspectedSummaryIndex = events.findIndex((event) => event.type === 'CardsInspectedSummary');
+
+    expect(deckRefreshIndex).toBeGreaterThanOrEqual(0);
+    expect(inspectedSummaryIndex).toBeGreaterThan(deckRefreshIndex);
+  });
+
   it('检视区重排会更新检视顺序并产出同区公共移动事件', () => {
     const session = createGameSession();
     const deck = createTestDeck();
@@ -233,6 +274,64 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
+  it('成员卡从手牌进成员区时不能绕过专用登场命令', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-member-play-guard', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const memberCardId = session.state?.players[0].hand.cardIds.find((cardId) => {
+      const card = session.state?.cardRegistry.get(cardId);
+      return card?.data.cardType === CardType.MEMBER;
+    });
+    expect(memberCardId).toBeTruthy();
+
+    const result = session.executeCommand(
+      createMoveOwnedCardToZoneCommand(
+        PLAYER1,
+        memberCardId!,
+        ZoneType.HAND,
+        ZoneType.MEMBER_SLOT,
+        {
+          targetSlot: SlotPosition.CENTER,
+        }
+      )
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('专用登场命令');
+  });
+
+  it('检视区仍有未处理卡牌时不能结束检视流程', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-inspection-finish-guard',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
+    );
+    expect(openResult.success).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).toHaveLength(1);
+
+    const finishResult = session.executeCommand(createFinishInspectionCommand(PLAYER1));
+
+    expect(finishResult.success).toBe(false);
+    expect(finishResult.error).toBe('检视区仍有未处理的卡牌');
+    expect(session.state?.inspectionContext?.ownerPlayerId).toBe(PLAYER1);
+    expect(session.state?.inspectionZone.cardIds).toHaveLength(1);
+  });
+
   it('从能量卡组打开检视后，回顶和回底会回到原来源区', () => {
     const session = createGameSession();
     const deck = createTestDeck();
@@ -263,6 +362,27 @@ describe('GameSession command pipeline', () => {
     );
     expect(bottomResult.success).toBe(true);
     expect(session.state?.players[0].energyDeck.cardIds.at(-1)).toBe(secondEnergyId);
+  });
+
+  it('进行中的检视流程只允许从同一来源区追加', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-inspection-same-source', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const openMainDeckResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
+    );
+    expect(openMainDeckResult.success).toBe(true);
+    expect(session.state?.inspectionContext?.sourceZone).toBe(ZoneType.MAIN_DECK);
+
+    const appendEnergyDeckResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.ENERGY_DECK, 1)
+    );
+    expect(appendEnergyDeckResult.success).toBe(false);
+    expect(appendEnergyDeckResult.error).toContain('同一来源区');
   });
 
   it('检视流程进行中时会拒绝非检视命令，并要求清空后才能结束', () => {
@@ -528,7 +648,80 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
-  it('Live 放置阶段允许把己方 Live 回手，但其他公开区回手命令仍不在判定阶段开放', () => {
+  it('能量区中的能量可以通过专用命令随时拖回能量卡组', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-energy-zone-to-deck', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const energyCardId = session.state?.players[0].energyZone.cardIds[0];
+    expect(energyCardId).toBeTruthy();
+
+    const genericMoveResult = session.executeCommand(
+      createMoveTableCardCommand(PLAYER1, energyCardId!, ZoneType.ENERGY_ZONE, ZoneType.ENERGY_DECK)
+    );
+    expect(genericMoveResult.success).toBe(false);
+    expect(genericMoveResult.error).toContain('专用命令');
+
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    const moveResult = session.executeCommand(
+      createMovePublicCardToEnergyDeckCommand(PLAYER1, energyCardId!, ZoneType.ENERGY_ZONE)
+    );
+
+    expect(moveResult.success).toBe(true);
+    expect(session.state?.players[0].energyZone.cardIds).not.toContain(energyCardId);
+    expect(session.state?.players[0].energyDeck.cardIds[0]).toBe(energyCardId);
+
+    const events = session.getPublicEventsSince(beforeSeq);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(energyCardId!) &&
+          event.from?.zone === ZoneType.ENERGY_ZONE &&
+          event.to?.zone === ZoneType.ENERGY_DECK
+      )
+    ).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'PlayerDeclared' &&
+          event.declarationType === 'MOVE_PUBLIC_CARD_TO_ENERGY_DECK'
+      )
+    ).toBe(true);
+  });
+
+  it('Live 放置阶段也允许把能量卡组顶牌放到能量区', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-live-set-draw-energy', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+    state.currentPhase = GamePhase.LIVE_SET_PHASE;
+    state.currentSubPhase = SubPhase.LIVE_SET_FIRST_PLAYER;
+    state.activePlayerIndex = 0;
+    state.waitingPlayerId = null;
+
+    const topEnergyCardId = session.state?.players[0].energyDeck.cardIds[0];
+    expect(topEnergyCardId).toBeTruthy();
+
+    const result = session.executeCommand(createDrawEnergyToZoneCommand(PLAYER1, topEnergyCardId!));
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].energyDeck.cardIds).not.toContain(topEnergyCardId);
+    expect(session.state?.players[0].energyZone.cardIds).toContain(topEnergyCardId);
+  });
+
+  it('Live 放置阶段允许把己方 Live 回手，判定阶段本地成功效果窗口也允许继续回手调整', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
@@ -590,15 +783,147 @@ describe('GameSession command pipeline', () => {
     const blockedPhaseState = session.state as unknown as {
       currentPhase: GamePhase;
       currentSubPhase: SubPhase;
+      liveResolution: { performingPlayerId: string | null };
     };
     blockedPhaseState.currentPhase = GamePhase.PERFORMANCE_PHASE;
     blockedPhaseState.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+    blockedPhaseState.liveResolution.performingPlayerId = PLAYER1;
 
     const blockedResult = session.executeCommand(
       createMovePublicCardToHandCommand(PLAYER1, liveCardId!, ZoneType.LIVE_ZONE)
     );
-    expect(blockedResult.success).toBe(false);
-    expect(blockedResult.error).toContain('可回手阶段');
+    expect(blockedResult.success).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toContain(liveCardId);
+  });
+
+  it('序列化后的 MOVE_OWNED_CARD_TO_ZONE 命令仍可在联机管线中执行', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-owned-zone-transport', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const cardId = session.state?.players[0].mainDeck.cardIds[0];
+    expect(cardId).toBeTruthy();
+
+    const serializedCommand = toTransport(
+      createMoveOwnedCardToZoneCommand(PLAYER1, cardId!, ZoneType.MAIN_DECK, ZoneType.HAND)
+    );
+    const command = fromTransport<ReturnType<typeof createMoveOwnedCardToZoneCommand>>(
+      serializedCommand
+    );
+
+    const result = session.executeCommand(command);
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].mainDeck.cardIds).not.toContain(cardId);
+    expect(session.state?.players[0].hand.cardIds).toContain(cardId);
+  });
+
+  it('表演开始时效果窗口允许把己方 Live 回手调整', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-performance-live-start-return', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+      liveResolution: { performingPlayerId: string | null };
+    };
+    const player = state.players[0];
+    const liveCardId = [...state.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.LIVE
+    )?.instanceId;
+
+    expect(liveCardId).toBeTruthy();
+
+    player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== liveCardId);
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter((cardId) => cardId !== liveCardId);
+    player.liveZone.cardIds = [liveCardId!];
+    player.liveZone.cardStates = new Map([
+      [
+        liveCardId!,
+        {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        },
+      ],
+    ]);
+
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.PERFORMANCE_LIVE_START_EFFECTS;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+    mutableState.liveResolution.performingPlayerId = PLAYER1;
+
+    const result = session.executeCommand(
+      createMovePublicCardToHandCommand(PLAYER1, liveCardId!, ZoneType.LIVE_ZONE)
+    );
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].liveZone.cardIds).not.toContain(liveCardId);
+    expect(session.state?.players[0].hand.cardIds).toContain(liveCardId);
+  });
+
+  it('序列化后的 MOVE_PUBLIC_CARD_TO_HAND 命令仍可在表演阶段执行', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-public-hand-transport', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+      liveResolution: { performingPlayerId: string | null };
+    };
+    const player = state.players[0];
+    const liveCardId = [...state.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.LIVE
+    )?.instanceId;
+
+    expect(liveCardId).toBeTruthy();
+
+    player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== liveCardId);
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter((cardId) => cardId !== liveCardId);
+    player.liveZone.cardIds = [liveCardId!];
+    player.liveZone.cardStates = new Map([
+      [
+        liveCardId!,
+        {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        },
+      ],
+    ]);
+
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+    mutableState.liveResolution.performingPlayerId = PLAYER1;
+
+    const serializedCommand = toTransport(
+      createMovePublicCardToHandCommand(PLAYER1, liveCardId!, ZoneType.LIVE_ZONE)
+    );
+    const command = fromTransport<ReturnType<typeof createMovePublicCardToHandCommand>>(
+      serializedCommand
+    );
+
+    const result = session.executeCommand(command);
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].liveZone.cardIds).not.toContain(liveCardId);
+    expect(session.state?.players[0].hand.cardIds).toContain(liveCardId);
   });
 
   it('解决区命令可在 Live 判定阶段处理应援牌', () => {
@@ -642,6 +967,52 @@ describe('GameSession command pipeline', () => {
           event.to?.zone === ZoneType.WAITING_ROOM
       )
     ).toBe(true);
+  });
+
+  it('表演判定中开启检视后仍可翻开应援牌，且不影响检视区内容', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-performance-inspection-cheer', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+    state.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    state.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+    state.activePlayerIndex = 0;
+    state.waitingPlayerId = null;
+
+    const openInspectionResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
+    );
+    expect(openInspectionResult.success).toBe(true);
+
+    const inspectedCardId = session.state?.inspectionZone.cardIds[0];
+    expect(inspectedCardId).toBeTruthy();
+
+    const ownerViewDuringInspection = session.getPlayerViewState(PLAYER1);
+    const opponentViewDuringInspection = session.getPlayerViewState(PLAYER2);
+    expect(
+      ownerViewDuringInspection?.permissions.availableCommands.some(
+        (hint) => hint.command === 'REVEAL_CHEER_CARD' && hint.enabled
+      )
+    ).toBe(true);
+    expect(ownerViewDuringInspection?.match.window?.windowType).toBe('INSPECTION');
+    expect(opponentViewDuringInspection?.match.window?.windowType).toBe('INSPECTION');
+    expect(opponentViewDuringInspection?.table.zones.FIRST_INSPECTION_ZONE.count).toBe(1);
+
+    const revealCheerResult = session.executeCommand(createRevealCheerCardCommand(PLAYER1));
+    expect(revealCheerResult.success).toBe(true);
+
+    expect(session.state?.inspectionZone.cardIds).toEqual([inspectedCardId!]);
+    expect(session.state?.resolutionZone.cardIds).toHaveLength(1);
+    expect(session.state?.resolutionZone.cardIds[0]).not.toBe(inspectedCardId);
+    expect(session.state?.resolutionZone.revealedCardIds).toEqual(session.state?.resolutionZone.cardIds);
   });
 
   it('确认 Live 失败会清空应援区与 Live 区到休息室', () => {
@@ -1021,7 +1392,7 @@ describe('GameSession command pipeline', () => {
     player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== liveCardId);
     player.mainDeck.cardIds = player.mainDeck.cardIds.filter((cardId) => cardId !== liveCardId);
     player.liveZone.cardIds = [liveCardId!];
-    mutableState.currentSubPhase = SubPhase.RESULT_FIRST_SUCCESS_EFFECTS;
+    mutableState.currentSubPhase = SubPhase.RESULT_SETTLEMENT;
     mutableState.activePlayerIndex = 0;
     mutableState.liveResolution.liveWinnerIds = [PLAYER1];
 
@@ -1042,6 +1413,163 @@ describe('GameSession command pipeline', () => {
           event.to?.zone === ZoneType.SUCCESS_ZONE
       )
     ).toBe(true);
+  });
+
+  it('判定阶段点击 Live 成功后的本地效果窗口允许成员从手牌登场', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-performance-success-play-member', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+      liveResolution: { performingPlayerId: string | null };
+    };
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+    mutableState.liveResolution.performingPlayerId = PLAYER1;
+
+    const memberCardId = state.players[0].hand.cardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    expect(memberCardId).toBeTruthy();
+
+    const result = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, memberCardId!, SlotPosition.LEFT)
+    );
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(memberCardId);
+  });
+
+  it('判定阶段点击 Live 成功后的本地效果窗口允许把 Live 提前移入成功区', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-performance-success-select-live', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+      liveResolution: { performingPlayerId: string | null };
+    };
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+    mutableState.liveResolution.performingPlayerId = PLAYER1;
+
+    const liveCardId = [...state.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.LIVE
+    )?.instanceId;
+    expect(liveCardId).toBeTruthy();
+
+    const player = state.players[0];
+    player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== liveCardId);
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter((cardId) => cardId !== liveCardId);
+    player.liveZone.cardIds = [liveCardId!];
+    player.liveZone.cardStates = new Map([
+      [
+        liveCardId!,
+        {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        },
+      ],
+    ]);
+
+    const result = session.executeCommand(createSelectSuccessLiveCommand(PLAYER1, liveCardId!));
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].liveZone.cardIds).not.toContain(liveCardId);
+    expect(session.state?.players[0].successZone.cardIds).toContain(liveCardId);
+    expect(session.state?.liveResolution.liveResults.get(liveCardId!)).toBe(true);
+  });
+
+  it('成功效果窗口允许己方成员从手牌拖到成员区', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-success-effect-play-member', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+      liveResolution: { performingPlayerId: string | null };
+    };
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.PERFORMANCE_SUCCESS_EFFECTS;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+    mutableState.liveResolution.performingPlayerId = PLAYER1;
+
+    const memberCardId = state.players[0].hand.cardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    expect(memberCardId).toBeTruthy();
+
+    const result = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, memberCardId!, SlotPosition.LEFT)
+    );
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).not.toContain(memberCardId);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(memberCardId);
+  });
+
+  it('成功效果窗口允许公开区卡牌回手', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-success-effect-bounce', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+      liveResolution: { performingPlayerId: string | null };
+    };
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.PERFORMANCE_SUCCESS_EFFECTS;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+    mutableState.liveResolution.performingPlayerId = PLAYER1;
+
+    const liveCardId = [...state.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.LIVE
+    )?.instanceId;
+    expect(liveCardId).toBeTruthy();
+
+    const player = state.players[0];
+    player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== liveCardId);
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter((cardId) => cardId !== liveCardId);
+    player.successZone.cardIds = [liveCardId!];
+
+    const result = session.executeCommand(
+      createMovePublicCardToHandCommand(PLAYER1, liveCardId!, ZoneType.SUCCESS_ZONE)
+    );
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].successZone.cardIds).not.toContain(liveCardId);
+    expect(session.state?.players[0].hand.cardIds).toContain(liveCardId);
   });
 
   it('公开区进入休息室命令会发出公开移动事件', () => {
@@ -1147,6 +1675,97 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
+  it('休息室中的己方公开牌可以通过专用回手命令进入手牌', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-waiting-room-to-hand', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    forceMainPhaseForPlayer(session);
+    const player = state.players[0] as unknown as {
+      waitingRoom: { cardIds: string[] };
+      hand: { cardIds: string[] };
+    };
+    const publicCardId = player.hand.cardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    expect(publicCardId).toBeTruthy();
+
+    player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== publicCardId);
+    player.waitingRoom.cardIds = [publicCardId!];
+
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    const result = session.executeCommand(
+      createMovePublicCardToHandCommand(PLAYER1, publicCardId!, ZoneType.WAITING_ROOM)
+    );
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(publicCardId);
+    expect(session.state?.players[0].hand.cardIds).toContain(publicCardId);
+
+    const events = session.getPublicEventsSince(beforeSeq);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(publicCardId!) &&
+          event.from?.zone === ZoneType.WAITING_ROOM &&
+          event.to?.zone === ZoneType.HAND
+      )
+    ).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'PlayerDeclared' && event.declarationType === 'MOVE_PUBLIC_CARD_TO_HAND'
+      )
+    ).toBe(true);
+  });
+
+  it('判定应援区中的己方牌可以通过专用命令进入手牌', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-resolution-to-hand', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+    };
+    state.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    state.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+    state.activePlayerIndex = 0;
+
+    const revealResult = session.executeCommand(createRevealCheerCardCommand(PLAYER1));
+    expect(revealResult.success).toBe(true);
+
+    const resolutionCardId = session.state?.resolutionZone.cardIds[0];
+    expect(resolutionCardId).toBeTruthy();
+
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    const moveResult = session.executeCommand(
+      createMoveResolutionCardToZoneCommand(PLAYER1, resolutionCardId!, ZoneType.HAND)
+    );
+
+    expect(moveResult.success).toBe(true);
+    expect(session.state?.resolutionZone.cardIds).not.toContain(resolutionCardId);
+    expect(session.state?.players[0].hand.cardIds).toContain(resolutionCardId);
+
+    const events = session.getPublicEventsSince(beforeSeq);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(resolutionCardId!) &&
+          event.from?.zone === ZoneType.RESOLUTION_ZONE &&
+          event.to?.zone === ZoneType.HAND
+      )
+    ).toBe(true);
+  });
+
   it('错误 seat 在非当前操作时机提交命令会被拒绝', () => {
     const session = createGameSession();
     const deck = createTestDeck();
@@ -1205,6 +1824,27 @@ describe('GameSession command pipeline', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('当前不是主要阶段');
+  });
+
+  it('主要阶段不允许把成员卡从手牌移动到 Live 区', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-main-phase-member-to-live', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const memberCardId = session.state?.players[0].hand.cardIds.find(
+      (cardId) => session.state?.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    expect(memberCardId).toBeTruthy();
+
+    const result = session.executeCommand(
+      createMoveOwnedCardToZoneCommand(PLAYER1, memberCardId!, ZoneType.HAND, ZoneType.LIVE_ZONE)
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('主要阶段不能把成员卡从手牌移动到LIVE区');
   });
 
   it('明置 Live 会产出 CardRevealedAndMoved，盖放 Live 仍只产出背面移动', () => {

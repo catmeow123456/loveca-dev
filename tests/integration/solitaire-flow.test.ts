@@ -33,7 +33,12 @@ import {
   createEndPhaseAction,
   createConfirmSubPhaseAction,
   createConfirmScoreAction,
+  createSelectSuccessCardAction,
 } from '../../src/application/actions';
+import {
+  createConfirmStepCommand,
+  createMulliganCommand,
+} from '../../src/application/game-commands';
 import type { GameState } from '../../src/domain/entities/game';
 import { getPlayerById } from '../../src/domain/entities/game';
 
@@ -166,6 +171,20 @@ function advanceToLiveSetPhase(session: GameSession): void {
   expect(session.state!.currentPhase).toBe(GamePhase.LIVE_SET_PHASE);
 }
 
+function forceLiveSetPhaseForCommand(session: GameSession): void {
+  const mutableState = session.state as unknown as {
+    currentPhase: GamePhase;
+    currentSubPhase: SubPhase;
+    activePlayerIndex: number;
+    waitingPlayerId: string | null;
+  };
+
+  mutableState.currentPhase = GamePhase.LIVE_SET_PHASE;
+  mutableState.currentSubPhase = SubPhase.LIVE_SET_FIRST_PLAYER;
+  mutableState.activePlayerIndex = 0;
+  mutableState.waitingPlayerId = null;
+}
+
 // ============================================
 // 测试套件
 // ============================================
@@ -188,6 +207,29 @@ describe('对墙打模式（Solitaire）集成测试', () => {
       // 验证双方手牌存在（初始6张 + 抽卡阶段1张）
       const p1 = getPlayerById(state, PLAYER1)!;
       expect(p1.hand.cardIds.length).toBe(7); // 6 initial + 1 draw
+    });
+  });
+
+  describe('命令路径下的对墙打自动跳过', () => {
+    it('executeCommand 的 Mulligan 会自动跳过对手并推进到 MAIN_PHASE', () => {
+      const session = createSolitaireSession();
+
+      const result = session.executeCommand(createMulliganCommand(PLAYER1, []));
+      expect(result.success).toBe(true);
+      expect(session.state!.currentPhase).toBe(GamePhase.MAIN_PHASE);
+      expect(session.state!.currentTurnType).toBe(TurnType.FIRST_PLAYER_TURN);
+    });
+
+    it('executeCommand 的 ConfirmStep 会自动跳过对手 Live Set', () => {
+      const session = createSolitaireSession();
+
+      forceLiveSetPhaseForCommand(session);
+      const result = session.executeCommand(
+        createConfirmStepCommand(PLAYER1, SubPhase.LIVE_SET_FIRST_PLAYER)
+      );
+
+      expect(result.success).toBe(true);
+      expect(session.state!.currentPhase).not.toBe(GamePhase.LIVE_SET_PHASE);
     });
   });
 
@@ -283,9 +325,9 @@ describe('对墙打模式（Solitaire）集成测试', () => {
       expect(skipResult.success).toBe(true);
 
       const state = session.state!;
-      // 不应该卡在 RESULT_SECOND_SUCCESS_EFFECTS 子阶段
+      // 进入结果阶段后应直接从分数确认开始
       if (state.currentPhase === GamePhase.LIVE_RESULT_PHASE) {
-        expect(state.currentSubPhase).not.toBe(SubPhase.RESULT_SECOND_SUCCESS_EFFECTS);
+        expect(state.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
       }
     });
   });
@@ -322,17 +364,27 @@ describe('对墙打模式（Solitaire）集成测试', () => {
         // PERFORMANCE → LIVE_RESULT → 新回合 ACTIVE → ENERGY → DRAW → MAIN
         // LIVE_RESULT 阶段可能包含多个需要确认的子阶段，循环确认直到离开该阶段。
         let safety = 0;
-        while (session.state!.currentPhase === GamePhase.LIVE_RESULT_PHASE && safety < 6) {
+        while (session.state!.currentPhase === GamePhase.LIVE_RESULT_PHASE && safety < 8) {
           const subPhase = session.state!.currentSubPhase;
           if (!subPhase || subPhase === SubPhase.NONE) break;
-          const confirmResult =
-            subPhase === SubPhase.RESULT_SETTLEMENT
-              ? session.dispatch(createConfirmScoreAction(PLAYER1, 0))
-              : session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+          let confirmResult;
+          if (subPhase === SubPhase.RESULT_SCORE_CONFIRM) {
+            confirmResult = session.dispatch(createConfirmScoreAction(PLAYER1, 0));
+          } else if (subPhase === SubPhase.RESULT_SETTLEMENT) {
+            const player = getPlayerById(session.state!, PLAYER1);
+            const liveCardId = player?.liveZone.cardIds[0];
+            if (liveCardId) {
+              const selectResult = session.dispatch(createSelectSuccessCardAction(PLAYER1, liveCardId));
+              expect(selectResult.success).toBe(true);
+            }
+            confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+          } else {
+            confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+          }
           expect(confirmResult.success).toBe(true);
           safety++;
         }
-        expect(safety).toBeLessThan(6);
+        expect(safety).toBeLessThan(8);
 
         if (session.state!.currentPhase === GamePhase.PERFORMANCE_PHASE) {
           // Performance 阶段需要确认判定
@@ -347,17 +399,27 @@ describe('对墙打模式（Solitaire）集成测试', () => {
 
         // 保险兜底：若仍停留在 LIVE_RESULT_PHASE，再次循环确认
         safety = 0;
-        while (session.state!.currentPhase === GamePhase.LIVE_RESULT_PHASE && safety < 6) {
+        while (session.state!.currentPhase === GamePhase.LIVE_RESULT_PHASE && safety < 8) {
           const subPhase = session.state!.currentSubPhase;
           if (!subPhase || subPhase === SubPhase.NONE) break;
-          const confirmResult =
-            subPhase === SubPhase.RESULT_SETTLEMENT
-              ? session.dispatch(createConfirmScoreAction(PLAYER1, 0))
-              : session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+          let confirmResult;
+          if (subPhase === SubPhase.RESULT_SCORE_CONFIRM) {
+            confirmResult = session.dispatch(createConfirmScoreAction(PLAYER1, 0));
+          } else if (subPhase === SubPhase.RESULT_SETTLEMENT) {
+            const player = getPlayerById(session.state!, PLAYER1);
+            const liveCardId = player?.liveZone.cardIds[0];
+            if (liveCardId) {
+              const selectResult = session.dispatch(createSelectSuccessCardAction(PLAYER1, liveCardId));
+              expect(selectResult.success).toBe(true);
+            }
+            confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+          } else {
+            confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+          }
           expect(confirmResult.success).toBe(true);
           safety++;
         }
-        expect(safety).toBeLessThan(6);
+        expect(safety).toBeLessThan(8);
 
         // 到此应该回到新回合的 MAIN_PHASE
         const finalState = session.state!;

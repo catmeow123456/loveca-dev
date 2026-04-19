@@ -1,9 +1,7 @@
 import type { DeckConfig } from '../application/game-service.js';
 import type { GameCommand } from '../application/game-commands.js';
-import type { GameState } from '../domain/entities/game.js';
 import type {
   MatchSnapshotSummary,
-  PlayerRecoveryFrame,
   PlayerViewState,
   PrivateEvent,
   PublicEvent,
@@ -38,19 +36,10 @@ export interface DebugMatchSnapshot {
   readonly seat: Seat;
   readonly playerId: string;
   readonly seq: number;
-  readonly gameState: GameState;
   readonly playerViewState: PlayerViewState;
   readonly publicEvents: readonly PublicEvent[];
   readonly privateEvents: readonly PrivateEvent[];
   readonly snapshots: readonly MatchSnapshotSummary[];
-}
-
-export interface DebugMatchRecovery {
-  readonly matchId: string;
-  readonly seat: Seat;
-  readonly playerId: string;
-  readonly requestedSeq: number;
-  readonly playerRecovery: PlayerRecoveryFrame;
 }
 
 export interface DebugCommandRequest {
