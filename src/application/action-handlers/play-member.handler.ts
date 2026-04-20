@@ -11,7 +11,6 @@ import { success, failure } from './types.js';
 import { TriggerCondition } from '../../shared/types/enums.js';
 import { isMemberCardData } from '../../domain/entities/card.js';
 import { addAction, updatePlayer } from '../../domain/entities/game.js';
-import { hasMovedToStageThisTurn } from '../../domain/entities/player.js';
 import {
   removeCardFromZone,
   addCardToZone,
@@ -30,7 +29,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   action: PlayMemberAction,
   ctx: ActionHandlerContext
 ) => {
-  const { cardId, targetSlot, playerId, isRelay } = action;
+  const { cardId, targetSlot, playerId } = action;
 
   // 获取玩家和卡牌
   const player = ctx.getPlayerById(game, playerId);
@@ -53,22 +52,15 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
     return failure(game, '只能打出成员卡');
   }
 
-  // 验证目标槽位
-  // 规则 9.6.2.1.2.1: 不能指定本回合内从非舞台领域移动到舞台的成员卡所在的成员区
   const existingCardId = getCardInSlot(player.memberSlots, targetSlot);
-  if (existingCardId && hasMovedToStageThisTurn(player, existingCardId)) {
-    return failure(game, '目标槽位本回合已有新成员登场');
-  }
-
-  // 处理接力传递（换手）- 公开区替换与离场仍由系统维护，
-  // 但费用支付交由玩家显式横置/恢复能量，不在此处自动裁判。
   let replacedCardId: string | null = null;
-
-  if (isRelay && existingCardId) {
+  if (existingCardId) {
     const existingCard = ctx.getCardById(game, existingCardId);
-    if (existingCard && isMemberCardData(existingCard.data)) {
-      replacedCardId = existingCardId;
+    if (!existingCard || !isMemberCardData(existingCard.data)) {
+      return failure(game, '目标槽位上的卡牌不是成员卡');
     }
+    // 成员区已有成员时，本次登场按换手处理；不因该成员是否本回合新登场而被阻断。
+    replacedCardId = existingCardId;
   }
 
   let state = game;
@@ -98,7 +90,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   state = addAction(state, 'PLAY_MEMBER', playerId, {
     cardId,
     targetSlot,
-    isRelay,
+    isRelay: replacedCardId !== null,
     replacedCardId,
     energyPayment: 'MANUAL',
   });

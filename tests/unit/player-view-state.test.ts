@@ -287,6 +287,24 @@ describe('PlayerViewState projector', () => {
     expect(hasEnabledCommand(liveSetView, GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK)).toBe(true);
   });
 
+  it('主要阶段和表演阶段应向非当前回合玩家暴露 TAP_MEMBER', () => {
+    const { state } = createProjectedState();
+
+    state.currentPhase = GamePhase.MAIN_PHASE;
+    state.currentSubPhase = SubPhase.NONE;
+    state.activePlayerIndex = 0;
+    state.waitingPlayerId = null;
+
+    const mainOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(mainOpponentView, GameCommandType.TAP_MEMBER)).toBe(true);
+
+    state.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    state.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+
+    const performanceOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(performanceOpponentView, GameCommandType.TAP_MEMBER)).toBe(true);
+  });
+
   it('成功效果窗口应暴露自由拖拽所需的桌面操作权限', () => {
     const { state } = createProjectedState();
 

@@ -1,5 +1,5 @@
 import { GameCommandType } from './game-commands.js';
-import { SubPhase } from '../shared/types/enums.js';
+import { GamePhase, SubPhase } from '../shared/types/enums.js';
 
 export const MAIN_PHASE_MANUAL_COMMAND_TYPES: readonly GameCommandType[] = [
   GameCommandType.OPEN_INSPECTION,
@@ -45,5 +45,17 @@ export function isPerformanceFreeInteractionSubPhase(subPhase: SubPhase): boolea
   return (
     subPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS ||
     subPhase === SubPhase.PERFORMANCE_JUDGMENT
+  );
+}
+
+export function isCrossTurnTapMemberWindow(
+  phase: GamePhase,
+  subPhase: SubPhase
+): boolean {
+  return (
+    phase === GamePhase.MAIN_PHASE ||
+    (phase === GamePhase.PERFORMANCE_PHASE &&
+      (isPerformanceFreeInteractionSubPhase(subPhase) ||
+        isPerformanceSuccessEffectSubPhase(subPhase)))
   );
 }

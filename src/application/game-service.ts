@@ -76,6 +76,7 @@ import {
   isSlotEmpty,
 } from '../domain/entities/zone.js';
 import { PhaseManager, phaseManager, PhaseAutoAction } from './phase-manager.js';
+import { isCrossTurnTapMemberWindow } from './command-availability.js';
 import { isPlayerActive as isPlayerActiveByConfig } from '../shared/phase-config/index.js';
 import { getInitialSubPhase, getSubPhaseConfig } from '../shared/phase-config/index.js';
 import { GameEventType } from './events.js';
@@ -268,6 +269,9 @@ export class GameService {
 
     // "信任玩家"原则：手动移动卡牌不受回合限制（系统会通过规则处理自动纠正非法状态）
     const isManualMoveAction = action.type === GameActionType.MANUAL_MOVE_CARD;
+    const isCrossTurnTapMemberAction =
+      action.type === GameActionType.TAP_MEMBER &&
+      isCrossTurnTapMemberWindow(game.currentPhase, game.currentSubPhase);
 
     if (
       !canActByTiming &&
@@ -275,7 +279,8 @@ export class GameService {
       action.type !== GameActionType.CONFIRM_OPTIONAL &&
       !isLiveSetPhaseAction &&
       !isMulliganPhase &&
-      !isManualMoveAction
+      !isManualMoveAction &&
+      !isCrossTurnTapMemberAction
     ) {
       return {
         success: false,

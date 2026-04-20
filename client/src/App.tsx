@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { GameBoard } from '@/components/game';
 import { DeckManager } from '@/components/deck/DeckManager';
-import { HomePage, GameSetupPage, OnlineDebugPage, SharedDeckPage } from '@/components/pages';
+import { HomePage, GameSetupPage, OnlineDebugPage, OnlineRoomPage, SharedDeckPage } from '@/components/pages';
 import { CardAdminPage } from '@/components/admin/CardAdminPage';
 import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from '@/components/auth';
 import { isEmailEnabled } from '@/lib/apiClient';
@@ -17,18 +17,30 @@ import { useAuthStore } from '@/store/authStore';
 import { cardService } from '@/lib/cardService';
 
 type AuthPage = 'login' | 'register' | 'forgot-password' | 'reset-password';
-type AppPage = 'home' | 'deck-manager' | 'game-setup' | 'online-debug' | 'game' | 'card-admin';
+type AppPage =
+  | 'home'
+  | 'deck-manager'
+  | 'game-setup'
+  | 'online-room'
+  | 'online-debug'
+  | 'game'
+  | 'card-admin';
 
 function getInitialPage(): AppPage {
   const page = new URLSearchParams(window.location.search).get('page');
+  const hasSavedOnlineRoom = !!window.sessionStorage.getItem('loveca.online.room');
   if (
     page === 'deck-manager' ||
     page === 'game-setup' ||
+    page === 'online-room' ||
     page === 'online-debug' ||
     page === 'game' ||
     page === 'card-admin'
   ) {
     return page;
+  }
+  if (hasSavedOnlineRoom) {
+    return 'online-room';
   }
   return 'home';
 }
@@ -216,6 +228,10 @@ function App() {
     );
   }
 
+  if (effectivePage === 'online-room') {
+    return <OnlineRoomPage onBack={() => setCurrentPage('home')} />;
+  }
+
   if (effectivePage === 'online-debug') {
     return <OnlineDebugPage onBack={() => setCurrentPage('home')} />;
   }
@@ -244,6 +260,7 @@ function App() {
     <HomePage
       onNavigateToDeckManager={() => setCurrentPage('deck-manager')}
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
+      onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToCardAdmin={() => setCurrentPage('card-admin')}
     />

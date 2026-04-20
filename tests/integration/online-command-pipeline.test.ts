@@ -1366,6 +1366,88 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
+  it('主要阶段和表演阶段允许非当前回合玩家切换自己的成员为待机状态', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-cross-turn-tap-member', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const player2 = state.players[1] as unknown as {
+      hand: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+        energyBelow: Record<SlotPosition, string[]>;
+      };
+    };
+    const memberCardId = player2.hand.cardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+
+    expect(memberCardId).toBeTruthy();
+
+    player2.hand.cardIds = player2.hand.cardIds.filter((cardId) => cardId !== memberCardId);
+    player2.memberSlots.slots[SlotPosition.LEFT] = memberCardId!;
+    player2.memberSlots.energyBelow[SlotPosition.LEFT] = [];
+    player2.memberSlots.cardStates = new Map([
+      [
+        memberCardId!,
+        {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        },
+      ],
+    ]);
+
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+
+    mutableState.currentPhase = GamePhase.MAIN_PHASE;
+    mutableState.currentSubPhase = SubPhase.NONE;
+
+    const mainPhaseResult = session.executeCommand(
+      createTapMemberCommand(PLAYER2, memberCardId!, SlotPosition.LEFT)
+    );
+    expect(mainPhaseResult.success).toBe(true);
+    expect(session.state?.players[1].memberSlots.cardStates.get(memberCardId!)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+
+    const refreshedPlayer2 = session.state!.players[1] as unknown as {
+      memberSlots: {
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    refreshedPlayer2.memberSlots.cardStates = new Map([
+      [
+        memberCardId!,
+        {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        },
+      ],
+    ]);
+
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+
+    const performancePhaseResult = session.executeCommand(
+      createTapMemberCommand(PLAYER2, memberCardId!, SlotPosition.LEFT)
+    );
+    expect(performancePhaseResult.success).toBe(true);
+    expect(session.state?.players[1].memberSlots.cardStates.get(memberCardId!)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+  });
+
   it('成功 Live 选择命令会把 Live 卡移入成功区并产出公共移动事件', () => {
     const session = createGameSession();
     const deck = createTestDeck();

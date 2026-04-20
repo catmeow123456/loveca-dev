@@ -42,7 +42,9 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
   const connectRemoteDebugSession = useGameStore((s) => s.connectRemoteDebugSession);
   const disconnectRemoteDebugSession = useGameStore((s) => s.disconnectRemoteDebugSession);
   const syncRemoteDebugState = useGameStore((s) => s.syncRemoteDebugState);
-  const remoteDebugSession = useGameStore((s) => s.remoteDebugSession);
+  const remoteDebugSession = useGameStore((s) =>
+    s.remoteSession?.source === 'DEBUG' ? s.remoteSession : null
+  );
   const matchView = useGameStore((s) => s.getMatchView());
 
   const profile = useAuthStore((s) => s.profile);

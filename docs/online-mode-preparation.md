@@ -20,6 +20,14 @@
 - `docs/online-mode-event-classification-draft.md`
 - `docs/online-mode-public-event-minimum-schema.md`
 
+正式版将当前调试联机迁移到“可发布双人房间”的两套实施方案，另见：
+
+- `docs/online-mode-release-plans.md`
+
+若需要进一步采用 WebSocket 方案，并评估它对当前架构的设计修改，另见：
+
+- `docs/online-mode-websocket-architecture-design.md`
+
 ---
 
 ## 2. 从当前系统设计得到的事实

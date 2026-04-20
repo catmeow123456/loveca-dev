@@ -7,6 +7,7 @@ import type {
   PublicEvent,
   Seat,
 } from './types.js';
+import type { RemoteCommandResult, RemoteMatchSnapshot } from './remote-match-types.js';
 
 export interface DebugSeatDeckSelection {
   readonly seat: Seat;
@@ -31,27 +32,14 @@ export interface DebugMatchStatus {
   readonly seats: Readonly<Record<Seat, DebugSeatStatus>>;
 }
 
-export interface DebugMatchSnapshot {
-  readonly matchId: string;
-  readonly seat: Seat;
-  readonly playerId: string;
-  readonly seq: number;
-  readonly playerViewState: PlayerViewState;
-  readonly publicEvents: readonly PublicEvent[];
-  readonly privateEvents: readonly PrivateEvent[];
-  readonly snapshots: readonly MatchSnapshotSummary[];
-}
+export interface DebugMatchSnapshot extends RemoteMatchSnapshot {}
 
 export interface DebugCommandRequest {
   readonly seat: Seat;
   readonly command: GameCommand;
 }
 
-export interface DebugCommandResult {
-  readonly success: boolean;
-  readonly error?: string;
-  readonly snapshot?: DebugMatchSnapshot;
-}
+export type DebugCommandResult = RemoteCommandResult<DebugMatchSnapshot>;
 
 export interface DebugAdvancePhaseRequest {
   readonly seat: Seat;

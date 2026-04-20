@@ -16,8 +16,8 @@ import type { DeckConfig } from '@game/application/game-service';
 import { GameSession, createGameSession, type GameSessionEvent } from '@game/application/game-session';
 import {
   createPublicObjectId,
-  type DebugMatchSnapshot,
   type PlayerViewState,
+  type RemoteMatchSnapshot,
   type Seat,
   type ViewCommandHint,
   type ViewFrontCardInfo,
@@ -64,10 +64,12 @@ import { getPhaseName } from '@game/shared/phase-config';
 import { resolveCardImagePath } from '@/lib/imageService';
 import { type ParsedZoneId } from '@/lib/zoneUtils';
 import {
-  advanceOnlineDebugPhase,
-  executeOnlineDebugCommand,
-  fetchOnlineDebugSnapshot,
-} from '@/lib/onlineDebugClient';
+  advanceRemotePhase,
+  executeRemoteCommand,
+  fetchRemoteSnapshot,
+  type RemoteSessionSource,
+  type RemoteSnapshot,
+} from '@/lib/remoteMatchClient';
 
 // ============================================
 // Store 类型定义
@@ -119,10 +121,11 @@ export interface UIState {
   logs: GameLog[];
 }
 
-interface RemoteDebugSessionState {
+export interface RemoteSessionState {
   readonly matchId: string;
-  readonly seat: Seat;
-  readonly playerId: string;
+  readonly source: RemoteSessionSource;
+  readonly seat?: Seat;
+  readonly playerId: string | null;
 }
 
 export interface GameStore {
@@ -139,8 +142,8 @@ export interface GameStore {
   ui: UIState;
   /** 当前视角玩家 ID */
   viewingPlayerId: string | null;
-  /** 当前远程联机调试会话 */
-  remoteDebugSession: RemoteDebugSessionState | null;
+  /** 当前远程联机会话 */
+  remoteSession: RemoteSessionState | null;
 
   // ============ 动作 ============
   /** 加载卡牌数据 (带文件名映射) */
@@ -226,8 +229,16 @@ export interface GameStore {
   setDragHints: (isDragging: boolean, highlightedZones?: string[]) => void;
   /** 设置游戏模式（支持游戏内切换） */
   setGameMode: (mode: GameMode) => void;
+  /** 接入远程联机会话 */
+  connectRemoteSession: (session: RemoteSessionState) => void;
+  /** 断开远程联机会话 */
+  disconnectRemoteSession: () => void;
+  /** 主动拉取远程联机快照 */
+  syncRemoteState: () => Promise<void>;
+  /** 当前是否处于远程联机模式 */
+  isRemoteMode: () => boolean;
   /** 接入远程联机调试会话 */
-  connectRemoteDebugSession: (session: RemoteDebugSessionState) => void;
+  connectRemoteDebugSession: (session: Omit<RemoteSessionState, 'source'>) => void;
   /** 断开远程联机调试会话 */
   disconnectRemoteDebugSession: () => void;
   /** 主动拉取远程联机调试快照 */
@@ -471,7 +482,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     gameSession,
     gameMode: GameMode.DEBUG,
     viewingPlayerId: null,
-    remoteDebugSession: null,
+    remoteSession: null,
     ui: {
       selectedCardId: null,
       hoveredCardId: null,
@@ -694,7 +705,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     setViewingPlayer: (playerId) => {
-      if (get().remoteDebugSession) {
+      if (get().remoteSession) {
         return;
       }
 
@@ -749,7 +760,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     setGameMode: (mode) => {
-      if (get().remoteDebugSession) {
+      if (get().remoteSession) {
         return;
       }
 
@@ -762,36 +773,57 @@ export const useGameStore = create<GameStore>((set, get) => {
       get().syncState();
     },
 
-    connectRemoteDebugSession: (session) => {
+    connectRemoteSession: (session) => {
       set({
-        remoteDebugSession: session,
+        remoteSession: session,
         viewingPlayerId: session.playerId,
         gameMode: GameMode.DEBUG,
       });
     },
 
-    disconnectRemoteDebugSession: () => {
+    disconnectRemoteSession: () => {
       set({
-        remoteDebugSession: null,
+        remoteSession: null,
         playerViewState: null,
         viewingPlayerId: null,
       });
     },
 
-    syncRemoteDebugState: async () => {
-      const remoteSession = get().remoteDebugSession;
+    syncRemoteState: async () => {
+      const remoteSession = get().remoteSession;
       if (!remoteSession) {
         return;
       }
 
-      const snapshot = await fetchOnlineDebugSnapshot(remoteSession.matchId, remoteSession.seat);
-      applyRemoteDebugSnapshot(snapshot, set);
+      const snapshot = await fetchRemoteSnapshot(
+        remoteSession.source,
+        remoteSession.matchId,
+        remoteSession.seat
+      );
+      applyRemoteSnapshot(snapshot, set);
     },
 
-    isRemoteDebugMode: () => get().remoteDebugSession !== null,
+    isRemoteMode: () => get().remoteSession !== null,
+
+    connectRemoteDebugSession: (session) => {
+      get().connectRemoteSession({
+        ...session,
+        source: 'DEBUG',
+      });
+    },
+
+    disconnectRemoteDebugSession: () => {
+      get().disconnectRemoteSession();
+    },
+
+    syncRemoteDebugState: async () => {
+      await get().syncRemoteState();
+    },
+
+    isRemoteDebugMode: () => get().remoteSession?.source === 'DEBUG',
 
     syncState: () => {
-      if (get().remoteDebugSession) {
+      if (get().remoteSession) {
         return;
       }
 
@@ -1423,12 +1455,19 @@ function isZoneType(zone: string): zone is ZoneType {
   return Object.values(ZoneType).includes(zone as ZoneType);
 }
 
-function applyRemoteDebugSnapshot(
-  snapshot: DebugMatchSnapshot,
+function applyRemoteSnapshot(
+  snapshot: RemoteSnapshot,
   set: (partial: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void
 ): void {
   const normalizedPlayerViewState = normalizePlayerViewState(snapshot.playerViewState);
   set((state) => ({
+    remoteSession: state.remoteSession
+      ? {
+          ...state.remoteSession,
+          playerId: snapshot.playerId,
+          seat: snapshot.seat,
+        }
+      : state.remoteSession,
     viewingPlayerId: snapshot.playerId,
     playerViewState: normalizedPlayerViewState,
     ui: {
@@ -1461,12 +1500,17 @@ function dispatchRemoteCommand(
   onSuccess?: () => void
 ): boolean {
   const store = useGameStore.getState();
-  const remoteSession = store.remoteDebugSession;
+  const remoteSession = store.remoteSession;
   if (!remoteSession) {
     return false;
   }
 
-  void executeOnlineDebugCommand(remoteSession.matchId, remoteSession.seat, command)
+  void executeRemoteCommand(
+    remoteSession.source,
+    remoteSession.matchId,
+    command,
+    remoteSession.seat
+  )
     .then((result) => {
       if (!result.success || !result.snapshot) {
         useGameStore.getState().addLog(
@@ -1476,7 +1520,7 @@ function dispatchRemoteCommand(
         return;
       }
 
-      applyRemoteDebugSnapshot(result.snapshot, useGameStore.setState);
+      applyRemoteSnapshot(result.snapshot, useGameStore.setState);
       onSuccess?.();
     })
     .catch((error) => {
@@ -1491,12 +1535,16 @@ function dispatchRemoteCommand(
 
 function dispatchRemoteAdvancePhase(): boolean {
   const store = useGameStore.getState();
-  const remoteSession = store.remoteDebugSession;
+  const remoteSession = store.remoteSession;
   if (!remoteSession) {
     return false;
   }
 
-  void advanceOnlineDebugPhase(remoteSession.matchId, remoteSession.seat)
+  void advanceRemotePhase(
+    remoteSession.source,
+    remoteSession.matchId,
+    remoteSession.seat
+  )
     .then((result) => {
       if (!result.success || !result.snapshot) {
         useGameStore.getState().addLog(
@@ -1506,7 +1554,7 @@ function dispatchRemoteAdvancePhase(): boolean {
         return;
       }
 
-      applyRemoteDebugSnapshot(result.snapshot, useGameStore.setState);
+      applyRemoteSnapshot(result.snapshot, useGameStore.setState);
       const currentPhase = result.snapshot.playerViewState.match.phase as GamePhase | undefined;
       if (currentPhase) {
         const phaseName = getPhaseName(currentPhase);

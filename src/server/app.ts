@@ -11,6 +11,7 @@ import { decksRouter } from './routes/decks.js';
 import { profilesRouter } from './routes/profiles.js';
 import { imagesRouter } from './routes/images.js';
 import { debugOnlineRouter } from './routes/debug-online.js';
+import { onlineRouter } from './routes/online.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -60,6 +61,7 @@ export function createApp(): express.Express {
   app.use('/api/decks', decksRouter);
   app.use('/api/profiles', profilesRouter);
   app.use('/api/images', imagesRouter);
+  app.use('/api/online', onlineRouter);
   if (config.isDev) {
     app.use('/api/debug', debugOnlineRouter);
   }

@@ -23,6 +23,7 @@ import { isApiConfigured } from '@/lib/apiClient';
 interface HomePageProps {
   onNavigateToDeckManager: () => void;
   onNavigateToGameSetup: () => void;
+  onNavigateToOnlineRoom: () => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToCardAdmin: () => void;
 }
@@ -30,6 +31,7 @@ interface HomePageProps {
 export function HomePage({
   onNavigateToDeckManager,
   onNavigateToGameSetup,
+  onNavigateToOnlineRoom,
   onNavigateToOnlineDebug,
   onNavigateToCardAdmin,
 }: HomePageProps) {
@@ -56,6 +58,15 @@ export function HomePage({
       icon: BookOpen,
       onClick: onNavigateToDeckManager,
       chips: ['创建新卡组', '编辑构筑', '导入导出'],
+    },
+    {
+      title: '正式联机',
+      description: '输入房间号加入双人房间，锁定云端卡组并协商先后手后自动开始对局。',
+      cta: '进入房间',
+      accent: 'var(--accent-primary)',
+      icon: Globe,
+      onClick: onNavigateToOnlineRoom,
+      chips: ['双人房间', '锁定云端卡组', 'HTTP 轮询'],
     },
     {
       title: '开始游戏',

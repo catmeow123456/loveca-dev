@@ -18,7 +18,7 @@ export const DebugControl = memo(function DebugControl() {
   const currentViewingPlayer = useGameStore((s) => s.getViewingPlayerIdentity());
   const otherPlayer = useGameStore((s) => s.getOpponentPlayerIdentity());
   const gameMode = useGameStore((s) => s.gameMode);
-  const isRemoteDebugMode = useGameStore((s) => s.isRemoteDebugMode());
+  const isRemoteMode = useGameStore((s) => s.isRemoteMode());
 
   // 方法选择器（使用 useShallow 保持引用稳定）
   const { setViewingPlayer, addLog, setGameMode } = useGameStore(
@@ -29,7 +29,7 @@ export const DebugControl = memo(function DebugControl() {
     }))
   );
 
-  if (!matchView || isRemoteDebugMode) return null;
+  if (!matchView || isRemoteMode) return null;
   const isDebugMode = gameMode === GameMode.DEBUG;
 
   // 切换视角（仅调试模式）

@@ -30,7 +30,6 @@ import { useGameStore } from '@/store/gameStore';
 import { GameCommandType } from '@game/application/game-commands';
 import { Card } from '@/components/card/Card';
 import { DraggableCard, DroppableZone } from './interaction';
-import { HiddenDeckBrowserModal } from './HiddenDeckBrowserModal';
 import { ArrowDownToLine, ArrowUpToLine, Check, Layers3, Megaphone, Trash2, X } from 'lucide-react';
 import type { AnyCardData, LiveCardData } from '@game/domain/entities/card';
 import { isLiveCardData } from '@game/domain/entities/card';
@@ -42,7 +41,7 @@ import {
   GamePhase,
   SubPhase,
 } from '@game/shared/types/enums';
-import type { Seat, ViewZoneKey } from '@game/online';
+import type { Seat } from '@game/online';
 
 interface PlayerAreaProps {
   playerSeat: Seat;
@@ -206,7 +205,7 @@ export const PlayerArea = memo(function PlayerArea({
   );
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { getVisibleCardPresentation, selectCard, setHoveredCard, tapMember, tapEnergy, drawCardToHand, returnHandCardToTop, getCardViewObject, getSeatZone, getSeatZoneCardIds, getSeatMemberSlotCardId, getSeatMemberOverlayCardIds, getLiveResultForCard, openInspection, revealInspectedCard, moveInspectedCardToZone, moveInspectedCardToTop, moveInspectedCardToBottom, finishInspection, isInspectionCardPubliclyRevealed, isZoneInCommandScope, isCardInCommandScope, getCommandHint } = useGameStore(
+  const { getVisibleCardPresentation, selectCard, setHoveredCard, tapMember, tapEnergy, drawCardToHand, returnHandCardToTop, getCardViewObject, getSeatZone, getSeatZoneCardIds, getSeatMemberSlotCardId, getSeatMemberOverlayCardIds, getLiveResultForCard, openInspection, revealInspectedCard, moveInspectedCardToZone, moveInspectedCardToTop, moveInspectedCardToBottom, finishInspection, isInspectionCardPubliclyRevealed } = useGameStore(
     useShallow((s) => ({
       getVisibleCardPresentation: s.getVisibleCardPresentation,
       selectCard: s.selectCard,
@@ -228,9 +227,6 @@ export const PlayerArea = memo(function PlayerArea({
       moveInspectedCardToBottom: s.moveInspectedCardToBottom,
       finishInspection: s.finishInspection,
       isInspectionCardPubliclyRevealed: s.isInspectionCardPubliclyRevealed,
-      isZoneInCommandScope: s.isZoneInCommandScope,
-      isCardInCommandScope: s.isCardInCommandScope,
-      getCommandHint: s.getCommandHint,
     }))
   );
 
@@ -278,29 +274,6 @@ export const PlayerArea = memo(function PlayerArea({
     !isOpponent &&
     canOpenInspection &&
     (!hasOwnedInspectionContext || inspectionSourceZone === ZoneType.MAIN_DECK);
-  const mainDeckZoneKey = `${playerSeat}_MAIN_DECK` as ViewZoneKey;
-  const energyDeckZoneKey = `${playerSeat}_ENERGY_DECK` as ViewZoneKey;
-  const canDragMainDeckFromBrowser = isZoneInCommandScope(
-    GameCommandType.MOVE_OWNED_CARD_TO_ZONE,
-    mainDeckZoneKey
-  );
-  const canDragEnergyDeckFromBrowser = isZoneInCommandScope(
-    GameCommandType.MOVE_OWNED_CARD_TO_ZONE,
-    energyDeckZoneKey
-  );
-  const moveOwnedCardHint = getCommandHint(GameCommandType.MOVE_OWNED_CARD_TO_ZONE);
-  const mainDeckScopedCardIds =
-    moveOwnedCardHint?.scope?.objectIds && moveOwnedCardHint.scope.objectIds.length > 0
-      ? mainDeckCardIds.filter((cardId) =>
-          isCardInCommandScope(GameCommandType.MOVE_OWNED_CARD_TO_ZONE, cardId)
-        )
-      : undefined;
-  const energyDeckScopedCardIds =
-    moveOwnedCardHint?.scope?.objectIds && moveOwnedCardHint.scope.objectIds.length > 0
-      ? energyDeckCardIds.filter((cardId) =>
-          isCardInCommandScope(GameCommandType.MOVE_OWNED_CARD_TO_ZONE, cardId)
-        )
-      : undefined;
 
   // Live 结算阶段只允许胜者执行 Live -> 成功区，不再开放通用区拖拽。
   const canDropToLiveZone = allowGeneralOwnZoneInteraction;
@@ -314,7 +287,6 @@ export const PlayerArea = memo(function PlayerArea({
   const [inspectionBatchAction, setInspectionBatchAction] = useState<
     'waiting-room' | 'close' | null
   >(null);
-  const [hiddenDeckBrowser, setHiddenDeckBrowser] = useState<'main' | 'energy' | null>(null);
 
   // 渲染成员槽位 - 使用响应式尺寸
   // 能量卡重叠设计：能量卡与成员卡同等大小，向左下方偏移 10% * n 的卡牌尺寸
@@ -544,7 +516,6 @@ export const PlayerArea = memo(function PlayerArea({
   const renderDeck = (count: number, label: string, deckType: 'main' | 'energy') => {
     const zoneId = deckType === 'main' ? 'main-deck' : 'energy-deck';
     const isMainDeck = deckType === 'main';
-    const isBrowserOpen = hiddenDeckBrowser === deckType;
     // 获取能量卡组顶层卡牌（用于拖拽）
     const topCardId = !isMainDeck && count > 0 ? energyDeckCardIds[0] : null;
 
@@ -592,7 +563,7 @@ export const PlayerArea = memo(function PlayerArea({
           {count > 0 && (
             <>
               {/* 能量卡组：顶层卡牌可拖拽 */}
-              {!isMainDeck && topCardId && !isBrowserOpen ? (
+              {!isMainDeck && topCardId ? (
                 <DraggableCard
                   id={topCardId}
                   className="relative block h-[56px] w-[40px]"
@@ -612,19 +583,6 @@ export const PlayerArea = memo(function PlayerArea({
           <div className="absolute -bottom-1 left-1/2 z-10 -translate-x-1/2 rounded-full border border-[var(--border-default)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--text-primary)] shadow-[var(--shadow-sm)]">
             {count}
           </div>
-          {!isOpponent && count > 0 && allowGeneralOwnZoneInteraction && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setHiddenDeckBrowser(deckType);
-              }}
-              className="button-icon absolute -right-2 -top-2 z-20 h-6 w-6 border border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--accent-primary)] shadow-[var(--shadow-md)]"
-              title={`浏览${label}顺序`}
-            >
-              <Layers3 size={12} />
-            </button>
-          )}
         </div>
       </DroppableZone>
     );
@@ -1538,27 +1496,6 @@ export const PlayerArea = memo(function PlayerArea({
         </div>
 
       {renderInspectionZone()}
-
-      <HiddenDeckBrowserModal
-        isOpen={hiddenDeckBrowser === 'main'}
-        onClose={() => setHiddenDeckBrowser(null)}
-        title="主卡组顺序浏览"
-        zoneType={ZoneType.MAIN_DECK}
-        cardIds={mainDeckCardIds}
-        canDragCards={canDragMainDeckFromBrowser}
-        draggableCardIds={mainDeckScopedCardIds}
-        isDragging={isDragging}
-      />
-      <HiddenDeckBrowserModal
-        isOpen={hiddenDeckBrowser === 'energy'}
-        onClose={() => setHiddenDeckBrowser(null)}
-        title="能量卡组顺序浏览"
-        zoneType={ZoneType.ENERGY_DECK}
-        cardIds={energyDeckCardIds}
-        canDragCards={canDragEnergyDeckFromBrowser}
-        draggableCardIds={energyDeckScopedCardIds}
-        isDragging={isDragging}
-      />
     </div>
   );
 });

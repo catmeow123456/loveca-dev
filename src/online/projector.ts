@@ -1,6 +1,7 @@
 import { GameCommandType } from '../application/game-commands.js';
 import {
   MAIN_PHASE_MANUAL_COMMAND_TYPES,
+  isCrossTurnTapMemberWindow,
   PERFORMANCE_LIVE_START_COMMAND_TYPES,
   PERFORMANCE_SUCCESS_EFFECT_COMMAND_TYPES,
   PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES,
@@ -629,23 +630,25 @@ function buildPermissionViewState(
   const phaseHints = canViewerUsePhaseCommands(game, viewerPlayerId, viewerSeat)
     ? buildPhaseCommandHints(game, viewerPlayerId, viewerSeat)
     : [];
+  const crossTurnHints = buildCrossTurnCommandHints(game, viewerPlayerId, viewerSeat);
+  const combinedPhaseHints = mergeCommandHints(phaseHints, crossTurnHints);
 
   if (!game.inspectionContext) {
     return {
-      availableCommands: phaseHints,
+      availableCommands: combinedPhaseHints,
     };
   }
 
   const inspectionSeat = getSeatForPlayer(game, game.inspectionContext.ownerPlayerId);
   if (inspectionSeat !== viewerSeat) {
     return {
-      availableCommands: phaseHints,
+      availableCommands: combinedPhaseHints,
     };
   }
 
   return {
     availableCommands: mergeCommandHints(
-      phaseHints,
+      combinedPhaseHints,
       buildInspectionCommandHints(game, viewerPlayerId, viewerSeat)
     ),
   };
@@ -684,6 +687,32 @@ function mergeCommandHints(
     merged.set(hint.command, hint);
   }
   return [...merged.values()];
+}
+
+function buildCrossTurnCommandHints(
+  game: GameState,
+  viewerPlayerId: string,
+  viewerSeat: Seat
+): readonly ViewCommandHint[] {
+  if (
+    game.inspectionContext &&
+    game.inspectionContext.ownerPlayerId !== viewerPlayerId
+  ) {
+    return [];
+  }
+
+  if (!isCrossTurnTapMemberWindow(game.currentPhase, game.currentSubPhase)) {
+    return [];
+  }
+
+  const tapMemberHint = buildPhaseCommandHint(
+    GameCommandType.TAP_MEMBER,
+    game,
+    viewerPlayerId,
+    viewerSeat
+  );
+
+  return tapMemberHint ? [tapMemberHint] : [];
 }
 
 function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] {
@@ -900,6 +929,16 @@ function buildPhaseCommandHint(
         scope: createCommandScope({
           zoneKeys: [
             createOwnedViewZoneKey(viewerSeat, 'HAND'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_LEFT'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),
+          ],
+        }),
+      });
+    case GameCommandType.TAP_MEMBER:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [
             createOwnedViewZoneKey(viewerSeat, 'MEMBER_LEFT'),
             createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
             createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),

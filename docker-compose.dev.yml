@@ -8,7 +8,6 @@ services:
       POSTGRES_PASSWORD: loveca_dev
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5432:5432"
     healthcheck:

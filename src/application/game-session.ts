@@ -11,6 +11,7 @@
 
 import { GameService, type DeckConfig, type GameOperationResult } from './game-service.js';
 import {
+  isCrossTurnTapMemberWindow,
   isPerformanceSuccessEffectSubPhase,
   isPerformanceFreeInteractionSubPhase,
 } from './command-availability.js';
@@ -775,7 +776,7 @@ export class GameSession {
       return '玩家不存在';
     }
 
-    const canActError = this.validateCommandActor(state, command.playerId);
+    const canActError = this.validateCommandActor(state, command);
     if (canActError) {
       return canActError;
     }
@@ -1189,18 +1190,25 @@ export class GameSession {
     return null;
   }
 
-  private validateCommandActor(state: GameState, playerId: string): string | null {
+  private validateCommandActor(state: GameState, command: GameCommand): string | null {
     if (state.inspectionContext) {
-      return state.inspectionContext.ownerPlayerId === playerId
+      return state.inspectionContext.ownerPlayerId === command.playerId
         ? null
         : '当前正在等待检视玩家完成操作';
     }
 
-    if (state.waitingPlayerId !== null) {
-      return state.waitingPlayerId === playerId ? null : '当前不是该玩家的操作时机';
+    if (
+      command.type === GameCommandType.TAP_MEMBER &&
+      isCrossTurnTapMemberWindow(state.currentPhase, state.currentSubPhase)
+    ) {
+      return null;
     }
 
-    return isPlayerActive(state, playerId) ? null : '当前不是该玩家的操作时机';
+    if (state.waitingPlayerId !== null) {
+      return state.waitingPlayerId === command.playerId ? null : '当前不是该玩家的操作时机';
+    }
+
+    return isPlayerActive(state, command.playerId) ? null : '当前不是该玩家的操作时机';
   }
 
   private validateInspectedCardOwnership(
