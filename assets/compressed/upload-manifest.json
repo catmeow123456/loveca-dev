@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-01T16:52:16.413Z",
+  "generatedAt": "2026-04-20T18:02:15.389Z",
   "sizes": [
     "thumb",
     "medium",
@@ -35346,6 +35346,27 @@
           "size": "large",
           "localPath": "assets/compressed/large/PL!-bp3-012-PR.webp",
           "remotePath": "large/PL!-bp3-012-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!-bp3-014-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!-bp3-014-PR.webp",
+          "remotePath": "thumb/PL!-bp3-014-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!-bp3-014-PR.webp",
+          "remotePath": "medium/PL!-bp3-014-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!-bp3-014-PR.webp",
+          "remotePath": "large/PL!-bp3-014-PR.webp"
         }
       ]
     },
