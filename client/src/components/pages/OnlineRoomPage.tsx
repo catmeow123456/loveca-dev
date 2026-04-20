@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { DeckSelector, type DeckDisplayItem, PageHeader, ThemeToggle } from '@/components/common';
 import { GameBoard } from '@/components/game';
+import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import {
@@ -56,6 +57,11 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBootstrappingMatch, setIsBootstrappingMatch] = useState(false);
+  const [briefingAcknowledged, setBriefingAcknowledged] = useState(false);
+
+  useEffect(() => {
+    setBriefingAcknowledged(false);
+  }, [room?.matchId]);
 
   useEffect(() => {
     fetchCloudDecks();
@@ -301,6 +307,10 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
           </button>
         </div>
         <GameBoard />
+        <PreMatchBriefingModal
+          isOpen={!briefingAcknowledged}
+          onClose={() => setBriefingAcknowledged(true)}
+        />
       </div>
     );
   }
