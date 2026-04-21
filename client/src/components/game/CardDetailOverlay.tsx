@@ -8,6 +8,7 @@ import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
+import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { Card } from '@/components/card/Card';
 import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
@@ -90,9 +91,7 @@ export const MemberCardDetails = memo(function MemberCardDetails({ data }: { dat
 /** Live 卡详情 */
 export const LiveCardDetails = memo(function LiveCardDetails({ data }: { data: LiveCardData }) {
   // 将 Map 转换为数组进行遍历
-  const requirements = data.requirements.colorRequirements instanceof Map
-    ? Array.from(data.requirements.colorRequirements.entries())
-    : Object.entries(data.requirements.colorRequirements);
+  const requirements = getHeartRequirementEntries(data.requirements?.colorRequirements);
 
   return (
     <div className="space-y-3">
@@ -125,11 +124,10 @@ export const LiveCardDetails = memo(function LiveCardDetails({ data }: { data: L
 
 export const CardDetailOverlay = memo(function CardDetailOverlay() {
   const hoveredCardId = useGameStore((s) => s.ui.hoveredCardId);
-  const getCardInstance = useGameStore((s) => s.getCardInstance);
-  const getCardImagePath = useGameStore((s) => s.getCardImagePath);
+  const getVisibleCardPresentation = useGameStore((s) => s.getVisibleCardPresentation);
 
-  const card = hoveredCardId ? getCardInstance(hoveredCardId) : null;
-  const point = card ? getCardPoint(card.data.cardCode) : 0;
+  const card = hoveredCardId ? getVisibleCardPresentation(hoveredCardId) : null;
+  const point = card ? getCardPoint(card.cardCode) : 0;
 
   return (
     <AnimatePresence>
@@ -150,9 +148,9 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
           {/* 大尺寸卡牌图片 */}
           <div className="flex justify-center mb-3">
             <Card
-              cardData={card.data as AnyCardData}
+              cardData={card.cardData as AnyCardData}
               instanceId={card.instanceId}
-              imagePath={getCardImagePath(card.data.cardCode)}
+              imagePath={card.imagePath}
               size="lg"
               faceUp={true}
               interactive={false}
@@ -162,12 +160,12 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
 
           {/* 卡牌名称 */}
           <h3 className="mb-2 text-center text-lg font-bold text-[var(--text-primary)]">
-            {card.data.name}
+            {card.cardData.name}
           </h3>
 
           {/* 卡牌编号 */}
           <div className="mb-3 text-center text-xs text-[var(--text-muted)]">
-            {card.data.cardCode}
+            {card.cardCode}
           </div>
 
           <div className="mb-3 flex justify-center">
@@ -178,19 +176,19 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
           </div>
 
           {/* 类型特定详情 */}
-          {isMemberCardData(card.data) && (
-            <MemberCardDetails data={card.data} />
+          {isMemberCardData(card.cardData) && (
+            <MemberCardDetails data={card.cardData} />
           )}
-          {isLiveCardData(card.data) && (
-            <LiveCardDetails data={card.data} />
+          {isLiveCardData(card.cardData) && (
+            <LiveCardDetails data={card.cardData} />
           )}
 
           {/* 卡牌效果文本 */}
-          {card.data.cardText && (
+          {card.cardData.cardText && (
             <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
               <span className="text-xs text-[var(--text-muted)]">效果</span>
               <p className="mt-1 text-sm leading-relaxed text-[var(--text-secondary)]">
-                {card.data.cardText}
+                {card.cardData.cardText}
               </p>
             </div>
           )}

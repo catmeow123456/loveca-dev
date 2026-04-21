@@ -62,8 +62,10 @@ src/
 │   ├── db/drizzle.ts        # Drizzle ORM instance (wraps pool)
 │   ├── db/schema.ts         # Drizzle table definitions (mirrors init.sql)
 │   ├── middleware/           # authenticate, require-auth, require-admin, validate, error-handler
-│   ├── routes/              # auth, cards, decks, profiles, images
-│   └── services/            # auth-service, mail-service, minio-service
+│   ├── routes/              # auth, cards, decks, profiles, images, online, debug-online(dev)
+│   └── services/            # auth-service, mail-service, minio-service,
+│                            # online-room-service, online-match-service, debug-match-service,
+│                            # card-registry-service (published-cards cache for online decks)
 └── shared/
     ├── types/enums.ts       # All game enums
     └── phase-config/        # Phase configuration registry
@@ -82,7 +84,10 @@ client/src/
     ├── apiClient.ts  # HTTP client with JWT auth, auto-refresh, offline detection
     ├── cardService.ts # Card data CRUD via API
     ├── imageService.ts # Image URL generation (MinIO via Nginx)
-    └── imageUploadService.ts # Browser-side compression + API upload
+    ├── imageUploadService.ts # Browser-side compression + API upload
+    ├── onlineClient.ts # Formal online room + match REST client
+    ├── onlineDebugClient.ts # Dev-only debug-online REST client
+    └── remoteMatchClient.ts # Shared remote snapshot/command dispatch (DEBUG | ONLINE)
 ```
 
 ## Core Design Principles

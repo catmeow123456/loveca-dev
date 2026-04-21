@@ -6,8 +6,6 @@
  */
 
 export enum GameEventType {
-  /** 计算并写入 Live 结算推荐分数/胜者 */
-  CALCULATE_LIVE_RESULT = 'CALCULATE_LIVE_RESULT',
   /** 基于双方确认后的分数判定 Live 胜者 */
   RESOLVE_LIVE_WINNER = 'RESOLVE_LIVE_WINNER',
   /** 推进到下一个主阶段 */

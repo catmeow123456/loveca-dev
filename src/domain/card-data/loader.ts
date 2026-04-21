@@ -6,8 +6,8 @@
  *
  * @module domain/card-data/loader
  */
-import type { AnyCardData, MemberCardData, LiveCardData, EnergyCardData } from '../entities/card';
-import { CardType } from '../../shared/types/enums';
+import type { AnyCardData, MemberCardData, LiveCardData, EnergyCardData } from '../entities/card.js';
+import { CardType } from '../../shared/types/enums.js';
 
 // ============================================
 // 卡牌注册表

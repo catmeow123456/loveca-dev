@@ -4,17 +4,18 @@
  * 提供处理器注册表和统一的处理器查询接口
  */
 
-import type { GameState, GameActionType as ActionType } from '../../domain/entities/game';
-import type { PlayerState } from '../../domain/entities/player';
-import type { CardInstance } from '../../domain/entities/card';
-import { GameActionType, type GameAction } from '../actions';
-import type { ActionHandler, ActionHandlerContext } from './types';
+import type { GameState, GameActionType as ActionType } from '../../domain/entities/game.js';
+import type { PlayerState } from '../../domain/entities/player.js';
+import type { CardInstance } from '../../domain/entities/card.js';
+import { GameActionType, type GameAction } from '../actions.js';
+import type { ActionHandler, ActionHandlerContext } from './types.js';
 
 // 导入各处理器
-import { handleMulligan } from './mulligan.handler';
-import { handlePlayMember } from './play-member.handler';
-import { handleSetLiveCard } from './live-set.handler';
-import { handleTapMember } from './tap-member.handler';
+import { handleMulligan } from './mulligan.handler.js';
+import { handlePlayMember } from './play-member.handler.js';
+import { handleSetLiveCard } from './live-set.handler.js';
+import { handleTapMember } from './tap-member.handler.js';
+import { handleTapEnergy } from './tap-energy.handler.js';
 import {
   handleConfirmSubPhase,
   handleManualMoveCard,
@@ -23,20 +24,20 @@ import {
   handleSelectSuccessCard,
   handleUndoOperation,
   handlePerformCheer,
-} from './phase-ten.handler';
+} from './phase-ten.handler.js';
 import {
   handleActivateAbility,
   handleEndPhase,
   handleSelectCards,
   handleConfirmOptional,
-} from './misc.handler';
+} from './misc.handler.js';
 
 // ============================================
 // 导出类型
 // ============================================
 
-export type { ActionHandler, ActionHandlerContext } from './types';
-export { success, failure } from './types';
+export type { ActionHandler, ActionHandlerContext } from './types.js';
+export { success, failure } from './types.js';
 
 // ============================================
 // 导出区域操作
@@ -46,7 +47,7 @@ export {
   removeCardFromPlayerZone,
   addCardToPlayerZone,
   moveCardBetweenZones,
-} from './zone-operations';
+} from './zone-operations.js';
 
 // ============================================
 // 处理器注册表
@@ -70,6 +71,7 @@ const ACTION_HANDLERS: Partial<Record<GameActionType, ActionHandler>> = {
 
   // 成员状态切换
   [GameActionType.TAP_MEMBER]: handleTapMember as ActionHandler,
+  [GameActionType.TAP_ENERGY]: handleTapEnergy as ActionHandler,
 
   // 阶段十新增
   [GameActionType.CONFIRM_SUB_PHASE]: handleConfirmSubPhase as ActionHandler,
@@ -135,6 +137,14 @@ export function createHandlerContext(options: {
   ) => GameState;
   drawCard: (game: GameState, playerId: string) => GameState;
   drawEnergy: (game: GameState, playerId: string) => GameState;
+  drawTopMainDeckCard: (
+    game: GameState,
+    playerId: string
+  ) => {
+    gameState: GameState;
+    cardId: string | null;
+    ruleActions: readonly import('../../domain/rules/rule-actions.js').RuleActionResult[];
+  };
 }): ActionHandlerContext {
   return options;
 }
@@ -143,10 +153,10 @@ export function createHandlerContext(options: {
 // 导出各处理器（供单独使用）
 // ============================================
 
-export { handleMulligan } from './mulligan.handler';
-export { handlePlayMember } from './play-member.handler';
-export { handleSetLiveCard } from './live-set.handler';
-export { handleTapMember } from './tap-member.handler';
+export { handleMulligan } from './mulligan.handler.js';
+export { handlePlayMember } from './play-member.handler.js';
+export { handleSetLiveCard } from './live-set.handler.js';
+export { handleTapMember } from './tap-member.handler.js';
 export {
   handleConfirmSubPhase,
   handleManualMoveCard,
@@ -155,10 +165,10 @@ export {
   handleSelectSuccessCard,
   handleUndoOperation,
   handlePerformCheer,
-} from './phase-ten.handler';
+} from './phase-ten.handler.js';
 export {
   handleActivateAbility,
   handleEndPhase,
   handleSelectCards,
   handleConfirmOptional,
-} from './misc.handler';
+} from './misc.handler.js';

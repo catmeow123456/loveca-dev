@@ -11,16 +11,16 @@ import {
   ZoneType,
   SubPhase,
   EffectWindowType,
-} from '../../shared/types/enums';
-import { CardInstance } from './card';
-import { ResolutionZoneState, createEmptyResolutionZone } from './zone';
+} from '../../shared/types/enums.js';
+import { CardInstance } from './card.js';
+import { ResolutionZoneState, InspectionZoneState, createEmptyResolutionZone, createEmptyInspectionZone } from './zone.js';
 import {
   PlayerState,
   createPlayerState,
   hasReachedVictoryCondition,
   getSuccessLiveCount,
   needsRefresh,
-} from './player';
+} from './player.js';
 
 // ============================================
 // 游戏配置常量
@@ -77,7 +77,8 @@ export type GameActionType =
   | 'TRIGGER_ABILITY'
   | 'RESOLVE_ABILITY'
   | 'RULE_ACTION'
-  | 'TAP_MEMBER';
+  | 'TAP_MEMBER'
+  | 'TAP_ENERGY';
 
 /**
  * 游戏动作记录
@@ -121,12 +122,16 @@ export interface LiveResolutionState {
   readonly scoreConfirmedBy: readonly string[];
   /** Live 胜利玩家 ID 列表 */
   readonly liveWinnerIds: readonly string[];
+  /** 已完成结果动画的玩家 ID 列表 */
+  readonly animationConfirmedBy: readonly string[];
   /**
    * 已移动卡牌到成功区的玩家 ID 列表
    * 用于追踪谁执行了 SELECT_SUCCESS_CARD 动作
-   * 在 finalizeLiveResult() 中用于更新先攻玩家
+   * 在结算阶段用于追踪哪些胜者已完成选卡
    */
   readonly successCardMovedBy: readonly string[];
+  /** 已确认结算完成的玩家 ID 列表 */
+  readonly settlementConfirmedBy: readonly string[];
 }
 
 /**
@@ -142,8 +147,17 @@ export function createEmptyLiveResolutionState(): LiveResolutionState {
     playerScores: new Map(),
     scoreConfirmedBy: [],
     liveWinnerIds: [],
+    animationConfirmedBy: [],
     successCardMovedBy: [],
+    settlementConfirmedBy: [],
   };
+}
+
+export interface InspectionContextState {
+  /** 当前检视流程的拥有者 */
+  readonly ownerPlayerId: string;
+  /** 检视来源区域 */
+  readonly sourceZone: ZoneType.MAIN_DECK | ZoneType.ENERGY_DECK;
 }
 
 // ============================================
@@ -304,6 +318,10 @@ export interface GameState {
    * 参考规则 4.14
    */
   readonly resolutionZone: ResolutionZoneState;
+  /** 检视区域（独立于解决区域） */
+  readonly inspectionZone: InspectionZoneState;
+  /** 当前进行中的检视流程上下文 */
+  readonly inspectionContext: InspectionContextState | null;
 
   // ---- Live 相关状态 ----
 
@@ -416,6 +434,8 @@ export function createGameState(
     liveSetCardCounts: new Map(),
 
     resolutionZone: createEmptyResolutionZone(),
+    inspectionZone: createEmptyInspectionZone(),
+    inspectionContext: null,
     liveResolution: createEmptyLiveResolutionState(),
 
     isStarted: false,
@@ -740,6 +760,29 @@ export function updateResolutionZone(
   return {
     ...game,
     resolutionZone: updater(game.resolutionZone),
+  };
+}
+
+/**
+ * 更新检视区域
+ */
+export function updateInspectionZone(
+  game: GameState,
+  updater: (zone: InspectionZoneState) => InspectionZoneState
+): GameState {
+  return {
+    ...game,
+    inspectionZone: updater(game.inspectionZone),
+  };
+}
+
+export function setInspectionContext(
+  game: GameState,
+  inspectionContext: InspectionContextState | null
+): GameState {
+  return {
+    ...game,
+    inspectionContext,
   };
 }
 

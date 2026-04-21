@@ -4,11 +4,12 @@
  * 将 game-service.ts 中的 handleXxx 方法抽取为独立处理器
  */
 
-import type { GameState, GameActionType } from '../../domain/entities/game';
-import type { PlayerState } from '../../domain/entities/player';
-import type { CardInstance } from '../../domain/entities/card';
-import type { GameOperationResult } from '../game-service';
-import type { GameAction } from '../actions';
+import type { GameState, GameActionType } from '../../domain/entities/game.js';
+import type { PlayerState } from '../../domain/entities/player.js';
+import type { CardInstance } from '../../domain/entities/card.js';
+import type { GameOperationResult } from '../game-service.js';
+import type { GameAction } from '../actions.js';
+import type { RuleActionResult } from '../../domain/rules/rule-actions.js';
 
 // ============================================
 // 处理器上下文
@@ -45,6 +46,16 @@ export interface ActionHandlerContext {
 
   /** 从能量卡组放置能量到能量区 */
   drawEnergy: (game: GameState, playerId: string) => GameState;
+
+  /** 从主卡组顶取 1 张，并在需要时即时触发卡更 */
+  drawTopMainDeckCard: (
+    game: GameState,
+    playerId: string
+  ) => {
+    gameState: GameState;
+    cardId: string | null;
+    ruleActions: readonly RuleActionResult[];
+  };
 }
 
 // ============================================

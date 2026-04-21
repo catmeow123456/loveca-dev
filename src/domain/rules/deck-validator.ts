@@ -4,9 +4,9 @@
  * 实现规则 6.1 的卡组构筑规则验证
  */
 
-import { CardType } from '../../shared/types/enums';
-import type { AnyCardData } from '../entities/card';
-import { getBaseCardCode } from '../../shared/utils/card-code';
+import { CardType } from '../../shared/types/enums.js';
+import type { AnyCardData } from '../entities/card.js';
+import { getBaseCardCode } from '../../shared/utils/card-code.js';
 
 // ============================================
 // 常量定义

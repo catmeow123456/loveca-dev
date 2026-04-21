@@ -30,7 +30,7 @@ import {
   createConfirmSubPhaseAction,
 } from '../../src/application/actions';
 import type { GameState } from '../../src/domain/entities/game';
-import { getPlayerById, getCardById } from '../../src/domain/entities/game';
+import { getPlayerById, getCardById, updatePlayer } from '../../src/domain/entities/game';
 
 // ============================================
 // 测试用卡牌数据工厂
@@ -307,6 +307,52 @@ describe('Live 卡设置阶段测试', () => {
 
       // 验证卡组减少了1张
       expect(playerAfterSkip.mainDeck.cardIds.length).toBe(deckCountBefore - 1);
+    });
+
+    it('Live 设置确认补抽 3 张时会在主卡组归零后立刻卡更并继续抽满', () => {
+      let stateInLiveSet = advanceToLiveSetPhase(gameService, initializedGame);
+      const playerBefore = getPlayerById(stateInLiveSet, 'player1')!;
+      const stagedCardIds = playerBefore.hand.cardIds.slice(0, 3);
+      const keptMainDeck = playerBefore.mainDeck.cardIds.slice(0, 2);
+      const refreshCards = playerBefore.mainDeck.cardIds.slice(2, 5);
+
+      expect(stagedCardIds).toHaveLength(3);
+      expect(keptMainDeck).toHaveLength(2);
+      expect(refreshCards).toHaveLength(3);
+
+      stateInLiveSet = updatePlayer(stateInLiveSet, 'player1', (player) => ({
+        ...player,
+        hand: {
+          ...player.hand,
+          cardIds: player.hand.cardIds.filter((cardId) => !stagedCardIds.includes(cardId)),
+        },
+        liveZone: {
+          ...player.liveZone,
+          cardIds: [...stagedCardIds],
+        },
+        mainDeck: {
+          ...player.mainDeck,
+          cardIds: [...keptMainDeck],
+        },
+        waitingRoom: {
+          ...player.waitingRoom,
+          cardIds: [...refreshCards],
+        },
+      }));
+
+      const handCountBefore = getPlayerById(stateInLiveSet, 'player1')!.hand.cardIds.length;
+      const confirmResult = gameService.processAction(
+        stateInLiveSet,
+        createConfirmSubPhaseAction('player1', stateInLiveSet.currentSubPhase)
+      );
+
+      expect(confirmResult.success).toBe(true);
+
+      const playerAfter = getPlayerById(confirmResult.gameState, 'player1')!;
+      expect(playerAfter.hand.cardIds.length).toBe(handCountBefore + 3);
+      expect(playerAfter.waitingRoom.cardIds).toEqual([]);
+      expect(playerAfter.mainDeck.cardIds.length).toBe(2);
+      expect(playerAfter.mainDeck.cardIds.every((cardId) => refreshCards.includes(cardId))).toBe(true);
     });
   });
 

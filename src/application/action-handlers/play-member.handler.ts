@@ -4,24 +4,20 @@
  * 基于规则 9.6.2
  */
 
-import type { GameState } from '../../domain/entities/game';
-import type { PlayMemberAction } from '../actions';
-import type { ActionHandler, ActionHandlerContext } from './types';
-import { success, failure } from './types';
-import { TriggerCondition } from '../../shared/types/enums';
-import type { MemberCardData } from '../../domain/entities/card';
-import { isMemberCardData } from '../../domain/entities/card';
-import { addAction, updatePlayer } from '../../domain/entities/game';
-import { getAvailableEnergyCount, hasMovedToStageThisTurn } from '../../domain/entities/player';
+import type { GameState } from '../../domain/entities/game.js';
+import type { PlayMemberAction } from '../actions.js';
+import type { ActionHandler, ActionHandlerContext } from './types.js';
+import { success, failure } from './types.js';
+import { TriggerCondition } from '../../shared/types/enums.js';
+import { isMemberCardData } from '../../domain/entities/card.js';
+import { addAction, updatePlayer } from '../../domain/entities/game.js';
 import {
   removeCardFromZone,
   addCardToZone,
   placeCardInSlot,
   removeCardFromSlot,
-  tapEnergy,
-  getActiveEnergyIds,
   getCardInSlot,
-} from '../../domain/entities/zone';
+} from '../../domain/entities/zone.js';
 
 /**
  * 处理打出成员卡动作
@@ -33,7 +29,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   action: PlayMemberAction,
   ctx: ActionHandlerContext
 ) => {
-  const { cardId, targetSlot, playerId, isRelay } = action;
+  const { cardId, targetSlot, playerId } = action;
 
   // 获取玩家和卡牌
   const player = ctx.getPlayerById(game, playerId);
@@ -56,49 +52,18 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
     return failure(game, '只能打出成员卡');
   }
 
-  const memberData = card.data as MemberCardData;
-
-  // 验证目标槽位
-  // 规则 9.6.2.1.2.1: 不能指定本回合内从非舞台领域移动到舞台的成员卡所在的成员区
   const existingCardId = getCardInSlot(player.memberSlots, targetSlot);
-  if (existingCardId && hasMovedToStageThisTurn(player, existingCardId)) {
-    return failure(game, '目标槽位本回合已有新成员登场');
-  }
-
-  // 计算费用
-  let costToPay = memberData.cost;
-
-  // 处理接力传递（换手）- 规则 9.6.2.3.2
-  let relayDiscount = 0;
   let replacedCardId: string | null = null;
-
-  if (isRelay && existingCardId) {
+  if (existingCardId) {
     const existingCard = ctx.getCardById(game, existingCardId);
-    if (existingCard && isMemberCardData(existingCard.data)) {
-      relayDiscount = (existingCard.data as MemberCardData).cost;
-      replacedCardId = existingCardId;
+    if (!existingCard || !isMemberCardData(existingCard.data)) {
+      return failure(game, '目标槽位上的卡牌不是成员卡');
     }
+    // 成员区已有成员时，本次登场按换手处理；不因该成员是否本回合新登场而被阻断。
+    replacedCardId = existingCardId;
   }
 
-  const finalCost = Math.max(0, costToPay - relayDiscount);
-
-  // 验证费用
-  const availableEnergy = getAvailableEnergyCount(player);
-  if (availableEnergy < finalCost) {
-    return failure(game, `能量不足，需要 ${finalCost}，只有 ${availableEnergy}`);
-  }
-
-  // 执行：支付费用
   let state = game;
-  const activeEnergyIds = getActiveEnergyIds(player.energyZone);
-  for (let i = 0; i < finalCost; i++) {
-    if (activeEnergyIds[i]) {
-      state = updatePlayer(state, playerId, (p) => ({
-        ...p,
-        energyZone: tapEnergy(p.energyZone, activeEnergyIds[i]),
-      }));
-    }
-  }
 
   // 执行：处理被替换的成员（换手）
   if (replacedCardId) {
@@ -125,12 +90,19 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   state = addAction(state, 'PLAY_MEMBER', playerId, {
     cardId,
     targetSlot,
-    cost: finalCost,
-    isRelay,
+    isRelay: replacedCardId !== null,
     replacedCardId,
+    energyPayment: 'MANUAL',
   });
 
+  const triggeredEvents: TriggerCondition[] = [TriggerCondition.ON_ENTER_STAGE];
+  if (replacedCardId) {
+    triggeredEvents.unshift(TriggerCondition.ON_ENTER_WAITING_ROOM);
+    triggeredEvents.unshift(TriggerCondition.ON_LEAVE_STAGE);
+    triggeredEvents.push(TriggerCondition.ON_RELAY);
+  }
+
   return success(state, {
-    triggeredEvents: [TriggerCondition.ON_ENTER_STAGE],
+    triggeredEvents,
   });
 };

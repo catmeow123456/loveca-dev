@@ -13,9 +13,12 @@ import { GameMode } from '@game/shared/types/enums';
 
 export const DebugControl = memo(function DebugControl() {
   // 状态选择器
-  const gameState = useGameStore((s) => s.gameState);
-  const viewingPlayerId = useGameStore((s) => s.viewingPlayerId);
+  const matchView = useGameStore((s) => s.getMatchView());
+  const currentTurnCount = useGameStore((s) => s.getTurnCountView());
+  const currentViewingPlayer = useGameStore((s) => s.getViewingPlayerIdentity());
+  const otherPlayer = useGameStore((s) => s.getOpponentPlayerIdentity());
   const gameMode = useGameStore((s) => s.gameMode);
+  const isRemoteMode = useGameStore((s) => s.isRemoteMode());
 
   // 方法选择器（使用 useShallow 保持引用稳定）
   const { setViewingPlayer, addLog, setGameMode } = useGameStore(
@@ -26,12 +29,8 @@ export const DebugControl = memo(function DebugControl() {
     }))
   );
 
-  if (!gameState) return null;
+  if (!matchView || isRemoteMode) return null;
   const isDebugMode = gameMode === GameMode.DEBUG;
-
-  // 获取当前视角玩家信息
-  const currentViewingPlayer = gameState.players.find((p) => p.id === viewingPlayerId);
-  const otherPlayer = gameState.players.find((p) => p.id !== viewingPlayerId);
 
   // 切换视角（仅调试模式）
   const handleSwitchView = () => {
@@ -89,7 +88,9 @@ export const DebugControl = memo(function DebugControl() {
           <span className="text-xs text-[var(--text-muted)]">
             回合:
           </span>
-          <span className="font-bold text-[var(--text-primary)]">T{gameState.turnCount}</span>
+          <span className="font-bold text-[var(--text-primary)]">
+            T{currentTurnCount ?? matchView.turnCount}
+          </span>
         </div>
 
         {isDebugMode && (

@@ -7,13 +7,13 @@
  * "信任玩家"原则：允许自由切换，不限制阶段
  */
 
-import type { GameState } from '../../domain/entities/game';
-import type { TapMemberAction } from '../actions';
-import type { ActionHandler, ActionHandlerContext } from './types';
-import { success, failure } from './types';
-import { addAction, updatePlayer } from '../../domain/entities/game';
-import { toggleMemberOrientation, getCardInSlot } from '../../domain/entities/zone';
-import { OrientationState } from '../../shared/types/enums';
+import type { GameState } from '../../domain/entities/game.js';
+import type { TapMemberAction } from '../actions.js';
+import type { ActionHandler, ActionHandlerContext } from './types.js';
+import { success, failure } from './types.js';
+import { addAction, updatePlayer } from '../../domain/entities/game.js';
+import { toggleMemberOrientation, getCardInSlot } from '../../domain/entities/zone.js';
+import { OrientationState } from '../../shared/types/enums.js';
 
 /**
  * 处理切换成员状态动作

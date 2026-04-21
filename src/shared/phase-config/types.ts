@@ -3,7 +3,7 @@
  * 单一数据源：集中管理所有阶段/子阶段的元数据
  */
 
-import type { GamePhase, SubPhase, TurnType, TriggerCondition } from '../types/enums';
+import type { GamePhase, SubPhase, TurnType, TriggerCondition } from '../types/enums.js';
 
 // ============================================
 // 阶段显示配置

@@ -19,8 +19,8 @@ import {
   TriggerCondition,
   SubPhase,
   EffectWindowType,
-} from '../shared/types/enums';
-import type { GameState } from '../domain/entities/game';
+} from '../shared/types/enums.js';
+import type { GameState } from '../domain/entities/game.js';
 import {
   getPhaseConfig,
   getPhaseTransitions,
@@ -29,8 +29,8 @@ import {
   getNextSubPhase,
   canPlayerEndPhase as canPlayerEndPhaseFromConfig,
   getSubPhaseConfig,
-} from '../shared/phase-config';
-import type { PhaseTransitionRule, PhaseAutoActionConfig } from '../shared/phase-config';
+} from '../shared/phase-config/index.js';
+import type { PhaseTransitionRule, PhaseAutoActionConfig } from '../shared/phase-config/index.js';
 
 // ============================================
 // 阶段转换结果
@@ -308,6 +308,23 @@ export class PhaseManager {
    */
   advanceToNextSubPhase(game: GameState): SubPhaseTransitionResult {
     const currentSubPhase = game.currentSubPhase;
+
+    if (currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) {
+      if (this.hasSuccessfulLiveForActivePlayer(game)) {
+        return {
+          newSubPhase: SubPhase.PERFORMANCE_SUCCESS_EFFECTS,
+          shouldAdvancePhase: false,
+          autoActions: [],
+        };
+      }
+
+      return {
+        newSubPhase: SubPhase.NONE,
+        shouldAdvancePhase: true,
+        autoActions: [],
+      };
+    }
+
     const nextSubPhase = this.getNextSubPhase(currentSubPhase);
 
     // 如果下一个子阶段是 NONE，说明当前主阶段的所有子阶段都完成了
@@ -362,6 +379,26 @@ export class PhaseManager {
     }
   }
 
+  private hasSuccessfulLiveForActivePlayer(game: GameState): boolean {
+    const activePlayerId = game.players[game.activePlayerIndex]?.id;
+    if (!activePlayerId) {
+      return false;
+    }
+
+    for (const [cardId, isSuccess] of game.liveResolution.liveResults.entries()) {
+      if (!isSuccess) {
+        continue;
+      }
+
+      const card = game.cardRegistry.get(cardId);
+      if (card?.ownerId === activePlayerId) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   /**
    * 应用子阶段转换到游戏状态
    *
@@ -400,8 +437,7 @@ export class PhaseManager {
     switch (subPhase) {
       case SubPhase.PERFORMANCE_LIVE_START_EFFECTS:
         return EffectWindowType.LIVE_START;
-      case SubPhase.RESULT_FIRST_SUCCESS_EFFECTS:
-      case SubPhase.RESULT_SECOND_SUCCESS_EFFECTS:
+      case SubPhase.PERFORMANCE_SUCCESS_EFFECTS:
         return EffectWindowType.LIVE_SUCCESS;
       default:
         return EffectWindowType.NONE;

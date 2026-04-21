@@ -1,6 +1,6 @@
 {
   "name": "loveca",
-  "version": "3.0.0",
+  "version": "3.1.2",
   "description": "Loveca 卡牌游戏后端",
   "type": "module",
   "pnpm": {
@@ -16,11 +16,11 @@
     "build:server": "tsc -p tsconfig.server.json",
     "dev": "tsc --watch",
     "dev:server": "node --env-file=.env --watch dist/server/index.js",
+    "dev:online-service1": "pnpm --dir client dev:debug-service1",
+    "dev:online-service2": "pnpm --dir client dev:debug-service2",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "cd client && pnpm test:e2e",
-    "test:all": "pnpm test:run && pnpm test:e2e",
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",

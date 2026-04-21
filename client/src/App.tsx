@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { GameBoard } from '@/components/game';
 import { DeckManager } from '@/components/deck/DeckManager';
-import { HomePage, GameSetupPage, SharedDeckPage } from '@/components/pages';
+import { HomePage, GameSetupPage, OnlineDebugPage, OnlineRoomPage, SharedDeckPage } from '@/components/pages';
 import { CardAdminPage } from '@/components/admin/CardAdminPage';
 import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from '@/components/auth';
 import { isEmailEnabled } from '@/lib/apiClient';
@@ -17,12 +17,30 @@ import { useAuthStore } from '@/store/authStore';
 import { cardService } from '@/lib/cardService';
 
 type AuthPage = 'login' | 'register' | 'forgot-password' | 'reset-password';
-type AppPage = 'home' | 'deck-manager' | 'game-setup' | 'game' | 'card-admin';
+type AppPage =
+  | 'home'
+  | 'deck-manager'
+  | 'game-setup'
+  | 'online-room'
+  | 'online-debug'
+  | 'game'
+  | 'card-admin';
 
 function getInitialPage(): AppPage {
   const page = new URLSearchParams(window.location.search).get('page');
-  if (page === 'deck-manager' || page === 'game-setup' || page === 'game' || page === 'card-admin') {
+  const hasSavedOnlineRoom = !!window.sessionStorage.getItem('loveca.online.room');
+  if (
+    page === 'deck-manager' ||
+    page === 'game-setup' ||
+    page === 'online-room' ||
+    page === 'online-debug' ||
+    page === 'game' ||
+    page === 'card-admin'
+  ) {
     return page;
+  }
+  if (hasSavedOnlineRoom) {
+    return 'online-room';
   }
   return 'home';
 }
@@ -49,7 +67,7 @@ function App() {
   const initializeAuth = useAuthStore((s) => s.initialize);
 
   // Game state
-  const gameState = useGameStore((s) => s.gameState);
+  const matchView = useGameStore((s) => s.getMatchView());
   const loadCardData = useGameStore((s) => s.loadCardData);
   const initDeckStore = useDeckStore((s) => s.init);
 
@@ -97,7 +115,7 @@ function App() {
   }, [authInitialized, loadCardData, initDeckStore]);
 
   // 计算实际显示的页面（游戏结束后自动回到首页）
-  const effectivePage: AppPage = (currentPage === 'game' && !gameState) ? 'home' : currentPage;
+  const effectivePage: AppPage = (currentPage === 'game' && !matchView) ? 'home' : currentPage;
 
   // 等待认证初始化
   if (!authInitialized) {
@@ -192,7 +210,7 @@ function App() {
   }
 
   // 游戏进行中
-  if (effectivePage === 'game' && gameState) {
+  if (effectivePage === 'game' && matchView) {
     return (
       <div className="h-screen overflow-hidden">
         <GameBoard />
@@ -208,6 +226,14 @@ function App() {
         onGameStart={() => setCurrentPage('game')}
       />
     );
+  }
+
+  if (effectivePage === 'online-room') {
+    return <OnlineRoomPage onBack={() => setCurrentPage('home')} />;
+  }
+
+  if (effectivePage === 'online-debug') {
+    return <OnlineDebugPage onBack={() => setCurrentPage('home')} />;
   }
 
   // 卡组管理页面
@@ -234,6 +260,8 @@ function App() {
     <HomePage
       onNavigateToDeckManager={() => setCurrentPage('deck-manager')}
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
+      onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
+      onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToCardAdmin={() => setCurrentPage('card-admin')}
     />
   );

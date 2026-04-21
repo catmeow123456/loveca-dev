@@ -20,6 +20,16 @@ export default defineConfig(({ mode }) => {
     __APP_VERSION__: JSON.stringify(appVersion),
   },
   plugins: [
+    {
+      name: 'loveca-version-manifest',
+      generateBundle() {
+        this.emitFile({
+          type: 'asset',
+          fileName: 'version.json',
+          source: JSON.stringify({ version: appVersion }, null, 2),
+        });
+      },
+    },
     react(), 
     tailwindcss(),
     VitePWA({

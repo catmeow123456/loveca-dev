@@ -5,7 +5,7 @@
  * 基于 "信任玩家" 设计方案
  */
 
-import type { GameState } from '../../domain/entities/game';
+import type { GameState } from '../../domain/entities/game.js';
 import type {
   ConfirmSubPhaseAction,
   ManualMoveCardAction,
@@ -14,11 +14,11 @@ import type {
   SelectSuccessCardAction,
   UndoOperationAction,
   PerformCheerAction,
-} from '../actions';
-import type { ActionHandler, ActionHandlerContext } from './types';
-import { success, failure } from './types';
-import type { GameOperationResult } from '../game-service';
-import { GameEventType } from '../events';
+} from '../actions.js';
+import type { ActionHandler, ActionHandlerContext } from './types.js';
+import { success, failure } from './types.js';
+import type { GameOperationResult } from '../game-service.js';
+import { GameEventType } from '../events.js';
 import {
   ZoneType,
   CardType,
@@ -26,12 +26,21 @@ import {
   SubPhase,
   OrientationState,
   FaceState,
-} from '../../shared/types/enums';
-import { addAction, updatePlayer, getFirstPlayer } from '../../domain/entities/game';
-import { removeCardFromStatefulZone, addCardToZone, drawFromTop } from '../../domain/entities/zone';
-import { removeCardFromPlayerZone, addCardToPlayerZone, moveCardUniversal } from './zone-operations';
-import { phaseManager, type SubPhaseAutoAction } from '../phase-manager';
-import { isUserActionRequired } from '../../shared/phase-config';
+} from '../../shared/types/enums.js';
+import { addAction, updatePlayer, getFirstPlayer } from '../../domain/entities/game.js';
+import { removeCardFromStatefulZone, addCardToZone } from '../../domain/entities/zone.js';
+import { removeCardFromPlayerZone, addCardToPlayerZone, moveCardUniversal } from './zone-operations.js';
+import { phaseManager, type SubPhaseAutoAction } from '../phase-manager.js';
+import { isUserActionRequired } from '../../shared/phase-config/index.js';
+
+function haveAllWinnersConfirmed(game: GameState, confirmedPlayerIds: readonly string[]): boolean {
+  const winners = game.liveResolution.liveWinnerIds;
+  if (winners.length === 0) {
+    return true;
+  }
+
+  return winners.every((winnerId) => confirmedPlayerIds.includes(winnerId));
+}
 
 /**
  * 处理确认子阶段完成动作
@@ -57,10 +66,71 @@ export const handleConfirmSubPhase: ActionHandler<ConfirmSubPhaseAction> = (
     operationHistory: [],
   };
 
-  // RESULT_SETTLEMENT 需要双方先完成分数确认，才可结束子阶段
+  if (subPhase === SubPhase.RESULT_ANIMATION) {
+    if (!state.liveResolution.liveWinnerIds.includes(playerId)) {
+      return failure(game, '当前玩家不需要确认胜者动画');
+    }
+
+    if (!state.liveResolution.animationConfirmedBy.includes(playerId)) {
+      state = {
+        ...state,
+        liveResolution: {
+          ...state.liveResolution,
+          animationConfirmedBy: [...state.liveResolution.animationConfirmedBy, playerId],
+        },
+      };
+    }
+
+    if (!haveAllWinnersConfirmed(state, state.liveResolution.animationConfirmedBy)) {
+      state = addAction(state, 'PHASE_CHANGE', playerId, {
+        subPhaseConfirmed: subPhase,
+      });
+      return success(state);
+    }
+  }
+
   if (subPhase === SubPhase.RESULT_SETTLEMENT) {
-    if (state.liveResolution.scoreConfirmedBy.length < 2) {
-      return failure(game, '双方尚未确认分数');
+    if (!state.liveResolution.liveWinnerIds.includes(playerId)) {
+      return failure(game, '当前玩家不需要确认 Live 结算');
+    }
+
+    const settlingPlayer = ctx.getPlayerById(state, playerId);
+    if (!settlingPlayer) {
+      return failure(game, '玩家不存在');
+    }
+
+    const remainingLiveCardIds = [...settlingPlayer.liveZone.cardIds];
+    if (remainingLiveCardIds.length > 0) {
+      state = updatePlayer(state, playerId, (player) => {
+        let nextPlayer = player;
+        for (const cardId of remainingLiveCardIds) {
+          nextPlayer = {
+            ...nextPlayer,
+            liveZone: removeCardFromStatefulZone(nextPlayer.liveZone, cardId),
+            waitingRoom: addCardToZone(nextPlayer.waitingRoom, cardId),
+          };
+        }
+        return nextPlayer;
+      });
+    }
+
+    const settlementConfirmedBy = state.liveResolution.settlementConfirmedBy.includes(playerId)
+      ? [...state.liveResolution.settlementConfirmedBy]
+      : [...state.liveResolution.settlementConfirmedBy, playerId];
+
+    state = {
+      ...state,
+      liveResolution: {
+        ...state.liveResolution,
+        settlementConfirmedBy,
+      },
+    };
+
+    if (!haveAllWinnersConfirmed(state, settlementConfirmedBy)) {
+      state = addAction(state, 'PHASE_CHANGE', playerId, {
+        subPhaseConfirmed: subPhase,
+      });
+      return success(state);
     }
   }
 
@@ -75,10 +145,6 @@ export const handleConfirmSubPhase: ActionHandler<ConfirmSubPhaseAction> = (
   while (true) {
     const subPhaseResult = phaseManager.advanceToNextSubPhase(state);
     state = phaseManager.applySubPhaseTransition(state, subPhaseResult);
-
-    if (subPhaseResult.newSubPhase === SubPhase.RESULT_SETTLEMENT) {
-      triggeredEvents.push(GameEventType.CALCULATE_LIVE_RESULT);
-    }
 
     // 执行子阶段自动处理
     for (const autoAction of subPhaseResult.autoActions) {
@@ -303,7 +369,7 @@ export const handleConfirmScore: ActionHandler<ConfirmScoreAction> = (
 ) => {
   const { playerId, adjustedScore } = action;
 
-  if (game.currentSubPhase !== SubPhase.RESULT_SETTLEMENT) {
+  if (game.currentSubPhase !== SubPhase.RESULT_SCORE_CONFIRM) {
     return failure(game, '当前不是分数最终确认子阶段');
   }
 
@@ -335,16 +401,12 @@ export const handleConfirmScore: ActionHandler<ConfirmScoreAction> = (
     confirmedBy,
   });
 
-  // 双方都确认分数后，自动判定胜负并推进到下一回合
+  // 双方都确认分数后，进入胜者判定
   if (confirmedBy.length >= 2) {
     return {
       success: true,
       gameState: state,
-      triggeredEvents: [
-        GameEventType.RESOLVE_LIVE_WINNER,
-        GameEventType.FINALIZE_LIVE_RESULT,
-        GameEventType.ADVANCE_PHASE,
-      ],
+      triggeredEvents: [GameEventType.RESOLVE_LIVE_WINNER],
     };
   }
 
@@ -362,6 +424,25 @@ export const handleSelectSuccessCard: ActionHandler<SelectSuccessCardAction> = (
   ctx: ActionHandlerContext
 ) => {
   const { playerId, cardId } = action;
+  const isPerformanceSuccessWindow =
+    game.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ||
+    game.currentSubPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS;
+  const isResultSettlement = game.currentSubPhase === SubPhase.RESULT_SETTLEMENT;
+
+  if (!isPerformanceSuccessWindow && !isResultSettlement) {
+    return failure(game, '当前不是可选择成功 Live 的子阶段');
+  }
+
+  if (isResultSettlement && !game.liveResolution.liveWinnerIds.includes(playerId)) {
+    return failure(game, '当前玩家不是本轮胜者');
+  }
+
+  if (isPerformanceSuccessWindow) {
+    const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
+    if (playerId !== activePlayerId) {
+      return failure(game, '当前不是你的表演阶段');
+    }
+  }
 
   const player = ctx.getPlayerById(game, playerId);
   if (!player) {
@@ -373,10 +454,8 @@ export const handleSelectSuccessCard: ActionHandler<SelectSuccessCardAction> = (
     return failure(game, '卡牌不在 Live 区');
   }
 
-  // 验证玩家是胜者
-  if (!game.liveResolution.liveWinnerIds.includes(playerId)) {
-    return failure(game, '你不是 Live 胜者');
-  }
+  // 信任玩家原则：不限制谁能将 Live 拖入成功区，
+  // 在所有可操作窗口中均允许。
 
   // 验证玩家尚未移动过卡牌（防止重复移动）
   if (game.liveResolution.successCardMovedBy.includes(playerId)) {
@@ -395,7 +474,11 @@ export const handleSelectSuccessCard: ActionHandler<SelectSuccessCardAction> = (
     ...state,
     liveResolution: {
       ...state.liveResolution,
+      liveResults: new Map(game.liveResolution.liveResults).set(cardId, true),
       successCardMovedBy: [...state.liveResolution.successCardMovedBy, playerId],
+      settlementConfirmedBy: state.liveResolution.settlementConfirmedBy.filter(
+        (confirmedPlayerId) => confirmedPlayerId !== playerId
+      ),
     },
   };
 
@@ -481,13 +564,11 @@ export const handlePerformCheer: ActionHandler<PerformCheerAction> = (
 
   // 从卡组顶翻开指定数量的卡牌
   for (let i = 0; i < cheerCount; i++) {
-    state = updatePlayer(state, playerId, (p) => {
-      const { zone: newDeck, cardId } = drawFromTop(p.mainDeck);
-      if (cardId) {
-        cheerCardIds.push(cardId);
-      }
-      return { ...p, mainDeck: newDeck };
-    });
+    const drawResult = ctx.drawTopMainDeckCard(state, playerId);
+    state = drawResult.gameState;
+    if (drawResult.cardId) {
+      cheerCardIds.push(drawResult.cardId);
+    }
   }
 
   // 将应援卡牌放入解决区域
@@ -506,11 +587,11 @@ export const handlePerformCheer: ActionHandler<PerformCheerAction> = (
     liveResolution: {
       ...state.liveResolution,
       firstPlayerCheerCardIds: isFirstPlayer
-        ? cheerCardIds
+        ? [...state.liveResolution.firstPlayerCheerCardIds, ...cheerCardIds]
         : state.liveResolution.firstPlayerCheerCardIds,
       secondPlayerCheerCardIds: isFirstPlayer
         ? state.liveResolution.secondPlayerCheerCardIds
-        : cheerCardIds,
+        : [...state.liveResolution.secondPlayerCheerCardIds, ...cheerCardIds],
     },
   };
 

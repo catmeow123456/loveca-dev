@@ -3,8 +3,8 @@
  * 基于 detail_rules.md 第 3 章及各区域相关规则
  */
 
-import { ZoneType, SlotPosition } from '../../shared/types/enums';
-import { CardInstance, MemberCardInstance } from './card';
+import { ZoneType, SlotPosition } from '../../shared/types/enums.js';
+import { CardInstance, MemberCardInstance } from './card.js';
 import {
   BaseZoneState,
   StatefulZoneState,
@@ -16,7 +16,7 @@ import {
   getActiveEnergyCount,
   getAllMemberCardIds,
   getZoneCardCount,
-} from './zone';
+} from './zone.js';
 
 // ============================================
 // 玩家状态定义

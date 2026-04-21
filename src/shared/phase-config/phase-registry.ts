@@ -3,8 +3,8 @@
  * 单一数据源：所有主阶段的元数据集中定义
  */
 
-import { GamePhase, SubPhase, TurnType, TriggerCondition } from '../types/enums';
-import type { PhaseConfig, PhaseTransitionRule, PhaseAutoActionConfig } from './types';
+import { GamePhase, SubPhase, TurnType, TriggerCondition } from '../types/enums.js';
+import type { PhaseConfig, PhaseTransitionRule, PhaseAutoActionConfig } from './types.js';
 
 // ============================================
 // 阶段配置定义
@@ -267,7 +267,7 @@ const PHASE_CONFIG_MAP: Record<GamePhase, PhaseConfig> = {
       canPlayerEndPhase: false,
       isSharedPhase: true,
       activePlayerStrategy: 'DERIVE_FROM_SUB_PHASE',
-      initialSubPhase: SubPhase.RESULT_SETTLEMENT,
+      initialSubPhase: SubPhase.RESULT_SCORE_CONFIRM,
       transitions: [
         // 结算完成 → 新回合活跃阶段
         {

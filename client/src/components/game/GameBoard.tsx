@@ -18,7 +18,7 @@ import { PlayerArea } from './PlayerArea';
 import { GameLog } from './GameLog';
 import { PhaseIndicator } from './PhaseIndicator';
 import { PhaseBanner } from './PhaseBanner';
-import { LiveResultAnimation, type LiveResultType, type LiveScoreInfo } from './LiveResultAnimation';
+import { LiveResultAnimation, type LiveScoreInfo } from './LiveResultAnimation';
 import { DebugControl } from './DebugControl';
 import { CardDetailOverlay } from './CardDetailOverlay';
 import { JudgmentPanel } from './JudgmentPanel';
@@ -27,10 +27,18 @@ import { Card } from '@/components/card/Card';
 import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
 import { getDeckBackUrl } from '@/lib/imageService';
-import { parseZoneId, findCardZone } from '@/lib/zoneUtils';
+import { parseZoneId } from '@/lib/zoneUtils';
 import { ChevronRight } from 'lucide-react';
 import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType, GameMode } from '@game/shared/types/enums';
 import type { AnyCardData } from '@game/domain/entities/card';
+import type { Seat } from '@game/online';
+
+const INSPECTION_TARGET_PREFIX = 'inspection-target-';
+const RESOLUTION_TARGET_PREFIX = 'resolution-target-';
+
+type SpecialDragTarget =
+  | { kind: 'inspection'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' }
+  | { kind: 'resolution'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' };
 
 export const GameBoard = memo(function GameBoard() {
   // 配置拖拽传感器：需要移动 5px 才开始拖拽，避免与双击冲突
@@ -43,42 +51,92 @@ export const GameBoard = memo(function GameBoard() {
   );
 
   // 状态选择器
-  const gameState = useGameStore((s) => s.gameState);
-  const viewingPlayerId = useGameStore((s) => s.viewingPlayerId);
+  const matchView = useGameStore((s) => s.getMatchView());
+  const currentTurnCount = useGameStore((s) => s.getTurnCountView());
+  const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
+  const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
+  const activeSeat = useGameStore((s) => s.getActiveSeatView());
+  const viewerSeat = useGameStore((s) => s.getViewerSeat());
+  const viewerLiveScore = useGameStore((s) => s.getViewerLiveScore());
+  const opponentLiveScore = useGameStore((s) => s.getOpponentLiveScore());
+  const viewerLiveWinner = useGameStore((s) => s.isViewerLiveWinner());
+  const opponentLiveWinner = useGameStore((s) => s.isOpponentLiveWinner());
+  const isLiveDraw = useGameStore((s) => s.isLiveDraw);
   const gameMode = useGameStore((s) => s.gameMode);
+  const prevPhaseRef = useRef<GamePhase | null>(null);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { setLiveCard, addLog, manualMoveCard, setDragHints } = useGameStore(
+  const {
+    setLiveCard,
+    addLog,
+    playMemberToSlot,
+    moveTableCard,
+    moveMemberToSlot,
+    attachEnergyToMember,
+    confirmSubPhase,
+    selectSuccessCard,
+    movePublicCardToWaitingRoom,
+    movePublicCardToHand,
+    movePublicCardToEnergyDeck,
+    moveOwnedCardToZone,
+    moveInspectedCardToTop,
+    moveInspectedCardToBottom,
+    moveInspectedCardToZone,
+    reorderInspectedCard,
+    moveResolutionCardToZone,
+    drawEnergyToZone,
+    setDragHints,
+    getZoneCardIds,
+    findViewerCardZone,
+    resolveCardDropTarget,
+    getCardSlotPosition,
+  } = useGameStore(
     useShallow((s) => ({
       setLiveCard: s.setLiveCard,
       addLog: s.addLog,
-      manualMoveCard: s.manualMoveCard,
+      playMemberToSlot: s.playMemberToSlot,
+      moveTableCard: s.moveTableCard,
+      moveMemberToSlot: s.moveMemberToSlot,
+      attachEnergyToMember: s.attachEnergyToMember,
+      confirmSubPhase: s.confirmSubPhase,
+      selectSuccessCard: s.selectSuccessCard,
+      movePublicCardToWaitingRoom: s.movePublicCardToWaitingRoom,
+      movePublicCardToHand: s.movePublicCardToHand,
+      movePublicCardToEnergyDeck: s.movePublicCardToEnergyDeck,
+      moveOwnedCardToZone: s.moveOwnedCardToZone,
+      moveInspectedCardToTop: s.moveInspectedCardToTop,
+      moveInspectedCardToBottom: s.moveInspectedCardToBottom,
+      moveInspectedCardToZone: s.moveInspectedCardToZone,
+      reorderInspectedCard: s.reorderInspectedCard,
+      moveResolutionCardToZone: s.moveResolutionCardToZone,
+      drawEnergyToZone: s.drawEnergyToZone,
       setDragHints: s.setDragHints,
+      getZoneCardIds: s.getZoneCardIds,
+      findViewerCardZone: s.findViewerCardZone,
+      resolveCardDropTarget: s.resolveCardDropTarget,
+      getCardSlotPosition: s.getCardSlotPosition,
     }))
   );
 
   // 卡牌辅助方法（使用 useShallow 保持引用稳定）
-  const { getCardInstance, getCardImagePath } = useGameStore(
+  const { getVisibleCardPresentation, getKnownCardType } = useGameStore(
     useShallow((s) => ({
-      getCardInstance: s.getCardInstance,
-      getCardImagePath: s.getCardImagePath,
+      getVisibleCardPresentation: s.getVisibleCardPresentation,
+      getKnownCardType: s.getKnownCardType,
     }))
   );
 
   // 拖拽状态
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
 
-  // Live 结果动画状态
-  const [liveResult, setLiveResult] = useState<LiveResultType>(null);
-  const prevPhaseRef = useRef<GamePhase | null>(null);
-  const prevSuccessCountRef = useRef<number>(0);
-
-  // 派生状态：直接从 gameState 读取，无需 useEffect + setState
-  const currentSubPhase = gameState?.currentSubPhase ?? SubPhase.NONE;
-  const currentPhase = gameState?.currentPhase ?? null;
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
+  const isJudgmentPanelRelevant =
+    currentPhase === GamePhase.PERFORMANCE_PHASE &&
+    (currentSubPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS ||
+      currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ||
+      currentSubPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS);
 
-  // 左侧判定区抽屉开关（可在任意阶段手动唤出）
+  // 左侧判定区抽屉开关（仅在表演阶段相关窗口中可唤出）
   const [judgmentPanelOpen, setJudgmentPanelOpen] = useState(false);
 
   // 弹窗回调
@@ -91,39 +149,36 @@ export const GameBoard = memo(function GameBoard() {
     setJudgmentPanelOpen(true);
   }, []);
 
-  // 监听阶段变化，触发 Live 结果动画（使用 setTimeout 避免同步 setState）
   useEffect(() => {
-    if (!gameState) return;
-
-    const currentPhase = gameState.currentPhase;
-    const prevPhase = prevPhaseRef.current;
-    
-    // 获取己方成功 Live 数量
-    const selfIndex = gameState.players.findIndex((p) => p.id === viewingPlayerId);
-    const self = gameState.players[selfIndex] ?? gameState.players[0];
-    const currentSuccessCount = self.successZone.cardIds.length;
-
-    // 当从 LIVE_RESULT_PHASE 切换时，检查成功 Live 是否增加
-    if (prevPhase === GamePhase.LIVE_RESULT_PHASE && currentPhase !== GamePhase.LIVE_RESULT_PHASE) {
-      if (currentSuccessCount > prevSuccessCountRef.current) {
-        // 使用 setTimeout 将 setState 推迟到下一个事件循环
-        setTimeout(() => setLiveResult('success'), 0);
-      }
+    if (currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) {
+      setJudgmentPanelOpen(true);
     }
+  }, [currentSubPhase]);
 
-    // 当进入 PERFORMANCE_PHASE 时，显示 Live 开始提示
+  useEffect(() => {
+    if (!isJudgmentPanelRelevant && judgmentPanelOpen) {
+      setJudgmentPanelOpen(false);
+    }
+  }, [isJudgmentPanelRelevant, judgmentPanelOpen]);
+
+  useEffect(() => {
+    const prevPhase = prevPhaseRef.current;
     if (currentPhase === GamePhase.PERFORMANCE_PHASE && prevPhase !== GamePhase.PERFORMANCE_PHASE) {
       addLog('🎤 Live 表演开始!', 'phase');
     }
-
     prevPhaseRef.current = currentPhase;
-    prevSuccessCountRef.current = currentSuccessCount;
-  }, [gameState, viewingPlayerId, addLog]);
+  }, [currentPhase, addLog]);
 
-  // Live 动画完成回调
+  const isViewerWinnerInCurrentLive = viewerLiveWinner;
+  const isResultAnimationWindow = matchView?.window?.windowType === 'RESULT_ANIMATION';
+  const shouldShowWinnerAnimation = isResultAnimationWindow && isViewerWinnerInCurrentLive;
+
   const handleLiveAnimationComplete = useCallback(() => {
-    setLiveResult(null);
-  }, []);
+    if (currentSubPhase !== SubPhase.RESULT_ANIMATION) {
+      return;
+    }
+    confirmSubPhase(SubPhase.RESULT_ANIMATION);
+  }, [confirmSubPhase, currentSubPhase]);
 
   // 拖拽开始处理
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -133,32 +188,29 @@ export const GameBoard = memo(function GameBoard() {
     // 计算"推荐目标"高亮（只提示，不限制放置）
     const dragData = event.active.data.current as { fromZone?: ZoneType } | undefined;
     const fromZone = dragData?.fromZone;
-    const sub = gameState?.currentSubPhase ?? SubPhase.NONE;
 
     const suggested: string[] = [];
     // Live 设置：推荐手牌 -> Live 区
     if (
-      gameState?.currentPhase === GamePhase.LIVE_SET_PHASE &&
-      (sub === SubPhase.LIVE_SET_FIRST_PLAYER || sub === SubPhase.LIVE_SET_SECOND_PLAYER) &&
+      currentPhase === GamePhase.LIVE_SET_PHASE &&
+      (currentSubPhase === SubPhase.LIVE_SET_FIRST_PLAYER ||
+        currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER) &&
       fromZone === ZoneType.HAND
     ) {
       suggested.push('live-zone');
     }
     // 结算：推荐 Live 区 -> 成功区 / 休息室
     if (
-      gameState?.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-      sub === SubPhase.RESULT_SETTLEMENT
+      currentPhase === GamePhase.LIVE_RESULT_PHASE &&
+      currentSubPhase === SubPhase.RESULT_SETTLEMENT
     ) {
       if (fromZone === ZoneType.LIVE_ZONE) {
-        suggested.push('success-zone', 'waiting-room');
-      }
-      if (fromZone === ZoneType.RESOLUTION_ZONE) {
-        suggested.push('waiting-room');
+        suggested.push('success-zone');
       }
     }
 
     setDragHints(true, suggested);
-  }, [gameState, setDragHints]);
+  }, [currentPhase, currentSubPhase, setDragHints]);
 
   // 拖拽结束处理 - 统一处理所有区域间的拖拽
   const handleDragEnd = useCallback(
@@ -167,7 +219,7 @@ export const GameBoard = memo(function GameBoard() {
       setActiveCardId(null);
       setDragHints(false);
 
-      if (!over || !gameState || !viewingPlayerId) return;
+      if (!over) return;
 
       const cardId = active.id as string;
       const targetId = over.id as string;
@@ -179,27 +231,114 @@ export const GameBoard = memo(function GameBoard() {
         fromZone?: ZoneType;
       } | undefined;
 
+      const specialTarget = resolveSpecialDragTarget(targetId);
+
       // 解析目标区域
-      const parsedTarget = parseZoneId(targetId);
-      if (!parsedTarget) {
+      const parsedTarget =
+        (!specialTarget ? parseZoneId(targetId) : null) ??
+        resolveCardDropTarget(targetId);
+      if (!parsedTarget && !specialTarget) {
         // 无法识别的目标区域
         return;
       }
 
-      const { zoneType: toZone, slotPosition: targetSlot } = parsedTarget;
-
       // 获取来源区域（优先从拖拽数据获取，否则查找）
-      const fromZone = dragData?.fromZone || findCardZone(cardId, gameState, viewingPlayerId);
+      const fromZone = dragData?.fromZone || findViewerCardZone(cardId);
       if (!fromZone) {
         addLog('无法确定卡牌来源区域', 'error');
         return;
       }
 
-      // 获取卡牌实例用于类型检查
-      const cardInstance = getCardInstance(cardId);
+      if (fromZone === ZoneType.INSPECTION_ZONE) {
+        if (specialTarget?.kind === 'inspection') {
+          const result =
+            specialTarget.action === 'HAND'
+              ? moveInspectedCardToZone(cardId, ZoneType.HAND)
+              : specialTarget.action === 'WAITING_ROOM'
+                ? moveInspectedCardToZone(cardId, ZoneType.WAITING_ROOM)
+                : specialTarget.action === 'MAIN_DECK_BOTTOM'
+                  ? moveInspectedCardToBottom(cardId)
+                  : moveInspectedCardToTop(cardId);
+          if (result.success) {
+            addLog(`检视区拖拽完成: ${specialTarget.action}`, 'action');
+          }
+          return;
+        }
+
+        if (parsedTarget?.zoneType === ZoneType.INSPECTION_ZONE) {
+          const inspectionCardIds = viewerSeat
+            ? getZoneCardIds(`${viewerSeat}_INSPECTION_ZONE`)
+            : [];
+          const targetIndex = inspectionCardIds.indexOf(targetId);
+          if (targetIndex >= 0) {
+            const result = reorderInspectedCard(cardId, targetIndex);
+            if (result.success) {
+              addLog(`调整检视顺序到位置 ${targetIndex + 1}`, 'action');
+            }
+          }
+          return;
+        }
+
+        if (parsedTarget?.zoneType === ZoneType.HAND) {
+          const result = moveInspectedCardToZone(cardId, ZoneType.HAND);
+          if (result.success) {
+            addLog('检视牌拖入手牌', 'action');
+          }
+          return;
+        }
+
+        if (parsedTarget?.zoneType === ZoneType.WAITING_ROOM) {
+          const result = moveInspectedCardToZone(cardId, ZoneType.WAITING_ROOM);
+          if (result.success) {
+            addLog('检视牌拖入休息室', 'action');
+          }
+          return;
+        }
+
+        if (parsedTarget?.zoneType === ZoneType.MAIN_DECK) {
+          const result = moveInspectedCardToTop(cardId);
+          if (result.success) {
+            addLog('检视牌拖回主卡组顶', 'action');
+          }
+          return;
+        }
+      }
+
+      if (fromZone === ZoneType.RESOLUTION_ZONE) {
+        const toZone =
+          specialTarget?.kind === 'resolution'
+            ? specialTarget.action === 'HAND'
+              ? ZoneType.HAND
+              : specialTarget.action === 'WAITING_ROOM'
+                ? ZoneType.WAITING_ROOM
+                : ZoneType.MAIN_DECK
+            : parsedTarget?.zoneType;
+
+        if (
+          toZone === ZoneType.HAND ||
+          toZone === ZoneType.WAITING_ROOM ||
+          toZone === ZoneType.MAIN_DECK
+        ) {
+          const result = moveResolutionCardToZone(cardId, toZone, {
+            position: toZone === ZoneType.MAIN_DECK ? 'TOP' : undefined,
+          });
+          if (result.success) {
+            addLog(`解决区拖拽完成: ${toZone}`, 'action');
+          }
+        }
+        return;
+      }
+
+      if (!parsedTarget) {
+        return;
+      }
+
+      const { zoneType: toZone, slotPosition: targetSlot } = parsedTarget;
+
+      const cardType = getKnownCardType(cardId);
 
       // 能量牌移动限制（规则 4.5.5、10.5.4）
-      if (cardInstance?.data.cardType === CardType.ENERGY) {
+      if (cardType === CardType.ENERGY) {
         if (toZone === ZoneType.HAND) {
           addLog('能量牌不能移动到手牌', 'error');
           return;
@@ -219,7 +358,7 @@ export const GameBoard = memo(function GameBoard() {
       }
 
       // LIVE卡移动限制：不能放入成员区和能量区和能量卡组
-      if (cardInstance?.data.cardType === CardType.LIVE) {
+      if (cardType === CardType.LIVE) {
         if (toZone === ZoneType.MEMBER_SLOT) {
           addLog('LIVE卡不能放入成员区', 'error');
           return;
@@ -235,7 +374,11 @@ export const GameBoard = memo(function GameBoard() {
       }
 
       // 成员卡移动限制：不能放入能量区和能量卡组
-      if (cardInstance?.data.cardType === CardType.MEMBER) {
+      if (cardType === CardType.MEMBER) {
+        if (currentPhase === GamePhase.MAIN_PHASE && fromZone === ZoneType.HAND && toZone === ZoneType.LIVE_ZONE) {
+          addLog('主要阶段不能把成员卡从手牌拖到 Live 区', 'error');
+          return;
+        }
         if (toZone === ZoneType.ENERGY_ZONE) {
           addLog('成员卡不能放入能量区', 'error');
           return;
@@ -247,9 +390,9 @@ export const GameBoard = memo(function GameBoard() {
       }
 
       // Live 设置阶段：拖到 Live 区的一律视为"里侧放置"（规则 8.2），且可作为 Live 卡放置（不限制卡牌类型）
-      // 用专门动作而不是 manualMoveCard，确保 liveZone.cardStates 的 face 被正确设置为 FACE_DOWN。
+      // 这里必须走专门命令，确保 liveZone.cardStates 的 face 被正确设置为 FACE_DOWN。
       if (
-        gameState.currentPhase === GamePhase.LIVE_SET_PHASE &&
+        currentPhase === GamePhase.LIVE_SET_PHASE &&
         fromZone === ZoneType.HAND &&
         toZone === ZoneType.LIVE_ZONE
       ) {
@@ -260,17 +403,36 @@ export const GameBoard = memo(function GameBoard() {
         return;
       }
 
+      if (
+        cardType === CardType.MEMBER &&
+        fromZone === ZoneType.HAND &&
+        toZone === ZoneType.MEMBER_SLOT &&
+        targetSlot
+      ) {
+        const result = playMemberToSlot(cardId, targetSlot);
+        if (result.success) {
+          addLog(`成员登场: 手牌 → ${targetSlot}`, 'action');
+        }
+        return;
+      }
+
+      if (
+        fromZone === ZoneType.LIVE_ZONE &&
+        toZone === ZoneType.SUCCESS_ZONE
+      ) {
+        const result = selectSuccessCard(cardId);
+        if (result.success) {
+          addLog('选择成功 Live 卡进入成功区', 'action');
+        }
+        return;
+      }
+
       // 如果来源和目标相同，不执行移动
       if (fromZone === toZone) {
         // 特殊情况：成员槽位之间的移动需要检查具体槽位
         if (toZone === ZoneType.MEMBER_SLOT) {
-          // 如果是同一个槽位，不移动
-          const selfIndex = gameState.players.findIndex((p) => p.id === viewingPlayerId);
-          const self = gameState.players[selfIndex] ?? gameState.players[0];
-          for (const slot of Object.values(SlotPosition)) {
-            if (self.memberSlots.slots[slot] === cardId && slot === targetSlot) {
-              return; // 同一槽位，不移动
-            }
+          if (getCardSlotPosition(cardId) === targetSlot) {
+            return;
           }
         } else {
           return; // 同一区域，不移动
@@ -289,23 +451,136 @@ export const GameBoard = memo(function GameBoard() {
         [ZoneType.WAITING_ROOM]: '休息室',
         [ZoneType.EXILE_ZONE]: '除外区',
         [ZoneType.RESOLUTION_ZONE]: '解决区',
+        [ZoneType.INSPECTION_ZONE]: '检视区',
       };
 
       // 找出来源槽位（当从成员区移动时，用于携带 energyBelow，规则 4.5.5.3）
       let sourceSlot: SlotPosition | undefined;
       if (fromZone === ZoneType.MEMBER_SLOT) {
-        const selfIndex = gameState.players.findIndex((p) => p.id === viewingPlayerId);
-        const self = gameState.players[selfIndex] ?? gameState.players[0];
-        for (const slot of Object.values(SlotPosition)) {
-          if (self.memberSlots.slots[slot] === cardId) {
-            sourceSlot = slot;
-            break;
-          }
+        sourceSlot = getCardSlotPosition(cardId) ?? undefined;
+      }
+
+      if (
+        cardType === CardType.ENERGY &&
+        toZone === ZoneType.MEMBER_SLOT &&
+        targetSlot
+      ) {
+        const result = attachEnergyToMember(
+          cardId,
+          fromZone as ZoneType.MEMBER_SLOT | ZoneType.ENERGY_ZONE | ZoneType.ENERGY_DECK,
+          targetSlot,
+          sourceSlot
+        );
+        if (result.success) {
+          addLog(`附着能量到成员槽位: ${targetSlot}`, 'action');
         }
+        return;
+      }
+
+      if (
+        fromZone === ZoneType.MEMBER_SLOT &&
+        toZone === ZoneType.MEMBER_SLOT &&
+        sourceSlot &&
+        targetSlot
+      ) {
+        const result = moveMemberToSlot(cardId, sourceSlot, targetSlot);
+        if (result.success) {
+          addLog(`成员换位: ${sourceSlot} → ${targetSlot}`, 'action');
+        }
+        return;
+      }
+
+      if (
+        fromZone === ZoneType.ENERGY_DECK &&
+        toZone === ZoneType.ENERGY_ZONE &&
+        viewerSeat &&
+        getZoneCardIds(`${viewerSeat}_ENERGY_DECK`)[0] === cardId
+      ) {
+        const result = drawEnergyToZone(cardId);
+        if (result.success) {
+          addLog('放置能量: 能量卡组顶 → 能量区', 'action');
+        }
+        return;
+      }
+
+      if (
+        fromZone === ZoneType.HAND ||
+        fromZone === ZoneType.MAIN_DECK ||
+        fromZone === ZoneType.ENERGY_DECK
+      ) {
+        if (
+          toZone !== ZoneType.HAND &&
+          toZone !== ZoneType.MAIN_DECK &&
+          toZone !== ZoneType.ENERGY_DECK &&
+          toZone !== ZoneType.MEMBER_SLOT &&
+          toZone !== ZoneType.ENERGY_ZONE &&
+          toZone !== ZoneType.LIVE_ZONE &&
+          toZone !== ZoneType.SUCCESS_ZONE &&
+          toZone !== ZoneType.WAITING_ROOM &&
+          toZone !== ZoneType.EXILE_ZONE
+        ) {
+          addLog('当前落点不支持己方私有区拖拽', 'error');
+          return;
+        }
+
+        const result = moveOwnedCardToZone(cardId, fromZone, toZone, {
+          targetSlot,
+          position:
+            toZone === ZoneType.MAIN_DECK || toZone === ZoneType.ENERGY_DECK
+              ? 'TOP'
+              : undefined,
+        });
+        if (result.success) {
+          addLog(`己方卡牌移动: ${fromZone} → ${toZone}`, 'action');
+        }
+        return;
+      }
+
+      if (
+        toZone === ZoneType.HAND &&
+        (fromZone === ZoneType.MEMBER_SLOT ||
+          fromZone === ZoneType.LIVE_ZONE ||
+          fromZone === ZoneType.SUCCESS_ZONE ||
+          fromZone === ZoneType.WAITING_ROOM)
+      ) {
+        const result = movePublicCardToHand(
+          cardId,
+          fromZone,
+          fromZone === ZoneType.MEMBER_SLOT ? sourceSlot : undefined
+        );
+        if (result.success) {
+          addLog(`公开区卡牌回手: ${fromZone}`, 'action');
+        }
+        return;
+      }
+
+      if (fromZone === ZoneType.ENERGY_ZONE && toZone === ZoneType.ENERGY_DECK) {
+        const result = movePublicCardToEnergyDeck(cardId, ZoneType.ENERGY_ZONE);
+        if (result.success) {
+          addLog('公开能量回到能量卡组: ENERGY_ZONE → ENERGY_DECK', 'action');
+        }
+        return;
+      }
+
+      if (
+        toZone === ZoneType.WAITING_ROOM &&
+        (fromZone === ZoneType.MEMBER_SLOT ||
+          fromZone === ZoneType.LIVE_ZONE ||
+          fromZone === ZoneType.SUCCESS_ZONE)
+      ) {
+        const result = movePublicCardToWaitingRoom(
+          cardId,
+          fromZone,
+          fromZone === ZoneType.MEMBER_SLOT ? sourceSlot : undefined
+        );
+        if (result.success) {
+          addLog(`公开区卡牌进入休息室: ${fromZone}`, 'action');
+        }
+        return;
       }
 
       // 执行移动
-      const result = manualMoveCard(cardId, fromZone, toZone, {
+      const result = moveTableCard(cardId, fromZone, toZone, {
         targetSlot,
         sourceSlot,
         position: 'TOP', // 默认放到顶部（卡组时）
@@ -317,13 +592,38 @@ export const GameBoard = memo(function GameBoard() {
         addLog(`移动卡牌: ${fromName} → ${toName}`, 'action');
       }
     },
-    [manualMoveCard, setLiveCard, addLog, gameState, viewingPlayerId, setDragHints, getCardInstance]
+    [
+      playMemberToSlot,
+      moveTableCard,
+      moveMemberToSlot,
+      attachEnergyToMember,
+      selectSuccessCard,
+      movePublicCardToWaitingRoom,
+      movePublicCardToHand,
+      movePublicCardToEnergyDeck,
+      moveOwnedCardToZone,
+      moveInspectedCardToTop,
+      moveInspectedCardToBottom,
+      moveInspectedCardToZone,
+      reorderInspectedCard,
+      moveResolutionCardToZone,
+      drawEnergyToZone,
+      setLiveCard,
+      addLog,
+      viewerSeat,
+      setDragHints,
+      getZoneCardIds,
+      currentPhase,
+      findViewerCardZone,
+      resolveCardDropTarget,
+      getCardSlotPosition,
+    ]
   );
 
   // 获取当前拖拽中的卡牌实例
-  const activeCard = activeCardId ? getCardInstance(activeCardId) : null;
+  const activeCard = activeCardId ? getVisibleCardPresentation(activeCardId) : null;
 
-  if (!gameState) {
+  if (!matchView) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-slate-400">游戏未开始</div>
@@ -331,10 +631,13 @@ export const GameBoard = memo(function GameBoard() {
     );
   }
 
-  // 确定对手和自己
-  const selfIndex = gameState.players.findIndex((p) => p.id === viewingPlayerId);
-  const self = gameState.players[selfIndex] ?? gameState.players[0];
-  const opponent = gameState.players[selfIndex === 0 ? 1 : 0];
+  if (!viewerSeat || !currentPhase) {
+    return null;
+  }
+
+  const selfSeat: Seat = viewerSeat;
+  const opponentSeat: Seat = selfSeat === 'FIRST' ? 'SECOND' : 'FIRST';
+  const resolvedActiveSeat = activeSeat ?? selfSeat;
   const isSolitaire = gameMode === GameMode.SOLITAIRE;
 
   return (
@@ -371,10 +674,9 @@ export const GameBoard = memo(function GameBoard() {
           }`}
         >
           <PlayerArea
-            player={opponent}
+            playerSeat={opponentSeat}
             isOpponent={true}
-            isActive={gameState.activePlayerIndex === (selfIndex === 0 ? 1 : 0)}
-            liveZone={opponent.liveZone}
+            isActive={resolvedActiveSeat === opponentSeat}
           />
         </div>
 
@@ -402,22 +704,21 @@ export const GameBoard = memo(function GameBoard() {
         {/* 己方区域 (底部) - 包含己方 Live 区和成员槽位 */}
         <div className="flex-[5] min-h-0 overflow-hidden">
           <PlayerArea
-            player={self}
+            playerSeat={selfSeat}
             isOpponent={false}
-            isActive={gameState.activePlayerIndex === selfIndex}
-            liveZone={self.liveZone}
+            isActive={resolvedActiveSeat === selfSeat}
           />
         </div>
 
         {/* 阶段指示器 */}
         <PhaseIndicator
-          phase={gameState.currentPhase}
-          turnNumber={gameState.turnCount}
+          phase={currentPhase}
+          turnNumber={currentTurnCount ?? matchView.turnCount}
           onOpenJudgment={handleOpenJudgmentPanel}
         />
 
         {/* 左侧唤出按钮（判定区关闭时显示） */}
-        {!judgmentPanelOpen && (
+        {isJudgmentPanelRelevant && !judgmentPanelOpen && (
           <button
             type="button"
             onClick={handleOpenJudgmentPanel}
@@ -442,20 +743,21 @@ export const GameBoard = memo(function GameBoard() {
 
         {/* Live 结果动画 */}
         <LiveResultAnimation
-          result={liveResult}
-          scoreInfo={liveResult ? {
-            selfScore: gameState.liveResolution.playerScores.get(self.id) ?? 0,
-            opponentScore: gameState.liveResolution.playerScores.get(opponent.id) ?? 0,
-            selfWon: gameState.liveResolution.liveWinnerIds.includes(self.id),
-            opponentWon: gameState.liveResolution.liveWinnerIds.includes(opponent.id),
-            isDraw: gameState.liveResolution.liveWinnerIds.length === 2,
+          visible={shouldShowWinnerAnimation}
+          isViewerWinner={isViewerWinnerInCurrentLive}
+          scoreInfo={shouldShowWinnerAnimation ? {
+            selfScore: viewerLiveScore,
+            opponentScore: opponentLiveScore,
+            selfWon: viewerLiveWinner,
+            opponentWon: opponentLiveWinner,
+            isDraw: isLiveDraw(),
           } as LiveScoreInfo : null}
           onComplete={handleLiveAnimationComplete}
         />
 
         {/* Live 判定面板 */}
         <JudgmentPanel
-          isOpen={judgmentPanelOpen}
+          isOpen={isJudgmentPanelRelevant && judgmentPanelOpen}
           onClose={handleJudgmentPanelClose}
         />
 
@@ -467,20 +769,58 @@ export const GameBoard = memo(function GameBoard() {
 
         {/* 拖拽覆盖层 - 显示正在拖拽的卡牌 */}
         <DragOverlay>
-          {activeCard && (
+          {activeCard ? (
             <Card
-              cardData={activeCard.data as AnyCardData}
+              cardData={activeCard.cardData as AnyCardData}
               instanceId={activeCard.instanceId}
-              imagePath={getCardImagePath(activeCard.data.cardCode)}
+              imagePath={activeCard.imagePath}
               size="sm"
               faceUp={true}
               showHover={false}
             />
-          )}
+          ) : activeCardId ? (
+            <div className="h-[112px] w-[80px] overflow-hidden rounded-lg shadow-lg">
+              <img src="/back.jpg" alt="Card Back" className="h-full w-full object-cover" />
+            </div>
+          ) : null}
         </DragOverlay>
       </div>
     </DndContext>
   );
 });
+
+function resolveSpecialDragTarget(targetId: string): SpecialDragTarget | null {
+  if (targetId.startsWith(INSPECTION_TARGET_PREFIX)) {
+    const suffix = targetId.slice(INSPECTION_TARGET_PREFIX.length);
+    switch (suffix) {
+      case 'hand':
+        return { kind: 'inspection', action: 'HAND' };
+      case 'waiting-room':
+        return { kind: 'inspection', action: 'WAITING_ROOM' };
+      case 'main-deck-top':
+        return { kind: 'inspection', action: 'MAIN_DECK_TOP' };
+      case 'main-deck-bottom':
+        return { kind: 'inspection', action: 'MAIN_DECK_BOTTOM' };
+      default:
+        return null;
+    }
+  }
+
+  if (targetId.startsWith(RESOLUTION_TARGET_PREFIX)) {
+    const suffix = targetId.slice(RESOLUTION_TARGET_PREFIX.length);
+    switch (suffix) {
+      case 'hand':
+        return { kind: 'resolution', action: 'HAND' };
+      case 'waiting-room':
+        return { kind: 'resolution', action: 'WAITING_ROOM' };
+      case 'main-deck-top':
+        return { kind: 'resolution', action: 'MAIN_DECK_TOP' };
+      default:
+        return null;
+    }
+  }
+
+  return null;
+}
 
 export default GameBoard;

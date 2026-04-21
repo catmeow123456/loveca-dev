@@ -3,9 +3,9 @@
  * 基于 detail_rules.md 第 10 章 - 规则处理
  */
 
-import { CardType, ZoneType, SlotPosition } from '../../shared/types/enums';
-import type { GameState } from '../entities/game';
-import type { PlayerState } from '../entities/player';
+import { CardType, ZoneType, SlotPosition } from '../../shared/types/enums.js';
+import type { GameState } from '../entities/game.js';
+import type { PlayerState } from '../entities/player.js';
 
 // ============================================
 // 规则处理类型
@@ -156,6 +156,30 @@ export class RuleActionProcessor {
       playerId: null,
       reason: null,
     };
+  }
+
+  collectPendingRefreshActions(
+    game: GameState,
+    options?: {
+      checkTopPlayerId?: string;
+      checkTopCount?: number;
+    }
+  ): RuleActionResult[] {
+    const results: RuleActionResult[] = [];
+    const orderedPlayers =
+      game.firstPlayerIndex === 0 ? [...game.players] : [game.players[1], game.players[0]];
+
+    for (const player of orderedPlayers) {
+      const refreshCheck = this.checkRefreshNeeded(
+        player,
+        player.id === options?.checkTopPlayerId ? options?.checkTopCount : undefined
+      );
+      if (refreshCheck.needsRefresh && refreshCheck.playerId) {
+        results.push(this.executeRefresh(refreshCheck.playerId));
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -453,12 +477,7 @@ export class RuleActionProcessor {
     const results: RuleActionResult[] = [];
 
     // 1. 检查刷新处理（双方玩家）- 规则 10.2
-    for (const player of game.players) {
-      const refreshCheck = this.checkRefreshNeeded(player);
-      if (refreshCheck.needsRefresh && refreshCheck.playerId) {
-        results.push(this.executeRefresh(refreshCheck.playerId));
-      }
-    }
+    results.push(...this.collectPendingRefreshActions(game));
 
     // 2. 检查胜利条件 - 规则 10.3
     const victoryCheck = this.checkVictoryCondition(game.players);
@@ -491,7 +510,7 @@ export class RuleActionProcessor {
 // 规则处理应用函数
 // ============================================
 
-import { updatePlayer } from '../entities/game';
+import { updatePlayer } from '../entities/game.js';
 import {
   addCardToZone,
   removeCardFromZone,
@@ -499,7 +518,7 @@ import {
   shuffleZone,
   removeEnergyBelowMember,
   findEnergyBelowSlot,
-} from '../entities/zone';
+} from '../entities/zone.js';
 
 /**
  * 应用规则处理结果到游戏状态
@@ -518,29 +537,22 @@ export function applyRuleActionResult(
 
   switch (result.type) {
     case RuleActionType.REFRESH: {
-      // 刷新处理：将休息室所有卡牌洗牌后放入卡组底部
+      // 刷新处理：仅将休息室洗牌后压到现有主卡组下方，保留原主卡组顺序。
       if (result.affectedPlayerId) {
         state = updatePlayer(state, result.affectedPlayerId, (player) => {
-          // 获取休息室所有卡牌
           const waitingRoomCards = [...player.waitingRoom.cardIds];
-
-          // 清空休息室
-          let newWaitingRoom = player.waitingRoom;
-          for (const cardId of waitingRoomCards) {
-            newWaitingRoom = removeCardFromZone(newWaitingRoom, cardId);
-          }
-
-          // 将卡牌添加到卡组（先洗牌）
           const shuffledCards = shuffleArray(waitingRoomCards);
-          let newMainDeck = player.mainDeck;
-          for (const cardId of shuffledCards) {
-            newMainDeck = addCardToZone(newMainDeck, cardId);
-          }
 
           return {
             ...player,
-            waitingRoom: newWaitingRoom,
-            mainDeck: shuffleZone(newMainDeck), // 再次洗牌确保随机性
+            waitingRoom: {
+              ...player.waitingRoom,
+              cardIds: [],
+            },
+            mainDeck: {
+              ...player.mainDeck,
+              cardIds: [...player.mainDeck.cardIds, ...shuffledCards],
+            },
           };
         });
       }

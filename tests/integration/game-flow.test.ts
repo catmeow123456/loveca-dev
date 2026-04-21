@@ -314,7 +314,7 @@ describe('GameService 游戏流程测试', () => {
       expect(updatedPlayer.hand.cardIds).not.toContain(targetCardId);
     });
 
-    it('应该拒绝能量不足时打出成员卡', () => {
+    it('应该允许玩家自行处理费用，即使系统未自动扣能量也能登场成员卡', () => {
       const player1 = getPlayerById(gameInMainPhase, 'player1')!;
       const handCardIds = player1.hand.cardIds;
 
@@ -339,8 +339,10 @@ describe('GameService 游戏流程测试', () => {
       const action = createPlayMemberAction('player1', targetCardId, SlotPosition.CENTER);
       const result = gameService.processAction(gameInMainPhase, action);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('能量不足');
+      expect(result.success).toBe(true);
+      const updatedPlayer = getPlayerById(result.gameState, 'player1')!;
+      expect(updatedPlayer.memberSlots.slots[SlotPosition.CENTER]).toBe(targetCardId);
+      expect(updatedPlayer.hand.cardIds).not.toContain(targetCardId);
     });
 
     it('应该拒绝非自己回合时的操作', () => {

@@ -16,6 +16,10 @@ import { useGameStore } from '@/store/gameStore';
 export interface DroppableZoneProps {
   /** 唯一标识符 (如槽位 ID) */
   id: string;
+  /** 可选的 DOM id，用于调试或测试定位 */
+  domId?: string;
+  /** 逻辑区域 ID，用于测试和语义标记 */
+  zoneId?: string;
   /** 可选的数据 */
   data?: Record<string, unknown>;
   /** 是否禁用放置 */
@@ -34,6 +38,8 @@ export interface DroppableZoneProps {
 
 export function DroppableZone({
   id,
+  domId,
+  zoneId,
   data,
   disabled = false,
   children,
@@ -52,9 +58,10 @@ export function DroppableZone({
 
   const isDragging = useGameStore((s) => s.ui.isDragging);
   const highlightedZones = useGameStore((s) => s.ui.highlightedZones);
+  const highlightKey = zoneId ?? id;
 
   const hasSuggestedTargets = highlightedZones.length > 0;
-  const isSuggested = hasSuggestedTargets && highlightedZones.includes(id);
+  const isSuggested = hasSuggestedTargets && highlightedZones.includes(highlightKey);
 
   // 判断是否应该显示 “推荐目标” 高亮
   const showDropTarget = isDragging && !disabled && !isOver && isSuggested;
@@ -66,7 +73,8 @@ export function DroppableZone({
   return (
     <div
       ref={setNodeRef}
-      id={id}
+      id={domId ?? id}
+      data-zone-id={zoneId ?? domId ?? id}
       className={cn(
         // During drag, avoid transitions (they stack with frequent hover updates and can feel "laggy").
         isDragging ? 'transition-none' : 'transition-[opacity,outline-color,background-color] duration-150',

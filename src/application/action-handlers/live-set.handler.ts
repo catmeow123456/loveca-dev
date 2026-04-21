@@ -6,13 +6,13 @@
  * Live 设置的完成统一使用 CONFIRM_SUB_PHASE。
  */
 
-import type { GameState } from '../../domain/entities/game';
-import type { SetLiveCardAction } from '../actions';
-import type { ActionHandler, ActionHandlerContext } from './types';
-import { success, failure } from './types';
-import { GamePhase, OrientationState, FaceState } from '../../shared/types/enums';
-import { GAME_CONFIG, addAction, updatePlayer } from '../../domain/entities/game';
-import { removeCardFromZone, addCardToStatefulZone } from '../../domain/entities/zone';
+import type { GameState } from '../../domain/entities/game.js';
+import type { SetLiveCardAction } from '../actions.js';
+import type { ActionHandler, ActionHandlerContext } from './types.js';
+import { success, failure } from './types.js';
+import { GamePhase, OrientationState, FaceState } from '../../shared/types/enums.js';
+import { GAME_CONFIG, addAction, updatePlayer } from '../../domain/entities/game.js';
+import { removeCardFromZone, addCardToStatefulZone } from '../../domain/entities/zone.js';
 
 /**
  * 处理放置 Live 卡动作

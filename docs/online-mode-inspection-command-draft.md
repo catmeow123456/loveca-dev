@@ -2,7 +2,7 @@
 
 > 文档类型：联机设计草案
 > 适用范围：定义联机首版中检视区的牌桌模型、即时生效语义、原子操作与建议命令集合。
-> 最后更新：2026-04-02
+> 最后更新：2026-04-06
 
 ---
 
@@ -47,6 +47,13 @@
 ## 3. 检视区的正式语义
 
 联机首版中，`INSPECTION_ZONE` 应视为正式区域，而不是临时上下文。
+
+重要说明：检视区（`INSPECTION_ZONE`）与解决区（`RESOLUTION_ZONE`）是物理独立的两个区域，不共用存储。两者的可见性语义不同：
+
+- **解决区**：用于 Live 应援翻牌，翻出的牌正面对双方都可见（`FRONT`），通过 `revealedCardIds` 机制控制。
+- **检视区**：检视者看到正面（`FRONT`），对手看到背面（`BACK`），除非牌被公开移入休息室等公开区。
+
+在 `GameState` 中，`inspectionZone` 和 `resolutionZone` 各自独立存在，投影层始终同时投影两者。
 
 补充约束：
 
@@ -103,6 +110,13 @@
 - `FinishInspection` 的职责更接近“声明当前检视流程已完成/关闭窗口”
 - 它不是“把草稿一次性应用到权威状态”
 
+补充说明：
+
+- 前端可以提供由多个原子命令组成的 UI 快捷操作。
+- 例如“关闭（检视区的牌全部回到卡组顶）”可以先按当前检视顺序逐张执行“回来源区顶部”，再发送 `FinishInspection`。
+- 例如“全部放入休息区”可以按当前检视顺序逐张执行“移到 `WAITING_ROOM`”。
+- 这类快捷按钮属于前端编排层便利能力，不改变底层原子命令与事件语义。
+
 ---
 
 ## 6. 检视区原子操作
@@ -141,8 +155,9 @@
 
 - `HAND`
 - `WAITING_ROOM`
-- `EXILE`
-- 其它公开区或规则定义区
+- `EXILE_ZONE`
+
+首版不支持从检视区直接移到 `MEMBER_SLOT`、`ENERGY_ZONE`、`LIVE_ZONE` 等公开区。若效果需要，可分两步完成（先移到手牌，再从手牌放到目标区）。
 
 ### 6.4 调整一张牌在检视区中的位置
 
@@ -155,7 +170,19 @@
 - 若前端通过拖拽排序表达“按任意顺序放回顶部/底部”，则该动作应作为正式过程存在。
 - 首版公共事件层不额外新增 reorder 事件；同区重排统一通过 `CardMovedPublic` 表达，表现为 `from.zone == to.zone` 且索引变化。
 
-### 6.5 完成当前检视流程
+### 6.5 将一张牌公开给双方
+
+语义：
+
+- 将 `INSPECTION_ZONE` 中的一张牌的正面信息公开给双方。
+
+说明：
+
+- 公开后，对手从 `BACK` 变为 `FRONT`，但牌仍留在检视区中。
+- 该操作即时生效，不可撤销。
+- 典型场景：某些效果要求"公开展示后再决定如何处理"。
+
+### 6.6 完成当前检视流程
 
 语义：
 
@@ -189,7 +216,7 @@
 
 用途：
 
-- 打开一次正式检视流程。
+- 打开一次正式检视流程，或向已存在的检视流程中追加新的对象。
 - 将指定来源区中的若干对象移动到 `INSPECTION_ZONE`。
 
 典型场景：
@@ -197,6 +224,13 @@
 - 检视主卡组顶 N 张
 - 检视能量卡组顶 N 张
 - 检视某规则效果指定的一组对象
+- 逐张翻开：前端每次发送 `OpenInspection(count=1)`，重复调用以逐张将对象加入检视区
+
+追加语义：
+
+- 若当前已有进行中的检视流程（`inspectionContext` 已存在），且操作者与检视拥有者一致，则该命令不会创建新的检视流程，而是向现有检视区追加对象。
+- 追加的对象从同一来源区顶部取出，追加到检视区末尾。
+- 每次追加都会产出对应的 `CardsInspectedSummary` 和 `CardMovedPublic` 事件。
 
 最低职责：
 
@@ -255,9 +289,26 @@
 说明：
 
 - 若首版前端暂不支持检视区显式排序拖拽，可先不开放该命令给 UI。
-- 但若某些效果要求“按任意顺序放回”，服务端模型应允许存在这一能力。
+- 但若某些效果要求”按任意顺序放回”，服务端模型应允许存在这一能力。
 
-### 7.6 `FinishInspection`
+### 7.6 `RevealInspectedCard`
+
+用途：
+
+- 将检视区中的一张牌的正面信息公开给双方。
+
+典型场景：
+
+- 某些效果要求”公开展示这张牌后再决定如何处理”
+- 前端检视区中每张牌下方的”公开”按钮触发此命令
+
+最低职责：
+
+- 校验该牌当前确实位于 `INSPECTION_ZONE`
+- 校验当前操作者与检视窗口一致
+- 将该牌标记为已公开，使对手也能看到正面信息
+
+### 7.7 `FinishInspection`
 
 用途：
 
@@ -267,7 +318,7 @@
 
 - 校验当前检视流程仍然存在
 - 校验当前操作者和检视窗口一致
-- 若该流程要求检视区清空后才能结束，则校验检视区是否已清空
+- 首版要求检视区清空后才能结束，校验检视区是否已清空
 - 关闭窗口并推进后续流程
 
 ---
@@ -298,14 +349,32 @@
 3. 对 3 张逐张执行 `MoveInspectedCardToTop`
 4. `FinishInspection`
 
-### 8.3 看顶 5 张，公开 1 张加入手牌，其余进休息室
+### 8.3 逐张翻开模式：看顶 5 张，选 1 张加入手牌，其余放底
+
+流程：
+
+1. `OpenInspection(source=MAIN_DECK_TOP, count=1)` — 翻开第 1 张
+2. `OpenInspection(source=MAIN_DECK_TOP, count=1)` — 追加第 2 张
+3. 重复上述步骤，直到翻开 5 张
+4. `MoveInspectedCardToZone(cardA, HAND)` — 选中的牌加入手牌
+5. 对剩余 4 张逐张执行 `MoveInspectedCardToBottom`
+6. `FinishInspection`
+
+说明：
+
+- 前端可选择逐张发送 `OpenInspection(count=1)`，也可一次发送 `OpenInspection(count=5)`，两种方式在权威状态上等价。
+- 逐张翻开的优势在于对手可以实时感知"对方正在逐张查看"的过程，提升联机体验。
+- 每次 `OpenInspection` 追加时，对手看到检视区中新增一个 `BACK` 对象。
+
+### 8.4 看顶 5 张，公开 1 张加入手牌，其余进休息室
 
 流程：
 
 1. `OpenInspection(source=MAIN_DECK_TOP, count=5)`
-2. `MoveInspectedCardToZone(cardA, HAND)`，若规则要求公开，则在移动时公开
-3. 对剩余 4 张逐张执行 `MoveInspectedCardToZone(cardX, WAITING_ROOM)`
-4. `FinishInspection`
+2. `RevealInspectedCard(cardA)` — 将选中的牌公开给双方
+3. `MoveInspectedCardToZone(cardA, HAND)` — 公开后加入手牌
+4. 对剩余 4 张逐张执行 `MoveInspectedCardToZone(cardX, WAITING_ROOM)`
+5. `FinishInspection`
 
 ---
 
@@ -362,6 +431,9 @@
 5. 对手可感知检视区内的卡牌变化、拖动、数量和顺序变化。
 6. “将一张牌放底”是正式原子操作，应直接进入联机命令模型。
 7. `FinishInspection` 负责结束流程，而不是统一应用草稿。
+8. `RevealInspectedCard` 是独立的原子操作，用于在移动之前将检视牌公开给双方。
+9. 首版要求检视区清空后才能执行 `FinishInspection`。
+10. `MoveInspectedCardToZone` 的目标区首版限定为 `HAND`、`WAITING_ROOM`、`EXILE_ZONE`。
 
 ---
 
