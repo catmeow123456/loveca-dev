@@ -29,7 +29,11 @@ import {
 } from '../../shared/types/enums.js';
 import { addAction, updatePlayer, getFirstPlayer } from '../../domain/entities/game.js';
 import { removeCardFromStatefulZone, addCardToZone } from '../../domain/entities/zone.js';
-import { removeCardFromPlayerZone, addCardToPlayerZone, moveCardUniversal } from './zone-operations.js';
+import {
+  removeCardFromPlayerZone,
+  addCardToPlayerZone,
+  moveCardUniversal,
+} from './zone-operations.js';
 import { phaseManager, type SubPhaseAutoAction } from '../phase-manager.js';
 import { isUserActionRequired } from '../../shared/phase-config/index.js';
 
@@ -426,7 +430,8 @@ export const handleSelectSuccessCard: ActionHandler<SelectSuccessCardAction> = (
   const { playerId, cardId } = action;
   const isPerformanceSuccessWindow =
     game.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ||
-    game.currentSubPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS;
+    game.currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+    game.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS;
   const isResultSettlement = game.currentSubPhase === SubPhase.RESULT_SETTLEMENT;
 
   if (!isPerformanceSuccessWindow && !isResultSettlement) {

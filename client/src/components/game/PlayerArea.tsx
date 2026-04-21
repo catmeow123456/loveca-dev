@@ -253,11 +253,16 @@ export const PlayerArea = memo(function PlayerArea({
   // ========================================
   // 拖拽权限控制 - "信任玩家"原则
   // ========================================
-  // 核心原则：常规阶段维持较自由的桌面操作；进入 Live 结果阶段后，前端只保留当前子阶段允许的动作。
+  // 核心原则：常规阶段维持较自由的桌面操作；Live 结果阶段只在成功效果窗口保留通用桌面操作。
   // ========================================
 
   const isLiveResultPhase = currentPhase === GamePhase.LIVE_RESULT_PHASE;
-  const allowGeneralOwnZoneInteraction = !isOpponent && !isLiveResultPhase;
+  const isResultSuccessEffectWindow =
+    currentPhase === GamePhase.LIVE_RESULT_PHASE &&
+    (currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+      currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS);
+  const allowGeneralOwnZoneInteraction =
+    !isOpponent && (!isLiveResultPhase || isResultSuccessEffectWindow);
   const allowLiveSettlementInteraction =
     !isOpponent &&
     currentPhase === GamePhase.LIVE_RESULT_PHASE &&

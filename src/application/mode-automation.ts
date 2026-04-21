@@ -67,6 +67,19 @@ const solitaireAutomationPolicy: ModeAutomationPolicy = {
       };
     }
 
+    if (
+      state.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
+      (state.currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+        state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS) &&
+      isPlayerActive(state, opponentId)
+    ) {
+      return {
+        kind: 'ACTION',
+        actorPlayerId: opponentId,
+        action: createConfirmSubPhaseAction(opponentId, state.currentSubPhase),
+      };
+    }
+
     if (state.currentPhase === GamePhase.MAIN_PHASE && isPlayerActive(state, opponentId)) {
       return {
         kind: 'ACTION',

@@ -3,9 +3,9 @@ import {
   MAIN_PHASE_MANUAL_COMMAND_TYPES,
   isCrossTurnTapMemberWindow,
   PERFORMANCE_LIVE_START_COMMAND_TYPES,
-  PERFORMANCE_SUCCESS_EFFECT_COMMAND_TYPES,
+  RESULT_SUCCESS_EFFECT_COMMAND_TYPES,
   PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES,
-  isPerformanceSuccessEffectSubPhase,
+  isResultSuccessEffectSubPhase,
 } from '../application/command-availability.js';
 import type { GameState } from '../domain/entities/game.js';
 import type { PlayerState } from '../domain/entities/player.js';
@@ -176,7 +176,7 @@ function buildWindowDescriptor(game: GameState): WindowDescriptor | null {
     };
   }
 
-  if (game.currentSubPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS) {
+  if (isResultSuccessEffectSubPhase(game.currentSubPhase)) {
     return {
       windowType: 'SERIAL_PRIORITY',
       actingSeat: activeSeat,
@@ -551,7 +551,10 @@ function upsertViewObject(
   surface: VisibleSurface,
   orientation?: ViewCardObject['orientation'],
   faceState?: ViewCardObject['faceState'],
-  metadata?: Pick<ViewCardObject, 'publiclyRevealed' | 'judgmentResult' | 'enteredStageThisTurn'> & {
+  metadata?: Pick<
+    ViewCardObject,
+    'publiclyRevealed' | 'judgmentResult' | 'enteredStageThisTurn'
+  > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
 ): void {
@@ -577,8 +580,8 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
 
   return {
     scores: {
-      FIRST: firstPlayerId ? game.liveResolution.playerScores.get(firstPlayerId) ?? 0 : 0,
-      SECOND: secondPlayerId ? game.liveResolution.playerScores.get(secondPlayerId) ?? 0 : 0,
+      FIRST: firstPlayerId ? (game.liveResolution.playerScores.get(firstPlayerId) ?? 0) : 0,
+      SECOND: secondPlayerId ? (game.liveResolution.playerScores.get(secondPlayerId) ?? 0) : 0,
     },
     winnerSeats: game.liveResolution.liveWinnerIds
       .map((playerId) => getSeatForPlayer(game, playerId))
@@ -672,7 +675,9 @@ function canViewerUsePhaseCommands(
 
   const waitingForSeat =
     game.waitingPlayerId !== null ? getSeatForPlayer(game, game.waitingPlayerId) : null;
-  return waitingForSeat !== null ? waitingForSeat === viewerSeat : isPlayerActive(game, viewerPlayerId);
+  return waitingForSeat !== null
+    ? waitingForSeat === viewerSeat
+    : isPlayerActive(game, viewerPlayerId);
 }
 
 function mergeCommandHints(
@@ -694,10 +699,7 @@ function buildCrossTurnCommandHints(
   viewerPlayerId: string,
   viewerSeat: Seat
 ): readonly ViewCommandHint[] {
-  if (
-    game.inspectionContext &&
-    game.inspectionContext.ownerPlayerId !== viewerPlayerId
-  ) {
+  if (game.inspectionContext && game.inspectionContext.ownerPlayerId !== viewerPlayerId) {
     return [];
   }
 
@@ -720,10 +722,7 @@ function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] 
     case GamePhase.MULLIGAN_PHASE:
       return [GameCommandType.MULLIGAN];
     case GamePhase.MAIN_PHASE:
-      return [
-        ...MAIN_PHASE_MANUAL_COMMAND_TYPES,
-        GameCommandType.END_PHASE,
-      ];
+      return [...MAIN_PHASE_MANUAL_COMMAND_TYPES, GameCommandType.END_PHASE];
     case GamePhase.LIVE_SET_PHASE:
       return [
         GameCommandType.SET_LIVE_CARD,
@@ -739,11 +738,11 @@ function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] 
       if (game.currentSubPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS) {
         return PERFORMANCE_LIVE_START_COMMAND_TYPES;
       }
-      if (isPerformanceSuccessEffectSubPhase(game.currentSubPhase)) {
-        return PERFORMANCE_SUCCESS_EFFECT_COMMAND_TYPES;
-      }
       return [GameCommandType.CONFIRM_STEP];
     case GamePhase.LIVE_RESULT_PHASE:
+      if (isResultSuccessEffectSubPhase(game.currentSubPhase)) {
+        return RESULT_SUCCESS_EFFECT_COMMAND_TYPES;
+      }
       if (game.currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM) {
         return [GameCommandType.SUBMIT_SCORE];
       }
@@ -781,9 +780,8 @@ function buildInspectionCommandHints(
   const unrevealedOwnedCardIds = ownedCardIds.filter(
     (cardId) => !game.inspectionZone.revealedCardIds.includes(cardId)
   );
-  const sourceSuffix = game.inspectionContext?.sourceZone === ZoneType.ENERGY_DECK
-    ? 'ENERGY_DECK'
-    : 'MAIN_DECK';
+  const sourceSuffix =
+    game.inspectionContext?.sourceZone === ZoneType.ENERGY_DECK ? 'ENERGY_DECK' : 'MAIN_DECK';
   const inspectionZoneKey = createOwnedViewZoneKey(viewerSeat, 'INSPECTION_ZONE');
   const hints: ViewCommandHint[] = [
     buildCommandHint(GameCommandType.OPEN_INSPECTION, {
@@ -1054,7 +1052,8 @@ function buildResultConfirmStepHint(
 
   if (game.currentSubPhase === SubPhase.RESULT_SETTLEMENT) {
     const isWinner = game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
-    const hasConfirmedSettlement = game.liveResolution.settlementConfirmedBy.includes(viewerPlayerId);
+    const hasConfirmedSettlement =
+      game.liveResolution.settlementConfirmedBy.includes(viewerPlayerId);
     return buildCommandHint(GameCommandType.CONFIRM_STEP, {
       enabled: isWinner && !hasConfirmedSettlement,
       reason: !isWinner
@@ -1084,19 +1083,16 @@ function buildSettlementSelectionHint(
   const hasMoved = game.liveResolution.successCardMovedBy.includes(viewerPlayerId);
   const isActivePerformer = game.players[game.activePlayerIndex]?.id === viewerPlayerId;
   const canSelectDuringPerformance =
-    game.currentPhase === GamePhase.PERFORMANCE_PHASE &&
-    (game.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ||
-      game.currentSubPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS);
+    (game.currentPhase === GamePhase.PERFORMANCE_PHASE &&
+      game.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) ||
+    (game.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
+      isResultSuccessEffectSubPhase(game.currentSubPhase));
   const ownedLiveCardIds = getOwnedCardIds(
     game.players.find((player) => player.id === viewerPlayerId)?.liveZone.cardIds ?? [],
     game,
     viewerPlayerId
   );
-  const enabled = hasMoved
-    ? false
-    : canSelectDuringPerformance
-      ? isActivePerformer
-      : isWinner;
+  const enabled = hasMoved ? false : canSelectDuringPerformance ? isActivePerformer : isWinner;
   const reason = hasMoved
     ? '已选择成功 Live 卡'
     : canSelectDuringPerformance

@@ -217,14 +217,18 @@ describe('GameSession command pipeline', () => {
     };
 
     const beforeSeq = session.getCurrentPublicEventSeq();
-    const result = session.executeCommand(createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 3));
+    const result = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 3)
+    );
 
     expect(result.success).toBe(true);
     expect(session.state?.inspectionZone.cardIds).toEqual([topA, topB, refreshCard]);
 
     const events = session.getPublicEventsSince(beforeSeq);
     const deckRefreshIndex = events.findIndex((event) => event.type === 'DeckRefreshed');
-    const inspectedSummaryIndex = events.findIndex((event) => event.type === 'CardsInspectedSummary');
+    const inspectedSummaryIndex = events.findIndex(
+      (event) => event.type === 'CardsInspectedSummary'
+    );
 
     expect(deckRefreshIndex).toBeGreaterThanOrEqual(0);
     expect(inspectedSummaryIndex).toBeGreaterThan(deckRefreshIndex);
@@ -622,7 +626,12 @@ describe('GameSession command pipeline', () => {
     expect(topEnergyCardId).toBeTruthy();
 
     const genericMoveResult = session.executeCommand(
-      createMoveTableCardCommand(PLAYER1, topEnergyCardId!, ZoneType.ENERGY_DECK, ZoneType.ENERGY_ZONE)
+      createMoveTableCardCommand(
+        PLAYER1,
+        topEnergyCardId!,
+        ZoneType.ENERGY_DECK,
+        ZoneType.ENERGY_ZONE
+      )
     );
     expect(genericMoveResult.success).toBe(false);
     expect(genericMoveResult.error).toContain('专用命令');
@@ -810,9 +819,8 @@ describe('GameSession command pipeline', () => {
     const serializedCommand = toTransport(
       createMoveOwnedCardToZoneCommand(PLAYER1, cardId!, ZoneType.MAIN_DECK, ZoneType.HAND)
     );
-    const command = fromTransport<ReturnType<typeof createMoveOwnedCardToZoneCommand>>(
-      serializedCommand
-    );
+    const command =
+      fromTransport<ReturnType<typeof createMoveOwnedCardToZoneCommand>>(serializedCommand);
 
     const result = session.executeCommand(command);
 
@@ -825,7 +833,13 @@ describe('GameSession command pipeline', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
-    session.createGame('online-command-performance-live-start-return', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.createGame(
+      'online-command-performance-live-start-return',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
     session.initializeGame(deck, deck);
 
     const state = session.state!;
@@ -915,9 +929,8 @@ describe('GameSession command pipeline', () => {
     const serializedCommand = toTransport(
       createMovePublicCardToHandCommand(PLAYER1, liveCardId!, ZoneType.LIVE_ZONE)
     );
-    const command = fromTransport<ReturnType<typeof createMovePublicCardToHandCommand>>(
-      serializedCommand
-    );
+    const command =
+      fromTransport<ReturnType<typeof createMovePublicCardToHandCommand>>(serializedCommand);
 
     const result = session.executeCommand(command);
 
@@ -973,7 +986,13 @@ describe('GameSession command pipeline', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
-    session.createGame('online-command-performance-inspection-cheer', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.createGame(
+      'online-command-performance-inspection-cheer',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
     session.initializeGame(deck, deck);
 
     const state = session.state as unknown as {
@@ -1012,7 +1031,9 @@ describe('GameSession command pipeline', () => {
     expect(session.state?.inspectionZone.cardIds).toEqual([inspectedCardId!]);
     expect(session.state?.resolutionZone.cardIds).toHaveLength(1);
     expect(session.state?.resolutionZone.cardIds[0]).not.toBe(inspectedCardId);
-    expect(session.state?.resolutionZone.revealedCardIds).toEqual(session.state?.resolutionZone.cardIds);
+    expect(session.state?.resolutionZone.revealedCardIds).toEqual(
+      session.state?.resolutionZone.cardIds
+    );
   });
 
   it('确认 Live 失败会清空应援区与 Live 区到休息室', () => {
@@ -1283,7 +1304,7 @@ describe('GameSession command pipeline', () => {
     const enteringCardId = player.hand.cardIds.find(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
     );
-    const existingStageCardId = player.hand.cardIds.find(
+    const existingStageCardId = [...player.hand.cardIds, ...state.players[0].mainDeck.cardIds].find(
       (cardId) =>
         cardId !== enteringCardId &&
         state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
@@ -1293,6 +1314,9 @@ describe('GameSession command pipeline', () => {
     expect(existingStageCardId).toBeTruthy();
 
     player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== existingStageCardId);
+    state.players[0].mainDeck.cardIds = state.players[0].mainDeck.cardIds.filter(
+      (cardId) => cardId !== existingStageCardId
+    );
     player.memberSlots.slots[SlotPosition.CENTER] = existingStageCardId!;
 
     const beforeSeq = session.getCurrentPublicEventSeq();
@@ -1501,7 +1525,13 @@ describe('GameSession command pipeline', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
-    session.createGame('online-command-performance-success-play-member', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.createGame(
+      'online-command-performance-success-play-member',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
     session.initializeGame(deck, deck);
 
     const state = session.state!;
@@ -1535,7 +1565,13 @@ describe('GameSession command pipeline', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
-    session.createGame('online-command-performance-success-select-live', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.createGame(
+      'online-command-performance-success-select-live',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
     session.initializeGame(deck, deck);
 
     const state = session.state!;
@@ -1583,7 +1619,13 @@ describe('GameSession command pipeline', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
-    session.createGame('online-command-success-effect-play-member', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.createGame(
+      'online-command-success-effect-play-member',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
     session.initializeGame(deck, deck);
 
     const state = session.state!;
@@ -1594,8 +1636,8 @@ describe('GameSession command pipeline', () => {
       waitingPlayerId: string | null;
       liveResolution: { performingPlayerId: string | null };
     };
-    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
-    mutableState.currentSubPhase = SubPhase.PERFORMANCE_SUCCESS_EFFECTS;
+    mutableState.currentPhase = GamePhase.LIVE_RESULT_PHASE;
+    mutableState.currentSubPhase = SubPhase.RESULT_FIRST_SUCCESS_EFFECTS;
     mutableState.activePlayerIndex = 0;
     mutableState.waitingPlayerId = null;
     mutableState.liveResolution.performingPlayerId = PLAYER1;
@@ -1629,8 +1671,8 @@ describe('GameSession command pipeline', () => {
       waitingPlayerId: string | null;
       liveResolution: { performingPlayerId: string | null };
     };
-    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
-    mutableState.currentSubPhase = SubPhase.PERFORMANCE_SUCCESS_EFFECTS;
+    mutableState.currentPhase = GamePhase.LIVE_RESULT_PHASE;
+    mutableState.currentSubPhase = SubPhase.RESULT_FIRST_SUCCESS_EFFECTS;
     mutableState.activePlayerIndex = 0;
     mutableState.waitingPlayerId = null;
     mutableState.liveResolution.performingPlayerId = PLAYER1;
@@ -1912,7 +1954,13 @@ describe('GameSession command pipeline', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
-    session.createGame('online-command-main-phase-member-to-live', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.createGame(
+      'online-command-main-phase-member-to-live',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 

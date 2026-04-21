@@ -12,7 +12,7 @@
 import { GameService, type DeckConfig, type GameOperationResult } from './game-service.js';
 import {
   isCrossTurnTapMemberWindow,
-  isPerformanceSuccessEffectSubPhase,
+  isResultSuccessEffectSubPhase,
   isPerformanceFreeInteractionSubPhase,
 } from './command-availability.js';
 import { getModeAutomationPolicy, type ModeAutomationStep } from './mode-automation.js';
@@ -1094,7 +1094,7 @@ export class GameSession {
   }
 
   private validateCommandAvailability(state: GameState, command: GameCommand): string | null {
-    const isSuccessEffectWindow = isPerformanceSuccessEffectSubPhase(state.currentSubPhase);
+    const isSuccessEffectWindow = isResultSuccessEffectSubPhase(state.currentSubPhase);
     const isPerformanceFreeInteraction = isPerformanceFreeInteractionSubPhase(
       state.currentSubPhase
     );
@@ -1149,6 +1149,9 @@ export class GameSession {
           : '当前不是可拖拽阶段';
       case GameCommandType.REVEAL_CHEER_CARD:
       case GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE:
+        return state.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT || isSuccessEffectWindow
+          ? null
+          : '当前不是可操作判定区的子阶段';
       case GameCommandType.CONFIRM_PERFORMANCE_OUTCOME:
       case GameCommandType.SUBMIT_JUDGMENT:
         return state.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT
@@ -1161,7 +1164,7 @@ export class GameSession {
       case GameCommandType.SELECT_SUCCESS_LIVE:
         return state.currentSubPhase === SubPhase.RESULT_SETTLEMENT ||
           state.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ||
-          state.currentSubPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS
+          isSuccessEffectWindow
           ? null
           : '当前不是成功 Live 结算阶段';
       default:
@@ -2779,8 +2782,7 @@ export class GameSession {
         });
       } else if (
         subPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS ||
-        subPhase === SubPhase.PERFORMANCE_JUDGMENT ||
-        subPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS
+        subPhase === SubPhase.PERFORMANCE_JUDGMENT
       ) {
         // 效果窗口/判定子阶段：dispatch CONFIRM_SUB_PHASE 跳过
         const confirmAction = createConfirmSubPhaseAction(opponentId, subPhase);

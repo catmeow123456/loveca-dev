@@ -310,14 +310,6 @@ export class PhaseManager {
     const currentSubPhase = game.currentSubPhase;
 
     if (currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) {
-      if (this.hasSuccessfulLiveForActivePlayer(game)) {
-        return {
-          newSubPhase: SubPhase.PERFORMANCE_SUCCESS_EFFECTS,
-          shouldAdvancePhase: false,
-          autoActions: [],
-        };
-      }
-
       return {
         newSubPhase: SubPhase.NONE,
         shouldAdvancePhase: true,
@@ -325,7 +317,10 @@ export class PhaseManager {
       };
     }
 
-    const nextSubPhase = this.getNextSubPhase(currentSubPhase);
+    const nextSubPhase = this.getNextInteractiveSubPhase(
+      game,
+      this.getNextSubPhase(currentSubPhase)
+    );
 
     // 如果下一个子阶段是 NONE，说明当前主阶段的所有子阶段都完成了
     if (nextSubPhase === SubPhase.NONE) {
@@ -379,19 +374,44 @@ export class PhaseManager {
     }
   }
 
-  private hasSuccessfulLiveForActivePlayer(game: GameState): boolean {
-    const activePlayerId = game.players[game.activePlayerIndex]?.id;
-    if (!activePlayerId) {
+  private getNextInteractiveSubPhase(game: GameState, candidate: SubPhase): SubPhase {
+    let nextSubPhase = candidate;
+
+    while (this.shouldSkipSubPhase(game, nextSubPhase)) {
+      nextSubPhase = this.getNextSubPhase(nextSubPhase);
+    }
+
+    return nextSubPhase;
+  }
+
+  private shouldSkipSubPhase(game: GameState, subPhase: SubPhase): boolean {
+    if (
+      subPhase !== SubPhase.RESULT_FIRST_SUCCESS_EFFECTS &&
+      subPhase !== SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
+    ) {
       return false;
     }
 
+    const playerId =
+      subPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS
+        ? game.players[game.firstPlayerIndex]?.id
+        : game.players[game.firstPlayerIndex === 0 ? 1 : 0]?.id;
+
+    if (!playerId) {
+      return true;
+    }
+
+    return !this.hasSuccessfulLiveForPlayer(game, playerId);
+  }
+
+  private hasSuccessfulLiveForPlayer(game: GameState, playerId: string): boolean {
     for (const [cardId, isSuccess] of game.liveResolution.liveResults.entries()) {
       if (!isSuccess) {
         continue;
       }
 
       const card = game.cardRegistry.get(cardId);
-      if (card?.ownerId === activePlayerId) {
+      if (card?.ownerId === playerId) {
         return true;
       }
     }
@@ -437,7 +457,8 @@ export class PhaseManager {
     switch (subPhase) {
       case SubPhase.PERFORMANCE_LIVE_START_EFFECTS:
         return EffectWindowType.LIVE_START;
-      case SubPhase.PERFORMANCE_SUCCESS_EFFECTS:
+      case SubPhase.RESULT_FIRST_SUCCESS_EFFECTS:
+      case SubPhase.RESULT_SECOND_SUCCESS_EFFECTS:
         return EffectWindowType.LIVE_SUCCESS;
       default:
         return EffectWindowType.NONE;

@@ -505,6 +505,10 @@ export class GameService {
     // 执行子阶段入口的自动处理
     state = this.executeSubPhaseEntryActions(state, transition.newPhase);
 
+    if (this.shouldAutoSkipPerformancePhase(state)) {
+      return this.advancePhase(state);
+    }
+
     return {
       success: true,
       gameState: state,
@@ -541,6 +545,10 @@ export class GameService {
   private executeSubPhaseEntryActions(state: GameState, newPhase: GamePhase): GameState {
     // PERFORMANCE_PHASE: 翻开 Live 卡（PERFORMANCE_REVEAL 的自动动作），然后推进到 JUDGMENT
     if (newPhase === GamePhase.PERFORMANCE_PHASE) {
+      if (this.shouldAutoSkipPerformancePhase(state)) {
+        return { ...state, currentSubPhase: SubPhase.NONE };
+      }
+
       state = this.revealLiveCards(state);
       state = { ...state, currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT };
       return state;
@@ -549,11 +557,58 @@ export class GameService {
     if (newPhase === GamePhase.LIVE_RESULT_PHASE) {
       const result = this.executeLiveResultPhase(state);
       if (result.success) {
-        return result.gameState;
+        state = result.gameState;
+      }
+    }
+
+    while (
+      (state.currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+        state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS) &&
+      !this.hasSuccessfulLiveForResultSubPhase(state, state.currentSubPhase)
+    ) {
+      const subPhaseResult = this.phaseManager.advanceToNextSubPhase(state);
+      if (
+        !subPhaseResult.shouldAdvancePhase &&
+        subPhaseResult.newSubPhase === state.currentSubPhase
+      ) {
+        break;
+      }
+      state = this.phaseManager.applySubPhaseTransition(state, subPhaseResult);
+      if (!subPhaseResult.shouldAdvancePhase) {
+        break;
       }
     }
 
     return state;
+  }
+
+  private shouldAutoSkipPerformancePhase(state: GameState): boolean {
+    if (state.currentPhase !== GamePhase.PERFORMANCE_PHASE) {
+      return false;
+    }
+
+    const activePlayer = state.players[state.activePlayerIndex];
+    return !activePlayer || activePlayer.liveZone.cardIds.length === 0;
+  }
+
+  private hasSuccessfulLiveForResultSubPhase(state: GameState, subPhase: SubPhase): boolean {
+    const playerId =
+      subPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS
+        ? state.players[state.firstPlayerIndex]?.id
+        : state.players[state.firstPlayerIndex === 0 ? 1 : 0]?.id;
+
+    if (!playerId) {
+      return false;
+    }
+
+    for (const [cardId, isSuccess] of state.liveResolution.liveResults.entries()) {
+      const card = state.cardRegistry.get(cardId);
+      if (isSuccess && card?.ownerId === playerId) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // ============================================

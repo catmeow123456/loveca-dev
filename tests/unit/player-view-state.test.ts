@@ -284,7 +284,9 @@ describe('PlayerViewState projector', () => {
     const liveSetView = projectPlayerViewState(state, PLAYER1);
     expect(hasEnabledCommand(liveSetView, GameCommandType.DRAW_ENERGY_TO_ZONE)).toBe(true);
     expect(hasEnabledCommand(liveSetView, GameCommandType.MOVE_PUBLIC_CARD_TO_HAND)).toBe(true);
-    expect(hasEnabledCommand(liveSetView, GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK)).toBe(true);
+    expect(hasEnabledCommand(liveSetView, GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK)).toBe(
+      true
+    );
   });
 
   it('主要阶段和表演阶段应向非当前回合玩家暴露 TAP_MEMBER', () => {
@@ -308,8 +310,8 @@ describe('PlayerViewState projector', () => {
   it('成功效果窗口应暴露自由拖拽所需的桌面操作权限', () => {
     const { state } = createProjectedState();
 
-    state.currentPhase = GamePhase.PERFORMANCE_PHASE;
-    state.currentSubPhase = SubPhase.PERFORMANCE_SUCCESS_EFFECTS;
+    state.currentPhase = GamePhase.LIVE_RESULT_PHASE;
+    state.currentSubPhase = SubPhase.RESULT_FIRST_SUCCESS_EFFECTS;
     state.waitingPlayerId = null;
     state.liveResolution.performingPlayerId = PLAYER1;
 
@@ -323,6 +325,11 @@ describe('PlayerViewState projector', () => {
       hasEnabledCommand(successEffectView, GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK)
     ).toBe(true);
     expect(hasEnabledCommand(successEffectView, GameCommandType.DRAW_CARD_TO_HAND)).toBe(true);
+    expect(hasEnabledCommand(successEffectView, GameCommandType.OPEN_INSPECTION)).toBe(true);
+    expect(hasEnabledCommand(successEffectView, GameCommandType.REVEAL_CHEER_CARD)).toBe(true);
+    expect(hasEnabledCommand(successEffectView, GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE)).toBe(
+      true
+    );
     expect(getCommandHint(successEffectView, GameCommandType.SELECT_SUCCESS_LIVE)).toBeNull();
     expect(hasEnabledCommand(successEffectView, GameCommandType.CONFIRM_STEP)).toBe(true);
   });
@@ -350,9 +357,7 @@ describe('PlayerViewState projector', () => {
     expect(hasEnabledCommand(performanceStartView, GameCommandType.MOVE_OWNED_CARD_TO_ZONE)).toBe(
       true
     );
-    expect(hasEnabledCommand(performanceStartView, GameCommandType.DRAW_ENERGY_TO_ZONE)).toBe(
-      true
-    );
+    expect(hasEnabledCommand(performanceStartView, GameCommandType.DRAW_ENERGY_TO_ZONE)).toBe(true);
     expect(hasEnabledCommand(performanceStartView, GameCommandType.CONFIRM_STEP)).toBe(true);
   });
 
@@ -368,16 +373,14 @@ describe('PlayerViewState projector', () => {
 
     expect(hasEnabledCommand(performanceView, GameCommandType.MOVE_TABLE_CARD)).toBe(true);
     expect(hasEnabledCommand(performanceView, GameCommandType.PLAY_MEMBER_TO_SLOT)).toBe(true);
-    expect(hasEnabledCommand(performanceView, GameCommandType.MOVE_PUBLIC_CARD_TO_HAND)).toBe(
-      true
-    );
+    expect(hasEnabledCommand(performanceView, GameCommandType.MOVE_PUBLIC_CARD_TO_HAND)).toBe(true);
     expect(
       hasEnabledCommand(performanceView, GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK)
     ).toBe(true);
     expect(hasEnabledCommand(performanceView, GameCommandType.SELECT_SUCCESS_LIVE)).toBe(true);
-    expect(
-      hasEnabledCommand(performanceView, GameCommandType.CONFIRM_PERFORMANCE_OUTCOME)
-    ).toBe(true);
+    expect(hasEnabledCommand(performanceView, GameCommandType.CONFIRM_PERFORMANCE_OUTCOME)).toBe(
+      true
+    );
   });
 
   it('RESULT_SETTLEMENT 期间仅胜者拥有成功 Live 选择与结算确认权限', () => {
@@ -427,7 +430,9 @@ describe('PlayerViewState projector', () => {
     const performanceInspectionView = projectPlayerViewState(state, PLAYER1);
 
     expect(performanceInspectionView.match.window?.windowType).toBe('INSPECTION');
-    expect(hasEnabledCommand(performanceInspectionView, GameCommandType.OPEN_INSPECTION)).toBe(true);
+    expect(hasEnabledCommand(performanceInspectionView, GameCommandType.OPEN_INSPECTION)).toBe(
+      true
+    );
     expect(hasEnabledCommand(performanceInspectionView, GameCommandType.REVEAL_CHEER_CARD)).toBe(
       true
     );

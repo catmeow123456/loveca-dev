@@ -131,12 +131,14 @@ export const GameBoard = memo(function GameBoard() {
 
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
   const isJudgmentPanelRelevant =
-    currentPhase === GamePhase.PERFORMANCE_PHASE &&
-    (currentSubPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS ||
-      currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ||
-      currentSubPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS);
+    (currentPhase === GamePhase.PERFORMANCE_PHASE &&
+      (currentSubPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS ||
+        currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT)) ||
+    (currentPhase === GamePhase.LIVE_RESULT_PHASE &&
+      (currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+        currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS));
 
-  // 左侧判定区抽屉开关（仅在表演阶段相关窗口中可唤出）
+  // 左侧判定区抽屉开关（表演判定与成功效果窗口中可唤出）
   const [judgmentPanelOpen, setJudgmentPanelOpen] = useState(false);
 
   // 弹窗回调

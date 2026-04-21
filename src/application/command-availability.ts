@@ -18,8 +18,20 @@ export const MAIN_PHASE_MANUAL_COMMAND_TYPES: readonly GameCommandType[] = [
   GameCommandType.RETURN_HAND_CARD_TO_TOP,
 ] as const;
 
-export const PERFORMANCE_SUCCESS_EFFECT_COMMAND_TYPES: readonly GameCommandType[] = [
+export const INSPECTION_COMMAND_TYPES: readonly GameCommandType[] = [
+  GameCommandType.REVEAL_INSPECTED_CARD,
+  GameCommandType.MOVE_INSPECTED_CARD_TO_TOP,
+  GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM,
+  GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE,
+  GameCommandType.REORDER_INSPECTED_CARD,
+  GameCommandType.FINISH_INSPECTION,
+] as const;
+
+export const RESULT_SUCCESS_EFFECT_COMMAND_TYPES: readonly GameCommandType[] = [
   ...MAIN_PHASE_MANUAL_COMMAND_TYPES,
+  ...INSPECTION_COMMAND_TYPES,
+  GameCommandType.REVEAL_CHEER_CARD,
+  GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE,
   GameCommandType.CONFIRM_STEP,
 ] as const;
 
@@ -37,8 +49,11 @@ export const PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES: readonly GameCommand
   GameCommandType.SELECT_SUCCESS_LIVE,
 ] as const;
 
-export function isPerformanceSuccessEffectSubPhase(subPhase: SubPhase): boolean {
-  return subPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS;
+export function isResultSuccessEffectSubPhase(subPhase: SubPhase): boolean {
+  return (
+    subPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+    subPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
+  );
 }
 
 export function isPerformanceFreeInteractionSubPhase(subPhase: SubPhase): boolean {
@@ -48,14 +63,10 @@ export function isPerformanceFreeInteractionSubPhase(subPhase: SubPhase): boolea
   );
 }
 
-export function isCrossTurnTapMemberWindow(
-  phase: GamePhase,
-  subPhase: SubPhase
-): boolean {
+export function isCrossTurnTapMemberWindow(phase: GamePhase, subPhase: SubPhase): boolean {
   return (
     phase === GamePhase.MAIN_PHASE ||
-    (phase === GamePhase.PERFORMANCE_PHASE &&
-      (isPerformanceFreeInteractionSubPhase(subPhase) ||
-        isPerformanceSuccessEffectSubPhase(subPhase)))
+    (phase === GamePhase.PERFORMANCE_PHASE && isPerformanceFreeInteractionSubPhase(subPhase)) ||
+    (phase === GamePhase.LIVE_RESULT_PHASE && isResultSuccessEffectSubPhase(subPhase))
   );
 }

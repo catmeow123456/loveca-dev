@@ -209,7 +209,9 @@ flowchart TD
     Main2 --> LiveSet[LIVE_SET_PHASE]
     LiveSet --> Performance1[PERFORMANCE_PHASE\n先攻演出]
     Performance1 --> Performance2[PERFORMANCE_PHASE\n后攻演出]
-    Performance2 --> LiveResult[LIVE_RESULT_PHASE]
+    Performance2 --> Success1[LIVE_RESULT_PHASE\n先攻成功效果]
+    Success1 --> Success2[LIVE_RESULT_PHASE\n后攻成功效果]
+    Success2 --> LiveResult[LIVE_RESULT_PHASE\n分数确认与结算]
     LiveResult --> Active1
 ```
 
@@ -218,6 +220,7 @@ flowchart TD
 - 主阶段下沉到可观察子阶段，支持 UI 精细控制
 - 子阶段标注是否需要玩家确认
 - 自动子阶段用于抽牌、推进与清理
+- Live 成功效果在双方表演完成后依次处理，顺序为先攻成功效果、后攻成功效果，再进入分数确认与结算
 
 代码路径：
 

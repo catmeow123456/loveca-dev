@@ -158,21 +158,35 @@ const SUB_PHASE_CONFIG_MAP: Record<SubPhase, SubPhaseConfig> = {
     },
   },
 
-  [SubPhase.PERFORMANCE_SUCCESS_EFFECTS]: {
-    subPhase: SubPhase.PERFORMANCE_SUCCESS_EFFECTS,
+  // ---- Live 胜败判定阶段子阶段 ----
+  [SubPhase.RESULT_FIRST_SUCCESS_EFFECTS]: {
+    subPhase: SubPhase.RESULT_FIRST_SUCCESS_EFFECTS,
     display: {
-      name: '成功效果',
+      name: '先攻成功效果',
       icon: '⚡',
       requiresUserAction: true,
     },
     behavior: {
-      activePlayer: 'CURRENT_ACTIVE',
+      activePlayer: 'FIRST',
       isEffectWindow: true,
-      nextSubPhase: SubPhase.NONE,
+      nextSubPhase: SubPhase.RESULT_SECOND_SUCCESS_EFFECTS,
     },
   },
 
-  // ---- Live 胜败判定阶段子阶段 ----
+  [SubPhase.RESULT_SECOND_SUCCESS_EFFECTS]: {
+    subPhase: SubPhase.RESULT_SECOND_SUCCESS_EFFECTS,
+    display: {
+      name: '后攻成功效果',
+      icon: '⚡',
+      requiresUserAction: true,
+    },
+    behavior: {
+      activePlayer: 'SECOND',
+      isEffectWindow: true,
+      nextSubPhase: SubPhase.RESULT_SCORE_CONFIRM,
+    },
+  },
+
   [SubPhase.RESULT_SCORE_CONFIRM]: {
     subPhase: SubPhase.RESULT_SCORE_CONFIRM,
     display: {
@@ -317,7 +331,10 @@ export function isEffectWindow(subPhase: SubPhase): boolean {
 }
 
 export function isSuccessEffectSubPhase(subPhase: SubPhase): boolean {
-  return subPhase === SubPhase.PERFORMANCE_SUCCESS_EFFECTS;
+  return (
+    subPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+    subPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
+  );
 }
 
 /**

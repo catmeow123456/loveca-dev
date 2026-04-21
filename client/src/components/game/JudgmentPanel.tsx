@@ -9,19 +9,21 @@
  * 最终在 RESULT_SETTLEMENT 阶段统一清理到各自休息室。
  */
 
-import { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, ChevronLeft, Mic, Sparkles } from 'lucide-react';
-import {
-  SortableContext,
-  horizontalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
+import { BarChart3, ChevronLeft, Mic } from 'lucide-react';
+import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { GameCommandType } from '@game/application/game-commands';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
-import { SubPhase, HeartColor, ZoneType, BladeHeartEffect, SlotPosition } from '@game/shared/types/enums';
+import {
+  SubPhase,
+  HeartColor,
+  ZoneType,
+  BladeHeartEffect,
+  SlotPosition,
+} from '@game/shared/types/enums';
 import { isSuccessEffectSubPhase } from '@game/shared/phase-config';
 import { useGameStore } from '@/store/gameStore';
 import { DroppableZone } from './interaction';
@@ -148,8 +150,15 @@ const LiveCardJudgmentRow = memo(function LiveCardJudgmentRow({
         <div className="text-sm font-medium text-white truncate">{cardName}</div>
         <div className="flex gap-1 mt-0.5">
           {requiredHearts.map((req, idx) => (
-            <span key={idx} className={cn('inline-flex items-center gap-0.5 text-xs', heartColorConfig[req.color].colorClass)}>
-              <Heart className={cn('w-3 h-3', heartColorConfig[req.color].fill)} />{req.count}
+            <span
+              key={idx}
+              className={cn(
+                'inline-flex items-center gap-0.5 text-xs',
+                heartColorConfig[req.color].colorClass
+              )}
+            >
+              <Heart className={cn('w-3 h-3', heartColorConfig[req.color].fill)} />
+              {req.count}
             </span>
           ))}
         </div>
@@ -162,45 +171,36 @@ const LiveCardJudgmentRow = memo(function LiveCardJudgmentRow({
 // 主组件
 // ============================================
 
-export const JudgmentPanel = memo(function JudgmentPanel({
-  isOpen,
-  onClose,
-}: JudgmentPanelProps) {
+export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: JudgmentPanelProps) {
   const activeSeat = useGameStore((s) => s.getActiveSeatView());
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
-  const canRevealCheerCard = useGameStore((s) =>
-    s.canUseAction(GameCommandType.REVEAL_CHEER_CARD)
-  );
+  const canRevealCheerCard = useGameStore((s) => s.canUseAction(GameCommandType.REVEAL_CHEER_CARD));
   const canMoveResolutionCardToZone = useGameStore((s) =>
     s.canUseAction(GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE)
   );
   const canConfirmPerformanceOutcome = useGameStore((s) =>
     s.canUseAction(GameCommandType.CONFIRM_PERFORMANCE_OUTCOME)
   );
-  const canConfirmStep = useGameStore((s) => s.canUseAction(GameCommandType.CONFIRM_STEP));
   const getCardFrontInfo = useGameStore((s) => s.getCardFrontInfo);
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
   const getSeatZone = useGameStore((s) => s.getSeatZone);
   const getSeatZoneCardIds = useGameStore((s) => s.getSeatZoneCardIds);
   const getSeatMemberSlotCardId = useGameStore((s) => s.getSeatMemberSlotCardId);
   const {
-    confirmSubPhase,
     confirmPerformanceOutcome,
     getCardImagePath,
     moveResolutionCardToZone,
     revealCheerCard,
     setHoveredCard,
-  } =
-      useGameStore(
-      useShallow((s) => ({
-        confirmSubPhase: s.confirmSubPhase,
-        confirmPerformanceOutcome: s.confirmPerformanceOutcome,
-        getCardImagePath: s.getCardImagePath,
-        moveResolutionCardToZone: s.moveResolutionCardToZone,
-        revealCheerCard: s.revealCheerCard,
-        setHoveredCard: s.setHoveredCard,
-      }))
-    );
+  } = useGameStore(
+    useShallow((s) => ({
+      confirmPerformanceOutcome: s.confirmPerformanceOutcome,
+      getCardImagePath: s.getCardImagePath,
+      moveResolutionCardToZone: s.moveResolutionCardToZone,
+      revealCheerCard: s.revealCheerCard,
+      setHoveredCard: s.setHoveredCard,
+    }))
+  );
 
   const currentPlayer = activeSeat ? getPlayerIdentityForSeat(activeSeat) : null;
   const mainDeckCount = activeSeat ? (getSeatZone(activeSeat, 'MAIN_DECK')?.count ?? 0) : 0;
@@ -216,42 +216,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     })
   );
 
-  // UI 阶段：judge=显示 LIVE失败/LIVE成功；success=显示成功后处理提示
-  const [uiStage, setUiStage] = useState<'judge' | 'success'>('judge');
-  const previousWindowStateRef = useRef<{
-    playerId: string | null;
-    subPhase: SubPhase;
-  }>({
-    playerId: null,
-    subPhase: SubPhase.NONE,
-  });
   const closeAfterRemoteAdvanceRef = useRef(false);
-
-  // 仅在真正进入新的判定窗口时重置阶段；折叠/展开抽屉只影响可见性，不重置内部状态。
-  useEffect(() => {
-    const previousWindowState = previousWindowStateRef.current;
-    const currentPlayerId = currentPlayer?.id ?? null;
-    const enteringPerformanceJudgment =
-      currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT &&
-      previousWindowState.subPhase !== SubPhase.PERFORMANCE_JUDGMENT;
-    const performingPlayerChanged =
-      currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT &&
-      previousWindowState.playerId !== null &&
-      previousWindowState.playerId !== currentPlayerId;
-    const leavingLiveJudgmentFlow =
-      previousWindowState.subPhase !== currentSubPhase &&
-      currentSubPhase !== SubPhase.PERFORMANCE_JUDGMENT &&
-      !isSuccessEffectSubPhase(currentSubPhase);
-
-    if (enteringPerformanceJudgment || performingPlayerChanged || leavingLiveJudgmentFlow) {
-      setUiStage('judge');
-    }
-
-    previousWindowStateRef.current = {
-      playerId: currentPlayerId,
-      subPhase: currentSubPhase,
-    };
-  }, [currentPlayer?.id, currentSubPhase]);
 
   useEffect(() => {
     if (!closeAfterRemoteAdvanceRef.current || currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) {
@@ -329,7 +294,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({
   const { memberHearts, bladeHearts, totalHearts } = useMemo(() => {
     const members = new Map<HeartColor, number>();
     const blades = new Map<HeartColor, number>();
-    Object.values(HeartColor).forEach((c) => { members.set(c, 0); blades.set(c, 0); });
+    Object.values(HeartColor).forEach((c) => {
+      members.set(c, 0);
+      blades.set(c, 0);
+    });
 
     if (!activeSeat) return { memberHearts: members, bladeHearts: blades, totalHearts: members };
 
@@ -410,13 +378,6 @@ export const JudgmentPanel = memo(function JudgmentPanel({
   ]);
 
   const handleLiveSuccess = useCallback(() => {
-    if (!canConfirmPerformanceOutcome) {
-      return;
-    }
-    setUiStage('success');
-  }, [canConfirmPerformanceOutcome]);
-
-  const handleFinishPerformanceSuccess = useCallback(() => {
     if (!currentPlayer || !canConfirmPerformanceOutcome) return;
     const result = confirmPerformanceOutcome(true);
     if (result.pending) {
@@ -428,13 +389,6 @@ export const JudgmentPanel = memo(function JudgmentPanel({
     }
     onClose();
   }, [currentPlayer, canConfirmPerformanceOutcome, confirmPerformanceOutcome, onClose]);
-
-  const handleSuccessEffectsDone = useCallback(() => {
-    if (!isSuccessEffectSubPhase(currentSubPhase) || !canConfirmStep) {
-      return;
-    }
-    confirmSubPhase(currentSubPhase);
-  }, [canConfirmStep, confirmSubPhase, currentSubPhase]);
 
   // ESC 关闭
   useEffect(() => {
@@ -492,259 +446,262 @@ export const JudgmentPanel = memo(function JudgmentPanel({
       </div>
 
       <div className="cute-scrollbar h-[calc(100%-4rem)] overflow-y-auto pr-1">
-      <div className="mb-4">
-              <div className="mb-2 flex items-center justify-between border-b border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] pb-2">
-                <span className="flex items-center gap-2 text-sm font-medium text-[var(--accent-secondary)]">
-                  <Mic size={15} />
-                  {currentPlayer.name} 的应援 ({cheerCards.length} 张)
-                </span>
-                <span className="text-xs text-[var(--text-muted)]">
-                  主卡组剩余: {mainDeckCount}
-                </span>
-              </div>
+        <div className="mb-4">
+          <div className="mb-2 flex items-center justify-between border-b border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] pb-2">
+            <span className="flex items-center gap-2 text-sm font-medium text-[var(--accent-secondary)]">
+              <Mic size={15} />
+              {currentPlayer.name} 的应援 ({cheerCards.length} 张)
+            </span>
+            <span className="text-xs text-[var(--text-muted)]">主卡组剩余: {mainDeckCount}</span>
+          </div>
 
-              <div className="flex gap-2 mb-2">
-                <button
-                  onClick={drawCheerCard}
-                  disabled={!canRevealCheerCard || mainDeckCount === 0}
-                  className={cn(
-                    'px-3 py-1.5 rounded text-xs font-medium',
-                    canRevealCheerCard && mainDeckCount > 0
-                      ? 'button-gold'
-                      : 'bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
-                  )}
-                >
-                  ↓ 翻开一张
-                </button>
-              </div>
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={drawCheerCard}
+              disabled={!canRevealCheerCard || mainDeckCount === 0}
+              className={cn(
+                'px-3 py-1.5 rounded text-xs font-medium',
+                canRevealCheerCard && mainDeckCount > 0
+                  ? 'button-gold'
+                  : 'bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
+              )}
+            >
+              ↓ 翻开一张
+            </button>
+          </div>
 
-              <div className="mb-2 grid grid-cols-3 gap-2">
-                <DroppableZone
-                  id="resolution-target-hand"
-                  disabled={!canMoveResolutionCardToZone}
-                  className="rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
-                  activeClassName="outline outline-2 outline-cyan-400 bg-cyan-500/15"
-                >
-                  拖到这里回手
-                </DroppableZone>
-                <DroppableZone
-                  id="resolution-target-waiting-room"
-                  disabled={!canMoveResolutionCardToZone}
-                  className="rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
-                  activeClassName="outline outline-2 outline-slate-300 bg-slate-500/15"
-                >
-                  拖到这里弃置
-                </DroppableZone>
-                <DroppableZone
-                  id="resolution-target-main-deck-top"
-                  disabled={!canMoveResolutionCardToZone}
-                  className="rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
-                  activeClassName="outline outline-2 outline-amber-400 bg-amber-500/15"
-                >
-                  拖到这里回卡组顶
-                </DroppableZone>
-              </div>
+          <div className="mb-2 grid grid-cols-3 gap-2">
+            <DroppableZone
+              id="resolution-target-hand"
+              disabled={!canMoveResolutionCardToZone}
+              className="rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
+              activeClassName="outline outline-2 outline-cyan-400 bg-cyan-500/15"
+            >
+              拖到这里回手
+            </DroppableZone>
+            <DroppableZone
+              id="resolution-target-waiting-room"
+              disabled={!canMoveResolutionCardToZone}
+              className="rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
+              activeClassName="outline outline-2 outline-slate-300 bg-slate-500/15"
+            >
+              拖到这里弃置
+            </DroppableZone>
+            <DroppableZone
+              id="resolution-target-main-deck-top"
+              disabled={!canMoveResolutionCardToZone}
+              className="rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
+              activeClassName="outline outline-2 outline-amber-400 bg-amber-500/15"
+            >
+              拖到这里回卡组顶
+            </DroppableZone>
+          </div>
 
-              <div className="cute-scrollbar h-[140px] overflow-x-auto overflow-y-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_56%,transparent)] p-2">
-                {cheerCards.length === 0 ? (
-                  <div className="flex h-full items-center justify-center text-xs text-[var(--text-muted)]">
-                    点击「翻开一张」从卡组顶翻开应援牌
-                  </div>
-                ) : (
-                  <SortableContext items={cheerCardIds} strategy={horizontalListSortingStrategy}>
-                    <div className="flex gap-2 items-start" style={{ minWidth: 'min-content' }}>
-                      {cheerCards.map(({ id, frontInfo, viewObject }) => {
-                        const effects = frontInfo ? calculateCheerEffects(frontInfo.bladeHearts as BladeHearts | undefined) : {
+          <div className="cute-scrollbar h-[140px] overflow-x-auto overflow-y-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_56%,transparent)] p-2">
+            {cheerCards.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-xs text-[var(--text-muted)]">
+                点击「翻开一张」从卡组顶翻开应援牌
+              </div>
+            ) : (
+              <SortableContext items={cheerCardIds} strategy={horizontalListSortingStrategy}>
+                <div className="flex gap-2 items-start" style={{ minWidth: 'min-content' }}>
+                  {cheerCards.map(({ id, frontInfo, viewObject }) => {
+                    const effects = frontInfo
+                      ? calculateCheerEffects(frontInfo.bladeHearts as BladeHearts | undefined)
+                      : {
                           penLightHearts: [],
                           drawBonus: 0,
                           scoreBonus: 0,
                         };
-                        const canInspectFront = viewObject?.surface === 'FRONT' && frontInfo !== null;
-                        return (
-                          <div
-                            key={id}
-                            className="relative group flex flex-col items-center gap-0.5"
-                            onMouseEnter={() => canInspectFront && setHoveredCard(id)}
-                            onMouseLeave={() => setHoveredCard(null)}
-                          >
-                            {canInspectFront && frontInfo ? (
-                              <SortableCheerCard
-                                cardId={id}
-                                imagePath={getCardImagePath(frontInfo.cardCode)}
-                                disabled={!canMoveResolutionCardToZone}
-                              />
-                            ) : (
-                              <div className="h-[100px] w-[72px] overflow-hidden rounded-lg shadow-md">
-                                <img src="/back.jpg" alt="" className="h-full w-full object-cover" draggable={false} />
-                              </div>
-                            )}
-                            <div className="flex gap-0.5 text-[10px]">
-                              {effects.penLightHearts.map((heart, i) => (
-                                <span key={i} className={getHeartColorClass(heart.color)}>
-                                  {'♥'.repeat(heart.count)}
-                                </span>
-                              ))}
-                              {effects.drawBonus > 0 && (
-                                <span className="text-cyan-400">📄+{effects.drawBonus}</span>
-                              )}
-                            </div>
-                            <div className="absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100">
-                              <button
-                                disabled={!canMoveResolutionCardToZone || !canInspectFront}
-                                onClick={() => moveToHand(id)}
-                                className={cn(
-                                  'text-[10px] px-1.5 py-0.5 rounded text-white',
-                                  canMoveResolutionCardToZone && canInspectFront
-                                    ? 'bg-cyan-600 hover:bg-cyan-500'
-                                    : 'bg-slate-600 cursor-not-allowed'
-                                )}
-                              >
-                                手牌
-                              </button>
-                              <button
-                                disabled={!canMoveResolutionCardToZone || !canInspectFront}
-                                onClick={() => moveToWaitingRoom(id)}
-                                className={cn(
-                                  'text-[10px] px-1.5 py-0.5 rounded text-white',
-                                  canMoveResolutionCardToZone && canInspectFront
-                                    ? 'bg-slate-600 hover:bg-slate-500'
-                                    : 'bg-slate-600 cursor-not-allowed'
-                                )}
-                              >
-                                弃置
-                              </button>
-                              <button
-                                disabled={!canMoveResolutionCardToZone || !canInspectFront}
-                                onClick={() => returnToDeckTop(id)}
-                                className={cn(
-                                  'text-[10px] px-1.5 py-0.5 rounded text-white',
-                                  canMoveResolutionCardToZone && canInspectFront
-                                    ? 'bg-amber-600 hover:bg-amber-500'
-                                    : 'bg-slate-600 cursor-not-allowed'
-                                )}
-                              >
-                                放回
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </SortableContext>
-                )}
-              </div>
-      </div>
-
-            {/* ======== 下方：Live 判定区 ======== */}
-      <div className="border-t border-[var(--border-subtle)] pt-3">
-              <div className="mb-3 rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_54%,transparent)] p-3">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                  <BarChart3 size={15} className="text-[var(--accent-primary)]" />
-                  Live 所有心 (总计: {totalHeartsCount})
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {Array.from(totalHearts.entries()).map(([color, count]) => {
-                    if (count === 0) return null;
-                    const memberCount = memberHearts.get(color) ?? 0;
-                    const bladeCount = bladeHearts.get(color) ?? 0;
-                    const config = heartColorConfig[color];
+                    const canInspectFront = viewObject?.surface === 'FRONT' && frontInfo !== null;
                     return (
-                      <div key={color} className="flex items-center gap-1 rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] px-2 py-1">
-                        <Heart className={cn('h-4 w-4', config.colorClass, config.fill)} />
-                        <span className="font-bold text-[var(--text-primary)]">{count}</span>
-                        {bladeCount > 0 && (
-                          <span className="text-[10px] text-[var(--accent-secondary)]">
-                            ({memberCount}+{bladeCount})
-                          </span>
+                      <div
+                        key={id}
+                        className="relative group flex flex-col items-center gap-0.5"
+                        onMouseEnter={() => canInspectFront && setHoveredCard(id)}
+                        onMouseLeave={() => setHoveredCard(null)}
+                      >
+                        {canInspectFront && frontInfo ? (
+                          <SortableCheerCard
+                            cardId={id}
+                            imagePath={getCardImagePath(frontInfo.cardCode)}
+                            disabled={!canMoveResolutionCardToZone}
+                          />
+                        ) : (
+                          <div className="h-[100px] w-[72px] overflow-hidden rounded-lg shadow-md">
+                            <img
+                              src="/back.jpg"
+                              alt=""
+                              className="h-full w-full object-cover"
+                              draggable={false}
+                            />
+                          </div>
                         )}
+                        <div className="flex gap-0.5 text-[10px]">
+                          {effects.penLightHearts.map((heart, i) => (
+                            <span key={i} className={getHeartColorClass(heart.color)}>
+                              {'♥'.repeat(heart.count)}
+                            </span>
+                          ))}
+                          {effects.drawBonus > 0 && (
+                            <span className="text-cyan-400">📄+{effects.drawBonus}</span>
+                          )}
+                        </div>
+                        <div className="absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100">
+                          <button
+                            disabled={!canMoveResolutionCardToZone || !canInspectFront}
+                            onClick={() => moveToHand(id)}
+                            className={cn(
+                              'text-[10px] px-1.5 py-0.5 rounded text-white',
+                              canMoveResolutionCardToZone && canInspectFront
+                                ? 'bg-cyan-600 hover:bg-cyan-500'
+                                : 'bg-slate-600 cursor-not-allowed'
+                            )}
+                          >
+                            手牌
+                          </button>
+                          <button
+                            disabled={!canMoveResolutionCardToZone || !canInspectFront}
+                            onClick={() => moveToWaitingRoom(id)}
+                            className={cn(
+                              'text-[10px] px-1.5 py-0.5 rounded text-white',
+                              canMoveResolutionCardToZone && canInspectFront
+                                ? 'bg-slate-600 hover:bg-slate-500'
+                                : 'bg-slate-600 cursor-not-allowed'
+                            )}
+                          >
+                            弃置
+                          </button>
+                          <button
+                            disabled={!canMoveResolutionCardToZone || !canInspectFront}
+                            onClick={() => returnToDeckTop(id)}
+                            className={cn(
+                              'text-[10px] px-1.5 py-0.5 rounded text-white',
+                              canMoveResolutionCardToZone && canInspectFront
+                                ? 'bg-amber-600 hover:bg-amber-500'
+                                : 'bg-slate-600 cursor-not-allowed'
+                            )}
+                          >
+                            放回
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
-                  {totalDrawBonus > 0 && (
-                    <div className="flex items-center gap-1 px-2 py-1 bg-slate-700/50 rounded">
-                      <span className="text-sm text-cyan-400">📄 +{totalDrawBonus}</span>
-                    </div>
-                  )}
                 </div>
-                <div className="mt-1.5 flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-                  <Heart className="w-3 h-3 text-pink-400 fill-pink-400 inline" /> All 心可视为任意颜色
-                  {cheerCards.length > 0 && ' · 括号内为 (成员心 + 光棒心)'}
+              </SortableContext>
+            )}
+          </div>
+        </div>
+
+        {/* ======== 下方：Live 判定区 ======== */}
+        <div className="border-t border-[var(--border-subtle)] pt-3">
+          <div className="mb-3 rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_54%,transparent)] p-3">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
+              <BarChart3 size={15} className="text-[var(--accent-primary)]" />
+              Live 所有心 (总计: {totalHeartsCount})
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {Array.from(totalHearts.entries()).map(([color, count]) => {
+                if (count === 0) return null;
+                const memberCount = memberHearts.get(color) ?? 0;
+                const bladeCount = bladeHearts.get(color) ?? 0;
+                const config = heartColorConfig[color];
+                return (
+                  <div
+                    key={color}
+                    className="flex items-center gap-1 rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] px-2 py-1"
+                  >
+                    <Heart className={cn('h-4 w-4', config.colorClass, config.fill)} />
+                    <span className="font-bold text-[var(--text-primary)]">{count}</span>
+                    {bladeCount > 0 && (
+                      <span className="text-[10px] text-[var(--accent-secondary)]">
+                        ({memberCount}+{bladeCount})
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+              {totalDrawBonus > 0 && (
+                <div className="flex items-center gap-1 px-2 py-1 bg-slate-700/50 rounded">
+                  <span className="text-sm text-cyan-400">📄 +{totalDrawBonus}</span>
                 </div>
-              </div>
+              )}
+            </div>
+            <div className="mt-1.5 flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
+              <Heart className="w-3 h-3 text-pink-400 fill-pink-400 inline" /> All 心可视为任意颜色
+              {cheerCards.length > 0 && ' · 括号内为 (成员心 + 光棒心)'}
+            </div>
+          </div>
 
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-[var(--text-primary)]">Live 卡判定结果</div>
-                {liveCardIds.map((cardId) => {
-                  const frontInfo = getCardFrontInfo(cardId);
-                  if (!frontInfo || frontInfo.cardType !== 'LIVE') {
-                    return (
-                      <LiveCardJudgmentRow
-                        key={cardId}
-                        cardName="里侧 Live"
-                        requiredHearts={[]}
-                      />
-                    );
-                  }
-                  const liveData = {
-                    name: frontInfo.name,
-                    requirements: frontInfo.requiredHearts,
-                  } as Pick<LiveCardData, 'name' | 'requirements'>;
-                  const requiredHearts = getHeartRequirementEntries(
-                    liveData.requirements?.colorRequirements
-                  ).map(([color, count]) => ({ color, count }));
-                  return (
-                    <LiveCardJudgmentRow
-                      key={cardId}
-                      cardName={liveData.name}
-                      requiredHearts={requiredHearts}
-                    />
-                  );
-                })}
-              </div>
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-[var(--text-primary)]">Live 卡判定结果</div>
+            {liveCardIds.map((cardId) => {
+              const frontInfo = getCardFrontInfo(cardId);
+              if (!frontInfo || frontInfo.cardType !== 'LIVE') {
+                return (
+                  <LiveCardJudgmentRow key={cardId} cardName="里侧 Live" requiredHearts={[]} />
+                );
+              }
+              const liveData = {
+                name: frontInfo.name,
+                requirements: frontInfo.requiredHearts,
+              } as Pick<LiveCardData, 'name' | 'requirements'>;
+              const requiredHearts = getHeartRequirementEntries(
+                liveData.requirements?.colorRequirements
+              ).map(([color, count]) => ({ color, count }));
+              return (
+                <LiveCardJudgmentRow
+                  key={cardId}
+                  cardName={liveData.name}
+                  requiredHearts={requiredHearts}
+                />
+              );
+            })}
+          </div>
 
-              <div className="mt-3 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_12%,transparent)] p-2">
-                <div className="space-y-0.5 text-[10px] text-[var(--accent-secondary)]">
-                  {isPerformanceJudgment && uiStage === 'judge' ? (
-                    <>
-                      <div>💡 选择「LIVE失败」会立即结束当前判定，且本次无 Live 分数</div>
-                      <div>💡 选择「LIVE成功」后先进入成功效果发动窗口</div>
-                    </>
-                  ) : isResultScoreConfirm ? (
-                    <>
-                      <div>💡 分数最终确认已移到页面中央确认框</div>
-                      <div>💡 双方确认后将判定胜者，并进入胜者动画与 Live 结算</div>
-                    </>
-                  ) : isResultAnimation ? (
-                    <>
-                      <div>💡 当前正在播放本轮 Live 胜者动画</div>
-                      <div>💡 动画结束后会进入成功 Live 结算阶段</div>
-                    </>
-                  ) : isResultSettlement ? (
-                    <>
-                      <div>💡 当前为成功 Live 结算阶段</div>
-                      <div>💡 胜者需要将 1 张 Live 拖入成功 Live 区后确认结算</div>
-                    </>
-                  ) : isLiveSuccessWindow ? (
-                    <>
-                      <div>💡 当前为 Live 成功效果发动窗口</div>
-                      <div>💡 发动完成后点击下方「成功效果发动完毕」</div>
-                    </>
-                  ) : (
-                    <>
-                      <div>💡 当前为辅助查看窗口，可随时操作判定区卡牌</div>
-                    </>
-                  )}
-                  <div>🎤 上方应援区可翻开卡组顶牌，悬停卡牌显示操作菜单</div>
-                  {isLiveSuccessWindow && (
-                    <div>🪄 当前窗口可继续发动 Live 成功效果，同时仍可操作主桌面的手牌/卡组/休息室</div>
-                  )}
-                </div>
-              </div>
-      </div>
+          <div className="mt-3 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_12%,transparent)] p-2">
+            <div className="space-y-0.5 text-[10px] text-[var(--accent-secondary)]">
+              {isPerformanceJudgment ? (
+                <>
+                  <div>💡 选择「LIVE失败」会立即结束当前判定，且本次无 Live 分数</div>
+                  <div>💡 选择「LIVE成功」会确认当前判定，成功效果稍后依次处理</div>
+                </>
+              ) : isResultScoreConfirm ? (
+                <>
+                  <div>💡 分数最终确认已移到页面中央确认框</div>
+                  <div>💡 双方确认后将判定胜者，并进入胜者动画与 Live 结算</div>
+                </>
+              ) : isResultAnimation ? (
+                <>
+                  <div>💡 当前正在播放本轮 Live 胜者动画</div>
+                  <div>💡 动画结束后会进入成功 Live 结算阶段</div>
+                </>
+              ) : isResultSettlement ? (
+                <>
+                  <div>💡 当前为成功 Live 结算阶段</div>
+                  <div>💡 胜者需要将 1 张 Live 拖入成功 Live 区后确认结算</div>
+                </>
+              ) : isLiveSuccessWindow ? (
+                <>
+                  <div>💡 当前为 Live 成功效果发动窗口</div>
+                  <div>💡 本窗口仅用于查看和操作判定区卡牌</div>
+                </>
+              ) : (
+                <>
+                  <div>💡 当前为辅助查看窗口，可随时操作判定区卡牌</div>
+                </>
+              )}
+              <div>🎤 上方应援区可翻开卡组顶牌，悬停卡牌显示操作菜单</div>
+              {isLiveSuccessWindow && (
+                <div>🪄 当前窗口可继续发动 Live 成功效果，同时仍可操作主桌面的手牌/卡组/休息室</div>
+              )}
+            </div>
+          </div>
+        </div>
 
-            {/* ======== 底部按钮 ======== */}
-      {isPerformanceJudgment ? (
-        uiStage === 'judge' ? (
+        {/* ======== 底部按钮 ======== */}
+        {isPerformanceJudgment ? (
           <div className="mt-4 flex gap-3 border-t border-[var(--border-subtle)] pt-3">
             <button
               onClick={handleLiveFailed}
@@ -770,41 +727,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({
             </button>
           </div>
         ) : (
-          <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
-            <button
-              onClick={handleFinishPerformanceSuccess}
-              disabled={!canConfirmPerformanceOutcome}
-              className={cn(
-                canConfirmPerformanceOutcome
-                  ? 'button-primary inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold'
-                  : 'inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
-              )}
-            >
-              <Sparkles size={16} />
-              成功效果发动完毕
-            </button>
+          <div className="mt-4 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-secondary)]">
+            当前不在 Live 判定确认子阶段，本面板保持为辅助操作窗口。
           </div>
-        )
-      ) : isLiveSuccessWindow ? (
-        <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
-          <button
-            onClick={handleSuccessEffectsDone}
-            disabled={!canConfirmStep}
-            className={cn(
-              canConfirmStep
-                ? 'button-primary inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold'
-                : 'inline-flex w-full items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
-            )}
-          >
-            <Sparkles size={16} />
-            成功效果发动完毕
-          </button>
-        </div>
-      ) : (
-        <div className="mt-4 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-secondary)]">
-          当前不在 Live 判定确认子阶段，本面板保持为辅助操作窗口。
-        </div>
-      )}
+        )}
       </div>
     </motion.aside>
   );

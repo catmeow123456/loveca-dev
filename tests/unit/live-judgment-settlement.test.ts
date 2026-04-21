@@ -5,6 +5,7 @@ import { createCardInstance, createHeartRequirement } from '../../src/domain/ent
 import {
   addCardToStatefulZone,
   addCardToZone,
+  removeCardFromZone,
   removeCardFromStatefulZone,
 } from '../../src/domain/entities/zone';
 import {
@@ -13,9 +14,7 @@ import {
   handlePerformCheer,
 } from '../../src/application/action-handlers/phase-ten.handler';
 import { GameService } from '../../src/application/game-service';
-import {
-  createPerformCheerAction,
-} from '../../src/application/actions';
+import { createPerformCheerAction } from '../../src/application/actions';
 
 describe('Live 判定与结算', () => {
   it('确认判定应合并 liveResults，而不是覆盖其他玩家结果', () => {
@@ -77,6 +76,20 @@ describe('Live 判定与结算', () => {
     const ctx = {
       getPlayerById: (state: typeof game, playerId: string) =>
         state.players.find((player) => player.id === playerId),
+      drawTopMainDeckCard: (state: typeof game, playerId: string) => {
+        const player = state.players.find((candidate) => candidate.id === playerId);
+        const cardId = player?.mainDeck.cardIds[0] ?? null;
+        if (!cardId) {
+          return { gameState: state, cardId: null };
+        }
+        return {
+          gameState: updatePlayer(state, playerId, (currentPlayer) => ({
+            ...currentPlayer,
+            mainDeck: removeCardFromZone(currentPlayer.mainDeck, cardId),
+          })),
+          cardId,
+        };
+      },
     };
 
     const firstResult = handlePerformCheer(game, createPerformCheerAction('p1', 1), ctx);
@@ -198,7 +211,7 @@ describe('Live 判定与结算', () => {
     const confirmResult = service.advancePhase(game);
     expect(confirmResult.success).toBe(true);
     expect(confirmResult.gameState.currentPhase).toBe(GamePhase.LIVE_RESULT_PHASE);
-    expect(confirmResult.gameState.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
+    expect(confirmResult.gameState.currentSubPhase).toBe(SubPhase.RESULT_FIRST_SUCCESS_EFFECTS);
     expect(confirmResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
     expect(confirmResult.gameState.liveResolution.playerScores.get('p2')).toBe(6);
     expect(confirmResult.gameState.liveResolution.liveWinnerIds).toEqual([]);
@@ -483,7 +496,7 @@ describe('Live 判定与结算', () => {
     const settleInitResult = service.advancePhase(game);
     expect(settleInitResult.success).toBe(true);
     expect(settleInitResult.gameState.currentPhase).toBe(GamePhase.LIVE_RESULT_PHASE);
-    expect(settleInitResult.gameState.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
+    expect(settleInitResult.gameState.currentSubPhase).toBe(SubPhase.RESULT_FIRST_SUCCESS_EFFECTS);
     expect(settleInitResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
     expect(settleInitResult.gameState.liveResolution.playerScores.get('p2')).toBe(2);
 
