@@ -2,17 +2,28 @@
 // Configuration
 // ============================================
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+
+function resolveApiBaseUrl(): string {
+  if (!configuredApiBaseUrl) {
+    return typeof window === 'undefined' ? '' : window.location.origin;
+  }
+
+  const normalizedConfigured = configuredApiBaseUrl.replace(/\/+$/, '');
+  if (typeof window === 'undefined') {
+    return normalizedConfigured;
+  }
+
+  return normalizedConfigured === window.location.origin ? '' : normalizedConfigured;
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 /** Whether the API backend is configured */
-export const isApiConfigured = !!API_BASE_URL;
+export const isApiConfigured = true;
 
 /** Whether email verification / password reset is enabled */
 export const isEmailEnabled = import.meta.env.VITE_EMAIL_ENABLED === 'true';
-
-if (!isApiConfigured) {
-  console.warn('VITE_API_BASE_URL not configured, running in offline mode');
-}
 
 // ============================================
 // Types
@@ -113,13 +124,6 @@ async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-  if (!API_BASE_URL) {
-    return {
-      data: null,
-      error: { code: 'OFFLINE', message: 'API 未配置' },
-    };
-  }
-
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
