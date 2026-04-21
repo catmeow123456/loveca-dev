@@ -74,6 +74,10 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
+export function getApiBaseUrl(): string | null {
+  return API_BASE_URL ?? null;
+}
+
 // ============================================
 // Core fetch wrapper
 // ============================================

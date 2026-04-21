@@ -18,8 +18,8 @@ import {
   type OnlineMatchService,
 } from './online-match-service.js';
 
-const ROOM_STALE_TTL_MS = 30 * 60 * 1000;
-const MATCH_DESTROY_AFTER_BOTH_LEFT_MS = 60 * 60 * 1000;
+const MEMBER_PRESENCE_STALE_MS = 15 * 1000;
+const ROOM_DESTROY_AFTER_ALL_ABSENT_MS = 60 * 1000;
 
 interface OnlineRoomMemberState {
   readonly userId: string;
@@ -469,16 +469,10 @@ export class OnlineRoomService {
     const now = this.now();
 
     for (const [roomCode, room] of this.rooms) {
+      this.refreshMemberPresence(room, now);
+
       if (room.status === 'IN_GAME') {
-        const bothPlayersLeft = room.members.length > 0 && room.members.every(
-          (member) => member.presence === 'LEFT'
-        );
-        const matchStartedAt = room.matchId ? this.matchService.getMatch(room.matchId)?.startedAt : null;
-        const shouldDestroyMatch =
-          bothPlayersLeft &&
-          typeof matchStartedAt === 'number' &&
-          now - matchStartedAt >= MATCH_DESTROY_AFTER_BOTH_LEFT_MS;
-        if (shouldDestroyMatch) {
+        if (shouldDestroyRoom(room, now)) {
           if (room.matchId) {
             this.matchService.deleteMatch(room.matchId);
           }
@@ -487,7 +481,8 @@ export class OnlineRoomService {
         continue;
       }
 
-      if (room.members.every((member) => now - member.lastSeenAt > ROOM_STALE_TTL_MS)) {
+      this.removeExpiredPreparingMembers(room, now);
+      if (room.members.length === 0) {
         this.rooms.delete(roomCode);
       }
     }
@@ -499,6 +494,42 @@ export class OnlineRoomService {
       }
     }
     this.matchService.cleanupExpiredMatches(activeMatchIds, now);
+  }
+
+  private refreshMemberPresence(room: OnlineRoomState, now: number): void {
+    for (const member of room.members) {
+      if (member.presence === 'ACTIVE' && isMemberPresenceStale(member, now)) {
+        member.presence = 'LEFT';
+      }
+    }
+  }
+
+  private removeExpiredPreparingMembers(room: OnlineRoomState, now: number): void {
+    const nextMembers = room.members.filter((member) => !shouldDropPreparingMember(member, now));
+    if (nextMembers.length === room.members.length) {
+      return;
+    }
+
+    room.members.splice(0, room.members.length, ...nextMembers);
+    if (room.members.length === 0) {
+      return;
+    }
+
+    if (!room.members.some((member) => member.userId === room.ownerUserId)) {
+      room.ownerUserId = room.members[0].userId;
+    }
+
+    room.members.forEach((member, index) => {
+      member.role = index === 0 ? 'HOST' : 'GUEST';
+      if (!isMemberPresenceStale(member, now)) {
+        member.presence = 'ACTIVE';
+      }
+    });
+
+    room.turnOrderProposal = null;
+    room.turnOrderAgreement = null;
+    room.status = 'PREPARING';
+    touchRoom(room, now);
   }
 }
 
@@ -532,6 +563,27 @@ function getAssignedSeat(room: OnlineRoomState, userId: string): Seat | null {
 
 function touchRoom(room: OnlineRoomState, updatedAt: number): void {
   room.updatedAt = updatedAt;
+}
+
+function isMemberPresenceStale(member: OnlineRoomMemberState, now: number): boolean {
+  return now - member.lastSeenAt >= MEMBER_PRESENCE_STALE_MS;
+}
+
+function shouldDropPreparingMember(member: OnlineRoomMemberState, now: number): boolean {
+  return now - member.lastSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MS;
+}
+
+function shouldDestroyRoom(room: OnlineRoomState, now: number): boolean {
+  if (room.members.length === 0) {
+    return true;
+  }
+
+  const latestSeenAt = room.members.reduce(
+    (latest, member) => Math.max(latest, member.lastSeenAt),
+    0
+  );
+  return room.members.every((member) => member.presence === 'LEFT') &&
+    now - latestSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MS;
 }
 
 function ensureBothDecksLocked(room: OnlineRoomState): void {

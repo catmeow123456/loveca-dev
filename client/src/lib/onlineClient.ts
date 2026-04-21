@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, getAccessToken, getApiBaseUrl } from '@/lib/apiClient';
 import type {
   OnlineCommandResult,
   OnlineMatchSnapshot,
@@ -85,6 +85,25 @@ export async function leaveOnlineRoom(
     throw new Error(response.error?.message ?? '离开房间失败');
   }
   return response.data;
+}
+
+export function leaveOnlineRoomOnUnload(roomCode: string): void {
+  const apiBaseUrl = getApiBaseUrl();
+  const accessToken = getAccessToken();
+  if (!apiBaseUrl || !accessToken) {
+    return;
+  }
+
+  void fetch(`${apiBaseUrl}/api/online/rooms/${encodeURIComponent(roomCode)}/leave`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    credentials: 'include',
+    keepalive: true,
+  }).catch(() => {
+    // Best-effort only. The server-side stale cleanup covers failed unload requests.
+  });
 }
 
 export async function fetchOnlineMatchSnapshot(matchId: string): Promise<OnlineMatchSnapshot> {

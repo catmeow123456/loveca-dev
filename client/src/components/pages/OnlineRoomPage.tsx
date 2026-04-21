@@ -22,6 +22,7 @@ import {
   fetchOnlineRoom,
   joinOnlineRoom,
   leaveOnlineRoom,
+  leaveOnlineRoomOnUnload,
   lockOnlineRoomDeck,
   proposeTurnOrder,
   respondTurnOrder,
@@ -160,6 +161,21 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
       disconnectRemoteSession();
     };
   }, [disconnectRemoteSession]);
+
+  useEffect(() => {
+    if (!joinedRoomCode) {
+      return;
+    }
+
+    const handlePageHide = () => {
+      leaveOnlineRoomOnUnload(joinedRoomCode);
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [joinedRoomCode]);
 
   const myMember = room?.members.find((member) => member.userId === room.currentUserId) ?? null;
   const opponentMember =

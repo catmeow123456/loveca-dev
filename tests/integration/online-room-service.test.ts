@@ -175,6 +175,58 @@ describe('OnlineRoomService', () => {
     expect(matchService.getMatchSnapshot(started.matchId!, 'u2')?.seat).toBe('SECOND');
   });
 
+  it('双方都关闭后准备阶段房间应在宽限期后释放', async () => {
+    let now = 1_000_000;
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService: new OnlineMatchService(),
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (_userId, deckId) => ({
+        deckId,
+        deckName: deckId,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('stale1', 'u1');
+    await service.joinRoom('stale1', 'u2');
+
+    now += 61_000;
+
+    expect(service.getRoomIfPresent('stale1')).toBeNull();
+
+    const recreated = await service.createRoom('stale1', 'u3');
+    expect(recreated.currentUserId).toBe('u3');
+    expect(recreated.members).toHaveLength(1);
+  });
+
+  it('双方都失联后对局房间和 match 应在宽限期后一起销毁', async () => {
+    let now = 2_000_000;
+    const matchService = new OnlineMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (_userId, deckId) => ({
+        deckId,
+        deckName: deckId,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('gone1', 'u1');
+    await service.joinRoom('gone1', 'u2');
+    await service.lockDeck('gone1', 'u1', 'deck-a');
+    await service.lockDeck('gone1', 'u2', 'deck-b');
+    await service.proposeTurnOrder('gone1', 'u1', 'HOST_FIRST');
+    const started = await service.respondTurnOrder('gone1', 'u2', true);
+
+    now += 61_000;
+
+    expect(service.getRoomIfPresent('gone1')).toBeNull();
+    expect(matchService.getMatch(started.matchId!)).toBeNull();
+  });
+
   it('非成员创建已占用房间号时应返回冲突错误', async () => {
     const service = new OnlineRoomService({
       matchService: new OnlineMatchService(),
