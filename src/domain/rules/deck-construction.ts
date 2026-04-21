@@ -16,6 +16,7 @@ const CARD_POINT_MAP: Record<string, number> = {
   'PL!SP-sd1-020': 1,
   'PL!SP-pb1-014': 1,
   'PL!SP-bp2-024': 1,
+  "PL!SP-sd1-019": 1,
 };
 
 export interface DeckConfigStats {

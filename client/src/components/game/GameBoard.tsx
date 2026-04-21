@@ -7,8 +7,11 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
@@ -29,7 +32,14 @@ import { ThemeToggle } from '@/components/common';
 import { getDeckBackUrl } from '@/lib/imageService';
 import { parseZoneId } from '@/lib/zoneUtils';
 import { ChevronRight } from 'lucide-react';
-import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType, GameMode } from '@game/shared/types/enums';
+import {
+  SlotPosition,
+  GamePhase,
+  SubPhase,
+  ZoneType,
+  CardType,
+  GameMode,
+} from '@game/shared/types/enums';
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { Seat } from '@game/online';
 
@@ -39,6 +49,26 @@ const RESOLUTION_TARGET_PREFIX = 'resolution-target-';
 type SpecialDragTarget =
   | { kind: 'inspection'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' }
   | { kind: 'resolution'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' };
+
+const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
+  const dragData = args.active.data.current as { fromZone?: ZoneType } | undefined;
+  const shouldPrioritizeInspection =
+    dragData?.fromZone === ZoneType.HAND || dragData?.fromZone === ZoneType.WAITING_ROOM;
+
+  if (shouldPrioritizeInspection) {
+    const pointerCollisions = pointerWithin(args);
+    const inspectionCollision = pointerCollisions.find((collision) => {
+      const targetId = String(collision.id);
+      return parseZoneId(targetId)?.zoneType === ZoneType.INSPECTION_ZONE;
+    });
+
+    if (inspectionCollision) {
+      return [inspectionCollision];
+    }
+  }
+
+  return rectIntersection(args);
+};
 
 export const GameBoard = memo(function GameBoard() {
   // 配置拖拽传感器：需要移动 5px 才开始拖拽，避免与双击冲突
@@ -82,6 +112,7 @@ export const GameBoard = memo(function GameBoard() {
     moveInspectedCardToTop,
     moveInspectedCardToBottom,
     moveInspectedCardToZone,
+    moveCardToInspection,
     reorderInspectedCard,
     moveResolutionCardToZone,
     drawEnergyToZone,
@@ -107,6 +138,7 @@ export const GameBoard = memo(function GameBoard() {
       moveInspectedCardToTop: s.moveInspectedCardToTop,
       moveInspectedCardToBottom: s.moveInspectedCardToBottom,
       moveInspectedCardToZone: s.moveInspectedCardToZone,
+      moveCardToInspection: s.moveCardToInspection,
       reorderInspectedCard: s.reorderInspectedCard,
       moveResolutionCardToZone: s.moveResolutionCardToZone,
       drawEnergyToZone: s.drawEnergyToZone,
@@ -183,36 +215,45 @@ export const GameBoard = memo(function GameBoard() {
   }, [confirmSubPhase, currentSubPhase]);
 
   // 拖拽开始处理
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    const cardId = event.active.id as string;
-    setActiveCardId(cardId);
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const cardId = event.active.id as string;
+      setActiveCardId(cardId);
 
-    // 计算"推荐目标"高亮（只提示，不限制放置）
-    const dragData = event.active.data.current as { fromZone?: ZoneType } | undefined;
-    const fromZone = dragData?.fromZone;
+      // 计算"推荐目标"高亮（只提示，不限制放置）
+      const dragData = event.active.data.current as { fromZone?: ZoneType } | undefined;
+      const fromZone = dragData?.fromZone;
 
-    const suggested: string[] = [];
-    // Live 设置：推荐手牌 -> Live 区
-    if (
-      currentPhase === GamePhase.LIVE_SET_PHASE &&
-      (currentSubPhase === SubPhase.LIVE_SET_FIRST_PLAYER ||
-        currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER) &&
-      fromZone === ZoneType.HAND
-    ) {
-      suggested.push('live-zone');
-    }
-    // 结算：推荐 Live 区 -> 成功区 / 休息室
-    if (
-      currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-      currentSubPhase === SubPhase.RESULT_SETTLEMENT
-    ) {
-      if (fromZone === ZoneType.LIVE_ZONE) {
-        suggested.push('success-zone');
+      const suggested: string[] = [];
+      // Live 设置：推荐手牌 -> Live 区
+      if (
+        currentPhase === GamePhase.LIVE_SET_PHASE &&
+        (currentSubPhase === SubPhase.LIVE_SET_FIRST_PLAYER ||
+          currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER) &&
+        fromZone === ZoneType.HAND
+      ) {
+        suggested.push('live-zone');
       }
-    }
+      // 结算：推荐 Live 区 -> 成功区 / 休息室
+      if (
+        currentPhase === GamePhase.LIVE_RESULT_PHASE &&
+        currentSubPhase === SubPhase.RESULT_SETTLEMENT
+      ) {
+        if (fromZone === ZoneType.LIVE_ZONE) {
+          suggested.push('success-zone');
+        }
+      }
+      if (
+        matchView?.window?.windowType === 'INSPECTION' &&
+        (fromZone === ZoneType.HAND || fromZone === ZoneType.WAITING_ROOM)
+      ) {
+        suggested.push('inspection-zone');
+      }
 
-    setDragHints(true, suggested);
-  }, [currentPhase, currentSubPhase, setDragHints]);
+      setDragHints(true, suggested);
+    },
+    [currentPhase, currentSubPhase, matchView?.window?.windowType, setDragHints]
+  );
 
   // 拖拽结束处理 - 统一处理所有区域间的拖拽
   const handleDragEnd = useCallback(
@@ -227,18 +268,19 @@ export const GameBoard = memo(function GameBoard() {
       const targetId = over.id as string;
 
       // 获取拖拽数据中的来源区域信息
-      const dragData = active.data.current as {
-        cardId: string;
-        cardCode?: string;
-        fromZone?: ZoneType;
-      } | undefined;
+      const dragData = active.data.current as
+        | {
+            cardId: string;
+            cardCode?: string;
+            fromZone?: ZoneType;
+          }
+        | undefined;
 
       const specialTarget = resolveSpecialDragTarget(targetId);
 
       // 解析目标区域
       const parsedTarget =
-        (!specialTarget ? parseZoneId(targetId) : null) ??
-        resolveCardDropTarget(targetId);
+        (!specialTarget ? parseZoneId(targetId) : null) ?? resolveCardDropTarget(targetId);
       if (!parsedTarget && !specialTarget) {
         // 无法识别的目标区域
         return;
@@ -248,6 +290,17 @@ export const GameBoard = memo(function GameBoard() {
       const fromZone = dragData?.fromZone || findViewerCardZone(cardId);
       if (!fromZone) {
         addLog('无法确定卡牌来源区域', 'error');
+        return;
+      }
+
+      if (
+        parsedTarget?.zoneType === ZoneType.INSPECTION_ZONE &&
+        (fromZone === ZoneType.HAND || fromZone === ZoneType.WAITING_ROOM)
+      ) {
+        const result = moveCardToInspection(cardId, fromZone);
+        if (result.success) {
+          addLog('卡牌移入检视区', 'action');
+        }
         return;
       }
 
@@ -338,6 +391,10 @@ export const GameBoard = memo(function GameBoard() {
       const { zoneType: toZone, slotPosition: targetSlot } = parsedTarget;
 
       const cardType = getKnownCardType(cardId);
+      const isLiveSetHandPlacement =
+        currentPhase === GamePhase.LIVE_SET_PHASE &&
+        fromZone === ZoneType.HAND &&
+        toZone === ZoneType.LIVE_ZONE;
 
       // 能量牌移动限制（规则 4.5.5、10.5.4）
       if (cardType === CardType.ENERGY) {
@@ -375,9 +432,23 @@ export const GameBoard = memo(function GameBoard() {
         }
       }
 
+      if (toZone === ZoneType.SUCCESS_ZONE && cardType !== CardType.LIVE) {
+        addLog('只有 LIVE 卡可以放入成功 Live 卡区', 'error');
+        return;
+      }
+
+      if (toZone === ZoneType.LIVE_ZONE && cardType !== CardType.LIVE && !isLiveSetHandPlacement) {
+        addLog('只有 LIVE 卡可以自由拖入 Live 区', 'error');
+        return;
+      }
+
       // 成员卡移动限制：不能放入能量区和能量卡组
       if (cardType === CardType.MEMBER) {
-        if (currentPhase === GamePhase.MAIN_PHASE && fromZone === ZoneType.HAND && toZone === ZoneType.LIVE_ZONE) {
+        if (
+          currentPhase === GamePhase.MAIN_PHASE &&
+          fromZone === ZoneType.HAND &&
+          toZone === ZoneType.LIVE_ZONE
+        ) {
           addLog('主要阶段不能把成员卡从手牌拖到 Live 区', 'error');
           return;
         }
@@ -393,11 +464,7 @@ export const GameBoard = memo(function GameBoard() {
 
       // Live 设置阶段：拖到 Live 区的一律视为"里侧放置"（规则 8.2），且可作为 Live 卡放置（不限制卡牌类型）
       // 这里必须走专门命令，确保 liveZone.cardStates 的 face 被正确设置为 FACE_DOWN。
-      if (
-        currentPhase === GamePhase.LIVE_SET_PHASE &&
-        fromZone === ZoneType.HAND &&
-        toZone === ZoneType.LIVE_ZONE
-      ) {
+      if (isLiveSetHandPlacement) {
         const result = setLiveCard(cardId, true);
         if (result.success) {
           addLog('放置 Live 卡: 手牌 → Live 区（里侧）', 'action');
@@ -418,11 +485,11 @@ export const GameBoard = memo(function GameBoard() {
         return;
       }
 
-      if (
-        fromZone === ZoneType.LIVE_ZONE &&
-        toZone === ZoneType.SUCCESS_ZONE
-      ) {
-        const result = selectSuccessCard(cardId);
+      if (fromZone === ZoneType.LIVE_ZONE && toZone === ZoneType.SUCCESS_ZONE) {
+        const result =
+          currentSubPhase === SubPhase.RESULT_SETTLEMENT
+            ? selectSuccessCard(cardId)
+            : moveTableCard(cardId, fromZone, toZone);
         if (result.success) {
           addLog('选择成功 Live 卡进入成功区', 'action');
         }
@@ -462,11 +529,7 @@ export const GameBoard = memo(function GameBoard() {
         sourceSlot = getCardSlotPosition(cardId) ?? undefined;
       }
 
-      if (
-        cardType === CardType.ENERGY &&
-        toZone === ZoneType.MEMBER_SLOT &&
-        targetSlot
-      ) {
+      if (cardType === CardType.ENERGY && toZone === ZoneType.MEMBER_SLOT && targetSlot) {
         const result = attachEnergyToMember(
           cardId,
           fromZone as ZoneType.MEMBER_SLOT | ZoneType.ENERGY_ZONE | ZoneType.ENERGY_DECK,
@@ -528,9 +591,7 @@ export const GameBoard = memo(function GameBoard() {
         const result = moveOwnedCardToZone(cardId, fromZone, toZone, {
           targetSlot,
           position:
-            toZone === ZoneType.MAIN_DECK || toZone === ZoneType.ENERGY_DECK
-              ? 'TOP'
-              : undefined,
+            toZone === ZoneType.MAIN_DECK || toZone === ZoneType.ENERGY_DECK ? 'TOP' : undefined,
         });
         if (result.success) {
           addLog(`己方卡牌移动: ${fromZone} → ${toZone}`, 'action');
@@ -607,6 +668,7 @@ export const GameBoard = memo(function GameBoard() {
       moveInspectedCardToTop,
       moveInspectedCardToBottom,
       moveInspectedCardToZone,
+      moveCardToInspection,
       reorderInspectedCard,
       moveResolutionCardToZone,
       drawEnergyToZone,
@@ -616,7 +678,9 @@ export const GameBoard = memo(function GameBoard() {
       setDragHints,
       getZoneCardIds,
       currentPhase,
+      currentSubPhase,
       findViewerCardZone,
+      getKnownCardType,
       resolveCardDropTarget,
       getCardSlotPosition,
     ]
@@ -645,6 +709,7 @@ export const GameBoard = memo(function GameBoard() {
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={inspectionFirstCollisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={() => {
@@ -652,18 +717,24 @@ export const GameBoard = memo(function GameBoard() {
         setDragHints(false);
       }}
     >
-      <div 
+      <div
         className="h-full flex flex-col relative overflow-hidden"
         style={{
           backgroundImage: `url(${getDeckBackUrl()})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
+          backgroundRepeat: 'no-repeat',
         }}
       >
         <div className="pointer-events-none absolute inset-0 bg-[var(--board-overlay)]" />
-        <div className="pointer-events-none absolute inset-0" style={{ background: 'var(--gradient-spotlight)' }} />
-        <div className="pointer-events-none absolute inset-0" style={{ background: 'var(--gradient-stage-glow)' }} />
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ background: 'var(--gradient-spotlight)' }}
+        />
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ background: 'var(--gradient-stage-glow)' }}
+        />
 
         <div className="absolute right-4 top-4 z-[80]">
           <ThemeToggle />
@@ -686,7 +757,9 @@ export const GameBoard = memo(function GameBoard() {
         <div
           className="relative flex h-[32px] flex-shrink-0 items-center justify-center border-y"
           style={{
-            borderColor: isSolitaire ? 'color-mix(in srgb, var(--border-default) 30%, transparent)' : 'var(--border-default)',
+            borderColor: isSolitaire
+              ? 'color-mix(in srgb, var(--border-default) 30%, transparent)'
+              : 'var(--border-default)',
             background: isSolitaire
               ? 'color-mix(in srgb, var(--bg-overlay) 16%, transparent)'
               : 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-primary) 12%, transparent), color-mix(in srgb, var(--accent-secondary) 12%, transparent), transparent)',
@@ -696,7 +769,9 @@ export const GameBoard = memo(function GameBoard() {
             className="px-4 text-lg font-bold tracking-[0.2em]"
             style={{
               color: isSolitaire ? 'var(--text-muted)' : 'var(--accent-primary)',
-              textShadow: isSolitaire ? 'none' : '0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent)',
+              textShadow: isSolitaire
+                ? 'none'
+                : '0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent)',
             }}
           >
             VS
@@ -747,13 +822,17 @@ export const GameBoard = memo(function GameBoard() {
         <LiveResultAnimation
           visible={shouldShowWinnerAnimation}
           isViewerWinner={isViewerWinnerInCurrentLive}
-          scoreInfo={shouldShowWinnerAnimation ? {
-            selfScore: viewerLiveScore,
-            opponentScore: opponentLiveScore,
-            selfWon: viewerLiveWinner,
-            opponentWon: opponentLiveWinner,
-            isDraw: isLiveDraw(),
-          } as LiveScoreInfo : null}
+          scoreInfo={
+            shouldShowWinnerAnimation
+              ? ({
+                  selfScore: viewerLiveScore,
+                  opponentScore: opponentLiveScore,
+                  selfWon: viewerLiveWinner,
+                  opponentWon: opponentLiveWinner,
+                  isDraw: isLiveDraw(),
+                } as LiveScoreInfo)
+              : null
+          }
           onComplete={handleLiveAnimationComplete}
         />
 

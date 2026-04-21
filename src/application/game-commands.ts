@@ -12,6 +12,7 @@ export enum GameCommandType {
   MOVE_INSPECTED_CARD_TO_TOP = 'MOVE_INSPECTED_CARD_TO_TOP',
   MOVE_INSPECTED_CARD_TO_BOTTOM = 'MOVE_INSPECTED_CARD_TO_BOTTOM',
   MOVE_INSPECTED_CARD_TO_ZONE = 'MOVE_INSPECTED_CARD_TO_ZONE',
+  MOVE_CARD_TO_INSPECTION = 'MOVE_CARD_TO_INSPECTION',
   REORDER_INSPECTED_CARD = 'REORDER_INSPECTED_CARD',
   MOVE_RESOLUTION_CARD_TO_ZONE = 'MOVE_RESOLUTION_CARD_TO_ZONE',
   MOVE_TABLE_CARD = 'MOVE_TABLE_CARD',
@@ -95,6 +96,12 @@ export interface MoveInspectedCardToZoneCommand extends BaseGameCommand {
   readonly type: GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE;
   readonly cardId: string;
   readonly toZone: ZoneType.HAND | ZoneType.WAITING_ROOM | ZoneType.EXILE_ZONE;
+}
+
+export interface MoveCardToInspectionCommand extends BaseGameCommand {
+  readonly type: GameCommandType.MOVE_CARD_TO_INSPECTION;
+  readonly cardId: string;
+  readonly fromZone: ZoneType.HAND | ZoneType.WAITING_ROOM;
 }
 
 export interface ReorderInspectedCardCommand extends BaseGameCommand {
@@ -238,6 +245,7 @@ export type GameCommand =
   | MoveInspectedCardToTopCommand
   | MoveInspectedCardToBottomCommand
   | MoveInspectedCardToZoneCommand
+  | MoveCardToInspectionCommand
   | ReorderInspectedCardCommand
   | MoveResolutionCardToZoneCommand
   | MoveTableCardCommand
@@ -383,6 +391,20 @@ export function createMoveInspectedCardToZoneCommand(
     playerId,
     cardId,
     toZone,
+    timestamp: Date.now(),
+  };
+}
+
+export function createMoveCardToInspectionCommand(
+  playerId: string,
+  cardId: string,
+  fromZone: MoveCardToInspectionCommand['fromZone']
+): MoveCardToInspectionCommand {
+  return {
+    type: GameCommandType.MOVE_CARD_TO_INSPECTION,
+    playerId,
+    cardId,
+    fromZone,
     timestamp: Date.now(),
   };
 }

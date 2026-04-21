@@ -91,6 +91,7 @@ import type {
   MoveInspectedCardToZoneCommand,
   MoveInspectedCardToTopCommand,
   MoveInspectedCardToBottomCommand,
+  MoveCardToInspectionCommand,
   ReorderInspectedCardCommand,
   MoveResolutionCardToZoneCommand,
   MoveTableCardCommand,
@@ -878,6 +879,12 @@ export class GameSession {
       case GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE: {
         return this.validateInspectedCardOwnership(state, command.playerId, command.cardId);
       }
+      case GameCommandType.MOVE_CARD_TO_INSPECTION: {
+        if (!isCardInOwnedZone(state, command.playerId, command.fromZone, command.cardId)) {
+          return '卡牌当前不在声明的来源区域';
+        }
+        return null;
+      }
       case GameCommandType.REORDER_INSPECTED_CARD: {
         const ownershipError = this.validateInspectedCardOwnership(
           state,
@@ -1113,14 +1120,20 @@ export class GameSession {
           ? null
           : '当前不是主要阶段';
       case GameCommandType.TAP_MEMBER:
-      case GameCommandType.MOVE_TABLE_CARD:
       case GameCommandType.MOVE_MEMBER_TO_SLOT:
       case GameCommandType.ATTACH_ENERGY_TO_MEMBER:
       case GameCommandType.PLAY_MEMBER_TO_SLOT:
-      case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
       case GameCommandType.DRAW_CARD_TO_HAND:
       case GameCommandType.RETURN_HAND_CARD_TO_TOP:
         return state.currentPhase === GamePhase.MAIN_PHASE ||
+          isSuccessEffectWindow ||
+          isPerformanceFreeInteraction
+          ? null
+          : '当前不是主要阶段';
+      case GameCommandType.MOVE_TABLE_CARD:
+      case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
+        return this.isLiveDeskMoveStageExempt(state, command) ||
+          state.currentPhase === GamePhase.MAIN_PHASE ||
           isSuccessEffectWindow ||
           isPerformanceFreeInteraction
           ? null
@@ -1134,14 +1147,16 @@ export class GameSession {
           : '当前不是可放置能量阶段';
       case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
       case GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK:
-        return state.currentPhase === GamePhase.MAIN_PHASE ||
+        return this.isLiveDeskMoveStageExempt(state, command) ||
+          state.currentPhase === GamePhase.MAIN_PHASE ||
           isSuccessEffectWindow ||
           isPerformanceFreeInteraction ||
           state.currentPhase === GamePhase.LIVE_SET_PHASE
           ? null
           : '当前不是可回手阶段';
       case GameCommandType.MOVE_OWNED_CARD_TO_ZONE:
-        return state.currentPhase === GamePhase.MAIN_PHASE ||
+        return this.isLiveDeskMoveStageExempt(state, command) ||
+          state.currentPhase === GamePhase.MAIN_PHASE ||
           isSuccessEffectWindow ||
           isPerformanceFreeInteraction ||
           state.currentPhase === GamePhase.LIVE_SET_PHASE
@@ -1152,6 +1167,8 @@ export class GameSession {
         return state.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT || isSuccessEffectWindow
           ? null
           : '当前不是可操作判定区的子阶段';
+      case GameCommandType.MOVE_CARD_TO_INSPECTION:
+        return null;
       case GameCommandType.CONFIRM_PERFORMANCE_OUTCOME:
       case GameCommandType.SUBMIT_JUDGMENT:
         return state.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT
@@ -1169,6 +1186,33 @@ export class GameSession {
           : '当前不是成功 Live 结算阶段';
       default:
         return null;
+    }
+  }
+
+  private isLiveDeskMoveStageExempt(state: GameState, command: GameCommand): boolean {
+    if (!('cardId' in command)) {
+      return false;
+    }
+
+    const card = state.cardRegistry.get(command.cardId);
+    if (card?.data.cardType !== CardType.LIVE) {
+      return false;
+    }
+
+    switch (command.type) {
+      case GameCommandType.MOVE_TABLE_CARD:
+        return (
+          command.fromZone === ZoneType.LIVE_ZONE ||
+          command.toZone === ZoneType.LIVE_ZONE ||
+          command.toZone === ZoneType.SUCCESS_ZONE
+        );
+      case GameCommandType.MOVE_OWNED_CARD_TO_ZONE:
+        return command.fromZone === ZoneType.HAND && command.toZone === ZoneType.LIVE_ZONE;
+      case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
+      case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
+        return command.fromZone === ZoneType.LIVE_ZONE;
+      default:
+        return false;
     }
   }
 
@@ -1204,6 +1248,10 @@ export class GameSession {
       command.type === GameCommandType.TAP_MEMBER &&
       isCrossTurnTapMemberWindow(state.currentPhase, state.currentSubPhase)
     ) {
+      return null;
+    }
+
+    if (this.isLiveDeskMoveStageExempt(state, command)) {
       return null;
     }
 
@@ -1288,6 +1336,8 @@ export class GameSession {
         return this.applyMoveInspectedCardToBottomCommand(state, command);
       case GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE:
         return this.applyMoveInspectedCardToZoneCommand(state, command);
+      case GameCommandType.MOVE_CARD_TO_INSPECTION:
+        return this.applyMoveCardToInspectionCommand(state, command);
       case GameCommandType.REORDER_INSPECTED_CARD:
         return this.applyReorderInspectedCardCommand(state, command);
       case GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE:
@@ -1746,6 +1796,44 @@ export class GameSession {
     command: MoveInspectedCardToZoneCommand
   ): CommandExecutionResult {
     return this.applyInspectionMoveCommand(state, command.playerId, command.cardId, command.toZone);
+  }
+
+  private applyMoveCardToInspectionCommand(
+    state: GameState,
+    command: MoveCardToInspectionCommand
+  ): CommandExecutionResult {
+    const actorSeat = getSeatForPlayer(state, command.playerId);
+    if (!actorSeat) {
+      return { success: false, gameState: state, error: '玩家不存在' };
+    }
+
+    let workingState = removeCardFromPlayerZone(
+      state,
+      command.playerId,
+      command.cardId,
+      command.fromZone
+    );
+    workingState = addCardToInspectionZone(workingState, command.cardId);
+
+    if (command.fromZone === ZoneType.WAITING_ROOM) {
+      workingState = revealInspectionZoneCard(workingState, command.cardId);
+    }
+
+    const inspectionIndex = workingState.inspectionZone.cardIds.indexOf(command.cardId);
+
+    return {
+      success: true,
+      gameState: workingState,
+      extraPublicEvents: [
+        buildCardMovedPublicEvent(state, workingState, actorSeat, command.cardId, {
+          from: buildZoneRefForMove(state, command.playerId, command.cardId, command.fromZone),
+          to: createInspectionZoneRef(
+            actorSeat,
+            inspectionIndex >= 0 ? inspectionIndex : undefined
+          ),
+        }),
+      ],
+    };
   }
 
   private applyRevealInspectedCardCommand(
@@ -3511,6 +3599,7 @@ function isInspectionCommandType(commandType: GameCommandType): boolean {
     commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_TOP ||
     commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM ||
     commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE ||
+    commandType === GameCommandType.MOVE_CARD_TO_INSPECTION ||
     commandType === GameCommandType.REORDER_INSPECTED_CARD ||
     commandType === GameCommandType.FINISH_INSPECTION
   );

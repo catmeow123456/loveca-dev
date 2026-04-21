@@ -26,9 +26,9 @@
 
 相关上位文档：
 
-- `docs/online-mode-inspection-command-draft.md`
+- `docs/online-mode-preparation.md`
 - `docs/online-mode-visibility-matrix.md`
-- `docs/online-mode-player-view-state-draft.md`
+- `docs/online-mode-free-drag-checklist.md`
 
 ## 3. 默认点击行为
 

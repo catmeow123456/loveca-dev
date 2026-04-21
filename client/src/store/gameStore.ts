@@ -2,7 +2,7 @@
  * 游戏状态管理 (Zustand Store)
  *
  * 连接 React UI 与后端 GameSession
- * 
+ *
  * 架构说明：
  * - GameSession: 充当"服务器"角色，维护权威游戏状态
  * - gameStore: 充当"客户端"角色，持有当前视角玩家的状态快照
@@ -13,7 +13,11 @@ import { create } from 'zustand';
 import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 import { createHeartRequirement } from '@game/domain/entities/card';
 import type { DeckConfig } from '@game/application/game-service';
-import { GameSession, createGameSession, type GameSessionEvent } from '@game/application/game-session';
+import {
+  GameSession,
+  createGameSession,
+  type GameSessionEvent,
+} from '@game/application/game-session';
 import {
   createPublicObjectId,
   type PlayerViewState,
@@ -38,6 +42,7 @@ import {
   createFinishInspectionCommand,
   createAttachEnergyToMemberCommand,
   createMoveInspectedCardToBottomCommand,
+  createMoveCardToInspectionCommand,
   createMoveMemberToSlotCommand,
   createMoveOwnedCardToZoneCommand,
   createMovePublicCardToEnergyDeckCommand,
@@ -59,7 +64,14 @@ import {
   createTapEnergyCommand,
   createTapMemberCommand,
 } from '@game/application/game-commands';
-import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType, GameMode } from '@game/shared/types/enums';
+import {
+  SlotPosition,
+  GamePhase,
+  SubPhase,
+  ZoneType,
+  CardType,
+  GameMode,
+} from '@game/shared/types/enums';
 import { getPhaseName } from '@game/shared/phase-config';
 import { resolveCardImagePath } from '@/lib/imageService';
 import { type ParsedZoneId } from '@/lib/zoneUtils';
@@ -198,7 +210,7 @@ export interface GameStore {
       | ZoneType.MEMBER_SLOT
       | ZoneType.ENERGY_ZONE
       | ZoneType.LIVE_ZONE
-    | ZoneType.SUCCESS_ZONE
+      | ZoneType.SUCCESS_ZONE
       | ZoneType.WAITING_ROOM
       | ZoneType.EXILE_ZONE,
     options?: { targetSlot?: SlotPosition; position?: 'TOP' | 'BOTTOM' }
@@ -371,6 +383,11 @@ export interface GameStore {
     cardId: string,
     toZone: ZoneType.HAND | ZoneType.WAITING_ROOM | ZoneType.EXILE_ZONE
   ) => CommandDispatchResult;
+  /** 将手牌/休息室卡牌移入当前检视区 */
+  moveCardToInspection: (
+    cardId: string,
+    fromZone: ZoneType.HAND | ZoneType.WAITING_ROOM
+  ) => CommandDispatchResult;
   /** 调整检视区卡牌顺序 */
   reorderInspectedCard: (cardId: string, toIndex: number) => CommandDispatchResult;
   /** 声明当前检视流程完成 */
@@ -426,7 +443,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
   });
 
-  const applyCommandSuccessEffects = (options: Omit<StoreCommandOptions, 'failureMessage'>): void => {
+  const applyCommandSuccessEffects = (
+    options: Omit<StoreCommandOptions, 'failureMessage'>
+  ): void => {
     if (options.clearHoveredCardId && get().ui.hoveredCardId === options.clearHoveredCardId) {
       get().setHoveredCard(null);
     }
@@ -511,10 +530,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     createGame: (gameId, player1Id, player1Name, player2Id, player2Name) => {
       const { gameSession } = get();
       gameSession.createGame(gameId, player1Id, player1Name, player2Id, player2Name);
-      
+
       // 默认设置玩家1为初始视角
       set({ viewingPlayerId: player1Id });
-      
+
       // 同步状态
       get().syncState();
       get().addLog(`游戏创建成功: ${player1Name} vs ${player2Name}`, 'info');
@@ -524,7 +543,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       const { gameSession } = get();
 
       const result = gameSession.initializeGame(player1Deck, player2Deck);
-      
+
       if (result.success) {
         // 同步状态
         get().syncState();
@@ -544,7 +563,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       const { gameSession } = get();
 
       const result = gameSession.advancePhase();
-      
+
       if (result.success) {
         // 同步状态
         get().syncState();
@@ -582,10 +601,11 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     movePublicCardToWaitingRoom: (cardId, fromZone, sourceSlot) => {
       return runViewerCommand(
-        (playerId) => createMovePublicCardToWaitingRoomCommand(playerId, cardId, fromZone, sourceSlot),
+        (playerId) =>
+          createMovePublicCardToWaitingRoomCommand(playerId, cardId, fromZone, sourceSlot),
         {
-        failureMessage: '公开区卡牌移动失败',
-        clearHoveredCardId: cardId,
+          failureMessage: '公开区卡牌移动失败',
+          clearHoveredCardId: cardId,
         }
       );
     },
@@ -594,25 +614,28 @@ export const useGameStore = create<GameStore>((set, get) => {
       return runViewerCommand(
         (playerId) => createMovePublicCardToHandCommand(playerId, cardId, fromZone, sourceSlot),
         {
-        failureMessage: '公开区卡牌回手失败',
-        clearHoveredCardId: cardId,
+          failureMessage: '公开区卡牌回手失败',
+          clearHoveredCardId: cardId,
         }
       );
     },
 
     movePublicCardToEnergyDeck: (cardId, fromZone) => {
-      return runViewerCommand((playerId) => createMovePublicCardToEnergyDeckCommand(playerId, cardId, fromZone), {
-        failureMessage: '公开能量回到能量卡组失败',
-        clearHoveredCardId: cardId,
-      });
+      return runViewerCommand(
+        (playerId) => createMovePublicCardToEnergyDeckCommand(playerId, cardId, fromZone),
+        {
+          failureMessage: '公开能量回到能量卡组失败',
+          clearHoveredCardId: cardId,
+        }
+      );
     },
 
     moveOwnedCardToZone: (cardId, fromZone, toZone, options) => {
       return runViewerCommand(
         (playerId) => createMoveOwnedCardToZoneCommand(playerId, cardId, fromZone, toZone, options),
         {
-        failureMessage: '己方卡牌移动失败',
-        clearHoveredCardId: cardId,
+          failureMessage: '己方卡牌移动失败',
+          clearHoveredCardId: cardId,
         }
       );
     },
@@ -753,8 +776,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         ui: {
           ...state.ui,
           isDragging,
-          highlightedZones:
-            highlightedZones ?? (isDragging ? state.ui.highlightedZones : []),
+          highlightedZones: highlightedZones ?? (isDragging ? state.ui.highlightedZones : []),
         },
       }));
     },
@@ -843,12 +865,12 @@ export const useGameStore = create<GameStore>((set, get) => {
       const normalizedPlayerViewState = normalizePlayerViewState(nextPlayerViewState);
 
       set((state) => ({
-          playerViewState: normalizedPlayerViewState,
-          ui: {
-            ...state.ui,
-            hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
-          },
-        }));
+        playerViewState: normalizedPlayerViewState,
+        ui: {
+          ...state.ui,
+          hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
+        },
+      }));
     },
 
     // ============ 查询辅助实现 ============
@@ -1041,7 +1063,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     getCardSlotPosition: (cardId) => {
       const location = findCardLocationInView(get().playerViewState, cardId);
-      return location?.zoneType === ZoneType.MEMBER_SLOT ? location.slotPosition ?? null : null;
+      return location?.zoneType === ZoneType.MEMBER_SLOT ? (location.slotPosition ?? null) : null;
     },
 
     isInspectionCardPubliclyRevealed: (cardId) => {
@@ -1082,7 +1104,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     getViewerLiveScore: () => {
       const viewerSeat = get().getViewerSeat();
-      return viewerSeat ? get().playerViewState?.match.liveResult?.scores[viewerSeat] ?? 0 : 0;
+      return viewerSeat ? (get().playerViewState?.match.liveResult?.scores[viewerSeat] ?? 0) : 0;
     },
 
     getOpponentLiveScore: () => {
@@ -1097,7 +1119,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     isViewerLiveWinner: () => {
       const viewerSeat = get().getViewerSeat();
       return viewerSeat
-        ? get().playerViewState?.match.liveResult?.winnerSeats.includes(viewerSeat) ?? false
+        ? (get().playerViewState?.match.liveResult?.winnerSeats.includes(viewerSeat) ?? false)
         : false;
     },
 
@@ -1121,7 +1143,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     isViewerScoreConfirmed: () => {
       const viewerSeat = get().getViewerSeat();
       return viewerSeat
-        ? get().playerViewState?.match.liveResult?.confirmedSeats.includes(viewerSeat) ?? false
+        ? (get().playerViewState?.match.liveResult?.confirmedSeats.includes(viewerSeat) ?? false)
         : false;
     },
 
@@ -1131,7 +1153,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         return false;
       }
       const opponentSeat: Seat = viewerSeat === 'FIRST' ? 'SECOND' : 'FIRST';
-      return get().playerViewState?.match.liveResult?.confirmedSeats.includes(opponentSeat) ?? false;
+      return (
+        get().playerViewState?.match.liveResult?.confirmedSeats.includes(opponentSeat) ?? false
+      );
     },
 
     // ============ 阶段十新增动作实现 ============
@@ -1145,11 +1169,14 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     confirmJudgment: (judgmentResults) => {
-      return runViewerCommand((playerId) => createSubmitJudgmentCommand(playerId, judgmentResults), {
-        failureMessage: '确认判定失败',
-        successMessage: '确认 Live 判定结果',
-        logError: true,
-      });
+      return runViewerCommand(
+        (playerId) => createSubmitJudgmentCommand(playerId, judgmentResults),
+        {
+          failureMessage: '确认判定失败',
+          successMessage: '确认 Live 判定结果',
+          logError: true,
+        }
+      );
     },
 
     confirmScore: (adjustedScore) => {
@@ -1172,8 +1199,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       return runViewerCommand(
         (playerId) => createMoveTableCardCommand(playerId, cardId, fromZone, toZone, options),
         {
-        failureMessage: '移动卡牌失败',
-        clearHoveredCardId: cardId,
+          failureMessage: '移动卡牌失败',
+          clearHoveredCardId: cardId,
         }
       );
     },
@@ -1182,8 +1209,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       return runViewerCommand(
         (playerId) => createMoveMemberToSlotCommand(playerId, cardId, sourceSlot, targetSlot),
         {
-        failureMessage: '成员换位失败',
-        clearHoveredCardId: cardId,
+          failureMessage: '成员换位失败',
+          clearHoveredCardId: cardId,
         }
       );
     },
@@ -1193,18 +1220,21 @@ export const useGameStore = create<GameStore>((set, get) => {
         (playerId) =>
           createAttachEnergyToMemberCommand(playerId, cardId, fromZone, targetSlot, sourceSlot),
         {
-        failureMessage: '附着能量失败',
-        clearHoveredCardId: cardId,
+          failureMessage: '附着能量失败',
+          clearHoveredCardId: cardId,
         }
       );
     },
 
     openInspection: (sourceZone, count = 1) => {
-      return runViewerCommand((playerId) => createOpenInspectionCommand(playerId, sourceZone, count), {
-        failureMessage: '开始检视失败',
-        successMessage: `开始检视: ${sourceZone} 顶 ${count} 张`,
-        logError: true,
-      });
+      return runViewerCommand(
+        (playerId) => createOpenInspectionCommand(playerId, sourceZone, count),
+        {
+          failureMessage: '开始检视失败',
+          successMessage: `开始检视: ${sourceZone} 顶 ${count} 张`,
+          logError: true,
+        }
+      );
     },
 
     moveInspectedCardToTop: (cardId) => {
@@ -1225,29 +1255,50 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     moveInspectedCardToBottom: (cardId) => {
-      return runViewerCommand((playerId) => createMoveInspectedCardToBottomCommand(playerId, cardId), {
-        failureMessage: '检视牌放回底部失败',
-        successMessage: '检视牌放回底部',
-        clearHoveredCardId: cardId,
-        logError: true,
-      });
+      return runViewerCommand(
+        (playerId) => createMoveInspectedCardToBottomCommand(playerId, cardId),
+        {
+          failureMessage: '检视牌放回底部失败',
+          successMessage: '检视牌放回底部',
+          clearHoveredCardId: cardId,
+          logError: true,
+        }
+      );
     },
 
     moveInspectedCardToZone: (cardId, toZone) => {
-      return runViewerCommand((playerId) => createMoveInspectedCardToZoneCommand(playerId, cardId, toZone), {
-        failureMessage: '检视牌移动失败',
-        successMessage: `检视牌移动到 ${toZone}`,
-        clearHoveredCardId: cardId,
-        logError: true,
-      });
+      return runViewerCommand(
+        (playerId) => createMoveInspectedCardToZoneCommand(playerId, cardId, toZone),
+        {
+          failureMessage: '检视牌移动失败',
+          successMessage: `检视牌移动到 ${toZone}`,
+          clearHoveredCardId: cardId,
+          logError: true,
+        }
+      );
+    },
+
+    moveCardToInspection: (cardId, fromZone) => {
+      return runViewerCommand(
+        (playerId) => createMoveCardToInspectionCommand(playerId, cardId, fromZone),
+        {
+          failureMessage: '卡牌移入检视区失败',
+          successMessage: '卡牌移入检视区',
+          clearHoveredCardId: cardId,
+          logError: true,
+        }
+      );
     },
 
     reorderInspectedCard: (cardId, toIndex) => {
-      return runViewerCommand((playerId) => createReorderInspectedCardCommand(playerId, cardId, toIndex), {
-        failureMessage: '调整检视顺序失败',
-        successMessage: `调整检视顺序到位置 ${toIndex + 1}`,
-        logError: true,
-      });
+      return runViewerCommand(
+        (playerId) => createReorderInspectedCardCommand(playerId, cardId, toIndex),
+        {
+          failureMessage: '调整检视顺序失败',
+          successMessage: `调整检视顺序到位置 ${toIndex + 1}`,
+          logError: true,
+        }
+      );
     },
 
     finishInspection: () => {
@@ -1271,20 +1322,23 @@ export const useGameStore = create<GameStore>((set, get) => {
         (playerId) =>
           createMoveResolutionCardToZoneCommand(playerId, cardId, toZone, options?.position),
         {
-        failureMessage: '解决区卡牌移动失败',
-        successMessage: `解决区卡牌移动到 ${toZone}`,
-        clearHoveredCardId: cardId,
-        logError: true,
+          failureMessage: '解决区卡牌移动失败',
+          successMessage: `解决区卡牌移动到 ${toZone}`,
+          clearHoveredCardId: cardId,
+          logError: true,
         }
       );
     },
 
     confirmPerformanceOutcome: (success) => {
-      return runViewerCommand((playerId) => createConfirmPerformanceOutcomeCommand(playerId, success), {
-        failureMessage: '提交 Live 判定结果失败',
-        successMessage: success ? '确认 Live 成功' : '确认 Live 失败',
-        logError: true,
-      });
+      return runViewerCommand(
+        (playerId) => createConfirmPerformanceOutcomeCommand(playerId, success),
+        {
+          failureMessage: '提交 Live 判定结果失败',
+          successMessage: success ? '确认 Live 成功' : '确认 Live 失败',
+          logError: true,
+        }
+      );
     },
 
     drawCardToHand: () => {
@@ -1338,7 +1392,10 @@ function handleGameSessionEvent(
       break;
 
     case 'GAME_ENDED':
-      get().addLog(event.winnerId ? `游戏结束，获胜者: ${event.winnerId}` : '游戏结束，平局', 'info');
+      get().addLog(
+        event.winnerId ? `游戏结束，获胜者: ${event.winnerId}` : '游戏结束，平局',
+        'info'
+      );
       get().syncState();
       break;
 
@@ -1472,10 +1529,7 @@ function applyRemoteSnapshot(
     playerViewState: normalizedPlayerViewState,
     ui: {
       ...state.ui,
-      hoveredCardId: resolveHoveredCardId(
-        state.ui.hoveredCardId,
-        normalizedPlayerViewState
-      ),
+      hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
     },
   }));
 }
@@ -1513,10 +1567,9 @@ function dispatchRemoteCommand(
   )
     .then((result) => {
       if (!result.success || !result.snapshot) {
-        useGameStore.getState().addLog(
-          `${failureMessage}: ${result.error ?? '服务端拒绝了该操作'}`,
-          'error'
-        );
+        useGameStore
+          .getState()
+          .addLog(`${failureMessage}: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
         return;
       }
 
@@ -1524,10 +1577,12 @@ function dispatchRemoteCommand(
       onSuccess?.();
     })
     .catch((error) => {
-      useGameStore.getState().addLog(
-        `${failureMessage}: ${error instanceof Error ? error.message : '网络请求失败'}`,
-        'error'
-      );
+      useGameStore
+        .getState()
+        .addLog(
+          `${failureMessage}: ${error instanceof Error ? error.message : '网络请求失败'}`,
+          'error'
+        );
     });
 
   return true;
@@ -1540,17 +1595,12 @@ function dispatchRemoteAdvancePhase(): boolean {
     return false;
   }
 
-  void advanceRemotePhase(
-    remoteSession.source,
-    remoteSession.matchId,
-    remoteSession.seat
-  )
+  void advanceRemotePhase(remoteSession.source, remoteSession.matchId, remoteSession.seat)
     .then((result) => {
       if (!result.success || !result.snapshot) {
-        useGameStore.getState().addLog(
-          `阶段推进失败: ${result.error ?? '服务端拒绝了该操作'}`,
-          'error'
-        );
+        useGameStore
+          .getState()
+          .addLog(`阶段推进失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
         return;
       }
 
@@ -1564,10 +1614,12 @@ function dispatchRemoteAdvancePhase(): boolean {
       }
     })
     .catch((error) => {
-      useGameStore.getState().addLog(
-        `阶段推进失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
-        'error'
-      );
+      useGameStore
+        .getState()
+        .addLog(
+          `阶段推进失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
+          'error'
+        );
     });
 
   return true;

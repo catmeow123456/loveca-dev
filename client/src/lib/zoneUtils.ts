@@ -32,6 +32,7 @@ const ZONE_ID_MAP: Record<string, ZoneType> = {
   'hand': ZoneType.HAND,
   'waiting-room': ZoneType.WAITING_ROOM,
   'resolution-zone': ZoneType.RESOLUTION_ZONE,
+  'inspection-zone': ZoneType.INSPECTION_ZONE,
 };
 
 /**
@@ -46,6 +47,7 @@ const ZONE_TYPE_TO_ID: Partial<Record<ZoneType, string>> = {
   [ZoneType.HAND]: 'hand',
   [ZoneType.WAITING_ROOM]: 'waiting-room',
   [ZoneType.RESOLUTION_ZONE]: 'resolution-zone',
+  [ZoneType.INSPECTION_ZONE]: 'inspection-zone',
 };
 
 function extractLogicalZoneId(zoneId: string): string {
