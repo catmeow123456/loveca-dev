@@ -76,7 +76,7 @@ import {
   isSlotEmpty,
 } from '../domain/entities/zone.js';
 import { PhaseManager, phaseManager, PhaseAutoAction } from './phase-manager.js';
-import { isCrossTurnTapMemberWindow } from './command-availability.js';
+import { isCrossTurnTapMemberWindow, isOwnDeskFreeDragWindow } from './command-availability.js';
 import { isPlayerActive as isPlayerActiveByConfig } from '../shared/phase-config/index.js';
 import { getInitialSubPhase, getSubPhaseConfig } from '../shared/phase-config/index.js';
 import { GameEventType } from './events.js';
@@ -267,8 +267,26 @@ export class GameService {
     // Mulligan 阶段双方玩家都可以换牌
     const isMulliganPhase = game.currentPhase === GamePhase.MULLIGAN_PHASE;
 
-    // "信任玩家"原则：手动移动卡牌不受回合限制（系统会通过规则处理自动纠正非法状态）
-    const isManualMoveAction = action.type === GameActionType.MANUAL_MOVE_CARD;
+    if (
+      (action.type === GameActionType.MANUAL_MOVE_CARD ||
+        action.type === GameActionType.TAP_ENERGY) &&
+      !(action.type === GameActionType.MANUAL_MOVE_CARD && action.liveDeskMoveExempt) &&
+      !isOwnDeskFreeDragWindow(game.currentPhase, game.currentSubPhase)
+    ) {
+      return {
+        success: false,
+        gameState: game,
+        error: '当前不是可自由整理阶段',
+      };
+    }
+
+    // "信任玩家"原则：开放大阶段内双方都可以整理自己的桌面。
+    const isOwnDeskFreeDragAction =
+      isOwnDeskFreeDragWindow(game.currentPhase, game.currentSubPhase) &&
+      (action.type === GameActionType.PLAY_MEMBER ||
+        action.type === GameActionType.TAP_MEMBER ||
+        action.type === GameActionType.TAP_ENERGY ||
+        action.type === GameActionType.MANUAL_MOVE_CARD);
     const isCrossTurnTapMemberAction =
       action.type === GameActionType.TAP_MEMBER &&
       isCrossTurnTapMemberWindow(game.currentPhase, game.currentSubPhase);
@@ -279,7 +297,7 @@ export class GameService {
       action.type !== GameActionType.CONFIRM_OPTIONAL &&
       !isLiveSetPhaseAction &&
       !isMulliganPhase &&
-      !isManualMoveAction &&
+      !isOwnDeskFreeDragAction &&
       !isCrossTurnTapMemberAction
     ) {
       return {

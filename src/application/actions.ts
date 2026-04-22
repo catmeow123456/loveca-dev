@@ -113,7 +113,6 @@ export interface SetLiveCardAction extends BaseGameAction {
   readonly faceDown: boolean;
 }
 
-
 /**
  * 选择卡牌动作（响应效果选择）
  */
@@ -218,6 +217,8 @@ export interface ManualMoveCardAction extends BaseGameAction {
   readonly sourceSlot?: SlotPosition;
   /** 放置位置（TOP/BOTTOM） */
   readonly position?: 'TOP' | 'BOTTOM';
+  /** 命令层已验证的 Live 卡桌面豁免移动 */
+  readonly liveDeskMoveExempt?: boolean;
 }
 
 /**
@@ -364,7 +365,6 @@ export function createSetLiveCardAction(
   };
 }
 
-
 /**
  * 创建选择卡牌动作
  */
@@ -461,10 +461,7 @@ export function createTapMemberAction(
 /**
  * 创建切换能量状态动作
  */
-export function createTapEnergyAction(
-  playerId: string,
-  cardId: string
-): TapEnergyAction {
+export function createTapEnergyAction(playerId: string, cardId: string): TapEnergyAction {
   return {
     type: GameActionType.TAP_ENERGY,
     playerId,
@@ -500,7 +497,12 @@ export function createManualMoveCardAction(
   cardId: string,
   fromZone: ZoneType,
   toZone: ZoneType,
-  options?: { targetSlot?: SlotPosition; sourceSlot?: SlotPosition; position?: 'TOP' | 'BOTTOM' }
+  options?: {
+    targetSlot?: SlotPosition;
+    sourceSlot?: SlotPosition;
+    position?: 'TOP' | 'BOTTOM';
+    liveDeskMoveExempt?: boolean;
+  }
 ): ManualMoveCardAction {
   return {
     type: GameActionType.MANUAL_MOVE_CARD,
@@ -511,6 +513,7 @@ export function createManualMoveCardAction(
     targetSlot: options?.targetSlot,
     sourceSlot: options?.sourceSlot,
     position: options?.position,
+    liveDeskMoveExempt: options?.liveDeskMoveExempt,
     timestamp: Date.now(),
   };
 }

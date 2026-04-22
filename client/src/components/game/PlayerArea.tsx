@@ -24,6 +24,7 @@ import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { createScopedZoneId, createZoneId } from '@/lib/zoneUtils';
 import { useGameStore } from '@/store/gameStore';
 import { GameCommandType } from '@game/application/game-commands';
+import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import { Card } from '@/components/card/Card';
 import { DraggableCard, DroppableZone } from './interaction';
 import { ArrowDownToLine, ArrowUpToLine, Check, Layers3, Megaphone, Trash2, X } from 'lucide-react';
@@ -34,7 +35,6 @@ import {
   OrientationState,
   HeartColor,
   ZoneType,
-  GamePhase,
   SubPhase,
   CardType,
 } from '@game/shared/types/enums';
@@ -268,17 +268,14 @@ export const PlayerArea = memo(function PlayerArea({
   // ========================================
   // 拖拽权限控制 - "信任玩家"原则
   // ========================================
-  // 核心原则：常规阶段维持较自由的桌面操作；Live 结果阶段只在成功效果窗口保留通用桌面操作。
+  // 核心原则：主阶段和 Live 大阶段维持较自由的己方桌面操作。
   // Live 卡与 Live 区/成功区之间的桌面整理不按阶段锁 UI，后端仍校验具体移动是否合法。
   // ========================================
 
-  const isLiveResultPhase = currentPhase === GamePhase.LIVE_RESULT_PHASE;
-  const isResultSuccessEffectWindow =
-    currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-    (currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
-      currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS);
   const allowGeneralOwnZoneInteraction =
-    !isOpponent && (!isLiveResultPhase || isResultSuccessEffectWindow);
+    !isOpponent &&
+    currentPhase !== null &&
+    isOwnDeskFreeDragWindow(currentPhase, currentSubPhase);
   const allowLiveZoneDeskInteraction = !isOpponent;
   const dropScope = `seat-${playerSeat}`;
   const getDroppableId = (zoneType: ZoneType, slotPosition?: SlotPosition) =>

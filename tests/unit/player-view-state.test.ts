@@ -307,6 +307,58 @@ describe('PlayerViewState projector', () => {
     expect(hasEnabledCommand(performanceOpponentView, GameCommandType.TAP_MEMBER)).toBe(true);
   });
 
+  it('主阶段和 Live 大阶段应向非当前回合玩家暴露己方自由拖拽命令', () => {
+    const { state } = createProjectedState();
+
+    state.activePlayerIndex = 0;
+    state.waitingPlayerId = null;
+
+    state.currentPhase = GamePhase.MAIN_PHASE;
+    state.currentSubPhase = SubPhase.NONE;
+    const mainOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(mainOpponentView, GameCommandType.MOVE_TABLE_CARD)).toBe(true);
+    expect(hasEnabledCommand(mainOpponentView, GameCommandType.MOVE_OWNED_CARD_TO_ZONE)).toBe(true);
+    expect(hasEnabledCommand(mainOpponentView, GameCommandType.PLAY_MEMBER_TO_SLOT)).toBe(true);
+    expect(hasEnabledCommand(mainOpponentView, GameCommandType.END_PHASE)).toBe(false);
+
+    state.currentPhase = GamePhase.LIVE_SET_PHASE;
+    state.currentSubPhase = SubPhase.LIVE_SET_FIRST_PLAYER;
+    const liveSetOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(liveSetOpponentView, GameCommandType.MOVE_TABLE_CARD)).toBe(true);
+    expect(hasEnabledCommand(liveSetOpponentView, GameCommandType.PLAY_MEMBER_TO_SLOT)).toBe(true);
+
+    state.currentSubPhase = SubPhase.LIVE_SET_FIRST_DRAW;
+    const liveSetAutoDrawOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(liveSetAutoDrawOpponentView, GameCommandType.MOVE_TABLE_CARD)).toBe(
+      false
+    );
+    const liveSetAutoDrawActiveView = projectPlayerViewState(state, PLAYER1);
+    expect(hasEnabledCommand(liveSetAutoDrawActiveView, GameCommandType.MOVE_TABLE_CARD)).toBe(
+      false
+    );
+    expect(hasEnabledCommand(liveSetAutoDrawActiveView, GameCommandType.PLAY_MEMBER_TO_SLOT)).toBe(
+      false
+    );
+
+    state.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    state.currentSubPhase = SubPhase.PERFORMANCE_REVEAL;
+    const performanceRevealOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(performanceRevealOpponentView, GameCommandType.MOVE_TABLE_CARD)).toBe(
+      true
+    );
+    expect(
+      hasEnabledCommand(performanceRevealOpponentView, GameCommandType.PLAY_MEMBER_TO_SLOT)
+    ).toBe(true);
+
+    state.currentPhase = GamePhase.LIVE_RESULT_PHASE;
+    state.currentSubPhase = SubPhase.RESULT_SCORE_CONFIRM;
+    const liveResultOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(liveResultOpponentView, GameCommandType.MOVE_TABLE_CARD)).toBe(true);
+    expect(hasEnabledCommand(liveResultOpponentView, GameCommandType.MOVE_OWNED_CARD_TO_ZONE)).toBe(
+      true
+    );
+  });
+
   it('成功效果窗口应暴露自由拖拽所需的桌面操作权限', () => {
     const { state } = createProjectedState();
 

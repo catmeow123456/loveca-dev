@@ -12,6 +12,8 @@
 import { GameService, type DeckConfig, type GameOperationResult } from './game-service.js';
 import {
   isCrossTurnTapMemberWindow,
+  isOwnDeskFreeDragCommand,
+  isOwnDeskFreeDragWindow,
   isResultSuccessEffectSubPhase,
   isPerformanceFreeInteractionSubPhase,
 } from './command-availability.js';
@@ -1023,6 +1025,9 @@ export class GameSession {
         if (!isCardInOwnedZone(state, command.playerId, command.fromZone, command.cardId)) {
           return '卡牌当前不在声明的己方区域';
         }
+        if (command.fromZone === ZoneType.HAND && command.toZone === ZoneType.LIVE_ZONE) {
+          return '手牌放入 Live 区必须使用 Live 放置命令';
+        }
         if (command.toZone === ZoneType.MEMBER_SLOT && !command.targetSlot) {
           return '成员区目标移动必须声明目标槽位';
         }
@@ -1105,6 +1110,10 @@ export class GameSession {
     const isPerformanceFreeInteraction = isPerformanceFreeInteractionSubPhase(
       state.currentSubPhase
     );
+    const isOwnDeskFreeDragWindowOpen = isOwnDeskFreeDragWindow(
+      state.currentPhase,
+      state.currentSubPhase
+    );
 
     switch (command.type) {
       case GameCommandType.MULLIGAN:
@@ -1112,7 +1121,7 @@ export class GameSession {
       case GameCommandType.SET_LIVE_CARD:
         return state.currentPhase === GamePhase.LIVE_SET_PHASE ? null : '当前不是 Live 设置阶段';
       case GameCommandType.TAP_ENERGY:
-        return null;
+        return isOwnDeskFreeDragWindowOpen ? null : '当前不是可自由整理阶段';
       case GameCommandType.OPEN_INSPECTION:
         return state.currentPhase === GamePhase.MAIN_PHASE ||
           isSuccessEffectWindow ||
@@ -1125,41 +1134,21 @@ export class GameSession {
       case GameCommandType.PLAY_MEMBER_TO_SLOT:
       case GameCommandType.DRAW_CARD_TO_HAND:
       case GameCommandType.RETURN_HAND_CARD_TO_TOP:
-        return state.currentPhase === GamePhase.MAIN_PHASE ||
-          isSuccessEffectWindow ||
-          isPerformanceFreeInteraction
-          ? null
-          : '当前不是主要阶段';
+        return isOwnDeskFreeDragWindowOpen ? null : '当前不是主要阶段';
       case GameCommandType.MOVE_TABLE_CARD:
       case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
-        return this.isLiveDeskMoveStageExempt(state, command) ||
-          state.currentPhase === GamePhase.MAIN_PHASE ||
-          isSuccessEffectWindow ||
-          isPerformanceFreeInteraction
+        return this.isLiveDeskMoveStageExempt(state, command) || isOwnDeskFreeDragWindowOpen
           ? null
           : '当前不是主要阶段';
       case GameCommandType.DRAW_ENERGY_TO_ZONE:
-        return state.currentPhase === GamePhase.MAIN_PHASE ||
-          isSuccessEffectWindow ||
-          isPerformanceFreeInteraction ||
-          state.currentPhase === GamePhase.LIVE_SET_PHASE
-          ? null
-          : '当前不是可放置能量阶段';
+        return isOwnDeskFreeDragWindowOpen ? null : '当前不是可放置能量阶段';
       case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
       case GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK:
-        return this.isLiveDeskMoveStageExempt(state, command) ||
-          state.currentPhase === GamePhase.MAIN_PHASE ||
-          isSuccessEffectWindow ||
-          isPerformanceFreeInteraction ||
-          state.currentPhase === GamePhase.LIVE_SET_PHASE
+        return this.isLiveDeskMoveStageExempt(state, command) || isOwnDeskFreeDragWindowOpen
           ? null
           : '当前不是可回手阶段';
       case GameCommandType.MOVE_OWNED_CARD_TO_ZONE:
-        return this.isLiveDeskMoveStageExempt(state, command) ||
-          state.currentPhase === GamePhase.MAIN_PHASE ||
-          isSuccessEffectWindow ||
-          isPerformanceFreeInteraction ||
-          state.currentPhase === GamePhase.LIVE_SET_PHASE
+        return this.isLiveDeskMoveStageExempt(state, command) || isOwnDeskFreeDragWindowOpen
           ? null
           : '当前不是可拖拽阶段';
       case GameCommandType.REVEAL_CHEER_CARD:
@@ -1206,8 +1195,6 @@ export class GameSession {
           command.toZone === ZoneType.LIVE_ZONE ||
           command.toZone === ZoneType.SUCCESS_ZONE
         );
-      case GameCommandType.MOVE_OWNED_CARD_TO_ZONE:
-        return command.fromZone === ZoneType.HAND && command.toZone === ZoneType.LIVE_ZONE;
       case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
       case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
         return command.fromZone === ZoneType.LIVE_ZONE;
@@ -1247,6 +1234,13 @@ export class GameSession {
     if (
       command.type === GameCommandType.TAP_MEMBER &&
       isCrossTurnTapMemberWindow(state.currentPhase, state.currentSubPhase)
+    ) {
+      return null;
+    }
+
+    if (
+      isOwnDeskFreeDragCommand(command.type) &&
+      isOwnDeskFreeDragWindow(state.currentPhase, state.currentSubPhase)
     ) {
       return null;
     }
@@ -2006,6 +2000,7 @@ export class GameSession {
           targetSlot: command.targetSlot,
           sourceSlot: command.sourceSlot,
           position: command.position,
+          liveDeskMoveExempt: this.isLiveDeskMoveStageExempt(state, command),
         }
       )
     );
@@ -2300,6 +2295,7 @@ export class GameSession {
         ZoneType.WAITING_ROOM,
         {
           sourceSlot: command.sourceSlot,
+          liveDeskMoveExempt: this.isLiveDeskMoveStageExempt(state, command),
         }
       )
     );
@@ -2346,6 +2342,7 @@ export class GameSession {
         ZoneType.HAND,
         {
           sourceSlot: command.sourceSlot,
+          liveDeskMoveExempt: this.isLiveDeskMoveStageExempt(state, command),
         }
       )
     );
@@ -2392,6 +2389,7 @@ export class GameSession {
         ZoneType.ENERGY_DECK,
         {
           position: 'TOP',
+          liveDeskMoveExempt: this.isLiveDeskMoveStageExempt(state, command),
         }
       )
     );
@@ -2440,6 +2438,7 @@ export class GameSession {
         {
           targetSlot: command.targetSlot,
           position: command.position,
+          liveDeskMoveExempt: this.isLiveDeskMoveStageExempt(state, command),
         }
       )
     );

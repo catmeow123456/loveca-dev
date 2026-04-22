@@ -16,7 +16,8 @@ import type {
   MemberCardData,
 } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
-import type { DeckConfig } from '../../src/application/game-service';
+import { GameService, type DeckConfig } from '../../src/application/game-service';
+import { createManualMoveCardAction } from '../../src/application/actions';
 import {
   createAttachEnergyToMemberCommand,
   createConfirmPerformanceOutcomeCommand,
@@ -1472,6 +1473,98 @@ describe('GameSession command pipeline', () => {
     );
   });
 
+  it('主阶段和 Live 大阶段允许非当前回合玩家整理自己的桌面', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-cross-turn-free-drag', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session, 0);
+
+    const player2 = session.state!.players[1];
+    const memberCardIds = player2.hand.cardIds.filter(
+      (cardId) => session.state!.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    expect(memberCardIds.length).toBeGreaterThanOrEqual(2);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER2, memberCardIds[0], SlotPosition.LEFT)
+    );
+    expect(playResult.success).toBe(true);
+    expect(session.state?.players[1].memberSlots.slots[SlotPosition.LEFT]).toBe(memberCardIds[0]);
+
+    const moveToWaitingResult = session.executeCommand(
+      createMoveOwnedCardToZoneCommand(
+        PLAYER2,
+        memberCardIds[1],
+        ZoneType.HAND,
+        ZoneType.WAITING_ROOM
+      )
+    );
+    expect(moveToWaitingResult.success).toBe(true);
+    expect(session.state?.players[1].waitingRoom.cardIds).toContain(memberCardIds[1]);
+
+    const mutableState = session.state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+    mutableState.currentPhase = GamePhase.LIVE_RESULT_PHASE;
+    mutableState.currentSubPhase = SubPhase.RESULT_SCORE_CONFIRM;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+
+    const returnResult = session.executeCommand(
+      createMovePublicCardToHandCommand(PLAYER2, memberCardIds[1], ZoneType.WAITING_ROOM)
+    );
+    expect(returnResult.success).toBe(true);
+    expect(session.state?.players[1].hand.cardIds).toContain(memberCardIds[1]);
+  });
+
+  it('非自由整理窗口仍允许 Live 卡桌面豁免移动', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-live-desk-exempt-outside-window',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+    const player = state.players[0];
+    const liveCardId = [...state.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.LIVE
+    )?.instanceId;
+
+    expect(liveCardId).toBeTruthy();
+    player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== liveCardId);
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter((cardId) => cardId !== liveCardId);
+    player.liveZone.cardIds = [liveCardId!];
+    mutableState.currentPhase = GamePhase.DRAW_PHASE;
+    mutableState.currentSubPhase = SubPhase.NONE;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+
+    const result = session.executeCommand(
+      createMovePublicCardToHandCommand(PLAYER1, liveCardId!, ZoneType.LIVE_ZONE)
+    );
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].liveZone.cardIds).not.toContain(liveCardId);
+    expect(session.state?.players[0].hand.cardIds).toContain(liveCardId);
+  });
+
   it('成功 Live 选择命令会把 Live 卡移入成功区并产出公共移动事件', () => {
     const session = createGameSession();
     const deck = createTestDeck();
@@ -1950,7 +2043,7 @@ describe('GameSession command pipeline', () => {
     expect(result.error).toContain('当前不是主要阶段');
   });
 
-  it('主要阶段不允许把成员卡从手牌移动到 Live 区', () => {
+  it('普通移动命令不允许把手牌放入 Live 区', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
@@ -1974,7 +2067,118 @@ describe('GameSession command pipeline', () => {
     );
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('主要阶段不能把成员卡从手牌移动到LIVE区');
+    expect(result.error).toContain('手牌放入 Live 区必须使用 Live 放置命令');
+  });
+
+  it('Live 设置阶段手牌放入 Live 区必须走专用放置命令', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-live-set-hand-to-live-special-command',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+    const player = state.players[0] as (typeof state.players)[0] & {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+    };
+    const liveCardId = [...state.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.LIVE
+    )?.instanceId;
+
+    expect(liveCardId).toBeTruthy();
+
+    if (!player.hand.cardIds.includes(liveCardId!)) {
+      player.hand.cardIds = [liveCardId!, ...player.hand.cardIds];
+    }
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter((cardId) => cardId !== liveCardId);
+    mutableState.currentPhase = GamePhase.LIVE_SET_PHASE;
+    mutableState.currentSubPhase = SubPhase.LIVE_SET_FIRST_PLAYER;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+
+    const ordinaryMoveResult = session.executeCommand(
+      createMoveOwnedCardToZoneCommand(PLAYER1, liveCardId!, ZoneType.HAND, ZoneType.LIVE_ZONE)
+    );
+
+    expect(ordinaryMoveResult.success).toBe(false);
+    expect(ordinaryMoveResult.error).toContain('手牌放入 Live 区必须使用 Live 放置命令');
+    expect(session.state?.players[0].hand.cardIds).toContain(liveCardId);
+
+    const setLiveResult = session.executeCommand(
+      createSetLiveCardCommand(PLAYER1, liveCardId!, true)
+    );
+
+    expect(setLiveResult.success).toBe(true);
+    expect(session.state?.players[0].liveZone.cardIds).toContain(liveCardId);
+  });
+
+  it('非开放阶段拒绝普通桌面整理命令和底层手动移动动作', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-free-drag-closed-phase', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session, 0);
+
+    const energyCardId = session.state?.players[0].energyDeck.cardIds[0];
+    expect(energyCardId).toBeTruthy();
+    const drawEnergyResult = session.executeCommand(
+      createDrawEnergyToZoneCommand(PLAYER1, energyCardId!)
+    );
+    expect(drawEnergyResult.success).toBe(true);
+
+    const mutableState = session.state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+    mutableState.currentPhase = GamePhase.DRAW_PHASE;
+    mutableState.currentSubPhase = SubPhase.NONE;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+
+    const tapResult = session.executeCommand(createTapEnergyCommand(PLAYER1, energyCardId!));
+    expect(tapResult.success).toBe(false);
+    expect(tapResult.error).toContain('当前不是可自由整理阶段');
+
+    const handCardId = session.state?.players[0].hand.cardIds[0];
+    expect(handCardId).toBeTruthy();
+    const serviceResult = new GameService().processAction(
+      session.state!,
+      createManualMoveCardAction(PLAYER1, handCardId!, ZoneType.HAND, ZoneType.WAITING_ROOM)
+    );
+    expect(serviceResult.success).toBe(false);
+    expect(serviceResult.error).toContain('当前不是可自由整理阶段');
+
+    mutableState.currentPhase = GamePhase.LIVE_SET_PHASE;
+    mutableState.currentSubPhase = SubPhase.LIVE_SET_FIRST_DRAW;
+
+    const liveSetAutoDrawTapResult = session.executeCommand(
+      createTapEnergyCommand(PLAYER1, energyCardId!)
+    );
+    expect(liveSetAutoDrawTapResult.success).toBe(false);
+    expect(liveSetAutoDrawTapResult.error).toContain('当前不是可自由整理阶段');
+
+    const liveSetAutoDrawServiceResult = new GameService().processAction(
+      session.state!,
+      createManualMoveCardAction(PLAYER1, handCardId!, ZoneType.HAND, ZoneType.WAITING_ROOM)
+    );
+    expect(liveSetAutoDrawServiceResult.success).toBe(false);
+    expect(liveSetAutoDrawServiceResult.error).toContain('当前不是可自由整理阶段');
   });
 
   it('明置 Live 会产出 CardRevealedAndMoved，盖放 Live 仍只产出背面移动', () => {

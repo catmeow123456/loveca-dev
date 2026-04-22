@@ -1,7 +1,10 @@
 import { GameCommandType } from '../application/game-commands.js';
 import {
   MAIN_PHASE_MANUAL_COMMAND_TYPES,
+  OWN_DESK_FREE_DRAG_COMMAND_TYPES,
   isCrossTurnTapMemberWindow,
+  isOwnDeskFreeDragCommand,
+  isOwnDeskFreeDragWindow,
   PERFORMANCE_LIVE_START_COMMAND_TYPES,
   RESULT_SUCCESS_EFFECT_COMMAND_TYPES,
   PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES,
@@ -630,9 +633,17 @@ function buildPermissionViewState(
   viewerPlayerId: string,
   viewerSeat: Seat
 ): PermissionViewState {
-  const phaseHints = canViewerUsePhaseCommands(game, viewerPlayerId, viewerSeat)
-    ? buildPhaseCommandHints(game, viewerPlayerId, viewerSeat)
-    : [];
+  const availableActionTypes = inferAvailableActionTypes(game);
+  const canUsePhaseCommands = canViewerUsePhaseCommands(game, viewerPlayerId, viewerSeat);
+  const phaseHints = availableActionTypes
+    .filter(
+      (command) =>
+        canUsePhaseCommands ||
+        (isOwnDeskFreeDragWindow(game.currentPhase, game.currentSubPhase) &&
+          isOwnDeskFreeDragCommand(command))
+    )
+    .map((command) => buildPhaseCommandHint(command, game, viewerPlayerId, viewerSeat))
+    .filter((hint): hint is ViewCommandHint => hint !== null);
   const crossTurnHints = buildCrossTurnCommandHints(game, viewerPlayerId, viewerSeat);
   const combinedPhaseHints = mergeCommandHints(phaseHints, crossTurnHints);
 
@@ -726,9 +737,9 @@ function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] 
     case GamePhase.LIVE_SET_PHASE:
       return [
         GameCommandType.SET_LIVE_CARD,
-        GameCommandType.DRAW_ENERGY_TO_ZONE,
-        GameCommandType.MOVE_PUBLIC_CARD_TO_HAND,
-        GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK,
+        ...(isOwnDeskFreeDragWindow(game.currentPhase, game.currentSubPhase)
+          ? OWN_DESK_FREE_DRAG_COMMAND_TYPES
+          : []),
         GameCommandType.CONFIRM_STEP,
       ];
     case GamePhase.PERFORMANCE_PHASE:
@@ -738,34 +749,28 @@ function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] 
       if (game.currentSubPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS) {
         return PERFORMANCE_LIVE_START_COMMAND_TYPES;
       }
-      return [GameCommandType.CONFIRM_STEP];
+      return [...OWN_DESK_FREE_DRAG_COMMAND_TYPES, GameCommandType.CONFIRM_STEP];
     case GamePhase.LIVE_RESULT_PHASE:
       if (isResultSuccessEffectSubPhase(game.currentSubPhase)) {
         return RESULT_SUCCESS_EFFECT_COMMAND_TYPES;
       }
       if (game.currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM) {
-        return [GameCommandType.SUBMIT_SCORE];
+        return [...OWN_DESK_FREE_DRAG_COMMAND_TYPES, GameCommandType.SUBMIT_SCORE];
       }
       if (game.currentSubPhase === SubPhase.RESULT_ANIMATION) {
-        return [GameCommandType.CONFIRM_STEP];
+        return [...OWN_DESK_FREE_DRAG_COMMAND_TYPES, GameCommandType.CONFIRM_STEP];
       }
       if (game.currentSubPhase === SubPhase.RESULT_SETTLEMENT) {
-        return [GameCommandType.SELECT_SUCCESS_LIVE, GameCommandType.CONFIRM_STEP];
+        return [
+          ...OWN_DESK_FREE_DRAG_COMMAND_TYPES,
+          GameCommandType.SELECT_SUCCESS_LIVE,
+          GameCommandType.CONFIRM_STEP,
+        ];
       }
-      return [GameCommandType.CONFIRM_STEP];
+      return [...OWN_DESK_FREE_DRAG_COMMAND_TYPES, GameCommandType.CONFIRM_STEP];
     default:
       return [];
   }
-}
-
-function buildPhaseCommandHints(
-  game: GameState,
-  viewerPlayerId: string,
-  viewerSeat: Seat
-): readonly ViewCommandHint[] {
-  return inferAvailableActionTypes(game)
-    .map((command) => buildPhaseCommandHint(command, game, viewerPlayerId, viewerSeat))
-    .filter((hint): hint is ViewCommandHint => hint !== null);
 }
 
 function buildInspectionCommandHints(
