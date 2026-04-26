@@ -1,5 +1,8 @@
 import type { DeckConfig as RuntimeDeckConfig } from '../../application/game-service.js';
-import { DeckLoader, type DeckConfig as StoredDeckConfig } from '../../domain/card-data/deck-loader.js';
+import {
+  DeckLoader,
+  type DeckConfig as StoredDeckConfig,
+} from '../../domain/card-data/deck-loader.js';
 import type {
   OnlineRoomMemberPresence,
   OnlineRoomMemberRole,
@@ -32,9 +35,9 @@ interface OnlineRoomMemberState {
   lastSeenAt: number;
 }
 
-interface OnlineRoomTurnOrderProposalState extends OnlineTurnOrderProposalView {}
+type OnlineRoomTurnOrderProposalState = OnlineTurnOrderProposalView;
 
-interface OnlineRoomTurnOrderAgreementState extends OnlineTurnOrderAgreementView {}
+type OnlineRoomTurnOrderAgreementState = OnlineTurnOrderAgreementView;
 
 interface OnlineRoomState {
   readonly roomCode: string;
@@ -93,9 +96,9 @@ export class OnlineRoomService {
   }
 
   async createRoom(roomCodeInput: string, userId: string): Promise<OnlineRoomView> {
+    const roomCode = normalizeRoomCode(roomCodeInput);
     this.cleanupExpiredState();
 
-    const roomCode = normalizeRoomCode(roomCodeInput);
     const existing = this.rooms.get(roomCode);
     if (existing) {
       const member = findMember(existing, userId);
@@ -181,9 +184,22 @@ export class OnlineRoomService {
   }
 
   async getRoomView(roomCodeInput: string, userId: string): Promise<OnlineRoomView> {
+    const roomCode = normalizeRoomCode(roomCodeInput);
+    const activeInGameRoom = this.rooms.get(roomCode);
+    const activeInGameMember = activeInGameRoom ? findMember(activeInGameRoom, userId) : undefined;
+    if (
+      activeInGameRoom?.status === 'IN_GAME' &&
+      activeInGameMember &&
+      activeInGameRoom.matchId &&
+      this.matchService.getMatch(activeInGameRoom.matchId)
+    ) {
+      await this.reactivateMember(activeInGameRoom, activeInGameMember);
+      return this.buildRoomView(activeInGameRoom, activeInGameMember);
+    }
+
     this.cleanupExpiredState();
 
-    const room = this.getRoomState(roomCodeInput);
+    const room = this.getRoomState(roomCode);
     const member = findMember(room, userId);
     if (!member) {
       throw new OnlineRoomServiceError('ONLINE_ROOM_FORBIDDEN', '当前用户不在该房间中', 403);
@@ -347,6 +363,23 @@ export class OnlineRoomService {
     return {
       room: this.buildRoomView(room, room.members[0]),
     };
+  }
+
+  touchInGameMemberByMatch(matchId: string, userId: string): void {
+    const room = [...this.rooms.values()].find((candidate) => candidate.matchId === matchId) ?? null;
+    if (!room || room.status !== 'IN_GAME') {
+      return;
+    }
+
+    const member = findMember(room, userId);
+    if (!member) {
+      return;
+    }
+
+    const now = this.now();
+    member.presence = 'ACTIVE';
+    member.lastSeenAt = now;
+    touchRoom(room, now);
   }
 
   getRoomIfPresent(roomCodeInput: string): OnlineRoomView | null {
@@ -582,8 +615,10 @@ function shouldDestroyRoom(room: OnlineRoomState, now: number): boolean {
     (latest, member) => Math.max(latest, member.lastSeenAt),
     0
   );
-  return room.members.every((member) => member.presence === 'LEFT') &&
-    now - latestSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MS;
+  return (
+    room.members.every((member) => member.presence === 'LEFT') &&
+    now - latestSeenAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MS
+  );
 }
 
 function ensureBothDecksLocked(room: OnlineRoomState): void {

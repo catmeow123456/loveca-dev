@@ -1,14 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DeckConfig } from '../../src/application/game-service';
-import type {
-  EnergyCardData,
-  LiveCardData,
-  MemberCardData,
-} from '../../src/domain/entities/card';
-import {
-  createHeartIcon,
-  createHeartRequirement,
-} from '../../src/domain/entities/card';
+import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
+import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { HeartColor, CardType } from '../../src/shared/types/enums';
 import {
   OnlineRoomService,
@@ -103,7 +96,7 @@ describe('OnlineRoomService', () => {
     expect(started.matchId).toBeTruthy();
     expect(started.currentUserSeat).toBe('FIRST');
 
-    const snapshot = matchService.getMatchSnapshot(started.matchId!, 'u2');
+    const snapshot = await matchService.getMatchSnapshot(started.matchId!, 'u2');
     expect(snapshot?.seat).toBe('FIRST');
     expect(snapshot?.playerViewState.match.viewerSeat).toBe('FIRST');
   });
@@ -172,7 +165,7 @@ describe('OnlineRoomService', () => {
     const restored = await service.getRoomView('rest1', 'u2');
     expect(restored.status).toBe('IN_GAME');
     expect(restored.currentUserPresence).toBe('ACTIVE');
-    expect(matchService.getMatchSnapshot(started.matchId!, 'u2')?.seat).toBe('SECOND');
+    expect((await matchService.getMatchSnapshot(started.matchId!, 'u2'))?.seat).toBe('SECOND');
   });
 
   it('双方都关闭后准备阶段房间应在宽限期后释放', async () => {
@@ -225,6 +218,65 @@ describe('OnlineRoomService', () => {
 
     expect(service.getRoomIfPresent('gone1')).toBeNull();
     expect(matchService.getMatch(started.matchId!)).toBeNull();
+  });
+
+  it('对局请求刷新成员活跃时间后不应因房间轮询停滞销毁房间', async () => {
+    let now = 3_000_000;
+    const matchService = new OnlineMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (_userId, deckId) => ({
+        deckId,
+        deckName: deckId,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('live1', 'u1');
+    await service.joinRoom('live1', 'u2');
+    await service.lockDeck('live1', 'u1', 'deck-a');
+    await service.lockDeck('live1', 'u2', 'deck-b');
+    await service.proposeTurnOrder('live1', 'u1', 'HOST_FIRST');
+    const started = await service.respondTurnOrder('live1', 'u2', true);
+
+    now += 61_000;
+    await service.touchInGameMemberByMatch(started.matchId!, 'u1');
+
+    const room = service.getRoomIfPresent('live1');
+    expect(room?.status).toBe('IN_GAME');
+    expect(room?.members.find((member) => member.userId === 'u1')?.presence).toBe('ACTIVE');
+    expect(matchService.getMatch(started.matchId!)).not.toBeNull();
+  });
+
+  it('对局中断超过宽限期后成员房间轮询先恢复时不应销毁 match', async () => {
+    let now = 4_000_000;
+    const matchService = new OnlineMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (_userId, deckId) => ({
+        deckId,
+        deckName: deckId,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('race1', 'u1');
+    await service.joinRoom('race1', 'u2');
+    await service.lockDeck('race1', 'u1', 'deck-a');
+    await service.lockDeck('race1', 'u2', 'deck-b');
+    await service.proposeTurnOrder('race1', 'u1', 'HOST_FIRST');
+    const started = await service.respondTurnOrder('race1', 'u2', true);
+
+    now += 61_000;
+
+    const restored = await service.getRoomView('race1', 'u1');
+    expect(restored.status).toBe('IN_GAME');
+    expect(restored.currentUserPresence).toBe('ACTIVE');
+    expect(matchService.getMatch(started.matchId!)).not.toBeNull();
   });
 
   it('非成员创建已占用房间号时应返回冲突错误', async () => {

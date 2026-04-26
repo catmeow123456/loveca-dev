@@ -152,12 +152,17 @@ async function apiFetch<T>(
 
     const body = await safeResponseJson<T>(response);
 
-    // Auto-refresh on 401
-    if (response.status === 401 && accessToken) {
+    // Auto-refresh protected API requests on 401. This also covers tab restores where
+    // the in-memory access token was lost but the httpOnly refresh cookie still exists.
+    if (response.status === 401 && shouldAttemptTokenRefresh(path)) {
       const refreshed = await tryRefreshToken();
       if (refreshed) {
         // Retry with new token
-        headers['Authorization'] = `Bearer ${accessToken}`;
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        } else {
+          delete headers['Authorization'];
+        }
         const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
           ...options,
           headers,
@@ -200,8 +205,6 @@ async function tryRefreshToken(): Promise<boolean> {
 
   refreshPromise = (async () => {
     try {
-      if (!API_BASE_URL) return false;
-
       const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
         method: 'POST',
         credentials: 'include',
@@ -226,6 +229,10 @@ async function tryRefreshToken(): Promise<boolean> {
   })();
 
   return refreshPromise;
+}
+
+function shouldAttemptTokenRefresh(path: string): boolean {
+  return !path.startsWith('/api/auth/');
 }
 
 // ============================================
@@ -262,10 +269,6 @@ export const apiClient = {
     user: { id: string; email: string; emailVerified: boolean };
     profile: Profile;
   }>> {
-    if (!API_BASE_URL) {
-      return { data: null, error: { code: 'OFFLINE', message: 'API 未配置' } };
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
         method: 'POST',

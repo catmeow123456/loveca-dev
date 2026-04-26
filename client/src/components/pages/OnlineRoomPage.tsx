@@ -22,7 +22,6 @@ import {
   fetchOnlineRoom,
   joinOnlineRoom,
   leaveOnlineRoom,
-  leaveOnlineRoomOnUnload,
   lockOnlineRoomDeck,
   proposeTurnOrder,
   respondTurnOrder,
@@ -30,6 +29,7 @@ import {
 import type { OnlineRoomView } from '@game/online';
 
 const ROOM_POLL_INTERVAL_MS = 1200;
+const MATCH_POLL_INTERVAL_MS = 800;
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
 interface OnlineRoomPageProps {
@@ -43,6 +43,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const fetchCloudDecks = useDeckStore((s) => s.fetchCloudDecks);
 
   const connectRemoteSession = useGameStore((s) => s.connectRemoteSession);
+  const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
   const disconnectRemoteSession = useGameStore((s) => s.disconnectRemoteSession);
   const syncRemoteState = useGameStore((s) => s.syncRemoteState);
   const remoteSession = useGameStore((s) =>
@@ -118,6 +119,10 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
       return;
     }
 
+    if (remoteSession?.matchId === room.matchId) {
+      return;
+    }
+
     let cancelled = false;
     setIsBootstrappingMatch(true);
 
@@ -134,7 +139,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
           seat: snapshot.seat,
           playerId: snapshot.playerId,
         });
-        await syncRemoteState();
+        await applyRemoteSnapshot(snapshot);
         if (!cancelled) {
           setError(null);
         }
@@ -154,28 +159,58 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [connectRemoteSession, disconnectRemoteSession, remoteSession, room?.matchId, syncRemoteState]);
+  }, [
+    applyRemoteSnapshot,
+    connectRemoteSession,
+    disconnectRemoteSession,
+    remoteSession,
+    room?.matchId,
+  ]);
+
+  useEffect(() => {
+    if (room?.status !== 'IN_GAME' || !room.matchId || remoteSession?.matchId !== room.matchId) {
+      return;
+    }
+
+    let cancelled = false;
+    let polling = false;
+
+    const pollMatch = async () => {
+      if (polling) {
+        return;
+      }
+
+      polling = true;
+      try {
+        await syncRemoteState();
+        if (!cancelled) {
+          setError(null);
+        }
+      } catch (pollError) {
+        if (!cancelled) {
+          setError(pollError instanceof Error ? pollError.message : '同步联机对局失败');
+        }
+      } finally {
+        polling = false;
+      }
+    };
+
+    void pollMatch();
+    const timer = window.setInterval(() => {
+      void pollMatch();
+    }, MATCH_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [remoteSession?.matchId, room?.matchId, room?.status, syncRemoteState]);
 
   useEffect(() => {
     return () => {
       disconnectRemoteSession();
     };
   }, [disconnectRemoteSession]);
-
-  useEffect(() => {
-    if (!joinedRoomCode) {
-      return;
-    }
-
-    const handlePageHide = () => {
-      leaveOnlineRoomOnUnload(joinedRoomCode);
-    };
-
-    window.addEventListener('pagehide', handlePageHide);
-    return () => {
-      window.removeEventListener('pagehide', handlePageHide);
-    };
-  }, [joinedRoomCode]);
 
   const myMember = room?.members.find((member) => member.userId === room.currentUserId) ?? null;
   const opponentMember =

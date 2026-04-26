@@ -21,7 +21,6 @@ import {
 import {
   createPublicObjectId,
   type PlayerViewState,
-  type RemoteMatchSnapshot,
   type Seat,
   type ViewCommandHint,
   type ViewFrontCardInfo,
@@ -73,7 +72,7 @@ import {
   GameMode,
 } from '@game/shared/types/enums';
 import { getPhaseName } from '@game/shared/phase-config';
-import { resolveCardImagePath } from '@/lib/imageService';
+import { preloadImage, resolveCardImagePath } from '@/lib/imageService';
 import { type ParsedZoneId } from '@/lib/zoneUtils';
 import {
   advanceRemotePhase,
@@ -82,6 +81,8 @@ import {
   type RemoteSessionSource,
   type RemoteSnapshot,
 } from '@/lib/remoteMatchClient';
+
+const REMOTE_SNAPSHOT_PRELOAD_BUDGET_MS = 180;
 
 // ============================================
 // Store 类型定义
@@ -243,6 +244,8 @@ export interface GameStore {
   setGameMode: (mode: GameMode) => void;
   /** 接入远程联机会话 */
   connectRemoteSession: (session: RemoteSessionState) => void;
+  /** 将远程快照应用到当前联机会话 */
+  applyRemoteSnapshot: (snapshot: RemoteSnapshot) => Promise<void>;
   /** 断开远程联机会话 */
   disconnectRemoteSession: () => void;
   /** 主动拉取远程联机快照 */
@@ -439,7 +442,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   // 创建游戏会话，设置事件监听
   const gameSession = createGameSession({
     onEvent: (event: GameSessionEvent) => {
-      handleGameSessionEvent(event, get, set);
+      handleGameSessionEvent(event, get);
     },
   });
 
@@ -516,7 +519,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     // ============ 动作实现 ============
 
-    loadCardData: (cards, _imageMap) => {
+    loadCardData: (cards) => {
       const registry = new Map<string, AnyCardData>();
       for (const card of cards) {
         registry.set(card.cardCode, card);
@@ -803,6 +806,15 @@ export const useGameStore = create<GameStore>((set, get) => {
       });
     },
 
+    applyRemoteSnapshot: async (snapshot) => {
+      await preloadRemoteSnapshotFrontTransitions(
+        get().playerViewState,
+        snapshot.playerViewState,
+        get().cardDataRegistry
+      );
+      applyRemoteSnapshot(snapshot, set);
+    },
+
     disconnectRemoteSession: () => {
       set({
         remoteSession: null,
@@ -821,6 +833,11 @@ export const useGameStore = create<GameStore>((set, get) => {
         remoteSession.source,
         remoteSession.matchId,
         remoteSession.seat
+      );
+      await preloadRemoteSnapshotFrontTransitions(
+        get().playerViewState,
+        snapshot.playerViewState,
+        get().cardDataRegistry
       );
       applyRemoteSnapshot(snapshot, set);
     },
@@ -1377,8 +1394,7 @@ export const useGameStore = create<GameStore>((set, get) => {
  */
 function handleGameSessionEvent(
   event: GameSessionEvent,
-  get: () => GameStore,
-  set: (partial: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void
+  get: () => GameStore
 ): void {
   switch (event.type) {
     case 'PHASE_CHANGED':
@@ -1517,21 +1533,91 @@ function applyRemoteSnapshot(
   set: (partial: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void
 ): void {
   const normalizedPlayerViewState = normalizePlayerViewState(snapshot.playerViewState);
-  set((state) => ({
-    remoteSession: state.remoteSession
-      ? {
-          ...state.remoteSession,
-          playerId: snapshot.playerId,
-          seat: snapshot.seat,
-        }
-      : state.remoteSession,
-    viewingPlayerId: snapshot.playerId,
-    playerViewState: normalizedPlayerViewState,
-    ui: {
-      ...state.ui,
-      hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
-    },
-  }));
+  set((state) => {
+    if (
+      state.playerViewState?.match.seq === normalizedPlayerViewState?.match.seq &&
+      state.viewingPlayerId === snapshot.playerId &&
+      state.remoteSession?.playerId === snapshot.playerId &&
+      state.remoteSession?.seat === snapshot.seat
+    ) {
+      return state;
+    }
+
+    return {
+      remoteSession: state.remoteSession
+        ? state.remoteSession.playerId === snapshot.playerId &&
+          state.remoteSession.seat === snapshot.seat
+          ? state.remoteSession
+          : {
+              ...state.remoteSession,
+              playerId: snapshot.playerId,
+              seat: snapshot.seat,
+            }
+        : state.remoteSession,
+      viewingPlayerId: snapshot.playerId,
+      playerViewState: normalizedPlayerViewState,
+      ui: {
+        ...state.ui,
+        hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
+      },
+    };
+  });
+}
+
+async function preloadRemoteSnapshotFrontTransitions(
+  previousViewState: PlayerViewState | null,
+  nextViewState: PlayerViewState | null,
+  cardDataRegistry: ReadonlyMap<string, AnyCardData>
+): Promise<void> {
+  if (!previousViewState || !nextViewState) {
+    return;
+  }
+
+  const imageUrls = new Set<string>();
+  for (const [objectId, nextObject] of Object.entries(nextViewState.objects)) {
+    if (nextObject.surface !== 'FRONT' || !nextObject.frontInfo) {
+      continue;
+    }
+
+    const previousObject = previousViewState.objects[objectId];
+    if (
+      previousObject?.surface === 'FRONT' &&
+      previousObject.frontInfo?.cardCode === nextObject.frontInfo.cardCode
+    ) {
+      continue;
+    }
+
+    const cardData =
+      cardDataRegistry.get(nextObject.frontInfo.cardCode) ?? buildFallbackCardData(nextObject.frontInfo);
+    imageUrls.add(resolveCardImagePath(cardData, 'medium'));
+  }
+
+  await preloadImagesWithinBudget([...imageUrls]);
+}
+
+async function preloadImagesWithinBudget(imageUrls: string[]): Promise<void> {
+  if (imageUrls.length === 0) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      resolve();
+    };
+
+    timeoutId = setTimeout(finish, REMOTE_SNAPSHOT_PRELOAD_BUDGET_MS);
+    void Promise.all(imageUrls.map((url) => preloadImage(url))).then(finish);
+  });
 }
 
 function normalizePlayerViewState(playerViewState: PlayerViewState | null): PlayerViewState | null {
@@ -1565,7 +1651,7 @@ function dispatchRemoteCommand(
     command,
     remoteSession.seat
   )
-    .then((result) => {
+    .then(async (result) => {
       if (!result.success || !result.snapshot) {
         useGameStore
           .getState()
@@ -1573,6 +1659,11 @@ function dispatchRemoteCommand(
         return;
       }
 
+      await preloadRemoteSnapshotFrontTransitions(
+        useGameStore.getState().playerViewState,
+        result.snapshot.playerViewState,
+        useGameStore.getState().cardDataRegistry
+      );
       applyRemoteSnapshot(result.snapshot, useGameStore.setState);
       onSuccess?.();
     })
@@ -1596,7 +1687,7 @@ function dispatchRemoteAdvancePhase(): boolean {
   }
 
   void advanceRemotePhase(remoteSession.source, remoteSession.matchId, remoteSession.seat)
-    .then((result) => {
+    .then(async (result) => {
       if (!result.success || !result.snapshot) {
         useGameStore
           .getState()
@@ -1604,6 +1695,11 @@ function dispatchRemoteAdvancePhase(): boolean {
         return;
       }
 
+      await preloadRemoteSnapshotFrontTransitions(
+        useGameStore.getState().playerViewState,
+        result.snapshot.playerViewState,
+        useGameStore.getState().cardDataRegistry
+      );
       applyRemoteSnapshot(result.snapshot, useGameStore.setState);
       const currentPhase = result.snapshot.playerViewState.match.phase as GamePhase | undefined;
       if (currentPhase) {
