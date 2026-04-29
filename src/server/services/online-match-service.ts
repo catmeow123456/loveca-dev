@@ -3,6 +3,7 @@ import { createGameSession, type GameSession } from '../../application/game-sess
 import type { GameCommand } from '../../application/game-commands.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import type {
+  OnlineAdminMatchSummary,
   OnlineCommandResult,
   OnlineMatchSnapshot,
   Seat,
@@ -99,6 +100,31 @@ export class OnlineMatchService {
     return this.matches.get(matchId) ?? null;
   }
 
+  getAdminMatchSummary(matchId: string, now = Date.now()): OnlineAdminMatchSummary | null {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+
+    const firstPlayerView = match.session.getPlayerViewState(match.participants.FIRST.playerId);
+    if (!firstPlayerView) {
+      return null;
+    }
+
+    return {
+      matchId: match.matchId,
+      startedAt: match.startedAt,
+      durationMs: Math.max(0, now - match.startedAt),
+      updatedAt: match.updatedAt,
+      lastActivityAt: match.lastActivityAt,
+      seq: match.session.getCurrentPublicEventSeq(),
+      turnCount: firstPlayerView.match.turnCount,
+      phase: firstPlayerView.match.phase,
+      subPhase: firstPlayerView.match.subPhase,
+      activeSeat: firstPlayerView.match.activeSeat,
+    };
+  }
+
   getMatchSnapshot(matchId: string, userId: string): OnlineMatchSnapshot | null {
     const match = this.matches.get(matchId);
     if (!match) {
@@ -114,7 +140,11 @@ export class OnlineMatchService {
     return buildSnapshot(match, participant);
   }
 
-  executeCommand(matchId: string, userId: string, command: GameCommand): OnlineCommandResult | null {
+  executeCommand(
+    matchId: string,
+    userId: string,
+    command: GameCommand
+  ): OnlineCommandResult | null {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;

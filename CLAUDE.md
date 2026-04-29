@@ -75,7 +75,7 @@ src/
 
 ```
 client/src/
-├── components/       # React components (game/, card/, deck/)
+├── components/       # React components (game/, card/, deck/, admin/, pages/)
 ├── store/            # Zustand stores
 │   ├── gameStore.ts  # Game state + GameSession instance
 │   ├── deckStore.ts  # Deck management (local + cloud sync via API)

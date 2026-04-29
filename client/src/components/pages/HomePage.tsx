@@ -10,6 +10,7 @@ import {
   Globe,
   Layers3,
   LogOut,
+  MonitorCog,
   Settings,
   Users,
   Wifi,
@@ -26,6 +27,7 @@ interface HomePageProps {
   onNavigateToOnlineRoom: () => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToCardAdmin: () => void;
+  onNavigateToOnlineAdmin: () => void;
 }
 
 export function HomePage({
@@ -34,20 +36,37 @@ export function HomePage({
   onNavigateToOnlineRoom,
   onNavigateToOnlineDebug,
   onNavigateToCardAdmin,
+  onNavigateToOnlineAdmin,
 }: HomePageProps) {
   const { profile, offlineMode, offlineUser, signOut } = useAuthStore();
   const hasOnlineDebugEntry = Boolean(import.meta.env.VITE_DEBUG_SEAT);
-  
+  const isAdmin = profile?.role === 'admin';
+
   // 获取显示的用户名
-  const displayUsername = offlineMode 
-    ? offlineUser?.displayName || 'Guest' 
+  const displayUsername = offlineMode
+    ? offlineUser?.displayName || 'Guest'
     : profile?.display_name || profile?.username || 'User';
 
   const connectionStatus = offlineMode
-    ? { icon: WifiOff, label: '离线模式', detail: '数据仅保存在本地', tone: 'text-[var(--semantic-warning)]' }
+    ? {
+        icon: WifiOff,
+        label: '离线模式',
+        detail: '数据仅保存在本地',
+        tone: 'text-[var(--semantic-warning)]',
+      }
     : isApiConfigured
-      ? { icon: Globe, label: '云端已连接', detail: '卡组会自动同步', tone: 'text-[var(--semantic-success)]' }
-      : { icon: Zap, label: '本地模式', detail: '未连接 API 服务', tone: 'text-[var(--text-secondary)]' };
+      ? {
+          icon: Globe,
+          label: '云端已连接',
+          detail: '卡组会自动同步',
+          tone: 'text-[var(--semantic-success)]',
+        }
+      : {
+          icon: Zap,
+          label: '本地模式',
+          detail: '未连接 API 服务',
+          tone: 'text-[var(--text-secondary)]',
+        };
 
   const actions = [
     {
@@ -111,7 +130,9 @@ export function HomePage({
           <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-3">
             <div className="status-pill min-w-0 max-w-[108px] px-2.5 py-1.5 sm:max-w-none sm:px-4 sm:py-2">
               <connectionStatus.icon size={14} className={connectionStatus.tone} />
-              <span className="truncate text-sm font-medium text-[var(--text-primary)] sm:text-base">{displayUsername}</span>
+              <span className="truncate text-sm font-medium text-[var(--text-primary)] sm:text-base">
+                {displayUsername}
+              </span>
             </div>
             <ThemeToggle />
             <button
@@ -134,9 +155,9 @@ export function HomePage({
             transition={{ duration: 0.5 }}
             className="mb-8 text-center sm:mb-12"
           >
-            <img 
-              src="/icon.jpg" 
-              alt="Loveca Logo" 
+            <img
+              src="/icon.jpg"
+              alt="Loveca Logo"
               className="mx-auto mb-4 h-20 w-20 rounded-[24px] border border-[var(--border-default)] object-cover shadow-[var(--shadow-lg)] sm:mb-5 sm:h-24 sm:w-24 sm:rounded-[28px]"
             />
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[color:var(--bg-overlay)] px-4 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
@@ -151,7 +172,9 @@ export function HomePage({
             </div>
           </motion.div>
 
-          <div className={`grid gap-4 md:gap-6 ${actions.length > 2 ? 'lg:grid-cols-3' : 'md:grid-cols-2'}`}>
+          <div
+            className={`grid gap-4 md:gap-6 ${actions.length > 2 ? 'lg:grid-cols-3' : 'md:grid-cols-2'}`}
+          >
             {actions.map((action, index) => (
               <motion.button
                 key={action.title}
@@ -163,17 +186,26 @@ export function HomePage({
                 onClick={action.onClick}
                 className="surface-panel-frosted group relative overflow-hidden p-5 text-left sm:p-8"
               >
-                <div className="absolute inset-y-0 left-0 w-1.5" style={{ background: action.accent }} />
+                <div
+                  className="absolute inset-y-0 left-0 w-1.5"
+                  style={{ background: action.accent }}
+                />
                 <div className="flex items-start gap-3 sm:gap-4">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-primary)] shadow-[var(--shadow-sm)] sm:h-14 sm:w-14">
                     <action.icon size={26} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="mb-2 text-xl font-bold text-[var(--text-primary)] sm:text-2xl">{action.title}</h3>
-                    <p className="mb-5 text-sm leading-relaxed text-[var(--text-secondary)] sm:mb-6 sm:text-base">{action.description}</p>
+                    <h3 className="mb-2 text-xl font-bold text-[var(--text-primary)] sm:text-2xl">
+                      {action.title}
+                    </h3>
+                    <p className="mb-5 text-sm leading-relaxed text-[var(--text-secondary)] sm:mb-6 sm:text-base">
+                      {action.description}
+                    </p>
                     <div className="flex items-center gap-2 font-medium text-[var(--accent-primary)]">
                       <span>{action.cta}</span>
-                      <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+                      <span className="transition-transform duration-300 group-hover:translate-x-1">
+                        →
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -189,12 +221,12 @@ export function HomePage({
             ))}
           </div>
 
-          {!offlineMode && (
+          {isAdmin && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
-              className="mt-6"
+              className="mt-6 grid gap-4 lg:grid-cols-2"
             >
               <motion.button
                 whileHover={{ y: -3, scale: 1.01 }}
@@ -215,7 +247,34 @@ export function HomePage({
                 </div>
                 <div className="flex items-center gap-2 font-medium text-[var(--accent-secondary)]">
                   <span>管理</span>
-                  <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+                  <span className="transition-transform duration-300 group-hover:translate-x-1">
+                    →
+                  </span>
+                </div>
+              </motion.button>
+
+              <motion.button
+                whileHover={{ y: -3, scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onNavigateToOnlineAdmin}
+                className="surface-panel-frosted group flex w-full flex-col items-start gap-4 p-5 text-left sm:flex-row sm:items-center sm:p-6"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--semantic-info)] shadow-[var(--shadow-sm)] sm:h-14 sm:w-14">
+                  <MonitorCog size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="mb-1 text-xl font-bold text-[var(--text-primary)]">
+                    联机房间监控
+                  </h3>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    查看活跃房间、玩家在线状态和进行中对局。
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 font-medium text-[var(--semantic-info)]">
+                  <span>监控</span>
+                  <span className="transition-transform duration-300 group-hover:translate-x-1">
+                    →
+                  </span>
                 </div>
               </motion.button>
             </motion.div>
@@ -230,7 +289,9 @@ export function HomePage({
             <div className="status-pill px-6 py-3">
               <connectionStatus.icon size={16} className={connectionStatus.tone} />
               <div className="text-left">
-                <div className="text-sm font-medium text-[var(--text-primary)]">{connectionStatus.label}</div>
+                <div className="text-sm font-medium text-[var(--text-primary)]">
+                  {connectionStatus.label}
+                </div>
                 <div className="text-xs text-[var(--text-muted)]">{connectionStatus.detail}</div>
               </div>
             </div>
@@ -242,7 +303,17 @@ export function HomePage({
         <span>Loveca Card Game © 2026</span>
         <span>v{__APP_VERSION__}</span>
         <span>·</span>
-        <span>卡牌数据来源 <a href="https://github.com/wlt233/llocg_db" target="_blank" rel="noopener noreferrer" className="text-[var(--text-secondary)] underline underline-offset-2 transition-colors hover:text-[var(--accent-primary)]">llocg_db</a></span>
+        <span>
+          卡牌数据来源{' '}
+          <a
+            href="https://github.com/wlt233/llocg_db"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--text-secondary)] underline underline-offset-2 transition-colors hover:text-[var(--accent-primary)]"
+          >
+            llocg_db
+          </a>
+        </span>
       </footer>
     </div>
   );

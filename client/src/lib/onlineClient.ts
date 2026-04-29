@@ -1,5 +1,6 @@
 import { apiClient, getAccessToken, getApiBaseUrl } from '@/lib/apiClient';
 import type {
+  OnlineAdminRoomSummary,
   OnlineCommandResult,
   OnlineMatchSnapshot,
   OnlineRoomView,
@@ -36,7 +37,10 @@ export async function fetchOnlineRoom(roomCode: string): Promise<OnlineRoomView>
   return response.data;
 }
 
-export async function lockOnlineRoomDeck(roomCode: string, deckId: string): Promise<OnlineRoomView> {
+export async function lockOnlineRoomDeck(
+  roomCode: string,
+  deckId: string
+): Promise<OnlineRoomView> {
   const response = await apiClient.post<OnlineRoomView>(
     `/api/online/rooms/${encodeURIComponent(roomCode)}/deck`,
     { deckId }
@@ -75,9 +79,7 @@ export async function respondTurnOrder(
   return response.data;
 }
 
-export async function leaveOnlineRoom(
-  roomCode: string
-): Promise<{ room: OnlineRoomView | null }> {
+export async function leaveOnlineRoom(roomCode: string): Promise<{ room: OnlineRoomView | null }> {
   const response = await apiClient.post<{ room: OnlineRoomView | null }>(
     `/api/online/rooms/${encodeURIComponent(roomCode)}/leave`
   );
@@ -128,6 +130,14 @@ export async function executeOnlineMatchCommand(
     throw new Error(response.error?.message ?? '联机命令发送失败');
   }
   return fromTransport<OnlineCommandResult>(response.data);
+}
+
+export async function fetchOnlineAdminRooms(): Promise<readonly OnlineAdminRoomSummary[]> {
+  const response = await apiClient.get<OnlineAdminRoomSummary[]>('/api/online/admin/rooms');
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取联机房间监控数据失败');
+  }
+  return response.data;
 }
 
 export async function advanceOnlineMatchPhase(matchId: string): Promise<OnlineCommandResult> {

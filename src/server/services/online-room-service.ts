@@ -4,6 +4,7 @@ import {
   type DeckConfig as StoredDeckConfig,
 } from '../../domain/card-data/deck-loader.js';
 import type {
+  OnlineAdminRoomSummary,
   OnlineRoomMemberPresence,
   OnlineRoomMemberRole,
   OnlineRoomStatus,
@@ -366,7 +367,8 @@ export class OnlineRoomService {
   }
 
   touchInGameMemberByMatch(matchId: string, userId: string): void {
-    const room = [...this.rooms.values()].find((candidate) => candidate.matchId === matchId) ?? null;
+    const room =
+      [...this.rooms.values()].find((candidate) => candidate.matchId === matchId) ?? null;
     if (!room || room.status !== 'IN_GAME') {
       return;
     }
@@ -392,6 +394,19 @@ export class OnlineRoomService {
     }
 
     return this.buildRoomView(room, room.members[0]);
+  }
+
+  listAdminRoomSummaries(): readonly OnlineAdminRoomSummary[] {
+    this.cleanupExpiredState();
+
+    const now = this.now();
+    return [...this.rooms.values()]
+      .filter((room) => room.members.length > 0)
+      .sort(
+        (left, right) =>
+          right.updatedAt - left.updatedAt || left.roomCode.localeCompare(right.roomCode)
+      )
+      .map((room) => this.buildAdminRoomSummary(room, now));
   }
 
   clear(): void {
@@ -457,6 +472,38 @@ export class OnlineRoomService {
       turnOrderProposal: room.turnOrderProposal,
       turnOrderAgreement: room.turnOrderAgreement,
       matchId: room.matchId,
+      updatedAt: room.updatedAt,
+    };
+  }
+
+  private buildAdminRoomSummary(room: OnlineRoomState, now: number): OnlineAdminRoomSummary {
+    const members = [...room.members].sort((left, right) => {
+      const roleRank = left.role === right.role ? 0 : left.role === 'HOST' ? -1 : 1;
+      if (roleRank !== 0) {
+        return roleRank;
+      }
+      return left.userId.localeCompare(right.userId);
+    });
+
+    return {
+      roomCode: room.roomCode,
+      status: room.status,
+      ownerUserId: room.ownerUserId,
+      members: members.map((member) => ({
+        userId: member.userId,
+        displayName: member.displayName,
+        role: member.role,
+        presence: member.presence,
+        lockedDeckId: member.lockedDeckId,
+        lockedDeckName: member.lockedDeckName,
+        ready: member.resolvedDeckConfig !== null,
+        seat: getAssignedSeat(room, member.userId) ?? undefined,
+        lastSeenAt: member.lastSeenAt,
+      })),
+      turnOrderProposal: room.turnOrderProposal,
+      turnOrderAgreement: room.turnOrderAgreement,
+      matchId: room.matchId,
+      match: room.matchId ? this.matchService.getAdminMatchSummary(room.matchId, now) : null,
       updatedAt: room.updatedAt,
     };
   }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { fromTransport, toTransport } from '../../online/serde.js';
 import type { GameCommand } from '../../application/game-commands.js';
 import { requireAuth } from '../middleware/require-auth.js';
+import { requireAdmin } from '../middleware/require-admin.js';
 import { onlineMatchService } from '../services/online-match-service.js';
 import { OnlineRoomServiceError, onlineRoomService } from '../services/online-room-service.js';
 
@@ -22,6 +23,11 @@ const turnOrderProposalSchema = z.object({
 
 const turnOrderResponseSchema = z.object({
   accepted: z.boolean(),
+});
+
+onlineRouter.get('/admin/rooms', requireAuth, requireAdmin, (_req, res) => {
+  const rooms = onlineRoomService.listAdminRoomSummaries();
+  res.json({ data: rooms, total: rooms.length, error: null });
 });
 
 onlineRouter.post('/rooms', requireAuth, async (req, res) => {
@@ -137,7 +143,7 @@ onlineRouter.post('/rooms/:roomCode/leave', requireAuth, async (req, res) => {
   }
 });
 
-onlineRouter.get('/matches/:matchId/snapshot', requireAuth, async (req, res) => {
+onlineRouter.get('/matches/:matchId/snapshot', requireAuth, (req, res) => {
   try {
     const matchId = readPathParam(req.params.matchId);
     const match = onlineMatchService.getMatch(matchId);
@@ -152,14 +158,14 @@ onlineRouter.get('/matches/:matchId/snapshot', requireAuth, async (req, res) => 
       return;
     }
 
-    await onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({ data: toTransport(snapshot), error: null });
   } catch (error) {
     respondOnlineError(res, error);
   }
 });
 
-onlineRouter.post('/matches/:matchId/command', requireAuth, async (req, res) => {
+onlineRouter.post('/matches/:matchId/command', requireAuth, (req, res) => {
   try {
     const body = req.body as Partial<{ command: unknown }> | undefined;
     if (body?.command === undefined) {
@@ -183,7 +189,7 @@ onlineRouter.post('/matches/:matchId/command', requireAuth, async (req, res) => 
       return;
     }
 
-    await onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({
       data: toTransport(result),
       error: result.success
@@ -195,7 +201,7 @@ onlineRouter.post('/matches/:matchId/command', requireAuth, async (req, res) => 
   }
 });
 
-onlineRouter.post('/matches/:matchId/advance', requireAuth, async (req, res) => {
+onlineRouter.post('/matches/:matchId/advance', requireAuth, (req, res) => {
   try {
     const matchId = readPathParam(req.params.matchId);
     const match = onlineMatchService.getMatch(matchId);
@@ -210,7 +216,7 @@ onlineRouter.post('/matches/:matchId/advance', requireAuth, async (req, res) => 
       return;
     }
 
-    await onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({
       data: toTransport(result),
       error: result.success

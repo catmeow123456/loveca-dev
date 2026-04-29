@@ -123,12 +123,13 @@ describe('OnlineRoomService', () => {
   it('准备阶段房主离开后应把房主身份转移给剩余玩家', async () => {
     const service = new OnlineRoomService({
       matchService: new OnlineMatchService(),
-      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
-      loadOwnedDeck: async (_userId, deckId) => ({
-        deckId,
-        deckName: deckId,
-        runtimeDeck: createRuntimeDeck(deckId),
-      }),
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
+      loadOwnedDeck: (_userId, deckId) =>
+        Promise.resolve({
+          deckId,
+          deckName: deckId,
+          runtimeDeck: createRuntimeDeck(deckId),
+        }),
     });
 
     await service.createRoom('host2', 'u1');
@@ -296,5 +297,55 @@ describe('OnlineRoomService', () => {
       code: 'ONLINE_ROOM_EXISTS',
       statusCode: 409,
     });
+  });
+
+  it('管理员房间摘要应返回活跃房间与对局元数据且不暴露卡组内容', async () => {
+    let now = 5_000_000;
+    const matchService = new OnlineMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
+      loadOwnedDeck: (_userId, deckId) =>
+        Promise.resolve({
+          deckId,
+          deckName: deckId,
+          runtimeDeck: createRuntimeDeck(deckId),
+        }),
+    });
+
+    await service.createRoom('prep1', 'u1');
+    await service.joinRoom('prep1', 'u2');
+
+    await service.createRoom('ready1', 'u3');
+    await service.joinRoom('ready1', 'u4');
+    await service.lockDeck('ready1', 'u3', 'deck-c');
+    await service.lockDeck('ready1', 'u4', 'deck-d');
+    await service.proposeTurnOrder('ready1', 'u3', 'HOST_FIRST');
+
+    await service.createRoom('game1', 'u5');
+    await service.joinRoom('game1', 'u6');
+    await service.lockDeck('game1', 'u5', 'deck-e');
+    await service.lockDeck('game1', 'u6', 'deck-f');
+    await service.proposeTurnOrder('game1', 'u5', 'HOST_SECOND');
+    const started = await service.respondTurnOrder('game1', 'u6', true);
+
+    now += 12_000;
+
+    const summaries = service.listAdminRoomSummaries();
+    expect(summaries.map((room) => room.roomCode).sort()).toEqual(['GAME1', 'PREP1', 'READY1']);
+
+    const gameSummary = summaries.find((room) => room.roomCode === 'GAME1');
+    expect(gameSummary?.status).toBe('IN_GAME');
+    expect(gameSummary?.matchId).toBe(started.matchId);
+    expect(gameSummary?.match?.startedAt).toBe(5_000_000);
+    expect(gameSummary?.match?.durationMs).toBe(12_000);
+    expect(gameSummary?.members.map((member) => member.seat).sort()).toEqual(['FIRST', 'SECOND']);
+
+    const serialized = JSON.stringify(gameSummary);
+    expect(serialized).toContain('deck-e');
+    expect(serialized).not.toContain('mainDeck');
+    expect(serialized).not.toContain('energyDeck');
+    expect(serialized).not.toContain('resolvedDeckConfig');
   });
 });

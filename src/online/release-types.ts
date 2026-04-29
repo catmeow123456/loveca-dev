@@ -44,6 +44,43 @@ export interface OnlineRoomView {
   readonly updatedAt: number;
 }
 
-export interface OnlineMatchSnapshot extends RemoteMatchSnapshot {}
+export type OnlineMatchSnapshot = RemoteMatchSnapshot;
 
 export type OnlineCommandResult = RemoteCommandResult<OnlineMatchSnapshot>;
+
+export interface OnlineAdminRoomMemberSummary {
+  readonly userId: string;
+  readonly displayName: string;
+  readonly role: OnlineRoomMemberRole;
+  readonly presence: OnlineRoomMemberPresence;
+  readonly lockedDeckId: string | null;
+  readonly lockedDeckName: string | null;
+  readonly ready: boolean;
+  readonly seat?: Seat;
+  readonly lastSeenAt: number;
+}
+
+export interface OnlineAdminMatchSummary {
+  readonly matchId: string;
+  readonly startedAt: number;
+  readonly durationMs: number;
+  readonly updatedAt: number;
+  readonly lastActivityAt: number;
+  readonly seq: number;
+  readonly turnCount: number;
+  readonly phase: string;
+  readonly subPhase: string;
+  readonly activeSeat: Seat | null;
+}
+
+export interface OnlineAdminRoomSummary {
+  readonly roomCode: string;
+  readonly status: OnlineRoomStatus;
+  readonly ownerUserId: string;
+  readonly members: readonly OnlineAdminRoomMemberSummary[];
+  readonly turnOrderProposal: OnlineTurnOrderProposalView | null;
+  readonly turnOrderAgreement: OnlineTurnOrderAgreementView | null;
+  readonly matchId: string | null;
+  readonly match: OnlineAdminMatchSummary | null;
+  readonly updatedAt: number;
+}

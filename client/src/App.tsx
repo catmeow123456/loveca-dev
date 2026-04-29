@@ -6,8 +6,15 @@ import { useEffect, useState, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { GameBoard } from '@/components/game';
 import { DeckManager } from '@/components/deck/DeckManager';
-import { HomePage, GameSetupPage, OnlineDebugPage, OnlineRoomPage, SharedDeckPage } from '@/components/pages';
+import {
+  HomePage,
+  GameSetupPage,
+  OnlineDebugPage,
+  OnlineRoomPage,
+  SharedDeckPage,
+} from '@/components/pages';
 import { CardAdminPage } from '@/components/admin/CardAdminPage';
+import { OnlineRoomsAdminPage } from '@/components/admin/OnlineRoomsAdminPage';
 import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from '@/components/auth';
 import { isEmailEnabled } from '@/lib/apiClient';
 import { applyTheme, readTheme } from '@/lib/theme';
@@ -24,7 +31,8 @@ type AppPage =
   | 'online-room'
   | 'online-debug'
   | 'game'
-  | 'card-admin';
+  | 'card-admin'
+  | 'online-admin';
 
 function getInitialPage(): AppPage {
   const page = new URLSearchParams(window.location.search).get('page');
@@ -35,7 +43,8 @@ function getInitialPage(): AppPage {
     page === 'online-room' ||
     page === 'online-debug' ||
     page === 'game' ||
-    page === 'card-admin'
+    page === 'card-admin' ||
+    page === 'online-admin'
   ) {
     return page;
   }
@@ -50,12 +59,18 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [authPage, setAuthPage] = useState<AuthPage>('login');
   const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
-  
+
   // 防止 React 19 Strict Mode 下重复初始化
   const authInitRef = useRef(false);
-  
+
   // Auth state - 使用 useShallow 合并多个状态
-  const { user, profile, offlineMode, offlineUser, isInitialized: authInitialized } = useAuthStore(
+  const {
+    user,
+    profile,
+    offlineMode,
+    offlineUser,
+    isInitialized: authInitialized,
+  } = useAuthStore(
     useShallow((s) => ({
       user: s.user,
       profile: s.profile,
@@ -115,7 +130,7 @@ function App() {
   }, [authInitialized, loadCardData, initDeckStore]);
 
   // 计算实际显示的页面（游戏结束后自动回到首页）
-  const effectivePage: AppPage = (currentPage === 'game' && !matchView) ? 'home' : currentPage;
+  const effectivePage: AppPage = currentPage === 'game' && !matchView ? 'home' : currentPage;
 
   // 等待认证初始化
   if (!authInitialized) {
@@ -152,17 +167,16 @@ function App() {
             {errorLines.length > 1 ? (
               <ul className="space-y-2 text-left text-sm text-[var(--semantic-error)]">
                 {errorLines.map((line, index) => (
-                  <li key={index} className="break-all">• {line}</li>
+                  <li key={index} className="break-all">
+                    • {line}
+                  </li>
                 ))}
               </ul>
             ) : (
               <p className="text-sm text-[var(--semantic-error)]">{error}</p>
             )}
           </div>
-          <button 
-            onClick={() => window.location.reload()}
-            className="button-primary px-4 py-2"
-          >
+          <button onClick={() => window.location.reload()} className="button-primary px-4 py-2">
             重新加载
           </button>
         </div>
@@ -186,8 +200,12 @@ function App() {
     return (
       <SharedDeckPage
         shareId={shareId}
-        onBackHome={() => { window.location.href = '/'; }}
-        onRequestLogin={() => { window.location.href = `/decks/share/${encodeURIComponent(shareId)}?login=1`; }}
+        onBackHome={() => {
+          window.location.href = '/';
+        }}
+        onRequestLogin={() => {
+          window.location.href = `/decks/share/${encodeURIComponent(shareId)}?login=1`;
+        }}
       />
     );
   }
@@ -197,7 +215,13 @@ function App() {
       case 'register':
         return <RegisterPage onSwitchToLogin={() => setAuthPage('login')} />;
       case 'forgot-password':
-        if (!isEmailEnabled) return <LoginPage onSwitchToRegister={() => setAuthPage('register')} onSwitchToForgotPassword={() => setAuthPage('forgot-password')} />;
+        if (!isEmailEnabled)
+          return (
+            <LoginPage
+              onSwitchToRegister={() => setAuthPage('register')}
+              onSwitchToForgotPassword={() => setAuthPage('forgot-password')}
+            />
+          );
         return <ForgotPasswordPage onSwitchToLogin={() => setAuthPage('login')} />;
       default:
         return (
@@ -239,20 +263,17 @@ function App() {
   // 卡组管理页面
   if (effectivePage === 'deck-manager') {
     return (
-      <DeckManager
-        onBack={() => setCurrentPage('home')}
-        initialOpenDeckId={initialOpenDeckId}
-      />
+      <DeckManager onBack={() => setCurrentPage('home')} initialOpenDeckId={initialOpenDeckId} />
     );
   }
 
   // 卡牌管理页面
-  if (effectivePage === 'card-admin') {
-    return (
-      <CardAdminPage
-        onBack={() => setCurrentPage('home')}
-      />
-    );
+  if (effectivePage === 'card-admin' && profile?.role === 'admin') {
+    return <CardAdminPage onBack={() => setCurrentPage('home')} />;
+  }
+
+  if (effectivePage === 'online-admin' && profile?.role === 'admin') {
+    return <OnlineRoomsAdminPage onBack={() => setCurrentPage('home')} />;
   }
 
   // 主页
@@ -263,6 +284,7 @@ function App() {
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToCardAdmin={() => setCurrentPage('card-admin')}
+      onNavigateToOnlineAdmin={() => setCurrentPage('online-admin')}
     />
   );
 }
