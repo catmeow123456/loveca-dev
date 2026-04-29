@@ -11,7 +11,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { CardType, HeartColor, GamePhase, SlotPosition, SubPhase } from '../../src/shared/types/enums';
+import {
+  CardType,
+  HeartColor,
+  GamePhase,
+  SlotPosition,
+  SubPhase,
+} from '../../src/shared/types/enums';
 import type {
   MemberCardData,
   LiveCardData,
@@ -405,32 +411,40 @@ describe('模拟对局测试', () => {
 
     // 先攻玩家跳过/完成 Live 设置
     visualizer.printAction('Alice 完成 Live 设置');
-    result = service.processAction(state, createConfirmSubPhaseAction('alice', state.currentSubPhase));
+    result = service.processAction(
+      state,
+      createConfirmSubPhaseAction('alice', state.currentSubPhase)
+    );
     expect(result.success).toBe(true);
     state = result.gameState;
 
     // 后攻玩家跳过/完成 Live 设置
     visualizer.printAction('Bob 完成 Live 设置');
-    result = service.processAction(state, createConfirmSubPhaseAction('bob', state.currentSubPhase));
+    result = service.processAction(
+      state,
+      createConfirmSubPhaseAction('bob', state.currentSubPhase)
+    );
     expect(result.success).toBe(true);
     state = result.gameState;
 
-    // 推进到先攻演出阶段（双方完成设置后自动进入）
-    visualizer.printAction('【先攻演出阶段】');
-    expect(state.currentPhase).toBe(GamePhase.PERFORMANCE_PHASE);
-    visualizer.printSummary(state);
+    // 推进到演出/结果阶段（双方完成设置后自动进入）
+    // 若双方均未放置 Live 卡，演出阶段会被自动跳过，直接进入结果阶段
+    visualizer.printAction('【演出/结果阶段】');
+    if (state.currentPhase === GamePhase.PERFORMANCE_PHASE) {
+      visualizer.printSummary(state);
 
-    // 推进到后攻演出阶段
-    visualizer.printAction('【后攻演出阶段】');
-    result = service.advancePhase(state);
-    state = result.gameState;
-    expect(state.currentPhase).toBe(GamePhase.PERFORMANCE_PHASE);
-    visualizer.printSummary(state);
+      // 推进到后攻演出阶段
+      visualizer.printAction('【后攻演出阶段】');
+      result = service.advancePhase(state);
+      state = result.gameState;
+      expect(state.currentPhase).toBe(GamePhase.PERFORMANCE_PHASE);
+      visualizer.printSummary(state);
 
-    // 推进到 Live 胜败判定阶段
-    visualizer.printAction('【Live 胜败判定阶段】');
-    result = service.advancePhase(state);
-    state = result.gameState;
+      // 推进到 Live 胜败判定阶段
+      visualizer.printAction('【Live 胜败判定阶段】');
+      result = service.advancePhase(state);
+      state = result.gameState;
+    }
     expect(state.currentPhase).toBe(GamePhase.LIVE_RESULT_PHASE);
     visualizer.printSummary(state);
 

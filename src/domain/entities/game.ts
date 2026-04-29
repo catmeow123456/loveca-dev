@@ -13,7 +13,12 @@ import {
   EffectWindowType,
 } from '../../shared/types/enums.js';
 import { CardInstance } from './card.js';
-import { ResolutionZoneState, InspectionZoneState, createEmptyResolutionZone, createEmptyInspectionZone } from './zone.js';
+import {
+  ResolutionZoneState,
+  InspectionZoneState,
+  createEmptyResolutionZone,
+  createEmptyInspectionZone,
+} from './zone.js';
 import {
   PlayerState,
   createPlayerState,

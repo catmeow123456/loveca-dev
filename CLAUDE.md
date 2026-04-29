@@ -122,7 +122,7 @@ registerHandler(GameActionType.SET_LIVE_CARD, setLiveCardHandler);
 
 Based on official Love Live card game rules (see `detail_rules.md`):
 - **Win condition**: 3 successful Lives in success zone
-- **10 zones per player**: hand, mainDeck, energyDeck, memberSlots (LEFT/CENTER/RIGHT, each with optional energyBelow cards), energyZone, liveZone, successZone, waitingRoom, exileZone, resolutionZone
+- **10 zones per player**: hand, mainDeck, energyDeck, memberSlots (LEFT/CENTER/RIGHT, each with optional energyBelow and memberBelow cards), energyZone, liveZone, successZone, waitingRoom, exileZone, resolutionZone
 - **Card types**: MEMBER, LIVE, ENERGY
 - **Heart colors**: PINK, RED, YELLOW, GREEN, BLUE, PURPLE, RAINBOW (wild)
 

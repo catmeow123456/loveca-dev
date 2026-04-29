@@ -6,7 +6,12 @@
 
 import * as yaml from 'yaml';
 import { z } from 'zod/v4';
-import type { AnyCardData, MemberCardData, LiveCardData, EnergyCardData } from '../entities/card.js';
+import type {
+  AnyCardData,
+  MemberCardData,
+  LiveCardData,
+  EnergyCardData,
+} from '../entities/card.js';
 import { CardType } from '../../shared/types/enums.js';
 import { CardDataRegistry } from './loader.js';
 import { MAX_SAME_CODE_COUNT } from '../rules/deck-validator.js';

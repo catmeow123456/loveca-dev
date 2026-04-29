@@ -642,6 +642,23 @@ export const GameBoard = memo(function GameBoard() {
         return;
       }
 
+      // 休息室成员卡拖到成员槽位：由后端 handleManualMoveCard 检测特殊成员堆叠
+      if (
+        fromZone === ZoneType.WAITING_ROOM &&
+        toZone === ZoneType.MEMBER_SLOT &&
+        targetSlot &&
+        cardType === CardType.MEMBER
+      ) {
+        const result = moveTableCard(cardId, fromZone, toZone, {
+          targetSlot,
+          sourceSlot,
+        });
+        if (result.success) {
+          addLog(`休息室成员卡移动: ${fromZone} → ${toZone}`, 'action');
+        }
+        return;
+      }
+
       // 执行移动
       const result = moveTableCard(cardId, fromZone, toZone, {
         targetSlot,

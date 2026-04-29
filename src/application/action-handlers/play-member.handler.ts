@@ -17,7 +17,9 @@ import {
   placeCardInSlot,
   removeCardFromSlot,
   getCardInSlot,
+  addMemberBelowMember,
 } from '../../domain/entities/zone.js';
+import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 
 /**
  * 处理打出成员卡动作
@@ -59,6 +61,27 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
     if (!existingCard || !isMemberCardData(existingCard.data)) {
       return failure(game, '目标槽位上的卡牌不是成员卡');
     }
+
+    // 目标槽位已有特殊成员卡时，堆叠到该成员下方而非替换
+    if (isSpecialMemberCard(existingCard.data.cardCode)) {
+      let state = game;
+      state = updatePlayer(state, playerId, (p) => ({
+        ...p,
+        hand: removeCardFromZone(p.hand, cardId),
+        memberSlots: addMemberBelowMember(p.memberSlots, targetSlot, cardId),
+        movedToStageThisTurn: [...p.movedToStageThisTurn, cardId],
+      }));
+
+      state = addAction(state, 'PLAY_MEMBER', playerId, {
+        cardId,
+        targetSlot,
+        stackedBelow: existingCardId,
+        energyPayment: 'MANUAL',
+      });
+
+      return success(state);
+    }
+
     // 成员区已有成员时，本次登场按换手处理；不因该成员是否本回合新登场而被阻断。
     replacedCardId = existingCardId;
   }

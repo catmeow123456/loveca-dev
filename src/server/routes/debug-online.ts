@@ -25,8 +25,15 @@ debugOnlineRouter.get('/matches/:matchId', (req, res) => {
 debugOnlineRouter.post('/matches/:matchId/seat', (req, res) => {
   const body = fromTransport<Partial<DebugSeatDeckSelection> | undefined>(req.body);
   const seat = parseSeat(body?.seat);
-  if (!seat || !body?.deck || typeof body.playerName !== 'string' || typeof body.deckName !== 'string') {
-    res.status(400).json({ data: null, error: { code: 'INVALID_REQUEST', message: '调试卡组锁定参数非法' } });
+  if (
+    !seat ||
+    !body?.deck ||
+    typeof body.playerName !== 'string' ||
+    typeof body.deckName !== 'string'
+  ) {
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '调试卡组锁定参数非法' } });
     return;
   }
 
@@ -58,13 +65,17 @@ debugOnlineRouter.post('/matches/:matchId/reset', (req, res) => {
 debugOnlineRouter.get('/matches/:matchId/snapshot', (req, res) => {
   const seat = parseSeat(req.query.seat);
   if (!seat) {
-    res.status(400).json({ data: null, error: { code: 'INVALID_REQUEST', message: 'seat 参数非法' } });
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: 'seat 参数非法' } });
     return;
   }
 
   const snapshot = getDebugMatchSnapshot(req.params.matchId, seat);
   if (!snapshot) {
-    res.status(404).json({ data: null, error: { code: 'MATCH_NOT_READY', message: '调试对局尚未开始' } });
+    res
+      .status(404)
+      .json({ data: null, error: { code: 'MATCH_NOT_READY', message: '调试对局尚未开始' } });
     return;
   }
 
@@ -75,7 +86,9 @@ debugOnlineRouter.post('/matches/:matchId/command', (req, res) => {
   const body = req.body as Partial<{ seat: Seat; command: unknown }> | undefined;
   const seat = parseSeat(body?.seat);
   if (!seat || body?.command === undefined) {
-    res.status(400).json({ data: null, error: { code: 'INVALID_REQUEST', message: '命令参数非法' } });
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '命令参数非法' } });
     return;
   }
 
@@ -86,7 +99,9 @@ debugOnlineRouter.post('/matches/:matchId/command', (req, res) => {
   const result = executeDebugMatchCommand(req.params.matchId, seat, commandRequest.command);
   res.json({
     data: toTransport(result),
-    error: result.success ? null : { code: 'COMMAND_REJECTED', message: result.error ?? '命令执行失败' },
+    error: result.success
+      ? null
+      : { code: 'COMMAND_REJECTED', message: result.error ?? '命令执行失败' },
   });
 });
 
@@ -94,14 +109,18 @@ debugOnlineRouter.post('/matches/:matchId/advance', (req, res) => {
   const body = req.body as Partial<DebugAdvancePhaseRequest> | undefined;
   const seat = parseSeat(body?.seat);
   if (!seat) {
-    res.status(400).json({ data: null, error: { code: 'INVALID_REQUEST', message: '推进参数非法' } });
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '推进参数非法' } });
     return;
   }
 
   const result = advanceDebugMatchPhase(req.params.matchId, seat);
   res.json({
     data: toTransport(result),
-    error: result.success ? null : { code: 'ADVANCE_REJECTED', message: result.error ?? '阶段推进失败' },
+    error: result.success
+      ? null
+      : { code: 'ADVANCE_REJECTED', message: result.error ?? '阶段推进失败' },
   });
 });
 

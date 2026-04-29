@@ -41,7 +41,9 @@ export function getDebugMatchStatus(matchId: string): DebugMatchStatus {
   };
 }
 
-export function selectDebugSeatDeck(selection: DebugSeatDeckSelection & { matchId: string }): DebugMatchStatus {
+export function selectDebugSeatDeck(
+  selection: DebugSeatDeckSelection & { matchId: string }
+): DebugMatchStatus {
   const match = getOrCreateDebugMatch(selection.matchId);
   const seatState = match.seats[selection.seat];
 

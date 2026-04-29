@@ -1,9 +1,4 @@
-import {
-  CardType,
-  FaceState,
-  GameMode,
-  OrientationState,
-} from '../shared/types/enums.js';
+import { CardType, FaceState, GameMode, OrientationState } from '../shared/types/enums.js';
 import type { GameState } from '../domain/entities/game.js';
 
 export type Seat = 'FIRST' | 'SECOND';
@@ -64,6 +59,8 @@ export interface ViewZoneState {
   readonly objectIds?: readonly string[];
   readonly slotMap?: Readonly<Record<string, string | null>>;
   readonly overlays?: Readonly<Record<string, readonly string[]>>;
+  /** 每个槽位下方堆叠的成员卡 ID（特殊成员卡效果） */
+  readonly memberBelow?: Readonly<Record<string, readonly string[]>>;
 }
 
 export interface TableViewState {

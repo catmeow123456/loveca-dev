@@ -6,7 +6,12 @@
  *
  * @module domain/card-data/loader
  */
-import type { AnyCardData, MemberCardData, LiveCardData, EnergyCardData } from '../entities/card.js';
+import type {
+  AnyCardData,
+  MemberCardData,
+  LiveCardData,
+  EnergyCardData,
+} from '../entities/card.js';
 import { CardType } from '../../shared/types/enums.js';
 
 // ============================================

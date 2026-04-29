@@ -14,7 +14,14 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { CardType, HeartColor, GamePhase, TurnType, FaceState, SubPhase } from '../../src/shared/types/enums';
+import {
+  CardType,
+  HeartColor,
+  GamePhase,
+  TurnType,
+  FaceState,
+  SubPhase,
+} from '../../src/shared/types/enums';
 import type {
   MemberCardData,
   LiveCardData,
@@ -352,7 +359,9 @@ describe('Live 卡设置阶段测试', () => {
       expect(playerAfter.hand.cardIds.length).toBe(handCountBefore + 3);
       expect(playerAfter.waitingRoom.cardIds).toEqual([]);
       expect(playerAfter.mainDeck.cardIds.length).toBe(2);
-      expect(playerAfter.mainDeck.cardIds.every((cardId) => refreshCards.includes(cardId))).toBe(true);
+      expect(playerAfter.mainDeck.cardIds.every((cardId) => refreshCards.includes(cardId))).toBe(
+        true
+      );
     });
   });
 

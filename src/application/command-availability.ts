@@ -94,8 +94,7 @@ export function isOwnDeskFreeDragWindow(phase: GamePhase, subPhase: SubPhase): b
 
   if (phase === GamePhase.LIVE_SET_PHASE) {
     return (
-      subPhase === SubPhase.LIVE_SET_FIRST_PLAYER ||
-      subPhase === SubPhase.LIVE_SET_SECOND_PLAYER
+      subPhase === SubPhase.LIVE_SET_FIRST_PLAYER || subPhase === SubPhase.LIVE_SET_SECOND_PLAYER
     );
   }
 

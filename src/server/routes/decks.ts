@@ -133,50 +133,55 @@ decksRouter.get('/share/:shareId', async (req, res, next) => {
 // POST /api/decks/share/:shareId/fork
 // ============================================
 
-decksRouter.post('/share/:shareId/fork', requireAuth, validate(shareForkSchema), async (req, res, next) => {
-  try {
-    const { rows } = await pool.query(
-      'SELECT * FROM decks WHERE share_id = $1 AND share_enabled = true LIMIT 1',
-      [req.params.shareId]
-    );
+decksRouter.post(
+  '/share/:shareId/fork',
+  requireAuth,
+  validate(shareForkSchema),
+  async (req, res, next) => {
+    try {
+      const { rows } = await pool.query(
+        'SELECT * FROM decks WHERE share_id = $1 AND share_enabled = true LIMIT 1',
+        [req.params.shareId]
+      );
 
-    if (rows.length === 0) {
-      res.status(404).json({
-        data: null,
-        error: { code: 'NOT_FOUND', message: '分享卡组不存在或已关闭分享' },
-      });
-      return;
-    }
+      if (rows.length === 0) {
+        res.status(404).json({
+          data: null,
+          error: { code: 'NOT_FOUND', message: '分享卡组不存在或已关闭分享' },
+        });
+        return;
+      }
 
-    const sourceDeck = rows[0];
-    const name = req.body.name?.trim() || `${sourceDeck.name} - 副本`;
-    const description = req.body.description ?? sourceDeck.description ?? null;
+      const sourceDeck = rows[0];
+      const name = req.body.name?.trim() || `${sourceDeck.name} - 副本`;
+      const description = req.body.description ?? sourceDeck.description ?? null;
 
-    const { rows: created } = await pool.query(
-      `INSERT INTO decks (
+      const { rows: created } = await pool.query(
+        `INSERT INTO decks (
         user_id, name, description, main_deck, energy_deck, is_valid, validation_errors,
         is_public, share_enabled, forked_from_deck_id, forked_from_share_id, forked_at
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, false, false, $8, $9, now())
       RETURNING *`,
-      [
-        req.user!.id,
-        name,
-        description,
-        JSON.stringify(sourceDeck.main_deck),
-        JSON.stringify(sourceDeck.energy_deck),
-        sourceDeck.is_valid,
-        JSON.stringify(sourceDeck.validation_errors ?? []),
-        sourceDeck.id,
-        sourceDeck.share_id,
-      ]
-    );
+        [
+          req.user!.id,
+          name,
+          description,
+          JSON.stringify(sourceDeck.main_deck),
+          JSON.stringify(sourceDeck.energy_deck),
+          sourceDeck.is_valid,
+          JSON.stringify(sourceDeck.validation_errors ?? []),
+          sourceDeck.id,
+          sourceDeck.share_id,
+        ]
+      );
 
-    res.status(201).json({ data: created[0], error: null });
-  } catch (err) {
-    next(err);
+      res.status(201).json({ data: created[0], error: null });
+    } catch (err) {
+      next(err);
+    }
   }
-});
+);
 
 // ============================================
 // GET /api/decks/:id
@@ -196,7 +201,12 @@ decksRouter.get('/:id', requireAuth, async (req, res, next) => {
 
     const deck = rows[0];
     // Allow access if owner, admin, or public/shared deck
-    if (deck.user_id !== req.user!.id && req.user!.role !== 'admin' && !deck.is_public && !deck.share_enabled) {
+    if (
+      deck.user_id !== req.user!.id &&
+      req.user!.role !== 'admin' &&
+      !deck.is_public &&
+      !deck.share_enabled
+    ) {
       res.status(403).json({
         data: null,
         error: { code: 'FORBIDDEN', message: '无权访问此卡组' },
@@ -260,7 +270,9 @@ decksRouter.post('/', requireAuth, validate(createDeckSchema), async (req, res, 
 
 decksRouter.post('/:id/share', requireAuth, async (req, res, next) => {
   try {
-    const { rows: existing } = await pool.query('SELECT * FROM decks WHERE id = $1', [req.params.id]);
+    const { rows: existing } = await pool.query('SELECT * FROM decks WHERE id = $1', [
+      req.params.id,
+    ]);
 
     if (existing.length === 0) {
       res.status(404).json({
@@ -302,7 +314,9 @@ decksRouter.post('/:id/share', requireAuth, async (req, res, next) => {
 
 decksRouter.delete('/:id/share', requireAuth, async (req, res, next) => {
   try {
-    const { rows: existing } = await pool.query('SELECT * FROM decks WHERE id = $1', [req.params.id]);
+    const { rows: existing } = await pool.query('SELECT * FROM decks WHERE id = $1', [
+      req.params.id,
+    ]);
 
     if (existing.length === 0) {
       res.status(404).json({

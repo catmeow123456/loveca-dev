@@ -187,6 +187,11 @@ export interface MemberSlotZoneState {
    * 这些能量卡不持有方向状态（规则 4.5.5.2）
    */
   readonly energyBelow: Readonly<Record<SlotPosition, readonly string[]>>;
+  /**
+   * 每个槽位下方的成员卡列表（按叠放顺序，下方在前）
+   * 特殊成员卡效果：可在其下方堆叠成员卡
+   */
+  readonly memberBelow: Readonly<Record<SlotPosition, readonly string[]>>;
 }
 
 /**
@@ -323,6 +328,11 @@ export function createEmptyMemberSlotZone(playerId: string): MemberSlotZoneState
     },
     cardStates: new Map(),
     energyBelow: {
+      [SlotPosition.LEFT]: [],
+      [SlotPosition.CENTER]: [],
+      [SlotPosition.RIGHT]: [],
+    },
+    memberBelow: {
       [SlotPosition.LEFT]: [],
       [SlotPosition.CENTER]: [],
       [SlotPosition.RIGHT]: [],
@@ -598,6 +608,144 @@ export function getAllEnergyBelowIds(zone: MemberSlotZoneState): string[] {
   const result: string[] = [];
   for (const position of Object.values(SlotPosition)) {
     result.push(...(zone.energyBelow?.[position] ?? []));
+  }
+  return result;
+}
+
+// ============================================
+// 成员卡下方堆叠成员卡操作（特殊成员卡效果）
+// ============================================
+
+/**
+ * 向槽位下方添加成员卡（堆叠到特殊成员卡下方）
+ *
+ * @param zone 成员槽位区域
+ * @param position 目标槽位
+ * @param memberCardId 成员卡实例 ID
+ * @returns 更新后的区域状态
+ */
+export function addMemberBelowMember(
+  zone: MemberSlotZoneState,
+  position: SlotPosition,
+  memberCardId: string
+): MemberSlotZoneState {
+  return {
+    ...zone,
+    memberBelow: {
+      ...zone.memberBelow,
+      [position]: [...(zone.memberBelow?.[position] ?? []), memberCardId],
+    },
+  };
+}
+
+/**
+ * 从槽位下方移除成员卡
+ *
+ * @param zone 成员槽位区域
+ * @param position 槽位
+ * @param memberCardId 成员卡实例 ID
+ * @returns 更新后的区域状态
+ */
+export function removeMemberBelowMember(
+  zone: MemberSlotZoneState,
+  position: SlotPosition,
+  memberCardId: string
+): MemberSlotZoneState {
+  return {
+    ...zone,
+    memberBelow: {
+      ...zone.memberBelow,
+      [position]: (zone.memberBelow?.[position] ?? []).filter((id) => id !== memberCardId),
+    },
+  };
+}
+
+/**
+ * 获取某槽位下方的所有成员卡 ID
+ *
+ * @param zone 成员槽位区域
+ * @param position 槽位
+ * @returns 成员卡 ID 列表
+ */
+export function getMemberBelowMember(
+  zone: MemberSlotZoneState,
+  position: SlotPosition
+): readonly string[] {
+  return zone.memberBelow?.[position] ?? [];
+}
+
+/**
+ * 查找某张成员卡所在的槽位（在 memberBelow 中查找）
+ *
+ * @param zone 成员槽位区域
+ * @param memberCardId 成员卡实例 ID
+ * @returns 所在槽位，未找到返回 null
+ */
+export function findMemberBelowSlot(
+  zone: MemberSlotZoneState,
+  memberCardId: string
+): SlotPosition | null {
+  for (const position of Object.values(SlotPosition)) {
+    if ((zone.memberBelow?.[position] ?? []).includes(memberCardId)) {
+      return position;
+    }
+  }
+  return null;
+}
+
+/**
+ * 将成员从一个槽位移到另一个槽位时，同步移动其下方的成员卡
+ *
+ * @param zone 成员槽位区域
+ * @param fromPosition 来源槽位
+ * @param toPosition 目标槽位
+ * @returns 更新后的区域状态
+ */
+export function moveMemberBelowWithMember(
+  zone: MemberSlotZoneState,
+  fromPosition: SlotPosition,
+  toPosition: SlotPosition
+): MemberSlotZoneState {
+  const memberIds = zone.memberBelow?.[fromPosition] ?? [];
+  return {
+    ...zone,
+    memberBelow: {
+      ...zone.memberBelow,
+      [fromPosition]: [],
+      [toPosition]: [...(zone.memberBelow?.[toPosition] ?? []), ...memberIds],
+    },
+  };
+}
+
+/**
+ * 清空某槽位下方的所有成员卡
+ *
+ * @param zone 成员槽位区域
+ * @param position 槽位
+ * @returns [更新后的区域状态, 被清空的成员卡 ID 列表]
+ */
+export function popMemberBelowMember(
+  zone: MemberSlotZoneState,
+  position: SlotPosition
+): [MemberSlotZoneState, readonly string[]] {
+  const memberIds = zone.memberBelow?.[position] ?? [];
+  const newZone: MemberSlotZoneState = {
+    ...zone,
+    memberBelow: {
+      ...zone.memberBelow,
+      [position]: [],
+    },
+  };
+  return [newZone, memberIds];
+}
+
+/**
+ * 获取所有槽位下方的所有成员卡 ID（扁平列表）
+ */
+export function getAllMemberBelowIds(zone: MemberSlotZoneState): string[] {
+  const result: string[] = [];
+  for (const position of Object.values(SlotPosition)) {
+    result.push(...(zone.memberBelow?.[position] ?? []));
   }
   return result;
 }

@@ -370,18 +370,22 @@ function addMemberSlotZones(
   for (const slot of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT]) {
     const occupantId = zone.slots[slot];
     const overlayIds = zone.energyBelow[slot];
+    const memberBelowIds = zone.memberBelow[slot];
     const zoneKey = `${ownerSeat}_MEMBER_${slot}` as ViewZoneKey;
 
     zones[zoneKey] = {
       zone: ZoneType.MEMBER_SLOT,
       ownerSeat,
-      count: (occupantId ? 1 : 0) + overlayIds.length,
+      count: (occupantId ? 1 : 0) + overlayIds.length + memberBelowIds.length,
       ordered: false,
       slotMap: {
         [slot]: occupantId ? createPublicObjectId(occupantId) : null,
       },
       overlays: {
         [slot]: overlayIds.map((cardId) => createPublicObjectId(cardId)),
+      },
+      memberBelow: {
+        [slot]: memberBelowIds.map((cardId) => createPublicObjectId(cardId)),
       },
     };
 
@@ -399,6 +403,15 @@ function addMemberSlotZones(
       const energy = game.cardRegistry.get(energyId);
       if (energy) {
         upsertViewObject(objects, energy, ownerSeat, 'FRONT');
+      }
+    }
+
+    for (const memberId of memberBelowIds) {
+      const member = game.cardRegistry.get(memberId);
+      if (member) {
+        upsertViewObject(objects, member, ownerSeat, 'FRONT', undefined, undefined, {
+          enteredStageThisTurn: movedToStageThisTurn.includes(memberId),
+        });
       }
     }
   }

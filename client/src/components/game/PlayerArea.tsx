@@ -210,6 +210,7 @@ export const PlayerArea = memo(function PlayerArea({
     getSeatZoneCardIds,
     getSeatMemberSlotCardId,
     getSeatMemberOverlayCardIds,
+    getSeatMemberBelowCardIds,
     getLiveResultForCard,
     openInspection,
     revealInspectedCard,
@@ -231,6 +232,7 @@ export const PlayerArea = memo(function PlayerArea({
       getSeatZoneCardIds: s.getSeatZoneCardIds,
       getSeatMemberSlotCardId: s.getSeatMemberSlotCardId,
       getSeatMemberOverlayCardIds: s.getSeatMemberOverlayCardIds,
+      getSeatMemberBelowCardIds: s.getSeatMemberBelowCardIds,
       getLiveResultForCard: s.getLiveResultForCard,
       openInspection: s.openInspection,
       revealInspectedCard: s.revealInspectedCard,
@@ -327,8 +329,14 @@ export const PlayerArea = memo(function PlayerArea({
     // 该槽位下方的能量卡（规则 4.5.5）
     const energyBelowIds = getSeatMemberOverlayCardIds(playerSeat, position);
 
+    // 该槽位下方堆叠的成员卡（特殊成员卡效果）
+    const memberBelowIds = getSeatMemberBelowCardIds(playerSeat, position);
+
     // 能量卡偏移量：每张能量卡向左下方偏移 10% 的卡牌尺寸
     const energyOffsetPercent = 10;
+
+    // 堆叠成员卡偏移量：向右下方偏移
+    const memberBelowOffsetPercent = 8;
 
     return (
       // 外层容器：包含成员卡和重叠的能量卡
@@ -397,6 +405,57 @@ export const PlayerArea = memo(function PlayerArea({
             );
           })}
 
+          {/* 堆叠成员卡层 - 在成员卡下方、能量卡上方 */}
+          {/* 渲染顺序：从最后一张开始（最大偏移），确保第 i+1 张在第 i 张下方 */}
+          {[...memberBelowIds].reverse().map((memberCardId, reverseIndex) => {
+            const memberCard = getVisibleCardPresentation(memberCardId);
+            const imagePath = memberCard?.imagePath ?? null;
+            const originalIndex = memberBelowIds.length - 1 - reverseIndex;
+            const offsetPercent = (originalIndex + 1) * memberBelowOffsetPercent;
+
+            return (
+              <div
+                key={memberCardId}
+                className="absolute inset-0"
+                style={{
+                  transform: `translate(${offsetPercent}%, ${offsetPercent}%)`,
+                  zIndex: 5 + energyBelowIds.length + reverseIndex,
+                }}
+              >
+                <DraggableCard
+                  id={memberCardId}
+                  disabled={!allowGeneralOwnZoneInteraction}
+                  data={{
+                    cardId: memberCardId,
+                    cardCode: memberCard?.cardCode,
+                    fromZone: ZoneType.MEMBER_SLOT,
+                  }}
+                >
+                  <div
+                    className={cn(
+                      'w-full h-full rounded-lg overflow-hidden shadow-md cursor-grab active:cursor-grabbing',
+                      isDragging
+                        ? 'transition-none'
+                        : 'transition-[transform,box-shadow] duration-200 hover:scale-105 hover:z-50 hover:shadow-xl',
+                      'border-2 border-amber-400/60 bg-slate-800'
+                    )}
+                    onMouseEnter={() => memberCard && setHoveredCard(memberCard.instanceId)}
+                    onMouseLeave={() => setHoveredCard(null)}
+                    title={`堆叠成员 #${originalIndex + 1}（可拖走）`}
+                  >
+                    {imagePath ? (
+                      <img src={imagePath} alt="堆叠成员" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-xs text-white/70">
+                        M
+                      </div>
+                    )}
+                  </div>
+                </DraggableCard>
+              </div>
+            );
+          })}
+
           {/* 成员卡层 - 最上层（Z-index 最高） */}
           <DroppableZone
             id={slotId}
@@ -452,6 +511,15 @@ export const PlayerArea = memo(function PlayerArea({
           <div className="mt-1 px-2 py-0.5 bg-indigo-500/20 rounded-full">
             <span className="text-[10px] text-indigo-400 font-medium">
               附加能量 ×{energyBelowIds.length}
+            </span>
+          </div>
+        )}
+
+        {/* 堆叠成员卡数量指示器 */}
+        {memberBelowIds.length > 0 && (
+          <div className="mt-1 px-2 py-0.5 bg-amber-500/20 rounded-full">
+            <span className="text-[10px] text-amber-400 font-medium">
+              堆叠成员 ×{memberBelowIds.length}
             </span>
           </div>
         )}

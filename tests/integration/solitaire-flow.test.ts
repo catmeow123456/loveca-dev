@@ -374,7 +374,9 @@ describe('对墙打模式（Solitaire）集成测试', () => {
             const player = getPlayerById(session.state!, PLAYER1);
             const liveCardId = player?.liveZone.cardIds[0];
             if (liveCardId) {
-              const selectResult = session.dispatch(createSelectSuccessCardAction(PLAYER1, liveCardId));
+              const selectResult = session.dispatch(
+                createSelectSuccessCardAction(PLAYER1, liveCardId)
+              );
               expect(selectResult.success).toBe(true);
             }
             confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
@@ -390,9 +392,7 @@ describe('对墙打模式（Solitaire）集成测试', () => {
           // Performance 阶段需要确认判定
           const subPhase = session.state!.currentSubPhase;
           if (subPhase && subPhase !== SubPhase.NONE) {
-            const confirmResult = session.dispatch(
-              createConfirmSubPhaseAction(PLAYER1, subPhase)
-            );
+            const confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
             expect(confirmResult.success).toBe(true);
           }
         }
@@ -409,7 +409,9 @@ describe('对墙打模式（Solitaire）集成测试', () => {
             const player = getPlayerById(session.state!, PLAYER1);
             const liveCardId = player?.liveZone.cardIds[0];
             if (liveCardId) {
-              const selectResult = session.dispatch(createSelectSuccessCardAction(PLAYER1, liveCardId));
+              const selectResult = session.dispatch(
+                createSelectSuccessCardAction(PLAYER1, liveCardId)
+              );
               expect(selectResult.success).toBe(true);
             }
             confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
@@ -448,7 +450,10 @@ describe('对墙打模式（Solitaire）集成测试', () => {
         if (state.currentPhase === GamePhase.GAME_END) break;
 
         // 根据当前阶段执行对应动作
-        if (state.currentPhase === GamePhase.MAIN_PHASE && state.currentTurnType === TurnType.FIRST_PLAYER_TURN) {
+        if (
+          state.currentPhase === GamePhase.MAIN_PHASE &&
+          state.currentTurnType === TurnType.FIRST_PLAYER_TURN
+        ) {
           const result = session.dispatch(createEndPhaseAction(PLAYER1));
           if (!result.success) break;
         } else if (state.currentPhase === GamePhase.LIVE_SET_PHASE) {

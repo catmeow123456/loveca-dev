@@ -1,21 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import {
-  CardType,
-  GamePhase,
-  HeartColor,
-  SubPhase,
-  ZoneType,
-} from '../../src/shared/types/enums';
+import { CardType, GamePhase, HeartColor, SubPhase, ZoneType } from '../../src/shared/types/enums';
 import type {
   AnyCardData,
   EnergyCardData,
   LiveCardData,
   MemberCardData,
 } from '../../src/domain/entities/card';
-import {
-  createHeartIcon,
-  createHeartRequirement,
-} from '../../src/domain/entities/card';
+import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import type { DeckConfig } from '../../src/application/game-service';
 import { createMulliganAction } from '../../src/application/actions';
 import { GameCommandType, createOpenInspectionCommand } from '../../src/application/game-commands';
@@ -70,7 +61,10 @@ function createTestDeck(): DeckConfig {
   return { mainDeck, energyDeck };
 }
 
-function forceMainPhaseForPlayer(session: ReturnType<typeof createGameSession>, activePlayerIndex = 0): void {
+function forceMainPhaseForPlayer(
+  session: ReturnType<typeof createGameSession>,
+  activePlayerIndex = 0
+): void {
   const state = session.state as unknown as {
     currentPhase: GamePhase;
     currentSubPhase: SubPhase;
@@ -106,12 +100,13 @@ describe('GameSession 联机桥接层', () => {
     ).toBe(true);
 
     const events = session.getPublicEventsSince(0);
-    expect(events.some((event) => event.type === 'PhaseStarted' && event.phase === 'MULLIGAN_PHASE')).toBe(true);
+    expect(
+      events.some((event) => event.type === 'PhaseStarted' && event.phase === 'MULLIGAN_PHASE')
+    ).toBe(true);
     expect(
       events.some(
         (event) =>
-          event.type === 'SubPhaseStarted' &&
-          event.subPhase === SubPhase.MULLIGAN_FIRST_PLAYER
+          event.type === 'SubPhaseStarted' && event.subPhase === SubPhase.MULLIGAN_FIRST_PLAYER
       )
     ).toBe(true);
     expect(
@@ -142,7 +137,9 @@ describe('GameSession 联机桥接层', () => {
     expect(opponentHandZone.count).toBe(authorityState.players[1].hand.cardIds.length);
     expect(opponentHandZone.objectIds).toBeUndefined();
     expect(playerViewState.objects[createPublicObjectId(opponentHiddenCardId)]).toBeUndefined();
-    expect(ownHandZone.objectIds).toEqual(ownHandCardIds.map((cardId) => createPublicObjectId(cardId)));
+    expect(ownHandZone.objectIds).toEqual(
+      ownHandCardIds.map((cardId) => createPublicObjectId(cardId))
+    );
   });
 
   it('PlayerViewState 不会向对手暴露检视区中的真实实例 ID', () => {
@@ -153,7 +150,9 @@ describe('GameSession 联机桥接层', () => {
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
-    const openResult = session.executeCommand(createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 2));
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 2)
+    );
     expect(openResult.success).toBe(true);
 
     const authorityInspectionCardIds = [...(session.state?.inspectionZone.cardIds ?? [])];
@@ -213,7 +212,9 @@ describe('GameSession 联机桥接层', () => {
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
-    const result = session.executeCommand(createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 2));
+    const result = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 2)
+    );
     expect(result.success).toBe(true);
 
     const player1PrivateEvents = session.getPrivateEventsSince(PLAYER1, 0);
@@ -221,7 +222,9 @@ describe('GameSession 联机桥接层', () => {
     const sealedAudit = session.getSealedAuditSince(0);
     const commandLog = session.getCommandLogSince(0);
     const snapshots = session.getSnapshotHistory();
-    const recoverySnapshot = session.getAuthoritySnapshotAtOrBefore(session.getCurrentPublicEventSeq());
+    const recoverySnapshot = session.getAuthoritySnapshotAtOrBefore(
+      session.getCurrentPublicEventSeq()
+    );
 
     expect(
       player1PrivateEvents.some(
@@ -231,7 +234,9 @@ describe('GameSession 联机桥接层', () => {
           ((event.payload as { cardIds?: unknown[] }).cardIds?.length ?? 0) === 2
       )
     ).toBe(true);
-    expect(player2PrivateEvents.some((event) => event.type === 'INSPECTION_CANDIDATES')).toBe(false);
+    expect(player2PrivateEvents.some((event) => event.type === 'INSPECTION_CANDIDATES')).toBe(
+      false
+    );
     expect(
       sealedAudit.some(
         (record) =>
@@ -258,7 +263,9 @@ describe('GameSession 联机桥接层', () => {
     forceMainPhaseForPlayer(session);
 
     const beforeSeq = session.getCurrentPublicEventSeq();
-    const openResult = session.executeCommand(createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1));
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
+    );
     expect(openResult.success).toBe(true);
 
     const recovery = session.getPlayerRecoveryFrame(PLAYER1, beforeSeq);
@@ -266,12 +273,12 @@ describe('GameSession 联机桥接层', () => {
     expect(recovery).not.toBeNull();
     expect(authorityRecovery).not.toBeNull();
     expect(recovery?.snapshotPublicSeq).toBeLessThanOrEqual(beforeSeq);
-    expect(
-      recovery?.publicEvents.some((event) => event.type === 'CardsInspectedSummary')
-    ).toBe(true);
-    expect(
-      recovery?.privateEvents.some((event) => event.type === 'INSPECTION_CANDIDATES')
-    ).toBe(true);
+    expect(recovery?.publicEvents.some((event) => event.type === 'CardsInspectedSummary')).toBe(
+      true
+    );
+    expect(recovery?.privateEvents.some((event) => event.type === 'INSPECTION_CANDIDATES')).toBe(
+      true
+    );
     expect(
       authorityRecovery?.sealedAudit.some((record) => record.type === 'INSPECTION_OPENED')
     ).toBe(true);

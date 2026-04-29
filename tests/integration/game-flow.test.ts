@@ -345,17 +345,20 @@ describe('GameService 游戏流程测试', () => {
       expect(updatedPlayer.hand.cardIds).not.toContain(targetCardId);
     });
 
-    it('应该拒绝非自己回合时的操作', () => {
+    it('自由拖拽窗口中双方均可操作自己的桌面（信任玩家原则）', () => {
       const player2 = getPlayerById(gameInMainPhase, 'player2')!;
       const handCardIds = player2.hand.cardIds;
 
-      // 尝试用玩家2的卡牌在玩家1的回合打出
+      // 自由拖拽窗口中，PLAY_MEMBER 不受回合限制（信任玩家原则）
       if (handCardIds.length > 0) {
-        const action = createPlayMemberAction('player2', handCardIds[0], SlotPosition.CENTER);
-        const result = gameService.processAction(gameInMainPhase, action);
-
-        expect(result.success).toBe(false);
-        expect(result.error).toContain('不是你的回合');
+        const cardId = handCardIds[0];
+        const card = getCardById(gameInMainPhase, cardId);
+        if (card && card.data.cardType === CardType.MEMBER) {
+          const action = createPlayMemberAction('player2', cardId, SlotPosition.CENTER);
+          const result = gameService.processAction(gameInMainPhase, action);
+          // 信任玩家原则：自由拖拽窗口中非活跃玩家也可以整理自己的桌面
+          expect(result.success).toBe(true);
+        }
       }
     });
   });

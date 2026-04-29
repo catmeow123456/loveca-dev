@@ -214,7 +214,7 @@ export interface GameStore {
       | ZoneType.SUCCESS_ZONE
       | ZoneType.WAITING_ROOM
       | ZoneType.EXILE_ZONE,
-    options?: { targetSlot?: SlotPosition; position?: 'TOP' | 'BOTTOM' }
+    options?: { targetSlot?: SlotPosition; position?: 'TOP' | 'BOTTOM'; asMemberBelow?: boolean }
   ) => CommandDispatchResult;
   /** 放置 Live 卡到 Live 区 */
   setLiveCard: (cardId: string, faceDown?: boolean) => CommandDispatchResult;
@@ -310,6 +310,8 @@ export interface GameStore {
   getSeatMemberSlotCardId: (seat: Seat, slot: SlotPosition) => string | null;
   /** 获取 seat 指定成员槽位下方附着能量实例 ID 列表 */
   getSeatMemberOverlayCardIds: (seat: Seat, slot: SlotPosition) => string[];
+  /** 获取 seat 指定成员槽位下方堆叠成员实例 ID 列表 */
+  getSeatMemberBelowCardIds: (seat: Seat, slot: SlotPosition) => string[];
   /** 查找当前视角下卡牌所在区域 */
   findViewerCardZone: (cardId: string) => ZoneType | null;
   /** 根据卡牌实例解析其可落点区域信息 */
@@ -1070,6 +1072,15 @@ export const useGameStore = create<GameStore>((set, get) => {
       return overlayIds.map(getCardIdFromPublicObjectId);
     },
 
+    getSeatMemberBelowCardIds: (seat, slot) => {
+      const zone = get().getSeatZone(seat, `MEMBER_${slot}`);
+      const belowIds = zone?.memberBelow?.[slot] ?? EMPTY_PUBLIC_OBJECT_IDS;
+      if (belowIds.length === 0) {
+        return EMPTY_CARD_IDS as string[];
+      }
+      return belowIds.map(getCardIdFromPublicObjectId);
+    },
+
     findViewerCardZone: (cardId) => {
       return findCardLocationInView(get().playerViewState, cardId)?.zoneType ?? null;
     },
@@ -1507,6 +1518,15 @@ function findCardLocationInView(
 
     for (const [slot, overlayIds] of Object.entries(zone.overlays ?? {})) {
       if (overlayIds.includes(publicObjectId)) {
+        return {
+          zoneType: zone.zone,
+          slotPosition: parseSlotPosition(slot),
+        };
+      }
+    }
+
+    for (const [slot, memberBelowIds] of Object.entries(zone.memberBelow ?? {})) {
+      if ((memberBelowIds as readonly string[]).includes(publicObjectId)) {
         return {
           zoneType: zone.zone,
           slotPosition: parseSlotPosition(slot),

@@ -20,6 +20,10 @@ import {
   removeEnergyBelowMember,
   findEnergyBelowSlot,
   moveEnergyBelowWithMember,
+  addMemberBelowMember,
+  removeMemberBelowMember,
+  findMemberBelowSlot,
+  moveMemberBelowWithMember,
 } from '../../domain/entities/zone.js';
 
 // ============================================
@@ -49,6 +53,11 @@ interface ZoneAddOptions {
    * 参考规则 4.5.5：能量牌拖到成员区应附加到成员下方，而非替换成员
    */
   asEnergyBelow?: boolean;
+  /**
+   * 是否以成员堆叠模式放置（附加到特殊成员下方）
+   * 特殊成员卡效果：可在其下方堆叠成员卡
+   */
+  asMemberBelow?: boolean;
   /**
    * 来源槽位（仅在成员区之间移动时使用）
    * 参考规则 4.5.5.3：成员移动到其他成员区时，其下方的能量卡同时跟随移动
@@ -156,7 +165,12 @@ const MEMBER_SLOT_ACCESSOR: ZoneAccessor = {
     // 先查找成员卡槽位
     for (const slot of Object.values(SlotPosition)) {
       if (getCardInSlot(p.memberSlots, slot) === cardId) {
-        return { ...p, memberSlots: removeCardFromSlot(p.memberSlots, slot) };
+        // 主成员离开成员区时，memberBelow 卡牌留在槽位
+        // （设计文档 3.3：不随主成员移走，玩家可手动拖走）
+        return {
+          ...p,
+          memberSlots: removeCardFromSlot(p.memberSlots, slot),
+        };
       }
     }
     // 再查找 energyBelow（从成员区拖出能量卡）
@@ -165,6 +179,14 @@ const MEMBER_SLOT_ACCESSOR: ZoneAccessor = {
       return {
         ...p,
         memberSlots: removeEnergyBelowMember(p.memberSlots, energySlot, cardId),
+      };
+    }
+    // 再查找 memberBelow（从成员区拖出堆叠成员卡）
+    const memberSlot = findMemberBelowSlot(p.memberSlots, cardId);
+    if (memberSlot !== null) {
+      return {
+        ...p,
+        memberSlots: removeMemberBelowMember(p.memberSlots, memberSlot, cardId),
       };
     }
     return p;
@@ -180,6 +202,22 @@ const MEMBER_SLOT_ACCESSOR: ZoneAccessor = {
       return {
         ...p,
         memberSlots: addEnergyBelowMember(p.memberSlots, options.targetSlot, cardId),
+      };
+    }
+
+    // 成员卡堆叠到特殊成员下方
+    if (options.asMemberBelow) {
+      const memberCardId = getCardInSlot(p.memberSlots, options.targetSlot);
+      if (!memberCardId) {
+        // 防御：目标槽位无成员卡（前端视图可能滞后），回退为普通成员放置
+        return {
+          ...p,
+          memberSlots: placeCardInSlot(p.memberSlots, options.targetSlot, cardId),
+        };
+      }
+      return {
+        ...p,
+        memberSlots: addMemberBelowMember(p.memberSlots, options.targetSlot, cardId),
       };
     }
 
@@ -447,10 +485,12 @@ export function moveCardUniversal(
       const targetCardId = getCardInSlot(player.memberSlots, targetSlot);
 
       // 交换逻辑：成员卡拖到另一个已有成员卡的槽位时，双方位置互换，
-      // 且各自下方的能量卡（energyBelow）随成员一起移动。
+      // 且各自下方的能量卡（energyBelow）和成员卡（memberBelow）随成员一起移动。
       if (sourceCardId && sourceCardId === cardId && targetCardId && targetCardId !== cardId) {
         const sourceEnergyBelow = player.memberSlots.energyBelow?.[sourceSlot] ?? [];
         const targetEnergyBelow = player.memberSlots.energyBelow?.[targetSlot] ?? [];
+        const sourceMemberBelow = player.memberSlots.memberBelow?.[sourceSlot] ?? [];
+        const targetMemberBelow = player.memberSlots.memberBelow?.[targetSlot] ?? [];
 
         return {
           ...player,
@@ -465,6 +505,11 @@ export function moveCardUniversal(
               ...player.memberSlots.energyBelow,
               [sourceSlot]: [...targetEnergyBelow],
               [targetSlot]: [...sourceEnergyBelow],
+            },
+            memberBelow: {
+              ...player.memberSlots.memberBelow,
+              [sourceSlot]: [...targetMemberBelow],
+              [targetSlot]: [...sourceMemberBelow],
             },
           },
         };
@@ -489,6 +534,11 @@ export function moveCardUniversal(
       updated = {
         ...updated,
         memberSlots: moveEnergyBelowWithMember(updated.memberSlots, sourceSlot, targetSlot),
+      };
+      // 4. 将 memberBelow 从来源槽位移到目标槽位
+      updated = {
+        ...updated,
+        memberSlots: moveMemberBelowWithMember(updated.memberSlots, sourceSlot, targetSlot),
       };
       return updated;
     });

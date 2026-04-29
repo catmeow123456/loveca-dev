@@ -35,7 +35,9 @@ export type BladeHeart = {
 export const users = pgTable(
   'users',
   {
-    id: uuid('id').default(sql`gen_random_uuid()`).primaryKey(),
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
     email: text('email').notNull().unique(),
     passwordHash: text('password_hash').notNull(),
     emailVerified: boolean('email_verified').notNull().default(false),
@@ -48,7 +50,9 @@ export const users = pgTable(
 export const refreshTokens = pgTable(
   'refresh_tokens',
   {
-    id: uuid('id').default(sql`gen_random_uuid()`).primaryKey(),
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -65,7 +69,9 @@ export const refreshTokens = pgTable(
 export const emailVerificationTokens = pgTable(
   'email_verification_tokens',
   {
-    id: uuid('id').default(sql`gen_random_uuid()`).primaryKey(),
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -79,7 +85,9 @@ export const emailVerificationTokens = pgTable(
 export const passwordResetTokens = pgTable(
   'password_reset_tokens',
   {
-    id: uuid('id').default(sql`gen_random_uuid()`).primaryKey(),
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -115,21 +123,35 @@ export const profiles = pgTable(
 export const decks = pgTable(
   'decks',
   {
-    id: uuid('id').default(sql`gen_random_uuid()`).primaryKey(),
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
     userId: uuid('user_id')
       .notNull()
       .references(() => profiles.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
-    mainDeck: jsonb('main_deck').$type<DeckEntry[]>().notNull().default(sql`'[]'::jsonb`),
-    energyDeck: jsonb('energy_deck').$type<DeckEntry[]>().notNull().default(sql`'[]'::jsonb`),
+    mainDeck: jsonb('main_deck')
+      .$type<DeckEntry[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    energyDeck: jsonb('energy_deck')
+      .$type<DeckEntry[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     isValid: boolean('is_valid').notNull().default(false),
-    validationErrors: jsonb('validation_errors').$type<string[]>().default(sql`'[]'::jsonb`),
+    validationErrors: jsonb('validation_errors')
+      .$type<string[]>()
+      .default(sql`'[]'::jsonb`),
     isPublic: boolean('is_public').notNull().default(false),
-    shareId: uuid('share_id').default(sql`gen_random_uuid()`).unique(),
+    shareId: uuid('share_id')
+      .default(sql`gen_random_uuid()`)
+      .unique(),
     shareEnabled: boolean('share_enabled').notNull().default(false),
     sharedAt: timestamp('shared_at', { withTimezone: true }),
-    forkedFromDeckId: uuid('forked_from_deck_id').references((): AnyPgColumn => decks.id, { onDelete: 'set null' }),
+    forkedFromDeckId: uuid('forked_from_deck_id').references((): AnyPgColumn => decks.id, {
+      onDelete: 'set null',
+    }),
     forkedFromShareId: uuid('forked_from_share_id'),
     forkedAt: timestamp('forked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -150,7 +172,9 @@ export const decks = pgTable(
 export const cards = pgTable(
   'cards',
   {
-    id: uuid('id').default(sql`gen_random_uuid()`).primaryKey(),
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
     cardCode: text('card_code').notNull().unique(),
     cardType: text('card_type').$type<CardType>().notNull(),
     name: text('name').notNull(),
@@ -158,10 +182,16 @@ export const cards = pgTable(
     unitName: text('unit_name'),
     cost: integer('cost'),
     blade: integer('blade'),
-    hearts: jsonb('hearts').$type<HeartRequirement[]>().default(sql`'[]'::jsonb`),
-    bladeHearts: jsonb('blade_hearts').$type<BladeHeart[] | null>().default(sql`NULL`),
+    hearts: jsonb('hearts')
+      .$type<HeartRequirement[]>()
+      .default(sql`'[]'::jsonb`),
+    bladeHearts: jsonb('blade_hearts')
+      .$type<BladeHeart[] | null>()
+      .default(sql`NULL`),
     score: integer('score'),
-    requirements: jsonb('requirements').$type<HeartRequirement[]>().default(sql`'[]'::jsonb`),
+    requirements: jsonb('requirements')
+      .$type<HeartRequirement[]>()
+      .default(sql`'[]'::jsonb`),
     cardText: text('card_text'),
     imageFilename: text('image_filename'),
     rare: text('rare'),

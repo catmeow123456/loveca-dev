@@ -7,11 +7,7 @@ import type {
 } from '../../domain/entities/card.js';
 import { createHeartRequirement } from '../../domain/entities/card.js';
 import { CardDataRegistry } from '../../domain/card-data/loader.js';
-import {
-  BladeHeartEffect,
-  CardType,
-  HeartColor,
-} from '../../shared/types/enums.js';
+import { BladeHeartEffect, CardType, HeartColor } from '../../shared/types/enums.js';
 
 interface CardDbRecord {
   readonly card_code: string;
@@ -22,9 +18,7 @@ interface CardDbRecord {
   readonly cost: number | null;
   readonly blade: number | null;
   readonly hearts: Array<{ color: string; count: number }> | null;
-  readonly blade_hearts:
-    | Array<{ effect: string; heartColor?: string; value?: number }>
-    | null;
+  readonly blade_hearts: Array<{ effect: string; heartColor?: string; value?: number }> | null;
   readonly score: number | null;
   readonly requirements: Array<{ color: string; count: number }> | null;
   readonly card_text: string | null;
@@ -70,7 +64,7 @@ function mapCardRecordToCardData(record: CardDbRecord): AnyCardData {
 
   const convertBladeHearts = (
     items: CardDbRecord['blade_hearts']
-  ): MemberCardData['bladeHearts'] | LiveCardData['bladeHearts'] => {
+  ): MemberCardData['bladeHearts'] => {
     if (!items || items.length === 0) {
       return undefined;
     }

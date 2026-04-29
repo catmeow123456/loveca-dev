@@ -2001,6 +2001,7 @@ export class GameSession {
           sourceSlot: command.sourceSlot,
           position: command.position,
           liveDeskMoveExempt: this.isLiveDeskMoveStageExempt(state, command),
+          asMemberBelow: command.asMemberBelow,
         }
       )
     );
@@ -2049,6 +2050,10 @@ export class GameSession {
     const displacedCardId = playerBefore?.memberSlots.slots[command.targetSlot] ?? null;
     const sourceEnergyBelowBefore = playerBefore?.memberSlots.energyBelow[command.sourceSlot] ?? [];
     const targetEnergyBelowBefore = playerBefore?.memberSlots.energyBelow[command.targetSlot] ?? [];
+    const sourceMemberBelowBefore =
+      playerBefore?.memberSlots.memberBelow?.[command.sourceSlot] ?? [];
+    const targetMemberBelowBefore =
+      playerBefore?.memberSlots.memberBelow?.[command.targetSlot] ?? [];
 
     const result = this.gameService.processAction(
       state,
@@ -2137,6 +2142,44 @@ export class GameSession {
               result.gameState,
               command.playerId,
               energyCardId,
+              ZoneType.MEMBER_SLOT,
+              { slot: command.sourceSlot }
+            ),
+          })
+        );
+      });
+    }
+
+    // 随主成员迁移的 memberBelow：sourceSlot -> targetSlot
+    sourceMemberBelowBefore.forEach((memberCardId) => {
+      extraPublicEvents.push(
+        buildCardMovedPublicEvent(state, result.gameState, actorSeat, memberCardId, {
+          from: buildZoneRefForMove(state, command.playerId, memberCardId, ZoneType.MEMBER_SLOT, {
+            slot: command.sourceSlot,
+          }),
+          to: buildZoneRefForMove(
+            result.gameState,
+            command.playerId,
+            memberCardId,
+            ZoneType.MEMBER_SLOT,
+            { slot: command.targetSlot }
+          ),
+        })
+      );
+    });
+
+    // 随被置换成员迁移的 memberBelow：targetSlot -> sourceSlot（仅 swap 场景）
+    if (displacedCardId && displacedCardId !== command.cardId) {
+      targetMemberBelowBefore.forEach((memberCardId) => {
+        extraPublicEvents.push(
+          buildCardMovedPublicEvent(state, result.gameState, actorSeat, memberCardId, {
+            from: buildZoneRefForMove(state, command.playerId, memberCardId, ZoneType.MEMBER_SLOT, {
+              slot: command.targetSlot,
+            }),
+            to: buildZoneRefForMove(
+              result.gameState,
+              command.playerId,
+              memberCardId,
               ZoneType.MEMBER_SLOT,
               { slot: command.sourceSlot }
             ),
@@ -2252,7 +2295,15 @@ export class GameSession {
       }),
     ];
 
-    if (replacedCardId) {
+    // 仅当被置换成员实际离开了槽位时才创建置换事件
+    // （stackedBelow 路径下特殊成员仍留在槽位，不应产生虚假事件）
+    const resultPlayer = result.gameState.players.find((p) => p.id === command.playerId);
+    const actuallyDisplaced =
+      replacedCardId &&
+      resultPlayer &&
+      resultPlayer.memberSlots.slots[command.targetSlot] !== replacedCardId;
+
+    if (actuallyDisplaced) {
       extraPublicEvents.unshift(
         buildCardMovedPublicEvent(state, result.gameState, actorSeat, replacedCardId, {
           from: buildZoneRefForMove(state, command.playerId, replacedCardId, ZoneType.MEMBER_SLOT, {
@@ -2439,6 +2490,7 @@ export class GameSession {
           targetSlot: command.targetSlot,
           position: command.position,
           liveDeskMoveExempt: this.isLiveDeskMoveStageExempt(state, command),
+          asMemberBelow: command.asMemberBelow,
         }
       )
     );
@@ -3727,14 +3779,16 @@ function isCardInOwnedZone(
       if (slot) {
         return (
           player.memberSlots.slots[slot] === cardId ||
-          player.memberSlots.energyBelow[slot].includes(cardId)
+          player.memberSlots.energyBelow[slot].includes(cardId) ||
+          (player.memberSlots.memberBelow?.[slot] ?? []).includes(cardId)
         );
       }
 
       return Object.values(SlotPosition).some(
         (currentSlot) =>
           player.memberSlots.slots[currentSlot] === cardId ||
-          player.memberSlots.energyBelow[currentSlot].includes(cardId)
+          player.memberSlots.energyBelow[currentSlot].includes(cardId) ||
+          (player.memberSlots.memberBelow?.[currentSlot] ?? []).includes(cardId)
       );
     }
     default:
