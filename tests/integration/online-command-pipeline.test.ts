@@ -420,7 +420,8 @@ describe('GameSession command pipeline', () => {
       createReturnHandCardToTopCommand(PLAYER2, handCardId!)
     );
     expect(outsiderResult.success).toBe(false);
-    expect(outsiderResult.error).toContain('检视玩家');
+    // PLAYER2 尝试操作 PLAYER1 的手牌，所有权校验先行拒绝
+    expect(outsiderResult.error).toContain('手牌');
 
     const moveResult = session.executeCommand(
       createMoveInspectedCardToZoneCommand(PLAYER1, inspectedCardId!, ZoneType.HAND)
@@ -1522,6 +1523,305 @@ describe('GameSession command pipeline', () => {
     expect(session.state?.players[1].hand.cardIds).toContain(memberCardIds[1]);
   });
 
+  it('自由拖拽窗口期间非当前回合玩家可打开检视区', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-non-active-inspection',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session, 0);
+
+    const player2 = session.state!.players[1];
+    expect(player2.mainDeck.cardIds.length).toBeGreaterThan(0);
+
+    const topCardId = player2.mainDeck.cardIds[0];
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER2, ZoneType.MAIN_DECK, 1)
+    );
+    expect(openResult.success).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).toContain(topCardId);
+    expect(session.state?.inspectionContext?.ownerPlayerId).toBe(PLAYER2);
+
+    const moveResult = session.executeCommand(
+      createMoveInspectedCardToTopCommand(PLAYER2, topCardId)
+    );
+    expect(moveResult.success).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).not.toContain(topCardId);
+
+    const finishResult = session.executeCommand(
+      createFinishInspectionCommand(PLAYER2)
+    );
+    expect(finishResult.success).toBe(true);
+  });
+
+  it('Live 设置阶段自由拖拽子阶段中非当前回合玩家可打开检视区', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-live-set-inspection',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+    mutableState.currentPhase = GamePhase.LIVE_SET_PHASE;
+    mutableState.currentSubPhase = SubPhase.LIVE_SET_FIRST_PLAYER;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+
+    const player2 = session.state!.players[1];
+    expect(player2.mainDeck.cardIds.length).toBeGreaterThan(0);
+
+    const topCardId = player2.mainDeck.cardIds[0];
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER2, ZoneType.MAIN_DECK, 1)
+    );
+    expect(openResult.success).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).toContain(topCardId);
+    expect(session.state?.inspectionContext?.ownerPlayerId).toBe(PLAYER2);
+
+    const moveResult = session.executeCommand(
+      createMoveInspectedCardToTopCommand(PLAYER2, topCardId)
+    );
+    expect(moveResult.success).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).not.toContain(topCardId);
+
+    const finishResult = session.executeCommand(createFinishInspectionCommand(PLAYER2));
+    expect(finishResult.success).toBe(true);
+  });
+
+  it('表演阶段非回合玩家可打开检视区', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-performance-inspection',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.PERFORMANCE_LIVE_START_EFFECTS;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+
+    const player2 = session.state!.players[1];
+    expect(player2.mainDeck.cardIds.length).toBeGreaterThan(0);
+
+    const topCardId = player2.mainDeck.cardIds[0];
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER2, ZoneType.MAIN_DECK, 1)
+    );
+    expect(openResult.success).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).toContain(topCardId);
+    expect(session.state?.inspectionContext?.ownerPlayerId).toBe(PLAYER2);
+
+    const moveResult = session.executeCommand(
+      createMoveInspectedCardToTopCommand(PLAYER2, topCardId)
+    );
+    expect(moveResult.success).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).not.toContain(topCardId);
+
+    const finishResult = session.executeCommand(createFinishInspectionCommand(PLAYER2));
+    expect(finishResult.success).toBe(true);
+  });
+
+  it('Live 结果阶段非回合玩家可打开检视区', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-live-result-inspection',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+    mutableState.currentPhase = GamePhase.LIVE_RESULT_PHASE;
+    mutableState.currentSubPhase = SubPhase.RESULT_SCORE_CONFIRM;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+
+    const player2 = session.state!.players[1];
+    expect(player2.mainDeck.cardIds.length).toBeGreaterThan(0);
+
+    const topCardId = player2.mainDeck.cardIds[0];
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER2, ZoneType.MAIN_DECK, 1)
+    );
+    expect(openResult.success).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).toContain(topCardId);
+    expect(session.state?.inspectionContext?.ownerPlayerId).toBe(PLAYER2);
+
+    const moveResult = session.executeCommand(
+      createMoveInspectedCardToTopCommand(PLAYER2, topCardId)
+    );
+    expect(moveResult.success).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).not.toContain(topCardId);
+
+    const finishResult = session.executeCommand(createFinishInspectionCommand(PLAYER2));
+    expect(finishResult.success).toBe(true);
+  });
+
+  it('非自由拖拽窗口阶段拒绝 OPEN_INSPECTION 命令', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-inspection-rejected',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+
+    // 抽卡阶段不是自由拖拽窗口
+    mutableState.currentPhase = GamePhase.DRAW_PHASE;
+    mutableState.currentSubPhase = SubPhase.NONE;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = PLAYER1;
+
+    const result = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
+    );
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('当前不是可检视阶段');
+
+    // 能量阶段也不是自由拖拽窗口
+    mutableState.currentPhase = GamePhase.ENERGY_PHASE;
+    mutableState.currentSubPhase = SubPhase.NONE;
+    const energyResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
+    );
+    expect(energyResult.success).toBe(false);
+    expect(energyResult.error).toContain('当前不是可检视阶段');
+
+    // RESULT_TURN_END 是自动化子阶段，也不属于自由拖拽窗口
+    mutableState.currentPhase = GamePhase.LIVE_RESULT_PHASE;
+    mutableState.currentSubPhase = SubPhase.RESULT_TURN_END;
+    const turnEndResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
+    );
+    expect(turnEndResult.success).toBe(false);
+    expect(turnEndResult.error).toContain('当前不是可检视阶段');
+
+    // PERFORMANCE_REVEAL 是自动化子阶段，也不属于自由拖拽窗口
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.PERFORMANCE_REVEAL;
+    const revealResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
+    );
+    expect(revealResult.success).toBe(false);
+    expect(revealResult.error).toContain('当前不是可检视阶段');
+  });
+
+  it('一方检视期间另一方可自由拖拽操作但不可并发检视', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-inspection-concurrent-free-drag',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session, 0);
+
+    // 玩家1 开启检视
+    const player1 = session.state!.players[0];
+    const topCardId = player1.mainDeck.cardIds[0];
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
+    );
+    expect(openResult.success).toBe(true);
+    expect(session.state?.inspectionContext?.ownerPlayerId).toBe(PLAYER1);
+
+    // 玩家2（非检视所有者）可以自由拖拽——手牌卡放回主卡组顶
+    const player2 = session.state!.players[1];
+    const handCardId2 = player2.hand.cardIds[0];
+    expect(handCardId2).toBeTruthy();
+    const freeDragResult = session.executeCommand(
+      createReturnHandCardToTopCommand(PLAYER2, handCardId2!)
+    );
+    expect(freeDragResult.success).toBe(true);
+
+    // 玩家2 不能开启自己的检视（并发检视不支持）
+    const concurrentInspectionResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER2, ZoneType.MAIN_DECK, 1)
+    );
+    expect(concurrentInspectionResult.success).toBe(false);
+    expect(concurrentInspectionResult.error).toContain('对方正在检视');
+
+    // 玩家2 也不能操作玩家1的检视命令
+    const revealResult = session.executeCommand(
+      createRevealInspectedCardCommand(PLAYER2, topCardId!)
+    );
+    expect(revealResult.success).toBe(false);
+    expect(revealResult.error).toContain('当前正在等待检视玩家完成操作');
+
+    // 玩家1 仍可操作检视命令
+    const moveResult = session.executeCommand(
+      createMoveInspectedCardToTopCommand(PLAYER1, topCardId!)
+    );
+    expect(moveResult.success).toBe(true);
+
+    // 玩家1 完成检视后，玩家2 可以开启自己的检视
+    const finishResult = session.executeCommand(createFinishInspectionCommand(PLAYER1));
+    expect(finishResult.success).toBe(true);
+
+    const p2OpenResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER2, ZoneType.MAIN_DECK, 1)
+    );
+    expect(p2OpenResult.success).toBe(true);
+    expect(session.state?.inspectionContext?.ownerPlayerId).toBe(PLAYER2);
+  });
+
   it('非自由整理窗口仍允许 Live 卡桌面豁免移动', () => {
     const session = createGameSession();
     const deck = createTestDeck();
@@ -2040,7 +2340,7 @@ describe('GameSession command pipeline', () => {
     );
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('当前不是主要阶段');
+    expect(result.error).toContain('当前不是可自由整理阶段');
   });
 
   it('普通移动命令不允许把手牌放入 Live 区', () => {

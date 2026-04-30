@@ -76,7 +76,7 @@ import {
   isSlotEmpty,
 } from '../domain/entities/zone.js';
 import { PhaseManager, phaseManager, PhaseAutoAction } from './phase-manager.js';
-import { isCrossTurnTapMemberWindow, isOwnDeskFreeDragWindow } from './command-availability.js';
+import { isOwnDeskFreeDragWindow } from './command-availability.js';
 import { isPlayerActive as isPlayerActiveByConfig } from '../shared/phase-config/index.js';
 import { getInitialSubPhase, getSubPhaseConfig } from '../shared/phase-config/index.js';
 import { GameEventType } from './events.js';
@@ -287,9 +287,6 @@ export class GameService {
         action.type === GameActionType.TAP_MEMBER ||
         action.type === GameActionType.TAP_ENERGY ||
         action.type === GameActionType.MANUAL_MOVE_CARD);
-    const isCrossTurnTapMemberAction =
-      action.type === GameActionType.TAP_MEMBER &&
-      isCrossTurnTapMemberWindow(game.currentPhase, game.currentSubPhase);
 
     if (
       !canActByTiming &&
@@ -297,8 +294,7 @@ export class GameService {
       action.type !== GameActionType.CONFIRM_OPTIONAL &&
       !isLiveSetPhaseAction &&
       !isMulliganPhase &&
-      !isOwnDeskFreeDragAction &&
-      !isCrossTurnTapMemberAction
+      !isOwnDeskFreeDragAction
     ) {
       return {
         success: false,

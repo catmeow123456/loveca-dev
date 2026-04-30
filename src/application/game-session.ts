@@ -11,11 +11,9 @@
 
 import { GameService, type DeckConfig, type GameOperationResult } from './game-service.js';
 import {
-  isCrossTurnTapMemberWindow,
   isOwnDeskFreeDragCommand,
   isOwnDeskFreeDragWindow,
   isResultSuccessEffectSubPhase,
-  isPerformanceFreeInteractionSubPhase,
 } from './command-availability.js';
 import { getModeAutomationPolicy, type ModeAutomationStep } from './mode-automation.js';
 import {
@@ -1107,9 +1105,6 @@ export class GameSession {
 
   private validateCommandAvailability(state: GameState, command: GameCommand): string | null {
     const isSuccessEffectWindow = isResultSuccessEffectSubPhase(state.currentSubPhase);
-    const isPerformanceFreeInteraction = isPerformanceFreeInteractionSubPhase(
-      state.currentSubPhase
-    );
     const isOwnDeskFreeDragWindowOpen = isOwnDeskFreeDragWindow(
       state.currentPhase,
       state.currentSubPhase
@@ -1123,23 +1118,21 @@ export class GameSession {
       case GameCommandType.TAP_ENERGY:
         return isOwnDeskFreeDragWindowOpen ? null : '当前不是可自由整理阶段';
       case GameCommandType.OPEN_INSPECTION:
-        return state.currentPhase === GamePhase.MAIN_PHASE ||
-          isSuccessEffectWindow ||
-          isPerformanceFreeInteraction
+        return isOwnDeskFreeDragWindowOpen
           ? null
-          : '当前不是主要阶段';
+          : '当前不是可检视阶段';
       case GameCommandType.TAP_MEMBER:
       case GameCommandType.MOVE_MEMBER_TO_SLOT:
       case GameCommandType.ATTACH_ENERGY_TO_MEMBER:
       case GameCommandType.PLAY_MEMBER_TO_SLOT:
       case GameCommandType.DRAW_CARD_TO_HAND:
       case GameCommandType.RETURN_HAND_CARD_TO_TOP:
-        return isOwnDeskFreeDragWindowOpen ? null : '当前不是主要阶段';
+        return isOwnDeskFreeDragWindowOpen ? null : '当前不是可自由整理阶段';
       case GameCommandType.MOVE_TABLE_CARD:
       case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
         return this.isLiveDeskMoveStageExempt(state, command) || isOwnDeskFreeDragWindowOpen
           ? null
-          : '当前不是主要阶段';
+          : '当前不是可自由整理阶段';
       case GameCommandType.DRAW_ENERGY_TO_ZONE:
         return isOwnDeskFreeDragWindowOpen ? null : '当前不是可放置能量阶段';
       case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
@@ -1214,7 +1207,10 @@ export class GameSession {
     }
 
     if (command.playerId !== inspectionContext.ownerPlayerId) {
-      return '当前正在等待检视玩家完成操作';
+      if (isInspectionCommandType(command.type)) {
+        return '当前正在等待检视玩家完成操作';
+      }
+      return null;
     }
 
     if (isBlockedDuringInspection(command.type)) {
@@ -1226,16 +1222,25 @@ export class GameSession {
 
   private validateCommandActor(state: GameState, command: GameCommand): string | null {
     if (state.inspectionContext) {
-      return state.inspectionContext.ownerPlayerId === command.playerId
-        ? null
-        : '当前正在等待检视玩家完成操作';
-    }
-
-    if (
-      command.type === GameCommandType.TAP_MEMBER &&
-      isCrossTurnTapMemberWindow(state.currentPhase, state.currentSubPhase)
-    ) {
-      return null;
+      if (state.inspectionContext.ownerPlayerId === command.playerId) {
+        return null;
+      }
+      // 非检视所有者在检视期间：不允许开启自己的检视（不支持并发检视），
+      // 但自由拖拽命令仍可使用——不应因一方检视而锁死另一方桌面操作。
+      if (command.type === GameCommandType.OPEN_INSPECTION) {
+        return '对方正在检视，无法同时开启检视';
+      }
+      if (
+        isOwnDeskFreeDragCommand(command.type) &&
+        isOwnDeskFreeDragWindow(state.currentPhase, state.currentSubPhase)
+      ) {
+        return null;
+      }
+      if (this.isLiveDeskMoveStageExempt(state, command)) {
+        return null;
+      }
+      // 非检视所有者的非自由拖拽命令在检视期间仍被拒绝
+      return '当前正在等待检视玩家完成操作';
     }
 
     if (

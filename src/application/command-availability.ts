@@ -1,6 +1,8 @@
 import { GameCommandType } from './game-commands.js';
 import { GamePhase, SubPhase } from '../shared/types/enums.js';
+import { isUserActionRequired } from '../shared/phase-config/sub-phase-registry.js';
 
+// 主阶段活跃玩家的手动操作命令集。
 export const MAIN_PHASE_MANUAL_COMMAND_TYPES: readonly GameCommandType[] = [
   GameCommandType.OPEN_INSPECTION,
   GameCommandType.PLAY_MEMBER_TO_SLOT,
@@ -18,21 +20,12 @@ export const MAIN_PHASE_MANUAL_COMMAND_TYPES: readonly GameCommandType[] = [
   GameCommandType.RETURN_HAND_CARD_TO_TOP,
 ] as const;
 
+// 自由拖拽窗口期间双方玩家均可使用的己方桌面操作命令集。
+// 当前等同于主阶段手动命令集（"信任玩家"原则下所有己方桌面操作对双方开放），
+// 若未来需要仅对活跃玩家开放的操作，在主阶段数组单独添加即可，无需同步。
 export const OWN_DESK_FREE_DRAG_COMMAND_TYPES: readonly GameCommandType[] = [
-  GameCommandType.PLAY_MEMBER_TO_SLOT,
-  GameCommandType.TAP_MEMBER,
-  GameCommandType.TAP_ENERGY,
-  GameCommandType.MOVE_TABLE_CARD,
-  GameCommandType.MOVE_MEMBER_TO_SLOT,
-  GameCommandType.ATTACH_ENERGY_TO_MEMBER,
-  GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM,
-  GameCommandType.MOVE_PUBLIC_CARD_TO_HAND,
-  GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK,
-  GameCommandType.MOVE_OWNED_CARD_TO_ZONE,
-  GameCommandType.DRAW_CARD_TO_HAND,
-  GameCommandType.DRAW_ENERGY_TO_ZONE,
-  GameCommandType.RETURN_HAND_CARD_TO_TOP,
-] as const;
+  ...MAIN_PHASE_MANUAL_COMMAND_TYPES,
+];
 
 export const INSPECTION_COMMAND_TYPES: readonly GameCommandType[] = [
   GameCommandType.REVEAL_INSPECTED_CARD,
@@ -72,33 +65,24 @@ export function isResultSuccessEffectSubPhase(subPhase: SubPhase): boolean {
   );
 }
 
-export function isPerformanceFreeInteractionSubPhase(subPhase: SubPhase): boolean {
-  return (
-    subPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS ||
-    subPhase === SubPhase.PERFORMANCE_JUDGMENT
-  );
-}
-
-export function isCrossTurnTapMemberWindow(phase: GamePhase, subPhase: SubPhase): boolean {
-  return (
-    phase === GamePhase.MAIN_PHASE ||
-    (phase === GamePhase.PERFORMANCE_PHASE && isPerformanceFreeInteractionSubPhase(subPhase)) ||
-    (phase === GamePhase.LIVE_RESULT_PHASE && isResultSuccessEffectSubPhase(subPhase))
-  );
-}
-
 export function isOwnDeskFreeDragWindow(phase: GamePhase, subPhase: SubPhase): boolean {
   if (phase === GamePhase.MAIN_PHASE) {
     return true;
   }
 
   if (phase === GamePhase.LIVE_SET_PHASE) {
-    return (
-      subPhase === SubPhase.LIVE_SET_FIRST_PLAYER || subPhase === SubPhase.LIVE_SET_SECOND_PLAYER
-    );
+    return isUserActionRequired(subPhase);
   }
 
-  return phase === GamePhase.PERFORMANCE_PHASE || phase === GamePhase.LIVE_RESULT_PHASE;
+  if (phase === GamePhase.PERFORMANCE_PHASE) {
+    return isUserActionRequired(subPhase);
+  }
+
+  if (phase === GamePhase.LIVE_RESULT_PHASE) {
+    return isUserActionRequired(subPhase);
+  }
+
+  return false;
 }
 
 export function isOwnDeskFreeDragCommand(commandType: GameCommandType): boolean {

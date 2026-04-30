@@ -2,7 +2,6 @@ import { GameCommandType } from '../application/game-commands.js';
 import {
   MAIN_PHASE_MANUAL_COMMAND_TYPES,
   OWN_DESK_FREE_DRAG_COMMAND_TYPES,
-  isCrossTurnTapMemberWindow,
   isOwnDeskFreeDragCommand,
   isOwnDeskFreeDragWindow,
   PERFORMANCE_LIVE_START_COMMAND_TYPES,
@@ -657,25 +656,26 @@ function buildPermissionViewState(
     )
     .map((command) => buildPhaseCommandHint(command, game, viewerPlayerId, viewerSeat))
     .filter((hint): hint is ViewCommandHint => hint !== null);
-  const crossTurnHints = buildCrossTurnCommandHints(game, viewerPlayerId, viewerSeat);
-  const combinedPhaseHints = mergeCommandHints(phaseHints, crossTurnHints);
 
   if (!game.inspectionContext) {
     return {
-      availableCommands: combinedPhaseHints,
+      availableCommands: phaseHints,
     };
   }
 
   const inspectionSeat = getSeatForPlayer(game, game.inspectionContext.ownerPlayerId);
   if (inspectionSeat !== viewerSeat) {
+    // 检视期间不支持并发检视，非检视所有者不应看到 OPEN_INSPECTION 为可用命令
     return {
-      availableCommands: combinedPhaseHints,
+      availableCommands: phaseHints.filter(
+        (hint) => hint.command !== GameCommandType.OPEN_INSPECTION
+      ),
     };
   }
 
   return {
     availableCommands: mergeCommandHints(
-      combinedPhaseHints,
+      phaseHints,
       buildInspectionCommandHints(game, viewerPlayerId, viewerSeat)
     ),
   };
@@ -718,28 +718,6 @@ function mergeCommandHints(
   return [...merged.values()];
 }
 
-function buildCrossTurnCommandHints(
-  game: GameState,
-  viewerPlayerId: string,
-  viewerSeat: Seat
-): readonly ViewCommandHint[] {
-  if (game.inspectionContext && game.inspectionContext.ownerPlayerId !== viewerPlayerId) {
-    return [];
-  }
-
-  if (!isCrossTurnTapMemberWindow(game.currentPhase, game.currentSubPhase)) {
-    return [];
-  }
-
-  const tapMemberHint = buildPhaseCommandHint(
-    GameCommandType.TAP_MEMBER,
-    game,
-    viewerPlayerId,
-    viewerSeat
-  );
-
-  return tapMemberHint ? [tapMemberHint] : [];
-}
 
 function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] {
   switch (game.currentPhase) {
@@ -762,6 +740,11 @@ function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] 
       if (game.currentSubPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS) {
         return PERFORMANCE_LIVE_START_COMMAND_TYPES;
       }
+      if (game.currentSubPhase === SubPhase.PERFORMANCE_REVEAL) {
+        // PERFORMANCE_REVEAL 是自动化子阶段（requiresUserAction: false），
+        // 由 REVEAL_LIVE_CARDS 事件驱动推进，不属于玩家交互窗口
+        return [];
+      }
       return [...OWN_DESK_FREE_DRAG_COMMAND_TYPES, GameCommandType.CONFIRM_STEP];
     case GamePhase.LIVE_RESULT_PHASE:
       if (isResultSuccessEffectSubPhase(game.currentSubPhase)) {
@@ -779,6 +762,11 @@ function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] 
           GameCommandType.SELECT_SUCCESS_LIVE,
           GameCommandType.CONFIRM_STEP,
         ];
+      }
+      if (game.currentSubPhase === SubPhase.RESULT_TURN_END) {
+        // RESULT_TURN_END 是自动化子阶段（requiresUserAction: false），
+        // 由 FINALIZE_LIVE_RESULT 事件驱动推进，不允许手动命令
+        return [];
       }
       return [...OWN_DESK_FREE_DRAG_COMMAND_TYPES, GameCommandType.CONFIRM_STEP];
     default:

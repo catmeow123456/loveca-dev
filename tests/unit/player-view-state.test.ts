@@ -319,6 +319,7 @@ describe('PlayerViewState projector', () => {
     expect(hasEnabledCommand(mainOpponentView, GameCommandType.MOVE_TABLE_CARD)).toBe(true);
     expect(hasEnabledCommand(mainOpponentView, GameCommandType.MOVE_OWNED_CARD_TO_ZONE)).toBe(true);
     expect(hasEnabledCommand(mainOpponentView, GameCommandType.PLAY_MEMBER_TO_SLOT)).toBe(true);
+    expect(hasEnabledCommand(mainOpponentView, GameCommandType.OPEN_INSPECTION)).toBe(true);
     expect(hasEnabledCommand(mainOpponentView, GameCommandType.END_PHASE)).toBe(false);
 
     state.currentPhase = GamePhase.LIVE_SET_PHASE;
@@ -340,14 +341,25 @@ describe('PlayerViewState projector', () => {
       false
     );
 
+    // PERFORMANCE_REVEAL 是自动化子阶段（requiresUserAction: false），不属于自由拖拽窗口
     state.currentPhase = GamePhase.PERFORMANCE_PHASE;
     state.currentSubPhase = SubPhase.PERFORMANCE_REVEAL;
     const performanceRevealOpponentView = projectPlayerViewState(state, PLAYER2);
     expect(hasEnabledCommand(performanceRevealOpponentView, GameCommandType.MOVE_TABLE_CARD)).toBe(
-      true
+      false
     );
     expect(
       hasEnabledCommand(performanceRevealOpponentView, GameCommandType.PLAY_MEMBER_TO_SLOT)
+    ).toBe(false);
+
+    // PERFORMANCE_LIVE_START_EFFECTS 是自由拖拽子阶段
+    state.currentSubPhase = SubPhase.PERFORMANCE_LIVE_START_EFFECTS;
+    const performanceEffectOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(performanceEffectOpponentView, GameCommandType.MOVE_TABLE_CARD)).toBe(
+      true
+    );
+    expect(
+      hasEnabledCommand(performanceEffectOpponentView, GameCommandType.PLAY_MEMBER_TO_SLOT)
     ).toBe(true);
 
     state.currentPhase = GamePhase.LIVE_RESULT_PHASE;
@@ -491,5 +503,90 @@ describe('PlayerViewState projector', () => {
     expect(
       hasEnabledCommand(performanceInspectionView, GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE)
     ).toBe(true);
+  });
+
+  it('自由拖拽窗口期间非当前回合玩家应拥有 OPEN_INSPECTION 权限', () => {
+    const { state } = createProjectedState();
+
+    state.activePlayerIndex = 0;
+    state.waitingPlayerId = null;
+
+    // 主阶段
+    state.currentPhase = GamePhase.MAIN_PHASE;
+    state.currentSubPhase = SubPhase.NONE;
+    const mainOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(mainOpponentView, GameCommandType.OPEN_INSPECTION)).toBe(true);
+    const mainActiveView = projectPlayerViewState(state, PLAYER1);
+    expect(hasEnabledCommand(mainActiveView, GameCommandType.OPEN_INSPECTION)).toBe(true);
+
+    // 表演阶段（自由拖拽子阶段）
+    state.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    state.currentSubPhase = SubPhase.PERFORMANCE_LIVE_START_EFFECTS;
+    const performanceOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(performanceOpponentView, GameCommandType.OPEN_INSPECTION)).toBe(true);
+
+    // Live 设置阶段（自由拖拽子阶段）
+    state.currentPhase = GamePhase.LIVE_SET_PHASE;
+    state.currentSubPhase = SubPhase.LIVE_SET_FIRST_PLAYER;
+    const liveSetOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(liveSetOpponentView, GameCommandType.OPEN_INSPECTION)).toBe(true);
+
+    // Live 结果阶段（成功效果子阶段）
+    state.currentPhase = GamePhase.LIVE_RESULT_PHASE;
+    state.currentSubPhase = SubPhase.RESULT_FIRST_SUCCESS_EFFECTS;
+    const liveResultOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(liveResultOpponentView, GameCommandType.OPEN_INSPECTION)).toBe(true);
+
+    // 非自由拖拽窗口：抽卡阶段不应有检视权限
+    state.currentPhase = GamePhase.DRAW_PHASE;
+    state.currentSubPhase = SubPhase.NONE;
+    const drawPhaseView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(drawPhaseView, GameCommandType.OPEN_INSPECTION)).toBe(false);
+
+    // 非自由拖拽窗口：RESULT_TURN_END 是自动化子阶段，不应有检视权限
+    state.currentPhase = GamePhase.LIVE_RESULT_PHASE;
+    state.currentSubPhase = SubPhase.RESULT_TURN_END;
+    const turnEndView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(turnEndView, GameCommandType.OPEN_INSPECTION)).toBe(false);
+
+    // 非自由拖拽窗口：PERFORMANCE_REVEAL 是自动化子阶段，不应有检视权限
+    state.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    state.currentSubPhase = SubPhase.PERFORMANCE_REVEAL;
+    const revealView = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(revealView, GameCommandType.OPEN_INSPECTION)).toBe(false);
+  });
+
+  it('一方检视期间另一方不应看到 OPEN_INSPECTION 为可用', () => {
+    const { state, p1HandCard } = createProjectedState();
+    const mutableState = state as unknown as {
+      inspectionZone: { cardIds: string[]; revealedCardIds: string[] };
+      inspectionContext: { ownerPlayerId: string; sourceZone: ZoneType.MAIN_DECK } | null;
+      activePlayerIndex: number;
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+    };
+    mutableState.activePlayerIndex = 0;
+    mutableState.currentPhase = GamePhase.MAIN_PHASE;
+    mutableState.currentSubPhase = SubPhase.NONE;
+
+    // PLAYER1 开启检视
+    mutableState.inspectionZone.cardIds = [p1HandCard.instanceId];
+    mutableState.inspectionZone.revealedCardIds = [];
+    mutableState.inspectionContext = {
+      ownerPlayerId: PLAYER1,
+      sourceZone: ZoneType.MAIN_DECK,
+    };
+
+    // PLAYER2（非检视所有者）不应看到 OPEN_INSPECTION 为可用
+    const player2View = projectPlayerViewState(state, PLAYER2);
+    expect(hasEnabledCommand(player2View, GameCommandType.OPEN_INSPECTION)).toBe(false);
+
+    // PLAYER1（检视所有者）应看到检视专用 OPEN_INSPECTION 提示
+    const player1View = projectPlayerViewState(state, PLAYER1);
+    expect(hasEnabledCommand(player1View, GameCommandType.OPEN_INSPECTION)).toBe(true);
+
+    // PLAYER2 在检视期间仍可使用其他自由拖拽命令
+    expect(hasEnabledCommand(player2View, GameCommandType.MOVE_TABLE_CARD)).toBe(true);
+    expect(hasEnabledCommand(player2View, GameCommandType.TAP_MEMBER)).toBe(true);
   });
 });
