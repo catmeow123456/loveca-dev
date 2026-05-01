@@ -26,7 +26,7 @@ import {
   ZoneType,
 } from '../shared/types/enums.js';
 import type { GameState, InspectionContextState } from '../domain/entities/game.js';
-import { addAction, getActivePlayer, getPlayerById } from '../domain/entities/game.js';
+import { GAME_CONFIG, addAction, getActivePlayer, getPlayerById } from '../domain/entities/game.js';
 import {
   isPlayerActive,
   getActivePlayerId as getActivePlayerIdFromConfig,
@@ -1024,7 +1024,20 @@ export class GameSession {
           return '卡牌当前不在声明的己方区域';
         }
         if (command.fromZone === ZoneType.HAND && command.toZone === ZoneType.LIVE_ZONE) {
-          return '手牌放入 Live 区必须使用 Live 放置命令';
+          if (state.currentPhase === GamePhase.LIVE_SET_PHASE) {
+            return 'Live 设置阶段手牌放入 Live 区必须使用 Live 放置命令';
+          }
+          const player = state.players.find((candidate) => candidate.id === command.playerId);
+          if (!player) {
+            return '玩家不存在';
+          }
+          if (player.liveZone.cardIds.length >= GAME_CONFIG.MAX_LIVE_CARDS_PER_PHASE) {
+            return '已达到 Live 卡放置上限';
+          }
+          const card = state.cardRegistry.get(command.cardId);
+          if (!card || card.data.cardType !== CardType.LIVE) {
+            return '只有 LIVE 卡可以自由拖入 Live 区';
+          }
         }
         if (command.toZone === ZoneType.MEMBER_SLOT && !command.targetSlot) {
           return '成员区目标移动必须声明目标槽位';
@@ -1118,9 +1131,7 @@ export class GameSession {
       case GameCommandType.TAP_ENERGY:
         return isOwnDeskFreeDragWindowOpen ? null : '当前不是可自由整理阶段';
       case GameCommandType.OPEN_INSPECTION:
-        return isOwnDeskFreeDragWindowOpen
-          ? null
-          : '当前不是可检视阶段';
+        return isOwnDeskFreeDragWindowOpen ? null : '当前不是可检视阶段';
       case GameCommandType.TAP_MEMBER:
       case GameCommandType.MOVE_MEMBER_TO_SLOT:
       case GameCommandType.ATTACH_ENERGY_TO_MEMBER:

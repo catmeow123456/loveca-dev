@@ -31,6 +31,7 @@ import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
 import { getDeckBackUrl } from '@/lib/imageService';
 import { parseZoneId } from '@/lib/zoneUtils';
+import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import { ChevronRight } from 'lucide-react';
 import {
   SlotPosition,
@@ -234,6 +235,15 @@ export const GameBoard = memo(function GameBoard() {
       ) {
         suggested.push('live-zone');
       }
+      if (
+        currentPhase !== GamePhase.LIVE_SET_PHASE &&
+        currentPhase !== null &&
+        isOwnDeskFreeDragWindow(currentPhase, currentSubPhase) &&
+        fromZone === ZoneType.HAND &&
+        getKnownCardType(cardId) === CardType.LIVE
+      ) {
+        suggested.push('live-zone');
+      }
       // 结算：推荐 Live 区 -> 成功区 / 休息室
       if (
         currentPhase === GamePhase.LIVE_RESULT_PHASE &&
@@ -252,7 +262,7 @@ export const GameBoard = memo(function GameBoard() {
 
       setDragHints(true, suggested);
     },
-    [currentPhase, currentSubPhase, matchView?.window?.windowType, setDragHints]
+    [currentPhase, currentSubPhase, matchView?.window?.windowType, setDragHints, getKnownCardType]
   );
 
   // 拖拽结束处理 - 统一处理所有区域间的拖拽
@@ -594,7 +604,12 @@ export const GameBoard = memo(function GameBoard() {
             toZone === ZoneType.MAIN_DECK || toZone === ZoneType.ENERGY_DECK ? 'TOP' : undefined,
         });
         if (result.success) {
-          addLog(`己方卡牌移动: ${fromZone} → ${toZone}`, 'action');
+          addLog(
+            fromZone === ZoneType.HAND && toZone === ZoneType.LIVE_ZONE
+              ? '自由放置 Live 卡: 手牌 → Live 区（正面）'
+              : `己方卡牌移动: ${fromZone} → ${toZone}`,
+            'action'
+          );
         }
         return;
       }
