@@ -963,6 +963,12 @@ export const PlayerArea = memo(function PlayerArea({
           exit={{ opacity: 0, scale: 0.9 }}
           // 横置卡牌的容器：需要调整尺寸以适应旋转后的卡牌
           className="relative w-[105px] h-[68px] flex items-center justify-center"
+          onMouseEnter={() => {
+            if (shouldShowFront && card) {
+              setHoveredCard(card.instanceId);
+            }
+          }}
+          onMouseLeave={() => setHoveredCard(null)}
         >
           {/* 横置卡牌 - 逆时针旋转90度 */}
           <div className="-rotate-90 origin-center">
@@ -975,8 +981,6 @@ export const PlayerArea = memo(function PlayerArea({
                 faceUp={shouldShowFront}
                 interactive={!isOpponent}
                 showHover={false}
-                onMouseEnter={() => shouldShowFront && setHoveredCard(card.instanceId)}
-                onMouseLeave={() => setHoveredCard(null)}
                 className="w-[80px] h-[112px]"
               />
             ) : (
