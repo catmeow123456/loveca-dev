@@ -34,6 +34,10 @@ export const ALL_UNIT_OPTIONS = Object.values(GROUP_UNIT_MAP).flat();
 
 /** 收录商品选项 */
 export const PRODUCT_OPTIONS = [
+  'スタートデッキラブライブ！スーパースター!!cheer',
+  'コレクションクリアポケットラブライブ！蓮ノ空女学院スクールアイドルクラブ',
+  'ブースターパック Royal Holiday',
+  'プレミアムブースター蓮ノ空女学院スクールアイドルクラブ',
   'ブースターパック Anniversary 2026',
   'スタートデッキラブライブ！蓮ノ空女学院スクールアイドルクラブ',
   'スタートデッキラブライブ！サンシャイン!!',
