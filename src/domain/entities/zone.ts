@@ -883,16 +883,27 @@ export function addToTop(zone: BaseZoneState, cardId: string): BaseZoneState {
 }
 
 /**
+ * 密码学安全的随机整数生成
+ * 使用 globalThis.crypto.getRandomValues() 替代 Math.random()
+ * globalThis.crypto 在 Node.js 20+ 和浏览器环境均可用
+ */
+function secureRandomInt(max: number): number {
+  const array = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(array);
+  return array[0] % max;
+}
+
+/**
  * 洗牌
  * 参考规则 5.5
- * 注意：这是一个不纯的函数，使用随机数
+ * 注意：这是一个不纯的函数，使用密码学安全随机数
  */
 export function shuffleZone(zone: BaseZoneState): BaseZoneState {
   const shuffled = [...zone.cardIds];
 
   // Fisher-Yates 洗牌算法
   for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = secureRandomInt(i + 1);
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
 

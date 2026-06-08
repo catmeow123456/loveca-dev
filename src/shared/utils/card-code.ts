@@ -37,6 +37,7 @@ export const VALID_PRODUCTS = [
   'bp4',
   'bp5',
   'bp6',
+  'cl1',
   'pb1',
   'PR',
   'E',
@@ -45,12 +46,14 @@ export const VALID_PRODUCTS = [
 /** 有效的稀有度 */
 export const VALID_RARITIES = [
   'SD',
+  'SD2',
   'N',
   'R',
   'R+',
   'P',
   'P+',
   'AR',
+  'CL',
   'L',
   'L+',
   'SEC',

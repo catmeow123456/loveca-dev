@@ -713,13 +713,19 @@ function moveCardForRuleAction(
   return state;
 }
 
+function secureRandomInt(max: number): number {
+  const array = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(array);
+  return array[0] % max;
+}
+
 /**
- * 洗牌辅助函数
+ * 洗牌辅助函数（密码学安全随机数）
  */
 function shuffleArray<T>(array: T[]): T[] {
   const result = [...array];
   for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = secureRandomInt(i + 1);
     [result[i], result[j]] = [result[j], result[i]];
   }
   return result;

@@ -10,6 +10,12 @@
  * 5. 执行规则检查
  */
 
+function secureRandomInt(max: number): number {
+  const array = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(array);
+  return array[0] % max;
+}
+
 import {
   GamePhase,
   TurnType,
@@ -661,6 +667,13 @@ export class GameService {
         } else {
           mainDeckIds.push(card.instanceId);
         }
+      }
+
+      // 预打散：消除同 card_code 连续排列和 Member/Live 分段的初始聚类，
+      // 让后续 shuffleZone 的输入更接近均匀分布
+      for (let i = mainDeckIds.length - 1; i > 0; i--) {
+        const j = secureRandomInt(i + 1);
+        [mainDeckIds[i], mainDeckIds[j]] = [mainDeckIds[j], mainDeckIds[i]];
       }
 
       return {
