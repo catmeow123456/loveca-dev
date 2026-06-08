@@ -171,6 +171,8 @@ export interface GameStore {
   ) => void;
   /** 初始化游戏（设置卡组） */
   initializeGame: (player1Deck: DeckConfig, player2Deck: DeckConfig) => void;
+  /** 退出本地对局并清空当前桌面状态 */
+  leaveLocalGame: () => void;
   /** 推进阶段 */
   advancePhase: () => void;
   /** 选择卡牌 */
@@ -558,6 +560,30 @@ export const useGameStore = create<GameStore>((set, get) => {
       } else {
         get().addLog(`初始化失败: ${result.error}`, 'error');
       }
+    },
+
+    leaveLocalGame: () => {
+      if (get().remoteSession) {
+        return;
+      }
+
+      set({
+        playerViewState: null,
+        viewingPlayerId: null,
+        gameMode: GameMode.DEBUG,
+        ui: {
+          selectedCardId: null,
+          hoveredCardId: null,
+          isDragging: false,
+          highlightedZones: [],
+          showPhaseBanner: false,
+          phaseBannerText: '',
+          waitingForInput: false,
+          inputRequestType: null,
+          logs: [],
+        },
+      });
+      get().gameSession.gameMode = GameMode.DEBUG;
     },
 
     advancePhase: () => {

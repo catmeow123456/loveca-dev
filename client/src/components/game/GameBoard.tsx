@@ -32,7 +32,7 @@ import { ThemeToggle } from '@/components/common';
 import { getDeckBackUrl } from '@/lib/imageService';
 import { parseZoneId } from '@/lib/zoneUtils';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, DoorOpen } from 'lucide-react';
 import {
   SlotPosition,
   GamePhase,
@@ -71,7 +71,11 @@ const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
   return rectIntersection(args);
 };
 
-export const GameBoard = memo(function GameBoard() {
+interface GameBoardProps {
+  onLeaveLocalGame?: () => void;
+}
+
+export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoardProps) {
   // 配置拖拽传感器：需要移动 5px 才开始拖拽，避免与双击冲突
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -737,6 +741,7 @@ export const GameBoard = memo(function GameBoard() {
   const opponentSeat: Seat = selfSeat === 'FIRST' ? 'SECOND' : 'FIRST';
   const resolvedActiveSeat = activeSeat ?? selfSeat;
   const isSolitaire = gameMode === GameMode.SOLITAIRE;
+  const showLeaveLocalGameButton = isSolitaire && Boolean(onLeaveLocalGame);
 
   return (
     <DndContext
@@ -771,6 +776,20 @@ export const GameBoard = memo(function GameBoard() {
         <div className="absolute right-4 top-4 z-[80]">
           <ThemeToggle />
         </div>
+
+        {showLeaveLocalGameButton && (
+          <div className="absolute left-4 top-4 z-[120] flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onLeaveLocalGame}
+              className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
+              title="退出对墙打房间"
+            >
+              <DoorOpen size={16} />
+              离开房间
+            </button>
+          </div>
+        )}
 
         {/* 对手区域 (顶部) - 包含成员槽位和对手 Live 区 */}
         <div
