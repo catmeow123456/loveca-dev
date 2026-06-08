@@ -9,6 +9,10 @@ import { readFileSync } from 'fs';
 const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
 const appVersion = pkg.version;
 const cacheVersion = `v${appVersion}`;
+const appBuildId =
+  process.env.VITE_APP_BUILD_ID?.trim() ||
+  process.env.GIT_COMMIT_SHA?.trim() ||
+  `${appVersion}-${new Date().toISOString()}`;
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -18,6 +22,7 @@ export default defineConfig(({ mode }) => {
   return {
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
+    __APP_BUILD_ID__: JSON.stringify(appBuildId),
   },
   plugins: [
     {
@@ -26,7 +31,7 @@ export default defineConfig(({ mode }) => {
         this.emitFile({
           type: 'asset',
           fileName: 'version.json',
-          source: JSON.stringify({ version: appVersion }, null, 2),
+          source: JSON.stringify({ version: appVersion, buildId: appBuildId }, null, 2),
         });
       },
     },

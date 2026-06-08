@@ -7,18 +7,14 @@
 
 import type { AnyCardData } from '@game/domain/entities/card';
 import { CardType } from '@game/shared/types/enums';
+import { getApiBaseUrl } from './apiClient';
 
 // ============================================
 // Configuration
 // ============================================
 
-/** Base URL for images (proxied via Nginx to MinIO) */
-const IMAGES_BASE_URL =
-  import.meta.env.DEV
-    ? '/images'
-    : import.meta.env.VITE_API_BASE_URL
-    ? `${import.meta.env.VITE_API_BASE_URL}/images`
-    : null;
+/** Base URL for images (proxied via the same origin/API host to MinIO) */
+const IMAGES_BASE_URL = `${getApiBaseUrl()}/images`;
 
 /** Image size type */
 export type ImageSize = 'thumb' | 'medium' | 'large';

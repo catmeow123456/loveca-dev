@@ -5,7 +5,7 @@
  * Browser-side compression using Canvas API.
  */
 
-import { apiClient, isApiConfigured } from './apiClient';
+import { apiClient, getApiBaseUrl, isApiConfigured } from './apiClient';
 
 // ============================================
 // Configuration
@@ -209,9 +209,8 @@ export async function deleteCardImage(cardCode: string): Promise<{ success: bool
  * Check if image exists (via HEAD request to Nginx/MinIO)
  */
 export async function checkImageExists(cardCode: string): Promise<boolean> {
-  if (!import.meta.env.VITE_API_BASE_URL) return false;
   try {
-    const url = `${import.meta.env.VITE_API_BASE_URL}/images/medium/${encodeURIComponent(cardCode)}.webp`;
+    const url = `${getApiBaseUrl()}/images/medium/${encodeURIComponent(cardCode)}.webp`;
     const response = await fetch(url, { method: 'HEAD' });
     return response.ok;
   } catch {

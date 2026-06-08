@@ -4,6 +4,15 @@
 
 const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
 
+function isLocalOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
 function resolveApiBaseUrl(): string {
   if (!configuredApiBaseUrl) {
     return typeof window === 'undefined' ? '' : window.location.origin;
@@ -14,7 +23,18 @@ function resolveApiBaseUrl(): string {
     return normalizedConfigured;
   }
 
-  return normalizedConfigured === window.location.origin ? '' : normalizedConfigured;
+  if (normalizedConfigured === window.location.origin) {
+    return '';
+  }
+
+  // Production is deployed behind the same Nginx origin. If the same build is
+  // served from an alternate host, a baked-in absolute API URL would become a
+  // cross-origin request and fail because production CORS is intentionally off.
+  if (!import.meta.env.DEV && !isLocalOrigin(window.location.origin)) {
+    return '';
+  }
+
+  return normalizedConfigured;
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
@@ -85,8 +105,8 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
-export function getApiBaseUrl(): string | null {
-  return API_BASE_URL ?? null;
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
 }
 
 // ============================================
@@ -94,6 +114,7 @@ export function getApiBaseUrl(): string | null {
 // ============================================
 
 const REQUEST_TIMEOUT = 15000; // 15 seconds
+const NETWORK_RETRY_DELAY = 300;
 
 /** Safely parse JSON from a response, returning an error ApiResponse for non-JSON bodies */
 async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> {
@@ -120,19 +141,76 @@ async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> 
   }
 }
 
+function buildApiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
+
+function isSafeMethod(method: string | undefined): boolean {
+  const normalized = (method ?? 'GET').toUpperCase();
+  return normalized === 'GET' || normalized === 'HEAD';
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'AbortError';
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function getNetworkErrorMessage(path: string, err: unknown): string {
+  const lines = [
+    err instanceof Error ? err.message : '网络错误',
+    `请求地址: ${buildApiUrl(path)}`,
+  ];
+
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    lines.push('浏览器当前处于离线状态');
+  }
+
+  if (
+    typeof window !== 'undefined' &&
+    window.location.protocol === 'https:' &&
+    API_BASE_URL.startsWith('http:')
+  ) {
+    lines.push('HTTPS 页面正在请求 HTTP API，浏览器会阻止该请求');
+  }
+
+  return lines.join('\n');
+}
+
+async function sendApiRequest(
+  path: string,
+  options: RequestInit,
+  headers: Record<string, string>
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+  try {
+    return await fetch(buildApiUrl(path), {
+      ...options,
+      headers,
+      credentials: 'include', // Send httpOnly cookies
+      cache: options.cache ?? (isSafeMethod(options.method) ? 'no-store' : undefined),
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
 
-  // Don't set Content-Type for FormData (browser sets boundary automatically)
-  if (!(options.body instanceof FormData)) {
+  // Don't set Content-Type for GET/HEAD or FormData; otherwise cross-origin GETs
+  // become CORS preflight requests and fail if the API is not explicitly allowlisted.
+  if (options.body !== undefined && !(options.body instanceof FormData)) {
     headers['Content-Type'] = headers['Content-Type'] ?? 'application/json';
   }
 
@@ -141,14 +219,17 @@ async function apiFetch<T>(
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      headers,
-      credentials: 'include', // Send httpOnly cookies
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
+    let response: Response;
+    try {
+      response = await sendApiRequest(path, options, headers);
+    } catch (err) {
+      if (!isAbortError(err) && isSafeMethod(options.method)) {
+        await wait(NETWORK_RETRY_DELAY);
+        response = await sendApiRequest(path, options, headers);
+      } else {
+        throw err;
+      }
+    }
 
     const body = await safeResponseJson<T>(response);
 
@@ -163,11 +244,7 @@ async function apiFetch<T>(
         } else {
           delete headers['Authorization'];
         }
-        const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
-          ...options,
-          headers,
-          credentials: 'include',
-        });
+        const retryResponse = await sendApiRequest(path, options, headers);
         return await safeResponseJson<T>(retryResponse);
       }
       // Refresh failed — clear token
@@ -176,8 +253,7 @@ async function apiFetch<T>(
 
     return body;
   } catch (err) {
-    clearTimeout(timeout);
-    if (err instanceof DOMException && err.name === 'AbortError') {
+    if (isAbortError(err)) {
       return {
         data: null,
         error: { code: 'TIMEOUT', message: '请求超时，请检查网络连接' },
@@ -187,7 +263,7 @@ async function apiFetch<T>(
       data: null,
       error: {
         code: 'NETWORK_ERROR',
-        message: err instanceof Error ? err.message : '网络错误',
+        message: getNetworkErrorMessage(path, err),
       },
     };
   }
