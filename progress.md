@@ -1,9 +1,18 @@
-Original prompt: 阅读 game_system_design.md 和相关文档和代码,目前对墙打模式没有"退出房间"的相关按钮,导致每次都得刷新重开房间,你可以模仿联机模式下退出房间的按钮,设计一个这样的按钮出来.
+# Loveca 项目进度摘要
 
-Progress:
-- Read `game_system_design.md`, `docs/solitaire-mode-requirements.md`, current game table docs, `OnlineRoomPage`, `GameBoard`, `DebugControl`, `App`, and `gameStore`.
-- Found online in-game leave button is rendered by `OnlineRoomPage` as a fixed top-left frosted ghost button with `DoorOpen`.
-- Plan: add a local leave/reset store action, expose optional `GameBoard` leave button only for local solitaire mode, and have `App` navigate back to game setup after leaving.
-- Implemented `leaveLocalGame`, a solitaire-only in-game leave button in `GameBoard`, and an `App` callback that returns to setup.
-- `pnpm --dir client build` passed; only existing Vite chunk-size and Browserslist freshness warnings appeared.
-- Per user instruction, skipped dev-server verification in production environment and ran `pnpm build:client`; production client build completed successfully.
+> 本文档只保留当前项目级状态摘要。单次任务执行记录不应长期写入本文件。
+
+## 当前实现概况
+
+- 对局引擎：已具备本地对墙打、配置化阶段/子阶段、主要动作处理、Live 判定与结算、检查时机基础纠偏。
+- 联机模式：已具备正式房间创建/加入、云端卡组锁定、房主先后手提议、客方确认开局、服务端权威对局、轮询同步、玩家离开/重连恢复和管理员房间监控。
+- 账号与数据：已接入自托管 Express API、JWT 鉴权、PostgreSQL、Drizzle schema、卡牌/卡组 REST 接口和 MinIO 图片服务。
+- 卡组系统：支持云端卡组、本地对局选组、DeckLog 导入、公开分享/复制、构筑校验与点数统计。
+- 卡牌管理：管理员可进行卡牌 CRUD、上下线、JSON 导入导出、图片上传、AI 效果文本提取和 YAML/表单双模式编辑。
+
+## 主要边界
+
+- 联机实时传输当前使用轮询，不是 WebSocket。
+- 在线房间与对局状态目前以内存服务为主，缺少可恢复的事件持久化和快照持久化。
+- 复杂卡文、自动能力连锁和高阶费用处理仍主要依赖玩家显式桌面操作与审计式流程。
+- 移动端牌桌仍偏桌面交互模型，相关文档以改进方向和验收标准为主。

@@ -2,7 +2,7 @@
 
 > 文档类型：设计文档  
 > 适用范围：Loveca 当前代码架构与关键流程设计（基于现状实现）  
-> 最后更新：2026-03-27
+> 最后更新：2026-06-11
 
 ---
 
@@ -45,7 +45,7 @@ graph TB
 
     subgraph Server[服务端 API]
         App[Express App]
-        Routes[Auth/Cards/Decks/Profiles/Images]
+        Routes[Auth/Cards/Decks/Profiles/Images/Online]
         Middleware[鉴权与校验中间件]
     end
 
@@ -98,12 +98,14 @@ graph LR
 
 - 维护权威状态
 - 接收并派发玩家动作
-- 处理自动推进与模式差异（DEBUG/SOLITAIRE）
-- 提供玩家视角状态读取接口（当前联机脱敏视图尚未落地，仍返回权威状态副本）
+- 处理自动推进与模式差异（DEBUG/SOLITAIRE/ONLINE）
+- 提供玩家视角状态读取接口；联机快照通过 `PlayerViewState` 投影输出，不直接暴露权威状态
 
 代码路径：
 
 - `src/application/game-session.ts`
+- `src/online/projector.ts`
+- `src/online/visibility.ts`
 
 ### 3.2 应用服务层
 

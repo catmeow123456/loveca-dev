@@ -31,9 +31,7 @@ flowchart TB
 
     subgraph Database["数据库层 (PostgreSQL)"]
         CARDS[(public.cards 表)]
-        TRIGGER[触发器]
         IDX[索引]
-        FUNC[存储函数]
     end
 
     CAP --> CS
@@ -44,9 +42,7 @@ flowchart TB
     GDR --> CS
     CS --> SB
     SB --> CARDS
-    CARDS --> TRIGGER
     CARDS --> IDX
-    CARDS --> FUNC
 ```
 
 ## 2. 数据模型
@@ -84,7 +80,7 @@ CREATE TABLE public.cards (
   -- 元数据
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_by UUID REFERENCES auth.users(id)
+  updated_by UUID REFERENCES public.users(id)
 );
 ```
 
@@ -98,7 +94,7 @@ CREATE TABLE public.cards (
 - `CardUpdateInput` — 前端编辑时提交的 camelCase 可选字段集合
 - `CardCreateInput` — 继承 CardUpdateInput，额外必填 cardCode、cardType、name
 
-> **注意**：数据库中的 `rare`（稀有度）和 `product`（收录商品）字段包含在 `CardDbRecord` 中，但前端域模型（`BaseCardData`）、`CardUpdateInput` 和 Admin UI 暂不包含这两个字段。它们目前仅由卡牌数据同步管线写入。
+> **注意**：`rare`（稀有度）和 `product`（收录商品）已进入 `BaseCardData`、`CardUpdateInput` 和管理员编辑弹窗，并用于卡牌浏览/构筑筛选；它们不参与对局规则计算。
 
 **领域模型类型**
 
@@ -114,6 +110,8 @@ interface BaseCardData {
   unitName?: string;
   cardText?: string;
   imageFilename?: string;
+  rare?: string;
+  product?: string;
 }
 
 // 成员卡
@@ -277,20 +275,19 @@ CardEditModal 支持两种编辑模式，通过弹窗头部的切换按钮自由
 
 ## 4. 安全设计
 
-### 4.1 Row Level Security (RLS) 策略
+### 4.1 路由鉴权与读写隔离
 
-| 策略名称 | 操作 | 权限 |
-|---------|------|------|
-| `cards_select_published` | SELECT | 普通用户仅可读取 `status = 'PUBLISHED'` 的卡牌；管理员可读取所有卡牌（DRAFT + PUBLISHED） |
-| `cards_insert_admin` | INSERT | 仅管理员 |
-| `cards_update_admin` | UPDATE | 仅管理员 |
-| `cards_delete_admin` | DELETE | 仅管理员 |
+当前实现使用 Express 路由和 JWT 中间件做权限控制，不依赖数据库 RLS：
 
-> `cards_select_published` 策略通过 `status = 'PUBLISHED' OR is_admin()` 条件实现读权限分级。
-
-### 4.2 权限检查函数
-
-`is_admin()` 函数查询 `profiles` 表判断当前用户是否为管理员，使用 `SECURITY DEFINER` 确保可以越过 RLS 访问 profiles 表。
+| 路径/操作 | 权限边界 |
+|---------|---------|
+| `GET /api/cards` | 普通访问只返回 `PUBLISHED`；管理员可用状态参数读取 DRAFT/PUBLISHED/全部 |
+| `GET /api/cards/:code` | 普通访问不能读取 DRAFT；管理员可读取全部 |
+| `POST /api/cards` | 仅管理员 |
+| `PUT /api/cards/:code` | 仅管理员 |
+| `DELETE /api/cards/:code` | 仅管理员 |
+| `POST /api/cards/import` | 仅管理员 |
+| `GET /api/cards/status-map` | 仅管理员 |
 
 ## 5. 数据流程图
 
@@ -391,10 +388,8 @@ CREATE INDEX idx_cards_status ON public.cards(status);
 | `src/domain/entities/card.ts` | 卡牌领域模型（BaseCardData、类型守卫、工厂函数） |
 | `src/domain/card-data/schema.ts` | Zod Schema（AnyCardDataSchema） |
 | `src/domain/card-data/loader.ts` | 后端数据加载器（CardDataRegistry） |
-| `docs/migrations/003_create_cards_table.sql` | 建表迁移脚本 |
-| `docs/migrations/004_add_blade_hearts.sql` | blade_hearts 字段迁移 |
-| `docs/migrations/005_add_rare_product.sql` | rare/product 字段迁移 |
-| `docs/migrations/006_add_card_status.sql` | status 字段及 RLS 策略迁移 |
+| `src/server/db/schema.ts` | Drizzle 数据库 schema |
+| `src/server/routes/cards.ts` | 卡牌 REST API 路由与权限边界 |
 
 ## 9. 相关文档
 

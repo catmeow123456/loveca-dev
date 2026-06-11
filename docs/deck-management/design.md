@@ -31,7 +31,7 @@ flowchart TB
     subgraph Database["数据库层 (PostgreSQL)"]
         DECKS[(public.decks)]
         PROFILES[(public.profiles)]
-        RLS[RLS 策略]
+        IDX[索引]
     end
 
     DM --> DS
@@ -45,8 +45,7 @@ flowchart TB
     GDR --> SB2
     SB1 --> DECKS
     SB1 --> PROFILES
-    DECKS --> RLS
-    PROFILES --> RLS
+    DECKS --> IDX
 ```
 
 ## 2. 数据模型
@@ -72,6 +71,12 @@ CREATE TABLE public.decks (
 
   -- 分享设置
   is_public BOOLEAN NOT NULL DEFAULT false,  -- 是否公开分享
+  share_id UUID DEFAULT gen_random_uuid() UNIQUE,
+  share_enabled BOOLEAN NOT NULL DEFAULT false,
+  shared_at TIMESTAMPTZ,
+  forked_from_deck_id UUID REFERENCES public.decks(id) ON DELETE SET NULL,
+  forked_from_share_id UUID,
+  forked_at TIMESTAMPTZ,
 
   -- 元数据
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -93,7 +98,7 @@ CREATE TABLE public.decks (
 ### 2.2 TypeScript 类型定义
 
 ```typescript
-// 数据库记录类型（定义于 client/src/lib/supabase.ts）
+// 数据库记录类型（定义于 client/src/lib/apiClient.ts）
 interface DeckRecord {
   id: string;
   user_id: string;
@@ -104,6 +109,12 @@ interface DeckRecord {
   is_valid: boolean;
   validation_errors: string[];
   is_public: boolean;
+  share_id?: string | null;
+  share_enabled?: boolean;
+  shared_at?: string | null;
+  forked_from_deck_id?: string | null;
+  forked_from_share_id?: string | null;
+  forked_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -366,32 +377,26 @@ export function canAddCard(
 
 ## 4. 安全设计
 
-### 4.1 Row Level Security (RLS) 策略
+### 4.1 路由鉴权与数据隔离
 
-| 策略名称 | 操作 | 权限 |
-|---------|------|------|
-| `decks_select_own` | SELECT | 用户查看自己的卡组 |
-| `decks_select_public` | SELECT | 所有人可查看公开卡组 |
-| `decks_insert_own` | INSERT | 用户创建自己的卡组 |
-| `decks_update_own` | UPDATE | 用户更新自己的卡组 |
-| `decks_delete_own` | DELETE | 用户删除自己的卡组 |
-| `decks_admin_select` | SELECT | 管理员可查看所有卡组 |
-| `decks_admin_update` | UPDATE | 管理员可更新所有卡组 |
-| `decks_admin_delete` | DELETE | 管理员可删除所有卡组 |
+当前实现使用 Express 路由和 JWT 中间件做权限控制，不依赖数据库 RLS：
 
-### 4.2 触发器
+| 路径/操作 | 权限边界 |
+|---------|---------|
+| `GET /api/decks` | 仅返回当前登录用户自己的卡组 |
+| `GET /api/decks/public` | 返回公开或开启分享的卡组 |
+| `GET /api/decks/:id` | 拥有者、管理员或公开/分享卡组可读 |
+| `POST /api/decks` | 登录用户创建自己的卡组 |
+| `PUT /api/decks/:id` | 拥有者或管理员可改 |
+| `DELETE /api/decks/:id` | 拥有者或管理员可删 |
+| `POST /api/decks/:id/share` / `DELETE /api/decks/:id/share` | 拥有者或管理员可开关分享 |
+| `POST /api/decks/share/:shareId/fork` | 登录用户可复制公开分享卡组到自己的账号 |
 
-```sql
--- 卡组数量计数维护
-CREATE TRIGGER on_deck_change
-AFTER INSERT OR DELETE ON public.decks
-FOR EACH ROW EXECUTE FUNCTION update_deck_count();
+### 4.2 当前数据库维护方式
 
--- 更新时间自动维护
-CREATE TRIGGER update_deck_updated_at
-BEFORE UPDATE ON public.decks
-FOR EACH ROW EXECUTE FUNCTION update_deck_timestamp();
-```
+- 表结构由 `src/server/db/schema.ts` 中的 Drizzle schema 描述。
+- 路由层通过 SQL 显式写入分享字段；`updated_at` 目前依赖数据库默认值和现有 SQL 更新路径，不存在独立 RLS/触发器文档中的触发器实现。
+- `profiles.deck_count` 字段存在于 schema，但当前卡组路由没有维护计数逻辑，不能作为强一致统计来源。
 
 ## 5. 数据流程图
 
@@ -458,6 +463,8 @@ sequenceDiagram
 | 持有心颜色 | cardData.hearts[].color | 仅 MEMBER |
 | 判心颜色 | cardData.requirements.colorRequirements | 仅 LIVE |
 | 分数区间 | cardData.score | 仅 LIVE |
+| 稀有度 | cardData.rare | 全部 |
+| 收录商品 | cardData.product | 全部 |
 
 ### 6.2 筛选逻辑
 
@@ -465,17 +472,18 @@ sequenceDiagram
 
 1. **卡牌类型** — 按当前选中的 CardType 过滤
 2. **文字搜索** — 匹配卡牌名称或编号
-3. **稀有度** — 从 cardCode 后缀解析稀有度进行匹配
+3. **稀有度** — 匹配 cardData.rare
 4. **组合** — 匹配 groupName
 5. **小组**（仅成员卡）— 匹配 unitName
 6. **费用区间**（仅成员卡）— 过滤 cost 在 [costMin, costMax] 范围内的卡牌
 7. **持有心颜色**（仅成员卡）— 检查 hearts 数组中是否包含所选颜色的心
 8. **判心颜色**（仅 Live 卡）— 检查 requirements.colorRequirements 中是否包含所选颜色
 9. **分数区间**（仅 Live 卡）— 过滤 score 在 [scoreMin, scoreMax] 范围内的卡牌
+10. **收录商品** — 匹配 cardData.product
 
 最终结果按 cardCode 字典序排序。
 
-**代码路径**: `client/src/components/common/CardEditor.tsx`
+**代码路径**: `client/src/components/deck-editor/CardEditor.tsx`
 
 ## 7. 图片下载功能
 
@@ -496,7 +504,7 @@ function cardCodeToFilename(cardCode: string): string {
 
 1. 创建 JSZip 实例
 2. 遍历卡组所有卡牌（根据 count 重复）
-3. 获取图片 URL（优先 Supabase Storage CDN 大图，回退本地静态文件）
+3. 通过 `resolveCardImagePath` 获取图片 URL（优先 MinIO/静态资源配置，回退本地静态文件）
 4. fetch 下载图片 blob
 5. 添加到 zip 文件
 6. 生成 zip 并通过 file-saver 触发下载
@@ -610,16 +618,17 @@ const [decklogWarnings, setDecklogWarnings] = useState<string[]>([]);
 | `client/src/components/deck/DeckManager.tsx` | 卡组管理页面 |
 | `client/src/components/deck/DeckStats.tsx` | 卡组统计与展示组件 |
 | `client/src/components/deck/DeckSelector.tsx` | 卡组选择器 |
-| `client/src/components/common/CardEditor.tsx` | 卡牌编辑器 |
-| `client/src/components/game/CardDetailOverlay.tsx` | 卡牌详情弹窗 |
+| `client/src/components/deck-editor/CardEditor.tsx` | 卡牌编辑器 |
+| `client/src/components/game/CardDetailOverlay.tsx` | 游戏内卡牌详情浮层 |
 | `client/src/store/deckStore.ts` | 卡组状态管理 |
+| `client/src/lib/apiClient.ts` | REST API 客户端与 DeckRecord 类型定义 |
 | `client/src/lib/cardUtils.ts` | 卡牌工具函数（`getBaseCardCode` 等） |
-| `client/src/lib/supabase.ts` | Supabase 客户端与 DeckRecord 类型定义 |
 | `src/domain/rules/deck-validator.ts` | 卡组验证规则 |
+| `src/domain/rules/deck-construction.ts` | 卡组构筑校验与点数计算 |
 | `src/domain/card-data/deck-loader.ts` | 卡组加载器与 DeckConfig/CardEntry 类型定义 |
 | `src/server/services/decklog-scraper.ts` | DeckLog 爬取服务 |
 | `src/server/routes/decks.ts` | 卡组 REST API 路由（含 scrape-decklog 端点） |
-| `docs/migrations/001_init_profiles_decks.sql` | 数据库初始化脚本 |
+| `src/server/db/schema.ts` | Drizzle 数据库 schema |
 
 ## 10. 相关文档
 
