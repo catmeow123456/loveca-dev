@@ -1,5 +1,8 @@
 # Loveca UI 重设计方案 v2 — 分层双主题设计系统
 
+> 文档类型: UI 设计方案
+> 适用范围: 主题令牌、页面分层、组件语言和 UI 重设计背景
+> 当前状态: 设计目标多数已落地；“实施优先级”和“需要删除的遗留代码”保留为历史方案/清理参考，当前事实以 `client/src/index.css`、`client/src/lib/theme.ts` 和相关组件为准
 > Love Live! series official card game 的数字化实现。
 > 氛围界面承载题材表达，功能界面承载效率与维护性。
 

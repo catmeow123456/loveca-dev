@@ -507,7 +507,9 @@ hover 在当前桌面中占比很高：
 - 可人工修改己方分数
 - 点击确认
 
-`RESULT_FIRST_SUCCESS_EFFECTS` / `RESULT_SECOND_SUCCESS_EFFECTS` 是结果阶段中保留普通桌面操作的窗口。`RESULT_SCORE_CONFIRM` 和 `RESULT_SETTLEMENT` 不开放全部普通桌面拖拽；结算阶段的成功 Live 选择走专用命令，Live 卡相关桌面整理走阶段豁免。
+当前实现中，`LIVE_RESULT_PHASE` 内所有 `requiresUserAction: true` 的子阶段都属于己方桌面自由拖拽窗口，包括 `RESULT_FIRST_SUCCESS_EFFECTS`、`RESULT_SECOND_SUCCESS_EFFECTS`、`RESULT_SCORE_CONFIRM`、`RESULT_ANIMATION` 和 `RESULT_SETTLEMENT`。分数提交、确认推进和成功 Live 选择仍分别走 `SUBMIT_SCORE`、`CONFIRM_STEP`、`SELECT_SUCCESS_LIVE` 等专用命令。
+
+`RESULT_TURN_END` 是自动推进子阶段，不开放普通桌面拖拽。
 
 - 双方都确认后进入下一回合
 

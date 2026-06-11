@@ -207,7 +207,7 @@ const name = getPhaseName(GamePhase.MAIN_PHASE); // "主要阶段"
 import { getSubPhaseConfig, isUserActionRequired } from '@game/shared/phase-config';
 
 const subConfig = getSubPhaseConfig(SubPhase.LIVE_SET_FIRST_PLAYER);
-const needsAction = isUserActionRequired(SubPhase.PERFORMANCE_CHEER); // true
+const needsAction = isUserActionRequired(SubPhase.PERFORMANCE_JUDGMENT); // true
 
 // 统一判断当前行动玩家
 import { isPlayerActive } from '@game/shared/phase-config';
@@ -217,16 +217,16 @@ const canAct = isPlayerActive(gameState, playerId);
 
 #### 2.4.4 添加新阶段的步骤
 
-**之前 (8 步)：**
+**历史做法（注册表前，示意）：**
 
 1. `enums.ts` - 添加枚举值
 2. `actions.ts` - 添加 Action 类型
 3. `game.ts` - 添加状态字段
 4. `game-service.ts` - 添加处理逻辑
 5. `phase-manager.ts` - 更新 `getPhaseName()` 和 `getNextPhase()` switch-case
-6. `gameStore.ts` - 更新 `getPhaseDisplayName()`
+6. `gameStore.ts` - 同步阶段显示派生逻辑
 7. `game-visualizer.ts` - 更新 `getPhaseName()`
-8. `PhaseIndicator.tsx` - 更新 `phaseInfo` 对象
+8. `PhaseIndicator.tsx` - 同步阶段按钮/展示映射
 
 **之后 (2-3 步)：**
 
@@ -292,7 +292,7 @@ interface PhaseTransitionRule {
 
 ## 3. 检查时机 (Check Timing) 实现规范
 
-这是游戏逻辑的核心，必须严格按照规则 9.5.3 实现。
+当前主流程尚未接入完整自动能力/检查时机编排；本章是后续接入自动裁判时的实现规范。已落地的客观处理以 `docs/game_system_design.md`、`src/application/game-session.ts`、`src/application/game-commands.ts` 和命令处理器为准。
 
 ### 3.1 检查时机流程
 
