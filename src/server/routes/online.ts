@@ -152,7 +152,9 @@ onlineRouter.get('/matches/:matchId/snapshot', requireAuth, (req, res) => {
       return;
     }
 
-    const snapshot = onlineMatchService.getMatchSnapshot(match.matchId, req.user!.id);
+    const snapshot = onlineMatchService.getMatchSnapshot(match.matchId, req.user!.id, {
+      sinceSeq: readOptionalSeq(req.query?.sinceSeq),
+    });
     if (!snapshot) {
       respondMatchForbidden(res);
       return;
@@ -265,4 +267,14 @@ function respondOnlineError(res: Response, error: unknown): void {
 
 function readPathParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] : (value ?? '');
+}
+
+function readOptionalSeq(value: unknown): number | undefined {
+  const raw = Array.isArray(value) ? (value[0] as unknown) : value;
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return undefined;
+  }
+
+  const seq = Number(raw);
+  return Number.isSafeInteger(seq) && seq >= 0 ? seq : undefined;
 }

@@ -860,8 +860,13 @@ export const useGameStore = create<GameStore>((set, get) => {
       const snapshot = await fetchRemoteSnapshot(
         remoteSession.source,
         remoteSession.matchId,
-        remoteSession.seat
+        remoteSession.seat,
+        get().playerViewState?.match.seq
       );
+      if (!snapshot) {
+        return;
+      }
+
       await preloadRemoteSnapshotFrontTransitions(
         get().playerViewState,
         snapshot.playerViewState,
@@ -1429,10 +1434,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 /**
  * 处理 GameSession 事件
  */
-function handleGameSessionEvent(
-  event: GameSessionEvent,
-  get: () => GameStore
-): void {
+function handleGameSessionEvent(event: GameSessionEvent, get: () => GameStore): void {
   switch (event.type) {
     case 'PHASE_CHANGED':
       // 阶段变化时自动同步状态
@@ -1634,7 +1636,8 @@ async function preloadRemoteSnapshotFrontTransitions(
     }
 
     const cardData =
-      cardDataRegistry.get(nextObject.frontInfo.cardCode) ?? buildFallbackCardData(nextObject.frontInfo);
+      cardDataRegistry.get(nextObject.frontInfo.cardCode) ??
+      buildFallbackCardData(nextObject.frontInfo);
     imageUrls.add(resolveCardImagePath(cardData, 'medium'));
   }
 

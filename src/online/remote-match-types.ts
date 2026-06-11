@@ -12,6 +12,9 @@ export interface RemoteMatchSnapshot {
   readonly playerId: string;
   readonly seq: number;
   readonly playerViewState: PlayerViewState;
+}
+
+export interface RemoteMatchHistorySnapshot extends RemoteMatchSnapshot {
   readonly publicEvents: readonly PublicEvent[];
   readonly privateEvents: readonly PrivateEvent[];
   readonly snapshots: readonly MatchSnapshotSummary[];

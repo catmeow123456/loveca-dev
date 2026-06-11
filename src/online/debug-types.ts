@@ -1,13 +1,7 @@
 import type { DeckConfig } from '../application/game-service.js';
 import type { GameCommand } from '../application/game-commands.js';
-import type {
-  MatchSnapshotSummary,
-  PlayerViewState,
-  PrivateEvent,
-  PublicEvent,
-  Seat,
-} from './types.js';
-import type { RemoteCommandResult, RemoteMatchSnapshot } from './remote-match-types.js';
+import type { Seat } from './types.js';
+import type { RemoteCommandResult, RemoteMatchHistorySnapshot } from './remote-match-types.js';
 
 export interface DebugSeatDeckSelection {
   readonly seat: Seat;
@@ -32,7 +26,7 @@ export interface DebugMatchStatus {
   readonly seats: Readonly<Record<Seat, DebugSeatStatus>>;
 }
 
-export interface DebugMatchSnapshot extends RemoteMatchSnapshot {}
+export type DebugMatchSnapshot = RemoteMatchHistorySnapshot;
 
 export interface DebugCommandRequest {
   readonly seat: Seat;

@@ -3,6 +3,7 @@ import type {
   OnlineAdminRoomSummary,
   OnlineCommandResult,
   OnlineMatchSnapshot,
+  OnlineMatchSnapshotResponse,
   OnlineRoomView,
   TurnOrderProposalMode,
 } from '@game/online';
@@ -108,14 +109,33 @@ export function leaveOnlineRoomOnUnload(roomCode: string): void {
   });
 }
 
-export async function fetchOnlineMatchSnapshot(matchId: string): Promise<OnlineMatchSnapshot> {
+export async function fetchOnlineMatchSnapshot(matchId: string): Promise<OnlineMatchSnapshot>;
+export async function fetchOnlineMatchSnapshot(
+  matchId: string,
+  sinceSeq: number | undefined
+): Promise<OnlineMatchSnapshot | null>;
+export async function fetchOnlineMatchSnapshot(
+  matchId: string,
+  sinceSeq?: number
+): Promise<OnlineMatchSnapshot | null> {
+  const search =
+    sinceSeq !== undefined && Number.isSafeInteger(sinceSeq) && sinceSeq >= 0
+      ? `?sinceSeq=${sinceSeq}`
+      : '';
   const response = await apiClient.get<unknown>(
-    `/api/online/matches/${encodeURIComponent(matchId)}/snapshot`
+    `/api/online/matches/${encodeURIComponent(matchId)}/snapshot${search}`
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取联机对局快照失败');
   }
-  return fromTransport<OnlineMatchSnapshot>(response.data);
+  const snapshot = fromTransport<OnlineMatchSnapshotResponse>(response.data);
+  return isSnapshotNotModified(snapshot) ? null : snapshot;
+}
+
+function isSnapshotNotModified(
+  snapshot: OnlineMatchSnapshotResponse
+): snapshot is Extract<OnlineMatchSnapshotResponse, { readonly modified: false }> {
+  return 'modified' in snapshot && snapshot.modified === false;
 }
 
 export async function executeOnlineMatchCommand(

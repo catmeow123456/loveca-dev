@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createMulliganCommand } from '../../src/application/game-commands';
 import type { DeckConfig } from '../../src/application/game-service';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
@@ -96,9 +97,32 @@ describe('OnlineRoomService', () => {
     expect(started.matchId).toBeTruthy();
     expect(started.currentUserSeat).toBe('FIRST');
 
-    const snapshot = await matchService.getMatchSnapshot(started.matchId!, 'u2');
+    const snapshot = matchService.getMatchSnapshot(started.matchId!, 'u2');
     expect(snapshot?.seat).toBe('FIRST');
     expect(snapshot?.playerViewState.match.viewerSeat).toBe('FIRST');
+    expect('publicEvents' in snapshot!).toBe(false);
+    expect('privateEvents' in snapshot!).toBe(false);
+    expect('snapshots' in snapshot!).toBe(false);
+
+    const unchangedSnapshot = matchService.getMatchSnapshot(started.matchId!, 'u2', {
+      sinceSeq: snapshot!.seq,
+    });
+    expect(unchangedSnapshot).toEqual({
+      matchId: started.matchId,
+      seq: snapshot!.seq,
+      modified: false,
+    });
+
+    const commandResult = matchService.executeCommand(
+      started.matchId!,
+      'u2',
+      createMulliganCommand('ignored-client-player-id', [])
+    );
+    expect(commandResult?.success).toBe(true);
+    expect(commandResult?.snapshot).toBeTruthy();
+    expect('publicEvents' in commandResult!.snapshot!).toBe(false);
+    expect('privateEvents' in commandResult!.snapshot!).toBe(false);
+    expect('snapshots' in commandResult!.snapshot!).toBe(false);
   });
 
   it('同一用户重复加入同一房间时应复用原成员槽位', async () => {
@@ -163,10 +187,20 @@ describe('OnlineRoomService', () => {
     expect(left.room?.status).toBe('IN_GAME');
     expect(left.room?.currentUserPresence).toBe('LEFT');
 
+    const commandResult = matchService.executeCommand(
+      started.matchId!,
+      'u1',
+      createMulliganCommand('ignored-client-player-id', [])
+    );
+    expect(commandResult?.success).toBe(true);
+
     const restored = await service.getRoomView('rest1', 'u2');
     expect(restored.status).toBe('IN_GAME');
     expect(restored.currentUserPresence).toBe('ACTIVE');
-    expect((await matchService.getMatchSnapshot(started.matchId!, 'u2'))?.seat).toBe('SECOND');
+    const restoredSnapshot = matchService.getMatchSnapshot(started.matchId!, 'u2');
+    expect(restoredSnapshot?.seat).toBe('SECOND');
+    expect(restoredSnapshot?.seq).toBe(commandResult?.snapshot?.seq);
+    expect(restoredSnapshot?.playerViewState.match.seq).toBe(commandResult?.snapshot?.seq);
   });
 
   it('双方都关闭后准备阶段房间应在宽限期后释放', async () => {

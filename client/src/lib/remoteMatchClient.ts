@@ -23,8 +23,9 @@ export type RemoteCommandExecutionResult = DebugCommandResult | OnlineCommandRes
 export async function fetchRemoteSnapshot(
   source: RemoteSessionSource,
   matchId: string,
-  seat?: DebugMatchSnapshot['seat']
-): Promise<RemoteSnapshot> {
+  seat?: DebugMatchSnapshot['seat'],
+  sinceSeq?: number
+): Promise<RemoteSnapshot | null> {
   if (source === 'DEBUG') {
     if (!seat) {
       throw new Error('调试联机会话缺少 seat');
@@ -32,7 +33,7 @@ export async function fetchRemoteSnapshot(
     return fetchOnlineDebugSnapshot(matchId, seat);
   }
 
-  return fetchOnlineMatchSnapshot(matchId);
+  return fetchOnlineMatchSnapshot(matchId, sinceSeq);
 }
 
 export async function executeRemoteCommand(

@@ -6,6 +6,7 @@ import type {
   OnlineAdminMatchSummary,
   OnlineCommandResult,
   OnlineMatchSnapshot,
+  OnlineMatchSnapshotResponse,
   Seat,
 } from '../../online/index.js';
 
@@ -125,7 +126,17 @@ export class OnlineMatchService {
     };
   }
 
-  getMatchSnapshot(matchId: string, userId: string): OnlineMatchSnapshot | null {
+  getMatchSnapshot(matchId: string, userId: string): OnlineMatchSnapshot | null;
+  getMatchSnapshot(
+    matchId: string,
+    userId: string,
+    options: { readonly sinceSeq?: number }
+  ): OnlineMatchSnapshotResponse | null;
+  getMatchSnapshot(
+    matchId: string,
+    userId: string,
+    options: { readonly sinceSeq?: number } = {}
+  ): OnlineMatchSnapshotResponse | null {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -137,6 +148,15 @@ export class OnlineMatchService {
     }
 
     touchMatch(match);
+    const currentSeq = match.session.getCurrentPublicEventSeq();
+    if (options.sinceSeq !== undefined && options.sinceSeq >= currentSeq) {
+      return {
+        matchId: match.matchId,
+        seq: currentSeq,
+        modified: false,
+      };
+    }
+
     return buildSnapshot(match, participant);
   }
 
@@ -246,9 +266,6 @@ function buildSnapshot(
     playerId: participant.playerId,
     seq: match.session.getCurrentPublicEventSeq(),
     playerViewState,
-    publicEvents: match.session.getPublicEventsSince(0),
-    privateEvents: match.session.getPrivateEventsSince(participant.playerId, 0),
-    snapshots: match.session.getSnapshotHistory(),
   };
 }
 

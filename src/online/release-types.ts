@@ -48,6 +48,14 @@ export type OnlineMatchSnapshot = RemoteMatchSnapshot;
 
 export type OnlineCommandResult = RemoteCommandResult<OnlineMatchSnapshot>;
 
+export interface OnlineMatchSnapshotNotModified {
+  readonly matchId: string;
+  readonly seq: number;
+  readonly modified: false;
+}
+
+export type OnlineMatchSnapshotResponse = OnlineMatchSnapshot | OnlineMatchSnapshotNotModified;
+
 export interface OnlineAdminRoomMemberSummary {
   readonly userId: string;
   readonly displayName: string;
