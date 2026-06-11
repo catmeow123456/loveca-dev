@@ -4,9 +4,9 @@
  * 规则要点（detail_rules.md）：
  * - Live 设置阶段，玩家可以从手牌选择最多 3 张卡里侧放到 Live 区
  * - 卡牌类型不应在此阶段被前端/系统强行限制（成员卡也可被“盖放”到 Live 区）
- * - 到 GamePhase.PERFORMANCE_PHASE 才会把 Live 区卡牌翻为表侧
+ * - 到表演阶段才会把 Live 区卡牌翻为表侧并清理非 Live 卡
  *
- * 这个测试锁定“成员卡可盖到 Live 区 + Live Set 时必须 FACE_DOWN + Performance 自动翻 FACE_UP”。
+ * 这个测试锁定“成员卡可盖到 Live 区 + Live Set 时必须 FACE_DOWN + 表演开始时自动清理”。
  */
 
 import { describe, it, expect } from 'vitest';
@@ -139,11 +139,11 @@ describe('Live Set face state', () => {
     expect(bobConfirm.success).toBe(true);
     state = bobConfirm.gameState;
 
-    expect(state.currentPhase).toBe(GamePhase.PERFORMANCE_PHASE);
+    expect(state.currentPhase).toBe(GamePhase.LIVE_RESULT_PHASE);
 
     // 规则 8.3.5 / 10.5.1：进入演出阶段后，Live 区的非 Live 卡被翻为表侧，
-    // 然后 checkTiming 自动将非 Live 类型的卡牌移到休息室。
-    // 这是正确的规则行为——成员卡不应留在 Live 区。
+    // 然后 checkTiming 自动将非 Live 类型的卡牌移到休息室。双方均无 Live 时，
+    // 表演会自动跳过并进入结果阶段。
     const p1InPerformance = getPlayerById(state, 'alice')!;
     expect(p1InPerformance.liveZone.cardIds).not.toContain(memberCardId!);
     expect(p1InPerformance.waitingRoom.cardIds).toContain(memberCardId!);

@@ -11,6 +11,7 @@ import {
   Layers3,
   LogOut,
   MonitorCog,
+  PlayCircle,
   Settings,
   Users,
   Wifi,
@@ -24,6 +25,7 @@ import { isApiConfigured } from '@/lib/apiClient';
 interface HomePageProps {
   onNavigateToDeckManager: () => void;
   onNavigateToGameSetup: () => void;
+  onStartLocalTestGame: () => void;
   onNavigateToOnlineRoom: () => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToCardAdmin: () => void;
@@ -33,6 +35,7 @@ interface HomePageProps {
 export function HomePage({
   onNavigateToDeckManager,
   onNavigateToGameSetup,
+  onStartLocalTestGame,
   onNavigateToOnlineRoom,
   onNavigateToOnlineDebug,
   onNavigateToCardAdmin,
@@ -95,6 +98,15 @@ export function HomePage({
       icon: Gamepad2,
       onClick: onNavigateToGameSetup,
       chips: ['调试模式', '对墙打', '开局确认'],
+    },
+    {
+      title: '本地测试对局',
+      description: '直接载入内置测试卡组，进入和正式牌桌一致的本地对局。',
+      cta: '立即测试',
+      accent: 'var(--semantic-info)',
+      icon: PlayCircle,
+      onClick: onStartLocalTestGame,
+      chips: ['无需登录', '无需数据库', '真实牌桌'],
     },
   ].concat(
     hasOnlineDebugEntry

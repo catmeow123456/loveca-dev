@@ -154,6 +154,10 @@ export const handleConfirmSubPhase: ActionHandler<ConfirmSubPhaseAction> = (
   while (true) {
     const subPhaseResult = phaseManager.advanceToNextSubPhase(state);
     state = phaseManager.applySubPhaseTransition(state, subPhaseResult);
+    state = {
+      ...state,
+      effectWindowType: phaseManager.getEffectWindowType(state.currentSubPhase),
+    };
 
     // 执行子阶段自动处理
     for (const autoAction of subPhaseResult.autoActions) {

@@ -114,6 +114,7 @@ function createOwnedViewZoneKey(seat: Seat, suffix: string): ViewZoneKey {
 const BLOCKED_DURING_INSPECTION_COMMAND_TYPES: readonly GameCommandType[] = [
   GameCommandType.END_PHASE,
   GameCommandType.CONFIRM_STEP,
+  GameCommandType.CONFIRM_EFFECT_STEP,
   GameCommandType.CONFIRM_PERFORMANCE_OUTCOME,
   GameCommandType.SUBMIT_JUDGMENT,
   GameCommandType.SUBMIT_SCORE,
@@ -136,6 +137,7 @@ function buildWindowDescriptor(game: GameState): WindowDescriptor | null {
       waitingSeats: inspectionSeat ? [inspectionSeat] : [],
       context: {
         sourceZone: game.inspectionContext.sourceZone,
+        activeEffectId: game.activeEffect?.id,
       },
     };
   }
@@ -260,6 +262,44 @@ export function projectPlayerViewState(
   projectResolutionAndInspectionZones(game, viewerSeat, objects, zones);
 
   const permissions = buildPermissionViewState(game, viewerPlayerId, viewerSeat);
+  const activeEffect = game.activeEffect
+    ? {
+        id: game.activeEffect.id,
+        abilityId: game.activeEffect.abilityId,
+        sourceObjectId: createPublicObjectId(game.activeEffect.sourceCardId),
+        controllerSeat: getSeatForPlayer(game, game.activeEffect.controllerId),
+        effectText: game.activeEffect.effectText,
+        stepId: game.activeEffect.stepId,
+        stepText: game.activeEffect.stepText,
+        waitingSeat: game.activeEffect.awaitingPlayerId
+          ? getSeatForPlayer(game, game.activeEffect.awaitingPlayerId)
+          : null,
+        inspectionObjectIds: game.activeEffect.inspectionCardIds?.map(createPublicObjectId),
+        selectableObjectIds: game.activeEffect.selectableCardIds?.map(createPublicObjectId),
+        selectableSlots: game.activeEffect.selectableSlots,
+        canResolveInOrder: game.activeEffect.canResolveInOrder,
+        canSkipSelection: game.activeEffect.canSkipSelection,
+      }
+    : null;
+  const pendingCostPayment = game.pendingCostPayment
+    ? {
+        id: game.pendingCostPayment.id,
+        source: game.pendingCostPayment.source,
+        sourceObjectId: createPublicObjectId(game.pendingCostPayment.sourceCardId),
+        playerSeat: getSeatForPlayer(game, game.pendingCostPayment.playerId),
+        targetSlot: game.pendingCostPayment.targetSlot,
+        baseCost: game.pendingCostPayment.baseCost,
+        finalEnergyCost: game.pendingCostPayment.finalEnergyCost,
+        relayDiscount: game.pendingCostPayment.relayDiscount,
+        replacedMemberObjectId: game.pendingCostPayment.replacedMemberCardId
+          ? createPublicObjectId(game.pendingCostPayment.replacedMemberCardId)
+          : null,
+        payableEnergyObjectIds: game.pendingCostPayment.payableEnergyCardIds.map(
+          createPublicObjectId
+        ),
+        explanation: game.pendingCostPayment.explanation,
+      }
+    : null;
   const uiHints: UiHintViewState = {
     gameMode: options.gameMode ?? GameMode.DEBUG,
     isLocalMode: true,
@@ -270,6 +310,8 @@ export function projectPlayerViewState(
     table: { zones: zones as Record<ViewZoneKey, ViewZoneState> },
     objects,
     permissions,
+    activeEffect,
+    pendingCostPayment,
     uiHints,
   };
 }
@@ -675,7 +717,11 @@ function buildPermissionViewState(
 
   if (!game.inspectionContext) {
     return {
-      availableCommands: phaseHints,
+      availableCommands: mergeCommandHints(
+        phaseHints,
+        buildActiveEffectCommandHints(game, viewerPlayerId),
+        buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
+      ),
     };
   }
 
@@ -683,8 +729,10 @@ function buildPermissionViewState(
   if (inspectionSeat !== viewerSeat) {
     // 检视期间不支持并发检视，非检视所有者不应看到 OPEN_INSPECTION 为可用命令
     return {
-      availableCommands: phaseHints.filter(
-        (hint) => hint.command !== GameCommandType.OPEN_INSPECTION
+      availableCommands: mergeCommandHints(
+        phaseHints.filter((hint) => hint.command !== GameCommandType.OPEN_INSPECTION),
+        buildActiveEffectCommandHints(game, viewerPlayerId),
+        buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
       ),
     };
   }
@@ -692,9 +740,51 @@ function buildPermissionViewState(
   return {
     availableCommands: mergeCommandHints(
       phaseHints,
-      buildInspectionCommandHints(game, viewerPlayerId, viewerSeat)
+      buildInspectionCommandHints(game, viewerPlayerId, viewerSeat),
+      buildActiveEffectCommandHints(game, viewerPlayerId),
+      buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
     ),
   };
+}
+
+function buildActiveEffectCommandHints(
+  game: GameState,
+  viewerPlayerId: string
+): readonly ViewCommandHint[] {
+  if (!game.activeEffect || game.activeEffect.awaitingPlayerId !== viewerPlayerId) {
+    return [];
+  }
+
+  return [
+    buildCommandHint(GameCommandType.CONFIRM_EFFECT_STEP, {
+      params: {
+        effectId: game.activeEffect.id,
+      },
+    }),
+  ];
+}
+
+function buildPendingCostCommandHints(
+  game: GameState,
+  viewerPlayerId: string,
+  viewerSeat: Seat
+): readonly ViewCommandHint[] {
+  if (!game.pendingCostPayment || game.pendingCostPayment.playerId !== viewerPlayerId) {
+    return [];
+  }
+
+  return [
+    buildCommandHint(GameCommandType.CONFIRM_COST_PAYMENT, {
+      scope: createCommandScope({
+        zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'ENERGY_ZONE')],
+        cardIds: game.pendingCostPayment.payableEnergyCardIds,
+      }),
+      params: {
+        paymentId: game.pendingCostPayment.id,
+        requiredCount: game.pendingCostPayment.finalEnergyCost,
+      },
+    }),
+  ];
 }
 
 function canViewerUsePhaseCommands(
@@ -721,15 +811,13 @@ function canViewerUsePhaseCommands(
 }
 
 function mergeCommandHints(
-  phaseHints: readonly ViewCommandHint[],
-  inspectionHints: readonly ViewCommandHint[]
+  ...hintGroups: readonly (readonly ViewCommandHint[])[]
 ): readonly ViewCommandHint[] {
   const merged = new Map<string, ViewCommandHint>();
-  for (const hint of phaseHints) {
-    merged.set(hint.command, hint);
-  }
-  for (const hint of inspectionHints) {
-    merged.set(hint.command, hint);
+  for (const hints of hintGroups) {
+    for (const hint of hints) {
+      merged.set(hint.command, hint);
+    }
   }
   return [...merged.values()];
 }

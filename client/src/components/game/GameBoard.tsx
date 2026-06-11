@@ -98,6 +98,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
   const activeSeat = useGameStore((s) => s.getActiveSeatView());
   const viewerSeat = useGameStore((s) => s.getViewerSeat());
+  const activeEffect = useGameStore((s) => s.playerViewState?.activeEffect ?? null);
+  const pendingCostPayment = useGameStore((s) => s.playerViewState?.pendingCostPayment ?? null);
   const viewerLiveScore = useGameStore((s) => s.getViewerLiveScore());
   const opponentLiveScore = useGameStore((s) => s.getOpponentLiveScore());
   const viewerLiveWinner = useGameStore((s) => s.isViewerLiveWinner());
@@ -119,6 +121,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     moveMemberToSlot,
     attachEnergyToMember,
     confirmSubPhase,
+    confirmEffectStep,
+    confirmCostPayment,
     selectSuccessCard,
     movePublicCardToWaitingRoom,
     movePublicCardToHand,
@@ -132,6 +136,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     moveResolutionCardToZone,
     drawEnergyToZone,
     setDragHints,
+    setHoveredCard,
     getZoneCardIds,
     findViewerCardZone,
     resolveCardDropTarget,
@@ -145,6 +150,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       moveMemberToSlot: s.moveMemberToSlot,
       attachEnergyToMember: s.attachEnergyToMember,
       confirmSubPhase: s.confirmSubPhase,
+      confirmEffectStep: s.confirmEffectStep,
+      confirmCostPayment: s.confirmCostPayment,
       selectSuccessCard: s.selectSuccessCard,
       movePublicCardToWaitingRoom: s.movePublicCardToWaitingRoom,
       movePublicCardToHand: s.movePublicCardToHand,
@@ -158,6 +165,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       moveResolutionCardToZone: s.moveResolutionCardToZone,
       drawEnergyToZone: s.drawEnergyToZone,
       setDragHints: s.setDragHints,
+      setHoveredCard: s.setHoveredCard,
       getZoneCardIds: s.getZoneCardIds,
       findViewerCardZone: s.findViewerCardZone,
       resolveCardDropTarget: s.resolveCardDropTarget,
@@ -178,6 +186,32 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
 
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
+  const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
+  const activeEffectSource = activeEffectSourceCardId
+    ? getVisibleCardPresentation(activeEffectSourceCardId)
+    : null;
+  const activeEffectSelectableCardIds =
+    activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
+  const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
+  const canConfirmActiveEffect =
+    !!activeEffect && !!viewerSeat && activeEffect.waitingSeat === viewerSeat;
+  const pendingCostSourceCardId =
+    pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
+  const pendingCostSource = pendingCostSourceCardId
+    ? getVisibleCardPresentation(pendingCostSourceCardId)
+    : null;
+  const pendingCostEnergyIds =
+    pendingCostPayment?.payableEnergyObjectIds.map((objectId) => objectId.replace(/^obj_/, '')) ??
+    [];
+  const canConfirmCostPayment =
+    !!pendingCostPayment &&
+    !!viewerSeat &&
+    pendingCostPayment.playerSeat === viewerSeat &&
+    pendingCostEnergyIds.length >= pendingCostPayment.finalEnergyCost;
+  const autoCostEnergyIds = pendingCostPayment
+    ? pendingCostEnergyIds.slice(0, pendingCostPayment.finalEnergyCost)
+    : [];
+
   const isJudgmentPanelRelevant =
     (currentPhase === GamePhase.PERFORMANCE_PHASE &&
       (currentSubPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS ||
@@ -1086,6 +1120,206 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           turnNumber={currentTurnCount ?? matchView.turnCount}
           onOpenJudgment={handleOpenJudgmentPanel}
         />
+
+        {activeEffect && (
+          <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[95] w-[min(94vw,900px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  处理中的效果
+                </div>
+                <div className="mt-1 text-sm font-semibold">
+                  {activeEffectSource
+                    ? 'cost' in activeEffectSource.cardData
+                      ? `${activeEffectSource.cardData.cost} ${activeEffectSource.cardData.name}`
+                      : activeEffectSource.cardData.name
+                    : '卡牌效果'}
+                </div>
+              </div>
+              <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
+                {activeEffect.inspectionObjectIds?.length ?? 0} 张
+              </div>
+            </div>
+            <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-3">
+              <p className="text-sm leading-relaxed">{activeEffect.effectText}</p>
+            </div>
+            {activeEffectSelectableCardIds.length > 0 && (
+              <div className="mt-4">
+                <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
+                  请选择要处理的卡牌
+                </div>
+                <div className="grid max-h-[46vh] grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
+                  {activeEffectSelectableCardIds.map((cardId) => {
+                    const presentation = getVisibleCardPresentation(cardId);
+                    const cardData = presentation?.cardData;
+                    const label = cardData
+                      ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
+                        ? `${cardData.cost} ${cardData.name}`
+                        : cardData.cardType === CardType.LIVE && 'score' in cardData
+                          ? `${cardData.score}分 ${cardData.name}`
+                          : cardData.name
+                      : '选择此卡';
+                    return (
+                      <button
+                        key={cardId}
+                        type="button"
+                        disabled={!canConfirmActiveEffect || !presentation}
+                        onClick={() => confirmEffectStep(activeEffect.id, cardId)}
+                        onMouseEnter={() => presentation && setHoveredCard(cardId)}
+                        onMouseLeave={() => setHoveredCard(null)}
+                        className={`group flex min-w-0 flex-col items-center gap-1 rounded-lg border border-transparent p-1.5 transition-colors ${
+                          canConfirmActiveEffect && presentation
+                            ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
+                            : 'cursor-not-allowed opacity-50'
+                        }`}
+                        title={label}
+                      >
+                        {presentation ? (
+                          <Card
+                            cardData={presentation.cardData as AnyCardData}
+                            instanceId={presentation.instanceId}
+                            imagePath={presentation.imagePath}
+                            size="sm"
+                            faceUp={true}
+                            showHover={false}
+                          />
+                        ) : (
+                          <div className="flex h-[84px] w-[60px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
+                            ?
+                          </div>
+                        )}
+                        <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                          {label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              {activeEffectSelectableSlots.map((slot) => {
+                const slotLabel =
+                  slot === SlotPosition.LEFT ? '左侧' : slot === SlotPosition.CENTER ? '中央' : '右侧';
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    disabled={!canConfirmActiveEffect}
+                    onClick={() => confirmEffectStep(activeEffect.id, undefined, slot as SlotPosition)}
+                    className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    移动到{slotLabel}
+                  </button>
+                );
+              })}
+              {activeEffect.canResolveInOrder && (
+                <button
+                  type="button"
+                  disabled={!canConfirmActiveEffect}
+                  onClick={() => confirmEffectStep(activeEffect.id, undefined, null, true)}
+                  className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  顺序发动
+                </button>
+              )}
+              {activeEffect.canSkipSelection && (
+                <button
+                  type="button"
+                  disabled={!canConfirmActiveEffect}
+                  onClick={() => confirmEffectStep(activeEffect.id, null)}
+                  className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  不加入
+                </button>
+              )}
+              {activeEffectSelectableCardIds.length === 0 &&
+                activeEffectSelectableSlots.length === 0 &&
+                !activeEffect.canSkipSelection &&
+                !activeEffect.canResolveInOrder && (
+                <button
+                  type="button"
+                  disabled={!canConfirmActiveEffect}
+                  onClick={() => confirmEffectStep(activeEffect.id)}
+                  className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  继续处理
+                </button>
+              )}
+              {activeEffectSelectableCardIds.length === 0 &&
+                activeEffectSelectableSlots.length === 0 &&
+                activeEffect.canSkipSelection && (
+                <button
+                  type="button"
+                  disabled={!canConfirmActiveEffect}
+                  onClick={() => confirmEffectStep(activeEffect.id, null)}
+                  className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  继续处理
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {pendingCostPayment && (
+          <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[96] w-[min(92vw,540px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  支付登场费用
+                </div>
+                <div className="mt-1 text-sm font-semibold">
+                  {pendingCostSource
+                    ? 'cost' in pendingCostSource.cardData
+                      ? `${pendingCostSource.cardData.cost} ${pendingCostSource.cardData.name}`
+                      : pendingCostSource.cardData.name
+                    : '成员登场'}
+                </div>
+              </div>
+              <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
+                {pendingCostPayment.finalEnergyCost}费
+              </div>
+            </div>
+            <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-3">
+              <p className="text-sm leading-relaxed">
+                确认支付 {pendingCostPayment.finalEnergyCost} 费让这张成员登场。
+              </p>
+              {pendingCostPayment.explanation && (
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  {pendingCostPayment.explanation}
+                </p>
+              )}
+              {pendingCostEnergyIds.length < pendingCostPayment.finalEnergyCost && (
+                <p className="mt-1 text-xs text-[var(--danger)]">
+                  可用能量不足，无法支付。
+                </p>
+              )}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                disabled={!canConfirmCostPayment}
+                onClick={() => confirmCostPayment(pendingCostPayment.id, autoCostEnergyIds)}
+                className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                  canConfirmCostPayment ? '' : 'cursor-not-allowed opacity-50'
+                }`}
+              >
+                确认支付
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 左侧唤出按钮（判定区关闭时显示） */}
         {isJudgmentPanelRelevant && !judgmentPanelOpen && (

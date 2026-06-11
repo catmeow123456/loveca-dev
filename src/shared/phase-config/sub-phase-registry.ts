@@ -126,7 +126,7 @@ const SUB_PHASE_CONFIG_MAP: Record<SubPhase, SubPhaseConfig> = {
     behavior: {
       activePlayer: 'CURRENT_ACTIVE',
       isEffectWindow: false,
-      nextSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      nextSubPhase: SubPhase.PERFORMANCE_LIVE_START_EFFECTS,
     },
   },
 

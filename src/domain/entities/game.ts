@@ -11,6 +11,7 @@ import {
   ZoneType,
   SubPhase,
   EffectWindowType,
+  SlotPosition,
 } from '../../shared/types/enums.js';
 import { CardInstance } from './card.js';
 import {
@@ -231,6 +232,114 @@ export interface GameEndInfo {
 }
 
 // ============================================
+// 卡效待处理状态
+// ============================================
+
+/**
+ * 检查时点发现、但尚未执行的能力。
+ * 这里只记录“哪张牌的哪个能力正在排队”，不记录玩家选择结果。
+ */
+export interface PendingAbilityState {
+  /** 待处理能力实例 ID */
+  readonly id: string;
+  /** 能力定义 ID */
+  readonly abilityId: string;
+  /** 能力来源卡牌实例 ID */
+  readonly sourceCardId: string;
+  /** 能力控制者 ID */
+  readonly controllerId: string;
+  /** 是否强制发动 */
+  readonly mandatory: boolean;
+  /** 触发/检查时点 ID */
+  readonly timingId: string;
+  /** 促成本能力待处理的事件 ID 列表 */
+  readonly eventIds: readonly string[];
+}
+
+export type PendingChoiceKind = 'CONFIRM_OPTIONAL' | 'SELECT_CARDS' | 'SELECT_TARGET';
+
+/**
+ * 卡效执行中等待玩家作出的选择。
+ * 与 PendingAbilityState 分离，避免把“能力排队”和“玩家选择”混在一起。
+ */
+export interface PendingChoiceState {
+  /** 待选择事项 ID */
+  readonly id: string;
+  /** 需要作出选择的玩家 ID */
+  readonly playerId: string;
+  /** 选择类型 */
+  readonly kind: PendingChoiceKind;
+  /** 产生此选择的能力 ID */
+  readonly sourceAbilityId: string;
+  /** 给玩家看的提示文本 */
+  readonly promptText?: string;
+  /** 可选卡牌 ID 列表 */
+  readonly candidateCardIds?: readonly string[];
+  /** 最少选择数量 */
+  readonly minCount?: number;
+  /** 最多选择数量 */
+  readonly maxCount?: number;
+}
+
+export interface ActiveEffectState {
+  /** 当前处理中的效果实例 ID */
+  readonly id: string;
+  /** 能力定义 ID */
+  readonly abilityId: string;
+  /** 能力来源卡牌实例 ID */
+  readonly sourceCardId: string;
+  /** 能力控制者 ID */
+  readonly controllerId: string;
+  /** 展示给玩家的效果文本 */
+  readonly effectText: string;
+  /** 当前效果步骤 ID */
+  readonly stepId: string;
+  /** 展示给玩家的当前步骤说明 */
+  readonly stepText: string;
+  /** 当前需要确认/选择的玩家 ID */
+  readonly awaitingPlayerId: string | null;
+  /** 当前步骤涉及的检视区卡牌 */
+  readonly inspectionCardIds?: readonly string[];
+  /** 当前步骤可选择的卡牌 */
+  readonly selectableCardIds?: readonly string[];
+  /** 当前步骤可选择的成员槽位 */
+  readonly selectableSlots?: readonly SlotPosition[];
+  /** 是否允许按当前队列顺序继续发动后续同一时点能力 */
+  readonly canResolveInOrder?: boolean;
+  /** 当前步骤是否允许不选择卡牌继续 */
+  readonly canSkipSelection?: boolean;
+  /** 步骤私有元数据 */
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export type PendingCostPaymentSource = 'PLAY_MEMBER' | 'ACTIVATE_ABILITY';
+
+export interface PendingCostPaymentState {
+  /** 当前费用支付实例 ID */
+  readonly id: string;
+  /** 需要支付费用的玩家 */
+  readonly playerId: string;
+  /** 费用来源 */
+  readonly source: PendingCostPaymentSource;
+  /** 来源卡牌实例 ID */
+  readonly sourceCardId: string;
+  /** 目标成员槽位（成员登场费用时使用） */
+  readonly targetSlot?: SlotPosition;
+  /** 基础费用 */
+  readonly baseCost: number;
+  /** 换手或效果减免后的最终能量费用 */
+  readonly finalEnergyCost: number;
+  /** 换手减免 */
+  readonly relayDiscount: number;
+  /** 目标槽位原成员 */
+  readonly replacedMemberCardId: string | null;
+  /** 可用于支付的活跃能量 */
+  readonly payableEnergyCardIds: readonly string[];
+  /** 费用计算说明，给 UI 和调试使用 */
+  readonly explanation?: string;
+}
+
+// ============================================
 // 游戏状态定义
 // ============================================
 
@@ -305,6 +414,26 @@ export interface GameState {
    * 当前可发动的能力 ID 列表（仅作为提示，不强制发动）
    */
   readonly availableAbilityIds: readonly string[];
+
+  /**
+   * 已经由检查时点发现、等待执行的能力队列
+   */
+  readonly pendingAbilities: readonly PendingAbilityState[];
+
+  /**
+   * 卡效执行中等待玩家作出的一个选择
+   */
+  readonly pendingChoice: PendingChoiceState | null;
+
+  /**
+   * 正在分步处理的卡牌效果。
+   */
+  readonly activeEffect: ActiveEffectState | null;
+
+  /**
+   * 正在等待玩家支付的费用。
+   */
+  readonly pendingCostPayment: PendingCostPaymentState | null;
 
   /**
    * 用户操作历史栈（用于撤销功能）
@@ -435,6 +564,10 @@ export function createGameState(
     currentSubPhase: SubPhase.NONE,
     effectWindowType: EffectWindowType.NONE,
     availableAbilityIds: [],
+    pendingAbilities: [],
+    pendingChoice: null,
+    activeEffect: null,
+    pendingCostPayment: null,
     operationHistory: [],
     liveSetCardCounts: new Map(),
 
@@ -497,6 +630,18 @@ export function getNonActivePlayer(game: GameState): PlayerState {
  */
 export function getPlayerById(game: GameState, playerId: string): PlayerState | null {
   return game.players.find((p) => p.id === playerId) ?? null;
+}
+
+/**
+ * 是否存在需要先处理完、不能继续自动推进的能力或玩家选择。
+ */
+export function hasPendingAbilityOrChoice(game: GameState): boolean {
+  return (
+    game.pendingAbilities.length > 0 ||
+    game.pendingChoice !== null ||
+    game.activeEffect !== null ||
+    game.pendingCostPayment !== null
+  );
 }
 
 /**

@@ -127,8 +127,13 @@ describe('子阶段流转配置测试', () => {
   });
 
   describe('演出阶段子阶段流转', () => {
-    it('翻开 → 判定', () => {
-      expect(getNextSubPhase(SubPhase.PERFORMANCE_REVEAL)).toBe(SubPhase.PERFORMANCE_JUDGMENT);
+    it('翻开 → Live 开始时效果 → 判定', () => {
+      expect(getNextSubPhase(SubPhase.PERFORMANCE_REVEAL)).toBe(
+        SubPhase.PERFORMANCE_LIVE_START_EFFECTS
+      );
+      expect(getNextSubPhase(SubPhase.PERFORMANCE_LIVE_START_EFFECTS)).toBe(
+        SubPhase.PERFORMANCE_JUDGMENT
+      );
     });
 
     it('判定确认后应结束当前侧表演', () => {
@@ -219,7 +224,7 @@ describe('PhaseManager 子阶段推进测试', () => {
       expect((result.autoActions[0] as { playerId: string }).playerId).toBe('p1');
     });
 
-    it('演出阶段翻开子阶段应该推进到判定子阶段', () => {
+    it('演出阶段翻开子阶段应该推进到 Live 开始时效果窗口', () => {
       const mockGame = {
         currentSubPhase: SubPhase.PERFORMANCE_REVEAL,
         activePlayerIndex: 0,
@@ -227,10 +232,10 @@ describe('PhaseManager 子阶段推进测试', () => {
         players: [{ id: 'p1' }, { id: 'p2' }],
       } as unknown as GameState;
 
-      // 从 PERFORMANCE_REVEAL 推进到 PERFORMANCE_JUDGMENT
+      // 从 PERFORMANCE_REVEAL 推进到 PERFORMANCE_LIVE_START_EFFECTS
       const result = pm.advanceToNextSubPhase(mockGame);
 
-      expect(result.newSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
+      expect(result.newSubPhase).toBe(SubPhase.PERFORMANCE_LIVE_START_EFFECTS);
     });
 
     it('判定成功时也应该结束当前侧表演', () => {
@@ -452,7 +457,7 @@ describe('完整游戏流程中的子阶段测试', () => {
       expect(result.success).toBe(true);
       expect(result.gameState.currentPhase).toBe(GamePhase.PERFORMANCE_PHASE);
       expect(result.gameState.currentTurnType).toBe(TurnType.SECOND_PLAYER_TURN);
-      expect(result.gameState.currentSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
+      expect(result.gameState.currentSubPhase).toBe(SubPhase.PERFORMANCE_LIVE_START_EFFECTS);
       expect(result.gameState.activePlayerIndex).toBe(game.firstPlayerIndex === 0 ? 1 : 0);
     });
 

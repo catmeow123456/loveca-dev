@@ -1,9 +1,9 @@
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
-import { readFileSync } from 'fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'fs';
 
 // 从 package.json 读取版本号
 const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
@@ -13,6 +13,50 @@ const appBuildId =
   process.env.VITE_APP_BUILD_ID?.trim() ||
   process.env.GIT_COMMIT_SHA?.trim() ||
   `${appVersion}-${new Date().toISOString()}`;
+const localImagesDir = path.resolve(__dirname, '../assets/images');
+
+function localImagesFallbackPlugin(): Plugin {
+  return {
+    name: 'loveca-local-images-fallback',
+    configureServer(server) {
+      const serveLocalImage: Connect.NextHandleFunction = (req, res, next) => {
+        if (!req.url?.startsWith('/images/')) {
+          next();
+          return;
+        }
+
+        const pathname = new URL(req.url, 'http://localhost').pathname;
+        const relativePath = decodeURIComponent(pathname.replace(/^\/images\//, ''));
+        const normalizedPath = path.normalize(relativePath);
+
+        if (normalizedPath.startsWith('..') || path.isAbsolute(normalizedPath)) {
+          next();
+          return;
+        }
+
+        const filePath = path.join(localImagesDir, normalizedPath);
+        if (!filePath.startsWith(`${localImagesDir}${path.sep}`)) {
+          next();
+          return;
+        }
+
+        if (!existsSync(filePath) || !statSync(filePath).isFile()) {
+          next();
+          return;
+        }
+
+        res.statusCode = 200;
+        res.setHeader(
+          'Content-Type',
+          filePath.endsWith('.webp') ? 'image/webp' : 'application/octet-stream'
+        );
+        createReadStream(filePath).pipe(res);
+      };
+
+      server.middlewares.use(serveLocalImage);
+    },
+  };
+}
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -40,6 +84,7 @@ export default defineConfig(({ mode }) => {
           });
         },
       },
+      localImagesFallbackPlugin(),
       react(),
       tailwindcss(),
       VitePWA({

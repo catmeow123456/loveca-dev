@@ -26,9 +26,10 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
 import { GameCommandType } from '@game/application/game-commands';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
+import { ELI_ACTIVATED_ABILITY_ID } from '@game/application/card-effect-runner';
 import { Card } from '@/components/card/Card';
 import { DraggableCard, DroppableZone } from './interaction';
-import { ArrowDownToLine, ArrowUpToLine, Check, Layers3, Megaphone, Trash2, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpToLine, Check, Layers3, Megaphone, Trash2, Undo2, X } from 'lucide-react';
 import type { AnyCardData, LiveCardData } from '@game/domain/entities/card';
 import { isLiveCardData } from '@game/domain/entities/card';
 import {
@@ -38,6 +39,7 @@ import {
   ZoneType,
   SubPhase,
   CardType,
+  GamePhase,
 } from '@game/shared/types/enums';
 import type { Seat } from '@game/online';
 
@@ -172,6 +174,7 @@ export const PlayerArea = memo(function PlayerArea({
   );
   const isDragging = useGameStore((s) => s.ui.isDragging);
   const isRemoteDebugMode = useGameStore((s) => s.isRemoteDebugMode());
+  const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
   const canOpenInspection = useGameStore((s) => s.canUseAction(GameCommandType.OPEN_INSPECTION));
   const canRevealInspectedCard = useGameStore((s) =>
     s.canUseAction(GameCommandType.REVEAL_INSPECTED_CARD)
@@ -203,6 +206,7 @@ export const PlayerArea = memo(function PlayerArea({
     getVisibleCardPresentation,
     selectCard,
     setHoveredCard,
+    activateCardAbility,
     tapMember,
     tapEnergy,
     drawCardToHand,
@@ -220,11 +224,13 @@ export const PlayerArea = memo(function PlayerArea({
     moveInspectedCardToTop,
     finishInspection,
     isInspectionCardPubliclyRevealed,
+    undoLastStep,
   } = useGameStore(
     useShallow((s) => ({
       getVisibleCardPresentation: s.getVisibleCardPresentation,
       selectCard: s.selectCard,
       setHoveredCard: s.setHoveredCard,
+      activateCardAbility: s.activateCardAbility,
       tapMember: s.tapMember,
       tapEnergy: s.tapEnergy,
       drawCardToHand: s.drawCardToHand,
@@ -242,6 +248,7 @@ export const PlayerArea = memo(function PlayerArea({
       moveInspectedCardToTop: s.moveInspectedCardToTop,
       finishInspection: s.finishInspection,
       isInspectionCardPubliclyRevealed: s.isInspectionCardPubliclyRevealed,
+      undoLastStep: s.undoLastStep,
     }))
   );
   const [waitingRoomExpanded, setWaitingRoomExpanded] = useState(false);
@@ -277,9 +284,7 @@ export const PlayerArea = memo(function PlayerArea({
   // ========================================
 
   const allowGeneralOwnZoneInteraction =
-    !isOpponent &&
-    currentPhase !== null &&
-    isOwnDeskFreeDragWindow(currentPhase, currentSubPhase);
+    !isOpponent && currentPhase !== null && isOwnDeskFreeDragWindow(currentPhase, currentSubPhase);
   const allowLiveZoneDeskInteraction = !isOpponent;
   const dropScope = `seat-${playerSeat}`;
   const getDroppableId = (zoneType: ZoneType, slotPosition?: SlotPosition) =>
@@ -339,6 +344,15 @@ export const PlayerArea = memo(function PlayerArea({
 
     // 堆叠成员卡偏移量：向右下方偏移
     const memberBelowOffsetPercent = 8;
+    const canActivateEliAbility =
+      card !== null &&
+      card.cardCode === 'PL!-sd1-002-SD' &&
+      selectedCardId === card.instanceId &&
+      !isOpponent &&
+      viewerSeat === playerSeat &&
+      matchView?.activeSeat === viewerSeat &&
+      currentPhase === GamePhase.MAIN_PHASE &&
+      currentSubPhase === SubPhase.NONE;
 
     return (
       // 外层容器：包含成员卡和重叠的能量卡
@@ -499,6 +513,24 @@ export const PlayerArea = memo(function PlayerArea({
                 />
               </DraggableCard>
             )}
+            {card && canActivateEliAbility && (
+              <button
+                type="button"
+                className={cn(
+                  'absolute left-1/2 top-full z-30 mt-1 w-[min(420px,92vw)] -translate-x-1/2 rounded-lg border border-rose-300/70',
+                  'bg-white/95 px-3 py-1.5 font-semibold text-rose-600 shadow-lg',
+                  'transition-colors hover:bg-rose-50 active:scale-95'
+                )}
+                style={{ fontSize: '12px', lineHeight: 1.25 }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  activateCardAbility(card.instanceId, ELI_ACTIVATED_ABILITY_ID);
+                }}
+                title="将此成员从舞台放置入休息室，从自己的休息室将1张成员卡加入手牌"
+              >
+                起动：将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。
+              </button>
+            )}
             {!cardId && <span className="text-slate-600 text-xs">{position}</span>}
           </DroppableZone>
         </div>
@@ -544,52 +576,64 @@ export const PlayerArea = memo(function PlayerArea({
           能量区 ({activeCount}/{energyCount})
         </span>
         {/* 横向布局 */}
-        <div className="flex gap-0.5 flex-wrap max-w-[300px]">
+        <div className="flex gap-1 flex-wrap max-w-[300px]">
           {energyCards.map((cardId) => {
             const card = getVisibleCardPresentation(cardId);
             const isActive = getCardViewObject(cardId)?.orientation === OrientationState.ACTIVE;
             const imagePath = card?.imagePath ?? null;
 
             return (
-              <DraggableCard
+              <div
                 key={cardId}
-                id={cardId}
-                disabled={!allowGeneralOwnZoneInteraction}
-                data={{ cardId, cardCode: card?.cardCode, fromZone: ZoneType.ENERGY_ZONE }}
+                className={cn(
+                  'relative flex h-8 items-center justify-center',
+                  isActive ? 'w-5' : 'w-7'
+                )}
               >
-                <div
+                <DraggableCard
+                  id={cardId}
+                  disabled={!allowGeneralOwnZoneInteraction}
+                  data={{ cardId, cardCode: card?.cardCode, fromZone: ZoneType.ENERGY_ZONE }}
                   className={cn(
-                    isDragging
-                      ? 'w-5 h-7 rounded overflow-hidden shadow-sm cursor-pointer transition-none'
-                      : 'w-5 h-7 rounded overflow-hidden shadow-sm cursor-pointer transition-transform hover:scale-110 hover:z-10',
-                    !isActive && 'opacity-40 grayscale'
+                    'absolute inset-0 flex items-center justify-center',
+                    !isActive && 'z-10'
                   )}
-                  onClick={() => {
-                    if (allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging) {
-                      tapEnergy(cardId);
-                    }
-                  }}
-                  onMouseEnter={() => card && setHoveredCard(card.instanceId)}
-                  onMouseLeave={() => setHoveredCard(null)}
-                  title={
-                    isOpponent
-                      ? isActive
-                        ? '活跃'
-                        : '等待'
-                      : allowGeneralOwnZoneInteraction && canTapEnergy
-                        ? '单击切换活跃/等待'
-                        : '当前阶段不可操作'
-                  }
                 >
-                  {imagePath ? (
-                    <img src={imagePath} alt="能量" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[8px] text-white/70">
-                      E
-                    </div>
-                  )}
-                </div>
-              </DraggableCard>
+                  <div
+                    className={cn(
+                      'h-7 w-5 rounded overflow-hidden shadow-sm cursor-pointer',
+                      isDragging
+                        ? 'transition-none'
+                        : 'transition-[transform,filter] duration-150 hover:scale-110 hover:z-10',
+                      !isActive && 'rotate-90 opacity-55 grayscale'
+                    )}
+                    onClick={() => {
+                      if (allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging) {
+                        tapEnergy(cardId);
+                      }
+                    }}
+                    onMouseEnter={() => card && setHoveredCard(card.instanceId)}
+                    onMouseLeave={() => setHoveredCard(null)}
+                    title={
+                      isOpponent
+                        ? isActive
+                          ? '活跃'
+                          : '等待'
+                        : allowGeneralOwnZoneInteraction && canTapEnergy
+                          ? '单击切换活跃/等待'
+                          : '当前阶段不可操作'
+                    }
+                  >
+                    {imagePath ? (
+                      <img src={imagePath} alt="能量" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[8px] text-white/70">
+                        E
+                      </div>
+                    )}
+                  </div>
+                </DraggableCard>
+              </div>
             );
           })}
         </div>
@@ -824,8 +868,8 @@ export const PlayerArea = memo(function PlayerArea({
 
   // 渲染成功 Live 区 - 显示实际的 Live 卡片（正面朝上公开，叠放显示，无浮窗）
   const renderSuccessZone = () => {
-    // 固定3个槽位，容器高度固定
-    const containerHeight = 68 + 2 * 45; // 294px
+    // 固定3个横置槽位，轻微叠放显示
+    const containerHeight = 75 + 2 * 34;
 
     return (
       <DroppableZone
@@ -837,7 +881,7 @@ export const PlayerArea = memo(function PlayerArea({
       >
         <span className="text-xs text-slate-600 font-medium">成功 Live 卡区</span>
 
-        {/* 卡片区域 - 固定3个槽位，竖向叠放显示 */}
+        {/* 卡片区域 - 固定3个横置槽位，竖向轻微叠放显示 */}
         <div className="relative w-[105px]" style={{ height: `${containerHeight}px` }}>
           {[0, 1, 2].map((slotIndex) => {
             const cardId = successCardIds[slotIndex];
@@ -846,36 +890,34 @@ export const PlayerArea = memo(function PlayerArea({
             return (
               <div
                 key={slotIndex}
-                className="absolute w-[105px] h-[68px]"
+                className="absolute h-[75px] w-[105px]"
                 style={{
-                  top: slotIndex * 45,
+                  top: slotIndex * 34,
                   left: 0,
                   zIndex: 2 - slotIndex, // 上面的框盖住下面的框
                 }}
               >
                 {card ? (
-                  // 有卡片 - 横置卡片显示
                   <DraggableCard
                     id={cardId}
                     disabled={!allowGeneralOwnZoneInteraction}
                     data={{ cardId, cardCode: card.cardCode, fromZone: ZoneType.SUCCESS_ZONE }}
+                    className="absolute inset-0 flex items-center justify-center"
                   >
                     <div
                       className="w-full h-full flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
                       onMouseEnter={() => setHoveredCard(card.instanceId)}
                       onMouseLeave={() => setHoveredCard(null)}
                     >
-                      {/* 横置卡牌 - 逆时针旋转90度 */}
-                      <div className="-rotate-90 origin-center">
+                      <div className="aspect-[5/7] h-[105px] -rotate-90">
                         <Card
                           cardData={card.cardData as AnyCardData}
                           instanceId={card.instanceId}
                           imagePath={card.imagePath}
-                          size="sm"
+                          size="responsive"
                           faceUp={true}
                           interactive={!isOpponent}
                           showHover={false}
-                          className="w-[80px] h-[112px]"
                         />
                       </div>
                     </div>
@@ -890,6 +932,23 @@ export const PlayerArea = memo(function PlayerArea({
             );
           })}
         </div>
+        {!isOpponent && (
+          <button
+            type="button"
+            onClick={undoLastStep}
+            disabled={!canUndoLastStep}
+            className={cn(
+              'mt-1 inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold shadow-sm backdrop-blur',
+              canUndoLastStep
+                ? 'border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-primary)] hover:border-[var(--accent-primary)]'
+                : 'cursor-not-allowed border-slate-700/50 bg-slate-900/25 text-slate-600'
+            )}
+            title="撤销上一步"
+          >
+            <Undo2 size={13} />
+            撤销
+          </button>
+        )}
       </DroppableZone>
     );
   };
@@ -1106,6 +1165,7 @@ export const PlayerArea = memo(function PlayerArea({
         id={cardId}
         disabled={isOpponent}
         data={{ cardId, cardCode: card?.cardCode, fromZone: ZoneType.LIVE_ZONE }}
+        className="absolute inset-0 flex items-center justify-center"
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -1120,14 +1180,13 @@ export const PlayerArea = memo(function PlayerArea({
           }}
           onMouseLeave={() => setHoveredCard(null)}
         >
-          {/* 横置卡牌 - 逆时针旋转90度 */}
-          <div className="-rotate-90 origin-center">
+          <div className="aspect-[5/7] h-[clamp(108px,12vw,168px)] -rotate-90">
             {card ? (
               <Card
                 cardData={card.cardData as AnyCardData}
                 instanceId={card.instanceId}
                 imagePath={card.imagePath}
-                size="sm"
+                size="responsive"
                 faceUp={shouldShowFront}
                 interactive={!isOpponent}
                 showHover={false}

@@ -26,7 +26,14 @@ import {
   ZoneType,
 } from '../shared/types/enums.js';
 import type { GameState, InspectionContextState } from '../domain/entities/game.js';
-import { GAME_CONFIG, addAction, getActivePlayer, getPlayerById } from '../domain/entities/game.js';
+import {
+  GAME_CONFIG,
+  addAction,
+  getActivePlayer,
+  getPlayerById,
+  hasPendingAbilityOrChoice,
+  updatePlayer,
+} from '../domain/entities/game.js';
 import {
   isPlayerActive,
   getActivePlayerId as getActivePlayerIdFromConfig,
@@ -98,11 +105,14 @@ import type {
   MoveMemberToSlotCommand,
   AttachEnergyToMemberCommand,
   PlayMemberToSlotCommand,
+  ActivateAbilityCommand,
   MovePublicCardToWaitingRoomCommand,
   MovePublicCardToHandCommand,
   MovePublicCardToEnergyDeckCommand,
   MoveOwnedCardToZoneCommand,
   FinishInspectionCommand,
+  ConfirmCostPaymentCommand,
+  ConfirmEffectStepCommand,
   ConfirmStepCommand,
   ConfirmPerformanceOutcomeCommand,
   SubmitJudgmentCommand,
@@ -112,6 +122,14 @@ import type {
   DrawEnergyToZoneCommand,
   ReturnHandCardToTopCommand,
 } from './game-commands.js';
+import {
+  ELI_ACTIVATED_ABILITY_ID,
+  activateCardAbility,
+  confirmActiveEffectStep,
+} from './card-effect-runner.js';
+import { isMemberCardData } from '../domain/entities/card.js';
+import { getActiveEnergyIds, tapEnergy } from '../domain/entities/zone.js';
+import { costCalculator, type StageMemberInfo } from '../domain/rules/cost-calculator.js';
 import { GameCommandType } from './game-commands.js';
 import {
   addCardToInspectionZone,
@@ -153,6 +171,7 @@ const MAX_AUTO_ADVANCE_ITERATIONS = 20;
  * 模式自动化的最大执行次数限制，防止策略死循环。
  */
 const MAX_MODE_AUTOMATION_ITERATIONS = 20;
+const MAX_UNDO_HISTORY = 50;
 
 /**
  * 游戏会话事件类型
@@ -194,6 +213,20 @@ interface CommandExecutionResult {
   readonly sealedAuditRecords?: readonly SealedAuditRecordDraft[];
 }
 
+interface GameSessionUndoSnapshot {
+  readonly authorityState: GameState;
+  readonly publicEvents: PublicEvent[];
+  readonly publicEventSeq: number;
+  readonly privateEventsBySeat: Record<Seat, PrivateEvent[]>;
+  readonly privateEventSeq: number;
+  readonly sealedAuditRecords: SealedAuditRecord[];
+  readonly sealedAuditSeq: number;
+  readonly commandLog: MatchCommandRecord[];
+  readonly commandSeq: number;
+  readonly snapshotHistory: MatchSnapshotSummary[];
+  readonly authoritySnapshots: Map<number, GameState>;
+}
+
 // ============================================
 // GameSession 类
 // ============================================
@@ -223,6 +256,8 @@ export class GameSession {
   private commandSeq = 0;
   private snapshotHistory: MatchSnapshotSummary[] = [];
   private authoritySnapshots = new Map<number, GameState>();
+  private undoHistory: GameSessionUndoSnapshot[] = [];
+  private _debugFreePlay = false;
 
   constructor(options: GameSessionOptions = {}) {
     this.gameService = new GameService();
@@ -252,6 +287,18 @@ export class GameSession {
   }
 
   /**
+   * 本地调试用：开启后成员登场/换手不检查也不支付费用。
+   * 远程对战不应开放此开关。
+   */
+  get debugFreePlay(): boolean {
+    return this._debugFreePlay;
+  }
+
+  set debugFreePlay(enabled: boolean) {
+    this._debugFreePlay = enabled;
+  }
+
+  /**
    * 创建新游戏
    */
   createGame(
@@ -271,6 +318,7 @@ export class GameSession {
     this.commandSeq = 0;
     this.snapshotHistory = [];
     this.authoritySnapshots = new Map();
+    this.undoHistory = [];
 
     const initialState = this.gameService.createGame(
       gameId,
@@ -325,9 +373,12 @@ export class GameSession {
       };
     }
 
+    const undoBoundaryKey = this.getUndoBoundaryKey(this.authorityState);
+    const undoSnapshot = this.captureUndoSnapshot();
     const result = this.gameService.processAction(this.authorityState, action);
 
     if (result.success) {
+      this.pushUndoSnapshot(undoSnapshot);
       this.setAuthorityState(result.gameState, {
         source: 'PLAYER',
         actorPlayerId: action.playerId,
@@ -344,6 +395,7 @@ export class GameSession {
       });
 
       this.runPostCommitAutomation(action.playerId);
+      this.clearUndoHistoryIfBoundaryChanged(undoBoundaryKey);
     }
 
     return {
@@ -392,6 +444,8 @@ export class GameSession {
       };
     }
 
+    const undoBoundaryKey = this.getUndoBoundaryKey(this.authorityState);
+    const undoSnapshot = this.captureUndoSnapshot();
     const result = this.applyCommand(this.authorityState, command);
     if (!result.success) {
       this.recordCommand(command, 'REJECTED', result.error);
@@ -412,6 +466,7 @@ export class GameSession {
       };
     }
 
+    this.pushUndoSnapshot(undoSnapshot);
     this.setAuthorityState(result.gameState, {
       source: 'PLAYER',
       actorPlayerId: command.playerId,
@@ -424,6 +479,7 @@ export class GameSession {
     this.recordCommand(command, 'ACCEPTED');
 
     this.runPostCommitAutomation(command.playerId);
+    this.clearUndoHistoryIfBoundaryChanged(undoBoundaryKey);
 
     return {
       success: true,
@@ -505,9 +561,12 @@ export class GameSession {
       };
     }
 
+    const undoBoundaryKey = this.getUndoBoundaryKey(this.authorityState);
+    const undoSnapshot = this.captureUndoSnapshot();
     const result = this.gameService.advancePhase(this.authorityState);
 
     if (result.success) {
+      this.pushUndoSnapshot(undoSnapshot);
       this.setAuthorityState(result.gameState, { source: 'SYSTEM' });
 
       // 发送阶段变更事件
@@ -519,12 +578,116 @@ export class GameSession {
 
       // 继续自动推进（如果新阶段是自动阶段）
       this.autoAdvance(this.authorityState);
+      this.clearUndoHistoryIfBoundaryChanged(undoBoundaryKey);
     }
 
     return {
       ...result,
       gameState: this.authorityState,
     };
+  }
+
+  canUndoLastStep(): boolean {
+    return this.undoHistory.length > 0;
+  }
+
+  undoLastStep(): GameOperationResult {
+    if (!this.authorityState) {
+      return {
+        success: false,
+        gameState: null as unknown as GameState,
+        error: '游戏尚未开始',
+      };
+    }
+
+    const snapshot = this.undoHistory.pop();
+    if (!snapshot) {
+      return {
+        success: false,
+        gameState: this.authorityState,
+        error: '没有可撤销的步骤',
+      };
+    }
+
+    this.restoreUndoSnapshot(snapshot);
+
+    return {
+      success: true,
+      gameState: this.authorityState,
+    };
+  }
+
+  private captureUndoSnapshot(): GameSessionUndoSnapshot {
+    if (!this.authorityState) {
+      throw new Error('Cannot capture undo snapshot before game starts');
+    }
+
+    return {
+      authorityState: this.cloneForUndo(this.authorityState),
+      publicEvents: this.cloneForUndo(this.publicEvents),
+      publicEventSeq: this.publicEventSeq,
+      privateEventsBySeat: this.cloneForUndo(this.privateEventsBySeat),
+      privateEventSeq: this.privateEventSeq,
+      sealedAuditRecords: this.cloneForUndo(this.sealedAuditRecords),
+      sealedAuditSeq: this.sealedAuditSeq,
+      commandLog: this.cloneForUndo(this.commandLog),
+      commandSeq: this.commandSeq,
+      snapshotHistory: this.cloneForUndo(this.snapshotHistory),
+      authoritySnapshots: new Map(
+        [...this.authoritySnapshots.entries()].map(([seq, state]) => [
+          seq,
+          this.cloneForUndo(state),
+        ])
+      ),
+    };
+  }
+
+  private pushUndoSnapshot(snapshot: GameSessionUndoSnapshot): void {
+    this.undoHistory.push(snapshot);
+    if (this.undoHistory.length > MAX_UNDO_HISTORY) {
+      this.undoHistory.shift();
+    }
+  }
+
+  private restoreUndoSnapshot(snapshot: GameSessionUndoSnapshot): void {
+    this.authorityState = this.cloneForUndo(snapshot.authorityState);
+    this.publicEvents = this.cloneForUndo(snapshot.publicEvents);
+    this.publicEventSeq = snapshot.publicEventSeq;
+    this.privateEventsBySeat = this.cloneForUndo(snapshot.privateEventsBySeat);
+    this.privateEventSeq = snapshot.privateEventSeq;
+    this.sealedAuditRecords = this.cloneForUndo(snapshot.sealedAuditRecords);
+    this.sealedAuditSeq = snapshot.sealedAuditSeq;
+    this.commandLog = this.cloneForUndo(snapshot.commandLog);
+    this.commandSeq = snapshot.commandSeq;
+    this.snapshotHistory = this.cloneForUndo(snapshot.snapshotHistory);
+    this.authoritySnapshots = new Map(
+      [...snapshot.authoritySnapshots.entries()].map(([seq, state]) => [
+        seq,
+        this.cloneForUndo(state),
+      ])
+    );
+  }
+
+  private getUndoBoundaryKey(state: GameState): string {
+    return [
+      state.currentPhase,
+      state.currentSubPhase,
+      state.activePlayerIndex,
+      state.waitingPlayerId ?? '',
+    ].join('|');
+  }
+
+  private clearUndoHistoryIfBoundaryChanged(previousBoundaryKey: string): void {
+    if (!this.authorityState) {
+      return;
+    }
+    if (this.getUndoBoundaryKey(this.authorityState) !== previousBoundaryKey) {
+      this.undoHistory = [];
+    }
+  }
+
+  private cloneForUndo<T>(value: T): T {
+    return structuredClone(value);
   }
 
   private runPostCommitAutomation(triggerPlayerId: string): void {
@@ -993,6 +1156,29 @@ export class GameSession {
         }
         return null;
       }
+      case GameCommandType.ACTIVATE_ABILITY: {
+        if (command.abilityId !== ELI_ACTIVATED_ABILITY_ID) {
+          return '暂不支持该起动效果';
+        }
+        if (state.activeEffect) {
+          return '当前正在处理其他卡牌效果';
+        }
+        const player = state.players.find((candidate) => candidate.id === command.playerId);
+        if (!player) {
+          return '玩家不存在';
+        }
+        const card = state.cardRegistry.get(command.cardId);
+        if (!card || card.ownerId !== command.playerId) {
+          return '卡牌不存在或不属于该玩家';
+        }
+        if (card.data.cardCode !== 'PL!-sd1-002-SD' || card.data.cardType !== CardType.MEMBER) {
+          return '该卡牌没有这个起动效果';
+        }
+        if (!Object.values(player.memberSlots.slots).includes(command.cardId)) {
+          return '起动效果来源成员当前不在舞台';
+        }
+        return null;
+      }
       case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
       case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
       case GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK: {
@@ -1105,6 +1291,64 @@ export class GameSession {
         }
         return null;
       }
+      case GameCommandType.CONFIRM_COST_PAYMENT: {
+        const payment = state.pendingCostPayment;
+        if (!payment) {
+          return '当前没有待支付费用';
+        }
+        if (payment.id !== command.paymentId) {
+          return '费用支付请求不匹配';
+        }
+        if (payment.playerId !== command.playerId) {
+          return '当前不是该玩家支付费用';
+        }
+        if (command.energyCardIds.length !== payment.finalEnergyCost) {
+          return `需要选择 ${payment.finalEnergyCost} 张能量支付费用`;
+        }
+        const uniqueEnergyIds = new Set(command.energyCardIds);
+        if (uniqueEnergyIds.size !== command.energyCardIds.length) {
+          return '不能重复选择同一张能量';
+        }
+        for (const energyCardId of command.energyCardIds) {
+          if (!payment.payableEnergyCardIds.includes(energyCardId)) {
+            return '选择的能量不能用于当前费用支付';
+          }
+        }
+        return null;
+      }
+      case GameCommandType.CONFIRM_EFFECT_STEP: {
+        if (!state.activeEffect) {
+          return '当前没有正在处理的卡牌效果';
+        }
+        if (state.activeEffect.id !== command.effectId) {
+          return '当前处理中的卡牌效果不匹配';
+        }
+        if (state.activeEffect.awaitingPlayerId !== command.playerId) {
+          return '当前不是该玩家确认卡牌效果';
+        }
+        if (
+          command.selectedCardId &&
+          !state.activeEffect.selectableCardIds?.includes(command.selectedCardId)
+        ) {
+          return '选择的卡牌不能用于当前效果';
+        }
+        if (
+          command.selectedCardId === null &&
+          state.activeEffect.canSkipSelection !== true
+        ) {
+          return '当前效果不能不选择卡牌';
+        }
+        if (
+          command.selectedSlot &&
+          !state.activeEffect.selectableSlots?.includes(command.selectedSlot)
+        ) {
+          return '选择的成员区不能用于当前效果';
+        }
+        if (command.resolveInOrder === true && state.activeEffect.canResolveInOrder !== true) {
+          return '当前效果不能顺序发动';
+        }
+        return null;
+      }
       case GameCommandType.SELECT_SUCCESS_LIVE: {
         if (!isCardInOwnedZone(state, command.playerId, ZoneType.LIVE_ZONE, command.cardId)) {
           return '卡牌当前不在己方 Live 区';
@@ -1132,6 +1376,14 @@ export class GameSession {
         return isOwnDeskFreeDragWindowOpen ? null : '当前不是可自由整理阶段';
       case GameCommandType.OPEN_INSPECTION:
         return isOwnDeskFreeDragWindowOpen ? null : '当前不是可检视阶段';
+      case GameCommandType.CONFIRM_COST_PAYMENT:
+        return state.pendingCostPayment ? null : '当前没有待支付费用';
+      case GameCommandType.CONFIRM_EFFECT_STEP:
+        return state.activeEffect ? null : '当前没有正在处理的卡牌效果';
+      case GameCommandType.ACTIVATE_ABILITY:
+        return state.currentPhase === GamePhase.MAIN_PHASE && state.currentSubPhase === SubPhase.NONE
+          ? null
+          : '当前不是可发动起动效果的主阶段';
       case GameCommandType.TAP_MEMBER:
       case GameCommandType.MOVE_MEMBER_TO_SLOT:
       case GameCommandType.ATTACH_ENERGY_TO_MEMBER:
@@ -1232,6 +1484,16 @@ export class GameSession {
   }
 
   private validateCommandActor(state: GameState, command: GameCommand): string | null {
+    if (state.pendingCostPayment) {
+      if (
+        command.type === GameCommandType.CONFIRM_COST_PAYMENT &&
+        state.pendingCostPayment.playerId === command.playerId
+      ) {
+        return null;
+      }
+      return '当前正在等待费用支付';
+    }
+
     if (state.inspectionContext) {
       if (state.inspectionContext.ownerPlayerId === command.playerId) {
         return null;
@@ -1360,6 +1622,8 @@ export class GameSession {
         return this.applyAttachEnergyToMemberCommand(state, command);
       case GameCommandType.PLAY_MEMBER_TO_SLOT:
         return this.applyPlayMemberToSlotCommand(state, command);
+      case GameCommandType.ACTIVATE_ABILITY:
+        return this.applyActivateAbilityCommand(state, command);
       case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
         return this.applyMovePublicCardToWaitingRoomCommand(state, command);
       case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
@@ -1370,6 +1634,10 @@ export class GameSession {
         return this.applyMoveOwnedCardToZoneCommand(state, command);
       case GameCommandType.FINISH_INSPECTION:
         return this.applyFinishInspectionCommand(state, command);
+      case GameCommandType.CONFIRM_COST_PAYMENT:
+        return this.applyConfirmCostPaymentCommand(state, command);
+      case GameCommandType.CONFIRM_EFFECT_STEP:
+        return this.applyConfirmEffectStepCommand(state, command);
       case GameCommandType.CONFIRM_STEP:
         return this.applyConfirmStepCommand(state, command);
       case GameCommandType.CONFIRM_PERFORMANCE_OUTCOME:
@@ -2274,6 +2542,29 @@ export class GameSession {
     state: GameState,
     command: PlayMemberToSlotCommand
   ): CommandExecutionResult {
+    if (this._debugFreePlay) {
+      return this.applyPlayMemberToSlotWithoutCostPrompt(state, command);
+    }
+
+    const costResult = this.preparePlayMemberCostPayment(state, command);
+    if (!costResult.success) {
+      return { success: false, gameState: state, error: costResult.error };
+    }
+
+    const payment = costResult.pendingCostPayment;
+    if (payment) {
+      const energyCardIds = payment.payableEnergyCardIds.slice(0, payment.finalEnergyCost);
+      const paidState = this.applyCostPaymentToState(state, payment, energyCardIds);
+      return this.applyPlayMemberToSlotWithoutCostPrompt(paidState, command);
+    }
+
+    return this.applyPlayMemberToSlotWithoutCostPrompt(state, command);
+  }
+
+  private applyPlayMemberToSlotWithoutCostPrompt(
+    state: GameState,
+    command: PlayMemberToSlotCommand
+  ): CommandExecutionResult {
     const actorSeat = getSeatForPlayer(state, command.playerId);
     if (!actorSeat) {
       return { success: false, gameState: state, error: '玩家不存在' };
@@ -2342,6 +2633,133 @@ export class GameSession {
       declarationPublicValue: command.targetSlot,
       extraPublicEvents,
     };
+  }
+
+  private preparePlayMemberCostPayment(
+    state: GameState,
+    command: PlayMemberToSlotCommand
+  ):
+    | { readonly success: true; readonly pendingCostPayment: GameState['pendingCostPayment'] }
+    | { readonly success: false; readonly error: string } {
+    const player = state.players.find((candidate) => candidate.id === command.playerId);
+    if (!player) {
+      return { success: false, error: '玩家不存在' };
+    }
+
+    const card = state.cardRegistry.get(command.cardId);
+    if (!card || !isMemberCardData(card.data)) {
+      return { success: false, error: '只有成员卡可以登场到成员区' };
+    }
+
+    const activeEnergyIds = getActiveEnergyIds(player.energyZone);
+    const stageMembers: StageMemberInfo[] = [];
+    for (const slot of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT]) {
+      const stageCardId = player.memberSlots.slots[slot];
+      if (!stageCardId) {
+        continue;
+      }
+      const stageCard = state.cardRegistry.get(stageCardId);
+      if (stageCard && isMemberCardData(stageCard.data)) {
+        stageMembers.push({
+          cardId: stageCardId,
+          data: stageCard.data,
+          position: slot,
+        });
+      }
+    }
+
+    const plans = costCalculator.generateAllPaymentPlans(card.data, command.targetSlot, {
+      activeEnergyIds,
+      stageMembers,
+    });
+    const plan = costCalculator.selectOptimalPlan(plans);
+    if (!plan) {
+      return {
+        success: false,
+        error: `费用不足：需要 ${card.data.cost}，可用活跃能量 ${activeEnergyIds.length}`,
+      };
+    }
+
+    if (plan.actualEnergyCost === 0) {
+      return { success: true, pendingCostPayment: null };
+    }
+
+    return {
+      success: true,
+      pendingCostPayment: {
+        id: `${state.gameId}-cost-${state.actionSequence + 1}`,
+        playerId: command.playerId,
+        source: 'PLAY_MEMBER',
+        sourceCardId: command.cardId,
+        targetSlot: command.targetSlot,
+        baseCost: plan.totalCost,
+        finalEnergyCost: plan.actualEnergyCost,
+        relayDiscount: plan.relayDiscount,
+        replacedMemberCardId: plan.memberToRelay,
+        payableEnergyCardIds: activeEnergyIds,
+        explanation:
+          plan.relayDiscount > 0
+            ? `基础费用 ${plan.totalCost}，换手减免 ${plan.relayDiscount}，支付 ${plan.actualEnergyCost}`
+            : `基础费用 ${plan.totalCost}，支付 ${plan.actualEnergyCost}`,
+      },
+    };
+  }
+
+  private applyConfirmCostPaymentCommand(
+    state: GameState,
+    command: ConfirmCostPaymentCommand
+  ): CommandExecutionResult {
+    const payment = state.pendingCostPayment;
+    if (!payment) {
+      return { success: false, gameState: state, error: '当前没有待支付费用' };
+    }
+    if (payment.source !== 'PLAY_MEMBER' || !payment.targetSlot) {
+      return { success: false, gameState: state, error: '暂不支持该费用来源' };
+    }
+
+    const paidState = this.applyCostPaymentToState(state, payment, command.energyCardIds);
+
+    return this.applyPlayMemberToSlotWithoutCostPrompt(paidState, {
+      type: GameCommandType.PLAY_MEMBER_TO_SLOT,
+      playerId: payment.playerId,
+      cardId: payment.sourceCardId,
+      targetSlot: payment.targetSlot,
+      timestamp: command.timestamp,
+    });
+  }
+
+  private applyCostPaymentToState(
+    state: GameState,
+    payment: NonNullable<GameState['pendingCostPayment']>,
+    energyCardIds: readonly string[]
+  ): GameState {
+    let paidState = updatePlayer(state, payment.playerId, (player) => {
+      let energyZone = player.energyZone;
+      for (const energyCardId of energyCardIds) {
+        energyZone = tapEnergy(energyZone, energyCardId);
+      }
+      return {
+        ...player,
+        energyZone,
+      };
+    });
+
+    paidState = addAction(
+      {
+        ...paidState,
+        pendingCostPayment: null,
+      },
+      'PAY_COST',
+      payment.playerId,
+      {
+        paymentId: payment.id,
+        source: payment.source,
+        sourceCardId: payment.sourceCardId,
+        energyCardIds: [...energyCardIds],
+        amount: payment.finalEnergyCost,
+      }
+    );
+    return paidState;
   }
 
   private applyMovePublicCardToWaitingRoomCommand(
@@ -2561,6 +2979,44 @@ export class GameSession {
           actorSeat: getSeatForPlayer(state, command.playerId) ?? undefined,
           payload: {
             remainingCardIds: [...remainingCardIds],
+          },
+        },
+      ],
+    };
+  }
+
+  private applyConfirmEffectStepCommand(
+    state: GameState,
+    command: ConfirmEffectStepCommand
+  ): CommandExecutionResult {
+    const nextState = confirmActiveEffectStep(
+      state,
+      command.playerId,
+      command.effectId,
+      command.selectedCardId,
+      command.selectedSlot,
+      command.resolveInOrder
+    );
+    if (nextState === state) {
+      return {
+        success: false,
+        gameState: state,
+        error: '卡牌效果步骤确认失败',
+      };
+    }
+
+    return {
+      success: true,
+      gameState: nextState,
+      declarationType: 'EFFECT_STEP_CONFIRMED',
+      declarationPublicValue: command.effectId,
+      sealedAuditRecords: [
+        {
+          type: 'EFFECT_STEP_CONFIRMED',
+          actorSeat: getSeatForPlayer(state, command.playerId) ?? undefined,
+          payload: {
+            effectId: command.effectId,
+            selectedCardId: command.selectedCardId ?? null,
           },
         },
       ],
@@ -2795,6 +3251,42 @@ export class GameSession {
     };
   }
 
+  private applyActivateAbilityCommand(
+    state: GameState,
+    command: ActivateAbilityCommand
+  ): CommandExecutionResult {
+    const nextState = activateCardAbility(
+      state,
+      command.playerId,
+      command.cardId,
+      command.abilityId
+    );
+    if (nextState === state) {
+      return {
+        success: false,
+        gameState: state,
+        error: '起动效果发动失败',
+      };
+    }
+
+    return {
+      success: true,
+      gameState: nextState,
+      declarationType: 'ACTIVATE_ABILITY',
+      declarationPublicValue: command.abilityId,
+      sealedAuditRecords: [
+        {
+          type: 'ABILITY_ACTIVATED',
+          actorSeat: getSeatForPlayer(state, command.playerId) ?? undefined,
+          payload: {
+            cardId: command.cardId,
+            abilityId: command.abilityId,
+          },
+        },
+      ],
+    };
+  }
+
   private applyReturnHandCardToTopCommand(
     state: GameState,
     command: ReturnHandCardToTopCommand
@@ -2988,7 +3480,9 @@ export class GameSession {
     while (
       AUTO_ADVANCE_PHASES.includes(currentState.currentPhase) &&
       iterations < MAX_AUTO_ADVANCE_ITERATIONS &&
-      currentState.currentPhase !== GamePhase.GAME_END
+      currentState.currentPhase !== GamePhase.GAME_END &&
+      !currentState.waitingForInput &&
+      !hasPendingAbilityOrChoice(currentState)
     ) {
       // 对墙打模式：如果活跃玩家是对手，仍然自动推进（活跃/能量/抽卡阶段无实际操作意义）
       // 这些阶段本身已经是 AUTO_ADVANCE 的，直接推进即可
@@ -3019,6 +3513,10 @@ export class GameSession {
           activePlayerId: getActivePlayer(currentState).id,
         });
       }
+    }
+
+    if (iterations > 0) {
+      this.undoHistory = [];
     }
 
     if (iterations >= MAX_AUTO_ADVANCE_ITERATIONS) {

@@ -269,6 +269,99 @@ describe('Live 判定与结算', () => {
     expect(result.gameState.liveResolution.liveWinnerIds).toEqual(['p1']);
   });
 
+  it('0 分成功 Live 应战胜没有成功 Live 的玩家', () => {
+    const service = new GameService();
+
+    const p1Live = createCardInstance(
+      {
+        cardCode: 'ZERO-P1',
+        name: '0 分成功 Live',
+        cardType: CardType.LIVE as const,
+        score: 0,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'zero-p1-live'
+    );
+    const p2Live = createCardInstance(
+      {
+        cardCode: 'ZERO-P2',
+        name: '未成功 Live',
+        cardType: CardType.LIVE as const,
+        score: 0,
+        requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),
+      },
+      'p2',
+      'zero-p2-live'
+    );
+
+    let game = createGameState('g-zero-live-vs-no-live', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [p1Live, p2Live]);
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        liveResults: new Map<string, boolean>([
+          [p1Live.instanceId, true],
+          [p2Live.instanceId, false],
+        ]),
+        playerScores: new Map<string, number>([
+          ['p1', 0],
+          ['p2', 0],
+        ]),
+        scoreConfirmedBy: ['p1', 'p2'],
+        liveWinnerIds: [],
+      },
+    };
+
+    const result = service.resolveLiveWinner(game);
+    expect(result.success).toBe(true);
+    expect(result.gameState.liveResolution.liveWinnerIds).toEqual(['p1']);
+  });
+
+  it('双方都有 0 分成功 Live 时，双方都获胜', () => {
+    const service = new GameService();
+
+    const mkLive = (code: string, owner: string, id: string) =>
+      createCardInstance(
+        {
+          cardCode: code,
+          name: code,
+          cardType: CardType.LIVE as const,
+          score: 0,
+          requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+        },
+        owner,
+        id
+      );
+
+    const p1Live = mkLive('ZERO-BOTH-P1', 'p1', 'zero-both-p1-live');
+    const p2Live = mkLive('ZERO-BOTH-P2', 'p2', 'zero-both-p2-live');
+
+    let game = createGameState('g-zero-live-both', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [p1Live, p2Live]);
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        liveResults: new Map<string, boolean>([
+          [p1Live.instanceId, true],
+          [p2Live.instanceId, true],
+        ]),
+        playerScores: new Map<string, number>([
+          ['p1', 0],
+          ['p2', 0],
+        ]),
+        scoreConfirmedBy: ['p1', 'p2'],
+        liveWinnerIds: [],
+      },
+    };
+
+    const result = service.resolveLiveWinner(game);
+    expect(result.success).toBe(true);
+    expect(result.gameState.liveResolution.liveWinnerIds).toEqual(['p1', 'p2']);
+  });
+
   it('RESULT_SETTLEMENT 中胜者可直接确认，剩余 Live 会自动进入休息室', () => {
     const p1LiveA = createCardInstance(
       {

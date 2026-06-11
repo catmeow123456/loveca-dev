@@ -33,6 +33,8 @@ import {
   GameCommandType,
   type GameCommand,
   createEndPhaseCommand,
+  createConfirmEffectStepCommand,
+  createConfirmCostPaymentCommand,
   createMulliganCommand,
   createConfirmStepCommand,
   createConfirmPerformanceOutcomeCommand,
@@ -41,6 +43,7 @@ import {
   createSetLiveCardCommand,
   createFinishInspectionCommand,
   createAttachEnergyToMemberCommand,
+  createActivateAbilityCommand,
   createMoveInspectedCardToBottomCommand,
   createMoveCardToInspectionCommand,
   createMoveMemberToSlotCommand,
@@ -152,6 +155,8 @@ export interface GameStore {
   gameSession: GameSession;
   /** 当前游戏模式 */
   gameMode: GameMode;
+  /** 本地调试：成员登场/换手不支付费用 */
+  debugFreePlay: boolean;
   /** UI 状态 */
   ui: UIState;
   /** 当前视角玩家 ID */
@@ -176,12 +181,18 @@ export interface GameStore {
   leaveLocalGame: () => void;
   /** 推进阶段 */
   advancePhase: () => void;
+  /** 是否可以撤销本地上一步 */
+  canUndoLastStep: () => boolean;
+  /** 撤销本地上一步 */
+  undoLastStep: () => CommandDispatchResult;
   /** 选择卡牌 */
   selectCard: (cardId: string | null) => void;
   /** 取消选择 */
   deselectCard: () => void;
   /** 通过命令层将手牌成员登场到成员槽位 */
   playMemberToSlot: (cardId: string, slot: SlotPosition) => CommandDispatchResult;
+  /** 发动舞台上卡牌的起动效果 */
+  activateCardAbility: (cardId: string, abilityId: string) => CommandDispatchResult;
   /** 将公开区卡牌移入休息室 */
   movePublicCardToWaitingRoom: (
     cardId: string,
@@ -221,6 +232,15 @@ export interface GameStore {
   ) => CommandDispatchResult;
   /** 放置 Live 卡到 Live 区 */
   setLiveCard: (cardId: string, faceDown?: boolean) => CommandDispatchResult;
+  /** 确认当前卡牌效果步骤 */
+  confirmEffectStep: (
+    effectId: string,
+    selectedCardId?: string | null,
+    selectedSlot?: SlotPosition | null,
+    resolveInOrder?: boolean
+  ) => CommandDispatchResult;
+  /** 确认费用支付 */
+  confirmCostPayment: (paymentId: string, energyCardIds: readonly string[]) => CommandDispatchResult;
   /** 换牌（Mulligan） */
   mulligan: (cardIdsToMulligan: string[]) => CommandDispatchResult;
   /** 切换成员状态（活跃/等待） */
@@ -245,6 +265,8 @@ export interface GameStore {
   setDragHints: (isDragging: boolean, highlightedZones?: string[]) => void;
   /** 设置游戏模式（支持游戏内切换） */
   setGameMode: (mode: GameMode) => void;
+  /** 设置本地调试免费登场 */
+  setDebugFreePlay: (enabled: boolean) => void;
   /** 接入远程联机会话 */
   connectRemoteSession: (session: RemoteSessionState) => void;
   /** 将远程快照应用到当前联机会话 */
@@ -502,12 +524,53 @@ export const useGameStore = create<GameStore>((set, get) => {
     return runStoreCommand(buildCommand(viewingPlayerId), options);
   };
 
+  const autoConfirmOtherLocalWinners = (subPhase: SubPhase): void => {
+    if (get().remoteSession) {
+      return;
+    }
+    if (subPhase !== SubPhase.RESULT_ANIMATION && subPhase !== SubPhase.RESULT_SETTLEMENT) {
+      return;
+    }
+
+    const state = get().gameSession.state;
+    if (!state || state.currentSubPhase !== subPhase) {
+      return;
+    }
+
+    const winnerIds = state.liveResolution.liveWinnerIds;
+    if (winnerIds.length < 2) {
+      return;
+    }
+
+    const alreadyConfirmed =
+      subPhase === SubPhase.RESULT_ANIMATION
+        ? state.liveResolution.animationConfirmedBy
+        : state.liveResolution.settlementConfirmedBy;
+
+    const pendingWinnerIds = winnerIds.filter((winnerId) => !alreadyConfirmed.includes(winnerId));
+    if (pendingWinnerIds.length === 0) {
+      return;
+    }
+
+    for (const winnerId of pendingWinnerIds) {
+      const result = get().gameSession.executeCommand(createConfirmStepCommand(winnerId, subPhase));
+      if (!result.success) {
+        get().addLog(`自动确认双赢子阶段失败: ${result.error}`, 'error');
+        return;
+      }
+    }
+
+    get().syncState();
+    get().addLog(`双赢子阶段已自动补齐确认: ${subPhase}`, 'info');
+  };
+
   return {
     // ============ 初始状态 ============
     playerViewState: null,
     cardDataRegistry: new Map(),
     gameSession,
     gameMode: GameMode.DEBUG,
+    debugFreePlay: false,
     viewingPlayerId: null,
     remoteSession: null,
     ui: {
@@ -572,6 +635,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         playerViewState: null,
         viewingPlayerId: null,
         gameMode: GameMode.DEBUG,
+        debugFreePlay: false,
         ui: {
           selectedCardId: null,
           hoveredCardId: null,
@@ -585,6 +649,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         },
       });
       get().gameSession.gameMode = GameMode.DEBUG;
+      get().gameSession.debugFreePlay = false;
     },
 
     advancePhase: () => {
@@ -610,6 +675,35 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     },
 
+    canUndoLastStep: () => {
+      return !get().remoteSession && get().gameSession.canUndoLastStep();
+    },
+
+    undoLastStep: () => {
+      if (get().remoteSession) {
+        return { success: false, error: '远程对战暂不支持撤销' };
+      }
+
+      const result = get().gameSession.undoLastStep();
+      if (!result.success) {
+        get().addLog(`撤销失败: ${result.error}`, 'error');
+        return { success: false, error: result.error };
+      }
+
+      get().syncState();
+      set((state) => ({
+        ui: {
+          ...state.ui,
+          selectedCardId: null,
+          hoveredCardId: null,
+          isDragging: false,
+          highlightedZones: [],
+        },
+      }));
+      get().addLog('撤销上一步', 'action');
+      return { success: true };
+    },
+
     selectCard: (cardId) => {
       set((state) => ({
         ui: { ...state.ui, selectedCardId: cardId },
@@ -629,6 +723,19 @@ export const useGameStore = create<GameStore>((set, get) => {
         deselectCard: true,
         logError: true,
       });
+    },
+
+    activateCardAbility: (cardId, abilityId) => {
+      return runViewerCommand(
+        (playerId) => createActivateAbilityCommand(playerId, cardId, abilityId),
+        {
+          failureMessage: '起动效果发动失败',
+          successMessage: '发动起动效果',
+          clearHoveredCardId: cardId,
+          deselectCard: true,
+          logError: true,
+        }
+      );
     },
 
     movePublicCardToWaitingRoom: (cardId, fromZone, sourceSlot) => {
@@ -679,6 +786,35 @@ export const useGameStore = create<GameStore>((set, get) => {
         deselectCard: true,
         logError: true,
       });
+    },
+
+    confirmEffectStep: (effectId, selectedCardId, selectedSlot, resolveInOrder) => {
+      return runViewerCommand(
+        (playerId) =>
+          createConfirmEffectStepCommand(
+            playerId,
+            effectId,
+            selectedCardId,
+            selectedSlot,
+            resolveInOrder
+          ),
+        {
+          failureMessage: '卡牌效果处理失败',
+          successMessage: '继续处理卡牌效果',
+          logError: true,
+        }
+      );
+    },
+
+    confirmCostPayment: (paymentId, energyCardIds) => {
+      return runViewerCommand(
+        (playerId) => createConfirmCostPaymentCommand(playerId, paymentId, energyCardIds),
+        {
+          failureMessage: '费用支付失败',
+          successMessage: '支付费用',
+          logError: true,
+        }
+      );
     },
 
     mulligan: (cardIdsToMulligan) => {
@@ -827,11 +963,24 @@ export const useGameStore = create<GameStore>((set, get) => {
       get().syncState();
     },
 
+    setDebugFreePlay: (enabled) => {
+      if (get().remoteSession) {
+        return;
+      }
+
+      const { gameSession } = get();
+      gameSession.debugFreePlay = enabled;
+      set({ debugFreePlay: enabled });
+      get().addLog(enabled ? '调试免费登场已开启' : '调试免费登场已关闭', 'info');
+    },
+
     connectRemoteSession: (session) => {
+      get().gameSession.debugFreePlay = false;
       set({
         remoteSession: session,
         viewingPlayerId: session.playerId,
         gameMode: GameMode.DEBUG,
+        debugFreePlay: false,
       });
     },
 
@@ -1221,11 +1370,15 @@ export const useGameStore = create<GameStore>((set, get) => {
     // ============ 阶段十新增动作实现 ============
 
     confirmSubPhase: (subPhase) => {
-      return runViewerCommand((playerId) => createConfirmStepCommand(playerId, subPhase), {
+      const result = runViewerCommand((playerId) => createConfirmStepCommand(playerId, subPhase), {
         failureMessage: '确认子阶段失败',
         successMessage: `确认子阶段完成: ${subPhase}`,
         logError: true,
       });
+      if (result.success) {
+        autoConfirmOtherLocalWinners(subPhase);
+      }
+      return result;
     },
 
     confirmJudgment: (judgmentResults) => {

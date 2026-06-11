@@ -19,11 +19,14 @@ export enum GameCommandType {
   MOVE_MEMBER_TO_SLOT = 'MOVE_MEMBER_TO_SLOT',
   ATTACH_ENERGY_TO_MEMBER = 'ATTACH_ENERGY_TO_MEMBER',
   PLAY_MEMBER_TO_SLOT = 'PLAY_MEMBER_TO_SLOT',
+  ACTIVATE_ABILITY = 'ACTIVATE_ABILITY',
   MOVE_PUBLIC_CARD_TO_WAITING_ROOM = 'MOVE_PUBLIC_CARD_TO_WAITING_ROOM',
   MOVE_PUBLIC_CARD_TO_HAND = 'MOVE_PUBLIC_CARD_TO_HAND',
   MOVE_PUBLIC_CARD_TO_ENERGY_DECK = 'MOVE_PUBLIC_CARD_TO_ENERGY_DECK',
   MOVE_OWNED_CARD_TO_ZONE = 'MOVE_OWNED_CARD_TO_ZONE',
   FINISH_INSPECTION = 'FINISH_INSPECTION',
+  CONFIRM_COST_PAYMENT = 'CONFIRM_COST_PAYMENT',
+  CONFIRM_EFFECT_STEP = 'CONFIRM_EFFECT_STEP',
   CONFIRM_STEP = 'CONFIRM_STEP',
   CONFIRM_PERFORMANCE_OUTCOME = 'CONFIRM_PERFORMANCE_OUTCOME',
   SUBMIT_JUDGMENT = 'SUBMIT_JUDGMENT',
@@ -150,6 +153,12 @@ export interface PlayMemberToSlotCommand extends BaseGameCommand {
   readonly targetSlot: SlotPosition;
 }
 
+export interface ActivateAbilityCommand extends BaseGameCommand {
+  readonly type: GameCommandType.ACTIVATE_ABILITY;
+  readonly cardId: string;
+  readonly abilityId: string;
+}
+
 export interface MovePublicCardToWaitingRoomCommand extends BaseGameCommand {
   readonly type: GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM;
   readonly cardId: string;
@@ -196,6 +205,20 @@ export interface MoveOwnedCardToZoneCommand extends BaseGameCommand {
 
 export interface FinishInspectionCommand extends BaseGameCommand {
   readonly type: GameCommandType.FINISH_INSPECTION;
+}
+
+export interface ConfirmCostPaymentCommand extends BaseGameCommand {
+  readonly type: GameCommandType.CONFIRM_COST_PAYMENT;
+  readonly paymentId: string;
+  readonly energyCardIds: readonly string[];
+}
+
+export interface ConfirmEffectStepCommand extends BaseGameCommand {
+  readonly type: GameCommandType.CONFIRM_EFFECT_STEP;
+  readonly effectId: string;
+  readonly selectedCardId?: string | null;
+  readonly selectedSlot?: SlotPosition | null;
+  readonly resolveInOrder?: boolean;
 }
 
 export interface ConfirmStepCommand extends BaseGameCommand {
@@ -256,11 +279,14 @@ export type GameCommand =
   | MoveMemberToSlotCommand
   | AttachEnergyToMemberCommand
   | PlayMemberToSlotCommand
+  | ActivateAbilityCommand
   | MovePublicCardToWaitingRoomCommand
   | MovePublicCardToHandCommand
   | MovePublicCardToEnergyDeckCommand
   | MoveOwnedCardToZoneCommand
   | FinishInspectionCommand
+  | ConfirmCostPaymentCommand
+  | ConfirmEffectStepCommand
   | ConfirmStepCommand
   | ConfirmPerformanceOutcomeCommand
   | SubmitJudgmentCommand
@@ -517,6 +543,20 @@ export function createPlayMemberToSlotCommand(
   };
 }
 
+export function createActivateAbilityCommand(
+  playerId: string,
+  cardId: string,
+  abilityId: string
+): ActivateAbilityCommand {
+  return {
+    type: GameCommandType.ACTIVATE_ABILITY,
+    playerId,
+    cardId,
+    abilityId,
+    timestamp: Date.now(),
+  };
+}
+
 export function createMovePublicCardToWaitingRoomCommand(
   playerId: string,
   cardId: string,
@@ -591,6 +631,38 @@ export function createFinishInspectionCommand(playerId: string): FinishInspectio
   return {
     type: GameCommandType.FINISH_INSPECTION,
     playerId,
+    timestamp: Date.now(),
+  };
+}
+
+export function createConfirmCostPaymentCommand(
+  playerId: string,
+  paymentId: string,
+  energyCardIds: readonly string[]
+): ConfirmCostPaymentCommand {
+  return {
+    type: GameCommandType.CONFIRM_COST_PAYMENT,
+    playerId,
+    paymentId,
+    energyCardIds,
+    timestamp: Date.now(),
+  };
+}
+
+export function createConfirmEffectStepCommand(
+  playerId: string,
+  effectId: string,
+  selectedCardId?: string | null,
+  selectedSlot?: SlotPosition | null,
+  resolveInOrder?: boolean
+): ConfirmEffectStepCommand {
+  return {
+    type: GameCommandType.CONFIRM_EFFECT_STEP,
+    playerId,
+    effectId,
+    selectedCardId,
+    selectedSlot,
+    resolveInOrder,
     timestamp: Date.now(),
   };
 }

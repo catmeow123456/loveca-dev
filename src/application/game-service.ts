@@ -27,6 +27,7 @@ import {
   FaceState,
   GameEndReason,
   SubPhase,
+  EffectWindowType,
 } from '../shared/types/enums.js';
 import type { GameState, GameAction as GameHistoryAction } from '../domain/entities/game.js';
 import {
@@ -111,6 +112,14 @@ import {
   createHandlerContext,
   type ActionHandlerContext,
 } from './action-handlers/index.js';
+import {
+  enqueueTriggeredCardEffects,
+  resolvePendingCardEffects,
+} from './card-effect-runner.js';
+
+function isTriggerCondition(event: GameEventType | string): event is TriggerCondition {
+  return Object.values(TriggerCondition).includes(event as TriggerCondition);
+}
 // 导入规则处理模块
 import {
   ruleActionProcessor,
@@ -429,7 +438,8 @@ export class GameService {
           break;
         }
         case GameEventType.RUN_CHECK_TIMING: {
-          const checkResult = this.executeCheckTiming(state);
+          const triggerConditions = events.filter(isTriggerCondition);
+          const checkResult = this.executeCheckTiming(state, triggerConditions);
           state = checkResult.gameState;
           processedEvents.push(event);
           break;
@@ -566,11 +576,29 @@ export class GameService {
     // PERFORMANCE_PHASE: 翻开 Live 卡（PERFORMANCE_REVEAL 的自动动作），然后推进到 JUDGMENT
     if (newPhase === GamePhase.PERFORMANCE_PHASE) {
       if (this.shouldAutoSkipPerformancePhase(state)) {
-        return { ...state, currentSubPhase: SubPhase.NONE };
+        return {
+          ...state,
+          currentSubPhase: SubPhase.NONE,
+          effectWindowType: EffectWindowType.NONE,
+        };
       }
 
       state = this.revealLiveCards(state);
-      state = { ...state, currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT };
+      state = this.executeCheckTiming(state, [TriggerCondition.ON_LIVE_START]).gameState;
+
+      if (!this.hasLiveCardInLiveZone(state, state.players[state.activePlayerIndex].id)) {
+        return {
+          ...state,
+          currentSubPhase: SubPhase.NONE,
+          effectWindowType: EffectWindowType.NONE,
+        };
+      }
+
+      state = {
+        ...state,
+        currentSubPhase: SubPhase.PERFORMANCE_LIVE_START_EFFECTS,
+        effectWindowType: EffectWindowType.LIVE_START,
+      };
       return state;
     }
 
@@ -609,6 +637,18 @@ export class GameService {
 
     const activePlayer = state.players[state.activePlayerIndex];
     return !activePlayer || activePlayer.liveZone.cardIds.length === 0;
+  }
+
+  private hasLiveCardInLiveZone(state: GameState, playerId: string): boolean {
+    const player = getPlayerById(state, playerId);
+    if (!player) {
+      return false;
+    }
+
+    return player.liveZone.cardIds.some((cardId) => {
+      const card = getCardById(state, cardId);
+      return card ? isLiveCardData(card.data) : false;
+    });
   }
 
   private hasSuccessfulLiveForResultSubPhase(state: GameState, subPhase: SubPhase): boolean {
@@ -851,8 +891,11 @@ export class GameService {
    * @param game 当前游戏状态
    * @returns 操作结果
    */
-  executeCheckTiming(game: GameState): GameOperationResult {
-    let state = game;
+  executeCheckTiming(
+    game: GameState,
+    triggerConditions: readonly TriggerCondition[] = []
+  ): GameOperationResult {
+    let state = enqueueTriggeredCardEffects(game, triggerConditions);
     let hasChanges = false;
     let iterations = 0;
     const MAX_ITERATIONS = 100; // 防止无限循环
@@ -914,8 +957,9 @@ export class GameService {
       }
     }
 
-    // TODO: 步骤 2-3 处理自动能力（需要能力系统支持）
-    // 目前采用"信任玩家"方案，自动能力由玩家手动执行
+    const abilityResult = resolvePendingCardEffects(state);
+    state = abilityResult.gameState;
+    hasChanges = hasChanges || abilityResult.resolvedAbilityIds.length > 0;
 
     return {
       success: true,
@@ -1239,20 +1283,26 @@ export class GameService {
 
     const firstScore = game.liveResolution.playerScores.get(firstPlayer.id) ?? 0;
     const secondScore = game.liveResolution.playerScores.get(secondPlayer.id) ?? 0;
+    const firstHasLive = this.hasResolvedLive(game, firstPlayer.id, firstScore);
+    const secondHasLive = this.hasResolvedLive(game, secondPlayer.id, secondScore);
 
     const winnerIds: string[] = [];
-    if (firstScore > secondScore) {
+    if (!firstHasLive && !secondHasLive) {
+      // 双方都没有成功 Live，无胜者
+    } else if (firstHasLive && !secondHasLive) {
+      winnerIds.push(firstPlayer.id);
+    } else if (!firstHasLive && secondHasLive) {
+      winnerIds.push(secondPlayer.id);
+    } else if (firstScore > secondScore) {
       winnerIds.push(firstPlayer.id);
     } else if (secondScore > firstScore) {
       winnerIds.push(secondPlayer.id);
-    } else if (firstScore === secondScore && firstScore > 0) {
-      // 分数相等且 > 0：成功区卡数 < 2 的玩家获胜
+    } else {
+      // 分数相等：成功区卡数 < 2 的玩家获胜。0 分成功 Live 也会进入这里。
       const firstSuccessCount = firstPlayer.successZone.cardIds.length;
       const secondSuccessCount = secondPlayer.successZone.cardIds.length;
       if (firstSuccessCount < 2) winnerIds.push(firstPlayer.id);
       if (secondSuccessCount < 2) winnerIds.push(secondPlayer.id);
-    } else {
-      // 双方分数都为 0，无胜者
     }
 
     const state: GameState = {
@@ -1267,6 +1317,21 @@ export class GameService {
   }
   private haveAllPlayersConfirmedScores(game: GameState): boolean {
     return game.players.every((player) => game.liveResolution.scoreConfirmedBy.includes(player.id));
+  }
+
+  private hasResolvedLive(game: GameState, playerId: string, confirmedScore: number): boolean {
+    for (const [cardId, isSuccess] of game.liveResolution.liveResults.entries()) {
+      if (!isSuccess) {
+        continue;
+      }
+      const card = getCardById(game, cardId);
+      if (card?.ownerId === playerId && isLiveCardData(card.data)) {
+        return true;
+      }
+    }
+
+    // 兼容现有"玩家可手动调整确认分数"流程：正分数表示该玩家有合计分数。
+    return confirmedScore > 0;
   }
 
   /**

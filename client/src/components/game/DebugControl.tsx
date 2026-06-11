@@ -6,7 +6,7 @@
 import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
-import { ArrowRightLeft, Crosshair, Eye, Settings2 } from 'lucide-react';
+import { ArrowRightLeft, Crosshair, Eye, Settings2, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
 import { GameMode } from '@game/shared/types/enums';
@@ -18,14 +18,16 @@ export const DebugControl = memo(function DebugControl() {
   const currentViewingPlayer = useGameStore((s) => s.getViewingPlayerIdentity());
   const otherPlayer = useGameStore((s) => s.getOpponentPlayerIdentity());
   const gameMode = useGameStore((s) => s.gameMode);
+  const debugFreePlay = useGameStore((s) => s.debugFreePlay);
   const isRemoteMode = useGameStore((s) => s.isRemoteMode());
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { setViewingPlayer, addLog, setGameMode } = useGameStore(
+  const { setViewingPlayer, addLog, setGameMode, setDebugFreePlay } = useGameStore(
     useShallow((s) => ({
       setViewingPlayer: s.setViewingPlayer,
       addLog: s.addLog,
       setGameMode: s.setGameMode,
+      setDebugFreePlay: s.setDebugFreePlay,
     }))
   );
 
@@ -116,6 +118,24 @@ export const DebugControl = memo(function DebugControl() {
             </motion.button>
           </>
         )}
+
+        <div className="h-6 w-px bg-[var(--border-default)]" />
+
+        <motion.button
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          onClick={() => setDebugFreePlay(!debugFreePlay)}
+          className={cn(
+            'flex h-9 items-center gap-1.5 rounded border px-3 text-xs font-semibold transition',
+            debugFreePlay
+              ? 'border-[var(--semantic-warning)]/40 bg-[var(--semantic-warning)]/15 text-[var(--semantic-warning)]'
+              : 'border-[var(--border-default)] bg-[var(--bg-surface)]/50 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          )}
+          title="开启后成员登场/换手不检查也不支付费用"
+        >
+          <Zap size={14} />
+          免费登场
+        </motion.button>
 
         {/* 模式切换按钮 */}
         <motion.button

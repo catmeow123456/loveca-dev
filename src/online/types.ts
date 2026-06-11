@@ -142,7 +142,39 @@ export interface PlayerViewState {
   readonly table: TableViewState;
   readonly objects: Readonly<Record<string, ViewCardObject>>;
   readonly permissions: PermissionViewState;
+  readonly activeEffect?: ActiveEffectViewState | null;
+  readonly pendingCostPayment?: PendingCostPaymentViewState | null;
   readonly uiHints?: UiHintViewState;
+}
+
+export interface ActiveEffectViewState {
+  readonly id: string;
+  readonly abilityId: string;
+  readonly sourceObjectId: string;
+  readonly controllerSeat: Seat | null;
+  readonly effectText: string;
+  readonly stepId: string;
+  readonly stepText: string;
+  readonly waitingSeat: Seat | null;
+  readonly inspectionObjectIds?: readonly string[];
+  readonly selectableObjectIds?: readonly string[];
+  readonly selectableSlots?: readonly string[];
+  readonly canResolveInOrder?: boolean;
+  readonly canSkipSelection?: boolean;
+}
+
+export interface PendingCostPaymentViewState {
+  readonly id: string;
+  readonly source: string;
+  readonly sourceObjectId: string;
+  readonly playerSeat: Seat | null;
+  readonly targetSlot?: string;
+  readonly baseCost: number;
+  readonly finalEnergyCost: number;
+  readonly relayDiscount: number;
+  readonly replacedMemberObjectId: string | null;
+  readonly payableEnergyObjectIds: readonly string[];
+  readonly explanation?: string;
 }
 
 export interface PublicCardInfo {
