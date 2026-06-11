@@ -3,6 +3,8 @@
 > 版本: 1.3.0
 > 创建日期: 2026-03-03
 > 最后更新: 2026-06-11
+> 文档类型: 系统设计
+> 适用范围: 卡组管理 UI、deckStore、decks REST API、卡组表结构与分享/导入能力
 > 状态: 已实现
 
 ## 1. 系统架构
@@ -145,11 +147,13 @@ interface CardEntry {
 `DeckRecord` 与 `DeckConfig` 之间的转换逻辑集中在 `client/src/lib/deckRecordUtils.ts`，由 `deckStore`、`DeckManager`、`DeckSelector`、`DeckStats`、分享页和游戏入口复用。
 
 **DeckRecord → DeckConfig**（加载云端卡组时）：
+
 - 遍历 `main_deck`，根据 `card_type` 字段分流为 `members` 和 `lives`
 - 向后兼容：若缺少 `card_type`，优先通过本地卡牌数据的真实 `cardType` 识别；无卡牌数据时再按历史编号规则兜底推断
 - `energy_deck` 直接映射为 `CardEntry[]`
 
 **DeckConfig → DeckRecord**（保存到云端时）：
+
 - 将 `members` 标记 `card_type: 'MEMBER'`，`lives` 标记 `card_type: 'LIVE'`，合并为 `main_deck`
 - `energy_deck` 直接映射
 - 新增/更新卡组时会同时写入 `is_valid` 与 `validation_errors`；校验失败不会阻止保存，只会在列表与详情中体现未完成状态
@@ -169,12 +173,14 @@ interface CardEntry {
 **文件路径**: `client/src/components/deck/DeckManager.tsx`
 
 **职责**:
+
 - 卡组列表展示（无卡组时显示推荐预设卡组入口）
 - 创建/编辑/删除卡组（支持从预设卡组快速创建）
 - YAML 导入/导出
 - 分享开启/关闭、复制链接、打开分享页
 
 **状态**:
+
 ```typescript
 const [viewMode, setViewMode] = useState<'list' | 'edit'>('list');
 const [editingDeck, setEditingDeck] = useState<DeckConfig | null>(null);
@@ -192,6 +198,7 @@ const [sharingDeckId, setSharingDeckId] = useState<string | null>(null);
 **文件路径**: `client/src/components/deck-editor/CardEditor.tsx`
 
 **职责**:
+
 - 顶部全宽卡牌类型筛选栏（成员卡 / Live 卡 / 能量卡）
 - 左侧卡牌库展示（仅显示 PUBLISHED 状态的卡牌）
 - 右侧卡组预览侧边栏（响应式：≥960px 常驻，768px-959px 右侧悬浮，<768px 底部抽屉）
@@ -202,6 +209,7 @@ const [sharingDeckId, setSharingDeckId] = useState<string | null>(null);
 CardEditor 从 `gameStore.cardDataRegistry` 读取可用卡牌。应用启动时，`App.tsx` 通过 `cardService.getAllCards(true, 'PUBLISHED')` 仅加载已上线的卡牌到 registry。因此 CardEditor 天然只展示 PUBLISHED 卡牌，DRAFT 状态的卡牌不可见、不可添加到卡组中。
 
 **筛选状态**:
+
 ```typescript
 const [selectedCardType, setSelectedCardType] = useState<CardType>(CardType.MEMBER);
 const [searchQuery, setSearchQuery] = useState('');
@@ -210,17 +218,18 @@ const [selectedRarity, setSelectedRarity] = useState<string | null>(null);
 const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 const [selectedUnit, setSelectedUnit] = useState<string | null>(null);
 const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-const [costMin, setCostMin] = useState(COST_MIN);   // COST_MIN = 0
-const [costMax, setCostMax] = useState(COST_MAX);   // COST_MAX = 22
+const [costMin, setCostMin] = useState(COST_MIN); // COST_MIN = 0
+const [costMax, setCostMax] = useState(COST_MAX); // COST_MAX = 22
 
 // 心颜色、BLADE 心效果与 Live 分数筛选
 const [selectedHeartColor, setSelectedHeartColor] = useState<HeartColor | null>(null); // 成员卡持有心 / Live 需求心
 const [selectedBladeHeart, setSelectedBladeHeart] = useState<string | null>(null);
-const [scoreMin, setScoreMin] = useState(0);         // Live 分数下限
-const [scoreMax, setScoreMax] = useState(10);        // Live 分数上限
+const [scoreMin, setScoreMin] = useState(0); // Live 分数下限
+const [scoreMax, setScoreMax] = useState(10); // Live 分数上限
 ```
 
 **详情与响应式状态**:
+
 ```typescript
 const [selectedCard, setSelectedCard] = useState<AnyCardData | null>(null);
 const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -230,19 +239,23 @@ const isMobile = useMediaQuery('(max-width: 767px)');
 ```
 
 **DeckSidebar 内部状态**:
+
 ```typescript
 const [showAnalysis, setShowAnalysis] = useState(false);
 ```
 
 **筛选联动**:
+
 - 选择组合后，小组选项自动过滤为该组合的小组
 - 能量卡类型下仅展示稀有度、作品名、收录商品等适用筛选，不展示小组、费用、心颜色、BLADE 心效果或分数筛选
 
 **双向操作交互**:
+
 - 左侧卡牌库（`BrowserCardCell`）：点击卡图查看详情；卡图底部常驻 `− / 数量 / +` 控制条，中央遮罩显示同基础编号总数
 - 右侧卡组预览（`DeckSidebarCardCell`）：以响应式图片网格展示；点击或右键查看详情，每张卡显示数量遮罩和底部 `− / 数量 / +` 控制条
 
 **卡组预览排序**:
+
 - 成员卡分区按费用（`cost`）从低到高排序；费用相同时按卡牌编号（`cardCode`）字典序排序
 - Live 卡分区按分数（`score`）从低到高排序；分数相同时按卡牌编号（`cardCode`）字典序排序
 - 能量卡分区保持原始顺序
@@ -255,6 +268,7 @@ const [showAnalysis, setShowAnalysis] = useState(false);
 **文件路径**: `client/src/components/common/DeckStats.tsx`
 
 **职责**:
+
 - 计算并展示卡组的成员卡/Live卡/能量卡数量统计
 - 计算并展示卡组总点数（`xx/9pt`）
 - 提供相对时间格式化（如"5 分钟前"）
@@ -267,6 +281,7 @@ const [showAnalysis, setShowAnalysis] = useState(false);
 **文件路径**: `client/src/components/common/DeckSelector.tsx`
 
 **职责**:
+
 - 为游戏开始前提供卡组选择界面
 - 统一展示云端卡组与本地卡组
 
@@ -275,6 +290,7 @@ const [showAnalysis, setShowAnalysis] = useState(false);
 **文件路径**: `client/src/store/deckStore.ts`
 
 **核心状态**:
+
 ```typescript
 interface DeckState {
   // 云端卡组
@@ -290,12 +306,16 @@ interface DeckState {
 
   // 云端操作
   fetchCloudDecks: () => Promise<void>;
-  saveToCloud: (player: 'player1' | 'player2', name: string, description?: string)
-    => Promise<{ success: boolean; error?: string }>;
-  loadFromCloud: (deckId: string, player: 'player1' | 'player2')
-    => Promise<{ success: boolean; error?: string }>;
-  deleteCloudDeck: (deckId: string)
-    => Promise<{ success: boolean; error?: string }>;
+  saveToCloud: (
+    player: 'player1' | 'player2',
+    name: string,
+    description?: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  loadFromCloud: (
+    deckId: string,
+    player: 'player1' | 'player2'
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteCloudDeck: (deckId: string) => Promise<{ success: boolean; error?: string }>;
 
   // 本地操作
   init: () => void;
@@ -318,10 +338,11 @@ interface DeckState {
 **文件路径**: `src/domain/rules/deck-validator.ts`
 
 **常量**:
+
 ```typescript
-export const MAIN_DECK_SIZE = 60;       // 主卡组总张数（48 成员 + 12 Live）
-export const ENERGY_DECK_SIZE = 12;     // 能量卡组张数
-export const MAX_SAME_CODE_COUNT = 4;   // 同基础编号卡牌最大数量
+export const MAIN_DECK_SIZE = 60; // 主卡组总张数（48 成员 + 12 Live）
+export const ENERGY_DECK_SIZE = 12; // 能量卡组张数
+export const MAX_SAME_CODE_COUNT = 4; // 同基础编号卡牌最大数量
 ```
 
 **基础编号提取**:
@@ -339,6 +360,7 @@ export function getBaseCardCode(cardCode: string): string {
 `client/src/lib/cardUtils.ts` re-export 该共享函数以保持前端引用路径稳定；`deck-validator.ts` 也从共享模块导入同一实现。
 
 **验证结果类型**:
+
 ```typescript
 interface ValidationError {
   code: string;
@@ -361,6 +383,7 @@ interface DeckValidationResult {
 ```
 
 **验证函数**:
+
 ```typescript
 // 完整卡组验证
 export function validateDeck(
@@ -383,6 +406,7 @@ export function canAddCard(
 ```
 
 **验证规则**:
+
 - 主卡组必须正好 60 张（48 成员卡 + 12 Live 卡）
 - 能量卡组必须正好 12 张
 - 同**基础编号**的卡牌在主卡组中合计最多 4 张（不同稀有度视为同一张卡）
@@ -396,22 +420,24 @@ export function canAddCard(
 
 当前实现使用 Express 路由和 JWT 中间件做权限控制，不依赖数据库 RLS：
 
-| 路径/操作 | 权限边界 |
-|---------|---------|
-| `GET /api/decks` | 仅返回当前登录用户自己的卡组 |
-| `GET /api/decks/public` | 返回公开或开启分享的卡组 |
-| `GET /api/decks/:id` | 拥有者、管理员或公开/分享卡组可读 |
-| `POST /api/decks` | 登录用户创建自己的卡组 |
-| `PUT /api/decks/:id` | 拥有者或管理员可改 |
-| `DELETE /api/decks/:id` | 拥有者或管理员可删 |
-| `POST /api/decks/:id/share` / `DELETE /api/decks/:id/share` | 拥有者或管理员可开关分享 |
-| `POST /api/decks/share/:shareId/fork` | 登录用户可复制公开分享卡组到自己的账号 |
+| 路径/操作                                                   | 权限边界                               |
+| ----------------------------------------------------------- | -------------------------------------- |
+| `GET /api/decks`                                            | 仅返回当前登录用户自己的卡组           |
+| `GET /api/decks/public`                                     | 返回公开或开启分享的卡组               |
+| `GET /api/decks/:id`                                        | 拥有者、管理员或公开/分享卡组可读      |
+| `POST /api/decks`                                           | 登录用户创建自己的卡组                 |
+| `PUT /api/decks/:id`                                        | 拥有者或管理员可改                     |
+| `DELETE /api/decks/:id`                                     | 拥有者或管理员可删                     |
+| `POST /api/decks/:id/share` / `DELETE /api/decks/:id/share` | 拥有者或管理员可开关分享               |
+| `POST /api/decks/share/:shareId/fork`                       | 登录用户可复制公开分享卡组到自己的账号 |
 
 ### 4.2 当前数据库维护方式
 
 - 表结构由 `src/server/db/schema.ts` 中的 Drizzle schema 描述。
-- 路由层通过 SQL 显式写入分享字段；`updated_at` 目前依赖数据库默认值和现有 SQL 更新路径，不存在独立 RLS/触发器文档中的触发器实现。
-- `profiles.deck_count` 字段存在于 schema，但当前卡组路由没有维护计数逻辑，不能作为强一致统计来源。
+- 路由层通过 SQL 显式写入分享字段；卡组路由自身不显式维护 `updated_at` 或 `profiles.deck_count`。
+- 生产 `docker-compose.yml` 挂载的 `docker/init.sql` 会创建 `update_deck_timestamp()` 和 `update_deck_count()` 触发器；这些触发器不在 Drizzle schema 中表达。若数据库只通过 Drizzle schema 初始化，则需要额外补齐这些函数/触发器，或接受对应字段只保留默认值/非强一致语义。
+- 当前 `docker/init.sql` 的 `decks` DDL 尚未包含 `share_id`、`share_enabled`、`shared_at`、`forked_from_*` 等分享字段，而运行时代码和 Drizzle schema 已经依赖这些字段。新建数据库若只执行该初始化脚本，需要先补齐这些列与索引，否则分享相关接口会失败。
+- `docs/migrations/*.sql` 是 Supabase-era 历史参考，不作为当前卡组表权限或触发器事实来源。
 
 ## 5. 数据流程图
 
@@ -471,16 +497,16 @@ sequenceDiagram
 
 ### 6.1 筛选选项
 
-| 筛选类型 | 数据来源 | 适用卡牌类型 |
-|---------|---------|------------|
-| 稀有度 | cardCode 后缀解析 | 全部 |
-| 组合 | cardData.groupName | 全部 |
-| 小组 | cardData.unitName | 仅 MEMBER |
-| 费用区间 | cardData.cost | 仅 MEMBER |
-| 收录商品 | cardData.product | 全部 |
-| 心颜色 | 成员卡 `hearts[].color` / Live 卡 `requirements.colorRequirements` | MEMBER, LIVE |
-| BLADE 心效果 | cardData.bladeHearts | MEMBER, LIVE |
-| 分数区间 | cardData.score | 仅 LIVE |
+| 筛选类型     | 数据来源                                                           | 适用卡牌类型 |
+| ------------ | ------------------------------------------------------------------ | ------------ |
+| 稀有度       | cardCode 后缀解析                                                  | 全部         |
+| 组合         | cardData.groupName                                                 | 全部         |
+| 小组         | cardData.unitName                                                  | 仅 MEMBER    |
+| 费用区间     | cardData.cost                                                      | 仅 MEMBER    |
+| 收录商品     | cardData.product                                                   | 全部         |
+| 心颜色       | 成员卡 `hearts[].color` / Live 卡 `requirements.colorRequirements` | MEMBER, LIVE |
+| BLADE 心效果 | cardData.bladeHearts                                               | MEMBER, LIVE |
+| 分数区间     | cardData.score                                                     | 仅 LIVE      |
 
 ### 6.2 筛选逻辑
 
@@ -552,6 +578,7 @@ async function scrapeDecklog(deckId: string, timeout?: number): Promise<DecklogS
 ```
 
 **解析策略**:
+
 - 调用 DeckLog 内部 JSON API：`POST https://decklog.bushiroad.com/system/app/api/view/{deckId}`（带浏览器 User-Agent 头和 Referer，15 秒超时，请求体为 `null`）
 - API 返回 JSON 结构，包含 `list`（主卡组）和 `sub_list`（副卡组）两个卡牌列表
 - 每个卡牌条目包含 `card_number`（卡牌编号）和 `num`（数量）
@@ -560,11 +587,12 @@ async function scrapeDecklog(deckId: string, timeout?: number): Promise<DecklogS
 - 卡组名称来自 API 返回的 `title` 字段
 
 **返回类型**:
+
 ```typescript
 interface ScrapedCard {
-  card_code: string;  // 标准化后的卡牌编号
-  raw_code: string;   // 原始卡牌编号（来自 DeckLog）
-  count: number;      // 在卡组中的数量
+  card_code: string; // 标准化后的卡牌编号
+  raw_code: string; // 原始卡牌编号（来自 DeckLog）
+  count: number; // 在卡组中的数量
 }
 
 interface DecklogScrapeResult {
@@ -582,6 +610,7 @@ interface DecklogScrapeResult {
 **请求体**: `{ deck_id: string }`
 
 **响应**:
+
 - `200`: `{ data: { cards: ScrapedCard[], deckName: string }, error: null }`
 - `400`: 无效输入格式
 - `422`: 爬取失败（页面为空、无卡牌数据等）
@@ -593,6 +622,7 @@ interface DecklogScrapeResult {
 **文件路径**: `client/src/components/deck/DeckManager.tsx`
 
 `handleDecklogImport()` 函数实现：
+
 1. 调用后端 API 获取爬取结果
 2. 遍历 `cards`，在 `gameStore.cardDataRegistry` 中查找每张卡牌
 3. 根据 `cardData.cardType` 归类到 `members`、`lives`、`energyDeck`
@@ -600,6 +630,7 @@ interface DecklogScrapeResult {
 5. 构造 `DeckConfig` 并进入编辑模式
 
 **状态管理**:
+
 ```typescript
 const [showDecklogDialog, setShowDecklogDialog] = useState(false);
 const [decklogInput, setDecklogInput] = useState('');
@@ -616,24 +647,24 @@ const [decklogWarnings, setDecklogWarnings] = useState<string[]>([]);
 
 ## 9. 相关文件索引
 
-| 文件路径 | 说明 |
-|---------|------|
-| `client/src/components/deck/DeckManager.tsx` | 卡组管理页面 |
-| `client/src/components/common/DeckStats.tsx` | 卡组统计与展示组件 |
-| `client/src/components/common/DeckSelector.tsx` | 卡组选择器 |
-| `client/src/components/deck-editor/CardEditor.tsx` | 卡牌编辑器 |
-| `client/src/components/deck-editor/CardDetailDrawer.tsx` | 卡组编辑与分享页卡牌详情抽屉 |
-| `client/src/components/game/CardDetailOverlay.tsx` | 游戏内卡牌详情浮层；其中详情片段被 CardDetailDrawer 复用 |
-| `client/src/store/deckStore.ts` | 卡组状态管理 |
-| `client/src/lib/apiClient.ts` | REST API 客户端与 DeckRecord 类型定义 |
-| `client/src/lib/deckRecordUtils.ts` | DeckRecord 与 DeckConfig 转换、旧格式 `card_type` 兜底识别 |
-| `client/src/lib/cardUtils.ts` | 卡牌工具函数（`getBaseCardCode` 等） |
-| `src/domain/rules/deck-validator.ts` | 卡组验证规则 |
-| `src/domain/rules/deck-construction.ts` | 卡组构筑校验与点数计算 |
-| `src/domain/card-data/deck-loader.ts` | 卡组加载器与 DeckConfig/CardEntry 类型定义 |
-| `src/server/services/decklog-scraper.ts` | DeckLog 爬取服务 |
-| `src/server/routes/decks.ts` | 卡组 REST API 路由（含 scrape-decklog 端点） |
-| `src/server/db/schema.ts` | Drizzle 数据库 schema |
+| 文件路径                                                 | 说明                                                       |
+| -------------------------------------------------------- | ---------------------------------------------------------- |
+| `client/src/components/deck/DeckManager.tsx`             | 卡组管理页面                                               |
+| `client/src/components/common/DeckStats.tsx`             | 卡组统计与展示组件                                         |
+| `client/src/components/common/DeckSelector.tsx`          | 卡组选择器                                                 |
+| `client/src/components/deck-editor/CardEditor.tsx`       | 卡牌编辑器                                                 |
+| `client/src/components/deck-editor/CardDetailDrawer.tsx` | 卡组编辑与分享页卡牌详情抽屉                               |
+| `client/src/components/game/CardDetailOverlay.tsx`       | 游戏内卡牌详情浮层；其中详情片段被 CardDetailDrawer 复用   |
+| `client/src/store/deckStore.ts`                          | 卡组状态管理                                               |
+| `client/src/lib/apiClient.ts`                            | REST API 客户端与 DeckRecord 类型定义                      |
+| `client/src/lib/deckRecordUtils.ts`                      | DeckRecord 与 DeckConfig 转换、旧格式 `card_type` 兜底识别 |
+| `client/src/lib/cardUtils.ts`                            | 卡牌工具函数（`getBaseCardCode` 等）                       |
+| `src/domain/rules/deck-validator.ts`                     | 卡组验证规则                                               |
+| `src/domain/rules/deck-construction.ts`                  | 卡组构筑校验与点数计算                                     |
+| `src/domain/card-data/deck-loader.ts`                    | 卡组加载器与 DeckConfig/CardEntry 类型定义                 |
+| `src/server/services/decklog-scraper.ts`                 | DeckLog 爬取服务                                           |
+| `src/server/routes/decks.ts`                             | 卡组 REST API 路由（含 scrape-decklog 端点）               |
+| `src/server/db/schema.ts`                                | Drizzle 数据库 schema                                      |
 
 ## 10. 相关文档
 

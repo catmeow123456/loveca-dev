@@ -3,6 +3,8 @@
 > 版本: 0.2.0
 > 创建日期: 2026-03-31
 > 最后更新: 2026-06-11
+> 文档类型: 功能方案
+> 适用范围: 卡组分享链接、分享预览、fork 保存与后续分享增强项
 > 状态: 基础闭环已实现，增强项待排期
 
 ## 1. 目标
@@ -19,6 +21,7 @@
 当前系统已经落地分享基础闭环：
 
 - 数据库 `decks` 表已有 `share_id`、`share_enabled`、`shared_at`、`forked_from_deck_id`、`forked_from_share_id`、`forked_at` 字段；当前字段定义以 `src/server/db/schema.ts` 为准，`docs/migrations/007_add_deck_share_fields.sql` 仅作为历史手写 SQL 参考。
+- 当前 `docker/init.sql` 的 `decks` 建表语句尚未同步这些分享字段；新建数据库若只执行该脚本，需要先补齐列与索引后才能使用分享接口。
 - 后端已有 `GET /api/decks/share/:shareId`、`POST /api/decks/:id/share`、`DELETE /api/decks/:id/share`、`POST /api/decks/share/:shareId/fork`。
 - 前端已有 `/decks/share/:shareId` 分享预览页，未登录可只读预览，登录后可保存副本到自己的卡组。
 - `DeckManager` 卡组列表已经提供开启分享、复制链接、打开分享页、关闭分享和“已分享”状态展示。

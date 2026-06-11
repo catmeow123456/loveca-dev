@@ -47,6 +47,7 @@ graph TB
         App[Express App]
         Routes[Auth/Cards/Decks/Profiles/Images/Online]
         Middleware[鉴权与校验中间件]
+        OnlineSvc[OnlineRoomService + OnlineMatchService]
     end
 
     subgraph Infra[基础设施]
@@ -67,6 +68,7 @@ graph TB
     APIClient --> App
     App --> Middleware
     Middleware --> Routes
+    Routes --> OnlineSvc
     Routes --> PG
     Routes --> MinIO
 ```
@@ -98,7 +100,7 @@ graph LR
 
 - 维护权威状态
 - 接收并派发玩家动作
-- 处理自动推进与模式差异（DEBUG/SOLITAIRE/ONLINE）
+- 处理自动推进与本地模式差异（`GameMode.DEBUG` / `GameMode.SOLITAIRE`）；正式联机由服务端房间/对局服务持有会话并通过座位映射驱动同一个 `GameSession`
 - 提供玩家视角状态读取接口；联机快照通过 `PlayerViewState` 投影输出，不直接暴露权威状态
 
 代码路径：
@@ -343,10 +345,12 @@ graph LR
     App --> DecksR[Decks Route]
     App --> ProfilesR[Profiles Route]
     App --> ImagesR[Images Route]
+    App --> OnlineR[Online Route]
 
     AuthR --> AuthSvc[auth-service + mail-service]
     DecksR --> Scraper[decklog-scraper]
     ImagesR --> MinioSvc[minio-service]
+    OnlineR --> OnlineSvc[online-room-service + online-match-service]
 ```
 
 代码路径：
@@ -357,6 +361,7 @@ graph LR
 - `src/server/routes/decks.ts`
 - `src/server/routes/profiles.ts`
 - `src/server/routes/images.ts`
+- `src/server/routes/online.ts`
 - `src/server/services/`
 
 ### 8.2 数据模型设计
@@ -422,7 +427,7 @@ graph TD
 
 - 单元与集成：`tests/unit/`、`tests/integration/`
 - 流程仿真：`tests/simulation/`
-- 前端端到端：`client/e2e/specs/`
+- 当前仓库未保留可运行的前端 E2E specs；历史 Playwright 输出仅存在于 `client/test-results/`，不作为现行测试入口
 
 ---
 
@@ -436,12 +441,13 @@ graph TD
 - 本地双人调试模式与对墙打模式
 - 认证、卡组、卡牌、图片管理 API
 - 云端卡组与离线模式并存
+- 正式联机房间闭环：创建/加入、云端卡组锁定、先后手确认、服务端权威对局、轮询同步、离开/短暂恢复与管理员房间观测
+- 面向联机的 `PlayerViewState` 脱敏投影、可见性策略和命令权限投影
 
 ### 10.2 规划中
 
-- 实时联机对战（房间/同步/重连）
-- 对局持久化与回放
-- 面向联机的玩家视角脱敏
+- WebSocket/SSE 等实时传输增强（当前正式联机使用短间隔 HTTP 轮询）
+- 对局事件持久化、快照持久化、进程重启后恢复与回放
 - 更完整的自动能力编排与检查时机接线
 - 更高覆盖的性能与稳定性专项测试
 

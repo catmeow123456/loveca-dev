@@ -1,24 +1,27 @@
-# Loveca 后端开发规范文档
+# Loveca 开发规范文档
 
 > 版本: 1.0.0  
 > 基于 detail_rules.md 与 game_system_design.md 编制
+> 文档类型：编码标准
+> 适用范围：共享对局引擎、服务端 API、联机边界与测试规范
+> 当前状态：规范与当前实现边界并存；涉及联机 UI 的细则另见 `docs/coding-standard/online-mode-boundary.md`
 
 ---
 
 ## 1. 项目概述
 
-本项目旨在实现 Loveca 卡牌游戏的后端逻辑，支持双人对战。后端需要精确实现游戏规则中的所有机制，包括卡牌播放、能力触发、Live 判定等核心系统。
+本项目旨在实现 Loveca 卡牌游戏的共享对局引擎、自托管 API 和 Web 客户端。规则相关代码应尽量保持与 UI 解耦，正式联机以服务端权威会话和玩家视角投影为边界。
 
 ### 1.1 技术栈
 
-| 类别 | 技术选型 | 说明 |
-|------|----------|------|
-| 语言 | TypeScript 5.x | 强类型保证游戏逻辑的严密性 |
-| 运行时 | Node.js 20+ | LTS 版本 |
-| 包管理 | pnpm | 高效的依赖管理 |
-| 测试框架 | Vitest | 快速的单元测试 |
-| 代码规范 | ESLint + Prettier | 统一代码风格 |
-| 数据验证 | Zod | 运行时类型验证 |
+| 类别     | 技术选型          | 说明                       |
+| -------- | ----------------- | -------------------------- |
+| 语言     | TypeScript 5.x    | 强类型保证游戏逻辑的严密性 |
+| 运行时   | Node.js 20+       | LTS 版本                   |
+| 包管理   | pnpm              | 高效的依赖管理             |
+| 测试框架 | Vitest            | 快速的单元测试             |
+| 代码规范 | ESLint + Prettier | 统一代码风格               |
+| 数据验证 | Zod               | 运行时类型验证             |
 
 ### 1.2 项目结构
 
@@ -30,7 +33,7 @@ loveca/
 │   ├── coding-standard/           # 编码与 UI 规范
 │   ├── deck-management/           # 卡组管理文档
 │   ├── game-table-design/         # 游戏桌设计文档
-│   └── migrations/                # 历史 Supabase-era SQL 参考；当前 schema 以 src/server/db/schema.ts 为准
+│   └── migrations/                # 历史 Supabase-era SQL 参考；当前部署不要直接执行
 ├── client/                        # React/Vite 前端
 │   └── src/
 │       ├── components/            # UI 组件
@@ -69,7 +72,7 @@ loveca/
 │       │   ├── index.ts           # 导出入口
 │       │   ├── types.ts           # 配置类型定义
 │       │   ├── phase-registry.ts  # 主阶段配置 (10 个 GamePhase)
-│       │   ├── sub-phase-registry.ts # 子阶段配置 (23 个 SubPhase)
+│       │   ├── sub-phase-registry.ts # 子阶段配置
 │       │   └── active-player.ts   # 统一的当前行动玩家判断
 │       └── utils/                 # 工具函数
 ├── tests/                         # 测试目录
@@ -99,6 +102,7 @@ const newPlayer = { ...player, hand: newHand };
 ```
 
 **理由**：
+
 - 便于实现悔棋/回放功能
 - 简化断线重连的状态同步
 - 避免意外的状态污染
@@ -118,7 +122,7 @@ type AtomicAction =
 
 ### 2.3 事件驱动的能力系统
 
-使用发布-订阅模式处理能力触发：
+当前主流程尚未接入完整自动能力编排，复杂卡牌效果仍以玩家显式操作和窗口提示为主。后续若接入自动能力系统，应使用发布-订阅模式处理能力触发：
 
 ```typescript
 // 事件定义
@@ -154,10 +158,10 @@ interface AbilityListener {
 interface PhaseConfig {
   phase: GamePhase;
   display: {
-    name: string;        // 短名称 "换牌"
-    fullName: string;    // 完整名称 "换牌阶段"
-    colorClass: string;  // Tailwind 类 "bg-indigo-500"
-    icon?: string;       // emoji "🔄"
+    name: string; // 短名称 "换牌"
+    fullName: string; // 完整名称 "换牌阶段"
+    colorClass: string; // Tailwind 类 "bg-indigo-500"
+    icon?: string; // emoji "🔄"
   };
   behavior: {
     canPlayerEndPhase: boolean;
@@ -184,10 +188,10 @@ interface SubPhaseConfig {
 
 /** 当前行动玩家判断策略 */
 type ActivePlayerStrategy =
-  | 'USE_ACTIVE_PLAYER_INDEX'  // 使用 game.activePlayerIndex
-  | 'USE_FIRST_PLAYER'         // 始终是先攻玩家
-  | 'BOTH_PLAYERS'             // 双方都可行动
-  | 'DERIVE_FROM_SUB_PHASE';   // 根据子阶段推断
+  | 'USE_ACTIVE_PLAYER_INDEX' // 使用 game.activePlayerIndex
+  | 'USE_FIRST_PLAYER' // 始终是先攻玩家
+  | 'BOTH_PLAYERS' // 双方都可行动
+  | 'DERIVE_FROM_SUB_PHASE'; // 根据子阶段推断
 ```
 
 #### 2.4.3 使用方法
@@ -197,13 +201,13 @@ type ActivePlayerStrategy =
 import { getPhaseConfig, getPhaseName, getPhaseColorClass } from '@game/shared/phase-config';
 
 const config = getPhaseConfig(GamePhase.MULLIGAN_PHASE);
-const name = getPhaseName(GamePhase.MAIN_PHASE);  // "主要阶段"
+const name = getPhaseName(GamePhase.MAIN_PHASE); // "主要阶段"
 
 // 获取子阶段配置
 import { getSubPhaseConfig, isUserActionRequired } from '@game/shared/phase-config';
 
 const subConfig = getSubPhaseConfig(SubPhase.LIVE_SET_FIRST_PLAYER);
-const needsAction = isUserActionRequired(SubPhase.PERFORMANCE_CHEER);  // true
+const needsAction = isUserActionRequired(SubPhase.PERFORMANCE_CHEER); // true
 
 // 统一判断当前行动玩家
 import { isPlayerActive } from '@game/shared/phase-config';
@@ -214,6 +218,7 @@ const canAct = isPlayerActive(gameState, playerId);
 #### 2.4.4 添加新阶段的步骤
 
 **之前 (8 步)：**
+
 1. `enums.ts` - 添加枚举值
 2. `actions.ts` - 添加 Action 类型
 3. `game.ts` - 添加状态字段
@@ -224,6 +229,7 @@ const canAct = isPlayerActive(gameState, playerId);
 8. `PhaseIndicator.tsx` - 更新 `phaseInfo` 对象
 
 **之后 (2-3 步)：**
+
 1. `enums.ts` - 添加枚举值
 2. `phase-registry.ts` - 添加配置对象（包含 display、behavior、transitions、autoActions、triggerConditions）
 3. (可选) `game-service.ts` - 添加特殊处理逻辑
@@ -264,18 +270,20 @@ const canAct = isPlayerActive(gameState, playerId);
 ```
 
 **流转规则类型：**
+
 ```typescript
 interface PhaseTransitionRule {
-  whenTurnType?: TurnType;           // 条件：当前回合类型
-  whenCondition?: PhaseTransitionCondition;  // 条件：特殊状态检查
-  nextPhase: GamePhase;              // 下一个阶段
-  nextTurnType: TurnType | 'SAME';   // 下一个回合类型
+  whenTurnType?: TurnType; // 条件：当前回合类型
+  whenCondition?: PhaseTransitionCondition; // 条件：特殊状态检查
+  nextPhase: GamePhase; // 下一个阶段
+  nextTurnType: TurnType | 'SAME'; // 下一个回合类型
   nextActivePlayer: 'SAME' | 'FIRST' | 'SECOND' | 'SWITCH';
-  isNewTurn: boolean;                // 是否是新回合
+  isNewTurn: boolean; // 是否是新回合
 }
 ```
 
 **PhaseManager 的新角色：**
+
 - 不再包含硬编码的阶段流转 switch-case
 - 从配置中读取流转规则并执行
 - 只负责解释配置和计算状态
@@ -295,33 +303,33 @@ interface PhaseTransitionRule {
  */
 function executeCheckTiming(game: GameState): GameState {
   let currentState = game;
-  
+
   // 步骤 1: 处理规则处理，直到没有新的规则处理产生
   do {
     currentState = processAllRuleActions(currentState);
   } while (hasNewRuleActions(currentState));
-  
+
   // 步骤 2: 主动玩家的待命自动能力
   while (hasPendingAutoAbilities(currentState, getActivePlayer(currentState))) {
     const ability = selectAutoAbility(currentState, getActivePlayer(currentState));
     currentState = resolveAutoAbility(currentState, ability);
-    
+
     // 解决后重新处理规则处理
     do {
       currentState = processAllRuleActions(currentState);
     } while (hasNewRuleActions(currentState));
   }
-  
+
   // 步骤 3: 非主动玩家的待命自动能力
   while (hasPendingAutoAbilities(currentState, getNonActivePlayer(currentState))) {
     const ability = selectAutoAbility(currentState, getNonActivePlayer(currentState));
     currentState = resolveAutoAbility(currentState, ability);
-    
+
     do {
       currentState = processAllRuleActions(currentState);
     } while (hasNewRuleActions(currentState));
   }
-  
+
   return currentState;
 }
 ```
@@ -333,14 +341,11 @@ function executeCheckTiming(game: GameState): GameState {
 1. **刷新 (Refresh)** - 规则 10.2
    - 条件：主卡组为空且控备室有卡
    - 动作：控备室所有卡移入主卡组并洗牌
-   
 2. **胜利处理** - 规则 10.3
    - 条件：成功 Live 区达到 3 张
-   
 3. **重复成员处理** - 规则 10.4
    - 条件：同一成员区域有 2+ 张卡
    - 动作：保留最新的，其余送入控备室
-   
 4. **非法卡牌处理** - 规则 10.5
    - Live 区的非 Live 卡 → 控备室
    - 能量区的非能量卡 → 控备室
@@ -356,10 +361,10 @@ function executeCheckTiming(game: GameState): GameState {
 ```typescript
 interface CardIdentifier {
   /** 卡牌编号 - 用于卡组构筑检查，同名卡共享 */
-  cardCode: string;  // 例如: "LL-001"
-  
+  cardCode: string; // 例如: "LL-001"
+
   /** 实例 ID - 游戏内唯一，用于追踪具体卡牌 */
-  instanceId: string;  // 例如: "uuid-xxxx-xxxx"
+  instanceId: string; // 例如: "uuid-xxxx-xxxx"
 }
 ```
 
@@ -386,24 +391,25 @@ function allocateRainbowHearts(
 
 能力格式遵循规则 9.1：
 
-| 能力类型 | 格式 | 示例 |
-|----------|------|------|
-| 触发能力 | `(条件)：(效果)` | `[支付1]：抽1张卡` |
-| 自动能力 | `【触发条件】(效果)` | `【登场】抽1张卡` |
-| 常驻能力 | `(效果)` | `你的其他成员 Blade +1` |
+| 能力类型 | 格式                 | 示例                    |
+| -------- | -------------------- | ----------------------- |
+| 触发能力 | `(条件)：(效果)`     | `[支付1]：抽1张卡`      |
+| 自动能力 | `【触发条件】(效果)` | `【登场】抽1张卡`       |
+| 常驻能力 | `(效果)`             | `你的其他成员 Blade +1` |
 
 ### 4.4 效果原语系统 (Effect Primitives System)
 
 > ⚠️ **重要变更 (2025-01-20)**：
-> 采用"信任玩家"新方案后，效果执行引擎 (`effect-executor.ts`) 和卡牌配置 (`card-configs.ts`) 已被移除。
-> 保留 `primitives.ts` 类型定义以供未来参考。
-> 
+> 采用"信任玩家"新方案后，效果执行引擎 (`effect-executor.ts`) 和卡牌配置 (`card-configs.ts`) 已不在当前源码中。
+> 当前源码没有 `primitives.ts` 模块；能力相关值对象保留在 `src/domain/value-objects/ability.ts`，完整自动效果编排仍属于后续方向。
+>
 > **新方案核心理念**：
+>
 > - 系统只负责规则处理（第10章），不自动执行卡牌效果
 > - 玩家通过手动拖拽执行效果
 > - UI 提供效果发动窗口作为提示，不强制执行
-> 
-> 详见 `docs/PROJECT_REQUIREMENTS.md` 第 7 章「能力与效果系统」
+>
+> 当前落地边界见 `game_system_design.md` 第 6 章「规则校正与“信任玩家”设计」。
 
 ---
 
@@ -412,16 +418,13 @@ function allocateRainbowHearts(
 ### 5.1 判定流程
 
 ```typescript
-function performLiveJudgment(
-  liveCards: LiveCard[],
-  heartPool: HeartPool
-): LiveJudgmentResult {
+function performLiveJudgment(liveCards: LiveCard[], heartPool: HeartPool): LiveJudgmentResult {
   const results: Map<string, boolean> = new Map();
   let remainingPool = { ...heartPool };
-  
+
   for (const liveCard of liveCards) {
     const canSatisfy = checkRequirements(liveCard.requirements, remainingPool);
-    
+
     if (canSatisfy) {
       // 从池中扣除消耗的 Heart
       remainingPool = consumeHearts(remainingPool, liveCard.requirements);
@@ -430,7 +433,7 @@ function performLiveJudgment(
       results.set(liveCard.instanceId, false);
     }
   }
-  
+
   return { results, remainingPool };
 }
 ```
@@ -440,20 +443,17 @@ function performLiveJudgment(
 根据规则 2.11.3：
 
 ```typescript
-function checkRequirements(
-  requirements: HeartRequirement,
-  pool: HeartPool
-): boolean {
+function checkRequirements(requirements: HeartRequirement, pool: HeartPool): boolean {
   // 条件 1: 各颜色需求
   for (const [color, required] of requirements.colorRequirements) {
     const available = pool.getCount(color) + pool.getRainbowCount();
     if (available < required) return false;
   }
-  
+
   // 条件 2: 总数需求
   const totalRequired = requirements.totalRequired;
   const totalAvailable = pool.getTotalCount();
-  
+
   return totalAvailable >= totalRequired;
 }
 ```
@@ -464,12 +464,12 @@ function checkRequirements(
 
 ### 6.1 测试覆盖要求
 
-| 模块 | 最低覆盖率 |
-|------|-----------|
-| 规则处理 | 95% |
-| Live 判定 | 95% |
-| 能力系统 | 90% |
-| 区域操作 | 90% |
+| 模块      | 最低覆盖率 |
+| --------- | ---------- |
+| 规则处理  | 95%        |
+| Live 判定 | 95%        |
+| 能力系统  | 90%        |
+| 区域操作  | 90%        |
 
 ### 6.2 测试用例规范
 
@@ -481,12 +481,12 @@ describe('Live 判定', () => {
     // Given: 准备初始状态
     const pool = createHeartPool({ PINK: 3, RED: 2 });
     const liveCard = createLiveCard({
-      requirements: { colorRequirements: { PINK: 3, RED: 2 }, totalRequired: 5 }
+      requirements: { colorRequirements: { PINK: 3, RED: 2 }, totalRequired: 5 },
     });
-    
+
     // When: 执行判定
     const result = performLiveJudgment([liveCard], pool);
-    
+
     // Then: 验证结果
     expect(result.results.get(liveCard.instanceId)).toBe(true);
   });
@@ -515,11 +515,11 @@ enum GameErrorCode {
   INVALID_ACTION = 'INVALID_ACTION',
   INSUFFICIENT_COST = 'INSUFFICIENT_COST',
   INVALID_TARGET = 'INVALID_TARGET',
-  
+
   // 状态错误
   WRONG_PHASE = 'WRONG_PHASE',
   NOT_YOUR_TURN = 'NOT_YOUR_TURN',
-  
+
   // 系统错误
   STATE_CORRUPTED = 'STATE_CORRUPTED',
   INFINITE_LOOP_DETECTED = 'INFINITE_LOOP_DETECTED',
@@ -586,11 +586,11 @@ fix(ability): correct auto ability trigger order
 
 测试文件 (`tests/**/*.ts`) 中允许以下通常被禁止的用法：
 
-| 规则 | 例外说明 |
-|------|----------|
-| `no-console` | 测试中允许使用 `console.log` 输出调试信息 |
-| `@typescript-eslint/no-unsafe-assignment` | JSON 解析结果可以直接使用 |
-| Node.js 全局变量 | 允许直接使用 `process`, `__dirname` 等 |
+| 规则                                      | 例外说明                                  |
+| ----------------------------------------- | ----------------------------------------- |
+| `no-console`                              | 测试中允许使用 `console.log` 输出调试信息 |
+| `@typescript-eslint/no-unsafe-assignment` | JSON 解析结果可以直接使用                 |
+| Node.js 全局变量                          | 允许直接使用 `process`, `__dirname` 等    |
 
 ### 9.2 忽略规则的方式
 
@@ -633,7 +633,7 @@ enum HeartColor {
   GREEN = 'GREEN',
   BLUE = 'BLUE',
   PURPLE = 'PURPLE',
-  RAINBOW = 'RAINBOW',  // 万能色
+  RAINBOW = 'RAINBOW', // 万能色
 }
 
 // 游戏阶段
@@ -696,4 +696,4 @@ enum TriggerCondition {
 
 ---
 
-*文档最后更新: 2026-03-09*
+_文档最后更新: 2026-06-11_

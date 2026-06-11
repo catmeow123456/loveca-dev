@@ -2,8 +2,10 @@
 
 > 版本: 1.3.0
 > 创建日期: 2026-03-03
-> 更新日期: 2026-03-12
-> 状态: 已实现
+> 更新日期: 2026-06-11
+> 文档类型: 系统设计
+> 适用范围: 卡牌数据表、同步脚本、管理端 API 和前端服务封装
+> 状态: 主体已实现；创建路由仍有 legacy `blade_heart` 字段残留，见 4.2
 
 ## 1. 系统架构
 
@@ -55,7 +57,7 @@ CREATE TABLE public.cards (
 
   -- 基础信息
   card_code TEXT UNIQUE NOT NULL,        -- 卡牌唯一编号
-  card_type TEXT NOT NULL,               -- MEMBER | LIVE | ENERGY
+  card_type TEXT NOT NULL CHECK (card_type IN ('MEMBER', 'LIVE', 'ENERGY')),
   name TEXT NOT NULL,                    -- 卡牌名称
   group_name TEXT,                       -- 组合名
   unit_name TEXT,                        -- 小组名
@@ -75,7 +77,7 @@ CREATE TABLE public.cards (
   image_filename TEXT,                   -- 图片文件名
   rare TEXT,                             -- 稀有度 (R, R+, P, AR, SEC 等)
   product TEXT,                          -- 收录商品名
-  status TEXT NOT NULL DEFAULT 'DRAFT',  -- DRAFT | PUBLISHED
+  status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PUBLISHED')),
 
   -- 元数据
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -167,12 +169,14 @@ flowchart LR
 **文件路径**: `client/src/lib/cardService.ts`
 
 **职责**:
+
 - 与 REST API 交互的卡牌 CRUD 操作
 - 内存缓存管理（5分钟 TTL）
 - 数据格式转换（snake_case ↔ camelCase）
 - DRAFT/PUBLISHED 状态管理
 
 **缓存策略**:
+
 - 主缓存：`Map<string, AnyCardData>`，TTL 5 分钟
 - 状态缓存：独立的 `Map<string, 'DRAFT' | 'PUBLISHED'>`，TTL 5 分钟
 - `getAllCards(forceRefresh?, statusFilter?)` 在缓存有效时直接返回缓存数据，过期或强制刷新时从 REST API 重新拉取
@@ -181,29 +185,30 @@ flowchart LR
 
 **API 方法**:
 
-| 方法 | 说明 |
-|------|------|
-| `getAllCards(forceRefresh?, statusFilter?)` | 获取全部卡牌，支持缓存和状态过滤 |
-| `getCardByCode(cardCode)` | 按编号查询单张卡牌 |
-| `createCard(input)` | 创建新卡牌 |
-| `updateCard(cardCode, updates)` | 更新卡牌字段 |
-| `deleteCard(cardCode)` | 删除卡牌 |
-| `publishCard(cardCode)` | 将卡牌从 DRAFT 上线为 PUBLISHED |
-| `unpublishCard(cardCode)` | 将卡牌从 PUBLISHED 下线为 DRAFT |
-| `exportCards()` | 调用 `GET /api/cards/export` 导出全部卡牌数据，要求管理员权限 |
-| `importCards(cards)` | 前端批量导入辅助方法，当前逐张调用 `createCard()`；后端另有 `POST /api/cards/import` 批量接口 |
-| `getCardsByType(type)` | 按卡牌类型筛选 |
-| `getCardsByGroup(groupName)` | 按组合名筛选 |
-| `searchCards(query)` | 按名称或编号模糊搜索 |
-| `getCardStatusMap()` | 获取全部卡牌的状态映射表 |
-| `clearCache()` | 手动清除缓存 |
-| `getCacheStatus()` | 获取缓存诊断信息（大小、过期时间） |
+| 方法                                        | 说明                                                                                          |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `getAllCards(forceRefresh?, statusFilter?)` | 获取全部卡牌，支持缓存和状态过滤                                                              |
+| `getCardByCode(cardCode)`                   | 按编号查询单张卡牌                                                                            |
+| `createCard(input)`                         | 创建新卡牌                                                                                    |
+| `updateCard(cardCode, updates)`             | 更新卡牌字段                                                                                  |
+| `deleteCard(cardCode)`                      | 删除卡牌                                                                                      |
+| `publishCard(cardCode)`                     | 将卡牌从 DRAFT 上线为 PUBLISHED                                                               |
+| `unpublishCard(cardCode)`                   | 将卡牌从 PUBLISHED 下线为 DRAFT                                                               |
+| `exportCards()`                             | 调用 `GET /api/cards/export` 导出全部卡牌数据，要求管理员权限                                 |
+| `importCards(cards)`                        | 前端批量导入辅助方法，当前逐张调用 `createCard()`；后端另有 `POST /api/cards/import` 批量接口 |
+| `getCardsByType(type)`                      | 按卡牌类型筛选                                                                                |
+| `getCardsByGroup(groupName)`                | 按组合名筛选                                                                                  |
+| `searchCards(query)`                        | 按名称或编号模糊搜索                                                                          |
+| `getCardStatusMap()`                        | 获取全部卡牌的状态映射表                                                                      |
+| `clearCache()`                              | 手动清除缓存                                                                                  |
+| `getCacheStatus()`                          | 获取缓存诊断信息（大小、过期时间）                                                            |
 
 ### 3.2 gameStore（状态管理）
 
 **文件路径**: `client/src/store/gameStore.ts`
 
 **职责**:
+
 - 存储卡牌数据注册表 (`cardDataRegistry: Map<string, AnyCardData>`)
 - 提供 `getCardData(cardCode)` 查询方法
 - 提供 `getCardImagePath(cardCode)` 图片路径解析（内部调用 `client/src/lib/imageService.ts` 中的 `resolveCardImagePath`）
@@ -213,6 +218,7 @@ flowchart LR
 ### 3.3 领域模型（Domain）
 
 **文件路径**:
+
 - `src/domain/entities/card.ts` — 卡牌实体定义（BaseCardData、各卡牌类型接口、类型守卫、工厂函数）
 - `src/domain/card-data/schema.ts` — Zod Schema 定义
 - `src/domain/card-data/loader.ts` — 后端数据加载器
@@ -230,6 +236,7 @@ flowchart LR
 **文件路径**: `client/src/components/admin/CardAdminPage.tsx`
 
 **职责**:
+
 - 卡牌列表浏览（分页、按类型/状态/关键词筛选）
 - 卡牌 CRUD（创建、编辑、删除）
 - DRAFT/PUBLISHED 状态管理（上线/下线）
@@ -238,6 +245,7 @@ flowchart LR
 - 图片上传与进度展示
 
 **浏览与筛选**:
+
 - 分页展示：28 卡/页，卡牌网格按视口响应式调整为 3-7 列，带页码导航
 - 类型过滤：ALL / MEMBER / LIVE / ENERGY
 - 状态过滤：ALL / DRAFT / PUBLISHED
@@ -256,6 +264,7 @@ CardEditModal 支持两种编辑模式，通过弹窗头部的切换按钮自由
 2. **YAML 模式** — 将卡牌数据序列化为 YAML 文本，支持直接编辑。适合批量修改多个字段或复制粘贴数据
 
 切换逻辑：
+
 - 表单 → YAML：将当前表单数据序列化为 YAML 文本
 - YAML → 表单：解析 YAML 文本并回填到表单，解析失败时显示错误提示且不切换
 - 保存时：若处于 YAML 模式，先解析 YAML 再提交
@@ -265,10 +274,12 @@ CardEditModal 支持两种编辑模式，通过弹窗头部的切换按钮自由
 **文件路径**: `client/src/lib/aiService.ts`
 
 **职责**:
+
 - 接收卡牌图片 URL，通过多模态 AI 模型识别并提取效果文本
 - 将日文效果文本转换为项目约定的中文标记格式
 
 **集成方式**:
+
 - 在 CardAdminPage 的编辑弹窗中通过"AI 提取"按钮触发
 - 前端调用 `/api/dashscope`，由 `client/vite.config.ts` 的 Vite dev proxy 转发到 DashScope 并注入 API Key；生产部署需要等价的反向代理，前端不应持有 API Key
 - 提取结果回填到表单的 `cardText` 字段
@@ -279,16 +290,22 @@ CardEditModal 支持两种编辑模式，通过弹窗头部的切换按钮自由
 
 当前实现使用 Express 路由和 JWT 中间件做权限控制，不依赖数据库 RLS：
 
-| 路径/操作 | 权限边界 |
-|---------|---------|
-| `GET /api/cards` | 普通访问只返回 `PUBLISHED`；管理员可用状态参数读取 DRAFT/PUBLISHED/全部 |
-| `GET /api/cards/:code` | 普通访问不能读取 DRAFT；管理员可读取全部 |
-| `POST /api/cards` | 仅管理员 |
-| `PUT /api/cards/:code` | 仅管理员 |
-| `DELETE /api/cards/:code` | 仅管理员 |
-| `GET /api/cards/export` | 仅管理员 |
-| `POST /api/cards/import` | 仅管理员 |
-| `GET /api/cards/status-map` | 仅管理员 |
+| 路径/操作                        | 权限边界                                                                |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `GET /api/cards`                 | 普通访问只返回 `PUBLISHED`；管理员可用状态参数读取 DRAFT/PUBLISHED/全部 |
+| `GET /api/cards/:code`           | 普通访问不能读取 DRAFT；管理员可读取全部                                |
+| `POST /api/cards`                | 仅管理员                                                                |
+| `PUT /api/cards/:code`           | 仅管理员                                                                |
+| `DELETE /api/cards/:code`        | 仅管理员                                                                |
+| `PUT /api/cards/:code/publish`   | 仅管理员                                                                |
+| `PUT /api/cards/:code/unpublish` | 仅管理员                                                                |
+| `GET /api/cards/export`          | 仅管理员                                                                |
+| `POST /api/cards/import`         | 仅管理员                                                                |
+| `GET /api/cards/status-map`      | 仅管理员                                                                |
+
+### 4.2 已知实现限制
+
+当前正式 schema 字段是 `blade_hearts`。`src/server/routes/cards.ts` 的 `POST /api/cards` 与 `PUT /api/cards/:code` 仍保留 legacy `blade_heart` 入参/SQL 列名残留；在只包含当前 schema 的新数据库上，`POST /api/cards` 会因不存在 `blade_heart` 列而失败。`POST /api/cards/import` 与 `src/scripts/sync-cards-llocg.ts` 已使用 `blade_hearts`。
 
 ## 5. 数据流程图
 
@@ -372,25 +389,25 @@ CREATE INDEX idx_cards_status ON public.cards(status);
 
 ## 7. 错误处理
 
-| 错误场景 | 处理方式 |
-|---------|---------|
-| 卡牌不存在 | 返回 null |
-| 权限不足 | 抛出 Error，前端显示错误提示 |
-| 数据格式错误 | Zod 验证失败，记录日志 |
+| 错误场景     | 处理方式                     |
+| ------------ | ---------------------------- |
+| 卡牌不存在   | 返回 null                    |
+| 权限不足     | 抛出 Error，前端显示错误提示 |
+| 数据格式错误 | Zod 验证失败，记录日志       |
 
 ## 8. 相关文件索引
 
-| 文件路径 | 说明 |
-|---------|------|
-| `client/src/lib/cardService.ts` | 前端卡牌服务（CRUD、缓存、数据转换） |
-| `client/src/lib/aiService.ts` | AI 效果文本提取服务 |
-| `client/src/components/admin/CardAdminPage.tsx` | 管理页面（表单/YAML 双模式编辑） |
-| `client/src/store/gameStore.ts` | 游戏状态管理（cardDataRegistry） |
-| `src/domain/entities/card.ts` | 卡牌领域模型（BaseCardData、类型守卫、工厂函数） |
-| `src/domain/card-data/schema.ts` | Zod Schema（AnyCardDataSchema） |
-| `src/domain/card-data/loader.ts` | 后端数据加载器（CardDataRegistry） |
-| `src/server/db/schema.ts` | Drizzle 数据库 schema |
-| `src/server/routes/cards.ts` | 卡牌 REST API 路由与权限边界 |
+| 文件路径                                        | 说明                                             |
+| ----------------------------------------------- | ------------------------------------------------ |
+| `client/src/lib/cardService.ts`                 | 前端卡牌服务（CRUD、缓存、数据转换）             |
+| `client/src/lib/aiService.ts`                   | AI 效果文本提取服务                              |
+| `client/src/components/admin/CardAdminPage.tsx` | 管理页面（表单/YAML 双模式编辑）                 |
+| `client/src/store/gameStore.ts`                 | 游戏状态管理（cardDataRegistry）                 |
+| `src/domain/entities/card.ts`                   | 卡牌领域模型（BaseCardData、类型守卫、工厂函数） |
+| `src/domain/card-data/schema.ts`                | Zod Schema（AnyCardDataSchema）                  |
+| `src/domain/card-data/loader.ts`                | 后端数据加载器（CardDataRegistry）               |
+| `src/server/db/schema.ts`                       | Drizzle 数据库 schema                            |
+| `src/server/routes/cards.ts`                    | 卡牌 REST API 路由与权限边界                     |
 
 ## 9. 相关文档
 

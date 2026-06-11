@@ -38,6 +38,7 @@ pnpm start:prod          # Preview production build
 ## Architecture Overview
 
 Monorepo implementing the Love Live card game (Loveca):
+
 - **`src/`** - Backend: game engine + self-hosted API server (TypeScript, Node.js 20+)
 - **`client/`** - Frontend UI (React 19, Vite, Tailwind CSS)
 - **`src/shared/`** - Shared types imported by both (via TypeScript path aliases)
@@ -60,7 +61,7 @@ src/
 │   ├── config.ts            # Environment configuration
 │   ├── db/pool.ts           # PostgreSQL connection pool
 │   ├── db/drizzle.ts        # Drizzle ORM instance (wraps pool)
-│   ├── db/schema.ts         # Drizzle table definitions (mirrors init.sql)
+│   ├── db/schema.ts         # Drizzle table definitions; keep docker/init.sql aligned for deployment
 │   ├── middleware/           # authenticate, require-auth, require-admin, validate, error-handler
 │   ├── routes/              # auth, cards, decks, profiles, images, online, debug-online(dev)
 │   └── services/            # auth-service, mail-service, minio-service,
@@ -94,26 +95,33 @@ client/src/
 ## Core Design Principles
 
 ### Immutable State
+
 All state changes create new objects. Never mutate directly:
+
 ```typescript
 // ❌ player.hand.push(card)
 // ✅ const newPlayer = { ...player, hand: [...player.hand, card] }
 ```
 
 ### Configuration-Driven Phase Management
+
 Phase flow is defined in `src/shared/phase-config/phase-registry.ts`, not hardcoded in PhaseManager. Adding a new phase:
+
 1. Add enum value to `enums.ts`
 2. Add config object to `phase-registry.ts` (includes display, behavior, transitions, autoActions)
 3. (Optional) Add special handling in game-service.ts
 
 ### "Trust the Player" Philosophy
+
 - System handles rule processing (Chapter 10 rules), not card effects
 - Players execute effects manually via drag-and-drop
 - `executeCheckTiming()` automatically corrects invalid game states
 - UI provides effect windows as hints, not enforced actions
 
 ### Action Handler Pattern
+
 Each action type has a dedicated handler in `src/application/action-handlers/`:
+
 ```typescript
 registerHandler(GameActionType.PLAY_MEMBER, playMemberHandler);
 registerHandler(GameActionType.SET_LIVE_CARD, setLiveCardHandler);
@@ -122,17 +130,20 @@ registerHandler(GameActionType.SET_LIVE_CARD, setLiveCardHandler);
 ## Game-Specific Context
 
 Based on official Love Live card game rules (see `detail_rules.md`):
+
 - **Win condition**: 3 successful Lives in success zone
 - **10 zones per player**: hand, mainDeck, energyDeck, memberSlots (LEFT/CENTER/RIGHT, each with optional energyBelow and memberBelow cards), energyZone, liveZone, successZone, waitingRoom, exileZone, resolutionZone
 - **Card types**: MEMBER, LIVE, ENERGY
 - **Heart colors**: PINK, RED, YELLOW, GREEN, BLUE, PURPLE, RAINBOW (wild)
 
 ### Key Game Flow
+
 1. MULLIGAN_PHASE → 2. ACTIVE_PHASE (untap) → 3. ENERGY_PHASE (draw energy) → 4. DRAW_PHASE → 5. MAIN_PHASE (player actions) → 6. LIVE_SET_PHASE → 7. PERFORMANCE_PHASE → 8. LIVE_RESULT_PHASE → repeat
 
 ## Testing
 
 Tests in `tests/` directory using Vitest:
+
 - `tests/unit/` - Unit tests
 - `tests/integration/` - Integration tests
 - `tests/simulation/` - Game simulation tests

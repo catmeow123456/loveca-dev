@@ -2,7 +2,10 @@
 
 > 版本: 2.0.0  
 > 创建日期: 2025-01-05  
-> 最后更新: 2026-03-15
+> 最后更新: 2026-06-11
+> 文档类型: 性能优化方案
+> 适用范围: 卡牌图片存储、访问 URL、前端加载和缓存策略
+> 当前状态: 服务端已集成 MinIO；生产连接外部对象存储，开发可用 `docker-compose.dev.yml` 本地 MinIO
 
 ## 概述
 
@@ -35,12 +38,12 @@ flowchart TD
 
 ## 文件清单
 
-| 文件 | 说明 |
-|------|------|
-| `src/scripts/compress-images.ts` | 图片压缩脚本 |
+| 文件                             | 说明                 |
+| -------------------------------- | -------------------- |
+| `src/scripts/compress-images.ts` | 图片压缩脚本         |
 | `src/scripts/upload-to-minio.ts` | 上传到 MinIO Storage |
-| `client/src/lib/imageService.ts` | 前端图片服务 |
-| `docs/minio-requirements.md` | MinIO 部署配置文档 |
+| `client/src/lib/imageService.ts` | 前端图片服务         |
+| `docs/minio-requirements.md`     | MinIO 部署配置文档   |
 
 ---
 
@@ -61,14 +64,15 @@ npx tsx src/scripts/compress-images.ts --source=llocg-db
 
 当前脚本输入源由 `--source` 参数决定：
 
-| source | 输入目录 |
-|--------|----------|
-| 默认 / `crawler` | `test/images` |
-| `llocg-db` | `llocg_db/img/cards`、`llocg_db/img/cards_cn` |
+| source           | 输入目录                                      |
+| ---------------- | --------------------------------------------- |
+| 默认 / `crawler` | `test/images`                                 |
+| `llocg-db`       | `llocg_db/img/cards`、`llocg_db/img/cards_cn` |
 
 压缩输出统一写入 `assets/compressed/{thumb,medium,large}`。
 
 **输出示例：**
+
 ```
 🎴 卡牌图片压缩工具
 
@@ -100,7 +104,8 @@ npx tsx src/scripts/compress-images.ts --source=llocg-db
 详见 `docs/minio-requirements.md` 文档。
 
 主要步骤：
-1. 在独立服务器上部署 MinIO (Docker)
+
+1. 生产环境准备外部 MinIO 或兼容 S3 对象存储；开发环境可启动 `docker-compose.dev.yml` 中的 MinIO
 2. 创建 `loveca-cards` bucket
 3. 设置公开读取策略
 4. 记录连接信息（endpoint、access key、secret key）
@@ -132,10 +137,13 @@ VITE_API_BASE_URL=https://loveca.example.com
 通过 Nginx 反向代理访问：
 
 ```
-{BASE_URL}/images/{size}/{cardCode}.webp
+{BASE_URL}/images/{size}/{imageBaseName}.webp
 ```
 
+`imageBaseName` 来自卡牌的 `image_filename` 去掉扩展名；缺失时当前图片服务会回退到卡牌编号。管理端当前通过 `POST /api/images/:cardCode` 上传图片，上传服务会以 `cardCode` 命名对象并回写 `{cardCode}.webp`。
+
 **示例：**
+
 - 缩略图: `https://loveca.example.com/images/thumb/PL-sd1-001.webp`
 - 中等: `https://loveca.example.com/images/medium/PL-sd1-001.webp`
 - 大图: `https://loveca.example.com/images/large/PL-sd1-001.webp`
@@ -178,11 +186,11 @@ const IMAGES_BASE_URL = `${getApiBaseUrl()}/images`;
 
 ## 图片尺寸规格
 
-| 尺寸名 | 宽度 | 质量 | 用途 | 预计大小 |
-|--------|------|------|------|----------|
-| `thumb` | 100px | 75% | 列表/网格预览 | ~8KB |
-| `medium` | 300px | 80% | 游戏中卡牌显示 | ~30KB |
-| `large` | 600px | 85% | 详情查看/弹窗 | ~80KB |
+| 尺寸名   | 宽度  | 质量 | 用途           | 预计大小 |
+| -------- | ----- | ---- | -------------- | -------- |
+| `thumb`  | 100px | 75%  | 列表/网格预览  | ~8KB     |
+| `medium` | 300px | 80%  | 游戏中卡牌显示 | ~30KB    |
+| `large`  | 600px | 85%  | 详情查看/弹窗  | ~80KB    |
 
 ---
 
@@ -207,13 +215,13 @@ await preloadCardImages(['PL-sd1-001'], 'medium');
 
 **缓存策略配置 (client/vite.config.ts):**
 
-| 缓存名 | URL 匹配规则 | 策略 | 过期时间 | 最大条目 |
-|--------|-------------|------|----------|----------|
-| `remote-card-images-${cacheVersion}` | `/images/(thumb|medium|large)/*.webp` | CacheFirst | 30 天 | 1500 |
-| `remote-static-assets-${cacheVersion}` | `/images/static/*` | CacheFirst | 30 天 | 50 |
-| `local-card-images-${cacheVersion}` | `/card/*.(jpg|png|webp)` | CacheFirst | 30 天 | 500 |
-| `energy-card-images-${cacheVersion}` | `/energy/*.(jpg|png|webp)` | CacheFirst | 30 天 | 50 |
-| `compressed-card-images-${cacheVersion}` | `/compressed/*.(jpg|png|webp)` | CacheFirst | 30 天 | 1500 |
+| 缓存名                                   | URL 匹配规则         | 策略       | 过期时间        | 最大条目   |
+| ---------------------------------------- | -------------------- | ---------- | --------------- | ---------- | ----- | ---- |
+| `remote-card-images-${cacheVersion}`     | `/images/(thumb      | medium     | large)/\*.webp` | CacheFirst | 30 天 | 1500 |
+| `remote-static-assets-${cacheVersion}`   | `/images/static/*`   | CacheFirst | 30 天           | 50         |
+| `local-card-images-${cacheVersion}`      | `/card/\*.(jpg       | png        | webp)`          | CacheFirst | 30 天 | 500  |
+| `energy-card-images-${cacheVersion}`     | `/energy/\*.(jpg     | png        | webp)`          | CacheFirst | 30 天 | 50   |
+| `compressed-card-images-${cacheVersion}` | `/compressed/\*.(jpg | png        | webp)`          | CacheFirst | 30 天 | 1500 |
 
 **配置代码示例:**
 
@@ -254,13 +262,13 @@ export default defineConfig({
 
 ## 效果对比
 
-| 指标 | 优化前 | 优化后 | 提升 |
-|------|--------|--------|------|
-| 单张图片大小 | 200-300KB | 30KB (medium) | ~90% |
-| 首屏加载 (20张) | ~5MB | ~0.6MB | ~88% |
-| Nginx 代理加速 | 无 | 本地服务器 | ✅ |
-| 缓存支持 | 浏览器默认 | 多级缓存 | ✅ |
-| 响应式图片 | 无 | 支持 srcSet | ✅ |
+| 指标            | 优化前     | 优化后        | 提升 |
+| --------------- | ---------- | ------------- | ---- |
+| 单张图片大小    | 200-300KB  | 30KB (medium) | ~90% |
+| 首屏加载 (20张) | ~5MB       | ~0.6MB        | ~88% |
+| Nginx 代理加速  | 无         | 本地服务器    | ✅   |
+| 缓存支持        | 浏览器默认 | 多级缓存      | ✅   |
+| 响应式图片      | 无         | 支持 srcSet   | ✅   |
 
 ---
 
@@ -275,8 +283,8 @@ export default defineConfig({
 
 ## 相关文档
 
-- `docs/minio-requirements.md` — MinIO 独立服务器部署方案
+- `docs/minio-requirements.md` — MinIO 对象存储部署方案
 
 ---
 
-*文档最后更新: 2026-03-15*
+_文档最后更新: 2026-03-15_

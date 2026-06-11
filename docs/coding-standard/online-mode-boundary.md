@@ -1,7 +1,9 @@
 # Loveca 联机模式边界规范
 
+> 文档类型：编码规范
 > 目的：固定联机首版开发中最容易拖慢进度、最容易反复返工的边界约束。  
 > 适用范围：`GameSession`、`gameStore`、联机 UI 组件、后续命令/事件改造。
+> 当前状态：现行规范，需与 `src/online/projector.ts`、`client/src/store/gameStore.ts` 和命令可用性逻辑同步维护。
 
 ## 1. 状态边界
 
@@ -20,7 +22,7 @@
 
 - `BACK` / `NONE` 对象不能通过 `getCardInstance()` 取到真实卡牌实例
 - `ViewCardObject.frontInfo` 只允许在 `surface === FRONT` 时存在
-- `ViewCardObject.cardType` 不得在 `BACK` 视图泄露
+- `ViewCardObject.cardType` 在 `BACK` 视图中只能作为投影器显式给出的兼容/交互提示，不能泄露真实卡牌身份（如 `cardCode`、名称、文本）
 
 要求：
 
@@ -160,9 +162,9 @@
 要求：
 
 - 改动命令时机时，必须同时检查：
-- `GameSession.validateCommandAvailability()`
-- `projector` / `PlayerViewState` 中的 `availableActionTypes`
-- 至少一条权限测试
+  - `GameSession.validateCommandAvailability()`
+  - `projector` 内部推导逻辑与 `PlayerViewState.permissions.availableCommands`
+  - 至少一条权限测试
 
 禁止：
 

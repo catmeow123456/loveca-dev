@@ -1,6 +1,11 @@
 # 当前卡牌游戏桌 UI 设计现状
 
+> 文档类型：现状说明
+> 适用范围：当前 `GameBoard` / `PlayerArea` / `JudgmentPanel` 等桌面 UI 的布局与交互事实
+> 当前状态：描述当前实现，不作为未来目标稿
+
 > 基于以下现状代码与文档整理：
+>
 > - `game_system_design.md`
 > - `client/src/components/game/GameBoard.tsx`
 > - `client/src/components/game/PlayerArea.tsx`
@@ -299,7 +304,7 @@ Live 区固定 3 槽，与成员槽横向对齐。
 - 正式区域是 `RESOLUTION_ZONE`
 - `JudgmentPanel` 只是这个区域当前的 UI 载体，不是独立规则区域
 - 表演判定成功后不会立刻进入成功效果窗口；双方表演完成后才进入先攻成功效果、后攻成功效果
-- 若当前实现仍把这类窗口挂到 `LIVE_RESULT_PHASE` 的 `RESULT_*_SUCCESS_EFFECTS` 子阶段，应视为状态机尚未按规范收敛
+- 当前实现将双方表演后的成功效果窗口挂到 `LIVE_RESULT_PHASE` 的 `RESULT_*_SUCCESS_EFFECTS` 子阶段；这是现行状态机表达，UI 按该状态渲染成功效果窗口
 - 相关定稿见 `docs/game-table-design/resolution-zone-behavior.md`
 
 ### 5.4 分数确认弹窗
@@ -503,6 +508,7 @@ hover 在当前桌面中占比很高：
 - 点击确认
 
 `RESULT_FIRST_SUCCESS_EFFECTS` / `RESULT_SECOND_SUCCESS_EFFECTS` 是结果阶段中保留普通桌面操作的窗口。`RESULT_SCORE_CONFIRM` 和 `RESULT_SETTLEMENT` 不开放全部普通桌面拖拽；结算阶段的成功 Live 选择走专用命令，Live 卡相关桌面整理走阶段豁免。
+
 - 双方都确认后进入下一回合
 
 ## 8. 当前设计的明显特征
