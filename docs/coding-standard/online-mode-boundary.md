@@ -1,6 +1,6 @@
 # Loveca 联机模式边界规范
 
-> 文档类型：编码规范
+> 文档类型：编码标准
 > 目的：固定联机首版开发中最容易拖慢进度、最容易反复返工的边界约束。  
 > 适用范围：`GameSession`、`gameStore`、联机 UI 组件、后续命令/事件改造。
 > 当前状态：现行规范，需与 `src/online/projector.ts`、`client/src/store/gameStore.ts` 和命令可用性逻辑同步维护。

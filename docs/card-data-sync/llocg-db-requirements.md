@@ -1,7 +1,7 @@
 # llocg_db 卡牌同步
 
 > 更新时间: 2026-03-30
-> 文档类型: 数据源同步说明
+> 文档类型: 专题说明
 > 适用范围: `llocg_db` 子模块 JSON 输入、中文优先合并和字段映射
 > 当前状态: 以 `src/scripts/sync-cards-llocg.ts` 为准
 

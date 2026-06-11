@@ -2,6 +2,7 @@
 
 > 文档类型：设计文档  
 > 适用范围：Loveca 当前代码架构与关键流程设计（基于现状实现）  
+> 当前状态：现行系统设计；字段级 schema 以 `src/server/db/schema.ts` 和 `docker/init.sql` 为准
 > 最后更新：2026-06-11
 
 ---
@@ -387,23 +388,9 @@ erDiagram
       text display_name
       text role
     }
-    DECKS {
-      uuid id
-      uuid user_id
-      jsonb main_deck
-      jsonb energy_deck
-      bool is_valid
-    }
-    CARDS {
-      uuid id
-      text card_code
-      text card_type
-      text status
-      jsonb hearts
-      jsonb blade_hearts
-      jsonb requirements
-    }
 ```
+
+字段级数据库定义不在本文档重复维护；当前代码侧 schema 见 `src/server/db/schema.ts`，初始化脚本和数据库函数/触发器见 `docker/init.sql`。
 
 代码路径：
 
@@ -420,7 +407,7 @@ graph TD
     Tests[测试体系] --> Unit[Unit]
     Tests --> Integration[Integration]
     Tests --> Simulation[Simulation]
-    Tests --> E2E[Client E2E]
+    Tests --> E2E[Client E2E\n规划中]
 ```
 
 代码路径：

@@ -3,9 +3,9 @@
 > 版本: 1.3.0
 > 创建日期: 2026-03-03
 > 更新日期: 2026-06-11
-> 文档类型: 系统设计
+> 文档类型: 设计文档
 > 适用范围: 卡牌数据表、同步脚本、管理端 API 和前端服务封装
-> 当前状态: 主体已实现；创建路由仍有 legacy `blade_heart` 字段残留，见 4.2
+> 当前状态: 主体已实现；跨模块已知限制见 [当前实现限制](../current-limitations.md)
 
 ## 1. 系统架构
 
@@ -288,7 +288,7 @@ CardEditModal 支持两种编辑模式，通过弹窗头部的切换按钮自由
 
 ### 4.1 路由鉴权与读写隔离
 
-当前实现使用 Express 路由和 JWT 中间件做权限控制，不依赖数据库 RLS：
+当前实现使用 Express 路由和 JWT 中间件做权限控制，不依赖数据库行级安全策略：
 
 | 路径/操作                        | 权限边界                                                                |
 | -------------------------------- | ----------------------------------------------------------------------- |
@@ -303,9 +303,9 @@ CardEditModal 支持两种编辑模式，通过弹窗头部的切换按钮自由
 | `POST /api/cards/import`         | 仅管理员                                                                |
 | `GET /api/cards/status-map`      | 仅管理员                                                                |
 
-### 4.2 已知实现限制
+### 4.2 结构化字段边界
 
-当前正式 schema 字段是 `blade_hearts`。`src/server/routes/cards.ts` 的 `POST /api/cards` 与 `PUT /api/cards/:code` 仍保留 legacy `blade_heart` 入参/SQL 列名残留；在只包含当前 schema 的新数据库上，`POST /api/cards` 会因不存在 `blade_heart` 列而失败。`POST /api/cards/import` 与 `src/scripts/sync-cards-llocg.ts` 已使用 `blade_hearts`。
+通用创建、更新、批量导入和同步脚本均以当前 schema 的 `blade_hearts` 字段为准。外部数据源中的历史字段名只允许在同步转换层处理，不应进入服务端 REST API 契约。
 
 ## 5. 数据流程图
 

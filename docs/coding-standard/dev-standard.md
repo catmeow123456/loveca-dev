@@ -1,699 +1,105 @@
 # Loveca 开发规范文档
 
-> 版本: 1.0.0  
-> 基于 detail_rules.md 与 game_system_design.md 编制
 > 文档类型：编码标准
-> 适用范围：共享对局引擎、服务端 API、联机边界与测试规范
-> 当前状态：规范与当前实现边界并存；涉及联机 UI 的细则另见 `docs/coding-standard/online-mode-boundary.md`
-
----
-
-## 1. 项目概述
-
-本项目旨在实现 Loveca 卡牌游戏的共享对局引擎、自托管 API 和 Web 客户端。规则相关代码应尽量保持与 UI 解耦，正式联机以服务端权威会话和玩家视角投影为边界。
-
-### 1.1 技术栈
-
-| 类别     | 技术选型          | 说明                       |
-| -------- | ----------------- | -------------------------- |
-| 语言     | TypeScript 5.x    | 强类型保证游戏逻辑的严密性 |
-| 运行时   | Node.js 20+       | LTS 版本                   |
-| 包管理   | pnpm              | 高效的依赖管理             |
-| 测试框架 | Vitest            | 快速的单元测试             |
-| 代码规范 | ESLint + Prettier | 统一代码风格               |
-| 数据验证 | Zod               | 运行时类型验证             |
-
-### 1.2 项目结构
-
-```
-loveca/
-├── docs/                          # 文档目录
-│   ├── card-data-management/      # 卡牌数据管理文档
-│   ├── card-data-sync/            # 卡牌同步文档
-│   ├── coding-standard/           # 编码与 UI 规范
-│   ├── deck-management/           # 卡组管理文档
-│   ├── game-table-design/         # 游戏桌设计文档
-│   └── migrations/                # 历史 Supabase-era SQL 参考；当前部署不要直接执行
-├── client/                        # React/Vite 前端
-│   └── src/
-│       ├── components/            # UI 组件
-│       ├── hooks/                 # 前端 hooks
-│       ├── lib/                   # API、图片、AI 等前端服务
-│       └── store/                 # Zustand 状态
-├── src/
-│   ├── domain/                    # 领域层（核心业务逻辑）
-│   │   ├── entities/              # 实体定义
-│   │   │   ├── card.ts            # 卡牌抽象
-│   │   │   ├── player.ts          # 玩家状态
-│   │   │   ├── game.ts            # 游戏状态
-│   │   │   └── zone.ts            # 区域定义
-│   │   ├── value-objects/         # 值对象
-│   │   │   ├── heart.ts           # Heart 图标
-│   │   │   └── ability.ts         # 能力定义 (旧版)
-│   │   ├── rules/                 # 规则逻辑
-│   │   │   ├── live-resolver.ts   # Live 判定
-│   │   │   ├── cost-calculator.ts # 费用计算
-│   │   │   └── check-timing.ts    # 检查时机
-│   │   └── events/                # 游戏事件
-│   │       └── game-events.ts
-│   ├── application/               # 应用层
-│   │   ├── game-service.ts        # 游戏服务
-│   │   ├── game-session.ts        # 对局会话
-│   │   ├── game-commands.ts       # 语义化命令
-│   │   └── action-handlers/       # 动作处理器
-│   ├── debug/                     # 调试和可视化辅助工具
-│   ├── online/                    # 联机模式投影与可见性边界
-│   ├── scripts/                   # 数据同步、校验、图片处理脚本
-│   ├── server/                    # Express API、路由、服务、数据库 schema
-│   └── shared/                    # 共享模块
-│       ├── types/                 # 类型定义
-│       │   └── enums.ts
-│       ├── phase-config/          # 阶段配置系统 (单一数据源)
-│       │   ├── index.ts           # 导出入口
-│       │   ├── types.ts           # 配置类型定义
-│       │   ├── phase-registry.ts  # 主阶段配置 (10 个 GamePhase)
-│       │   ├── sub-phase-registry.ts # 子阶段配置
-│       │   └── active-player.ts   # 统一的当前行动玩家判断
-│       └── utils/                 # 工具函数
-├── tests/                         # 测试目录
-│   ├── unit/
-│   ├── integration/
-│   └── simulation/
-├── package.json
-├── tsconfig.json
-└── README.md
-```
-
----
-
-## 2. 核心设计原则
-
-### 2.1 不可变状态 (Immutable State)
-
-所有游戏状态的变更必须通过创建新对象实现，禁止直接修改现有对象。
-
-```typescript
-// ❌ 错误示例
-player.hand.push(card);
-
-// ✅ 正确示例
-const newHand = [...player.hand, card];
-const newPlayer = { ...player, hand: newHand };
-```
-
-**理由**：
-
-- 便于实现悔棋/回放功能
-- 简化断线重连的状态同步
-- 避免意外的状态污染
-
-### 2.2 原子化动作 (Atomic Actions)
-
-所有游戏操作必须拆解为最小粒度的原子动作。
-
-```typescript
-// 原子动作类型示例
-type AtomicAction =
-  | { type: 'MOVE_CARD'; from: ZoneRef; to: ZoneRef; cardId: string }
-  | { type: 'CHANGE_CARD_STATE'; cardId: string; state: CardState }
-  | { type: 'SET_PLAYER_FLAG'; playerId: string; flag: string; value: boolean }
-  | { type: 'INCREMENT_COUNTER'; target: string; amount: number };
-```
-
-### 2.3 事件驱动的能力系统
-
-当前主流程尚未接入完整自动能力编排，复杂卡牌效果仍以玩家显式操作和窗口提示为主。后续若接入自动能力系统，应使用发布-订阅模式处理能力触发：
-
-```typescript
-// 事件定义
-interface GameEvent {
-  type: EventType;
-  payload: unknown;
-  timestamp: number;
-}
-
-// 能力监听器
-interface AbilityListener {
-  condition: TriggerCondition;
-  handler: (event: GameEvent, context: GameContext) => void;
-}
-```
-
-### 2.4 阶段配置注册表 (Phase Config Registry)
-
-为解决阶段/子阶段元数据分散的问题，项目采用**单一数据源**的配置系统。
-
-#### 2.4.1 设计目标
-
-- **集中管理**：所有阶段元数据（名称、图标、颜色、行为）定义在一处
-- **类型安全**：使用 `Record<GamePhase, PhaseConfig>` 确保 TypeScript 检查完整性
-- **扩展简单**：添加新阶段只需在注册表中添加配置对象
-
-#### 2.4.2 核心类型定义
-
-```typescript
-// src/shared/phase-config/types.ts
-
-/** 主阶段配置 */
-interface PhaseConfig {
-  phase: GamePhase;
-  display: {
-    name: string; // 短名称 "换牌"
-    fullName: string; // 完整名称 "换牌阶段"
-    colorClass: string; // Tailwind 类 "bg-indigo-500"
-    icon?: string; // emoji "🔄"
-  };
-  behavior: {
-    canPlayerEndPhase: boolean;
-    isSharedPhase: boolean;
-    activePlayerStrategy: ActivePlayerStrategy;
-    initialSubPhase?: SubPhase;
-  };
-}
-
-/** 子阶段配置 */
-interface SubPhaseConfig {
-  subPhase: SubPhase;
-  display: {
-    name: string;
-    icon: string;
-    requiresUserAction: boolean;
-  };
-  behavior: {
-    activePlayer: 'FIRST' | 'SECOND' | 'CURRENT_ACTIVE' | 'BOTH';
-    isEffectWindow: boolean;
-    nextSubPhase?: SubPhase;
-  };
-}
-
-/** 当前行动玩家判断策略 */
-type ActivePlayerStrategy =
-  | 'USE_ACTIVE_PLAYER_INDEX' // 使用 game.activePlayerIndex
-  | 'USE_FIRST_PLAYER' // 始终是先攻玩家
-  | 'BOTH_PLAYERS' // 双方都可行动
-  | 'DERIVE_FROM_SUB_PHASE'; // 根据子阶段推断
-```
-
-#### 2.4.3 使用方法
-
-```typescript
-// 获取阶段配置
-import { getPhaseConfig, getPhaseName, getPhaseColorClass } from '@game/shared/phase-config';
-
-const config = getPhaseConfig(GamePhase.MULLIGAN_PHASE);
-const name = getPhaseName(GamePhase.MAIN_PHASE); // "主要阶段"
-
-// 获取子阶段配置
-import { getSubPhaseConfig, isUserActionRequired } from '@game/shared/phase-config';
-
-const subConfig = getSubPhaseConfig(SubPhase.LIVE_SET_FIRST_PLAYER);
-const needsAction = isUserActionRequired(SubPhase.PERFORMANCE_JUDGMENT); // true
-
-// 统一判断当前行动玩家
-import { isPlayerActive } from '@game/shared/phase-config';
-
-const canAct = isPlayerActive(gameState, playerId);
-```
-
-#### 2.4.4 添加新阶段的步骤
-
-**历史做法（注册表前，示意）：**
-
-1. `enums.ts` - 添加枚举值
-2. `actions.ts` - 添加 Action 类型
-3. `game.ts` - 添加状态字段
-4. `game-service.ts` - 添加处理逻辑
-5. `phase-manager.ts` - 更新 `getPhaseName()` 和 `getNextPhase()` switch-case
-6. `gameStore.ts` - 同步阶段显示派生逻辑
-7. `game-visualizer.ts` - 更新 `getPhaseName()`
-8. `PhaseIndicator.tsx` - 同步阶段按钮/展示映射
-
-**之后 (2-3 步)：**
-
-1. `enums.ts` - 添加枚举值
-2. `phase-registry.ts` - 添加配置对象（包含 display、behavior、transitions、autoActions、triggerConditions）
-3. (可选) `game-service.ts` - 添加特殊处理逻辑
-
-#### 2.4.5 阶段流转配置 (2025-01-20 新增)
-
-阶段流转规则现在定义在 `phase-registry.ts` 中，而非 `phase-manager.ts` 的 switch-case：
-
-```typescript
-// phase-registry.ts 中的流转配置示例
-[GamePhase.MAIN_PHASE]: {
-  // ...display 配置
-  behavior: {
-    canPlayerEndPhase: true,
-    // ...
-    transitions: [
-      // 先攻主要阶段结束 → 后攻活跃阶段
-      {
-        whenTurnType: TurnType.FIRST_PLAYER_TURN,
-        nextPhase: GamePhase.ACTIVE_PHASE,
-        nextTurnType: TurnType.SECOND_PLAYER_TURN,
-        nextActivePlayer: 'SECOND',
-        isNewTurn: false,
-      },
-      // 后攻主要阶段结束 → Live 设置阶段
-      {
-        whenTurnType: TurnType.SECOND_PLAYER_TURN,
-        nextPhase: GamePhase.LIVE_SET_PHASE,
-        nextTurnType: TurnType.LIVE_PHASE,
-        nextActivePlayer: 'FIRST',
-        isNewTurn: false,
-      },
-    ],
-    autoActions: [],  // 进入阶段时的自动处理
-    triggerConditions: [TriggerCondition.ON_MAIN_PHASE_START],
-  },
-},
-```
-
-**流转规则类型：**
-
-```typescript
-interface PhaseTransitionRule {
-  whenTurnType?: TurnType; // 条件：当前回合类型
-  whenCondition?: PhaseTransitionCondition; // 条件：特殊状态检查
-  nextPhase: GamePhase; // 下一个阶段
-  nextTurnType: TurnType | 'SAME'; // 下一个回合类型
-  nextActivePlayer: 'SAME' | 'FIRST' | 'SECOND' | 'SWITCH';
-  isNewTurn: boolean; // 是否是新回合
-}
-```
-
-**PhaseManager 的新角色：**
-
-- 不再包含硬编码的阶段流转 switch-case
-- 从配置中读取流转规则并执行
-- 只负责解释配置和计算状态
-
----
-
-## 3. 检查时机 (Check Timing) 实现规范
-
-当前主流程尚未接入完整自动能力/检查时机编排；本章是后续接入自动裁判时的实现规范。已落地的客观处理以 `docs/game_system_design.md`、`src/application/game-session.ts`、`src/application/game-commands.ts` 和命令处理器为准。
-
-### 3.1 检查时机流程
-
-```typescript
-/**
- * 检查时机的标准实现
- * 参考规则 9.5.3
- */
-function executeCheckTiming(game: GameState): GameState {
-  let currentState = game;
-
-  // 步骤 1: 处理规则处理，直到没有新的规则处理产生
-  do {
-    currentState = processAllRuleActions(currentState);
-  } while (hasNewRuleActions(currentState));
-
-  // 步骤 2: 主动玩家的待命自动能力
-  while (hasPendingAutoAbilities(currentState, getActivePlayer(currentState))) {
-    const ability = selectAutoAbility(currentState, getActivePlayer(currentState));
-    currentState = resolveAutoAbility(currentState, ability);
-
-    // 解决后重新处理规则处理
-    do {
-      currentState = processAllRuleActions(currentState);
-    } while (hasNewRuleActions(currentState));
-  }
-
-  // 步骤 3: 非主动玩家的待命自动能力
-  while (hasPendingAutoAbilities(currentState, getNonActivePlayer(currentState))) {
-    const ability = selectAutoAbility(currentState, getNonActivePlayer(currentState));
-    currentState = resolveAutoAbility(currentState, ability);
-
-    do {
-      currentState = processAllRuleActions(currentState);
-    } while (hasNewRuleActions(currentState));
-  }
-
-  return currentState;
-}
-```
-
-### 3.2 规则处理优先级
-
-按照规则第 10 章，规则处理的执行顺序：
-
-1. **刷新 (Refresh)** - 规则 10.2
-   - 条件：主卡组为空且控备室有卡
-   - 动作：控备室所有卡移入主卡组并洗牌
-2. **胜利处理** - 规则 10.3
-   - 条件：成功 Live 区达到 3 张
-3. **重复成员处理** - 规则 10.4
-   - 条件：同一成员区域有 2+ 张卡
-   - 动作：保留最新的，其余送入控备室
-4. **非法卡牌处理** - 规则 10.5
-   - Live 区的非 Live 卡 → 控备室
-   - 能量区的非能量卡 → 控备室
-
----
-
-## 4. 卡牌系统规范
-
-### 4.1 卡牌标识
-
-每张卡牌需要两种 ID：
-
-```typescript
-interface CardIdentifier {
-  /** 卡牌编号 - 用于卡组构筑检查，同名卡共享 */
-  cardCode: string; // 例如: "LL-001"
-
-  /** 实例 ID - 游戏内唯一，用于追踪具体卡牌 */
-  instanceId: string; // 例如: "uuid-xxxx-xxxx"
-}
-```
-
-### 4.2 Heart 图标处理
-
-```typescript
-interface HeartIcon {
-  color: HeartColor;
-  count: number;
-}
-
-// Rainbow Heart 的特殊处理
-// 在 Live 判定时动态分配颜色
-function allocateRainbowHearts(
-  pool: HeartPool,
-  requirements: HeartRequirement[]
-): AllocationResult {
-  // 优先满足特定颜色需求
-  // 使用贪心算法或回溯算法
-}
-```
-
-### 4.3 能力文本解析
-
-能力格式遵循规则 9.1：
-
-| 能力类型 | 格式                 | 示例                    |
-| -------- | -------------------- | ----------------------- |
-| 触发能力 | `(条件)：(效果)`     | `[支付1]：抽1张卡`      |
-| 自动能力 | `【触发条件】(效果)` | `【登场】抽1张卡`       |
-| 常驻能力 | `(效果)`             | `你的其他成员 Blade +1` |
-
-### 4.4 效果原语系统 (Effect Primitives System)
-
-> ⚠️ **重要变更 (2025-01-20)**：
-> 采用"信任玩家"新方案后，效果执行引擎 (`effect-executor.ts`) 和卡牌配置 (`card-configs.ts`) 已不在当前源码中。
-> 当前源码没有 `primitives.ts` 模块；能力相关值对象保留在 `src/domain/value-objects/ability.ts`，完整自动效果编排仍属于后续方向。
->
-> **新方案核心理念**：
->
-> - 系统只负责规则处理（第10章），不自动执行卡牌效果
-> - 玩家通过手动拖拽执行效果
-> - UI 提供效果发动窗口作为提示，不强制执行
->
-> 当前落地边界见 `game_system_design.md` 第 6 章「规则校正与“信任玩家”设计」。
-
----
-
-## 5. Live 判定算法规范
-
-### 5.1 判定流程
-
-```typescript
-function performLiveJudgment(liveCards: LiveCard[], heartPool: HeartPool): LiveJudgmentResult {
-  const results: Map<string, boolean> = new Map();
-  let remainingPool = { ...heartPool };
-
-  for (const liveCard of liveCards) {
-    const canSatisfy = checkRequirements(liveCard.requirements, remainingPool);
-
-    if (canSatisfy) {
-      // 从池中扣除消耗的 Heart
-      remainingPool = consumeHearts(remainingPool, liveCard.requirements);
-      results.set(liveCard.instanceId, true);
-    } else {
-      results.set(liveCard.instanceId, false);
-    }
-  }
-
-  return { results, remainingPool };
-}
-```
-
-### 5.2 Heart 需求检查
-
-根据规则 2.11.3：
-
-```typescript
-function checkRequirements(requirements: HeartRequirement, pool: HeartPool): boolean {
-  // 条件 1: 各颜色需求
-  for (const [color, required] of requirements.colorRequirements) {
-    const available = pool.getCount(color) + pool.getRainbowCount();
-    if (available < required) return false;
-  }
-
-  // 条件 2: 总数需求
-  const totalRequired = requirements.totalRequired;
-  const totalAvailable = pool.getTotalCount();
-
-  return totalAvailable >= totalRequired;
-}
-```
-
----
+> 适用范围：共享对局引擎、服务端 API、联机边界、前端状态桥接与测试规范
+> 当前状态：现行编码标准；不作为项目结构、技术栈版本、代码路径或当前限制的权威来源
+
+本文档只维护开发约束、边界规则、代码风格和评审标准。当前架构、关键代码路径、部署差异和已知限制分别由以下文档维护：
+
+- [根目录 README](../../README.md)：项目入口、模块目录、运行与部署入口。
+- [系统设计](../../game_system_design.md)：当前架构、状态机、数据流和关键代码路径。
+- [当前实现限制](../current-limitations.md)：跨模块限制、部署差异和未落地能力。
+- [联机模式边界规范](online-mode-boundary.md)：联机 UI、store selector、命令和投影边界。
+- [文档编写规范](../doc_writing_guide.md)：文档状态、分类和更新半径规则。
+
+仅调整项目目录、依赖版本、局部组件结构、测试补充或不改变外部行为的实现细节时，通常不需要同步修改本文档。
+
+## 1. 共享对局引擎
+
+### 1.1 状态更新入口
+
+- 对局权威状态只能通过 `GameSession`、`GameService` 和命令/动作处理器更新。
+- UI、store、联机路由和调试工具不得绕过命令入口直接改写对局实体。
+- 状态更新应保持不可变语义，避免复用可变数组或对象造成历史状态污染。
+- 新增跨阶段行为时，应优先放入阶段配置、命令处理器或规则层，而不是散落到组件条件判断中。
+
+### 1.2 动作与命令
+
+- 对外暴露的操作应使用语义化命令，而不是新增万能移动或万能更新入口。
+- 命令处理必须返回明确的成功/失败结果；失败原因应便于 UI 展示和测试断言。
+- 涉及玩家身份、座位、阶段、卡种、区域和上下文窗口的操作，必须在引擎或服务端校验，不依赖前端隐藏按钮作为唯一保护。
+
+### 1.3 阶段配置
+
+- 主阶段、子阶段、行动玩家判定和自动推进规则应以共享阶段配置为单一事实来源。
+- 新增阶段或子阶段时，应同步更新枚举、阶段/子阶段注册表、必要的动作处理器和测试。
+- 不应在多个组件或 store 中重复维护阶段名称、颜色、可操作性或行动玩家推断。
+
+### 1.4 规则自动化边界
+
+- 当前主流程已经具备基础检查时机纠偏；完整自动能力编排和复杂卡文连锁仍不是当前已落地能力。
+- 文档、代码注释和 UI 文案不得把未接线的自动能力模型写成当前运行时能力。
+- 复杂效果继续遵循“信任玩家 + 命令校验 + 审计式流程”的边界，除非对应自动执行链路已经接入主流程并有测试覆盖。
+
+## 2. 卡牌与数据模型
+
+- 区分卡牌编号与对局实例 ID：构筑、同名限制和卡牌数据使用卡牌编号；区域流转和单张卡追踪使用实例 ID。
+- 卡牌字段、同步脚本和管理后台输入约束以卡牌数据专题文档和 schema 为准，不在业务组件中重复定义字段语义。
+- 对 `hearts`、`blade_hearts`、`requirements` 等结构化字段，应使用既有 schema、转换函数或类型守卫处理，避免在多个入口写临时格式兼容逻辑。
+- 旧数据兼容逻辑应集中到转换层或加载层，不能散落到 UI 渲染分支中。
+
+## 3. 服务端 API
+
+- 路由入口必须进行输入校验；新增或修改 API 时，应同时检查鉴权、权限边界、错误响应和测试覆盖。
+- 普通用户、管理员、公开资源和分享资源的权限语义必须在服务端实现，前端只能作为体验层辅助。
+- 当前权限模型基于 Express 路由、JWT、中间件和查询条件；不要把数据库行级安全策略当作当前安全边界。
+- 变更 API 契约、数据 schema、鉴权模型或部署依赖时，应更新对应需求/设计文档或 `docs/current-limitations.md`。
+- 数据库初始化脚本、Drizzle schema 和触发器之间的差异不在本文档重复维护。
+
+## 4. 联机边界
+
+- 正式联机以服务端权威状态为准，客户端只提交命令并渲染投影结果。
+- 联机视图必须通过玩家视角投影输出，不得向客户端暴露对手手牌、牌库顺序、隐藏区内容或私有事件。
+- 命令执行必须校验用户身份、房间/对局状态、座位映射、阶段窗口和目标对象可见性。
+- 同步传输方式、断线恢复和持久化能力的当前边界以 `docs/current-limitations.md` 和联机专题文档为准。
+- 调试联机能力和正式联机能力应保持边界清晰，不能共用会暴露隐藏信息的调试接口。
+
+## 5. 前端状态与 UI
+
+- `gameStore`、`deckStore`、`authStore` 负责桥接应用状态和 UI；组件不应复制复杂业务状态作为第二事实来源。
+- React selector 应保持 snapshot 稳定，避免每次渲染创建新对象导致循环更新。
+- 拖拽、双击、按钮等 UI 操作应转换为明确命令；UI 可做可用性提示，但最终合法性由命令层或服务端判定。
+- UI 主题、布局、覆盖层和组件交互规范以 [前端 UI 开发规范](ui-standard.md) 为准。
+- 移动端、重设计方案或历史设计稿不得替代当前 UI 规范和代码事实。
 
 ## 6. 测试规范
 
-### 6.1 测试覆盖要求
+- 规则、阶段流转、卡组校验、联机投影、权限边界和数据转换属于高风险区域，改动时应补充或更新自动化测试。
+- 新增 bug 修复应优先增加能复现问题的测试，再修复实现。
+- 只改变文案、样式或局部组件内部结构时，可按风险判断是否需要测试，但应至少做类型检查或相关构建校验。
+- 测试应断言外部行为和关键状态，不应强依赖无关内部实现顺序。
+- 当前可运行测试入口以 `package.json` 脚本为准；历史测试输出目录不作为现行测试入口。
 
-| 模块      | 最低覆盖率 |
-| --------- | ---------- |
-| 规则处理  | 95%        |
-| Live 判定 | 95%        |
-| 能力系统  | 90%        |
-| 区域操作  | 90%        |
+## 7. 错误处理与安全
 
-### 6.2 测试用例规范
+- 用户可恢复错误应返回可展示信息；内部错误应记录上下文，但不能泄露密钥、令牌、数据库连接串或隐藏卡牌信息。
+- API 不应信任客户端传入的用户 ID、角色、座位或所有权信息，应从认证上下文和服务端状态推导。
+- 上传、导入、外部抓取和 AI/第三方代理入口必须限制输入格式、大小和权限。
+- 环境变量和密钥不得写入文档示例之外的真实值，不得提交到仓库。
 
-每个测试用例应包含：
+## 8. 代码风格
 
-```typescript
-describe('Live 判定', () => {
-  it('should succeed when hearts exactly match requirements', () => {
-    // Given: 准备初始状态
-    const pool = createHeartPool({ PINK: 3, RED: 2 });
-    const liveCard = createLiveCard({
-      requirements: { colorRequirements: { PINK: 3, RED: 2 }, totalRequired: 5 },
-    });
+- 优先复用现有模块、类型、转换函数和 store API，避免为单个调用点新增平行抽象。
+- 复杂逻辑应拆到可测试的纯函数或服务层；组件中保留展示和交互编排。
+- 类型收窄应显式、局部、可读；避免用宽泛断言掩盖数据格式问题。
+- 注释应解释非显然约束或设计取舍，不重复描述代码表面行为。
+- 禁用 ESLint 规则时必须限制到最小范围，并说明原因。
 
-    // When: 执行判定
-    const result = performLiveJudgment([liveCard], pool);
+## 9. 文档更新检查
 
-    // Then: 验证结果
-    expect(result.results.get(liveCard.instanceId)).toBe(true);
-  });
-});
-```
+代码变更后按以下规则判断是否需要更新文档：
 
-### 6.3 边界条件测试
-
-必须覆盖的边界条件：
-
-- 卡组为空时抽卡（触发刷新）
-- Rainbow Heart 的多种分配方式
-- 同一回合多次触发同一自动能力
-- 接力传递的费用减免计算
-- 无限循环检测
-
----
-
-## 7. 错误处理规范
-
-### 7.1 错误类型
-
-```typescript
-enum GameErrorCode {
-  // 非法操作
-  INVALID_ACTION = 'INVALID_ACTION',
-  INSUFFICIENT_COST = 'INSUFFICIENT_COST',
-  INVALID_TARGET = 'INVALID_TARGET',
-
-  // 状态错误
-  WRONG_PHASE = 'WRONG_PHASE',
-  NOT_YOUR_TURN = 'NOT_YOUR_TURN',
-
-  // 系统错误
-  STATE_CORRUPTED = 'STATE_CORRUPTED',
-  INFINITE_LOOP_DETECTED = 'INFINITE_LOOP_DETECTED',
-}
-
-class GameError extends Error {
-  constructor(
-    public code: GameErrorCode,
-    message: string,
-    public context?: Record<string, unknown>
-  ) {
-    super(message);
-  }
-}
-```
-
-### 7.2 无限循环处理
-
-根据规则 12.1：
-
-```typescript
-const MAX_LOOP_ITERATIONS = 1000;
-
-function detectInfiniteLoop(history: GameAction[]): boolean {
-  // 检测游戏状态是否回到完全相同的状态
-  // 如果是，则判定为无限循环
-}
-```
-
----
-
-## 8. 版本控制与发布规范
-
-### 8.1 分支策略
-
-- `main`: 稳定版本
-- `develop`: 开发版本
-- `feature/*`: 功能分支
-- `bugfix/*`: 修复分支
-
-### 8.2 提交信息格式
-
-```
-<type>(<scope>): <subject>
-
-类型:
-- feat: 新功能
-- fix: 修复
-- docs: 文档
-- refactor: 重构
-- test: 测试
-- chore: 构建/工具
-
-示例:
-feat(live): implement heart requirement checking
-fix(ability): correct auto ability trigger order
-```
-
----
-
-## 9. ESLint 与代码风格例外
-
-### 9.1 测试文件的特殊规则
-
-测试文件 (`tests/**/*.ts`) 中允许以下通常被禁止的用法：
-
-| 规则                                      | 例外说明                                  |
-| ----------------------------------------- | ----------------------------------------- |
-| `no-console`                              | 测试中允许使用 `console.log` 输出调试信息 |
-| `@typescript-eslint/no-unsafe-assignment` | JSON 解析结果可以直接使用                 |
-| Node.js 全局变量                          | 允许直接使用 `process`, `__dirname` 等    |
-
-### 9.2 忽略规则的方式
-
-当必须违反 ESLint 规则时，使用行内注释明确标注：
-
-```typescript
-// 单行禁用
-// eslint-disable-next-line no-console
-console.log('调试输出');
-
-// 多行禁用（仅在必要时使用）
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-const data = JSON.parse(jsonString);
-/* eslint-enable @typescript-eslint/no-unsafe-assignment */
-```
-
-### 9.3 推荐做法
-
-- **优先修复**：先尝试用类型安全的方式解决问题
-- **最小范围**：只禁用必要的规则，避免 `eslint-disable` 整个文件
-- **添加注释**：说明为什么需要禁用该规则
-
----
-
-## 附录 A: 枚举定义
-
-```typescript
-// 卡牌类型
-enum CardType {
-  MEMBER = 'MEMBER',
-  LIVE = 'LIVE',
-  ENERGY = 'ENERGY',
-}
-
-// Heart 颜色
-enum HeartColor {
-  PINK = 'PINK',
-  RED = 'RED',
-  YELLOW = 'YELLOW',
-  GREEN = 'GREEN',
-  BLUE = 'BLUE',
-  PURPLE = 'PURPLE',
-  RAINBOW = 'RAINBOW', // 万能色
-}
-
-// 游戏阶段
-enum GamePhase {
-  // 通常阶段
-  ACTIVE_PHASE = 'ACTIVE_PHASE',
-  ENERGY_PHASE = 'ENERGY_PHASE',
-  DRAW_PHASE = 'DRAW_PHASE',
-  MAIN_PHASE = 'MAIN_PHASE',
-  // Live 阶段
-  LIVE_SET_PHASE = 'LIVE_SET_PHASE',
-  PERFORMANCE_PHASE = 'PERFORMANCE_PHASE',
-  LIVE_RESULT_PHASE = 'LIVE_RESULT_PHASE',
-}
-
-// 区域类型
-enum ZoneType {
-  HAND = 'HAND',
-  MAIN_DECK = 'MAIN_DECK',
-  ENERGY_DECK = 'ENERGY_DECK',
-  MEMBER_SLOT = 'MEMBER_SLOT',
-  ENERGY_ZONE = 'ENERGY_ZONE',
-  LIVE_ZONE = 'LIVE_ZONE',
-  SUCCESS_ZONE = 'SUCCESS_ZONE',
-  WAITING_ROOM = 'WAITING_ROOM',
-  EXILE_ZONE = 'EXILE_ZONE',
-  RESOLUTION_ZONE = 'RESOLUTION_ZONE',
-}
-
-// 成员区域位置
-enum SlotPosition {
-  LEFT = 'LEFT',
-  CENTER = 'CENTER',
-  RIGHT = 'RIGHT',
-}
-
-// 能量状态
-enum EnergyState {
-  ACTIVE = 'ACTIVE',
-  WAITING = 'WAITING',
-}
-
-// 触发条件
-enum TriggerCondition {
-  ON_ENTER_STAGE = 'ON_ENTER_STAGE',
-  ON_LIVE_START = 'ON_LIVE_START',
-  ON_LIVE_SUCCESS = 'ON_LIVE_SUCCESS',
-  ON_TURN_START = 'ON_TURN_START',
-  ON_TURN_END = 'ON_TURN_END',
-  ON_CHEER = 'ON_CHEER',
-  ON_RELAY = 'ON_RELAY',
-  ON_DRAW = 'ON_DRAW',
-}
-```
-
----
-
-- `docs/PROJECT_REQUIREMENTS.md` - 项目总体需求文档
-- `docs/doc_writing_guide.md` - 文档编写规范
-
----
-
-_文档最后更新: 2026-06-11_
+- 影响产品行为、规则边界、用户流程、API 契约、数据 schema、部署方式、鉴权模型、联机同步边界或已知限制：更新对应权威文档。
+- 只影响某一专题：只更新该专题权威文档，不在总览、需求、设计和计划文档中重复维护同一事实。
+- 只是局部重构、命名调整、组件内部优化、测试补充或不改变外部行为的整理：通常不更新长期文档。
+- 如果一次变更需要同步修改多份文档表达同一事实，应优先调整文档职责或抽取权威说明。

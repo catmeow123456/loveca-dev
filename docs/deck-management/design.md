@@ -3,7 +3,7 @@
 > 版本: 1.3.0
 > 创建日期: 2026-03-03
 > 最后更新: 2026-06-11
-> 文档类型: 系统设计
+> 文档类型: 设计文档
 > 适用范围: 卡组管理 UI、deckStore、decks REST API、卡组表结构与分享/导入能力
 > 当前状态: 已实现
 
@@ -418,7 +418,7 @@ export function canAddCard(
 
 ### 4.1 路由鉴权与数据隔离
 
-当前实现使用 Express 路由和 JWT 中间件做权限控制，不依赖数据库 RLS：
+当前实现使用 Express 路由和 JWT 中间件做权限控制，不依赖数据库行级安全策略：
 
 | 路径/操作                                                   | 权限边界                               |
 | ----------------------------------------------------------- | -------------------------------------- |
@@ -435,9 +435,7 @@ export function canAddCard(
 
 - 表结构由 `src/server/db/schema.ts` 中的 Drizzle schema 描述。
 - 路由层通过 SQL 显式写入分享字段；卡组路由自身不显式维护 `updated_at` 或 `profiles.deck_count`。
-- 生产 `docker-compose.yml` 挂载的 `docker/init.sql` 会创建 `update_deck_timestamp()` 和 `update_deck_count()` 触发器；这些触发器不在 Drizzle schema 中表达。若数据库只通过 Drizzle schema 初始化，则需要额外补齐这些函数/触发器，或接受对应字段只保留默认值/非强一致语义。
-- 当前 `docker/init.sql` 的 `decks` DDL 尚未包含 `share_id`、`share_enabled`、`shared_at`、`forked_from_*` 等分享字段，而运行时代码和 Drizzle schema 已经依赖这些字段。新建数据库若只执行该初始化脚本，需要先补齐这些列与索引，否则分享相关接口会失败。
-- `docs/migrations/*.sql` 是 Supabase-era 历史参考，不作为当前卡组表权限或触发器事实来源。
+- `docker/init.sql`、Drizzle schema、触发器和分享字段之间的当前差异集中记录在 [当前实现限制](../current-limitations.md#数据库初始化与-schema)。本文档不重复维护部署限制细节。
 
 ## 5. 数据流程图
 

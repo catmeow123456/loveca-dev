@@ -3,23 +3,23 @@
 > 版本: 1.0.0
 > 创建日期: 2026-03-13
 > 最后更新: 2026-06-11
-> 文档类型: 部署需求与设计
+> 文档类型: 设计文档
 > 适用范围: 生产外部 MinIO、开发环境本地 MinIO、服务端图片上传/访问
 > 当前状态: 服务端通过 `MINIO_*` 环境变量连接对象存储；生产 `docker-compose.yml` 不启动 MinIO，开发 `docker-compose.dev.yml` 提供本地 MinIO
 
-本文档描述 Loveca 项目中 MinIO 对象存储服务的部署与集成方案，替代原有 Supabase Storage 服务。生产部署建议使用主应用之外的 MinIO 或兼容 S3 对象存储；本地开发可以使用 `docker-compose.dev.yml` 启动内置 MinIO。
+本文档描述 Loveca 当前 MinIO 对象存储服务的部署与集成方案。生产部署建议使用主应用之外的 MinIO 或兼容 S3 对象存储；本地开发可以使用 `docker-compose.dev.yml` 启动内置 MinIO。
 
 ---
 
 ## 1. 背景与目标
 
-### 1.1 迁移背景
+### 1.1 当前背景
 
-原有图片存储使用 Supabase Storage（公开桶 `loveca-cards`），存储卡牌图片的三种尺寸（thumb/medium/large）和静态资源。当前方案改为自托管 MinIO，以摆脱对 Supabase Storage 的运行时依赖，并保持现有图片目录结构与访问方式。
+卡牌图片按 thumb、medium、large 三种尺寸存储，静态资源放在 `static/` 目录。当前方案使用 MinIO 或兼容 S3 服务，并通过主应用的 `/images/*` 路径公开访问。
 
 ### 1.2 目标
 
-- **功能对等**：保持与 Supabase Storage 完全一致的存储结构和访问模式
+- **路径稳定**：保持 `/images/{size}/{name}.webp` 和 `/images/static/{name}` 访问路径稳定
 - **部署分离**：生产环境中 MinIO 运行在主应用之外，API Server 通过 `MINIO_*` 环境变量连接；开发环境可使用本地 compose 服务
 - **公开读取**：卡牌图片通过主服务器 Nginx 反向代理公开访问，无需认证
 - **认证写入**：图片上传/删除通过 API Server 中间件鉴权后操作 MinIO
@@ -154,12 +154,12 @@ mc anonymous set download loveca/loveca-cards
 - `expires 30d`
 - 可选启用 Nginx proxy_cache 在主服务器本地缓存图片
 
-### 4.2 URL 格式变更
+### 4.2 URL 格式
 
-| 场景     | 原 URL (Supabase)                                                         | 新 URL                                 |
-| -------- | ------------------------------------------------------------------------- | -------------------------------------- |
-| 卡牌图片 | `{SUPABASE_URL}/storage/v1/object/public/loveca-cards/{size}/{code}.webp` | `{BASE_URL}/images/{size}/{code}.webp` |
-| 静态资源 | `{SUPABASE_URL}/storage/v1/object/public/loveca-cards/static/{name}`      | `{BASE_URL}/images/static/{name}`      |
+| 场景     | URL                                  |
+| -------- | ------------------------------------ |
+| 卡牌图片 | `{BASE_URL}/images/{size}/{code}.webp` |
+| 静态资源 | `{BASE_URL}/images/static/{name}`      |
 
 前端通过 `client/src/lib/apiClient.ts` 的 `getApiBaseUrl()` 构造图片 URL：同源部署无需额外配置，跨源开发或调试场景可由 `VITE_API_BASE_URL` 指向 API / 图片代理源。当前 `imageService` 始终优先生成当前同源或配置源下的 `/images/{size}/{name}.webp`；代码中保留本地静态文件兜底分支，但不会因为远程图片请求失败自动切换。
 
@@ -214,17 +214,17 @@ sequenceDiagram
 
 ---
 
-## 5. 后端脚本迁移
+## 5. 后端脚本
 
-### 5.1 upload-to-supabase.ts → upload-to-minio.ts
+### 5.1 upload-to-minio.ts
 
-批量上传压缩后的卡牌图片。改动点：
+批量上传压缩后的卡牌图片。当前脚本使用 MinIO JS SDK：
 
-- `createClient(@supabase/supabase-js)` → MinIO JS SDK `new Minio.Client()`
-- `supabase.storage.from().upload()` → `minioClient.putObject()`
-- `supabase.storage.from().list()` → `minioClient.listObjects()` 或 `minioClient.statObject()`
-- `supabase.storage.listBuckets()` → `minioClient.bucketExists()` + `minioClient.makeBucket()`
-- 环境变量从 `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` 改为 `MINIO_*` 系列
+- `new Minio.Client()` 建立连接
+- `minioClient.putObject()` 上传对象
+- `minioClient.listObjects()` 或 `minioClient.statObject()` 检查对象
+- `minioClient.bucketExists()` 和 `minioClient.makeBucket()` 初始化 bucket
+- 环境变量使用 `MINIO_*` 系列
 
 **使用方法**：
 
@@ -234,7 +234,7 @@ MINIO_ENDPOINT=10.0.0.2 MINIO_PORT=9000 MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xx
 
 ### 5.2 upload-static-assets.ts
 
-同样替换为 MinIO SDK，上传 `assets/deck.png`、`assets/back.jpg`、`assets/icon.jpg` 到 `static/` 目录。
+该脚本同样使用 MinIO SDK，上传 `assets/deck.png`、`assets/back.jpg`、`assets/icon.jpg` 到 `static/` 目录。
 
 ---
 
@@ -265,29 +265,17 @@ MINIO_ENDPOINT=10.0.0.2 MINIO_PORT=9000 MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xx
 
 ---
 
-## 7. 数据迁移
+## 7. 数据初始化与迁移
 
-### 7.1 从 Supabase Storage 导出图片
+### 7.1 从本地压缩文件上传
 
-**方式一：通过 Supabase CLI / API 批量下载**
+如果本地 `assets/compressed/` 目录保留了所有压缩后的图片，可直接使用 `upload-to-minio.ts` 脚本上传。这是当前推荐路径。
 
-使用现有 Supabase Service Role Key 通过 Storage API 列出并下载所有文件：
-
-```bash
-# 列出所有文件
-# GET {SUPABASE_URL}/storage/v1/object/list/loveca-cards
-
-# 下载单个文件
-# GET {SUPABASE_URL}/storage/v1/object/public/loveca-cards/{path}
-```
-
-**方式二：从本地压缩文件重新上传**
-
-如果本地 `assets/compressed/` 目录仍保留了所有压缩后的图片，可直接使用迁移后的 `upload-to-minio.ts` 脚本重新上传。这是更简单的方式，前提是本地文件完整。
+早期外部对象存储的迁移背景只保留在历史参考文档中，不作为当前操作流程维护。
 
 ### 7.2 迁移验证
 
-1. 比对 MinIO 和 Supabase Storage 中的文件数量（按 size 目录分别统计）
+1. 比对 `assets/compressed/` 与 MinIO bucket 中的文件数量（按 size 目录分别统计）
 2. 抽样检查图片是否可通过 Nginx 代理正常访问
 3. 验证静态资源（deck.png, back.jpg, icon.jpg）可正常加载
 
@@ -341,7 +329,7 @@ MINIO_ENDPOINT=10.0.0.2 MINIO_PORT=9000 MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xx
 
 ## 10. 相关文档
 
-- `docs/migrations/002_init_storage.sql` — 原有存储结构迁移参考；旧 Supabase 设计文档未在当前仓库保留
+- `docs/historical-migrations.md` — 早期外部托管方案的历史状态说明；不作为当前部署脚本
 - `docs/image_optimization.md` — 图片压缩和优化策略
 - MinIO 官方文档：https://min.io/docs/minio/container/index.html
 - MinIO JS SDK：https://min.io/docs/minio/linux/developers/javascript/minio-javascript.html

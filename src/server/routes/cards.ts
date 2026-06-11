@@ -131,17 +131,21 @@ const createCardSchema = z.object({
   unit_name: z.string().nullable().optional(),
   cost: z.number().int().nullable().optional(),
   blade: z.number().int().nullable().optional(),
-  hearts: z.any().optional(),
-  blade_heart: z.any().optional(),
-  blade_hearts: z.any().optional(),
+  hearts: z.unknown().optional(),
+  blade_hearts: z.unknown().optional(),
   score: z.number().int().nullable().optional(),
-  requirements: z.any().optional(),
+  requirements: z.unknown().optional(),
   card_text: z.string().nullable().optional(),
   image_filename: z.string().nullable().optional(),
   rare: z.string().nullable().optional(),
   product: z.string().nullable().optional(),
   status: z.enum(['DRAFT', 'PUBLISHED']).optional(),
 });
+
+const updateCardSchema = createCardSchema.omit({ card_code: true }).partial();
+
+type CreateCardInput = z.infer<typeof createCardSchema>;
+type UpdateCardInput = z.infer<typeof updateCardSchema>;
 
 cardsRouter.post(
   '/',
@@ -150,14 +154,14 @@ cardsRouter.post(
   validate(createCardSchema),
   async (req, res, next) => {
     try {
-      const b = req.body;
+      const b = req.body as CreateCardInput;
       const { rows } = await pool.query(
         `INSERT INTO cards (
         card_code, card_type, name, group_name, unit_name,
-        cost, blade, hearts, blade_heart, blade_hearts,
+        cost, blade, hearts, blade_hearts,
         score, requirements, card_text, image_filename,
         rare, product, status, updated_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
       RETURNING *`,
         [
           b.card_code,
@@ -168,8 +172,7 @@ cardsRouter.post(
           b.cost ?? null,
           b.blade ?? null,
           JSON.stringify(b.hearts ?? []),
-          b.blade_heart ? JSON.stringify(b.blade_heart) : null,
-          b.blade_hearts ? JSON.stringify(b.blade_hearts) : null,
+          b.blade_hearts == null ? null : JSON.stringify(b.blade_hearts),
           b.score ?? null,
           JSON.stringify(b.requirements ?? []),
           b.card_text ?? null,
@@ -191,74 +194,79 @@ cardsRouter.post(
 // PUT /api/cards/:code
 // ============================================
 
-cardsRouter.put('/:code', requireAuth, requireAdmin, async (req, res, next) => {
-  try {
-    const updates = req.body;
-    const fields: string[] = [];
-    const values: unknown[] = [];
-    let idx = 1;
+cardsRouter.put(
+  '/:code',
+  requireAuth,
+  requireAdmin,
+  validate(updateCardSchema),
+  async (req, res, next) => {
+    try {
+      const updates = req.body as UpdateCardInput;
+      const fields: string[] = [];
+      const values: unknown[] = [];
+      let idx = 1;
 
-    // Dynamically build SET clause from provided fields
-    const allowedFields = [
-      'card_type',
-      'name',
-      'group_name',
-      'unit_name',
-      'cost',
-      'blade',
-      'hearts',
-      'blade_heart',
-      'blade_hearts',
-      'score',
-      'requirements',
-      'card_text',
-      'image_filename',
-      'rare',
-      'product',
-      'status',
-    ];
+      // Dynamically build SET clause from provided fields
+      const allowedFields: Array<keyof UpdateCardInput> = [
+        'card_type',
+        'name',
+        'group_name',
+        'unit_name',
+        'cost',
+        'blade',
+        'hearts',
+        'blade_hearts',
+        'score',
+        'requirements',
+        'card_text',
+        'image_filename',
+        'rare',
+        'product',
+        'status',
+      ];
 
-    for (const field of allowedFields) {
-      if (field in updates) {
-        const val = updates[field];
-        fields.push(`${field} = $${idx}`);
-        values.push(typeof val === 'object' && val !== null ? JSON.stringify(val) : val);
-        idx++;
+      for (const field of allowedFields) {
+        if (field in updates) {
+          const val = updates[field];
+          fields.push(`${field} = $${idx}`);
+          values.push(typeof val === 'object' && val !== null ? JSON.stringify(val) : val);
+          idx++;
+        }
       }
+
+      if (fields.length === 0) {
+        res.status(400).json({
+          data: null,
+          error: { code: 'NO_FIELDS', message: '没有需要更新的字段' },
+        });
+        return;
+      }
+
+      // Add updated_by
+      fields.push(`updated_by = $${idx}`);
+      values.push(req.user!.id);
+      idx++;
+
+      values.push(req.params.code);
+      const { rows } = await pool.query(
+        `UPDATE cards SET ${fields.join(', ')} WHERE card_code = $${idx} RETURNING *`,
+        values
+      );
+
+      if (rows.length === 0) {
+        res.status(404).json({
+          data: null,
+          error: { code: 'NOT_FOUND', message: '卡牌不存在' },
+        });
+        return;
+      }
+
+      res.json({ data: rows[0], error: null });
+    } catch (err) {
+      next(err);
     }
-
-    if (fields.length === 0) {
-      res.status(400).json({
-        data: null,
-        error: { code: 'NO_FIELDS', message: '没有需要更新的字段' },
-      });
-      return;
-    }
-
-    // Add updated_by
-    fields.push(`updated_by = $${idx}`);
-    values.push(req.user!.id);
-    idx++;
-
-    values.push(req.params.code);
-    const { rows } = await pool.query(
-      `UPDATE cards SET ${fields.join(', ')} WHERE card_code = $${idx} RETURNING *`,
-      values
-    );
-
-    if (rows.length === 0) {
-      res.status(404).json({
-        data: null,
-        error: { code: 'NOT_FOUND', message: '卡牌不存在' },
-      });
-      return;
-    }
-
-    res.json({ data: rows[0], error: null });
-  } catch (err) {
-    next(err);
   }
-});
+);
 
 // ============================================
 // DELETE /api/cards/:code
@@ -298,10 +306,10 @@ const importSchema = z.object({
       unitName: z.string().nullable().optional(),
       cost: z.number().int().nullable().optional(),
       blade: z.number().int().nullable().optional(),
-      hearts: z.any().optional(),
-      bladeHearts: z.any().optional(),
+      hearts: z.unknown().optional(),
+      bladeHearts: z.unknown().optional(),
       score: z.number().int().nullable().optional(),
-      requirements: z.any().optional(),
+      requirements: z.unknown().optional(),
       cardText: z.string().nullable().optional(),
       imageFilename: z.string().nullable().optional(),
       rare: z.string().nullable().optional(),

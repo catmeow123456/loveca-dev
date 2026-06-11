@@ -1,8 +1,8 @@
 # 对墙打模式需求文档
 
-> 文档类型：需求与当前实现边界
+> 文档类型：需求文档
 > 适用范围：本地「调试模式 / 对墙打模式」的模式差异、准备流程、自动化边界和 UI 约束
-> 状态：已实现，当前代码以 `GameMode.SOLITAIRE`、`src/application/mode-automation.ts`、`GameSetupPage` 和 `GameBoard` 为准
+> 当前状态：已实现，当前代码以 `GameMode.SOLITAIRE`、`src/application/mode-automation.ts`、`GameSetupPage` 和 `GameBoard` 为准
 > 本文档基于 [PROJECT_REQUIREMENTS.md](./PROJECT_REQUIREMENTS.md) 中的现有游戏规则提炼差异化需求。
 
 ---
