@@ -30,7 +30,7 @@ loveca/
 │   ├── coding-standard/           # 编码与 UI 规范
 │   ├── deck-management/           # 卡组管理文档
 │   ├── game-table-design/         # 游戏桌设计文档
-│   └── migrations/                # 数据库初始化/迁移 SQL
+│   └── migrations/                # 历史 Supabase-era SQL 参考；当前 schema 以 src/server/db/schema.ts 为准
 ├── client/                        # React/Vite 前端
 │   └── src/
 │       ├── components/            # UI 组件

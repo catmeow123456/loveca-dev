@@ -131,13 +131,38 @@ CN-only：
 
 ## 6. 数据库写入策略
 
-脚本会先读取数据库所有 `card_code, status`，然后：
+脚本会先读取数据库现有卡牌的完整同步字段：
+
+- `card_code`
+- `card_type`
+- `name`
+- `card_text`
+- `image_filename`
+- `cost`
+- `blade`
+- `hearts`
+- `blade_hearts`
+- `score`
+- `requirements`
+- `unit_name`
+- `group_name`
+- `rare`
+- `product`
+- `status`
+
+然后按 `card_code` 建立索引并比较字段差异：
 
 - 不存在 -> `INSERT`
-- 已存在且至少一个同步字段有变化 -> `UPDATE`
+- 已存在且至少一个同步字段有变化 -> 加入待审核列表
 - 已存在但同步字段完全一致 -> `SKIP`
 
-这里不区分 `DRAFT` 和 `PUBLISHED`，两者都会参与差异比较；只要字段有变化就会更新。
+这里不区分 `DRAFT` 和 `PUBLISHED`，两者都会参与差异比较。存在待更新卡牌时，脚本要求 TTY 交互：
+
+- 先打印待更新卡号列表
+- 逐张打印发生变化字段的 `before` / `after`
+- 输入 `y` 才执行该卡的 `UPDATE`
+- 输入 `n` 跳过该卡，不写库
+- 如果存在待更新卡且当前终端不是 TTY，脚本会抛错退出
 
 更新时覆盖以下字段：
 
@@ -198,8 +223,9 @@ DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-llocg.ts
 - CN 匹配数
 - CN-only 数
 - 新插入数
-- 已存在卡更新数
+- 人工审核后实际更新数
 - 已存在但无字段变化的卡数
+- 人工审核后跳过数
 - 失败批次数量对应的卡数
 - 成功写入数据库的明细行：按 `INSERT` / `UPDATE` 打印 `card_code` 和 `name`
 - 对 `UPDATE` 行额外打印发生变化的字段名

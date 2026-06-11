@@ -18,7 +18,7 @@
 
 当前系统已经落地分享基础闭环：
 
-- 数据库 `decks` 表已有 `share_id`、`share_enabled`、`shared_at`、`forked_from_deck_id`、`forked_from_share_id`、`forked_at` 字段，见 `docs/migrations/007_add_deck_share_fields.sql` 与 `src/server/db/schema.ts`。
+- 数据库 `decks` 表已有 `share_id`、`share_enabled`、`shared_at`、`forked_from_deck_id`、`forked_from_share_id`、`forked_at` 字段；当前字段定义以 `src/server/db/schema.ts` 为准，`docs/migrations/007_add_deck_share_fields.sql` 仅作为历史手写 SQL 参考。
 - 后端已有 `GET /api/decks/share/:shareId`、`POST /api/decks/:id/share`、`DELETE /api/decks/:id/share`、`POST /api/decks/share/:shareId/fork`。
 - 前端已有 `/decks/share/:shareId` 分享预览页，未登录可只读预览，登录后可保存副本到自己的卡组。
 - `DeckManager` 卡组列表已经提供开启分享、复制链接、打开分享页、关闭分享和“已分享”状态展示。

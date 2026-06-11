@@ -12,41 +12,23 @@
 
 ## 架构设计
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  原始图片 (assets/card/*.jpg)                                       │
-│  ~200-300KB/张, 总计 115MB                                         │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  压缩脚本 (src/scripts/compress-images.ts)                          │
-│  使用 Sharp 库, 输出 WebP 格式, 生成多尺寸版本                       │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  压缩后图片 (assets/compressed/)                                     │
-│  ├── thumb/   (~8KB/张)   - 列表预览                                │
-│  ├── medium/  (~30KB/张)  - 游戏中显示                              │
-│  └── large/   (~80KB/张)  - 详情查看                                │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  MinIO Storage (loveca-cards bucket)                                │
-│  上传脚本: src/scripts/upload-to-minio.ts                           │
-│  Nginx 反向代理, 支持公开访问                                        │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  前端 imageService (client/src/lib/imageService.ts)                 │
-│  - URL 生成                                                          │
-│  - 图片预加载                                                        │
-│  - 响应式图片支持                                                    │
-│  - 本地静态文件降级                                                  │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Source["原始图片<br/>默认 source: test/images<br/>--source=llocg-db: llocg_db/img/cards + llocg_db/img/cards_cn"]
+    Compress["压缩脚本<br/>src/scripts/compress-images.ts<br/>Sharp -> WebP 多尺寸"]
+    Output["压缩后图片<br/>assets/compressed/"]
+    Thumb["thumb/<br/>约 8KB/张<br/>列表预览"]
+    Medium["medium/<br/>约 30KB/张<br/>游戏中显示"]
+    Large["large/<br/>约 80KB/张<br/>详情查看"]
+    Upload["上传脚本<br/>src/scripts/upload-to-minio.ts"]
+    MinIO["MinIO Storage<br/>loveca-cards bucket<br/>Nginx 反向代理公开访问"]
+    Frontend["前端 imageService<br/>client/src/lib/imageService.ts<br/>URL 生成 / 图片预加载 / 响应式图片 / 本地兜底分支"]
+
+    Source --> Compress --> Output
+    Output --> Thumb
+    Output --> Medium
+    Output --> Large
+    Output --> Upload --> MinIO --> Frontend
 ```
 
 ---
@@ -70,9 +52,21 @@
 # 安装依赖 (如果未安装)
 pnpm install
 
-# 运行压缩脚本
+# 运行压缩脚本（默认读取 test/images）
 npx tsx src/scripts/compress-images.ts
+
+# 使用 llocg_db 图片源（需要相应子模块图片目录存在）
+npx tsx src/scripts/compress-images.ts --source=llocg-db
 ```
+
+当前脚本输入源由 `--source` 参数决定：
+
+| source | 输入目录 |
+|--------|----------|
+| 默认 / `crawler` | `test/images` |
+| `llocg-db` | `llocg_db/img/cards`、`llocg_db/img/cards_cn` |
+
+压缩输出统一写入 `assets/compressed/{thumb,medium,large}`。
 
 **输出示例：**
 ```
@@ -123,7 +117,7 @@ npx tsx src/scripts/upload-to-minio.ts
 
 ### 4. 前端配置
 
-确保 `client/.env.local` 或 `client/.env` 包含：
+同源部署无需额外配置；如前端需要访问不同源的 API / 图片代理，可在 `client/.env.local` 或 `client/.env` 配置：
 
 ```env
 VITE_API_BASE_URL=https://loveca.example.com
@@ -168,18 +162,17 @@ await preloadCardImages(['PL-sd1-001', 'PL-sd1-002'], 'medium');
 
 ---
 
-## 降级策略
+## 图片 URL 与降级边界
 
-当 API 未配置或不可用时，系统自动降级到本地静态文件：
+当前 `client/src/lib/imageService.ts` 会通过 `getApiBaseUrl()` 生成图片基础路径：
 
 ```typescript
-// imageService.ts 内部逻辑
-if (API_BASE_URL) {
-  return `${API_BASE_URL}/images/${size}/${cardCode}.webp`;
-}
-// 降级到本地
-return `/card/${cardCode}.jpg`;
+const IMAGES_BASE_URL = `${getApiBaseUrl()}/images`;
 ```
+
+因此在常规构建中，卡牌图片优先访问同源或 `VITE_API_BASE_URL` 指向源下的 `/images/{size}/{name}.webp`，由 Nginx 或 Vite proxy 转发到 MinIO。
+
+代码中仍保留了 `/card`、`/energy` 的本地静态文件兜底分支，但由于 `IMAGES_BASE_URL` 当前始终是非空字符串（相对 `/images`、当前 origin 下的 `/images` 或配置源下的 `/images`），运行时不会因为 API 请求失败自动切换到本地图片。若需要恢复完整本地降级，需要先调整 `isStorageEnabled` / 图片源配置策略。
 
 ---
 
@@ -216,11 +209,11 @@ await preloadCardImages(['PL-sd1-001'], 'medium');
 
 | 缓存名 | URL 匹配规则 | 策略 | 过期时间 | 最大条目 |
 |--------|-------------|------|----------|----------|
-| `remote-card-images` | /images/*.webp | CacheFirst | 30 天 | 500 |
-| `local-card-images` | 本地 /card/*.jpg | CacheFirst | 30 天 | 500 |
-| `energy-card-images` | 本地 /energy/*.png | CacheFirst | 30 天 | 50 |
-| `compressed-card-images` | 压缩后图片 | CacheFirst | 30 天 | 1500 |
-| `static-assets` | /images/static/* | CacheFirst | 30 天 | 50 |
+| `remote-card-images-${cacheVersion}` | `/images/(thumb|medium|large)/*.webp` | CacheFirst | 30 天 | 1500 |
+| `remote-static-assets-${cacheVersion}` | `/images/static/*` | CacheFirst | 30 天 | 50 |
+| `local-card-images-${cacheVersion}` | `/card/*.(jpg|png|webp)` | CacheFirst | 30 天 | 500 |
+| `energy-card-images-${cacheVersion}` | `/energy/*.(jpg|png|webp)` | CacheFirst | 30 天 | 50 |
+| `compressed-card-images-${cacheVersion}` | `/compressed/*.(jpg|png|webp)` | CacheFirst | 30 天 | 1500 |
 
 **配置代码示例:**
 
@@ -237,9 +230,9 @@ export default defineConfig({
             urlPattern: /\/images\/(thumb|medium|large)\/.*\.webp$/,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'remote-card-images',
+              cacheName: `remote-card-images-${cacheVersion}`,
               expiration: {
-                maxEntries: 500,
+                maxEntries: 1500,
                 maxAgeSeconds: 30 * 24 * 60 * 60,
               },
               cacheableResponse: {

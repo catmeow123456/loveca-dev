@@ -30,10 +30,14 @@
 脚本会先执行：
 
 ```sql
-SELECT card_code, status FROM cards
+SELECT
+  card_code, card_type, name, card_text, image_filename,
+  cost, blade, hearts, blade_hearts, score, requirements,
+  unit_name, group_name, rare, product, status
+FROM cards
 ```
 
-然后按 `card_code` 判断是新增还是更新。
+然后按 `card_code` 建立现有卡牌索引，并逐字段比较同步字段差异；只有存在差异的已有卡牌才会进入人工审核。
 
 ### 2.3 dry-run
 

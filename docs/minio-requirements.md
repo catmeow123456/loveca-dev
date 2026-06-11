@@ -154,7 +154,7 @@ mc anonymous set download loveca/loveca-cards
 | 卡牌图片 | `{SUPABASE_URL}/storage/v1/object/public/loveca-cards/{size}/{code}.webp` | `{BASE_URL}/images/{size}/{code}.webp` |
 | 静态资源 | `{SUPABASE_URL}/storage/v1/object/public/loveca-cards/static/{name}` | `{BASE_URL}/images/static/{name}` |
 
-前端通过 `VITE_API_BASE_URL` 环境变量构造图片 URL。未配置时降级到本地静态文件。
+前端通过 `client/src/lib/apiClient.ts` 的 `getApiBaseUrl()` 构造图片 URL：同源部署无需额外配置，跨源开发或调试场景可由 `VITE_API_BASE_URL` 指向 API / 图片代理源。当前 `imageService` 始终优先生成当前同源或配置源下的 `/images/{size}/{name}.webp`；代码中保留本地静态文件兜底分支，但不会因为远程图片请求失败自动切换。
 
 ### 4.3 API Server 连接 MinIO
 
@@ -233,7 +233,7 @@ MINIO_ENDPOINT=10.0.0.2 MINIO_PORT=9000 MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xx
 
 ### 6.1 docker-compose.dev.yml 中的 MinIO
 
-本地开发时在 `docker-compose.dev.yml` 中包含 MinIO 服务，与 PostgreSQL 和 API Server 一起启动：
+本地开发时 `docker-compose.dev.yml` 包含 PostgreSQL、MinIO 和 `minio-init` 初始化容器；API Server 仍通过本地 Node 进程运行，使用同一组 `MINIO_*` 环境变量连接 MinIO：
 
 **本地 MinIO 配置**：
 
@@ -252,7 +252,7 @@ MINIO_ENDPOINT=10.0.0.2 MINIO_PORT=9000 MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xx
 
 ### 6.2 Bucket 自动初始化
 
-可在 docker-compose.dev.yml 中增加一个初始化容器（使用 `minio/mc` 镜像），在 MinIO 启动后自动创建 bucket 并设置公开策略，避免每次手动操作。
+当前 `docker-compose.dev.yml` 已包含 `minio-init` 容器（使用 `minio/mc` 镜像），会在 MinIO 健康检查通过后自动创建 `loveca-cards` bucket 并设置公开下载策略，避免每次手动操作。
 
 ---
 
