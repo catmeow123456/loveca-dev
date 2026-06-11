@@ -15,6 +15,7 @@ flowchart TB
         CDD[deck-editor/CardDetailDrawer.tsx]
         DST[common/DeckStats.tsx]
         DSE[common/DeckSelector.tsx]
+        DRU[lib/deckRecordUtils.ts]
     end
 
     subgraph State["状态管理层 (Zustand)"]
@@ -36,6 +37,9 @@ flowchart TB
 
     DM --> DS
     DM --> DST
+    DM --> DRU
+    DST --> DRU
+    DSE --> DRU
     CE --> DS
     CE --> GDR
     CDD --> GDR
@@ -138,16 +142,17 @@ interface CardEntry {
 
 ### 2.3 数据转换
 
-`DeckRecord` 与 `DeckConfig` 之间的转换逻辑内联于 `deckStore` 的 `loadFromCloud()` 和 `saveToCloud()` 方法中。
+`DeckRecord` 与 `DeckConfig` 之间的转换逻辑集中在 `client/src/lib/deckRecordUtils.ts`，由 `deckStore`、`DeckManager`、`DeckSelector`、`DeckStats`、分享页和游戏入口复用。
 
 **DeckRecord → DeckConfig**（加载云端卡组时）：
 - 遍历 `main_deck`，根据 `card_type` 字段分流为 `members` 和 `lives`
-- 向后兼容：若缺少 `card_type`，则从 `card_code` 前缀推断（`PL` = LIVE，其余 = MEMBER）
+- 向后兼容：若缺少 `card_type`，优先通过本地卡牌数据的真实 `cardType` 识别；无卡牌数据时再按历史编号规则兜底推断
 - `energy_deck` 直接映射为 `CardEntry[]`
 
 **DeckConfig → DeckRecord**（保存到云端时）：
 - 将 `members` 标记 `card_type: 'MEMBER'`，`lives` 标记 `card_type: 'LIVE'`，合并为 `main_deck`
 - `energy_deck` 直接映射
+- 新增/更新卡组时会同时写入 `is_valid` 与 `validation_errors`；校验失败不会阻止保存，只会在列表与详情中体现未完成状态
 
 ### 2.4 点数规则
 
@@ -415,29 +420,27 @@ export function canAddCard(
 ```mermaid
 sequenceDiagram
     participant User as 用户
-    participant DS as deckStore
+    participant UI as DeckManager / deckStore
     participant DV as validateDeck
+    participant DRU as deckRecordUtils
     participant API as REST API
-    participant UI as 界面
+    participant List as 卡组列表
 
-    User->>DS: 点击保存按钮
-    DS->>DV: 验证卡组
-    DV-->>DS: 返回验证结果
+    User->>UI: 点击保存按钮
+    UI->>DV: 验证卡组
+    DV-->>UI: 返回 valid/errors
+    UI->>DRU: 转换为 DB 格式
+    DRU-->>UI: main_deck / energy_deck
 
-    alt 验证失败
-        DS-->>User: 显示错误提示
-    else 验证通过
-        DS->>DS: 转换为 DB 格式
-        alt 新卡组
-            DS->>API: POST /api/decks
-        else 编辑已有卡组
-            DS->>API: PUT /api/decks/:id
-        end
-        API-->>DS: 返回成功
-        DS->>DS: fetchCloudDecks()
-        DS->>UI: 更新卡组列表
-        UI-->>User: 返回列表页
+    alt 新卡组
+        UI->>API: POST /api/decks（含 is_valid / validation_errors）
+    else 编辑已有卡组
+        UI->>API: PUT /api/decks/:id（含 is_valid / validation_errors）
     end
+    API-->>UI: 返回成功
+    UI->>API: fetchCloudDecks()
+    API-->>List: 更新卡组列表
+    UI-->>User: 返回列表页
 ```
 
 ### 5.2 卡牌添加流程
@@ -623,6 +626,7 @@ const [decklogWarnings, setDecklogWarnings] = useState<string[]>([]);
 | `client/src/components/game/CardDetailOverlay.tsx` | 游戏内卡牌详情浮层；其中详情片段被 CardDetailDrawer 复用 |
 | `client/src/store/deckStore.ts` | 卡组状态管理 |
 | `client/src/lib/apiClient.ts` | REST API 客户端与 DeckRecord 类型定义 |
+| `client/src/lib/deckRecordUtils.ts` | DeckRecord 与 DeckConfig 转换、旧格式 `card_type` 兜底识别 |
 | `client/src/lib/cardUtils.ts` | 卡牌工具函数（`getBaseCardCode` 等） |
 | `src/domain/rules/deck-validator.ts` | 卡组验证规则 |
 | `src/domain/rules/deck-construction.ts` | 卡组构筑校验与点数计算 |

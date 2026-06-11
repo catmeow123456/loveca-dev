@@ -11,32 +11,16 @@ import { useAuthStore } from '@/store/authStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { isLiveCardData, isMemberCardData, type AnyCardData } from '@game/domain/entities/card';
-import type { CardEntry, DeckConfig } from '@game/domain/card-data/deck-loader';
+import type { CardEntry } from '@game/domain/card-data/deck-loader';
+import {
+  createDeckRecordCardTypeResolver,
+  deckRecordToConfig,
+} from '@/lib/deckRecordUtils';
 
 interface SharedDeckPageProps {
   shareId: string;
   onBackHome: () => void;
   onRequestLogin: () => void;
-}
-
-function toDeckConfig(deck: SharedDeckRecord): DeckConfig {
-  const members: CardEntry[] = [];
-  const lives: CardEntry[] = [];
-
-  for (const entry of deck.main_deck || []) {
-    if (entry.card_type === 'LIVE') {
-      lives.push({ card_code: entry.card_code, count: entry.count });
-    } else {
-      members.push({ card_code: entry.card_code, count: entry.count });
-    }
-  }
-
-  return {
-    player_name: deck.name,
-    description: deck.description || '',
-    main_deck: { members, lives },
-    energy_deck: deck.energy_deck || [],
-  };
 }
 
 function sortEntries(entries: CardEntry[], getCardData: (cardCode: string) => AnyCardData | undefined): CardEntry[] {
@@ -152,6 +136,11 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
     }))
   );
   const validateDeck = useDeckStore((s) => s.validateDeck);
+  const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
+  const resolveDeckRecordCardType = useMemo(
+    () => createDeckRecordCardTypeResolver(cardDataRegistry),
+    [cardDataRegistry]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -190,7 +179,10 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
 
   const isAuthenticated = !!(user && profile) || (offlineMode && !!offlineUser);
   const isOwner = !!deck && !!profile && deck.user_id === profile.id;
-  const localDeck = useMemo(() => (deck ? toDeckConfig(deck) : null), [deck]);
+  const localDeck = useMemo(
+    () => (deck ? deckRecordToConfig(deck, { resolveCardType: resolveDeckRecordCardType }) : null),
+    [deck, resolveDeckRecordCardType]
+  );
   const validation = useMemo(
     () => (localDeck ? validateDeck(localDeck) : { valid: false, errors: [] }),
     [localDeck, validateDeck]
@@ -296,7 +288,11 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                       <p className="max-w-3xl text-sm text-[var(--text-secondary)]">{deck.description}</p>
                     )}
                     <div className="mt-3">
-                      <DeckStatsRow stats={calculateDeckStats(deck)} updatedAt={deck.shared_at || deck.updated_at} size="md" />
+                      <DeckStatsRow
+                        stats={calculateDeckStats(deck, { resolveCardType: resolveDeckRecordCardType })}
+                        updatedAt={deck.shared_at || deck.updated_at}
+                        size="md"
+                      />
                     </div>
                   </div>
 
@@ -390,7 +386,7 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                     <div className="mb-2 text-sm font-semibold text-[var(--text-primary)]">卡组统计</div>
                     <div className="mb-4">
                       <DeckStatsRow
-                        stats={calculateDeckStats(deck)}
+                        stats={calculateDeckStats(deck, { resolveCardType: resolveDeckRecordCardType })}
                         size="md"
                         className="justify-between"
                       />

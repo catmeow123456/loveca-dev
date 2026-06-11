@@ -10,6 +10,11 @@ import type { DeckRecord } from '@/lib/apiClient';
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
 import { calculateDeckStats, formatRelativeTime, getDeckPointTextClass } from './DeckStats';
 import { calculateDeckConfigStats, validateDeckConfig, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
+import { useGameStore } from '@/store/gameStore';
+import {
+  createDeckRecordCardTypeResolver,
+  deckRecordToConfig,
+} from '@/lib/deckRecordUtils';
 
 // 本地卡组类型（用于离线模式或临时卡组）
 export interface LocalDeck {
@@ -70,6 +75,11 @@ export function DeckSelector({
   title = '选择卡组',
   emptyText = '还没有卡组，去创建一个吧！',
 }: DeckSelectorProps) {
+  const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
+  const resolveDeckRecordCardType = useMemo(
+    () => createDeckRecordCardTypeResolver(cardDataRegistry),
+    [cardDataRegistry]
+  );
   
   // 合并并转换为统一显示格式
   const displayDecks = useMemo<DeckDisplayItem[]>(() => {
@@ -77,25 +87,14 @@ export function DeckSelector({
     
     // 云端卡组 - 使用 calculateDeckStats 计算统计
     for (const deck of cloudDecks) {
-      const stats = calculateDeckStats(deck);
+      const deckConfig = deckRecordToConfig(deck, { resolveCardType: resolveDeckRecordCardType });
+      const stats = calculateDeckStats(deck, { resolveCardType: resolveDeckRecordCardType });
       
       items.push({
         id: deck.id,
         name: deck.name,
         description: deck.description || undefined,
-        isValid: validateDeckConfig({
-          player_name: deck.name,
-          description: deck.description || '',
-          main_deck: {
-            members: deck.main_deck
-              .filter((entry) => entry.card_type === 'MEMBER')
-              .map((entry) => ({ card_code: entry.card_code, count: entry.count })),
-            lives: deck.main_deck
-              .filter((entry) => entry.card_type === 'LIVE')
-              .map((entry) => ({ card_code: entry.card_code, count: entry.count })),
-          },
-          energy_deck: deck.energy_deck || [],
-        }).valid,
+        isValid: validateDeckConfig(deckConfig).valid,
         isCloud: true,
         updatedAt: new Date(deck.updated_at),
         memberCount: stats.memberCount,
@@ -127,7 +126,7 @@ export function DeckSelector({
     
     // 按更新时间排序
     return items.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-  }, [cloudDecks, localDecks]);
+  }, [cloudDecks, localDecks, resolveDeckRecordCardType]);
 
   return (
     <div className="surface-panel-frosted flex h-full flex-col overflow-hidden">

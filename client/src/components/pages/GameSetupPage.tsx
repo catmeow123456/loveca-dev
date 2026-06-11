@@ -33,6 +33,10 @@ import { loadSolitaireOpponentDeck } from '@game/application/solitaire-deck';
 import type { DeckConfig } from '@game/application/game-service';
 import { GameMode } from '@game/shared/types/enums';
 import defaultOpponentDeckYaml from '../../../../assets/decks/缪预组.yaml?raw';
+import {
+  createDeckRecordCardTypeResolver,
+  deckRecordToConfig,
+} from '@/lib/deckRecordUtils';
 
 type SetupStep = 0 | 1 | 2 | 3;
 
@@ -144,7 +148,8 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
         throw new Error('卡组数据无效');
       }
 
-      const p1Config = convertCloudDeckToConfig(p1CloudDeck);
+      const resolveDeckRecordCardType = createDeckRecordCardTypeResolver(cardDataRegistry);
+      const p1Config = deckRecordToConfig(p1CloudDeck, { resolveCardType: resolveDeckRecordCardType });
       const p1Result = loader.loadFromConfig(p1Config);
 
       if (!p1Result.success || !p1Result.deck) {
@@ -161,7 +166,7 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
         if (!selectedP2Deck?.cloudDeck) {
           throw new Error('Player 2 卡组数据无效');
         }
-        const p2Config = convertCloudDeckToConfig(selectedP2Deck.cloudDeck);
+        const p2Config = deckRecordToConfig(selectedP2Deck.cloudDeck, { resolveCardType: resolveDeckRecordCardType });
         const p2Result = loader.loadFromConfig(p2Config);
         if (!p2Result.success || !p2Result.deck) {
           throw new Error(`P2 卡组加载失败: ${p2Result.errors?.join(', ')}`);
@@ -197,31 +202,6 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
       setError(err instanceof Error ? err.message : '启动游戏失败');
       setIsStarting(false);
     }
-  };
-
-  // 转换云端数据格式为本地 DeckConfig 格式
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const convertCloudDeckToConfig = (cloudDeck: any) => {
-    const mainDeck = cloudDeck.main_deck || [];
-    const members: { card_code: string; count: number }[] = [];
-    const lives: { card_code: string; count: number }[] = [];
-
-    for (const entry of mainDeck) {
-      if (entry.card_type === 'LIVE') {
-        lives.push({ card_code: entry.card_code, count: entry.count });
-      } else if (entry.card_type === 'MEMBER') {
-        members.push({ card_code: entry.card_code, count: entry.count });
-      } else {
-        throw new Error(`未知的卡牌类型: ${entry.card_type}`);
-      }
-    }
-
-    return {
-      player_name: cloudDeck.name,
-      description: cloudDeck.description || '',
-      main_deck: { members, lives },
-      energy_deck: cloudDeck.energy_deck || [],
-    };
   };
 
   // 步骤指示器

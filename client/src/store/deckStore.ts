@@ -10,6 +10,12 @@ import { MAX_SAME_CODE_COUNT } from '../../../src/domain/rules/deck-validator';
 import { validateDeckConfig } from '../../../src/domain/rules/deck-construction';
 import { getBaseCardCode } from '@/lib/cardUtils';
 import { apiClient, isApiConfigured, type DeckRecord } from '@/lib/apiClient';
+import {
+  createDeckRecordCardTypeResolver,
+  deckConfigToRecordPayload,
+  deckRecordToConfig,
+} from '@/lib/deckRecordUtils';
+import { useGameStore } from '@/store/gameStore';
 
 interface DeckState {
   player1Deck: DeckConfig | null;
@@ -240,17 +246,13 @@ export const useDeckStore = create<DeckState>((set, get) => {
       const validation = validateDeck(deck);
 
       try {
-        const mainDeck = [
-          ...deck.main_deck.members.map(e => ({ card_code: e.card_code, count: e.count, card_type: 'MEMBER' as const })),
-          ...deck.main_deck.lives.map(e => ({ card_code: e.card_code, count: e.count, card_type: 'LIVE' as const }))
-        ];
-        const energyDeck = deck.energy_deck.map(e => ({ card_code: e.card_code, count: e.count }));
+        const deckPayload = deckConfigToRecordPayload(deck);
 
         const result = await apiClient.post<DeckRecord>('/api/decks', {
           name,
           description: description || deck.description,
-          main_deck: mainDeck,
-          energy_deck: energyDeck,
+          main_deck: deckPayload.main_deck,
+          energy_deck: deckPayload.energy_deck,
           is_valid: validation.valid,
           validation_errors: validation.errors,
         });
@@ -281,38 +283,9 @@ export const useDeckStore = create<DeckState>((set, get) => {
 
         const deckRecord = result.data!;
         
-        // 转换为本地格式
-        const mainDeck = deckRecord.main_deck || [];
-        const members: CardEntry[] = [];
-        const lives: CardEntry[] = [];
-        
-        for (const entry of mainDeck) {
-          // 优先使用 card_type 字段判断卡牌类型（新格式）
-          // 如果没有 card_type 字段，则使用卡号前缀判断（向后兼容旧数据）
-          const cardType = (entry as { card_type?: string }).card_type;
-          
-          if (cardType === 'LIVE') {
-            lives.push({ card_code: entry.card_code, count: entry.count });
-          } else if (cardType === 'MEMBER') {
-            members.push({ card_code: entry.card_code, count: entry.count });
-          } else {
-            // 向后兼容：旧数据没有 card_type，使用卡号前缀判断
-            // Live 卡以 PL 开头（包括 PL!-、PL-、PLHS- 等）
-            // 成员卡以 LL- 开头
-            if (entry.card_code.match(/^PL[!HS]?-/)) {
-              lives.push({ card_code: entry.card_code, count: entry.count });
-            } else {
-              members.push({ card_code: entry.card_code, count: entry.count });
-            }
-          }
-        }
-        
-        const localDeck: DeckConfig = {
-          player_name: deckRecord.name,
-          description: deckRecord.description || '',
-          main_deck: { members, lives },
-          energy_deck: deckRecord.energy_deck || [],
-        };
+        const localDeck = deckRecordToConfig(deckRecord, {
+          resolveCardType: createDeckRecordCardTypeResolver(useGameStore.getState().cardDataRegistry),
+        });
         
         if (player === 'player1') {
           set({ player1Deck: localDeck });
@@ -350,9 +323,15 @@ export const useDeckStore = create<DeckState>((set, get) => {
   };
 });
 
+declare global {
+  interface Window {
+    __DECK_STORE__?: typeof useDeckStore;
+  }
+}
+
 // 开发/测试模式下暴露 store 以便 E2E 测试可以注入数据
 if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
-  (window as any).__DECK_STORE__ = useDeckStore;
+  window.__DECK_STORE__ = useDeckStore;
 }
 
 function createEmptyDeck(playerName: string): DeckConfig {

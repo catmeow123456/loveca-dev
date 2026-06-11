@@ -5,7 +5,11 @@
 
 import { Check, Cloud, Database, Layers3, Star, UserRound, Zap } from 'lucide-react';
 import type { DeckRecord } from '@/lib/apiClient';
-import { calculateDeckPointTotal, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
+import { calculateDeckConfigStats, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
+import {
+  deckRecordToConfig,
+  type MainDeckEntryTypeResolver,
+} from '@/lib/deckRecordUtils';
 
 // 卡组统计数据
 export interface DeckStatsData {
@@ -16,25 +20,11 @@ export interface DeckStatsData {
 }
 
 // 从云端卡组计算统计数据
-export function calculateDeckStats(deck: DeckRecord): DeckStatsData {
-  const mainDeck = deck.main_deck || [];
-  let memberCount = 0;
-  let liveCount = 0;
-  
-  for (const entry of mainDeck) {
-    // 使用 card_type 字段判断卡牌类型
-    if (entry.card_type === 'LIVE') {
-      liveCount += entry.count;
-    } else if (entry.card_type === 'MEMBER') {
-      memberCount += entry.count;
-    }
-    // 忽略没有 card_type 的旧数据
-  }
-  
-  const energyCount = (deck.energy_deck || []).reduce((sum, e) => sum + e.count, 0);
-  const pointTotal = calculateDeckPointTotal([...mainDeck, ...(deck.energy_deck || [])]);
-  
-  return { memberCount, liveCount, energyCount, pointTotal };
+export function calculateDeckStats(
+  deck: DeckRecord,
+  options: { resolveCardType?: MainDeckEntryTypeResolver } = {}
+): DeckStatsData {
+  return calculateDeckConfigStats(deckRecordToConfig(deck, options));
 }
 
 export function isDeckStatsValid(stats: DeckStatsData): boolean {

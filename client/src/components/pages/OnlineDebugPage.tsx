@@ -17,6 +17,10 @@ import { CardDataRegistry } from '@game/domain/card-data/loader';
 import type { DeckConfig } from '@game/application/game-service';
 import type { DebugMatchStatus, Seat } from '@game/online';
 import type { AnyCardData } from '@game/domain/entities/card';
+import {
+  createDeckRecordCardTypeResolver,
+  deckRecordToConfig,
+} from '@/lib/deckRecordUtils';
 
 const DEBUG_MATCH_ID = (import.meta.env.VITE_DEBUG_MATCH_ID as string | undefined) ?? 'loveca-online-debug';
 const DEBUG_SERVICE_NAME =
@@ -369,22 +373,9 @@ function buildApplicationDeckConfig(
   registry.load(Array.from(cardDataRegistry.values()));
   const loader = new DeckLoader(registry);
 
-  const members: { card_code: string; count: number }[] = [];
-  const lives: { card_code: string; count: number }[] = [];
-  for (const entry of selectedDeck.cloudDeck.main_deck || []) {
-    if (entry.card_type === 'LIVE') {
-      lives.push({ card_code: entry.card_code, count: entry.count });
-    } else {
-      members.push({ card_code: entry.card_code, count: entry.count });
-    }
-  }
-
-  const config = {
-    player_name: selectedDeck.cloudDeck.name,
-    description: selectedDeck.cloudDeck.description || '',
-    main_deck: { members, lives },
-    energy_deck: selectedDeck.cloudDeck.energy_deck || [],
-  };
+  const config = deckRecordToConfig(selectedDeck.cloudDeck, {
+    resolveCardType: createDeckRecordCardTypeResolver(cardDataRegistry),
+  });
 
   const loaded = loader.loadFromConfig(config);
   if (!loaded.success || !loaded.deck) {

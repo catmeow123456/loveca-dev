@@ -83,6 +83,7 @@ client/src/
 └── lib/
     ├── apiClient.ts  # HTTP client with JWT auth, auto-refresh, offline detection
     ├── cardService.ts # Card data CRUD via API
+    ├── deckRecordUtils.ts # Shared DeckRecord <-> DeckConfig conversion helpers
     ├── imageService.ts # Image URL generation (MinIO via Nginx)
     ├── imageUploadService.ts # Browser-side compression + API upload
     ├── onlineClient.ts # Formal online room + match REST client

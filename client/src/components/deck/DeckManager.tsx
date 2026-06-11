@@ -3,7 +3,7 @@
  * 支持创建新卡组、编辑已有卡组、删除卡组
  */
 
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Plus, Upload, Download, Save, Trash2,
@@ -22,6 +22,11 @@ import type { DeckConfig, CardEntry } from '@game/domain/card-data/deck-loader';
 import { calculateDeckConfigStats, validateDeckConfig, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
 import * as yaml from 'yaml';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import {
+  createDeckRecordCardTypeResolver,
+  deckConfigToRecordPayload,
+  deckRecordToConfig,
+} from '@/lib/deckRecordUtils';
 
 type ViewMode = 'list' | 'edit';
 
@@ -86,20 +91,14 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   const isMobile = useMediaQuery('(max-width: 767px)');
 
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
+  const resolveDeckRecordCardType = useMemo(
+    () => createDeckRecordCardTypeResolver(cardDataRegistry),
+    [cardDataRegistry]
+  );
 
   useEffect(() => {
     fetchCloudDecks();
   }, [fetchCloudDecks]);
-
-  useEffect(() => {
-    if (!initialOpenDeckId || initialOpenHandled.current || cloudDecks.length === 0) return;
-    const targetDeck = cloudDecks.find((deck) => deck.id === initialOpenDeckId);
-    if (!targetDeck) return;
-
-    initialOpenHandled.current = true;
-    handleEdit(targetDeck);
-    window.history.replaceState({}, '', '/');
-  }, [cloudDecks, initialOpenDeckId]);
 
   useEffect(() => {
     return () => {
@@ -131,27 +130,8 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
     setViewMode('edit');
   };
 
-  const handleEdit = (cloudDeck: DeckRecord) => {
-    const mainDeck = cloudDeck.main_deck || [];
-    const members: CardEntry[] = [];
-    const lives: CardEntry[] = [];
-
-    for (const entry of mainDeck) {
-      if (entry.card_type === 'LIVE') {
-        lives.push({ card_code: entry.card_code, count: entry.count });
-      } else if (entry.card_type === 'MEMBER') {
-        members.push({ card_code: entry.card_code, count: entry.count });
-      } else {
-        throw new Error(`未知的卡牌类型: ${entry.card_type}`);
-      }
-    }
-
-    const localDeck: DeckConfig = {
-      player_name: cloudDeck.name,
-      description: cloudDeck.description || '',
-      main_deck: { members, lives },
-      energy_deck: cloudDeck.energy_deck || [],
-    };
+  const handleEdit = useCallback((cloudDeck: DeckRecord) => {
+    const localDeck = deckRecordToConfig(cloudDeck, { resolveCardType: resolveDeckRecordCardType });
 
     setEditingDeck(localDeck);
     setEditingDeckId(cloudDeck.id);
@@ -160,7 +140,17 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
     setSaveError(null);
     initialSnapshot.current = JSON.stringify(localDeck);
     setViewMode('edit');
-  };
+  }, [resolveDeckRecordCardType]);
+
+  useEffect(() => {
+    if (!initialOpenDeckId || initialOpenHandled.current || cloudDecks.length === 0) return;
+    const targetDeck = cloudDecks.find((deck) => deck.id === initialOpenDeckId);
+    if (!targetDeck) return;
+
+    initialOpenHandled.current = true;
+    handleEdit(targetDeck);
+    window.history.replaceState({}, '', '/');
+  }, [cloudDecks, handleEdit, initialOpenDeckId]);
 
   const handleDelete = async (deckId: string) => {
     const result = await deleteCloudDeck(deckId);
@@ -252,18 +242,14 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       };
 
       if (editingDeckId) {
-        const mainDeck = [
-          ...deckToSave.main_deck.members.map((e) => ({ card_code: e.card_code, count: e.count, card_type: 'MEMBER' as const })),
-          ...deckToSave.main_deck.lives.map((e) => ({ card_code: e.card_code, count: e.count, card_type: 'LIVE' as const })),
-        ];
-        const energyDeck = deckToSave.energy_deck.map((e) => ({ card_code: e.card_code, count: e.count }));
+        const deckPayload = deckConfigToRecordPayload(deckToSave);
         const validation = validateDeck(deckToSave);
 
         const result = await apiClient.put<DeckRecord>(`/api/decks/${editingDeckId}`, {
           name: deckName.trim(),
           description: deckDescription.trim(),
-          main_deck: mainDeck,
-          energy_deck: energyDeck,
+          main_deck: deckPayload.main_deck,
+          energy_deck: deckPayload.energy_deck,
           is_valid: validation.valid,
           validation_errors: validation.errors,
         });
@@ -601,20 +587,8 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
               {/* Deck Grid */}
               <div className="grid gap-3">
                 {cloudDecks.map((deck, index) => {
-                  const stats = calculateDeckStats(deck);
-                  const deckConfig = {
-                    player_name: deck.name,
-                    description: deck.description || '',
-                    main_deck: {
-                      members: deck.main_deck
-                        .filter((entry) => entry.card_type === 'MEMBER')
-                        .map((entry) => ({ card_code: entry.card_code, count: entry.count })),
-                      lives: deck.main_deck
-                        .filter((entry) => entry.card_type === 'LIVE')
-                        .map((entry) => ({ card_code: entry.card_code, count: entry.count })),
-                    },
-                    energy_deck: deck.energy_deck || [],
-                  };
+                  const deckConfig = deckRecordToConfig(deck, { resolveCardType: resolveDeckRecordCardType });
+                  const stats = calculateDeckStats(deck, { resolveCardType: resolveDeckRecordCardType });
                   const deckValidity = validateDeckConfig(deckConfig).valid;
                   const isDeleting = deleteConfirm === deck.id;
 
