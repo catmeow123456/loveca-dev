@@ -56,3 +56,5 @@ yarn.lock
 !docker/init.sql
 !drizzle/**/*.sql
 test-results
+
+debug.log

@@ -33,6 +33,7 @@
     "db:studio": "drizzle-kit studio --config drizzle.config.ts",
     "build:client": "cd client && pnpm build",
     "start:prod": "cd client && pnpm preview --port 4173 --host",
+    "test-env:start": "bash scripts/start-test-env.sh",
     "clean": "rm -rf dist client/dist"
   },
   "keywords": [

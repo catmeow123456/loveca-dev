@@ -1,4 +1,5 @@
 import * as Minio from 'minio';
+import type { Readable } from 'node:stream';
 import { config } from '../config.js';
 
 export const minioClient = new Minio.Client({
@@ -72,4 +73,11 @@ export async function objectExists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Get an object stream from MinIO.
+ */
+export async function getObject(path: string): Promise<Readable> {
+  return minioClient.getObject(BUCKET, path);
 }

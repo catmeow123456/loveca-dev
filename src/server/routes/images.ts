@@ -2,9 +2,10 @@ import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
-import { uploadObject, deleteObjects } from '../services/minio-service.js';
+import { uploadObject, deleteObjects, getObject } from '../services/minio-service.js';
 
 export const imagesRouter = Router();
+export const publicImagesRouter = Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -12,6 +13,53 @@ const upload = multer({
 });
 
 const SIZES = ['thumb', 'medium', 'large'] as const;
+const READ_FOLDERS = ['thumb', 'medium', 'large', 'static'] as const;
+type UploadedFiles = Record<string, Array<{ buffer: Buffer }>>;
+
+function getContentType(fileName: string): string {
+  if (fileName.endsWith('.webp')) return 'image/webp';
+  if (fileName.endsWith('.png')) return 'image/png';
+  if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) return 'image/jpeg';
+  if (fileName.endsWith('.svg')) return 'image/svg+xml';
+  return 'application/octet-stream';
+}
+
+// ============================================
+// GET /images/:folder/:fileName
+// ============================================
+
+publicImagesRouter.get('/:folder/:fileName', async (req, res, next) => {
+  try {
+    const folder = req.params.folder as string;
+    const fileName = req.params.fileName as string;
+
+    if (!(READ_FOLDERS as readonly string[]).includes(folder) || fileName.includes('/')) {
+      res.status(404).json({
+        data: null,
+        error: { code: 'IMAGE_NOT_FOUND', message: '图片不存在' },
+      });
+      return;
+    }
+
+    const objectPath = `${folder}/${fileName}`;
+    const stream = await getObject(objectPath);
+
+    res.setHeader('Content-Type', getContentType(fileName));
+    res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+    stream.on('error', next);
+    stream.pipe(res);
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === 'NoSuchKey' || code === 'NotFound') {
+      res.status(404).json({
+        data: null,
+        error: { code: 'IMAGE_NOT_FOUND', message: '图片不存在' },
+      });
+      return;
+    }
+    next(err);
+  }
+});
 
 // ============================================
 // POST /api/images/:cardCode
@@ -25,7 +73,7 @@ imagesRouter.post(
   async (req, res, next) => {
     try {
       const cardCode = req.params.cardCode as string;
-      const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+      const files = req.files as UploadedFiles | undefined;
 
       if (!files) {
         res.status(400).json({

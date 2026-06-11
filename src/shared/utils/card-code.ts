@@ -60,6 +60,7 @@ export const VALID_RARITIES = [
   'SEC+',
   'SECL',
   'SECE',
+  'SECS',
   'PR',
   'PR+',
   'PE',

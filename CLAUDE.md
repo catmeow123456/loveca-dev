@@ -22,6 +22,7 @@ pnpm db:migrate       # Run pending migrations
 pnpm db:push          # Push schema directly (dev only)
 pnpm db:pull          # Pull schema from existing DB
 pnpm db:studio        # Open Drizzle Studio (DB GUI)
+pnpm test-env:start   # Reset and start the full test environment in tmux
 
 # Frontend (from client/)
 cd client && pnpm install

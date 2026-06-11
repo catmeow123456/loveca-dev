@@ -76,6 +76,37 @@ pnpm --dir client dev
 docker compose -f docker-compose.dev.yml up -d
 ```
 
+## 测试服务器一键重置
+
+测试服务器可使用脚本清空测试数据库 volume，并在 tmux 中启动完整测试环境。脚本内置本地测试默认值，`.env` 只用于覆盖默认配置；不测试卡图上传时，无需额外配置 MinIO 访问密钥。
+
+```bash
+pnpm test-env:start
+```
+
+脚本会先加载本地测试默认值并校验对局启动必需配置，停止同名 tmux session，使用 compose project `loveca` 执行 `down -v` 清理数据库 volume，确认 `3007`、`5173`、`5432` 端口空闲后启动 Postgres。若配置指向本地 MinIO，也会启动并检查本地 MinIO；若指向远端 MinIO，则只检查远端 bucket 可读。数据库迁移完成后会从 `llocg_db` 同步卡牌数据，执行 card code / group name 标准化与校验，然后启动 API 和前端。API 健康检查通过后会自动注册默认测试用户：
+
+```text
+test_player_1 / test_password_1
+test_player_2 / test_password_2
+```
+
+可通过环境变量覆盖脚本行为：
+
+```bash
+TEST_TMUX_SESSION=loveca-test \
+TEST_COMPOSE_PROJECT=loveca \
+TEST_FRONTEND_PORT=5173 \
+TEST_USERS='alice:password123:Alice,bob:password123:Bob' \
+pnpm test-env:start
+```
+
+启动后进入 tmux 查看日志：
+
+```bash
+tmux attach -t loveca-test
+```
+
 ## 数据库初始化
 
 当前表字段的代码侧来源是 `src/server/db/schema.ts` 和 `drizzle.config.ts`，运行时代码也按该 schema 访问数据库。`docker/init.sql` 是本地开发和新库初始化的基线启动脚本；数据库存在后，后续结构变化应通过 `drizzle/` 下的 Drizzle 迁移文件进入。
