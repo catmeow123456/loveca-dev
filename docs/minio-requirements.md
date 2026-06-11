@@ -332,7 +332,7 @@ MINIO_ENDPOINT=10.0.0.2 MINIO_PORT=9000 MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xx
 
 ## 10. 相关文档
 
-- `docs/loveca_supabase.md` — 原有 Supabase 设计文档（迁移后归档）
+- `docs/migrations/002_init_storage.sql` — 原有存储结构迁移参考；旧 Supabase 设计文档未在当前仓库保留
 - `docs/image_optimization.md` — 图片压缩和优化策略
 - MinIO 官方文档：https://min.io/docs/minio/container/index.html
 - MinIO JS SDK：https://min.io/docs/minio/linux/developers/javascript/minio-javascript.html

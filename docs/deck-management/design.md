@@ -2,7 +2,7 @@
 
 > 版本: 1.3.0
 > 创建日期: 2026-03-03
-> 最后更新: 2026-03-12
+> 最后更新: 2026-06-11
 > 状态: 已实现
 
 ## 1. 系统架构
@@ -12,9 +12,9 @@ flowchart TB
     subgraph Frontend["前端组件层"]
         DM[DeckManager.tsx]
         CE[CardEditor.tsx]
-        CDO[CardDetailOverlay.tsx]
-        DST[DeckStats.tsx]
-        DSE[DeckSelector.tsx]
+        CDD[deck-editor/CardDetailDrawer.tsx]
+        DST[common/DeckStats.tsx]
+        DSE[common/DeckSelector.tsx]
     end
 
     subgraph State["状态管理层 (Zustand)"]
@@ -38,7 +38,7 @@ flowchart TB
     DM --> DST
     CE --> DS
     CE --> GDR
-    CDO --> GDR
+    CDD --> GDR
     DSE --> DS
     DS --> SB1
     SB1 --> DLS
@@ -167,7 +167,7 @@ interface CardEntry {
 - 卡组列表展示（无卡组时显示推荐预设卡组入口）
 - 创建/编辑/删除卡组（支持从预设卡组快速创建）
 - YAML 导入/导出
-- 管理员下载图片功能
+- 分享开启/关闭、复制链接、打开分享页
 
 **状态**:
 ```typescript
@@ -179,7 +179,7 @@ const [deckDescription, setDeckDescription] = useState('');
 const [isSaving, setIsSaving] = useState(false);
 const [saveError, setSaveError] = useState<string | null>(null);
 const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-const [downloadingDeckId, setDownloadingDeckId] = useState<string | null>(null);
+const [sharingDeckId, setSharingDeckId] = useState<string | null>(null);
 ```
 
 ### 3.2 CardEditor（卡牌编辑器）
@@ -189,9 +189,9 @@ const [downloadingDeckId, setDownloadingDeckId] = useState<string | null>(null);
 **职责**:
 - 顶部全宽卡牌类型筛选栏（成员卡 / Live 卡 / 能量卡）
 - 左侧卡牌库展示（仅显示 PUBLISHED 状态的卡牌）
-- 右侧卡组预览侧边栏（响应式：≥960px 常驻，<960px 可折叠悬浮）
+- 右侧卡组预览侧边栏（响应式：≥960px 常驻，768px-959px 右侧悬浮，<768px 底部抽屉）
 - 高级筛选功能
-- 卡牌详情弹窗
+- 卡牌详情抽屉（`CardDetailDrawer`）
 
 **卡牌数据来源**:
 CardEditor 从 `gameStore.cardDataRegistry` 读取可用卡牌。应用启动时，`App.tsx` 通过 `cardService.getAllCards(true, 'PUBLISHED')` 仅加载已上线的卡牌到 registry。因此 CardEditor 天然只展示 PUBLISHED 卡牌，DRAFT 状态的卡牌不可见、不可添加到卡组中。
@@ -204,30 +204,38 @@ const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
 const [selectedRarity, setSelectedRarity] = useState<string | null>(null);
 const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 const [selectedUnit, setSelectedUnit] = useState<string | null>(null);
+const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 const [costMin, setCostMin] = useState(COST_MIN);   // COST_MIN = 0
 const [costMax, setCostMax] = useState(COST_MAX);   // COST_MAX = 22
 
-// 心颜色与 Live 分数筛选
-const [selectedHeartColor, setSelectedHeartColor] = useState<string | null>(null);        // 成员卡持有心颜色
-const [selectedRequirementColor, setSelectedRequirementColor] = useState<string | null>(null); // Live 卡判心颜色
+// 心颜色、BLADE 心效果与 Live 分数筛选
+const [selectedHeartColor, setSelectedHeartColor] = useState<HeartColor | null>(null); // 成员卡持有心 / Live 需求心
+const [selectedBladeHeart, setSelectedBladeHeart] = useState<string | null>(null);
 const [scoreMin, setScoreMin] = useState(0);         // Live 分数下限
 const [scoreMax, setScoreMax] = useState(10);        // Live 分数上限
+```
 
-// 卡组分区折叠状态
-const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
-  members: false,
-  lives: false,
-  energy: false,
-});
+**详情与响应式状态**:
+```typescript
+const [selectedCard, setSelectedCard] = useState<AnyCardData | null>(null);
+const [sidebarOpen, setSidebarOpen] = useState(true);
+const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+const isDesktop = useMediaQuery('(min-width: 960px)');
+const isMobile = useMediaQuery('(max-width: 767px)');
+```
+
+**DeckSidebar 内部状态**:
+```typescript
+const [showAnalysis, setShowAnalysis] = useState(false);
 ```
 
 **筛选联动**:
 - 选择组合后，小组选项自动过滤为该组合的小组
-- 能量卡类型下隐藏高级筛选按钮
+- 能量卡类型下仅展示稀有度、作品名、收录商品等适用筛选，不展示小组、费用、心颜色、BLADE 心效果或分数筛选
 
 **双向操作交互**:
-- 左侧卡牌库：未在卡组中的卡牌点击直接添加；已在卡组中的卡牌悬停时显示 `+` / `−` 按钮覆盖层
-- 右侧卡组预览（`DeckSidebarCardCell`）：以 6 列图片网格展示，每张卡显示数量遮罩和底部 `+` / `−` 控制条
+- 左侧卡牌库（`BrowserCardCell`）：点击卡图查看详情；卡图底部常驻 `− / 数量 / +` 控制条，中央遮罩显示同基础编号总数
+- 右侧卡组预览（`DeckSidebarCardCell`）：以响应式图片网格展示；点击或右键查看详情，每张卡显示数量遮罩和底部 `− / 数量 / +` 控制条
 
 **卡组预览排序**:
 - 成员卡分区按费用（`cost`）从低到高排序；费用相同时按卡牌编号（`cardCode`）字典序排序
@@ -239,18 +247,19 @@ const [collapsedSections, setCollapsedSections] = useState<Record<string, boolea
 
 ### 3.3 DeckStats（卡组统计展示）
 
-**文件路径**: `client/src/components/deck/DeckStats.tsx`
+**文件路径**: `client/src/components/common/DeckStats.tsx`
 
 **职责**:
 - 计算并展示卡组的成员卡/Live卡/能量卡数量统计
 - 计算并展示卡组总点数（`xx/9pt`）
 - 提供相对时间格式化（如"5 分钟前"）
-- `DeckValidityBadge` 组件展示卡组完成度状态
-- `DeckCard` 组件在列表中展示单个卡组的完整信息
+- `DeckStatsRow` 组件展示卡组数量、点数与更新时间
+- `DeckValidityBadge` / `DeckCard` 仍作为通用展示组件导出；当前 `DeckManager` 列表页使用内联状态徽章而非直接引用它们
+- `isDeckStatsValid()` / `getDeckPointTextClass()` 提供列表状态显示辅助
 
 ### 3.4 DeckSelector（卡组选择器）
 
-**文件路径**: `client/src/components/deck/DeckSelector.tsx`
+**文件路径**: `client/src/components/common/DeckSelector.tsx`
 
 **职责**:
 - 为游戏开始前提供卡组选择界面
@@ -312,16 +321,17 @@ export const MAX_SAME_CODE_COUNT = 4;   // 同基础编号卡牌最大数量
 
 **基础编号提取**:
 
-不同稀有度但基础编号相同的卡牌视为"同一张卡"。基础编号通过 `getBaseCardCode()` 提取：移除 `!` 字符和末尾稀有度后缀。例如 `LL-bp1-001-N` 和 `LL-bp1-001-R+` 的基础编号均为 `LL-bp1-001`。
+不同稀有度但基础编号相同的卡牌视为"同一张卡"。基础编号通过共享的 `getBaseCardCode()` 提取：去除最后一个 `-` 及之后的稀有度后缀，保留系列前缀中的 `!`。例如 `PL!-bp3-017-N` 的基础编号为 `PL!-bp3-017`，`LL-bp1-001-N` 和 `LL-bp1-001-R+` 的基础编号均为 `LL-bp1-001`。
 
 ```typescript
-// client/src/lib/cardUtils.ts
+// src/shared/utils/card-code.ts
 export function getBaseCardCode(cardCode: string): string {
-  return cardCode.replace(/!/g, '').replace(/-[A-Za-z]+\+?$/, '');
+  const lastDash = cardCode.lastIndexOf('-');
+  return lastDash > 0 ? cardCode.substring(0, lastDash) : cardCode;
 }
 ```
 
-`deck-validator.ts` 中也包含相同逻辑的内联函数，用于后端验证。
+`client/src/lib/cardUtils.ts` re-export 该共享函数以保持前端引用路径稳定；`deck-validator.ts` 也从共享模块导入同一实现。
 
 **验证结果类型**:
 ```typescript
@@ -418,7 +428,11 @@ sequenceDiagram
         DS-->>User: 显示错误提示
     else 验证通过
         DS->>DS: 转换为 DB 格式
-        DS->>API: POST /api/decks
+        alt 新卡组
+            DS->>API: POST /api/decks
+        else 编辑已有卡组
+            DS->>API: PUT /api/decks/:id
+        end
         API-->>DS: 返回成功
         DS->>DS: fetchCloudDecks()
         DS->>UI: 更新卡组列表
@@ -456,15 +470,14 @@ sequenceDiagram
 
 | 筛选类型 | 数据来源 | 适用卡牌类型 |
 |---------|---------|------------|
-| 稀有度 | cardCode 后缀解析 | MEMBER, LIVE |
-| 组合 | cardData.groupName | MEMBER, LIVE |
+| 稀有度 | cardCode 后缀解析 | 全部 |
+| 组合 | cardData.groupName | 全部 |
 | 小组 | cardData.unitName | 仅 MEMBER |
 | 费用区间 | cardData.cost | 仅 MEMBER |
-| 持有心颜色 | cardData.hearts[].color | 仅 MEMBER |
-| 判心颜色 | cardData.requirements.colorRequirements | 仅 LIVE |
-| 分数区间 | cardData.score | 仅 LIVE |
-| 稀有度 | cardData.rare | 全部 |
 | 收录商品 | cardData.product | 全部 |
+| 心颜色 | 成员卡 `hearts[].color` / Live 卡 `requirements.colorRequirements` | MEMBER, LIVE |
+| BLADE 心效果 | cardData.bladeHearts | MEMBER, LIVE |
+| 分数区间 | cardData.score | 仅 LIVE |
 
 ### 6.2 筛选逻辑
 
@@ -472,14 +485,14 @@ sequenceDiagram
 
 1. **卡牌类型** — 按当前选中的 CardType 过滤
 2. **文字搜索** — 匹配卡牌名称或编号
-3. **稀有度** — 匹配 cardData.rare
+3. **稀有度** — 从 cardCode 后缀解析并匹配
 4. **组合** — 匹配 groupName
-5. **小组**（仅成员卡）— 匹配 unitName
-6. **费用区间**（仅成员卡）— 过滤 cost 在 [costMin, costMax] 范围内的卡牌
-7. **持有心颜色**（仅成员卡）— 检查 hearts 数组中是否包含所选颜色的心
-8. **判心颜色**（仅 Live 卡）— 检查 requirements.colorRequirements 中是否包含所选颜色
-9. **分数区间**（仅 Live 卡）— 过滤 score 在 [scoreMin, scoreMax] 范围内的卡牌
-10. **收录商品** — 匹配 cardData.product
+5. **收录商品** — 去除空格后匹配 cardData.product
+6. **小组**（仅成员卡）— 匹配 unitName
+7. **费用区间**（仅成员卡）— 过滤 cost 在 [costMin, costMax] 范围内的卡牌
+8. **心颜色**（成员卡 / Live 卡）— 成员卡检查 hearts 数组，Live 卡检查 requirements.colorRequirements
+9. **BLADE 心效果**（成员卡 / Live 卡）— 匹配 bladeHearts 中的 SCORE / DRAW / HEART 颜色效果
+10. **分数区间**（仅 Live 卡）— 过滤 score 在 [scoreMin, scoreMax] 范围内的卡牌
 
 最终结果按 cardCode 字典序排序。
 
@@ -487,27 +500,14 @@ sequenceDiagram
 
 ## 7. 图片下载功能
 
-### 7.1 cardCode 转文件名
+当前 `DeckManager` 没有管理员下载卡组图片 ZIP 的入口或实现。历史设计中提到的文件名转换、浏览器侧打包和触发下载流程未落地，不能作为当前代码能力引用。
 
-```typescript
-// cardCode: "PL!-bp3-017-N" → filename: "PL-bp3-017"
-function cardCodeToFilename(cardCode: string): string {
-  // 移除 '!' 字符
-  let filename = cardCode.replace(/!/g, '');
-  // 移除稀有度后缀（-N, -R+, -SECE 等）
-  filename = filename.replace(/-[A-Za-z]+\+?$/, '');
-  return filename;
-}
-```
+若后续恢复该能力，需要重新确认：
 
-### 7.2 下载流程
-
-1. 创建 JSZip 实例
-2. 遍历卡组所有卡牌（根据 count 重复）
-3. 通过 `resolveCardImagePath` 获取图片 URL（优先 MinIO/静态资源配置，回退本地静态文件）
-4. fetch 下载图片 blob
-5. 添加到 zip 文件
-6. 生成 zip 并通过 file-saver 触发下载
+- 图片来源优先级：MinIO 大图、静态资源或数据库 `image_filename`。
+- 文件命名规则：是否沿用 `normalizeCardCode()` / `resolveCardImagePath()`，以及是否保留稀有度后缀。
+- 权限边界：仅管理员、卡组所有者可下载，还是分享页也允许下载。
+- 失败策略：单张图片失败时跳过、重试还是终止整个 ZIP。
 
 ## 8. DeckLog 卡组导入
 
@@ -616,10 +616,11 @@ const [decklogWarnings, setDecklogWarnings] = useState<string[]>([]);
 | 文件路径 | 说明 |
 |---------|------|
 | `client/src/components/deck/DeckManager.tsx` | 卡组管理页面 |
-| `client/src/components/deck/DeckStats.tsx` | 卡组统计与展示组件 |
-| `client/src/components/deck/DeckSelector.tsx` | 卡组选择器 |
+| `client/src/components/common/DeckStats.tsx` | 卡组统计与展示组件 |
+| `client/src/components/common/DeckSelector.tsx` | 卡组选择器 |
 | `client/src/components/deck-editor/CardEditor.tsx` | 卡牌编辑器 |
-| `client/src/components/game/CardDetailOverlay.tsx` | 游戏内卡牌详情浮层 |
+| `client/src/components/deck-editor/CardDetailDrawer.tsx` | 卡组编辑与分享页卡牌详情抽屉 |
+| `client/src/components/game/CardDetailOverlay.tsx` | 游戏内卡牌详情浮层；其中详情片段被 CardDetailDrawer 复用 |
 | `client/src/store/deckStore.ts` | 卡组状态管理 |
 | `client/src/lib/apiClient.ts` | REST API 客户端与 DeckRecord 类型定义 |
 | `client/src/lib/cardUtils.ts` | 卡牌工具函数（`getBaseCardCode` 等） |

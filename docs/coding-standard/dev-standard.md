@@ -25,8 +25,18 @@
 ```
 loveca/
 ├── docs/                          # 文档目录
-│   ├── development_specification.md
-│   └── api/                       # API 文档
+│   ├── card-data-management/      # 卡牌数据管理文档
+│   ├── card-data-sync/            # 卡牌同步文档
+│   ├── coding-standard/           # 编码与 UI 规范
+│   ├── deck-management/           # 卡组管理文档
+│   ├── game-table-design/         # 游戏桌设计文档
+│   └── migrations/                # 数据库初始化/迁移 SQL
+├── client/                        # React/Vite 前端
+│   └── src/
+│       ├── components/            # UI 组件
+│       ├── hooks/                 # 前端 hooks
+│       ├── lib/                   # API、图片、AI 等前端服务
+│       └── store/                 # Zustand 状态
 ├── src/
 │   ├── domain/                    # 领域层（核心业务逻辑）
 │   │   ├── entities/              # 实体定义
@@ -45,10 +55,13 @@ loveca/
 │   │       └── game-events.ts
 │   ├── application/               # 应用层
 │   │   ├── game-service.ts        # 游戏服务
+│   │   ├── game-session.ts        # 对局会话
+│   │   ├── game-commands.ts       # 语义化命令
 │   │   └── action-handlers/       # 动作处理器
-│   ├── infrastructure/            # 基础设施层
-│   │   ├── repositories/          # 数据存储
-│   │   └── networking/            # 网络通信
+│   ├── debug/                     # 调试和可视化辅助工具
+│   ├── online/                    # 联机模式投影与可见性边界
+│   ├── scripts/                   # 数据同步、校验、图片处理脚本
+│   ├── server/                    # Express API、路由、服务、数据库 schema
 │   └── shared/                    # 共享模块
 │       ├── types/                 # 类型定义
 │       │   └── enums.ts
@@ -61,7 +74,8 @@ loveca/
 │       └── utils/                 # 工具函数
 ├── tests/                         # 测试目录
 │   ├── unit/
-│   └── integration/
+│   ├── integration/
+│   └── simulation/
 ├── package.json
 ├── tsconfig.json
 └── README.md

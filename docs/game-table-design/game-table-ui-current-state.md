@@ -8,7 +8,6 @@
 > - `client/src/components/game/JudgmentPanel.tsx`
 > - `client/src/components/game/ScoreConfirmModal.tsx`
 > - `client/src/components/game/MulliganPanel.tsx`
-> - `client/src/components/game/HiddenDeckBrowserModal.tsx`
 > - `client/src/components/game/CardDetailOverlay.tsx`
 > - `client/src/components/game/GameLog.tsx`
 > - `client/src/store/gameStore.ts`
@@ -331,16 +330,18 @@ Live 区固定 3 槽，与成员槽横向对齐。
 
 该面板是一个很明确的单阶段专用任务弹窗。
 
-### 5.6 隐藏区浏览器
+### 5.6 隐藏区与检视区
 
-`HiddenDeckBrowserModal` 是当前用于浏览主卡组和能量卡组内容的弹窗组件：
+当前代码中没有独立的隐藏区浏览器组件，也没有“打开完整主卡组/能量卡组浏览器”的弹窗入口。
 
-- 通过卡组右上角的浏览按钮打开，不是点击卡组的默认行为
-- 以网格形式展示卡组内所有卡牌，顶部在最左侧
-- 当前窗口允许时，支持直接从弹窗内拖拽任意卡牌到主桌提交正式移动
-- 当前窗口不允许时，仅可查看顺序，不能拖拽提交
+当前与隐藏区相关的主要交互是：
 
-它的定位是隐藏区的辅助浏览入口，不是检视流程的一部分，也不是点击卡组后的默认结果。
+- 点击己方主卡组会把牌加入检视区流程。
+- 检视区是真实游戏状态的一部分，由 `gameStore.openInspection()` 与 `PlayerArea` 内的检视区 UI 承接。
+- 点击己方能量卡组没有默认检视行为。
+- 若后续需要完整隐藏区浏览器，需要重新设计权限、拖拽提交和与检视区的关系。
+
+因此，当前不能把隐藏区浏览器视为已有弹窗组件；它也不是点击卡组后的默认结果。
 
 ### 5.7 休息室弹窗
 

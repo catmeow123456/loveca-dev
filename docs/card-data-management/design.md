@@ -177,7 +177,7 @@ flowchart LR
 - 状态缓存：独立的 `Map<string, 'DRAFT' | 'PUBLISHED'>`，TTL 5 分钟
 - `getAllCards(forceRefresh?, statusFilter?)` 在缓存有效时直接返回缓存数据，过期或强制刷新时从 REST API 重新拉取
 - 传入 `statusFilter` 时绕过主缓存直接查询数据库，且不污染全量缓存
-- 分页拉取：通过 `fetchAllRows()` 辅助函数分批拉取所有数据
+- 当前通过 `GET /api/cards` 单次读取服务端返回的卡牌数组；没有分页辅助函数
 
 **API 方法**:
 
@@ -190,8 +190,8 @@ flowchart LR
 | `deleteCard(cardCode)` | 删除卡牌 |
 | `publishCard(cardCode)` | 将卡牌从 DRAFT 上线为 PUBLISHED |
 | `unpublishCard(cardCode)` | 将卡牌从 PUBLISHED 下线为 DRAFT |
-| `exportCards()` | 导出全部卡牌数据 |
-| `importCards(cards)` | 批量导入卡牌，返回成功/失败统计 |
+| `exportCards()` | 调用 `GET /api/cards/export` 导出全部卡牌数据，要求管理员权限 |
+| `importCards(cards)` | 前端批量导入辅助方法，当前逐张调用 `createCard()`；后端另有 `POST /api/cards/import` 批量接口 |
 | `getCardsByType(type)` | 按卡牌类型筛选 |
 | `getCardsByGroup(groupName)` | 按组合名筛选 |
 | `searchCards(query)` | 按名称或编号模糊搜索 |
@@ -238,7 +238,7 @@ flowchart LR
 - 图片上传与进度展示
 
 **浏览与筛选**:
-- 分页展示：28 卡/页（4×7 网格），带页码导航
+- 分页展示：28 卡/页，卡牌网格按视口响应式调整为 3-7 列，带页码导航
 - 类型过滤：ALL / MEMBER / LIVE / ENERGY
 - 状态过滤：ALL / DRAFT / PUBLISHED
 - 关键词搜索：按名称或编号的子字符串匹配
@@ -270,7 +270,7 @@ CardEditModal 支持两种编辑模式，通过弹窗头部的切换按钮自由
 
 **集成方式**:
 - 在 CardAdminPage 的编辑弹窗中通过"AI 提取"按钮触发
-- 调用后端代理的 DashScope API（前端不直接持有 API Key）
+- 前端调用 `/api/dashscope`，由 `client/vite.config.ts` 的 Vite dev proxy 转发到 DashScope 并注入 API Key；生产部署需要等价的反向代理，前端不应持有 API Key
 - 提取结果回填到表单的 `cardText` 字段
 
 ## 4. 安全设计
@@ -286,6 +286,7 @@ CardEditModal 支持两种编辑模式，通过弹窗头部的切换按钮自由
 | `POST /api/cards` | 仅管理员 |
 | `PUT /api/cards/:code` | 仅管理员 |
 | `DELETE /api/cards/:code` | 仅管理员 |
+| `GET /api/cards/export` | 仅管理员 |
 | `POST /api/cards/import` | 仅管理员 |
 | `GET /api/cards/status-map` | 仅管理员 |
 
@@ -346,7 +347,7 @@ sequenceDiagram
     participant API as REST API
 
     Admin->>UI: 查看 DRAFT 卡牌列表
-    UI->>CS: getAllCards() (管理员权限返回全部)
+    UI->>CS: getAllCards(true, 'all')
     CS-->>UI: 包含 DRAFT 和 PUBLISHED 卡牌
 
     Admin->>UI: 编辑补充 DRAFT 卡牌数据

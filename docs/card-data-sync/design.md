@@ -41,7 +41,7 @@ SELECT card_code, status FROM cards
 
 历史说明：
 
-- `src/scripts/sync-cards.ts` 这条旧的爬虫 JSON 管线已从仓库移除，不再作为当前实现描述对象。
+- 旧的爬虫 JSON 管线已从仓库移除，不再作为当前实现描述对象。
 
 ## 3. llocg_db 管线
 

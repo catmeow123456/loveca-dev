@@ -40,7 +40,7 @@ cardsRouter.get('/', async (req, res, next) => {
 // GET /api/cards/export
 // ============================================
 
-cardsRouter.get('/export', async (_req, res, next) => {
+cardsRouter.get('/export', requireAuth, requireAdmin, async (_req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT * FROM cards ORDER BY card_code');
     // Transform to camelCase for export

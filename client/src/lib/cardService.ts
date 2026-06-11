@@ -259,7 +259,12 @@ class CardService {
   }
 
   async exportCards(): Promise<AnyCardData[]> {
-    return this.getAllCards(true);
+    if (!isApiConfigured) throw new Error('API 未配置');
+
+    const result = await apiClient.get<AnyCardData[]>('/api/cards/export');
+    if (result.error) throw new Error(`导出卡牌失败: ${result.error.message}`);
+
+    return result.data ?? [];
   }
 
   async importCards(cards: CardCreateInput[]): Promise<{ success: number; failed: number; errors: string[] }> {
