@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
+CLIENT_ENV_FILE="${ROOT_DIR}/client/.env.local"
 COMPOSE_FILE="${ROOT_DIR}/docker-compose.dev.yml"
 COMPOSE_PROJECT="${TEST_COMPOSE_PROJECT:-loveca}"
 TMUX_SESSION="${TEST_TMUX_SESSION:-loveca-test}"
@@ -23,6 +24,122 @@ die() {
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+}
+
+warn_env_file_completeness() {
+  ROOT_ENV_FILE="$ENV_FILE" CLIENT_ENV_FILE="$CLIENT_ENV_FILE" node <<'NODE'
+const fs = require('node:fs');
+
+const files = [
+  {
+    label: '.env',
+    path: process.env.ROOT_ENV_FILE,
+    example: '.env.example',
+    required: [
+      'PORT',
+      'NODE_ENV',
+      'DATABASE_URL',
+      'JWT_SECRET',
+      'JWT_REFRESH_SECRET',
+      'MINIO_ENDPOINT',
+      'MINIO_PORT',
+      'MINIO_ACCESS_KEY',
+      'MINIO_SECRET_KEY',
+      'MINIO_BUCKET',
+      'MINIO_USE_SSL',
+      'FRONTEND_URL',
+    ],
+  },
+  {
+    label: 'client/.env.local',
+    path: process.env.CLIENT_ENV_FILE,
+    example: 'client/.env.example',
+    required: [],
+    recommended: ['VITE_API_BASE_URL'],
+  },
+];
+
+function parseEnvFile(path) {
+  const values = new Map();
+  const text = fs.readFileSync(path, 'utf8');
+  for (const rawLine of text.split(/\r?\n/)) {
+    let line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    if (line.startsWith('export ')) line = line.slice('export '.length).trim();
+
+    const index = line.indexOf('=');
+    if (index <= 0) continue;
+
+    const key = line.slice(0, index).trim();
+    let value = line.slice(index + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    values.set(key, value);
+  }
+  return values;
+}
+
+function isPlaceholder(value) {
+  return /^(your_|sk-your_|change_me|changeme|placeholder)/i.test(value);
+}
+
+const warnings = [];
+
+for (const file of files) {
+  if (!fs.existsSync(file.path)) {
+    warnings.push(`${file.label} is missing; copy ${file.example} and fill required values manually`);
+    if (file.label === '.env') {
+      warnings.push(
+        '.env missing means local MinIO defaults will be used; configure MinIO and preprocess card image/static resources before relying on image data'
+      );
+    }
+    continue;
+  }
+
+  const values = parseEnvFile(file.path);
+  const missing = file.required.filter((key) => !values.has(key));
+  const empty = file.required.filter((key) => values.has(key) && values.get(key) === '');
+  const recommendedMissing = (file.recommended || []).filter((key) => !values.has(key));
+  const placeholders = file.required.filter((key) => {
+    const value = values.get(key);
+    return value && isPlaceholder(value);
+  });
+
+  if (missing.length > 0) {
+    warnings.push(`${file.label} missing required keys: ${missing.join(', ')}`);
+  }
+  if (empty.length > 0) {
+    warnings.push(`${file.label} has empty required values: ${empty.join(', ')}`);
+  }
+  if (recommendedMissing.length > 0) {
+    warnings.push(`${file.label} missing recommended keys: ${recommendedMissing.join(', ')}`);
+  }
+  if (placeholders.length > 0) {
+    warnings.push(`${file.label} still has placeholder values: ${placeholders.join(', ')}`);
+  }
+
+  if (
+    file.label === '.env' &&
+    (values.get('MINIO_ENDPOINT') || 'localhost') === 'localhost' &&
+    (values.get('MINIO_PORT') || '9000') === '9000'
+  ) {
+    warnings.push(
+      '.env uses default local MinIO endpoint localhost:9000; make sure MinIO is configured and card image/static resources have been preprocessed'
+    );
+  }
+}
+
+if (warnings.length > 0) {
+  console.error('[test-env] environment file reminders:');
+  for (const warning of warnings) {
+    console.error(`[test-env] - ${warning}`);
+  }
+}
+NODE
 }
 
 load_env_file() {
@@ -391,6 +508,7 @@ main() {
   need_cmd tmux
   need_cmd curl
 
+  warn_env_file_completeness
   load_env_file
   validate_env
 
