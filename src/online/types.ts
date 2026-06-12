@@ -7,6 +7,7 @@ import {
   OrientationState,
 } from '../shared/types/enums.js';
 import type { GameState } from '../domain/entities/game.js';
+import type { HeartIcon } from '../domain/entities/card.js';
 
 export type Seat = 'FIRST' | 'SECOND';
 
@@ -54,6 +55,12 @@ export interface ViewParticipant {
 
 export interface LiveResultViewState {
   readonly scores: Readonly<Record<Seat, number>>;
+  readonly heartBonuses: Readonly<Record<Seat, readonly HeartIcon[]>>;
+  /** 当前仅投影无色/All 必要 Heart 减少；彩色/增加修正应升级为 modifier 列表 */
+  readonly requirementReductions: Readonly<Record<string, number>>;
+  readonly requirementModifiers: Readonly<
+    Record<string, readonly { color: HeartColor; countDelta: number }[]>
+  >;
   readonly winnerSeats: readonly Seat[];
   readonly confirmedSeats: readonly Seat[];
 }
@@ -159,8 +166,11 @@ export interface ActiveEffectViewState {
   readonly inspectionObjectIds?: readonly string[];
   readonly selectableObjectIds?: readonly string[];
   readonly selectableSlots?: readonly string[];
+  readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
+  readonly selectionLabel?: string;
   readonly canResolveInOrder?: boolean;
   readonly canSkipSelection?: boolean;
+  readonly skipSelectionLabel?: string;
 }
 
 export interface PendingCostPaymentViewState {

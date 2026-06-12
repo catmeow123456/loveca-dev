@@ -26,10 +26,19 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
 import { GameCommandType } from '@game/application/game-commands';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
-import { ELI_ACTIVATED_ABILITY_ID } from '@game/application/card-effect-runner';
+import { getActivatedAbilityUiConfig } from '@game/application/card-effect-runner';
 import { Card } from '@/components/card/Card';
 import { DraggableCard, DroppableZone } from './interaction';
-import { ArrowDownToLine, ArrowUpToLine, Check, Layers3, Megaphone, Trash2, Undo2, X } from 'lucide-react';
+import {
+  ArrowDownToLine,
+  ArrowUpToLine,
+  Check,
+  Layers3,
+  Megaphone,
+  Trash2,
+  Undo2,
+  X,
+} from 'lucide-react';
 import type { AnyCardData, LiveCardData } from '@game/domain/entities/card';
 import { isLiveCardData } from '@game/domain/entities/card';
 import {
@@ -344,9 +353,10 @@ export const PlayerArea = memo(function PlayerArea({
 
     // 堆叠成员卡偏移量：向右下方偏移
     const memberBelowOffsetPercent = 8;
-    const canActivateEliAbility =
+    const activatedAbilityConfig = getActivatedAbilityUiConfig(card?.cardCode);
+    const canActivateAbility =
       card !== null &&
-      card.cardCode === 'PL!-sd1-002-SD' &&
+      activatedAbilityConfig !== null &&
       selectedCardId === card.instanceId &&
       !isOpponent &&
       viewerSeat === playerSeat &&
@@ -513,7 +523,7 @@ export const PlayerArea = memo(function PlayerArea({
                 />
               </DraggableCard>
             )}
-            {card && canActivateEliAbility && (
+            {card && canActivateAbility && activatedAbilityConfig && (
               <button
                 type="button"
                 className={cn(
@@ -524,11 +534,11 @@ export const PlayerArea = memo(function PlayerArea({
                 style={{ fontSize: '12px', lineHeight: 1.25 }}
                 onClick={(event) => {
                   event.stopPropagation();
-                  activateCardAbility(card.instanceId, ELI_ACTIVATED_ABILITY_ID);
+                  activateCardAbility(card.instanceId, activatedAbilityConfig.abilityId);
                 }}
-                title="将此成员从舞台放置入休息室，从自己的休息室将1张成员卡加入手牌"
+                title={activatedAbilityConfig.title}
               >
-                起动：将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。
+                {activatedAbilityConfig.text}
               </button>
             )}
             {!cardId && <span className="text-slate-600 text-xs">{position}</span>}

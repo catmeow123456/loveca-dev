@@ -123,9 +123,10 @@ import type {
   ReturnHandCardToTopCommand,
 } from './game-commands.js';
 import {
-  ELI_ACTIVATED_ABILITY_ID,
   activateCardAbility,
   confirmActiveEffectStep,
+  getActivatedAbilityLimitStatus,
+  isSupportedActivatedAbilityForCard,
 } from './card-effect-runner.js';
 import { isMemberCardData } from '../domain/entities/card.js';
 import { getActiveEnergyIds, tapEnergy } from '../domain/entities/zone.js';
@@ -1157,9 +1158,6 @@ export class GameSession {
         return null;
       }
       case GameCommandType.ACTIVATE_ABILITY: {
-        if (command.abilityId !== ELI_ACTIVATED_ABILITY_ID) {
-          return '暂不支持该起动效果';
-        }
         if (state.activeEffect) {
           return '当前正在处理其他卡牌效果';
         }
@@ -1171,11 +1169,22 @@ export class GameSession {
         if (!card || card.ownerId !== command.playerId) {
           return '卡牌不存在或不属于该玩家';
         }
-        if (card.data.cardCode !== 'PL!-sd1-002-SD' || card.data.cardType !== CardType.MEMBER) {
+        if (
+          card.data.cardType !== CardType.MEMBER ||
+          !isSupportedActivatedAbilityForCard(command.abilityId, card.data.cardCode)
+        ) {
           return '该卡牌没有这个起动效果';
         }
         if (!Object.values(player.memberSlots.slots).includes(command.cardId)) {
           return '起动效果来源成员当前不在舞台';
+        }
+        const limitStatus = getActivatedAbilityLimitStatus(
+          state,
+          command.playerId,
+          command.abilityId
+        );
+        if (limitStatus && limitStatus.remaining <= 0) {
+          return `该起动效果本回合已发动 ${limitStatus.used}/${limitStatus.limit} 次`;
         }
         return null;
       }
@@ -1332,10 +1341,7 @@ export class GameSession {
         ) {
           return '选择的卡牌不能用于当前效果';
         }
-        if (
-          command.selectedCardId === null &&
-          state.activeEffect.canSkipSelection !== true
-        ) {
+        if (command.selectedCardId === null && state.activeEffect.canSkipSelection !== true) {
           return '当前效果不能不选择卡牌';
         }
         if (
@@ -1346,6 +1352,14 @@ export class GameSession {
         }
         if (command.resolveInOrder === true && state.activeEffect.canResolveInOrder !== true) {
           return '当前效果不能顺序发动';
+        }
+        if (
+          command.selectedOptionId &&
+          !state.activeEffect.selectableOptions?.some(
+            (option) => option.id === command.selectedOptionId
+          )
+        ) {
+          return '选择的选项不能用于当前效果';
         }
         return null;
       }
@@ -1381,7 +1395,8 @@ export class GameSession {
       case GameCommandType.CONFIRM_EFFECT_STEP:
         return state.activeEffect ? null : '当前没有正在处理的卡牌效果';
       case GameCommandType.ACTIVATE_ABILITY:
-        return state.currentPhase === GamePhase.MAIN_PHASE && state.currentSubPhase === SubPhase.NONE
+        return state.currentPhase === GamePhase.MAIN_PHASE &&
+          state.currentSubPhase === SubPhase.NONE
           ? null
           : '当前不是可发动起动效果的主阶段';
       case GameCommandType.TAP_MEMBER:
@@ -2995,7 +3010,8 @@ export class GameSession {
       command.effectId,
       command.selectedCardId,
       command.selectedSlot,
-      command.resolveInOrder
+      command.resolveInOrder,
+      command.selectedOptionId
     );
     if (nextState === state) {
       return {

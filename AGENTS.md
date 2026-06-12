@@ -11,7 +11,7 @@
 ## 常用入口
 
 - 仓库目录：`/Users/meiyikai/Desktop/文件/个人/codex/loveca/loveca_battle`
-- 当前本地测试页面通常在：`http://localhost:5176/`
+- 当前本地测试页面通常在：`http://localhost:5173/`
 - 用户通常会在 Codex in-app browser 中自己操作页面测试。如果需要用户测试，直接说明要测什么，不要擅自推进复杂对局。
 
 ## 关键架构
@@ -33,9 +33,44 @@
 - 不要在 React 组件里硬写具体卡效。
 - 不要在 action handler 里散落具体卡效。
 - 具体卡效目前集中在 `card-effect-runner.ts` 做样例实现，后续应逐步抽象成可扩展 runner。
+- 新增卡效前先在 `card-effect-runner.ts` 的 `CARD_ABILITY_DEFINITIONS` 中按规则分类登记，不要先写单卡散逻辑。
 - 需要隐藏信息时，以 `projector` / visibility / inspection context 控制前端可见性。
 - 本地测试和正式网页桌面应尽量复用同一套组件和命令，不做“双轨 UI”。
 - 自动费用、撤销、检视区、效果弹窗等交互应以玩家视角自然为优先，但底层仍要记录可审计动作。
+
+## 卡效分类约定
+
+- `CONTINUOUS`（常时）：不进效果队列，由对应计算层读取持续修正，例如声援张数、分数、必要 Heart 修正等。
+- `ON_ENTER`（登场）：来源为刚登场成员，触发 `ON_ENTER_STAGE`，必须进入待处理效果队列。
+- `ACTIVATED`（起动）：来源为舞台成员，由玩家在合法时点主动点击；费用、次数限制和目标选择在命令层/runner 校验。
+- `LIVE_START`（LIVE开始）：来源可以是舞台成员或当前 LIVE 区的 LIVE 卡，触发 `ON_LIVE_START`，必须进入 LIVE 开始效果队列，由玩家选择同一时点顺序。
+- `LIVE_SUCCESS`（LIVE成功）：来源为成功的 LIVE 卡或满足条件的卡，必须在对应 Live 成功后才进入 LIVE 成功效果队列。
+- `AUTO`（自动）：其他诱发型自动能力按具体 `TriggerCondition` 入队，不应伪装成常时或结算时静默修正。
+
+## 卡效步骤约定
+
+- “可以将 N 张手牌放置入休息室：……”属于通用发动代价/费用步骤，不是具体卡牌特例。
+- 当前 N=1 的手牌弃置步骤统一使用 `card-effect-runner.ts` 中的 `createDiscardHandToWaitingRoomActivationEffect` 和 `moveHandCardToWaitingRoomForEffect`。
+- 这类步骤的选择区文案应明确为“请选择要放置入休息室的卡牌”，跳过按钮应为“不发动”，不要写成“请选择要处理的卡牌”或“不加入”。
+- 后续支持 N>1、指定名称/颜色/类型的手牌弃置时，应扩展同一个步骤 helper，而不是在单张卡效果里临时写 UI 文案和移动逻辑。
+- “检视卡组顶 N 张 -> 选择其中若干张 -> 可选公开 -> 加入手牌 -> 其余放置入休息室”也是通用步骤，不要只为 `PL!-sd1-004-SD` 或 `PL!-sd1-015-SD` 单独写流程。
+- 若效果文本写“公开并加入手牌”，必须先把被选牌加入 `inspectionZone.revealedCardIds`，等待玩家确认后再移动到手牌；不能直接加入手牌。
+- 若效果文本写“将 1 张加入手牌”而不是“可以将 1 张加入手牌”，选择阶段应强制选择；只有没有合法目标时才允许不选。
+
+## 卡效高频场景底座
+
+2026-06-12 已对 `llocg_db/json/cards_cn.json` 全量 2032 张卡做过一次只读统计，其中 1381 张有中文效果文本。高频动作包括：`手牌放置入休息室` 340 次、`检视自己卡组顶` 154 次、`公开并加入手牌` 74 次、`加入手牌` 384 次、`其余的卡片放置入休息室` 162 次、`从自己的休息室...加入手牌` 182 次、`将此成员从舞台放置入休息室` 60 次、`[E]` 费用 180 次、`LIVE开始时` 397 次、`LIVE成功时` 45 次、`分数+1/＋１` 约 131 次、`必要HEART减少` 18 次。
+
+因此后续优先抽象这些共性场景：
+
+- 时点与队列：`ON_ENTER`、`ACTIVATED`、`LIVE_START`、`LIVE_SUCCESS`、`AUTO` 按规则分类登记；同一时点多效果必须走待处理队列/顺序选择。
+- 发动费用/代价：手牌放置入休息室、公开手牌、支付能量、此成员从舞台放置入休息室都应是可复用步骤。
+- 检视/公开/移动：私密检视、公开翻牌、选择目标、公开被选目标、加入手牌、其余入休息室、放回卡组顶/排序应拆成可组合步骤。
+- 区域检索：从休息室按类型、费用、团体、名称等筛选加入手牌应共用筛选与移动逻辑。
+- LIVE 修正：加 Heart、加分、加声援张数、增加/减少必要 Heart 等都应进入 LIVE 自动判定流水线，而不是在 UI 手填结果里静默处理。
+- “必要HEART增加/减少”类效果应使用 `applyHeartRequirementModifiers`；它支持粉/黄/紫等指定颜色，也支持泛用/无色/All 需求，并兼容 `RAINBOW` 条目和 `totalRequired` 表达的两种数据形态。`PL!-sd1-022-SD` 这种减少 `[無ハート]` 的效果只是其中的 All 需求负修正。
+- 当前状态字段 `liveRequirementModifiers` 承载 cardId -> requirement modifier 列表；旧字段 `liveRequirementReductions` 仅为 `PL!-sd1-022-SD` 这类“无色/All 减少 N”的兼容投影，不应再用于新增彩色必要 Heart 增减或必要 Heart 增加卡效。
+- “1回合 N 次”属于能力定义的通用限制，应在 `CARD_ABILITY_DEFINITIONS.perTurnLimit` 登记，由起动入口统一记录 `ACTIVATED_ABILITY_USE` 并检查同一玩家同一能力在当前 `turnCount` 的使用次数；不要在单张卡效果里临时判断。
 
 ## 费用体系约定
 

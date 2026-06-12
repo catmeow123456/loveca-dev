@@ -1,10 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { CardType, HeartColor, GamePhase, SubPhase, TurnType } from '../../src/shared/types/enums';
+import {
+  BladeHeartEffect,
+  CardType,
+  EffectWindowType,
+  HeartColor,
+  GamePhase,
+  SlotPosition,
+  SubPhase,
+  TurnType,
+} from '../../src/shared/types/enums';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { createCardInstance, createHeartRequirement } from '../../src/domain/entities/card';
 import {
   addCardToStatefulZone,
   addCardToZone,
+  placeCardInSlot,
   removeCardFromZone,
   removeCardFromStatefulZone,
 } from '../../src/domain/entities/zone';
@@ -14,9 +24,604 @@ import {
   handlePerformCheer,
 } from '../../src/application/action-handlers/phase-ten.handler';
 import { GameService } from '../../src/application/game-service';
-import { createPerformCheerAction } from '../../src/application/actions';
+import {
+  createConfirmSubPhaseAction,
+  createPerformCheerAction,
+} from '../../src/application/actions';
+import {
+  confirmActiveEffectStep,
+  NICO_LIVE_START_SCORE_ABILITY_ID,
+} from '../../src/application/card-effect-runner';
 
 describe('Live 判定与结算', () => {
+  it('进入判定子阶段时应先自动翻应援，接受后才生成 Live 成功与分数草案', () => {
+    const service = new GameService();
+    const member = createCardInstance(
+      {
+        cardCode: 'AUTO-MEMBER',
+        name: 'Auto Member',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 2,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+      },
+      'p1',
+      'p1-member'
+    );
+    const liveA = createCardInstance(
+      {
+        cardCode: 'AUTO-LIVE-A',
+        name: 'Auto Live A',
+        cardType: CardType.LIVE as const,
+        score: 3,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'p1-live-a'
+    );
+    const liveB = createCardInstance(
+      {
+        cardCode: 'AUTO-LIVE-B',
+        name: 'Auto Live B',
+        cardType: CardType.LIVE as const,
+        score: 2,
+        requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),
+      },
+      'p1',
+      'p1-live-b'
+    );
+    const cheerHeartScore = createCardInstance(
+      {
+        cardCode: 'AUTO-CHEER-HEART-SCORE',
+        name: 'Auto Cheer Heart Score',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 0,
+        hearts: [],
+        bladeHearts: [
+          { effect: BladeHeartEffect.HEART, heartColor: HeartColor.BLUE },
+          { effect: BladeHeartEffect.SCORE },
+        ],
+      },
+      'p1',
+      'p1-cheer-heart-score'
+    );
+    const cheerDraw = createCardInstance(
+      {
+        cardCode: 'AUTO-CHEER-DRAW',
+        name: 'Auto Cheer Draw',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 0,
+        hearts: [],
+        bladeHearts: [{ effect: BladeHeartEffect.DRAW }],
+      },
+      'p1',
+      'p1-cheer-draw'
+    );
+    const drawnCard = createCardInstance(
+      {
+        cardCode: 'AUTO-DRAWN',
+        name: 'Auto Drawn',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 0,
+        hearts: [],
+      },
+      'p1',
+      'p1-drawn'
+    );
+
+    let game = createGameState('g-auto-live-draft', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member, liveA, liveB, cheerHeartScore, cheerDraw, drawnCard]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+      liveZone: addCardToStatefulZone(
+        addCardToStatefulZone(player.liveZone, liveA.instanceId),
+        liveB.instanceId
+      ),
+      mainDeck: addCardToZone(
+        addCardToZone(
+          addCardToZone(player.mainDeck, cheerHeartScore.instanceId),
+          cheerDraw.instanceId
+        ),
+        drawnCard.instanceId
+      ),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_LIVE_START_EFFECTS,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      effectWindowType: EffectWindowType.LIVE_START,
+    };
+
+    const revealResult = service.processAction(
+      game,
+      createConfirmSubPhaseAction('p1', SubPhase.PERFORMANCE_LIVE_START_EFFECTS)
+    );
+
+    expect(revealResult.success).toBe(true);
+    expect(revealResult.gameState.currentSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
+    expect(revealResult.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([
+      cheerHeartScore.instanceId,
+      cheerDraw.instanceId,
+    ]);
+    expect(revealResult.gameState.resolutionZone.cardIds).toEqual([
+      cheerHeartScore.instanceId,
+      cheerDraw.instanceId,
+    ]);
+    expect(revealResult.gameState.resolutionZone.revealedCardIds).toEqual([
+      cheerHeartScore.instanceId,
+      cheerDraw.instanceId,
+    ]);
+    expect(revealResult.gameState.liveResolution.liveResults.size).toBe(0);
+    expect(revealResult.gameState.liveResolution.playerScores.size).toBe(0);
+    expect(revealResult.gameState.players[0].hand.cardIds).not.toContain(drawnCard.instanceId);
+
+    const acceptResult = service.processAction(revealResult.gameState, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(liveA.instanceId)).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(liveB.instanceId)).toBe(true);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(6);
+    expect(acceptResult.gameState.liveResolution.scoreConfirmedBy).toEqual([]);
+    expect(acceptResult.gameState.players[0].hand.cardIds).toContain(drawnCard.instanceId);
+  });
+
+  it('多张 Live 中任意一张失败时，接受自动判定应将整轮 Live 记为失败', () => {
+    const service = new GameService();
+    const member = createCardInstance(
+      {
+        cardCode: 'PARTIAL-MEMBER',
+        name: 'Partial Member',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 0,
+        hearts: [
+          { color: HeartColor.PINK, count: 1 },
+          { color: HeartColor.YELLOW, count: 1 },
+          { color: HeartColor.BLUE, count: 3 },
+        ],
+      },
+      'p1',
+      'p1-partial-member'
+    );
+    const failedLive = createCardInstance(
+      {
+        cardCode: 'PARTIAL-FAILED-LIVE',
+        name: 'Partial Failed Live',
+        cardType: CardType.LIVE as const,
+        score: 1,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 2 }),
+      },
+      'p1',
+      'p1-partial-failed-live'
+    );
+    const rawSuccessLive = createCardInstance(
+      {
+        cardCode: 'PARTIAL-RAW-SUCCESS-LIVE',
+        name: 'Partial Raw Success Live',
+        cardType: CardType.LIVE as const,
+        score: 2,
+        requirements: createHeartRequirement({
+          [HeartColor.PINK]: 1,
+          [HeartColor.YELLOW]: 1,
+          [HeartColor.RAINBOW]: 3,
+        }),
+      },
+      'p1',
+      'p1-partial-raw-success-live'
+    );
+
+    let game = createGameState('g-partial-live-overall-fail', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member, failedLive, rawSuccessLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+      liveZone: addCardToStatefulZone(
+        addCardToStatefulZone(player.liveZone, failedLive.instanceId),
+        rawSuccessLive.instanceId
+      ),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+      },
+    };
+
+    const acceptResult = service.processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(failedLive.instanceId)).toBe(
+      false
+    );
+    expect(acceptResult.gameState.liveResolution.liveResults.get(rawSuccessLive.instanceId)).toBe(
+      false
+    );
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
+  });
+
+  it('PL!-sd1-001-SD 应按成功 Live 数增加自动翻应援数量', () => {
+    const service = new GameService();
+    const honoka = createCardInstance(
+      {
+        cardCode: 'PL!-sd1-001-SD',
+        name: '高坂穗乃果',
+        cardType: CardType.MEMBER as const,
+        cost: 11,
+        blade: 3,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+      },
+      'p1',
+      'p1-honoka'
+    );
+    const live = createCardInstance(
+      {
+        cardCode: 'HONOKA-LIVE',
+        name: 'Honoka Live',
+        cardType: CardType.LIVE as const,
+        score: 3,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'p1-honoka-live'
+    );
+    const successLiveA = createCardInstance(
+      {
+        cardCode: 'HONOKA-SUCCESS-A',
+        name: 'Success A',
+        cardType: CardType.LIVE as const,
+        score: 1,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'p1-success-a'
+    );
+    const successLiveB = createCardInstance(
+      {
+        cardCode: 'HONOKA-SUCCESS-B',
+        name: 'Success B',
+        cardType: CardType.LIVE as const,
+        score: 1,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'p1-success-b'
+    );
+    const cheerCards = Array.from({ length: 5 }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `HONOKA-CHEER-${index}`,
+          name: `Honoka Cheer ${index}`,
+          cardType: CardType.MEMBER as const,
+          cost: 1,
+          blade: 0,
+          hearts: [],
+        },
+        'p1',
+        `p1-honoka-cheer-${index}`
+      )
+    );
+
+    let game = createGameState('g-honoka-blade-bonus', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [honoka, live, successLiveA, successLiveB, ...cheerCards]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, honoka.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+      successZone: addCardToZone(
+        addCardToZone(player.successZone, successLiveA.instanceId),
+        successLiveB.instanceId
+      ),
+      mainDeck: cheerCards.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.mainDeck
+      ),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_LIVE_START_EFFECTS,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      effectWindowType: EffectWindowType.LIVE_START,
+    };
+
+    const revealResult = service.processAction(
+      game,
+      createConfirmSubPhaseAction('p1', SubPhase.PERFORMANCE_LIVE_START_EFFECTS)
+    );
+
+    expect(revealResult.success).toBe(true);
+    expect(revealResult.gameState.liveResolution.firstPlayerCheerCardIds).toEqual(
+      cheerCards.map((card) => card.instanceId)
+    );
+    expect(revealResult.gameState.actionHistory.at(-1)?.payload.cheerCount).toBe(5);
+  });
+
+  it('PL!-sd1-009-SD 条件满足时应让自动分数草案 +1', () => {
+    const service = new GameService();
+    const nico = createCardInstance(
+      {
+        cardCode: 'PL!-sd1-009-SD',
+        name: '矢泽日香',
+        cardType: CardType.MEMBER as const,
+        cost: 15,
+        blade: 5,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+        cardText:
+          "【LIVE开始时】自己的休息室中存在大于等于25张『μ's』的卡片的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数＋１。」。",
+      },
+      'p1',
+      'p1-nico'
+    );
+    const live = createCardInstance(
+      {
+        cardCode: 'NICO-LIVE',
+        name: 'Nico Live',
+        cardType: CardType.LIVE as const,
+        score: 3,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'p1-nico-live'
+    );
+    const waitingRoomCards = Array.from({ length: 25 }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `PL!-NICO-WAITING-${index}`,
+          name: `Muse Waiting ${index}`,
+          cardType: CardType.MEMBER as const,
+          cost: 1,
+          blade: 0,
+          hearts: [],
+          groupName: "μ's",
+        },
+        'p1',
+        `p1-nico-waiting-${index}`
+      )
+    );
+    const mainDeckCards = Array.from({ length: 5 }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `NICO-CHEER-${index}`,
+          name: `Nico Cheer ${index}`,
+          cardType: CardType.MEMBER as const,
+          cost: 1,
+          blade: 0,
+          hearts: [],
+        },
+        'p1',
+        `p1-nico-cheer-${index}`
+      )
+    );
+
+    let game = createGameState('g-nico-score-bonus', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [nico, live, ...waitingRoomCards, ...mainDeckCards]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, nico.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+      mainDeck: mainDeckCards.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.mainDeck
+      ),
+      waitingRoom: waitingRoomCards.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.waitingRoom
+      ),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_SECOND_DRAW,
+      currentTurnType: TurnType.LIVE_PHASE,
+      activePlayerIndex: 0,
+      firstPlayerIndex: 0,
+      liveSetCompletedPlayers: ['p1', 'p2'],
+    };
+
+    const advanceResult = service.advancePhase(game);
+    expect(advanceResult.success).toBe(true);
+    expect(advanceResult.gameState.activeEffect?.abilityId).toBe(NICO_LIVE_START_SCORE_ABILITY_ID);
+    expect(advanceResult.gameState.activeEffect?.awaitingPlayerId).toBe('p1');
+    expect(advanceResult.gameState.activeEffect?.effectText).toContain('（当前25张）');
+    expect(advanceResult.gameState.liveResolution.playerScoreBonuses.get('p1')).toBeUndefined();
+
+    const afterNico = confirmActiveEffectStep(
+      advanceResult.gameState,
+      'p1',
+      advanceResult.gameState.activeEffect!.id
+    );
+    expect(afterNico.activeEffect).toBeNull();
+    expect(afterNico.liveResolution.playerScoreBonuses.get('p1')).toBe(1);
+
+    const revealResult = service.processAction(
+      afterNico,
+      createConfirmSubPhaseAction('p1', SubPhase.PERFORMANCE_LIVE_START_EFFECTS)
+    );
+    expect(revealResult.success).toBe(true);
+
+    const acceptResult = service.processAction(revealResult.gameState, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(true);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
+  });
+
+  it('PL!-sd1-022-SD 应按成功 Live 数减少必要无色 Heart', () => {
+    const service = new GameService();
+    const member = createCardInstance(
+      {
+        cardCode: 'BOKUIMA-MEMBER',
+        name: 'Bokura Member',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 0,
+        hearts: [
+          { color: HeartColor.PINK, count: 2 },
+          { color: HeartColor.YELLOW, count: 2 },
+          { color: HeartColor.PURPLE, count: 2 },
+        ],
+      },
+      'p1',
+      'p1-bokuima-member'
+    );
+    const live = createCardInstance(
+      {
+        cardCode: 'PL!-sd1-022-SD',
+        name: '如今的我们',
+        cardType: CardType.LIVE as const,
+        score: 4,
+        requirements: createHeartRequirement({
+          [HeartColor.PINK]: 2,
+          [HeartColor.YELLOW]: 2,
+          [HeartColor.PURPLE]: 2,
+          [HeartColor.RAINBOW]: 6,
+        }),
+      },
+      'p1',
+      'p1-bokuima-live'
+    );
+
+    let game = createGameState('g-bokuima-reduce-requirement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member, live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+      successZone: {
+        ...player.successZone,
+        cardIds: ['success-live-1', 'success-live-2', 'success-live-3'],
+      },
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+        liveRequirementReductions: new Map([[live.instanceId, 6]]),
+      },
+    };
+
+    const acceptResult = service.processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(true);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
+  });
+
+  it('PL!-sd1-022-SD 应支持只用 totalRequired 表达的无色 Heart 减少', () => {
+    const service = new GameService();
+    const member = createCardInstance(
+      {
+        cardCode: 'BOKUIMA-MEMBER-TOTAL',
+        name: 'Bokura Member Total',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 0,
+        hearts: [
+          { color: HeartColor.PINK, count: 5 },
+          { color: HeartColor.YELLOW, count: 2 },
+          { color: HeartColor.PURPLE, count: 3 },
+        ],
+      },
+      'p1',
+      'p1-bokuima-total-member'
+    );
+    const live = createCardInstance(
+      {
+        cardCode: 'PL!-sd1-022-SD',
+        name: '如今的我们',
+        cardType: CardType.LIVE as const,
+        score: 4,
+        requirements: createHeartRequirement(
+          {
+            [HeartColor.PINK]: 2,
+            [HeartColor.YELLOW]: 2,
+            [HeartColor.PURPLE]: 2,
+          },
+          12
+        ),
+      },
+      'p1',
+      'p1-bokuima-total-live'
+    );
+
+    let game = createGameState('g-bokuima-reduce-total-requirement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member, live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+      successZone: {
+        ...player.successZone,
+        cardIds: ['success-live-1'],
+      },
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+        liveRequirementModifiers: new Map([
+          [live.instanceId, [{ color: HeartColor.RAINBOW, countDelta: -2 }]],
+        ]),
+      },
+    };
+
+    const acceptResult = service.processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(true);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
+  });
+
   it('确认判定应合并 liveResults，而不是覆盖其他玩家结果', () => {
     const game = createGameState('g-judgment-merge', 'p1', 'P1', 'p2', 'P2');
     const existing = new Map<string, boolean>([['p2-live-1', true]]);

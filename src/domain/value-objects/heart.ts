@@ -186,44 +186,64 @@ export class HeartPool {
   allocateForRequirement(
     requirement: HeartRequirement
   ): Map<HeartColor, { normal: number; rainbow: number }> | null {
-    // 计算每种颜色的缺口
-    const deficits = new Map<HeartColor, number>();
-    let totalDeficit = 0;
-
-    for (const [color, required] of requirement.colorRequirements) {
-      const available = this.getColorCount(color);
-      const deficit = Math.max(0, required - available);
-      if (deficit > 0) {
-        deficits.set(color, deficit);
-        totalDeficit += deficit;
-      }
-    }
-
-    // 检查 Rainbow Heart 是否足够填补所有颜色缺口
-    if (totalDeficit > this._rainbowCount) {
-      return null;
-    }
-
-    // 检查总数是否满足
-    if (this.getTotalCount() < requirement.totalRequired) {
-      return null;
-    }
-
-    // 构建分配方案
+    const remainingColorCounts = new Map(this._colorCounts);
+    let remainingRainbow = this._rainbowCount;
     const allocation = new Map<HeartColor, { normal: number; rainbow: number }>();
+    let specificRequiredTotal = 0;
 
-    for (const [color, required] of requirement.colorRequirements) {
-      const available = this.getColorCount(color);
-      const deficit = deficits.get(color) ?? 0;
-
-      // 分配该颜色：使用普通 Heart + Rainbow Heart 填补缺口
-      const normalUsed = Math.min(available, required);
-      const rainbowUsed = deficit;
-
+    const addUsage = (color: HeartColor, normal: number, rainbow: number): void => {
+      const current = allocation.get(color) ?? { normal: 0, rainbow: 0 };
       allocation.set(color, {
-        normal: normalUsed,
-        rainbow: rainbowUsed,
+        normal: current.normal + normal,
+        rainbow: current.rainbow + rainbow,
       });
+    };
+
+    // 先满足指定颜色。需求中的 Rainbow/ALL 表示泛用数量，不要求必须用 Rainbow Heart。
+    for (const [color, required] of requirement.colorRequirements) {
+      if (color === HeartColor.RAINBOW) {
+        continue;
+      }
+
+      specificRequiredTotal += required;
+      const available = remainingColorCounts.get(color) ?? 0;
+      const normalUsed = Math.min(available, required);
+      const rainbowUsed = required - normalUsed;
+      if (rainbowUsed > remainingRainbow) {
+        return null;
+      }
+
+      remainingColorCounts.set(color, available - normalUsed);
+      remainingRainbow -= rainbowUsed;
+      addUsage(color, normalUsed, rainbowUsed);
+    }
+
+    // 再用剩余任意 Heart 满足总数需求（包含 Live 需求里的 ALL 心）。
+    let genericNeeded = Math.max(0, requirement.totalRequired - specificRequiredTotal);
+    for (const [color, available] of remainingColorCounts) {
+      if (genericNeeded <= 0) {
+        break;
+      }
+
+      const normalUsed = Math.min(available, genericNeeded);
+      if (normalUsed <= 0) {
+        continue;
+      }
+
+      remainingColorCounts.set(color, available - normalUsed);
+      genericNeeded -= normalUsed;
+      addUsage(color, normalUsed, 0);
+    }
+
+    if (genericNeeded > 0) {
+      const rainbowUsed = Math.min(remainingRainbow, genericNeeded);
+      remainingRainbow -= rainbowUsed;
+      genericNeeded -= rainbowUsed;
+      addUsage(HeartColor.RAINBOW, 0, rainbowUsed);
+    }
+
+    if (genericNeeded > 0) {
+      return null;
     }
 
     return allocation;
@@ -253,8 +273,10 @@ export class HeartPool {
 
     // 扣除使用的 Heart
     for (const [color, usage] of allocation) {
-      const current = newCounts.get(color) ?? 0;
-      newCounts.set(color, current - usage.normal);
+      if (color !== HeartColor.RAINBOW) {
+        const current = newCounts.get(color) ?? 0;
+        newCounts.set(color, current - usage.normal);
+      }
       totalRainbowUsed += usage.rainbow;
     }
 

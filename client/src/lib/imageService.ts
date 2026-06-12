@@ -13,8 +13,15 @@ import { getApiBaseUrl } from './apiClient';
 // Configuration
 // ============================================
 
-/** Base URL for images (proxied via the same origin/API host to MinIO) */
-const IMAGES_BASE_URL = `${getApiBaseUrl()}/images`;
+/**
+ * Base URL for images.
+ *
+ * In dev, keep images on the Vite origin so the local image fallback middleware
+ * can serve assets/images before falling through to the MinIO proxy. This keeps
+ * the 5176-only local card-effect test flow working even when VITE_API_BASE_URL
+ * points at a backend that is not currently running.
+ */
+const IMAGES_BASE_URL = import.meta.env.DEV ? '/images' : `${getApiBaseUrl()}/images`;
 
 /** Image size type */
 export type ImageSize = 'thumb' | 'medium' | 'large';

@@ -277,8 +277,11 @@ export function projectPlayerViewState(
         inspectionObjectIds: game.activeEffect.inspectionCardIds?.map(createPublicObjectId),
         selectableObjectIds: game.activeEffect.selectableCardIds?.map(createPublicObjectId),
         selectableSlots: game.activeEffect.selectableSlots,
+        selectableOptions: game.activeEffect.selectableOptions,
+        selectionLabel: game.activeEffect.selectionLabel,
         canResolveInOrder: game.activeEffect.canResolveInOrder,
         canSkipSelection: game.activeEffect.canSkipSelection,
+        skipSelectionLabel: game.activeEffect.skipSelectionLabel,
       }
     : null;
   const pendingCostPayment = game.pendingCostPayment
@@ -294,9 +297,8 @@ export function projectPlayerViewState(
         replacedMemberObjectId: game.pendingCostPayment.replacedMemberCardId
           ? createPublicObjectId(game.pendingCostPayment.replacedMemberCardId)
           : null,
-        payableEnergyObjectIds: game.pendingCostPayment.payableEnergyCardIds.map(
-          createPublicObjectId
-        ),
+        payableEnergyObjectIds:
+          game.pendingCostPayment.payableEnergyCardIds.map(createPublicObjectId),
         explanation: game.pendingCostPayment.explanation,
       }
     : null;
@@ -642,6 +644,24 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
       FIRST: firstPlayerId ? (game.liveResolution.playerScores.get(firstPlayerId) ?? 0) : 0,
       SECOND: secondPlayerId ? (game.liveResolution.playerScores.get(secondPlayerId) ?? 0) : 0,
     },
+    heartBonuses: {
+      FIRST: firstPlayerId ? (game.liveResolution.playerHeartBonuses.get(firstPlayerId) ?? []) : [],
+      SECOND: secondPlayerId
+        ? (game.liveResolution.playerHeartBonuses.get(secondPlayerId) ?? [])
+        : [],
+    },
+    requirementReductions: Object.fromEntries(
+      [...game.liveResolution.liveRequirementReductions.entries()].map(([cardId, reduction]) => [
+        createPublicObjectId(cardId),
+        reduction,
+      ])
+    ),
+    requirementModifiers: Object.fromEntries(
+      [...game.liveResolution.liveRequirementModifiers.entries()].map(([cardId, modifiers]) => [
+        createPublicObjectId(cardId),
+        modifiers,
+      ])
+    ),
     winnerSeats: game.liveResolution.liveWinnerIds
       .map((playerId) => getSeatForPlayer(game, playerId))
       .filter((seat): seat is Seat => seat !== null),
@@ -821,7 +841,6 @@ function mergeCommandHints(
   }
   return [...merged.values()];
 }
-
 
 function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] {
   switch (game.currentPhase) {

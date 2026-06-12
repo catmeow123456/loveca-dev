@@ -193,10 +193,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const activeEffectSelectableCardIds =
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
+  const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
   const canConfirmActiveEffect =
     !!activeEffect && !!viewerSeat && activeEffect.waitingSeat === viewerSeat;
-  const pendingCostSourceCardId =
-    pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
+  const pendingCostSourceCardId = pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const pendingCostSource = pendingCostSourceCardId
     ? getVisibleCardPresentation(pendingCostSourceCardId)
     : null;
@@ -1146,7 +1146,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
             {activeEffectSelectableCardIds.length > 0 && (
               <div className="mt-4">
                 <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
-                  请选择要处理的卡牌
+                  {activeEffect.selectionLabel ?? '请选择要处理的卡牌'}
                 </div>
                 <div className="grid max-h-[46vh] grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
                   {activeEffectSelectableCardIds.map((cardId) => {
@@ -1164,7 +1164,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                         key={cardId}
                         type="button"
                         disabled={!canConfirmActiveEffect || !presentation}
-                        onClick={() => confirmEffectStep(activeEffect.id, cardId)}
+                        onClick={() => {
+                          setHoveredCard(null);
+                          confirmEffectStep(activeEffect.id, cardId);
+                        }}
                         onMouseEnter={() => presentation && setHoveredCard(cardId)}
                         onMouseLeave={() => setHoveredCard(null)}
                         className={`group flex min-w-0 flex-col items-center gap-1 rounded-lg border border-transparent p-1.5 transition-colors ${
@@ -1200,13 +1203,19 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               {activeEffectSelectableSlots.map((slot) => {
                 const slotLabel =
-                  slot === SlotPosition.LEFT ? '左侧' : slot === SlotPosition.CENTER ? '中央' : '右侧';
+                  slot === SlotPosition.LEFT
+                    ? '左侧'
+                    : slot === SlotPosition.CENTER
+                      ? '中央'
+                      : '右侧';
                 return (
                   <button
                     key={slot}
                     type="button"
                     disabled={!canConfirmActiveEffect}
-                    onClick={() => confirmEffectStep(activeEffect.id, undefined, slot as SlotPosition)}
+                    onClick={() =>
+                      confirmEffectStep(activeEffect.id, undefined, slot as SlotPosition)
+                    }
                     className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
                       canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
                     }`}
@@ -1215,6 +1224,21 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   </button>
                 );
               })}
+              {activeEffectSelectableOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  disabled={!canConfirmActiveEffect}
+                  onClick={() =>
+                    confirmEffectStep(activeEffect.id, undefined, undefined, undefined, option.id)
+                  }
+                  className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
               {activeEffect.canResolveInOrder && (
                 <button
                   type="button"
@@ -1236,38 +1260,40 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                     canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
                   }`}
                 >
-                  不加入
+                  {activeEffect.skipSelectionLabel ?? '不加入'}
                 </button>
               )}
               {activeEffectSelectableCardIds.length === 0 &&
                 activeEffectSelectableSlots.length === 0 &&
+                activeEffectSelectableOptions.length === 0 &&
                 !activeEffect.canSkipSelection &&
                 !activeEffect.canResolveInOrder && (
-                <button
-                  type="button"
-                  disabled={!canConfirmActiveEffect}
-                  onClick={() => confirmEffectStep(activeEffect.id)}
-                  className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
-                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  继续处理
-                </button>
-              )}
+                  <button
+                    type="button"
+                    disabled={!canConfirmActiveEffect}
+                    onClick={() => confirmEffectStep(activeEffect.id)}
+                    className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    继续处理
+                  </button>
+                )}
               {activeEffectSelectableCardIds.length === 0 &&
                 activeEffectSelectableSlots.length === 0 &&
+                activeEffectSelectableOptions.length === 0 &&
                 activeEffect.canSkipSelection && (
-                <button
-                  type="button"
-                  disabled={!canConfirmActiveEffect}
-                  onClick={() => confirmEffectStep(activeEffect.id, null)}
-                  className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
-                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  继续处理
-                </button>
-              )}
+                  <button
+                    type="button"
+                    disabled={!canConfirmActiveEffect}
+                    onClick={() => confirmEffectStep(activeEffect.id, null)}
+                    className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    继续处理
+                  </button>
+                )}
             </div>
           </div>
         )}
@@ -1301,9 +1327,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 </p>
               )}
               {pendingCostEnergyIds.length < pendingCostPayment.finalEnergyCost && (
-                <p className="mt-1 text-xs text-[var(--danger)]">
-                  可用能量不足，无法支付。
-                </p>
+                <p className="mt-1 text-xs text-[var(--danger)]">可用能量不足，无法支付。</p>
               )}
             </div>
             <div className="mt-4 flex justify-end">

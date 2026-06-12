@@ -13,6 +13,23 @@ import type {
 } from '../entities/card';
 import { HeartPool, createHeartCountsFromIcons } from '../value-objects/heart';
 
+function mergeLiveRequirements(liveCards: readonly { data: LiveCardData }[]): HeartRequirement {
+  const colorRequirements = new Map<HeartColor, number>();
+  let totalRequired = 0;
+
+  for (const liveCard of liveCards) {
+    for (const [color, count] of liveCard.data.requirements.colorRequirements) {
+      colorRequirements.set(color, (colorRequirements.get(color) ?? 0) + count);
+    }
+    totalRequired += liveCard.data.requirements.totalRequired;
+  }
+
+  return {
+    colorRequirements,
+    totalRequired,
+  };
+}
+
 // ============================================
 // Live 判定相关类型
 // ============================================
@@ -229,25 +246,26 @@ export class LiveResolver {
     liveCards: readonly { cardId: string; data: LiveCardData }[],
     heartPool: HeartPool
   ): { judgments: LiveCardJudgment[]; remainingPool: HeartPool } {
-    const judgments: LiveCardJudgment[] = [];
-    let currentPool = heartPool;
-
-    for (const liveCard of liveCards) {
-      const judgment = this.judgeSingleLive(liveCard.cardId, liveCard.data, currentPool);
-      judgments.push(judgment);
-
-      // 如果成功，消耗 Heart
-      if (judgment.isSuccess) {
-        const newPool = currentPool.consume(liveCard.data.requirements);
-        if (newPool) {
-          currentPool = newPool;
-        }
-      }
+    if (liveCards.length === 0) {
+      return {
+        judgments: [],
+        remainingPool: heartPool,
+      };
     }
+
+    const mergedRequirement = mergeLiveRequirements(liveCards);
+    const remainingPool = heartPool.consume(mergedRequirement);
+    const isOverallSuccess = remainingPool !== null;
+    const judgments = liveCards.map((liveCard) => ({
+      liveCardId: liveCard.cardId,
+      liveCardData: liveCard.data,
+      isSuccess: isOverallSuccess,
+      heartAllocation: null,
+    }));
 
     return {
       judgments,
-      remainingPool: currentPool,
+      remainingPool: remainingPool ?? heartPool,
     };
   }
 
@@ -279,27 +297,30 @@ export class LiveResolver {
     // 4. 判定 Live 卡
     const { judgments } = this.judgeMultipleLives(liveCards, totalHeartPool);
 
-    // 5. 检查是否全部失败
-    const allFailed = judgments.every((j) => !j.isSuccess);
+    // 5. 多张 Live 同时判定时，必须全部成功才算整轮 Live 成功
+    const isOverallSuccess = judgments.length > 0 && judgments.every((j) => j.isSuccess);
+    const finalJudgments = isOverallSuccess
+      ? judgments
+      : judgments.map((judgment) => ({
+          ...judgment,
+          isSuccess: false,
+          heartAllocation: null,
+        }));
 
-    // 6. 计算分数（只有成功的 Live 卡计入分数）
-    let totalScore = 0;
-    for (const judgment of judgments) {
-      if (judgment.isSuccess) {
-        totalScore += judgment.liveCardData.score;
-      }
-    }
-
-    // 7. 计算 Cheer 额外分数
-    const bonusScore = this.calculateCheerBonusScore(cheerResult.bladeHearts);
-    totalScore += bonusScore;
+    // 6. 只有整轮 Live 成功时，才计入 Live 分数与 Cheer 额外分数
+    const bonusScore = isOverallSuccess
+      ? this.calculateCheerBonusScore(cheerResult.bladeHearts)
+      : 0;
+    const totalScore = isOverallSuccess
+      ? judgments.reduce((total, judgment) => total + judgment.liveCardData.score, 0) + bonusScore
+      : 0;
 
     return {
       playerId,
       cheerResult,
       totalHeartPool,
-      liveJudgments: judgments,
-      allFailed,
+      liveJudgments: finalJudgments,
+      allFailed: !isOverallSuccess,
       totalScore,
       bonusScore,
     };

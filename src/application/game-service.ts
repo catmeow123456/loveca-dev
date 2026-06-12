@@ -18,6 +18,7 @@ function secureRandomInt(max: number): number {
 
 import {
   GamePhase,
+  HeartColor,
   TurnType,
   ZoneType,
   SlotPosition,
@@ -66,6 +67,8 @@ import type {
   LiveCardData,
   BaseCardData,
   AnyCardData,
+  BladeHeartItem,
+  HeartIcon,
 } from '../domain/entities/card.js';
 import { createCardInstance, isMemberCardData, isLiveCardData } from '../domain/entities/card.js';
 import {
@@ -112,10 +115,9 @@ import {
   createHandlerContext,
   type ActionHandlerContext,
 } from './action-handlers/index.js';
-import {
-  enqueueTriggeredCardEffects,
-  resolvePendingCardEffects,
-} from './card-effect-runner.js';
+import { enqueueTriggeredCardEffects, resolvePendingCardEffects } from './card-effect-runner.js';
+import { liveResolver } from '../domain/rules/live-resolver.js';
+import { applyHeartRequirementModifiers } from '../domain/rules/live-requirement-modifiers.js';
 
 function isTriggerCondition(event: GameEventType | string): event is TriggerCondition {
   return Object.values(TriggerCondition).includes(event as TriggerCondition);
@@ -333,11 +335,19 @@ export class GameService {
       const result = handler(game, action, context);
 
       if (result.success) {
+        let preparedState = this.prepareAutomaticSubPhaseState(result.gameState);
+        if (
+          action.type === GameActionType.CONFIRM_JUDGMENT &&
+          action.judgmentResults.size === 0 &&
+          !this.hasPerformanceDraft(preparedState, action.playerId)
+        ) {
+          preparedState = this.finalizeAutomaticPerformanceJudgment(preparedState, action.playerId);
+        }
         // 收集处理器触发的事件，通过事件派发循环统一处理
         const events: (GameEventType | string)[] = [...(result.triggeredEvents ?? [])];
         // 始终追加 RUN_CHECK_TIMING
         events.push(GameEventType.RUN_CHECK_TIMING);
-        return this.dispatchEvents(result.gameState, events);
+        return this.dispatchEvents(preparedState, events);
       }
 
       return {
@@ -472,6 +482,28 @@ export class GameService {
       drawEnergy: (game, playerId) => this.drawEnergy(game, playerId),
       drawTopMainDeckCard: (game, playerId) => this.drawTopMainDeckCard(game, playerId),
     });
+  }
+
+  private prepareAutomaticSubPhaseState(game: GameState): GameState {
+    if (game.currentSubPhase !== SubPhase.PERFORMANCE_JUDGMENT) {
+      return game;
+    }
+
+    const player = game.players[game.activePlayerIndex];
+    if (!player || this.hasPerformanceDraft(game, player.id)) {
+      return game;
+    }
+
+    return this.autoRevealPerformanceCheer(game, player.id);
+  }
+
+  private hasPerformanceDraft(game: GameState, playerId: string): boolean {
+    const liveCards = this.getPlayerLiveCards(game, playerId);
+    if (liveCards.length === 0) {
+      return true;
+    }
+
+    return liveCards.every(({ cardId }) => game.liveResolution.liveResults.has(cardId));
   }
 
   /**
@@ -864,6 +896,246 @@ export class GameService {
   }
 
   /**
+   * 进入 Live 判定时先自动翻出规则推荐的应援牌。
+   * 玩家仍可在接受判定前手动多翻、少翻或移动判定区卡牌。
+   */
+  private autoRevealPerformanceCheer(game: GameState, playerId: string): GameState {
+    const player = getPlayerById(game, playerId);
+    if (!player) {
+      return game;
+    }
+
+    if (this.hasPerformanceCheerStarted(game, playerId)) {
+      return game;
+    }
+
+    const heartBonuses = game.liveResolution.playerHeartBonuses.get(playerId) ?? [];
+    const activeMemberCards = [...this.getActiveMemberCards(game, player)];
+    if (heartBonuses.length > 0) {
+      activeMemberCards.push(this.createTemporaryLiveHeartSource(heartBonuses));
+    }
+    const cheerCount = this.calculatePerformanceBladeCount(game, player, activeMemberCards);
+    let state = game;
+    const cheerCardIds: string[] = [];
+
+    for (let i = 0; i < cheerCount; i++) {
+      const drawResult = this.drawTopMainDeckCard(state, playerId);
+      state = drawResult.gameState;
+      if (drawResult.cardId) {
+        cheerCardIds.push(drawResult.cardId);
+      }
+    }
+
+    if (cheerCardIds.length > 0) {
+      state = {
+        ...state,
+        resolutionZone: {
+          ...state.resolutionZone,
+          cardIds: [...state.resolutionZone.cardIds, ...cheerCardIds],
+          revealedCardIds: [...state.resolutionZone.revealedCardIds, ...cheerCardIds],
+        },
+      };
+    }
+
+    const isFirstPlayer = playerId === getFirstPlayer(state).id;
+    state = {
+      ...state,
+      liveResolution: {
+        ...state.liveResolution,
+        isInLive: true,
+        performingPlayerId: playerId,
+        firstPlayerCheerCardIds: isFirstPlayer
+          ? [...state.liveResolution.firstPlayerCheerCardIds, ...cheerCardIds]
+          : state.liveResolution.firstPlayerCheerCardIds,
+        secondPlayerCheerCardIds: isFirstPlayer
+          ? state.liveResolution.secondPlayerCheerCardIds
+          : [...state.liveResolution.secondPlayerCheerCardIds, ...cheerCardIds],
+      },
+    };
+
+    state = addAction(state, 'CHEER', playerId, {
+      cheerCount,
+      cheerCardIds,
+      automated: true,
+    });
+
+    return state;
+  }
+
+  /**
+   * 玩家接受当前判定区后，基于当前仍在解决区的应援牌生成判定与分数草案。
+   */
+  private finalizeAutomaticPerformanceJudgment(game: GameState, playerId: string): GameState {
+    const player = getPlayerById(game, playerId);
+    if (!player) {
+      return game;
+    }
+
+    const activeMemberCards = this.getActiveMemberCards(game, player);
+    const liveCards = this.getPlayerLiveCards(game, playerId);
+    const cheerCardIds = this.getCurrentPerformanceCheerCardIds(game, playerId);
+    const cheerCards = cheerCardIds.map((cardId) => ({
+      cardId,
+      bladeHearts: this.getCardBladeHearts(game, cardId),
+    }));
+    const performance = liveResolver.performLive(
+      playerId,
+      activeMemberCards,
+      liveCards,
+      cheerCards
+    );
+
+    let stateAfterPerformance = game;
+    for (let i = 0; i < performance.cheerResult.drawCount; i++) {
+      stateAfterPerformance = this.drawCard(stateAfterPerformance, playerId);
+    }
+
+    const liveResults = new Map(stateAfterPerformance.liveResolution.liveResults);
+    for (const judgment of performance.liveJudgments) {
+      liveResults.set(judgment.liveCardId, judgment.isSuccess);
+    }
+
+    const scoreBonus = stateAfterPerformance.liveResolution.playerScoreBonuses.get(playerId) ?? 0;
+    const scoreDraft = performance.totalScore + scoreBonus;
+    const playerScores = new Map(stateAfterPerformance.liveResolution.playerScores);
+    playerScores.set(playerId, scoreDraft);
+
+    const state = {
+      ...stateAfterPerformance,
+      liveResolution: {
+        ...stateAfterPerformance.liveResolution,
+        liveResults,
+        playerScores,
+      },
+    };
+
+    return addAction(state, 'LIVE_JUDGMENT', playerId, {
+      action: 'AUTO_PERFORMANCE_JUDGMENT',
+      cheerCardIds,
+      liveResults: Object.fromEntries(
+        performance.liveJudgments.map((j) => [j.liveCardId, j.isSuccess])
+      ),
+      scoreDraft,
+      bonusScore: performance.bonusScore,
+      effectScoreBonus: scoreBonus,
+      drawCount: performance.cheerResult.drawCount,
+      automated: true,
+    });
+  }
+
+  private calculatePerformanceBladeCount(
+    game: GameState,
+    player: PlayerState,
+    activeMemberCards: readonly MemberCardData[]
+  ): number {
+    let total = liveResolver.calculateTotalBlade(activeMemberCards);
+
+    for (const cardId of getAllMemberCardIds(player.memberSlots)) {
+      const card = getCardById(game, cardId);
+      if (!card || card.data.cardCode !== 'PL!-sd1-001-SD') {
+        continue;
+      }
+      total += player.successZone.cardIds.length;
+    }
+
+    return total;
+  }
+
+  private hasPerformanceCheerStarted(game: GameState, playerId: string): boolean {
+    return this.getPerformanceCheerCardIds(game, playerId).length > 0;
+  }
+
+  private getCurrentPerformanceCheerCardIds(game: GameState, playerId: string): string[] {
+    const resolutionCardIds = new Set(game.resolutionZone.cardIds);
+    return this.getPerformanceCheerCardIds(game, playerId).filter((cardId) =>
+      resolutionCardIds.has(cardId)
+    );
+  }
+
+  private getPerformanceCheerCardIds(game: GameState, playerId: string): readonly string[] {
+    return playerId === getFirstPlayer(game).id
+      ? game.liveResolution.firstPlayerCheerCardIds
+      : game.liveResolution.secondPlayerCheerCardIds;
+  }
+
+  private getActiveMemberCards(game: GameState, player: PlayerState): MemberCardData[] {
+    const memberCards: MemberCardData[] = [];
+
+    for (const cardId of getAllMemberCardIds(player.memberSlots)) {
+      const state = player.memberSlots.cardStates.get(cardId);
+      if (state && state.orientation !== OrientationState.ACTIVE) {
+        continue;
+      }
+
+      const card = getCardById(game, cardId);
+      if (card && isMemberCardData(card.data)) {
+        memberCards.push(card.data);
+      }
+    }
+
+    return memberCards;
+  }
+
+  private createTemporaryLiveHeartSource(hearts: readonly HeartIcon[]): MemberCardData {
+    return {
+      cardCode: 'SYSTEM-LIVE-HEART-BONUS',
+      name: 'Live Heart Bonus',
+      cardType: CardType.MEMBER,
+      cost: 0,
+      blade: 0,
+      hearts,
+    };
+  }
+
+  private getPlayerLiveCards(
+    game: GameState,
+    playerId: string
+  ): { cardId: string; data: LiveCardData }[] {
+    const player = getPlayerById(game, playerId);
+    if (!player) {
+      return [];
+    }
+
+    return player.liveZone.cardIds.flatMap((cardId) => {
+      const card = getCardById(game, cardId);
+      return card && isLiveCardData(card.data)
+        ? [{ cardId, data: this.applyLiveRequirementModifiers(game, cardId, card.data) }]
+        : [];
+    });
+  }
+
+  private applyLiveRequirementModifiers(
+    game: GameState,
+    cardId: string,
+    liveData: LiveCardData
+  ): LiveCardData {
+    const reduction = game.liveResolution.liveRequirementReductions.get(cardId) ?? 0;
+    const modifiers = game.liveResolution.liveRequirementModifiers.get(cardId) ?? [];
+    if (reduction <= 0 && modifiers.length === 0) {
+      return liveData;
+    }
+
+    const combinedModifiers =
+      reduction > 0 && modifiers.length === 0
+        ? [{ color: HeartColor.RAINBOW, countDelta: -reduction }]
+        : modifiers;
+
+    return {
+      ...liveData,
+      requirements: applyHeartRequirementModifiers(liveData.requirements, combinedModifiers),
+    };
+  }
+
+  private getCardBladeHearts(game: GameState, cardId: string): readonly BladeHeartItem[] {
+    const card = getCardById(game, cardId);
+    if (!card || !('bladeHearts' in card.data)) {
+      return [];
+    }
+
+    return (card.data as { bladeHearts?: readonly BladeHeartItem[] }).bladeHearts ?? [];
+  }
+
+  /**
    * 触发能力
    */
   private triggerAbilities(
@@ -1051,8 +1323,12 @@ export class GameService {
     }
 
     // 8.4.2 计算双方基础分数（玩家可在 UI 中调整）
-    const firstScore = this.calculateLiveScore(game, firstPlayer.id, liveResults);
-    const secondScore = this.calculateLiveScore(game, secondPlayer.id, liveResults);
+    const firstScore =
+      game.liveResolution.playerScores.get(firstPlayer.id) ??
+      this.calculateLiveScore(game, firstPlayer.id, liveResults);
+    const secondScore =
+      game.liveResolution.playerScores.get(secondPlayer.id) ??
+      this.calculateLiveScore(game, secondPlayer.id, liveResults);
 
     let state = game;
 
@@ -1067,6 +1343,10 @@ export class GameService {
         ...state.liveResolution,
         liveResults,
         playerScores,
+        playerScoreBonuses: game.liveResolution.playerScoreBonuses,
+        playerHeartBonuses: game.liveResolution.playerHeartBonuses,
+        liveRequirementReductions: game.liveResolution.liveRequirementReductions,
+        liveRequirementModifiers: game.liveResolution.liveRequirementModifiers,
         scoreConfirmedBy: [],
         liveWinnerIds: [],
         animationConfirmedBy: [],
@@ -1147,6 +1427,10 @@ export class GameService {
         secondPlayerCheerCardIds: [],
         liveResults: new Map(),
         playerScores: new Map(),
+        playerScoreBonuses: new Map(),
+        playerHeartBonuses: new Map(),
+        liveRequirementReductions: new Map(),
+        liveRequirementModifiers: new Map(),
         scoreConfirmedBy: [],
         liveWinnerIds: [],
         animationConfirmedBy: [],

@@ -12,6 +12,10 @@ import {
   checkMultipleLiveRequirements,
 } from '../../src/domain/value-objects/heart';
 import { LiveResolver } from '../../src/domain/rules/live-resolver';
+import {
+  applyHeartRequirementModifiers,
+  reduceGenericHeartRequirement,
+} from '../../src/domain/rules/live-requirement-modifiers';
 import type {
   HeartIcon,
   HeartRequirement,
@@ -194,6 +198,25 @@ describe('HeartPool', () => {
       );
 
       expect(pool.canSatisfy(requirement)).toBe(false);
+    });
+
+    it('需求中的 Rainbow/ALL 应作为任意 Heart 总数需求处理', () => {
+      const pool = HeartPool.fromHeartIcons([
+        { color: HeartColor.PINK, count: 1 },
+        { color: HeartColor.YELLOW, count: 1 },
+        { color: HeartColor.BLUE, count: 3 },
+      ]);
+
+      const requirement = createHeartRequirement({
+        [HeartColor.PINK]: 1,
+        [HeartColor.YELLOW]: 1,
+        [HeartColor.RAINBOW]: 3,
+      });
+
+      expect(pool.canSatisfy(requirement)).toBe(true);
+      const consumed = pool.consume(requirement);
+      expect(consumed).not.toBeNull();
+      expect(consumed!.getTotalCount()).toBe(0);
     });
   });
 
@@ -384,6 +407,127 @@ describe('LiveResolver', () => {
       expect(judgment.heartAllocation).toBeNull();
     });
 
+    it('应该将 Live 需求中的 ALL 心视为任意颜色并计入分数', () => {
+      const liveData = createMockLiveData(
+        2,
+        createHeartRequirement({
+          [HeartColor.PINK]: 1,
+          [HeartColor.YELLOW]: 1,
+          [HeartColor.RAINBOW]: 3,
+        })
+      );
+      const activeMembers: MemberCardData[] = [
+        createMockMemberData([
+          { color: HeartColor.PINK, count: 1 },
+          { color: HeartColor.YELLOW, count: 1 },
+          { color: HeartColor.BLUE, count: 3 },
+        ]),
+      ];
+
+      const result = resolver.performLive(
+        'p1',
+        activeMembers,
+        [{ cardId: 'live-1', data: liveData }],
+        []
+      );
+
+      expect(result.liveJudgments[0]?.isSuccess).toBe(true);
+      expect(result.totalScore).toBe(2);
+    });
+
+    it('减少必要 Heart 应减少泛用需求，即使数据只用 totalRequired 表示 ALL 心', () => {
+      const requirement = createHeartRequirement(
+        {
+          [HeartColor.PINK]: 2,
+          [HeartColor.YELLOW]: 2,
+          [HeartColor.PURPLE]: 2,
+        },
+        12
+      );
+
+      const adjusted = reduceGenericHeartRequirement(requirement, 2);
+
+      expect(adjusted.totalRequired).toBe(10);
+      expect(adjusted.colorRequirements.get(HeartColor.PINK)).toBe(2);
+      expect(adjusted.colorRequirements.get(HeartColor.YELLOW)).toBe(2);
+      expect(adjusted.colorRequirements.get(HeartColor.PURPLE)).toBe(2);
+      expect(adjusted.colorRequirements.get(HeartColor.RAINBOW)).toBe(4);
+      expect(
+        HeartPool.fromHeartIcons([
+          { color: HeartColor.PINK, count: 5 },
+          { color: HeartColor.YELLOW, count: 2 },
+          { color: HeartColor.PURPLE, count: 3 },
+        ]).canSatisfy(adjusted)
+      ).toBe(true);
+    });
+
+    it('必要 Heart 修正应支持指定颜色减少', () => {
+      const requirement = createHeartRequirement({
+        [HeartColor.PINK]: 3,
+        [HeartColor.YELLOW]: 2,
+        [HeartColor.RAINBOW]: 1,
+      });
+
+      const adjusted = applyHeartRequirementModifiers(requirement, [
+        { color: HeartColor.PINK, countDelta: -2 },
+      ]);
+
+      expect(adjusted.colorRequirements.get(HeartColor.PINK)).toBe(1);
+      expect(adjusted.colorRequirements.get(HeartColor.YELLOW)).toBe(2);
+      expect(adjusted.colorRequirements.get(HeartColor.RAINBOW)).toBe(1);
+      expect(adjusted.totalRequired).toBe(4);
+    });
+
+    it('必要 Heart 修正应支持指定颜色与 ALL 需求增加', () => {
+      const requirement = createHeartRequirement({
+        [HeartColor.PINK]: 1,
+        [HeartColor.RAINBOW]: 2,
+      });
+
+      const adjusted = applyHeartRequirementModifiers(requirement, [
+        { color: HeartColor.BLUE, countDelta: 1 },
+        { color: HeartColor.RAINBOW, countDelta: 2 },
+      ]);
+
+      expect(adjusted.colorRequirements.get(HeartColor.PINK)).toBe(1);
+      expect(adjusted.colorRequirements.get(HeartColor.BLUE)).toBe(1);
+      expect(adjusted.colorRequirements.get(HeartColor.RAINBOW)).toBe(4);
+      expect(adjusted.totalRequired).toBe(6);
+    });
+
+    it('多张 Live 中任意一张失败时，整轮 Live 应全部失败且不计分', () => {
+      const activeMembers: MemberCardData[] = [
+        createMockMemberData([
+          { color: HeartColor.PINK, count: 1 },
+          { color: HeartColor.YELLOW, count: 1 },
+          { color: HeartColor.BLUE, count: 3 },
+        ]),
+      ];
+      const liveCards = [
+        {
+          cardId: 'live-failed',
+          data: createMockLiveData(1, createHeartRequirement({ [HeartColor.PINK]: 2 })),
+        },
+        {
+          cardId: 'live-raw-success',
+          data: createMockLiveData(
+            2,
+            createHeartRequirement({
+              [HeartColor.PINK]: 1,
+              [HeartColor.YELLOW]: 1,
+              [HeartColor.RAINBOW]: 3,
+            })
+          ),
+        },
+      ];
+
+      const result = resolver.performLive('p1', activeMembers, liveCards, []);
+
+      expect(result.liveJudgments.map((judgment) => judgment.isSuccess)).toEqual([false, false]);
+      expect(result.allFailed).toBe(true);
+      expect(result.totalScore).toBe(0);
+    });
+
     it('应该正确判定多张 Live 卡', () => {
       const pool = HeartPool.fromHeartIcons([{ color: HeartColor.PINK, count: 5 }]);
 
@@ -402,6 +546,45 @@ describe('LiveResolver', () => {
 
       expect(judgments[0].isSuccess).toBe(true);
       expect(judgments[1].isSuccess).toBe(true);
+    });
+
+    it('多张 Live 应合并需求判定，避免泛用 Heart 顺序消耗导致误失败', () => {
+      const pool = HeartPool.fromHeartIcons([
+        { color: HeartColor.PINK, count: 6 },
+        { color: HeartColor.YELLOW, count: 3 },
+        { color: HeartColor.PURPLE, count: 6 },
+      ]);
+
+      const liveCards = [
+        {
+          cardId: 'bokuima',
+          data: createMockLiveData(
+            4,
+            createHeartRequirement({
+              [HeartColor.PINK]: 2,
+              [HeartColor.YELLOW]: 2,
+              [HeartColor.PURPLE]: 2,
+              [HeartColor.RAINBOW]: 6,
+            })
+          ),
+        },
+        {
+          cardId: 'start-dash',
+          data: createMockLiveData(
+            2,
+            createHeartRequirement({
+              [HeartColor.PINK]: 1,
+              [HeartColor.YELLOW]: 1,
+              [HeartColor.PURPLE]: 1,
+            })
+          ),
+        },
+      ];
+
+      const { judgments, remainingPool } = resolver.judgeMultipleLives(liveCards, pool);
+
+      expect(judgments.map((judgment) => judgment.isSuccess)).toEqual([true, true]);
+      expect(remainingPool.getTotalCount()).toBe(0);
     });
   });
 

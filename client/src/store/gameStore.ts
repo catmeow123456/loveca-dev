@@ -237,10 +237,14 @@ export interface GameStore {
     effectId: string,
     selectedCardId?: string | null,
     selectedSlot?: SlotPosition | null,
-    resolveInOrder?: boolean
+    resolveInOrder?: boolean,
+    selectedOptionId?: string | null
   ) => CommandDispatchResult;
   /** 确认费用支付 */
-  confirmCostPayment: (paymentId: string, energyCardIds: readonly string[]) => CommandDispatchResult;
+  confirmCostPayment: (
+    paymentId: string,
+    energyCardIds: readonly string[]
+  ) => CommandDispatchResult;
   /** 换牌（Mulligan） */
   mulligan: (cardIdsToMulligan: string[]) => CommandDispatchResult;
   /** 切换成员状态（活跃/等待） */
@@ -788,7 +792,13 @@ export const useGameStore = create<GameStore>((set, get) => {
       });
     },
 
-    confirmEffectStep: (effectId, selectedCardId, selectedSlot, resolveInOrder) => {
+    confirmEffectStep: (
+      effectId,
+      selectedCardId,
+      selectedSlot,
+      resolveInOrder,
+      selectedOptionId
+    ) => {
       return runViewerCommand(
         (playerId) =>
           createConfirmEffectStepCommand(
@@ -796,7 +806,8 @@ export const useGameStore = create<GameStore>((set, get) => {
             effectId,
             selectedCardId,
             selectedSlot,
-            resolveInOrder
+            resolveInOrder,
+            selectedOptionId
           ),
         {
           failureMessage: '卡牌效果处理失败',
