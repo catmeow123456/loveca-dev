@@ -127,7 +127,8 @@
 只在用户要求验证、或你做了容易破坏编译/核心规则的改动时运行。
 
 ```bash
-pnpm test:run tests/integration/member-cost-payment.test.ts tests/integration/sample-card-effect-runner.test.ts
+pnpm test:run tests/unit/card-effect-classification.test.ts tests/integration/sample-card-effect-runner.test.ts tests/unit/heart-live.test.ts tests/unit/live-judgment-settlement.test.ts
+pnpm exec tsc --noEmit
 pnpm --dir client exec tsc -b
 ```
 
@@ -140,8 +141,8 @@ pnpm --dir client build
 
 ## 下一步优先级
 
-1. 抽象费用修正器，支持动态减费/加费。
-2. 继续补样例卡效，优先选择规则简单、能覆盖不同检视可见性的卡。
-3. 扩展 effect runner 的数据结构，减少具体卡效硬编码。
-4. 为撤销补更多边界测试，例如阶段切换、盖牌切换、效果处理中撤销。
-5. 对照官方规则和 QA 梳理阶段/子阶段差异。
+1. 继续把 `PL!-sd1` 已登记效果收口成通用步骤，优先做 LIVE 成功时效果、多选/排序/放回卡组顶等还缺底座的场景。
+2. 继续扩展 effect runner 的数据结构，减少具体卡效硬编码，但所有新增能力仍先登记 `CARD_ABILITY_DEFINITIONS`。
+3. 继续完善 LIVE 自动判定流水线，确保加棒、加心、加分、必要 Heart 增减、抽卡等结果都进入同一套预判和人工确认入口。
+4. 为撤销、LIVE 自动判定、起动次数限制、效果队列顺序补更多边界测试。
+5. 费用修正器暂缓到减费/加费相关卡效一起做，届时优先扩展 `cost-calculator.ts`，不要在 UI 或单卡命令里临时判断。
