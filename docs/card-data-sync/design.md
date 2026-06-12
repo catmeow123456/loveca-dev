@@ -1,208 +1,115 @@
 # 卡牌数据同步管线
 
-> 更新时间: 2026-04-02
+> 更新时间: 2026-06-12
 > 文档类型: 设计文档
 > 适用范围: 当前卡牌同步脚本、标准化、差异审核和写入策略
-> 当前状态: 以当前代码实现为准
+> 当前状态: 以 `src/scripts/sync-cards-llocg.ts` 为准
 
-本文档只描述仓库里当前仍在维护的卡牌数据同步脚本，以及它现在实际会做什么。
+本文档说明同步管线的架构和设计边界，不维护具体命令、SQL 查询、JSON 样例或终端输出格式。
 
 ## 1. 总览
 
-当前仅保留一条同步脚本：
+当前维护一条同步管线：从 `llocg_db` 子模块读取 JP/CN 卡牌资料，转换为项目内部卡牌模型后写入 `cards` 表。脚本支持 dry-run 和正式写入两种运行模式。
 
-| 脚本 | 数据源 | 写入字段范围 | 已存在卡牌的处理 |
+```mermaid
+flowchart LR
+    JP[JP 卡牌数据] --> Normalize[卡号标准化]
+    CN[CN 补充数据] --> Normalize
+    Normalize --> Merge[JP/CN 合并]
+    Merge --> Transform[字段转换]
+    Transform --> Diff[与现有 cards 比较]
+    Diff --> Review[人工审核差异]
+    Review --> Persist[写入 cards 表]
+```
+
+## 2. 设计原则
+
+- 外部数据结构只在同步脚本内处理，不进入卡牌 API 或前端领域模型。
+- 卡牌编号标准化是合并、去重和差异比较的前置步骤。
+- JP 数据作为主源，CN 数据作为翻译和补充源。
+- 结构化字段必须转换为项目内部模型后再写入。
+- 已存在卡牌不允许静默覆盖，必须经过差异审核。
+- dry-run 不连接或写入目标数据库，只用于验证转换与统计。
+
+## 3. 数据源合并
+
+同步管线先标准化两侧卡牌编号，再执行合并：
+
+| 数据情况 | 处理方式 |
+| --- | --- |
+| JP 与 CN 同时存在 | 使用 JP 作为基础，叠加 CN 名称和效果文本等补充信息 |
+| 仅 JP 存在 | 使用 JP 数据生成记录 |
+| 仅 CN 存在 | 生成 CN-only 记录，并保留结构化字段不完整的风险 |
+
+中文优先规则只影响展示和文本字段，不应改变卡牌类型、规则字段和卡号归属。
+
+## 4. 字段转换边界
+
+同步脚本负责把外部字段转换为内部卡牌资料，主要覆盖：
+
+- 基础身份：卡牌编号、卡牌类型、名称。
+- 展示资料：效果文本、图片文件名、稀有度、收录商品。
+- MEMBER 规则字段：费用、应援棒、心图标、BLADE 心效果。
+- LIVE 规则字段：分数、需求心、BLADE 心效果。
+- 归属信息：组合、小组。
+- 发布状态。
+
+未被同步覆盖的字段应由管理端或其他明确入口维护。新增卡牌字段时，需要同时评估同步脚本、卡牌管理 API 和前端转换层。
+
+## 5. 差异审核
+
+正式写入前，脚本需要读取现有卡牌并按标准化卡号比较同步字段：
+
+| 比较结果 | 处理 |
+| --- | --- |
+| 数据库不存在 | 插入新卡 |
+| 数据库存在且同步字段无差异 | 跳过 |
+| 数据库存在且同步字段有差异 | 加入人工审核 |
+
+人工审核是防止外部数据覆盖人工修订的核心保护。存在待审核更新时，脚本必须要求可交互终端；不可交互环境不得直接更新已有卡牌。
+
+## 6. 发布状态设计
+
+当前同步记录会进入 PUBLISHED 状态。这让批量同步后的卡牌能立即被普通构筑和对局读取，但也带来风险：
+
+- DRAFT 卡牌可能被同步更新后变成 PUBLISHED。
+- 外部数据质量问题会直接影响玩家可见卡牌。
+- 新卡包导入后需要额外检查管理端和构筑端的可见性。
+
+如果未来希望同步默认进入 DRAFT，应作为需求变更处理，并同步调整卡牌管理、构筑可见性和发布流程。
+
+## 7. 运行模式
+
+| 模式 | 目标 | 写入数据库 | 人工审核 |
 | --- | --- | --- | --- |
-| `src/scripts/sync-cards-llocg.ts` | `llocg_db/json/cards.json` + `llocg_db/json/cards_cn.json` | 基础字段 + 大部分游戏字段 | 仅有差异的卡牌进入人工审核，审核通过后更新 |
+| dry-run | 验证输入、转换和统计 | 否 | 否 |
+| 正式运行 | 插入新卡并审核更新已有卡 | 是 | 有差异时需要 |
 
-脚本通过 `DATABASE_URL` 直连 PostgreSQL 的 `cards` 表，并支持 `--dry-run`。
+维护者应先使用 dry-run 观察数据量、CN 匹配、CN-only、能量卡和字段缺失情况，再进行正式运行。
 
-## 2. 共同规则
+## 8. 与其他模块关系
 
-### 2.1 卡牌编号标准化
+同步写入的数据会被以下模块消费：
 
-脚本在入库前会调用 `normalizeCardCode()`：
+- `cardService` 读取卡牌并转换为前端领域模型。
+- `gameStore.cardDataRegistry` 提供构筑和对局可用卡牌。
+- `DeckManager` 和 `CardEditor` 基于 PUBLISHED 卡牌进行构筑。
+- 卡牌管理页面负责后续人工修订、下线和图片维护。
 
-- 统一卡号格式
-- 统一全角 `＋` / 半角 `+`
-- 用标准化后的 `card_code` 做去重和数据库匹配
+同步脚本不直接处理卡组、对局状态或图片对象迁移。
 
-### 2.2 数据库匹配方式
+## 9. 相关代码路径
 
-脚本会先执行：
-
-```sql
-SELECT
-  card_code, card_type, name, card_text, image_filename,
-  cost, blade, hearts, blade_hearts, score, requirements,
-  unit_name, group_name, rare, product, status
-FROM cards
-```
-
-然后按 `card_code` 建立现有卡牌索引，并逐字段比较同步字段差异；只有存在差异的已有卡牌才会进入人工审核。
-
-### 2.3 dry-run
-
-脚本在 `--dry-run` 下不会连接数据库，也不会写入数据。
-
-历史说明：
-
-- 旧的爬虫 JSON 管线已从仓库移除，不再作为当前实现描述对象。
-
-## 3. llocg_db 管线
-
-脚本：`src/scripts/sync-cards-llocg.ts`
-
-### 3.1 输入
-
-- `llocg_db/json/cards.json`
-- `llocg_db/json/cards_cn.json`
-
-如果缺少文件，脚本会提示先执行：
-
-```bash
-git submodule update --init
-```
-
-### 3.2 数据合并方式
-
-- `cards.json` 是主数据源
-- `cards_cn.json` 用于补充中文名称和中文效果文本
-- 会先把 CN key 标准化后建立索引
-- JP 卡按标准化后的 card code 去匹配 CN 卡
-- JP 没有、但 CN 有的卡，会按 CN-only 逻辑补一条记录
-
-### 3.3 中文优先规则
-
-`transformJpCard()` 的当前行为：
-
-- `name` 优先使用 CN 名称
-- 但如果 CN 名称是 `能量` 或 `エネルギー`，会回退到 JP 名称
-- `card_text` 优先使用 CN `detail.ability`，否则回退到 JP `ability`
-
-### 3.4 类型映射
-
-JP：
-
-| 源值 | 入库值 |
+| 路径 | 说明 |
 | --- | --- |
-| `メンバー` | `MEMBER` |
-| `ライブ` | `LIVE` |
-| `エネルギー` | `ENERGY` |
+| `src/scripts/sync-cards-llocg.ts` | 同步脚本入口 |
+| `src/shared/utils/card-code.ts` | 卡牌编号标准化 |
+| `src/server/db/schema.ts` | `cards` 表 schema |
+| `src/domain/entities/card.ts` | 内部卡牌领域模型 |
+| `client/src/lib/cardService.ts` | 前端卡牌服务与转换 |
 
-CN-only：
+## 10. 相关文档
 
-| 源值 | 入库值 |
-| --- | --- |
-| `13` | `MEMBER` |
-| `14` | `LIVE` |
-| `15` | `ENERGY` |
-
-### 3.5 写入字段
-
-此脚本会写入：
-
-- `card_code`
-- `card_type`
-- `name`
-- `card_text`
-- `image_filename`
-- `cost`
-- `blade`
-- `hearts`
-- `blade_hearts`
-- `score`
-- `requirements`
-- `unit_name`
-- `group_name`
-- `rare`
-- `product`
-- `status`
-
-### 3.6 hearts / blade_hearts / requirements 转换
-
-`convertHearts()`：
-
-- `heart01` -> `PINK`
-- `heart02` -> `RED`
-- `heart03` -> `YELLOW`
-- `heart04` -> `GREEN`
-- `heart05` -> `BLUE`
-- `heart06` -> `PURPLE`
-- `heart0` -> `RAINBOW`
-
-输出格式：
-
-```json
-[{ "color": "PINK", "count": 1 }]
-```
-
-`convertBladeHearts()`：
-
-- `b_heart01` 到 `b_heart06` -> `effect: "HEART"` + 对应颜色
-- `b_all` -> `effect: "HEART", heartColor: "RAINBOW"`
-- 数量大于 1 时会展开成多项数组
-
-`convertSpecialHearts()`：
-
-- `draw` -> `{ "effect": "DRAW" }`
-- `score` -> `{ "effect": "SCORE" }`
-
-### 3.7 group / unit 的当前处理
-
-- `group_name` 直接写 `jp.series`
-- `unit_name` 直接写 `jp.unit`
-- 如果 `unit_name` 不以 `「` 开头，会自动包成 `「...」`
-- 非 `LIVE` 卡如果缺少 `unit`，会输出 warning
-- 任意卡如果缺少 `series`，会输出 warning
-
-### 3.8 CN-only 卡
-
-CN-only 卡的当前行为：
-
-- 可以写 `card_type` / `name` / `card_text` / `cost` / `blade` / `rare`
-- `hearts` / `blade_hearts` / `score` / `requirements` / `unit_name` / `group_name` / `product` 都会写 `null`
-
-### 3.9 写库策略
-
-当前代码的真实行为：
-
-- 数据库中不存在 -> `INSERT`
-- 数据库中已存在，不区分 `DRAFT` / `PUBLISHED` -> 先比较字段差异
-- 有差异的卡牌会先在终端列出卡牌编号，再逐张显示修改前/修改后
-- 管理员输入 `y` -> 执行该卡的 `UPDATE`
-- 管理员输入 `n` -> 跳过该卡，不写库
-
-更新时覆盖：
-
-- `card_type`
-- `name`
-- `card_text`
-- `image_filename`
-- `cost`
-- `blade`
-- `hearts`
-- `blade_hearts`
-- `score`
-- `requirements`
-- `unit_name`
-- `group_name`
-- `rare`
-- `product`
-- `status`
-- `updated_at = now()`
-
-注意：脚本构建的记录里 `status` 固定为 `PUBLISHED`，所以无论是新插入还是更新已有卡牌，最终都会写成 `PUBLISHED`。
-被管理员跳过的待更新卡牌不会发生任何数据库变更。
-
-## 5. 运行方式
-
-```bash
-DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-llocg.ts
-DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-llocg.ts --dry-run
-```
-
-## 6. 代码入口
-
-- `src/scripts/sync-cards-llocg.ts`
-- `src/shared/utils/card-code.ts`
+- [卡牌数据同步需求](./requirements.md)
+- [llocg_db 卡牌同步](./llocg-db-requirements.md)
+- [卡牌数据管理设计](../card-data-management/design.md)

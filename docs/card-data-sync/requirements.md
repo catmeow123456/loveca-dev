@@ -1,130 +1,102 @@
 # 卡牌数据同步需求
 
-> 更新时间: 2026-04-02
+> 更新时间: 2026-06-12
 > 文档类型: 需求文档
-> 适用范围: llocg_db 到 `cards` 表的同步脚本输入、字段映射和审核流程
-> 当前状态: 以 `src/scripts/sync-cards-llocg.ts` 为准
+> 适用范围: `llocg_db` 到 `cards` 表的同步脚本输入、转换、审核和写入边界
+> 当前状态: 当前同步需求；实现架构与代码路径见 [设计文档](./design.md)
 
-本文档只描述当前仍在维护的卡牌同步脚本实际行为，不再保留已移除旧脚本的需求说明。
+本文档描述当前仍在维护的卡牌同步需求，不维护脚本命令、SQL 片段或输出样例。
 
-## 1. 脚本定位
+## 1. 同步定位
 
-脚本路径：`src/scripts/sync-cards-llocg.ts`
+当前同步管线用于把 `llocg_db` 子模块中的 JP/CN 卡牌数据转换为项目内部卡牌资料，并写入 `cards` 表。
 
-这条管线用于把 `llocg_db` 子模块中的 JP/CN 卡牌数据同步到 `cards` 表。它会写入基础字段以及大部分游戏字段。
+同步脚本不是日常单卡编辑入口。它适合批量引入或刷新外部卡牌资料，运行前必须理解它会影响已存在卡牌的基础字段和发布状态。
 
-## 2. 输入文件
+## 2. 输入来源
 
-- `llocg_db/json/cards.json`
-- `llocg_db/json/cards_cn.json`
+同步依赖 `llocg_db` 子模块中的两类 JSON 数据：
 
-缺少文件时，脚本会退出，并提示先运行：
+- JP 主数据：提供卡牌编号、类型、名称、结构化规则字段和图片信息。
+- CN 补充数据：提供中文名称、中文效果文本和部分补充字段。
 
-```bash
-git submodule update --init
-```
+缺少子模块或输入文件时，同步应停止，并提示维护者先初始化外部数据源。
 
-## 3. 转换规则
+## 3. 转换要求
 
-### 3.1 字段映射
+同步转换必须满足：
 
-| 输入字段 | 数据库字段 | 当前行为 |
-| --- | --- | --- |
-| `card_no` / CN 卡号 | `card_code` | 先做 `normalizeCardCode()` |
-| `type` / `card_type` | `card_type` | `JP_TYPE_MAP` / `CN_TYPE_MAP` 转换 |
-| `name` / `card_name_cn` | `name` | 中文优先，缺失时回退日文 |
-| `ability` | `card_text` | 空值写 `null` |
-| `_img` | `image_filename` | 只保留文件名 |
-| `cost` | `cost` | 空值写 `null` |
-| `blade` / `trigger_count` | `blade` | 空值写 `null` |
-| `base_heart` | `hearts` | 转成颜色数组 |
-| `blade_heart` + `special_heart` | `blade_hearts` | 转成效果数组 |
-| `score` | `score` | 空值写 `null` |
-| `need_heart` | `requirements` | 转成颜色数组 |
-| `unit` / `series` | `unit_name` / `group_name` | `unit_name` 会规范成 `「...」` |
-| `rare` / `rarity` | `rare` | 空值写 `null` |
-| `product` | `product` | 空值写 `null` |
-| 常量 | `status` | 固定写 `PUBLISHED` |
+- 卡牌编号先标准化，再作为合并和数据库匹配依据。
+- JP 数据是主数据源，CN 数据只作为中文和补充字段来源。
+- 中文名称优先，但能量卡等通用名称需要避免覆盖更有区分度的原始名称。
+- 卡牌类型必须转换为项目内部的 MEMBER、LIVE、ENERGY。
+- 心图标、BLADE 心效果、Live 需求、费用、分数、组合、小组、稀有度和收录商品等字段应转换为项目内部结构。
+- 无法识别或缺失的关键结构化字段应输出 warning，不能静默伪造。
 
-### 3.2 hearts / blade_hearts 转换
+## 4. 去重与合并
 
-- `heart01` 到 `heart06`、`heart0` 会转换为标准颜色枚举
-- `b_heart01` 到 `b_heart06`、`b_all` 会转换为 `HEART` 效果数组
-- `special_heart.draw` / `special_heart.score` 会分别转换为 `DRAW` / `SCORE`
-- 未知 key 会输出 warning
+合并以标准化后的卡牌编号为唯一键：
 
-## 4. 去重与优先级
+- JP 与 CN 同时存在时，生成一条合并后的记录。
+- JP 存在、CN 不存在时，使用 JP 数据构建记录。
+- JP 不存在、CN 存在时，可以生成 CN-only 记录，但必须明确其结构化字段可能不完整。
 
-脚本以标准化后的 `card_code` 为键合并 JP 与 CN 数据：
+## 5. 写入策略
 
-- JP 数据是主数据源
-- 命中同卡号的 CN 数据只用于中文名称/文本等补充
-- JP 中不存在但 CN 中存在的卡，会按 CN-only 规则构建记录
+同步写入应分为三类：
 
-## 5. 数据库写入策略
+| 场景 | 处理要求 |
+| --- | --- |
+| 新卡牌 | 可以插入 |
+| 已存在且无差异 | 跳过 |
+| 已存在且有差异 | 必须进入人工审核 |
 
-脚本会先读取数据库现有卡牌完整字段并比较差异，然后分三类处理：
+人工审核要求维护者逐张确认差异。只有确认后的卡牌才允许更新；跳过的卡牌不得发生数据库变更。
 
-- 不存在：插入
-- 已存在且无差异：跳过
-- 已存在且有差异：进入逐张人工审核
+如果运行环境无法进行交互审核，脚本不应静默更新已有卡牌。
 
-人工审核行为：
+## 6. 发布状态风险
 
-- 终端先列出待更新卡号
-- 逐张打印字段 `before` / `after`
-- 输入 `y` 执行更新
-- 输入 `n` 跳过该卡
+当前同步脚本构建的记录会进入 PUBLISHED 状态。运行同步前需要确认：
 
-更新会覆盖这些字段：
+- 是否允许新卡牌直接对普通玩家可见。
+- 是否会把已有 DRAFT 卡牌改为 PUBLISHED。
+- 是否需要先在管理端或数据库备份中保留人工修订记录。
 
-- `card_type`
-- `name`
-- `card_text`
-- `image_filename`
-- `cost`
-- `blade`
-- `hearts`
-- `blade_hearts`
-- `score`
-- `requirements`
-- `unit_name`
-- `group_name`
-- `rare`
-- `product`
-- `status`
+这项行为属于同步管线的核心风险点，修改前需要同步更新需求文档、设计文档和脚本实现。
 
-注意：
+## 7. dry-run 要求
 
-- 更新后的 `status` 固定为 `PUBLISHED`
-- 交互审核要求 TTY；如果存在待更新卡且终端非 TTY，脚本会抛错退出
+dry-run 模式用于验证输入读取、转换结果和统计信息。它不应写入数据库，也不应触发人工审核更新。
 
-## 6. dry-run
+dry-run 输出应帮助维护者判断：
 
-`--dry-run` 下：
+- 输入文件是否完整。
+- 卡牌总量是否合理。
+- CN 匹配与 CN-only 数量是否异常。
+- 能量卡、结构化字段和图片字段是否存在明显缺失。
 
-- 不连接数据库
-- 不判断哪些卡已存在
-- 只展示转换后的样本、能量卡统计和总数
+## 8. 正式运行要求
 
-运行方式：
+正式运行前应完成：
 
-```bash
-DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-llocg.ts --dry-run
-```
+- 确认数据库连接指向目标环境。
+- 确认已有数据已备份或可回滚。
+- 先执行 dry-run 并检查统计。
+- 准备在交互终端中审核已有卡牌差异。
 
-## 7. 正式运行
+正式运行后应复查：
 
-```bash
-DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-llocg.ts
-```
+- 新插入、已更新、跳过和失败数量。
+- 管理端卡牌列表中的发布状态。
+- 卡组编辑器和对局中可见卡牌是否符合预期。
 
-正式运行输出的核心统计包括：
+## 9. 实现边界
 
-- 读取卡牌数
-- CN 命中数 / CN-only 数
-- 新插入数
-- 已更新数
-- 无差异数
-- 人工审核后跳过数
-- 失败批次数量对应的卡数
+本文档只维护同步管线的需求、风险和验收边界，不维护具体代码路径、脚本命令或输出样例。当前实现架构和关键代码路径见 [卡牌数据同步管线设计](./design.md)。
+
+## 10. 相关文档
+
+- [卡牌数据同步管线设计](./design.md)
+- [llocg_db 卡牌同步](./llocg-db-requirements.md)
+- [卡牌数据管理设计](../card-data-management/design.md)

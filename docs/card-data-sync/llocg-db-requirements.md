@@ -1,233 +1,103 @@
 # llocg_db 卡牌同步
 
-> 更新时间: 2026-03-30
+> 更新时间: 2026-06-12
 > 文档类型: 专题说明
-> 适用范围: `llocg_db` 子模块 JSON 输入、中文优先合并和字段映射
+> 适用范围: `llocg_db` 子模块输入、中文优先合并和字段映射边界
 > 当前状态: 以 `src/scripts/sync-cards-llocg.ts` 为准
 
-本文档只描述当前 `llocg_db` 同步脚本实际行为。
+本文档说明 `llocg_db` 同步专题的关键规则，不维护命令、SQL、JSON 示例或终端输出细节。
 
-## 1. 脚本定位
+## 1. 同步定位
 
-脚本路径：`src/scripts/sync-cards-llocg.ts`
+`llocg_db` 是当前批量同步卡牌资料的外部数据源。同步脚本读取 JP 主数据和 CN 补充数据，生成项目内部的卡牌记录。
 
-这条管线直接读取 `llocg_db` submodule 里的 JSON 数据，并同步更完整的卡牌字段到 `cards` 表。
+该专题文档用于解释外部数据合并策略；运行流程和风险控制见 [卡牌数据同步需求](./requirements.md) 与 [卡牌数据同步管线](./design.md)。
 
 ## 2. 输入文件
 
-- `llocg_db/json/cards.json`
-- `llocg_db/json/cards_cn.json`
+同步依赖 `llocg_db/json/` 下的 JP 与 CN 卡牌数据文件。缺少输入时，同步应停止，并提示维护者初始化或更新子模块。
 
-缺少文件时，脚本会退出，并提示：
-
-```bash
-git submodule update --init
-```
+输入文件只作为同步脚本的数据源，不应被前端或服务端运行时代码直接依赖。
 
 ## 3. 合并逻辑
 
 ### 3.1 主从数据源
 
-- `cards.json` 是主数据源
-- `cards_cn.json` 是补充数据源
-
-脚本会先把 `cards_cn.json` 的 key 做 `normalizeCardCode()`，再用标准化后的 card code 去匹配 JP 卡。
+- JP 数据是主数据源，负责卡牌编号、类型和多数结构化规则字段。
+- CN 数据是补充数据源，负责中文名称、中文效果文本和部分翻译信息。
+- 两边数据都必须先经过卡号标准化，再按标准化后的编号匹配。
 
 ### 3.2 中文优先
 
-对于同时存在 JP/CN 的卡：
+对于 JP/CN 同时存在的卡牌：
 
-- `name` 优先使用中文名
-- 但如果中文名是 `能量` 或 `エネルギー`，会退回日文名
-- `card_text` 优先使用中文 `detail.ability`
-- 没有中文时退回日文 `ability`
+- 名称和效果文本优先使用 CN 数据。
+- 当中文名称过于泛化、会降低识别度时，应保留 JP 名称或更稳定的名称来源。
+- 中文优先不能改变卡牌类型、卡号或规则字段含义。
 
 ### 3.3 CN-only
 
-如果标准化后某张卡只存在于 `cards_cn.json`：
+CN-only 卡牌可以生成记录，但需要明确风险：
 
-- 脚本仍会生成一条记录
-- 但结构化 hearts / requirements 等字段无法从 CN-only 数据补齐
+- 结构化规则字段可能不完整。
+- 组合、小组、收录商品或图片字段可能缺失。
+- 进入 PUBLISHED 状态前需要人工检查。
 
-## 4. 字段映射
+## 4. 字段映射范围
 
-### 4.1 基础字段
+同步字段分为几类：
 
-| 来源 | 数据库字段 | 当前行为 |
-| --- | --- | --- |
-| `card_no` / CN key | `card_code` | 标准化后写入 |
-| `type` / `card_type` | `card_type` | JP 或 CN 枚举映射 |
-| CN 名称 / JP `name` | `name` | 中文优先 |
-| CN `detail.ability` / JP `ability` | `card_text` | 中文优先 |
-| `_img` | `image_filename` | 只保留文件名 |
-| `rare` / `detail.rarity` | `rare` | 直接映射 |
-| `product` | `product` | 直接映射；CN-only 写 `null` |
-| 固定值 | `status` | 始终写 `PUBLISHED` |
-
-### 4.2 类型映射
-
-JP：
-
-| 值 | 结果 |
+| 类别 | 内容 |
 | --- | --- |
-| `メンバー` | `MEMBER` |
-| `ライブ` | `LIVE` |
-| `エネルギー` | `ENERGY` |
+| 基础身份 | 卡号、类型、名称 |
+| 展示信息 | 效果文本、图片文件名、稀有度、收录商品 |
+| MEMBER 规则信息 | 费用、应援棒、基础心、BLADE 心效果 |
+| LIVE 规则信息 | 分数、需求心、BLADE 心效果 |
+| 归属信息 | 组合、小组 |
+| 状态信息 | 发布状态 |
 
-CN-only：
+字段转换的具体实现只在同步脚本中维护。文档只描述映射范围和风险，不复制外部 JSON 结构。
 
-| 值 | 结果 |
-| --- | --- |
-| `13` | `MEMBER` |
-| `14` | `LIVE` |
-| `15` | `ENERGY` |
+## 5. 结构化字段
 
-### 4.3 MEMBER / LIVE 扩展字段
+hearts、requirements 和 bladeHearts 是对局与构筑会使用的结构化字段。同步时需要：
 
-| 来源字段 | 数据库字段 | 当前行为 |
-| --- | --- | --- |
-| `cost` | `cost` | 直接映射 |
-| `blade` / `trigger_count` | `blade` | 直接映射 |
-| `base_heart` | `hearts` | 转成 `{color, count}[]` |
-| `blade_heart` | `blade_hearts` | 转成 BladeHeartItem 数组 |
-| `special_heart` | `blade_hearts` | 追加 `DRAW` / `SCORE` 项 |
-| `score` | `score` | 直接映射 |
-| `need_heart` | `requirements` | 转成 `{color, count}[]` |
-| `unit` | `unit_name` | 缺少 `「」` 时自动补上 |
-| `series` | `group_name` | 直接映射 |
-
-## 5. JSON 结构转换
-
-### 5.1 hearts / requirements
-
-颜色映射如下：
-
-| 键 | 结果 |
-| --- | --- |
-| `heart01` | `PINK` |
-| `heart02` | `RED` |
-| `heart03` | `YELLOW` |
-| `heart04` | `GREEN` |
-| `heart05` | `BLUE` |
-| `heart06` | `PURPLE` |
-| `heart0` | `RAINBOW` |
-
-输出结构：
-
-```json
-[{ "color": "PINK", "count": 1 }]
-```
-
-### 5.2 blade_hearts
-
-`blade_heart`：
-
-- `b_heart01` 到 `b_heart06` -> `{ effect: "HEART", heartColor: ... }`
-- `b_all` -> `{ effect: "HEART", heartColor: "RAINBOW" }`
-- 数值大于 1 时展开成多项
-
-`special_heart`：
-
-- `draw` -> `{ effect: "DRAW" }`
-- `score` -> `{ effect: "SCORE" }`
+- 把外部颜色 key 转换为内部 Heart 颜色枚举。
+- 把 BLADE 心效果转换为内部效果类型。
+- 对无法识别的 key 输出 warning。
+- 避免用默认值掩盖输入数据缺失。
 
 ## 6. 数据库写入策略
 
-脚本会先读取数据库现有卡牌的完整同步字段：
+同步脚本按标准化卡号比较现有卡牌：
 
-- `card_code`
-- `card_type`
-- `name`
-- `card_text`
-- `image_filename`
-- `cost`
-- `blade`
-- `hearts`
-- `blade_hearts`
-- `score`
-- `requirements`
-- `unit_name`
-- `group_name`
-- `rare`
-- `product`
-- `status`
+- 不存在的卡牌可以插入。
+- 已存在且无差异的卡牌跳过。
+- 已存在且有差异的卡牌进入人工审核。
 
-然后按 `card_code` 建立索引并比较字段差异：
+人工审核通过后才允许更新已有卡牌。被跳过的卡牌不得发生数据库变更。
 
-- 不存在 -> `INSERT`
-- 已存在且至少一个同步字段有变化 -> 加入待审核列表
-- 已存在但同步字段完全一致 -> `SKIP`
+## 7. 发布状态注意事项
 
-这里不区分 `DRAFT` 和 `PUBLISHED`，两者都会参与差异比较。存在待更新卡牌时，脚本要求 TTY 交互：
+当前同步记录会进入 PUBLISHED 状态。这意味着：
 
-- 先打印待更新卡号列表
-- 逐张打印发生变化字段的 `before` / `after`
-- 输入 `y` 才执行该卡的 `UPDATE`
-- 输入 `n` 跳过该卡，不写库
-- 如果存在待更新卡且当前终端不是 TTY，脚本会抛错退出
+- 新插入卡牌会直接对构筑和对局可见。
+- 已有 DRAFT 卡牌在被同步更新后可能变为 PUBLISHED。
+- 正式同步后需要检查管理端与构筑端可见性。
 
-更新时覆盖以下字段：
+这项行为如果改变，需要同步更新脚本、卡牌管理流程和相关文档。
 
-- `card_type`
-- `name`
-- `card_text`
-- `image_filename`
-- `cost`
-- `blade`
-- `hearts`
-- `blade_hearts`
-- `score`
-- `requirements`
-- `unit_name`
-- `group_name`
-- `rare`
-- `product`
-- `status`
+## 8. 相关代码路径
 
-并且会写：
+| 路径 | 说明 |
+| --- | --- |
+| `src/scripts/sync-cards-llocg.ts` | llocg_db 同步脚本 |
+| `src/shared/utils/card-code.ts` | 卡号标准化 |
+| `src/server/db/schema.ts` | 卡牌表 schema |
+| `src/domain/entities/card.ts` | 内部卡牌模型 |
 
-```sql
-updated_at = now()
-```
+## 9. 相关文档
 
-## 7. 当前实现里需要特别注意的行为
-
-当前代码构建的每条记录 `status` 都固定为 `PUBLISHED`，因此：
-
-- 新插入卡牌状态是 `PUBLISHED`
-- 已存在卡牌在更新后，状态也会被改写成 `PUBLISHED`
-
-这也意味着原本是 `DRAFT` 的卡牌在这条脚本更新后会直接变成 `PUBLISHED`。
-
-## 8. dry-run
-
-`--dry-run` 下：
-
-- 不连接数据库
-- 打印前 20 条转换结果样本
-- 额外输出 ENERGY 卡的 `group_name` / `product` 覆盖情况
-
-运行方式：
-
-```bash
-DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-llocg.ts --dry-run
-```
-
-## 9. 正式运行
-
-```bash
-DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-llocg.ts
-```
-
-正式运行输出的核心统计包括：
-
-- JP 卡数
-- CN 匹配数
-- CN-only 数
-- 新插入数
-- 人工审核后实际更新数
-- 已存在但无字段变化的卡数
-- 人工审核后跳过数
-- 失败批次数量对应的卡数
-- 成功写入数据库的明细行：按 `INSERT` / `UPDATE` 打印 `card_code` 和 `name`
-- 对 `UPDATE` 行额外打印发生变化的字段名
+- [卡牌数据同步需求](./requirements.md)
+- [卡牌数据同步管线](./design.md)
+- [卡牌数据管理设计](../card-data-management/design.md)

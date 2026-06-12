@@ -104,7 +104,7 @@ authRouter.post('/register', validate(registerSchema), async (req, res, next) =>
       const { rows: userRows } = await client.query(
         `INSERT INTO users (email, password_hash, email_verified)
          VALUES ($1, $2, $3) RETURNING id`,
-        [userEmail, passwordHash, !config.emailEnabled || !email]
+        [userEmail, passwordHash, !config.isEmailFeatureEnabled || !email]
       );
       const userId = userRows[0].id;
 
@@ -117,7 +117,7 @@ authRouter.post('/register', validate(registerSchema), async (req, res, next) =>
       await client.query('COMMIT');
 
       // Send verification email if real email provided and email is enabled
-      if (email && config.emailEnabled && config.isSmtpConfigured) {
+      if (email && config.isEmailFeatureEnabled) {
         const token = await createEmailVerificationToken(userId);
         await sendVerificationEmail(email, token);
       }
@@ -126,7 +126,7 @@ authRouter.post('/register', validate(registerSchema), async (req, res, next) =>
         data: {
           id: userId,
           username,
-          message: email && config.emailEnabled ? '注册成功，请查收验证邮件' : '注册成功',
+          message: email && config.isEmailFeatureEnabled ? '注册成功，请查收验证邮件' : '注册成功',
         },
         error: null,
       });
@@ -183,7 +183,7 @@ authRouter.post('/login', validate(loginSchema), async (req, res, next) => {
     }
 
     // Check email verification (skip if email verification is disabled)
-    if (config.emailEnabled && !user.email_verified) {
+    if (config.isEmailFeatureEnabled && !user.email_verified) {
       res.status(403).json({
         data: null,
         error: {
@@ -426,7 +426,7 @@ const resendSchema = z.object({
 
 authRouter.post('/resend-verification', validate(resendSchema), async (req, res, next) => {
   try {
-    if (!config.emailEnabled) {
+    if (!config.isEmailFeatureEnabled) {
       res.status(403).json({
         data: null,
         error: { code: 'EMAIL_DISABLED', message: '邮箱功能暂不支持' },
@@ -481,7 +481,7 @@ const resetPasswordSchema = z.object({
 
 authRouter.post('/reset-password', validate(resetPasswordSchema), async (req, res, next) => {
   try {
-    if (!config.emailEnabled) {
+    if (!config.isEmailFeatureEnabled) {
       res.status(403).json({
         data: null,
         error: { code: 'EMAIL_DISABLED', message: '邮箱功能暂不支持，请联系管理员重置密码' },

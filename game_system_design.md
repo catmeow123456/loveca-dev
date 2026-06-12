@@ -414,7 +414,7 @@ graph TD
 
 - 单元与集成：`tests/unit/`、`tests/integration/`
 - 流程仿真：`tests/simulation/`
-- 当前仓库未保留可运行的前端 E2E specs；历史 Playwright 输出仅存在于 `client/test-results/`，不作为现行测试入口
+- 当前仓库未保留可运行的前端 E2E specs；历史 Playwright 输出可能存在于 `client/test-results/` 或根目录 `test-results/`，不作为现行测试入口
 
 ---
 

@@ -15,15 +15,21 @@ import {
 } from '@/components/pages';
 import { CardAdminPage } from '@/components/admin/CardAdminPage';
 import { OnlineRoomsAdminPage } from '@/components/admin/OnlineRoomsAdminPage';
-import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from '@/components/auth';
-import { isEmailEnabled } from '@/lib/apiClient';
+import {
+  LoginPage,
+  RegisterPage,
+  ForgotPasswordPage,
+  ResetPasswordPage,
+  VerifyEmailPage,
+} from '@/components/auth';
+import { DEFAULT_APP_CONFIG, loadPublicAppConfig, type PublicAppConfig } from '@/lib/appConfig';
 import { applyTheme, readTheme } from '@/lib/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
 import { cardService } from '@/lib/cardService';
 
-type AuthPage = 'login' | 'register' | 'forgot-password' | 'reset-password';
+type AuthPage = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email';
 type AppPage =
   | 'home'
   | 'deck-manager'
@@ -33,6 +39,47 @@ type AppPage =
   | 'game'
   | 'card-admin'
   | 'online-admin';
+
+interface InitialAuthRequest {
+  page: AuthPage;
+  token: string | null;
+}
+
+function readAuthTokenFromUrl(): string | null {
+  const searchToken = new URLSearchParams(window.location.search).get('token');
+  if (searchToken) {
+    return searchToken;
+  }
+
+  const hash = window.location.hash.replace(/^#\/?/, '');
+  if (!hash) {
+    return null;
+  }
+
+  const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : hash;
+  const hashParams = new URLSearchParams(hashQuery);
+  return hashParams.get('token') ?? hashParams.get('access_token');
+}
+
+function getInitialAuthRequest(): InitialAuthRequest {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  const hash = window.location.hash;
+  const token = readAuthTokenFromUrl();
+
+  if (path === '/verify-email') {
+    return { page: 'verify-email', token };
+  }
+
+  if (
+    path === '/reset-password' ||
+    hash.includes('type=recovery') ||
+    hash.includes('reset-password')
+  ) {
+    return { page: 'reset-password', token };
+  }
+
+  return { page: 'login', token: null };
+}
 
 function getInitialPage(): AppPage {
   const page = new URLSearchParams(window.location.search).get('page');
@@ -55,10 +102,16 @@ function getInitialPage(): AppPage {
 }
 
 function App() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [initialAuthRequest] = useState<InitialAuthRequest>(() => getInitialAuthRequest());
+  const isInitialAuthActionPage =
+    initialAuthRequest.page === 'reset-password' || initialAuthRequest.page === 'verify-email';
+  const [isLoading, setIsLoading] = useState(!isInitialAuthActionPage);
   const [error, setError] = useState<string | null>(null);
-  const [authPage, setAuthPage] = useState<AuthPage>('login');
+  const [authPage, setAuthPage] = useState<AuthPage>(initialAuthRequest.page);
+  const [authToken, setAuthToken] = useState<string | null>(initialAuthRequest.token);
   const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
+  const [appConfig, setAppConfig] = useState<PublicAppConfig>(DEFAULT_APP_CONFIG);
+  const [configInitialized, setConfigInitialized] = useState(false);
 
   // 防止 React 19 Strict Mode 下重复初始化
   const authInitRef = useRef(false);
@@ -93,21 +146,39 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (authInitRef.current) return;
+    let cancelled = false;
+
+    loadPublicAppConfig()
+      .then((config) => {
+        if (!cancelled) {
+          setAppConfig(config);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setConfigInitialized(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!configInitialized || authInitRef.current) return;
     authInitRef.current = true;
 
-    // 检测 URL 中的 recovery token（从密码重置邮件链接进入）
-    const hash = window.location.hash;
-    if (hash.includes('type=recovery') || hash.includes('#/reset-password')) {
-      setAuthPage('reset-password');
-    }
-
     initializeAuth();
-  }, [initializeAuth]);
+  }, [configInitialized, initializeAuth]);
 
   // 初始化卡牌数据 - 只从数据库加载
   useEffect(() => {
     if (!authInitialized) return;
+
+    if (authPage === 'reset-password' || authPage === 'verify-email') {
+      return;
+    }
 
     const init = async () => {
       try {
@@ -128,13 +199,13 @@ function App() {
     };
 
     init();
-  }, [authInitialized, loadCardData, initDeckStore]);
+  }, [authInitialized, authPage, loadCardData, initDeckStore]);
 
   // 计算实际显示的页面（游戏结束后自动回到首页）
   const effectivePage: AppPage = currentPage === 'game' && !matchView ? 'home' : currentPage;
 
   // 等待认证初始化
-  if (!authInitialized) {
+  if (!configInitialized || !authInitialized) {
     return (
       <div className="app-shell h-screen flex items-center justify-center px-4">
         <div className="text-center">
@@ -191,10 +262,26 @@ function App() {
   const shareId = shareMatch?.[1] ?? null;
   const shareLoginRequested = new URLSearchParams(window.location.search).get('login') === '1';
   const initialOpenDeckId = new URLSearchParams(window.location.search).get('openDeckId');
+  const emailFeature = appConfig.features.email;
+  const switchToLogin = () => {
+    setAuthPage('login');
+    setAuthToken(null);
+    setIsLoading(true);
+    if (
+      window.location.pathname === '/verify-email' ||
+      window.location.pathname === '/reset-password'
+    ) {
+      window.history.replaceState(null, '', '/');
+    }
+  };
 
   // 密码重置页面需要特殊处理：用户通过邮件链接进入时应显示重置页面
   if (authPage === 'reset-password') {
-    return <ResetPasswordPage onSwitchToLogin={() => setAuthPage('login')} />;
+    return <ResetPasswordPage token={authToken} onSwitchToLogin={switchToLogin} />;
+  }
+
+  if (authPage === 'verify-email') {
+    return <VerifyEmailPage token={authToken} onSwitchToLogin={switchToLogin} />;
   }
 
   if (shareId && (isAuthenticated || !shareLoginRequested)) {
@@ -214,11 +301,17 @@ function App() {
   if (!isAuthenticated) {
     switch (authPage) {
       case 'register':
-        return <RegisterPage onSwitchToLogin={() => setAuthPage('login')} />;
+        return (
+          <RegisterPage
+            emailVerificationRequired={emailFeature.verificationRequired}
+            onSwitchToLogin={() => setAuthPage('login')}
+          />
+        );
       case 'forgot-password':
-        if (!isEmailEnabled)
+        if (!emailFeature.passwordResetEnabled)
           return (
             <LoginPage
+              passwordResetEnabled={emailFeature.passwordResetEnabled}
               onSwitchToRegister={() => setAuthPage('register')}
               onSwitchToForgotPassword={() => setAuthPage('forgot-password')}
             />
@@ -227,6 +320,7 @@ function App() {
       default:
         return (
           <LoginPage
+            passwordResetEnabled={emailFeature.passwordResetEnabled}
             onSwitchToRegister={() => setAuthPage('register')}
             onSwitchToForgotPassword={() => setAuthPage('forgot-password')}
           />

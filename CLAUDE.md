@@ -64,7 +64,7 @@ src/
 │   ├── db/drizzle.ts        # Drizzle ORM instance (wraps pool)
 │   ├── db/schema.ts         # Drizzle table definitions; keep docker/init.sql aligned for deployment
 │   ├── middleware/           # authenticate, require-auth, require-admin, validate, error-handler
-│   ├── routes/              # auth, cards, decks, profiles, images, online, debug-online(dev)
+│   ├── routes/              # app-config, auth, cards, decks, profiles, images, online, debug-online(dev)
 │   └── services/            # auth-service, mail-service, minio-service,
 │                            # online-room-service, online-match-service, debug-match-service,
 │                            # card-registry-service (published-cards cache for online decks)
@@ -84,6 +84,7 @@ client/src/
 │   └── authStore.ts  # JWT auth via self-hosted API
 └── lib/
     ├── apiClient.ts  # HTTP client with JWT auth, auto-refresh, offline detection
+    ├── appConfig.ts  # Public feature flags loaded from /api/config
     ├── cardService.ts # Card data CRUD via API
     ├── deckRecordUtils.ts # Shared DeckRecord <-> DeckConfig conversion helpers
     ├── imageService.ts # Image URL generation (MinIO via Nginx)

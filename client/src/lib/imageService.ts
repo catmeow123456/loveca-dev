@@ -35,7 +35,7 @@ export const isStorageEnabled = !!IMAGES_BASE_URL;
  *
  * @example
  * getCardImageUrl('PL-sd1-001', 'medium')
- * // => 'https://xxx.supabase.co/storage/v1/object/public/loveca-cards/medium/PL-sd1-001.webp'
+ * // => '/images/medium/PL-sd1-001.webp'
  */
 export function getCardImageUrl(cardCode: string, size: ImageSize = 'medium'): string {
   if (IMAGES_BASE_URL) {
@@ -59,13 +59,13 @@ export function getCardBackUrl(size: ImageSize = 'medium'): string {
 
 /**
  * 获取静态资源 URL (deck.png, back.jpg, icon.jpg 等)
- * 
+ *
  * @param assetName 资源文件名 (如 deck.png, back.jpg)
  * @returns 资源 URL
- * 
+ *
  * @example
  * getStaticAssetUrl('deck.png')
- * // => 'https://xxx.supabase.co/storage/v1/object/public/loveca-cards/static/deck.png'
+ * // => '/images/static/deck.png'
  */
 export function getStaticAssetUrl(assetName: string): string {
   if (IMAGES_BASE_URL) {
@@ -279,7 +279,7 @@ export interface CardImageInfo {
 
 /**
  * 根据卡牌数据解析图片路径
- * 
+ *
  * 整合了 imageFilename 字段处理，供组件使用
  *
  * @param cardData 卡牌数据（可为 undefined 或部分信息）
@@ -302,7 +302,7 @@ export function resolveCardImagePath(
 
   // 从卡牌数据获取 imageFilename
   const filename = cardData.imageFilename;
-  
+
   // 提取文件名（去掉目录前缀和扩展名）作为图片基础名
   // imageFilename 可能含子目录如 "PR/LL-PR-001-PR.png"，Storage 中只用文件名部分
   const imageBaseName = filename
@@ -317,7 +317,7 @@ export function resolveCardImagePath(
 
   // 降级到本地静态文件
   const isEnergyCard = cardData.cardType === CardType.ENERGY;
-  
+
   if (filename) {
     // 能量卡在 energy 目录
     if (isEnergyCard) {
@@ -326,7 +326,7 @@ export function resolveCardImagePath(
     // 其他卡牌在 card 目录
     return `/card/${filename}`;
   }
-  
+
   // 降级：根据类型尝试直接用 cardCode
   if (isEnergyCard) {
     return `/energy/${cardData.cardCode}.png`;

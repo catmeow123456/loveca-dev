@@ -52,9 +52,11 @@
 
 联机首版不以“完整自动裁判”为目标，而是以“服务端权威 + 玩家显式桌面操作 + 可审计过程”为目标。
 
-核心链路：
+核心链路（当前已落地）：
 
-`Command -> Validate -> Apply -> Emit Events -> Project View -> Persist`
+`Command -> Validate -> Apply -> Emit Events -> Project View`
+
+事件持久化、快照持久化和进程重启后的恢复属于后续增强，不属于当前已落地链路。
 
 首版必须做到：
 

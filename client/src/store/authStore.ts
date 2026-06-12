@@ -27,12 +27,24 @@ interface AuthState {
 
   // Actions
   initialize: () => Promise<void>;
-  signUp: (username: string, email: string, password: string, displayName?: string) => Promise<{ success: boolean; error?: string }>;
-  signIn: (usernameOrEmail: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signUp: (
+    username: string,
+    email: string,
+    password: string,
+    displayName?: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  signIn: (
+    usernameOrEmail: string,
+    password: string
+  ) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ success: boolean; error?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
-  updatePassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  updatePassword: (
+    newPassword: string,
+    token?: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  verifyEmail: (token: string) => Promise<{ success: boolean; error?: string }>;
   resendVerificationEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
   clearError: () => void;
 
@@ -73,10 +85,7 @@ export const useAuthStore = create<AuthState>()(
             setTimeout(() => reject(new Error('Authentication timeout')), 5000);
           });
 
-          const result = await Promise.race([
-            apiClient.refreshSession(),
-            timeoutPromise,
-          ]);
+          const result = await Promise.race([apiClient.refreshSession(), timeoutPromise]);
 
           if (result.data) {
             set({
@@ -183,10 +192,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const result = await apiClient.put<Profile>(
-            `/api/profiles/${profile.id}`,
-            updates
-          );
+          const result = await apiClient.put<Profile>(`/api/profiles/${profile.id}`, updates);
 
           if (result.error) {
             set({ isLoading: false, error: result.error.message });
@@ -230,7 +236,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      updatePassword: async (newPassword) => {
+      updatePassword: async (newPassword, token) => {
         if (!isApiConfigured) {
           return { success: false, error: '服务器未配置' };
         }
@@ -238,10 +244,13 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const result = await apiClient.put('/api/auth/password', {
-            currentPassword: '', // TODO: add current password input to UI
-            newPassword,
-          });
+          const payload = token
+            ? { token, newPassword }
+            : {
+                currentPassword: '', // TODO: add current password input to UI
+                newPassword,
+              };
+          const result = await apiClient.put('/api/auth/password', payload);
 
           if (result.error) {
             set({ isLoading: false, error: result.error.message });
@@ -252,6 +261,30 @@ export const useAuthStore = create<AuthState>()(
           return { success: true };
         } catch (err) {
           const message = err instanceof Error ? err.message : '更新密码失败';
+          set({ isLoading: false, error: message });
+          return { success: false, error: message };
+        }
+      },
+
+      verifyEmail: async (token) => {
+        if (!isApiConfigured) {
+          return { success: false, error: '服务器未配置' };
+        }
+
+        set({ isLoading: true, error: null });
+
+        try {
+          const result = await apiClient.post('/api/auth/verify-email', { token });
+
+          if (result.error) {
+            set({ isLoading: false, error: result.error.message });
+            return { success: false, error: result.error.message };
+          }
+
+          set({ isLoading: false });
+          return { success: true };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : '邮箱验证失败';
           set({ isLoading: false, error: message });
           return { success: false, error: message };
         }

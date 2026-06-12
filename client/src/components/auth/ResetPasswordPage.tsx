@@ -11,15 +11,17 @@ import { AuthLayout } from './AuthLayout';
 
 interface ResetPasswordPageProps {
   onSwitchToLogin: () => void;
+  token?: string | null;
 }
 
-export function ResetPasswordPage({ onSwitchToLogin }: ResetPasswordPageProps) {
+export function ResetPasswordPage({ onSwitchToLogin, token }: ResetPasswordPageProps) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const { updatePassword, isLoading, error, clearError } = useAuthStore();
+  const resetToken = token?.trim() ?? '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +43,12 @@ export function ResetPasswordPage({ onSwitchToLogin }: ResetPasswordPageProps) {
       return;
     }
 
-    const result = await updatePassword(newPassword);
+    if (!resetToken) {
+      setLocalError('重置链接缺少 token，请重新申请密码重置邮件');
+      return;
+    }
+
+    const result = await updatePassword(newPassword, resetToken);
     if (result.success) {
       setSuccess(true);
     }
@@ -62,14 +69,9 @@ export function ResetPasswordPage({ onSwitchToLogin }: ResetPasswordPageProps) {
             <CheckCircle2 size={56} />
           </motion.div>
 
-          <p className="text-[var(--text-secondary)]">
-            你的密码已成功重置，请使用新密码登录。
-          </p>
+          <p className="text-[var(--text-secondary)]">你的密码已成功重置，请使用新密码登录。</p>
 
-          <button
-            onClick={onSwitchToLogin}
-            className="button-primary w-full py-3 font-bold"
-          >
+          <button onClick={onSwitchToLogin} className="button-primary w-full py-3 font-bold">
             前往登录
           </button>
         </div>

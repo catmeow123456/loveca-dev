@@ -77,6 +77,7 @@
 | [移动端改进方向](game-table-ui-mobile-improvement-directions.md) | 游戏桌移动端方案建议，非当前实现说明 |
 | [移动端线框说明](game-table-ui-mobile-wireframe-notes.md) | 低保真结构草案，非当前实现说明 |
 | [历史迁移说明](historical-migrations.md) | 早期外部托管方案的历史参考 |
+| [文档重构需求](archive/documentation-refactor-requirements.md) | 已归档的阶段性文档重构需求；不作为当前实现事实来源 |
 
 ## 临时记录
 

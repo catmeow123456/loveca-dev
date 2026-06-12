@@ -13,6 +13,7 @@ import { profilesRouter } from './routes/profiles.js';
 import { imagesRouter, publicImagesRouter } from './routes/images.js';
 import { debugOnlineRouter } from './routes/debug-online.js';
 import { onlineRouter } from './routes/online.js';
+import { appConfigRouter } from './routes/app-config.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -58,6 +59,7 @@ export function createApp(): express.Express {
 
   // Routes
   app.use('/api/auth', authRouter);
+  app.use('/api/config', appConfigRouter);
   app.use('/api/cards', cardsRouter);
   app.use('/api/decks', decksRouter);
   app.use('/api/profiles', profilesRouter);

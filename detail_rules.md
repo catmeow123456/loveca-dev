@@ -2,7 +2,12 @@
 
 > 文档类型：专题说明
 > 适用范围：官方综合规则中文参考资料；项目产品范围以 `docs/PROJECT_REQUIREMENTS.md` 为准
-> 当前状态：外部规则资料整理；原文最后更新日期见下文，后续应补充官方原始链接
+> 当前状态：外部规则资料整理；原文最后更新日期见下文，官方来源见下方“来源”
+
+来源：
+
+- 官方 Rule/Q&A 页面：https://llofficial-cardgame.com/rule/
+- 官方综合规则 ver. 1.03 PDF：https://llofficial-cardgame.com/wordpress/wp-content/uploads/2025/07/22132153/LoveLiveTCG_cr_1.03_250722.pdf
 
 lovelive! series official card game
 综合规则 ver. 1.03

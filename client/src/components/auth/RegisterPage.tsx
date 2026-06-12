@@ -8,13 +8,14 @@ import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, UserPlus, WifiOff } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { AuthLayout } from './AuthLayout';
-import { isApiConfigured, isEmailEnabled } from '@/lib/apiClient';
+import { isApiConfigured } from '@/lib/apiClient';
 
 interface RegisterPageProps {
+  emailVerificationRequired: boolean;
   onSwitchToLogin: () => void;
 }
 
-export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
+export function RegisterPage({ emailVerificationRequired, onSwitchToLogin }: RegisterPageProps) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,68 +23,68 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
   const [displayName, setDisplayName] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  
+
   const { signUp, isLoading, error, clearError } = useAuthStore();
 
   const validateForm = (): boolean => {
     setLocalError(null);
     clearError();
-    
+
     if (!username.trim()) {
       setLocalError('请输入用户名');
       return false;
     }
-    
+
     if (username.length < 3) {
       setLocalError('用户名至少需要 3 个字符');
       return false;
     }
-    
+
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
       setLocalError('用户名只能包含字母、数字和下划线');
       return false;
     }
-    
+
     if (email.trim()) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         setLocalError('请输入有效的邮箱地址');
         return false;
       }
-    } else if (isEmailEnabled) {
+    } else if (emailVerificationRequired) {
       setLocalError('请输入邮箱');
       return false;
     }
-    
+
     if (!password) {
       setLocalError('请输入密码');
       return false;
     }
-    
+
     if (password.length < 6) {
       setLocalError('密码至少需要 6 个字符');
       return false;
     }
-    
+
     if (password !== confirmPassword) {
       setLocalError('两次输入的密码不一致');
       return false;
     }
-    
+
     return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
-    
+
     const result = await signUp(
       username.trim(),
       email.trim(),
       password,
       displayName.trim() || username.trim()
     );
-    
+
     if (result.success) {
       setSuccess(true);
     }
@@ -95,7 +96,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
     return (
       <AuthLayout
         title="注册成功！"
-        subtitle={isEmailEnabled ? '请查收验证邮件' : '欢迎加入 Loveca'}
+        subtitle={emailVerificationRequired ? '请查收验证邮件' : '欢迎加入 Loveca'}
       >
         <div className="text-center space-y-6">
           <motion.div
@@ -107,21 +108,17 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             <CheckCircle2 size={56} />
           </motion.div>
 
-          {isEmailEnabled ? (
+          {emailVerificationRequired ? (
             <p className="text-[var(--text-secondary)]">
-              我们已向 <span className="font-medium text-[var(--accent-primary)]">{email}</span> 发送了验证邮件，
-              请点击邮件中的链接完成注册。
+              {'我们已向'}
+              <span className="font-medium text-[var(--accent-primary)]">{email}</span>
+              {'发送了验证邮件，请点击邮件中的链接完成注册。'}
             </p>
           ) : (
-            <p className="text-[var(--text-secondary)]">
-              账号已创建成功，现在可以直接登录了。
-            </p>
+            <p className="text-[var(--text-secondary)]">账号已创建成功，现在可以直接登录了。</p>
           )}
 
-          <button
-            onClick={onSwitchToLogin}
-            className="button-primary w-full py-3 font-bold"
-          >
+          <button onClick={onSwitchToLogin} className="button-primary w-full py-3 font-bold">
             前往登录
           </button>
         </div>
@@ -164,7 +161,12 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
         {/* 邮箱输入 */}
         <div>
           <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
-            邮箱 {isEmailEnabled ? <span className="text-red-500">*</span> : <span className="text-[var(--text-muted)]">(可选)</span>}
+            邮箱{' '}
+            {emailVerificationRequired ? (
+              <span className="text-red-500">*</span>
+            ) : (
+              <span className="text-[var(--text-muted)]">(可选)</span>
+            )}
           </label>
           <input
             type="email"

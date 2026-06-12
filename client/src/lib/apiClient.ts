@@ -42,9 +42,6 @@ const API_BASE_URL = resolveApiBaseUrl();
 /** Whether the API backend is configured */
 export const isApiConfigured = true;
 
-/** Whether email verification / password reset is enabled */
-export const isEmailEnabled = import.meta.env.VITE_EMAIL_ENABLED === 'true';
-
 // ============================================
 // Types
 // ============================================
@@ -129,7 +126,7 @@ async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> 
     };
   }
   try {
-    return await response.json() as ApiResponse<T>;
+    return (await response.json()) as ApiResponse<T>;
   } catch {
     return {
       data: null,
@@ -159,10 +156,7 @@ function wait(ms: number): Promise<void> {
 }
 
 function getNetworkErrorMessage(path: string, err: unknown): string {
-  const lines = [
-    err instanceof Error ? err.message : '网络错误',
-    `请求地址: ${buildApiUrl(path)}`,
-  ];
+  const lines = [err instanceof Error ? err.message : '网络错误', `请求地址: ${buildApiUrl(path)}`];
 
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     lines.push('浏览器当前处于离线状态');
@@ -200,10 +194,7 @@ async function sendApiRequest(
   }
 }
 
-async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<ApiResponse<T>> {
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
@@ -288,7 +279,7 @@ async function tryRefreshToken(): Promise<boolean> {
 
       if (!response.ok) return false;
 
-      const body = await response.json() as ApiResponse<{
+      const body = (await response.json()) as ApiResponse<{
         accessToken: string;
       }>;
 
@@ -340,11 +331,13 @@ export const apiClient = {
   },
 
   /** Try to restore session from refresh token cookie */
-  async refreshSession(): Promise<ApiResponse<{
-    accessToken: string;
-    user: { id: string; email: string; emailVerified: boolean };
-    profile: Profile;
-  }>> {
+  async refreshSession(): Promise<
+    ApiResponse<{
+      accessToken: string;
+      user: { id: string; email: string; emailVerified: boolean };
+      profile: Profile;
+    }>
+  > {
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
         method: 'POST',

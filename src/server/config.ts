@@ -55,4 +55,8 @@ export const config = {
   get isSmtpConfigured() {
     return !!(this.smtp.host && this.smtp.user && this.smtp.pass);
   },
+
+  get isEmailFeatureEnabled() {
+    return this.emailEnabled && this.isSmtpConfigured;
+  },
 } as const;

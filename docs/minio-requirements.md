@@ -1,335 +1,135 @@
 # MinIO 对象存储 - 需求与设计文档
 
-> 版本: 1.0.0
+> 版本: 1.1.0
 > 创建日期: 2026-03-13
-> 最后更新: 2026-06-11
+> 最后更新: 2026-06-12
 > 文档类型: 设计文档
 > 适用范围: 生产外部 MinIO、开发环境本地 MinIO、服务端图片上传/访问
-> 当前状态: 服务端通过 `MINIO_*` 环境变量连接对象存储；生产 `docker-compose.yml` 不启动 MinIO，开发 `docker-compose.dev.yml` 提供本地 MinIO
+> 当前状态: 服务端通过 `MINIO_*` 环境变量连接对象存储；生产环境不由主应用 compose 启动 MinIO，开发环境提供本地 MinIO
 
-本文档描述 Loveca 当前 MinIO 对象存储服务的部署与集成方案。生产部署建议使用主应用之外的 MinIO 或兼容 S3 对象存储；本地开发可以使用 `docker-compose.dev.yml` 启动内置 MinIO。
-
----
+本文档说明 Loveca 图片对象存储的设计边界、路径约定和部署职责，不维护具体命令、脚本调用示例或 Nginx 配置片段。
 
 ## 1. 背景与目标
 
-### 1.1 当前背景
+卡牌图片按多尺寸 WebP 存储，静态资源与卡牌图片统一通过主应用的 `/images/*` 路径读取。生产环境建议使用独立 MinIO 或兼容 S3 对象存储，本地开发环境可使用仓库提供的开发 compose。
 
-卡牌图片按 thumb、medium、large 三种尺寸存储，静态资源放在 `static/` 目录。当前方案使用 MinIO 或兼容 S3 服务，并通过主应用的 `/images/*` 路径公开访问。
+设计目标：
 
-### 1.2 目标
-
-- **路径稳定**：保持 `/images/{size}/{name}.webp` 和 `/images/static/{name}` 访问路径稳定
-- **部署分离**：生产环境中 MinIO 运行在主应用之外，API Server 通过 `MINIO_*` 环境变量连接；开发环境可使用本地 compose 服务
-- **公开读取**：卡牌图片通过主服务器 Nginx 反向代理公开访问，无需认证
-- **认证写入**：图片上传/删除通过 API Server 中间件鉴权后操作 MinIO
-
----
+- 保持图片公开读取路径稳定。
+- 生产对象存储与主应用解耦，降低主应用部署复杂度。
+- 图片上传、删除和批量迁移必须经过受控服务或脚本。
+- 前端只关心图片 URL，不直接接触对象存储密钥。
+- 开发环境尽量自动初始化 bucket 和公开读取策略。
 
 ## 2. 存储结构
 
-### 2.1 Bucket 配置
+Bucket 名称默认为 `loveca-cards`。对象按用途分为：
 
-| 项目         | 值                    |
-| ------------ | --------------------- |
-| Bucket 名称  | `loveca-cards`        |
-| 读取策略     | 公开（anonymous GET） |
-| 写入策略     | 需 access key 认证    |
-| 文件大小限制 | 10MB                  |
+| 目录 | 内容 | 说明 |
+| --- | --- | --- |
+| `thumb/` | 缩略图 | 列表、网格和小尺寸预览 |
+| `medium/` | 中等尺寸图片 | 常规卡牌展示 |
+| `large/` | 大尺寸图片 | 详情查看、管理端预览 |
+| `static/` | 主题静态资源 | 游戏桌背景、卡背、应用图标等 |
 
-### 2.2 目录结构
+卡牌图片文件名以卡牌图片基础名为准，静态资源保持原始文件名。包含特殊字符的文件名必须由 URL 生成逻辑负责正确编码。
 
-```
-loveca-cards/
-├── thumb/           # 缩略图 (100px 宽, quality 75)
-│   ├── PL-sd1-001.webp
-│   └── ...
-├── medium/          # 中等尺寸 (300px 宽, quality 80)
-│   ├── PL-sd1-001.webp
-│   └── ...
-├── large/           # 大尺寸 (600px 宽, quality 85)
-│   ├── PL-sd1-001.webp
-│   └── ...
-└── static/          # 静态资源
-    ├── deck.png     # 卡组封面图
-    ├── back.jpg     # 卡牌背面图
-    └── icon.jpg     # 应用图标
-```
+## 3. 部署边界
 
-### 2.3 文件命名规则
+| 环境 | MinIO 来源 | 说明 |
+| --- | --- | --- |
+| 生产 | 主应用之外的 MinIO 或兼容 S3 服务 | 主应用只通过环境变量访问对象存储 |
+| 开发 | `docker-compose.dev.yml` 中的 MinIO | 用于本地调试，包含初始化辅助服务 |
 
-- 卡牌图片：`{imageBaseName}.webp`，其中 `imageBaseName` 为 cards 表 `image_filename` 去掉目录前缀和扩展名的部分；管理端当前上传路径以 `cardCode` 命名，并回写 `{cardCode}.webp`
-- 含特殊字符的文件名（如 `!`, `+`）需 URL 编码后访问
-- 静态资源保持原始文件名和扩展名
+生产环境中，主应用部署只负责 API、数据库连接和图片代理配置；MinIO 的数据卷、账号、bucket 策略、防火墙和备份由对象存储服务器维护。
 
----
+## 4. 访问路径
 
-## 3. 推荐生产 MinIO 服务器部署
+前端和浏览器统一通过主应用域名读取图片：
 
-### 3.1 服务器要求
+| 场景 | 路径形态 |
+| --- | --- |
+| 卡牌图片 | `/images/{size}/{name}.webp` |
+| 静态资源 | `/images/static/{name}` |
 
-| 项目     | 要求                           |
-| -------- | ------------------------------ |
-| 操作系统 | Linux（推荐 Ubuntu 22.04 LTS） |
-| 最低配置 | 1 vCPU, 1GB RAM, 20GB+ 磁盘    |
-| 推荐配置 | 2 vCPU, 2GB RAM, 50GB SSD      |
-| 前置依赖 | Docker + Docker Compose        |
+应用访问入口负责把 `/images/*` 转发到对象存储，并设置适合静态资源的缓存策略。开发环境中 Express 只在 dev 模式挂载 `/images` 调试读取；生产环境 API 服务不直接提供该路径，应由 Nginx 或其他反向代理转发到对象存储。`client/src/lib/imageService.ts` 和 `client/src/lib/apiClient.ts` 负责在前端生成同源或配置源下的图片 URL。
 
-### 3.2 Docker Compose 部署
+## 5. 写入流程
 
-在 MinIO 服务器上创建独立的 `docker-compose.yml`：
-
-**服务配置**：
-
-| 项目             | 值                                                |
-| ---------------- | ------------------------------------------------- |
-| 镜像             | `minio/minio:latest`                              |
-| S3 API 端口      | 9000                                              |
-| Web Console 端口 | 9001                                              |
-| 启动命令         | `server /data --console-address ":9001"`          |
-| 数据持久化       | Docker volume 挂载到 `/data`                      |
-| 健康检查         | `curl -f http://localhost:9000/minio/health/live` |
-
-**环境变量**：
-
-| 变量                  | 说明                          |
-| --------------------- | ----------------------------- |
-| `MINIO_ROOT_USER`     | 管理员用户名（不少于 3 字符） |
-| `MINIO_ROOT_PASSWORD` | 管理员密码（不少于 8 字符）   |
-
-### 3.3 Bucket 初始化
-
-MinIO 启动后需要创建 bucket 并配置公开读取策略。有两种方式：
-
-**方式一：通过 MinIO Client (mc) 命令行**
-
-```bash
-# 设置 alias
-mc alias set loveca http://localhost:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
-
-# 创建 bucket
-mc mb loveca/loveca-cards
-
-# 设置公开读取策略
-mc anonymous set download loveca/loveca-cards
-```
-
-**方式二：通过 Web Console**
-
-访问 `http://MINIO_SERVER_IP:9001`，登录后在 Buckets 页面创建 `loveca-cards`，设置 Access Policy 为 `public`。
-
-### 3.4 网络安全
-
-| 端口 | 用途        | 访问限制                               |
-| ---- | ----------- | -------------------------------------- |
-| 9000 | S3 API      | 防火墙仅允许主应用服务器 IP 访问       |
-| 9001 | Web Console | 仅通过 SSH 隧道或 VPN 访问，不对外暴露 |
-
-**防火墙配置要点**：
-
-- 默认拒绝所有入站连接
-- 仅放行 SSH（22）和来自主服务器 IP 的 9000 端口
-- 9001 端口不对外开放，管理操作通过 SSH 隧道：`ssh -L 9001:localhost:9001 user@minio-server`
-
----
-
-## 4. 主服务器集成
-
-当前生产 `docker-compose.yml` 只启动 `postgres` 与 `api`，不会启动 MinIO。部署生产环境时必须提供可访问的外部对象存储配置。
-
-### 4.1 Nginx 反向代理
-
-在主服务器的 `loveca.conf` 中添加图片代理，将 `/images/*` 请求转发到远程 MinIO：
-
-**路由规则**：
-
-| 请求路径                        | 代理目标                                                  |
-| ------------------------------- | --------------------------------------------------------- |
-| `/images/thumb/PL-sd1-001.webp` | `http://MINIO_IP:9000/loveca-cards/thumb/PL-sd1-001.webp` |
-| `/images/static/deck.png`       | `http://MINIO_IP:9000/loveca-cards/static/deck.png`       |
-
-**缓存策略**：
-
-- `Cache-Control: public, immutable`
-- `expires 30d`
-- 可选启用 Nginx proxy_cache 在主服务器本地缓存图片
-
-### 4.2 URL 格式
-
-| 场景     | URL                                  |
-| -------- | ------------------------------------ |
-| 卡牌图片 | `{BASE_URL}/images/{size}/{code}.webp` |
-| 静态资源 | `{BASE_URL}/images/static/{name}`      |
-
-前端通过 `client/src/lib/apiClient.ts` 的 `getApiBaseUrl()` 构造图片 URL：同源部署无需额外配置，跨源开发或调试场景可由 `VITE_API_BASE_URL` 指向 API / 图片代理源。当前 `imageService` 始终优先生成当前同源或配置源下的 `/images/{size}/{name}.webp`；代码中保留本地静态文件兜底分支，但不会因为远程图片请求失败自动切换。
-
-### 4.3 API Server 连接 MinIO
-
-API Server（Express）通过 MinIO JS SDK 连接远程 MinIO 执行写操作：
-
-**API Server 环境变量**：
-
-| 变量               | 说明                          | 示例                                                 |
-| ------------------ | ----------------------------- | ---------------------------------------------------- |
-| `MINIO_ENDPOINT`   | MinIO S3 API 地址（不含协议） | `10.0.0.2` 或 `minio.internal`                       |
-| `MINIO_PORT`       | S3 API 端口                   | `9000`                                               |
-| `MINIO_ACCESS_KEY` | 访问密钥                      | 与 `MINIO_ROOT_USER` 相同，或创建专用 access key     |
-| `MINIO_SECRET_KEY` | 密钥                          | 与 `MINIO_ROOT_PASSWORD` 相同，或创建专用 secret key |
-| `MINIO_BUCKET`     | Bucket 名称                   | `loveca-cards`（默认值）                             |
-| `MINIO_USE_SSL`    | 是否启用 TLS                  | `false`（内网通信可不加密）                          |
-
-### 4.4 图片上传流程
+图片写入只能由受控入口完成：
 
 ```mermaid
 sequenceDiagram
-    participant B as 浏览器
-    participant N as Nginx (主服务器)
-    participant API as Express API (主服务器)
-    participant M as MinIO (独立服务器)
+    participant Browser as 浏览器
+    participant API as API Server
+    participant Auth as 管理员鉴权
+    participant Store as MinIO / S3
 
-    B->>B: Canvas 压缩为 3 尺寸 WebP
-    B->>N: POST /api/images/:cardCode (multipart/form-data)
-    N->>API: 转发请求
-    API->>API: requireAdmin 鉴权
-    API->>M: PutObject (thumb + medium + large)
-    M-->>API: 成功
-    API-->>N: { success: true }
-    N-->>B: 响应
+    Browser->>API: 提交图片上传
+    API->>Auth: 校验管理员权限
+    Auth-->>API: 允许写入
+    API->>Store: 写入多尺寸图片
+    Store-->>API: 返回写入结果
+    API-->>Browser: 返回处理结果
 ```
 
-### 4.5 图片读取流程
+批量迁移脚本用于把已有压缩图片和静态资源写入对象存储。脚本入口可以在“相关代码路径”中查找，具体运行参数以当前部署环境和 README/运维记录为准。
+
+## 6. 读取流程
 
 ```mermaid
 sequenceDiagram
-    participant B as 浏览器
-    participant N as Nginx (主服务器)
-    participant M as MinIO (独立服务器)
+    participant Browser as 浏览器
+    participant Proxy as 主服务器图片代理
+    participant Store as MinIO / S3
 
-    B->>N: GET /images/medium/PL-sd1-001.webp
-    N->>M: proxy_pass → GET /loveca-cards/medium/PL-sd1-001.webp
-    M-->>N: 200 image/webp
-    N->>N: 设置 Cache-Control, expires
-    N-->>B: 图片响应 (30天缓存)
+    Browser->>Proxy: 请求 /images/* 图片
+    Proxy->>Store: 读取 bucket 对象
+    Store-->>Proxy: 返回图片内容
+    Proxy-->>Browser: 返回带缓存策略的图片响应
 ```
 
----
+图片读取是公开的，但公开范围只限 bucket 中可通过 `/images/*` 暴露的对象。写入权限不得下放给前端。
 
-## 5. 后端脚本
+## 7. 配置项
 
-### 5.1 upload-to-minio.ts
+API Server 通过 `MINIO_*` 环境变量连接对象存储：
 
-批量上传压缩后的卡牌图片。当前脚本使用 MinIO JS SDK：
+| 变量 | 说明 |
+| --- | --- |
+| `MINIO_ENDPOINT` | 对象存储地址 |
+| `MINIO_PORT` | S3 API 端口 |
+| `MINIO_ACCESS_KEY` | 写入访问密钥 |
+| `MINIO_SECRET_KEY` | 写入密钥 |
+| `MINIO_BUCKET` | bucket 名称 |
+| `MINIO_USE_SSL` | 是否使用 TLS |
 
-- `new Minio.Client()` 建立连接
-- `minioClient.putObject()` 上传对象
-- `minioClient.listObjects()` 或 `minioClient.statObject()` 检查对象
-- `minioClient.bucketExists()` 和 `minioClient.makeBucket()` 初始化 bucket
-- 环境变量使用 `MINIO_*` 系列
+前端跨源调试时可通过 `VITE_API_BASE_URL` 指向 API 和图片代理源。同源部署不需要额外配置。
 
-**使用方法**：
+## 8. 安全与运维原则
 
-```bash
-MINIO_ENDPOINT=10.0.0.2 MINIO_PORT=9000 MINIO_ACCESS_KEY=xxx MINIO_SECRET_KEY=xxx npx tsx src/scripts/upload-to-minio.ts
-```
+- 生产 MinIO 控制台不应公开暴露。
+- S3 API 端口应只允许主应用服务器或可信网络访问。
+- 写入密钥只配置在服务端或受控脚本环境中。
+- 图片读取可公开，但 bucket 内不应混放私密对象。
+- 对象存储数据需要独立备份策略。
+- 迁移后应抽样验证图片可访问性、尺寸目录完整性和静态资源加载情况。
 
-### 5.2 upload-static-assets.ts
+## 9. 已知限制
 
-该脚本同样使用 MinIO SDK，上传 `assets/deck.png`、`assets/back.jpg`、`assets/icon.jpg` 到 `static/` 目录。
+- 前端不会因为远程图片请求失败自动切换到本地静态兜底。
+- URL 稳定性依赖 `image_filename` 与对象文件名的一致性。
+- 生产 Nginx/反向代理配置不在本文维护具体片段，应由部署文档或运维配置承担。
 
----
+## 10. 相关代码路径
 
-## 6. 本地开发环境
-
-### 6.1 docker-compose.dev.yml 中的 MinIO
-
-本地开发时 `docker-compose.dev.yml` 包含 PostgreSQL、MinIO 和 `minio-init` 初始化容器；API Server 仍通过本地 Node 进程运行，使用同一组 `MINIO_*` 环境变量连接 MinIO：
-
-**本地 MinIO 配置**：
-
-| 项目          | 值                            |
-| ------------- | ----------------------------- |
-| 端口          | 9000 (S3 API), 9001 (Console) |
-| ROOT_USER     | `minioadmin`                  |
-| ROOT_PASSWORD | `minioadmin`                  |
-| Volume        | `miniodata`                   |
-
-开发时 Vite 代理配置将 `/images/*` 转发到本地 MinIO：
-
-| 代理路径    | 目标                                   |
-| ----------- | -------------------------------------- |
-| `/images/*` | `http://localhost:9000/loveca-cards/*` |
-
-### 6.2 Bucket 自动初始化
-
-当前 `docker-compose.dev.yml` 已包含 `minio-init` 容器（使用 `minio/mc` 镜像），会在 MinIO 健康检查通过后自动创建 `loveca-cards` bucket 并设置公开下载策略，避免每次手动操作。
-
----
-
-## 7. 数据初始化与迁移
-
-### 7.1 从本地压缩文件上传
-
-如果本地 `assets/compressed/` 目录保留了所有压缩后的图片，可直接使用 `upload-to-minio.ts` 脚本上传。这是当前推荐路径。
-
-早期外部对象存储的迁移背景只保留在历史参考文档中，不作为当前操作流程维护。
-
-### 7.2 迁移验证
-
-1. 比对 `assets/compressed/` 与 MinIO bucket 中的文件数量（按 size 目录分别统计）
-2. 抽样检查图片是否可通过 Nginx 代理正常访问
-3. 验证静态资源（deck.png, back.jpg, icon.jpg）可正常加载
-
----
-
-## 8. 监控与维护
-
-### 8.1 磁盘空间
-
-- 当前预估：每张卡牌 3 种尺寸（~5KB + ~15KB + ~40KB = ~60KB），按 1000 张卡计算约 60MB
-- 静态资源约 1MB
-- 短期内磁盘空间不是瓶颈，但应设置监控告警
-
-### 8.2 MinIO 健康检查
-
-- 健康端点：`GET /minio/health/live`
-- Prometheus 指标：`GET /minio/v2/metrics/cluster`（需认证）
-
-### 8.3 备份
-
-- 定期备份 MinIO data volume
-- 或使用 `mc mirror` 同步到备份位置
-
----
-
-## 9. 环境变量汇总
-
-### 9.1 MinIO 服务器
-
-| 变量                  | 说明         |
-| --------------------- | ------------ |
-| `MINIO_ROOT_USER`     | 管理员用户名 |
-| `MINIO_ROOT_PASSWORD` | 管理员密码   |
-
-### 9.2 主应用服务器（API Server）
-
-| 变量               | 说明                                          |
-| ------------------ | --------------------------------------------- |
-| `MINIO_ENDPOINT`   | MinIO 服务器地址（IP 或域名，不含协议和端口） |
-| `MINIO_PORT`       | S3 API 端口（默认 9000）                      |
-| `MINIO_ACCESS_KEY` | 访问密钥                                      |
-| `MINIO_SECRET_KEY` | 密钥                                          |
-| `MINIO_BUCKET`     | Bucket 名称（默认 `loveca-cards`）            |
-| `MINIO_USE_SSL`    | 是否启用 TLS（默认 `false`）                  |
-
-### 9.3 后端脚本
-
-与 API Server 使用相同的 `MINIO_*` 环境变量。
-
----
-
-## 10. 相关文档
-
-- `docs/historical-migrations.md` — 早期外部托管方案的历史状态说明；不作为当前部署脚本
-- `docs/image_optimization.md` — 图片压缩和优化策略
-- MinIO 官方文档：https://min.io/docs/minio/container/index.html
-- MinIO JS SDK：https://min.io/docs/minio/linux/developers/javascript/minio-javascript.html
+| 路径 | 说明 |
+| --- | --- |
+| `client/src/lib/imageService.ts` | 图片路径和尺寸解析 |
+| `client/src/lib/apiClient.ts` | API base URL 与图片源辅助 |
+| `src/server/routes/images.ts` | 图片上传/删除 API |
+| `src/server/services/minio-service.ts` | 对象存储访问封装 |
+| `src/scripts/upload-to-minio.ts` | 批量上传卡牌图片脚本 |
+| `src/scripts/upload-static-assets.ts` | 上传静态资源脚本 |
+| `docker-compose.dev.yml` | 本地开发 MinIO 与初始化服务 |
+| `docker-compose.yml` | 生产主应用服务边界 |

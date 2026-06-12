@@ -7,7 +7,8 @@
  *
  * 同步策略:
  * - 新卡: INSERT (status=PUBLISHED)
- * - 已有卡: UPSERT (覆盖，包括 PUBLISHED 状态)
+ * - 已有卡: 比对字段差异后进入交互审核，确认后 UPDATE
+ * - 非 TTY 环境发现待更新卡时终止，避免无人值守覆盖
  *
  * 使用方法:
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-llocg.ts
@@ -297,11 +298,7 @@ function transformJpCard(jp: LlocgJpCard, cn: LlocgCnCard | undefined): CardUpse
 
   const imageFilename = jp._img ? jp._img.replace(/^.*\//, '') : null;
 
-  // normalize 小组名：统一加上「」符号
-  let normalizedUnitName: string | null = jp.unit || null;
-  if (normalizedUnitName && !normalizedUnitName.startsWith('「')) {
-    normalizedUnitName = `「${normalizedUnitName}」`;
-  }
+  const normalizedUnitName = normalizeUnitName(jp.unit);
 
   // 检查 group/unit 是否为空，输出警告
   if (!jp.series) {
@@ -368,6 +365,17 @@ function transformCnOnlyCard(cardNo: string, cn: LlocgCnCard): CardUpsertRecord 
     product: null,
     status: 'PUBLISHED',
   };
+}
+
+function normalizeUnitName(unit: string | null | undefined): string | null {
+  const rawUnit = unit?.trim();
+  if (!rawUnit) {
+    return null;
+  }
+
+  const unwrapped = rawUnit.replace(/^「/, '').replace(/」$/, '');
+  const normalized = unwrapped === 'みらくらぱーく!' ? 'みらくらぱーく！' : unwrapped;
+  return `「${normalized}」`;
 }
 
 // ============================================

@@ -8,14 +8,19 @@ import { motion } from 'framer-motion';
 import { ArrowRight, LogIn, Mail, WifiOff } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { AuthLayout } from './AuthLayout';
-import { isApiConfigured, isEmailEnabled } from '@/lib/apiClient';
+import { isApiConfigured } from '@/lib/apiClient';
 
 interface LoginPageProps {
+  passwordResetEnabled: boolean;
   onSwitchToRegister: () => void;
   onSwitchToForgotPassword: () => void;
 }
 
-export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: LoginPageProps) {
+export function LoginPage({
+  passwordResetEnabled,
+  onSwitchToRegister,
+  onSwitchToForgotPassword,
+}: LoginPageProps) {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -26,7 +31,8 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
   const [resendError, setResendError] = useState<string | null>(null);
   const cooldownRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
-  const { signIn, enterOfflineMode, resendVerificationEmail, isLoading, error, clearError } = useAuthStore();
+  const { signIn, enterOfflineMode, resendVerificationEmail, isLoading, error, clearError } =
+    useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +54,12 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
     const result = await signIn(usernameOrEmail, password);
 
     // 检测邮箱未验证错误（服务端返回的消息为 '请先验证邮箱'，错误码为 EMAIL_NOT_VERIFIED）
-    if (!result.success && (result.error?.includes('验证邮箱') || result.error?.includes('EMAIL_NOT_VERIFIED') || result.error?.includes('Email not confirmed'))) {
+    if (
+      !result.success &&
+      (result.error?.includes('验证邮箱') ||
+        result.error?.includes('EMAIL_NOT_VERIFIED') ||
+        result.error?.includes('Email not confirmed'))
+    ) {
       setLocalError('邮箱尚未验证，请查收验证邮件后再登录');
       setShowResendVerification(true);
     }
@@ -113,9 +124,7 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
-            密码
-          </label>
+          <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">密码</label>
           <input
             type="password"
             value={password}
@@ -124,7 +133,7 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
             placeholder="输入你的密码"
             autoComplete="current-password"
           />
-          {isApiConfigured && isEmailEnabled && (
+          {isApiConfigured && passwordResetEnabled && (
             <div className="text-right mt-1.5">
               <button
                 type="button"
@@ -154,19 +163,22 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
             className="space-y-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-warning)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,transparent)] p-3 text-sm text-[var(--semantic-warning)]"
           >
             {resendSuccess ? (
-              <p className="flex items-center gap-2"><Mail size={14} />验证邮件已重新发送，请查收邮箱。</p>
+              <p className="flex items-center gap-2">
+                <Mail size={14} />
+                验证邮件已重新发送，请查收邮箱。
+              </p>
             ) : (
               <>
                 <p>未收到验证邮件？</p>
-                {resendError && (
-                  <p className="text-red-600">{resendError}</p>
-                )}
+                {resendError && <p className="text-red-600">{resendError}</p>}
                 <button
                   type="button"
                   onClick={handleResendVerification}
                   disabled={resendLoading || resendCooldown > 0}
                   className={`font-medium transition-colors ${
-                    resendLoading || resendCooldown > 0 ? 'cursor-not-allowed opacity-50' : 'text-[var(--accent-primary)] hover:text-[var(--accent-primary-hover)]'
+                    resendLoading || resendCooldown > 0
+                      ? 'cursor-not-allowed opacity-50'
+                      : 'text-[var(--accent-primary)] hover:text-[var(--accent-primary-hover)]'
                   }`}
                 >
                   {resendLoading

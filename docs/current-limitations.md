@@ -51,11 +51,13 @@
 - 运行时主链路由 `GameService.executeCheckTiming()` 驱动基础规则处理。
 - `src/domain/rules/check-timing.ts` 保留更完整的检查时机/自动能力处理模型，但当前未作为主流程完整接线入口。
 - 复杂卡牌效果主要依赖玩家显式桌面操作和审计式流程，不应写成当前自动执行能力。
+- 成员登场费用、接力减费和能量横置当前由玩家显式桌面操作处理；`PLAY_MEMBER` 不会隐式校验或代扣能量。
 
 相关文档：
 
 - [系统设计](../game_system_design.md)
 - [开发规范](coding-standard/dev-standard.md)
+- [联机模式准备文档](online-mode-preparation.md)
 
 ## 前端与移动端
 
@@ -65,7 +67,7 @@
 
 - 面向手机竖屏的完整主视角战斗桌重构。
 - 移动端底部流程条、任务页、全屏资源浏览等方案级能力。
-- 完整前端 E2E specs；历史 Playwright 输出存在于 `client/test-results/`，不作为现行测试入口。
+- 完整前端 E2E specs；历史 Playwright 输出可能存在于 `client/test-results/` 或根目录 `test-results/`，不作为现行测试入口。
 
 相关文档：
 

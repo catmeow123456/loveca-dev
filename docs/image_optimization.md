@@ -1,290 +1,104 @@
 # 卡牌图片优化方案
 
-> 版本: 2.0.0  
-> 创建日期: 2025-01-05  
-> 最后更新: 2026-06-11
+> 版本: 2.1.0
+> 创建日期: 2025-01-05
+> 最后更新: 2026-06-12
 > 文档类型: 专题说明
 > 适用范围: 卡牌图片存储、访问 URL、前端加载和缓存策略
 > 当前状态: 服务端已集成 MinIO；生产连接外部对象存储，开发可用 `docker-compose.dev.yml` 本地 MinIO
 
-## 概述
+## 1. 概述
 
-本方案使用 MinIO 对象存储存储卡牌图片，解决带宽问题并提供前端缓存支持。通过图片压缩和多尺寸版本，显著提升加载速度。
+卡牌图片优化方案使用 MinIO 或兼容 S3 对象存储保存卡图，通过多尺寸 WebP、稳定访问路径和前端缓存降低图片加载成本。
 
----
+本文只维护图片服务的长期边界和设计取舍。具体部署参数见 [MinIO 对象存储](minio-requirements.md)，脚本参数和当前实现细节以代码为准。
 
-## 架构设计
+## 2. 架构
 
 ```mermaid
 flowchart TD
-    Source["原始图片<br/>默认 source: test/images<br/>--source=llocg-db: llocg_db/img/cards + llocg_db/img/cards_cn"]
-    Compress["压缩脚本<br/>src/scripts/compress-images.ts<br/>Sharp -> WebP 多尺寸"]
-    Output["压缩后图片<br/>assets/compressed/"]
-    Thumb["thumb/<br/>约 8KB/张<br/>列表预览"]
-    Medium["medium/<br/>约 30KB/张<br/>游戏中显示"]
-    Large["large/<br/>约 80KB/张<br/>详情查看"]
-    Upload["上传脚本<br/>src/scripts/upload-to-minio.ts"]
-    MinIO["MinIO Storage<br/>loveca-cards bucket<br/>Nginx 反向代理公开访问"]
-    Frontend["前端 imageService<br/>client/src/lib/imageService.ts<br/>URL 生成 / 图片预加载 / 响应式图片 / 本地兜底分支"]
-
-    Source --> Compress --> Output
-    Output --> Thumb
-    Output --> Medium
-    Output --> Large
-    Output --> Upload --> MinIO --> Frontend
+    Source["原始图片来源"] --> Compress["图片压缩脚本"]
+    Compress --> Output["多尺寸 WebP 输出"]
+    Output --> Thumb["thumb"]
+    Output --> Medium["medium"]
+    Output --> Large["large"]
+    Output --> Upload["上传脚本或管理端上传"]
+    Upload --> MinIO["MinIO / S3 bucket"]
+    MinIO --> Proxy["/images 公开访问路径"]
+    Proxy --> Frontend["前端图片服务与缓存"]
 ```
 
----
+核心思路：
 
-## 文件清单
+- 原始图片只作为输入来源，不直接作为前端主访问资源。
+- 前端优先使用 `thumb`、`medium`、`large` 三种 WebP 尺寸。
+- 管理端上传和批量脚本都应写入同一对象存储结构。
+- 前端通过同源或配置源下的 `/images` 路径访问图片，不直接暴露对象存储内部地址。
 
-| 文件                             | 说明                 |
-| -------------------------------- | -------------------- |
-| `src/scripts/compress-images.ts` | 图片压缩脚本         |
-| `src/scripts/upload-to-minio.ts` | 上传到 MinIO Storage |
-| `client/src/lib/imageService.ts` | 前端图片服务         |
-| `docs/minio-requirements.md`     | MinIO 部署配置文档   |
+## 3. 存储结构
 
----
+| 目录 | 用途 |
+| --- | --- |
+| `thumb/` | 列表、网格、低成本预览 |
+| `medium/` | 游戏桌与常规卡牌展示 |
+| `large/` | 详情查看、放大预览 |
+| `static/` | 卡背、牌堆图标、应用图标等静态资源 |
 
-## 使用指南
+图片命名应与卡牌数据中的图片文件名保持可推导关系。管理端上传和批量同步脚本应遵循同一访问模型。
 
-### 1. 压缩图片
+## 4. 访问 URL
 
-```bash
-# 安装依赖 (如果未安装)
-pnpm install
+卡牌图片通过稳定公开路径访问：
 
-# 运行压缩脚本（默认读取 test/images）
-npx tsx src/scripts/compress-images.ts
+| 资源 | URL 形态 |
+| --- | --- |
+| 卡牌图片 | `{BASE_URL}/images/{size}/{imageBaseName}.webp` |
+| 静态资源 | `{BASE_URL}/images/static/{assetName}` |
 
-# 使用 llocg_db 图片源（需要相应子模块图片目录存在）
-npx tsx src/scripts/compress-images.ts --source=llocg-db
-```
+`imageBaseName` 来自卡牌的图片文件名去掉扩展名后的部分；缺失时可按卡牌编号推导。含特殊字符的名称需要 URL 编码。
 
-当前脚本输入源由 `--source` 参数决定：
+## 5. 前端加载策略
 
-| source           | 输入目录                                      |
-| ---------------- | --------------------------------------------- |
-| 默认 / `crawler` | `test/images`                                 |
-| `llocg-db`       | `llocg_db/img/cards`、`llocg_db/img/cards_cn` |
+前端图片服务负责：
 
-压缩输出统一写入 `assets/compressed/{thumb,medium,large}`。
+- 根据卡牌编号和图片文件名生成稳定 URL。
+- 按展示场景选择合适尺寸。
+- 为常用卡图做内存级预加载，减少对局中突发加载。
+- 生成响应式图片信息，让浏览器按布局选择尺寸。
+- 保留本地静态文件兜底分支，但当前配置不会因为远程图片请求失败自动切换到本地图片。
 
-**输出示例：**
+图片访问基础路径由 API 基础路径推导。同源部署无需额外配置；跨源调试可通过前端环境变量指向 API / 图片代理源。
 
-```
-🎴 卡牌图片压缩工具
+## 6. 缓存策略
 
-📂 创建目录: assets/compressed
-📂 创建目录: assets/compressed/thumb
-📂 创建目录: assets/compressed/medium
-📂 创建目录: assets/compressed/large
-📁 找到 150 张图片待处理
+图片资源应按较长生命周期缓存：
 
-⏳ 处理中... 150/150 (100%)
+- Nginx 或图片代理层为 `/images/*` 设置公开缓存。
+- 前端使用 Service Worker 缓存远程卡图、静态图片和历史本地兜底路径。
+- 缓存名应跟随应用版本或构建标识变化，避免升级后长期命中旧资源。
+- 图片替换后如果文件名不变，部署侧需要考虑缓存刷新策略。
 
-✅ 压缩完成!
+## 7. 部署边界
 
-📊 压缩统计:
+- 生产 `docker-compose.yml` 不启动 MinIO，生产环境需要外部 MinIO 或兼容 S3 对象存储。
+- 开发环境可使用 `docker-compose.dev.yml` 启动本地 MinIO。
+- API Server 通过 `MINIO_*` 环境变量连接对象存储。
+- 公开读取走 `/images/*`，写入和删除必须经过鉴权 API 或受控脚本。
+- MinIO 密钥不得写入文档示例之外的真实值，也不得提交到仓库。
 
-| 尺寸 | 数量 | 原始大小 | 压缩后 | 节省 |
-|------|------|----------|--------|------|
-| thumb  | 150  | 115MB | 1.2MB | 99% |
-| medium | 150  | 115MB | 4.5MB | 96% |
-| large  | 150  | 115MB | 12MB  | 90% |
+## 8. 已知边界
 
-💾 总计: 345MB → 17.7MB
+- 代码中保留本地静态图片兜底分支，但当前图片基础路径始终存在，因此不会自动按请求失败切换来源。
+- 如果需要完全离线图片模式，需要重新设计图片源选择、缓存预置和本地卡牌数据来源。
+- 图片压缩质量、尺寸和缓存容量属于实现参数，不在本文档重复维护。
 
-📋 上传清单已生成: assets/compressed/upload-manifest.json
-```
+## 9. 相关代码路径
 
-### 2. 配置 MinIO Storage
-
-详见 `docs/minio-requirements.md` 文档。
-
-主要步骤：
-
-1. 生产环境准备外部 MinIO 或兼容 S3 对象存储；开发环境可启动 `docker-compose.dev.yml` 中的 MinIO
-2. 创建 `loveca-cards` bucket
-3. 设置公开读取策略
-4. 记录连接信息（endpoint、access key、secret key）
-
-### 3. 上传图片
-
-```bash
-# 设置环境变量并运行上传脚本
-MINIO_ENDPOINT=10.0.0.2 \
-MINIO_ACCESS_KEY=xxx \
-MINIO_SECRET_KEY=xxx \
-npx tsx src/scripts/upload-to-minio.ts
-```
-
-### 4. 前端配置
-
-同源部署无需额外配置；如前端需要访问不同源的 API / 图片代理，可在 `client/.env.local` 或 `client/.env` 配置：
-
-```env
-VITE_API_BASE_URL=https://loveca.example.com
-```
-
----
-
-## 图片访问 URL
-
-### MinIO Storage URL 格式
-
-通过 Nginx 反向代理访问：
-
-```
-{BASE_URL}/images/{size}/{imageBaseName}.webp
-```
-
-`imageBaseName` 来自卡牌的 `image_filename` 去掉扩展名；缺失时当前图片服务会回退到卡牌编号。管理端当前通过 `POST /api/images/:cardCode` 上传图片，上传服务会以 `cardCode` 命名对象并回写 `{cardCode}.webp`。
-
-**示例：**
-
-- 缩略图: `https://loveca.example.com/images/thumb/PL-sd1-001.webp`
-- 中等: `https://loveca.example.com/images/medium/PL-sd1-001.webp`
-- 大图: `https://loveca.example.com/images/large/PL-sd1-001.webp`
-
-### 前端 API 使用
-
-```typescript
-import { getCardImageUrl, preloadCardImages, getCardSrcSet } from '@/lib/imageService';
-
-// 获取图片 URL
-const url = getCardImageUrl('PL-sd1-001', 'medium');
-
-// 预加载手牌图片
-await preloadCardImages(['PL-sd1-001', 'PL-sd1-002'], 'medium');
-
-// 响应式图片
-<img
-  src={getCardImageUrl(cardCode, 'medium')}
-  srcSet={getCardSrcSet(cardCode)}
-  sizes="(max-width: 640px) 100px, (max-width: 1024px) 150px, 200px"
-  loading="lazy"
-/>
-```
-
----
-
-## 图片 URL 与降级边界
-
-当前 `client/src/lib/imageService.ts` 会通过 `getApiBaseUrl()` 生成图片基础路径：
-
-```typescript
-const IMAGES_BASE_URL = `${getApiBaseUrl()}/images`;
-```
-
-因此在常规构建中，卡牌图片优先访问同源或 `VITE_API_BASE_URL` 指向源下的 `/images/{size}/{name}.webp`，由 Nginx 或 Vite proxy 转发到 MinIO。
-
-代码中仍保留了 `/card`、`/energy` 的本地静态文件兜底分支，但由于 `IMAGES_BASE_URL` 当前始终是非空字符串（相对 `/images`、当前 origin 下的 `/images` 或配置源下的 `/images`），运行时不会因为 API 请求失败自动切换到本地图片。若需要恢复完整本地降级，需要先调整 `isStorageEnabled` / 图片源配置策略。
-
----
-
-## 图片尺寸规格
-
-| 尺寸名   | 宽度  | 质量 | 用途           | 预计大小 |
-| -------- | ----- | ---- | -------------- | -------- |
-| `thumb`  | 100px | 75%  | 列表/网格预览  | ~8KB     |
-| `medium` | 300px | 80%  | 游戏中卡牌显示 | ~30KB    |
-| `large`  | 600px | 85%  | 详情查看/弹窗  | ~80KB    |
-
----
-
-## 缓存策略
-
-### 浏览器缓存
-
-Nginx 为图片设置 `Cache-Control` 头，图片会被浏览器缓存 30 天。
-
-### 前端预加载缓存
-
-`imageService.ts` 提供内存级预加载缓存：
-
-```typescript
-// 预加载后不会重复请求
-await preloadCardImages(['PL-sd1-001'], 'medium');
-```
-
-### Service Worker 缓存 (已实现)
-
-项目已配置 vite-plugin-pwa 实现 Service Worker 缓存，支持离线访问图片资源。
-
-**缓存策略配置 (client/vite.config.ts):**
-
-| 缓存名                                   | URL 匹配规则         | 策略       | 过期时间        | 最大条目   |
-| ---------------------------------------- | -------------------- | ---------- | --------------- | ---------- | ----- | ---- |
-| `remote-card-images-${cacheVersion}`     | `/images/(thumb      | medium     | large)/\*.webp` | CacheFirst | 30 天 | 1500 |
-| `remote-static-assets-${cacheVersion}`   | `/images/static/*`   | CacheFirst | 30 天           | 50         |
-| `local-card-images-${cacheVersion}`      | `/card/\*.(jpg       | png        | webp)`          | CacheFirst | 30 天 | 500  |
-| `energy-card-images-${cacheVersion}`     | `/energy/\*.(jpg     | png        | webp)`          | CacheFirst | 30 天 | 50   |
-| `compressed-card-images-${cacheVersion}` | `/compressed/\*.(jpg | png        | webp)`          | CacheFirst | 30 天 | 1500 |
-
-**配置代码示例:**
-
-```typescript
-import { VitePWA } from 'vite-plugin-pwa';
-
-export default defineConfig({
-  plugins: [
-    VitePWA({
-      registerType: 'autoUpdate',
-      workbox: {
-        runtimeCaching: [
-          {
-            urlPattern: /\/images\/(thumb|medium|large)\/.*\.webp$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: `remote-card-images-${cacheVersion}`,
-              expiration: {
-                maxEntries: 1500,
-                maxAgeSeconds: 30 * 24 * 60 * 60,
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-          // ... 其他缓存规则
-        ],
-        skipWaiting: true,
-        clientsClaim: true,
-      },
-    }),
-  ],
-});
-```
-
----
-
-## 效果对比
-
-| 指标            | 优化前     | 优化后        | 提升 |
-| --------------- | ---------- | ------------- | ---- |
-| 单张图片大小    | 200-300KB  | 30KB (medium) | ~90% |
-| 首屏加载 (20张) | ~5MB       | ~0.6MB        | ~88% |
-| Nginx 代理加速  | 无         | 本地服务器    | ✅   |
-| 缓存支持        | 浏览器默认 | 多级缓存      | ✅   |
-| 响应式图片      | 无         | 支持 srcSet   | ✅   |
-
----
-
-## 注意事项
-
-1. **首次压缩**: 压缩 150 张图片约需 1-2 分钟
-2. **上传带宽**: 上传约 18MB 数据，耗时取决于网络
-3. **存储空间**: MinIO 服务器需预留足够磁盘空间
-4. **环境变量**: MinIO 密钥不要提交到代码仓库
-
----
-
-## 相关文档
-
-- `docs/minio-requirements.md` — MinIO 对象存储部署方案
-
----
-
-_文档最后更新: 2026-03-15_
+- `src/scripts/compress-images.ts`
+- `src/scripts/upload-to-minio.ts`
+- `src/scripts/upload-static-assets.ts`
+- `src/server/routes/images.ts`
+- `src/server/services/minio-service.ts`
+- `client/src/lib/imageService.ts`
+- `client/vite.config.ts`
+- `docs/minio-requirements.md`

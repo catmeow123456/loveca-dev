@@ -128,11 +128,7 @@
 
 推荐结构：
 
-```tsx
-<div className="fixed inset-0 flex items-center justify-center">
-  <motion.div />
-</div>
-```
+外层固定覆盖全屏并负责居中，内层动画元素只负责进入、退出和内容动画。
 
 不要把“居中定位”和“动画 transform”写在同一个 `motion.div` 上。
 
