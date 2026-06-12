@@ -16,13 +16,14 @@ import type {
   MemberSlotZoneState,
   StatefulZoneState,
 } from '../domain/entities/zone.js';
-import type { CardInstance } from '../domain/entities/card.js';
+import type { CardInstance, HeartRequirement } from '../domain/entities/card.js';
 import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
 import {
   EffectWindowType,
   FaceState,
   GameMode,
   GamePhase,
+  HeartColor,
   SlotPosition,
   SubPhase,
   ZoneType,
@@ -39,6 +40,7 @@ import type {
   ViewCommandHint,
   ViewCommandScope,
   ViewFrontCardInfo,
+  ViewHeartRequirement,
   ViewWindowState,
   ViewZoneKey,
   ViewZoneState,
@@ -614,8 +616,8 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
       name: card.data.name,
       cardType: card.data.cardType,
       cost: card.data.cost,
-      hearts: card.data.hearts,
-      bladeHearts: card.data.bladeHearts,
+      hearts: card.data.hearts.map((heart) => ({ color: heart.color, count: heart.count })),
+      bladeHearts: card.data.bladeHearts?.map((item) => ({ ...item })),
       text: card.data.cardText,
     };
   }
@@ -626,8 +628,8 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
       name: card.data.name,
       cardType: card.data.cardType,
       score: card.data.score,
-      requiredHearts: card.data.requirements,
-      bladeHearts: card.data.bladeHearts,
+      requiredHearts: buildViewHeartRequirement(card.data.requirements),
+      bladeHearts: card.data.bladeHearts?.map((item) => ({ ...item })),
       text: card.data.cardText,
     };
   }
@@ -637,6 +639,20 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
     name: card.data.name,
     cardType: card.data.cardType,
     text: card.data.cardText,
+  };
+}
+
+function buildViewHeartRequirement(requirement: HeartRequirement): ViewHeartRequirement {
+  const colorRequirements: Partial<Record<HeartColor, number>> = {};
+  for (const [color, count] of requirement.colorRequirements) {
+    if (count > 0) {
+      colorRequirements[color] = count;
+    }
+  }
+
+  return {
+    colorRequirements,
+    totalRequired: requirement.totalRequired,
   };
 }
 

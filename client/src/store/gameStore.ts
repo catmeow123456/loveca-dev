@@ -24,6 +24,7 @@ import {
   type Seat,
   type ViewCommandHint,
   type ViewFrontCardInfo,
+  type ViewHeartRequirement,
   type ViewCardObject,
   type ViewZoneKey,
   type ViewZoneState,
@@ -1499,9 +1500,7 @@ function buildFallbackCardData(frontInfo: ViewFrontCardInfo): AnyCardData {
         name: frontInfo.name,
         cardType: CardType.LIVE,
         score: frontInfo.score ?? 0,
-        requirements: frontInfo.requiredHearts
-          ? (frontInfo.requiredHearts as LiveCardData['requirements'])
-          : createHeartRequirement({}, 0),
+        requirements: buildFallbackHeartRequirement(frontInfo.requiredHearts),
         bladeHearts: frontInfo.bladeHearts as LiveCardData['bladeHearts'],
         cardText: frontInfo.text,
       };
@@ -1515,6 +1514,23 @@ function buildFallbackCardData(frontInfo: ViewFrontCardInfo): AnyCardData {
         cardText: frontInfo.text,
       };
   }
+}
+
+function buildFallbackHeartRequirement(
+  requirement?: ViewHeartRequirement
+): LiveCardData['requirements'] {
+  if (!requirement) {
+    return createHeartRequirement({}, 0);
+  }
+
+  const colorRequirements: Record<string, number> = {};
+  for (const [color, count] of Object.entries(requirement.colorRequirements)) {
+    if (typeof count === 'number' && count > 0) {
+      colorRequirements[color] = count;
+    }
+  }
+
+  return createHeartRequirement(colorRequirements, requirement.totalRequired);
 }
 
 function findCardLocationInView(

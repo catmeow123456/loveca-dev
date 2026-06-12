@@ -45,6 +45,7 @@
 | --- | --- | --- |
 | 联机模式 | [联机模式准备文档](online-mode-preparation.md) | 联机首版能力、剩余边界、命令/事件/视图约束 |
 | 联机可见性 | [可见性与公开对象矩阵](online-mode-visibility-matrix.md) | `PlayerViewState`、对象可见性和投影规则 |
+| 联机性能 | [正式联机 transport serde 性能问题说明](online-transport-serde-performance.md) | 正式联机响应 JSON-native 契约、性能基准和后续优化顺序 |
 | 联机拖拽回归 | [自由拖拽核对表](online-mode-free-drag-checklist.md) | 手工回归 checklist，不是产品需求文档 |
 | 卡组管理 | [卡组管理需求](deck-management/requirements.md)、[卡组管理设计](deck-management/design.md) | 云端卡组、DeckLog、分享、游戏入口选组 |
 | 卡牌数据管理 | [卡牌数据管理需求](card-data-management/requirements.md)、[卡牌数据管理设计](card-data-management/design.md) | 管理后台、卡牌 CRUD、发布状态和字段边界 |

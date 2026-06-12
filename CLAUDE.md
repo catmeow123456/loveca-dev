@@ -11,6 +11,7 @@ pnpm dev              # TypeScript watch mode
 pnpm build            # Compile TypeScript
 pnpm test             # Run tests (watch mode)
 pnpm test:run         # Run tests once
+pnpm test:perf:online # Run formal online performance benchmark
 pnpm test:coverage    # Coverage report (requires 80%)
 pnpm lint             # ESLint check
 pnpm lint:fix         # Auto-fix lint issues
@@ -149,6 +150,7 @@ Tests in `tests/` directory using Vitest:
 - `tests/unit/` - Unit tests
 - `tests/integration/` - Integration tests
 - `tests/simulation/` - Game simulation tests
+- `tests/performance/` - Opt-in performance benchmarks
 
 Coverage requirements: 90-95% for rules/live judgment, 90% for ability/zone operations.
 

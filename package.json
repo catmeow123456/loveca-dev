@@ -20,6 +20,7 @@
     "dev:online-service2": "pnpm --dir client dev:debug-service2",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:perf:online": "RUN_PERF=1 vitest run tests/performance/online-performance.bench.test.ts",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",

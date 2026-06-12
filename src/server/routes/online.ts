@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express';
 import { z } from 'zod';
-import { fromTransport, toTransport } from '../../online/serde.js';
+import { fromTransport } from '../../online/serde.js';
 import type { GameCommand } from '../../application/game-commands.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
@@ -161,7 +161,7 @@ onlineRouter.get('/matches/:matchId/snapshot', requireAuth, (req, res) => {
     }
 
     onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
-    res.json({ data: toTransport(snapshot), error: null });
+    res.json({ data: snapshot, error: null });
   } catch (error) {
     respondOnlineError(res, error);
   }
@@ -193,7 +193,7 @@ onlineRouter.post('/matches/:matchId/command', requireAuth, (req, res) => {
 
     onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({
-      data: toTransport(result),
+      data: result,
       error: result.success
         ? null
         : { code: 'COMMAND_REJECTED', message: result.error ?? '命令执行失败' },
@@ -220,7 +220,7 @@ onlineRouter.post('/matches/:matchId/advance', requireAuth, (req, res) => {
 
     onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({
-      data: toTransport(result),
+      data: result,
       error: result.success
         ? null
         : { code: 'ADVANCE_REJECTED', message: result.error ?? '阶段推进失败' },
