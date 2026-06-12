@@ -1,6 +1,6 @@
-import type { CardEntry, DeckConfig } from '../card-data/deck-loader';
-import { getBaseCardCode } from '../../shared/utils/card-code';
-import { MAX_SAME_CODE_COUNT } from './deck-validator';
+import type { CardEntry, DeckConfig } from '../card-data/deck-loader.js';
+import { getBaseCardCode } from '../../shared/utils/card-code.js';
+import { MAX_SAME_CODE_COUNT } from './deck-validator.js';
 
 export const DECK_POINT_LIMIT = 9;
 

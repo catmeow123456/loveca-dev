@@ -4,13 +4,48 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { validate } from '../middleware/validate.js';
 import { scrapeDecklog, extractDecklogId } from '../services/decklog-scraper.js';
+import {
+  DeckPayloadValidationError,
+  prepareDeckPayloadForStorage,
+} from '../services/deck-storage-service.js';
 
 export const decksRouter = Router();
+
+const mainDeckEntrySchema = z.object({
+  card_code: z.string().min(1),
+  count: z.number().int().positive().max(4),
+  card_type: z.enum(['MEMBER', 'LIVE']).optional(),
+});
+
+const energyDeckEntrySchema = z.object({
+  card_code: z.string().min(1),
+  count: z.number().int().positive().max(4),
+});
 
 const shareForkSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).nullable().optional(),
 });
+
+const createDeckSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).nullable().optional(),
+  main_deck: z.array(mainDeckEntrySchema).default([]),
+  energy_deck: z.array(energyDeckEntrySchema).default([]),
+  is_public: z.boolean().default(false),
+});
+
+const updateDeckSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).nullable().optional(),
+  main_deck: z.array(mainDeckEntrySchema).optional(),
+  energy_deck: z.array(energyDeckEntrySchema).optional(),
+  is_public: z.boolean().optional(),
+});
+
+function getDeckPayloadErrorMessage(error: DeckPayloadValidationError): string {
+  return error.errors.slice(0, 8).join('; ');
+}
 
 // ============================================
 // GET /api/decks
@@ -155,6 +190,28 @@ decksRouter.post(
       const sourceDeck = rows[0];
       const name = req.body.name?.trim() || `${sourceDeck.name} - 副本`;
       const description = req.body.description ?? sourceDeck.description ?? null;
+      let preparedDeck;
+
+      try {
+        preparedDeck = await prepareDeckPayloadForStorage({
+          name,
+          description,
+          main_deck: sourceDeck.main_deck ?? [],
+          energy_deck: sourceDeck.energy_deck ?? [],
+        });
+      } catch (error) {
+        if (error instanceof DeckPayloadValidationError) {
+          res.status(400).json({
+            data: null,
+            error: {
+              code: 'DECK_PAYLOAD_INVALID',
+              message: `分享卡组包含不可用卡牌: ${getDeckPayloadErrorMessage(error)}`,
+            },
+          });
+          return;
+        }
+        throw error;
+      }
 
       const { rows: created } = await pool.query(
         `INSERT INTO decks (
@@ -167,10 +224,10 @@ decksRouter.post(
           req.user!.id,
           name,
           description,
-          JSON.stringify(sourceDeck.main_deck),
-          JSON.stringify(sourceDeck.energy_deck),
-          sourceDeck.is_valid,
-          JSON.stringify(sourceDeck.validation_errors ?? []),
+          JSON.stringify(preparedDeck.main_deck),
+          JSON.stringify(preparedDeck.energy_deck),
+          preparedDeck.validation.valid,
+          JSON.stringify(preparedDeck.validation.errors),
           sourceDeck.id,
           sourceDeck.share_id,
         ]
@@ -224,20 +281,33 @@ decksRouter.get('/:id', requireAuth, async (req, res, next) => {
 // POST /api/decks
 // ============================================
 
-const createDeckSchema = z.object({
-  name: z.string().min(1).max(100),
-  description: z.string().max(500).nullable().optional(),
-  main_deck: z.array(z.any()).default([]),
-  energy_deck: z.array(z.any()).default([]),
-  is_valid: z.boolean().default(false),
-  validation_errors: z.array(z.any()).default([]),
-  is_public: z.boolean().default(false),
-});
-
 decksRouter.post('/', requireAuth, validate(createDeckSchema), async (req, res, next) => {
   try {
     const b = req.body;
     const shareEnabled = Boolean(b.is_public);
+    let preparedDeck;
+
+    try {
+      preparedDeck = await prepareDeckPayloadForStorage({
+        name: b.name,
+        description: b.description ?? null,
+        main_deck: b.main_deck,
+        energy_deck: b.energy_deck,
+      });
+    } catch (error) {
+      if (error instanceof DeckPayloadValidationError) {
+        res.status(400).json({
+          data: null,
+          error: {
+            code: 'DECK_PAYLOAD_INVALID',
+            message: getDeckPayloadErrorMessage(error),
+          },
+        });
+        return;
+      }
+      throw error;
+    }
+
     const { rows } = await pool.query(
       `INSERT INTO decks (
         user_id, name, description, main_deck, energy_deck, is_valid, validation_errors,
@@ -249,10 +319,10 @@ decksRouter.post('/', requireAuth, validate(createDeckSchema), async (req, res, 
         req.user!.id,
         b.name,
         b.description ?? null,
-        JSON.stringify(b.main_deck),
-        JSON.stringify(b.energy_deck),
-        b.is_valid,
-        JSON.stringify(b.validation_errors),
+        JSON.stringify(preparedDeck.main_deck),
+        JSON.stringify(preparedDeck.energy_deck),
+        preparedDeck.validation.valid,
+        JSON.stringify(preparedDeck.validation.errors),
         b.is_public,
         shareEnabled,
         shareEnabled ? new Date().toISOString() : null,
@@ -354,12 +424,13 @@ decksRouter.delete('/:id/share', requireAuth, async (req, res, next) => {
 // PUT /api/decks/:id
 // ============================================
 
-decksRouter.put('/:id', requireAuth, async (req, res, next) => {
+decksRouter.put('/:id', requireAuth, validate(updateDeckSchema), async (req, res, next) => {
   try {
     // Verify ownership
-    const { rows: existing } = await pool.query('SELECT user_id FROM decks WHERE id = $1', [
-      req.params.id,
-    ]);
+    const { rows: existing } = await pool.query(
+      'SELECT user_id, name, description, main_deck, energy_deck FROM decks WHERE id = $1',
+      [req.params.id]
+    );
 
     if (existing.length === 0) {
       res.status(404).json({
@@ -382,31 +453,68 @@ decksRouter.put('/:id', requireAuth, async (req, res, next) => {
     const values: unknown[] = [];
     let idx = 1;
 
-    const allowedFields = [
-      'name',
-      'description',
-      'main_deck',
-      'energy_deck',
-      'is_valid',
-      'validation_errors',
-      'is_public',
-    ];
+    if ('name' in updates) {
+      fields.push(`name = $${idx}`);
+      values.push(updates.name);
+      idx++;
+    }
 
-    for (const field of allowedFields) {
-      if (field in updates) {
-        const val = updates[field];
-        fields.push(`${field} = $${idx}`);
-        values.push(typeof val === 'object' && val !== null ? JSON.stringify(val) : val);
-        idx++;
+    if ('description' in updates) {
+      fields.push(`description = $${idx}`);
+      values.push(updates.description ?? null);
+      idx++;
+    }
 
-        if (field === 'is_public') {
-          fields.push(`share_enabled = $${idx}`);
-          values.push(Boolean(val));
-          idx++;
-          if (val) {
-            fields.push(`shared_at = COALESCE(shared_at, now())`);
-          }
+    if ('main_deck' in updates || 'energy_deck' in updates) {
+      let preparedDeck;
+      try {
+        preparedDeck = await prepareDeckPayloadForStorage({
+          name: updates.name ?? existing[0].name,
+          description: updates.description ?? existing[0].description,
+          main_deck: updates.main_deck ?? existing[0].main_deck ?? [],
+          energy_deck: updates.energy_deck ?? existing[0].energy_deck ?? [],
+        });
+      } catch (error) {
+        if (error instanceof DeckPayloadValidationError) {
+          res.status(400).json({
+            data: null,
+            error: {
+              code: 'DECK_PAYLOAD_INVALID',
+              message: getDeckPayloadErrorMessage(error),
+            },
+          });
+          return;
         }
+        throw error;
+      }
+
+      fields.push(`main_deck = $${idx}`);
+      values.push(JSON.stringify(preparedDeck.main_deck));
+      idx++;
+
+      fields.push(`energy_deck = $${idx}`);
+      values.push(JSON.stringify(preparedDeck.energy_deck));
+      idx++;
+
+      fields.push(`is_valid = $${idx}`);
+      values.push(preparedDeck.validation.valid);
+      idx++;
+
+      fields.push(`validation_errors = $${idx}`);
+      values.push(JSON.stringify(preparedDeck.validation.errors));
+      idx++;
+    }
+
+    if ('is_public' in updates) {
+      fields.push(`is_public = $${idx}`);
+      values.push(updates.is_public);
+      idx++;
+
+      fields.push(`share_enabled = $${idx}`);
+      values.push(Boolean(updates.is_public));
+      idx++;
+      if (updates.is_public) {
+        fields.push(`shared_at = COALESCE(shared_at, now())`);
       }
     }
 

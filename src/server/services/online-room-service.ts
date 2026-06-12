@@ -1,8 +1,5 @@
 import type { DeckConfig as RuntimeDeckConfig } from '../../application/game-service.js';
-import {
-  DeckLoader,
-  type DeckConfig as StoredDeckConfig,
-} from '../../domain/card-data/deck-loader.js';
+import { DeckLoader } from '../../domain/card-data/deck-loader.js';
 import type {
   OnlineAdminRoomSummary,
   OnlineRoomMemberPresence,
@@ -15,7 +12,10 @@ import type {
 } from '../../online/release-types.js';
 import type { Seat } from '../../online/types.js';
 import { pool } from '../db/pool.js';
-import { getPublishedCardRegistry } from './card-registry-service.js';
+import {
+  DeckPayloadValidationError,
+  prepareDeckPayloadForStorage,
+} from './deck-storage-service.js';
 import {
   onlineMatchService,
   type CreateOnlineMatchParams,
@@ -701,9 +701,8 @@ async function defaultLoadOwnedDeck(userId: string, deckId: string): Promise<Own
     description: string | null;
     main_deck: Array<{ card_code: string; count: number; card_type?: 'MEMBER' | 'LIVE' }>;
     energy_deck: Array<{ card_code: string; count: number }>;
-    is_valid: boolean;
   }>(
-    'SELECT id, name, description, main_deck, energy_deck, is_valid FROM decks WHERE id = $1 AND user_id = $2 LIMIT 1',
+    'SELECT id, name, description, main_deck, energy_deck FROM decks WHERE id = $1 AND user_id = $2 LIMIT 1',
     [deckId, userId]
   );
 
@@ -712,13 +711,30 @@ async function defaultLoadOwnedDeck(userId: string, deckId: string): Promise<Own
   }
 
   const deck = rows[0];
-  if (!deck.is_valid) {
-    throw new OnlineRoomServiceError('ONLINE_DECK_INVALID', '只能锁定合法卡组', 409);
+  let preparedDeck;
+  try {
+    preparedDeck = await prepareDeckPayloadForStorage(deck);
+  } catch (error) {
+    if (error instanceof DeckPayloadValidationError) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_DECK_INVALID',
+        error.errors[0] ?? '卡组包含不可用卡牌',
+        409
+      );
+    }
+    throw error;
   }
 
-  const registry = await getPublishedCardRegistry();
-  const loader = new DeckLoader(registry);
-  const loadResult = loader.loadFromConfig(toStoredDeckConfig(deck));
+  if (!preparedDeck.validation.valid) {
+    throw new OnlineRoomServiceError(
+      'ONLINE_DECK_INVALID',
+      preparedDeck.validation.errors[0] ?? '只能锁定合法卡组',
+      409
+    );
+  }
+
+  const loader = new DeckLoader(preparedDeck.registry);
+  const loadResult = loader.loadFromConfig(preparedDeck.config);
   if (!loadResult.success || !loadResult.deck) {
     throw new OnlineRoomServiceError(
       'ONLINE_DECK_INVALID',
@@ -734,22 +750,5 @@ async function defaultLoadOwnedDeck(userId: string, deckId: string): Promise<Own
       mainDeck: [...loadResult.deck.mainDeck],
       energyDeck: [...loadResult.deck.energyDeck],
     },
-  };
-}
-
-function toStoredDeckConfig(deck: {
-  name: string;
-  description: string | null;
-  main_deck: Array<{ card_code: string; count: number; card_type?: 'MEMBER' | 'LIVE' }>;
-  energy_deck: Array<{ card_code: string; count: number }>;
-}): StoredDeckConfig {
-  return {
-    player_name: deck.name,
-    description: deck.description ?? undefined,
-    main_deck: {
-      members: deck.main_deck.filter((entry) => entry.card_type === 'MEMBER'),
-      lives: deck.main_deck.filter((entry) => entry.card_type === 'LIVE'),
-    },
-    energy_deck: [...deck.energy_deck],
   };
 }

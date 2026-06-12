@@ -76,7 +76,7 @@ flowchart TB
 | `DeckConfig` | 构筑、游戏入口、本地槽位 | 面向领域规则，明确区分成员卡、Live 卡和能量卡 |
 | `DeckRecord` | 云端持久化、分享、列表 | 面向存储与权限，包含所有者、分享状态、校验状态和更新时间 |
 
-`DeckRecord` 与 `DeckConfig` 的转换集中在 `client/src/lib/deckRecordUtils.ts`。转换层负责处理旧数据兼容、主卡组中 MEMBER/LIVE 的分流，以及保存时的持久化形态整理。
+`DeckRecord` 与 `DeckConfig` 的转换由共享领域工具 `src/domain/card-data/deck-record-utils.ts` 维护，客户端通过 `client/src/lib/deckRecordUtils.ts` 复用该实现。转换层负责处理旧数据兼容、主卡组中 MEMBER/LIVE 的分流，以及保存时的持久化形态整理。
 
 ## 4. 构筑规则
 
@@ -122,6 +122,7 @@ flowchart TB
 - 公开或开启分享的卡组可以被非所有者读取。
 - 分享卡组可被登录用户复制到自己的账号，复制后与原卡组独立维护。
 - 卡组保存会记录校验状态和校验错误，允许未完成卡组暂存，但进入对局前仍需满足规则。
+- 服务端保存、更新和复制分享卡组时会基于当前 PUBLISHED 卡池重新规范化卡组记录并计算 `is_valid` / `validation_errors`；客户端提交的派生校验字段不作为可信事实。
 
 服务端 schema 与初始化脚本的差异不在本文重复维护，统一记录在 [当前实现限制](../current-limitations.md)。
 
@@ -207,15 +208,18 @@ DeckLog 导入是辅助构筑入口，而不是持久化事实来源：
 | `client/src/components/deck-editor/CardEditor.tsx` | 卡组编辑器 |
 | `client/src/components/deck-editor/CardDetailDrawer.tsx` | 编辑器与分享页卡牌详情 |
 | `client/src/store/deckStore.ts` | 卡组状态管理 |
-| `client/src/lib/deckRecordUtils.ts` | `DeckRecord` 与 `DeckConfig` 转换 |
+| `client/src/lib/deckRecordUtils.ts` | 客户端复用共享卡组记录转换工具的出口 |
 | `client/src/lib/apiClient.ts` | REST 客户端与卡组记录类型 |
+| `src/domain/card-data/deck-record-utils.ts` | `DeckRecord` 与 `DeckConfig` 转换、旧格式规范化和服务端保存前校验 |
 | `src/domain/card-data/deck-loader.ts` | `DeckConfig` 与卡组加载模型 |
 | `src/domain/rules/deck-validator.ts` | 卡组基础验证规则 |
 | `src/domain/rules/deck-construction.ts` | 构筑限制与点数规则 |
 | `src/shared/utils/card-code.ts` | 基础卡号提取 |
 | `src/server/routes/decks.ts` | 卡组 API 路由 |
+| `src/server/services/deck-storage-service.ts` | 服务端卡组保存前规范化与发布卡池校验 |
 | `src/server/services/decklog-scraper.ts` | DeckLog 导入服务 |
 | `src/server/db/schema.ts` | 持久化 schema |
+| `src/scripts/normalize-deck-records.ts` | 生产卡组记录检查与旧格式迁移脚本 |
 
 ## 13. 相关文档
 

@@ -20,6 +20,7 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import {
   createDeckRecordCardTypeResolver,
   deckRecordToConfig,
+  isDeckRecordValidForCurrentCardPool,
 } from '@/lib/deckRecordUtils';
 
 const DEBUG_MATCH_ID = (import.meta.env.VITE_DEBUG_MATCH_ID as string | undefined) ?? 'loveca-online-debug';
@@ -64,7 +65,10 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
   const mySeat = DEBUG_SEAT ?? null;
   const opponentSeat: Seat | null =
     mySeat === 'FIRST' ? 'SECOND' : mySeat === 'SECOND' ? 'FIRST' : null;
-  const validDecks = useMemo(() => cloudDecks.filter((deck) => deck.is_valid), [cloudDecks]);
+  const validDecks = useMemo(
+    () => cloudDecks.filter((deck) => isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry)),
+    [cardDataRegistry, cloudDecks]
+  );
   const myStatus = mySeat && status ? status.seats[mySeat] : null;
   const opponentStatus = opponentSeat && status ? status.seats[opponentSeat] : null;
   const isMatchStarted = status?.started ?? false;

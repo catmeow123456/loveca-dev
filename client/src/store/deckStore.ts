@@ -16,6 +16,7 @@ import {
   deckRecordToConfig,
 } from '@/lib/deckRecordUtils';
 import { useGameStore } from '@/store/gameStore';
+import { useAuthStore } from '@/store/authStore';
 
 interface DeckState {
   player1Deck: DeckConfig | null;
@@ -207,6 +208,15 @@ export const useDeckStore = create<DeckState>((set, get) => {
 
     // 云端卡组方法
     fetchCloudDecks: async () => {
+      if (useAuthStore.getState().offlineMode) {
+        set({
+          cloudDecks: [],
+          isLoadingCloud: false,
+          cloudError: '离线模式下无法使用云端卡组',
+        });
+        return;
+      }
+
       if (!isApiConfigured) {
         set({ cloudError: '服务器未配置' });
         return;
@@ -232,18 +242,20 @@ export const useDeckStore = create<DeckState>((set, get) => {
     },
 
     saveToCloud: async (player, name, description) => {
+      if (useAuthStore.getState().offlineMode) {
+        return { success: false, error: '离线模式下无法保存云端卡组' };
+      }
+
       if (!isApiConfigured) {
         return { success: false, error: '服务器未配置' };
       }
 
-      const { player1Deck, player2Deck, validateDeck } = get();
+      const { player1Deck, player2Deck } = get();
       const deck = player === 'player1' ? player1Deck : player2Deck;
 
       if (!deck) {
         return { success: false, error: '卡组为空' };
       }
-
-      const validation = validateDeck(deck);
 
       try {
         const deckPayload = deckConfigToRecordPayload(deck);
@@ -253,8 +265,6 @@ export const useDeckStore = create<DeckState>((set, get) => {
           description: description || deck.description,
           main_deck: deckPayload.main_deck,
           energy_deck: deckPayload.energy_deck,
-          is_valid: validation.valid,
-          validation_errors: validation.errors,
         });
 
         if (result.error) {
@@ -270,6 +280,10 @@ export const useDeckStore = create<DeckState>((set, get) => {
     },
 
     loadFromCloud: async (deckId, player) => {
+      if (useAuthStore.getState().offlineMode) {
+        return { success: false, error: '离线模式下无法加载云端卡组' };
+      }
+
       if (!isApiConfigured) {
         return { success: false, error: '服务器未配置' };
       }
@@ -300,6 +314,10 @@ export const useDeckStore = create<DeckState>((set, get) => {
     },
 
     deleteCloudDeck: async (deckId) => {
+      if (useAuthStore.getState().offlineMode) {
+        return { success: false, error: '离线模式下无法删除云端卡组' };
+      }
+
       if (!isApiConfigured) {
         return { success: false, error: '服务器未配置' };
       }

@@ -26,6 +26,7 @@ import {
   proposeTurnOrder,
   respondTurnOrder,
 } from '@/lib/onlineClient';
+import { isDeckRecordValidForCurrentCardPool } from '@/lib/deckRecordUtils';
 import type { OnlineRoomView } from '@game/online';
 
 const ROOM_POLL_INTERVAL_MS = 1200;
@@ -46,12 +47,16 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
   const disconnectRemoteSession = useGameStore((s) => s.disconnectRemoteSession);
   const syncRemoteState = useGameStore((s) => s.syncRemoteState);
+  const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
   const remoteSession = useGameStore((s) =>
     s.remoteSession?.source === 'ONLINE' ? s.remoteSession : null
   );
   const matchView = useGameStore((s) => s.getMatchView());
 
-  const validDecks = useMemo(() => cloudDecks.filter((deck) => deck.is_valid), [cloudDecks]);
+  const validDecks = useMemo(
+    () => cloudDecks.filter((deck) => isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry)),
+    [cardDataRegistry, cloudDecks]
+  );
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [joinedRoomCode, setJoinedRoomCode] = useState<string | null>(null);
   const [room, setRoom] = useState<OnlineRoomView | null>(null);

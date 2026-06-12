@@ -68,7 +68,8 @@ src/
 │   ├── routes/              # app-config, auth, cards, decks, profiles, images, online, debug-online(dev)
 │   └── services/            # auth-service, mail-service, minio-service,
 │                            # online-room-service, online-match-service, debug-match-service,
-│                            # card-registry-service (published-cards cache for online decks)
+│                            # card-registry-service (published-cards cache for online decks),
+│                            # deck-storage-service (cloud deck normalization + validation)
 └── shared/
     ├── types/enums.ts       # All game enums
     └── phase-config/        # Phase configuration registry

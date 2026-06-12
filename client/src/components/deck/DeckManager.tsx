@@ -6,9 +6,24 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Plus, Upload, Download, Save, Trash2,
-  Pencil, Loader2, AlertTriangle, Wifi, WifiOff,
-  Check, Circle, Zap, Globe, Copy, ExternalLink, EyeOff,
+  ArrowLeft,
+  Plus,
+  Upload,
+  Download,
+  Save,
+  Trash2,
+  Pencil,
+  Loader2,
+  AlertTriangle,
+  Wifi,
+  WifiOff,
+  Check,
+  Circle,
+  Zap,
+  Globe,
+  Copy,
+  ExternalLink,
+  EyeOff,
 } from 'lucide-react';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
@@ -16,10 +31,26 @@ import { useGameStore } from '@/store/gameStore';
 import { CardType } from '@game/shared/types/enums';
 import { apiClient, isApiConfigured, type DeckRecord } from '@/lib/apiClient';
 import { CardEditor } from '@/components/deck-editor';
-import { calculateDeckStats, DeckStatsRow, getDeckPointTextClass, PageHeader, ThemeToggle } from '@/components/common';
+import {
+  calculateDeckStats,
+  DeckStatsRow,
+  getDeckPointTextClass,
+  PageHeader,
+  ThemeToggle,
+} from '@/components/common';
 import { PRESET_DECKS, type PresetDeck } from './preset-decks';
-import type { DeckConfig, CardEntry } from '@game/domain/card-data/deck-loader';
-import { calculateDeckConfigStats, validateDeckConfig, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
+import {
+  CardDataRegistry,
+  DeckConfigSchema,
+  DeckLoader,
+  type CardEntry,
+  type DeckConfig,
+} from '@game/domain/card-data/deck-loader';
+import {
+  calculateDeckConfigStats,
+  validateDeckConfig,
+  DECK_POINT_LIMIT,
+} from '@game/domain/rules/deck-construction';
 import * as yaml from 'yaml';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
@@ -40,8 +71,15 @@ function createEmptyDeck(name: string = '新卡组'): DeckConfig {
     player_name: name,
     description: '',
     main_deck: { members: [], lives: [] },
-    energy_deck: []
+    energy_deck: [],
   };
+}
+
+function formatYamlStructureError(issues: { path: PropertyKey[]; message: string }[]): string {
+  return issues
+    .slice(0, 6)
+    .map((issue) => `${issue.path.join('.') || '根节点'}: ${issue.message}`)
+    .join('；');
 }
 
 export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerProps) {
@@ -80,6 +118,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   const displayUsername = offlineMode
     ? offlineUser?.displayName || 'Guest'
     : profile?.display_name || profile?.username || 'User';
+  const cloudFeaturesUnavailable = offlineMode || !isApiConfigured;
 
   // DeckLog 导入
   const [showDecklogDialog, setShowDecklogDialog] = useState(false);
@@ -98,7 +137,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
 
   useEffect(() => {
     fetchCloudDecks();
-  }, [fetchCloudDecks]);
+  }, [fetchCloudDecks, offlineMode]);
 
   useEffect(() => {
     return () => {
@@ -130,17 +169,22 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
     setViewMode('edit');
   };
 
-  const handleEdit = useCallback((cloudDeck: DeckRecord) => {
-    const localDeck = deckRecordToConfig(cloudDeck, { resolveCardType: resolveDeckRecordCardType });
+  const handleEdit = useCallback(
+    (cloudDeck: DeckRecord) => {
+      const localDeck = deckRecordToConfig(cloudDeck, {
+        resolveCardType: resolveDeckRecordCardType,
+      });
 
-    setEditingDeck(localDeck);
-    setEditingDeckId(cloudDeck.id);
-    setDeckName(cloudDeck.name);
-    setDeckDescription(cloudDeck.description || '');
-    setSaveError(null);
-    initialSnapshot.current = JSON.stringify(localDeck);
-    setViewMode('edit');
-  }, [resolveDeckRecordCardType]);
+      setEditingDeck(localDeck);
+      setEditingDeckId(cloudDeck.id);
+      setDeckName(cloudDeck.name);
+      setDeckDescription(cloudDeck.description || '');
+      setSaveError(null);
+      initialSnapshot.current = JSON.stringify(localDeck);
+      setViewMode('edit');
+    },
+    [resolveDeckRecordCardType]
+  );
 
   useEffect(() => {
     if (!initialOpenDeckId || initialOpenHandled.current || cloudDecks.length === 0) return;
@@ -160,9 +204,15 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
     setDeleteConfirm(null);
   };
 
-  const getShareUrl = (deck: DeckRecord) => `${window.location.origin}/decks/share/${deck.share_id}`;
+  const getShareUrl = (deck: DeckRecord) =>
+    `${window.location.origin}/decks/share/${deck.share_id}`;
 
   const handleEnableShare = async (deckId: string) => {
+    if (cloudFeaturesUnavailable) {
+      setSaveError('离线模式下无法分享云端卡组');
+      return;
+    }
+
     setSharingDeckId(deckId);
     setSaveError(null);
 
@@ -187,6 +237,11 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   };
 
   const handleDisableShare = async (deckId: string) => {
+    if (cloudFeaturesUnavailable) {
+      setSaveError('离线模式下无法关闭分享');
+      return;
+    }
+
     setSharingDeckId(deckId);
     setSaveError(null);
 
@@ -204,6 +259,11 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   };
 
   const handleCopyShareLink = async (deck: DeckRecord) => {
+    if (cloudFeaturesUnavailable) {
+      setSaveError('离线模式下无法使用分享链接');
+      return;
+    }
+
     if (!deck.share_id) {
       setSaveError('该卡组尚未生成分享链接');
       return;
@@ -218,6 +278,11 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   };
 
   const handleOpenShare = (deck: DeckRecord) => {
+    if (cloudFeaturesUnavailable) {
+      setSaveError('离线模式下无法打开分享页');
+      return;
+    }
+
     if (!deck.share_id) {
       setSaveError('该卡组尚未生成分享链接');
       return;
@@ -228,6 +293,11 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   const handleSave = async () => {
     if (!editingDeck || !deckName.trim()) {
       setSaveError('请输入卡组名称');
+      return;
+    }
+
+    if (cloudFeaturesUnavailable) {
+      setSaveError('离线模式下无法保存云端卡组，请使用导出 YAML 备份当前卡组');
       return;
     }
 
@@ -243,15 +313,12 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
 
       if (editingDeckId) {
         const deckPayload = deckConfigToRecordPayload(deckToSave);
-        const validation = validateDeck(deckToSave);
 
         const result = await apiClient.put<DeckRecord>(`/api/decks/${editingDeckId}`, {
           name: deckName.trim(),
           description: deckDescription.trim(),
           main_deck: deckPayload.main_deck,
           energy_deck: deckPayload.energy_deck,
-          is_valid: validation.valid,
-          validation_errors: validation.errors,
         });
 
         if (result.error) {
@@ -305,10 +372,25 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
     reader.onload = (event) => {
       try {
         const content = event.target?.result as string;
-        const deck = yaml.parse(content) as DeckConfig;
+        const rawDeck = yaml.parse(content);
+        const parseResult = DeckConfigSchema.safeParse(rawDeck);
 
-        if (!deck.main_deck) deck.main_deck = { members: [], lives: [] };
-        if (!deck.energy_deck) deck.energy_deck = [];
+        if (!parseResult.success) {
+          setSaveError(`YAML 结构错误：${formatYamlStructureError(parseResult.error.issues)}`);
+          return;
+        }
+
+        const registry = new CardDataRegistry();
+        registry.load(Array.from(cardDataRegistry.values()));
+        const loader = new DeckLoader(registry);
+        const loadResult = loader.loadFromConfig(parseResult.data);
+
+        if (!loadResult.success) {
+          setSaveError(`YAML 卡牌校验失败：${loadResult.errors.join('；')}`);
+          return;
+        }
+
+        const deck = parseResult.data;
 
         setEditingDeck(deck);
         setDeckName(deck.player_name || '导入的卡组');
@@ -316,6 +398,9 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
         setSaveError(null);
         initialSnapshot.current = JSON.stringify(deck);
         setViewMode('edit');
+        if (loadResult.warnings.length > 0) {
+          showToast(`YAML 已导入，${loadResult.warnings[0]}`);
+        }
       } catch {
         setSaveError('YAML 格式错误');
       }
@@ -327,6 +412,11 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   const handleDecklogImport = async () => {
     if (!decklogInput.trim()) {
       setDecklogError('请输入 DeckLog 卡组 ID 或 URL');
+      return;
+    }
+
+    if (offlineMode) {
+      setDecklogError('离线模式下无法使用 DeckLog 导入');
       return;
     }
 
@@ -427,8 +517,8 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   return (
     <div className="app-shell flex h-screen flex-col">
       <PageHeader
-        title={viewMode === 'list' ? '卡组管理' : (editingDeckId ? '编辑卡组' : '创建卡组')}
-        left={(
+        title={viewMode === 'list' ? '卡组管理' : editingDeckId ? '编辑卡组' : '创建卡组'}
+        left={
           <button
             onClick={viewMode === 'edit' ? handleCancelEdit : onBack}
             className="button-ghost inline-flex h-10 items-center justify-center gap-1.5 px-2.5 py-2 text-sm sm:px-3"
@@ -436,8 +526,8 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
             <ArrowLeft size={16} />
             <span className="hidden sm:inline">{viewMode === 'edit' ? '取消' : '返回'}</span>
           </button>
-        )}
-        right={(
+        }
+        right={
           <>
             <ThemeToggle />
             <div className="status-pill min-w-0 max-w-full px-2.5 py-1 text-xs">
@@ -448,10 +538,12 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
               ) : (
                 <Zap size={12} className="text-[var(--text-secondary)]" />
               )}
-              <span className="truncate font-medium text-[var(--text-primary)] max-[420px]:max-w-[92px] sm:max-w-none">{displayUsername}</span>
+              <span className="truncate font-medium text-[var(--text-primary)] max-[420px]:max-w-[92px] sm:max-w-none">
+                {displayUsername}
+              </span>
             </div>
           </>
-        )}
+        }
       />
 
       <AnimatePresence mode="wait">
@@ -470,11 +562,21 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                 </div>
                 <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
                   <button
-                    onClick={() => { setShowDecklogDialog(true); setDecklogError(null); setDecklogWarnings([]); }}
-                    className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium"
+                    onClick={() => {
+                      if (cloudFeaturesUnavailable) {
+                        setSaveError('离线模式下无法使用 DeckLog 导入');
+                        return;
+                      }
+                      setShowDecklogDialog(true);
+                      setDecklogError(null);
+                      setDecklogWarnings([]);
+                    }}
+                    className={`button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium ${
+                      cloudFeaturesUnavailable ? 'opacity-60' : ''
+                    }`}
+                    title={cloudFeaturesUnavailable ? '离线模式下无法使用 DeckLog 导入' : undefined}
                   >
-                    <Globe size={14} />
-                    从 DeckLog 导入
+                    <Globe size={14} />从 DeckLog 导入
                   </button>
                   <label className="button-secondary inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium">
                     <Upload size={14} />
@@ -499,7 +601,10 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
               {isLoadingCloud && cloudDecks.length === 0 && (
                 <div className="flex items-center justify-center py-20">
                   <div className="text-center">
-                    <Loader2 size={32} className="mx-auto mb-3 animate-spin text-[var(--accent-primary)]" />
+                    <Loader2
+                      size={32}
+                      className="mx-auto mb-3 animate-spin text-[var(--accent-primary)]"
+                    />
                     <div className="text-sm text-[var(--text-secondary)]">加载卡组中...</div>
                   </div>
                 </div>
@@ -534,13 +639,18 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                 <div className="py-8">
                   <div className="text-center mb-6">
                     <div className="mb-1 text-base text-[var(--text-secondary)]">还没有卡组</div>
-                    <div className="text-sm text-[var(--text-muted)]">从推荐卡组开始，或自由创建</div>
+                    <div className="text-sm text-[var(--text-muted)]">
+                      从推荐卡组开始，或自由创建
+                    </div>
                   </div>
 
-                  <div className="mb-3 text-xs font-semibold tracking-wider text-[var(--text-muted)]">推荐卡组</div>
+                  <div className="mb-3 text-xs font-semibold tracking-wider text-[var(--text-muted)]">
+                    推荐卡组
+                  </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-8">
                     {PRESET_DECKS.map((preset) => {
-                      const { memberCount, liveCount, energyCount, pointTotal } = calculateDeckConfigStats(preset.deck);
+                      const { memberCount, liveCount, energyCount, pointTotal } =
+                        calculateDeckConfigStats(preset.deck);
                       return (
                         <div
                           key={preset.id}
@@ -549,8 +659,12 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div>
-                              <h3 className="mb-0.5 text-base font-bold text-[var(--text-primary)]">{preset.name}</h3>
-                              <p className="text-xs text-[var(--text-secondary)]">{preset.description}</p>
+                              <h3 className="mb-0.5 text-base font-bold text-[var(--text-primary)]">
+                                {preset.name}
+                              </h3>
+                              <p className="text-xs text-[var(--text-secondary)]">
+                                {preset.description}
+                              </p>
                             </div>
                             <span className="chip-badge ml-3 flex-shrink-0 px-2 py-0.5 text-xs">
                               {preset.tag}
@@ -561,7 +675,9 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                               <span>成员 {memberCount}/48</span>
                               <span>Live {liveCount}/12</span>
                               <span>能量 {energyCount}/12</span>
-                              <span className={getDeckPointTextClass(pointTotal)}>点数 {pointTotal}/{DECK_POINT_LIMIT}pt</span>
+                              <span className={getDeckPointTextClass(pointTotal)}>
+                                点数 {pointTotal}/{DECK_POINT_LIMIT}pt
+                              </span>
                             </div>
                             <span className="text-xs text-[var(--accent-primary)] transition-colors">
                               使用此卡组 →
@@ -587,8 +703,12 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
               {/* Deck Grid */}
               <div className="grid gap-3">
                 {cloudDecks.map((deck, index) => {
-                  const deckConfig = deckRecordToConfig(deck, { resolveCardType: resolveDeckRecordCardType });
-                  const stats = calculateDeckStats(deck, { resolveCardType: resolveDeckRecordCardType });
+                  const deckConfig = deckRecordToConfig(deck, {
+                    resolveCardType: resolveDeckRecordCardType,
+                  });
+                  const stats = calculateDeckStats(deck, {
+                    resolveCardType: resolveDeckRecordCardType,
+                  });
                   const deckValidity = validateDeckConfig(deckConfig).valid;
                   const isDeleting = deleteConfirm === deck.id;
 
@@ -628,9 +748,13 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                         <>
                           <div className="mb-2.5 flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <h3 className="mb-0.5 truncate text-[15px] font-bold text-[var(--text-primary)] sm:text-base">{deck.name}</h3>
+                              <h3 className="mb-0.5 truncate text-[15px] font-bold text-[var(--text-primary)] sm:text-base">
+                                {deck.name}
+                              </h3>
                               {deck.description && (
-                                <p className="line-clamp-1 text-xs text-[var(--text-secondary)] sm:line-clamp-2 sm:text-sm">{deck.description}</p>
+                                <p className="line-clamp-1 text-xs text-[var(--text-secondary)] sm:line-clamp-2 sm:text-sm">
+                                  {deck.description}
+                                </p>
                               )}
                               <div className="mt-1 text-[11px] text-[var(--text-muted)] sm:hidden">
                                 {new Date(deck.updated_at).toLocaleDateString('zh-CN')}
@@ -655,8 +779,15 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                           </div>
 
                           <div className="flex flex-col gap-2.5 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
-                            <DeckStatsRow stats={stats} updatedAt={isMobile ? undefined : deck.updated_at} size={isMobile ? 'sm' : 'md'} className="min-w-0" />
-                            <div className={`${isMobile ? 'flex items-center gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]' : 'flex flex-wrap items-center gap-2 min-[560px]:gap-1.5'}`}>
+                            <DeckStatsRow
+                              stats={stats}
+                              updatedAt={isMobile ? undefined : deck.updated_at}
+                              size={isMobile ? 'sm' : 'md'}
+                              className="min-w-0"
+                            />
+                            <div
+                              className={`${isMobile ? 'flex items-center gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]' : 'flex flex-wrap items-center gap-2 min-[560px]:gap-1.5'}`}
+                            >
                               {deck.share_enabled && deck.share_id ? (
                                 <>
                                   <button
@@ -685,7 +816,11 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                     className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_22%,transparent)] px-2.5 py-1.5 text-xs text-[var(--semantic-warning)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,transparent)] disabled:cursor-wait disabled:opacity-60 min-[560px]:px-3 min-[560px]:py-1.5"
                                   >
                                     <span className="inline-flex items-center justify-center gap-1">
-                                      {sharingDeckId === deck.id ? <Loader2 size={12} className="animate-spin" /> : <EyeOff size={12} />}
+                                      {sharingDeckId === deck.id ? (
+                                        <Loader2 size={12} className="animate-spin" />
+                                      ) : (
+                                        <EyeOff size={12} />
+                                      )}
                                       <span className="sm:hidden">关闭</span>
                                       <span className="hidden sm:inline">关闭分享</span>
                                     </span>
@@ -698,7 +833,11 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                   className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_22%,transparent)] px-2.5 py-1.5 text-xs text-[var(--accent-primary)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] disabled:cursor-wait disabled:opacity-60 min-[560px]:px-3 min-[560px]:py-1.5"
                                 >
                                   <span className="inline-flex items-center justify-center gap-1">
-                                    {sharingDeckId === deck.id ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
+                                    {sharingDeckId === deck.id ? (
+                                      <Loader2 size={12} className="animate-spin" />
+                                    ) : (
+                                      <Globe size={12} />
+                                    )}
                                     分享
                                   </span>
                                 </button>
@@ -716,7 +855,9 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                               >
                                 <span className="inline-flex items-center justify-center gap-1">
                                   <Trash2 size={14} />
-                                  <span className={isMobile ? 'inline' : 'min-[560px]:hidden'}>删除</span>
+                                  <span className={isMobile ? 'inline' : 'min-[560px]:hidden'}>
+                                    删除
+                                  </span>
                                 </span>
                               </button>
                             </div>
@@ -738,124 +879,120 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
             className="relative z-10 flex flex-1 flex-col overflow-hidden p-4 pt-6"
           >
             <div className="workspace-shell flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="workspace-toolbar px-3 py-2 sm:px-4 sm:py-3">
-              {isMobile ? (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
+              <div className="workspace-toolbar px-3 py-2 sm:px-4 sm:py-3">
+                {isMobile ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="卡组名称"
+                        value={deckName}
+                        onChange={(e) => setDeckName(e.target.value)}
+                        className="input-field min-w-0 flex-1 px-3 py-2 text-sm font-semibold"
+                      />
+                      <button
+                        onClick={handleSave}
+                        disabled={isSaving || !deckName.trim()}
+                        className={`button-primary inline-flex h-10 shrink-0 items-center justify-center gap-1.5 px-3 text-sm font-semibold ${
+                          isSaving || !deckName.trim() ? 'cursor-not-allowed opacity-50' : ''
+                        }`}
+                      >
+                        <Save size={14} />
+                        <span>{isSaving ? '保存中' : '保存'}</span>
+                        {isDirty && !isSaving && (
+                          <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMobileMetaExpanded((v) => !v)}
+                        className="button-ghost inline-flex h-8 items-center gap-1 px-2 py-1 text-[11px]"
+                      >
+                        <Pencil size={12} />
+                        {mobileMetaExpanded ? '收起备注' : '编辑备注'}
+                      </button>
+                      <button
+                        onClick={handleExport}
+                        className="button-ghost inline-flex h-8 items-center gap-1 px-2 py-1 text-[11px]"
+                      >
+                        <Download size={12} />
+                        导出
+                      </button>
+                    </div>
+
+                    {mobileMetaExpanded && (
+                      <input
+                        type="text"
+                        placeholder="卡组备注 / 描述（可选）"
+                        value={deckDescription}
+                        onChange={(e) => setDeckDescription(e.target.value)}
+                        className="input-field w-full px-3 py-2 text-sm"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
                     <input
                       type="text"
                       placeholder="卡组名称"
                       value={deckName}
                       onChange={(e) => setDeckName(e.target.value)}
-                      className="input-field min-w-0 flex-1 px-3 py-2 text-sm font-semibold"
+                      className="input-field w-full px-3 py-2 text-sm font-semibold md:min-w-[180px] md:flex-[0.8]"
                     />
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving || !deckName.trim()}
-                      className={`button-primary inline-flex h-10 shrink-0 items-center justify-center gap-1.5 px-3 text-sm font-semibold ${
-                        isSaving || !deckName.trim()
-                          ? 'cursor-not-allowed opacity-50'
-                          : ''
-                      }`}
-                    >
-                      <Save size={14} />
-                      <span>{isSaving ? '保存中' : '保存'}</span>
-                      {isDirty && !isSaving && (
-                        <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setMobileMetaExpanded((v) => !v)}
-                      className="button-ghost inline-flex h-8 items-center gap-1 px-2 py-1 text-[11px]"
-                    >
-                      <Pencil size={12} />
-                      {mobileMetaExpanded ? '收起备注' : '编辑备注'}
-                    </button>
-                    <button
-                      onClick={handleExport}
-                      className="button-ghost inline-flex h-8 items-center gap-1 px-2 py-1 text-[11px]"
-                    >
-                      <Download size={12} />
-                      导出
-                    </button>
-                  </div>
-
-                  {mobileMetaExpanded && (
                     <input
                       type="text"
                       placeholder="卡组备注 / 描述（可选）"
                       value={deckDescription}
                       onChange={(e) => setDeckDescription(e.target.value)}
-                      className="input-field w-full px-3 py-2 text-sm"
+                      className="input-field w-full px-3 py-2 text-sm md:min-w-[260px] md:flex-[1.6]"
                     />
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
-                  <input
-                    type="text"
-                    placeholder="卡组名称"
-                    value={deckName}
-                    onChange={(e) => setDeckName(e.target.value)}
-                    className="input-field w-full px-3 py-2 text-sm font-semibold md:min-w-[180px] md:flex-[0.8]"
-                  />
-                  <input
-                    type="text"
-                    placeholder="卡组备注 / 描述（可选）"
-                    value={deckDescription}
-                    onChange={(e) => setDeckDescription(e.target.value)}
-                    className="input-field w-full px-3 py-2 text-sm md:min-w-[260px] md:flex-[1.6]"
-                  />
-                  <div className="flex items-center gap-2 md:ml-auto">
-                    <button
-                      onClick={handleExport}
-                      className="button-secondary flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm md:flex-initial"
-                    >
-                      <Download size={14} />
-                      导出
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving || !deckName.trim()}
-                      className={`button-primary flex min-h-11 flex-1 items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold md:flex-initial ${
-                        isSaving || !deckName.trim()
-                          ? 'cursor-not-allowed opacity-50'
-                          : ''
-                      }`}
-                    >
-                      <Save size={14} />
-                      {isSaving ? '保存中...' : '保存'}
-                      {isDirty && !isSaving && (
-                        <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
-                      )}
-                    </button>
+                    <div className="flex items-center gap-2 md:ml-auto">
+                      <button
+                        onClick={handleExport}
+                        className="button-secondary flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm md:flex-initial"
+                      >
+                        <Download size={14} />
+                        导出
+                      </button>
+                      <button
+                        onClick={handleSave}
+                        disabled={isSaving || !deckName.trim()}
+                        className={`button-primary flex min-h-11 flex-1 items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold md:flex-initial ${
+                          isSaving || !deckName.trim() ? 'cursor-not-allowed opacity-50' : ''
+                        }`}
+                      >
+                        <Save size={14} />
+                        {isSaving ? '保存中...' : '保存'}
+                        {isDirty && !isSaving && (
+                          <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {saveError && (
+                <div className="mx-4 mt-2 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-2.5">
+                  <div className="flex items-center gap-2 text-xs text-[var(--semantic-error)]">
+                    <AlertTriangle size={12} />
+                    <span>{saveError}</span>
                   </div>
                 </div>
               )}
-            </div>
 
-            {saveError && (
-              <div className="mx-4 mt-2 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-2.5">
-                <div className="flex items-center gap-2 text-xs text-[var(--semantic-error)]">
-                  <AlertTriangle size={12} />
-                  <span>{saveError}</span>
-                </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                {editingDeck && (
+                  <CardEditor
+                    deck={editingDeck}
+                    onDeckChange={setEditingDeck}
+                    onValidate={validateDeck}
+                  />
+                )}
               </div>
-            )}
-
-            <div className="flex-1 min-h-0 overflow-hidden">
-              {editingDeck && (
-                <CardEditor
-                  deck={editingDeck}
-                  onDeckChange={setEditingDeck}
-                  onValidate={validateDeck}
-                />
-              )}
-            </div>
             </div>
           </motion.main>
         )}
@@ -865,14 +1002,21 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
         <div className="modal-backdrop z-50 flex items-center justify-center">
           <div className="modal-surface modal-accent-amber mx-4 w-full max-w-md p-6">
             <h2 className="mb-1 text-lg font-bold text-[var(--text-primary)]">从 DeckLog 导入</h2>
-            <p className="mb-4 text-sm text-[var(--text-secondary)]">输入 DeckLog 卡组 ID 或完整 URL</p>
+            <p className="mb-4 text-sm text-[var(--text-secondary)]">
+              输入 DeckLog 卡组 ID 或完整 URL
+            </p>
 
             <input
               type="text"
               placeholder="例如: 2D6XL 或 https://decklog.bushiroad.com/view/2D6XL"
               value={decklogInput}
-              onChange={(e) => { setDecklogInput(e.target.value); setDecklogError(null); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !decklogLoading) handleDecklogImport(); }}
+              onChange={(e) => {
+                setDecklogInput(e.target.value);
+                setDecklogError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !decklogLoading) handleDecklogImport();
+              }}
               className="input-field mb-3 px-4 py-2.5 text-sm"
               autoFocus
             />
@@ -888,7 +1032,9 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
               <div className="mb-3 p-2 bg-amber-500/10 border border-amber-400/20 rounded-lg">
                 <div className="text-xs text-amber-300 mb-1">以下卡牌未匹配到本地数据：</div>
                 <ul className="text-xs text-amber-300/70 space-y-0.5 max-h-24 overflow-y-auto">
-                  {decklogWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                  {decklogWarnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
                 </ul>
               </div>
             )}
@@ -911,9 +1057,13 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                 }`}
               >
                 {decklogLoading ? (
-                  <><Loader2 size={14} className="animate-spin" /> 爬取中...</>
+                  <>
+                    <Loader2 size={14} className="animate-spin" /> 爬取中...
+                  </>
                 ) : (
-                  <><Globe size={14} /> 导入</>
+                  <>
+                    <Globe size={14} /> 导入
+                  </>
                 )}
               </button>
             </div>

@@ -5,7 +5,7 @@
  * Step 2: 确认并开始游戏
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -36,6 +36,7 @@ import defaultOpponentDeckYaml from '../../../../assets/decks/缪预组.yaml?raw
 import {
   createDeckRecordCardTypeResolver,
   deckRecordToConfig,
+  isDeckRecordValidForCurrentCardPool,
 } from '@/lib/deckRecordUtils';
 
 type SetupStep = 0 | 1 | 2 | 3;
@@ -73,7 +74,10 @@ export function GameSetupPage({ onBack, onGameStart }: GameSetupPageProps) {
   }, [fetchCloudDecks]);
 
   // 只显示有效的卡组
-  const validDecks = cloudDecks.filter((d) => d.is_valid);
+  const validDecks = useMemo(
+    () => cloudDecks.filter((deck) => isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry)),
+    [cardDataRegistry, cloudDecks]
+  );
 
   // 处理选择 P1 卡组
   const handleSelectP1 = (deck: DeckDisplayItem) => {
