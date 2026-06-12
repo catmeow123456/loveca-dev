@@ -407,6 +407,7 @@ graph TD
     Tests[测试体系] --> Unit[Unit]
     Tests --> Integration[Integration]
     Tests --> Simulation[Simulation]
+    Tests --> Performance[Performance\n按需运行]
     Tests --> E2E[Client E2E\n规划中]
 ```
 
@@ -414,6 +415,7 @@ graph TD
 
 - 单元与集成：`tests/unit/`、`tests/integration/`
 - 流程仿真：`tests/simulation/`
+- 性能基准：`tests/performance/`
 - 当前仓库未保留可运行的前端 E2E specs；历史 Playwright 输出可能存在于 `client/test-results/` 或根目录 `test-results/`，不作为现行测试入口
 
 ---

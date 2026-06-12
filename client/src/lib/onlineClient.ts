@@ -7,7 +7,7 @@ import type {
   OnlineRoomView,
   TurnOrderProposalMode,
 } from '@game/online';
-import { fromTransport, toTransport } from '@game/online';
+import { toTransport } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
 
 export async function createOnlineRoom(roomCode: string): Promise<OnlineRoomView> {
@@ -122,13 +122,13 @@ export async function fetchOnlineMatchSnapshot(
     sinceSeq !== undefined && Number.isSafeInteger(sinceSeq) && sinceSeq >= 0
       ? `?sinceSeq=${sinceSeq}`
       : '';
-  const response = await apiClient.get<unknown>(
+  const response = await apiClient.get<OnlineMatchSnapshotResponse>(
     `/api/online/matches/${encodeURIComponent(matchId)}/snapshot${search}`
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取联机对局快照失败');
   }
-  const snapshot = fromTransport<OnlineMatchSnapshotResponse>(response.data);
+  const snapshot = response.data;
   return isSnapshotNotModified(snapshot) ? null : snapshot;
 }
 
@@ -142,14 +142,14 @@ export async function executeOnlineMatchCommand(
   matchId: string,
   command: GameCommand
 ): Promise<OnlineCommandResult> {
-  const response = await apiClient.post<unknown>(
+  const response = await apiClient.post<OnlineCommandResult>(
     `/api/online/matches/${encodeURIComponent(matchId)}/command`,
     { command: toTransport(command) }
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '联机命令发送失败');
   }
-  return fromTransport<OnlineCommandResult>(response.data);
+  return response.data;
 }
 
 export async function fetchOnlineAdminRooms(): Promise<readonly OnlineAdminRoomSummary[]> {
@@ -161,11 +161,11 @@ export async function fetchOnlineAdminRooms(): Promise<readonly OnlineAdminRoomS
 }
 
 export async function advanceOnlineMatchPhase(matchId: string): Promise<OnlineCommandResult> {
-  const response = await apiClient.post<unknown>(
+  const response = await apiClient.post<OnlineCommandResult>(
     `/api/online/matches/${encodeURIComponent(matchId)}/advance`
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '联机阶段推进失败');
   }
-  return fromTransport<OnlineCommandResult>(response.data);
+  return response.data;
 }

@@ -61,6 +61,41 @@ function createRuntimeDeck(prefix: string): DeckConfig {
   return { mainDeck, energyDeck };
 }
 
+function expectJsonRoundTrip<T>(value: T): T {
+  assertNoTransportOnlyValues(value);
+  const encoded = JSON.stringify(value);
+  if (typeof encoded !== 'string') {
+    throw new Error('正式联机响应不能序列化为 JSON 对象');
+  }
+  return JSON.parse(encoded) as T;
+}
+
+function assertNoTransportOnlyValues(value: unknown, path = 'value'): void {
+  if (
+    value instanceof Map ||
+    value instanceof Set ||
+    value instanceof Date ||
+    typeof value === 'bigint' ||
+    typeof value === 'function' ||
+    typeof value === 'symbol'
+  ) {
+    throw new Error(`正式联机响应包含非 JSON-native 值: ${path}`);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => assertNoTransportOnlyValues(entry, `${path}[${index}]`));
+    return;
+  }
+
+  for (const [key, entry] of Object.entries(value)) {
+    assertNoTransportOnlyValues(entry, `${path}.${key}`);
+  }
+}
+
 describe('OnlineRoomService', () => {
   it('应完成正式房间准备流程并在接受提议后生成联机对局', async () => {
     const matchService = new OnlineMatchService();
@@ -103,11 +138,20 @@ describe('OnlineRoomService', () => {
     expect('publicEvents' in snapshot!).toBe(false);
     expect('privateEvents' in snapshot!).toBe(false);
     expect('snapshots' in snapshot!).toBe(false);
+    const snapshotRoundTrip = expectJsonRoundTrip(snapshot!);
+    expect(snapshotRoundTrip.matchId).toBe(started.matchId);
+    expect(snapshotRoundTrip.seat).toBe('FIRST');
+    expect(snapshotRoundTrip.playerViewState.match.viewerSeat).toBe('FIRST');
 
     const unchangedSnapshot = matchService.getMatchSnapshot(started.matchId!, 'u2', {
       sinceSeq: snapshot!.seq,
     });
     expect(unchangedSnapshot).toEqual({
+      matchId: started.matchId,
+      seq: snapshot!.seq,
+      modified: false,
+    });
+    expect(expectJsonRoundTrip(unchangedSnapshot)).toEqual({
       matchId: started.matchId,
       seq: snapshot!.seq,
       modified: false,
@@ -123,6 +167,10 @@ describe('OnlineRoomService', () => {
     expect('publicEvents' in commandResult!.snapshot!).toBe(false);
     expect('privateEvents' in commandResult!.snapshot!).toBe(false);
     expect('snapshots' in commandResult!.snapshot!).toBe(false);
+    const commandRoundTrip = expectJsonRoundTrip(commandResult!);
+    expect(commandRoundTrip.success).toBe(true);
+    expect(commandRoundTrip.snapshot?.matchId).toBe(started.matchId);
+    expect(commandRoundTrip.snapshot?.playerViewState.match.viewerSeat).toBe('FIRST');
   });
 
   it('同一用户重复加入同一房间时应复用原成员槽位', async () => {

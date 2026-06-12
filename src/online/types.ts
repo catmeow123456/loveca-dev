@@ -1,4 +1,11 @@
-import { CardType, FaceState, GameMode, OrientationState } from '../shared/types/enums.js';
+import {
+  BladeHeartEffect,
+  CardType,
+  FaceState,
+  GameMode,
+  HeartColor,
+  OrientationState,
+} from '../shared/types/enums.js';
 import type { GameState } from '../domain/entities/game.js';
 
 export type Seat = 'FIRST' | 'SECOND';
@@ -63,6 +70,21 @@ export interface ViewZoneState {
   readonly memberBelow?: Readonly<Record<string, readonly string[]>>;
 }
 
+export interface ViewHeartIcon {
+  readonly color: HeartColor;
+  readonly count: number;
+}
+
+export interface ViewBladeHeartItem {
+  readonly effect: BladeHeartEffect;
+  readonly heartColor?: HeartColor;
+}
+
+export interface ViewHeartRequirement {
+  readonly colorRequirements: Readonly<Partial<Record<HeartColor, number>>>;
+  readonly totalRequired: number;
+}
+
 export interface TableViewState {
   readonly zones: Readonly<Record<ViewZoneKey, ViewZoneState>>;
 }
@@ -73,9 +95,9 @@ export interface ViewFrontCardInfo {
   readonly cardType: CardType;
   readonly cost?: number;
   readonly score?: number;
-  readonly requiredHearts?: unknown;
-  readonly hearts?: unknown;
-  readonly bladeHearts?: unknown;
+  readonly requiredHearts?: ViewHeartRequirement;
+  readonly hearts?: readonly ViewHeartIcon[];
+  readonly bladeHearts?: readonly ViewBladeHeartItem[];
   readonly text?: string;
 }
 
