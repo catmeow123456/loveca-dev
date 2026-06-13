@@ -140,6 +140,15 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   }, [fetchCloudDecks, offlineMode]);
 
   useEffect(() => {
+    if (!showDecklogDialog) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showDecklogDialog]);
+
+  useEffect(() => {
     return () => {
       if (toastTimerRef.current !== null) {
         window.clearTimeout(toastTimerRef.current);
@@ -999,50 +1008,72 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       </AnimatePresence>
 
       {showDecklogDialog && (
-        <div className="modal-backdrop z-50 flex items-center justify-center">
-          <div className="modal-surface modal-accent-amber mx-4 w-full max-w-md p-6">
-            <h2 className="mb-1 text-lg font-bold text-[var(--text-primary)]">从 DeckLog 导入</h2>
-            <p className="mb-4 text-sm text-[var(--text-secondary)]">
-              输入 DeckLog 卡组 ID 或完整 URL
-            </p>
-
-            <input
-              type="text"
-              placeholder="例如: 2D6XL 或 https://decklog.bushiroad.com/view/2D6XL"
-              value={decklogInput}
-              onChange={(e) => {
-                setDecklogInput(e.target.value);
-                setDecklogError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !decklogLoading) handleDecklogImport();
-              }}
-              className="input-field mb-3 px-4 py-2.5 text-sm"
-              autoFocus
-            />
-
-            {decklogError && (
-              <div className="mb-3 flex items-center gap-2 rounded-lg bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-2 text-xs text-[var(--semantic-error)]">
-                <AlertTriangle size={12} />
-                <span>{decklogError}</span>
+        <div
+          className={`modal-backdrop z-50 flex ${
+            isMobile ? 'items-end justify-center p-0' : 'items-center justify-center p-4'
+          }`}
+          onClick={() => !decklogLoading && setShowDecklogDialog(false)}
+        >
+          <div
+            className={`modal-surface modal-accent-amber flex w-full flex-col overflow-hidden ${
+              isMobile
+                ? 'safe-bottom max-h-[88dvh] rounded-b-none rounded-t-[24px] border-b-0'
+                : 'max-w-md'
+            }`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {isMobile && (
+              <div className="flex justify-center pt-3">
+                <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
               </div>
             )}
 
-            {decklogWarnings.length > 0 && (
-              <div className="mb-3 p-2 bg-amber-500/10 border border-amber-400/20 rounded-lg">
-                <div className="text-xs text-amber-300 mb-1">以下卡牌未匹配到本地数据：</div>
-                <ul className="text-xs text-amber-300/70 space-y-0.5 max-h-24 overflow-y-auto">
-                  {decklogWarnings.map((w, i) => (
-                    <li key={i}>{w}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <div className="px-5 pb-3 pt-5 sm:px-6 sm:pt-6">
+              <h2 className="mb-1 text-lg font-bold text-[var(--text-primary)]">从 DeckLog 导入</h2>
+              <p className="text-sm text-[var(--text-secondary)]">
+                输入 DeckLog 卡组 ID 或完整 URL
+              </p>
+            </div>
 
-            <div className="flex items-center justify-end gap-3 mt-2">
+            <div className="touch-scroll flex-1 overflow-y-auto px-5 pb-4 sm:px-6">
+              <input
+                type="text"
+                placeholder="例如: 2D6XL 或 https://decklog.bushiroad.com/view/2D6XL"
+                value={decklogInput}
+                onChange={(e) => {
+                  setDecklogInput(e.target.value);
+                  setDecklogError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !decklogLoading) handleDecklogImport();
+                }}
+                className="input-field mb-3 min-h-11 px-4 py-2.5 text-sm"
+                autoFocus
+              />
+
+              {decklogError && (
+                <div className="mb-3 flex items-center gap-2 rounded-lg bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-2 text-xs text-[var(--semantic-error)]">
+                  <AlertTriangle size={12} />
+                  <span>{decklogError}</span>
+                </div>
+              )}
+
+              {decklogWarnings.length > 0 && (
+                <div className="mb-3 rounded-lg border border-amber-400/20 bg-amber-500/10 p-2">
+                  <div className="mb-1 text-xs text-amber-300">以下卡牌未匹配到本地数据：</div>
+                  <ul className="touch-scroll max-h-32 space-y-0.5 overflow-y-auto text-xs text-amber-300/70">
+                    {decklogWarnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer safe-bottom flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
               <button
                 onClick={() => setShowDecklogDialog(false)}
-                className="px-4 py-2 text-orange-300/60 hover:text-orange-300 rounded-lg text-sm transition-colors"
+                className="button-ghost inline-flex min-h-11 items-center justify-center px-4 py-2 text-sm"
                 disabled={decklogLoading}
               >
                 取消
@@ -1050,7 +1081,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
               <button
                 onClick={handleDecklogImport}
                 disabled={decklogLoading || !decklogInput.trim()}
-                className={`px-5 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-1.5 ${
+                className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-5 py-2 text-sm font-semibold transition-all ${
                   decklogLoading || !decklogInput.trim()
                     ? 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
                     : 'bg-gradient-to-r from-orange-400 to-amber-400 text-white hover:shadow-lg hover:shadow-orange-500/20'

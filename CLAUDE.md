@@ -28,6 +28,7 @@ pnpm test-env:start   # Reset and start the full test environment in tmux
 # Frontend (from client/)
 cd client && pnpm install
 cd client && pnpm dev    # Vite dev server (localhost:5173)
+cd client && pnpm test:e2e:mobile # Mobile layout Playwright baseline
 pnpm build:client        # Build frontend (from root)
 
 # Docker (backend runs in Docker container)

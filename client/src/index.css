@@ -160,6 +160,12 @@ html {
   transition: background-color 300ms ease, color 300ms ease;
 }
 
+@media (max-width: 767px) {
+  html {
+    scrollbar-gutter: auto;
+  }
+}
+
 body {
   margin: 0;
   font-family: var(--font-body);

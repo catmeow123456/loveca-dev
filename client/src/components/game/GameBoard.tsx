@@ -15,10 +15,11 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '@/store/gameStore';
 import { PlayerArea } from './PlayerArea';
-import { GameLog } from './GameLog';
+import { GameLog, GameLogContent } from './GameLog';
 import { PhaseIndicator } from './PhaseIndicator';
 import { PhaseBanner } from './PhaseBanner';
 import { LiveResultAnimation, type LiveScoreInfo } from './LiveResultAnimation';
@@ -31,8 +32,10 @@ import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
 import { getDeckBackUrl } from '@/lib/imageService';
 import { parseZoneId } from '@/lib/zoneUtils';
+import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
-import { ChevronRight, DoorOpen } from 'lucide-react';
+import { ChevronRight, DoorOpen, ScrollText, Swords, UserRound, X } from 'lucide-react';
 import {
   SlotPosition,
   GamePhase,
@@ -41,6 +44,7 @@ import {
   CardType,
   GameMode,
 } from '@game/shared/types/enums';
+import { getPhaseConfig, getSubPhaseConfig } from '@game/shared/phase-config';
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { Seat } from '@game/online';
 
@@ -50,6 +54,8 @@ const RESOLUTION_TARGET_PREFIX = 'resolution-target-';
 type SpecialDragTarget =
   | { kind: 'inspection'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' }
   | { kind: 'resolution'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' };
+
+type MobileBattlePanel = 'opponent' | 'log';
 
 const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
   const dragData = args.active.data.current as { fromZone?: ZoneType } | undefined;
@@ -98,6 +104,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const opponentLiveWinner = useGameStore((s) => s.isOpponentLiveWinner());
   const isLiveDraw = useGameStore((s) => s.isLiveDraw);
   const gameMode = useGameStore((s) => s.gameMode);
+  const isDebugMode = gameMode === GameMode.DEBUG;
+  const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
+  const logCount = useGameStore((s) => s.ui.logs.length);
+  const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
   const prevPhaseRef = useRef<GamePhase | null>(null);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
@@ -165,6 +175,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
   // 拖拽状态
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
 
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
   const isJudgmentPanelRelevant =
@@ -190,15 +201,40 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
   useEffect(() => {
     if (currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) {
-      setJudgmentPanelOpen(true);
+      const timer = window.setTimeout(() => setJudgmentPanelOpen(true), 0);
+      return () => window.clearTimeout(timer);
     }
   }, [currentSubPhase]);
 
   useEffect(() => {
     if (!isJudgmentPanelRelevant && judgmentPanelOpen) {
-      setJudgmentPanelOpen(false);
+      const timer = window.setTimeout(() => setJudgmentPanelOpen(false), 0);
+      return () => window.clearTimeout(timer);
     }
   }, [isJudgmentPanelRelevant, judgmentPanelOpen]);
+
+  useEffect(() => {
+    if (!isMobileBattlefield && mobilePanel) {
+      const timer = window.setTimeout(() => setMobilePanel(null), 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [isMobileBattlefield, mobilePanel]);
+
+  useEffect(() => {
+    if (!isDebugMode && mobilePanel === 'log') {
+      const timer = window.setTimeout(() => setMobilePanel(null), 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [isDebugMode, mobilePanel]);
+
+  useEffect(() => {
+    if (!isMobileBattlefield || !mobilePanel) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileBattlefield, mobilePanel]);
 
   useEffect(() => {
     const prevPhase = prevPhaseRef.current;
@@ -742,6 +778,12 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const resolvedActiveSeat = activeSeat ?? selfSeat;
   const isSolitaire = gameMode === GameMode.SOLITAIRE;
   const showLeaveLocalGameButton = isSolitaire && Boolean(onLeaveLocalGame);
+  const selfIdentity = getPlayerIdentityForSeat(selfSeat);
+  const opponentIdentity = getPlayerIdentityForSeat(opponentSeat);
+  const phaseInfo = getPhaseConfig(currentPhase)?.display;
+  const subPhaseInfo =
+    currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase)?.display : null;
+  const turnNumber = currentTurnCount ?? matchView.turnCount;
 
   return (
     <DndContext
@@ -763,7 +805,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           backgroundRepeat: 'no-repeat',
         }}
       >
-        <div className="pointer-events-none absolute inset-0 bg-[var(--board-overlay)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[color:color-mix(in_srgb,var(--board-overlay)_42%,transparent)] md:bg-[var(--board-overlay)]" />
         <div
           className="pointer-events-none absolute inset-0"
           style={{ background: 'var(--gradient-spotlight)' }}
@@ -773,70 +815,270 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           style={{ background: 'var(--gradient-stage-glow)' }}
         />
 
-        <div className="absolute right-4 top-4 z-[80]">
-          <ThemeToggle />
-        </div>
+        {isMobileBattlefield ? (
+          <div className="relative z-10 flex h-full min-h-0 flex-col overflow-hidden md:hidden">
+            <div className="safe-top shrink-0 px-3 pt-3">
+              <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_26%,transparent)] px-3 py-2 shadow-none backdrop-blur-[2px]">
+                <div className="flex items-center justify-between gap-2">
+                  {showLeaveLocalGameButton ? (
+                    <button
+                      type="button"
+                      onClick={onLeaveLocalGame}
+                      className="button-ghost inline-flex h-10 shrink-0 items-center justify-center gap-1.5 px-2.5 text-xs"
+                      title="退出对墙打房间"
+                    >
+                      <DoorOpen size={15} />
+                      离开
+                    </button>
+                  ) : (
+                    <div className="h-10 w-10 shrink-0" />
+                  )}
 
-        {showLeaveLocalGameButton && (
-          <div className="absolute left-4 top-4 z-[120] flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onLeaveLocalGame}
-              className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
-              title="退出对墙打房间"
+                  <div className="min-w-0 text-center">
+                    <div className="truncate text-sm font-bold text-[var(--text-primary)]">
+                      {phaseInfo?.name ?? currentPhase}阶段
+                    </div>
+                    <div className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
+                      T{turnNumber}
+                      {subPhaseInfo ? ` · ${subPhaseInfo.name}` : ''}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0">
+                    <ThemeToggle />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMobilePanel('opponent')}
+                className="mt-2 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-3 py-2 text-left shadow-none backdrop-blur-[2px]"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className={cn(
+                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border',
+                      resolvedActiveSeat === opponentSeat
+                        ? 'border-rose-300/50 bg-rose-500/20 text-rose-200'
+                        : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)]'
+                    )}
+                  >
+                    <UserRound size={15} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-[var(--text-primary)]">
+                      {opponentIdentity?.name ?? '对手区域'}
+                    </span>
+                    <span className="block truncate text-[11px] text-[var(--text-muted)]">
+                      {isSolitaire ? '对墙打模式已弱化对手区' : '点按查看对手战场'}
+                    </span>
+                  </span>
+                </span>
+                <span className="rounded-full border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-secondary)]">
+                  Live {opponentLiveScore}
+                </span>
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 px-2 pb-32 pt-2">
+              <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_10%,transparent)] shadow-none">
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[color:color-mix(in_srgb,var(--border-subtle)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_14%,transparent)] px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                      {selfIdentity?.name ?? '己方主战场'}
+                    </div>
+                    <div className="text-[11px] text-[var(--text-muted)]">主战场</div>
+                  </div>
+                  <div className="rounded-full border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-secondary)]">
+                    Live {viewerLiveScore}
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <PlayerArea
+                    playerSeat={selfSeat}
+                    isOpponent={false}
+                    isActive={resolvedActiveSeat === selfSeat}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div
+              className={cn(
+                'safe-bottom fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-[65] grid gap-2 md:hidden',
+                isDebugMode ? 'grid-cols-3' : 'grid-cols-2'
+              )}
             >
-              <DoorOpen size={16} />
-              离开房间
-            </button>
+              <button
+                type="button"
+                onClick={() => setMobilePanel('opponent')}
+                className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]"
+              >
+                <Swords size={15} />
+                对手
+              </button>
+              {isDebugMode && (
+                <button
+                  type="button"
+                  onClick={() => setMobilePanel('log')}
+                  className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]"
+                >
+                  <ScrollText size={15} />
+                  日志 {logCount}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleOpenJudgmentPanel}
+                disabled={!isJudgmentPanelRelevant}
+                className={cn(
+                  'button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]',
+                  !isJudgmentPanelRelevant && 'cursor-not-allowed opacity-50'
+                )}
+              >
+                <ChevronRight size={15} />
+                判定
+              </button>
+            </div>
+
+            <AnimatePresence>
+              {mobilePanel && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="modal-backdrop fixed inset-0 z-[85] md:hidden"
+                    onClick={() => setMobilePanel(null)}
+                  />
+                  <motion.div
+                    initial={{ y: '100%' }}
+                    animate={{ y: 0 }}
+                    exit={{ y: '100%' }}
+                    transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+                    className="safe-bottom fixed inset-x-0 bottom-0 z-[90] flex max-h-[82dvh] min-h-[52dvh] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
+                  >
+                    <div className="shrink-0 px-4 pb-2 pt-3">
+                      <div className="mb-3 flex justify-center">
+                        <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-bold text-[var(--text-primary)]">
+                            {mobilePanel === 'opponent' ? '对手战场' : '游戏日志'}
+                          </div>
+                          <div className="mt-0.5 text-xs text-[var(--text-muted)]">
+                            {mobilePanel === 'opponent'
+                              ? opponentIdentity?.name ?? opponentSeat
+                              : `${logCount} 条记录`}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setMobilePanel(null)}
+                          className="button-icon h-9 w-9 shrink-0"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {mobilePanel === 'opponent' ? (
+                      <div className="min-h-0 flex-1 overflow-hidden px-2 pb-3">
+                        <div
+                          className={cn(
+                            'h-full overflow-hidden rounded-2xl border border-[var(--border-subtle)]',
+                            isSolitaire && 'opacity-60'
+                          )}
+                        >
+                          <PlayerArea
+                            playerSeat={opponentSeat}
+                            isOpponent={true}
+                            isActive={resolvedActiveSeat === opponentSeat}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
+                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
+                          <GameLogContent active={mobilePanel === 'log'} />
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
+        ) : (
+          <>
+            <div className="absolute right-4 top-4 z-[80]">
+              <ThemeToggle />
+            </div>
+
+            {showLeaveLocalGameButton && (
+              <div className="absolute left-4 top-4 z-[120] flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onLeaveLocalGame}
+                  className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
+                  title="退出对墙打房间"
+                >
+                  <DoorOpen size={16} />
+                  离开房间
+                </button>
+              </div>
+            )}
+
+            {/* 对手区域 (顶部) - 包含成员槽位和对手 Live 区 */}
+            <div
+              className={`relative flex-[5] min-h-0 overflow-hidden ${
+                isSolitaire ? 'opacity-[0.12] pointer-events-none' : ''
+              }`}
+            >
+              <PlayerArea
+                playerSeat={opponentSeat}
+                isOpponent={true}
+                isActive={resolvedActiveSeat === opponentSeat}
+              />
+            </div>
+
+            {/* VS 分隔线 (中央) - 对墙打模式下弱化 */}
+            <div
+              className="relative flex h-[32px] flex-shrink-0 items-center justify-center border-y"
+              style={{
+                borderColor: isSolitaire
+                  ? 'color-mix(in srgb, var(--border-default) 30%, transparent)'
+                  : 'var(--border-default)',
+                background: isSolitaire
+                  ? 'color-mix(in srgb, var(--bg-overlay) 16%, transparent)'
+                  : 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-primary) 12%, transparent), color-mix(in srgb, var(--accent-secondary) 12%, transparent), transparent)',
+              }}
+            >
+              <span
+                className="px-4 text-lg font-bold tracking-[0.2em]"
+                style={{
+                  color: isSolitaire ? 'var(--text-muted)' : 'var(--accent-primary)',
+                  textShadow: isSolitaire
+                    ? 'none'
+                    : '0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent)',
+                }}
+              >
+                VS
+              </span>
+            </div>
+
+            {/* 己方区域 (底部) - 包含己方 Live 区和成员槽位 */}
+            <div className="flex-[5] min-h-0 overflow-hidden">
+              <PlayerArea
+                playerSeat={selfSeat}
+                isOpponent={false}
+                isActive={resolvedActiveSeat === selfSeat}
+              />
+            </div>
+          </>
         )}
-
-        {/* 对手区域 (顶部) - 包含成员槽位和对手 Live 区 */}
-        <div
-          className={`relative flex-[5] min-h-0 overflow-hidden ${
-            isSolitaire ? 'opacity-[0.12] pointer-events-none' : ''
-          }`}
-        >
-          <PlayerArea
-            playerSeat={opponentSeat}
-            isOpponent={true}
-            isActive={resolvedActiveSeat === opponentSeat}
-          />
-        </div>
-
-        {/* VS 分隔线 (中央) - 对墙打模式下弱化 */}
-        <div
-          className="relative flex h-[32px] flex-shrink-0 items-center justify-center border-y"
-          style={{
-            borderColor: isSolitaire
-              ? 'color-mix(in srgb, var(--border-default) 30%, transparent)'
-              : 'var(--border-default)',
-            background: isSolitaire
-              ? 'color-mix(in srgb, var(--bg-overlay) 16%, transparent)'
-              : 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-primary) 12%, transparent), color-mix(in srgb, var(--accent-secondary) 12%, transparent), transparent)',
-          }}
-        >
-          <span
-            className="px-4 text-lg font-bold tracking-[0.2em]"
-            style={{
-              color: isSolitaire ? 'var(--text-muted)' : 'var(--accent-primary)',
-              textShadow: isSolitaire
-                ? 'none'
-                : '0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent)',
-            }}
-          >
-            VS
-          </span>
-        </div>
-
-        {/* 己方区域 (底部) - 包含己方 Live 区和成员槽位 */}
-        <div className="flex-[5] min-h-0 overflow-hidden">
-          <PlayerArea
-            playerSeat={selfSeat}
-            isOpponent={false}
-            isActive={resolvedActiveSeat === selfSeat}
-          />
-        </div>
 
         {/* 阶段指示器 */}
         <PhaseIndicator
@@ -858,13 +1100,13 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         )}
 
         {/* 游戏日志 */}
-        <GameLog />
+        {!isMobileBattlefield && <GameLog />}
 
         {/* 阶段提示横幅 */}
         <PhaseBanner />
 
         {/* 调试控制面板 */}
-        <DebugControl />
+        {!isMobileBattlefield && <DebugControl />}
 
         {/* 卡牌详情浮窗 */}
         <CardDetailOverlay />

@@ -75,6 +75,7 @@
 | [卡组分享功能方案](deck-management/share-plan.md) | 历史方案与增强项参考；当前事实以卡组需求/设计文档为准 |
 | [UI 重设计方案](UI_REDESIGN.md) | 历史设计背景和遗留清理参考；当前 UI 规范以 `ui-standard.md` 和代码为准 |
 | [移动端适配需求](UI_MOBILE_ADAPTATION_REQUIREMENTS.md) | 移动端后续实施标准，部分内容不是当前实现 |
+| [移动端现状差距清单](UI_MOBILE_ADAPTATION_GAP_ANALYSIS.md) | 移动端目标态与当前实现之间的差距和优先级 |
 | [移动端改进方向](game-table-ui-mobile-improvement-directions.md) | 游戏桌移动端方案建议，非当前实现说明 |
 | [移动端线框说明](game-table-ui-mobile-wireframe-notes.md) | 低保真结构草案，非当前实现说明 |
 | [历史迁移说明](historical-migrations.md) | 早期外部托管方案的历史参考 |

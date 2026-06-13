@@ -4,12 +4,13 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import {
   ArrowLeft, Plus, Download, Search, RefreshCw, Loader2,
   AlertTriangle, Lock, Pencil, ArrowUp, ArrowDown,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  ListFilter, X,
 } from 'lucide-react';
 import { PageHeader, ThemeToggle } from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
@@ -19,6 +20,7 @@ import { Card } from '@/components/card/Card';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { CardType } from '@game/shared/types/enums';
 import { CardEditModal } from './CardEditModal';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface CardAdminPageProps {
   onBack: () => void;
@@ -43,10 +45,53 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(28);
   const [batchWorking, setBatchWorking] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 767px)');
+
+  const cardTypeOptions = [
+    { value: 'ALL' as const, label: '全部' },
+    { value: CardType.MEMBER, label: '成员卡' },
+    { value: CardType.LIVE, label: 'Live 卡' },
+    { value: CardType.ENERGY, label: '能量卡' },
+  ];
+  const statusOptions = [
+    {
+      value: 'ALL' as const,
+      label: '全部状态',
+      active:
+        'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]',
+    },
+    {
+      value: 'DRAFT' as const,
+      label: '草稿',
+      active: 'border-yellow-400/50 bg-yellow-500/25 text-yellow-200',
+    },
+    {
+      value: 'PUBLISHED' as const,
+      label: '已上线',
+      active: 'border-green-400/50 bg-green-500/25 text-green-200',
+    },
+  ];
+  const activeFilterCount = (selectedType !== 'ALL' ? 1 : 0) + (selectedStatus !== 'ALL' ? 1 : 0);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, selectedType, selectedStatus]);
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileFiltersOpen]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileFiltersOpen(false);
+    }
+  }, [isMobile]);
 
   const loadCards = useCallback(async () => {
     setLoading(true);
@@ -152,6 +197,22 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
     }
   };
 
+  const handleCardStatusChange = async (
+    cardCode: string,
+    targetStatus: 'PUBLISHED' | 'DRAFT'
+  ) => {
+    try {
+      if (targetStatus === 'PUBLISHED') {
+        await cardService.publishCard(cardCode);
+      } else {
+        await cardService.unpublishCard(cardCode);
+      }
+      await loadCards();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : targetStatus === 'PUBLISHED' ? '上线失败' : '下线失败');
+    }
+  };
+
   if (offlineMode) {
     return (
       <div className="app-shell flex h-screen items-center justify-center">
@@ -214,13 +275,26 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                   className="input-field w-full py-2 pl-9 pr-4 text-sm"
                 />
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {([
-                  { value: 'ALL' as const, label: '全部' },
-                  { value: CardType.MEMBER, label: '成员卡' },
-                  { value: CardType.LIVE, label: 'Live 卡' },
-                  { value: CardType.ENERGY, label: '能量卡' },
-                ]).map((opt) => (
+              <div className="flex items-center gap-2 md:hidden">
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen(true)}
+                  className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 py-2 text-sm"
+                >
+                  <ListFilter size={14} />
+                  筛选
+                  {activeFilterCount > 0 && (
+                    <span className="rounded-full bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)] px-1.5 py-0.5 text-[10px] text-[var(--accent-primary)]">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+                <button onClick={loadCards} disabled={loading} className="button-icon h-10 w-10">
+                  <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+              <div className="hidden flex-wrap items-center gap-2 md:flex">
+                {cardTypeOptions.map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => setSelectedType(opt.value as CardType | 'ALL')}
@@ -237,12 +311,8 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                {([
-                  { value: 'ALL' as const, label: '全部状态', active: 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]' },
-                  { value: 'DRAFT' as const, label: '草稿', active: 'border-yellow-400/50 bg-yellow-500/25 text-yellow-200' },
-                  { value: 'PUBLISHED' as const, label: '已上线', active: 'border-green-400/50 bg-green-500/25 text-green-200' },
-                ]).map((opt) => (
+              <div className="hidden flex-wrap items-center gap-2 md:flex">
+                {statusOptions.map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => setSelectedStatus(opt.value)}
@@ -264,7 +334,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                 <span>共 {cards.length} 张</span>
                 <span>筛选: {filteredCards.length} 张</span>
                 {filteredCards.length > 0 && (
-                  <>
+                  <div className="hidden items-center gap-3 md:flex">
                     <button
                       onClick={() => handleBatchStatus('PUBLISHED')}
                       disabled={batchWorking}
@@ -279,11 +349,147 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                     >
                       <ArrowDown size={10} /> 全部转草稿
                     </button>
-                  </>
+                  </div>
                 )}
               </div>
             </div>
           </div>
+
+          <AnimatePresence>
+            {mobileFiltersOpen && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="modal-backdrop fixed inset-0 z-40 md:hidden"
+                  onClick={() => setMobileFiltersOpen(false)}
+                />
+                <motion.div
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+                  className="safe-bottom fixed inset-x-0 bottom-0 z-50 flex max-h-[82dvh] flex-col rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
+                >
+                  <div className="workspace-toolbar shrink-0 px-4 py-3">
+                    <div className="mb-2 flex justify-center">
+                      <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-[var(--text-primary)]">筛选与批量操作</div>
+                        <div className="mt-0.5 text-xs text-[var(--text-muted)]">
+                          当前筛选 {filteredCards.length} / {cards.length} 张
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMobileFiltersOpen(false)}
+                        className="button-icon h-8 w-8"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="touch-scroll flex-1 space-y-5 overflow-y-auto p-4">
+                    <section>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                        卡牌类型
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {cardTypeOptions.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setSelectedType(opt.value as CardType | 'ALL')}
+                            className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${
+                              selectedType === opt.value
+                                ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
+                                : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)]'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                        发布状态
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {statusOptions.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setSelectedStatus(opt.value)}
+                            className={`min-h-11 rounded-xl border px-2 py-2 text-sm transition-all ${
+                              selectedStatus === opt.value
+                                ? opt.active
+                                : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)]'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+
+                    {filteredCards.length > 0 && (
+                      <section>
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                          批量状态
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleBatchStatus('PUBLISHED')}
+                            disabled={batchWorking}
+                            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-green-400/25 bg-green-500/10 px-3 py-2 text-sm text-green-200 disabled:opacity-40"
+                          >
+                            <ArrowUp size={14} />
+                            全部上线
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleBatchStatus('DRAFT')}
+                            disabled={batchWorking}
+                            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-yellow-400/25 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200 disabled:opacity-40"
+                          >
+                            <ArrowDown size={14} />
+                            全部转草稿
+                          </button>
+                        </div>
+                      </section>
+                    )}
+                  </div>
+
+                  <div className="modal-footer safe-bottom grid grid-cols-2 gap-2 px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedType('ALL');
+                        setSelectedStatus('ALL');
+                      }}
+                      className="button-ghost inline-flex min-h-11 items-center justify-center px-4 py-2 text-sm"
+                    >
+                      重置
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMobileFiltersOpen(false)}
+                      className="button-primary inline-flex min-h-11 items-center justify-center px-4 py-2 text-sm font-semibold"
+                    >
+                      完成
+                    </button>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
 
           {error && (
             <div className="mb-4 flex items-center gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
@@ -325,17 +531,17 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                       <div className="truncate text-xs text-[var(--text-secondary)]">{card.cardCode}</div>
                       <div className="truncate text-xs text-[var(--text-muted)]">{card.name}</div>
                     </div>
-                    <div className="mt-1 flex justify-center gap-1">
-                      <span className="flex items-center gap-1 rounded px-2 py-0.5 text-xs bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] text-[var(--accent-primary)] opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="mt-2 flex flex-wrap justify-center gap-1">
+                      <span className="flex min-h-8 items-center gap-1 rounded-lg bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] px-2 py-1 text-xs text-[var(--accent-primary)] opacity-100 transition-opacity md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100">
                         <Pencil size={10} /> 编辑
                       </span>
                       {cardStatusMap.get(card.cardCode) === 'DRAFT' ? (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            cardService.publishCard(card.cardCode).then(() => loadCards()).catch((err) => setError(err instanceof Error ? err.message : '上线失败'));
+                            void handleCardStatusChange(card.cardCode, 'PUBLISHED');
                           }}
-                          className="flex items-center gap-0.5 rounded px-2 py-0.5 text-xs bg-green-500/15 text-green-300/80 opacity-0 transition-opacity hover:bg-green-500/30 group-hover:opacity-100"
+                          className="flex min-h-8 items-center gap-0.5 rounded-lg bg-green-500/15 px-2 py-1 text-xs text-green-300/90 opacity-100 transition-opacity hover:bg-green-500/30 md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100"
                         >
                           <ArrowUp size={10} /> 上线
                         </button>
@@ -343,9 +549,9 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            cardService.unpublishCard(card.cardCode).then(() => loadCards()).catch((err) => setError(err instanceof Error ? err.message : '下线失败'));
+                            void handleCardStatusChange(card.cardCode, 'DRAFT');
                           }}
-                          className="flex items-center gap-0.5 rounded px-2 py-0.5 text-xs bg-yellow-500/15 text-yellow-300/80 opacity-0 transition-opacity hover:bg-yellow-500/30 group-hover:opacity-100"
+                          className="flex min-h-8 items-center gap-0.5 rounded-lg bg-yellow-500/15 px-2 py-1 text-xs text-yellow-300/90 opacity-100 transition-opacity hover:bg-yellow-500/30 md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100"
                         >
                           <ArrowDown size={10} /> 下线
                         </button>
@@ -357,45 +563,69 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
 
               {/* 分页 */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-1.5 mt-6">
-                  <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="button-ghost p-2 disabled:opacity-30">
-                    <ChevronsLeft size={16} />
-                  </button>
-                  <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="button-ghost p-2 disabled:opacity-30">
-                    <ChevronLeft size={16} />
-                  </button>
-
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum: number;
-                      if (totalPages <= 5) pageNum = i + 1;
-                      else if (currentPage <= 3) pageNum = i + 1;
-                      else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                      else pageNum = currentPage - 2 + i;
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => goToPage(pageNum)}
-                          className={`w-8 h-8 rounded-lg text-xs font-medium transition-all ${
-                            currentPage === pageNum
-                              ? 'border border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
-                              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
+                <div className="mt-6">
+                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:hidden">
+                    <button
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="button-ghost inline-flex min-h-11 items-center justify-center gap-1 px-3 py-2 text-sm disabled:opacity-30"
+                    >
+                      <ChevronLeft size={16} />
+                      上一页
+                    </button>
+                    <span className="rounded-full border border-[var(--border-subtle)] px-3 py-1 text-xs text-[var(--text-secondary)]">
+                      {currentPage}/{totalPages}
+                    </span>
+                    <button
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="button-ghost inline-flex min-h-11 items-center justify-center gap-1 px-3 py-2 text-sm disabled:opacity-30"
+                    >
+                      下一页
+                      <ChevronRight size={16} />
+                    </button>
                   </div>
 
-                  <span className="px-2 text-xs text-[var(--text-muted)]">{currentPage}/{totalPages}</span>
+                  <div className="hidden items-center justify-center gap-1.5 sm:flex">
+                    <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="button-ghost p-2 disabled:opacity-30">
+                      <ChevronsLeft size={16} />
+                    </button>
+                    <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="button-ghost p-2 disabled:opacity-30">
+                      <ChevronLeft size={16} />
+                    </button>
 
-                  <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="button-ghost p-2 disabled:opacity-30">
-                    <ChevronRight size={16} />
-                  </button>
-                  <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="button-ghost p-2 disabled:opacity-30">
-                    <ChevronsRight size={16} />
-                  </button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum: number;
+                        if (totalPages <= 5) pageNum = i + 1;
+                        else if (currentPage <= 3) pageNum = i + 1;
+                        else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                        else pageNum = currentPage - 2 + i;
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => goToPage(pageNum)}
+                            className={`w-8 h-8 rounded-lg text-xs font-medium transition-all ${
+                              currentPage === pageNum
+                                ? 'border border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
+                                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <span className="px-2 text-xs text-[var(--text-muted)]">{currentPage}/{totalPages}</span>
+
+                    <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="button-ghost p-2 disabled:opacity-30">
+                      <ChevronRight size={16} />
+                    </button>
+                    <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="button-ghost p-2 disabled:opacity-30">
+                      <ChevronsRight size={16} />
+                    </button>
+                  </div>
                 </div>
               )}
             </>

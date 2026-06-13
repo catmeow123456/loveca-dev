@@ -19,6 +19,7 @@ import {
 import { extractCardEffect } from '@/lib/aiService';
 import { GROUP_OPTIONS, GROUP_UNIT_MAP, HEART_COLOR_OPTIONS, RARITY_OPTIONS } from '@/components/deck-editor/filter-constants';
 import { formDataToYaml, yamlToFormData } from './yaml-helpers';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 type EditMode = 'form' | 'yaml';
 
@@ -33,6 +34,7 @@ interface CardEditModalProps {
 }
 
 export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelete, isCreating }: CardEditModalProps) {
+  const isMobile = useMediaQuery('(max-width: 767px)');
   const [formData, setFormData] = useState<CardUpdateInput & { cardCode?: string; cardType?: 'MEMBER' | 'LIVE' | 'ENERGY' }>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +55,15 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
       }
     };
   }, [imagePreview]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (card) {
@@ -357,23 +368,26 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-stretch justify-center p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
       <motion.div
-      initial={{ scale: 0.9, opacity: 0, y: 20 }}
-      animate={{ scale: 1, opacity: 1, y: 0 }}
-      exit={{ scale: 0.9, opacity: 0, y: 20 }}
-      className="modal-surface modal-accent-rose relative w-full max-w-2xl max-h-[90vh] overflow-hidden"
-      onClick={(e) => e.stopPropagation()}
-    >
-        <div className="modal-header flex items-center justify-between px-6 py-4">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+        initial={isMobile ? { y: '100%', opacity: 0.96 } : { scale: 0.9, opacity: 0, y: 20 }}
+        animate={isMobile ? { y: 0, opacity: 1 } : { scale: 1, opacity: 1, y: 0 }}
+        exit={isMobile ? { y: '100%', opacity: 0.96 } : { scale: 0.9, opacity: 0, y: 20 }}
+        transition={isMobile
+          ? { type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }
+          : undefined}
+        className="modal-surface modal-accent-rose relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden rounded-none border-0 sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-[var(--radius-xl)] sm:border"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header safe-top flex shrink-0 items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
+          <h2 className="min-w-0 truncate text-base font-bold text-[var(--text-primary)] sm:text-lg">
             {isCreating ? '创建新卡牌' : `编辑卡牌: ${card?.cardCode}`}
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <div className="flex overflow-hidden rounded-lg border border-[var(--border-default)]">
               <button
                 onClick={() => editMode === 'yaml' ? switchToForm() : undefined}
@@ -398,14 +412,14 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
             </div>
             <button
               onClick={onClose}
-              className="button-icon h-7 w-7"
+              className="button-icon h-8 w-8 sm:h-7 sm:w-7"
             >
               <X size={16} />
             </button>
           </div>
         </div>
 
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] cute-scrollbar">
+        <div className="touch-scroll flex-1 overflow-y-auto p-4 cute-scrollbar sm:max-h-[calc(90vh-140px)] sm:p-6">
           {error && (
             <div className="mb-4 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
               {error}
@@ -437,7 +451,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
           <div className="space-y-4">
             <section className={sectionClass}>
             <div className={sectionTitleClass}>基本信息</div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               {isCreating && (
                 <>
                   <div>
@@ -465,7 +479,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                 </>
               )}
 
-              <div className={isCreating ? 'col-span-2' : ''}>
+              <div className={isCreating ? 'sm:col-span-2' : ''}>
                 <label className={fieldLabelClass}>卡牌名称 *</label>
                 <input
                   type="text"
@@ -542,7 +556,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={fieldLabelClass}>稀有度</label>
                 <select
@@ -572,7 +586,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
             {cardType === CardType.MEMBER && (
               <section className={sectionClass}>
                 <div className={sectionTitleClass}>成员属性</div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className={fieldLabelClass}>费用</label>
                     <input
@@ -802,7 +816,7 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                 }}
               />
 
-              <div className="flex gap-4 items-start">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                 <div className="flex w-32 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)]" style={{ aspectRatio: '63/88' }}>
                   {imagePreview ? (
                     <img src={imagePreview} alt="预览" className="w-full h-full object-cover" />
@@ -813,11 +827,11 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
                   )}
                 </div>
 
-                <div className="flex-1 space-y-3">
+                <div className="w-full flex-1 space-y-3">
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="button-secondary flex items-center gap-1.5 px-4 py-2 text-sm"
+                    className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 px-4 py-2 text-sm"
                   >
                     <Upload size={14} />
                     {imageFile || card?.imageFilename ? '更换图片' : '选择图片'}
@@ -859,30 +873,30 @@ export function CardEditModal({ card, isOpen, onClose, onSave, onCreate, onDelet
         </div>
 
         {/* Footer */}
-        <div className="modal-footer flex items-center justify-between px-6 py-4">
+        <div className="modal-footer safe-bottom flex shrink-0 flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
           <div>
             {!isCreating && (
               <button
                 onClick={handleDelete}
                 disabled={saving}
-                className="px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all disabled:opacity-50 flex items-center gap-1.5 text-sm"
+                className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm text-red-400 transition-all hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50 sm:w-auto"
               >
                 <Trash2 size={14} /> 删除
               </button>
             )}
           </div>
-          <div className="flex gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
             <button
               onClick={onClose}
               disabled={saving}
-              className="button-ghost px-4 py-2 text-sm"
+              className="button-ghost inline-flex min-h-11 items-center justify-center px-4 py-2 text-sm"
             >
               取消
             </button>
             <button
               onClick={handleSubmit}
               disabled={saving}
-              className="button-primary px-6 py-2 text-sm font-medium disabled:opacity-50"
+              className="button-primary inline-flex min-h-11 items-center justify-center px-6 py-2 text-sm font-medium disabled:opacity-50"
             >
               {saving ? '保存中...' : (isCreating ? '创建' : '保存')}
             </button>

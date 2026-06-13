@@ -61,18 +61,19 @@
 
 ## 前端与移动端
 
-当前游戏桌仍偏桌面/调试型交互模型，移动端文档主要用于后续实施标准和方案建议。
+当前游戏桌已经具备第一版手机竖屏主战场结构、对手/日志任务层入口和手机化判定面板，但核心交互仍偏桌面/调试型模型。移动端需求文档用于定义目标状态，当前差距以移动端现状差距清单为准。
 
 仍未落地：
 
-- 面向手机竖屏的完整主视角战斗桌重构。
-- 移动端底部流程条、任务页、全屏资源浏览等方案级能力。
+- 面向手机竖屏的完整触屏操作路径与主视角战斗桌精修。
+- 稳定的移动端底部流程条、全屏资源浏览和卡牌详情任务层。
 - 完整前端 E2E specs；历史 Playwright 输出可能存在于 `client/test-results/` 或根目录 `test-results/`，不作为现行测试入口。
 
 相关文档：
 
 - [游戏桌 UI 现状](game-table-design/game-table-ui-current-state.md)
 - [移动端适配需求](UI_MOBILE_ADAPTATION_REQUIREMENTS.md)
+- [移动端现状差距清单](UI_MOBILE_ADAPTATION_GAP_ANALYSIS.md)
 - [移动端改进方向](game-table-ui-mobile-improvement-directions.md)
 
 ## 图片与对象存储

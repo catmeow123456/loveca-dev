@@ -1,7 +1,7 @@
 {
   "name": "client",
   "private": true,
-  "version": "3.2.1",
+  "version": "3.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,8 @@
     "dev:debug-service2": "vite --host 0.0.0.0 --port 5174 --mode debug-service2",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e:mobile": "playwright test --config playwright.config.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "1.58.1",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",

@@ -407,7 +407,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
 
   return (
     <motion.aside
-      className="fixed left-0 top-0 z-[90] h-full w-full max-w-[420px] overflow-visible border-r border-[var(--border-default)] bg-[var(--bg-frosted)] p-4 shadow-[var(--shadow-lg)] backdrop-blur-xl"
+      className="safe-bottom safe-top fixed inset-0 z-[90] h-dvh w-full max-w-none overflow-hidden border-[var(--border-default)] bg-[var(--bg-frosted)] p-3 shadow-[var(--shadow-lg)] backdrop-blur-xl md:left-0 md:top-0 md:h-full md:max-w-[420px] md:overflow-visible md:border-r md:p-4"
       initial={{ x: -460, opacity: 0.8 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: -460, opacity: 0.8 }}
@@ -416,14 +416,14 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       <button
         type="button"
         onClick={onClose}
-        className="absolute -right-8 top-1/2 z-10 flex h-16 w-8 -translate-y-1/2 items-center justify-center rounded-r-2xl border border-l-0 border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] text-[var(--accent-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl transition-all hover:w-9 hover:text-[var(--text-primary)]"
+        className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] text-[var(--accent-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl transition-all hover:text-[var(--text-primary)] md:-right-8 md:top-1/2 md:h-16 md:w-8 md:-translate-y-1/2 md:rounded-r-2xl md:border-l-0 md:hover:w-9"
         aria-label="收起判定区"
         title="收起判定区"
       >
         <ChevronLeft size={16} />
       </button>
 
-      <div className="mb-3 flex items-start justify-between border-b border-[var(--border-default)] pb-2">
+      <div className="mb-3 flex items-start justify-between border-b border-[var(--border-default)] pb-2 pr-11 md:pr-0">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
             <BarChart3 size={16} className="text-[var(--accent-primary)]" />
@@ -445,7 +445,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
         </div>
       </div>
 
-      <div className="cute-scrollbar h-[calc(100%-4rem)] overflow-y-auto pr-1">
+      <div className="cute-scrollbar touch-scroll h-[calc(100%-4rem)] overflow-y-auto pr-1">
         <div className="mb-4">
           <div className="mb-2 flex items-center justify-between border-b border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] pb-2">
             <span className="flex items-center gap-2 text-sm font-medium text-[var(--accent-secondary)]">

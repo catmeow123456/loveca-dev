@@ -1,0 +1,54 @@
+---
+name: prepare-for-pr
+description: github pr操作的前期准备，包括通过git rebase引入main的commit，以及代码、文档规范检查
+---
+
+把当前分支合入 main 分支的前期准备，需要分析当前分支和 main 分支的差异，对于当前分支相对于main分支的修改：
+1. 确认git版本号等于 2.54.0，不等于则中止任务
+2. 使用命令 `git merge-tree --write-tree main HEAD > /dev/null 2>&1 && echo "无冲突" || echo "有冲突"` 判断当前分支是否和main分支有冲突；如果有冲突则提示用户进行rebase main操作，并中止任务；如果无冲突则继续分析。
+
+一些实用的操作如下：
+```bash
+# 更新本地的main分支
+git checkout main
+git pull origin main
+git checkout <当前分支>
+# stash未stage的修改
+git stash push -m "wip before rebase main"
+git rebase main
+
+# 如果 rebase 过程中出现冲突，Git 会暂停并提示：
+# CONFLICT (content): Merge conflict in src/xxx.py
+
+# 1. 查看哪些文件有冲突
+git status
+
+# 2. 打开冲突文件，手动解决冲突
+#    冲突标记如下：
+#    <<<<<<< HEAD
+#    （main 分支的代码）
+#    =======
+#    （你的代码）
+#    >>>>>>> your commit message
+
+# 3. 编辑文件，保留正确的代码，删除冲突标记
+
+# 4. 标记冲突已解决
+git add <冲突文件>
+# 例如:
+git add src/xxx.py
+
+# 5. 继续 rebase
+git rebase --continue
+
+# 如果还有下一个提交的冲突，重复步骤 1-5
+
+# Rebase 完成后推送, 要特别注意不要对main分支执行
+git push origin <当前分支> --force-with-lease
+
+git stash pop
+```
+
+3. 对当前分支相对 main 的差异执行代码与文档静态检查，并给出结论。主要检查代码、文档、测试和日志是否符合 `docs/coding-standard/` 下所有规范，重点包括开发规范、UI 规范、联机边界规范和文档编写规范等
+4. 无论是否引入了bug/是否合理/是否符合规范，都为pr编写description
+5. 展示上述所有内容

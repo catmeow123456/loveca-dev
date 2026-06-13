@@ -22,6 +22,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { createScopedZoneId, createZoneId } from '@/lib/zoneUtils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
 import { GameCommandType } from '@game/application/game-commands';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
@@ -161,6 +162,7 @@ export const PlayerArea = memo(function PlayerArea({
   const hasOwnedInspectionContext = useGameStore((s) => s.isInspectionOpenForViewer());
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
+  const isMobileBoard = useMediaQuery('(max-width: 767px)');
 
   // UI 状态选择器（使用 useShallow 合并多个属性）
   const { selectedCardId } = useGameStore(
@@ -342,14 +344,7 @@ export const PlayerArea = memo(function PlayerArea({
       // 外层容器：包含成员卡和重叠的能量卡
       <div key={position} className="flex flex-col items-center">
         {/* 卡牌堆叠容器 - 使用 relative 定位实现重叠效果 */}
-        <div
-          className="relative"
-          style={{
-            // 容器尺寸与单张卡牌相同
-            width: 'clamp(80px, 10vw, 140px)',
-            aspectRatio: '5/7',
-          }}
-        >
+        <div className="relative aspect-[5/7] w-[clamp(58px,17.5vw,82px)] md:w-[clamp(80px,10vw,140px)]">
           {/* 能量卡层 - 在成员卡下方（Z-index 较低） */}
           {/* 渲染顺序：从最后一张开始（最大偏移），确保第 i+1 张在第 i 张下方 */}
           {[...energyBelowIds].reverse().map((energyCardId, reverseIndex) => {
@@ -463,13 +458,15 @@ export const PlayerArea = memo(function PlayerArea({
             disabled={slotDisabled}
             className={cn(
               // 响应式尺寸：使用 clamp 确保在合理范围内
-              'w-[clamp(80px,10vw,140px)] aspect-[5/7] rounded-lg',
+              'w-[clamp(58px,17.5vw,82px)] aspect-[5/7] rounded-lg md:w-[clamp(80px,10vw,140px)]',
               isDragging
                 ? 'border-2 border-dashed transition-none'
                 : 'border-2 border-dashed transition-[border-color,background-color,outline-color] duration-150',
-              cardId ? 'border-transparent' : 'border-rose-500/30',
+              cardId ? 'border-transparent' : isMobileBoard ? 'border-rose-300/25' : 'border-rose-500/30',
               'flex items-center justify-center',
-              'bg-slate-800/50',
+              isMobileBoard
+                ? 'bg-[color:color-mix(in_srgb,var(--bg-frosted)_8%,transparent)]'
+                : 'bg-slate-800/50',
               // 有卡且可换手时显示特殊边框
               canDropMember && cardId && 'border-amber-500/30 hover:border-amber-500/50',
               // 确保成员卡在能量卡上方
@@ -897,6 +894,73 @@ export const PlayerArea = memo(function PlayerArea({
     );
   };
 
+  const renderSuccessZoneCompact = () => {
+    const slotHeight = 50;
+    const slotOffset = 22;
+    const containerHeight = slotHeight + slotOffset * 2;
+
+    return (
+      <DroppableZone
+        id={getDroppableId(ZoneType.SUCCESS_ZONE)}
+        zoneId={createZoneId(ZoneType.SUCCESS_ZONE)}
+        disabled={isOpponent}
+        className="flex flex-col items-center gap-1"
+        activeClassName="ring-2 ring-green-500 bg-green-500/20"
+      >
+        <span className="text-[10px] font-medium text-[var(--text-muted)]">成功 Live</span>
+        <div className="relative w-[72px]" style={{ height: `${containerHeight}px` }}>
+          {[0, 1, 2].map((slotIndex) => {
+            const cardId = successCardIds[slotIndex];
+            const card = cardId ? getVisibleCardPresentation(cardId) : null;
+
+            return (
+              <div
+                key={slotIndex}
+                className="absolute flex h-[50px] w-[72px] items-center justify-center"
+                style={{
+                  top: slotIndex * slotOffset,
+                  left: 0,
+                  zIndex: 2 - slotIndex,
+                }}
+              >
+                {card ? (
+                  <DraggableCard
+                    id={cardId}
+                    disabled={!allowGeneralOwnZoneInteraction}
+                    data={{ cardId, cardCode: card.cardCode, fromZone: ZoneType.SUCCESS_ZONE }}
+                  >
+                    <div
+                      className="flex h-full w-full cursor-pointer items-center justify-center transition-transform hover:scale-105"
+                      onMouseEnter={() => setHoveredCard(card.instanceId)}
+                      onMouseLeave={() => setHoveredCard(null)}
+                    >
+                      <div className="-rotate-90 origin-center">
+                        <Card
+                          cardData={card.cardData as AnyCardData}
+                          instanceId={card.instanceId}
+                          imagePath={card.imagePath}
+                          size="sm"
+                          faceUp={true}
+                          interactive={!isOpponent}
+                          showHover={false}
+                          className="h-[72px] w-[52px]"
+                        />
+                      </div>
+                    </div>
+                  </DraggableCard>
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center rounded border border-dashed border-slate-600/60 bg-slate-800/20">
+                    <span className="text-[9px] text-slate-600">♪</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </DroppableZone>
+    );
+  };
+
   // 渲染资源区（主卡组 + 休息室 + 能量卡组）- 紧凑横向布局
   // reversed: 对手区域需要反转顺序以呈现镜像效果
   const renderResources = (reversed: boolean = false) => {
@@ -933,6 +997,92 @@ export const PlayerArea = memo(function PlayerArea({
     return <div className="flex items-center gap-2">{content}</div>;
   };
 
+  const renderMobileLeftRail = () => (
+    <div className="flex w-[74px] flex-col items-center justify-center gap-2">
+      {renderSuccessZoneCompact()}
+      {renderMobileEnergyZone()}
+    </div>
+  );
+
+  const renderMobileResourcesRail = () => (
+    <div className="flex w-[54px] flex-col items-center gap-1.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_8%,transparent)] px-1 py-1.5">
+      {renderDeck(mainDeckZoneView?.count ?? mainDeckCardIds.length, '主卡组', 'main')}
+      {renderWaitingRoom()}
+      {renderDeck(energyDeckZoneView?.count ?? energyDeckCardIds.length, '能量卡组', 'energy')}
+    </div>
+  );
+
+  const renderMobileEnergyZone = () => {
+    const energyCards = energyZoneCardIds.slice(0, 4);
+    const energyCount = energyZoneView?.count ?? energyZoneCardIds.length;
+    const activeCount = energyZoneCardIds.filter((id) => {
+      return getCardViewObject(id)?.orientation === OrientationState.ACTIVE;
+    }).length;
+
+    return (
+      <DroppableZone
+        id={getDroppableId(ZoneType.ENERGY_ZONE)}
+        zoneId={createZoneId(ZoneType.ENERGY_ZONE)}
+        disabled={!allowGeneralOwnZoneInteraction}
+        className="flex w-full flex-col items-center gap-0.5"
+        activeClassName="ring-2 ring-indigo-500 bg-indigo-500/20"
+      >
+        <span className="text-[10px] font-medium text-[var(--text-muted)]">能量区</span>
+        <div className="relative h-[38px] w-[44px] rounded border border-dashed border-indigo-300/30 bg-indigo-500/[0.06]">
+          {energyCards.map((cardId, idx) => {
+            const card = getVisibleCardPresentation(cardId);
+            const imagePath = card?.imagePath ?? null;
+            const isActive = getCardViewObject(cardId)?.orientation === OrientationState.ACTIVE;
+
+            return (
+              <DraggableCard
+                key={cardId}
+                id={cardId}
+                disabled={!allowGeneralOwnZoneInteraction}
+                data={{ cardId, cardCode: card?.cardCode, fromZone: ZoneType.ENERGY_ZONE }}
+              >
+                <div
+                  className={cn(
+                    'absolute h-7 w-5 overflow-hidden rounded shadow-sm transition-transform hover:scale-110',
+                    !isActive && 'opacity-45 grayscale'
+                  )}
+                  style={{
+                    left: `${4 + idx * 5}px`,
+                    top: `${5 + idx * 1}px`,
+                    zIndex: idx,
+                  }}
+                  onClick={() => {
+                    if (allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging) {
+                      tapEnergy(cardId);
+                    }
+                  }}
+                  onMouseEnter={() => card && setHoveredCard(card.instanceId)}
+                  onMouseLeave={() => setHoveredCard(null)}
+                  title={
+                    allowGeneralOwnZoneInteraction && canTapEnergy
+                      ? '单击切换活跃/等待'
+                      : '能量区'
+                  }
+                >
+                  {imagePath ? (
+                    <img src={imagePath} alt="能量" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-[8px] text-white/70">
+                      E
+                    </div>
+                  )}
+                </div>
+              </DraggableCard>
+            );
+          })}
+          <div className="absolute -bottom-1 left-1/2 z-10 -translate-x-1/2 rounded-full border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-1 py-0.5 text-[9px] font-bold text-[var(--text-primary)] shadow-[var(--shadow-sm)]">
+            {activeCount}/{energyCount}
+          </div>
+        </div>
+      </DroppableZone>
+    );
+  };
+
   // 渲染单个 Live 卡（横置）
   const renderLiveCard = (cardId: string) => {
     const viewObject = getCardViewObject(cardId);
@@ -962,7 +1112,7 @@ export const PlayerArea = memo(function PlayerArea({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
           // 横置卡牌的容器：需要调整尺寸以适应旋转后的卡牌
-          className="relative w-[105px] h-[68px] flex items-center justify-center"
+          className="relative flex h-[50px] w-[70px] items-center justify-center md:h-[68px] md:w-[105px]"
           onMouseEnter={() => {
             if (shouldShowFront && card) {
               setHoveredCard(card.instanceId);
@@ -981,10 +1131,10 @@ export const PlayerArea = memo(function PlayerArea({
                 faceUp={shouldShowFront}
                 interactive={!isOpponent}
                 showHover={false}
-                className="w-[80px] h-[112px]"
+                className="h-[80px] w-[57px] md:h-[112px] md:w-[80px]"
               />
             ) : (
-              <div className="h-[112px] w-[80px] overflow-hidden rounded-lg shadow-md">
+              <div className="h-[80px] w-[57px] overflow-hidden rounded-lg shadow-md md:h-[112px] md:w-[80px]">
                 <img src="/back.jpg" alt="Card Back" className="h-full w-full object-cover" />
               </div>
             )}
@@ -1031,10 +1181,14 @@ export const PlayerArea = memo(function PlayerArea({
         key={slotIndex}
         className={cn(
           // 与成员槽位相同的宽度，但高度固定为横置卡牌的高度
-          'w-[clamp(80px,10vw,140px)] h-[60px]',
+          'h-[52px] w-[clamp(66px,18vw,80px)] md:h-[60px] md:w-[clamp(80px,10vw,140px)]',
           'rounded-lg flex items-center justify-center',
           'border border-dashed',
-          cardId ? 'border-transparent bg-transparent' : 'border-slate-600/30 bg-slate-800/30'
+          cardId
+            ? 'border-transparent bg-transparent'
+            : isMobileBoard
+              ? 'border-slate-300/20 bg-[color:color-mix(in_srgb,var(--bg-frosted)_8%,transparent)]'
+              : 'border-slate-600/30 bg-slate-800/30'
         )}
       >
         {cardId ? (
@@ -1053,7 +1207,7 @@ export const PlayerArea = memo(function PlayerArea({
     // 对手区域需要反转显示顺序以呈现镜像效果
     const slotOrder = reversed ? [2, 1, 0] : [0, 1, 2];
     const content = (
-      <div className="flex gap-15 justify-center items-center w-full">
+      <div className="flex w-full items-center justify-center gap-1 sm:gap-4 md:gap-15">
         {slotOrder.map((idx) => renderLiveSlot(idx))}
       </div>
     );
@@ -1067,10 +1221,15 @@ export const PlayerArea = memo(function PlayerArea({
           disabled={!canDropToLiveZone || liveZoneIsFull}
           className={cn(
             'rounded-lg px-1 py-2',
-            'bg-slate-800/40 border',
+            'border',
+            isMobileBoard
+              ? 'bg-[color:color-mix(in_srgb,var(--bg-frosted)_8%,transparent)]'
+              : 'bg-slate-800/40',
             canDropToLiveZone && !liveZoneIsFull
               ? 'border-rose-500/50 hover:border-rose-500'
-              : 'border-slate-600/30',
+              : isMobileBoard
+                ? 'border-slate-300/20'
+                : 'border-slate-600/30',
             'flex flex-col items-center justify-center'
           )}
           activeClassName="ring-2 ring-rose-500 bg-rose-500/20 border-rose-500"
@@ -1085,7 +1244,9 @@ export const PlayerArea = memo(function PlayerArea({
       <div
         className={cn(
           'rounded-lg px-1 py-2',
-          'bg-slate-800/40 border border-slate-600/30',
+          isMobileBoard
+            ? 'border border-slate-300/20 bg-[color:color-mix(in_srgb,var(--bg-frosted)_8%,transparent)]'
+            : 'border border-slate-600/30 bg-slate-800/40',
           'flex flex-col items-center justify-center'
         )}
       >
@@ -1197,7 +1358,7 @@ export const PlayerArea = memo(function PlayerArea({
         <div className="flex max-w-[min(76vw,720px)] flex-col gap-3 rounded-2xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-4 py-3 shadow-[var(--shadow-lg)] backdrop-blur-xl">
           <DroppableZone
             id={`${INSPECTION_TARGET_IDS.blocker}-header`}
-            className="flex items-center justify-between gap-3"
+            className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             activeClassName=""
           >
             <div className="flex items-center gap-2">
@@ -1209,7 +1370,7 @@ export const PlayerArea = memo(function PlayerArea({
               </div>
             </div>
             {isViewerInspectionZone ? (
-              <div className="flex items-center gap-2">
+              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
                 <button
                   type="button"
                   disabled={
@@ -1219,7 +1380,7 @@ export const PlayerArea = memo(function PlayerArea({
                   }
                   onClick={moveAllInspectionCardsToWaitingRoom}
                   className={cn(
-                    'inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium text-white',
+                    'inline-flex min-h-8 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium text-white',
                     canMoveInspectedToZone &&
                       inspectionCardIds.length > 0 &&
                       inspectionBatchAction === null
@@ -1229,14 +1390,14 @@ export const PlayerArea = memo(function PlayerArea({
                   title="将检视区全部移入休息室"
                 >
                   <Trash2 size={12} />
-                  全部放入休息区
+                  全放休息室
                 </button>
                 <button
                   type="button"
                   disabled={!canCloseInspection}
                   onClick={closeInspectionByReturningCardsToTop}
                   className={cn(
-                    'inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium text-white',
+                    'inline-flex min-h-8 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium text-white',
                     canCloseInspection
                       ? 'bg-emerald-600 hover:bg-emerald-500'
                       : 'cursor-not-allowed bg-slate-600'
@@ -1244,7 +1405,7 @@ export const PlayerArea = memo(function PlayerArea({
                   title="关闭检视区并按当前顺序把牌放回主卡组顶"
                 >
                   <Check size={12} />
-                  关闭（检视区的牌全部回到卡组顶）
+                  关闭回顶
                 </button>
               </div>
             ) : null}
@@ -1255,42 +1416,42 @@ export const PlayerArea = memo(function PlayerArea({
               <DroppableZone
                 id={INSPECTION_TARGET_IDS.hand}
                 disabled={!canMoveInspectedToZone}
-                className="flex min-h-12 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
+                className="flex min-h-10 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-2 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
                 activeClassName="outline outline-2 outline-cyan-400 bg-cyan-500/15"
               >
-                拖到这里加入手牌
+                <span className="whitespace-nowrap">加入手牌</span>
               </DroppableZone>
               <DroppableZone
                 id={INSPECTION_TARGET_IDS.waitingRoom}
                 disabled={!canMoveInspectedToZone}
-                className="flex min-h-12 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
+                className="flex min-h-10 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-2 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
                 activeClassName="outline outline-2 outline-slate-300 bg-slate-500/15"
               >
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
                   <Trash2 size={12} />
-                  拖到这里放入休息室
+                  放休息室
                 </span>
               </DroppableZone>
               <DroppableZone
                 id={INSPECTION_TARGET_IDS.mainDeckTop}
                 disabled={!canMoveInspectedToTop}
-                className="flex min-h-12 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
+                className="flex min-h-10 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-2 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
                 activeClassName="outline outline-2 outline-amber-400 bg-amber-500/15"
               >
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
                   <ArrowUpToLine size={12} />
-                  拖到这里回卡组顶
+                  回卡组顶
                 </span>
               </DroppableZone>
               <DroppableZone
                 id={INSPECTION_TARGET_IDS.mainDeckBottom}
                 disabled={!canMoveInspectedToBottom}
-                className="flex min-h-12 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
+                className="flex min-h-10 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-2 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
                 activeClassName="outline outline-2 outline-orange-500 bg-orange-500/15"
               >
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
                   <ArrowDownToLine size={12} />
-                  拖到这里放卡组底
+                  放卡组底
                 </span>
               </DroppableZone>
             </div>
@@ -1364,23 +1525,37 @@ export const PlayerArea = memo(function PlayerArea({
   const renderHand = () => {
     if (isOpponent) {
       // 对手手牌显示背面 - 使用真实卡背图片，无动画以避免回合切换时的跳动
-      const visibleBackCount = Math.min(displayedHandCount, 10);
+      const visibleBackCount = Math.min(displayedHandCount, isMobileBoard ? 8 : 10);
+      const backScale =
+        visibleBackCount > 7 ? (isMobileBoard ? 0.78 : 0.84) : isMobileBoard ? 0.88 : 0.94;
+      const backSpread = isMobileBoard ? 164 : 440;
+      const backStep =
+        visibleBackCount <= 1
+          ? 0
+          : Math.min(isMobileBoard ? 24 : 52, backSpread / (visibleBackCount - 1));
+      const maxBackRotation = isMobileBoard ? 12 : 18;
+      const backRotationStep =
+        visibleBackCount <= 1
+          ? 0
+          : Math.min(3, maxBackRotation / ((visibleBackCount - 1) / 2));
       return (
-        <div className="flex justify-center gap-1 py-2 w-full">
+        <div className="relative h-[88px] w-full overflow-visible py-1 md:h-[104px]">
           {Array.from({ length: visibleBackCount }, (_, idx) => (
             <div
               key={`opponent-hand-back-${idx}`}
-              className="w-[60px] h-[84px] rounded-lg overflow-hidden shadow-md"
+              className="absolute bottom-1 h-[84px] w-[60px] overflow-hidden rounded-lg shadow-md"
               style={{
-                transform: `rotate(${(idx - displayedHandCount / 2) * 3}deg)`,
+                left: `calc(50% + ${(idx - (visibleBackCount - 1) / 2) * backStep}px)`,
+                transform: `translateX(-50%) rotate(${(idx - (visibleBackCount - 1) / 2) * backRotationStep}deg) scale(${backScale})`,
+                zIndex: idx,
               }}
             >
               <img src="/back.jpg" alt="Card Back" className="w-full h-full object-cover" />
             </div>
           ))}
-          {displayedHandCount > 10 && (
-            <span className="text-slate-400 text-xs self-center ml-2">
-              +{displayedHandCount - 10}
+          {displayedHandCount > visibleBackCount && (
+            <span className="absolute right-2 top-2 rounded-full border border-slate-600 bg-slate-900/80 px-2 py-0.5 text-xs font-bold text-slate-300">
+              +{displayedHandCount - visibleBackCount}
             </span>
           )}
         </div>
@@ -1388,12 +1563,49 @@ export const PlayerArea = memo(function PlayerArea({
     }
 
     // 己方手牌显示正面 (带拖拽，使用纯 CSS 避免动画导致的布局问题)
+    const handCount = handCardIds.length;
+    const handScale =
+      handCount > 14
+        ? isMobileBoard
+          ? 0.68
+          : 0.78
+        : handCount > 10
+          ? isMobileBoard
+            ? 0.76
+            : 0.86
+          : handCount > 6
+            ? isMobileBoard
+              ? 0.84
+              : 0.94
+            : isMobileBoard
+              ? 0.96
+              : 1;
+    const handSpread = isMobileBoard ? 320 : 720;
+    const handMaxStep = isMobileBoard
+      ? handCount <= 6
+        ? 40
+        : handCount <= 10
+          ? 32
+          : 24
+      : handCount <= 6
+        ? 64
+        : handCount <= 10
+          ? 54
+          : 42;
+    const handStep =
+      handCount <= 1
+        ? 0
+        : Math.min(handMaxStep, handSpread / (handCount - 1));
+    const maxHandRotation = 25;
+    const handRotationStep =
+      handCount <= 1 ? 0 : Math.min(4, maxHandRotation / ((handCount - 1) / 2));
+
     return (
       <DroppableZone
         id={getDroppableId(ZoneType.HAND)}
         zoneId={createZoneId(ZoneType.HAND)}
         disabled={!allowGeneralOwnZoneInteraction && !canReceiveInspectionDrop}
-        className="flex justify-center py-2 px-4 w-full"
+        className="relative h-[118px] w-full overflow-visible px-3 py-2 md:h-[138px] md:px-4 md:pr-72"
         activeClassName="ring-2 ring-cyan-500 bg-cyan-500/20"
       >
         {handCardIds.map((cardId, idx) => {
@@ -1406,40 +1618,44 @@ export const PlayerArea = memo(function PlayerArea({
           return (
             <div
               key={cardId}
-              className={cn(
-                isDragging
-                  ? 'transition-none'
-                  : 'transition-transform duration-200 hover:-translate-y-5 hover:scale-105 hover:z-50'
-              )}
+              className="absolute bottom-3"
               style={{
-                marginLeft: idx > 0 ? '-15px' : 0,
-                transform: `rotate(${(idx - handCardIds.length / 2) * 5}deg)`,
+                left: `calc(50% + ${(idx - (handCount - 1) / 2) * handStep}px)`,
+                transform: `translateX(-50%) rotate(${(idx - (handCount - 1) / 2) * handRotationStep}deg) scale(${handScale})`,
                 zIndex: idx,
               }}
             >
-              <DraggableCard
-                id={cardId}
-                disabled={!isDraggable}
-                data={{ cardId, cardCode: card.cardCode, fromZone: ZoneType.HAND }}
+              <div
+                className={cn(
+                  isDragging
+                    ? 'transition-none'
+                    : 'transition-transform duration-200 hover:-translate-y-5 hover:scale-105'
+                )}
               >
-                <Card
-                  cardData={card.cardData as AnyCardData}
-                  instanceId={card.instanceId}
-                  imagePath={card.imagePath}
-                  size="sm"
-                  faceUp={true}
-                  selected={selectedCardId === card.instanceId}
-                  onClick={() => allowGeneralOwnZoneInteraction && selectCard(card.instanceId)}
-                  onMouseEnter={() => setHoveredCard(card.instanceId)}
-                  onMouseLeave={() => setHoveredCard(null)}
-                  showHover={false}
-                />
-              </DraggableCard>
+                <DraggableCard
+                  id={cardId}
+                  disabled={!isDraggable}
+                  data={{ cardId, cardCode: card.cardCode, fromZone: ZoneType.HAND }}
+                >
+                  <Card
+                    cardData={card.cardData as AnyCardData}
+                    instanceId={card.instanceId}
+                    imagePath={card.imagePath}
+                    size="sm"
+                    faceUp={true}
+                    selected={selectedCardId === card.instanceId}
+                    onClick={() => allowGeneralOwnZoneInteraction && selectCard(card.instanceId)}
+                    onMouseEnter={() => setHoveredCard(card.instanceId)}
+                    onMouseLeave={() => setHoveredCard(null)}
+                    showHover={false}
+                  />
+                </DraggableCard>
+              </div>
             </div>
           );
         })}
         {/* 手牌快捷操作 - 贴着手牌扇形右边缘 */}
-        <div className="ml-2 flex flex-col gap-1 self-end mb-2">
+        <div className="absolute right-2 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-1 md:right-72 lg:right-80">
           <button
             type="button"
             onClick={() => {
@@ -1489,6 +1705,114 @@ export const PlayerArea = memo(function PlayerArea({
     );
   };
 
+  const renderMobileBattleCore = (reversed: boolean = false) => (
+    <div className="mx-auto flex w-full min-w-0 flex-col items-center gap-2 py-1">
+      {reversed ? (
+        <>
+          <div className="flex items-end gap-1.5 sm:gap-3">
+            {renderMemberSlot(SlotPosition.RIGHT)}
+            {renderMemberSlot(SlotPosition.CENTER)}
+            {renderMemberSlot(SlotPosition.LEFT)}
+          </div>
+          {renderLiveZone(true)}
+        </>
+      ) : (
+        <>
+          {renderLiveZone()}
+          <div className="flex items-start gap-1.5 sm:gap-3">
+            {renderMemberSlot(SlotPosition.LEFT)}
+            {renderMemberSlot(SlotPosition.CENTER)}
+            {renderMemberSlot(SlotPosition.RIGHT)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const renderMobileTabletop = (reversed: boolean = false) => (
+    <div className="grid h-full min-h-0 grid-cols-[74px_minmax(0,1fr)_54px] items-center gap-1 overflow-visible px-0.5 py-1">
+      <div className="self-center justify-self-start">{renderMobileLeftRail()}</div>
+      <div className="min-w-0 self-center justify-self-center overflow-visible">
+        {renderMobileBattleCore(reversed)}
+      </div>
+      <div className="self-center justify-self-end">{renderMobileResourcesRail()}</div>
+    </div>
+  );
+
+  if (isMobileBoard) {
+    if (isOpponent) {
+      return (
+        <div
+          className={cn(
+            'relative h-full min-h-0 overflow-hidden p-2 transition-colors',
+            isActive && 'bg-rose-500/[0.06]',
+            'border-b border-slate-700/30'
+          )}
+        >
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            <div className="shrink-0">{renderHand()}</div>
+
+            <div className="flex shrink-0 flex-row-reverse items-center gap-2 border-b border-slate-700/30 pb-1">
+              <div
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-xs font-bold',
+                  isActive
+                    ? 'bg-rose-500/80 text-white'
+                    : 'bg-[color:color-mix(in_srgb,var(--bg-surface)_48%,transparent)] text-slate-300'
+                )}
+              >
+                {playerIdentity.name}
+              </div>
+              <div className="text-[10px] font-medium text-slate-500">
+                手牌: {displayedHandCount}
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-visible">
+              {renderMobileTabletop(true)}
+            </div>
+          </div>
+          {renderInspectionZone()}
+        </div>
+      );
+    }
+
+    return (
+      <div
+          className={cn(
+            'relative h-full min-h-0 overflow-hidden p-2 transition-colors',
+            isActive && 'bg-rose-500/[0.06]',
+            'border-t border-slate-700/30'
+          )}
+      >
+        <div className="flex h-full min-h-0 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-visible">
+            {renderMobileTabletop()}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 border-t border-slate-700/30 pt-1">
+            <div
+              className={cn(
+                'rounded-full px-2 py-0.5 text-xs font-bold',
+                isActive
+                  ? 'bg-rose-500/80 text-white'
+                  : 'bg-[color:color-mix(in_srgb,var(--bg-surface)_48%,transparent)] text-slate-300'
+              )}
+            >
+              {playerIdentity.name}
+            </div>
+            <div className="text-[10px] font-medium text-slate-500">
+              手牌: {displayedHandCount}
+            </div>
+          </div>
+
+          <div className="shrink-0">{renderHand()}</div>
+        </div>
+        {renderInspectionZone()}
+      </div>
+    );
+  }
+
   // 对手区域：手牌在顶部，成员槽在底部（靠近Live区）
   // 己方区域：成员槽在顶部（靠近Live区），手牌在底部
   // 这样双方成员区中心对称，中间只隔着Live区
@@ -1527,7 +1851,7 @@ export const PlayerArea = memo(function PlayerArea({
         {/* 对手区域镜像显示：左右交换，成员槽位顺序反转 */}
         <div className="flex-1 min-h-0 relative px-2">
           {/* 左侧区域 - 对手的资源区（镜像后在左边，对手的右手边） */}
-          <div className="absolute left-2 bottom-0 w-[150px] flex justify-center">
+          <div className="absolute bottom-0 left-2 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
             {renderResources(true)}
           </div>
 
@@ -1535,7 +1859,7 @@ export const PlayerArea = memo(function PlayerArea({
           <div className="absolute left-1/2 -translate-x-1/2 bottom-0">
             <div className="flex flex-col justify-end items-center gap-2">
               {/* 成员槽位 - 镜像顺序：RIGHT → CENTER → LEFT */}
-              <div className="flex gap-15 items-end">
+              <div className="flex items-end gap-3 sm:gap-8 md:gap-15">
                 {renderMemberSlot(SlotPosition.RIGHT)}
                 {renderMemberSlot(SlotPosition.CENTER)}
                 {renderMemberSlot(SlotPosition.LEFT)}
@@ -1546,7 +1870,7 @@ export const PlayerArea = memo(function PlayerArea({
           </div>
 
           {/* 右侧区域 - 对手的成功Live区（镜像后在右边，对手的左手边） */}
-          <div className="absolute right-2 bottom-0 w-[150px] flex justify-center">
+          <div className="absolute bottom-0 right-2 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
             {renderSuccessZone()}
           </div>
         </div>
@@ -1567,7 +1891,7 @@ export const PlayerArea = memo(function PlayerArea({
       {/* 主区域 - 绝对定位布局（成员槽和Live区在顶部，靠近中央分隔线） */}
       <div className="flex-1 min-h-0 relative px-2">
         {/* 左侧区域 - 绝对定位固定在左边 */}
-        <div className="absolute left-2 top-0 w-[150px] flex justify-center">
+        <div className="absolute left-2 top-0 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
           {renderSuccessZone()}
         </div>
 
@@ -1577,7 +1901,7 @@ export const PlayerArea = memo(function PlayerArea({
             {/* Live 区 - 在成员槽位上方 */}
             {renderLiveZone()}
             {/* 成员槽位 */}
-            <div className="flex gap-15 items-start">
+            <div className="flex items-start gap-3 sm:gap-8 md:gap-15">
               {renderMemberSlot(SlotPosition.LEFT)}
               {renderMemberSlot(SlotPosition.CENTER)}
               {renderMemberSlot(SlotPosition.RIGHT)}
@@ -1586,7 +1910,7 @@ export const PlayerArea = memo(function PlayerArea({
         </div>
 
         {/* 右侧区域 - 绝对定位固定在右边 */}
-        <div className="absolute right-2 top-0 w-[150px] flex justify-center">
+        <div className="absolute right-2 top-0 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
           {renderResources()}
         </div>
       </div>

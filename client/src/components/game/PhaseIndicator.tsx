@@ -186,14 +186,14 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   };
 
   return (
-    <div className="fixed right-4 bottom-4 z-[var(--z-phase-indicator)]">
+    <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-[var(--z-phase-indicator)] w-[calc(100vw-1rem)] max-w-[360px] -translate-x-1/2 md:left-auto md:right-4 md:bottom-4 md:w-64 md:max-w-none md:translate-x-0">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-64 overflow-hidden rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+        className="w-full overflow-hidden rounded-[14px] border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_34%,transparent)] shadow-[var(--shadow-sm)] backdrop-blur-[2px] md:w-64 md:rounded-[18px] md:border-[var(--border-default)] md:bg-[var(--bg-frosted)] md:shadow-[var(--shadow-lg)] md:backdrop-blur-xl"
       >
         {turnNumber !== undefined && (
-          <div className="border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-1 text-center">
+          <div className="hidden border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-1 text-center md:block">
             <span className="text-xs text-[var(--text-muted)]">回合</span>
             <span className="ml-2 text-lg font-bold text-[var(--text-primary)]">
               {currentTurnCount ?? turnNumber}
@@ -201,27 +201,80 @@ export const PhaseIndicator = memo(function PhaseIndicator({
           </div>
         )}
 
-        <div className="px-4 py-3">
-          <div className="flex items-center gap-2">
+        <div className="px-2 py-1.5 md:hidden">
+          <div className="flex min-w-0 items-center gap-1.5">
             <motion.div
               key={phase}
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              className={cn('w-3 h-3 rounded-full', info.colorClass)}
+              className={cn('h-2.5 w-2.5 shrink-0 rounded-full', info.colorClass)}
             />
-            <span className="text-sm font-bold text-[var(--text-primary)]">{info.name}阶段</span>
+            <span className="shrink-0 text-[11px] font-bold text-[var(--text-muted)]">
+              T{currentTurnCount ?? turnNumber ?? '-'}
+            </span>
+            <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+              <span className="shrink-0 text-xs font-bold text-[var(--text-primary)]">
+                {info.name}
+              </span>
+              {subPhaseConfig && (
+                <span className="min-w-0 truncate text-[11px] text-[var(--text-secondary)]">
+                  {subPhaseConfig.display.icon} {subPhaseConfig.display.name}
+                </span>
+              )}
+            </div>
+            {showActionButton ? (
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={handleAction}
+                className={cn(
+                  'inline-flex min-h-8 max-w-[128px] shrink-0 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-bold',
+                  'bg-gradient-to-r',
+                  actionConfig.buttonStyle,
+                  'text-white shadow-md transition-colors'
+                )}
+              >
+                <span className="inline-flex shrink-0 align-middle">{mainButtonIcon}</span>
+                <span className="truncate">{actionConfig.buttonText}</span>
+              </motion.button>
+            ) : (
+              <span
+                className={cn(
+                  'shrink-0 rounded px-1.5 py-0.5 text-[10px]',
+                  isMyTurn
+                    ? 'text-[var(--semantic-success)]'
+                    : 'bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+                )}
+                style={isMyTurn ? { background: 'color-mix(in srgb, var(--semantic-success) 16%, transparent)' } : undefined}
+              >
+                {isInspectionWindow ? '检视' : isMyTurn ? '我方' : '对手'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="hidden px-4 py-3 md:block">
+          <div className="flex min-w-0 items-center gap-2">
+            <motion.div
+              key={phase}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className={cn('h-3 w-3 shrink-0 rounded-full', info.colorClass)}
+            />
+            <span className="truncate text-sm font-bold text-[var(--text-primary)]">
+              {info.name}阶段
+            </span>
           </div>
 
           {subPhaseConfig && (
             <motion.div
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              className="mt-2 ml-5 flex items-center gap-2 text-xs text-[var(--text-secondary)]"
+              className="ml-5 mt-2 flex min-w-0 items-center gap-2 text-xs text-[var(--text-secondary)]"
             >
-              <span className="text-base">{subPhaseConfig.display.icon}</span>
-              <span className="font-medium">{subPhaseConfig.display.name}</span>
+              <span className="shrink-0 text-base">{subPhaseConfig.display.icon}</span>
+              <span className="truncate font-medium">{subPhaseConfig.display.name}</span>
               {subPhaseConfig.display.requiresUserAction && (
-                <span className="rounded px-1.5 py-0.5 text-xs text-[var(--semantic-warning)]" style={{ background: 'color-mix(in srgb, var(--semantic-warning) 16%, transparent)' }}>
+                <span className="shrink-0 rounded px-1.5 py-0.5 text-xs text-[var(--semantic-warning)]" style={{ background: 'color-mix(in srgb, var(--semantic-warning) 16%, transparent)' }}>
                   需要操作
                 </span>
               )}
@@ -242,13 +295,13 @@ export const PhaseIndicator = memo(function PhaseIndicator({
         </div>
 
         {showActionButton && (
-          <div className="px-4 pb-3 space-y-2">
+          <div className="hidden space-y-2 px-4 pb-3 md:block">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleAction}
               className={cn(
-                'w-full py-2 rounded-lg text-sm font-bold',
+                'min-h-11 w-full rounded-lg py-2 text-sm font-bold',
                 'bg-gradient-to-r',
                 actionConfig.buttonStyle,
                 'text-white shadow-lg transition-colors'

@@ -113,7 +113,7 @@ export function HomePage({
   );
 
   return (
-    <div className="app-shell flex min-h-screen flex-col">
+    <div className="app-shell flex min-h-screen flex-col overflow-x-hidden">
       <header className="safe-top relative z-10 mx-3 mt-3 rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 py-2 shadow-[var(--shadow-md)] backdrop-blur-xl sm:mx-4 sm:mt-4 sm:min-h-[72px] sm:rounded-[24px] sm:px-6 sm:py-0">
         <div className="grid min-h-10 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:min-h-[72px] sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-3">
           <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
