@@ -17,6 +17,7 @@
 ## 聊天输出约定
 
 - 在聊天更新和最终回复中提到具体卡牌编号时，同时写清费用/分数与卡名。成员卡格式示例：`PL!SP-bp4-008-P` 费用 13「若菜四季」；LIVE 卡格式示例：`PL!-sd1-019-SD` 分数 4「START:DASH!!」。
+- 需要提交代码或创建 PR 时，commit message 和 PR title 都用中文。
 - 卡效完成状态的主登记册是 `docs/card-effect-reuse-audit/existing_module_map.md`。每完成一张卡或一个效果段，应记录卡号、费用/分数、卡名、已实现段、暂未实现段、复用模块与测试文件，并同步更新 progress / coverage / gap 文档。
 
 ## 本地测试卡组与卡图
