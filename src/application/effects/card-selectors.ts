@@ -25,6 +25,11 @@ export function groupIs(groupName: string): CardSelector {
   };
 }
 
+export function cardNameIs(name: string): CardSelector {
+  const normalizedName = normalizeCardName(name);
+  return (card) => normalizeCardName(card.data.name) === normalizedName;
+}
+
 export function and(...selectors: readonly CardSelector[]): CardSelector {
   return (card) => selectors.every((selector) => selector(card));
 }
@@ -39,4 +44,8 @@ export function not(selector: CardSelector): CardSelector {
 
 function normalizeGroupName(value: string | undefined): string {
   return value?.replace(/['’]/g, '').toLowerCase() ?? '';
+}
+
+export function normalizeCardName(value: string | undefined): string {
+  return value?.replace(/\s/g, '') ?? '';
 }

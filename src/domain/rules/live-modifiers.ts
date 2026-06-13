@@ -1,5 +1,5 @@
 import { HeartColor } from '../../shared/types/enums.js';
-import type { HeartIcon } from '../entities/card.js';
+import { isMemberCardData, type HeartIcon } from '../entities/card.js';
 import type {
   GameState,
   LiveModifierState,
@@ -279,6 +279,24 @@ export function getPlayerLiveBladeModifier(
     (total, modifier) => total + modifier.countDelta,
     0
   );
+}
+
+export function getMemberEffectiveBladeCount(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  liveModifiers: readonly LiveModifierState[] = collectLiveModifiers(game)
+): number {
+  const sourceCard = getCardById(game, sourceCardId);
+  if (!sourceCard || !isMemberCardData(sourceCard.data)) {
+    return 0;
+  }
+
+  const modifierBladeCount = getBladeModifiers(playerId, liveModifiers)
+    .filter((modifier) => modifier.sourceCardId === sourceCardId)
+    .reduce((total, modifier) => total + modifier.countDelta, 0);
+
+  return Math.max(0, sourceCard.data.blade + modifierBladeCount);
 }
 
 export function getLiveCardRequirementModifiers(

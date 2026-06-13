@@ -10,6 +10,12 @@ import {
   EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID,
   HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
+  HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID,
+  HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+  HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+  HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID,
+  HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID,
+  HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
   BP4_003_ACTIVATED_ABILITY_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
@@ -187,8 +193,7 @@ describe('card effect classification registry', () => {
     });
 
     const chisatoLiveStart = getCardAbilityDefinitions('PL!SP-bp5-003-AR').find(
-      (ability) =>
-        ability.abilityId === CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID
+      (ability) => ability.abilityId === CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID
     );
     expect(chisatoLiveStart).toMatchObject({
       category: CardAbilityCategory.LIVE_START,
@@ -228,6 +233,76 @@ describe('card effect classification registry', () => {
       category: CardAbilityCategory.AUTO,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const kahoAuto = getCardAbilityDefinitions('PL!HS-bp6-017-N').find(
+      (ability) => ability.abilityId === HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID
+    );
+    expect(kahoAuto).toMatchObject({
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsPb1KahoAuto = getCardAbilityDefinitions('PL!HS-pb1-009-R').find(
+      (ability) => ability.abilityId === HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID
+    );
+    expect(hsPb1KahoAuto).toMatchObject({
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+      requiredSourceSlots: [SlotPosition.CENTER],
+      perTurnLimit: 2,
+    });
+
+    const hsPb1KahoLiveStart = getCardAbilityDefinitions('PL!HS-pb1-009-R').find(
+      (ability) => ability.abilityId === HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID
+    );
+    expect(hsPb1KahoLiveStart).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6GinkoOnEnter = getCardAbilityDefinitions('PL!HS-bp6-004-R').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID
+    );
+    expect(hsBp6GinkoOnEnter).toMatchObject({
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6GinkoLiveStartWait = getCardAbilityDefinitions('PL!HS-bp6-004-R').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID
+    );
+    expect(hsBp6GinkoLiveStartWait).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6GinkoLiveStartDiscard = getCardAbilityDefinitions('PL!HS-bp6-004-R').find(
+      (ability) => ability.abilityId === HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID
+    );
+    expect(hsBp6GinkoLiveStartDiscard).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
       queued: true,
       implemented: true,
     });

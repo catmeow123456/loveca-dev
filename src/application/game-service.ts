@@ -79,6 +79,7 @@ import {
   placeCardInSlot,
   removeCardFromSlot,
   untapAllEnergy,
+  untapAllMembers,
   shuffleZone,
   drawFromTop,
   getAllMemberCardIds,
@@ -894,7 +895,7 @@ export class GameService {
         return updatePlayer(game, autoAction.playerId, (player) => ({
           ...player,
           energyZone: untapAllEnergy(player.energyZone),
-          // TODO: 也需要将成员变为活跃状态
+          memberSlots: untapAllMembers(player.memberSlots),
         }));
 
       case 'DRAW_ENERGY':

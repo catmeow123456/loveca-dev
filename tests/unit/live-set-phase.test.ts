@@ -20,6 +20,8 @@ import {
   GamePhase,
   TurnType,
   FaceState,
+  OrientationState,
+  SlotPosition,
   SubPhase,
 } from '../../src/shared/types/enums';
 import type {
@@ -224,6 +226,125 @@ describe('Live 卡设置阶段测试', () => {
     const deck = createTestDeck();
     const result = gameService.initializeGame(game, deck, deck);
     initializedGame = result.gameState;
+  });
+
+  describe('通常阶段前置规则', () => {
+    it('活跃阶段应该将当前玩家的待机成员和能量变为活跃状态', () => {
+      let state = initializedGame;
+
+      const mulligan1 = createMulliganAction('player1', []);
+      state = gameService.processAction(state, mulligan1).gameState;
+      const mulligan2 = createMulliganAction('player2', []);
+      state = gameService.processAction(state, mulligan2).gameState;
+
+      for (let i = 0; i < 3; i++) {
+        state = gameService.advancePhase(state).gameState;
+      }
+      expect(state.currentPhase).toBe(GamePhase.MAIN_PHASE);
+
+      const player1 = getPlayerById(state, 'player1')!;
+      const player2 = getPlayerById(state, 'player2')!;
+      const player1MemberCardId = player1.hand.cardIds.find(
+        (cardId) => getCardById(state, cardId)?.data.cardType === CardType.MEMBER
+      )!;
+      const player2MemberCardId = player2.hand.cardIds.find(
+        (cardId) => getCardById(state, cardId)?.data.cardType === CardType.MEMBER
+      )!;
+      const player1EnergyCardId = player1.energyZone.cardIds[0];
+      const player2EnergyCardId = player2.energyZone.cardIds[0];
+
+      state = updatePlayer(state, 'player1', (player) => ({
+        ...player,
+        hand: {
+          ...player.hand,
+          cardIds: player.hand.cardIds.filter((cardId) => cardId !== player1MemberCardId),
+        },
+        memberSlots: {
+          ...player.memberSlots,
+          slots: {
+          ...player.memberSlots.slots,
+            [SlotPosition.CENTER]: player1MemberCardId,
+          },
+          cardStates: new Map([
+            [
+              player1MemberCardId,
+              { orientation: OrientationState.WAITING, face: FaceState.FACE_UP },
+            ],
+          ]),
+        },
+        energyZone: {
+          ...player.energyZone,
+          cardStates: new Map(
+            [...player.energyZone.cardStates].map(([cardId, cardState]) => [
+              cardId,
+              {
+                ...cardState,
+                orientation:
+                  cardId === player1EnergyCardId
+                    ? OrientationState.WAITING
+                    : cardState.orientation,
+              },
+            ])
+          ),
+        },
+      }));
+      state = updatePlayer(state, 'player2', (player) => ({
+        ...player,
+        hand: {
+          ...player.hand,
+          cardIds: player.hand.cardIds.filter((cardId) => cardId !== player2MemberCardId),
+        },
+        memberSlots: {
+          ...player.memberSlots,
+          slots: {
+          ...player.memberSlots.slots,
+            [SlotPosition.CENTER]: player2MemberCardId,
+          },
+          cardStates: new Map([
+            [
+              player2MemberCardId,
+              { orientation: OrientationState.WAITING, face: FaceState.FACE_UP },
+            ],
+          ]),
+        },
+        energyZone: {
+          ...player.energyZone,
+          cardStates: new Map(
+            [...player.energyZone.cardStates].map(([cardId, cardState]) => [
+              cardId,
+              {
+                ...cardState,
+                orientation:
+                  cardId === player2EnergyCardId
+                    ? OrientationState.WAITING
+                    : cardState.orientation,
+              },
+            ])
+          ),
+        },
+      }));
+
+      const result = gameService.processAction(state, createEndPhaseAction('player1'));
+
+      expect(result.success).toBe(true);
+      expect(result.gameState.currentPhase).toBe(GamePhase.ACTIVE_PHASE);
+      expect(
+        getPlayerById(result.gameState, 'player1')?.memberSlots.cardStates.get(player1MemberCardId)
+          ?.orientation
+      ).toBe(OrientationState.WAITING);
+      expect(
+        getPlayerById(result.gameState, 'player1')?.energyZone.cardStates.get(player1EnergyCardId)
+          ?.orientation
+      ).toBe(OrientationState.WAITING);
+      expect(
+        getPlayerById(result.gameState, 'player2')?.memberSlots.cardStates.get(player2MemberCardId)
+          ?.orientation
+      ).toBe(OrientationState.ACTIVE);
+      expect(
+        getPlayerById(result.gameState, 'player2')?.energyZone.cardStates.get(player2EnergyCardId)
+          ?.orientation
+      ).toBe(OrientationState.ACTIVE);
+    });
   });
 
   describe('基本放置功能', () => {

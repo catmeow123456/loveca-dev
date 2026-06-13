@@ -45,6 +45,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 目前已完成的核心方向：
 
+- 活跃阶段规则自动化已补齐：进入某玩家活跃阶段时，`GameService` 的 `UNTAP_ALL` 会将该玩家舞台成员和能量全部恢复为活跃状态；不会同时重置非当前玩家。
 - LIVE 判定区会按当前光棒数自动翻推荐应援牌。
 - 玩家仍可手动调整判定区，然后选择接受自动判定。
 - 接受后系统会生成 Live 成功/失败、抽卡、分数草案，玩家仍保留强制成功/失败等人工修正入口。
@@ -72,10 +73,10 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 检视卡组顶 N 张、选择目标、公开被选牌、加入手牌、其余入休息室已开始共用流程；基础检视/清理/移动原语已落在 `src/application/effects/look-top.ts`。
 - “公开并加入手牌”必须先公开被选牌，再由玩家确认后移动。
 - 必要 Heart 增减使用 `applyHeartRequirementModifiers`，支持指定颜色、泛用/All、增加和减少。
-- “1回合 N 次”作为能力定义通用特征，使用 `perTurnLimit` 登记；起动入口统一记录和校验。
+- “1回合 N 次”作为能力定义通用特征，使用 `perTurnLimit` 登记；通用 `ABILITY_USE` 按 `playerId + abilityId + sourceCardId + turnCount` 记录和校验，限制的是此来源卡实例，不是同名卡或同一玩家同能力总次数。
 - 卡效发动费用已开始收口为 `src/application/effects/effect-costs.ts` 中的通用 `EffectCostDefinition` / `payImmediateEffectCosts` / `paySelectedDiscardHandCost` 底座。当前已覆盖弃 1 手牌、支付活跃能量、将来源成员从舞台放置入休息室三类，并已迁移 `002` / `005` / `008` / `003` / `011` / `012` / `015` / `016` 的相关费用路径。
 - 区域目标选择/移动已开始收口为 `src/application/effects/zone-selection.ts` 中的 `ZoneCardSelectionConfig` / `createWaitingRoomToHandEffectState` / `moveSelectedCardsFromZone`。当前覆盖 `WAITING_ROOM -> HAND` 单选路径，`001` / `003` / `002` / `005` 的“从休息室加入手牌”已走统一完成逻辑。
-- 最小 selector API 已落在 `src/application/effects/card-selectors.ts`，当前提供 `typeIs` / `groupIs` / `costLte` / `and` / `or` / `not`，`001` / `003` / `002` / `005` 已用组合 selector 表达 LIVE、成员、低费 μ's 等候选条件。
+- 最小 selector API 已落在 `src/application/effects/card-selectors.ts`，当前提供 `typeIs` / `groupIs` / `costLte` / `cardNameIs` / `and` / `or` / `not`，`001` / `003` / `002` / `005` 已用组合 selector 表达 LIVE、成员、低费 μ's 等候选条件；`PL!HS-bp6-004-R` 费用 13「百生 吟子」已用 `cardNameIs` 处理弃置「百生吟子」成员判断。
 - Live 修正已进入 Stage 1D 主写入路径：`domain/rules/live-modifiers.ts` 提供 `addLiveModifier` / `replaceLiveModifier` / `projectLiveModifierCompatibility`，临时修正统一写入 `liveResolution.liveModifiers` 的 `SCORE`、`HEART`、`BLADE`、`REQUIREMENT` modifier；旧的 `playerScoreBonuses` / `playerHeartBonuses` / `liveRequirementReductions` / `liveRequirementModifiers` 由 `liveModifiers` 投影，仅作为 UI/在线投影兼容层保留。常时修正已整理为 continuous modifier registry，`001` 常时 BLADE 由 `collectLiveModifiers` 动态收集。
 - 状态与站位变换 Stage 1E 已起步：`src/application/effects/member-state.ts` 提供 `setMemberOrientation` / `moveMemberBetweenSlots`，覆盖卡效里的成员待机/活跃基础原语与站位变换。当前 `PL!N-pb1-004-P+` 的站位变换已改为调用 `moveMemberBetweenSlots`；普通规则 TAP_MEMBER、自由拖拽和手动移动仍归规则/桌面流程，不反向塞进 card effects。
 - 抽牌 Stage 1F 已对当前 μ's 预组验证集收口：`src/application/effects/draw.ts` 提供 `drawCardsFromMainDeckToHand`，表达卡效步骤中的主卡组顶抽牌到手牌。当前 `007` 的额外抽 1 已迁入该 helper，并覆盖“翻到 Live 抽 1 / 未翻到 Live 不抽”的 focused tests；开局/阶段/LIVE 判定等规则流程抽牌仍归 `GameService`，不由该 helper 接管。F02 已由 `PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场起步为抽 2 弃 1 壳；F12/刷新语义继续等真实样例。
@@ -374,13 +375,54 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
   - `tests/integration/sample-card-effect-runner.test.ts` 覆盖从舞台移动到休息室触发 AUTO、公开并入手 1 张成员、其余进休息室，以及被换手替换时与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」登场能力同窗排序。
 - 验证：focused 2 files / 40 tests passed；相关完整验证 14 files / 156 tests passed；`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
 
+本次 2026-06-13 `PL!HS-bp6-017-N` 费用 11「日野下花帆」AUTO proving 收口：
+
+- 新增 `HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID`，登记为 `AUTO` / `STAGE_MEMBER` / `ON_LEAVE_STAGE` 队列能力。
+- 继续复用 `ON_LEAVE_STAGE` 离场 AUTO 入队路径，并补了薄事件来源接口：`enqueueTriggeredCardEffects` 可从 `LeaveStageEvent` 转换离场来源；当前主流程仍兼容 action-history / explicit-source。
+- 效果流程复用现有弃手费用与 `WAITING_ROOM -> HAND` 移动原语：离场后可选择 1 张手牌放置入休息室；如此做时，从休息室选择 LIVE 卡和成员卡至多各 1 张加入手牌。来源成员自身已进入休息室，因此也会成为合法成员候选。
+- 新增 grouped recovery 校验：多选最多 2 张，但 LIVE 不超过 1 张、成员不超过 1 张；尝试选择两张 LIVE 会被权威层拒绝。
+- focused tests 已补：
+  - `tests/unit/card-effect-classification.test.ts` 覆盖第二张离场 AUTO 能力登记。
+  - `tests/integration/sample-card-effect-runner.test.ts` 覆盖离场触发、跳过弃手、弃手后回收 LIVE/成员各 1 张，以及同类双选被拒绝。
+- 验证：focused 2 files / 42 tests passed；相关完整验证 14 files / 158 tests passed；`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
+
+本次 2026-06-13 `PL!HS-pb1-009-R` 费用 15「日野下花帆」AUTO proving 收口：
+
+- 新增 `HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID`，登记为 `AUTO` / `STAGE_MEMBER` / `ON_ENTER_STAGE` 队列能力，`requiredSourceSlots: [CENTER]`，`perTurnLimit: 2`。
+- `enqueueTriggeredCardEffects` 的 `ON_ENTER_STAGE` 现在同时支持登场者自己的 `ON_ENTER` 能力与舞台成员监听登场事件的 AUTO；新增薄 `EnterStageEvent` / on-enter source adapter，当前主流程仍兼容最近 `PLAY_MEMBER` action。
+- “1回合 N 次”限制改为通用实例级底座：`ABILITY_USE` 按来源卡实例计数；同步修正 `PL!-sd1-008-SD` 费用未登记「小泉 花陽」的旧行为，同一实例本回合第二次会被拒绝，另一张同名实例可以发动。
+- 效果段写入 `liveResolution.liveModifiers` 的 `BLADE` modifier：己方「莲之空」成员登场至自己舞台时，来源为中央的此成员获得 BLADE +2。FAQ 覆盖“此成员自己登场到中央也会触发”。
+- 同卡第二段登记为 `LIVE_START` / `STAGE_MEMBER` 队列能力：LIVE 开始时统计此成员有效 BLADE，若大于等于 8，则复用 F02 抽 2 弃 1 流程。
+- `domain/rules/live-modifiers.ts` 新增 `getMemberEffectiveBladeCount`：以印刷 BLADE 加上同 `playerId + sourceCardId` 的 BLADE modifier 统计成员当前有效 BLADE；非成员或找不到来源时返回 0。
+- 新增通用 confirm-only active effect：玩家从顺序选择窗口手动点选无输入 pending ability 时，先显示来源卡、效果文本与“继续处理”按钮；点击后才真正 resolve。`PL!HS-pb1-009-R` 费用 15「日野下花帆」第一段已接入该壳；“顺序发动”仍按队列自动处理，不逐个弹确认。
+- focused tests 已补：
+  - `tests/unit/card-effect-classification.test.ts` 覆盖 `PL!HS-pb1-009-R` 费用 15「日野下花帆」AUTO 登记、中心位与每回合 2 次限制。
+  - `tests/unit/live-modifiers.test.ts` 覆盖成员有效 BLADE 只统计同玩家、同来源成员的 BLADE modifier。
+  - `tests/integration/sample-card-effect-runner.test.ts` 覆盖自己登场触发、非「莲之空」不触发、同一来源实例每回合只触发 2 次、`PL!-sd1-008-SD` 费用未登记「小泉 花陽」同名不同实例可分别发动，LIVE 开始 BLADE 阈值未满足时跳过、满足时抽 2 弃 1，以及手动点选无输入 AUTO 先进入 confirm-only、顺序发动不弹 confirm-only。
+- 验证：第一段 focused 2 files / 44 tests passed；第二段 focused 3 files / 49 tests passed；confirm-only 后 focused 3 files / 51 tests passed；相关完整验证 14 files / 165 tests passed；`pnpm exec tsc --noEmit` 与 `pnpm --dir client exec tsc -b` passed。
+
+本次 2026-06-13 `PL!HS-bp6-004-R` 费用 13「百生 吟子」组合效果 proving 收口：
+
+- 新增三条能力登记：
+  - 登场段 `HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID`：对方舞台费用小于等于 9 的 1 名成员变为待机状态。
+  - LIVE 开始段 `HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID`：同一对手低费成员待机效果。
+  - LIVE 开始段 `HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID`：可弃 1 张手牌，LIVE 结束时为止获得 BLADE；若弃置的是姓名归一化后为「百生吟子」的成员卡，则共获得 BLADE +2。
+- 顺序选择窗口补通用同源多能力区分：同一窗口若存在重复 `sourceCardId`，不再用卡图 ID 选择，而切到 `selectableOptions` 展示具体效果文本；不同来源卡的普通队列仍保持卡图选择。
+- 新增舞台成员目标 helper：按 `playerId + predicate` 扫描成员区槽位，供对手目标/费用筛选复用；实际方向变更继续调用 `member-state.ts` 的 `setMemberOrientation`。
+- 该舞台成员目标 helper 已从 runner 下沉到 `src/application/effects/stage-targets.ts`，并改为接收 `card-selectors.ts` 的组合 selector；弃置「百生吟子」判断也改为复用 `cardNameIs`。
+- 弃手加 BLADE 段复用现有可选弃手 active effect 与 `moveHandCardToWaitingRoomForEffect`，并通过 `addLiveModifier` 写入 BLADE modifier。
+- focused tests 已补：
+  - `tests/unit/card-effect-classification.test.ts` 覆盖 `PL!HS-bp6-004-R` 费用 13「百生 吟子」三条能力登记。
+  - `tests/integration/sample-card-effect-runner.test.ts` 覆盖登场时只能选择对方费用小于等于 9 的成员、同一张来源卡两条 LIVE 开始能力使用 option 区分、弃置同名「百生吟子」成员获得 BLADE +2。
+- 验证：提交前 focused 5 files / 77 tests passed；`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
+
 ## 下一步建议
 
 优先级 1：基于 `系统边界混合` 测试卡组开始实现新效果，优先打开新系统边界，同时保留少量现有模块扩样本。
 
 推荐下一批 proving cards：
 
-- `PL!HS-bp2-012-N` 费用 5「乙宗 梢」已完成 AUTO proving 第一张，后续 AUTO proving set 可继续看 `PL!HS-bp6-017-N` 费用 11「日野下花帆」、`PL!HS-pb1-009-R` 费用 15「日野下花帆」、`PL!HS-bp6-004-R` 费用 13「百生 吟子」。目标 fragment：`T06,S08,S09,T07` 等，重点是继续扩大真实事件边界，而不是为单卡硬写。
+- `PL!HS-bp6-004-R` 费用 13「百生 吟子」已完成登场/LIVE 开始对手低费成员待机、LIVE 开始可弃手加 BLADE、同源双 LIVE 开始顺序选择区分。下一批建议先把“舞台成员目标选择 active effect”抽成小型配置入口，复用 `stage-targets.ts` + `card-selectors.ts` + `setMemberOrientation`；随后继续真实 AUTO / LIVE 开始 proving set，优先选择能推进 when-if、名称/费用 selector 配置化或更多状态事件的卡。
 - `PL!S-bp2-006-P` 费用 11「津岛善子」与 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」当前目标段已完成，后续保留为 S07/S02/E02/X11 回归样例。
 - `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」费用减少与登场二选一活跃段已完成，后续保留为 X11/X03/S02/E02 回归样例。
 - `PL!SP-bp4-008-P` 费用 13「若菜四季」与 `PL!SP-PR-004-PR` 费用 4「唐 可可」当前已完成目标段，后续保留为 F02/E02/E03/S05 回归样例。
@@ -394,12 +436,12 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - `PL!-sd1-006-SD` 的公开手牌 + 成功区交换仍 inline，等需要 C07/交换效果时再抽。
 - 003 Heart 颜色选择仍是专用步骤，等第二个选择型效果再抽 generic option-choice。
 - 009/022/001 的条件/倍率仍在 resolver，等非预组样例重复后再抽 condition AST。
-- F12、抽牌刷新语义继续等待真实样例；F02 当前只有抽 2 弃 1 的第一条 proving path。
+- F12、抽牌刷新语义继续等待真实样例；F02 当前已有登场抽弃与 BLADE 阈值 LIVE 开始抽弃样例。
 
 优先级 2：Step 12 / Stage 1G 自动能力框架已最小起步。
 
-- `PL!HS-bp2-012-N` 费用 5「乙宗 梢」已证明 `ON_LEAVE_STAGE` 入队、look-top 解析与同事件顺序选择。
-- 保留 AUTO 待办：后续继续推进标准 `GameEvent`、trigger matcher、每回合限制、when-if 与更广泛移动/状态事件，并用真实自动能力样例验证。
+- `PL!HS-bp2-012-N` 费用 5「乙宗 梢」已证明 `ON_LEAVE_STAGE` 入队、look-top 解析与同事件顺序选择；`PL!HS-bp6-017-N` 费用 11「日野下花帆」已证明同一离场 AUTO 底座可接弃手后分组回收；`PL!HS-pb1-009-R` 费用 15「日野下花帆」已证明 `ON_ENTER_STAGE` 可被舞台成员监听并接实例级每回合限制，且 LIVE 开始段可复用成员有效 BLADE helper 与 F02 抽弃流程。
+- 保留 AUTO 待办：后续继续推进标准 `GameEvent`、trigger matcher、when-if 与更广泛移动/状态事件，并用真实自动能力样例验证。
 
 优先级 3：继续完善 LIVE 自动判定。
 

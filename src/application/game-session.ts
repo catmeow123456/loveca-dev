@@ -1186,7 +1186,8 @@ export class GameSession {
         const limitStatus = getActivatedAbilityLimitStatus(
           state,
           command.playerId,
-          command.abilityId
+          command.abilityId,
+          command.cardId
         );
         if (limitStatus && limitStatus.remaining <= 0) {
           return `该起动效果本回合已发动 ${limitStatus.used}/${limitStatus.limit} 次`;

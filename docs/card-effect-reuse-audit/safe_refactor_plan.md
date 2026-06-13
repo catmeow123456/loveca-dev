@@ -1,7 +1,7 @@
 # Loveca safe card effect refactor plan
 
 审查日期：2026-06-13  
-状态：Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Stage 1I 已用 `PL!SP-PR-004-PR` 费用 4「唐 可可」打开 E03 能量放置底座，并用 `PL!SP-bp4-008-P` 费用 13「若菜四季」打开来源槽位条件与 E02 能量活跃底座；Stage 1J 已用同一张四季与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」验证 F02 抽 2 弃 1，并用 `PL!-pb1-019-N` 费用 2「高坂穗乃果」/`PL!-bp4-003-P` 费用 2「南琴梨」验证自送休息室回收扩样本；Stage 1K 已补完 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始可选站位变换；Stage 1L 已用 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」和 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」打开 X11 登场费用修正底座；Stage 1M 已用 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」与 `PL!S-bp2-006-P` 费用 11「津岛善子」验证批量活跃与 S07 卡效登场；Stage 1N 已用 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证 X03 成员/能量分支选择并复用 S02/E02 方向 helper；Stage 1O 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」打开最小 AUTO / S08 离场触发 proving path。
+状态：Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Stage 1I 已用 `PL!SP-PR-004-PR` 费用 4「唐 可可」打开 E03 能量放置底座，并用 `PL!SP-bp4-008-P` 费用 13「若菜四季」打开来源槽位条件与 E02 能量活跃底座；Stage 1J 已用同一张四季与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」验证 F02 抽 2 弃 1，并用 `PL!-pb1-019-N` 费用 2「高坂穗乃果」/`PL!-bp4-003-P` 费用 2「南琴梨」验证自送休息室回收扩样本；Stage 1K 已补完 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始可选站位变换；Stage 1L 已用 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」和 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」打开 X11 登场费用修正底座；Stage 1M 已用 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」与 `PL!S-bp2-006-P` 费用 11「津岛善子」验证批量活跃与 S07 卡效登场；Stage 1N 已用 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证 X03 成员/能量分支选择并复用 S02/E02 方向 helper；Stage 1O 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」与 `PL!HS-bp6-017-N` 费用 11「日野下花帆」打开最小 AUTO / S08 离场触发 proving path；Stage 1P 已用 `PL!HS-pb1-009-R` 费用 15「日野下花帆」打开舞台成员监听 `ON_ENTER_STAGE`、实例级每回合限制、BLADE modifier AUTO 第一段与 LIVE 开始 BLADE 阈值抽弃第二段；Stage 1Q 已用 `PL!HS-bp6-004-R` 费用 13「百生 吟子」验证对手舞台低费目标、同源双 LIVE 开始 option、指定姓名弃手加 BLADE，并抽出 `stage-targets.ts` 与 `cardNameIs`；普通活跃阶段进入时也已自动重置当前玩家成员与能量。
 
 本计划假设当前行为是 golden。除非明确接受 behavior mismatch，否则每一批都应先补 focused tests，再迁移。
 
@@ -26,7 +26,7 @@ pnpm exec tsc --noEmit
 pnpm --dir client exec tsc -b
 ```
 
-最近结果：`PL!HS-bp2-012-N` 费用 5「乙宗 梢」AUTO proving 后，focused 2 files / 40 tests passed；相关完整验证 14 files / 156 tests passed；`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
+最近结果：`PL!HS-bp6-004-R` 费用 13「百生 吟子」组合效果、活跃阶段自动重置与 `stage-targets.ts` / `cardNameIs` 抽取后，提交前 focused 5 files / 77 tests passed；此前相关完整验证 14 files / 165 tests passed；本次 `pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
 
 ## 1. Continue Stage 1G only through real AUTO proving cards
 
@@ -38,7 +38,7 @@ Stage 1G 应包含：
 4. once-per-turn / when-if / source timing rules
 5. UI pending trigger selection
 
-当前已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」完成第一条 proving path：`ON_LEAVE_STAGE` 入队、look-top 解析、与同一动作登场能力共享顺序选择窗口。后续不要一次性扩成全量事件系统；继续用真实自动能力卡牌逐步扩 `GameEvent`、trigger matcher、when-if、每回合限制与更多移动/状态事件。
+当前已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」完成第一条 proving path：`ON_LEAVE_STAGE` 入队、look-top 解析、与同一动作登场能力共享顺序选择窗口。`PL!HS-bp6-017-N` 费用 11「日野下花帆」完成第二条同触发 proving path：可选弃手后从休息室将 LIVE/成员至多各 1 张加入手牌，并为 `enqueueTriggeredCardEffects` 增加薄 `LeaveStageEvent` source adapter。`PL!HS-pb1-009-R` 费用 15「日野下花帆」完成第三条 proving path：舞台成员监听己方「莲之空」成员登场、实例级每回合 2 次、BLADE +2 写入 live modifier，并在 LIVE 开始用成员有效 BLADE helper 接 F02 抽弃；同卡第一段也验证了手动从顺序选择窗口点选无输入 AUTO 时的 confirm-only active effect，顺序发动不弹该确认壳。后续不要一次性扩成全量事件系统；继续用真实自动能力卡牌逐步扩 `GameEvent`、trigger matcher、when-if 与更多移动/状态事件。
 
 ## 2. Recommended next implementation batch
 
@@ -56,10 +56,17 @@ Stage 1G 应包含：
 
 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」已完成 AUTO 段：此成员从舞台放置入休息室时检视顶 5，可以公开并加入手牌 1 张成员，其余放置入休息室。当前最小底座覆盖普通离场、换手替换离场，以及与新登场成员能力同事件排序。
 
+`PL!HS-bp6-017-N` 费用 11「日野下花帆」已完成 AUTO 段：此成员从舞台放置入休息室时，可以将 1 张手牌放置入休息室；如此做时，从休息室将 LIVE 卡和成员卡至多各 1 张加入手牌。当前复用离场 AUTO 入队、弃手费用与 `WAITING_ROOM -> HAND` 移动；LIVE/成员各至多 1 张的分组上限仍在 runner 校验，后续可抽 grouped zone selection config。
+
+`PL!HS-pb1-009-R` 费用 15「日野下花帆」已完成两段：第一段为中心位监听己方「莲之空」成员登场，实例级每回合 2 次并获得 BLADE +2；第二段为 LIVE 开始时统计此成员有效 BLADE，达到 8 时抽 2 弃 1。当前复用 `ON_ENTER_STAGE` 入队、`ABILITY_USE` 实例级限制、`getMemberEffectiveBladeCount`、F02 抽弃流程与 confirm-only 无输入确认壳。
+
+`PL!HS-bp6-004-R` 费用 13「百生 吟子」已完成三段：登场 / LIVE 开始时选择对方舞台费用小于等于 9 的 1 名成员变为待机状态；LIVE 开始时可弃 1 张手牌获得 BLADE，弃置「百生吟子」成员时共获得 BLADE +2。当前复用 `stage-targets.ts` 舞台成员目标 helper、`card-selectors.ts` 组合 selector / `cardNameIs`、`setMemberOrientation`、可选弃手步骤、`addLiveModifier`，并补了同源双 LIVE 开始能力的 option 顺序选择。
+
 首选：
 
-1. 继续 AUTO proving set 的真实样例
-   - `PL!HS-bp6-017-N` 费用 11「日野下花帆」、`PL!HS-pb1-009-R` 费用 15「日野下花帆」、`PL!HS-bp6-004-R` 费用 13「百生 吟子」可作为后续候选。目标是扩事件边界，而不是为单卡硬写。
+1. 继续 AUTO / LIVE 开始 proving set 的真实样例
+   - 短线先把 `PL!HS-bp6-004-R` 费用 13「百生 吟子」暴露出的“舞台成员目标选择 active effect”抽成小型配置入口，复用 `stage-targets.ts` + `card-selectors.ts` + `setMemberOrientation`，避免后续每张“选择对方舞台成员并改状态”的卡重复写 active effect。
+   - 随后继续选择能推进 when-if、名称/数值 selector 配置化、更多移动或状态事件边界的真实 AUTO / LIVE 开始卡。
 
 备选：
 

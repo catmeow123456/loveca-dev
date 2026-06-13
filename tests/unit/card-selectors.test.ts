@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { CardInstance, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
-import { and, costLte, groupIs, not, or, typeIs } from '../../src/application/effects/card-selectors';
+import {
+  and,
+  cardNameIs,
+  costLte,
+  groupIs,
+  not,
+  or,
+  typeIs,
+} from '../../src/application/effects/card-selectors';
 import { CardType, HeartColor } from '../../src/shared/types/enums';
 
 function memberCard(cardCode: string, overrides: Partial<MemberCardData> = {}): CardInstance {
@@ -60,6 +68,18 @@ describe('card selectors', () => {
     expect(muse(textMuse)).toBe(true);
     expect(muse(fallbackMuse)).toBe(true);
     expect(muse(other)).toBe(false);
+  });
+
+  it('matches card names after whitespace normalization', () => {
+    const spacedName = memberCard('PL!HS-bp6-004-R', { name: '百生 吟子' });
+    const compactName = memberCard('PL!HS-pb1-004-R', { name: '百生吟子' });
+    const otherName = memberCard('PL!HS-bp6-017-N', { name: '日野下花帆' });
+
+    const ginko = cardNameIs('百生吟子');
+
+    expect(ginko(spacedName)).toBe(true);
+    expect(ginko(compactName)).toBe(true);
+    expect(ginko(otherName)).toBe(false);
   });
 
   it('composes selectors with and, or, and not', () => {
