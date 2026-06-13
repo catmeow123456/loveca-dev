@@ -1,0 +1,301 @@
+import { HeartColor } from '../../shared/types/enums.js';
+import type { HeartIcon } from '../entities/card.js';
+import type {
+  GameState,
+  LiveModifierState,
+  LiveRequirementModifierState,
+  LiveResolutionState,
+} from '../entities/game.js';
+import { getCardById } from '../entities/game.js';
+import { getAllMemberCardIds } from '../entities/zone.js';
+
+type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
+type HeartModifierState = Extract<LiveModifierState, { readonly kind: 'HEART' }>;
+type BladeModifierState = Extract<LiveModifierState, { readonly kind: 'BLADE' }>;
+type RequirementModifierState = Extract<LiveModifierState, { readonly kind: 'REQUIREMENT' }>;
+
+type LiveModifierCompatibilityProjection = Pick<
+  LiveResolutionState,
+  | 'playerScoreBonuses'
+  | 'playerHeartBonuses'
+  | 'liveRequirementReductions'
+  | 'liveRequirementModifiers'
+>;
+
+export interface LiveModifierMatch {
+  readonly kind?: LiveModifierState['kind'];
+  readonly playerId?: string;
+  readonly liveCardId?: string;
+  readonly sourceCardId?: string;
+  readonly abilityId?: string;
+}
+
+interface ContinuousLiveModifierContext {
+  readonly game: GameState;
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly successLiveCount: number;
+}
+
+interface ContinuousLiveModifierDefinition {
+  readonly cardCodes: readonly string[];
+  readonly collect: (context: ContinuousLiveModifierContext) => readonly LiveModifierState[];
+}
+
+const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
+  {
+    cardCodes: ['PL!-sd1-001-SD'],
+    collect: ({ playerId, sourceCardId, successLiveCount }) =>
+      successLiveCount > 0
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: successLiveCount,
+              sourceCardId,
+            },
+          ]
+        : [],
+  },
+];
+
+function getScoreModifiers(
+  playerId: string,
+  liveModifiers: readonly LiveModifierState[]
+): ScoreModifierState[] {
+  return liveModifiers.filter(
+    (modifier): modifier is ScoreModifierState =>
+      modifier.kind === 'SCORE' && modifier.playerId === playerId
+  );
+}
+
+function getHeartModifiers(
+  playerId: string,
+  liveModifiers: readonly LiveModifierState[]
+): HeartModifierState[] {
+  return liveModifiers.filter(
+    (modifier): modifier is HeartModifierState =>
+      modifier.kind === 'HEART' && modifier.playerId === playerId
+  );
+}
+
+function getBladeModifiers(
+  playerId: string,
+  liveModifiers: readonly LiveModifierState[]
+): BladeModifierState[] {
+  return liveModifiers.filter(
+    (modifier): modifier is BladeModifierState =>
+      modifier.kind === 'BLADE' && modifier.playerId === playerId
+  );
+}
+
+function getRequirementModifiers(
+  liveCardId: string,
+  liveModifiers: readonly LiveModifierState[]
+): RequirementModifierState[] {
+  return liveModifiers.filter(
+    (modifier): modifier is RequirementModifierState =>
+      modifier.kind === 'REQUIREMENT' && modifier.liveCardId === liveCardId
+  );
+}
+
+export function collectLiveModifiers(game: GameState): readonly LiveModifierState[] {
+  return [...game.liveResolution.liveModifiers, ...collectContinuousLiveModifiers(game)];
+}
+
+function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierState[] {
+  const modifiers: LiveModifierState[] = [];
+
+  for (const player of game.players) {
+    const successLiveCount = player.successZone.cardIds.length;
+
+    for (const cardId of getAllMemberCardIds(player.memberSlots)) {
+      const card = getCardById(game, cardId);
+      if (!card) {
+        continue;
+      }
+
+      for (const definition of CONTINUOUS_LIVE_MODIFIER_DEFINITIONS) {
+        if (!definition.cardCodes.includes(card.data.cardCode)) {
+          continue;
+        }
+
+        modifiers.push(
+          ...definition.collect({
+            game,
+            playerId: player.id,
+            sourceCardId: cardId,
+            successLiveCount,
+          })
+        );
+      }
+    }
+  }
+
+  return modifiers;
+}
+
+export function addLiveModifier(game: GameState, modifier: LiveModifierState): GameState {
+  return setLiveModifiers(game, [...game.liveResolution.liveModifiers, modifier]);
+}
+
+export function replaceLiveModifier(
+  game: GameState,
+  match: LiveModifierMatch,
+  replacement: LiveModifierState | null
+): GameState {
+  const liveModifiers = game.liveResolution.liveModifiers.filter(
+    (modifier) => !matchesLiveModifier(modifier, match)
+  );
+  return setLiveModifiers(
+    game,
+    replacement === null ? liveModifiers : [...liveModifiers, replacement]
+  );
+}
+
+function setLiveModifiers(game: GameState, liveModifiers: readonly LiveModifierState[]): GameState {
+  return {
+    ...game,
+    liveResolution: {
+      ...game.liveResolution,
+      ...projectLiveModifierCompatibility(liveModifiers),
+      liveModifiers,
+    },
+  };
+}
+
+export function projectLiveModifierCompatibility(
+  liveModifiers: readonly LiveModifierState[]
+): LiveModifierCompatibilityProjection {
+  const playerScoreBonuses = new Map<string, number>();
+  const playerHeartBonuses = new Map<string, HeartIcon[]>();
+  const liveRequirementReductions = new Map<string, number>();
+  const liveRequirementModifiers = new Map<string, LiveRequirementModifierState[]>();
+
+  for (const modifier of liveModifiers) {
+    if (modifier.kind === 'SCORE') {
+      playerScoreBonuses.set(
+        modifier.playerId,
+        (playerScoreBonuses.get(modifier.playerId) ?? 0) + modifier.countDelta
+      );
+      continue;
+    }
+
+    if (modifier.kind === 'HEART') {
+      playerHeartBonuses.set(modifier.playerId, [
+        ...(playerHeartBonuses.get(modifier.playerId) ?? []),
+        ...modifier.hearts,
+      ]);
+      continue;
+    }
+
+    if (modifier.kind === 'REQUIREMENT') {
+      liveRequirementModifiers.set(modifier.liveCardId, [
+        ...(liveRequirementModifiers.get(modifier.liveCardId) ?? []),
+        ...modifier.modifiers,
+      ]);
+
+      const genericReduction = modifier.modifiers
+        .filter(
+          (requirementModifier) =>
+            requirementModifier.color === HeartColor.RAINBOW && requirementModifier.countDelta < 0
+        )
+        .reduce((total, requirementModifier) => total - requirementModifier.countDelta, 0);
+      if (genericReduction > 0) {
+        liveRequirementReductions.set(
+          modifier.liveCardId,
+          (liveRequirementReductions.get(modifier.liveCardId) ?? 0) + genericReduction
+        );
+      }
+    }
+  }
+
+  return {
+    playerScoreBonuses,
+    playerHeartBonuses,
+    liveRequirementReductions,
+    liveRequirementModifiers,
+  };
+}
+
+function matchesLiveModifier(modifier: LiveModifierState, match: LiveModifierMatch): boolean {
+  if (match.kind !== undefined && modifier.kind !== match.kind) {
+    return false;
+  }
+
+  if (match.playerId !== undefined) {
+    if (!('playerId' in modifier) || modifier.playerId !== match.playerId) {
+      return false;
+    }
+  }
+
+  if (match.liveCardId !== undefined) {
+    if (!('liveCardId' in modifier) || modifier.liveCardId !== match.liveCardId) {
+      return false;
+    }
+  }
+
+  if (match.sourceCardId !== undefined && modifier.sourceCardId !== match.sourceCardId) {
+    return false;
+  }
+
+  if (match.abilityId !== undefined && modifier.abilityId !== match.abilityId) {
+    return false;
+  }
+
+  return true;
+}
+
+export function getPlayerLiveScoreModifier(
+  liveResolution: LiveResolutionState,
+  playerId: string,
+  liveModifiers: readonly LiveModifierState[] = liveResolution.liveModifiers
+): number {
+  const modifiers = getScoreModifiers(playerId, liveModifiers);
+  if (modifiers.length > 0) {
+    return modifiers.reduce((total, modifier) => total + modifier.countDelta, 0);
+  }
+  return liveResolution.playerScoreBonuses.get(playerId) ?? 0;
+}
+
+export function getPlayerLiveHeartModifiers(
+  liveResolution: LiveResolutionState,
+  playerId: string,
+  liveModifiers: readonly LiveModifierState[] = liveResolution.liveModifiers
+): readonly HeartIcon[] {
+  const modifiers = getHeartModifiers(playerId, liveModifiers);
+  if (modifiers.length > 0) {
+    return modifiers.flatMap((modifier) => modifier.hearts);
+  }
+  return liveResolution.playerHeartBonuses.get(playerId) ?? [];
+}
+
+export function getPlayerLiveBladeModifier(
+  liveResolution: LiveResolutionState,
+  playerId: string,
+  liveModifiers: readonly LiveModifierState[] = liveResolution.liveModifiers
+): number {
+  return getBladeModifiers(playerId, liveModifiers).reduce(
+    (total, modifier) => total + modifier.countDelta,
+    0
+  );
+}
+
+export function getLiveCardRequirementModifiers(
+  liveResolution: LiveResolutionState,
+  liveCardId: string,
+  liveModifiers: readonly LiveModifierState[] = liveResolution.liveModifiers
+): readonly LiveRequirementModifierState[] {
+  const modifiers = getRequirementModifiers(liveCardId, liveModifiers);
+  if (modifiers.length > 0) {
+    return modifiers.flatMap((modifier) => modifier.modifiers);
+  }
+
+  const legacyModifiers = liveResolution.liveRequirementModifiers.get(liveCardId) ?? [];
+  if (legacyModifiers.length > 0) {
+    return legacyModifiers;
+  }
+
+  const legacyReduction = liveResolution.liveRequirementReductions.get(liveCardId) ?? 0;
+  return legacyReduction > 0 ? [{ color: HeartColor.RAINBOW, countDelta: -legacyReduction }] : [];
+}

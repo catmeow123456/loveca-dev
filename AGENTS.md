@@ -50,10 +50,15 @@
 ## 卡效步骤约定
 
 - “可以将 N 张手牌放置入休息室：……”属于通用发动代价/费用步骤，不是具体卡牌特例。
-- 当前 N=1 的手牌弃置步骤统一使用 `card-effect-runner.ts` 中的 `createDiscardHandToWaitingRoomActivationEffect` 和 `moveHandCardToWaitingRoomForEffect`。
+- 当前 N=1 的手牌弃置步骤统一使用 `card-effect-runner.ts` 中的 `createDiscardHandToWaitingRoomActivationEffect` 创建选择步骤，并用 `src/application/effects/effect-costs.ts` 中的 `moveHandCardToWaitingRoomForEffect` 执行移动。
+- 卡效发动费用应优先登记/执行为通用 `EffectCostDefinition`，当前已覆盖 `DISCARD_HAND_TO_WAITING_ROOM`、`TAP_ACTIVE_ENERGY`、`SEND_SOURCE_MEMBER_TO_WAITING_ROOM`。新增 `[E]`、弃手、自送休息室等费用时，先扩展/复用 `src/application/effects/effect-costs.ts` 的 `payImmediateEffectCosts` 或 `paySelectedDiscardHandCost`，不要在单张卡里手写横置能量、移动手牌、清空成员槽位。
 - 这类步骤的选择区文案应明确为“请选择要放置入休息室的卡牌”，跳过按钮应为“不发动”，不要写成“请选择要处理的卡牌”或“不加入”。
 - 后续支持 N>1、指定名称/颜色/类型的手牌弃置时，应扩展同一个步骤 helper，而不是在单张卡效果里临时写 UI 文案和移动逻辑。
-- “检视卡组顶 N 张 -> 选择其中若干张 -> 可选公开 -> 加入手牌 -> 其余放置入休息室”也是通用步骤，不要只为 `PL!-sd1-004-SD` 或 `PL!-sd1-015-SD` 单独写流程。
+- “检视卡组顶 N 张 -> 选择其中若干张 -> 可选公开 -> 加入手牌 -> 其余放置入休息室”也是通用步骤；当前基础区域操作已落在 `src/application/effects/look-top.ts`，不要只为 `PL!-sd1-004-SD`、`PL!-sd1-015-SD` 或 `PL!-sd1-019-SD` 单独写检视/清理/移动流程。
+- “抽 N 张牌”作为卡效步骤时，优先复用 `src/application/effects/draw.ts` 的 `drawCardsFromMainDeckToHand`。当前该 helper 只表达卡效步骤里的“主卡组顶 -> 手牌”，不接管开局/阶段/LIVE 判定等规则流程抽牌；涉及牌库为空后的刷新处理时，应先确认要保持的规则语义，不要悄悄改变既有流程。
+- “从某区域按条件选择卡 -> 移动到目标区域”属于通用目标选择/移动步骤。当前已由 `src/application/effects/zone-selection.ts` 的 `ZoneCardSelectionConfig` / `moveSelectedCardsFromZone` 覆盖 `WAITING_ROOM -> HAND` 的单选路径，并由 `src/application/effects/card-selectors.ts` 提供 `typeIs` / `groupIs` / `costLte` / `and` 等最小 selector；新增从休息室回收成员/LIVE、按费用/团体/名称筛选等效果时，优先扩展这个底座，不要在单张卡里重复写移出休息室和加入手牌。
+- “成员变为待机/活跃”与“站位变换”作为卡效步骤时，优先复用 `src/application/effects/member-state.ts` 的 `setMemberOrientation` / `moveMemberBetweenSlots`。普通规则流程里的自由横置、拖拽、手动区域移动仍归 `GameSession` / action handler / `zone-operations.ts`，不要为了卡效抽象反向改写桌面规则流程。
+- “将此成员从舞台放置入休息室”作为发动费用时，仍优先走 `src/application/effects/effect-costs.ts` 的 `SEND_SOURCE_MEMBER_TO_WAITING_ROOM`；不要和 S01/S02/S05 的状态/站位步骤混成同一个概念。
 - 若效果文本写“公开并加入手牌”，必须先把被选牌加入 `inspectionZone.revealedCardIds`，等待玩家确认后再移动到手牌；不能直接加入手牌。
 - 若效果文本写“将 1 张加入手牌”而不是“可以将 1 张加入手牌”，选择阶段应强制选择；只有没有合法目标时才允许不选。
 
@@ -68,8 +73,9 @@
 - 检视/公开/移动：私密检视、公开翻牌、选择目标、公开被选目标、加入手牌、其余入休息室、放回卡组顶/排序应拆成可组合步骤。
 - 区域检索：从休息室按类型、费用、团体、名称等筛选加入手牌应共用筛选与移动逻辑。
 - LIVE 修正：加 Heart、加分、加声援张数、增加/减少必要 Heart 等都应进入 LIVE 自动判定流水线，而不是在 UI 手填结果里静默处理。
+- Live 修正统一入口为 `domain/rules/live-modifiers.ts`。结算读取使用 `collectLiveModifiers` 及相关 getter；新增“Live 结束前”临时修正应通过 `addLiveModifier` / `replaceLiveModifier` 写入 `liveResolution.liveModifiers` 的 `SCORE` / `HEART` / `BLADE` / `REQUIREMENT` modifier；常时修正（如 `PL!-sd1-001-SD` 加声援张数）不写入状态，由 continuous modifier registry 按当前场面动态收集。旧的 `playerScoreBonuses`、`playerHeartBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 只作为兼容投影保留，不作为新增逻辑的主写入路径。
 - “必要HEART增加/减少”类效果应使用 `applyHeartRequirementModifiers`；它支持粉/黄/紫等指定颜色，也支持泛用/无色/All 需求，并兼容 `RAINBOW` 条目和 `totalRequired` 表达的两种数据形态。`PL!-sd1-022-SD` 这种减少 `[無ハート]` 的效果只是其中的 All 需求负修正。
-- 当前状态字段 `liveRequirementModifiers` 承载 cardId -> requirement modifier 列表；旧字段 `liveRequirementReductions` 仅为 `PL!-sd1-022-SD` 这类“无色/All 减少 N”的兼容投影，不应再用于新增彩色必要 Heart 增减或必要 Heart 增加卡效。
+- 前端判定面板读取必要 Heart 修正时要注意投影键：`playerViewState.match.liveResult.requirementModifiers` / `requirementReductions` 当前以 `obj_<cardId>` 为 key，而桌面组件通常使用 raw `cardId`。读取时必须兼容 raw/public 两种 key，否则 `022` 这类效果会在 UI 预览里显示未修正的需求。
 - “1回合 N 次”属于能力定义的通用限制，应在 `CARD_ABILITY_DEFINITIONS.perTurnLimit` 登记，由起动入口统一记录 `ACTIVATED_ABILITY_USE` 并检查同一玩家同一能力在当前 `turnCount` 的使用次数；不要在单张卡效果里临时判断。
 
 ## 费用体系约定
@@ -103,7 +109,7 @@
 
 - `PL!-sd1-007-SD`：东条希，费用 7。
   - 登场：公开卡组顶 5 张放入休息室；其中有 LIVE 卡则抽 1。
-  - 当前实现会先进入公开检视区，确认后放入休息室并抽牌。
+  - 当前实现会先进入公开检视区，确认后通过 look-top 底座放入休息室；只有翻到 LIVE 时才通过 `drawCardsFromMainDeckToHand` 抽 1，未翻到 LIVE 不抽。
 - `PL!-sd1-004-SD`：园田海未，费用 11。
   - 登场：检视卡组顶 5 张，可选 1 张 LIVE 公开并加入手牌，其余放入休息室。
   - 当前实现会先私密检视，选择后公开被选 LIVE，再确认加入手牌。
@@ -141,8 +147,10 @@ pnpm --dir client build
 
 ## 下一步优先级
 
-1. 继续把 `PL!-sd1` 已登记效果收口成通用步骤，优先做 LIVE 成功时效果、多选/排序/放回卡组顶等还缺底座的场景。
-2. 继续扩展 effect runner 的数据结构，减少具体卡效硬编码，但所有新增能力仍先登记 `CARD_ABILITY_DEFINITIONS`。
-3. 继续完善 LIVE 自动判定流水线，确保加棒、加心、加分、必要 Heart 增减、抽卡等结果都进入同一套预判和人工确认入口。
-4. 为撤销、LIVE 自动判定、起动次数限制、效果队列顺序补更多边界测试。
-5. 费用修正器暂缓到减费/加费相关卡效一起做，届时优先扩展 `cost-calculator.ts`，不要在 UI 或单卡命令里临时判断。
+1. Stage 1H catalog 回扫已刷新 `docs/card-effect-reuse-audit/` 下的 module map / gap list / safe plan。下一批优先选一张非 `PL!-sd1` 低风险 proving card，例如 `LL-bp1-001-R＋` 登场回收成员，验证现有 zone-selection / selector 底座不是 starter-deck-only。
+2. 继续减少 effect runner 的 inline orchestration，但不要直接上大型 resolver DSL。优先把重复出现的 recovery / look-top workflow / Live modifier builder 配置化。
+3. Step 12 / Stage 1G 自动能力框架暂缓：μ's 预组当前没有合适 AUTO proving case。后续接到真正自动能力卡牌时，再设计 `GameEvent` / trigger matcher / 每回合限制 / UI 选择窗口，并用该卡验证。
+4. 仍然 inline 的效果要明确标注：`PL!-sd1-006-SD` 公开手牌 + 成功区交换、003 Heart 选项步骤、009/022/001 条件/倍率、Karin catalog continuous 缺口。
+5. 继续完善 LIVE 自动判定流水线，确保加棒、加心、加分、必要 Heart 增减、抽卡等结果都进入同一套预判和人工确认入口。
+6. 为撤销、LIVE 自动判定、起动次数限制、效果队列顺序补更多边界测试。
+7. 费用修正器暂缓到减费/加费相关卡效一起做，届时优先扩展 `cost-calculator.ts`，不要在 UI 或单卡命令里临时判断。

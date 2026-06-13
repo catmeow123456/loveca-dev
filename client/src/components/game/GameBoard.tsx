@@ -184,6 +184,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   // 拖拽状态
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
+  const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
 
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
   const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
@@ -192,10 +193,20 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     : null;
   const activeEffectSelectableCardIds =
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
-  const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
-  const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
   const canConfirmActiveEffect =
     !!activeEffect && !!viewerSeat && activeEffect.waitingSeat === viewerSeat;
+  const activeEffectUsesOrderedMultiSelect =
+    activeEffect?.selectableObjectMode === 'ORDERED_MULTI';
+  const activeEffectMinSelectableCards = activeEffect?.minSelectableObjects ?? 0;
+  const activeEffectMaxSelectableCards =
+    activeEffect?.maxSelectableObjects ?? activeEffectSelectableCardIds.length;
+  const canConfirmOrderedEffectSelection =
+    canConfirmActiveEffect &&
+    activeEffectUsesOrderedMultiSelect &&
+    activeEffectOrderedSelection.length >= activeEffectMinSelectableCards &&
+    activeEffectOrderedSelection.length <= activeEffectMaxSelectableCards;
+  const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
+  const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
   const pendingCostSourceCardId = pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const pendingCostSource = pendingCostSourceCardId
     ? getVisibleCardPresentation(pendingCostSourceCardId)
@@ -211,6 +222,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const autoCostEnergyIds = pendingCostPayment
     ? pendingCostEnergyIds.slice(0, pendingCostPayment.finalEnergyCost)
     : [];
+
+  useEffect(() => {
+    setActiveEffectOrderedSelection([]);
+  }, [activeEffect?.id]);
 
   const isJudgmentPanelRelevant =
     (currentPhase === GamePhase.PERFORMANCE_PHASE &&
@@ -1152,6 +1167,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   {activeEffectSelectableCardIds.map((cardId) => {
                     const presentation = getVisibleCardPresentation(cardId);
                     const cardData = presentation?.cardData;
+                    const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
+                    const isOrderedSelected = selectedOrderIndex >= 0;
                     const label = cardData
                       ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
                         ? `${cardData.cost} ${cardData.name}`
@@ -1166,17 +1183,38 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                         disabled={!canConfirmActiveEffect || !presentation}
                         onClick={() => {
                           setHoveredCard(null);
+                          if (activeEffectUsesOrderedMultiSelect) {
+                            setActiveEffectOrderedSelection((current) => {
+                              if (current.includes(cardId)) {
+                                return current.filter((selectedId) => selectedId !== cardId);
+                              }
+                              if (current.length >= activeEffectMaxSelectableCards) {
+                                return current;
+                              }
+                              return [...current, cardId];
+                            });
+                            return;
+                          }
                           confirmEffectStep(activeEffect.id, cardId);
                         }}
                         onMouseEnter={() => presentation && setHoveredCard(cardId)}
                         onMouseLeave={() => setHoveredCard(null)}
-                        className={`group flex min-w-0 flex-col items-center gap-1 rounded-lg border border-transparent p-1.5 transition-colors ${
+                        className={`group relative flex min-w-0 flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors ${
+                          isOrderedSelected
+                            ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
+                            : 'border-transparent'
+                        } ${
                           canConfirmActiveEffect && presentation
                             ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
                             : 'cursor-not-allowed opacity-50'
                         }`}
                         title={label}
                       >
+                        {isOrderedSelected && (
+                          <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
+                            {selectedOrderIndex + 1}
+                          </span>
+                        )}
                         {presentation ? (
                           <Card
                             cardData={presentation.cardData as AnyCardData}
@@ -1239,6 +1277,30 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   {option.label}
                 </button>
               ))}
+              {activeEffectUsesOrderedMultiSelect && activeEffectSelectableCardIds.length > 0 && (
+                <button
+                  type="button"
+                  disabled={!canConfirmOrderedEffectSelection}
+                  onClick={() =>
+                    confirmEffectStep(
+                      activeEffect.id,
+                      undefined,
+                      undefined,
+                      undefined,
+                      undefined,
+                      activeEffectOrderedSelection
+                    )
+                  }
+                  className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                    canConfirmOrderedEffectSelection ? '' : 'cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  {activeEffect.confirmSelectionLabel ?? '确认选择'}
+                  {activeEffectOrderedSelection.length > 0
+                    ? ` (${activeEffectOrderedSelection.length} 张)`
+                    : ''}
+                </button>
+              )}
               {activeEffect.canResolveInOrder && (
                 <button
                   type="button"

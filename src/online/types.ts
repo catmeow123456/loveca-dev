@@ -165,9 +165,13 @@ export interface ActiveEffectViewState {
   readonly waitingSeat: Seat | null;
   readonly inspectionObjectIds?: readonly string[];
   readonly selectableObjectIds?: readonly string[];
+  readonly selectableObjectMode?: 'SINGLE' | 'ORDERED_MULTI';
+  readonly minSelectableObjects?: number;
+  readonly maxSelectableObjects?: number;
   readonly selectableSlots?: readonly string[];
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
   readonly selectionLabel?: string;
+  readonly confirmSelectionLabel?: string;
   readonly canResolveInOrder?: boolean;
   readonly canSkipSelection?: boolean;
   readonly skipSelectionLabel?: string;

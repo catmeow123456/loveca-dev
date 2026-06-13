@@ -217,6 +217,7 @@ export interface ConfirmEffectStepCommand extends BaseGameCommand {
   readonly type: GameCommandType.CONFIRM_EFFECT_STEP;
   readonly effectId: string;
   readonly selectedCardId?: string | null;
+  readonly selectedCardIds?: readonly string[];
   readonly selectedSlot?: SlotPosition | null;
   readonly resolveInOrder?: boolean;
   readonly selectedOptionId?: string | null;
@@ -656,13 +657,15 @@ export function createConfirmEffectStepCommand(
   selectedCardId?: string | null,
   selectedSlot?: SlotPosition | null,
   resolveInOrder?: boolean,
-  selectedOptionId?: string | null
+  selectedOptionId?: string | null,
+  selectedCardIds?: readonly string[]
 ): ConfirmEffectStepCommand {
   return {
     type: GameCommandType.CONFIRM_EFFECT_STEP,
     playerId,
     effectId,
     selectedCardId,
+    selectedCardIds,
     selectedSlot,
     resolveInOrder,
     selectedOptionId,

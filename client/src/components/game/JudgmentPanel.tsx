@@ -231,6 +231,10 @@ function getAdjustedLiveRequirements(
   return applyHeartRequirementModifiers(normalizedRequirement, modifiers);
 }
 
+function getPublicObjectId(cardId: string): string {
+  return cardId.startsWith('obj_') ? cardId : `obj_${cardId}`;
+}
+
 function isMuseFrontInfo(
   frontInfo: { cardCode?: string; groupName?: string; text?: string } | null | undefined
 ): boolean {
@@ -551,13 +555,17 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       }
 
       const requirementModifiers =
-        liveRequirementModifiers[cardId] ??
-        ((liveRequirementReductions[cardId] ?? 0) > 0
-          ? [{ color: HeartColor.RAINBOW, countDelta: -(liveRequirementReductions[cardId] ?? 0) }]
+        liveRequirementModifiers[cardId] ?? liveRequirementModifiers[getPublicObjectId(cardId)];
+      const requirementReduction =
+        liveRequirementReductions[cardId] ?? liveRequirementReductions[getPublicObjectId(cardId)];
+      const adjustedRequirementModifiers =
+        requirementModifiers ??
+        ((requirementReduction ?? 0) > 0
+          ? [{ color: HeartColor.RAINBOW, countDelta: -(requirementReduction ?? 0) }]
           : []);
       const adjustedRequirements = getAdjustedLiveRequirements(
         frontInfo.requiredHearts,
-        requirementModifiers
+        adjustedRequirementModifiers
       );
       const colorRequirements = (
         adjustedRequirements as { colorRequirements?: unknown } | undefined

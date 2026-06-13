@@ -238,7 +238,8 @@ export interface GameStore {
     selectedCardId?: string | null,
     selectedSlot?: SlotPosition | null,
     resolveInOrder?: boolean,
-    selectedOptionId?: string | null
+    selectedOptionId?: string | null,
+    selectedCardIds?: readonly string[]
   ) => CommandDispatchResult;
   /** 确认费用支付 */
   confirmCostPayment: (
@@ -797,7 +798,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       selectedCardId,
       selectedSlot,
       resolveInOrder,
-      selectedOptionId
+      selectedOptionId,
+      selectedCardIds
     ) => {
       return runViewerCommand(
         (playerId) =>
@@ -807,7 +809,8 @@ export const useGameStore = create<GameStore>((set, get) => {
             selectedCardId,
             selectedSlot,
             resolveInOrder,
-            selectedOptionId
+            selectedOptionId,
+            selectedCardIds
           ),
         {
           failureMessage: '卡牌效果处理失败',

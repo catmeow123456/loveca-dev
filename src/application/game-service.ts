@@ -118,6 +118,13 @@ import {
 import { enqueueTriggeredCardEffects, resolvePendingCardEffects } from './card-effect-runner.js';
 import { liveResolver } from '../domain/rules/live-resolver.js';
 import { applyHeartRequirementModifiers } from '../domain/rules/live-requirement-modifiers.js';
+import {
+  collectLiveModifiers,
+  getLiveCardRequirementModifiers,
+  getPlayerLiveBladeModifier,
+  getPlayerLiveHeartModifiers,
+  getPlayerLiveScoreModifier,
+} from '../domain/rules/live-modifiers.js';
 
 function isTriggerCondition(event: GameEventType | string): event is TriggerCondition {
   return Object.values(TriggerCondition).includes(event as TriggerCondition);
@@ -639,6 +646,13 @@ export class GameService {
       if (result.success) {
         state = result.gameState;
       }
+
+      if (
+        state.currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+        state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
+      ) {
+        state = this.executeCheckTiming(state, [TriggerCondition.ON_LIVE_SUCCESS]).gameState;
+      }
     }
 
     while (
@@ -909,7 +923,8 @@ export class GameService {
       return game;
     }
 
-    const heartBonuses = game.liveResolution.playerHeartBonuses.get(playerId) ?? [];
+    const liveModifiers = collectLiveModifiers(game);
+    const heartBonuses = getPlayerLiveHeartModifiers(game.liveResolution, playerId, liveModifiers);
     const activeMemberCards = [...this.getActiveMemberCards(game, player)];
     if (heartBonuses.length > 0) {
       activeMemberCards.push(this.createTemporaryLiveHeartSource(heartBonuses));
@@ -971,7 +986,12 @@ export class GameService {
       return game;
     }
 
+    const liveModifiers = collectLiveModifiers(game);
+    const heartBonuses = getPlayerLiveHeartModifiers(game.liveResolution, playerId, liveModifiers);
     const activeMemberCards = this.getActiveMemberCards(game, player);
+    if (heartBonuses.length > 0) {
+      activeMemberCards.push(this.createTemporaryLiveHeartSource(heartBonuses));
+    }
     const liveCards = this.getPlayerLiveCards(game, playerId);
     const cheerCardIds = this.getCurrentPerformanceCheerCardIds(game, playerId);
     const cheerCards = cheerCardIds.map((cardId) => ({
@@ -995,7 +1015,11 @@ export class GameService {
       liveResults.set(judgment.liveCardId, judgment.isSuccess);
     }
 
-    const scoreBonus = stateAfterPerformance.liveResolution.playerScoreBonuses.get(playerId) ?? 0;
+    const scoreBonus = getPlayerLiveScoreModifier(
+      stateAfterPerformance.liveResolution,
+      playerId,
+      collectLiveModifiers(stateAfterPerformance)
+    );
     const scoreDraft = performance.totalScore + scoreBonus;
     const playerScores = new Map(stateAfterPerformance.liveResolution.playerScores);
     playerScores.set(playerId, scoreDraft);
@@ -1028,17 +1052,10 @@ export class GameService {
     player: PlayerState,
     activeMemberCards: readonly MemberCardData[]
   ): number {
-    let total = liveResolver.calculateTotalBlade(activeMemberCards);
-
-    for (const cardId of getAllMemberCardIds(player.memberSlots)) {
-      const card = getCardById(game, cardId);
-      if (!card || card.data.cardCode !== 'PL!-sd1-001-SD') {
-        continue;
-      }
-      total += player.successZone.cardIds.length;
-    }
-
-    return total;
+    return (
+      liveResolver.calculateTotalBlade(activeMemberCards) +
+      getPlayerLiveBladeModifier(game.liveResolution, player.id, collectLiveModifiers(game))
+    );
   }
 
   private hasPerformanceCheerStarted(game: GameState, playerId: string): boolean {
@@ -1109,20 +1126,18 @@ export class GameService {
     cardId: string,
     liveData: LiveCardData
   ): LiveCardData {
-    const reduction = game.liveResolution.liveRequirementReductions.get(cardId) ?? 0;
-    const modifiers = game.liveResolution.liveRequirementModifiers.get(cardId) ?? [];
-    if (reduction <= 0 && modifiers.length === 0) {
+    const modifiers = getLiveCardRequirementModifiers(
+      game.liveResolution,
+      cardId,
+      collectLiveModifiers(game)
+    );
+    if (modifiers.length === 0) {
       return liveData;
     }
 
-    const combinedModifiers =
-      reduction > 0 && modifiers.length === 0
-        ? [{ color: HeartColor.RAINBOW, countDelta: -reduction }]
-        : modifiers;
-
     return {
       ...liveData,
-      requirements: applyHeartRequirementModifiers(liveData.requirements, combinedModifiers),
+      requirements: applyHeartRequirementModifiers(liveData.requirements, modifiers),
     };
   }
 
@@ -1347,6 +1362,7 @@ export class GameService {
         playerHeartBonuses: game.liveResolution.playerHeartBonuses,
         liveRequirementReductions: game.liveResolution.liveRequirementReductions,
         liveRequirementModifiers: game.liveResolution.liveRequirementModifiers,
+        liveModifiers: game.liveResolution.liveModifiers,
         scoreConfirmedBy: [],
         liveWinnerIds: [],
         animationConfirmedBy: [],
@@ -1431,6 +1447,7 @@ export class GameService {
         playerHeartBonuses: new Map(),
         liveRequirementReductions: new Map(),
         liveRequirementModifiers: new Map(),
+        liveModifiers: [],
         scoreConfirmedBy: [],
         liveWinnerIds: [],
         animationConfirmedBy: [],

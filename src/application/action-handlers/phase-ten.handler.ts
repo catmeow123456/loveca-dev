@@ -26,6 +26,7 @@ import {
   SubPhase,
   OrientationState,
   FaceState,
+  TriggerCondition,
 } from '../../shared/types/enums.js';
 import { addAction, updatePlayer, getFirstPlayer } from '../../domain/entities/game.js';
 import {
@@ -176,6 +177,12 @@ export const handleConfirmSubPhase: ActionHandler<ConfirmSubPhaseAction> = (
 
     // 到达需要用户操作的子阶段：停在这里等待下一次确认
     if (isUserActionRequired(state.currentSubPhase)) {
+      if (
+        state.currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+        state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
+      ) {
+        triggeredEvents.push(TriggerCondition.ON_LIVE_SUCCESS);
+      }
       break;
     }
   }

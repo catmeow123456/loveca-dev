@@ -117,6 +117,36 @@ export interface LiveRequirementModifierState {
   readonly countDelta: number;
 }
 
+export type LiveModifierState =
+  | {
+      readonly kind: 'SCORE';
+      readonly playerId: string;
+      readonly countDelta: number;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+    }
+  | {
+      readonly kind: 'HEART';
+      readonly playerId: string;
+      readonly hearts: readonly HeartIcon[];
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+    }
+  | {
+      readonly kind: 'BLADE';
+      readonly playerId: string;
+      readonly countDelta: number;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+    }
+  | {
+      readonly kind: 'REQUIREMENT';
+      readonly liveCardId: string;
+      readonly modifiers: readonly LiveRequirementModifierState[];
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+    };
+
 export interface LiveResolutionState {
   /** 是否正在进行 Live */
   readonly isInLive: boolean;
@@ -130,14 +160,16 @@ export interface LiveResolutionState {
   readonly liveResults: ReadonlyMap<string, boolean>;
   /** 各玩家的 Live 分数 */
   readonly playerScores: ReadonlyMap<string, number>;
-  /** 本次 Live 中各玩家的临时分数修正 */
+  /** 兼容投影：本次 Live 中各玩家的临时分数修正；新增逻辑优先写 liveModifiers */
   readonly playerScoreBonuses: ReadonlyMap<string, number>;
-  /** 本次 Live 中各玩家的临时 Heart 修正 */
+  /** 兼容投影：本次 Live 中各玩家的临时 Heart 修正；新增逻辑优先写 liveModifiers */
   readonly playerHeartBonuses: ReadonlyMap<string, readonly HeartIcon[]>;
-  /** 本次 Live 中各 Live 卡的无色/All 必要 Heart 减少数量；兼容旧投影，新增逻辑优先写 liveRequirementModifiers */
+  /** 兼容投影：本次 Live 中各 Live 卡的无色/All 必要 Heart 减少数量 */
   readonly liveRequirementReductions: ReadonlyMap<string, number>;
-  /** 本次 Live 中各 Live 卡的必要 Heart 修正列表，可表达任意颜色增减与无色/All 增减 */
+  /** 兼容投影：本次 Live 中各 Live 卡的必要 Heart 修正列表 */
   readonly liveRequirementModifiers: ReadonlyMap<string, readonly LiveRequirementModifierState[]>;
+  /** 本次 Live 结束前的统一临时修正流水线；旧 Map 字段仅作为兼容投影保留 */
+  readonly liveModifiers: readonly LiveModifierState[];
   /** 已确认分数的玩家 ID 列表 */
   readonly scoreConfirmedBy: readonly string[];
   /** Live 胜利玩家 ID 列表 */
@@ -169,6 +201,7 @@ export function createEmptyLiveResolutionState(): LiveResolutionState {
     playerHeartBonuses: new Map(),
     liveRequirementReductions: new Map(),
     liveRequirementModifiers: new Map(),
+    liveModifiers: [],
     scoreConfirmedBy: [],
     liveWinnerIds: [],
     animationConfirmedBy: [],
@@ -320,12 +353,20 @@ export interface ActiveEffectState {
   readonly inspectionCardIds?: readonly string[];
   /** 当前步骤可选择的卡牌 */
   readonly selectableCardIds?: readonly string[];
+  /** 当前卡牌选择模式 */
+  readonly selectableCardMode?: 'SINGLE' | 'ORDERED_MULTI';
+  /** 多选步骤最少选择数量 */
+  readonly minSelectableCards?: number;
+  /** 多选步骤最多选择数量 */
+  readonly maxSelectableCards?: number;
   /** 当前步骤可选择的成员槽位 */
   readonly selectableSlots?: readonly SlotPosition[];
   /** 当前步骤可选择的通用选项 */
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
   /** 当前可选卡牌区的标题文案 */
   readonly selectionLabel?: string;
+  /** 当前选择确认按钮文案 */
+  readonly confirmSelectionLabel?: string;
   /** 是否允许按当前队列顺序继续发动后续同一时点能力 */
   readonly canResolveInOrder?: boolean;
   /** 当前步骤是否允许不选择卡牌继续 */

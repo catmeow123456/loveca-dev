@@ -4,13 +4,37 @@ import {
   HeartColor,
   OrientationState,
   SlotPosition,
+  SubPhase,
   TriggerCondition,
   ZoneType,
 } from '../shared/types/enums.js';
 import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
 import type { ActiveEffectState, GameState, PendingAbilityState } from '../domain/entities/game.js';
 import { addAction, getCardById, getPlayerById, updatePlayer } from '../domain/entities/game.js';
-import { addCardToZone, drawFromTop } from '../domain/entities/zone.js';
+import { addCardToZone } from '../domain/entities/zone.js';
+import { addLiveModifier, replaceLiveModifier } from '../domain/rules/live-modifiers.js';
+import {
+  createWaitingRoomToHandEffectState,
+  createWaitingRoomToHandSelectionConfig,
+  getZoneSelectionConfig,
+  moveSelectedCardsFromZone,
+  selectWaitingRoomCardIds,
+} from './effects/zone-selection.js';
+import { and, costLte, groupIs, typeIs } from './effects/card-selectors.js';
+import {
+  moveHandCardToWaitingRoomForEffect,
+  payImmediateEffectCosts,
+  type EffectCostDefinition,
+} from './effects/effect-costs.js';
+import {
+  clearInspectionCards,
+  inspectTopCards,
+  moveInspectedCardsToWaitingRoom,
+  moveInspectedSelectionToHandRestToWaitingRoom,
+  moveTopDeckCardsToWaitingRoom,
+} from './effects/look-top.js';
+import { moveMemberBetweenSlots } from './effects/member-state.js';
+import { drawCardsFromMainDeckToHand } from './effects/draw.js';
 
 export const ABILITY_ORDER_SELECTION_ID = 'system:select-pending-card-effect';
 export const NOZOMI_ON_ENTER_ABILITY_ID = 'PL!-sd1-007-SD:on-enter-mill-five-draw-if-live';
@@ -29,6 +53,7 @@ export const ELI_ACTIVATED_ABILITY_ID =
 export const RIN_ACTIVATED_ABILITY_ID =
   'PL!-sd1-005-SD:activated-send-self-to-waiting-room-add-live';
 export const HANAYO_ACTIVATED_ABILITY_ID = 'PL!-sd1-008-SD:activated-pay-two-mill-ten';
+export const START_DASH_LIVE_SUCCESS_ABILITY_ID = 'PL!-sd1-019-SD:live-success-start-dash';
 
 export enum CardAbilityCategory {
   CONTINUOUS = 'CONTINUOUS',
@@ -87,10 +112,13 @@ const BOKUIMA_EFFECT_TEXT =
 const ELI_EFFECT_TEXT = '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。';
 const RIN_EFFECT_TEXT = '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。';
 const HANAYO_EFFECT_TEXT = '【起动】[1回合1次][E][E]：将自己卡组顶的10张卡放置入休息室。';
+const START_DASH_EFFECT_TEXT =
+  '【LIVE成功时】检视自己卡组顶的3张卡。将任意张按任意顺序放置于卡组顶，其余放置入休息室。';
 const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
 const DISCARD_HAND_TO_ACTIVATE_STEP_TEXT = '请选择要放置入休息室的手牌。也可以选择不发动此效果。';
 const DECLINE_OPTION_LABEL = '不发动';
 const ACTIVATED_ABILITY_USE_STEP = 'ACTIVATED_ABILITY_USE';
+const START_DASH_ARRANGE_STEP_ID = 'START_DASH_ARRANGE_TOP_DECK';
 
 interface DiscardHandToWaitingRoomEffectConfig {
   readonly ability: PendingAbilityState;
@@ -108,6 +136,22 @@ interface RevealSelectedInspectionCardConfig {
   readonly actionStep: string;
 }
 
+type InspectedCardDestination = 'MAIN_DECK_TOP' | 'WAITING_ROOM';
+interface ArrangeInspectedDeckTopConfig {
+  readonly ability: PendingAbilityState;
+  readonly playerId: string;
+  readonly effectText: string;
+  readonly inspectCount: number;
+  readonly stepId: string;
+  readonly stepText: string;
+  readonly selectionLabel: string;
+  readonly selectMin: number;
+  readonly selectMax: number;
+  readonly selectedDestination: InspectedCardDestination;
+  readonly unselectedDestination: InspectedCardDestination;
+  readonly orderedResolution: boolean;
+}
+
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   {
     abilityId: `${HONOKA_ON_ENTER_ABILITY_ID}:continuous-extra-blade`,
@@ -117,7 +161,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     effectText: '【常时】LIVE判定时，每有1张自己的成功LIVE卡，因声援公开的张数+1。',
-    notes: '持续修正不进队列，由 GameService.calculatePerformanceBladeCount 读取。',
+    notes: '持续修正不进队列，由 collectLiveModifiers 动态收集为 BLADE modifier。',
   },
   {
     abilityId: HONOKA_ON_ENTER_ABILITY_ID,
@@ -243,16 +287,15 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: GENERIC_DISCARD_LOOK_TOP_EFFECT_TEXT,
   },
   {
-    abilityId: 'PL!-sd1-019-SD:live-success-start-dash',
+    abilityId: START_DASH_LIVE_SUCCESS_ABILITY_ID,
     cardCodes: ['PL!-sd1-019-SD'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
     queued: true,
-    implemented: false,
-    effectText:
-      '【LIVE成功時】检视自己卡组顶的3张卡。将任意张按任意顺序放置于卡组顶，其余放置入休息室。',
-    notes: '尚未实现；需要多选与排序放回卡组顶交互。LIVE成功类必须在对应 Live 成功后才入队。',
+    implemented: true,
+    effectText: START_DASH_EFFECT_TEXT,
+    notes: '使用通用检视卡组顶、选任意张排序放回卡组顶、其余入休息室流程。',
   },
   {
     abilityId: BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
@@ -390,6 +433,12 @@ function getQueuedAbilityIdForCard(
 function createDiscardHandToWaitingRoomActivationEffect(
   config: DiscardHandToWaitingRoomEffectConfig
 ): ActiveEffectState {
+  const discardCost: EffectCostDefinition = {
+    kind: 'DISCARD_HAND_TO_WAITING_ROOM',
+    minCount: 1,
+    maxCount: 1,
+    optional: true,
+  };
   return {
     id: config.ability.id,
     abilityId: config.ability.abilityId,
@@ -406,33 +455,14 @@ function createDiscardHandToWaitingRoomActivationEffect(
     metadata: {
       ...config.metadata,
       orderedResolution: config.orderedResolution,
+      effectCosts: [discardCost],
       handToWaitingRoomCost: {
-        minCount: 1,
-        maxCount: 1,
-        optional: true,
+        minCount: discardCost.minCount,
+        maxCount: discardCost.maxCount,
+        optional: discardCost.optional,
       },
     },
   };
-}
-
-function moveHandCardToWaitingRoomForEffect(
-  game: GameState,
-  playerId: string,
-  cardId: string
-): GameState | null {
-  const player = getPlayerById(game, playerId);
-  if (!player || !player.hand.cardIds.includes(cardId)) {
-    return null;
-  }
-
-  return updatePlayer(game, playerId, (currentPlayer) => ({
-    ...currentPlayer,
-    hand: {
-      ...currentPlayer.hand,
-      cardIds: currentPlayer.hand.cardIds.filter((candidate) => candidate !== cardId),
-    },
-    waitingRoom: addCardToZone(currentPlayer.waitingRoom, cardId),
-  }));
 }
 
 function recordActivatedAbilityUse(
@@ -534,6 +564,10 @@ export function enqueueTriggeredCardEffects(
 
   if (triggerConditions.includes(TriggerCondition.ON_LIVE_START)) {
     state = enqueueLiveStartCardEffects(state);
+  }
+
+  if (triggerConditions.includes(TriggerCondition.ON_LIVE_SUCCESS)) {
+    state = enqueueLiveSuccessCardEffects(state);
   }
 
   return state;
@@ -657,6 +691,78 @@ function enqueueLiveStartCardEffects(game: GameState): GameState {
   return state;
 }
 
+function enqueueLiveSuccessCardEffects(game: GameState): GameState {
+  const playerId = getLiveSuccessEffectPlayerId(game);
+  const player = playerId ? getPlayerById(game, playerId) : null;
+  if (!player) {
+    return game;
+  }
+
+  let state = game;
+  const successfulLiveCardIds = [...state.liveResolution.liveResults.entries()]
+    .filter(([cardId, isSuccess]) => {
+      const card = getCardById(state, cardId);
+      return isSuccess === true && card?.ownerId === player.id;
+    })
+    .map(([cardId]) => cardId);
+
+  for (const sourceCardId of successfulLiveCardIds) {
+    const sourceCard = getCardById(state, sourceCardId);
+    const abilityId = getQueuedAbilityIdForCard(
+      sourceCard?.data.cardCode,
+      CardAbilityCategory.LIVE_SUCCESS,
+      CardAbilitySourceZone.LIVE_CARD
+    );
+    if (!sourceCard || !abilityId) {
+      continue;
+    }
+
+    const pendingAbilityId = `${abilityId}:${sourceCardId}:turn-${state.turnCount}:live-success-${player.id}`;
+    if (hasAbilityInstance(state, pendingAbilityId)) {
+      continue;
+    }
+
+    const pendingAbility: PendingAbilityState = {
+      id: pendingAbilityId,
+      abilityId,
+      sourceCardId,
+      controllerId: player.id,
+      mandatory: true,
+      timingId: TriggerCondition.ON_LIVE_SUCCESS,
+      eventIds: [`live-success:${state.turnCount}:${player.id}:${sourceCardId}`],
+    };
+
+    state = addAction(
+      {
+        ...state,
+        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+      },
+      'TRIGGER_ABILITY',
+      pendingAbility.controllerId,
+      {
+        pendingAbilityId,
+        abilityId: pendingAbility.abilityId,
+        sourceCardId,
+        timingId: pendingAbility.timingId,
+      }
+    );
+  }
+
+  return state;
+}
+
+function getLiveSuccessEffectPlayerId(game: GameState): string | null {
+  if (game.currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS) {
+    return game.players[game.firstPlayerIndex]?.id ?? null;
+  }
+
+  if (game.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS) {
+    return game.players[game.firstPlayerIndex === 0 ? 1 : 0]?.id ?? null;
+  }
+
+  return game.liveResolution.performingPlayerId ?? game.players[game.activePlayerIndex]?.id ?? null;
+}
+
 function hasAbilityInstance(game: GameState, pendingAbilityId: string): boolean {
   const alreadyPending = game.pendingAbilities.some((ability) => ability.id === pendingAbilityId);
   const alreadyActive = game.activeEffect?.id === pendingAbilityId;
@@ -709,7 +815,8 @@ export function confirmActiveEffectStep(
   selectedCardId?: string | null,
   selectedSlot?: SlotPosition | null,
   resolveInOrder?: boolean,
-  selectedOptionId?: string | null
+  selectedOptionId?: string | null,
+  selectedCardIds?: readonly string[]
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -731,7 +838,7 @@ export function confirmActiveEffectStep(
       effect.abilityId === KOTORI_ON_ENTER_ABILITY_ID) &&
     effect.stepId === SELECT_WAITING_ROOM_CARD_STEP_ID
   ) {
-    return finishWaitingRoomCardToHandEffect(game, selectedCardId ?? null);
+    return finishSelectCardsFromZoneToHandEffect(game, selectedCardId ?? null);
   }
 
   if (effect.abilityId === UMI_ON_ENTER_ABILITY_ID && effect.stepId === UMI_SELECT_STEP_ID) {
@@ -830,17 +937,24 @@ export function confirmActiveEffectStep(
   }
 
   if (
+    effect.abilityId === START_DASH_LIVE_SUCCESS_ABILITY_ID &&
+    effect.stepId === START_DASH_ARRANGE_STEP_ID
+  ) {
+    return finishArrangeInspectedDeckTopEffect(game, selectedCardIds ?? []);
+  }
+
+  if (
     effect.abilityId === ELI_ACTIVATED_ABILITY_ID &&
     effect.stepId === ELI_SELECT_WAITING_ROOM_MEMBER_STEP_ID
   ) {
-    return finishEliActivatedEffect(game, selectedCardId ?? null);
+    return finishSelectCardsFromZoneToHandEffect(game, selectedCardId ?? null);
   }
 
   if (
     effect.abilityId === RIN_ACTIVATED_ABILITY_ID &&
     effect.stepId === RIN_SELECT_WAITING_ROOM_LIVE_STEP_ID
   ) {
-    return finishRinActivatedEffect(game, selectedCardId ?? null);
+    return finishSelectCardsFromZoneToHandEffect(game, selectedCardId ?? null);
   }
 
   return game;
@@ -989,6 +1103,8 @@ function startPendingAbilityEffect(
       return startNicoLiveStartScoreBonus(game, ability, options);
     case BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID:
       return startBokuimaLiveStartRequirementReduction(game, ability, options);
+    case START_DASH_LIVE_SUCCESS_ABILITY_ID:
+      return startStartDashLiveSuccessEffect(game, ability, options);
     default:
       return game;
   }
@@ -1005,10 +1121,7 @@ function startHonokaOnEnterSelection(
   }
   const selectableCardIds =
     player.successZone.cardIds.length >= 2
-      ? player.waitingRoom.cardIds.filter((cardId) => {
-          const card = getCardById(game, cardId);
-          return card !== null && isLiveCardData(card.data);
-        })
+      ? selectWaitingRoomCardIds(game, player.id, typeIs(CardType.LIVE))
       : [];
   return startWaitingRoomCardSelection(game, ability, player.id, {
     effectText: HONOKA_ON_ENTER_EFFECT_TEXT,
@@ -1026,12 +1139,11 @@ function startKotoriOnEnterSelection(
   if (!player) {
     return game;
   }
-  const selectableCardIds = player.waitingRoom.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return (
-      card !== null && isMemberCardData(card.data) && card.data.cost <= 4 && isMuseCard(card.data)
-    );
-  });
+  const selectableCardIds = selectWaitingRoomCardIds(
+    game,
+    player.id,
+    and(typeIs(CardType.MEMBER), costLte(4), groupIs("μ's"))
+  );
   return startWaitingRoomCardSelection(game, ability, player.id, {
     effectText: KOTORI_ON_ENTER_EFFECT_TEXT,
     selectableCardIds,
@@ -1049,25 +1161,25 @@ function startWaitingRoomCardSelection(
     readonly orderedResolution: boolean;
   }
 ): GameState {
+  const zoneSelection = createWaitingRoomToHandSelectionConfig();
   return addAction(
     {
       ...game,
       pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
+      activeEffect: createWaitingRoomToHandEffectState({
         id: ability.id,
         abilityId: ability.abilityId,
         sourceCardId: ability.sourceCardId,
         controllerId: ability.controllerId,
         effectText: config.effectText,
         stepId: SELECT_WAITING_ROOM_CARD_STEP_ID,
-        stepText: config.effectText,
         awaitingPlayerId: playerId,
         selectableCardIds: config.selectableCardIds,
-        canSkipSelection: true,
         metadata: {
           orderedResolution: config.orderedResolution,
         },
-      },
+        zoneSelection,
+      }),
     },
     'RESOLVE_ABILITY',
     playerId,
@@ -1081,7 +1193,7 @@ function startWaitingRoomCardSelection(
   );
 }
 
-function finishWaitingRoomCardToHandEffect(
+function finishSelectCardsFromZoneToHandEffect(
   game: GameState,
   selectedCardId: string | null
 ): GameState {
@@ -1098,16 +1210,17 @@ function finishWaitingRoomCardToHandEffect(
     effect.selectableCardIds?.includes(selectedCardId) === true &&
     player.waitingRoom.cardIds.includes(selectedCardId);
   const cardToHandId = selectedIsValid ? selectedCardId : null;
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: cardToHandId
-      ? {
-          ...currentPlayer.waitingRoom,
-          cardIds: currentPlayer.waitingRoom.cardIds.filter((cardId) => cardId !== cardToHandId),
-        }
-      : currentPlayer.waitingRoom,
-    hand: cardToHandId ? addCardToZone(currentPlayer.hand, cardToHandId) : currentPlayer.hand,
-  }));
+  const zoneSelection = getZoneSelectionConfig(effect);
+  const movedState = moveSelectedCardsFromZone(
+    game,
+    player.id,
+    cardToHandId ? [cardToHandId] : [],
+    zoneSelection
+  );
+  if (!movedState) {
+    return game;
+  }
+  let state = movedState;
   state = { ...state, activeEffect: null };
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
@@ -1304,20 +1417,19 @@ function finishNicoLiveStartScoreBonus(game: GameState): GameState {
 
   const museWaitingRoomCount = countMuseWaitingRoomCards(game, player.id);
   const isConditionMet = museWaitingRoomCount >= 25;
-  const playerScoreBonuses = new Map(game.liveResolution.playerScoreBonuses);
-  const previousBonus = playerScoreBonuses.get(player.id) ?? 0;
-  if (isConditionMet) {
-    playerScoreBonuses.set(player.id, previousBonus + 1);
-  }
-
-  const state = {
+  let state: GameState = {
     ...game,
     activeEffect: null,
-    liveResolution: {
-      ...game.liveResolution,
-      playerScoreBonuses,
-    },
   };
+  if (isConditionMet) {
+    state = addLiveModifier(state, {
+      kind: 'SCORE',
+      playerId: player.id,
+      countDelta: 1,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    });
+  }
 
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
@@ -1396,27 +1508,40 @@ function finishBokuimaLiveStartRequirementReduction(game: GameState): GameState 
 
   const successLiveCount = player.successZone.cardIds.length;
   const reduction = successLiveCount * 2;
-  const liveRequirementReductions = new Map(game.liveResolution.liveRequirementReductions);
-  const liveRequirementModifiers = new Map(game.liveResolution.liveRequirementModifiers);
-  if (reduction > 0) {
-    liveRequirementReductions.set(effect.sourceCardId, reduction);
-    liveRequirementModifiers.set(effect.sourceCardId, [
-      { color: HeartColor.RAINBOW, countDelta: -reduction },
-    ]);
-  } else {
-    liveRequirementReductions.delete(effect.sourceCardId);
-    liveRequirementModifiers.delete(effect.sourceCardId);
-  }
-
-  const state = {
+  let state: GameState = {
     ...game,
     activeEffect: null,
-    liveResolution: {
-      ...game.liveResolution,
-      liveRequirementReductions,
-      liveRequirementModifiers,
-    },
   };
+  if (reduction > 0) {
+    const modifier = {
+      kind: 'REQUIREMENT' as const,
+      liveCardId: effect.sourceCardId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: -reduction }],
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    };
+    state = replaceLiveModifier(
+      state,
+      {
+        kind: 'REQUIREMENT',
+        liveCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+      },
+      modifier
+    );
+  } else {
+    state = replaceLiveModifier(
+      state,
+      {
+        kind: 'REQUIREMENT',
+        liveCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+      },
+      null
+    );
+  }
 
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
@@ -1469,27 +1594,18 @@ function startNozomiOnEnterInspection(
     return game;
   }
 
-  const inspectedCardIds = player.mainDeck.cardIds.slice(0, 5);
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    mainDeck: {
-      ...currentPlayer.mainDeck,
-      cardIds: currentPlayer.mainDeck.cardIds.slice(inspectedCardIds.length),
-    },
-  }));
+  const inspection = inspectTopCards(game, player.id, {
+    count: 5,
+    reveal: true,
+  });
+  if (!inspection) {
+    return game;
+  }
+  const { gameState, inspectedCardIds } = inspection;
 
-  state = {
-    ...state,
-    pendingAbilities: state.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-    inspectionZone: {
-      ...state.inspectionZone,
-      cardIds: [...state.inspectionZone.cardIds, ...inspectedCardIds],
-      revealedCardIds: [...state.inspectionZone.revealedCardIds, ...inspectedCardIds],
-    },
-    inspectionContext: {
-      ownerPlayerId: player.id,
-      sourceZone: ZoneType.MAIN_DECK,
-    },
+  const state = {
+    ...gameState,
+    pendingAbilities: gameState.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
     activeEffect: {
       id: ability.id,
       abilityId: ability.abilityId,
@@ -1526,31 +1642,18 @@ function startUmiOnEnterInspection(
     return game;
   }
 
-  const inspectedCardIds = player.mainDeck.cardIds.slice(0, 5);
-  const selectableCardIds = inspectedCardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && isMuseLiveCardData(card.data);
+  const inspection = inspectTopCards(game, player.id, {
+    count: 5,
+    selectablePredicate: (card) => isMuseLiveCardData(card.data),
   });
+  if (!inspection) {
+    return game;
+  }
+  const { gameState, inspectedCardIds, selectableCardIds } = inspection;
 
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    mainDeck: {
-      ...currentPlayer.mainDeck,
-      cardIds: currentPlayer.mainDeck.cardIds.slice(inspectedCardIds.length),
-    },
-  }));
-
-  state = {
-    ...state,
-    pendingAbilities: state.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-    inspectionZone: {
-      ...state.inspectionZone,
-      cardIds: [...state.inspectionZone.cardIds, ...inspectedCardIds],
-    },
-    inspectionContext: {
-      ownerPlayerId: player.id,
-      sourceZone: ZoneType.MAIN_DECK,
-    },
+  const state = {
+    ...gameState,
+    pendingAbilities: gameState.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
     activeEffect: {
       id: ability.id,
       abilityId: ability.abilityId,
@@ -1631,35 +1734,23 @@ function startDiscardLookTopInspection(game: GameState, discardCardId: string): 
     return game;
   }
   const topCount = typeof effect.metadata?.topCount === 'number' ? effect.metadata.topCount : 3;
-  const inspectedCardIds = player.mainDeck.cardIds.slice(0, topCount);
   const memberOnly = effect.metadata?.memberOnly === true;
   const selectionRequired = !memberOnly;
-  const selectableCardIds = inspectedCardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && (!memberOnly || isMemberCardData(card.data));
-  });
   const stateAfterDiscard = moveHandCardToWaitingRoomForEffect(game, player.id, discardCardId);
   if (!stateAfterDiscard) {
     return game;
   }
-  const state = updatePlayer(stateAfterDiscard, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    mainDeck: {
-      ...currentPlayer.mainDeck,
-      cardIds: currentPlayer.mainDeck.cardIds.slice(inspectedCardIds.length),
-    },
-  }));
+  const inspection = inspectTopCards(stateAfterDiscard, player.id, {
+    count: topCount,
+    selectablePredicate: memberOnly ? (card) => isMemberCardData(card.data) : undefined,
+  });
+  if (!inspection) {
+    return game;
+  }
+  const { gameState: state, inspectedCardIds, selectableCardIds } = inspection;
   return addAction(
     {
       ...state,
-      inspectionZone: {
-        ...state.inspectionZone,
-        cardIds: [...state.inspectionZone.cardIds, ...inspectedCardIds],
-      },
-      inspectionContext: {
-        ownerPlayerId: player.id,
-        sourceZone: ZoneType.MAIN_DECK,
-      },
       activeEffect: {
         ...effect,
         stepId: DISCARD_LOOK_SELECT_TAKE_STEP_ID,
@@ -1716,24 +1807,24 @@ function finishDiscardLookTopEffect(game: GameState, selectedCardId: string | nu
     return game;
   }
   const cardToHandId = selectedIsValid ? selectedCardId : null;
-  const cardsToWaitingRoom = inspectedCardIds.filter((cardId) => cardId !== cardToHandId);
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    hand: cardToHandId ? addCardToZone(currentPlayer.hand, cardToHandId) : currentPlayer.hand,
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...cardsToWaitingRoom],
-    },
-  }));
-  state = clearInspectionCards({ ...state, activeEffect: null }, inspectedCardIds);
+  const moveResult = moveInspectedSelectionToHandRestToWaitingRoom(
+    game,
+    player.id,
+    inspectedCardIds,
+    cardToHandId
+  );
+  if (!moveResult) {
+    return game;
+  }
+  const state = { ...moveResult.gameState, activeEffect: null };
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: 'FINISH',
-      selectedCardId: cardToHandId,
-      waitingRoomCardIds: cardsToWaitingRoom,
+      selectedCardId: moveResult.selectedCardId,
+      waitingRoomCardIds: moveResult.waitingRoomCardIds,
     }),
     isOrderedResolutionEffect(game)
   );
@@ -1758,8 +1849,7 @@ function startKarinLiveStartInspection(
     return game;
   }
 
-  const inspectedCardIds = player.mainDeck.cardIds.slice(0, 1);
-  if (inspectedCardIds.length === 0) {
+  if (player.mainDeck.cardIds.length === 0) {
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
@@ -1770,33 +1860,25 @@ function startKarinLiveStartInspection(
         abilityId: ability.abilityId,
         sourceCardId: ability.sourceCardId,
         step: 'FINISH',
-        inspectedCardIds,
+        inspectedCardIds: [],
         destination: null,
       }),
       options.orderedResolution === true
     );
   }
 
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    mainDeck: {
-      ...currentPlayer.mainDeck,
-      cardIds: currentPlayer.mainDeck.cardIds.slice(inspectedCardIds.length),
-    },
-  }));
+  const inspection = inspectTopCards(game, player.id, {
+    count: 1,
+    reveal: true,
+  });
+  if (!inspection) {
+    return game;
+  }
+  const { gameState, inspectedCardIds } = inspection;
 
-  state = {
-    ...state,
-    pendingAbilities: state.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-    inspectionZone: {
-      ...state.inspectionZone,
-      cardIds: [...state.inspectionZone.cardIds, ...inspectedCardIds],
-      revealedCardIds: [...state.inspectionZone.revealedCardIds, ...inspectedCardIds],
-    },
-    inspectionContext: {
-      ownerPlayerId: player.id,
-      sourceZone: ZoneType.MAIN_DECK,
-    },
+  const state = {
+    ...gameState,
+    pendingAbilities: gameState.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
     activeEffect: {
       id: ability.id,
       abilityId: ability.abilityId,
@@ -1823,6 +1905,168 @@ function startKarinLiveStartInspection(
   });
 }
 
+function startStartDashLiveSuccessEffect(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: { readonly orderedResolution?: boolean } = {}
+): GameState {
+  return startArrangeInspectedDeckTopEffect(game, {
+    ability,
+    playerId: ability.controllerId,
+    effectText: START_DASH_EFFECT_TEXT,
+    inspectCount: 3,
+    stepId: START_DASH_ARRANGE_STEP_ID,
+    stepText: '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
+    selectionLabel: '按卡组顶从上到下的顺序选择卡牌',
+    selectMin: 0,
+    selectMax: 3,
+    selectedDestination: 'MAIN_DECK_TOP',
+    unselectedDestination: 'WAITING_ROOM',
+    orderedResolution: options.orderedResolution === true,
+  });
+}
+
+function startArrangeInspectedDeckTopEffect(
+  game: GameState,
+  config: ArrangeInspectedDeckTopConfig
+): GameState {
+  const player = getPlayerById(game, config.playerId);
+  if (!player) {
+    return game;
+  }
+
+  if (player.mainDeck.cardIds.length === 0) {
+    const state = {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter(
+        (candidate) => candidate.id !== config.ability.id
+      ),
+    };
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: config.ability.id,
+        abilityId: config.ability.abilityId,
+        sourceCardId: config.ability.sourceCardId,
+        step: 'FINISH',
+        inspectedCardIds: [],
+      }),
+      config.orderedResolution
+    );
+  }
+
+  const inspection = inspectTopCards(game, player.id, {
+    count: config.inspectCount,
+  });
+  if (!inspection) {
+    return game;
+  }
+  const { gameState, inspectedCardIds } = inspection;
+
+  const state: GameState = {
+    ...gameState,
+    pendingAbilities: gameState.pendingAbilities.filter(
+      (candidate) => candidate.id !== config.ability.id
+    ),
+    activeEffect: {
+      id: config.ability.id,
+      abilityId: config.ability.abilityId,
+      sourceCardId: config.ability.sourceCardId,
+      controllerId: config.ability.controllerId,
+      effectText: config.effectText,
+      stepId: config.stepId,
+      stepText: config.stepText,
+      awaitingPlayerId: player.id,
+      inspectionCardIds: inspectedCardIds,
+      selectableCardIds: inspectedCardIds,
+      selectableCardMode: 'ORDERED_MULTI',
+      minSelectableCards: config.selectMin,
+      maxSelectableCards: Math.min(config.selectMax, inspectedCardIds.length),
+      selectionLabel: config.selectionLabel,
+      confirmSelectionLabel: '按此顺序放回卡组顶',
+      metadata: {
+        sourceZone: ZoneType.MAIN_DECK,
+        selectedDestination: config.selectedDestination,
+        unselectedDestination: config.unselectedDestination,
+        orderedResolution: config.orderedResolution,
+      },
+    },
+  };
+
+  return addAction(state, 'RESOLVE_ABILITY', player.id, {
+    pendingAbilityId: config.ability.id,
+    abilityId: config.ability.abilityId,
+    sourceCardId: config.ability.sourceCardId,
+    step: 'START_INSPECTION',
+    inspectedCardIds,
+  });
+}
+
+function finishArrangeInspectedDeckTopEffect(
+  game: GameState,
+  selectedCardIds: readonly string[]
+): GameState {
+  const effect = game.activeEffect;
+  if (!effect) {
+    return game;
+  }
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const inspectedCardIds = effect.inspectionCardIds ?? [];
+  const selectableCardIds = effect.selectableCardIds ?? [];
+  const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
+  const selectedAreValid =
+    uniqueSelectedCardIds.length === selectedCardIds.length &&
+    uniqueSelectedCardIds.every(
+      (cardId) => inspectedCardIds.includes(cardId) && selectableCardIds.includes(cardId)
+    );
+  const minCount = effect.minSelectableCards ?? 0;
+  const maxCount = effect.maxSelectableCards ?? inspectedCardIds.length;
+  if (
+    !selectedAreValid ||
+    uniqueSelectedCardIds.length < minCount ||
+    uniqueSelectedCardIds.length > maxCount
+  ) {
+    return game;
+  }
+
+  const unselectedCardIds = inspectedCardIds.filter(
+    (cardId) => !uniqueSelectedCardIds.includes(cardId)
+  );
+  let state = updatePlayer(game, player.id, (currentPlayer) => ({
+    ...currentPlayer,
+    mainDeck:
+      effect.metadata?.selectedDestination === 'MAIN_DECK_TOP'
+        ? {
+            ...currentPlayer.mainDeck,
+            cardIds: [...uniqueSelectedCardIds, ...currentPlayer.mainDeck.cardIds],
+          }
+        : currentPlayer.mainDeck,
+    waitingRoom:
+      effect.metadata?.unselectedDestination === 'WAITING_ROOM'
+        ? {
+            ...currentPlayer.waitingRoom,
+            cardIds: [...currentPlayer.waitingRoom.cardIds, ...unselectedCardIds],
+          }
+        : currentPlayer.waitingRoom,
+  }));
+
+  state = clearInspectionCards({ ...state, activeEffect: null }, inspectedCardIds);
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'FINISH',
+      selectedCardIds: uniqueSelectedCardIds,
+      waitingRoomCardIds: unselectedCardIds,
+    }),
+    isOrderedResolutionEffect(game)
+  );
+}
+
 function finishNozomiOnEnter(game: GameState): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -1840,37 +2084,19 @@ function finishNozomiOnEnter(game: GameState): GameState {
   );
   let drawnCardId: string | null = null;
 
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...inspectedCardIds],
-    },
-  }));
-
-  state = {
-    ...state,
-    inspectionZone: {
-      ...state.inspectionZone,
-      cardIds: state.inspectionZone.cardIds.filter((cardId) => !inspectedCardIds.includes(cardId)),
-      revealedCardIds: state.inspectionZone.revealedCardIds.filter(
-        (cardId) => !inspectedCardIds.includes(cardId)
-      ),
-    },
-  };
+  const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
+  if (!moveResult) {
+    return game;
+  }
+  let state = moveResult.gameState;
 
   if (hasMilledLiveCard) {
-    state = updatePlayer(state, player.id, (currentPlayer) => {
-      const drawResult = drawFromTop(currentPlayer.mainDeck);
-      drawnCardId = drawResult.cardId;
-      return {
-        ...currentPlayer,
-        mainDeck: drawResult.zone,
-        hand: drawResult.cardId
-          ? addCardToZone(currentPlayer.hand, drawResult.cardId)
-          : currentPlayer.hand,
-      };
-    });
+    const drawResult = drawCardsFromMainDeckToHand(state, player.id, 1);
+    if (!drawResult) {
+      return game;
+    }
+    state = drawResult.gameState;
+    drawnCardId = drawResult.drawnCardIds[0] ?? null;
   }
 
   state = {
@@ -1885,7 +2111,7 @@ function finishNozomiOnEnter(game: GameState): GameState {
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: 'FINISH',
-      milledCardIds: inspectedCardIds,
+      milledCardIds: moveResult.movedCardIds,
       hasMilledLiveCard,
       drawnCardId,
     }),
@@ -1918,29 +2144,17 @@ function finishUmiOnEnter(game: GameState, selectedCardId: string | null): GameS
     inspectedCardIds.includes(selectedCardId) &&
     isMuseLiveCardData(getCardById(game, selectedCardId)?.data);
   const cardToHandId = selectedIsValid ? selectedCardId : null;
-  const cardsToWaitingRoom = inspectedCardIds.filter((cardId) => cardId !== cardToHandId);
+  const moveResult = moveInspectedSelectionToHandRestToWaitingRoom(
+    game,
+    player.id,
+    inspectedCardIds,
+    cardToHandId
+  );
+  if (!moveResult) {
+    return game;
+  }
 
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    hand: cardToHandId ? addCardToZone(currentPlayer.hand, cardToHandId) : currentPlayer.hand,
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...cardsToWaitingRoom],
-    },
-  }));
-
-  state = {
-    ...state,
-    inspectionZone: {
-      ...state.inspectionZone,
-      cardIds: state.inspectionZone.cardIds.filter((cardId) => !inspectedCardIds.includes(cardId)),
-      revealedCardIds: state.inspectionZone.revealedCardIds.filter(
-        (cardId) => !inspectedCardIds.includes(cardId)
-      ),
-    },
-    inspectionContext: null,
-    activeEffect: null,
-  };
+  const state = { ...moveResult.gameState, activeEffect: null };
 
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
@@ -1949,8 +2163,8 @@ function finishUmiOnEnter(game: GameState, selectedCardId: string | null): GameS
       sourceCardId: effect.sourceCardId,
       step: 'FINISH',
       inspectedCardIds,
-      selectedCardId: cardToHandId,
-      waitingRoomCardIds: cardsToWaitingRoom,
+      selectedCardId: moveResult.selectedCardId,
+      waitingRoomCardIds: moveResult.waitingRoomCardIds,
     }),
     isOrderedResolutionEffect(game)
   );
@@ -2055,39 +2269,14 @@ function finishKarinPositionChange(game: GameState, selectedSlot: SlotPosition |
     return game;
   }
 
+  const moveResult = moveMemberBetweenSlots(game, player.id, effect.sourceCardId, selectedSlot);
+  if (!moveResult) {
+    return game;
+  }
+
   const orderedResolution = isOrderedResolutionEffect(game);
-  const targetCardId = player.memberSlots.slots[selectedSlot] ?? null;
-  let state = updatePlayer(game, player.id, (currentPlayer) => {
-    const sourceEnergyBelow = currentPlayer.memberSlots.energyBelow[sourceSlot] ?? [];
-    const targetEnergyBelow = currentPlayer.memberSlots.energyBelow[selectedSlot] ?? [];
-    const sourceMemberBelow = currentPlayer.memberSlots.memberBelow[sourceSlot] ?? [];
-    const targetMemberBelow = currentPlayer.memberSlots.memberBelow[selectedSlot] ?? [];
-
-    return {
-      ...currentPlayer,
-      memberSlots: {
-        ...currentPlayer.memberSlots,
-        slots: {
-          ...currentPlayer.memberSlots.slots,
-          [sourceSlot]: targetCardId,
-          [selectedSlot]: effect.sourceCardId,
-        },
-        energyBelow: {
-          ...currentPlayer.memberSlots.energyBelow,
-          [sourceSlot]: [...targetEnergyBelow],
-          [selectedSlot]: [...sourceEnergyBelow],
-        },
-        memberBelow: {
-          ...currentPlayer.memberSlots.memberBelow,
-          [sourceSlot]: [...targetMemberBelow],
-          [selectedSlot]: [...sourceMemberBelow],
-        },
-      },
-    };
-  });
-
-  state = {
-    ...state,
+  const state = {
+    ...moveResult.gameState,
     activeEffect: null,
   };
 
@@ -2097,9 +2286,9 @@ function finishKarinPositionChange(game: GameState, selectedSlot: SlotPosition |
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: 'POSITION_CHANGE',
-      fromSlot: sourceSlot,
-      toSlot: selectedSlot,
-      swappedCardId: targetCardId,
+      fromSlot: moveResult.fromSlot,
+      toSlot: moveResult.toSlot,
+      swappedCardId: moveResult.swappedCardId,
     }),
     orderedResolution
   );
@@ -2202,19 +2391,20 @@ function finishKotoriLiveStartHeartBonus(
   if (!player || selectedColor === null) {
     return game;
   }
-  const playerHeartBonuses = new Map(game.liveResolution.playerHeartBonuses);
-  playerHeartBonuses.set(player.id, [
-    ...(playerHeartBonuses.get(player.id) ?? []),
-    { color: selectedColor, count: 1 },
-  ]);
-  const state = {
-    ...game,
-    activeEffect: null,
-    liveResolution: {
-      ...game.liveResolution,
-      playerHeartBonuses,
+  const heartBonus = { color: selectedColor, count: 1 };
+  const state = addLiveModifier(
+    {
+      ...game,
+      activeEffect: null,
     },
-  };
+    {
+      kind: 'HEART',
+      playerId: player.id,
+      hearts: [heartBonus],
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    }
+  );
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,
@@ -2228,134 +2418,12 @@ function finishKotoriLiveStartHeartBonus(
 }
 
 function startEliActivatedEffect(game: GameState, playerId: string, cardId: string): GameState {
-  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
-    return game;
-  }
-
-  const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
-  if (activePlayerId !== playerId) {
-    return game;
-  }
-
-  const player = getPlayerById(game, playerId);
-  const sourceCard = getCardById(game, cardId);
-  if (!player || !sourceCard || sourceCard.ownerId !== playerId) {
-    return game;
-  }
-  if (sourceCard.data.cardCode !== 'PL!-sd1-002-SD' || !isMemberCardData(sourceCard.data)) {
-    return game;
-  }
-
-  const sourceSlot = findMemberSlot(player, cardId);
-  if (!sourceSlot) {
-    return game;
-  }
-
-  const energyBelowCardIds = player.memberSlots.energyBelow[sourceSlot] ?? [];
-  const memberBelowCardIds = player.memberSlots.memberBelow[sourceSlot] ?? [];
-  const movedToWaitingRoomCardIds = [cardId, ...energyBelowCardIds, ...memberBelowCardIds];
-
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...movedToWaitingRoomCardIds],
-    },
-    memberSlots: {
-      ...currentPlayer.memberSlots,
-      slots: {
-        ...currentPlayer.memberSlots.slots,
-        [sourceSlot]: null,
-      },
-      energyBelow: {
-        ...currentPlayer.memberSlots.energyBelow,
-        [sourceSlot]: [],
-      },
-      memberBelow: {
-        ...currentPlayer.memberSlots.memberBelow,
-        [sourceSlot]: [],
-      },
-    },
-  }));
-
-  const nextPlayer = getPlayerById(state, player.id);
-  const selectableCardIds =
-    nextPlayer?.waitingRoom.cardIds.filter((waitingRoomCardId) => {
-      const waitingRoomCard = getCardById(state, waitingRoomCardId);
-      return waitingRoomCard !== null && isMemberCardData(waitingRoomCard.data);
-    }) ?? [];
-
-  state = {
-    ...state,
-    activeEffect: {
-      id: `${ELI_ACTIVATED_ABILITY_ID}:${cardId}:turn-${state.turnCount}:action-${state.actionHistory.length}`,
-      abilityId: ELI_ACTIVATED_ABILITY_ID,
-      sourceCardId: cardId,
-      controllerId: player.id,
-      effectText: ELI_EFFECT_TEXT,
-      stepId: ELI_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
-      stepText: ELI_EFFECT_TEXT,
-      awaitingPlayerId: player.id,
-      selectableCardIds,
-      canSkipSelection: true,
-      metadata: {
-        sourceSlot,
-        movedToWaitingRoomCardIds,
-      },
-    },
-  };
-
-  return addAction(state, 'RESOLVE_ABILITY', player.id, {
+  return startSacrificeSelfActivatedEffect(game, playerId, cardId, {
     abilityId: ELI_ACTIVATED_ABILITY_ID,
-    sourceCardId: cardId,
-    step: 'PAY_COST',
-    fromSlot: sourceSlot,
-    movedToWaitingRoomCardIds,
-    selectableCardIds,
-  });
-}
-
-function finishEliActivatedEffect(game: GameState, selectedCardId: string | null): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const selectedCard = selectedCardId ? getCardById(game, selectedCardId) : null;
-  const selectedIsValid =
-    selectedCardId !== null &&
-    effect.selectableCardIds?.includes(selectedCardId) === true &&
-    player.waitingRoom.cardIds.includes(selectedCardId) &&
-    selectedCard !== null &&
-    isMemberCardData(selectedCard.data);
-  const cardToHandId = selectedIsValid ? selectedCardId : null;
-
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: cardToHandId
-      ? {
-          ...currentPlayer.waitingRoom,
-          cardIds: currentPlayer.waitingRoom.cardIds.filter((cardId) => cardId !== cardToHandId),
-        }
-      : currentPlayer.waitingRoom,
-    hand: cardToHandId ? addCardToZone(currentPlayer.hand, cardToHandId) : currentPlayer.hand,
-  }));
-
-  state = {
-    ...state,
-    activeEffect: null,
-  };
-
-  return addAction(state, 'RESOLVE_ABILITY', player.id, {
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    step: 'FINISH',
-    selectedCardId: cardToHandId,
+    expectedCardCode: 'PL!-sd1-002-SD',
+    effectText: ELI_EFFECT_TEXT,
+    stepId: ELI_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
+    selectablePredicate: typeIs(CardType.MEMBER),
   });
 }
 
@@ -2365,45 +2433,9 @@ function startRinActivatedEffect(game: GameState, playerId: string, cardId: stri
     expectedCardCode: 'PL!-sd1-005-SD',
     effectText: RIN_EFFECT_TEXT,
     stepId: RIN_SELECT_WAITING_ROOM_LIVE_STEP_ID,
-    selectablePredicate: (candidate) => isLiveCardData(candidate.data),
+    selectablePredicate: typeIs(CardType.LIVE),
   });
   return state;
-}
-
-function finishRinActivatedEffect(game: GameState, selectedCardId: string | null): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-  const selectedCard = selectedCardId ? getCardById(game, selectedCardId) : null;
-  const selectedIsValid =
-    selectedCardId !== null &&
-    effect.selectableCardIds?.includes(selectedCardId) === true &&
-    player.waitingRoom.cardIds.includes(selectedCardId) &&
-    selectedCard !== null &&
-    isLiveCardData(selectedCard.data);
-  const cardToHandId = selectedIsValid ? selectedCardId : null;
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: cardToHandId
-      ? {
-          ...currentPlayer.waitingRoom,
-          cardIds: currentPlayer.waitingRoom.cardIds.filter((cardId) => cardId !== cardToHandId),
-        }
-      : currentPlayer.waitingRoom,
-    hand: cardToHandId ? addCardToZone(currentPlayer.hand, cardToHandId) : currentPlayer.hand,
-  }));
-  state = { ...state, activeEffect: null };
-  return addAction(state, 'RESOLVE_ABILITY', player.id, {
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    step: 'FINISH',
-    selectedCardId: cardToHandId,
-  });
 }
 
 function startSacrificeSelfActivatedEffect(
@@ -2440,56 +2472,34 @@ function startSacrificeSelfActivatedEffect(
   if (!sourceSlot) {
     return game;
   }
-  const energyBelowCardIds = player.memberSlots.energyBelow[sourceSlot] ?? [];
-  const memberBelowCardIds = player.memberSlots.memberBelow[sourceSlot] ?? [];
-  const movedToWaitingRoomCardIds = [cardId, ...energyBelowCardIds, ...memberBelowCardIds];
   let state = recordActivatedAbilityUse(game, player.id, config.abilityId, cardId);
-  state = updatePlayer(state, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...movedToWaitingRoomCardIds],
-    },
-    memberSlots: {
-      ...currentPlayer.memberSlots,
-      slots: {
-        ...currentPlayer.memberSlots.slots,
-        [sourceSlot]: null,
-      },
-      energyBelow: {
-        ...currentPlayer.memberSlots.energyBelow,
-        [sourceSlot]: [],
-      },
-      memberBelow: {
-        ...currentPlayer.memberSlots.memberBelow,
-        [sourceSlot]: [],
-      },
-    },
-  }));
-  const nextPlayer = getPlayerById(state, player.id);
-  const selectableCardIds =
-    nextPlayer?.waitingRoom.cardIds.filter((waitingRoomCardId) => {
-      const waitingRoomCard = getCardById(state, waitingRoomCardId);
-      return waitingRoomCard !== null && config.selectablePredicate(waitingRoomCard);
-    }) ?? [];
+  const costPayment = payImmediateEffectCosts(state, player.id, cardId, [
+    { kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' },
+  ]);
+  if (!costPayment) {
+    return game;
+  }
+  state = costPayment.gameState;
+  const movedToWaitingRoomCardIds = costPayment.movedToWaitingRoomCardIds;
+  const zoneSelection = createWaitingRoomToHandSelectionConfig();
+  const selectableCardIds = selectWaitingRoomCardIds(state, player.id, config.selectablePredicate);
   state = {
     ...state,
-    activeEffect: {
+    activeEffect: createWaitingRoomToHandEffectState({
       id: `${config.abilityId}:${cardId}:turn-${state.turnCount}:action-${state.actionHistory.length}`,
       abilityId: config.abilityId,
       sourceCardId: cardId,
       controllerId: player.id,
       effectText: config.effectText,
       stepId: config.stepId,
-      stepText: config.effectText,
       awaitingPlayerId: player.id,
       selectableCardIds,
-      canSkipSelection: true,
       metadata: {
         sourceSlot,
         movedToWaitingRoomCardIds,
       },
-    },
+      zoneSelection,
+    }),
   };
   return addAction(state, 'RESOLVE_ABILITY', player.id, {
     abilityId: config.abilityId,
@@ -2517,54 +2527,29 @@ function startHanayoActivatedEffect(game: GameState, playerId: string, cardId: s
   ) {
     return game;
   }
-  const activeEnergyCardIds = player.energyZone.cardIds.filter(
-    (energyCardId) =>
-      player.energyZone.cardStates.get(energyCardId)?.orientation !== OrientationState.WAITING
-  );
-  if (activeEnergyCardIds.length < 2) {
+  let state = recordActivatedAbilityUse(game, player.id, HANAYO_ACTIVATED_ABILITY_ID, cardId);
+  const costPayment = payImmediateEffectCosts(state, player.id, cardId, [
+    { kind: 'TAP_ACTIVE_ENERGY', count: 2 },
+  ]);
+  if (!costPayment) {
     return game;
   }
-  const paidEnergyCardIds = activeEnergyCardIds.slice(0, 2);
-  const milledCardIds = player.mainDeck.cardIds.slice(0, 10);
-  let state = recordActivatedAbilityUse(game, player.id, HANAYO_ACTIVATED_ABILITY_ID, cardId);
-  state = updatePlayer(state, player.id, (currentPlayer) => {
-    const cardStates = new Map(currentPlayer.energyZone.cardStates);
-    for (const energyCardId of paidEnergyCardIds) {
-      const existingState = cardStates.get(energyCardId);
-      if (existingState) {
-        cardStates.set(energyCardId, {
-          ...existingState,
-          orientation: OrientationState.WAITING,
-        });
-      }
-    }
-    return {
-      ...currentPlayer,
-      energyZone: {
-        ...currentPlayer.energyZone,
-        cardStates,
-      },
-      mainDeck: {
-        ...currentPlayer.mainDeck,
-        cardIds: currentPlayer.mainDeck.cardIds.slice(milledCardIds.length),
-      },
-      waitingRoom: {
-        ...currentPlayer.waitingRoom,
-        cardIds: [...currentPlayer.waitingRoom.cardIds, ...milledCardIds],
-      },
-    };
-  });
+  const moveResult = moveTopDeckCardsToWaitingRoom(costPayment.gameState, player.id, 10);
+  if (!moveResult) {
+    return game;
+  }
+  state = moveResult.gameState;
   state = addAction(state, 'PAY_COST', player.id, {
     abilityId: HANAYO_ACTIVATED_ABILITY_ID,
     sourceCardId: cardId,
-    energyCardIds: paidEnergyCardIds,
+    energyCardIds: costPayment.paidEnergyCardIds,
   });
   return addAction(state, 'RESOLVE_ABILITY', player.id, {
     abilityId: HANAYO_ACTIVATED_ABILITY_ID,
     sourceCardId: cardId,
     effectText: HANAYO_EFFECT_TEXT,
     step: 'MILL_TOP_TEN',
-    milledCardIds,
+    milledCardIds: moveResult.movedCardIds,
   });
 }
 
@@ -2587,22 +2572,6 @@ function finishSkipEffect(game: GameState): GameState {
     }),
     isOrderedResolutionEffect(game)
   );
-}
-
-function clearInspectionCards(game: GameState, cardIds: readonly string[]): GameState {
-  return {
-    ...game,
-    inspectionZone: {
-      ...game.inspectionZone,
-      cardIds: game.inspectionZone.cardIds.filter((cardId) => !cardIds.includes(cardId)),
-      revealedCardIds: game.inspectionZone.revealedCardIds.filter(
-        (cardId) => !cardIds.includes(cardId)
-      ),
-    },
-    inspectionContext: game.inspectionZone.cardIds.some((cardId) => !cardIds.includes(cardId))
-      ? game.inspectionContext
-      : null,
-  };
 }
 
 function getDiscardLookTopCount(cardCode: string | undefined): number {

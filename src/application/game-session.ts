@@ -1341,6 +1341,26 @@ export class GameSession {
         ) {
           return '选择的卡牌不能用于当前效果';
         }
+        if (command.selectedCardIds) {
+          if (state.activeEffect.selectableCardMode !== 'ORDERED_MULTI') {
+            return '当前效果不能选择多张卡牌';
+          }
+          const uniqueSelectedCardIds = new Set(command.selectedCardIds);
+          if (uniqueSelectedCardIds.size !== command.selectedCardIds.length) {
+            return '不能重复选择同一张卡牌';
+          }
+          const minCount = state.activeEffect.minSelectableCards ?? 0;
+          const maxCount =
+            state.activeEffect.maxSelectableCards ?? state.activeEffect.selectableCardIds?.length ?? 0;
+          if (command.selectedCardIds.length < minCount || command.selectedCardIds.length > maxCount) {
+            return '选择的卡牌数量不符合当前效果';
+          }
+          for (const cardId of command.selectedCardIds) {
+            if (!state.activeEffect.selectableCardIds?.includes(cardId)) {
+              return '选择的卡牌不能用于当前效果';
+            }
+          }
+        }
         if (command.selectedCardId === null && state.activeEffect.canSkipSelection !== true) {
           return '当前效果不能不选择卡牌';
         }
@@ -3011,7 +3031,8 @@ export class GameSession {
       command.selectedCardId,
       command.selectedSlot,
       command.resolveInOrder,
-      command.selectedOptionId
+      command.selectedOptionId,
+      command.selectedCardIds
     );
     if (nextState === state) {
       return {

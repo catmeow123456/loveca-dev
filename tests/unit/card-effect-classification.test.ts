@@ -30,7 +30,7 @@ describe('card effect classification registry', () => {
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
       queued: true,
-      implemented: false,
+      implemented: true,
     });
 
     const honokaContinuous = getCardAbilityDefinitions('PL!-sd1-001-SD').find(
