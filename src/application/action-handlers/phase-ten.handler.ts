@@ -372,9 +372,18 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
     fromZone,
     toZone,
     targetSlot,
+    sourceSlot,
   });
 
-  return success(state);
+  return success(state, {
+    triggeredEvents:
+      isMemberCard &&
+      !isCardInMemberBelow &&
+      fromZone === ZoneType.MEMBER_SLOT &&
+      toZone === ZoneType.WAITING_ROOM
+        ? [TriggerCondition.ON_LEAVE_STAGE]
+        : [],
+  });
 };
 
 /**

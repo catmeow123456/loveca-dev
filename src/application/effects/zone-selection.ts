@@ -63,6 +63,7 @@ export function createWaitingRoomToHandEffectState(
   config: WaitingRoomToHandEffectStateConfig
 ): ActiveEffectState {
   const zoneSelection = config.zoneSelection ?? createWaitingRoomToHandSelectionConfig();
+  const shouldUseOrderedMulti = zoneSelection.maxCount > 1;
   return {
     id: config.id,
     abilityId: config.abilityId,
@@ -74,6 +75,9 @@ export function createWaitingRoomToHandEffectState(
     awaitingPlayerId: config.awaitingPlayerId,
     selectableCardIds: config.selectableCardIds,
     canSkipSelection: config.canSkipSelection ?? zoneSelection.optional,
+    selectableCardMode: shouldUseOrderedMulti ? 'ORDERED_MULTI' : undefined,
+    minSelectableCards: shouldUseOrderedMulti ? zoneSelection.minCount : undefined,
+    maxSelectableCards: shouldUseOrderedMulti ? zoneSelection.maxCount : undefined,
     metadata: {
       ...config.metadata,
       zoneSelection,

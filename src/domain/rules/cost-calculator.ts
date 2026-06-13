@@ -4,7 +4,7 @@
  */
 
 import type { MemberCardData } from '../entities/card';
-import { SlotPosition } from '../../shared/types/enums';
+import { OrientationState, SlotPosition } from '../../shared/types/enums';
 
 // ============================================
 // 费用相关类型
@@ -14,8 +14,14 @@ import { SlotPosition } from '../../shared/types/enums';
  * 费用支付方案
  */
 export interface CostPaymentPlan {
-  /** 需要支付的总费用 */
+  /** 印刷基础费用 */
   readonly totalCost: number;
+  /** 费用修正后的登场费用 */
+  readonly modifiedCost: number;
+  /** 登场费用修正明细 */
+  readonly costModifiers: readonly PlayCostModifierApplication[];
+  /** 登场费用修正合计 */
+  readonly costModifierAmount: number;
   /** 需要支付的能量（将变为等待状态的能量卡 ID） */
   readonly energyToTap: readonly string[];
   /** 换手的成员（将移动到休息室的成员卡 ID） */
@@ -50,6 +56,22 @@ export interface StageMemberInfo {
   readonly data: MemberCardData;
   /** 所在槽位 */
   readonly position: SlotPosition;
+  /** 成员当前活跃/待机状态 */
+  readonly orientation: OrientationState;
+}
+
+/**
+ * 登场费用修正
+ */
+export interface PlayCostModifierApplication {
+  /** 修正来源 ID */
+  readonly id: string;
+  /** 展示/调试用说明 */
+  readonly label: string;
+  /** 减少的费用 */
+  readonly amount: number;
+  /** 修正来源卡牌 ID */
+  readonly sourceCardId?: string;
 }
 
 /**
@@ -60,6 +82,10 @@ export interface AvailableResources {
   readonly activeEnergyIds: readonly string[];
   /** 舞台上的成员信息（用于换手） */
   readonly stageMembers: readonly StageMemberInfo[];
+  /** 正在从手牌登场的卡牌 ID */
+  readonly sourceCardId?: string;
+  /** 当前手牌中的卡牌 ID 列表 */
+  readonly handCardIds?: readonly string[];
 }
 
 // ============================================
@@ -94,6 +120,101 @@ export class CostCalculator {
   }
 
   /**
+   * 计算登场费用修正。
+   * 当前先覆盖 X11 第一张 proving card：手牌中的自身按其他手牌数量减费。
+   */
+  calculatePlayCostModifiers(
+    memberData: MemberCardData,
+    resources: AvailableResources
+  ): PlayCostModifierApplication[] {
+    const modifiers: PlayCostModifierApplication[] = [];
+
+    if (memberData.cardCode === 'LL-bp2-001-R+') {
+      const sourceCardId = resources.sourceCardId;
+      const handCardIds = resources.handCardIds ?? [];
+      const otherHandCount = sourceCardId
+        ? handCardIds.filter((cardId) => cardId !== sourceCardId).length
+        : Math.max(0, handCardIds.length - 1);
+      const amount = Math.min(memberData.cost, otherHandCount);
+
+      if (amount > 0) {
+        modifiers.push({
+          id: 'LL-bp2-001-R+:hand-self-cost-minus-other-hand',
+          label: '此卡以外的手牌每有1张，费用减少1',
+          amount,
+          sourceCardId,
+        });
+      }
+    }
+
+    if (memberData.cardCode === 'PL!N-pb1-008-P+') {
+      const hasWaitingNijigasakiMember = resources.stageMembers.some(
+        (stageMember) =>
+          stageMember.orientation === OrientationState.WAITING &&
+          isNijigasakiMember(stageMember.data)
+      );
+
+      if (hasWaitingNijigasakiMember) {
+        modifiers.push({
+          id: 'PL!N-pb1-008-P+:hand-self-cost-minus-if-waiting-nijigasaki-member',
+          label: '自己的舞台存在待机状态的虹咲成员，费用减少2',
+          amount: Math.min(memberData.cost, 2),
+          sourceCardId: resources.sourceCardId,
+        });
+      }
+    }
+
+    modifiers.push(...this.collectStageSourcePlayCostModifiers(memberData, resources));
+
+    return modifiers;
+  }
+
+  private collectStageSourcePlayCostModifiers(
+    memberData: MemberCardData,
+    resources: AvailableResources
+  ): PlayCostModifierApplication[] {
+    const modifiers: PlayCostModifierApplication[] = [];
+
+    for (const stageMember of resources.stageMembers) {
+      if (isBp5ChisatoCostReducer(stageMember.data) && isCost10LiellaMember(memberData)) {
+        modifiers.push({
+          id: `${stageMember.data.cardCode}:stage-source-cost-minus-cost10-liella`,
+          label: '舞台上的岚 千砂都使10费Liella!成员登场费用减少2',
+          amount: Math.min(memberData.cost, 2),
+          sourceCardId: stageMember.cardId,
+        });
+      }
+    }
+
+    return modifiers;
+  }
+
+  /**
+   * 应用登场费用修正，费用不会低于 0。
+   */
+  calculateModifiedPlayCost(
+    memberData: MemberCardData,
+    resources: AvailableResources
+  ): {
+    readonly baseCost: number;
+    readonly modifiedCost: number;
+    readonly modifiers: readonly PlayCostModifierApplication[];
+    readonly modifierAmount: number;
+  } {
+    const baseCost = this.calculateBaseCost(memberData);
+    const modifiers = this.calculatePlayCostModifiers(memberData, resources);
+    const modifierAmount = modifiers.reduce((sum, modifier) => sum + modifier.amount, 0);
+    const modifiedCost = Math.max(0, baseCost - modifierAmount);
+
+    return {
+      baseCost,
+      modifiedCost,
+      modifiers,
+      modifierAmount,
+    };
+  }
+
+  /**
    * 检查是否可以支付费用
    * 包括直接支付和换手两种方式
    *
@@ -107,18 +228,23 @@ export class CostCalculator {
     targetPosition: SlotPosition,
     resources: AvailableResources
   ): CostCheckResult {
-    const baseCost = this.calculateBaseCost(memberData);
+    const costInfo = this.calculateModifiedPlayCost(memberData, resources);
+    const baseCost = costInfo.baseCost;
+    const modifiedCost = costInfo.modifiedCost;
     const availableEnergy = resources.activeEnergyIds.length;
     const availablePlans: CostPaymentPlan[] = [];
 
     // 方案1：直接支付（不换手）
-    if (availableEnergy >= baseCost) {
+    if (availableEnergy >= modifiedCost) {
       availablePlans.push({
         totalCost: baseCost,
-        energyToTap: resources.activeEnergyIds.slice(0, baseCost),
+        modifiedCost,
+        costModifiers: costInfo.modifiers,
+        costModifierAmount: costInfo.modifierAmount,
+        energyToTap: resources.activeEnergyIds.slice(0, modifiedCost),
         memberToRelay: null,
         relayDiscount: 0,
-        actualEnergyCost: baseCost,
+        actualEnergyCost: modifiedCost,
         isRelay: false,
       });
     }
@@ -129,11 +255,14 @@ export class CostCalculator {
 
     if (targetMember) {
       const relayDiscount = this.calculateRelayDiscount(targetMember.data);
-      const actualCost = Math.max(0, baseCost - relayDiscount);
+      const actualCost = Math.max(0, modifiedCost - relayDiscount);
 
       if (availableEnergy >= actualCost) {
         availablePlans.push({
           totalCost: baseCost,
+          modifiedCost,
+          costModifiers: costInfo.modifiers,
+          costModifierAmount: costInfo.modifierAmount,
           energyToTap: resources.activeEnergyIds.slice(0, actualCost),
           memberToRelay: targetMember.cardId,
           relayDiscount,
@@ -147,7 +276,7 @@ export class CostCalculator {
       return {
         canPay: false,
         availablePlans: [],
-        reason: `费用不足：需要 ${baseCost} 能量，可用 ${availableEnergy} 能量`,
+        reason: `费用不足：需要 ${modifiedCost} 能量，可用 ${availableEnergy} 能量`,
       };
     }
 
@@ -246,13 +375,18 @@ export class CostCalculator {
     resources: AvailableResources
   ): {
     baseCost: number;
+    modifiedCost: number;
+    costModifierAmount: number;
+    costModifiers: readonly PlayCostModifierApplication[];
     availableEnergy: number;
     targetSlotMember: StageMemberInfo | null;
     possibleRelayDiscount: number;
     canPayWithoutRelay: boolean;
     canPayWithRelay: boolean;
   } {
-    const baseCost = this.calculateBaseCost(memberData);
+    const costInfo = this.calculateModifiedPlayCost(memberData, resources);
+    const baseCost = costInfo.baseCost;
+    const modifiedCost = costInfo.modifiedCost;
     const availableEnergy = resources.activeEnergyIds.length;
     const targetSlotMember =
       resources.stageMembers.find((m) => m.position === targetPosition) ?? null;
@@ -262,13 +396,16 @@ export class CostCalculator {
 
     return {
       baseCost,
+      modifiedCost,
+      costModifierAmount: costInfo.modifierAmount,
+      costModifiers: costInfo.modifiers,
       availableEnergy,
       targetSlotMember,
       possibleRelayDiscount,
-      canPayWithoutRelay: availableEnergy >= baseCost,
+      canPayWithoutRelay: availableEnergy >= modifiedCost,
       canPayWithRelay:
         targetSlotMember !== null &&
-        availableEnergy >= Math.max(0, baseCost - possibleRelayDiscount),
+        availableEnergy >= Math.max(0, modifiedCost - possibleRelayDiscount),
     };
   }
 }
@@ -281,3 +418,52 @@ export class CostCalculator {
  * 费用计算器单例
  */
 export const costCalculator = new CostCalculator();
+
+function isNijigasakiMember(memberData: MemberCardData): boolean {
+  return (
+    memberData.cardCode.startsWith('PL!N-') ||
+    includesNijigasaki(memberData.groupName) ||
+    includesNijigasaki(memberData.cardText)
+  );
+}
+
+function includesNijigasaki(value: string | undefined): boolean {
+  const normalized = value?.toLowerCase() ?? '';
+  return (
+    normalized.includes('虹咲') ||
+    normalized.includes('虹ヶ咲') ||
+    normalized.includes('nijigasaki')
+  );
+}
+
+function isBp5ChisatoCostReducer(memberData: MemberCardData): boolean {
+  return [
+    'PL!SP-bp5-003-R+',
+    'PL!SP-bp5-003-R＋',
+    'PL!SP-bp5-003-P',
+    'PL!SP-bp5-003-AR',
+    'PL!SP-bp5-003-SEC',
+  ].includes(memberData.cardCode);
+}
+
+function isCost10LiellaMember(memberData: MemberCardData): boolean {
+  return memberData.cost === 10 && isLiellaMember(memberData);
+}
+
+function isLiellaMember(memberData: MemberCardData): boolean {
+  return (
+    memberData.cardCode.startsWith('PL!SP-') ||
+    includesLiella(memberData.groupName) ||
+    includesLiella(memberData.cardText)
+  );
+}
+
+function includesLiella(value: string | undefined): boolean {
+  const normalized = value?.toLowerCase() ?? '';
+  return (
+    normalized.includes('liella') ||
+    normalized.includes('リエラ') ||
+    normalized.includes('スーパースター') ||
+    normalized.includes('superstar')
+  );
+}

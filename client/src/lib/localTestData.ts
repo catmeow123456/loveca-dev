@@ -13,8 +13,8 @@ import type {
 } from '@game/domain/entities/card';
 import { CardType, HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
 import { normalizeCardCode } from '@game/shared/utils/card-code';
-import testDeckOneYaml from '../../../assets/decks/缪预组.yaml?raw';
-import testDeckTwoYaml from '../../../assets/decks/蓝紫.yaml?raw';
+import testDeckOneYaml from '../../../assets/decks/系统边界混合.yaml?raw';
+import testDeckTwoYaml from '../../../assets/decks/缪预组.yaml?raw';
 import { localTestCnCards, localTestJpCards } from '@/lib/localTestCardSources.generated';
 
 type LlocgJpCard = {

@@ -14,6 +14,37 @@
 - 当前本地测试页面通常在：`http://localhost:5173/`
 - 用户通常会在 Codex in-app browser 中自己操作页面测试。如果需要用户测试，直接说明要测什么，不要擅自推进复杂对局。
 
+## 聊天输出约定
+
+- 在聊天更新和最终回复中提到具体卡牌编号时，同时写清费用/分数与卡名。成员卡格式示例：`PL!SP-bp4-008-P` 费用 13「若菜四季」；LIVE 卡格式示例：`PL!-sd1-019-SD` 分数 4「START:DASH!!」。
+- 卡效完成状态的主登记册是 `docs/card-effect-reuse-audit/existing_module_map.md`。每完成一张卡或一个效果段，应记录卡号、费用/分数、卡名、已实现段、暂未实现段、复用模块与测试文件，并同步更新 progress / coverage / gap 文档。
+
+## 本地测试卡组与卡图
+
+- 本地测试卡组 YAML 放在 `assets/decks/`。当前默认测试入口 `client/src/lib/localTestData.ts` 静态加载 `系统边界混合.yaml` 作为玩家1、`缪预组.yaml` 作为玩家2；`蓝紫.yaml` 仍保留为可切换测试资产，但不再是默认本地对局。
+- 本地测试卡图下载脚本是 `scripts/download-local-test-card-images.mjs`。脚本会自动扫描 `assets/decks/*.yaml` / `*.yml`，从 `llocg_db/json/cards.json` 与 `llocg_db/json/cards_cn.json` 找图片元数据，下载原图到 `assets/card/`，并压缩到 `assets/images/{thumb,medium,large}/`。
+- 本地测试卡牌数据源由 `scripts/generate-local-test-card-sources.mjs` 从所有 `assets/decks/*.yaml` / `*.yml` 自动生成到 `client/src/lib/localTestCardSources.generated.ts`。新增或删除本地测试卡组后，先跑生成脚本，再跑卡图下载脚本。
+- 当前三套测试卡组需要 79 张唯一卡图；`assets/card/` 保存原 PNG，`assets/images/` 保存三档 WebP。
+- 重新生成本地测试卡牌数据源：
+
+```bash
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/generate-local-test-card-sources.mjs
+```
+
+- 预览新增卡组会下载哪些图：
+
+```bash
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/download-local-test-card-images.mjs --dry-run
+```
+
+- 实际下载/压缩：
+
+```bash
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/download-local-test-card-images.mjs
+```
+
+- 若新测试卡组使用当前 `client/src/lib/localTestCardSources.generated.ts` 未包含的新卡，先运行生成脚本；否则卡图即使存在，本地测试数据也会报“本地测试卡牌数据缺失”。
+
 ## 关键架构
 
 - 权威状态与命令处理：`src/application/game-session.ts`
@@ -37,6 +68,7 @@
 - 需要隐藏信息时，以 `projector` / visibility / inspection context 控制前端可见性。
 - 本地测试和正式网页桌面应尽量复用同一套组件和命令，不做“双轨 UI”。
 - 自动费用、撤销、检视区、效果弹窗等交互应以玩家视角自然为优先，但底层仍要记录可审计动作。
+- 需要按左/中/右区域限定触发或适用的能力，优先在 `CARD_ABILITY_DEFINITIONS.requiredSourceSlots` 声明条件，并由触发入队阶段写入/检查 `PendingAbilityState.sourceSlot`；不要在单卡 resolver 中散落硬编码槽位判断。
 
 ## 卡效分类约定
 
@@ -56,6 +88,9 @@
 - 后续支持 N>1、指定名称/颜色/类型的手牌弃置时，应扩展同一个步骤 helper，而不是在单张卡效果里临时写 UI 文案和移动逻辑。
 - “检视卡组顶 N 张 -> 选择其中若干张 -> 可选公开 -> 加入手牌 -> 其余放置入休息室”也是通用步骤；当前基础区域操作已落在 `src/application/effects/look-top.ts`，不要只为 `PL!-sd1-004-SD`、`PL!-sd1-015-SD` 或 `PL!-sd1-019-SD` 单独写检视/清理/移动流程。
 - “抽 N 张牌”作为卡效步骤时，优先复用 `src/application/effects/draw.ts` 的 `drawCardsFromMainDeckToHand`。当前该 helper 只表达卡效步骤里的“主卡组顶 -> 手牌”，不接管开局/阶段/LIVE 判定等规则流程抽牌；涉及牌库为空后的刷新处理时，应先确认要保持的规则语义，不要悄悄改变既有流程。
+- “抽 N 张后弃 1 张手牌”作为卡效步骤时，优先复用 `card-effect-runner.ts` 的 `startDrawThenDiscardOneEffect` / `finishDrawThenDiscardOneEffect` 壳，并由它组合 `drawCardsFromMainDeckToHand` 与 `moveHandCardToWaitingRoomForEffect`。当前 `PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场用它验证 F02；后续弃 M 张时再扩多选，不要复制单卡流程。
+- 能量区卡效步骤优先复用 `src/application/effects/energy.ts`。从能量卡组放置能量到能量区使用 `placeEnergyFromDeckToZone`；将能量变为待机/活跃使用 `setEnergyOrientation` / `setFirstEnergyCardsOrientation`。这些 helper 明确接收目标方向状态；`PL!SP-PR-004-PR` 费用 4「唐 可可」使用它从能量卡组顶放置 1 张待机能量，`PL!SP-bp4-008-P` 费用 13「若菜四季」右侧登场使用它将最多 2 张待机能量变为活跃，不改变普通能量阶段默认活跃放置逻辑。
+- 能量没有个体差异；卡效需要处理 N 张能量时，默认由规则层按能量区顺序自动取符合条件的能量，不让玩家逐张选择具体能量卡。若卡牌文本存在“成员或能量”等分支选择，只保留分支选择；选择能量分支后直接处理能量。
 - “从某区域按条件选择卡 -> 移动到目标区域”属于通用目标选择/移动步骤。当前已由 `src/application/effects/zone-selection.ts` 的 `ZoneCardSelectionConfig` / `moveSelectedCardsFromZone` 覆盖 `WAITING_ROOM -> HAND` 的单选路径，并由 `src/application/effects/card-selectors.ts` 提供 `typeIs` / `groupIs` / `costLte` / `and` 等最小 selector；新增从休息室回收成员/LIVE、按费用/团体/名称筛选等效果时，优先扩展这个底座，不要在单张卡里重复写移出休息室和加入手牌。
 - “成员变为待机/活跃”与“站位变换”作为卡效步骤时，优先复用 `src/application/effects/member-state.ts` 的 `setMemberOrientation` / `moveMemberBetweenSlots`。普通规则流程里的自由横置、拖拽、手动区域移动仍归 `GameSession` / action handler / `zone-operations.ts`，不要为了卡效抽象反向改写桌面规则流程。
 - “将此成员从舞台放置入休息室”作为发动费用时，仍优先走 `src/application/effects/effect-costs.ts` 的 `SEND_SOURCE_MEMBER_TO_WAITING_ROOM`；不要和 S01/S02/S05 的状态/站位步骤混成同一个概念。
@@ -84,7 +119,7 @@
 - 自动支付会横置前 N 张可用活跃能量，并记录 `PAY_COST` action。
 - `CONFIRM_COST_PAYMENT` / `pendingCostPayment` 底层暂时保留，用于未来真的需要玩家选择支付对象的特殊费用。
 - 换手减免通过 `costCalculator` 计算。
-- 后续要支持动态费用修正，例如“每有一张其他手牌 -1 费”，应优先扩展费用计算层，而不是在 UI 或具体命令里临时判断。
+- 动态登场费用修正通过 `costCalculator` 计算，不在 UI 或具体命令里临时判断。当前 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」已验证手牌中自身按“此卡以外的其他手牌数量”每张 -1 费；这张卡本身不计入数量。`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」已验证手牌中自身在舞台存在待机状态『虹咲』成员时 -2 费。
 
 ## 撤销约定
 
@@ -119,6 +154,31 @@
 - `PL!-sd1-002-SD`：绚濑绘里，费用 2。
   - 起动：将此成员从舞台放置入休息室，从自己的休息室将 1 张成员卡加入手牌。
   - 当前实现会先支付代价，再用卡图网格选择休息室成员；原本休息室没有成员时也可发动并选择自身。
+- `PL!SP-PR-004-PR`：唐可可，费用 4。
+  - 登场：可将 1 张手牌放置入休息室；如此做时，从能量卡组顶放置 1 张待机能量到能量区。
+  - 当前实现复用弃手选择步骤，并通过 `placeEnergyFromDeckToZone` 明确放置为等待状态。
+- `PL!SP-bp4-008-P`：若菜四季，费用 13。
+  - 登场左侧：抽 2 张卡，将 1 张手牌放置入休息室。
+  - 登场右侧：将 2 张能量变为活跃状态。
+  - LIVE 开始：可以进行站位变换。
+  - 当前实现先登记区域限定条件：左侧 `requiredSourceSlots: [LEFT]` 走抽 2 弃 1 壳，右侧 `requiredSourceSlots: [RIGHT]` 走能量活跃 helper；LIVE 开始走同一 LIVE 开始队列，并复用 `member-state.ts` 的 `moveMemberBetweenSlots` 完成可选站位变换。
+- `LL-bp2-001-R+`：渡边 曜&鬼冢夏美&大泽瑠璃乃，费用 20。
+  - 常时：手牌中的此成员卡，按此卡以外的自己的手牌数量每张减少 1 费。
+  - 当前实现走 `costCalculator` 的登场费用修正底座；手牌只有此卡时仍为 20 费，其他手牌数量足够时最低可降到 0 费。该卡“无法因换手放置入休息室”与 LIVE 开始弃指定姓名手牌获得 BLADE 段尚未实现。
+- `PL!N-pb1-008-P+`：艾玛·维尔德，费用 17。
+  - 常时：只要自己的舞台存在待机状态的『虹咲』成员，手牌中的此成员卡费用减少 2。
+  - 登场：将 1 名舞台成员或 2 张能量变为活跃状态。
+  - 当前实现走 `costCalculator` 的登场费用修正底座，并通过舞台成员 `orientation` 与虹咲系列匹配判断条件。登场段复用 `selectableOptions` 做成员/能量分支选择；成员分支调用 `setMembersOrientation` 处理玩家选择的待机成员，能量分支按能量区顺序自动调用 `setEnergyOrientation` 将至多 2 张待机能量变为活跃状态。
+- `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」。
+  - 常时：手牌中费用 10 的『Liella!』成员登场费用减少 2。
+  - LIVE 开始：中心位时，将舞台上所有 Liella! 成员和所有能量变为活跃状态。
+  - 当前实现走 `costCalculator` 的舞台来源费用修正：目标必须是 10 费 Liella! 成员，来源可以是舞台上的同名 bp5 千砂都；换手登场时会先应用费用减少，再计算换手减免。LIVE 开始段走同一 LIVE 开始队列，并复用 `setMembersOrientation` / `setEnergyOrientation` 批量活跃成员与能量。
+- `PL!S-bp2-006-P` 费用 11「津岛善子」。
+  - 登场：可以支付 4 能量；从自己的休息室选择至多 2 张费用合计小于等于 4 的成员卡登场到舞台。
+  - 当前实现打开 `S07` 卡效登场底座：先可选支付 4 张活跃能量，再多选休息室成员并逐张选择空成员区登场。该卡效登场不走普通登场费用、不计算换手。非手牌方式登场的成员会通过 `enqueueTriggeredCardEffects` 的显式登场来源继续触发自己的登场能力；触发入队不写进 `playMembersFromWaitingRoomToEmptySlots` 移动原语。
+- `PL!HS-bp2-012-N` 费用 5「乙宗 梢」。
+  - 自动：此成员从舞台放置入休息室时，检视卡组顶 5 张；可以公开并加入手牌 1 张成员，其余放置入休息室。
+  - 当前实现打开最小 AUTO / `S08` proving 底座：`ON_LEAVE_STAGE` 入队，复用 look-top 检视/公开/入手/其余进休息室原语。普通手动从舞台进休息室、被换手登场替换、以及自送休息室费用的显式来源都可进入离场 AUTO 入队路径。若同一动作同时产生离场 AUTO 与新成员登场能力，按共享 event window 进入同一个顺序选择窗口。
 
 ## 桌面 UI 约定
 
@@ -133,7 +193,7 @@
 只在用户要求验证、或你做了容易破坏编译/核心规则的改动时运行。
 
 ```bash
-pnpm test:run tests/unit/card-effect-classification.test.ts tests/integration/sample-card-effect-runner.test.ts tests/unit/heart-live.test.ts tests/unit/live-judgment-settlement.test.ts
+pnpm test:run tests/unit/energy.test.ts tests/unit/card-effect-classification.test.ts tests/integration/sample-card-effect-runner.test.ts tests/unit/heart-live.test.ts tests/unit/live-judgment-settlement.test.ts
 pnpm exec tsc --noEmit
 pnpm --dir client exec tsc -b
 ```
@@ -147,10 +207,9 @@ pnpm --dir client build
 
 ## 下一步优先级
 
-1. Stage 1H catalog 回扫已刷新 `docs/card-effect-reuse-audit/` 下的 module map / gap list / safe plan。下一批优先选一张非 `PL!-sd1` 低风险 proving card，例如 `LL-bp1-001-R＋` 登场回收成员，验证现有 zone-selection / selector 底座不是 starter-deck-only。
+1. `PL!HS-bp2-012-N` 费用 5「乙宗 梢」已完成第一张 AUTO proving card，打开 `ON_LEAVE_STAGE` / `S08` 最小离场自动底座。下一批建议继续扩真实 AUTO 样例，或回到低风险同构扩样本；不要在 UI 或单卡命令里临时判断。
 2. 继续减少 effect runner 的 inline orchestration，但不要直接上大型 resolver DSL。优先把重复出现的 recovery / look-top workflow / Live modifier builder 配置化。
-3. Step 12 / Stage 1G 自动能力框架暂缓：μ's 预组当前没有合适 AUTO proving case。后续接到真正自动能力卡牌时，再设计 `GameEvent` / trigger matcher / 每回合限制 / UI 选择窗口，并用该卡验证。
+3. Step 12 / Stage 1G 自动能力框架已由 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」最小起步；完整 `GameEvent` / trigger matcher / 每回合限制 / 更广泛移动事件仍后续分批做。
 4. 仍然 inline 的效果要明确标注：`PL!-sd1-006-SD` 公开手牌 + 成功区交换、003 Heart 选项步骤、009/022/001 条件/倍率、Karin catalog continuous 缺口。
 5. 继续完善 LIVE 自动判定流水线，确保加棒、加心、加分、必要 Heart 增减、抽卡等结果都进入同一套预判和人工确认入口。
 6. 为撤销、LIVE 自动判定、起动次数限制、效果队列顺序补更多边界测试。
-7. 费用修正器暂缓到减费/加费相关卡效一起做，届时优先扩展 `cost-calculator.ts`，不要在 UI 或单卡命令里临时判断。

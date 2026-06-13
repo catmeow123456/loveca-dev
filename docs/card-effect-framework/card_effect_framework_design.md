@@ -1,8 +1,8 @@
 # Loveca card effect framework design
 
 日期：2026-06-13  
-状态：设计草案；Stage 1A-1D 已落地，Stage 1E member-state / position-change 已起步，Stage 1F draw 已对当前 μ's 验证集收口。  
-目标：面向当前全卡池高频效果片段设计卡效自动化框架，第一阶段用当前已实现的 `PL!-sd1` 与测试用 Karin 效果验证框架。
+状态：设计草案；Stage 1A-1D 已落地，Stage 1E member-state / position-change 已起步，Stage 1F draw 已对当前 μ's 验证集收口，Stage 1I energy placement/state 已由 `PL!SP-PR-004-PR` 费用 4「唐 可可」与 `PL!SP-bp4-008-P` 费用 13「若菜四季」起步，Stage 1J draw-discard 已由 `PL!SP-bp4-008-P` 费用 13「若菜四季」与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」扩样本验证，Stage 1K 已补完 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始可选站位变换，Stage 1L 已由 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」与 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」打开 X11 登场费用修正底座，Stage 1M 已由 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」LIVE 开始批量活跃与 `PL!S-bp2-006-P` 费用 11「津岛善子」打开 S07 卡效登场边界，Stage 1N 已由 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证 X03 成员/能量分支选择并复用 S02/E02 方向 helper，Stage 1O 已由 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」打开最小 AUTO / S08 离场触发 proving path，`PL!-pb1-019-N` 费用 2「高坂穗乃果」与 `PL!-bp4-003-P` 费用 2「南琴梨」已验证自送休息室回收的非预组扩样本。
+目标：面向当前全卡池高频效果片段设计卡效自动化框架，第一阶段用当前已实现的 `PL!-sd1`、测试用 Karin 效果与 `系统边界混合` proving cards 验证框架。
 
 完整 fragment 覆盖矩阵见 `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`。本文负责说明框架形状；覆盖矩阵负责逐项确认 catalog 中 75 个 fragment 都被纳入设计、预留或 custom hook。
 
@@ -167,6 +167,7 @@ type GameEvent =
 职责：
 
 - 统一支付和记录费用。
+- 统一计算登场费用修正，再和换手减免共同生成支付方案。
 - 费用成功与否可被 `X02` “如此做的场合”引用。
 - 费用本身也应产生标准 event/action。
 
@@ -178,6 +179,7 @@ P0/P1 覆盖：
 | `C03,E01` | `tapActiveEnergy(count)` / `payEnergy(count)` |
 | `C04` | `moveSourceMemberToWaitingRoom()` |
 | `C07` | `revealFromHand(selector, count, optional)` |
+| `X11` | `playCostModifier(condition, amount)` |
 
 ### 4.4 Selector and condition layer
 
@@ -229,6 +231,8 @@ P0/P1 初始模块：
 | `F13` | `peekOrRevealDeckTop(config)` |
 | `S01,S02` | `setMemberState(targets, state)` |
 | `S05` | `positionChange(target, destination, swap)` |
+| `E02` | `setEnergyOrientation(targets, orientation)` |
+| `E03` | `placeEnergyFromDeck(count, orientation)` |
 | `X03` | `chooseOption(config)` |
 
 ### 4.6 Modifier and duration layer
@@ -270,6 +274,8 @@ P0/P1 覆盖：
 | `PL!-sd1-019-SD` | Live 成功，看顶 3，任意张按顺序放回顶，其余进休息室 | `onLiveSuccess -> lookTopReorderTopRestWaitingRoom(3, chooseAnyOrdered)` |
 | `PL!-sd1-022-SD` | Live 开始，按成功 Live 数减少无色必要 Heart | `onLiveStart -> modifyRequiredHearts(color=RAINBOW, delta=successLiveCount * -2)` |
 | `PL!N-pb1-004-P+` | 当前只测试 Live 开始效果 | `onLiveStart -> revealTop(1) -> if member cost<=9 then toHand + positionChange else toWR`；常时 BLADE 是已确认暂未实现的样例范围外效果 |
+| `PL!SP-PR-004-PR` | 登场可弃 1 手牌，从能量卡组放置 1 张待机能量 | `optional discard -> placeEnergyFromDeck(count=1, orientation=WAITING)` |
+| `PL!SP-bp4-008-P` 费用 13「若菜四季」 | 左侧登场抽弃、右侧登场能量活跃、LIVE 开始可选站位变换 | `onEnter(requiredSourceSlots=[LEFT]) -> drawThenDiscard(draw=2, discard=1)`；`onEnter(requiredSourceSlots=[RIGHT]) -> setFirstEnergyCardsOrientation(count=2, from=WAITING, to=ACTIVE)`；`onLiveStart -> optional positionChange(member-state)` |
 
 ## 6. First implementation stage
 
@@ -375,11 +381,11 @@ P0/P1 覆盖：
 - 当前 helper 定位为卡效步骤底座，表达“主卡组顶 -> 手牌”的抽牌移动；它不接管开局、阶段、LIVE 判定等规则流程抽牌，也不改变 `GameService.drawTopMainDeckCard` 的即时刷新语义。
 - `PL!-sd1-007-SD` 的额外抽 1 已迁入该 helper，action payload 仍保留单个 `drawnCardId` 以保持 golden behavior。
 - `tests/unit/draw.test.ts` 覆盖抽 N、牌库不足、空牌库与非法数量；007 focused tests 覆盖翻到 LIVE 抽 1 与未翻到 LIVE 不抽。
-- 对当前 μ's 预组验证集，F01 已完成最小模块化收口；`F02/F12` 与抽牌刷新语义等待真实样例再扩展。
+- 对当前 μ's 预组验证集，F01 已完成最小模块化收口；`PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场已用 `startDrawThenDiscardOneEffect` / `finishDrawThenDiscardOneEffect` 打开 F02 抽 2 弃 1 组合步骤；`F12` 与抽牌刷新语义等待真实样例再扩展。
 
 后续：
 
-1. 如果接 `F02` 抽弃，优先组合 `drawCardsFromMainDeckToHand` 与 effect discard cost/step。
+1. 若后续出现弃 M 张或抽后放回卡组顶/底，先扩展现有抽弃壳的多选/目标区域配置，不要复制单卡流程。
 2. 若卡效文本要求抽牌时触发刷新，应先统一规则语义，再决定 helper 是否注入 refresh handler，而不是悄悄改变 007。
 3. 手动调试命令 `DRAW_CARD_TO_HAND` 与规则流程抽牌可暂时保留在 `GameSession` / `GameService`，等事件层明确后再考虑合流。
 
@@ -389,17 +395,18 @@ P0/P1 覆盖：
 
 当前决策：
 
-- 2026-06-13 暂缓实现。μ's 预组当前没有合适 AUTO proving case，先不为了框架本身改事件层。
-- 待后续接入真正自动能力卡牌时，再设计并最小实现事件模型，用该卡验证行为。
+- 2026-06-13 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」最小起步：先支持 `ON_LEAVE_STAGE` 来源入队，证明舞台成员进休息室时的 AUTO 可以走待处理队列。
+- 当前实现仍是 action-history / 显式来源驱动的最小 event window，不是完整 `GameEvent -> trigger matcher`。
+- 当同一动作同时产生离场 AUTO 与登场能力时，pending ability 顺序选择按同 controller 且同 timing 或共享 eventId 聚合，玩家可选择先后顺序。
 
 预留做法：
 
 1. 定义标准 `GameEvent`。
 2. 让 effect step 和 cost step 产生 event。
 3. 让 trigger matcher 从 event 发现 `TRIGGERED_AUTO`。
-4. 用具体 AUTO 卡验证 once per turn / when-if 条件 / 触发来源 / UI 选择窗口。
+4. 用更多具体 AUTO 卡验证 once per turn / when-if 条件 / 触发来源 / UI 选择窗口。
 
-这是支持全卡池的关键，但实现风险较高，应在前面模块稳定后做。
+这是支持全卡池的关键，但实现风险较高；当前已通过 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」证明最小路径，后续应继续小步扩事件来源。
 
 ### Stage 1H: Catalog rescan
 
@@ -408,13 +415,72 @@ P0/P1 覆盖：
 - 当前样例集覆盖 19 个 catalog segments，包括 `PL!-sd1` 与测试用 `PL!N-pb1-004-P+`。
 - `existing_module_map` 已刷新为 Stage 1A-1F 后的真实模块图。
 - `module_gap_list` 已把 `zone-selection`、`effect-costs`、`look-top`、`draw`、`live-modifiers`、`member-state` 从 P0 缺口中移出，改为追踪仍 inline 的 orchestration、condition AST、option choice、C07/exchange、AUTO event layer 等。
-- `safe_refactor_plan` 已更新下一批建议：先选非 `PL!-sd1` 低风险 proving card，证明当前底座不是 starter-deck-only，再做配置化。
+- `safe_refactor_plan` 已更新下一批建议：`PL!SP-bp4-008-P` 费用 13「若菜四季」当前三段收口后，下一批优先转向费用减少 `X11` proving cards，再继续按需要穿插低风险扩样本。
 
-优先候选：
+已完成的非 `PL!-sd1` 低风险候选：
 
-1. `LL-bp1-001-R＋`：登场从休息室回收成员，验证 `T01,F07,F09`。
-2. `PL!HS-PR-001-PR` / `PL!HS-PR-002-PR`：登场看顶 3 选 1，验证 `T01,C01,F03`。
-3. `PL!-pb1-019-N`：起动自送休息室回收成员，验证 `T03,C04,F07,F09`。
+1. `LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下 花帆」：登场从休息室回收成员，验证 `T01,F07,F09`。
+2. `PL!HS-PR-001-PR` 费用 10「日野下花帆」：登场看顶 3 选 1，验证 `T01,C01,F03`。
+3. `PL!-bp3-010-N` 费用 9「高坂穗乃果」：登场弃手看顶 5 公开 Live 入手，验证 `T01,C01,F04`。
+
+### Stage 1I: Energy placement and orientation
+
+目标片段：`E03,E02`
+
+当前落地：
+
+- `src/application/effects/energy.ts` 已提供 `placeEnergyFromDeckToZone(game, playerId, count, orientation)`。
+- 该 helper 表达卡效步骤里的“能量卡组顶 -> 能量区”，并显式指定放置后的 `ACTIVE` / `WAITING` 状态；它不改变普通能量阶段 `drawEnergy` 默认活跃放置的规则流程。
+- `energy.ts` 也已提供 `setEnergyOrientation` / `setFirstEnergyCardsOrientation`，用于卡效步骤把能量区指定卡或前 N 张符合条件的能量设为目标方向。
+- `PL!SP-PR-004-PR` 费用 4「唐 可可」已作为第一张 `系统边界混合` proving card：登场后可弃 1 手牌，弃牌成功时放置 1 张待机能量。
+- `PL!SP-bp4-008-P` 费用 13「若菜四季」右侧登场 E02 已起步：能力定义通过 `requiredSourceSlots: [RIGHT]` 声明来源槽位条件，入队阶段从登场事件记录 `sourceSlot` 并统一过滤，执行时将最多 2 张待机能量变为活跃。
+- `PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场 F02 也已起步：能力定义通过 `requiredSourceSlots: [LEFT]` 声明来源槽位条件，执行时抽 2 后选择 1 张手牌放置入休息室。
+- `PL!HS-bp1-006-P` 费用 11「藤岛 慈」登场段已作为 F02 扩样本：执行时抽 2 后选择 1 张手牌放置入休息室；LIVE 开始弃手给 Heart 段尚未实现。
+- `PL!-pb1-019-N` 费用 2「高坂穗乃果」与 `PL!-bp4-003-P` 费用 2「南琴梨」已作为起动扩样本：复用 effect-costs 自送休息室与 zone-selection，分别回收成员卡/LIVE 卡。
+- `tests/unit/energy.test.ts` 覆盖能量放置与方向 helper；`tests/integration/sample-card-effect-runner.test.ts` 覆盖 PR-004 不发动/发动，以及四季左侧触发、右侧触发、中心不触发、LIVE 开始可选站位变换。
+
+后续若出现从能量卡组放置多张、公开/检视后放置、或放置到成员下方，应在 `energy.ts` 上扩展参数或另建同层 helper，不要在 runner 内直接改能量区。
+
+### Stage 1L: Play cost modifiers
+
+目标片段：`X11`
+
+当前落地：
+
+- `src/domain/rules/cost-calculator.ts` 已在支付方案中保留 `totalCost`、`modifiedCost`、`costModifiers`、`costModifierAmount`、`relayDiscount` 与 `actualEnergyCost`，让费用修正与换手减免在规则层统一计算。
+- `GameSession.preparePlayMemberCostPayment` 向 `costCalculator` 传入来源卡 ID、当前手牌列表与舞台成员状态，普通登场继续自动扣费，UI/命令层不写单卡特例。
+- `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」已验证“手牌中的此成员卡，此卡以外的其他手牌每有 1 张费用减少 1”；此卡本身不计入数量，手牌只有此卡时仍为 20 费，最低可降到 0 费。
+- `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」已验证“手牌中的此成员卡，自己的舞台存在待机状态『虹咲』成员时费用减少 2”；活跃虹咲成员或待机非虹咲成员不会触发减费。
+- `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」登场段已验证 `X03` 目标类型二选一：选择待机舞台成员时复用 `setMembersOrientation` 变活跃；选择能量分支时不让玩家逐张选择能量，而是按能量区顺序复用 `setEnergyOrientation` 将至多 2 张能量变活跃。
+- `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」已验证“舞台来源成员使手牌中费用 10 的 Liella! 成员登场费用减少 2”；目标必须同时满足 10 费与 Liella!，换手登场时先应用费用修正，再计算换手减免。
+- focused tests 覆盖不计自身、按其他手牌数量减费、最低 0 费、与换手减免叠加、待机虹咲成员条件、场上来源修正目标筛选，以及真实 `PLAY_MEMBER_TO_SLOT` 自动扣费路径。
+- 当前本地 `系统边界混合` 缺少合适的 10 费 Liella! 目标，`PL!SP-bp5-003-AR` 费用 17「岚 千砂都」先用构造数据证明规则底座；后续补入目标卡后可做前端手测。
+
+### Stage 1M: Batch activation and effect play from waiting room
+
+目标片段：`S02,E02,S07`
+
+当前落地：
+
+- `src/application/effects/member-state.ts` 新增 `setMembersOrientation`，用于卡效批量改变舞台成员方向；`setMemberOrientation` 单体原语仍保留。
+- `src/application/effects/member-state.ts` 新增 `playMembersFromWaitingRoomToEmptySlots`，用于卡效从休息室将成员登场到空成员区。
+- `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」LIVE 开始段已完成：中心位来源入队，确认后将自己舞台上全部 Liella! 成员与全部能量变为活跃状态；非 Liella! 成员不受影响。
+- `PL!S-bp2-006-P` 费用 11「津岛善子」登场段已完成：可以支付 4 能量，从休息室选择至多 2 张费用合计小于等于 4 的成员，逐张选择空成员区登场。
+- 当前 S07 边界：卡效登场不走普通登场费用、不计算换手。非手牌方式登场的成员已通过 `enqueueTriggeredCardEffects` 的显式登场来源继续触发自己的登场能力；触发入队不写进 `playMembersFromWaitingRoomToEmptySlots` 移动原语。
+- focused tests 覆盖 helper、能力登记、千砂都 LIVE 开始批量活跃，以及善子支付后从休息室登场。
+
+### Stage 1O: Minimal AUTO leave-stage proving
+
+目标片段：`T06,S08`
+
+当前落地：
+
+- `PL!HS-bp2-012-N` 费用 5「乙宗 梢」登记为 `AUTO` / `STAGE_MEMBER` / `ON_LEAVE_STAGE` 队列能力。
+- `enqueueTriggeredCardEffects` 支持 `ON_LEAVE_STAGE`，当前从最近 `PLAY_MEMBER` 替换、从成员区移动到休息室的 `MOVE_CARD`、以及自送休息室费用显式来源构造离场来源。
+- 解析流程复用 look-top：检视顶 5，选择成员后先公开，确认后入手，其余检视牌放置入休息室。
+- 待处理队列的顺序选择窗口支持同 controller 且同 timingId 或共享 eventId，因此 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」被换手替换时，其离场 AUTO 会和新成员登场能力一起让玩家选择顺序。
+- 当前边界：还没有完整标准 `GameEvent` 结构，也没有覆盖所有移动/状态变化 AUTO；后续真实样例继续推动。
+- focused tests 覆盖直接离场触发、公开入手/其余进休息室，以及与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」登场能力同事件排序。
 
 ## 7. Custom resolver policy
 
@@ -438,13 +504,13 @@ P0/P1 覆盖：
 
 ## 9. Recommended next concrete task
 
-Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Step 13 / Stage 1H 已完成 catalog 回扫和 audit 文档刷新。
+Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Step 13 / Stage 1H 已完成 catalog 回扫和 audit 文档刷新；Stage 1I 已用 `PL!SP-PR-004-PR` 费用 4「唐 可可」打开 E03 能量放置底座，并用 `PL!SP-bp4-008-P` 费用 13「若菜四季」打开来源槽位条件与 E02 能量活跃底座；Stage 1J 已用同一张四季与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」验证 F02 抽 2 弃 1 组合步骤，并用 `PL!-pb1-019-N` 费用 2「高坂穗乃果」/`PL!-bp4-003-P` 费用 2「南琴梨」验证自送休息室回收扩样本；Stage 1K 已补完 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始 S05 可选站位变换；Stage 1L 已用 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」和 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」打开 X11 登场费用修正底座；Stage 1M 已用 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」与 `PL!S-bp2-006-P` 费用 11「津岛善子」验证批量活跃与 S07 卡效登场；Stage 1N 已用 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证登场时 X03 成员/能量分支选择，并复用 S02/E02 方向 helper；Stage 1O 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」验证最小 AUTO / S08 离场触发。
 
 下一步建议继续小步推进：
 
-1. 选择一张非 `PL!-sd1` 低风险 proving card，优先 `LL-bp1-001-R＋` 的登场回收成员，验证 zone-selection / selector 跨系列复用。
-2. 如果选择 look-top 路线，则用 `PL!HS-PR-001-PR` 或 `PL!HS-PR-002-PR` 推动 look-top workflow 参数化。
-3. Stage 1G AUTO/event layer 继续暂缓，等真实 AUTO proving card 再设计。
-3. selector 后续可按实际卡效继续补 `nameIs`、`cardCodeIn`、`scoreGte`、`requirement...` 等数值/身份选择器。
+1. 继续扩真实 AUTO proving set，例如 `PL!HS-bp6-017-N` 费用 11「日野下花帆」、`PL!HS-pb1-009-R` 费用 15「日野下花帆」、`PL!HS-bp6-004-R` 费用 13「百生 吟子」，用实际文本推动标准 `GameEvent` 与更多触发条件。
+2. 如果需要穿插低风险扩样本，再选 `PL!HS-PR-002-PR` 费用 10「村野さやか」的登场看顶 3 选 1。
+3. 可以继续扩 `S07` 第二个样例，验证更多非手牌登场来源与 ordering。
+4. selector 后续可按实际卡效继续补 `nameIs`、`cardCodeIn`、`scoreGte`、`requirement...` 等数值/身份选择器。
 
 这样仍然保持“一个底座、一组可运行卡、一组 focused tests”的节奏。

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { CardType, SlotPosition } from '../../src/shared/types/enums';
+import { CardType, OrientationState, SlotPosition } from '../../src/shared/types/enums';
 import {
   CostCalculator,
   StageMemberInfo,
@@ -15,10 +15,20 @@ import type { MemberCardData } from '../../src/domain/entities/card';
 // 测试辅助函数
 // ============================================
 
-function createMockMemberData(cost: number, name: string = 'Test Member'): MemberCardData {
+function createMockMemberData(
+  cost: number,
+  name: string = 'Test Member',
+  cardCode: string = 'TEST-001',
+  options: {
+    readonly groupName?: string;
+    readonly cardText?: string;
+  } = {}
+): MemberCardData {
   return {
-    cardCode: 'TEST-001',
+    cardCode,
     name,
+    groupName: options.groupName,
+    cardText: options.cardText,
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
@@ -29,12 +39,22 @@ function createMockMemberData(cost: number, name: string = 'Test Member'): Membe
 function createStageMemberInfo(
   cardId: string,
   cost: number,
-  position: SlotPosition
+  position: SlotPosition,
+  options: {
+    readonly orientation?: OrientationState;
+    readonly cardCode?: string;
+    readonly groupName?: string;
+    readonly cardText?: string;
+  } = {}
 ): StageMemberInfo {
   return {
     cardId,
-    data: createMockMemberData(cost),
+    data: createMockMemberData(cost, 'Stage Member', options.cardCode, {
+      groupName: options.groupName,
+      cardText: options.cardText,
+    }),
     position,
+    orientation: options.orientation ?? OrientationState.ACTIVE,
   };
 }
 
@@ -150,6 +170,225 @@ describe('CostCalculator', () => {
       expect(directPlan?.actualEnergyCost).toBe(3);
       expect(relayPlan?.actualEnergyCost).toBe(1);
     });
+
+    it('应该让 LL-bp2-001-R+ 只按其他手牌数量减少费用，不计算自身', () => {
+      const memberData = createMockMemberData(
+        20,
+        '渡边 曜&鬼冢夏美&大泽瑠璃乃',
+        'LL-bp2-001-R+'
+      );
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 19 }, (_, index) => `e${index}`),
+        stageMembers: [],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      expect(result.canPay).toBe(false);
+      expect(result.reason).toContain('需要 20 能量');
+    });
+
+    it('应该按 LL-bp2-001-R+ 以外的手牌每张减少1点费用', () => {
+      const memberData = createMockMemberData(
+        20,
+        '渡边 曜&鬼冢夏美&大泽瑠璃乃',
+        'LL-bp2-001-R+'
+      );
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 18 }, (_, index) => `e${index}`),
+        stageMembers: [],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card', 'other-1', 'other-2'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.totalCost).toBe(20);
+      expect(directPlan?.modifiedCost).toBe(18);
+      expect(directPlan?.costModifierAmount).toBe(2);
+      expect(directPlan?.actualEnergyCost).toBe(18);
+    });
+
+    it('应该允许 LL-bp2-001-R+ 的手牌减费将费用降到0但不低于0', () => {
+      const memberData = createMockMemberData(
+        20,
+        '渡边 曜&鬼冢夏美&大泽瑠璃乃',
+        'LL-bp2-001-R+'
+      );
+      const resources: AvailableResources = {
+        activeEnergyIds: [],
+        stageMembers: [],
+        sourceCardId: 'source-card',
+        handCardIds: [
+          'source-card',
+          ...Array.from({ length: 25 }, (_, index) => `other-${index}`),
+        ],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.modifiedCost).toBe(0);
+      expect(directPlan?.costModifierAmount).toBe(20);
+      expect(directPlan?.actualEnergyCost).toBe(0);
+    });
+
+    it('应该先应用 LL-bp2-001-R+ 手牌减费，再计算换手减免', () => {
+      const memberData = createMockMemberData(
+        20,
+        '渡边 曜&鬼冢夏美&大泽瑠璃乃',
+        'LL-bp2-001-R+'
+      );
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 13 }, (_, index) => `e${index}`),
+        stageMembers: [createStageMemberInfo('member-1', 3, SlotPosition.CENTER)],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card', 'other-1', 'other-2', 'other-3', 'other-4'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      const relayPlan = result.availablePlans.find((plan) => plan.isRelay);
+      expect(directPlan).toBeUndefined();
+      expect(relayPlan?.modifiedCost).toBe(16);
+      expect(relayPlan?.costModifierAmount).toBe(4);
+      expect(relayPlan?.relayDiscount).toBe(3);
+      expect(relayPlan?.actualEnergyCost).toBe(13);
+    });
+
+    it('应该在没有待机虹咲成员时不减少 PL!N-pb1-008-P+ 的费用', () => {
+      const memberData = createMockMemberData(17, '艾玛·维尔德', 'PL!N-pb1-008-P+');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('active-nijigasaki', 4, SlotPosition.LEFT, {
+            orientation: OrientationState.ACTIVE,
+            groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+          }),
+          createStageMemberInfo('waiting-other', 4, SlotPosition.CENTER, {
+            orientation: OrientationState.WAITING,
+            groupName: 'ラブライブ！スーパースター!!',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.RIGHT, resources);
+
+      expect(result.canPay).toBe(false);
+      expect(result.reason).toContain('需要 17 能量');
+    });
+
+    it('应该在存在待机虹咲成员时让 PL!N-pb1-008-P+ 费用减少2', () => {
+      const memberData = createMockMemberData(17, '艾玛·维尔德', 'PL!N-pb1-008-P+');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('waiting-nijigasaki', 4, SlotPosition.LEFT, {
+            orientation: OrientationState.WAITING,
+            groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.RIGHT, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.totalCost).toBe(17);
+      expect(directPlan?.modifiedCost).toBe(15);
+      expect(directPlan?.costModifierAmount).toBe(2);
+      expect(directPlan?.actualEnergyCost).toBe(15);
+    });
+
+    it('应该让舞台上的 PL!SP-bp5-003-AR 使10费Liella!成员费用减少2', () => {
+      const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 8 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
+            cardCode: 'PL!SP-bp5-003-AR',
+            groupName: 'ラブライブ！スーパースター!!',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.totalCost).toBe(10);
+      expect(directPlan?.modifiedCost).toBe(8);
+      expect(directPlan?.costModifierAmount).toBe(2);
+      expect(directPlan?.costModifiers[0]?.sourceCardId).toBe('chisato-source');
+      expect(directPlan?.actualEnergyCost).toBe(8);
+    });
+
+    it('应该要求 PL!SP-bp5-003-AR 的目标是10费Liella!成员才减少费用', () => {
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 8 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
+            cardCode: 'PL!SP-bp5-003-AR',
+            groupName: 'ラブライブ！スーパースター!!',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const cost9Liella = createMockMemberData(9, '9费Liella!成员', 'PL!SP-test-cost9');
+      const cost10Other = createMockMemberData(10, '10费非Liella!成员', 'PL!N-test-cost10', {
+        groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+      });
+
+      const cost9Result = calculator.checkCanPayCost(cost9Liella, SlotPosition.CENTER, resources);
+      const cost10OtherResult = calculator.checkCanPayCost(
+        cost10Other,
+        SlotPosition.CENTER,
+        resources
+      );
+
+      expect(cost9Result.canPay).toBe(false);
+      expect(cost9Result.reason).toContain('需要 9 能量');
+      expect(cost10OtherResult.canPay).toBe(false);
+      expect(cost10OtherResult.reason).toContain('需要 10 能量');
+    });
+
+    it('应该先应用 PL!SP-bp5-003-AR 舞台来源减费，再计算换手减免', () => {
+      const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10');
+      const resources: AvailableResources = {
+        activeEnergyIds: ['e1'],
+        stageMembers: [
+          createStageMemberInfo('chisato-source', 7, SlotPosition.CENTER, {
+            cardCode: 'PL!SP-bp5-003-AR',
+            groupName: 'ラブライブ！スーパースター!!',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      const relayPlan = result.availablePlans.find((plan) => plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(relayPlan?.modifiedCost).toBe(8);
+      expect(relayPlan?.costModifierAmount).toBe(2);
+      expect(relayPlan?.relayDiscount).toBe(7);
+      expect(relayPlan?.actualEnergyCost).toBe(1);
+    });
   });
 
   describe('selectOptimalPlan', () => {
@@ -226,6 +465,8 @@ describe('CostCalculator', () => {
       const info = calculator.calculatePlayCostInfo(memberData, SlotPosition.CENTER, resources);
 
       expect(info.baseCost).toBe(4);
+      expect(info.modifiedCost).toBe(4);
+      expect(info.costModifierAmount).toBe(0);
       expect(info.availableEnergy).toBe(3);
       expect(info.targetSlotMember).not.toBeNull();
       expect(info.possibleRelayDiscount).toBe(2);

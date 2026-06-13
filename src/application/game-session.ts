@@ -21,6 +21,7 @@ import {
   FaceState,
   GamePhase,
   GameMode,
+  OrientationState,
   SlotPosition,
   SubPhase,
   ZoneType,
@@ -130,7 +131,11 @@ import {
 } from './card-effect-runner.js';
 import { isMemberCardData } from '../domain/entities/card.js';
 import { getActiveEnergyIds, tapEnergy } from '../domain/entities/zone.js';
-import { costCalculator, type StageMemberInfo } from '../domain/rules/cost-calculator.js';
+import {
+  costCalculator,
+  type CostPaymentPlan,
+  type StageMemberInfo,
+} from '../domain/rules/cost-calculator.js';
 import { GameCommandType } from './game-commands.js';
 import {
   addCardToInspectionZone,
@@ -2699,19 +2704,23 @@ export class GameSession {
           cardId: stageCardId,
           data: stageCard.data,
           position: slot,
+          orientation:
+            player.memberSlots.cardStates.get(stageCardId)?.orientation ?? OrientationState.ACTIVE,
         });
       }
     }
 
-    const plans = costCalculator.generateAllPaymentPlans(card.data, command.targetSlot, {
+    const costCheck = costCalculator.checkCanPayCost(card.data, command.targetSlot, {
       activeEnergyIds,
       stageMembers,
+      sourceCardId: command.cardId,
+      handCardIds: player.hand.cardIds,
     });
-    const plan = costCalculator.selectOptimalPlan(plans);
+    const plan = costCalculator.selectOptimalPlan(costCheck.availablePlans);
     if (!plan) {
       return {
         success: false,
-        error: `费用不足：需要 ${card.data.cost}，可用活跃能量 ${activeEnergyIds.length}`,
+        error: costCheck.reason ?? `费用不足：需要 ${card.data.cost}，可用活跃能量 ${activeEnergyIds.length}`,
       };
     }
 
@@ -2732,12 +2741,24 @@ export class GameSession {
         relayDiscount: plan.relayDiscount,
         replacedMemberCardId: plan.memberToRelay,
         payableEnergyCardIds: activeEnergyIds,
-        explanation:
-          plan.relayDiscount > 0
-            ? `基础费用 ${plan.totalCost}，换手减免 ${plan.relayDiscount}，支付 ${plan.actualEnergyCost}`
-            : `基础费用 ${plan.totalCost}，支付 ${plan.actualEnergyCost}`,
+        explanation: this.formatPlayMemberCostExplanation(plan),
       },
     };
+  }
+
+  private formatPlayMemberCostExplanation(plan: CostPaymentPlan): string {
+    const parts = [`基础费用 ${plan.totalCost}`];
+
+    if (plan.costModifierAmount > 0) {
+      parts.push(`费用减少 ${plan.costModifierAmount}`);
+    }
+
+    if (plan.relayDiscount > 0) {
+      parts.push(`换手减免 ${plan.relayDiscount}`);
+    }
+
+    parts.push(`支付 ${plan.actualEnergyCost}`);
+    return parts.join('，');
   }
 
   private applyConfirmCostPaymentCommand(

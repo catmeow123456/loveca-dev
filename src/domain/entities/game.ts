@@ -305,6 +305,8 @@ export interface PendingAbilityState {
   readonly timingId: string;
   /** 促成本能力待处理的事件 ID 列表 */
   readonly eventIds: readonly string[];
+  /** 能力来源成员在舞台上的槽位；用于左/中/右区域条件 */
+  readonly sourceSlot?: SlotPosition;
 }
 
 export type PendingChoiceKind = 'CONFIRM_OPTIONAL' | 'SELECT_CARDS' | 'SELECT_TARGET';

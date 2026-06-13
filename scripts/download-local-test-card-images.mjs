@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
@@ -13,7 +13,7 @@ const force = args.has('--force');
 const skipDownload = args.has('--skip-download');
 const noCompress = args.has('--no-compress');
 
-const deckFiles = ['assets/decks/缪预组.yaml', 'assets/decks/蓝紫.yaml'];
+const deckDir = 'assets/decks';
 const jpCardsPath = 'llocg_db/json/cards.json';
 const cnCardsPath = 'llocg_db/json/cards_cn.json';
 const outputDir = path.join(rootDir, 'assets/card');
@@ -59,6 +59,11 @@ function buildNormalizedIndex(cards) {
 }
 
 async function collectDeckCodes() {
+  const deckFiles = (await readdir(path.join(rootDir, deckDir)))
+    .filter((filename) => filename.endsWith('.yaml') || filename.endsWith('.yml'))
+    .map((filename) => path.join(deckDir, filename))
+    .sort();
+
   const codes = new Set();
   for (const deckFile of deckFiles) {
     const deck = parseYaml(await readFile(path.join(rootDir, deckFile), 'utf8'));

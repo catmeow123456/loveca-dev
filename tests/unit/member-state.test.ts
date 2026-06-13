@@ -5,7 +5,9 @@ import { createGameState, registerCards, updatePlayer } from '../../src/domain/e
 import { addEnergyBelowMember, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   moveMemberBetweenSlots,
+  playMembersFromWaitingRoomToEmptySlots,
   setMemberOrientation,
+  setMembersOrientation,
 } from '../../src/application/effects/member-state';
 import { CardType, HeartColor, OrientationState, SlotPosition } from '../../src/shared/types/enums';
 
@@ -55,6 +57,37 @@ describe('member state effect helpers', () => {
       result?.gameState.players[0].memberSlots.cardStates.get(memberB.instanceId)?.orientation
     ).toBe(OrientationState.ACTIVE);
     expect(setMemberOrientation(game, 'p1', 'missing-card', OrientationState.WAITING)).toBeNull();
+  });
+
+  it('sets multiple stage member orientations at once', () => {
+    const memberA = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
+    const memberB = createCardInstance(createMemberCard('MEM-B'), 'p1', 'member-b');
+    let game = createGameState('member-state-multi-orientation', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [memberA, memberB]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId),
+        SlotPosition.RIGHT,
+        memberB.instanceId
+      ),
+    }));
+
+    const result = setMembersOrientation(
+      game,
+      'p1',
+      [memberA.instanceId, memberB.instanceId],
+      OrientationState.WAITING
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.updatedMemberCardIds).toEqual([memberA.instanceId, memberB.instanceId]);
+    expect(
+      result?.gameState.players[0].memberSlots.cardStates.get(memberA.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(
+      result?.gameState.players[0].memberSlots.cardStates.get(memberB.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
   });
 
   it('moves a member to an empty slot with attached cards', () => {
@@ -127,5 +160,40 @@ describe('member state effect helpers', () => {
       energyA.instanceId,
     ]);
     expect(moveMemberBetweenSlots(game, 'p1', memberA.instanceId, SlotPosition.LEFT)).toBeNull();
+  });
+
+  it('plays members from waiting room to empty slots without using normal entry payment', () => {
+    const memberA = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
+    const memberB = createCardInstance(createMemberCard('MEM-B'), 'p1', 'member-b');
+    let game = createGameState('member-state-play-from-waiting', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [memberA, memberB]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [memberA.instanceId, memberB.instanceId],
+      },
+    }));
+
+    const result = playMembersFromWaitingRoomToEmptySlots(game, 'p1', [
+      { cardId: memberA.instanceId, toSlot: SlotPosition.LEFT },
+      { cardId: memberB.instanceId, toSlot: SlotPosition.CENTER },
+    ]);
+
+    expect(result).not.toBeNull();
+    expect(result?.playedMembers.map((member) => member.cardId)).toEqual([
+      memberA.instanceId,
+      memberB.instanceId,
+    ]);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(result?.gameState.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(
+      memberA.instanceId
+    );
+    expect(result?.gameState.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(
+      memberB.instanceId
+    );
+    expect(
+      result?.gameState.players[0].memberSlots.cardStates.get(memberA.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
   });
 });

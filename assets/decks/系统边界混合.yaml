@@ -1,0 +1,64 @@
+player_name: 系统边界混合
+description: "现有模块扩样本 + 新机制测试组"
+main_deck:
+  members:
+    - card_code: LL-bp1-001-R+
+      count: 2
+    - card_code: PL!HS-bp2-002-P
+      count: 2
+    - card_code: PL!HS-PR-001-PR
+      count: 2
+    - card_code: PL!-bp3-010-N
+      count: 2
+    - card_code: PL!HS-bp1-006-P
+      count: 3
+    - card_code: PL!-bp4-003-P
+      count: 3
+    - card_code: PL!-pb1-019-N
+      count: 3
+    - card_code: PL!S-bp5-014-N
+      count: 3
+    - card_code: PL!SP-PR-004-PR
+      count: 3
+    - card_code: PL!SP-sd1-002-SD
+      count: 3
+    - card_code: PL!SP-bp4-008-P
+      count: 3
+    - card_code: PL!SP-bp5-003-AR
+      count: 3
+    - card_code: LL-bp2-001-R+
+      count: 2
+    - card_code: PL!N-pb1-008-P+
+      count: 3
+    - card_code: PL!N-pb1-002-P+
+      count: 2
+    - card_code: PL!S-bp2-006-P
+      count: 3
+    - card_code: PL!HS-bp1-004-P
+      count: 1
+    - card_code: PL!HS-bp2-012-N
+      count: 1
+    - card_code: PL!HS-pb1-009-R
+      count: 1
+    - card_code: PL!HS-bp6-017-N
+      count: 1
+    - card_code: PL!HS-bp6-001-R+
+      count: 1
+    - card_code: PL!HS-bp6-004-R
+      count: 1
+  lives:
+    - card_code: LL-bp5-002-L
+      count: 2
+    - card_code: PL!-bp3-023-L
+      count: 2
+    - card_code: PL!-bp5-021-L
+      count: 2
+    - card_code: PL!SP-bp1-023-L
+      count: 2
+    - card_code: PL!SP-pb1-023-L
+      count: 2
+    - card_code: PL!HS-bp2-019-L
+      count: 2
+energy_deck:
+  - card_code: LL-E-003-SD
+    count: 12
