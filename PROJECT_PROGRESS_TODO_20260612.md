@@ -608,7 +608,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 - 收束范围：`PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-cl1-009` 分数 1「水彩世界」，以及 `PL!HS-bp2-022` 分数 2「アオクハルカ」此 Live 卡分数投影修正。
 - 文档收束：保持 `docs/card-effect-reuse-audit/existing_module_map.md` 为主登记册；同步整理 `AGENTS.md`、`card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`card_effect_batch_expansions.md`、`module_gap_list.md`、`safe_refactor_plan.md`。未重写无关表格，只补本批新增边界：公开手牌隐私/确认窗口、continuous SCORE、此 Live 卡分数 vs LIVE 合计分数投影、relay `replacingCardId`、分组回收、动态控顶、LIVE 成功舞台成员来源与 `effects/cheer-selection.ts`。
-- 下窗口保留：`PL!HS-bp6-027-L` 分数 5「月夜見海月」继续推进追加声援 / 重做声援；本窗口不实现。
+- 后续更新：`PL!HS-bp6-027-L` 分数 5「月夜見海月」已在 2026-06-15 完成追加声援边界；重做声援继续等待后续真实样例。
 - 最终验证：
 
 ```bash
@@ -655,10 +655,26 @@ git diff --check
 
 ## 下一步建议
 
-`绿莲-6弹ver.yaml` 中本轮原计划 10 张卡剩余未完成项按以下顺序推进：
+本次 2026-06-14 快速卡效批处理：`PL!HS-bp6-031-L` 分数 8「ファンファーレ！！！」：
 
-1. `PL!HS-bp6-027-L` 分数 5「月夜見海月」。
-   - 牵涉追加声援，适合在声援公开卡选择底座之后继续推进。
+- 新增 `HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID`，登记为 LIVE 卡来源的 `LIVE_START` / `ON_LIVE_START` 队列能力，按基础编号 `PL!HS-bp6-031` 覆盖当前 `L`。
+- 结算流程：玩家可选择是否发动；发动时将自己休息室全部成员卡洗牌后放到主卡组底，非成员等待室卡保留。若因此放到底部的 `みらくらぱーく！` 成员大于等于 15 张，则选择自己舞台 1 名「安养寺姬芽」并通过 `BLADE` live modifier 获得 BLADE +3。
+- 复用范围：LIVE 开始队列、`shuffleZone`、`unitAliasIs('みらくらぱーく！')`、`cardNameAliasIs('安養寺姫芽')` 与 `addLiveModifier`；本段未新增 resolver / cost calculator / live modifier registry 结构。
+- Focused 验证：`tests/unit/card-effect-classification.test.ts` 覆盖 LIVE 卡来源登记；`tests/integration/sample-card-effect-runner.test.ts` 覆盖 15 张以上时选姬芽加 BLADE、不足 15 张时只洗回且不加 BLADE。
+- 实时同步：已更新 `docs/card-effect-reuse-audit/existing_module_map.md`；按快速批处理节奏，本窗口未改设计/覆盖/gap 大文档。
+
+本次 2026-06-15 快速卡效批处理：`PL!HS-bp6-027-L` 分数 5「月夜見海月」：
+
+- 已完成 `ON_CHEER` 自动能力：自己进行声援时，可将至多 3 张因声援公开且仍在处理区的自己的无 BLADE HEART「莲之空」卡放置入休息室；如此做时追加等量声援。
+- 新增/扩展底座：
+  - `src/application/effects/cheer.ts`：抽出声援公开到解决区、登记 `liveResolution.*CheerCardIds` 与即时 refresh 检查的共享 helper。
+  - `src/application/effects/cheer-selection.ts`：声援公开卡移动目的地新增 `WAITING_ROOM`。
+  - `card-effect-runner` 新增 `ON_CHEER` 入队，当前扫描表演玩家 LIVE 区来源；追加声援不二次触发 `ON_CHEER`。
+  - 声援公开卡选择支持 `ORDERED_MULTI` 多选配置，本卡使用 `selectMin=0/selectMax=3`。
+- Focused 验证：`tests/unit/card-effect-classification.test.ts` 覆盖 `AUTO / LIVE_CARD / ON_CHEER` 登记；`tests/integration/sample-card-effect-runner.test.ts` 覆盖排除持有 BLADE HEART 与非莲之空公开卡、移动入休息室、追加等量声援。
+- 实时同步：已更新 `docs/card-effect-reuse-audit/existing_module_map.md`；因新增 `ON_CHEER` 事件边界、声援 helper 与追加声援，已同步 `card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`module_gap_list.md` 与 `safe_refactor_plan.md`。
+
+`绿莲-6弹ver.yaml` 第一批最后一张 `PL!HS-bp6-027-L` 已完成；本批后续按用户确认再进入批末提交/摘要收束。
 
 本次 2026-06-14 低风险同构扩样本（与 `PL!-sd1-002-SD` 对齐）已完成 17 张卡：
 

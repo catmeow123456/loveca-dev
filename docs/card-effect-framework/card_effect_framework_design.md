@@ -49,7 +49,7 @@
 | `ON_CARD_MOVED` | future AUTO | 任意卡从区域 A 到区域 B 时 |
 | `ON_MEMBER_STATE_CHANGED` | future AUTO | 成员变为待机/活跃时 |
 | `ON_ENERGY_PAID` | future AUTO | 支付能量时 |
-| `ON_CHEER_REVEALED` | future AUTO | 声援公开时 |
+| `ON_CHEER` | `E06` | 自己进行声援时；当前在自动声援公开后、判定确认前入队 |
 | `ON_PHASE_START/END` | future AUTO | 阶段开始/结束时 |
 
 也就是说，登场、LIVE 开始、LIVE 成功不应该和 `自动` 对立；它们应该是 `TRIGGERED_AUTO` 下最常见、最标准的 trigger。
@@ -57,6 +57,8 @@
 当前代码中的 `CardAbilityCategory.AUTO` 可以保留为“其他自动诱发”的兼容分类，但长期更建议语义统一为 `TRIGGERED_AUTO + trigger`。
 
 2026-06-14 更新：`ON_LIVE_SUCCESS` 已不再只从成功的 LIVE 卡本身入队，也会在存在成功 LIVE 时扫描表演玩家舞台成员来源。`PL!HS-bp6-001-R＋` 费用 4「日野下花帆」验证了舞台成员来源 LIVE 成功时效果；`PL!HS-cl1-009-CL` 分数 1「水彩世界」与同卡共同打开 `effects/cheer-selection.ts`，通过 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 选取“因声援公开且仍在处理区”的卡，再按卡效配置移动到手牌或卡组顶。
+
+2026-06-15 更新：`ON_CHEER` 已以 `PL!HS-bp6-027-L` 分数 5「月夜見海月」落地。当前入队点在自动声援公开完成后，扫描表演玩家 LIVE 区来源；追加声援只补公开卡与 `liveResolution.*CheerCardIds` 登记，不二次触发 `ON_CHEER`，避免为未来非一回合一次卡制造递归语义。
 
 ## 3. Proposed ability definition shape
 
@@ -295,6 +297,7 @@ P0/P1 覆盖：
 | `PL!HS-pb1-020` 费用 9「百生吟子」 | 登场时休息室 LIVE >=3 可弃 2 手牌，回收 Cerise Bouquet 成员 + 莲之空 LIVE | `onEnter -> if zoneCount(WR,LIVE)>=3 -> optional discard(2) -> groupedSelectFromWRToHand([ceriseMember, hasunosoraLive])` |
 | `PL!HS-bp6-001` 费用 4「日野下花帆」 | 登场按舞台成员数 + 2 动态检视并控顶；LIVE 成功时可将声援公开卡回顶 | `onEnter -> lookTop(stageMemberCount+2) -> chooseOneToDeckTop(rest=WR)`；`onLiveSuccess(stageMember) -> selectCheerRevealedCard(destination=deckTop)` |
 | `PL!HS-cl1-009` 分数 1「水彩世界」 | LIVE 成功时从声援公开卡中回收费用 4-9 成员 | `onLiveSuccess(liveCard) -> selectCheerRevealedCard(member & cost4to9, destination=hand)` |
+| `PL!HS-bp6-027` 分数 5「月夜見海月」 | 自己进行声援时，可将至多3张本次声援公开的无 BLADE HEART「莲之空」卡入休息室并追加等量声援 | `onCheer(liveCard) -> selectCheerRevealedCard(hasunosora & noBladeHeart, max3, destination=WR) -> additionalCheer(movedCount)` |
 
 ## 6. First implementation stage
 
@@ -530,11 +533,21 @@ P0/P1 覆盖：
 
 当前落地：
 
-- `src/application/effects/cheer-selection.ts` 提供第一版声援公开卡选择 helper：以 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 找到“因本次声援公开且仍在处理区”的卡，再按卡效 selector 与目的地执行移动。
+- `src/application/effects/cheer-selection.ts` 提供声援公开卡选择 helper：以 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 找到“因本次声援公开且仍在处理区”的卡，再按卡效 selector 与目的地执行移动。
 - `enqueueLiveSuccessCardEffects` 在存在成功 LIVE 时同时扫描成功 LIVE 卡来源与表演玩家舞台成员来源。
 - `PL!HS-bp6-001-R＋` 费用 4「日野下花帆」LIVE 成功段验证舞台成员来源 `LIVE_SUCCESS`，并可将 1 张本次声援公开卡放回卡组顶。
 - `PL!HS-cl1-009-CL` 分数 1「水彩世界」LIVE 成功段验证成功 LIVE 卡来源从本次声援公开卡中选择 1 张费用 4-9 成员加入手牌。
-- 当前边界：目的地已覆盖手牌和卡组顶；卡组底、休息室、追加声援/重做声援仍等 `PL!HS-bp6-027-L` 分数 5「月夜見海月」等后续样例推进。
+- 2026-06-15：目的地扩展到休息室，多选上限已可配置；`PL!HS-bp6-027-L` 分数 5「月夜見海月」验证从本次声援公开卡中选择至多3张无 BLADE HEART「莲之空」卡入休息室。
+
+### Stage 1T: Additional cheer
+
+目标片段：`E06`
+
+当前落地：
+
+- `src/application/effects/cheer.ts` 抽出声援公开 helper，负责从主卡组顶公开到解决区、登记 `liveResolution.first/secondPlayerCheerCardIds` / `secondPlayerCheerCardIds`，并沿用即时 refresh 检查。
+- `PL!HS-bp6-027-L` 分数 5「月夜見海月」结算时按实际移动入休息室张数追加等量声援。
+- 当前边界：追加声援不再次触发 `ON_CHEER`；“重做声援”仍待后续真实样例推进。
 
 ## 7. Custom resolver policy
 
@@ -558,12 +571,12 @@ P0/P1 覆盖：
 
 ## 9. Recommended next concrete task
 
-Stage 1A-1S 已完成当前主要底座抽取与多批真实卡效验证；最新一批 `绿莲-6弹ver.yaml` 已补齐 `PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」与 `PL!HS-cl1-009` 分数 1「水彩世界」。当前剩余首选真实样例是 `PL!HS-bp6-027-L` 分数 5「月夜見海月」，用于继续推进追加声援 / 重做声援边界。
+Stage 1A-1T 已完成当前主要底座抽取与多批真实卡效验证；最新一批 `绿莲-6弹ver.yaml` 已补齐 `PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-cl1-009` 分数 1「水彩世界」、`PL!HS-bp6-031` 分数 8「ファンファーレ！！！」与 `PL!HS-bp6-027` 分数 5「月夜見海月」。当前追加声援已落地，重做声援仍等待真实样例。
 
 下一步建议继续小步推进：
 
-1. `PL!HS-bp6-027-L` 分数 5「月夜見海月」：优先作为下一窗口起点，沿 `cheer-selection.ts` 继续处理追加声援 / 重做声援。
-2. 后续再按实际卡效抽 condition / look-top / reveal-hand / grouped selection 配置，不一次性上完整事件系统。
-3. 如果需要穿插低风险扩样本，再选 `PL!HS-PR-002-PR` 费用 10「村野さやか」的登场看顶 3 选 1。
+1. 后续再按实际卡效抽 condition / look-top / reveal-hand / grouped selection 配置，不一次性上完整事件系统。
+2. 如果需要穿插低风险扩样本，再选 `PL!HS-PR-002-PR` 费用 10「村野さやか」的登场看顶 3 选 1。
+3. 出现“重做声援”文本时，再决定是否需要新的 cheer loop 语义；不要复用当前 additional-cheer helper 触发递归。
 
 这样仍然保持“一个底座、一组可运行卡、一组 focused tests”的节奏。

@@ -1,7 +1,7 @@
 # Loveca safe card effect refactor plan
 
 审查日期：2026-06-14
-状态：Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Stage 1I-1S 已陆续打开 E03/E02 能量、F02 抽弃、S05 站位变换、X11 登场费用修正、S07 卡效登场、X03 分支选择、S08 离场 AUTO、`ON_ENTER_STAGE` 监听 AUTO、舞台目标选择、同编号罕度同步、公开手牌隐私投影与声援公开卡选择等边界。本批 `绿莲-6弹ver.yaml` 已继续补齐 `PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」与 `PL!HS-cl1-009` 分数 1「水彩世界」，新增验证公开手牌确认窗口、私有候选不向对手投影、条件型 continuous SCORE、此 Live 卡分数与 LIVE 合计分数投影分离、relay 来源条件、分组回收、动态控顶、LIVE 成功舞台成员来源与 `cheer-selection.ts`。卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由测试防漏同步；普通活跃阶段进入时也已自动重置当前玩家成员与能量。
+状态：Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Stage 1I-1T 已陆续打开 E03/E02 能量、F02 抽弃、S05 站位变换、X11 登场费用修正、S07 卡效登场、X03 分支选择、S08 离场 AUTO、`ON_ENTER_STAGE` 监听 AUTO、舞台目标选择、同编号罕度同步、公开手牌隐私投影、声援公开卡选择、`ON_CHEER` 与追加声援等边界。本批 `绿莲-6弹ver.yaml` 已继续补齐 `PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-cl1-009` 分数 1「水彩世界」、`PL!HS-bp6-031` 分数 8「ファンファーレ！！！」与 `PL!HS-bp6-027` 分数 5「月夜見海月」，新增验证公开手牌确认窗口、私有候选不向对手投影、条件型 continuous SCORE、此 Live 卡分数与 LIVE 合计分数投影分离、relay 来源条件、分组回收、动态控顶、LIVE 成功舞台成员来源、`cheer-selection.ts`、`cheer.ts` 与追加声援。卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由测试防漏同步；普通活跃阶段进入时也已自动重置当前玩家成员与能量。
 
 本计划假设当前行为是 golden。除非明确接受 behavior mismatch，否则每一批都应先补 focused tests，再迁移。
 
@@ -26,7 +26,7 @@ pnpm exec tsc --noEmit
 pnpm --dir client exec tsc -b
 ```
 
-最近结果：本批 `PL!HS-bp5-001` 费用 11「日野下花帆」/`PL!HS-bp1-003` 费用 13「乙宗梢」/`PL!HS-bp1-002` 费用 11「村野沙耶香」/`PL!HS-sd1-001` 费用 9「日野下花帆」/`PL!HS-pb1-020` 费用 9「百生吟子」/`PL!HS-bp6-001` 费用 4「日野下花帆」/`PL!HS-cl1-009` 分数 1「水彩世界」已完成实现与手测确认；最终 focused 4 files / 56 tests passed，server TypeScript passed，client TypeScript passed，`git diff --check` passed。
+最近结果：本批 `PL!HS-bp5-001` 费用 11「日野下花帆」/`PL!HS-bp1-003` 费用 13「乙宗梢」/`PL!HS-bp1-002` 费用 11「村野沙耶香」/`PL!HS-sd1-001` 费用 9「日野下花帆」/`PL!HS-pb1-020` 费用 9「百生吟子」/`PL!HS-bp6-001` 费用 4「日野下花帆」/`PL!HS-cl1-009` 分数 1「水彩世界」/`PL!HS-bp6-031` 分数 8「ファンファーレ！！！」/`PL!HS-bp6-027` 分数 5「月夜見海月」已完成实现；最新 focused `PL!HS-bp6-027` + classification 验证 2 files / 5 tests passed。
 
 ## 1. Continue Stage 1G only through real AUTO proving cards
 
@@ -74,13 +74,14 @@ Stage 1G 应包含：
 
 `PL!HS-bp6-001` 费用 4「日野下花帆」与 `PL!HS-cl1-009` 分数 1「水彩世界」已完成声援公开卡相关段：前者登场动态检视舞台成员数 + 2 并控顶，LIVE 成功时可将本次声援公开卡放回卡组顶；后者 LIVE 成功时从本次声援公开卡中回收费用 4-9 成员。当前新增 `src/application/effects/cheer-selection.ts`，并使 LIVE 成功入队同时支持成功 LIVE 卡来源与表演玩家舞台成员来源。
 
+`PL!HS-bp6-027-L` 分数 5「月夜見海月」已完成 `ON_CHEER` 与追加声援：自动声援公开后扫描表演玩家 LIVE 区来源，选择至多 3 张本次声援公开且无 BLADE HEART 的「莲之空」卡入休息室，并追加等量声援。当前新增 `src/application/effects/cheer.ts` 作为声援公开 helper；追加声援不二次触发 `ON_CHEER`，重做声援仍等待真实样例。
+
 本批 17 张 `PL!-sd1-002-SD` 同型样本与 `绿莲-6弹ver.yaml` 已验收的 6 张卡已落地，不再列入首选低风险扩样本清单。建议直接继续：
 
 首选：
 
-1. 继续 `绿莲-6弹ver.yaml` 中仍未实现的真实样例
-   - 优先继续选择能推进 when-if、名称/数值 selector 配置化、公开/看顶 workflow、更多移动或状态事件边界的真实 AUTO / LIVE 成功 / LIVE 开始卡。
-   - 首选 `PL!HS-bp6-027-L` 分数 5「月夜見海月」：牵涉追加声援 / 重做声援，适合在 `cheer-selection.ts` 声援公开卡选择底座之后继续推进。
+1. 继续选择能推进 when-if、名称/数值 selector 配置化、公开/看顶 workflow、更多移动或状态事件边界的真实 AUTO / LIVE 成功 / LIVE 开始卡。
+   - `PL!HS-bp6-027-L` 分数 5「月夜見海月」已完成追加声援；重做声援与更完整 cheer loop 语义等待后续真实样例。
 
 备选：
 

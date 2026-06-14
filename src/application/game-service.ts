@@ -128,6 +128,7 @@ import {
   getPlayerLiveHeartModifiers,
   getPlayerLiveScoreModifier,
 } from '../domain/rules/live-modifiers.js';
+import { revealCheerCardsFromMainDeck } from './effects/cheer.js';
 
 function isTriggerCondition(event: GameEventType | string): event is TriggerCondition {
   return Object.values(TriggerCondition).includes(event as TriggerCondition);
@@ -504,7 +505,12 @@ export class GameService {
       return game;
     }
 
-    return this.autoRevealPerformanceCheer(game, player.id);
+    const stateAfterCheer = this.autoRevealPerformanceCheer(game, player.id);
+    if (stateAfterCheer === game) {
+      return stateAfterCheer;
+    }
+
+    return this.executeCheckTiming(stateAfterCheer, [TriggerCondition.ON_CHEER]).gameState;
   }
 
   private hasPerformanceDraft(game: GameState, playerId: string): boolean {
@@ -935,51 +941,7 @@ export class GameService {
       activeMemberCards.push(this.createTemporaryLiveHeartSource(heartBonuses));
     }
     const cheerCount = this.calculatePerformanceBladeCount(game, player, activeMemberCards);
-    let state = game;
-    const cheerCardIds: string[] = [];
-
-    for (let i = 0; i < cheerCount; i++) {
-      const drawResult = this.drawTopMainDeckCard(state, playerId);
-      state = drawResult.gameState;
-      if (drawResult.cardId) {
-        cheerCardIds.push(drawResult.cardId);
-      }
-    }
-
-    if (cheerCardIds.length > 0) {
-      state = {
-        ...state,
-        resolutionZone: {
-          ...state.resolutionZone,
-          cardIds: [...state.resolutionZone.cardIds, ...cheerCardIds],
-          revealedCardIds: [...state.resolutionZone.revealedCardIds, ...cheerCardIds],
-        },
-      };
-    }
-
-    const isFirstPlayer = playerId === getFirstPlayer(state).id;
-    state = {
-      ...state,
-      liveResolution: {
-        ...state.liveResolution,
-        isInLive: true,
-        performingPlayerId: playerId,
-        firstPlayerCheerCardIds: isFirstPlayer
-          ? [...state.liveResolution.firstPlayerCheerCardIds, ...cheerCardIds]
-          : state.liveResolution.firstPlayerCheerCardIds,
-        secondPlayerCheerCardIds: isFirstPlayer
-          ? state.liveResolution.secondPlayerCheerCardIds
-          : [...state.liveResolution.secondPlayerCheerCardIds, ...cheerCardIds],
-      },
-    };
-
-    state = addAction(state, 'CHEER', playerId, {
-      cheerCount,
-      cheerCardIds,
-      automated: true,
-    });
-
-    return state;
+    return revealCheerCardsFromMainDeck(game, playerId, cheerCount, { automated: true }).gameState;
   }
 
   /**

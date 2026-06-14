@@ -15,6 +15,8 @@ import {
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID,
+  HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
+  HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
   HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID,
   HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID,
   HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
@@ -333,7 +335,8 @@ describe('card effect classification registry', () => {
 
     for (const cardCode of PL_BP3_014_LOOK_TOP_TWO_ON_ENTER_CARD_CODES) {
       const hp = getCardAbilityDefinitions(cardCode).find(
-        (ability) => ability.abilityId === PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID
+        (ability) =>
+          ability.abilityId === PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID
       );
       expect(hp).toMatchObject({
         category: CardAbilityCategory.ON_ENTER,
@@ -364,6 +367,18 @@ describe('card effect classification registry', () => {
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
       queued: true,
       implemented: true,
+    });
+
+    const tsukiyomiKurageOnCheer = getCardAbilityDefinitions('PL!HS-bp6-027-L').find(
+      (ability) => ability.abilityId === HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID
+    );
+    expect(tsukiyomiKurageOnCheer).toMatchObject({
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_CHEER,
+      queued: true,
+      implemented: true,
+      perTurnLimit: 1,
     });
 
     const pb1Activated = getCardAbilityDefinitions('PL!-pb1-019-N').find(
@@ -420,8 +435,7 @@ describe('card effect classification registry', () => {
     });
 
     const himeOnEnter = getCardAbilityDefinitions('PL!HS-sd1-006-SD').find(
-      (ability) =>
-        ability.abilityId === HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID
+      (ability) => ability.abilityId === HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID
     );
     expect(himeOnEnter).toMatchObject({
       category: CardAbilityCategory.ON_ENTER,
@@ -709,14 +723,22 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+
+    const hsBp6031LiveStart = getCardAbilityDefinitions('PL!HS-bp6-031-L').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID
+    );
+    expect(hsBp6031LiveStart).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
   });
 
   it('matches implemented abilities by base card code across rarities', () => {
-    for (const cardCode of [
-      'PL!HS-bp1-004-P+',
-      'PL!HS-bp1-004-R+',
-      'PL!HS-bp1-004-SEC',
-    ]) {
+    for (const cardCode of ['PL!HS-bp1-004-P+', 'PL!HS-bp1-004-R+', 'PL!HS-bp1-004-SEC']) {
       expect(
         getCardAbilityDefinitions(cardCode).some(
           (ability) => ability.abilityId === HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID
@@ -837,7 +859,9 @@ describe('card effect classification registry', () => {
       }
 
       if (ability.category === CardAbilityCategory.AUTO) {
-        expect(ability.sourceZone).toBe(CardAbilitySourceZone.STAGE_MEMBER);
+        expect([CardAbilitySourceZone.STAGE_MEMBER, CardAbilitySourceZone.LIVE_CARD]).toContain(
+          ability.sourceZone
+        );
         expect(ability.triggerCondition).toBeDefined();
         expect(ability.queued).toBe(true);
       }
@@ -875,9 +899,9 @@ describe('card effect classification registry', () => {
     expect(getActivatedAbilityUiConfig('PL!-bp4-003-R')?.abilityId).toBe(
       BP4_003_ACTIVATED_ABILITY_ID
     );
-    expect(
-      isSupportedActivatedAbilityForCard(BP4_003_ACTIVATED_ABILITY_ID, 'PL!-bp4-003-R')
-    ).toBe(true);
+    expect(isSupportedActivatedAbilityForCard(BP4_003_ACTIVATED_ABILITY_ID, 'PL!-bp4-003-R')).toBe(
+      true
+    );
     expect(getActivatedAbilityUiConfig('PL!HS-bp1-003-SEC')?.abilityId).toBe(
       HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID
     );
@@ -932,11 +956,8 @@ describe('card effect classification registry', () => {
       expect(isSupportedActivatedAbilityForCard(PB1_019_ACTIVATED_ABILITY_ID, cardCode)).toBe(true);
       expect(getActivatedAbilityUiConfig(cardCode)?.abilityId).toBe(PB1_019_ACTIVATED_ABILITY_ID);
     }
-    expect(
-      isSupportedActivatedAbilityForCard(
-        RIN_ACTIVATED_ABILITY_ID,
-        'PL!HS-bp2-002-P'
-      )
-    ).toBe(false);
+    expect(isSupportedActivatedAbilityForCard(RIN_ACTIVATED_ABILITY_ID, 'PL!HS-bp2-002-P')).toBe(
+      false
+    );
   });
 });

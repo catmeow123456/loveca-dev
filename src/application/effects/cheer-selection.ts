@@ -10,7 +10,7 @@ import {
 import { addCardToZone } from '../../domain/entities/zone.js';
 
 export type CheerCardPredicate = (card: CardInstance) => boolean;
-export type RevealedCheerCardDestination = 'HAND' | 'MAIN_DECK_TOP';
+export type RevealedCheerCardDestination = 'HAND' | 'MAIN_DECK_TOP' | 'WAITING_ROOM';
 
 export interface MoveRevealedCheerCardsResult {
   readonly gameState: GameState;
@@ -81,6 +81,16 @@ export function moveRevealedCheerCards(
         hand: uniqueCardIds.reduce(
           (hand, cardId) => addCardToZone(hand, cardId),
           currentPlayer.hand
+        ),
+      };
+    }
+
+    if (destination === 'WAITING_ROOM') {
+      return {
+        ...currentPlayer,
+        waitingRoom: uniqueCardIds.reduce(
+          (waitingRoom, cardId) => addCardToZone(waitingRoom, cardId),
+          currentPlayer.waitingRoom
         ),
       };
     }

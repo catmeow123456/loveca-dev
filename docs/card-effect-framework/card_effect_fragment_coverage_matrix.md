@@ -48,7 +48,7 @@
 | `F12` | P1 | 抽牌后将手牌放到卡组顶/底 | draw + hand selection + deck placement | `core_v2` | 需要 ordered hand selection；等待实际样例再扩展。 |
 | `F13` | P1 | 看/公开卡组顶单张后处理 | peek/reveal top pipeline | `core_v1` | Stage 1C 已复用公开看顶单张进入检视区原语，Karin 样例可验证；后续可继续抽单张 reveal-and-route step。 |
 | `F14` | P1 | 从声援公开的卡中选择加入手牌 | cheer revealed selection | `core_v2` | 2026-06-14 已以 `effects/cheer-selection.ts` 起步，基于 `liveResolution.*CheerCardIds + resolutionZone.revealedCardIds` 选取仍在处理区的本次声援公开卡；`PL!HS-cl1-009-CL` 分数 1「水彩世界」验证费用 4-9 成员加入手牌。 |
-| `F15` | P2 | 处理声援公开的卡：放入休息室/卡组顶/底 | cheer revealed movement | `core_v2` | 2026-06-14 已以同一 helper 支持声援公开卡移到手牌/卡组顶；`PL!HS-bp6-001-R＋` 费用 4「日野下花帆」验证 LIVE 成功时可选 1 张公开声援卡放回卡组顶。卡组底/休息室目的地仍待样例扩展。 |
+| `F15` | P2 | 处理声援公开的卡：放入休息室/卡组顶/底 | cheer revealed movement | `core_v2` | 2026-06-14 已以同一 helper 支持声援公开卡移到手牌/卡组顶；`PL!HS-bp6-001-R＋` 费用 4「日野下花帆」验证 LIVE 成功时可选 1 张公开声援卡放回卡组顶。2026-06-15 `PL!HS-bp6-027-L` 分数 5「月夜見海月」扩展到休息室目的地与至多3张多选；卡组底仍待样例。 |
 | `B01` | P0 | LIVE结束时为止获得BLADE | live modifier: `grantBlade(untilLiveEnd)` | `core_v1` | `PL!HS-pb1-009-R` 费用 15「日野下花帆」AUTO 第一段已通过 `addLiveModifier` 写入 BLADE +2；同卡第二段已用 `getMemberEffectiveBladeCount` 统计印刷 BLADE + 同来源 BLADE modifier。`PL!HS-bp6-004-R` 费用 13「百生 吟子」验证可选弃手后按弃置卡姓名写入 BLADE +1/+2。`PL!HS-bp1-004-P` 费用 15「夕雾缀理」与 `PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」验证支付能量后写入 BLADE；`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」验证按指定姓名弃置张数缩放 BLADE。 |
 | `B02` | P0 | LIVE结束时为止获得HEART | live modifier: `grantHeart(untilLiveEnd)` | `core_v1` | `PL!HS-PR-019-RM` 费用 2「百生吟子」已验证固定绿色 Heart 写入 `HEART` live modifier；颜色选择型 Heart 仍归 B03。 |
 | `B03` | P1 | 选择颜色后获得对应HEART | option choice + B02 | `core_v1` | Stage 1D 已迁移：当前 003 Live-start 与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」LIVE 开始段通过 `addLiveModifier` 写入 `HEART`，旧 Heart Map 仅为兼容投影。 |
@@ -73,7 +73,7 @@
 | `E03` | P1 | 从能量卡组放置能量 | energy deck movement | `core_v2` | Stage 1I 已起步：`src/application/effects/energy.ts` 提供 `placeEnergyFromDeckToZone`，`PL!SP-PR-004-PR` 验证从能量卡组顶放置 1 张待机能量。 |
 | `E04` | P2 | 能量放到成员下/从成员下返回 | attach/return energy under member | `special_hook` | 与附属卡/成员下方结构相关，先保留 hook。 |
 | `E05` | P2 | 能量数量作为条件 | condition: energy count | `core_v2` | 可纳入 condition AST。 |
-| `E06` | P2 | 追加声援/重做声援 | cheer action step | `core_v2` | 声援公开卡选择子系统已由 `PL!HS-bp6-001` 费用 4「日野下花帆」与 `PL!HS-cl1-009` 分数 1「水彩世界」起步；追加声援 / 重做声援仍待 `PL!HS-bp6-027-L` 分数 5「月夜見海月」推进。 |
+| `E06` | P2 | 追加声援/重做声援 | cheer action step | `core_v2` | 2026-06-15 已由 `PL!HS-bp6-027-L` 分数 5「月夜見海月」起步追加声援：按实际移入休息室张数从主卡组顶追加公开并登记本次声援卡；追加声援不二次触发 `ON_CHEER`。重做声援仍待样例。 |
 | `L01` | P1 | 参照成功LIVE区 | zone query: success live zone | `core_v1` | 001/022 等已用，需要 query module。 |
 | `L02` | P1 | 参照LIVE卡置场/正在LIVE | zone query: current live/live zone | `core_v1` | Live modifier 和成功时能力需要。 |
 | `L03` | P2 | ALL_BLADE当任意颜色HEART | special marker rule | `special_hook` | 属于判定规则 override，不是普通 effect step。 |
@@ -106,4 +106,4 @@
 
 Stage 1A-1S 已把 `F07/F08/F09`、`C01/C02/C03/C04/C07/C08/E01`、`F03/F04/F05/F06/F13/F14/F15`、`F01/F02`、`B01/B02/B03/B05/B06/B07/B08/T05`、`S01/S02/S05/S07/S08`、`E02/E03` 与 `X08/X11` 的当前验证集主路径落到模块底座或明确的 proving path。本批 `LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」与 `PL!N-pb1-004` 费用 11「朝香果林」补齐指定姓名手牌弃置、换手禁止、未位置移动时 continuous BLADE。卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由 `tests/unit/card-effect-rarity-sync.test.ts` 防漏同步；`existing_module_map.md` 是主登记册。
 
-下一批建议以 `PL!HS-bp6-027-L` 分数 5「月夜見海月」继续推进追加声援 / 重做声援；condition / look-top / reveal-hand / grouped selection 配置仍按真实样例小步抽取，完整事件层继续后置。
+下一批建议继续按真实样例小步抽取 condition / look-top / reveal-hand / grouped selection 配置；重做声援与更完整 cheer loop 语义等待新样例，完整事件层继续后置。
