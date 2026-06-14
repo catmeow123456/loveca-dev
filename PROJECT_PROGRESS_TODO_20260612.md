@@ -75,6 +75,17 @@
 - 新增 `inheritMissingBladeHeartsByBase` 数据规范化 helper，并接入 `sync-cards-llocg.ts`、服务端 `CardDataRegistry`、`/api/cards` 与 `/api/cards/export`；前端 `cardService` 也在整表缓存入口做同样防御，避免旧 API 列表导致本地判定遗漏。
 - 新增 focused 回归：`tests/unit/blade-heart-inheritance.test.ts` 覆盖同编号同类型继承、不覆盖已有 BLADE 心、不跨卡种继承；`tests/unit/heart-live.test.ts` 补充 `HEART + RAINBOW` 声援处理。
 
+## 本次 2026-06-14 `PL!HS-pb1-020-N` 多步骤多选状态修复
+
+- 修复 `PL!HS-pb1-020-N` 费用 9「百生吟子」登场效果中，弃 2 张手牌后进入休息室分组回收步骤时，前一步多选状态被前端沿用，导致不可见旧手牌 id 占满选择数量并卡住效果处理的问题。
+- `GameBoard` 现在会在 active effect 的步骤、选择模式或候选卡集合变化时清空 ordered multi selection；确认按钮也会校验所有已选 id 仍属于当前候选，点击候选时会先过滤掉旧候选残留。
+- 新增 focused 回归：`tests/integration/sample-card-effect-runner.test.ts` 覆盖弃手进入回收后旧手牌 id 不在新候选中，误传旧选择会被拒绝且效果仍可继续。
+
+## 本次 2026-06-14 处理中的效果窗口折叠 UI
+
+- `GameBoard` 的“处理中的效果”窗口新增“隐藏”按钮，折叠后显示右下角小浮条，保留当前效果来源与步骤摘要，并可用“展开”恢复窗口。
+- 折叠只属于前端本地 UI 状态，不改变 `activeEffect`、不写对局 action；当 active effect id 或 stepId 变化时自动展开，避免玩家错过新步骤。
+
 ## 本地测试卡组与卡图资产
 
 当前事实：

@@ -2247,6 +2247,26 @@ describe('sample card effect runner', () => {
       hasunosoraLive.instanceId,
       ceriseMember.instanceId,
     ]);
+    expect(session.state?.activeEffect?.selectableCardIds).not.toContain(discardA.instanceId);
+    expect(session.state?.activeEffect?.selectableCardIds).not.toContain(discardB.instanceId);
+
+    const staleDiscardSelectionResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [discardA.instanceId, discardB.instanceId]
+      )
+    );
+
+    expect(staleDiscardSelectionResult.success).toBe(false);
+    expect(session.state?.activeEffect?.stepId).toBe(
+      'HS_PB1_020_SELECT_CERISE_MEMBER_AND_HASUNOSORA_LIVE'
+    );
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
 
     const invalidRecoverResult = session.executeCommand(
       createConfirmEffectStepCommand(

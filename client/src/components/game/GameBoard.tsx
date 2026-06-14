@@ -35,7 +35,16 @@ import { parseZoneId } from '@/lib/zoneUtils';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
-import { ChevronRight, DoorOpen, ScrollText, Swords, UserRound, X } from 'lucide-react';
+import {
+  ChevronRight,
+  DoorOpen,
+  EyeOff,
+  Maximize2,
+  ScrollText,
+  Swords,
+  UserRound,
+  X,
+} from 'lucide-react';
 import {
   SlotPosition,
   GamePhase,
@@ -185,14 +194,21 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
+  const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
 
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
   const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const activeEffectSource = activeEffectSourceCardId
     ? getVisibleCardPresentation(activeEffectSourceCardId)
     : null;
+  const activeEffectSourceLabel = activeEffectSource
+    ? 'cost' in activeEffectSource.cardData
+      ? `${activeEffectSource.cardData.cost} ${activeEffectSource.cardData.name}`
+      : activeEffectSource.cardData.name
+    : '卡牌效果';
   const activeEffectSelectableCardIds =
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
+  const activeEffectSelectableCardSignature = activeEffectSelectableCardIds.join('|');
   const activeEffectRevealedCardIds =
     activeEffect?.revealedObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const canConfirmActiveEffect =
@@ -206,7 +222,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     canConfirmActiveEffect &&
     activeEffectUsesOrderedMultiSelect &&
     activeEffectOrderedSelection.length >= activeEffectMinSelectableCards &&
-    activeEffectOrderedSelection.length <= activeEffectMaxSelectableCards;
+    activeEffectOrderedSelection.length <= activeEffectMaxSelectableCards &&
+    activeEffectOrderedSelection.every((cardId) =>
+      activeEffectSelectableCardIds.includes(cardId)
+    );
   const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
   const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
   const pendingCostSourceCardId = pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
@@ -227,7 +246,16 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
   useEffect(() => {
     setActiveEffectOrderedSelection([]);
-  }, [activeEffect?.id]);
+  }, [
+    activeEffect?.id,
+    activeEffect?.stepId,
+    activeEffect?.selectableObjectMode,
+    activeEffectSelectableCardSignature,
+  ]);
+
+  useEffect(() => {
+    setActiveEffectCollapsed(false);
+  }, [activeEffect?.id, activeEffect?.stepId]);
 
   const isJudgmentPanelRelevant =
     (currentPhase === GamePhase.PERFORMANCE_PHASE &&
@@ -1138,7 +1166,33 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           onOpenJudgment={handleOpenJudgmentPanel}
         />
 
-        {activeEffect && (
+        {activeEffect && activeEffectCollapsed && (
+          <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[95] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  处理中
+                </div>
+                <div className="mt-0.5 truncate text-sm font-semibold">
+                  {activeEffectSourceLabel}
+                </div>
+                <div className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
+                  {activeEffect.stepText}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveEffectCollapsed(false)}
+                className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+              >
+                <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                展开
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeEffect && !activeEffectCollapsed && (
           <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[95] w-[min(94vw,900px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
@@ -1146,15 +1200,21 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   处理中的效果
                 </div>
                 <div className="mt-1 text-sm font-semibold">
-                  {activeEffectSource
-                    ? 'cost' in activeEffectSource.cardData
-                      ? `${activeEffectSource.cardData.cost} ${activeEffectSource.cardData.name}`
-                      : activeEffectSource.cardData.name
-                    : '卡牌效果'}
+                  {activeEffectSourceLabel}
                 </div>
               </div>
-              <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
-                {activeEffect.inspectionObjectIds?.length ?? 0} 张
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
+                  {activeEffect.inspectionObjectIds?.length ?? 0} 张
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveEffectCollapsed(true)}
+                  className="button-secondary inline-flex min-h-8 items-center justify-center gap-1.5 px-2 text-xs font-semibold"
+                >
+                  <EyeOff className="h-4 w-4" aria-hidden="true" />
+                  隐藏
+                </button>
               </div>
             </div>
             <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-3">
@@ -1235,13 +1295,18 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                           setHoveredCard(null);
                           if (activeEffectUsesOrderedMultiSelect) {
                             setActiveEffectOrderedSelection((current) => {
-                              if (current.includes(cardId)) {
-                                return current.filter((selectedId) => selectedId !== cardId);
+                              const currentSelectable = current.filter((selectedId) =>
+                                activeEffectSelectableCardIds.includes(selectedId)
+                              );
+                              if (currentSelectable.includes(cardId)) {
+                                return currentSelectable.filter(
+                                  (selectedId) => selectedId !== cardId
+                                );
                               }
-                              if (current.length >= activeEffectMaxSelectableCards) {
-                                return current;
+                              if (currentSelectable.length >= activeEffectMaxSelectableCards) {
+                                return currentSelectable;
                               }
-                              return [...current, cardId];
+                              return [...currentSelectable, cardId];
                             });
                             return;
                           }
