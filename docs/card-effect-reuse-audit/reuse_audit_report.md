@@ -5,7 +5,7 @@
 输入基准：`references/codex_loveca_reuse_audit_pack.zip` 中的 `loveca_effect_fragments_catalog.json`、`loveca_effect_reuse_report.md`、`codex_loveca_reuse_audit_prompt.md`。  
 主要实现入口：`src/application/card-effect-runner.ts`。
 
-> 2026-06-13 Stage 1H 更新：本报告下方 reuse table 是早期只读审查快照，部分 “missing abstraction / local helper” 结论已被 Stage 1A-1F 的模块化工作关闭。当前权威状态请优先看同目录的 `existing_module_map.md`、`module_gap_list.md`、`safe_refactor_plan.md`。
+> 2026-06-14 更新：本报告下方 reuse table 是早期只读审查快照，部分 “missing abstraction / local helper” 结论已被后续模块化工作关闭。当前权威状态请优先看同目录的 `existing_module_map.md`、`effect_module_coverage.md`、`card_effect_batch_expansions.md`、`module_gap_list.md`、`safe_refactor_plan.md`。
 
 ## Summary
 

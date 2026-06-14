@@ -8,6 +8,7 @@ import type {
 } from '../entities/game.js';
 import { getCardById } from '../entities/game.js';
 import { getAllMemberCardIds } from '../entities/zone.js';
+import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
 type HeartModifierState = Extract<LiveModifierState, { readonly kind: 'HEART' }>;
@@ -38,13 +39,14 @@ interface ContinuousLiveModifierContext {
 }
 
 interface ContinuousLiveModifierDefinition {
-  readonly cardCodes: readonly string[];
+  readonly cardCodes?: readonly string[];
+  readonly baseCardCodes?: readonly string[];
   readonly collect: (context: ContinuousLiveModifierContext) => readonly LiveModifierState[];
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
   {
-    cardCodes: ['PL!-sd1-001-SD'],
+    baseCardCodes: ['PL!-sd1-001'],
     collect: ({ playerId, sourceCardId, successLiveCount }) =>
       successLiveCount > 0
         ? [
@@ -116,7 +118,7 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
       }
 
       for (const definition of CONTINUOUS_LIVE_MODIFIER_DEFINITIONS) {
-        if (!definition.cardCodes.includes(card.data.cardCode)) {
+        if (!doesContinuousDefinitionMatchCardCode(definition, card.data.cardCode)) {
           continue;
         }
 
@@ -133,6 +135,18 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
   }
 
   return modifiers;
+}
+
+function doesContinuousDefinitionMatchCardCode(
+  definition: ContinuousLiveModifierDefinition,
+  cardCode: string
+): boolean {
+  const normalizedCardCode = normalizeCardCode(cardCode);
+  const baseCardCode = getBaseCardCode(normalizedCardCode);
+  return (
+    definition.cardCodes?.map(normalizeCardCode).includes(normalizedCardCode) === true ||
+    definition.baseCardCodes?.map(normalizeCardCode).includes(baseCardCode) === true
+  );
 }
 
 export function addLiveModifier(game: GameState, modifier: LiveModifierState): GameState {

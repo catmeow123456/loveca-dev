@@ -156,6 +156,11 @@ describe('getBaseCardCode', () => {
     expect(getBaseCardCode('PL!-bp3-004-P+')).toBe(getBaseCardCode('PL!-bp3-004-R+'));
   });
 
+  it('已是基础编号时原样返回', () => {
+    expect(getBaseCardCode('PL!HS-bp1-004')).toBe('PL!HS-bp1-004');
+    expect(getBaseCardCode('LL-bp1-001')).toBe('LL-bp1-001');
+  });
+
   it('不去除系列前缀中的!', () => {
     expect(getBaseCardCode('PL!-bp3-017-N')).toBe('PL!-bp3-017');
     expect(getBaseCardCode('PL!S-bp1-001-N')).toBe('PL!S-bp1-001');

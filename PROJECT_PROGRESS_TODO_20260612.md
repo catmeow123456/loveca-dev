@@ -77,6 +77,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 卡效发动费用已开始收口为 `src/application/effects/effect-costs.ts` 中的通用 `EffectCostDefinition` / `payImmediateEffectCosts` / `paySelectedDiscardHandCost` 底座。当前已覆盖弃 1 手牌、支付活跃能量、将来源成员从舞台放置入休息室三类，并已迁移 `002` / `005` / `008` / `003` / `011` / `012` / `015` / `016` 的相关费用路径。
 - 区域目标选择/移动已开始收口为 `src/application/effects/zone-selection.ts` 中的 `ZoneCardSelectionConfig` / `createWaitingRoomToHandEffectState` / `moveSelectedCardsFromZone`。当前覆盖 `WAITING_ROOM -> HAND` 单选路径，`001` / `003` / `002` / `005` 的“从休息室加入手牌”已走统一完成逻辑。
 - 最小 selector API 已落在 `src/application/effects/card-selectors.ts`，当前提供 `typeIs` / `groupIs` / `costLte` / `cardNameIs` / `and` / `or` / `not`，`001` / `003` / `002` / `005` 已用组合 selector 表达 LIVE、成员、低费 μ's 等候选条件；`PL!HS-bp6-004-R` 费用 13「百生 吟子」已用 `cardNameIs` 处理弃置「百生吟子」成员判断。
+- 舞台成员目标选择 active effect 已由 `src/application/effects/stage-member-target-selection.ts` 起步：按 `targetPlayerId + CardSelector` 生成可选舞台成员，并在确认后调用 `setMemberOrientation`；`PL!HS-bp6-004-R` 费用 13「百生 吟子」对手低费成员待机段已迁入该入口。
 - Live 修正已进入 Stage 1D 主写入路径：`domain/rules/live-modifiers.ts` 提供 `addLiveModifier` / `replaceLiveModifier` / `projectLiveModifierCompatibility`，临时修正统一写入 `liveResolution.liveModifiers` 的 `SCORE`、`HEART`、`BLADE`、`REQUIREMENT` modifier；旧的 `playerScoreBonuses` / `playerHeartBonuses` / `liveRequirementReductions` / `liveRequirementModifiers` 由 `liveModifiers` 投影，仅作为 UI/在线投影兼容层保留。常时修正已整理为 continuous modifier registry，`001` 常时 BLADE 由 `collectLiveModifiers` 动态收集。
 - 状态与站位变换 Stage 1E 已起步：`src/application/effects/member-state.ts` 提供 `setMemberOrientation` / `moveMemberBetweenSlots`，覆盖卡效里的成员待机/活跃基础原语与站位变换。当前 `PL!N-pb1-004-P+` 的站位变换已改为调用 `moveMemberBetweenSlots`；普通规则 TAP_MEMBER、自由拖拽和手动移动仍归规则/桌面流程，不反向塞进 card effects。
 - 抽牌 Stage 1F 已对当前 μ's 预组验证集收口：`src/application/effects/draw.ts` 提供 `drawCardsFromMainDeckToHand`，表达卡效步骤中的主卡组顶抽牌到手牌。当前 `007` 的额外抽 1 已迁入该 helper，并覆盖“翻到 Live 抽 1 / 未翻到 Live 不抽”的 focused tests；开局/阶段/LIVE 判定等规则流程抽牌仍归 `GameService`，不由该 helper 接管。F02 已由 `PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场起步为抽 2 弃 1 壳；F12/刷新语义继续等真实样例。
@@ -301,11 +302,34 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 本次 2026-06-13 低风险复用扩样本收口：
 
-- `PL!HS-bp1-006-P` 费用 11「藤岛 慈」已完成登场段：抽 2 张卡，将 1 张手牌放置入休息室。复用 draw helper + hand discard 壳；LIVE 开始弃手给 Heart 段尚未实现。
+- `PL!HS-bp1-006-P` 费用 11「藤岛 慈」已完成两段：登场抽 2 张卡后将 1 张手牌放置入休息室，复用 draw helper + hand discard 壳；LIVE 开始可弃 1 手牌，若自己的舞台存在其他成员，则从粉/红/黄/绿/蓝/紫中选择 1 个 Heart 颜色并通过 `addLiveModifier` 写入 `HEART` modifier。无其他成员时只支付费用并结束。
 - `PL!-pb1-019-N` 费用 2「高坂穗乃果」已完成起动：自送休息室，从休息室回收 1 张成员卡。复用 effect-costs 自送 + zone-selection/member selector。
 - `PL!-bp4-003-P` 费用 2「南琴梨」已完成起动：自送休息室，从休息室回收 1 张 LIVE 卡。复用 effect-costs 自送 + zone-selection/live selector。
 - focused tests 已补 `tests/integration/sample-card-effect-runner.test.ts` 与 `tests/unit/card-effect-classification.test.ts` 覆盖。
 - 验证：focused 2 files / 28 tests passed；相关 12 files / 112 tests passed；`pnpm exec tsc --noEmit` 与 `pnpm --dir client exec tsc -b` passed。
+
+本次 2026-06-14 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」LIVE 开始段补齐：
+
+- 新增 LIVE 开始能力登记：可弃 1 手牌；若自己的舞台存在其他成员，则从粉/红/黄/绿/蓝/紫中选择 1 个 Heart 颜色，LIVE 结束时为止获得 1 个该颜色 Heart。
+- 复用 `createDiscardHandToWaitingRoomActivationEffect`、Heart option active effect 与 `addLiveModifier` 主写入路径；未引入新的 UI 特例。
+- 新增 focused 覆盖：有其他成员时弃手后可选 Heart 并写入 `liveModifiers`；无其他成员时只支付费用并结束，不写入 Heart modifier。
+- 验证：focused 4 files / 94 tests passed。
+
+本次 2026-06-14 `PL!HS-bp1-004-P` 费用 15「夕雾缀理」两段补齐：
+
+- 起动段登记为 `ACTIVATED` / `STAGE_MEMBER` / 每回合 1 次：支付 3 张活跃能量，从自己的休息室选择 1 张『莲之空』LIVE 卡加入手牌。
+- LIVE 开始段登记为 `LIVE_START` / `STAGE_MEMBER`：可支付 1 张活跃能量；LIVE 结束时为止，按自己的 LIVE 区卡牌数量获得 BLADE。
+- 复用 `perTurnLimit`、`payImmediateEffectCosts(TAP_ACTIVE_ENERGY)`、`zone-selection`、`groupIs('莲之空')` / `groupIs('蓮ノ空')`、`addLiveModifier`；未新增 UI 特例。
+- 新增 focused 覆盖：无合法目标时起动不支付也不占次数；起动支付 3 能量只筛选莲之空 LIVE 并验证每来源卡每回合 1 次；LIVE 开始支付 1 能量后按 LIVE 区 2 张写入 BLADE +2。
+- 验证：focused 4 files / 105 tests passed。
+
+本次 2026-06-14 同编号罕度同步与卡效登记册重整：
+
+- `CardAbilityDefinition` 新增 `baseCardCodes`，`getCardAbilityDefinitions` 统一支持 exact `cardCodes` 与基础编号匹配；`PL!HS-bp1-004` 费用 15「夕雾缀理」、`PL!HS-bp1-006` 费用 11「藤岛 慈」、`PL!HS-bp6-004` 费用 13「百生 吟子」、`PL!SP-bp4-008` 费用 13「若菜四季」等已同步同编号多罕度。
+- resolver / generic look-top 参数判断 / continuous live modifier registry / cost calculator 已改用基础编号判断；`PL!-bp4-003` 费用 2「南琴梨」的 `P/R` 不再分散为两套起动登记。
+- 新增 `tests/unit/card-effect-rarity-sync.test.ts`，从 `llocg_db/json/cards_cn.json` 扫描同基础编号族群，防止后续 exact `cardCodes` 漏同步其他罕度。
+- `docs/card-effect-reuse-audit/existing_module_map.md` 已重写为按基础编号的卡效完成状态登记册；模块覆盖拆到 `effect_module_coverage.md`，同构批量扩样本拆到 `card_effect_batch_expansions.md`。
+- 当前已验证：`tests/unit/card-code.test.ts`、`tests/unit/card-effect-classification.test.ts`、`tests/unit/card-effect-rarity-sync.test.ts`、`tests/unit/cost-calculator.test.ts`、`tests/unit/stage-member-target-selection.test.ts`、`tests/unit/card-selectors.test.ts`、`tests/integration/member-cost-payment.test.ts`、`tests/integration/sample-card-effect-runner.test.ts` 共 8 files / 163 tests passed。
 
 本次 2026-06-13 低风险同构扩样本收口：
 
@@ -409,23 +433,48 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
   - LIVE 开始段 `HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID`：可弃 1 张手牌，LIVE 结束时为止获得 BLADE；若弃置的是姓名归一化后为「百生吟子」的成员卡，则共获得 BLADE +2。
 - 顺序选择窗口补通用同源多能力区分：同一窗口若存在重复 `sourceCardId`，不再用卡图 ID 选择，而切到 `selectableOptions` 展示具体效果文本；不同来源卡的普通队列仍保持卡图选择。
 - 新增舞台成员目标 helper：按 `playerId + predicate` 扫描成员区槽位，供对手目标/费用筛选复用；实际方向变更继续调用 `member-state.ts` 的 `setMemberOrientation`。
-- 该舞台成员目标 helper 已从 runner 下沉到 `src/application/effects/stage-targets.ts`，并改为接收 `card-selectors.ts` 的组合 selector；弃置「百生吟子」判断也改为复用 `cardNameIs`。
+- 该舞台成员目标 helper 已从 runner 下沉到 `src/application/effects/stage-targets.ts`，并改为接收 `card-selectors.ts` 的组合 selector；舞台成员单选并改方向的 active effect 已继续抽为 `src/application/effects/stage-member-target-selection.ts`；弃置「百生吟子」判断也改为复用 `cardNameIs`。
 - 弃手加 BLADE 段复用现有可选弃手 active effect 与 `moveHandCardToWaitingRoomForEffect`，并通过 `addLiveModifier` 写入 BLADE modifier。
 - focused tests 已补：
   - `tests/unit/card-effect-classification.test.ts` 覆盖 `PL!HS-bp6-004-R` 费用 13「百生 吟子」三条能力登记。
+  - `tests/unit/stage-member-target-selection.test.ts` 覆盖舞台成员目标 active effect 的候选生成、无目标结果与方向结算。
   - `tests/integration/sample-card-effect-runner.test.ts` 覆盖登场时只能选择对方费用小于等于 9 的成员、同一张来源卡两条 LIVE 开始能力使用 option 区分、弃置同名「百生吟子」成员获得 BLADE +2。
-- 验证：提交前 focused 5 files / 77 tests passed；`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
+- 验证：stage member target selection 抽取后 focused 4 files / 58 tests passed；`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
 
 ## 下一步建议
+
+本次 2026-06-14 低风险同构扩样本（与 `PL!-sd1-002-SD` 对齐）已完成 17 张卡：
+
+- `PL!-pb1-025-N` 费用 2「東條 希」
+- `PL!HS-PR-014-PR` 费用 2「日野下花帆」
+- `PL!HS-pb1-019-N` 费用 2「大沢 瑠璃乃」
+- `PL!HS-sd1-015-SD` 费用 2「セラス 柳田 リリエンフェルト」
+- `PL!N-bp4-017-N` 费用 2「宮下 愛」
+- `PL!N-bp4-020-N` 费用 2「エマ・ヴェルデ」
+- `PL!N-sd1-006-SD` 费用 2「近江 彼方」
+- `PL!S-PR-025-PR` 费用 2「高海 千歌」
+- `PL!S-PR-027-PR` 费用 2「松浦 果南」
+- `PL!S-bp2-016-N` 费用 2「国木田 花丸」
+- `PL!S-bp6-014-N` 费用 2「渡辺 曜」
+- `PL!S-sd1-008-SD` 费用 2「小原 鞠莉」
+- `PL!SP-bp4-015-N` 费用 2「平安名 すみれ」
+- `PL!SP-bp4-019-N` 费用 2「若菜 四季」
+- `PL!SP-pb1-021-N` 费用 2「ウィーン・マルガレーテ」
+- `PL!SP-sd2-014-SD2` 费用 2「嵐 千砂都」
+- `PL!-pb1-019-N` 费用 2「高坂穗乃果」
+
+- 已同步文档：`docs/card-effect-reuse-audit/existing_module_map.md`（`PL!-pb1-019-N` 同型批次 17 卡）、`docs/card-effect-reuse-audit/module_gap_list.md`（`F07,F08,F09` 闭环更新为 35 张同型）与 `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`。
+- 本次焦点验证通过：`env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs exec vitest run tests/integration/sample-card-effect-runner.test.ts tests/unit/card-effect-classification.test.ts`、`env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs exec tsc --noEmit`、`env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs --dir client exec tsc -b`。
 
 优先级 1：基于 `系统边界混合` 测试卡组开始实现新效果，优先打开新系统边界，同时保留少量现有模块扩样本。
 
 推荐下一批 proving cards：
 
-- `PL!HS-bp6-004-R` 费用 13「百生 吟子」已完成登场/LIVE 开始对手低费成员待机、LIVE 开始可弃手加 BLADE、同源双 LIVE 开始顺序选择区分。下一批建议先把“舞台成员目标选择 active effect”抽成小型配置入口，复用 `stage-targets.ts` + `card-selectors.ts` + `setMemberOrientation`；随后继续真实 AUTO / LIVE 开始 proving set，优先选择能推进 when-if、名称/费用 selector 配置化或更多状态事件的卡。
+- `PL!HS-bp6-004-R` 费用 13「百生 吟子」已完成登场/LIVE 开始对手低费成员待机、LIVE 开始可弃手加 BLADE、同源双 LIVE 开始顺序选择区分，并已抽出舞台成员目标选择 active effect 配置入口。下一批建议继续真实 AUTO / LIVE 开始 proving set，优先选择能推进 when-if、名称/费用 selector 配置化或更多状态事件的卡；若先做低风险复用验证，可找第二张“选择自己/对方舞台成员并改变状态”的同型卡接 `stage-member-target-selection.ts`。
 - `PL!S-bp2-006-P` 费用 11「津岛善子」与 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」当前目标段已完成，后续保留为 S07/S02/E02/X11 回归样例。
 - `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」费用减少与登场二选一活跃段已完成，后续保留为 X11/X03/S02/E02 回归样例。
 - `PL!SP-bp4-008-P` 费用 13「若菜四季」与 `PL!SP-PR-004-PR` 费用 4「唐 可可」当前已完成目标段，后续保留为 F02/E02/E03/S05 回归样例。
+- `PL!HS-bp1-004-P` 费用 15「夕雾缀理」已完成起动支付能量回收莲之空 LIVE 与 LIVE 开始支付能量按 LIVE 区数量得 BLADE，后续保留为 C03/F08/B01 回归样例。
 
 优先级 1.5：旧建议中的非 `PL!-sd1` 低风险扩样本中，`LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」、`PL!HS-PR-001-PR` 费用 10「日野下花帆」、`PL!-bp3-010-N` 费用 9「高坂穗乃果」已收口完成登场段；下一个推荐是 `PL!HS-PR-002-PR` 费用 10「村野さやか」。
 
@@ -434,9 +483,9 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 优先级 1.5：继续减少 runner inline orchestration，但不要做大型 resolver DSL。
 
 - `PL!-sd1-006-SD` 的公开手牌 + 成功区交换仍 inline，等需要 C07/交换效果时再抽。
-- 003 Heart 颜色选择仍是专用步骤，等第二个选择型效果再抽 generic option-choice。
+- 003 / `PL!HS-bp1-006-P` 费用 11「藤岛 慈」Heart 颜色选择仍是专用步骤；已有第二张 Heart 样例，下一张选择颜色/模式卡出现时可抽 generic option-choice。
 - 009/022/001 的条件/倍率仍在 resolver，等非预组样例重复后再抽 condition AST。
-- F12、抽牌刷新语义继续等待真实样例；F02 当前已有登场抽弃与 BLADE 阈值 LIVE 开始抽弃样例。
+- F12、抽牌刷新语义继续等待真实样例；F02 当前已有登场抽弃与 BLADE 阈值 LIVE 开始抽弃样例；`PL!HS-bp1-006-P` 费用 11「藤岛 慈」已补齐 LIVE 开始弃手后按条件选择 Heart 的 B03 扩样本。
 
 优先级 2：Step 12 / Stage 1G 自动能力框架已最小起步。
 

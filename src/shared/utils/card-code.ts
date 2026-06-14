@@ -225,8 +225,26 @@ export function validateCardCode(cardCode: string): CardCodeValidationResult {
  * @returns 基础编号（去除最后一个 - 及之后的稀有度）
  */
 export function getBaseCardCode(cardCode: string): string {
-  const lastDash = cardCode.lastIndexOf('-');
-  return lastDash > 0 ? cardCode.substring(0, lastDash) : cardCode;
+  const normalized = normalizeCardCode(cardCode);
+  if (normalized.split('-').length <= 3) {
+    return normalized;
+  }
+  const lastDash = normalized.lastIndexOf('-');
+  return lastDash > 0 ? normalized.substring(0, lastDash) : normalized;
+}
+
+/**
+ * 判断两个完整卡号是否属于同一基础编号。
+ */
+export function isSameBaseCardCode(cardCode: string, otherCardCode: string): boolean {
+  return getBaseCardCode(cardCode) === getBaseCardCode(otherCardCode);
+}
+
+/**
+ * 判断完整卡号是否匹配给定基础编号。
+ */
+export function cardCodeMatchesBase(cardCode: string, baseCardCode: string): boolean {
+  return getBaseCardCode(cardCode) === normalizeCardCode(baseCardCode);
 }
 
 // ============================================

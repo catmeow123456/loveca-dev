@@ -5,6 +5,7 @@
 
 import type { MemberCardData } from '../entities/card';
 import { OrientationState, SlotPosition } from '../../shared/types/enums';
+import { cardCodeMatchesBase } from '../../shared/utils/card-code';
 
 // ============================================
 // 费用相关类型
@@ -129,7 +130,7 @@ export class CostCalculator {
   ): PlayCostModifierApplication[] {
     const modifiers: PlayCostModifierApplication[] = [];
 
-    if (memberData.cardCode === 'LL-bp2-001-R+') {
+    if (cardCodeMatchesBase(memberData.cardCode, 'LL-bp2-001')) {
       const sourceCardId = resources.sourceCardId;
       const handCardIds = resources.handCardIds ?? [];
       const otherHandCount = sourceCardId
@@ -147,7 +148,7 @@ export class CostCalculator {
       }
     }
 
-    if (memberData.cardCode === 'PL!N-pb1-008-P+') {
+    if (cardCodeMatchesBase(memberData.cardCode, 'PL!N-pb1-008')) {
       const hasWaitingNijigasakiMember = resources.stageMembers.some(
         (stageMember) =>
           stageMember.orientation === OrientationState.WAITING &&
@@ -437,13 +438,7 @@ function includesNijigasaki(value: string | undefined): boolean {
 }
 
 function isBp5ChisatoCostReducer(memberData: MemberCardData): boolean {
-  return [
-    'PL!SP-bp5-003-R+',
-    'PL!SP-bp5-003-R＋',
-    'PL!SP-bp5-003-P',
-    'PL!SP-bp5-003-AR',
-    'PL!SP-bp5-003-SEC',
-  ].includes(memberData.cardCode);
+  return cardCodeMatchesBase(memberData.cardCode, 'PL!SP-bp5-003');
 }
 
 function isCost10LiellaMember(memberData: MemberCardData): boolean {

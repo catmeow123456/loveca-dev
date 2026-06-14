@@ -1,7 +1,7 @@
 # Loveca card effect framework design
 
 日期：2026-06-13  
-状态：设计草案；Stage 1A-1D 已落地，Stage 1E member-state / position-change 已起步，Stage 1F draw 已对当前 μ's 验证集收口，Stage 1I energy placement/state 已由 `PL!SP-PR-004-PR` 费用 4「唐 可可」与 `PL!SP-bp4-008-P` 费用 13「若菜四季」起步，Stage 1J draw-discard 已由 `PL!SP-bp4-008-P` 费用 13「若菜四季」与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」扩样本验证，Stage 1K 已补完 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始可选站位变换，Stage 1L 已由 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」与 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」打开 X11 登场费用修正底座，Stage 1M 已由 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」LIVE 开始批量活跃与 `PL!S-bp2-006-P` 费用 11「津岛善子」打开 S07 卡效登场边界，Stage 1N 已由 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证 X03 成员/能量分支选择并复用 S02/E02 方向 helper，Stage 1O 已由 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」与 `PL!HS-bp6-017-N` 费用 11「日野下花帆」打开最小 AUTO / S08 离场触发 proving path，Stage 1P 已由 `PL!HS-pb1-009-R` 费用 15「日野下花帆」打开舞台成员监听 `ON_ENTER_STAGE`、实例级每回合限制、BLADE modifier AUTO 第一段与 LIVE 开始 BLADE 阈值抽弃第二段，`PL!-pb1-019-N` 费用 2「高坂穗乃果」与 `PL!-bp4-003-P` 费用 2「南琴梨」已验证自送休息室回收的非预组扩样本。
+状态：设计草案；Stage 1A-1D 已落地，Stage 1E member-state / position-change 已起步，Stage 1F draw 已对当前 μ's 验证集收口，Stage 1I energy placement/state 已由 `PL!SP-PR-004-PR` 费用 4「唐 可可」与 `PL!SP-bp4-008-P` 费用 13「若菜四季」起步，Stage 1J draw-discard 已由 `PL!SP-bp4-008-P` 费用 13「若菜四季」与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」扩样本验证，Stage 1K 已补完 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始可选站位变换，Stage 1L 已由 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」与 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」打开 X11 登场费用修正底座，Stage 1M 已由 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」LIVE 开始批量活跃与 `PL!S-bp2-006-P` 费用 11「津岛善子」打开 S07 卡效登场边界，Stage 1N 已由 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证 X03 成员/能量分支选择并复用 S02/E02 方向 helper，Stage 1O 已由 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」与 `PL!HS-bp6-017-N` 费用 11「日野下花帆」打开最小 AUTO / S08 离场触发 proving path，Stage 1P 已由 `PL!HS-pb1-009-R` 费用 15「日野下花帆」打开舞台成员监听 `ON_ENTER_STAGE`、实例级每回合限制、BLADE modifier AUTO 第一段与 LIVE 开始 BLADE 阈值抽弃第二段，`PL!HS-bp1-006-P` 费用 11「藤岛 慈」已补齐 LIVE 开始弃手后按其他成员条件选择 Heart，`PL!HS-bp1-004-P` 费用 15「夕雾缀理」已补齐起动支付 3 能量回收莲之空 LIVE 与 LIVE 开始支付 1 能量按 LIVE 区数量获得 BLADE，`PL!-pb1-019-N` 费用 2「高坂穗乃果」与 `PL!-bp4-003-P` 费用 2「南琴梨」已验证自送休息室回收的非预组扩样本。
 目标：面向当前全卡池高频效果片段设计卡效自动化框架，第一阶段用当前已实现的 `PL!-sd1`、测试用 Karin 效果与 `系统边界混合` proving cards 验证框架。
 
 完整 fragment 覆盖矩阵见 `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`。本文负责说明框架形状；覆盖矩阵负责逐项确认 catalog 中 75 个 fragment 都被纳入设计、预留或 custom hook。
@@ -63,7 +63,7 @@
 ```ts
 defineAbility({
   id: 'PL!-sd1-004-SD:on-enter-look-five-take-muse-live',
-  cardCodes: ['PL!-sd1-004-SD'],
+  baseCardCodes: ['PL!-sd1-004'],
   category: 'TRIGGERED_AUTO',
   trigger: onEnterStage(),
   source: playedMember(),
@@ -86,7 +86,7 @@ defineAbility({
 ```ts
 defineAbility({
   id: 'PL!-sd1-008-SD:activated-pay-two-mill-ten',
-  cardCodes: ['PL!-sd1-008-SD'],
+  baseCardCodes: ['PL!-sd1-008'],
   category: 'ACTIVATED',
   source: stageMember(),
   limit: perSourceCardPerTurn(1),
@@ -100,7 +100,7 @@ defineAbility({
 ```ts
 defineAbility({
   id: 'future-card:auto-when-member-moved',
-  cardCodes: ['future-card'],
+  baseCardCodes: ['future-card-base'],
   category: 'TRIGGERED_AUTO',
   trigger: onCardMoved({
     from: 'MEMBER_SLOT',
@@ -117,7 +117,7 @@ defineAbility({
 ```ts
 defineAbility({
   id: 'PL!-sd1-001-SD:continuous-extra-blade',
-  cardCodes: ['PL!-sd1-001-SD'],
+  baseCardCodes: ['PL!-sd1-001'],
   category: 'CONTINUOUS',
   source: stageMember(),
   modifier: liveBladeModifier({
@@ -125,6 +125,8 @@ defineAbility({
   }),
 });
 ```
+
+`baseCardCodes` 是默认推荐形态：同基础编号不同罕度视为同一张卡，效果文本一致时应自动同步。`cardCodes` 只用于确实需要限制到某个具体印刷版本的例外，并应在 `existing_module_map.md` 说明原因。
 
 ## 4. Framework layers
 
@@ -289,6 +291,7 @@ P0/P1 覆盖：
 
 - `src/application/effects/card-selectors.ts` 提供第一版函数式 selector：`typeIs`、`groupIs`、`costLte`、`cardNameIs`、`and`、`or`、`not`。
 - `src/application/effects/stage-targets.ts` 提供第一版舞台成员目标扫描 helper：按 `playerId + CardSelector` 从左/中/右成员区取合法成员 ID。
+- `src/application/effects/stage-member-target-selection.ts` 提供第一版舞台成员目标 active effect 配置入口：生成目标候选、创建单选 active effect，并在结算时调用 `setMemberOrientation`。
 - `src/application/effects/zone-selection.ts` 提供第一版 `WAITING_ROOM -> HAND` 单选底座：候选筛选、selection metadata、确认后移动。
 - `PL!-sd1-001-SD`、`PL!-sd1-002-SD`、`PL!-sd1-003-SD`、`PL!-sd1-005-SD` 的休息室回收路径已迁入该底座，并补了 001/003/005 golden tests。
 
@@ -309,6 +312,7 @@ P0/P1 覆盖：
 
 - `src/application/effects/effect-costs.ts` 已提供 `EffectCostDefinition`、`paySelectedDiscardHandCost`、`moveHandCardToWaitingRoomForEffect`、`payImmediateEffectCosts`。
 - 当前覆盖 `DISCARD_HAND_TO_WAITING_ROOM`、`TAP_ACTIVE_ENERGY`、`SEND_SOURCE_MEMBER_TO_WAITING_ROOM`，并保持既有自动支付行为。
+- `PL!HS-bp1-004-P` 费用 15「夕雾缀理」已同时验证起动支付 3 能量与 LIVE 开始支付 1 能量两种卡效能量费用路径。
 - 已补 `tests/unit/effect-costs.test.ts`，直接验证弃手、横置活跃能量、自身进休息室并清理成员下方附属卡。
 
 做法：
@@ -343,7 +347,7 @@ P0/P1 覆盖：
 当前落地：
 
 - `src/domain/rules/live-modifiers.ts` 已提供 `addLiveModifier`、`replaceLiveModifier`、`projectLiveModifierCompatibility`。
-- `003` Heart、`009` 分数、`022` 必要 Heart 已改为先写 `liveResolution.liveModifiers`，旧的 `playerHeartBonuses`、`playerScoreBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 由投影派生。
+- `003` Heart、`009` 分数、`022` 必要 Heart 已改为先写 `liveResolution.liveModifiers`，旧的 `playerHeartBonuses`、`playerScoreBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 由投影派生；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」LIVE 开始段已验证支付能量后按 LIVE 区数量写入 `BLADE` modifier。
 - continuous modifier registry 已起步，`001` 常时 BLADE 由 `collectLiveModifiers` 按当前舞台与成功 Live 数动态收集，不写入临时状态。
 - `tests/unit/live-modifiers.test.ts` 覆盖临时 modifier 写入、替换和兼容投影；既有 Live 判定 / runner tests 覆盖自动判定结果不变。
 - 前端判定面板读取 `requirementModifiers` / `requirementReductions` 时需兼容 raw card id 与 `obj_<cardId>` public object id。2026-06-13 修复过一次 022 UI 预览未应用必要 Heart 减少的回归，根因就是该投影键不一致。
@@ -415,7 +419,7 @@ P0/P1 覆盖：
 2026-06-13 已用 `loveca_effect_fragments_catalog.json` 回扫当前已登记/实现卡牌：
 
 - 当前样例集覆盖 19 个 catalog segments，包括 `PL!-sd1` 与测试用 `PL!N-pb1-004-P+`。
-- `existing_module_map` 已刷新为 Stage 1A-1F 后的真实模块图。
+- `existing_module_map.md` 已改为按基础编号记录完整/部分/同型/partial 状态；模块覆盖拆到 `effect_module_coverage.md`，同构批量扩样本拆到 `card_effect_batch_expansions.md`。
 - `module_gap_list` 已把 `zone-selection`、`effect-costs`、`look-top`、`draw`、`live-modifiers`、`member-state` 从 P0 缺口中移出，改为追踪仍 inline 的 orchestration、condition AST、option choice、C07/exchange、AUTO event layer 等。
 - `safe_refactor_plan` 已更新下一批建议：`PL!SP-bp4-008-P` 费用 13「若菜四季」当前三段收口后，下一批优先转向费用减少 `X11` proving cards，再继续按需要穿插低风险扩样本。
 
@@ -437,7 +441,7 @@ P0/P1 覆盖：
 - `PL!SP-PR-004-PR` 费用 4「唐 可可」已作为第一张 `系统边界混合` proving card：登场后可弃 1 手牌，弃牌成功时放置 1 张待机能量。
 - `PL!SP-bp4-008-P` 费用 13「若菜四季」右侧登场 E02 已起步：能力定义通过 `requiredSourceSlots: [RIGHT]` 声明来源槽位条件，入队阶段从登场事件记录 `sourceSlot` 并统一过滤，执行时将最多 2 张待机能量变为活跃。
 - `PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场 F02 也已起步：能力定义通过 `requiredSourceSlots: [LEFT]` 声明来源槽位条件，执行时抽 2 后选择 1 张手牌放置入休息室。
-- `PL!HS-bp1-006-P` 费用 11「藤岛 慈」登场段已作为 F02 扩样本：执行时抽 2 后选择 1 张手牌放置入休息室；LIVE 开始弃手给 Heart 段尚未实现。
+- `PL!HS-bp1-006-P` 费用 11「藤岛 慈」登场段已作为 F02 扩样本：执行时抽 2 后选择 1 张手牌放置入休息室；LIVE 开始段也已补齐，复用弃 1 手牌 active effect、Heart 颜色 option 与 `addLiveModifier`，并在支付后检查“自己的舞台存在其他成员”条件。
 - `PL!-pb1-019-N` 费用 2「高坂穗乃果」与 `PL!-bp4-003-P` 费用 2「南琴梨」已作为起动扩样本：复用 effect-costs 自送休息室与 zone-selection，分别回收成员卡/LIVE 卡。
 - `tests/unit/energy.test.ts` 覆盖能量放置与方向 helper；`tests/integration/sample-card-effect-runner.test.ts` 覆盖 PR-004 不发动/发动，以及四季左侧触发、右侧触发、中心不触发、LIVE 开始可选站位变换。
 
@@ -522,12 +526,12 @@ P0/P1 覆盖：
 
 ## 9. Recommended next concrete task
 
-Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Step 13 / Stage 1H 已完成 catalog 回扫和 audit 文档刷新；Stage 1I 已用 `PL!SP-PR-004-PR` 费用 4「唐 可可」打开 E03 能量放置底座，并用 `PL!SP-bp4-008-P` 费用 13「若菜四季」打开来源槽位条件与 E02 能量活跃底座；Stage 1J 已用同一张四季与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」验证 F02 抽 2 弃 1 组合步骤，并用 `PL!-pb1-019-N` 费用 2「高坂穗乃果」/`PL!-bp4-003-P` 费用 2「南琴梨」验证自送休息室回收扩样本；Stage 1K 已补完 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始 S05 可选站位变换；Stage 1L 已用 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」和 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」打开 X11 登场费用修正底座；Stage 1M 已用 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」与 `PL!S-bp2-006-P` 费用 11「津岛善子」验证批量活跃与 S07 卡效登场；Stage 1N 已用 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证登场时 X03 成员/能量分支选择，并复用 S02/E02 方向 helper；Stage 1O 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」与 `PL!HS-bp6-017-N` 费用 11「日野下花帆」验证最小 AUTO / S08 离场触发；Stage 1P 已用 `PL!HS-pb1-009-R` 费用 15「日野下花帆」验证 `ON_ENTER_STAGE` 监听型 AUTO、实例级每回合限制、BLADE modifier、成员有效 BLADE 阈值抽弃与 confirm-only 无输入确认壳；Stage 1Q 已用 `PL!HS-bp6-004-R` 费用 13「百生 吟子」验证对手舞台低费成员目标、同源双 LIVE 开始能力的 option 顺序选择、指定姓名弃手与 BLADE modifier 组合。
+Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Step 13 / Stage 1H 已完成 catalog 回扫和 audit 文档刷新；Stage 1I 已用 `PL!SP-PR-004-PR` 费用 4「唐 可可」打开 E03 能量放置底座，并用 `PL!SP-bp4-008-P` 费用 13「若菜四季」打开来源槽位条件与 E02 能量活跃底座；Stage 1J 已用同一张四季与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」验证 F02 抽 2 弃 1 组合步骤，并用 `PL!-pb1-019-N` 费用 2「高坂穗乃果」/`PL!-bp4-003-P` 费用 2「南琴梨」验证自送休息室回收扩样本；Stage 1K 已补完 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始 S05 可选站位变换；Stage 1L 已用 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」和 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」打开 X11 登场费用修正底座；Stage 1M 已用 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」与 `PL!S-bp2-006-P` 费用 11「津岛善子」验证批量活跃与 S07 卡效登场；Stage 1N 已用 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证登场时 X03 成员/能量分支选择，并复用 S02/E02 方向 helper；Stage 1O 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」与 `PL!HS-bp6-017-N` 费用 11「日野下花帆」验证最小 AUTO / S08 离场触发；Stage 1P 已用 `PL!HS-pb1-009-R` 费用 15「日野下花帆」验证 `ON_ENTER_STAGE` 监听型 AUTO、实例级每回合限制、BLADE modifier、成员有效 BLADE 阈值抽弃与 confirm-only 无输入确认壳；Stage 1Q 已用 `PL!HS-bp6-004-R` 费用 13「百生 吟子」验证对手舞台低费成员目标、同源双 LIVE 开始能力的 option 顺序选择、指定姓名弃手与 BLADE modifier 组合，并抽出舞台成员目标 active effect 配置入口；`PL!HS-bp1-006-P` 费用 11「藤岛 慈」已补齐 LIVE 开始弃手后按其他成员条件选择 Heart 的 B03 扩样本；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」已补齐 C03/F08 起动回收与 C03/B01 LIVE 开始 BLADE 扩样本。
 
 下一步建议继续小步推进：
 
-1. 先把 `PL!HS-bp6-004-R` 费用 13「百生 吟子」暴露出的舞台成员目标选择 active effect 抽成小型配置入口，复用 `stage-targets.ts` + `card-selectors.ts` + `setMemberOrientation`。
-2. 继续 AUTO / LIVE 开始 proving set 的真实样例，优先推进 when-if、名称/数值 selector 配置化、更多状态变化或移动事件边界。
+1. 继续 AUTO / LIVE 开始 proving set 的真实样例，优先推进 when-if、名称/数值 selector 配置化、更多状态变化或移动事件边界。
+2. 可用第二张“选择舞台成员并改变状态”的同型卡验证并扩展 `stage-member-target-selection.ts`。
 3. 如果需要穿插低风险扩样本，再选 `PL!HS-PR-002-PR` 费用 10「村野さやか」的登场看顶 3 选 1。
 4. 可以继续扩 `S07` 第二个样例，验证更多非手牌登场来源与 ordering。
 5. selector 后续可按实际卡效继续补 `nameIs`、`cardCodeIn`、`scoreGte`、`requirement...` 等数值/身份选择器。

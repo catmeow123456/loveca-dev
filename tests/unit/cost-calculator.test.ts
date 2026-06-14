@@ -310,6 +310,28 @@ describe('CostCalculator', () => {
       expect(directPlan?.actualEnergyCost).toBe(15);
     });
 
+    it('应该让 PL!N-pb1-008-R 同编号罕度同样获得虹咲待机减费', () => {
+      const memberData = createMockMemberData(17, '艾玛·维尔德', 'PL!N-pb1-008-R');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('waiting-nijigasaki', 4, SlotPosition.LEFT, {
+            orientation: OrientationState.WAITING,
+            groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.RIGHT, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.modifiedCost).toBe(15);
+      expect(directPlan?.costModifierAmount).toBe(2);
+    });
+
     it('应该让舞台上的 PL!SP-bp5-003-AR 使10费Liella!成员费用减少2', () => {
       const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10');
       const resources: AvailableResources = {
@@ -333,6 +355,28 @@ describe('CostCalculator', () => {
       expect(directPlan?.costModifierAmount).toBe(2);
       expect(directPlan?.costModifiers[0]?.sourceCardId).toBe('chisato-source');
       expect(directPlan?.actualEnergyCost).toBe(8);
+    });
+
+    it('应该让 PL!SP-bp5-003-SEC 同编号罕度同样作为舞台来源减费', () => {
+      const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 8 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
+            cardCode: 'PL!SP-bp5-003-SEC',
+            groupName: 'ラブライブ！スーパースター!!',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.modifiedCost).toBe(8);
+      expect(directPlan?.costModifierAmount).toBe(2);
     });
 
     it('应该要求 PL!SP-bp5-003-AR 的目标是10费Liella!成员才减少费用', () => {
