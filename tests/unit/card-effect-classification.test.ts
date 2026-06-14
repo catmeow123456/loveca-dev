@@ -22,6 +22,13 @@ import {
   HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+  HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
+  HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+  HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
+  HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
+  HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
+  HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+  HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID,
   getActivatedAbilityUiConfig,
   getCardAbilityDefinitions,
   RIN_ACTIVATED_ABILITY_ID,
@@ -199,6 +206,86 @@ describe('card effect classification registry', () => {
       category: CardAbilityCategory.LIVE_START,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const hanamusubi = getCardAbilityDefinitions('PL!HS-bp5-019-L').find(
+      (ability) => ability.abilityId === HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID
+    );
+    expect(hanamusubi).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const aokuharuka = getCardAbilityDefinitions('PL!HS-bp2-022-L+').find(
+      (ability) => ability.abilityId === HS_BP2_022_LIVE_START_SCORE_ABILITY_ID
+    );
+    expect(aokuharuka).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const himeOnEnter = getCardAbilityDefinitions('PL!HS-sd1-006-SD').find(
+      (ability) =>
+        ability.abilityId === HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID
+    );
+    expect(himeOnEnter).toMatchObject({
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const himeLiveStart = getCardAbilityDefinitions('PL!HS-sd1-006-SD').find(
+      (ability) => ability.abilityId === HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
+    );
+    expect(himeLiveStart).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const izumi = getCardAbilityDefinitions('PL!HS-bp5-008-AR').find(
+      (ability) => ability.abilityId === HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID
+    );
+    expect(izumi).toMatchObject({
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const pb1Ginko = getCardAbilityDefinitions('PL!HS-pb1-004-P+').find(
+      (ability) =>
+        ability.abilityId ===
+        HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID
+    );
+    expect(pb1Ginko).toMatchObject({
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const prGinko = getCardAbilityDefinitions('PL!HS-PR-019-RM').find(
+      (ability) => ability.abilityId === HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID
+    );
+    expect(prGinko).toMatchObject({
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
       queued: true,
       implemented: true,
     });

@@ -3,8 +3,8 @@
  * 基于 detail_rules.md 第 9.7 章 - 自动能力触发
  */
 
-import { TriggerCondition, ZoneType, GamePhase, SlotPosition } from '../../shared/types/enums';
-import type { CardInstance } from '../entities/card';
+import { TriggerCondition, ZoneType, GamePhase, SlotPosition } from '../../shared/types/enums.js';
+import type { CardInstance } from '../entities/card.js';
 
 // ============================================
 // 事件基础定义

@@ -1,7 +1,7 @@
 # Loveca safe card effect refactor plan
 
-审查日期：2026-06-13  
-状态：Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Stage 1I 已用 `PL!SP-PR-004-PR` 费用 4「唐 可可」打开 E03 能量放置底座，并用 `PL!SP-bp4-008-P` 费用 13「若菜四季」打开来源槽位条件与 E02 能量活跃底座；Stage 1J 已用同一张四季与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」验证 F02 抽 2 弃 1，并用 `PL!-pb1-019-N` 费用 2「高坂穗乃果」/`PL!-bp4-003-P` 费用 2「南琴梨」验证自送休息室回收扩样本；Stage 1K 已补完 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始可选站位变换；Stage 1L 已用 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」和 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」打开 X11 登场费用修正底座；Stage 1M 已用 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」与 `PL!S-bp2-006-P` 费用 11「津岛善子」验证批量活跃与 S07 卡效登场；Stage 1N 已用 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证 X03 成员/能量分支选择并复用 S02/E02 方向 helper；Stage 1O 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」与 `PL!HS-bp6-017-N` 费用 11「日野下花帆」打开最小 AUTO / S08 离场触发 proving path；Stage 1P 已用 `PL!HS-pb1-009-R` 费用 15「日野下花帆」打开舞台成员监听 `ON_ENTER_STAGE`、实例级每回合限制、BLADE modifier AUTO 第一段与 LIVE 开始 BLADE 阈值抽弃第二段；Stage 1Q 已用 `PL!HS-bp6-004-R` 费用 13「百生 吟子」验证对手舞台低费目标、同源双 LIVE 开始 option、指定姓名弃手加 BLADE，并抽出 `stage-targets.ts` 与 `cardNameIs`；Stage 1R 已用 `PL!-pb1-019-N` 费用 2「高坂穗乃果」与同型 17 张卡验证 `PL!-sd1-002-SD` 起动回收路径；`PL!HS-bp1-006-P` 费用 11「藤岛 慈」已补齐 LIVE 开始弃手后按其他成员条件选择 Heart 的 B03 扩样本；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」已补齐起动支付 3 能量回收「莲之空」LIVE 与 LIVE 开始支付 1 能量按 LIVE 区数量获得 BLADE；卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由测试防漏同步；普通活跃阶段进入时也已自动重置当前玩家成员与能量。
+审查日期：2026-06-14
+状态：Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Stage 1I-1R 已陆续打开 E03/E02 能量、F02 抽弃、S05 站位变换、X11 登场费用修正、S07 卡效登场、X03 分支选择、S08 离场 AUTO、`ON_ENTER_STAGE` 监听 AUTO、舞台目标选择与同编号罕度同步等边界。本批 `绿莲-6弹ver.yaml` 已补齐 `PL!HS-bp5-019-L` 分数 6「花结」、`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」、`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」、`PL!HS-bp5-008-R` 费用 4「桂城泉」、`PL!HS-pb1-004-R` 费用 4「百生吟子」与 `PL!HS-PR-019-RM` 费用 2「百生吟子」，新增验证 LIVE 卡来源 modifier、成员名/小组名别名归一化、来源成员待机费用、复合费用、公开检视顶 3 后继续处理入休息室、固定绿色 Heart modifier。卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由测试防漏同步；普通活跃阶段进入时也已自动重置当前玩家成员与能量。
 
 本计划假设当前行为是 golden。除非明确接受 behavior mismatch，否则每一批都应先补 focused tests，再迁移。
 
@@ -26,7 +26,7 @@ pnpm exec tsc --noEmit
 pnpm --dir client exec tsc -b
 ```
 
-最近结果：同编号罕度同步基建与登记册重整后，focused 8 files / 163 tests passed；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」起动与 LIVE 开始两段补齐后，focused 4 files / 105 tests passed；此前 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」LIVE 开始弃手 Heart 段补齐后，focused 4 files / 94 tests passed；此前 `PL!HS-bp6-004-R` 费用 13「百生 吟子」舞台成员目标 active effect 配置入口抽取后，focused 4 files / 58 tests passed；此前 `PL!HS-bp6-004-R` 费用 13「百生 吟子」组合效果、活跃阶段自动重置与 `stage-targets.ts` / `cardNameIs` 抽取提交前 focused 5 files / 77 tests passed，相关完整验证 14 files / 165 tests passed；本次 `pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
+最近结果：本批 `PL!HS-bp5-019-L` 分数 6「花结」/`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」/`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」/`PL!HS-bp5-008-R` 费用 4「桂城泉」/`PL!HS-pb1-004-R` 费用 4「百生吟子」/`PL!HS-PR-019-RM` 费用 2「百生吟子」已完成实现与手测确认；最终 focused suite 12 files / 210 tests passed，`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
 
 ## 1. Continue Stage 1G only through real AUTO proving cards
 
@@ -64,13 +64,18 @@ Stage 1G 应包含：
 
 `PL!HS-bp1-004-P` 费用 15「夕雾缀理」已完成两段：起动每回合 1 次支付 3 能量，从自己的休息室回收 1 张「莲之空」LIVE；LIVE 开始可支付 1 能量，按自己的 LIVE 区卡牌数量获得 BLADE。当前复用 `effect-costs.ts` 横置能量支付、`zone-selection.ts` 休息室到手牌选择、`card-selectors.ts` 的类型/团体组合 selector、`ABILITY_USE` 实例级每回合限制、`selectableOptions` 支付/不发动选择与 `addLiveModifier`。
 
-本批 17 张 `PL!-sd1-002-SD` 同型样本已落地，不再列入首选低风险扩样本清单。建议直接继续：
+`PL!HS-bp5-019-L` 分数 6「花结」已完成 LIVE 开始段：自己的 LIVE 卡区每有 1 张此卡以外的「莲之空」卡，通过 REQUIREMENT live modifier 使此卡必要绿色 Heart 减少 2。`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」已完成 LIVE 开始段：休息室存在大于等于 3 张 `Cerise Bouquet` LIVE 卡时，通过 SCORE live modifier 使此卡分数 +1。当前两张共同验证 LIVE 卡来源、条件计数与 `addLiveModifier` / `replaceLiveModifier` 的低风险扩样本。
+
+本批 17 张 `PL!-sd1-002-SD` 同型样本与 `绿莲-6弹ver.yaml` 已验收的 6 张卡已落地，不再列入首选低风险扩样本清单。建议直接继续：
 
 首选：
 
-1. 继续 AUTO / LIVE 开始 proving set 的真实样例
-   - 优先继续选择能推进 when-if、名称/数值 selector 配置化、更多移动或状态事件边界的真实 AUTO / LIVE 开始卡。
-   - 若要先做低风险复用验证，可找第二张“选择自己/对方舞台成员并改变状态”的同型卡接 `stage-member-target-selection.ts`。
+1. 继续 `绿莲-6弹ver.yaml` 中仍未实现的真实样例
+   - 优先继续选择能推进 when-if、名称/数值 selector 配置化、公开/看顶 workflow、更多移动或状态事件边界的真实 AUTO / LIVE 成功 / LIVE 开始卡。
+   - 首选 `PL!HS-bp5-001-SEC` 费用 11「日野下花帆」：建议拆两批，先做登场堆顶 4、含 LIVE 则 BLADE +2；再做起动公开手牌 LIVE 并按同名回收 LIVE。第二段会推进 C07 公开手牌。
+   - 第二张 `PL!HS-bp1-003-SEC` 费用 13「乙宗梢」：先做起动支付 1 能量回收费用小于等于 4 的「莲之空」成员；常时三面不同名加分稍后等 condition / continuous builder 更稳再补。
+   - 第三张 `PL!HS-bp1-002-RM` 费用 11「村野沙耶香」：支付 2 能量并自送，从休息室登场费用小于等于 15 的「莲之空」成员到原区域。适合作为第二个 S07 样例，但同基础编号文本有细微差异，需先处理同步策略。
+   - 再往后放：`PL!HS-sd1-001-SD` 费用 9「日野下花帆」、`PL!HS-pb1-020-N` 费用 9「百生吟子」、`PL!HS-bp6-001-R+` 费用 4「日野下花帆」、`PL!HS-cl1-009-CL` 分数 1「水彩世界」、`PL!HS-bp6-027-L` 分数 5「月夜見海月」。这些分别牵涉 relay 条件、弃 2 手牌、动态控顶、声援公开卡/追加声援，适合后段集中推进。
 
 备选：
 

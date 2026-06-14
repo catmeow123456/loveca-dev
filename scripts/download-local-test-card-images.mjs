@@ -12,8 +12,12 @@ const dryRun = args.has('--dry-run');
 const force = args.has('--force');
 const skipDownload = args.has('--skip-download');
 const noCompress = args.has('--no-compress');
+const exactOnly = args.has('--exact-only');
+const optionArgs = process.argv.slice(2);
 
-const deckDir = 'assets/decks';
+const defaultDeckDir = 'assets/decks';
+const deckDirOption = optionArgs.find((arg) => arg.startsWith('--deck-dir='));
+const deckDir = deckDirOption ? deckDirOption.slice('--deck-dir='.length) : defaultDeckDir;
 const jpCardsPath = 'llocg_db/json/cards.json';
 const cnCardsPath = 'llocg_db/json/cards_cn.json';
 const outputDir = path.join(rootDir, 'assets/card');
@@ -46,6 +50,15 @@ function normalizeCardCode(cardCode) {
   return result;
 }
 
+function rarityBaseOf(cardCode) {
+  const normalized = normalizeCardCode(cardCode);
+  const lastDash = normalized.lastIndexOf('-');
+  if (lastDash <= 0) return normalized;
+
+  const lastSegment = normalized.slice(lastDash + 1);
+  return /[A-Za-z+]/.test(lastSegment) ? normalized.slice(0, lastDash) : normalized;
+}
+
 async function readJson(relativePath) {
   return JSON.parse(await readFile(path.join(rootDir, relativePath), 'utf8'));
 }
@@ -59,14 +72,15 @@ function buildNormalizedIndex(cards) {
 }
 
 async function collectDeckCodes() {
-  const deckFiles = (await readdir(path.join(rootDir, deckDir)))
+  const resolvedDeckDir = path.isAbsolute(deckDir) ? deckDir : path.join(rootDir, deckDir);
+  const deckFiles = (await readdir(resolvedDeckDir))
     .filter((filename) => filename.endsWith('.yaml') || filename.endsWith('.yml'))
-    .map((filename) => path.join(deckDir, filename))
+    .map((filename) => path.join(resolvedDeckDir, filename))
     .sort();
 
   const codes = new Set();
   for (const deckFile of deckFiles) {
-    const deck = parseYaml(await readFile(path.join(rootDir, deckFile), 'utf8'));
+    const deck = parseYaml(await readFile(deckFile, 'utf8'));
     for (const entry of deck.main_deck.members) codes.add(normalizeCardCode(entry.card_code));
     for (const entry of deck.main_deck.lives) codes.add(normalizeCardCode(entry.card_code));
     for (const entry of deck.energy_deck) codes.add(normalizeCardCode(entry.card_code));
@@ -85,6 +99,15 @@ function basenameFromImagePath(imagePath) {
 
 function pickImagePath(jpCard, cnCard) {
   return cnCard?._img || jpCard?._img || cnCard?.img || jpCard?.img || null;
+}
+
+function imagePathBasenames(jpCard, cnCard) {
+  return [
+    basenameFromImagePath(jpCard?._img),
+    basenameFromImagePath(cnCard?._img),
+    basenameFromImagePath(jpCard?.img),
+    basenameFromImagePath(cnCard?.img),
+  ].filter(Boolean);
 }
 
 function pickDownloadUrl(jpCard, cnCard) {
@@ -125,33 +148,55 @@ function webpFilename(filename) {
   return filename.replace(/\.[^.]+$/, '.webp');
 }
 
-async function compressToWebp(inputPath, filename) {
+function cardCodeWebpFilename(cardCode) {
+  return `${normalizeCardCode(cardCode)}.webp`;
+}
+
+async function compressToWebp(inputPath, filename, aliasFilenames = []) {
   const metadata = await sharp(inputPath).metadata();
   const shouldRotate = metadata.width && metadata.height && metadata.width > metadata.height;
-  const outputFilename = webpFilename(filename);
+  const outputFilenames = Array.from(new Set([webpFilename(filename), ...aliasFilenames]));
 
   for (const [size, config] of Object.entries(imageSizes)) {
     const sizeOutputDir = path.join(imagesOutputDir, size);
     await mkdir(sizeOutputDir, { recursive: true });
 
-    let pipeline = sharp(inputPath);
-    if (shouldRotate) {
-      pipeline = pipeline.rotate(90);
-    }
+    for (const outputFilename of outputFilenames) {
+      let pipeline = sharp(inputPath);
+      if (shouldRotate) {
+        pipeline = pipeline.rotate(90);
+      }
 
-    await pipeline
-      .resize({ width: config.width, withoutEnlargement: true })
-      .webp({ quality: config.quality })
-      .toFile(path.join(sizeOutputDir, outputFilename));
+      await pipeline
+        .resize({ width: config.width, withoutEnlargement: true })
+        .webp({ quality: config.quality })
+        .toFile(path.join(sizeOutputDir, outputFilename));
+    }
   }
 
-  return outputFilename;
+  return outputFilenames;
 }
 
 async function main() {
   const jpCards = buildNormalizedIndex(await readJson(jpCardsPath));
   const cnCards = buildNormalizedIndex(await readJson(cnCardsPath));
-  const deckCodes = await collectDeckCodes();
+  const exactDeckCodes = await collectDeckCodes();
+  const allCodesByRarityBase = new Map();
+
+  for (const cardCode of new Set([...jpCards.keys(), ...cnCards.keys()])) {
+    const rarityBase = rarityBaseOf(cardCode);
+    const codes = allCodesByRarityBase.get(rarityBase) ?? [];
+    codes.push(cardCode);
+    allCodesByRarityBase.set(rarityBase, codes);
+  }
+
+  const deckCodes = exactOnly
+    ? exactDeckCodes
+    : Array.from(
+        new Set(
+          exactDeckCodes.flatMap((cardCode) => allCodesByRarityBase.get(rarityBaseOf(cardCode)) ?? [cardCode])
+        )
+      ).sort();
 
   const jobs = [];
   const missing = [];
@@ -163,7 +208,7 @@ async function main() {
     const filename = basenameFromImagePath(imagePath);
     const url = pickDownloadUrl(jpCard, cnCard);
 
-    if (!jpCard || !filename || !url) {
+    if ((!jpCard && !cnCard) || !filename || !url) {
       missing.push(cardCode);
       continue;
     }
@@ -173,11 +218,18 @@ async function main() {
       filename,
       outputPath: path.join(outputDir, filename),
       webpFilename: webpFilename(filename),
+      webpAliases: [
+        cardCodeWebpFilename(cardCode),
+        ...imagePathBasenames(jpCard, cnCard).map(webpFilename),
+      ].filter((alias) => alias !== webpFilename(filename)),
       url,
     });
   }
 
-  console.log(`Local test decks need ${deckCodes.length} unique card images.`);
+  console.log(`Local test decks reference ${exactDeckCodes.length} exact card images.`);
+  if (!exactOnly) {
+    console.log(`Expanded to ${deckCodes.length} card images including same-number rarity variants.`);
+  }
   console.log(`Image jobs: ${jobs.length}`);
   if (missing.length > 0) {
     console.log(`Missing image metadata: ${missing.join(', ')}`);
@@ -186,7 +238,10 @@ async function main() {
   if (dryRun) {
     for (const job of jobs) {
       console.log(
-        `${job.cardCode} -> assets/card/${job.filename} -> assets/images/{thumb,medium,large}/${job.webpFilename}`
+        `${job.cardCode} -> assets/card/${job.filename} -> assets/images/{thumb,medium,large}/${[
+          job.webpFilename,
+          ...job.webpAliases,
+        ].join(',')}`
       );
     }
     return;
@@ -236,9 +291,9 @@ async function main() {
       }
 
       try {
-        await compressToWebp(job.outputPath, job.filename);
+        const outputFilenames = await compressToWebp(job.outputPath, job.filename, job.webpAliases);
         compressed++;
-        console.log(`webp ${job.webpFilename}`);
+        console.log(`webp ${outputFilenames.join(', ')}`);
       } catch (error) {
         failed++;
         console.log(

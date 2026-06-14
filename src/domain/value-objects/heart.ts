@@ -3,8 +3,8 @@
  * 基于 detail_rules.md 第 2.1, 2.9, 2.11 章
  */
 
-import { HeartColor } from '../../shared/types/enums';
-import type { HeartIcon, HeartRequirement } from '../entities/card';
+import { HeartColor } from '../../shared/types/enums.js';
+import type { HeartIcon, HeartRequirement } from '../entities/card.js';
 
 // ============================================
 // Heart 计数器

@@ -72,6 +72,7 @@
     "eslint-plugin-prettier": "^5.5.4",
     "prettier": "^3.7.4",
     "sharp": "^0.34.5",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   },

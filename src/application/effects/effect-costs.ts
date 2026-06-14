@@ -15,6 +15,10 @@ export type EffectCostDefinition =
     }
   | {
       readonly kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM';
+    }
+  | {
+      readonly kind: 'SET_SOURCE_MEMBER_ORIENTATION';
+      readonly orientation: OrientationState;
     };
 
 export interface EffectCostPaymentResult {
@@ -22,6 +26,7 @@ export interface EffectCostPaymentResult {
   readonly paidEnergyCardIds: readonly string[];
   readonly movedToWaitingRoomCardIds: readonly string[];
   readonly discardedHandCardIds: readonly string[];
+  readonly orientedMemberCardIds: readonly string[];
   readonly sourceSlot?: SlotPosition;
 }
 
@@ -57,6 +62,7 @@ export function paySelectedDiscardHandCost(
     paidEnergyCardIds: [],
     movedToWaitingRoomCardIds: [],
     discardedHandCardIds: cardIds,
+    orientedMemberCardIds: [],
   };
 }
 
@@ -78,6 +84,7 @@ export function payImmediateEffectCosts(
   const paidEnergyCardIds: string[] = [];
   const movedToWaitingRoomCardIds: string[] = [];
   const discardedHandCardIds: string[] = [];
+  const orientedMemberCardIds: string[] = [];
   let sourceSlot: SlotPosition | undefined;
 
   for (const cost of costs) {
@@ -154,6 +161,34 @@ export function payImmediateEffectCosts(
         break;
       }
 
+      case 'SET_SOURCE_MEMBER_ORIENTATION': {
+        const slot = findMemberSlot(player, sourceCardId);
+        if (!slot) {
+          return null;
+        }
+        const existingState = player.memberSlots.cardStates.get(sourceCardId);
+        if (!existingState || existingState.orientation === cost.orientation) {
+          return null;
+        }
+        state = updatePlayer(state, playerId, (currentPlayer) => {
+          const cardStates = new Map(currentPlayer.memberSlots.cardStates);
+          cardStates.set(sourceCardId, {
+            ...existingState,
+            orientation: cost.orientation,
+          });
+          return {
+            ...currentPlayer,
+            memberSlots: {
+              ...currentPlayer.memberSlots,
+              cardStates,
+            },
+          };
+        });
+        sourceSlot = slot;
+        orientedMemberCardIds.push(sourceCardId);
+        break;
+      }
+
       case 'DISCARD_HAND_TO_WAITING_ROOM':
         return null;
     }
@@ -164,6 +199,7 @@ export function payImmediateEffectCosts(
     paidEnergyCardIds,
     movedToWaitingRoomCardIds,
     discardedHandCardIds,
+    orientedMemberCardIds,
     sourceSlot,
   };
 }

@@ -1,23 +1,23 @@
 # Loveca card effect module gap list
 
-审查日期：2026-06-13  
+审查日期：2026-06-14
 本文件基于 `loveca_effect_fragments_catalog.json` 回扫当前已实现卡牌。它只列 Stage 1A-1F 之后仍值得追踪的缺口；已经有主模块的片段不再作为 P0-now 抽象任务重复列出。
 
 ## Closed or substantially reduced by staged refactors
 
 | fragments | current module | status |
 |---|---|---|
-| `F07,F08,F09` | `src/application/effects/zone-selection.ts` + `card-selectors.ts` | 当前 `WAITING_ROOM -> HAND` 单选路径已成为主路径，覆盖 001/002/003/005，并已用 `PL!-pb1-019-N` 费用 2「高坂穗乃果」、`PL!-bp4-003-P` 费用 2「南琴梨」及 35 张同型新卡（含与 `PL!-sd1-002-SD` 对齐）验证非预组起动扩样本；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」进一步验证支付能量后按「莲之空」团体筛选 LIVE 回收。后续扩多选、其他来源/目标区域即可。 |
+| `F07,F08,F09` | `src/application/effects/zone-selection.ts` + `card-selectors.ts` | 当前 `WAITING_ROOM -> HAND` 单选路径已成为主路径，覆盖 001/002/003/005，并已用 `PL!-pb1-019-N` 费用 2「高坂穗乃果」、`PL!-bp4-003-P` 费用 2「南琴梨」及 35 张同型新卡（含与 `PL!-sd1-002-SD` 对齐）验证非预组起动扩样本；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」验证支付能量后按「莲之空」团体筛选 LIVE 回收，`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」与 `PL!HS-pb1-004-R` 费用 4「百生吟子」继续验证莲之空 LIVE / Cerise Bouquet LIVE 回收。后续扩多选、其他来源/目标区域即可。 |
 | `T01,F07,F09` | `src/application/effects/zone-selection.ts` + `card-selectors.ts` | `LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下 花帆」登场段已落地；暂未实现：`T02/C08/B05/X05`（同卡其他段）。 |
-| `C01,C02,C03,C04,E01` | `src/application/effects/effect-costs.ts` | 弃手、横置能量、自送休息室已外移。`PL!HS-bp1-004-P` 费用 15「夕雾缀理」已验证起动支付 3 能量与 LIVE 开始支付 1 能量两种 C03 使用。未来补标准 GameEvent，而不是回到单卡手写。 |
-| `F03,F04,F05,F06,F13` | `src/application/effects/look-top.ts` | 看顶/公开/清理/顶牌入休息室原语已外移。`PL!HS-PR-001-PR` 费用 10「日野下花帆」登场段已落地；`PL!-bp3-010-N` 费用 9「高坂穗乃果」登场段和 live-only 公开筛选已落地；`F04` 仍在其他卡的 runner orchestration。 |
+| `C01,C02,C03,C04,C05,C06,E01` | `src/application/effects/effect-costs.ts` | 弃手、横置能量、自送休息室、来源成员待机与复合费用已外移。`PL!HS-bp1-004-P` 费用 15「夕雾缀理」已验证起动支付 3 能量与 LIVE 开始支付 1 能量两种 C03 使用；`PL!HS-bp5-008-R` 费用 4「桂城泉」验证自身待机 + 弃手；`PL!HS-pb1-004-R` 费用 4「百生吟子」验证支付能量 + 弃手。未来补标准 GameEvent，而不是回到单卡手写。 |
+| `F03,F04,F05,F06,F13` | `src/application/effects/look-top.ts` | 看顶/公开/清理/顶牌入休息室原语已外移。`PL!HS-PR-001-PR` 费用 10「日野下花帆」登场段已落地；`PL!-bp3-010-N` 费用 9「高坂穗乃果」登场段和 live-only 公开筛选已落地；`PL!HS-bp5-008-R` 费用 4「桂城泉」验证看顶 5 公开筛选，`PL!HS-pb1-004-R` 费用 4「百生吟子」验证顶 3 直接入休息室，`PL!HS-PR-019-RM` 费用 2「百生吟子」验证公开检视顶 3 后继续处理入休息室；`F04/F06` 的 workflow config 仍在 runner orchestration。 |
 | `F01,F02` | `src/application/effects/draw.ts` + runner 抽弃壳 | 当前卡效抽牌到底座已覆盖 007 的额外抽 1；F02 已由 `PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场、`PL!HS-bp1-006-P` 费用 11「藤岛 慈」登场、`PL!HS-pb1-009-R` 费用 15「日野下花帆」LIVE 开始阈值段验证抽 2 弃 1。`F12` 与更复杂抽弃语义等待真实样例。 |
-| `B03,B05,B07,B08,T05` | `src/domain/rules/live-modifiers.ts` | Live modifier 主写入路径已建立，legacy fields 是兼容投影；`PL!HS-bp1-006-P` 费用 11「藤岛 慈」已作为第二张 B03 Heart 颜色选择扩样本，复用弃手费用与 `addLiveModifier`。`PL!HS-bp1-004-P` 费用 15「夕雾缀理」已验证 B01 可按 LIVE 区数量缩放写入 BLADE。 |
+| `B01,B02,B03,B05,B07,B08,T05` | `src/domain/rules/live-modifiers.ts` | Live modifier 主写入路径已建立，legacy fields 是兼容投影；`PL!HS-bp1-006-P` 费用 11「藤岛 慈」已作为第二张 B03 Heart 颜色选择扩样本，复用弃手费用与 `addLiveModifier`。`PL!HS-bp1-004-P` 费用 15「夕雾缀理」与 `PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」验证 B01 可按条件/费用写入 BLADE；`PL!HS-PR-019-RM` 费用 2「百生吟子」验证 B02 固定绿色 Heart；`PL!HS-bp5-019-L` 分数 6「花结」与 `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」验证 LIVE 卡来源的 B07/B05 modifier。 |
 | `S01,S02,S05,S07` | `src/application/effects/member-state.ts` | 成员状态/站位变换/卡效登场原语已建立；Karin position change 与 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始可选站位变换均已复用，`PL!SP-bp5-003-AR` 费用 17「岚 千砂都」验证批量成员活跃，`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证选择 1 名待机舞台成员变活跃，`PL!S-bp2-006-P` 费用 11「津岛善子」验证从休息室登场到空槽。 |
-| `E02,E03` | `src/application/effects/energy.ts` | 能量卡组顶 -> 能量区放置原语已建立，支持指定活跃/待机状态；能量区方向变更原语也已建立。当前覆盖 `PL!SP-PR-004-PR` 费用 4「唐 可可」的待机能量放置、`PL!SP-bp4-008-P` 费用 13「若菜四季」右侧登场的待机能量变活跃、`PL!SP-bp5-003-AR` 费用 17「岚 千砂都」LIVE 开始全部能量变活跃，以及 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」登场选择能量分支后自动处理至多 2 张待机能量。能量没有个体差异，不要求玩家逐张选择具体能量卡。 |
+| `E02,E03` | `src/application/effects/energy.ts` | 能量卡组顶 -> 能量区放置原语已建立，支持指定活跃/待机状态；能量区方向变更原语也已建立。当前覆盖 `PL!SP-PR-004-PR` 费用 4「唐 可可」的待机能量放置、`PL!SP-bp4-008-P` 费用 13「若菜四季」右侧登场的待机能量变活跃、`PL!SP-bp5-003-AR` 费用 17「岚 千砂都」LIVE 开始全部能量变活跃、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」登场选择能量分支后自动处理至多 2 张待机能量，以及 `PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」登场条件成立时活跃 1 张能量。能量没有个体差异，不要求玩家逐张选择具体能量卡。 |
 | `X11` | `src/domain/rules/cost-calculator.ts` | Stage 1L 已起步：登场费用修正会在规则层生成基础费用、修正后费用、修正明细、换手减免与最终支付方案；`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」已验证按其他手牌数量减费且自身不计入，`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」已验证舞台存在待机状态『虹咲』成员时自身 -2 费，`PL!SP-bp5-003-AR` 费用 17「岚 千砂都」已验证舞台来源使手牌中 10 费 Liella! 成员登场费用 -2 且先减费再换手。 |
 | `T06,S08,T07,B01,T02,F02` | `src/application/card-effect-runner.ts` trigger enqueue + shared effect primitives；`src/domain/rules/live-modifiers.ts` | Stage 1O 已起步：`PL!HS-bp2-012-N` 费用 5「乙宗 梢」验证舞台成员进休息室触发 AUTO；`PL!HS-bp6-017-N` 费用 11「日野下花帆」验证同触发下的弃手后 LIVE/成员各至多 1 张回收。Stage 1P 已用 `PL!HS-pb1-009-R` 费用 15「日野下花帆」验证舞台成员监听己方「莲之空」成员登场、实例级每回合 2 次、BLADE +2 modifier、LIVE 开始 BLADE 阈值抽弃与手动顺序选择 confirm-only 壳。Stage 1Q 已用 `PL!HS-bp6-004-R` 费用 13「百生 吟子」验证同源双 LIVE 开始能力的 option 顺序选择与弃手加 BLADE。`PL!HS-bp1-004-P` 费用 15「夕雾缀理」补充验证 LIVE 开始支付能量后按 LIVE 区数量获得 BLADE。 |
-| `S01,S03,X05,X06` | `src/application/effects/member-state.ts` + `stage-targets.ts` + `stage-member-target-selection.ts` + `card-selectors.ts` | `PL!HS-bp6-004-R` 费用 13「百生 吟子」已验证选择对手舞台费用 <= 9 成员并调用 `setMemberOrientation(WAITING)`；舞台目标 helper 已抽到 `stage-targets.ts`，目标 active effect 已抽到 `stage-member-target-selection.ts`，弃置卡姓名归一化判断已抽为 `cardNameIs`。后续可用第二张同型卡继续验证。 |
+| `S01,S03,X05,X06` | `src/application/effects/member-state.ts` + `stage-targets.ts` + `stage-member-target-selection.ts` + `card-selectors.ts` | `PL!HS-bp6-004-R` 费用 13「百生 吟子」已验证选择对手舞台费用 <= 9 成员并调用 `setMemberOrientation(WAITING)`；舞台目标 helper 已抽到 `stage-targets.ts`，目标 active effect 已抽到 `stage-member-target-selection.ts`，弃置卡姓名归一化判断已抽为 `cardNameIs`。`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」验证 `cardNameAliasIs` 的舞台条件扫描，`PL!HS-bp5-008-R` 费用 4「桂城泉」验证 `costGte` 高费用成员 selector。后续可用第二张同型卡继续验证。 |
 | same-base rarity sync | `CARD_ABILITY_DEFINITIONS.baseCardCodes` + `src/shared/utils/card-code.ts` | 卡效登记、continuous live modifier registry 与费用修正已支持基础编号匹配；`tests/unit/card-effect-rarity-sync.test.ts` 会防止 exact `cardCodes` 漏掉同基础编号其他罕度。`existing_module_map.md` 已按基础编号记录完成/部分/同型/partial 状态。 |
 
 ## Remaining gaps
@@ -26,10 +26,10 @@
 |---|---|---|---|---|
 | P0-next | `T06,S08,S09` broader AUTO event layer | Standard `GameEvent` + trigger matcher | current `ON_LEAVE_STAGE` / `ON_ENTER_STAGE` proving paths still use thin event adapters plus action-history fallback | `PL!HS-bp2-012-N` 费用 5「乙宗 梢」与 `PL!HS-bp6-017-N` 费用 11「日野下花帆」已完成 S08 proving；`PL!HS-pb1-009-R` 费用 15「日野下花帆」已完成登场监听、每回合限制、LIVE 开始条件与无输入 AUTO 手动确认 proving；`PL!HS-bp6-004-R` 费用 13「百生 吟子」已完成同源双 LIVE 开始与对手目标 proving。完整移动事件、状态变化事件、trigger matcher、when-if 仍需后续真实 AUTO 样例推动。 |
 | P1-soon | `C07,X02,L01,L02` | Reveal-from-hand + conditional exchange step | `PL!-sd1-006-SD` resolver | 仍然 inline。低频但清晰，适合在需要 C07/交换效果时做；当前不影响 Stage 1A-1F 主路径。 |
-| P1-soon | `X01,X04,X05,X06,X13` | Condition/query AST | 001 success Live condition, 009 waiting room μ's count, 022 success Live scaling, 004/015 selectors, Karin cost selector | Selector 已有基础；condition 还没有统一表达。建议等下一批非 `PL!-sd1` 样例出现重复条件时再抽。 |
+| P1-soon | `X01,X04,X05,X06,X13` | Condition/query AST | 001 success Live condition, 009 waiting room μ's count, 022 success Live scaling, `PL!HS-bp5-019-L` 分数 6「花结」LIVE 区计数, `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」休息室 `Cerise Bouquet` LIVE 计数, `PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」舞台姓名条件, `PL!HS-PR-019-RM` 费用 2「百生吟子」顶 3 全为绿色 Heart 成员条件, 004/015 selectors, Karin cost selector | Selector 已有基础；condition 还没有统一表达。建议等下一批同类条件再次出现时再抽。 |
 | P1-soon | `X03,B03` | Generic option-choice effect step | 003 Live-start Heart choice, `PL!HS-bp1-006-P` 费用 11「藤岛 慈」Heart choice, `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」target branch | UI shape 已支持 `selectableOptions`，慈已验证第二张 Heart 颜色选择样例，艾玛已验证选项分支后进入成员目标选择或直接结算能量分支；尚未抽成 declarative option resolver。可在下一张选择颜色/模式的卡出现时再抽。 |
-| P1-soon | `F03,F04,F05,F13` workflow orchestration | Declarative look-top workflow config | 004/015/019/Karin runner orchestration | 原语已外移；下一步不是再移动底层函数，而是把 `lookN`、selector、reveal、rest destination、ordered selection 等变成 ability config。 |
-| P1-soon | `B01,B05,B07,B08,T05` condition-bound builders | Typed Live modifier builders and continuous registry config | 001/009/022/`PL!HS-pb1-009-R` effect-specific condition + builder code | `addLiveModifier` / `replaceLiveModifier` 已是主写入路径；成员有效 BLADE 统计 helper 已落地，后续仍可抽 typed builder 与条件 DSL。 |
+| P1-soon | `F03,F04,F05,F06,F13` workflow orchestration | Declarative look-top workflow config | 004/015/019/Karin/`PL!HS-bp5-008-R`/`PL!HS-PR-019-RM` runner orchestration | 原语已外移；下一步不是再移动底层函数，而是把 `lookN`、selector、reveal、rest destination、ordered selection、confirm-only public reveal 等变成 ability config。 |
+| P1-soon | `B01,B02,B05,B07,B08,T05` condition-bound builders | Typed Live modifier builders and continuous registry config | 001/009/022/`PL!HS-pb1-009-R`/`PL!HS-bp5-019-L`/`PL!HS-bp2-022-L+`/`PL!HS-sd1-006-SD`/`PL!HS-PR-019-RM` effect-specific condition + builder code | `addLiveModifier` / `replaceLiveModifier` 已是主写入路径；成员有效 BLADE 统计 helper 已落地，后续仍可抽 typed builder 与条件 DSL。 |
 | P1-soon | `F12` | Draw-then-deck-placement composed steps | none yet | F02 抽 2 弃 1已有第一条 proving path；F12 继续等待实际样例验证 deck placement 与 refresh semantics。 |
 | P1-review | `T05,B08` for Karin | Decide sample partial vs real-card full implementation | `PL!N-pb1-004-P+` only has Live-start ability in code | Catalog 有“本回合未移动时 +2 BLADE”。若果林继续只是测试用样例，可以保留 partial 标注；若按实卡实现，则补 continuous modifier + moved-this-turn condition。 |
 | P2-later | unmatched/P2 special fragments | Custom resolver hook with explicit boundaries | none urgent | 继续允许低频特例留在 runner，但内部必须复用 cost/selector/look-top/move/modifier APIs。 |
@@ -42,8 +42,12 @@
 | `PL!HS-PR-001-PR` 费用 10「日野下花帆」 | LIVE开始时支付 `[E][E]` 获得 `[BLADE]` 段 | 登场段已落地；LIVE开始时可支付 `[E][E]`，LIVE结束时为止获得 `[BLADE]` 的片段暂未实现。 |
 | `PL!-sd1-003-SD` / `PL!HS-bp1-006-P` 费用 11「藤岛 慈」 / `PL!HS-bp1-004-P` 费用 15「夕雾缀理」 | Heart color / pay-or-decline option step | UI 支持已存在，且已有第二张 Heart 颜色选择样例；夕雾缀理也复用 `selectableOptions` 做 LIVE 开始支付/不发动选择。尚未抽成 generic option-choice step。 |
 | `PL!-sd1-004-SD` | 公开被选 Live 后确认入手的流程串联 | look-top 原语已复用；workflow config 尚未抽。 |
-| `PL!-sd1-009-SD` | 休息室 μ's >=25 条件 | condition AST 尚未建立。 |
-| `PL!-sd1-022-SD` | 成功 Live 数 * 2 的 reduction builder | live modifier 写入已统一；倍率/条件表达仍在 resolver。 |
+| `PL!-sd1-009-SD` / `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」 | 休息室卡牌数量条件 | condition AST 尚未建立。 |
+| `PL!-sd1-022-SD` / `PL!HS-bp5-019-L` 分数 6「花结」 | 按区域数量缩放的 requirement builder | live modifier 写入已统一；倍率/条件表达仍在 resolver。 |
+| `PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」 | 登场条件成立后活跃能量 + 回收 LIVE，LIVE 开始支付能量得 BLADE 的流程串联 | energy、zone-selection、effect-costs、live-modifiers 均已复用；条件 AST 与复合 step pipeline 尚未抽。 |
+| `PL!HS-bp5-008-R` 费用 4「桂城泉」 | 自身待机 + 弃手后看顶 5 公开高费成员 | C05/C06 与 `costGte` 已复用；look-top workflow config 尚未抽。 |
+| `PL!HS-pb1-004-R` 费用 4「百生吟子」 | 支付能量 + 弃手、顶 3 入休息室后回收 Cerise Bouquet LIVE | C03/C01/F06/F08 原语已复用；“支付成功后连续执行两步”的 step pipeline 尚未抽。 |
+| `PL!HS-PR-019-RM` 费用 2「百生吟子」 | 公开检视顶 3、确认后入休息室、全为绿色 Heart 成员则得绿色 Heart | inspection 与 live modifier 已复用；公开确认窗口与条件判断仍在 runner orchestration。 |
 | `PL!N-pb1-004-P+` | 顶 1 路由条件、费用 <=9 selector、catalog continuous 未实现 | Live-start 主行为已复用 look-top/member-state；完整实卡常时效果待决策。 |
 | `PL!SP-PR-004-PR` | 可选弃手后放置待机能量的流程串联 | C01 与 E03 原语已复用；完整 step pipeline 尚未配置化。 |
 | `PL!SP-bp4-008-P` 费用 13「若菜四季」 | 左侧/右侧登场确认流程仍在 runner 串联 | 来源槽位条件、F02 抽弃组合步骤、E02 能量方向 helper 已复用；LIVE 开始 S05 已通过通用站位变换壳复用 `member-state.ts`。 |
@@ -60,4 +64,4 @@
 |---|---|---|
 | `PL!HS-PR-002-PR` 费用 10「村野さやか」 | `T01,C01,F03` | 同上，可作为第二张同构样例，验证配置化而不是单卡分支。 |
 
-已可继续选择真实 AUTO / LIVE 开始样例扩边界；`PL!HS-pb1-009-R` 费用 15「日野下花帆」的 LIVE 开始 BLADE >= 8 抽2弃1段与成员有效 BLADE 统计 helper 已落地，`PL!HS-bp6-004-R` 费用 13「百生 吟子」已落地对手低费目标、同源双 LIVE 开始顺序选择、指定姓名弃手加 BLADE，并抽出舞台成员目标 active effect 配置入口；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」已落地支付能量回收「莲之空」LIVE 与按 LIVE 区数量获得 BLADE。下一步建议继续推进 when-if、名称/数值 selector 配置化或更多移动/状态事件边界；也可先用第二张同型舞台目标卡验证 `stage-member-target-selection.ts`。仍不建议一次性上完整事件系统或 refresh 语义；保持一张卡一条事件边界的小步节奏。
+已可继续选择真实 AUTO / LIVE 开始样例扩边界；`PL!HS-pb1-009-R` 费用 15「日野下花帆」的 LIVE 开始 BLADE >= 8 抽2弃1段与成员有效 BLADE 统计 helper 已落地，`PL!HS-bp6-004-R` 费用 13「百生 吟子」已落地对手低费目标、同源双 LIVE 开始顺序选择、指定姓名弃手加 BLADE，并抽出舞台成员目标 active effect 配置入口；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」已落地支付能量回收「莲之空」LIVE 与按 LIVE 区数量获得 BLADE；本批 `绿莲-6弹ver.yaml` 已落地 `PL!HS-bp5-019-L` 分数 6「花结」、`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」、`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」、`PL!HS-bp5-008-R` 费用 4「桂城泉」、`PL!HS-pb1-004-R` 费用 4「百生吟子」、`PL!HS-PR-019-RM` 费用 2「百生吟子」。下一步建议继续推进 when-if、名称/数值 selector 配置化、公开/看顶 workflow config 或更多移动/状态事件边界。仍不建议一次性上完整事件系统或 refresh 语义；保持一张卡一条事件边界的小步节奏。

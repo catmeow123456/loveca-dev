@@ -31,6 +31,14 @@
 - 本地测试卡牌数据源生成脚本为 `scripts/generate-local-test-card-sources.mjs`。脚本自动扫描 `assets/decks/*.yaml` / `*.yml`，从 `llocg_db/json/cards.json` 与 `llocg_db/json/cards_cn.json` 生成 `client/src/lib/localTestCardSources.generated.ts`。
 - 当前 dry-run 结果：三副测试卡组需要 79 张唯一卡图。本次新增下载 28 张 PNG，旧图跳过 51 张；`assets/card/` 保存 PNG，`assets/images/{thumb,medium,large}/` 保存 WebP，79 张均已压缩成功。
 
+2026-06-14 临时测试服务器补图记录：
+
+- 作者提供的一键测试环境可用云端卡组测试，但本机没有完整生产卡图对象存储；为了改善本地测试体验，临时从 `/Users/meiyikai/Desktop/文件/个人/codex/loveca/deck` 下的两副外部 YAML 卡组补齐所需卡图到 `assets/card/` 与 `assets/images/{thumb,medium,large}/`。
+- `scripts/download-local-test-card-images.mjs` 已补充 `--deck-dir=...`，并默认按同基础编号展开全部罕度。例如 deck 中出现 `PL!HS-pb1-009-R` 时，会同时尝试补 `PL!HS-pb1-009-P+` 等同编号变体。
+- 为兼容数据库 `image_filename` 与中文卡图路径的命名差异，脚本会为同一源图生成多个 WebP 别名，例如 `P+` / `P2` / `Pplus`、`L+` / `L2` / `Lplus`。这属于本地显示兼容层，不代表生产文件命名规范。
+- 这些临时图片只影响卡图显示，不参与规则引擎、费用计算、卡效触发、对局状态或测试服务器数据库逻辑。卡效开发仍应以卡牌数据和对局行为验证为准。
+- 生产环境已有正常图片服务器/对象存储。上线或发正式 PR 前，应重点检查 `assets/card/` 与 `assets/images/` 中由本次补图产生的大量临时文件，不要把它们当作生产资产提交；生产图片链路确认正常后，可以清理这些临时图片，不会影响已实现卡效。
+
 常用命令：
 
 ```bash
@@ -57,6 +65,8 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 `card-effect-runner.ts` 已建立 `CARD_ABILITY_DEFINITIONS` 登记入口。新增卡效前先登记分类，不要直接写单卡散逻辑。
 
+2026-06-14 起，连续新增多张卡效时采用“快速卡效批处理模式”：每张卡/每个效果段实时更新 `docs/card-effect-reuse-audit/existing_module_map.md`、focused tests 与本 progress 的短记录；`card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`card_effect_batch_expansions.md`、`module_gap_list.md`、`safe_refactor_plan.md` 等设计/覆盖/gap 文档默认攒到 5-10 张卡后统一收束。若引入新抽象、新模块、新事件边界，或改变 resolver / cost calculator / live modifier registry / 同编号罕度同步机制，则仍需在同一批内同步更新相关文档。
+
 当前分类约定：
 
 - `CONTINUOUS`：常时，不进队列，由计算层读取。
@@ -74,9 +84,9 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - “公开并加入手牌”必须先公开被选牌，再由玩家确认后移动。
 - 必要 Heart 增减使用 `applyHeartRequirementModifiers`，支持指定颜色、泛用/All、增加和减少。
 - “1回合 N 次”作为能力定义通用特征，使用 `perTurnLimit` 登记；通用 `ABILITY_USE` 按 `playerId + abilityId + sourceCardId + turnCount` 记录和校验，限制的是此来源卡实例，不是同名卡或同一玩家同能力总次数。
-- 卡效发动费用已开始收口为 `src/application/effects/effect-costs.ts` 中的通用 `EffectCostDefinition` / `payImmediateEffectCosts` / `paySelectedDiscardHandCost` 底座。当前已覆盖弃 1 手牌、支付活跃能量、将来源成员从舞台放置入休息室三类，并已迁移 `002` / `005` / `008` / `003` / `011` / `012` / `015` / `016` 的相关费用路径。
+- 卡效发动费用已开始收口为 `src/application/effects/effect-costs.ts` 中的通用 `EffectCostDefinition` / `payImmediateEffectCosts` / `paySelectedDiscardHandCost` 底座。当前已覆盖弃 1 手牌、支付活跃能量、将来源成员从舞台放置入休息室、将来源成员变为指定方向四类；`PL!HS-bp5-008-R` 费用 4「桂城泉」已用 `SET_SOURCE_MEMBER_ORIENTATION` 验证“自身待机作为费用”。
 - 区域目标选择/移动已开始收口为 `src/application/effects/zone-selection.ts` 中的 `ZoneCardSelectionConfig` / `createWaitingRoomToHandEffectState` / `moveSelectedCardsFromZone`。当前覆盖 `WAITING_ROOM -> HAND` 单选路径，`001` / `003` / `002` / `005` 的“从休息室加入手牌”已走统一完成逻辑。
-- 最小 selector API 已落在 `src/application/effects/card-selectors.ts`，当前提供 `typeIs` / `groupIs` / `costLte` / `cardNameIs` / `and` / `or` / `not`，`001` / `003` / `002` / `005` 已用组合 selector 表达 LIVE、成员、低费 μ's 等候选条件；`PL!HS-bp6-004-R` 费用 13「百生 吟子」已用 `cardNameIs` 处理弃置「百生吟子」成员判断。
+- 最小 selector API 已落在 `src/application/effects/card-selectors.ts`，当前提供 `typeIs` / `groupIs` / `unitIs` / `unitAliasIs` / `unitAliasOrTextAliasIs` / `costLte` / `costGte` / `cardNameIs` / `cardNameAliasIs` / `and` / `or` / `not`，`001` / `003` / `002` / `005` 已用组合 selector 表达 LIVE、成员、低费 μ's 等候选条件；`PL!HS-bp6-004-R` 费用 13「百生 吟子」已用 `cardNameIs` 处理弃置「百生吟子」成员判断；`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」已用 `unitAliasIs` 识别真实导入数据中的 `unitName=スリーズブーケ`；`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」已用 `cardNameAliasIs` 判断舞台中是否有大泽瑠璃乃/百生吟子/徒町小铃，`PL!HS-bp5-008-R` 费用 4「桂城泉」已用 `costGte(9)` 筛选看顶候选。小组名别名当前覆盖 `Cerise Bouquet`/`スリーズブーケ`、`DOLLCHESTRA`、`Mira-Cra Park!`/`みらくらぱーく！`/`みらくらぱーく!`、`EdelNote`；普通小组条件只看 `unitName`，需要“此卡视为某小组”等文本身份时才显式使用 `unitAliasOrTextAliasIs`。成员名别名当前按卡库常见角色覆盖中日名、空白/中点差异与组合卡 `&` 分隔组件，并额外覆盖早期中文误译/异体：`澁谷かのん`/`渋谷かのん`/`涩谷香音`/`涉谷香音`、`大沢瑠璃乃`/`大泽瑠璃乃`/`大泽琉璃乃`、`セラス柳田リリエンフェルト`/`セラス 柳田 リリエンフェルト`/`赛拉丝柳田利林费尔德`/`赛拉丝·柳田·利林费尔德`；严格卡面名才继续使用 `cardNameIs`。
 - 舞台成员目标选择 active effect 已由 `src/application/effects/stage-member-target-selection.ts` 起步：按 `targetPlayerId + CardSelector` 生成可选舞台成员，并在确认后调用 `setMemberOrientation`；`PL!HS-bp6-004-R` 费用 13「百生 吟子」对手低费成员待机段已迁入该入口。
 - Live 修正已进入 Stage 1D 主写入路径：`domain/rules/live-modifiers.ts` 提供 `addLiveModifier` / `replaceLiveModifier` / `projectLiveModifierCompatibility`，临时修正统一写入 `liveResolution.liveModifiers` 的 `SCORE`、`HEART`、`BLADE`、`REQUIREMENT` modifier；旧的 `playerScoreBonuses` / `playerHeartBonuses` / `liveRequirementReductions` / `liveRequirementModifiers` 由 `liveModifiers` 投影，仅作为 UI/在线投影兼容层保留。常时修正已整理为 continuous modifier registry，`001` 常时 BLADE 由 `collectLiveModifiers` 动态收集。
 - 状态与站位变换 Stage 1E 已起步：`src/application/effects/member-state.ts` 提供 `setMemberOrientation` / `moveMemberBetweenSlots`，覆盖卡效里的成员待机/活跃基础原语与站位变换。当前 `PL!N-pb1-004-P+` 的站位变换已改为调用 `moveMemberBetweenSlots`；普通规则 TAP_MEMBER、自由拖拽和手动移动仍归规则/桌面流程，不反向塞进 card effects。
@@ -441,7 +451,38 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
   - `tests/integration/sample-card-effect-runner.test.ts` 覆盖登场时只能选择对方费用小于等于 9 的成员、同一张来源卡两条 LIVE 开始能力使用 option 区分、弃置同名「百生吟子」成员获得 BLADE +2。
 - 验证：stage member target selection 抽取后 focused 4 files / 58 tests passed；`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
 
+本次 2026-06-14 `PL!HS-bp5-019-L` 分数 6「花结」与 `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」LIVE 卡来源 modifier 扩样本：
+
+- `PL!HS-bp5-019-L` 分数 6「花结」已登记为 LIVE 卡来源的 `LIVE_START` 队列能力：LIVE 开始时按自己的 LIVE 卡区中此卡以外的「莲之空」卡数量，每张使此卡必要绿色 Heart 减少 2 个。
+- `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」已按基础编号 `PL!HS-bp2-022` 覆盖 `L / L+`：LIVE 开始时若自己的休息室存在大于等于 3 张『Cerise Bouquet』LIVE 卡，则此卡分数 +1。
+- 两张卡都复用现有 LIVE 开始队列、confirm active effect 与 `liveModifiers` 主写入路径；`花结` 使用 `replaceLiveModifier(REQUIREMENT)` 写入绿色必要 Heart 修正，`アオクハルカ` 使用 `addLiveModifier(SCORE)` 写入分数修正。
+- 手测反馈修正：本地导入数据中 `Cerise Bouquet` / `スリーズブーケ` 是 `unitName`，而不是 `groupName`；已为 `card-selectors.ts` 增加 `unitIs`、`unitAliasIs` 与 `unitAliasOrTextAliasIs`，并让 `アオクハルカ` 的休息室 LIVE 计数通过 `unitAliasIs('Cerise Bouquet')` 识别 `unitName=スリーズブーケ`。默认小组条件只看 `unitName`；“此卡视为……”等文本身份保留给显式的 `unitAliasOrTextAliasIs`。
+- 新增 focused 覆盖：
+  - `tests/unit/card-effect-classification.test.ts` 覆盖两张 LIVE 卡能力登记与 `PL!HS-bp2-022-L+` 半角 `+` 归一化匹配。
+  - `tests/unit/card-selectors.test.ts` 覆盖 `unitIs` 对 `unitName=スリーズブーケ` 的小队识别、`unitAliasIs` 的英日别名匹配，以及 `unitAliasOrTextAliasIs` 与纯 `unitAliasIs` 的文本身份边界。
+  - `tests/integration/sample-card-effect-runner.test.ts` 覆盖 LIVE 卡来源入队、确认后写入绿色 `REQUIREMENT` modifier、休息室 3 张 `unitName=スリーズブーケ` LIVE 条件满足后写入 `SCORE` modifier。
+- 验证：`env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs exec vitest run tests/unit/card-code.test.ts tests/unit/card-selectors.test.ts tests/unit/card-effect-classification.test.ts tests/unit/card-effect-rarity-sync.test.ts tests/unit/live-modifiers.test.ts tests/unit/live-judgment-settlement.test.ts tests/integration/sample-card-effect-runner.test.ts`，7 files / 159 tests passed；`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
+
+本次 2026-06-14 `PL!HS-pb1-004-R` 费用 4「百生吟子」与 `PL!HS-PR-019-RM` 费用 2「百生吟子」登场效果扩样本：
+
+- `PL!HS-pb1-004-R` 费用 4「百生吟子」已按基础编号 `PL!HS-pb1-004` 覆盖 `R / P+`：登场可支付 1 能量并弃 1 手牌，堆顶 3 入休息室后，从休息室回收 1 张 Cerise Bouquet LIVE。
+- `PL!HS-PR-019-RM` 费用 2「百生吟子」已按基础编号 `PL!HS-PR-019` 覆盖 `PR / RM`：登场公开检视卡组顶 3 张，点击继续处理后放置入休息室；若均为持有绿色 Heart 的成员，则 LIVE 结束前获得绿色 Heart；PR/RM 中文措辞不同但实际效果相同。
+- 角色名归一化额外加入早期中文误译/异体：`澁谷かのん = 渋谷かのん = 涩谷香音 = 涉谷香音`、`大沢瑠璃乃 = 大泽瑠璃乃 = 大泽琉璃乃`、`セラス柳田リリエンフェルト = セラス 柳田 リリエンフェルト = 赛拉丝柳田利林费尔德 = 赛拉丝·柳田·利林费尔德`。
+- 本批已在收束时同步 `existing_module_map.md`、`card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`card_effect_batch_expansions.md`、`module_gap_list.md`、`safe_refactor_plan.md` 等设计/覆盖/gap 文档；后续继续维持“每张实时登记、5-10 张或批末统一收束设计文档”的节奏。
+- 最终验证：focused suite 12 files / 210 tests passed；`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
+
 ## 下一步建议
+
+`绿莲-6弹ver.yaml` 中本轮原计划 10 张卡剩余未完成项按以下顺序推进：
+
+1. `PL!HS-bp5-001-SEC` 费用 11「日野下花帆」
+   - 建议拆两批：先做登场堆顶 4、含 LIVE 则 BLADE +2；再做起动公开手牌 LIVE 并按同名回收 LIVE。第二段会推进 C07 公开手牌。
+2. `PL!HS-bp1-003-SEC` 费用 13「乙宗梢」
+   - 先做起动支付 1 能量回收费用小于等于 4 的「莲之空」成员；常时三面不同名加分稍后等 condition / continuous builder 更稳再补。
+3. `PL!HS-bp1-002-RM` 费用 11「村野沙耶香」
+   - 支付 2 能量并自送，从休息室登场费用小于等于 15 的「莲之空」成员到原区域。适合作为第二个 S07 样例，但同基础编号文本有细微差异，需先处理同步策略。
+4. 再往后放：`PL!HS-sd1-001-SD` 费用 9「日野下花帆」、`PL!HS-pb1-020-N` 费用 9「百生吟子」、`PL!HS-bp6-001-R+` 费用 4「日野下花帆」、`PL!HS-cl1-009-CL` 分数 1「水彩世界」、`PL!HS-bp6-027-L` 分数 5「月夜見海月」。
+   - 这些分别牵涉 relay 条件、弃 2 手牌、动态控顶、声援公开卡/追加声援，适合后段集中推进。
 
 本次 2026-06-14 低风险同构扩样本（与 `PL!-sd1-002-SD` 对齐）已完成 17 张卡：
 
@@ -475,6 +516,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」费用减少与登场二选一活跃段已完成，后续保留为 X11/X03/S02/E02 回归样例。
 - `PL!SP-bp4-008-P` 费用 13「若菜四季」与 `PL!SP-PR-004-PR` 费用 4「唐 可可」当前已完成目标段，后续保留为 F02/E02/E03/S05 回归样例。
 - `PL!HS-bp1-004-P` 费用 15「夕雾缀理」已完成起动支付能量回收莲之空 LIVE 与 LIVE 开始支付能量按 LIVE 区数量得 BLADE，后续保留为 C03/F08/B01 回归样例。
+- `PL!HS-bp5-019-L` 分数 6「花结」与 `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」已完成 LIVE 卡来源的 LIVE 开始必要 Heart / 分数 modifier，后续保留为 B07/B05 回归样例。
 
 优先级 1.5：旧建议中的非 `PL!-sd1` 低风险扩样本中，`LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」、`PL!HS-PR-001-PR` 费用 10「日野下花帆」、`PL!-bp3-010-N` 费用 9「高坂穗乃果」已收口完成登场段；下一个推荐是 `PL!HS-PR-002-PR` 费用 10「村野さやか」。
 

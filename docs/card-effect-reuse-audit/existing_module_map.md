@@ -58,20 +58,26 @@
 | `PL!SP-bp5-003` | `AR / P / R+ / SEC` 已同步 | 费用 17「岚 千砂都」 | 完整已实现 | 舞台来源使手牌中费用 10 的 Liella! 成员登场费用 -2；中心位 LIVE 开始将 Liella! 成员与能量全部变活跃。 | 本地 `系统边界混合` 缺少合适 10 费 Liella! 目标，费用段用构造数据验证。 | `CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID`；`cost-calculator.ts` |
 | `PL!S-bp2-006` | `P / R` 已同步 | 费用 11「津岛善子」 | 完整已实现 | 登场可支付 4 能量，从休息室选择至多 2 张费用合计小于等于 4 的成员登场到空槽。 | 不走普通登场费用/换手；非手牌方式登场会继续触发被登场成员登场能力。 | `YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID` |
 | `PL!HS-PR-001` | 当前登记基础编号 | 费用 10「日野下花帆」 | 部分已实现 | 登场弃 1 手牌，检视顶 3，选 1 入手，其余入休息室。 | LIVE 开始支付 `[E][E]` 获得 BLADE 未实现。 | `GENERIC_DISCARD_LOOK_TOP_ABILITY_ID` |
+| `PL!HS-PR-019` | `PR / RM` 已同步 | 费用 2「百生吟子」 | 完整已实现 | 登场公开检视卡组顶 3 张，确认后放置入休息室；若均为持有绿色 Heart 的成员，则 LIVE 结束前获得绿色 Heart。 | PR/RM 中文措辞不同但实际效果相同；按基础编号同步，公开窗口复用 look-top inspection，绿色 Heart 写入 `HEART` live modifier。 | `HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID` |
 | `PL!HS-bp1-004` | `P / P+ / R+ / SEC` 已同步 | 费用 15「夕雾缀理」 | 完整已实现 | 起动每回合 1 次支付 3 能量回收「莲之空」LIVE；LIVE 开始支付 1 能量按 LIVE 区数量获得 BLADE。 | 无合法目标时起动不支付、不占次数。 | `HS_BP1_004_*` abilities |
 | `PL!HS-bp1-006` | `P / P+ / R+ / SEC` 已同步 | 费用 11「藤岛 慈」 | 完整已实现 | 登场抽 2 弃 1；LIVE 开始弃 1 手牌，若有其他成员则选择任意普通 Heart 颜色获得 Heart。 | Heart option 流程仍在 runner。 | `HS_BP1_006_*` abilities |
 | `PL!HS-bp2-002` | `P / P+ / R+ / SEC` 已同步 | 费用 13「村野沙耶香」 | 完整已实现 | 登场从休息室回收至多 2 张费用小于等于 2 的成员。 | 多选上限已由 zone selection 支持。 | `HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID` |
+| `PL!HS-bp2-022` | `L / L+` 已同步 | 分数 2「アオクハルカ」 | 完整已实现 | LIVE 开始时休息室存在大于等于 3 张『Cerise Bouquet』LIVE 卡的场合，此卡分数 +1。 | 条件计数仍在 resolver 中，写入 `SCORE` live modifier。 | `HS_BP2_022_LIVE_START_SCORE_ABILITY_ID` |
 | `PL!HS-bp2-012` | 当前登记 exact `N` | 费用 5「乙宗 梢」 | 完整已实现 | 此成员从舞台放置入休息室时，检视顶 5，可公开 1 张成员加入手牌，其余入休息室。 | 完整事件层仍后续再抽。 | `HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID` |
+| `PL!HS-bp5-008` | `R / P / AR` 已同步 | 费用 4「桂城泉」 | 完整已实现 | 登场可将自身变为待机状态并弃 1 手牌；检视顶 5，可公开 1 张费用大于等于 9 的「莲之空」成员加入手牌，其余入休息室。 | 已打开 `SET_SOURCE_MEMBER_ORIENTATION` 费用与 `costGte` selector；look-top orchestration 仍在 runner。 | `HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID` |
+| `PL!HS-bp5-019` | 当前登记基础编号 | 分数 6「花结」 | 完整已实现 | LIVE 开始时按 LIVE 卡区中此卡以外的「莲之空」卡数量减少此卡必要绿色 Heart，每张减少 2 个。 | 计数仍在 resolver 中，写入绿色 `REQUIREMENT` live modifier。 | `HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID` |
 | `PL!HS-bp6-017` | 当前登记 exact `N` | 费用 11「日野下花帆」 | 完整已实现 | 此成员从舞台放置入休息室时，可弃 1 手牌；如此做时从休息室将 LIVE/成员至多各 1 张加入手牌。 | 分组上限仍在 runner 校验。 | `HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID` |
+| `PL!HS-pb1-004` | `R / P+` 已同步 | 费用 4「百生吟子」 | 完整已实现 | 登场可支付 1 能量并弃 1 手牌；将卡组顶 3 张放置入休息室后，从休息室回收 1 张 Cerise Bouquet LIVE。 | 验证 `TAP_ACTIVE_ENERGY + DISCARD_HAND_TO_WAITING_ROOM` 复合费用与 `unitAliasIs('Cerise Bouquet')` 休息室回收串联。 | `HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID` |
 | `PL!HS-pb1-009` | `R / P+` 已同步 | 费用 15「日野下花帆」 | 完整已实现 | 中心位监听己方「莲之空」成员登场，实例级每回合 2 次获得 BLADE +2；LIVE 开始 BLADE >= 8 时抽 2 弃 1。 | confirm-only 无输入确认壳已接通。 | `HS_PB1_009_*` abilities |
 | `PL!HS-bp6-004` | `R / P` 已同步 | 费用 13「百生 吟子」 | 完整已实现 | 登场 / LIVE 开始选择对方费用 <= 9 成员变待机；LIVE 开始可弃 1 手牌获得 BLADE，弃「百生吟子」成员时共 +2。 | 同源双 LIVE 开始能力用 option 区分。 | `HS_BP6_004_*` abilities |
+| `PL!HS-sd1-006` | 当前登记基础编号 | 费用 15「安养寺姬芽」 | 完整已实现 | 登场时若己方舞台存在大泽瑠璃乃/百生吟子/徒町小铃，活跃 1 张能量并从休息室回收 1 张「莲之空」LIVE；LIVE 开始可支付 1 能量获得 BLADE +2。 | 登场条件使用 `cardNameAliasIs` 处理中日名/空白差异；回收复用 zone-selection，LIVE 开始写入 `BLADE` modifier。 | `HS_SD1_006_*` abilities |
 
 ## Remaining Inline Behavior
 
 - `PL!-sd1-006` 费用 8「西木野真姬」：公开手牌 + 成功区交换仍是 bespoke。
 - `PL!-sd1-003` 费用 7「南琴梨」 / `PL!HS-bp1-006` 费用 11「藤岛 慈」：Heart color option step 尚未抽成 generic option resolver。
 - `PL!-sd1-004` 费用 11「园田海未」 / `PL!-sd1-015` 费用 4「星空凛」 / `PL!-sd1-019` 分数 4「START:DASH!!」 / Karin：look-top workflow 使用共享 primitives，但 orchestration 仍在 runner。
-- `PL!-sd1-009` 费用 11「矢泽妮可」 / `PL!-sd1-022` 分数 4「僕らは今のなかで」 / `PL!-sd1-001` 费用 7「高坂穗乃果」：条件/倍率仍未抽成 condition AST。
+- `PL!-sd1-009` 费用 11「矢泽妮可」 / `PL!-sd1-022` 分数 4「僕らは今のなかで」 / `PL!HS-bp2-022` 分数 2「アオクハルカ」 / `PL!HS-bp5-019` 分数 6「花结」 / `PL!-sd1-001` 费用 7「高坂穗乃果」：条件/倍率仍未抽成 condition AST。
 - `LL-bp2-001` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」：换手禁止与 LIVE 开始段未实现。
 - `LL-bp1-001` 费用 20「上原步梦&涩谷香音&日野下花帆」：LIVE 开始弃指定姓名并得分 +3 未实现。
 - Standard movement/events for broader AUTO listeners are still incomplete；当前只覆盖 leave-stage 与 enter-stage proving paths。

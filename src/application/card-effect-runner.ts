@@ -30,7 +30,17 @@ import {
   moveSelectedCardsFromZone,
   selectWaitingRoomCardIds,
 } from './effects/zone-selection.js';
-import { and, cardNameIs, costLte, groupIs, or, typeIs } from './effects/card-selectors.js';
+import {
+  and,
+  cardNameAliasIs,
+  cardNameIs,
+  costGte,
+  costLte,
+  groupIs,
+  or,
+  typeIs,
+  unitAliasIs,
+} from './effects/card-selectors.js';
 import {
   moveHandCardToWaitingRoomForEffect,
   payImmediateEffectCosts,
@@ -54,6 +64,7 @@ import {
   getStageMemberOrientationTargetMetadata,
   resolveStageMemberOrientationTargetSelection,
 } from './effects/stage-member-target-selection.js';
+import { getStageMemberCardIdsMatching } from './effects/stage-targets.js';
 import {
   placeEnergyFromDeckToZone,
   setEnergyOrientation,
@@ -87,6 +98,20 @@ export const KOTORI_LIVE_START_HEART_ABILITY_ID = 'PL!-sd1-003-SD:live-start-dis
 export const NICO_LIVE_START_SCORE_ABILITY_ID = 'PL!-sd1-009-SD:live-start-score-plus-if-25-muse';
 export const BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID =
   'PL!-sd1-022-SD:live-start-reduce-requirement-by-success-live';
+export const HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID =
+  'PL!HS-bp5-019-L:live-start-reduce-green-requirement-by-live-zone';
+export const HS_BP2_022_LIVE_START_SCORE_ABILITY_ID =
+  'PL!HS-bp2-022-L:live-start-score-plus-if-three-cerise-live';
+export const HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID =
+  'PL!HS-sd1-006-SD:on-enter-if-related-member-activate-energy-recover-live';
+export const HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
+  'PL!HS-sd1-006-SD:live-start-pay-one-gain-two-blade';
+export const HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID =
+  'PL!HS-bp5-008-R:on-enter-wait-self-discard-look-five-take-high-cost-member';
+export const HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID =
+  'PL!HS-pb1-004-R:on-enter-pay-energy-discard-mill-three-recover-cerise-live';
+export const HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID =
+  'PL!HS-PR-019-PR:on-enter-mill-three-gain-green-heart-if-all-green-member';
 export const ELI_ACTIVATED_ABILITY_ID =
   'PL!-sd1-002-SD:activated-send-self-to-waiting-room-add-member';
 export const RIN_ACTIVATED_ABILITY_ID =
@@ -246,6 +271,20 @@ const NICO_EFFECT_TEXT =
   "【LIVE开始时】自己的休息室中存在大于等于25张『μ's』的卡片的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数＋１。」。";
 const BOKUIMA_EFFECT_TEXT =
   '【LIVE开始时】每存在1张自己的成功LIVE卡区中的卡片，使此卡成功的必要HEART减少[無ハート][無ハート]。';
+const HS_BP5_019_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的LIVE卡区每存在1张此卡以外的『莲之空』的卡片，此卡所需的必要HEART减少[緑ハート][緑ハート]。';
+const HS_BP2_022_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的休息室存在大于等于3张『Cerise Bouquet』的LIVE卡的场合，此卡的分数＋１。';
+const HS_SD1_006_ON_ENTER_EFFECT_TEXT =
+  '【登场】自己的舞台中存在「大泽瑠璃乃」或「百生吟子」或「徒町小铃」的场合，将1张能量变为活跃状态，从自己的休息室将1张『莲之空』的LIVE卡加入手牌。';
+const HS_SD1_006_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[BLADE][BLADE]。';
+const HS_BP5_008_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将此成员变为待机状态，将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以从其中将1张费用大于等于9的『莲之空』的成员卡公开并加入手牌。其余的卡片放置入休息室。';
+const HS_PB1_004_ON_ENTER_EFFECT_TEXT =
+  '【登场】[E]可以将1张手牌放置入休息室：将自己卡组顶的3张卡放置入休息室。之后，从自己的休息室将1张『Cerise Bouquet』的LIVE卡加入手牌。';
+const HS_PR_019_ON_ENTER_EFFECT_TEXT =
+  '【登场】将自己卡组顶的3张卡放置入休息室。那些卡均为持有[緑ハート]的成员卡的场合，LIVE结束时为止，获得[緑ハート]。';
 const ELI_EFFECT_TEXT = '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。';
 const RIN_EFFECT_TEXT = '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。';
 const BP4_003_EFFECT_TEXT =
@@ -828,6 +867,89 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: BOKUIMA_EFFECT_TEXT,
   },
   {
+    abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp5-019'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP5_019_LIVE_START_EFFECT_TEXT,
+    notes:
+      'LIVE开始时按自己LIVE卡区中此卡以外的「莲之空」卡数量，通过 REQUIREMENT live modifier 减少绿色必要Heart。',
+  },
+  {
+    abilityId: HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp2-022'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP2_022_LIVE_START_EFFECT_TEXT,
+    notes:
+      'LIVE开始时检查休息室「Cerise Bouquet」LIVE数量，满足3张时写入 SCORE live modifier。',
+  },
+  {
+    abilityId: HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-sd1-006'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_006_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '登场时用 cardNameAliasIs 判断己方舞台是否存在大泽瑠璃乃/百生吟子/徒町小铃；满足后活跃1张能量并复用 WAITING_ROOM -> HAND 回收「莲之空」LIVE。',
+  },
+  {
+    abilityId: HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-sd1-006'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_006_LIVE_START_EFFECT_TEXT,
+    notes: 'LIVE开始时可支付1能量，通过 liveModifiers 写入 BLADE +2。',
+  },
+  {
+    abilityId: HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp5-008'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP5_008_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '登场时可将来源成员变为待机状态并弃1手牌；看顶5张，用 costGte(9)+「莲之空」成员 selector 公开加入手牌，其余放置入休息室。',
+  },
+  {
+    abilityId: HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-pb1-004'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_PB1_004_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '登场时可支付1能量并弃1手牌；堆顶3后复用 unitAliasIs(Cerise Bouquet)+WAITING_ROOM -> HAND 回收LIVE。',
+  },
+  {
+    abilityId: HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!HS-PR-019'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_PR_019_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '登场堆顶3；若堆入的3张均为持有绿色Heart的成员，则通过 liveModifiers 获得绿色Heart。PR/RM中文措辞不同但按同一基础编号同步。',
+  },
+  {
     abilityId: KARIN_LIVE_START_ABILITY_ID,
     baseCardCodes: ['PL!N-pb1-004'],
     category: CardAbilityCategory.LIVE_START,
@@ -1189,6 +1311,15 @@ const KOTORI_LIVE_START_SELECT_DISCARD_STEP_ID = 'KOTORI_LIVE_START_SELECT_DISCA
 const KOTORI_LIVE_START_SELECT_HEART_STEP_ID = 'KOTORI_LIVE_START_SELECT_HEART';
 const NICO_SCORE_BONUS_STEP_ID = 'NICO_SCORE_BONUS';
 const BOKUIMA_REQUIREMENT_REDUCTION_STEP_ID = 'BOKUIMA_REQUIREMENT_REDUCTION';
+const HS_BP5_019_REQUIREMENT_REDUCTION_STEP_ID = 'HS_BP5_019_REQUIREMENT_REDUCTION';
+const HS_BP2_022_SCORE_BONUS_STEP_ID = 'HS_BP2_022_SCORE_BONUS';
+const HS_SD1_006_SELECT_WAITING_ROOM_LIVE_STEP_ID =
+  'HS_SD1_006_SELECT_HASUNOSORA_LIVE_FROM_WAITING_ROOM';
+const HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_SD1_006_LIVE_START_PAY_ENERGY';
+const HS_PB1_004_SELECT_DISCARD_STEP_ID = 'HS_PB1_004_SELECT_DISCARD_FOR_MILL_RECOVER';
+const HS_PB1_004_SELECT_CERISE_LIVE_STEP_ID =
+  'HS_PB1_004_SELECT_CERISE_LIVE_FROM_WAITING_ROOM';
+const HS_PR_019_REVEAL_STEP_ID = 'HS_PR_019_REVEAL_TOP_THREE';
 const ELI_SELECT_WAITING_ROOM_MEMBER_STEP_ID = 'ELI_SELECT_WAITING_ROOM_MEMBER';
 const RIN_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'RIN_SELECT_WAITING_ROOM_LIVE';
 const KEKE_SELECT_DISCARD_STEP_ID = 'KEKE_SELECT_DISCARD_FOR_WAITING_ENERGY';
@@ -1539,11 +1670,18 @@ function createEnterStageEventsFromOnEnterSources(
   });
 }
 
-function isHasunosoraMemberCard(card: CardInstance): boolean {
+function isHasunosoraCard(card: CardInstance): boolean {
   return (
-    isMemberCardData(card.data) &&
-    (groupIs('莲之空')(card) || groupIs('蓮ノ空')(card) || card.data.cardCode.startsWith('PL!HS-'))
+    groupIs('莲之空')(card) || groupIs('蓮ノ空')(card) || card.data.cardCode.startsWith('PL!HS-')
   );
+}
+
+function isHasunosoraMemberCard(card: CardInstance): boolean {
+  return isMemberCardData(card.data) && isHasunosoraCard(card);
+}
+
+function isCeriseBouquetLiveCard(card: CardInstance): boolean {
+  return isLiveCardData(card.data) && unitAliasIs('Cerise Bouquet')(card);
 }
 
 function enqueueSingleOnEnterCardEffect(game: GameState, source: OnEnterAbilitySource): GameState {
@@ -1907,8 +2045,16 @@ export function confirmActiveEffectStep(
   }
 
   if (
+    effect.abilityId === HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID &&
+    effect.stepId === HS_PR_019_REVEAL_STEP_ID
+  ) {
+    return finishHsPr019GinkoMillGainGreenHeart(game);
+  }
+
+  if (
     (effect.abilityId === HONOKA_ON_ENTER_ABILITY_ID ||
-      effect.abilityId === KOTORI_ON_ENTER_ABILITY_ID) &&
+      effect.abilityId === KOTORI_ON_ENTER_ABILITY_ID ||
+      effect.abilityId === HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID) &&
     effect.stepId === SELECT_WAITING_ROOM_CARD_STEP_ID
   ) {
     return finishSelectCardsFromZoneToHandEffect(game, selectedCardId ?? null);
@@ -1950,9 +2096,15 @@ export function confirmActiveEffectStep(
 
   if (
     (effect.abilityId === GENERIC_DISCARD_LOOK_TOP_ABILITY_ID ||
-      effect.abilityId === BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID) &&
+      effect.abilityId === BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID ||
+      effect.abilityId === HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID) &&
     effect.stepId === DISCARD_LOOK_SELECT_DISCARD_STEP_ID
   ) {
+    if (effect.abilityId === HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID) {
+      return selectedCardId
+        ? startHsBp5IzumiOnEnterInspection(game, selectedCardId)
+        : finishSkipEffect(game);
+    }
     return selectedCardId
       ? startDiscardLookTopInspection(game, selectedCardId)
       : finishSkipEffect(game);
@@ -1960,7 +2112,8 @@ export function confirmActiveEffectStep(
 
   if (
     (effect.abilityId === GENERIC_DISCARD_LOOK_TOP_ABILITY_ID ||
-      effect.abilityId === BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID) &&
+      effect.abilityId === BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID ||
+      effect.abilityId === HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID) &&
     effect.stepId === DISCARD_LOOK_SELECT_TAKE_STEP_ID
   ) {
     if (effect.metadata?.revealSelectedBeforeHand === true && selectedCardId) {
@@ -1971,7 +2124,8 @@ export function confirmActiveEffectStep(
 
   if (
     (effect.abilityId === GENERIC_DISCARD_LOOK_TOP_ABILITY_ID ||
-      effect.abilityId === BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID) &&
+      effect.abilityId === BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID ||
+      effect.abilityId === HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID) &&
     effect.stepId === DISCARD_LOOK_REVEAL_SELECTED_STEP_ID
   ) {
     const selectedCardIdFromMetadata =
@@ -2057,6 +2211,20 @@ export function confirmActiveEffectStep(
   }
 
   if (
+    effect.abilityId === HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID &&
+    effect.stepId === HS_BP5_019_REQUIREMENT_REDUCTION_STEP_ID
+  ) {
+    return finishHsBp5HanamusubiLiveStartRequirementReduction(game);
+  }
+
+  if (
+    effect.abilityId === HS_BP2_022_LIVE_START_SCORE_ABILITY_ID &&
+    effect.stepId === HS_BP2_022_SCORE_BONUS_STEP_ID
+  ) {
+    return finishHsBp2AokuharukaLiveStartScoreBonus(game);
+  }
+
+  if (
     effect.abilityId === START_DASH_LIVE_SUCCESS_ABILITY_ID &&
     effect.stepId === START_DASH_ARRANGE_STEP_ID
   ) {
@@ -2117,6 +2285,38 @@ export function confirmActiveEffectStep(
     return selectedOptionId === 'pay'
       ? finishHsBp1TsuzuriLiveStartPayEnergy(game)
       : finishSkipEffect(game);
+  }
+
+  if (
+    effect.abilityId === HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID &&
+    effect.stepId === HS_SD1_006_SELECT_WAITING_ROOM_LIVE_STEP_ID
+  ) {
+    return finishSelectCardsFromZoneToHandEffect(game, selectedCardId ?? null);
+  }
+
+  if (
+    effect.abilityId === HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID &&
+    effect.stepId === HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID
+  ) {
+    return selectedOptionId === 'pay'
+      ? finishHsSd1HimeLiveStartPayEnergyGainBlade(game)
+      : finishSkipEffect(game);
+  }
+
+  if (
+    effect.abilityId === HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID &&
+    effect.stepId === HS_PB1_004_SELECT_DISCARD_STEP_ID
+  ) {
+    return selectedCardId
+      ? finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(game, selectedCardId)
+      : finishSkipEffect(game);
+  }
+
+  if (
+    effect.abilityId === HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID &&
+    effect.stepId === HS_PB1_004_SELECT_CERISE_LIVE_STEP_ID
+  ) {
+    return finishSelectCardsFromZoneToHandEffect(game, selectedCardId ?? null);
   }
 
   if (
@@ -2430,6 +2630,20 @@ function startPendingAbilityEffect(
       return startNicoLiveStartScoreBonus(game, ability, options);
     case BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID:
       return startBokuimaLiveStartRequirementReduction(game, ability, options);
+    case HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID:
+      return startHsBp5HanamusubiLiveStartRequirementReduction(game, ability, options);
+    case HS_BP2_022_LIVE_START_SCORE_ABILITY_ID:
+      return startHsBp2AokuharukaLiveStartScoreBonus(game, ability, options);
+    case HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID:
+      return startHsSd1HimeOnEnterActivateEnergyRecoverLive(game, ability, options);
+    case HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID:
+      return startHsSd1HimeLiveStartPayEnergyGainBlade(game, ability, options);
+    case HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID:
+      return startHsBp5IzumiOnEnterWaitDiscardLookTop(game, ability, options);
+    case HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID:
+      return startHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(game, ability, options);
+    case HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID:
+      return startHsPr019GinkoMillGainGreenHeartInspection(game, ability, options);
     case START_DASH_LIVE_SUCCESS_ABILITY_ID:
       return startStartDashLiveSuccessEffect(game, ability, options);
     case KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID:
@@ -3961,6 +4175,914 @@ function finishBokuimaLiveStartRequirementReduction(game: GameState): GameState 
     }),
     isOrderedResolutionEffect(game)
   );
+}
+
+function startHsBp5HanamusubiLiveStartRequirementReduction(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: { readonly orderedResolution?: boolean } = {}
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const otherHasunosoraLiveZoneCount = countOtherHasunosoraLiveZoneCards(
+    game,
+    player.id,
+    ability.sourceCardId
+  );
+  const reduction = otherHasunosoraLiveZoneCount * 2;
+  const effectText = `${HS_BP5_019_LIVE_START_EFFECT_TEXT}（当前此卡以外莲之空卡 ${otherHasunosoraLiveZoneCount}张，减少${reduction}个绿Heart）`;
+
+  return addAction(
+    {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      activeEffect: {
+        id: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        controllerId: ability.controllerId,
+        effectText,
+        stepId: HS_BP5_019_REQUIREMENT_REDUCTION_STEP_ID,
+        stepText: effectText,
+        awaitingPlayerId: player.id,
+        metadata: {
+          orderedResolution: options.orderedResolution === true,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'START_CONFIRM',
+      otherHasunosoraLiveZoneCount,
+      requirementReduction: reduction,
+    }
+  );
+}
+
+function finishHsBp5HanamusubiLiveStartRequirementReduction(game: GameState): GameState {
+  const effect = game.activeEffect;
+  if (!effect) {
+    return game;
+  }
+
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const otherHasunosoraLiveZoneCount = countOtherHasunosoraLiveZoneCards(
+    game,
+    player.id,
+    effect.sourceCardId
+  );
+  const reduction = otherHasunosoraLiveZoneCount * 2;
+  let state: GameState = {
+    ...game,
+    activeEffect: null,
+  };
+  if (reduction > 0) {
+    state = replaceLiveModifier(
+      state,
+      {
+        kind: 'REQUIREMENT',
+        liveCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+      },
+      {
+        kind: 'REQUIREMENT',
+        liveCardId: effect.sourceCardId,
+        modifiers: [{ color: HeartColor.GREEN, countDelta: -reduction }],
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+      }
+    );
+  } else {
+    state = replaceLiveModifier(
+      state,
+      {
+        kind: 'REQUIREMENT',
+        liveCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+      },
+      null
+    );
+  }
+
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'APPLY_REQUIREMENT_REDUCTION',
+      otherHasunosoraLiveZoneCount,
+      requirementReduction: reduction,
+    }),
+    isOrderedResolutionEffect(game)
+  );
+}
+
+function startHsBp2AokuharukaLiveStartScoreBonus(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: { readonly orderedResolution?: boolean } = {}
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const ceriseBouquetLiveCount = countCeriseBouquetLiveCardsInWaitingRoom(game, player.id);
+  const isConditionMet = ceriseBouquetLiveCount >= 3;
+  const effectText = `${HS_BP2_022_LIVE_START_EFFECT_TEXT}（当前${ceriseBouquetLiveCount}张，${
+    isConditionMet ? '满足条件' : '未满足条件'
+  }）`;
+
+  return addAction(
+    {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      activeEffect: {
+        id: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        controllerId: ability.controllerId,
+        effectText,
+        stepId: HS_BP2_022_SCORE_BONUS_STEP_ID,
+        stepText: effectText,
+        awaitingPlayerId: player.id,
+        metadata: {
+          orderedResolution: options.orderedResolution === true,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'START_CONFIRM',
+      ceriseBouquetLiveCount,
+      scoreBonus: isConditionMet ? 1 : 0,
+    }
+  );
+}
+
+function finishHsBp2AokuharukaLiveStartScoreBonus(game: GameState): GameState {
+  const effect = game.activeEffect;
+  if (!effect) {
+    return game;
+  }
+
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const ceriseBouquetLiveCount = countCeriseBouquetLiveCardsInWaitingRoom(game, player.id);
+  const isConditionMet = ceriseBouquetLiveCount >= 3;
+  let state: GameState = {
+    ...game,
+    activeEffect: null,
+  };
+  if (isConditionMet) {
+    state = addLiveModifier(state, {
+      kind: 'SCORE',
+      playerId: player.id,
+      countDelta: 1,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    });
+  }
+
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'APPLY_SCORE_BONUS',
+      effectText: HS_BP2_022_LIVE_START_EFFECT_TEXT,
+      conditionMet: isConditionMet,
+      ceriseBouquetLiveCount,
+      scoreBonus: isConditionMet ? 1 : 0,
+    }),
+    isOrderedResolutionEffect(game)
+  );
+}
+
+function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: { readonly orderedResolution?: boolean } = {}
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const relatedMemberCardIds = getStageMemberCardIdsMatching(
+    game,
+    player.id,
+    or(
+      cardNameAliasIs('大沢瑠璃乃'),
+      cardNameAliasIs('百生吟子'),
+      cardNameAliasIs('徒町小鈴')
+    )
+  ).filter((cardId) => cardId !== ability.sourceCardId);
+
+  if (relatedMemberCardIds.length === 0) {
+    const state = {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+    };
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'CONDITION_NOT_MET',
+      }),
+      options.orderedResolution === true
+    );
+  }
+
+  const orientationChange = setFirstEnergyCardsOrientation(
+    game,
+    player.id,
+    1,
+    OrientationState.ACTIVE,
+    { fromOrientation: OrientationState.WAITING }
+  );
+  if (!orientationChange) {
+    return game;
+  }
+
+  let state = addAction(orientationChange.gameState, 'RESOLVE_ABILITY', player.id, {
+    pendingAbilityId: ability.id,
+    abilityId: ability.abilityId,
+    sourceCardId: ability.sourceCardId,
+    step: 'ACTIVATE_ENERGY',
+    relatedMemberCardIds,
+    activatedEnergyCardIds: orientationChange.updatedEnergyCardIds,
+    previousOrientations: orientationChange.previousOrientations,
+    nextOrientation: orientationChange.nextOrientation,
+  });
+  state = {
+    ...state,
+    pendingAbilities: state.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+  };
+
+  const selectableCardIds = selectWaitingRoomCardIds(
+    state,
+    player.id,
+    (card) => isLiveCardData(card.data) && isHasunosoraCard(card)
+  );
+
+  if (selectableCardIds.length === 0) {
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'NO_WAITING_ROOM_LIVE_TARGET',
+        relatedMemberCardIds,
+      }),
+      options.orderedResolution === true
+    );
+  }
+
+  const zoneSelection = createWaitingRoomToHandSelectionConfig({
+    minCount: 1,
+    maxCount: 1,
+    optional: false,
+  });
+
+  return addAction(
+    {
+      ...state,
+      activeEffect: createWaitingRoomToHandEffectState({
+        id: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        controllerId: ability.controllerId,
+        effectText: HS_SD1_006_ON_ENTER_EFFECT_TEXT,
+        stepId: HS_SD1_006_SELECT_WAITING_ROOM_LIVE_STEP_ID,
+        stepText: '请选择自己的休息室中1张『莲之空』的LIVE卡加入手牌。',
+        awaitingPlayerId: player.id,
+        selectableCardIds,
+        canSkipSelection: false,
+        metadata: {
+          orderedResolution: options.orderedResolution === true,
+          relatedMemberCardIds,
+          activatedEnergyCardIds: orientationChange.updatedEnergyCardIds,
+        },
+        zoneSelection,
+      }),
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'SELECT_WAITING_ROOM_LIVE',
+      relatedMemberCardIds,
+      selectableCardIds,
+    }
+  );
+}
+
+function startHsSd1HimeLiveStartPayEnergyGainBlade(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: { readonly orderedResolution?: boolean } = {}
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const activeEnergyCardIds = getActiveEnergyCardIds(player);
+  const canPay = activeEnergyCardIds.length >= 1;
+
+  return addAction(
+    {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      activeEffect: {
+        id: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        controllerId: ability.controllerId,
+        effectText: HS_SD1_006_LIVE_START_EFFECT_TEXT,
+        stepId: HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID,
+        stepText: canPay ? '可以支付1张活跃能量，获得2个BLADE。' : '当前没有可支付的活跃能量，可以不发动。',
+        awaitingPlayerId: player.id,
+        selectableOptions: canPay
+          ? [
+              { id: 'pay', label: '支付1能量' },
+              { id: 'decline', label: DECLINE_OPTION_LABEL },
+            ]
+          : [{ id: 'decline', label: DECLINE_OPTION_LABEL }],
+        metadata: {
+          orderedResolution: options.orderedResolution === true,
+          activeEnergyCardIds,
+          bladeBonus: 2,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'START_PAY_ENERGY_OPTION',
+      activeEnergyCardIds,
+      bladeBonus: 2,
+    }
+  );
+}
+
+function finishHsSd1HimeLiveStartPayEnergyGainBlade(game: GameState): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !== HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
+  ) {
+    return game;
+  }
+
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const costPayment = payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
+    { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
+  ]);
+  if (!costPayment) {
+    return game;
+  }
+
+  const stateAfterCost = addAction(costPayment.gameState, 'PAY_COST', player.id, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    energyCardIds: costPayment.paidEnergyCardIds,
+    amount: costPayment.paidEnergyCardIds.length,
+  });
+  const stateAfterModifier = addLiveModifier(stateAfterCost, {
+    kind: 'BLADE',
+    playerId: player.id,
+    countDelta: 2,
+    sourceCardId: effect.sourceCardId,
+    abilityId: effect.abilityId,
+  });
+  const state = { ...stateAfterModifier, activeEffect: null };
+
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'PAY_ENERGY_GAIN_BLADE',
+      paidEnergyCardIds: costPayment.paidEnergyCardIds,
+      bladeBonus: 2,
+    }),
+    isOrderedResolutionEffect(game)
+  );
+}
+
+function startHsBp5IzumiOnEnterWaitDiscardLookTop(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: { readonly orderedResolution?: boolean } = {}
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const sourceSlot = findMemberSlot(player, ability.sourceCardId);
+  const sourceState = player.memberSlots.cardStates.get(ability.sourceCardId);
+  const canWaitSource = sourceSlot !== null && sourceState?.orientation !== OrientationState.WAITING;
+  const selectableCardIds = canWaitSource ? [...player.hand.cardIds] : [];
+  const sourceWaitCost: EffectCostDefinition = {
+    kind: 'SET_SOURCE_MEMBER_ORIENTATION',
+    orientation: OrientationState.WAITING,
+  };
+  const discardCost: EffectCostDefinition = {
+    kind: 'DISCARD_HAND_TO_WAITING_ROOM',
+    minCount: 1,
+    maxCount: 1,
+    optional: true,
+  };
+
+  return addAction(
+    {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      activeEffect: {
+        id: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        controllerId: ability.controllerId,
+        effectText: HS_BP5_008_ON_ENTER_EFFECT_TEXT,
+        stepId: DISCARD_LOOK_SELECT_DISCARD_STEP_ID,
+        stepText: DISCARD_HAND_TO_ACTIVATE_STEP_TEXT,
+        awaitingPlayerId: player.id,
+        selectableCardIds,
+        selectionLabel: DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL,
+        canSkipSelection: true,
+        skipSelectionLabel: DECLINE_OPTION_LABEL,
+        metadata: {
+          orderedResolution: options.orderedResolution === true,
+          topCount: 5,
+          memberOnly: true,
+          selectionRequired: false,
+          revealSelectedBeforeHand: true,
+          sourceSlot,
+          effectCosts: [sourceWaitCost, discardCost],
+          handToWaitingRoomCost: {
+            minCount: discardCost.minCount,
+            maxCount: discardCost.maxCount,
+            optional: discardCost.optional,
+          },
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'START_SELECT_DISCARD',
+      selectableCardIds,
+      sourceSlot,
+    }
+  );
+}
+
+function startHsBp5IzumiOnEnterInspection(game: GameState, discardCardId: string): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !== HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID ||
+    !effect.selectableCardIds?.includes(discardCardId)
+  ) {
+    return game;
+  }
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player || !player.hand.cardIds.includes(discardCardId)) {
+    return game;
+  }
+
+  const sourceWaitPayment = payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
+    { kind: 'SET_SOURCE_MEMBER_ORIENTATION', orientation: OrientationState.WAITING },
+  ]);
+  if (!sourceWaitPayment) {
+    return game;
+  }
+  const stateAfterDiscard = moveHandCardToWaitingRoomForEffect(
+    sourceWaitPayment.gameState,
+    player.id,
+    discardCardId
+  );
+  if (!stateAfterDiscard) {
+    return game;
+  }
+
+  const stateAfterCost = addAction(stateAfterDiscard, 'PAY_COST', player.id, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    sourceSlot: sourceWaitPayment.sourceSlot,
+    orientedMemberCardIds: sourceWaitPayment.orientedMemberCardIds,
+    discardedHandCardIds: [discardCardId],
+  });
+  const selector = and(typeIs(CardType.MEMBER), costGte(9), (card) => isHasunosoraCard(card));
+  const inspection = inspectTopCards(stateAfterCost, player.id, {
+    count: 5,
+    selectablePredicate: selector,
+  });
+  if (!inspection) {
+    return game;
+  }
+
+  const { gameState: state, inspectedCardIds, selectableCardIds } = inspection;
+  return addAction(
+    {
+      ...state,
+      activeEffect: {
+        ...effect,
+        stepId: DISCARD_LOOK_SELECT_TAKE_STEP_ID,
+        stepText:
+          '请选择其中1张费用大于等于9的『莲之空』成员卡公开并加入手牌，其余放置入休息室。',
+        inspectionCardIds: inspectedCardIds,
+        selectableCardIds,
+        selectionLabel: '请选择要公开并加入手牌的成员卡',
+        canSkipSelection: true,
+        skipSelectionLabel: '不加入',
+        metadata: {
+          ...effect.metadata,
+          discardCardId,
+          memberOnly: true,
+          selectionRequired: false,
+          revealSelectedBeforeHand: true,
+          sourceSlot: sourceWaitPayment.sourceSlot,
+          orientedMemberCardIds: sourceWaitPayment.orientedMemberCardIds,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'START_INSPECTION',
+      discardCardId,
+      inspectedCardIds,
+      selectableCardIds,
+    }
+  );
+}
+
+function startHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: { readonly orderedResolution?: boolean } = {}
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const activeEnergyCardIds = getActiveEnergyCardIds(player);
+  const canPay = activeEnergyCardIds.length >= 1 && player.hand.cardIds.length > 0;
+  const energyCost: EffectCostDefinition = { kind: 'TAP_ACTIVE_ENERGY', count: 1 };
+  const discardCost: EffectCostDefinition = {
+    kind: 'DISCARD_HAND_TO_WAITING_ROOM',
+    minCount: 1,
+    maxCount: 1,
+    optional: true,
+  };
+
+  return addAction(
+    {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      activeEffect: {
+        id: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        controllerId: ability.controllerId,
+        effectText: HS_PB1_004_ON_ENTER_EFFECT_TEXT,
+        stepId: HS_PB1_004_SELECT_DISCARD_STEP_ID,
+        stepText: canPay
+          ? '可以支付1张活跃能量并将1张手牌放置入休息室。也可以选择不发动此效果。'
+          : '当前无法同时支付1张活跃能量并弃1张手牌，可以不发动。',
+        awaitingPlayerId: player.id,
+        selectableCardIds: canPay ? player.hand.cardIds : [],
+        selectionLabel: DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL,
+        canSkipSelection: true,
+        skipSelectionLabel: DECLINE_OPTION_LABEL,
+        metadata: {
+          orderedResolution: options.orderedResolution === true,
+          topCount: 3,
+          effectCosts: [energyCost, discardCost],
+          handToWaitingRoomCost: {
+            minCount: discardCost.minCount,
+            maxCount: discardCost.maxCount,
+            optional: discardCost.optional,
+          },
+          activeEnergyCardIds,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'START_PAY_ENERGY_SELECT_DISCARD',
+      selectableCardIds: canPay ? player.hand.cardIds : [],
+      activeEnergyCardIds,
+    }
+  );
+}
+
+function finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
+  game: GameState,
+  discardCardId: string
+): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !==
+      HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID ||
+    effect.stepId !== HS_PB1_004_SELECT_DISCARD_STEP_ID ||
+    !effect.selectableCardIds?.includes(discardCardId)
+  ) {
+    return game;
+  }
+
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player || !player.hand.cardIds.includes(discardCardId)) {
+    return game;
+  }
+
+  const energyPayment = payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
+    { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
+  ]);
+  if (!energyPayment) {
+    return game;
+  }
+
+  const stateAfterDiscard = moveHandCardToWaitingRoomForEffect(
+    energyPayment.gameState,
+    player.id,
+    discardCardId
+  );
+  if (!stateAfterDiscard) {
+    return game;
+  }
+
+  const stateAfterCost = addAction(stateAfterDiscard, 'PAY_COST', player.id, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    energyCardIds: energyPayment.paidEnergyCardIds,
+    amount: energyPayment.paidEnergyCardIds.length,
+    discardedHandCardIds: [discardCardId],
+  });
+
+  const millResult = moveTopDeckCardsToWaitingRoom(stateAfterCost, player.id, 3);
+  if (!millResult) {
+    return game;
+  }
+
+  let state = addAction(millResult.gameState, 'RESOLVE_ABILITY', player.id, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    step: 'MILL_TOP_THREE',
+    milledCardIds: millResult.movedCardIds,
+  });
+  const selectableCardIds = selectWaitingRoomCardIds(
+    state,
+    player.id,
+    and(typeIs(CardType.LIVE), unitAliasIs('Cerise Bouquet'))
+  );
+
+  if (selectableCardIds.length === 0) {
+    return continuePendingCardEffects(
+      addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'NO_CERISE_LIVE_TARGET',
+        milledCardIds: millResult.movedCardIds,
+      }),
+      isOrderedResolutionEffect(game)
+    );
+  }
+
+  const zoneSelection = createWaitingRoomToHandSelectionConfig({
+    minCount: 1,
+    maxCount: 1,
+    optional: false,
+  });
+
+  state = {
+    ...state,
+    activeEffect: createWaitingRoomToHandEffectState({
+      id: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      controllerId: effect.controllerId,
+      effectText: HS_PB1_004_ON_ENTER_EFFECT_TEXT,
+      stepId: HS_PB1_004_SELECT_CERISE_LIVE_STEP_ID,
+      stepText: '请选择自己的休息室中1张『Cerise Bouquet』的LIVE卡加入手牌。',
+      awaitingPlayerId: player.id,
+      selectableCardIds,
+      canSkipSelection: false,
+      metadata: {
+        orderedResolution: isOrderedResolutionEffect(game),
+        paidEnergyCardIds: energyPayment.paidEnergyCardIds,
+        discardCardId,
+        milledCardIds: millResult.movedCardIds,
+      },
+      zoneSelection,
+    }),
+  };
+
+  return addAction(state, 'RESOLVE_ABILITY', player.id, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    step: 'SELECT_CERISE_LIVE',
+    selectableCardIds,
+  });
+}
+
+function startHsPr019GinkoMillGainGreenHeartInspection(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: StartPendingAbilityEffectOptions = {}
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const inspection = inspectTopCards(game, player.id, {
+    count: 3,
+    reveal: true,
+  });
+  if (!inspection) {
+    return game;
+  }
+
+  const { gameState, inspectedCardIds } = inspection;
+  const state = {
+    ...gameState,
+    pendingAbilities: gameState.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+    activeEffect: {
+      id: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      controllerId: ability.controllerId,
+      effectText: HS_PR_019_ON_ENTER_EFFECT_TEXT,
+      stepId: HS_PR_019_REVEAL_STEP_ID,
+      stepText: '卡组顶3张已公开。确认后将这些牌放入休息室，并在均为持有绿色Heart的成员时获得绿色Heart。',
+      awaitingPlayerId: player.id,
+      inspectionCardIds: inspectedCardIds,
+      metadata: {
+        sourceZone: ZoneType.MAIN_DECK,
+        orderedResolution: options.orderedResolution === true,
+      },
+    },
+  };
+
+  return addAction(state, 'RESOLVE_ABILITY', player.id, {
+    pendingAbilityId: ability.id,
+    abilityId: ability.abilityId,
+    sourceCardId: ability.sourceCardId,
+    step: 'START_INSPECTION',
+    inspectedCardIds,
+  });
+}
+
+function finishHsPr019GinkoMillGainGreenHeart(game: GameState): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !== HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID ||
+    effect.stepId !== HS_PR_019_REVEAL_STEP_ID
+  ) {
+    return game;
+  }
+
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const inspectedCardIds = effect.inspectionCardIds ?? [];
+  const conditionMet =
+    inspectedCardIds.length === 3 &&
+    inspectedCardIds.every((cardId) => {
+      const card = getCardById(game, cardId);
+      return card !== null && isGreenHeartMemberCard(card);
+    });
+
+  const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
+  if (!moveResult) {
+    return game;
+  }
+
+  let state: GameState = {
+    ...moveResult.gameState,
+    inspectionContext:
+      moveResult.gameState.inspectionZone.cardIds.length > 0
+        ? moveResult.gameState.inspectionContext
+        : null,
+    activeEffect: null,
+  };
+
+  if (conditionMet) {
+    state = addLiveModifier(state, {
+      kind: 'HEART',
+      playerId: player.id,
+      hearts: [{ color: HeartColor.GREEN, count: 1 }],
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    });
+  }
+
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'FINISH_MILL_TOP_THREE_CHECK_GREEN_HEART_MEMBERS',
+      milledCardIds: moveResult.movedCardIds,
+      conditionMet,
+      heartBonus: conditionMet ? [{ color: HeartColor.GREEN, count: 1 }] : [],
+    }),
+    isOrderedResolutionEffect(game)
+  );
+}
+
+function isGreenHeartMemberCard(card: CardInstance): boolean {
+  return (
+    isMemberCardData(card.data) &&
+    card.data.hearts.some((heart) => heart.color === HeartColor.GREEN && heart.count > 0)
+  );
+}
+
+function countOtherHasunosoraLiveZoneCards(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): number {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return 0;
+  }
+
+  return player.liveZone.cardIds.filter((cardId) => {
+    if (cardId === sourceCardId) {
+      return false;
+    }
+    const card = getCardById(game, cardId);
+    return card !== null && isHasunosoraCard(card);
+  }).length;
+}
+
+function countCeriseBouquetLiveCardsInWaitingRoom(game: GameState, playerId: string): number {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return 0;
+  }
+
+  return player.waitingRoom.cardIds.filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return card !== null && isCeriseBouquetLiveCard(card);
+  }).length;
 }
 
 function countMuseWaitingRoomCards(game: GameState, playerId: string): number {

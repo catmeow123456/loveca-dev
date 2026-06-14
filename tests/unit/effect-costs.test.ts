@@ -148,4 +148,40 @@ describe('effect cost helpers', () => {
     expect(result?.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
     expect(result?.gameState.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
   });
+
+  it('pays source-member orientation cost by setting the staged source member to waiting', () => {
+    const state = createMutableState();
+    const p1 = state.players[0] as unknown as {
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const sourceCardId = [...state.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.MEMBER
+    )?.instanceId;
+
+    expect(sourceCardId).toBeTruthy();
+
+    p1.memberSlots.slots[SlotPosition.CENTER] = sourceCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [sourceCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+
+    const result = payImmediateEffectCosts(state, PLAYER1, sourceCardId!, [
+      { kind: 'SET_SOURCE_MEMBER_ORIENTATION', orientation: OrientationState.WAITING },
+    ]);
+
+    expect(result).not.toBeNull();
+    expect(result?.sourceSlot).toBe(SlotPosition.CENTER);
+    expect(result?.orientedMemberCardIds).toEqual([sourceCardId]);
+    expect(
+      result?.gameState.players[0].memberSlots.cardStates.get(sourceCardId!)?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(
+      payImmediateEffectCosts(result!.gameState, PLAYER1, sourceCardId!, [
+        { kind: 'SET_SOURCE_MEMBER_ORIENTATION', orientation: OrientationState.WAITING },
+      ])
+    ).toBeNull();
+  });
 });

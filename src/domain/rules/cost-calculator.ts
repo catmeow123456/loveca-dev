@@ -3,9 +3,9 @@
  * 基于 detail_rules.md 第 9.6.2.3 章 - 成员卡费用支付
  */
 
-import type { MemberCardData } from '../entities/card';
-import { OrientationState, SlotPosition } from '../../shared/types/enums';
-import { cardCodeMatchesBase } from '../../shared/utils/card-code';
+import type { MemberCardData } from '../entities/card.js';
+import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
 
 // ============================================
 // 费用相关类型

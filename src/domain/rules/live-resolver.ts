@@ -3,15 +3,15 @@
  * 基于 detail_rules.md 第 8 章 - Live 阶段
  */
 
-import { HeartColor, BladeHeartEffect } from '../../shared/types/enums';
+import { HeartColor, BladeHeartEffect } from '../../shared/types/enums.js';
 import type {
   HeartIcon,
   HeartRequirement,
   MemberCardData,
   LiveCardData,
   BladeHeartItem,
-} from '../entities/card';
-import { HeartPool, createHeartCountsFromIcons } from '../value-objects/heart';
+} from '../entities/card.js';
+import { HeartPool, createHeartCountsFromIcons } from '../value-objects/heart.js';
 
 function mergeLiveRequirements(liveCards: readonly { data: LiveCardData }[]): HeartRequirement {
   const colorRequirements = new Map<HeartColor, number>();
