@@ -122,6 +122,7 @@ import { applyHeartRequirementModifiers } from '../domain/rules/live-requirement
 import {
   collectLiveModifiers,
   getLiveCardRequirementModifiers,
+  getLiveCardScoreModifier,
   getPlayerLiveBladeModifier,
   getPlayerLiveHeartModifiers,
   getPlayerLiveScoreModifier,
@@ -1116,9 +1117,16 @@ export class GameService {
 
     return player.liveZone.cardIds.flatMap((cardId) => {
       const card = getCardById(game, cardId);
-      return card && isLiveCardData(card.data)
-        ? [{ cardId, data: this.applyLiveRequirementModifiers(game, cardId, card.data) }]
-        : [];
+      if (!card || !isLiveCardData(card.data)) {
+        return [];
+      }
+      const dataWithRequirements = this.applyLiveRequirementModifiers(game, cardId, card.data);
+      return [
+        {
+          cardId,
+          data: this.applyLiveScoreModifiers(game, cardId, dataWithRequirements),
+        },
+      ];
     });
   }
 
@@ -1140,6 +1148,24 @@ export class GameService {
       ...liveData,
       requirements: applyHeartRequirementModifiers(liveData.requirements, modifiers),
     };
+  }
+
+  private applyLiveScoreModifiers(
+    game: GameState,
+    cardId: string,
+    liveData: LiveCardData
+  ): LiveCardData {
+    const scoreDelta = getLiveCardScoreModifier(
+      game.liveResolution,
+      cardId,
+      collectLiveModifiers(game)
+    );
+    return scoreDelta === 0
+      ? liveData
+      : {
+          ...liveData,
+          score: Math.max(0, liveData.score + scoreDelta),
+        };
   }
 
   private getCardBladeHearts(game: GameState, cardId: string): readonly BladeHeartItem[] {
@@ -1512,7 +1538,7 @@ export class GameService {
         continue;
       }
 
-      totalScore += (card.data as LiveCardData).score;
+      totalScore += this.applyLiveScoreModifiers(game, cardId, card.data as LiveCardData).score;
     }
 
     // 8.4.2.1: 应援的 [音符+1] 效果加分

@@ -1,7 +1,7 @@
 # Loveca safe card effect refactor plan
 
 审查日期：2026-06-14
-状态：Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Stage 1I-1R 已陆续打开 E03/E02 能量、F02 抽弃、S05 站位变换、X11 登场费用修正、S07 卡效登场、X03 分支选择、S08 离场 AUTO、`ON_ENTER_STAGE` 监听 AUTO、舞台目标选择与同编号罕度同步等边界。本批 `绿莲-6弹ver.yaml` 已补齐 `PL!HS-bp5-019-L` 分数 6「花结」、`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」、`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」、`PL!HS-bp5-008-R` 费用 4「桂城泉」、`PL!HS-pb1-004-R` 费用 4「百生吟子」与 `PL!HS-PR-019-RM` 费用 2「百生吟子」，新增验证 LIVE 卡来源 modifier、成员名/小组名别名归一化、来源成员待机费用、复合费用、公开检视顶 3 后继续处理入休息室、固定绿色 Heart modifier。卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由测试防漏同步；普通活跃阶段进入时也已自动重置当前玩家成员与能量。
+状态：Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Stage 1I-1S 已陆续打开 E03/E02 能量、F02 抽弃、S05 站位变换、X11 登场费用修正、S07 卡效登场、X03 分支选择、S08 离场 AUTO、`ON_ENTER_STAGE` 监听 AUTO、舞台目标选择、同编号罕度同步、公开手牌隐私投影与声援公开卡选择等边界。本批 `绿莲-6弹ver.yaml` 已继续补齐 `PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」与 `PL!HS-cl1-009` 分数 1「水彩世界」，新增验证公开手牌确认窗口、私有候选不向对手投影、条件型 continuous SCORE、此 Live 卡分数与 LIVE 合计分数投影分离、relay 来源条件、分组回收、动态控顶、LIVE 成功舞台成员来源与 `cheer-selection.ts`。卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由测试防漏同步；普通活跃阶段进入时也已自动重置当前玩家成员与能量。
 
 本计划假设当前行为是 golden。除非明确接受 behavior mismatch，否则每一批都应先补 focused tests，再迁移。
 
@@ -26,7 +26,7 @@ pnpm exec tsc --noEmit
 pnpm --dir client exec tsc -b
 ```
 
-最近结果：本批 `PL!HS-bp5-019-L` 分数 6「花结」/`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」/`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」/`PL!HS-bp5-008-R` 费用 4「桂城泉」/`PL!HS-pb1-004-R` 费用 4「百生吟子」/`PL!HS-PR-019-RM` 费用 2「百生吟子」已完成实现与手测确认；最终 focused suite 12 files / 210 tests passed，`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
+最近结果：本批 `PL!HS-bp5-001` 费用 11「日野下花帆」/`PL!HS-bp1-003` 费用 13「乙宗梢」/`PL!HS-bp1-002` 费用 11「村野沙耶香」/`PL!HS-sd1-001` 费用 9「日野下花帆」/`PL!HS-pb1-020` 费用 9「百生吟子」/`PL!HS-bp6-001` 费用 4「日野下花帆」/`PL!HS-cl1-009` 分数 1「水彩世界」已完成实现与手测确认；最终 focused 4 files / 56 tests passed，server TypeScript passed，client TypeScript passed，`git diff --check` passed。
 
 ## 1. Continue Stage 1G only through real AUTO proving cards
 
@@ -38,7 +38,7 @@ Stage 1G 应包含：
 4. once-per-turn / when-if / source timing rules
 5. UI pending trigger selection
 
-当前已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」完成第一条 proving path：`ON_LEAVE_STAGE` 入队、look-top 解析、与同一动作登场能力共享顺序选择窗口。`PL!HS-bp6-017-N` 费用 11「日野下花帆」完成第二条同触发 proving path：可选弃手后从休息室将 LIVE/成员至多各 1 张加入手牌，并为 `enqueueTriggeredCardEffects` 增加薄 `LeaveStageEvent` source adapter。`PL!HS-pb1-009-R` 费用 15「日野下花帆」完成第三条 proving path：舞台成员监听己方「莲之空」成员登场、实例级每回合 2 次、BLADE +2 写入 live modifier，并在 LIVE 开始用成员有效 BLADE helper 接 F02 抽弃；同卡第一段也验证了手动从顺序选择窗口点选无输入 AUTO 时的 confirm-only active effect，顺序发动不弹该确认壳。后续不要一次性扩成全量事件系统；继续用真实自动能力卡牌逐步扩 `GameEvent`、trigger matcher、when-if 与更多移动/状态事件。
+当前已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」完成第一条 proving path：`ON_LEAVE_STAGE` 入队、look-top 解析、与同一动作登场能力共享顺序选择窗口。`PL!HS-bp6-017-N` 费用 11「日野下花帆」完成第二条同触发 proving path：可选弃手后从休息室将 LIVE/成员至多各 1 张加入手牌，并为 `enqueueTriggeredCardEffects` 增加薄 `LeaveStageEvent` source adapter。`PL!HS-sd1-001-SD` 费用 9「日野下花帆」补充验证 relay 来源条件：换手导致离场时携带 `replacingCardId`，入队阶段校验换上成员为费用大于等于 10 的「莲之空」成员。`PL!HS-pb1-009-R` 费用 15「日野下花帆」完成舞台成员监听己方「莲之空」成员登场、实例级每回合 2 次、BLADE +2 写入 live modifier，并在 LIVE 开始用成员有效 BLADE helper 接 F02 抽弃；同卡第一段也验证了手动从顺序选择窗口点选无输入 AUTO 时的 confirm-only active effect，顺序发动不弹该确认壳。后续不要一次性扩成全量事件系统；继续用真实自动能力卡牌逐步扩 `GameEvent`、trigger matcher、when-if 与更多移动/状态事件。
 
 ## 2. Recommended next implementation batch
 
@@ -64,7 +64,15 @@ Stage 1G 应包含：
 
 `PL!HS-bp1-004-P` 费用 15「夕雾缀理」已完成两段：起动每回合 1 次支付 3 能量，从自己的休息室回收 1 张「莲之空」LIVE；LIVE 开始可支付 1 能量，按自己的 LIVE 区卡牌数量获得 BLADE。当前复用 `effect-costs.ts` 横置能量支付、`zone-selection.ts` 休息室到手牌选择、`card-selectors.ts` 的类型/团体组合 selector、`ABILITY_USE` 实例级每回合限制、`selectableOptions` 支付/不发动选择与 `addLiveModifier`。
 
-`PL!HS-bp5-019-L` 分数 6「花结」已完成 LIVE 开始段：自己的 LIVE 卡区每有 1 张此卡以外的「莲之空」卡，通过 REQUIREMENT live modifier 使此卡必要绿色 Heart 减少 2。`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」已完成 LIVE 开始段：休息室存在大于等于 3 张 `Cerise Bouquet` LIVE 卡时，通过 SCORE live modifier 使此卡分数 +1。当前两张共同验证 LIVE 卡来源、条件计数与 `addLiveModifier` / `replaceLiveModifier` 的低风险扩样本。
+`PL!HS-bp5-019-L` 分数 6「花结」已完成 LIVE 开始段：自己的 LIVE 卡区每有 1 张此卡以外的「莲之空」卡，通过 REQUIREMENT live modifier 使此卡必要绿色 Heart 减少 2。`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」已完成 LIVE 开始段：休息室存在大于等于 3 张 `Cerise Bouquet` LIVE 卡时，通过带 `liveCardId` 的 SCORE live modifier 使此卡分数 +1。`PL!HS-bp1-003` 费用 13「乙宗梢」已完成三面不同名「莲之空」成员条件下的 continuous SCORE，验证不带 `liveCardId` 的 LIVE 合计分数投影。当前这些样例共同验证 LIVE 卡来源、条件计数、此 Live 卡分数 / LIVE 合计分数区分与 `addLiveModifier` / `replaceLiveModifier` / `collectLiveModifiers` 的低风险扩样本。
+
+`PL!HS-bp5-001` 费用 11「日野下花帆」已完成登场与起动：登场公开检视顶 4 后点击继续处理入休息室，若存在 LIVE 获得 BLADE +2；起动支付 2 能量并公开手牌 LIVE，从休息室回收同名 LIVE。该卡验证公开手牌候选对对手隐藏、公开后通过 `revealedCardIds` 进入双方可见确认窗口，以及 `WAITING_ROOM -> HAND` 同名 LIVE 回收。
+
+`PL!HS-bp1-002` 费用 11「村野沙耶香」已完成起动：支付 2 能量并自送，从休息室将费用小于等于 15 的「莲之空」成员登场至来源原区域。当前作为 `PL!S-bp2-006-P` 费用 11「津岛善子」之后的第二个 S07 样例，继续验证卡效登场不走普通登场费用/换手，并继续触发被登场成员的登场能力。
+
+`PL!HS-pb1-020` 费用 9「百生吟子」已完成登场段：自己的休息室 LIVE 大于等于 3 时，可弃 2 手牌；如此做时回收 1 张 Cerise Bouquet 成员与 1 张「莲之空」LIVE。该卡验证弃 2 手牌候选隐私、分组回收校验与可用分组强制选择。
+
+`PL!HS-bp6-001` 费用 4「日野下花帆」与 `PL!HS-cl1-009` 分数 1「水彩世界」已完成声援公开卡相关段：前者登场动态检视舞台成员数 + 2 并控顶，LIVE 成功时可将本次声援公开卡放回卡组顶；后者 LIVE 成功时从本次声援公开卡中回收费用 4-9 成员。当前新增 `src/application/effects/cheer-selection.ts`，并使 LIVE 成功入队同时支持成功 LIVE 卡来源与表演玩家舞台成员来源。
 
 本批 17 张 `PL!-sd1-002-SD` 同型样本与 `绿莲-6弹ver.yaml` 已验收的 6 张卡已落地，不再列入首选低风险扩样本清单。建议直接继续：
 
@@ -72,10 +80,7 @@ Stage 1G 应包含：
 
 1. 继续 `绿莲-6弹ver.yaml` 中仍未实现的真实样例
    - 优先继续选择能推进 when-if、名称/数值 selector 配置化、公开/看顶 workflow、更多移动或状态事件边界的真实 AUTO / LIVE 成功 / LIVE 开始卡。
-   - 首选 `PL!HS-bp5-001-SEC` 费用 11「日野下花帆」：建议拆两批，先做登场堆顶 4、含 LIVE 则 BLADE +2；再做起动公开手牌 LIVE 并按同名回收 LIVE。第二段会推进 C07 公开手牌。
-   - 第二张 `PL!HS-bp1-003-SEC` 费用 13「乙宗梢」：先做起动支付 1 能量回收费用小于等于 4 的「莲之空」成员；常时三面不同名加分稍后等 condition / continuous builder 更稳再补。
-   - 第三张 `PL!HS-bp1-002-RM` 费用 11「村野沙耶香」：支付 2 能量并自送，从休息室登场费用小于等于 15 的「莲之空」成员到原区域。适合作为第二个 S07 样例，但同基础编号文本有细微差异，需先处理同步策略。
-   - 再往后放：`PL!HS-sd1-001-SD` 费用 9「日野下花帆」、`PL!HS-pb1-020-N` 费用 9「百生吟子」、`PL!HS-bp6-001-R+` 费用 4「日野下花帆」、`PL!HS-cl1-009-CL` 分数 1「水彩世界」、`PL!HS-bp6-027-L` 分数 5「月夜見海月」。这些分别牵涉 relay 条件、弃 2 手牌、动态控顶、声援公开卡/追加声援，适合后段集中推进。
+   - 首选 `PL!HS-bp6-027-L` 分数 5「月夜見海月」：牵涉追加声援 / 重做声援，适合在 `cheer-selection.ts` 声援公开卡选择底座之后继续推进。
 
 备选：
 
@@ -117,7 +122,7 @@ Stage 1G 应包含：
 |---|---|
 | `PL!-sd1-006-SD` hand reveal + success-zone exchange | C07/X02/L01/L02 only has one current proving card; low frequency compared with already-migrated modules. |
 | 003 / `PL!HS-bp1-006-P` 费用 11「藤岛 慈」Heart color option step；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」pay-or-decline option step | UI shape exists, but generic option API still needs a stable resolver config shape before extraction. |
-| 009/022/001 condition builders | Condition AST should be driven by repeated non-precon examples, not invented from one card. |
+| 009/022/001/`PL!HS-bp1-003` condition builders | Condition AST should be driven by repeated non-precon examples, not invented from one card. |
 | Karin continuous `T05,B08` | Current Karin is a test sample. Decide whether to implement full real card text before adding moved-this-turn condition tracking. |
 | `F12` draw-then-deck-placement | F02 has a first draw-2/discard-1 proving path; deck position and refresh semantics still need actual samples. |
 

@@ -786,6 +786,72 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
   });
 
+  it('此 Live 卡分数修正应计入对应成功 Live 分数且不作为合计分数重复计算', () => {
+    const service = new GameService();
+    const member = createCardInstance(
+      {
+        cardCode: 'MODIFIER-LIVE-SCORE-MEMBER',
+        name: 'Modifier Live Score Member',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 0,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+      },
+      'p1',
+      'p1-modifier-live-score-member'
+    );
+    const live = createCardInstance(
+      {
+        cardCode: 'MODIFIER-LIVE-SCORE-LIVE',
+        name: 'Modifier Live Score Live',
+        cardType: CardType.LIVE as const,
+        score: 3,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'p1-modifier-live-score-live'
+    );
+
+    let game = createGameState('g-live-card-score-modifier', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member, live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+        liveModifiers: [
+          {
+            kind: 'SCORE',
+            playerId: 'p1',
+            liveCardId: live.instanceId,
+            countDelta: 1,
+          },
+        ],
+      },
+    };
+
+    const acceptResult = service.processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(true);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
+  });
+
   it('统一 Live modifier 应能独立提供 Heart 修正', () => {
     const service = new GameService();
     const member = createCardInstance(

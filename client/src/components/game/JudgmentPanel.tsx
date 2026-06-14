@@ -235,19 +235,6 @@ function getPublicObjectId(cardId: string): string {
   return cardId.startsWith('obj_') ? cardId : `obj_${cardId}`;
 }
 
-function isMuseFrontInfo(
-  frontInfo: { cardCode?: string; groupName?: string; text?: string } | null | undefined
-): boolean {
-  if (!frontInfo) {
-    return false;
-  }
-  return (
-    frontInfo.groupName?.includes('μ') === true ||
-    frontInfo.text?.includes('μ') === true ||
-    frontInfo.cardCode?.startsWith('PL!-') === true
-  );
-}
-
 // ============================================
 // 子组件
 // ============================================
@@ -366,6 +353,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   );
   const liveRequirementModifiers = useGameStore(
     (s) => s.playerViewState?.match.liveResult?.requirementModifiers ?? {}
+  );
+  const liveScoreModifiers = useGameStore(
+    (s) => s.playerViewState?.match.liveResult?.scoreModifiers ?? { FIRST: 0, SECOND: 0 }
+  );
+  const liveCardScoreModifiers = useGameStore(
+    (s) => s.playerViewState?.match.liveResult?.liveCardScoreModifiers ?? {}
   );
   const {
     confirmJudgment,
@@ -573,28 +566,20 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       const requiredHearts = getHeartRequirementEntries(colorRequirements).map(
         ([color, count]) => ({ color, count })
       );
+      const scoreModifier =
+        liveCardScoreModifiers[cardId] ?? liveCardScoreModifiers[getPublicObjectId(cardId)] ?? 0;
 
       return {
         cardId,
         cardName: frontInfo.name,
-        score: frontInfo.score ?? 0,
+        score: Math.max(0, (frontInfo.score ?? 0) + scoreModifier),
         success: false,
         requiredHearts,
         adjustedRequirements,
       };
     });
 
-    const waitingRoomCardIds = activeSeat ? getSeatZoneCardIds(activeSeat, 'WAITING_ROOM') : [];
-    const museWaitingRoomCount = waitingRoomCardIds.filter((cardId) =>
-      isMuseFrontInfo(getCardFrontInfo(cardId))
-    ).length;
-    const nicoScoreBonus =
-      museWaitingRoomCount >= 25 && activeSeat
-        ? Object.values(SlotPosition).filter((slot) => {
-            const memberId = getSeatMemberSlotCardId(activeSeat, slot);
-            return getCardFrontInfo(memberId ?? '')?.cardCode === 'PL!-sd1-009-SD';
-          }).length
-        : 0;
+    const totalLiveScoreModifier = activeSeat ? (liveScoreModifiers[activeSeat] ?? 0) : 0;
     const faceUpLiveRows = rows.filter((row) => row.adjustedRequirements !== null);
     const mergedRequirements = mergeLiveRequirementsForPreview(
       faceUpLiveRows.map((row) => row.adjustedRequirements)
@@ -616,7 +601,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     const liveScore = isOverallSuccess
       ? faceUpLiveRows.reduce((total, row) => total + row.score, 0)
       : 0;
-    const totalScore = isOverallSuccess ? liveScore + totalCheerScoreBonus + nicoScoreBonus : 0;
+    const totalScore = isOverallSuccess
+      ? liveScore + totalCheerScoreBonus + totalLiveScoreModifier
+      : 0;
 
     return {
       rows: displayRows,
@@ -624,17 +611,17 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       failureCount: isOverallSuccess ? 0 : rows.length,
       drawBonus: totalDrawBonus,
       cheerScoreBonus: isOverallSuccess ? totalCheerScoreBonus : 0,
-      effectScoreBonus: isOverallSuccess ? nicoScoreBonus : 0,
+      effectScoreBonus: isOverallSuccess ? totalLiveScoreModifier : 0,
       totalScore,
     };
   }, [
     activeSeat,
     getCardFrontInfo,
-    getSeatMemberSlotCardId,
-    getSeatZoneCardIds,
     liveCardIds,
     liveRequirementModifiers,
     liveRequirementReductions,
+    liveScoreModifiers,
+    liveCardScoreModifiers,
     totalCheerScoreBonus,
     totalDrawBonus,
     totalHearts,

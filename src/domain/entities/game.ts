@@ -122,6 +122,8 @@ export type LiveModifierState =
       readonly kind: 'SCORE';
       readonly playerId: string;
       readonly countDelta: number;
+      /** 指定时表示“此 Live 卡分数”修正；未指定时表示玩家 LIVE 合计分数修正 */
+      readonly liveCardId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
     }
@@ -307,6 +309,8 @@ export interface PendingAbilityState {
   readonly eventIds: readonly string[];
   /** 能力来源成员在舞台上的槽位；用于左/中/右区域条件 */
   readonly sourceSlot?: SlotPosition;
+  /** 待处理能力的触发来源元数据 */
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
 export type PendingChoiceKind = 'CONFIRM_OPTIONAL' | 'SELECT_CARDS' | 'SELECT_TARGET';
@@ -334,6 +338,8 @@ export interface PendingChoiceState {
   readonly maxCount?: number;
 }
 
+export type ActiveEffectSelectableCardVisibility = 'PUBLIC' | 'AWAITING_PLAYER_ONLY';
+
 export interface ActiveEffectState {
   /** 当前处理中的效果实例 ID */
   readonly id: string;
@@ -351,10 +357,14 @@ export interface ActiveEffectState {
   readonly stepText: string;
   /** 当前需要确认/选择的玩家 ID */
   readonly awaitingPlayerId: string | null;
+  /** 当前步骤已公开给双方的卡牌 */
+  readonly revealedCardIds?: readonly string[];
   /** 当前步骤涉及的检视区卡牌 */
   readonly inspectionCardIds?: readonly string[];
   /** 当前步骤可选择的卡牌 */
   readonly selectableCardIds?: readonly string[];
+  /** 当前步骤可选择卡牌对非等待玩家的可见性 */
+  readonly selectableCardVisibility?: ActiveEffectSelectableCardVisibility;
   /** 当前卡牌选择模式 */
   readonly selectableCardMode?: 'SINGLE' | 'ORDERED_MULTI';
   /** 多选步骤最少选择数量 */

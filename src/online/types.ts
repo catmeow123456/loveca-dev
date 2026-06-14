@@ -55,12 +55,14 @@ export interface ViewParticipant {
 
 export interface LiveResultViewState {
   readonly scores: Readonly<Record<Seat, number>>;
+  readonly scoreModifiers: Readonly<Record<Seat, number>>;
   readonly heartBonuses: Readonly<Record<Seat, readonly HeartIcon[]>>;
   /** 当前仅投影无色/All 必要 Heart 减少；彩色/增加修正应升级为 modifier 列表 */
   readonly requirementReductions: Readonly<Record<string, number>>;
   readonly requirementModifiers: Readonly<
     Record<string, readonly { color: HeartColor; countDelta: number }[]>
   >;
+  readonly liveCardScoreModifiers: Readonly<Record<string, number>>;
   readonly winnerSeats: readonly Seat[];
   readonly confirmedSeats: readonly Seat[];
 }
@@ -163,6 +165,7 @@ export interface ActiveEffectViewState {
   readonly stepId: string;
   readonly stepText: string;
   readonly waitingSeat: Seat | null;
+  readonly revealedObjectIds?: readonly string[];
   readonly inspectionObjectIds?: readonly string[];
   readonly selectableObjectIds?: readonly string[];
   readonly selectableObjectMode?: 'SINGLE' | 'ORDERED_MULTI';

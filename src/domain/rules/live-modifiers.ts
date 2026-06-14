@@ -1,4 +1,4 @@
-import { HeartColor } from '../../shared/types/enums.js';
+import { HeartColor, SlotPosition } from '../../shared/types/enums.js';
 import { isMemberCardData, type HeartIcon } from '../entities/card.js';
 import type {
   GameState,
@@ -59,7 +59,30 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
           ]
         : [],
   },
+  {
+    baseCardCodes: ['PL!HS-bp1-003'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasThreeDifferentHasunosoraMembersOnStage(game, playerId)
+        ? [
+            {
+              kind: 'SCORE',
+              playerId,
+              countDelta: 1,
+              sourceCardId,
+              abilityId: HS_BP1_003_CONTINUOUS_SCORE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
 ];
+
+const MEMBER_SLOT_ORDER: readonly SlotPosition[] = [
+  SlotPosition.LEFT,
+  SlotPosition.CENTER,
+  SlotPosition.RIGHT,
+];
+const HS_BP1_003_CONTINUOUS_SCORE_ABILITY_ID =
+  'PL!HS-bp1-003-SEC:continuous-three-different-hasunosora-score';
 
 function getScoreModifiers(
   playerId: string,
@@ -147,6 +170,48 @@ function doesContinuousDefinitionMatchCardCode(
     definition.cardCodes?.map(normalizeCardCode).includes(normalizedCardCode) === true ||
     definition.baseCardCodes?.map(normalizeCardCode).includes(baseCardCode) === true
   );
+}
+
+function hasThreeDifferentHasunosoraMembersOnStage(game: GameState, playerId: string): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return false;
+  }
+
+  const stagedCards = MEMBER_SLOT_ORDER.map((slot) => player.memberSlots.slots[slot]).map(
+    (cardId) => (cardId ? getCardById(game, cardId) : null)
+  );
+  if (stagedCards.some((card) => card === null)) {
+    return false;
+  }
+
+  const memberCards = stagedCards.filter(
+    (card): card is NonNullable<(typeof stagedCards)[number]> =>
+      card !== null && isHasunosoraMemberCard(card)
+  );
+  if (memberCards.length !== MEMBER_SLOT_ORDER.length) {
+    return false;
+  }
+
+  return new Set(memberCards.map((card) => normalizeContinuousMemberName(card.data.name))).size ===
+    MEMBER_SLOT_ORDER.length;
+}
+
+function isHasunosoraMemberCard(card: NonNullable<ReturnType<typeof getCardById>>): boolean {
+  if (!isMemberCardData(card.data)) {
+    return false;
+  }
+
+  const groupName = card.data.groupName?.trim();
+  return (
+    groupName === '莲之空' ||
+    groupName === '蓮ノ空' ||
+    normalizeCardCode(card.data.cardCode).startsWith('PL!HS-')
+  );
+}
+
+function normalizeContinuousMemberName(name: string): string {
+  return name.replace(/[\s　・･·]/g, '');
 }
 
 export function addLiveModifier(game: GameState, modifier: LiveModifierState): GameState {
@@ -267,9 +332,24 @@ export function getPlayerLiveScoreModifier(
 ): number {
   const modifiers = getScoreModifiers(playerId, liveModifiers);
   if (modifiers.length > 0) {
-    return modifiers.reduce((total, modifier) => total + modifier.countDelta, 0);
+    return modifiers
+      .filter((modifier) => modifier.liveCardId === undefined)
+      .reduce((total, modifier) => total + modifier.countDelta, 0);
   }
   return liveResolution.playerScoreBonuses.get(playerId) ?? 0;
+}
+
+export function getLiveCardScoreModifier(
+  liveResolution: LiveResolutionState,
+  liveCardId: string,
+  liveModifiers: readonly LiveModifierState[] = liveResolution.liveModifiers
+): number {
+  return liveModifiers
+    .filter(
+      (modifier): modifier is ScoreModifierState =>
+        modifier.kind === 'SCORE' && modifier.liveCardId === liveCardId
+    )
+    .reduce((total, modifier) => total + modifier.countDelta, 0);
 }
 
 export function getPlayerLiveHeartModifiers(

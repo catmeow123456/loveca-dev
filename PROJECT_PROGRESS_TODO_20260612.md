@@ -66,7 +66,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 `card-effect-runner.ts` 已建立 `CARD_ABILITY_DEFINITIONS` 登记入口。新增卡效前先登记分类，不要直接写单卡散逻辑。
 
-2026-06-14 起，连续新增多张卡效时采用“快速卡效批处理模式”：每张卡/每个效果段实时更新 `docs/card-effect-reuse-audit/existing_module_map.md`、focused tests 与本 progress 的短记录；`card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`card_effect_batch_expansions.md`、`module_gap_list.md`、`safe_refactor_plan.md` 等设计/覆盖/gap 文档默认攒到 5-10 张卡后统一收束。若引入新抽象、新模块、新事件边界，或改变 resolver / cost calculator / live modifier registry / 同编号罕度同步机制，则仍需在同一批内同步更新相关文档。
+2026-06-14 起，连续新增多张卡效时采用“快速卡效批处理模式”：每张卡/每个效果段实时更新 `docs/card-effect-reuse-audit/existing_module_map.md`、focused tests 与本 progress 的短记录；`card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`card_effect_batch_expansions.md`、`module_gap_list.md`、`safe_refactor_plan.md` 等设计/覆盖/gap 文档默认不随每张卡更新。若引入新抽象、新模块、新事件边界，或改变 resolver / cost calculator / live modifier registry / 同编号罕度同步机制，则仍需在同一批内同步更新相关文档。若只是复用既有模块追加同构卡效，即使连续做 5-10 张，也先保持主登记册、progress 与测试准确；等用户明确要求“这批收束/提交”时，再做一次批末摘要式收束，避免全文扫描式重写。
 
 当前分类约定：
 
@@ -456,12 +456,14 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 - `PL!HS-bp5-019-L` 分数 6「花结」已登记为 LIVE 卡来源的 `LIVE_START` 队列能力：LIVE 开始时按自己的 LIVE 卡区中此卡以外的「莲之空」卡数量，每张使此卡必要绿色 Heart 减少 2 个。
 - `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」已按基础编号 `PL!HS-bp2-022` 覆盖 `L / L+`：LIVE 开始时若自己的休息室存在大于等于 3 张『Cerise Bouquet』LIVE 卡，则此卡分数 +1。
-- 两张卡都复用现有 LIVE 开始队列、confirm active effect 与 `liveModifiers` 主写入路径；`花结` 使用 `replaceLiveModifier(REQUIREMENT)` 写入绿色必要 Heart 修正，`アオクハルカ` 使用 `addLiveModifier(SCORE)` 写入分数修正。
+- 两张卡都复用现有 LIVE 开始队列、confirm active effect 与 `liveModifiers` 主写入路径；`花结` 使用 `replaceLiveModifier(REQUIREMENT)` 写入绿色必要 Heart 修正，`アオクハルカ` 使用带 `liveCardId` 的 `addLiveModifier(SCORE)` 写入“此 Live 卡分数 +1”修正。
 - 手测反馈修正：本地导入数据中 `Cerise Bouquet` / `スリーズブーケ` 是 `unitName`，而不是 `groupName`；已为 `card-selectors.ts` 增加 `unitIs`、`unitAliasIs` 与 `unitAliasOrTextAliasIs`，并让 `アオクハルカ` 的休息室 LIVE 计数通过 `unitAliasIs('Cerise Bouquet')` 识别 `unitName=スリーズブーケ`。默认小组条件只看 `unitName`；“此卡视为……”等文本身份保留给显式的 `unitAliasOrTextAliasIs`。
+- 判定窗口修正：`SCORE` modifier 现在区分不带 `liveCardId` 的“LIVE 合计分数 +1”和带 `liveCardId` 的“此 Live 卡分数 +1”。`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」的 +1 会同时体现在“Live 卡判定结果”单卡分数与“接受后预计结果”；`PL!-sd1-009-SD` 费用 11「矢泽妮可」这类合计分数修正仍只进入预计结果的“卡牌效果 +1”。
 - 新增 focused 覆盖：
   - `tests/unit/card-effect-classification.test.ts` 覆盖两张 LIVE 卡能力登记与 `PL!HS-bp2-022-L+` 半角 `+` 归一化匹配。
   - `tests/unit/card-selectors.test.ts` 覆盖 `unitIs` 对 `unitName=スリーズブーケ` 的小队识别、`unitAliasIs` 的英日别名匹配，以及 `unitAliasOrTextAliasIs` 与纯 `unitAliasIs` 的文本身份边界。
   - `tests/integration/sample-card-effect-runner.test.ts` 覆盖 LIVE 卡来源入队、确认后写入绿色 `REQUIREMENT` modifier、休息室 3 张 `unitName=スリーズブーケ` LIVE 条件满足后写入 `SCORE` modifier。
+- 2026-06-14 追加验证：`tests/unit/live-modifiers.test.ts` 覆盖合计分数与此 Live 卡分数 target 分离；`tests/unit/live-judgment-settlement.test.ts` 覆盖此 Live 卡分数修正不会被合计分数重复计算；`tests/unit/player-view-state.test.ts` 覆盖 `liveCardScoreModifiers` 投影。
 - 验证：`env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs exec vitest run tests/unit/card-code.test.ts tests/unit/card-selectors.test.ts tests/unit/card-effect-classification.test.ts tests/unit/card-effect-rarity-sync.test.ts tests/unit/live-modifiers.test.ts tests/unit/live-judgment-settlement.test.ts tests/integration/sample-card-effect-runner.test.ts`，7 files / 159 tests passed；`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
 
 本次 2026-06-14 `PL!HS-pb1-004-R` 费用 4「百生吟子」与 `PL!HS-PR-019-RM` 费用 2「百生吟子」登场效果扩样本：
@@ -472,18 +474,87 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 本批已在收束时同步 `existing_module_map.md`、`card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`card_effect_batch_expansions.md`、`module_gap_list.md`、`safe_refactor_plan.md` 等设计/覆盖/gap 文档；后续继续维持“每张实时登记、5-10 张或批末统一收束设计文档”的节奏。
 - 最终验证：focused suite 12 files / 210 tests passed；`pnpm exec tsc --noEmit`、`pnpm --dir client exec tsc -b` 与 `git diff --check` passed。
 
+本次 2026-06-14 快速卡效批处理：`PL!HS-bp5-001-SEC` / `PL!HS-bp1-003-SEC` / `PL!HS-bp1-002-RM`：
+
+- `PL!HS-bp5-001-SEC` 费用 11「日野下花帆」已按基础编号 `PL!HS-bp5-001` 覆盖 `AR / P / R+ / SEC`：登场公开检视卡组顶 4 张，点击继续处理后放置入休息室；其中存在 LIVE 卡时，通过 `addLiveModifier(BLADE)` 获得 BLADE +2。起动 `[1回合1次][E][E]` 公开 1 张手牌 LIVE，并从休息室回收 1 张同名 LIVE。
+  - 修正：该段不再静默堆墓，已与 `PL!-sd1-007-SD` / `PL!HS-PR-019` 的公开检视 -> 继续处理流程对齐。
+  - 起动段：以 bespoke C07 手札公开步骤衔接 `WAITING_ROOM -> HAND`，未抽新公开手牌模块；公开的手牌 LIVE 保留在手牌，休息室候选按公开卡卡名过滤。
+  - 投影隐私修正：`activeEffect.selectableCardVisibility = AWAITING_PLAYER_ONLY` 已用于公开手牌、弃手、私有检视区选择等隐藏区候选；投影层同时按候选牌是否正面可见兜底，非等待玩家不再看到隐藏候选区占位数量。已补 `tests/unit/player-view-state.test.ts` 覆盖私有候选、漏标兜底与公开候选三种路径。
+  - 公开确认窗口：起动段现在在选择手牌 LIVE 后进入 `HS_BP5_001_REVEAL_HAND_LIVE`，通过 `activeEffect.revealedCardIds` / `revealedObjectIds` 向双方正面展示公开卡，点击“继续处理”后再进入休息室同名 LIVE 选择。
+- `PL!HS-bp1-003-SEC` 费用 13「乙宗梢」已按基础编号 `PL!HS-bp1-003` 覆盖 `P / P+ / R+ / SEC`：起动 `[1回合1次][E]` 从休息室回收 1 张费用小于等于 4 的「莲之空」成员；常时三面均有不同名「莲之空」成员时，LIVE 合计分数 +1。常时段由 `collectLiveModifiers` 动态收集为不带 `liveCardId` 的 `SCORE` modifier，判定窗口已改为通用投影玩家 LIVE 合计分数修正。
+- `PL!HS-bp1-002-RM` 费用 11「村野沙耶香」已按基础编号 `PL!HS-bp1-002` 覆盖 `P / R / RM`：支付 2 能量并自送，从休息室将 1 张费用小于等于 15 的「莲之空」成员登场至原区域；`P/R` 的“所在的区域”与 `RM` 的“曾存在的区域”当前按等价规则行为同步。此段复用 `TAP_ACTIVE_ENERGY`、`SEND_SOURCE_MEMBER_TO_WAITING_ROOM` 与 `playMembersFromWaitingRoomToEmptySlots`，并继续触发被登场成员的登场能力。
+- 实时同步：已更新 `docs/card-effect-reuse-audit/existing_module_map.md`；按快速批处理节奏，本窗口未改设计/覆盖/gap 大文档。
+- 验证：
+
+```bash
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs test:run tests/unit/card-effect-classification.test.ts tests/unit/card-effect-rarity-sync.test.ts tests/integration/sample-card-effect-runner.test.ts
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs test:run tests/unit/card-selectors.test.ts tests/unit/zone-selection.test.ts tests/unit/effect-costs.test.ts tests/unit/look-top.test.ts tests/unit/live-modifiers.test.ts tests/unit/member-state.test.ts tests/unit/draw.test.ts tests/unit/energy.test.ts tests/unit/card-effect-classification.test.ts tests/unit/card-effect-rarity-sync.test.ts tests/integration/sample-card-effect-runner.test.ts tests/unit/heart-live.test.ts tests/unit/live-judgment-settlement.test.ts
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs exec tsc --noEmit
+```
+
+结果：`PL!HS-bp5-001` 公开检视窗口修正后复跑 focused 3 files / 109 tests passed；相关模块套件 13 files / 202 tests passed；server TypeScript passed；`git diff --check` passed。起动段追加后已复跑 focused 3 files / 110 tests passed；相关模块套件 13 files / 203 tests passed；server TypeScript passed；`git diff --check` passed。
+隐私投影修正后已复跑 `tests/unit/player-view-state.test.ts` 20 tests passed；相关模块套件 14 files / 223 tests passed；server TypeScript passed；client TypeScript passed；`git diff --check` passed。
+公开确认窗口追加后已复跑 focused 4 files / 131 tests passed；相关模块套件 14 files / 224 tests passed；server TypeScript passed；client TypeScript passed。
+
+本次 2026-06-14 快速卡效批处理：`PL!HS-sd1-001-SD` / `PL!HS-pb1-020-N`：
+
+- `PL!HS-sd1-001-SD` 费用 9「日野下花帆」已完成离场 AUTO：此成员被费用大于等于 10 的「莲之空」成员换手放置入休息室时，将 2 张能量变为活跃。
+  - 为 relay 来源条件补了薄元数据：`OnLeaveStageAbilitySource.replacingCardId` 与 `PendingAbilityState.metadata.replacingCardId`，从 `PLAY_MEMBER` 的 `isRelay/replacedCardId/cardId` 记录判断换上成员。
+  - 入队阶段先校验换上成员为成员卡、莲之空、费用 >= 10，普通离场或低费换手不会排入该能力。
+  - 交互优化：当含登场效果的费用 >= 10「莲之空」成员换手登场并与此离场 AUTO 同时进入顺序选择窗口时，手动点选 `PL!HS-sd1-001-SD` 会先进入 confirm-only 无输入确认壳，点击“继续处理”后才活跃能量并继续处理登场效果；点“顺序发动”时仍自动连续处理，不弹确认壳。
+- `PL!HS-pb1-020-N` 费用 9「百生吟子」已完成登场段：自己的休息室 LIVE >= 3 时，可弃 2 手牌；如此做时从休息室回收 1 张 Cerise Bouquet 成员与 1 张「莲之空」LIVE。
+  - 复用 `paySelectedDiscardHandCost` 与 `WAITING_ROOM -> HAND`，弃 2 手牌候选对非等待玩家隐藏。
+  - 休息室回收使用 `ORDERED_MULTI` 分组校验，两个分组都有目标时必须各选 1；若某分组无目标，则按可用分组数继续。
+- 实时同步：已更新 `docs/card-effect-reuse-audit/existing_module_map.md`；因 relay 来源元数据扩展，已同步 `docs/card-effect-framework/card_effect_framework_design.md` 的 Stage 1O 短记录。
+- 验证：
+
+```bash
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs vitest run tests/unit/card-effect-classification.test.ts tests/integration/sample-card-effect-runner.test.ts
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs exec tsc --noEmit
+```
+
+结果：focused 2 files / 111 tests passed；server TypeScript passed。confirm-only 优化后追加复跑 `tests/integration/sample-card-effect-runner.test.ts -t "PL!HS-sd1-001"`：3 passed / 106 skipped；server TypeScript passed。
+
+本次 2026-06-14 快速卡效批处理：`PL!HS-bp6-001-R＋` / `PL!HS-cl1-009-CL`：
+
+- `PL!HS-bp6-001-R＋` 费用 4「日野下花帆」已按基础编号 `PL!HS-bp6-001` 覆盖 `P / P+ / R+ / SEC`，本地卡库全角 `R＋` 通过 card-code normalize 命中：
+  - 登场段：结算时按己方舞台成员数 + 2 动态检视卡组顶，选择 1 张放回卡组顶，其余放置入休息室。复用 `startArrangeInspectedDeckTopEffect` ordered workflow。
+  - LIVE 成功段：若自己的 LIVE 成功，可从因声援公开且仍在处理区的自己的卡中选择 1 张放回卡组顶；该段是首个舞台成员来源 `LIVE_SUCCESS` 样例。
+- `PL!HS-cl1-009-CL` 分数 1「水彩世界」已完成 LIVE 成功段：从因声援公开且仍在处理区的自己的卡中，将 1 张费用 4-9 的成员卡加入手牌。
+- 新增可复用底座：`src/application/effects/cheer-selection.ts` 用 `liveResolution.first/secondPlayerCheerCardIds + resolutionZone.revealedCardIds` 选取“本次声援公开卡”，再按卡效配置移动到手牌或卡组顶；后续 DOLLCHESTRA 成员入手、莲之空 LIVE 入手、任意声援卡回顶等可以复用同一 helper。
+- 事件边界更新：`enqueueLiveSuccessCardEffects` 现在在存在成功 LIVE 时同时扫描成功 LIVE 卡来源与表演玩家舞台成员来源。
+- 实时同步：已更新 `docs/card-effect-reuse-audit/existing_module_map.md`；因新增声援公开卡 helper 与 LIVE_SUCCESS 舞台成员来源边界，已同步 `docs/card-effect-framework/card_effect_framework_design.md` 与 `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`。
+- 验证：
+
+```bash
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs exec vitest run tests/integration/sample-card-effect-runner.test.ts tests/unit/card-effect-classification.test.ts
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs exec tsc --noEmit
+```
+
+结果：focused 2 files / 116 tests passed；server TypeScript passed。
+
+本批 2026-06-14 莲之空卡效批末收束：
+
+- 收束范围：`PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-cl1-009` 分数 1「水彩世界」，以及 `PL!HS-bp2-022` 分数 2「アオクハルカ」此 Live 卡分数投影修正。
+- 文档收束：保持 `docs/card-effect-reuse-audit/existing_module_map.md` 为主登记册；同步整理 `AGENTS.md`、`card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`card_effect_batch_expansions.md`、`module_gap_list.md`、`safe_refactor_plan.md`。未重写无关表格，只补本批新增边界：公开手牌隐私/确认窗口、continuous SCORE、此 Live 卡分数 vs LIVE 合计分数投影、relay `replacingCardId`、分组回收、动态控顶、LIVE 成功舞台成员来源与 `effects/cheer-selection.ts`。
+- 下窗口保留：`PL!HS-bp6-027-L` 分数 5「月夜見海月」继续推进追加声援 / 重做声援；本窗口不实现。
+- 最终验证：
+
+```bash
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs exec vitest run tests/integration/sample-card-effect-runner.test.ts tests/unit/card-effect-classification.test.ts tests/unit/live-modifiers.test.ts tests/unit/player-view-state.test.ts tests/unit/live-judgment-settlement.test.ts
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs exec tsc --noEmit
+env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /private/tmp/package/bin/pnpm.cjs --dir client exec tsc -b
+git diff --check
+```
+
+结果：focused 5 files / 168 tests passed；server TypeScript passed；client TypeScript passed；`git diff --check` passed。
+
 ## 下一步建议
 
 `绿莲-6弹ver.yaml` 中本轮原计划 10 张卡剩余未完成项按以下顺序推进：
 
-1. `PL!HS-bp5-001-SEC` 费用 11「日野下花帆」
-   - 建议拆两批：先做登场堆顶 4、含 LIVE 则 BLADE +2；再做起动公开手牌 LIVE 并按同名回收 LIVE。第二段会推进 C07 公开手牌。
-2. `PL!HS-bp1-003-SEC` 费用 13「乙宗梢」
-   - 先做起动支付 1 能量回收费用小于等于 4 的「莲之空」成员；常时三面不同名加分稍后等 condition / continuous builder 更稳再补。
-3. `PL!HS-bp1-002-RM` 费用 11「村野沙耶香」
-   - 支付 2 能量并自送，从休息室登场费用小于等于 15 的「莲之空」成员到原区域。适合作为第二个 S07 样例，但同基础编号文本有细微差异，需先处理同步策略。
-4. 再往后放：`PL!HS-sd1-001-SD` 费用 9「日野下花帆」、`PL!HS-pb1-020-N` 费用 9「百生吟子」、`PL!HS-bp6-001-R+` 费用 4「日野下花帆」、`PL!HS-cl1-009-CL` 分数 1「水彩世界」、`PL!HS-bp6-027-L` 分数 5「月夜見海月」。
-   - 这些分别牵涉 relay 条件、弃 2 手牌、动态控顶、声援公开卡/追加声援，适合后段集中推进。
+1. `PL!HS-bp6-027-L` 分数 5「月夜見海月」。
+   - 牵涉追加声援，适合在声援公开卡选择底座之后继续推进。
 
 本次 2026-06-14 低风险同构扩样本（与 `PL!-sd1-002-SD` 对齐）已完成 17 张卡：
 
@@ -517,7 +588,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」费用减少与登场二选一活跃段已完成，后续保留为 X11/X03/S02/E02 回归样例。
 - `PL!SP-bp4-008-P` 费用 13「若菜四季」与 `PL!SP-PR-004-PR` 费用 4「唐 可可」当前已完成目标段，后续保留为 F02/E02/E03/S05 回归样例。
 - `PL!HS-bp1-004-P` 费用 15「夕雾缀理」已完成起动支付能量回收莲之空 LIVE 与 LIVE 开始支付能量按 LIVE 区数量得 BLADE，后续保留为 C03/F08/B01 回归样例。
-- `PL!HS-bp5-019-L` 分数 6「花结」与 `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」已完成 LIVE 卡来源的 LIVE 开始必要 Heart / 分数 modifier，后续保留为 B07/B05 回归样例。
+- `PL!HS-bp5-019-L` 分数 6「花结」与 `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」已完成 LIVE 卡来源的 LIVE 开始必要 Heart / 此 Live 卡分数 modifier，后续保留为 B07/B06 回归样例。
 
 优先级 1.5：旧建议中的非 `PL!-sd1` 低风险扩样本中，`LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」、`PL!HS-PR-001-PR` 费用 10「日野下花帆」、`PL!-bp3-010-N` 费用 9「高坂穗乃果」已收口完成登场段；下一个推荐是 `PL!HS-PR-002-PR` 费用 10「村野さやか」。
 

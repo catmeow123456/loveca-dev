@@ -71,6 +71,11 @@ function createProjectedState() {
     PLAYER1,
     'p1-main'
   );
+  const p1WaitingRoomCard = createCardInstance(
+    createTestMember('MEM-005', 'P1 休息室成员'),
+    PLAYER1,
+    'p1-waiting'
+  );
   const p2MainDeckCard = createCardInstance(
     createTestMember('MEM-004', 'P2 主卡组成员'),
     PLAYER2,
@@ -93,6 +98,7 @@ function createProjectedState() {
     p2HandCard,
     p1LiveCard,
     p1MainDeckCard,
+    p1WaitingRoomCard,
     p2MainDeckCard,
     p1EnergyDeckCard,
     p2EnergyDeckCard,
@@ -103,6 +109,7 @@ function createProjectedState() {
     hand: addCardToZone(player.hand, p1HandCard.instanceId),
     mainDeck: addCardToZone(player.mainDeck, p1MainDeckCard.instanceId),
     energyDeck: addCardToZone(player.energyDeck, p1EnergyDeckCard.instanceId),
+    waitingRoom: addCardToZone(player.waitingRoom, p1WaitingRoomCard.instanceId),
     liveZone: addCardToStatefulZone(
       player.liveZone,
       p1LiveCard.instanceId,
@@ -117,7 +124,15 @@ function createProjectedState() {
     energyDeck: addCardToZone(player.energyDeck, p2EnergyDeckCard.instanceId),
   }));
 
-  return { state, p1HandCard, p2HandCard, p1LiveCard, p1MainDeckCard, p2MainDeckCard };
+  return {
+    state,
+    p1HandCard,
+    p2HandCard,
+    p1LiveCard,
+    p1MainDeckCard,
+    p1WaitingRoomCard,
+    p2MainDeckCard,
+  };
 }
 
 function getCommandHint(view: PlayerViewState, command: GameCommandType) {
@@ -129,6 +144,114 @@ function hasEnabledCommand(view: PlayerViewState, command: GameCommandType): boo
 }
 
 describe('PlayerViewState projector', () => {
+  it('activeEffect 私有候选卡仅投影给等待玩家，避免对手看到候选数量', () => {
+    const { state, p1HandCard, p1WaitingRoomCard } = createProjectedState();
+    state.activeEffect = {
+      id: 'effect-private-hand',
+      abilityId: 'TEST_PRIVATE_HAND',
+      sourceCardId: p1WaitingRoomCard.instanceId,
+      controllerId: PLAYER1,
+      effectText: '公开1张手牌。',
+      stepId: 'SELECT_HAND_CARD',
+      stepText: '选择要公开的手牌。',
+      awaitingPlayerId: PLAYER1,
+      selectableCardIds: [p1HandCard.instanceId],
+      selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+      selectionLabel: '选择要公开的手牌',
+      confirmSelectionLabel: '公开',
+      canSkipSelection: true,
+      skipSelectionLabel: '不公开',
+    };
+
+    const player1View = projectPlayerViewState(state, PLAYER1);
+    const player2View = projectPlayerViewState(state, PLAYER2);
+    const handObjectId = createPublicObjectId(p1HandCard.instanceId);
+
+    expect(player1View.activeEffect?.selectableObjectIds).toEqual([handObjectId]);
+    expect(player1View.activeEffect?.selectionLabel).toBe('选择要公开的手牌');
+    expect(player1View.activeEffect?.canSkipSelection).toBe(true);
+    expect(player1View.activeEffect?.skipSelectionLabel).toBe('不公开');
+
+    expect(player2View.activeEffect?.selectableObjectIds).toBeUndefined();
+    expect(player2View.activeEffect?.selectionLabel).toBeUndefined();
+    expect(player2View.activeEffect?.canSkipSelection).toBeUndefined();
+    expect(player2View.activeEffect?.skipSelectionLabel).toBeUndefined();
+  });
+
+  it('activeEffect 未标记但候选牌对当前视角不可见时，也不投影候选数量', () => {
+    const { state, p1HandCard, p1WaitingRoomCard } = createProjectedState();
+    state.activeEffect = {
+      id: 'effect-unmarked-hidden-hand',
+      abilityId: 'TEST_UNMARKED_HIDDEN_HAND',
+      sourceCardId: p1WaitingRoomCard.instanceId,
+      controllerId: PLAYER1,
+      effectText: '选择1张手牌。',
+      stepId: 'SELECT_HAND_CARD',
+      stepText: '选择1张手牌。',
+      awaitingPlayerId: PLAYER1,
+      selectableCardIds: [p1HandCard.instanceId],
+      selectionLabel: '选择手牌',
+    };
+
+    const player1View = projectPlayerViewState(state, PLAYER1);
+    const player2View = projectPlayerViewState(state, PLAYER2);
+    const handObjectId = createPublicObjectId(p1HandCard.instanceId);
+
+    expect(player1View.activeEffect?.selectableObjectIds).toEqual([handObjectId]);
+    expect(player2View.activeEffect?.selectableObjectIds).toBeUndefined();
+    expect(player2View.activeEffect?.selectionLabel).toBeUndefined();
+  });
+
+  it('activeEffect 公开区候选卡仍会投影给双方', () => {
+    const { state, p1WaitingRoomCard } = createProjectedState();
+    state.activeEffect = {
+      id: 'effect-public-waiting-room',
+      abilityId: 'TEST_PUBLIC_WAITING_ROOM',
+      sourceCardId: p1WaitingRoomCard.instanceId,
+      controllerId: PLAYER1,
+      effectText: '选择休息室成员。',
+      stepId: 'SELECT_WAITING_ROOM_CARD',
+      stepText: '选择休息室成员。',
+      awaitingPlayerId: PLAYER1,
+      selectableCardIds: [p1WaitingRoomCard.instanceId],
+      selectionLabel: '选择休息室成员',
+    };
+
+    const player1View = projectPlayerViewState(state, PLAYER1);
+    const player2View = projectPlayerViewState(state, PLAYER2);
+    const waitingRoomObjectId = createPublicObjectId(p1WaitingRoomCard.instanceId);
+
+    expect(player1View.activeEffect?.selectableObjectIds).toEqual([waitingRoomObjectId]);
+    expect(player2View.activeEffect?.selectableObjectIds).toEqual([waitingRoomObjectId]);
+    expect(player2View.activeEffect?.selectionLabel).toBe('选择休息室成员');
+  });
+
+  it('activeEffect 已公开的隐藏区卡牌会正面投影给双方，但不暴露原隐藏区列表', () => {
+    const { state, p1HandCard, p1WaitingRoomCard } = createProjectedState();
+    state.activeEffect = {
+      id: 'effect-revealed-hand-card',
+      abilityId: 'TEST_REVEALED_HAND_CARD',
+      sourceCardId: p1WaitingRoomCard.instanceId,
+      controllerId: PLAYER1,
+      effectText: '公开1张手牌。',
+      stepId: 'REVEAL_HAND_CARD',
+      stepText: '已公开手牌。',
+      awaitingPlayerId: PLAYER1,
+      revealedCardIds: [p1HandCard.instanceId],
+    };
+
+    const player1View = projectPlayerViewState(state, PLAYER1);
+    const player2View = projectPlayerViewState(state, PLAYER2);
+    const handObjectId = createPublicObjectId(p1HandCard.instanceId);
+
+    expect(player1View.activeEffect?.revealedObjectIds).toEqual([handObjectId]);
+    expect(player2View.activeEffect?.revealedObjectIds).toEqual([handObjectId]);
+    expect(player2View.objects[handObjectId]?.surface).toBe('FRONT');
+    expect(player2View.objects[handObjectId]?.publiclyRevealed).toBe(true);
+    expect(player2View.objects[handObjectId]?.frontInfo?.cardCode).toBe('MEM-001');
+    expect(player2View.table.zones.FIRST_HAND.objectIds).toBeUndefined();
+  });
+
   it('保留对手隐藏区张数，但不投影对手手牌对象', () => {
     const { state, p1HandCard } = createProjectedState();
 
@@ -445,6 +568,41 @@ describe('PlayerViewState projector', () => {
     expect(hasEnabledCommand(performanceView, GameCommandType.CONFIRM_PERFORMANCE_OUTCOME)).toBe(
       true
     );
+  });
+
+  it('应投影此 Live 卡分数修正，供判定窗口显示修正后的单卡分数', () => {
+    const { state, p1LiveCard } = createProjectedState();
+    state.liveResolution.liveModifiers = [
+      {
+        kind: 'SCORE',
+        playerId: PLAYER1,
+        liveCardId: p1LiveCard.instanceId,
+        countDelta: 1,
+      },
+    ];
+
+    const view = projectPlayerViewState(state, PLAYER1);
+
+    expect(
+      view.match.liveResult?.liveCardScoreModifiers[createPublicObjectId(p1LiveCard.instanceId)]
+    ).toBe(1);
+  });
+
+  it('应投影玩家 Live 合计分数修正，供判定窗口显示卡牌效果加分', () => {
+    const { state } = createProjectedState();
+    state.liveResolution.liveModifiers = [
+      {
+        kind: 'SCORE',
+        playerId: PLAYER1,
+        countDelta: 1,
+        sourceCardId: 'score-source',
+      },
+    ];
+
+    const view = projectPlayerViewState(state, PLAYER1);
+
+    expect(view.match.liveResult?.scoreModifiers.FIRST).toBe(1);
+    expect(view.match.liveResult?.scoreModifiers.SECOND).toBe(0);
   });
 
   it('RESULT_SETTLEMENT 期间仅胜者拥有成功 Live 选择与结算确认权限', () => {

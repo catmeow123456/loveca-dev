@@ -193,6 +193,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     : null;
   const activeEffectSelectableCardIds =
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
+  const activeEffectRevealedCardIds =
+    activeEffect?.revealedObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const canConfirmActiveEffect =
     !!activeEffect && !!viewerSeat && activeEffect.waitingSeat === viewerSeat;
   const activeEffectUsesOrderedMultiSelect =
@@ -1158,6 +1160,54 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
             <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-3">
               <p className="text-sm leading-relaxed">{activeEffect.effectText}</p>
             </div>
+            {activeEffectRevealedCardIds.length > 0 && (
+              <div className="mt-4">
+                <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
+                  已公开的卡牌
+                </div>
+                <div className="grid max-h-[32vh] grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
+                  {activeEffectRevealedCardIds.map((cardId) => {
+                    const presentation = getVisibleCardPresentation(cardId);
+                    const cardData = presentation?.cardData;
+                    const label = cardData
+                      ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
+                        ? `${cardData.cost} ${cardData.name}`
+                        : cardData.cardType === CardType.LIVE && 'score' in cardData
+                          ? `${cardData.score}分 ${cardData.name}`
+                          : cardData.name
+                      : '已公开卡牌';
+
+                    return (
+                      <div
+                        key={cardId}
+                        onMouseEnter={() => presentation && setHoveredCard(cardId)}
+                        onMouseLeave={() => setHoveredCard(null)}
+                        className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] p-1.5"
+                        title={label}
+                      >
+                        {presentation ? (
+                          <Card
+                            cardData={presentation.cardData as AnyCardData}
+                            instanceId={presentation.instanceId}
+                            imagePath={presentation.imagePath}
+                            size="sm"
+                            faceUp={true}
+                            showHover={false}
+                          />
+                        ) : (
+                          <div className="flex h-[84px] w-[60px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
+                            ?
+                          </div>
+                        )}
+                        <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
+                          {label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {activeEffectSelectableCardIds.length > 0 && (
               <div className="mt-4">
                 <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">

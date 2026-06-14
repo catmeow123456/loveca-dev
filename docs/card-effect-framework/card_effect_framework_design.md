@@ -1,7 +1,7 @@
 # Loveca card effect framework design
 
 日期：2026-06-13  
-状态：设计草案；Stage 1A-1D 已落地，Stage 1E member-state / position-change 已起步，Stage 1F draw 已对当前 μ's 验证集收口，Stage 1I energy placement/state 已由 `PL!SP-PR-004-PR` 费用 4「唐 可可」与 `PL!SP-bp4-008-P` 费用 13「若菜四季」起步，Stage 1J draw-discard 已由 `PL!SP-bp4-008-P` 费用 13「若菜四季」与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」扩样本验证，Stage 1K 已补完 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始可选站位变换，Stage 1L 已由 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」与 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」打开 X11 登场费用修正底座，Stage 1M 已由 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」LIVE 开始批量活跃与 `PL!S-bp2-006-P` 费用 11「津岛善子」打开 S07 卡效登场边界，Stage 1N 已由 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证 X03 成员/能量分支选择并复用 S02/E02 方向 helper，Stage 1O 已由 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」与 `PL!HS-bp6-017-N` 费用 11「日野下花帆」打开最小 AUTO / S08 离场触发 proving path，Stage 1P 已由 `PL!HS-pb1-009-R` 费用 15「日野下花帆」打开舞台成员监听 `ON_ENTER_STAGE`、实例级每回合限制、BLADE modifier AUTO 第一段与 LIVE 开始 BLADE 阈值抽弃第二段，Stage 1Q/1R 已用 `PL!HS-bp6-004-R` 费用 13「百生 吟子」、`PL!-pb1-019-N` 费用 2「高坂穗乃果」等验证舞台目标与自送回收扩样本；`PL!HS-bp1-006-P` 费用 11「藤岛 慈」已补齐 LIVE 开始弃手后按其他成员条件选择 Heart，`PL!HS-bp1-004-P` 费用 15「夕雾缀理」已补齐起动支付 3 能量回收莲之空 LIVE 与 LIVE 开始支付 1 能量按 LIVE 区数量获得 BLADE；本批 `绿莲-6弹ver.yaml` 收口已补齐 `PL!HS-bp5-019-L` 分数 6「花结」、`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」、`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」、`PL!HS-bp5-008-R` 费用 4「桂城泉」、`PL!HS-pb1-004-R` 费用 4「百生吟子」与 `PL!HS-PR-019-RM` 费用 2「百生吟子」；其中新增验证了 LIVE 卡来源 modifier、成员名/小组名别名归一化、自身待机费用、复合能量+弃手费用、公开检视顶 3 后确认入休息室并获得绿色 Heart。
+状态：设计草案；Stage 1A-1S 已按真实卡效逐步落地 recovery/selector、费用、look-top、Live modifier、成员状态、抽弃、能量、登场费用修正、卡效登场、AUTO proving、舞台目标、公开手牌隐私投影与声援公开卡选择等边界。本批 `绿莲-6弹ver.yaml` 收束已补齐 `PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」与 `PL!HS-cl1-009` 分数 1「水彩世界」；新增验证公开手牌确认窗口、私有候选不向对手投影、条件型 continuous SCORE、此 Live 卡分数与 LIVE 合计分数投影分离、relay 来源条件、分组回收、动态控顶、LIVE 成功舞台成员来源与 `effects/cheer-selection.ts`。
 目标：面向当前全卡池高频效果片段设计卡效自动化框架，第一阶段用当前已实现的 `PL!-sd1`、测试用 Karin 效果与 `系统边界混合` proving cards 验证框架。
 
 完整 fragment 覆盖矩阵见 `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`。本文负责说明框架形状；覆盖矩阵负责逐项确认 catalog 中 75 个 fragment 都被纳入设计、预留或 custom hook。
@@ -32,7 +32,7 @@
 
 | category | meaning | examples |
 |---|---|---|
-| `CONTINUOUS` | 常时能力，不入队，按当前场面动态计算 | 成功 Live 每张得 BLADE |
+| `CONTINUOUS` | 常时能力，不入队，按当前场面动态计算 | 成功 Live 每张得 BLADE、三面不同名加 LIVE 合计分数 |
 | `ACTIVATED` | 起动能力，玩家在合法时点主动发动 | `[E][E]` 顶 10 入休息室 |
 | `TRIGGERED_AUTO` | 自动/诱发能力，由事件触发并进入待处理队列 | 登场、LIVE 开始、LIVE 成功、移动时、从休息室离开时 |
 | `CUSTOM` | 低频或复杂特例，挂接自定义 resolver | 复制能力、改变下一次阶段等 |
@@ -55,6 +55,8 @@
 也就是说，登场、LIVE 开始、LIVE 成功不应该和 `自动` 对立；它们应该是 `TRIGGERED_AUTO` 下最常见、最标准的 trigger。
 
 当前代码中的 `CardAbilityCategory.AUTO` 可以保留为“其他自动诱发”的兼容分类，但长期更建议语义统一为 `TRIGGERED_AUTO + trigger`。
+
+2026-06-14 更新：`ON_LIVE_SUCCESS` 已不再只从成功的 LIVE 卡本身入队，也会在存在成功 LIVE 时扫描表演玩家舞台成员来源。`PL!HS-bp6-001-R＋` 费用 4「日野下花帆」验证了舞台成员来源 LIVE 成功时效果；`PL!HS-cl1-009-CL` 分数 1「水彩世界」与同卡共同打开 `effects/cheer-selection.ts`，通过 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 选取“因声援公开且仍在处理区”的卡，再按卡效配置移动到手牌或卡组顶。
 
 ## 3. Proposed ability definition shape
 
@@ -183,6 +185,8 @@ P0/P1 覆盖：
 | `C07` | `revealFromHand(selector, count, optional)` |
 | `X11` | `playCostModifier(condition, amount)` |
 
+2026-06-14 补充：公开手牌、弃手费用、私有检视区选择等步骤若在确定公开前使用 `activeEffect.selectableCardIds`，必须通过 `selectableCardVisibility: 'AWAITING_PLAYER_ONLY'` 标明候选只投影给当前等待玩家。在线投影层同时保留兜底：若候选牌对象对当前视角不存在或不是正面可见，则不投影 `selectableObjectIds`、选择标题与跳过按钮，避免对手通过占位数量读出隐藏区候选数。已公开给双方的隐藏区卡牌使用 `activeEffect.revealedCardIds` 承载，投影为 `revealedObjectIds` 并强制正面可见，用于公开手牌等“公开后继续处理”的确认窗口。公开区候选（休息室、舞台等）继续按 `PUBLIC` 或默认正面可见规则投影给双方。
+
 ### 4.4 Selector and condition layer
 
 职责：
@@ -279,11 +283,18 @@ P0/P1 覆盖：
 | `PL!SP-PR-004-PR` | 登场可弃 1 手牌，从能量卡组放置 1 张待机能量 | `optional discard -> placeEnergyFromDeck(count=1, orientation=WAITING)` |
 | `PL!SP-bp4-008-P` 费用 13「若菜四季」 | 左侧登场抽弃、右侧登场能量活跃、LIVE 开始可选站位变换 | `onEnter(requiredSourceSlots=[LEFT]) -> drawThenDiscard(draw=2, discard=1)`；`onEnter(requiredSourceSlots=[RIGHT]) -> setFirstEnergyCardsOrientation(count=2, from=WAITING, to=ACTIVE)`；`onLiveStart -> optional positionChange(member-state)` |
 | `PL!HS-bp5-019-L` 分数 6「花结」 | LIVE 开始按 LIVE 区其他「莲之空」卡减少绿色必要 Heart | `onLiveStart(liveCard) -> modifyRequiredHearts(color=GREEN, delta=count(otherHasunosoraLiveZoneCards)*-2)` |
-| `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」 | LIVE 开始按休息室 Cerise Bouquet LIVE 数量获得分数 +1 | `onLiveStart(liveCard) -> if zoneCount(WR, live & unitAlias(Cerise Bouquet))>=3 -> modifyLiveTotalScore(+1)` |
+| `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」 | LIVE 开始按休息室 Cerise Bouquet LIVE 数量使此卡分数 +1 | `onLiveStart(liveCard) -> if zoneCount(WR, live & unitAlias(Cerise Bouquet))>=3 -> modifyThisLiveScore(+1)` |
 | `PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」 | 登场按舞台相关成员条件活跃能量并回收 LIVE；LIVE 开始支付能量得 BLADE | `onEnter -> if stage has nameAlias(Rurino/Ginko/Kosuzu) -> setEnergyActive(1) + selectFromZoneToHand(hasunosora LIVE)`；`onLiveStart -> optional tapEnergy(1) -> grantBlade(2)` |
 | `PL!HS-bp5-008-R` 费用 4「桂城泉」 | 登场可自身待机并弃手，看顶 5 公开高费莲之空成员 | `onEnter -> optional cost(setSourceState(WAITING)+discard1) -> lookTopSelectToHand(5, upTo1, member & hasunosora & cost>=9, reveal=true)` |
 | `PL!HS-pb1-004-R` 费用 4「百生吟子」 | 登场可支付能量并弃手，顶 3 入休息室后回收 Cerise Bouquet LIVE | `onEnter -> optional cost(tapEnergy(1)+discard1) -> moveTopDeckToWaitingRoom(3) -> selectFromZoneToHand(live & unitAlias(Cerise Bouquet))` |
 | `PL!HS-PR-019-RM` 费用 2「百生吟子」 | 登场公开检视顶 3，确认后入休息室，若均为绿色 Heart 成员则得绿色 Heart | `onEnter -> inspectTop(3, reveal=true) -> confirm -> moveInspectedToWaitingRoom -> if all(member & hasGreenHeart) -> grantHeart(GREEN,1)` |
+| `PL!HS-bp5-001` 费用 11「日野下花帆」 | 登场公开检视顶 4 后入休息室并按是否存在 LIVE 得 BLADE；起动公开手牌 LIVE 回收同名 LIVE | `onEnter -> inspectTop(4, reveal=true) -> confirm -> moveInspectedToWR -> if any(LIVE) grantBlade(2)`；`activated(cost=tapEnergy(2)+revealFromHand(LIVE)) -> selectFromZoneToHand(sameName LIVE)` |
+| `PL!HS-bp1-003` 费用 13「乙宗梢」 | 起动回收低费莲之空成员；常时三面不同名莲之空成员时 LIVE 合计分数 +1 | `activated(limit=oncePerTurn,cost=tapEnergy(1)) -> selectFromZoneToHand(member & hasunosora & cost<=4)`；`continuous -> if allStageSlots(hasunosora & distinctName) -> modifyLiveTotalScore(+1)` |
+| `PL!HS-bp1-002` 费用 11「村野沙耶香」 | 起动支付 2 能量并自送，从休息室登场低费莲之空成员到来源原区域 | `activated(cost=tapEnergy(2)+moveSelfToWR) -> playMemberFromWR(member & hasunosora & cost<=15, sourceSlot)` |
+| `PL!HS-sd1-001` 费用 9「日野下花帆」 | 被费用大于等于 10 的莲之空成员换手放置入休息室时，活跃 2 张能量 | `onLeaveStage -> if replacingCard(member & hasunosora & cost>=10) -> setEnergyActive(2)` |
+| `PL!HS-pb1-020` 费用 9「百生吟子」 | 登场时休息室 LIVE >=3 可弃 2 手牌，回收 Cerise Bouquet 成员 + 莲之空 LIVE | `onEnter -> if zoneCount(WR,LIVE)>=3 -> optional discard(2) -> groupedSelectFromWRToHand([ceriseMember, hasunosoraLive])` |
+| `PL!HS-bp6-001` 费用 4「日野下花帆」 | 登场按舞台成员数 + 2 动态检视并控顶；LIVE 成功时可将声援公开卡回顶 | `onEnter -> lookTop(stageMemberCount+2) -> chooseOneToDeckTop(rest=WR)`；`onLiveSuccess(stageMember) -> selectCheerRevealedCard(destination=deckTop)` |
+| `PL!HS-cl1-009` 分数 1「水彩世界」 | LIVE 成功时从声援公开卡中回收费用 4-9 成员 | `onLiveSuccess(liveCard) -> selectCheerRevealedCard(member & cost4to9, destination=hand)` |
 
 ## 6. First implementation stage
 
@@ -353,15 +364,15 @@ P0/P1 覆盖：
 当前落地：
 
 - `src/domain/rules/live-modifiers.ts` 已提供 `addLiveModifier`、`replaceLiveModifier`、`projectLiveModifierCompatibility`。
-- `003` Heart、`009` 分数、`022` 必要 Heart 已改为先写 `liveResolution.liveModifiers`，旧的 `playerHeartBonuses`、`playerScoreBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 由投影派生；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」LIVE 开始段已验证支付能量后按 LIVE 区数量写入 `BLADE` modifier；`PL!HS-bp5-019-L` 分数 6「花结」与 `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」进一步验证 LIVE 卡来源也可写入绿色 `REQUIREMENT` 与 `SCORE` modifier；`PL!HS-PR-019-RM` 费用 2「百生吟子」验证登场公开检视后按条件写入绿色 `HEART` modifier。
-- continuous modifier registry 已起步，`001` 常时 BLADE 由 `collectLiveModifiers` 按当前舞台与成功 Live 数动态收集，不写入临时状态。
+- `003` Heart、`009` 分数、`022` 必要 Heart 已改为先写 `liveResolution.liveModifiers`，旧的 `playerHeartBonuses`、`playerScoreBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 由投影派生；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」LIVE 开始段已验证支付能量后按 LIVE 区数量写入 `BLADE` modifier；`PL!HS-bp5-019-L` 分数 6「花结」与 `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」进一步验证 LIVE 卡来源也可写入绿色 `REQUIREMENT` 与 `SCORE` modifier；其中 `SCORE` 不带 `liveCardId` 表示玩家 LIVE 合计分数修正，携带 `liveCardId` 表示此 Live 卡分数修正。`PL!HS-PR-019-RM` 费用 2「百生吟子」验证登场公开检视后按条件写入绿色 `HEART` modifier。
+- continuous modifier registry 已起步，`001` 常时 BLADE 由 `collectLiveModifiers` 按当前舞台与成功 Live 数动态收集，不写入临时状态；`PL!HS-bp1-003` 费用 13「乙宗梢」验证条件型常时 `SCORE` modifier，三面均为不同名「莲之空」成员时投影 LIVE 合计分数 +1。
 - `tests/unit/live-modifiers.test.ts` 覆盖临时 modifier 写入、替换和兼容投影；既有 Live 判定 / runner tests 覆盖自动判定结果不变。
 - 前端判定面板读取 `requirementModifiers` / `requirementReductions` 时需兼容 raw card id 与 `obj_<cardId>` public object id。2026-06-13 修复过一次 022 UI 预览未应用必要 Heart 减少的回归，根因就是该投影键不一致。
 
 后续：
 
 1. 为更多 `B08/T05` 条件型常时修正增加 registry definition。
-2. 如出现 `B06`“此 Live 卡分数增加”，扩展 `LiveModifierState` 或细分 `SCORE` target。
+2. 为 `B06` 继续补更多样例；当前 `SCORE.liveCardId` 已区分“此 Live 卡分数增加”，在线投影通过 `liveCardScoreModifiers` 给判定窗口显示修正后的单卡分数。
 3. 若 UI/在线投影完成 `liveModifiers` 原生读取，可逐步删除旧 Map 兼容字段。
 
 ### Stage 1E: Member state and position movement
@@ -408,6 +419,7 @@ P0/P1 覆盖：
 
 - 2026-06-13 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」最小起步：先支持 `ON_LEAVE_STAGE` 来源入队，证明舞台成员进休息室时的 AUTO 可以走待处理队列。
 - `PL!HS-bp6-017-N` 费用 11「日野下花帆」继续复用同一离场 AUTO 底座，并验证可选弃手后从休息室按类型分组回收 LIVE/成员各至多 1 张。
+- 2026-06-14 `PL!HS-sd1-001-SD` 费用 9「日野下花帆」为同一离场来源补了 `replacingCardId` 薄元数据：从 `PLAY_MEMBER` 的 relay 动作记录换上成员，入队前即可校验“曾与费用 >= 10 的莲之空成员换手”这类来源条件。
 - 当前实现仍主要是 action-history / 显式来源驱动的最小 event window；`enqueueTriggeredCardEffects` 已能接收 `LeaveStageEvent` 转换离场来源，但还不是完整 `GameEvent -> trigger matcher`。
 - 当同一动作同时产生离场 AUTO 与登场能力时，pending ability 顺序选择按同 controller 且同 timing 或共享 eventId 聚合，玩家可选择先后顺序。
 
@@ -510,6 +522,18 @@ P0/P1 覆盖：
 - confirm-only active effect 已起步：玩家从顺序选择窗口手动点选无输入 pending ability 时，先显示来源卡、效果文本与“继续处理”按钮，确认后再 resolve；“顺序发动”仍自动连续处理。`PL!HS-pb1-009-R` 费用 15「日野下花帆」第一段用于验证该 UI/runner 壳。
 - 当前边界：完整 `GameEvent -> trigger matcher`、when-if、更多移动或状态事件仍后续分批抽取。
 
+### Stage 1S: Cheer-revealed selection
+
+目标片段：`T04,F14,F15`
+
+当前落地：
+
+- `src/application/effects/cheer-selection.ts` 提供第一版声援公开卡选择 helper：以 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 找到“因本次声援公开且仍在处理区”的卡，再按卡效 selector 与目的地执行移动。
+- `enqueueLiveSuccessCardEffects` 在存在成功 LIVE 时同时扫描成功 LIVE 卡来源与表演玩家舞台成员来源。
+- `PL!HS-bp6-001-R＋` 费用 4「日野下花帆」LIVE 成功段验证舞台成员来源 `LIVE_SUCCESS`，并可将 1 张本次声援公开卡放回卡组顶。
+- `PL!HS-cl1-009-CL` 分数 1「水彩世界」LIVE 成功段验证成功 LIVE 卡来源从本次声援公开卡中选择 1 张费用 4-9 成员加入手牌。
+- 当前边界：目的地已覆盖手牌和卡组顶；卡组底、休息室、追加声援/重做声援仍等 `PL!HS-bp6-027-L` 分数 5「月夜見海月」等后续样例推进。
+
 ## 7. Custom resolver policy
 
 不是所有效果都要立刻模块化。建议规则：
@@ -532,14 +556,12 @@ P0/P1 覆盖：
 
 ## 9. Recommended next concrete task
 
-Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Step 13 / Stage 1H 已完成 catalog 回扫和 audit 文档刷新；Stage 1I 已用 `PL!SP-PR-004-PR` 费用 4「唐 可可」打开 E03 能量放置底座，并用 `PL!SP-bp4-008-P` 费用 13「若菜四季」打开来源槽位条件与 E02 能量活跃底座；Stage 1J 已用同一张四季与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」验证 F02 抽 2 弃 1 组合步骤，并用 `PL!-pb1-019-N` 费用 2「高坂穗乃果」/`PL!-bp4-003-P` 费用 2「南琴梨」验证自送休息室回收扩样本；Stage 1K 已补完 `PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始 S05 可选站位变换；Stage 1L 已用 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」和 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」打开 X11 登场费用修正底座；Stage 1M 已用 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」与 `PL!S-bp2-006-P` 费用 11「津岛善子」验证批量活跃与 S07 卡效登场；Stage 1N 已用 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证登场时 X03 成员/能量分支选择，并复用 S02/E02 方向 helper；Stage 1O 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」与 `PL!HS-bp6-017-N` 费用 11「日野下花帆」验证最小 AUTO / S08 离场触发；Stage 1P 已用 `PL!HS-pb1-009-R` 费用 15「日野下花帆」验证 `ON_ENTER_STAGE` 监听型 AUTO、实例级每回合限制、BLADE modifier、成员有效 BLADE 阈值抽弃与 confirm-only 无输入确认壳；Stage 1Q 已用 `PL!HS-bp6-004-R` 费用 13「百生 吟子」验证对手舞台低费成员目标、同源双 LIVE 开始能力的 option 顺序选择、指定姓名弃手与 BLADE modifier 组合，并抽出舞台成员目标 active effect 配置入口；`PL!HS-bp1-006-P` 费用 11「藤岛 慈」已补齐 LIVE 开始弃手后按其他成员条件选择 Heart 的 B03 扩样本；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」已补齐 C03/F08 起动回收与 C03/B01 LIVE 开始 BLADE 扩样本；本批 `绿莲-6弹ver.yaml` 已补齐 `PL!HS-bp5-019-L` 分数 6「花结」、`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」、`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」、`PL!HS-bp5-008-R` 费用 4「桂城泉」、`PL!HS-pb1-004-R` 费用 4「百生吟子」与 `PL!HS-PR-019-RM` 费用 2「百生吟子」。
+Stage 1A-1S 已完成当前主要底座抽取与多批真实卡效验证；最新一批 `绿莲-6弹ver.yaml` 已补齐 `PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」与 `PL!HS-cl1-009` 分数 1「水彩世界」。当前剩余首选真实样例是 `PL!HS-bp6-027-L` 分数 5「月夜見海月」，用于继续推进追加声援 / 重做声援边界。
 
 下一步建议继续小步推进：
 
-1. 继续 `绿莲-6弹ver.yaml` 的真实样例；优先选择仍未实现且能推进 AUTO / LIVE 成功 / LIVE 开始 when-if、名称/数值 selector 配置化、公开/看顶 workflow、更多状态变化或移动事件边界的卡。
-2. 可用第二张“选择舞台成员并改变状态”的同型卡验证并扩展 `stage-member-target-selection.ts`。
+1. `PL!HS-bp6-027-L` 分数 5「月夜見海月」：优先作为下一窗口起点，沿 `cheer-selection.ts` 继续处理追加声援 / 重做声援。
+2. 后续再按实际卡效抽 condition / look-top / reveal-hand / grouped selection 配置，不一次性上完整事件系统。
 3. 如果需要穿插低风险扩样本，再选 `PL!HS-PR-002-PR` 费用 10「村野さやか」的登场看顶 3 选 1。
-4. 可以继续扩 `S07` 第二个样例，验证更多非手牌登场来源与 ordering。
-5. selector 后续可按实际卡效继续补 `nameIs`、`cardCodeIn`、`scoreGte`、`requirement...` 等数值/身份选择器。
 
 这样仍然保持“一个底座、一组可运行卡、一组 focused tests”的节奏。

@@ -9,7 +9,7 @@ import {
   PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES,
   isResultSuccessEffectSubPhase,
 } from '../application/command-availability.js';
-import type { GameState } from '../domain/entities/game.js';
+import type { ActiveEffectState, GameState, LiveModifierState } from '../domain/entities/game.js';
 import type { PlayerState } from '../domain/entities/player.js';
 import type {
   BaseZoneState,
@@ -29,6 +29,10 @@ import {
   ZoneType,
 } from '../shared/types/enums.js';
 import { isPlayerActive } from '../shared/phase-config/index.js';
+import {
+  collectLiveModifiers,
+  getPlayerLiveScoreModifier,
+} from '../domain/rules/live-modifiers.js';
 import type {
   LiveResultViewState,
   MatchViewState,
@@ -59,6 +63,17 @@ interface ProjectPlayerViewStateOptions {
 
 type VisibleSurface = Extract<ViewCardObject['surface'], 'BACK' | 'FRONT'>;
 type WindowDescriptor = Omit<ViewWindowState, 'status'>;
+
+interface ActiveEffectCardSelectionProjection {
+  readonly selectableObjectIds?: readonly string[];
+  readonly selectableObjectMode?: 'SINGLE' | 'ORDERED_MULTI';
+  readonly minSelectableObjects?: number;
+  readonly maxSelectableObjects?: number;
+  readonly selectionLabel?: string;
+  readonly confirmSelectionLabel?: string;
+  readonly canSkipSelection?: boolean;
+  readonly skipSelectionLabel?: string;
+}
 
 interface BaseZoneProjectionSpec {
   readonly key: string;
@@ -260,8 +275,10 @@ export function projectPlayerViewState(
   }
 
   projectResolutionAndInspectionZones(game, viewerSeat, objects, zones);
+  projectActiveEffectRevealedCards(game, objects);
 
   const permissions = buildPermissionViewState(game, viewerPlayerId, viewerSeat);
+  const activeEffectCardSelection = projectActiveEffectCardSelection(game, viewerSeat, objects);
   const activeEffect = game.activeEffect
     ? {
         id: game.activeEffect.id,
@@ -274,18 +291,12 @@ export function projectPlayerViewState(
         waitingSeat: game.activeEffect.awaitingPlayerId
           ? getSeatForPlayer(game, game.activeEffect.awaitingPlayerId)
           : null,
+        revealedObjectIds: game.activeEffect.revealedCardIds?.map(createPublicObjectId),
         inspectionObjectIds: game.activeEffect.inspectionCardIds?.map(createPublicObjectId),
-        selectableObjectIds: game.activeEffect.selectableCardIds?.map(createPublicObjectId),
-        selectableObjectMode: game.activeEffect.selectableCardMode,
-        minSelectableObjects: game.activeEffect.minSelectableCards,
-        maxSelectableObjects: game.activeEffect.maxSelectableCards,
+        ...activeEffectCardSelection,
         selectableSlots: game.activeEffect.selectableSlots,
         selectableOptions: game.activeEffect.selectableOptions,
-        selectionLabel: game.activeEffect.selectionLabel,
-        confirmSelectionLabel: game.activeEffect.confirmSelectionLabel,
         canResolveInOrder: game.activeEffect.canResolveInOrder,
-        canSkipSelection: game.activeEffect.canSkipSelection,
-        skipSelectionLabel: game.activeEffect.skipSelectionLabel,
       }
     : null;
   const pendingCostPayment = game.pendingCostPayment
@@ -319,6 +330,66 @@ export function projectPlayerViewState(
     activeEffect,
     pendingCostPayment,
     uiHints,
+  };
+}
+
+function projectActiveEffectRevealedCards(
+  game: GameState,
+  objects: Record<string, ViewCardObject>
+): void {
+  const revealedCardIds = game.activeEffect?.revealedCardIds ?? [];
+  for (const cardId of revealedCardIds) {
+    const card = game.cardRegistry.get(cardId);
+    if (!card) {
+      continue;
+    }
+    const ownerSeat = getSeatForPlayer(game, card.ownerId);
+    if (!ownerSeat) {
+      continue;
+    }
+    upsertViewObject(objects, card, ownerSeat, 'FRONT', undefined, undefined, {
+      publiclyRevealed: true,
+    });
+  }
+}
+
+function projectActiveEffectCardSelection(
+  game: GameState,
+  viewerSeat: Seat,
+  objects: Readonly<Record<string, ViewCardObject>>
+): ActiveEffectCardSelectionProjection {
+  const effect = game.activeEffect;
+  if (!effect) {
+    return {};
+  }
+
+  const selectableCardIds = effect.selectableCardIds;
+  const waitingSeat = effect.awaitingPlayerId
+    ? getSeatForPlayer(game, effect.awaitingPlayerId)
+    : null;
+  const isWaitingPlayerView = waitingSeat === viewerSeat;
+  const explicitlyPrivate =
+    effect.selectableCardVisibility === 'AWAITING_PLAYER_ONLY' && !isWaitingPlayerView;
+  const allSelectableCardsVisible =
+    selectableCardIds === undefined ||
+    selectableCardIds.every((cardId) => {
+      const object = objects[createPublicObjectId(cardId)];
+      return object?.surface === 'FRONT';
+    });
+
+  if (explicitlyPrivate || !allSelectableCardsVisible) {
+    return {};
+  }
+
+  return {
+    selectableObjectIds: selectableCardIds?.map(createPublicObjectId),
+    selectableObjectMode: effect.selectableCardMode,
+    minSelectableObjects: effect.minSelectableCards,
+    maxSelectableObjects: effect.maxSelectableCards,
+    selectionLabel: effect.selectionLabel,
+    confirmSelectionLabel: effect.confirmSelectionLabel,
+    canSkipSelection: effect.canSkipSelection,
+    skipSelectionLabel: effect.skipSelectionLabel,
   };
 }
 
@@ -642,11 +713,20 @@ function upsertViewObject(
 function buildLiveResultView(game: GameState): LiveResultViewState {
   const firstPlayerId = game.players[0]?.id;
   const secondPlayerId = game.players[1]?.id;
+  const liveModifiers = collectLiveModifiers(game);
 
   return {
     scores: {
       FIRST: firstPlayerId ? (game.liveResolution.playerScores.get(firstPlayerId) ?? 0) : 0,
       SECOND: secondPlayerId ? (game.liveResolution.playerScores.get(secondPlayerId) ?? 0) : 0,
+    },
+    scoreModifiers: {
+      FIRST: firstPlayerId
+        ? getPlayerLiveScoreModifier(game.liveResolution, firstPlayerId, liveModifiers)
+        : 0,
+      SECOND: secondPlayerId
+        ? getPlayerLiveScoreModifier(game.liveResolution, secondPlayerId, liveModifiers)
+        : 0,
     },
     heartBonuses: {
       FIRST: firstPlayerId ? (game.liveResolution.playerHeartBonuses.get(firstPlayerId) ?? []) : [],
@@ -666,6 +746,7 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
         modifiers,
       ])
     ),
+    liveCardScoreModifiers: buildLiveCardScoreModifierView(liveModifiers),
     winnerSeats: game.liveResolution.liveWinnerIds
       .map((playerId) => getSeatForPlayer(game, playerId))
       .filter((seat): seat is Seat => seat !== null),
@@ -673,6 +754,21 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
       .map((playerId) => getSeatForPlayer(game, playerId))
       .filter((seat): seat is Seat => seat !== null),
   };
+}
+
+function buildLiveCardScoreModifierView(liveModifiers: readonly LiveModifierState[]): Record<
+  string,
+  number
+> {
+  const modifiers: Record<string, number> = {};
+  for (const modifier of liveModifiers) {
+    if (modifier.kind !== 'SCORE' || !modifier.liveCardId) {
+      continue;
+    }
+    const objectId = createPublicObjectId(modifier.liveCardId);
+    modifiers[objectId] = (modifiers[objectId] ?? 0) + modifier.countDelta;
+  }
+  return modifiers;
 }
 
 function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
