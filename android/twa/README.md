@@ -73,9 +73,9 @@ Current local outputs:
 - `android/twa/loveca/app-release-signed.apk`
 - `android/twa/loveca/app-release-bundle.aab`
 
-The script automatically accepts Android SDK licenses and applies pending `twa-manifest.json` changes to the generated project before building. It uses `--skipPwaValidation` by default while the live production site is still serving the old manifest. After deploying the updated PWA manifest and icons to `https://loveca.lovelivefun.xyz/`, run with `ANDROID_TWA_SKIP_PWA_VALIDATION=false`.
+The script automatically accepts Android SDK licenses and applies pending `twa-manifest.json` changes to the generated project before building. `twa-manifest.json` now points to the generated PNG PWA icons under `/pwa/`.
 
-Until the new PWA icons are deployed online, `twa-manifest.json` keeps `iconUrl` and `maskableIconUrl` on the existing `https://loveca.lovelivefun.xyz/icon.jpg`. Switch them to `/pwa/icon-512.png` and `/pwa/icon-maskable-512.png` only after those files are live.
+The script still uses `--skipPwaValidation` by default for temporary packaging while the live production manifest is catching up. After confirming `https://loveca.lovelivefun.xyz/manifest.webmanifest` and the `/pwa/*` icons are live, run with `ANDROID_TWA_SKIP_PWA_VALIDATION=false`.
 
 ## Generate Digital Asset Links
 
