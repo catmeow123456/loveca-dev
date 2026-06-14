@@ -786,6 +786,93 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
   });
 
+  it('玩家 Live 合计分数修正不应让失败 Live 得分', () => {
+    const service = new GameService();
+    const live = createCardInstance(
+      {
+        cardCode: 'FAILED-MODIFIER-SCORE-LIVE',
+        name: 'Failed Modifier Score Live',
+        cardType: CardType.LIVE as const,
+        score: 3,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'p1-failed-modifier-score-live'
+    );
+
+    let game = createGameState('g-failed-live-modifier-score', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+        liveModifiers: [{ kind: 'SCORE', playerId: 'p1', countDelta: 3 }],
+      },
+    };
+
+    const acceptResult = service.processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(false);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
+  });
+
+  it('进入结算阶段时失败 Live 不应套用玩家合计分数修正', () => {
+    const service = new GameService();
+    const live = createCardInstance(
+      {
+        cardCode: 'RESULT-FAILED-MODIFIER-SCORE-LIVE',
+        name: 'Result Failed Modifier Score Live',
+        cardType: CardType.LIVE as const,
+        score: 3,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'p1-result-failed-modifier-score-live'
+    );
+
+    let game = createGameState('g-result-failed-live-modifier-score', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.NONE,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        liveResults: new Map([[live.instanceId, false]]),
+        playerScores: new Map(),
+        liveModifiers: [{ kind: 'SCORE', playerId: 'p1', countDelta: 3 }],
+      },
+    };
+
+    const result = service.executeLiveResultPhase(game);
+
+    expect(result.success).toBe(true);
+    expect(result.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(false);
+    expect(result.gameState.liveResolution.playerScores.get('p1')).toBe(0);
+  });
+
   it('此 Live 卡分数修正应计入对应成功 Live 分数且不作为合计分数重复计算', () => {
     const service = new GameService();
     const member = createCardInstance(

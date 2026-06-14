@@ -63,6 +63,7 @@ describe('成员区拖拽交换', () => {
     expect(player.memberSlots.slots[SlotPosition.CENTER]).toBe(memberA.instanceId);
     expect(player.memberSlots.energyBelow[SlotPosition.LEFT]).toEqual([energyB.instanceId]);
     expect(player.memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([energyA.instanceId]);
+    expect(player.positionMovedThisTurn).toEqual([memberA.instanceId, memberB.instanceId]);
     expect(player.waitingRoom.cardIds).not.toContain(memberB.instanceId);
   });
 });

@@ -198,6 +198,57 @@ describe('member cost payment', () => {
     ).toBe(true);
   });
 
+  it('prevents LL-bp2-001-R+ from being sent to waiting room by relay', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('ll-bp2-relay-prohibition-payment', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const ownedMemberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const incomingCardId = ownedMemberCardIds[0];
+    const protectedCardId = ownedMemberCardIds[1];
+
+    expect(incomingCardId).toBeTruthy();
+    expect(protectedCardId).toBeTruthy();
+
+    (state.cardRegistry.get(incomingCardId!) as unknown as { data: MemberCardData }).data =
+      createMemberCard('TEST-INCOMING', 'Incoming Member', 2);
+    (state.cardRegistry.get(protectedCardId!) as unknown as { data: MemberCardData }).data =
+      createMemberCard('LL-bp2-001-R+', '渡边 曜&鬼冢夏美&大泽瑠璃乃', 20);
+
+    player.hand.cardIds = [incomingCardId!];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== incomingCardId && cardId !== protectedCardId
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = protectedCardId!;
+    player.memberSlots.cardStates = new Map([
+      [protectedCardId!, { orientation: OrientationState.ACTIVE }],
+    ]);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, incomingCardId!, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success).toBe(false);
+    expect(playResult.error).toContain('无法因换手');
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(protectedCardId);
+    expect(session.state?.players[0].hand.cardIds).toEqual([incomingCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(protectedCardId);
+  });
+
   it('applies PL!N-pb1-008-P+ cost reduction when a waiting Nijigasaki member is on stage', () => {
     const session = createGameSession();
     const deck = createDeck();

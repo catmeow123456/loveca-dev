@@ -44,9 +44,9 @@ Stage 1G 应包含：
 
 `PL!SP-PR-004-PR` 费用 4「唐 可可」已作为第一张 `系统边界混合` proving card，证明 C01 + E03 可从实际新测试卡组跑通。`PL!SP-bp4-008-P` 费用 13「若菜四季」已证明来源槽位条件、F02 抽弃、E02 energy orientation 与 LIVE 开始 S05 可选站位变换可跑通。`PL!HS-bp1-006-P` 费用 11「藤岛 慈」已证明登场 F02 与 LIVE 开始 C01/B03 可复用；`PL!-pb1-019-N` 费用 2「高坂穗乃果」与 `PL!-bp4-003-P` 费用 2「南琴梨」已作为低风险复用扩样本落地。
 
-`LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下 花帆」与 `PL!HS-PR-001-PR` 费用 10「日野下花帆」、`PL!-bp3-010-N` 费用 9「高坂穗乃果」、`PL!HS-bp2-002-P` 费用 13「村野沙耶香」的登场段低风险同构样本已收口；未做段仅保留为后续扩展项。
+`LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」已补齐两段：登场回收成员复用 `zone-selection + card-selectors`；LIVE 开始可弃合计 3 张指定姓名手牌并通过 `addLiveModifier(SCORE)` 写入 LIVE 合计分数 +3。指定姓名手牌弃置当前以 `cardNameAliasIs + ORDERED_MULTI + paySelectedDiscardHandCost` 组合实现，组合名卡自身可作为费用候选。
 
-`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」已完成手牌中的自身费用减少段：其他手牌每有 1 张费用 -1，自身不计入，最低 0 费。未做段保留：无法因换手放置入休息室、LIVE 开始弃指定姓名手牌获得 BLADE。
+`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」已完成三段：手牌中的自身费用减少段（其他手牌每有 1 张费用 -1，自身不计入，最低 0 费）；无法因换手放置入休息室（支付方案与实际登场 action 层拦截）；LIVE 开始弃任意张指定姓名手牌并按弃置张数通过 `addLiveModifier(BLADE)` 获得 BLADE。
 
 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」已完成手牌中的自身费用减少段与登场段：自己的舞台存在待机状态『虹咲』成员时费用 -2；登场时通过成员/能量分支选择，将 1 名待机舞台成员或至多 2 张待机能量变为活跃状态。能量分支不要求玩家选择具体能量卡，按能量区顺序自动处理。
 
@@ -123,7 +123,7 @@ Stage 1G 应包含：
 | `PL!-sd1-006-SD` hand reveal + success-zone exchange | C07/X02/L01/L02 only has one current proving card; low frequency compared with already-migrated modules. |
 | 003 / `PL!HS-bp1-006-P` 费用 11「藤岛 慈」Heart color option step；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」pay-or-decline option step | UI shape exists, but generic option API still needs a stable resolver config shape before extraction. |
 | 009/022/001/`PL!HS-bp1-003` condition builders | Condition AST should be driven by repeated non-precon examples, not invented from one card. |
-| Karin continuous `T05,B08` | Current Karin is a test sample. Decide whether to implement full real card text before adding moved-this-turn condition tracking. |
+| More movement/event-trigger cards | `PL!N-pb1-004` 已打开 `positionMovedThisTurn`，但完整成员区移动事件触发 `S09` 仍等待真实 AUTO 样例推动。 |
 | `F12` draw-then-deck-placement | F02 has a first draw-2/discard-1 proving path; deck position and refresh semantics still need actual samples. |
 
 ## 5. Verification after each future batch

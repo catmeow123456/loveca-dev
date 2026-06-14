@@ -143,6 +143,51 @@ describe('live modifier helpers', () => {
     expect(getMemberEffectiveBladeCount(game, 'p1', 'kaho')).toBe(6);
   });
 
+  it('collects PL!N-pb1-004 continuous blade when Karin has not position-moved this turn', () => {
+    const karin = createCardInstance(
+      {
+        cardCode: 'PL!N-pb1-004-P+',
+        name: '朝香 果林',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'karin'
+    );
+    let game = createGameState('live-karin-not-position-moved-blade', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [karin]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      movedToStageThisTurn: ['karin'],
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, 'karin'),
+    }));
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: 'karin',
+      abilityId: 'PL!N-pb1-004:continuous-not-position-moved-gain-two-blade',
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', 'karin')).toBe(3);
+
+    const movedGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      positionMovedThisTurn: ['karin'],
+    }));
+
+    expect(
+      collectLiveModifiers(movedGame).some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId === 'PL!N-pb1-004:continuous-not-position-moved-gain-two-blade'
+      )
+    ).toBe(false);
+    expect(getMemberEffectiveBladeCount(movedGame, 'p1', 'karin')).toBe(1);
+  });
+
   it('collects PL!HS-bp1-003 continuous score only for three different Hasunosora members', () => {
     const kozue = createCardInstance(
       createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13),

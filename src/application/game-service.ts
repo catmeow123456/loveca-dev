@@ -56,6 +56,7 @@ import {
 } from '../domain/entities/game.js';
 import type { PlayerState } from '../domain/entities/player.js';
 import {
+  clearTurnMoveRecords,
   getHandCount,
   findCardZone,
   hasMovedToStageThisTurn,
@@ -893,11 +894,13 @@ export class GameService {
     switch (autoAction.type) {
       case 'UNTAP_ALL':
         // 活跃阶段：将所有能量和成员变为活跃状态
-        return updatePlayer(game, autoAction.playerId, (player) => ({
-          ...player,
-          energyZone: untapAllEnergy(player.energyZone),
-          memberSlots: untapAllMembers(player.memberSlots),
-        }));
+        return updatePlayer(game, autoAction.playerId, (player) =>
+          clearTurnMoveRecords({
+            ...player,
+            energyZone: untapAllEnergy(player.energyZone),
+            memberSlots: untapAllMembers(player.memberSlots),
+          })
+        );
 
       case 'DRAW_ENERGY':
         return this.drawEnergy(game, autoAction.playerId);
@@ -1022,7 +1025,11 @@ export class GameService {
       playerId,
       collectLiveModifiers(stateAfterPerformance)
     );
-    const scoreDraft = performance.totalScore + scoreBonus;
+    const hasSuccessfulLive = performance.liveJudgments.some((judgment) => judgment.isSuccess);
+    const appliedScoreBonus = hasSuccessfulLive ? scoreBonus : 0;
+    const scoreDraft = hasSuccessfulLive
+      ? Math.max(0, performance.totalScore + appliedScoreBonus)
+      : 0;
     const playerScores = new Map(stateAfterPerformance.liveResolution.playerScores);
     playerScores.set(playerId, scoreDraft);
 
@@ -1043,7 +1050,7 @@ export class GameService {
       ),
       scoreDraft,
       bonusScore: performance.bonusScore,
-      effectScoreBonus: scoreBonus,
+      effectScoreBonus: appliedScoreBonus,
       drawCount: performance.cheerResult.drawCount,
       automated: true,
     });
@@ -1526,6 +1533,7 @@ export class GameService {
     liveResults?: ReadonlyMap<string, boolean>
   ): number {
     let totalScore = 0;
+    let hasSuccessfulLive = false;
     const evaluatedResults = liveResults ?? game.liveResolution.liveResults;
 
     for (const [cardId, result] of evaluatedResults.entries()) {
@@ -1538,13 +1546,22 @@ export class GameService {
         continue;
       }
 
+      hasSuccessfulLive = true;
       totalScore += this.applyLiveScoreModifiers(game, cardId, card.data as LiveCardData).score;
     }
 
     // 8.4.2.1: 应援的 [音符+1] 效果加分
     // 这需要从 liveResolution 中获取，简化实现暂时忽略
 
-    return totalScore;
+    if (!hasSuccessfulLive) {
+      return 0;
+    }
+
+    return Math.max(
+      0,
+      totalScore +
+        getPlayerLiveScoreModifier(game.liveResolution, playerId, collectLiveModifiers(game))
+    );
   }
 
   /**

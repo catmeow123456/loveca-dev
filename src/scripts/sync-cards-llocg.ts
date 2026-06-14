@@ -20,6 +20,7 @@ import * as path from 'path';
 import * as readline from 'readline/promises';
 import { Pool } from 'pg';
 import { normalizeCardCode } from '../shared/utils/card-code';
+import { inheritMissingBladeHeartsByBase } from '../domain/card-data/blade-heart-inheritance';
 
 // ============================================
 // 配置
@@ -451,7 +452,7 @@ async function main() {
     }
   }
 
-  const allCards = Array.from(cardMap.values());
+  const allCards = inheritMissingBladeHeartsByBase(Array.from(cardMap.values()));
   console.log(
     `  Total: ${allCards.length} cards (CN matched: ${cnMatchCount}, CN-only: ${cnOnlyCount}${transformErrors > 0 ? `, errors: ${transformErrors}` : ''})`
   );

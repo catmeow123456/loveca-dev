@@ -28,8 +28,6 @@ import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
 import { cardService } from '@/lib/cardService';
-import { loadLocalTestData } from '@/lib/localTestData';
-import { GameMode } from '@game/shared/types/enums';
 
 type AuthPage = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email';
 type AppPage =
@@ -139,30 +137,8 @@ function App() {
   // Game state
   const matchView = useGameStore((s) => s.getMatchView());
   const loadCardData = useGameStore((s) => s.loadCardData);
-  const createGame = useGameStore((s) => s.createGame);
-  const initializeGame = useGameStore((s) => s.initializeGame);
-  const setGameMode = useGameStore((s) => s.setGameMode);
   const leaveLocalGame = useGameStore((s) => s.leaveLocalGame);
   const initDeckStore = useDeckStore((s) => s.init);
-
-  const startLocalTestGame = () => {
-    try {
-      const testData = loadLocalTestData();
-      loadCardData(testData.cards);
-      setGameMode(GameMode.DEBUG);
-      createGame(
-        `local-test-${Date.now()}`,
-        'player-1',
-        `${testData.player1Name}（测试）`,
-        'player-2',
-        `${testData.player2Name}（测试）`
-      );
-      initializeGame(testData.player1Deck, testData.player2Deck);
-      setCurrentPage('game');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '启动本地测试对局失败');
-    }
-  };
 
   // 初始化认证 - 使用 ref 确保只执行一次
   useEffect(() => {
@@ -411,7 +387,6 @@ function App() {
     <HomePage
       onNavigateToDeckManager={() => setCurrentPage('deck-manager')}
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
-      onStartLocalTestGame={startLocalTestGame}
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToCardAdmin={() => setCurrentPage('card-admin')}

@@ -262,6 +262,25 @@ describe('CostCalculator', () => {
       expect(relayPlan?.actualEnergyCost).toBe(13);
     });
 
+    it('不应该生成将 LL-bp2-001-R+ 换手放置入休息室的支付方案', () => {
+      const memberData = createMockMemberData(10, 'Incoming Member', 'TEST-INCOMING');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 9 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('protected-member', 20, SlotPosition.CENTER, {
+            cardCode: 'LL-bp2-001-R+',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      expect(result.canPay).toBe(false);
+      expect(result.availablePlans.some((plan) => plan.isRelay)).toBe(false);
+    });
+
     it('应该在没有待机虹咲成员时不减少 PL!N-pb1-008-P+ 的费用', () => {
       const memberData = createMockMemberData(17, '艾玛·维尔德', 'PL!N-pb1-008-P+');
       const resources: AvailableResources = {

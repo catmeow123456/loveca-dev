@@ -93,8 +93,17 @@ export const KOTORI_ON_ENTER_ABILITY_ID = 'PL!-sd1-003-SD:on-enter-take-low-cost
 export const MAKI_ON_ENTER_ABILITY_ID = 'PL!-sd1-006-SD:on-enter-swap-hand-live-success-live';
 export const GENERIC_DISCARD_LOOK_TOP_ABILITY_ID = 'PL!-sd1:discard-one-look-top-take-one';
 export const LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID = 'LL-bp1-001-R+:on-enter-take-member';
+export const LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID =
+  'LL-bp1-001-R+:live-start-discard-named-three-score-plus-three';
+export const LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID =
+  'LL-bp2-001-R+:live-start-discard-named-gain-blade';
 export const HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID =
   'PL!HS-bp1-006-P:on-enter-draw-two-discard-one';
+export const HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
+  'PL!HS-bp1-006-P:on-enter-draw-one-discard-one';
+export const MEMBER_ON_ENTER_DRAW_DISCARD_ABILITY_ID = HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID;
+export const MEMBER_ON_ENTER_DRAW_DISCARD_ONE_ABILITY_ID =
+  HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID;
 export const HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID =
   'PL!HS-bp1-006-P:live-start-discard-gain-heart-if-other-member';
 export const HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID =
@@ -114,6 +123,10 @@ export const HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID =
   'PL!HS-sd1-006-SD:on-enter-if-related-member-activate-energy-recover-live';
 export const HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
   'PL!HS-sd1-006-SD:live-start-pay-one-gain-two-blade';
+export const BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
+  'PL!-bp4-010-N:live-start-pay-one-gain-two-blade';
+export const HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID =
+  'PL!HS-PR-001:live-start-pay-two-gain-one-blade';
 export const HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID =
   'PL!HS-bp5-008-R:on-enter-wait-self-discard-look-five-take-high-cost-member';
 export const HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID =
@@ -208,6 +221,8 @@ export const HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp5-001-SEC:on-enter-mill-four-gain-blade-if-live';
 export const HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID =
   'PL!HS-bp5-001-SEC:activated-pay-two-reveal-hand-live-recover-same-name-live';
+export const PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID =
+  'PL!-bp3-014-N:on-enter-look-top-two-arrange-to-top';
 export const HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID =
   'PL!HS-bp1-003-SEC:activated-pay-one-recover-low-cost-hasunosora-member';
 export const HS_BP1_003_CONTINUOUS_THREE_DIFFERENT_HASUNOSORA_SCORE_ABILITY_ID =
@@ -266,7 +281,13 @@ const HONOKA_ON_ENTER_EFFECT_TEXT =
 const KOTORI_ON_ENTER_EFFECT_TEXT =
   "【登场】从自己的休息室将1张费用小于等于4的『μ's』的成员卡加入手牌。";
 const LL_BP1_001_ON_ENTER_EFFECT_TEXT = '【登场】从自己的休息室将1张成员卡加入手牌。';
+const LL_BP1_001_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将手牌的合计3张「上原步梦」与「涩谷香音」与「日野下花帆」，以任意组合放置入休息室：LIVE结束时为止，获得「【常时】LIVE的合计分数＋３。」。';
+const LL_BP2_001_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将手牌的任意张数的「渡边 曜」与「鬼冢夏美」与「大泽瑠璃乃」放置入休息室：LIVE结束时为止，因支付此费用被放置入休息室的卡片每有1张，获得[BLADE]。';
 const HS_BP1_006_ON_ENTER_EFFECT_TEXT = '【登场】抽2张卡，将1张手牌放置入休息室。';
+const HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_EFFECT_TEXT =
+  '【登场】抽1张卡，将1张手牌放置入休息室。';
 const HS_BP1_006_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：自己的舞台上存在其他的成员的场合，指定1个任意Heart的颜色。LIVE结束时为止，获得1个指定颜色的Heart。';
 const HS_BP1_004_ACTIVATED_EFFECT_TEXT =
@@ -311,6 +332,10 @@ const HS_SD1_006_ON_ENTER_EFFECT_TEXT =
   '【登场】自己的舞台中存在「大泽瑠璃乃」或「百生吟子」或「徒町小铃」的场合，将1张能量变为活跃状态，从自己的休息室将1张『莲之空』的LIVE卡加入手牌。';
 const HS_SD1_006_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[BLADE][BLADE]。';
+const BP4_010_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[BLADE][BLADE]。';
+const HS_PR_001_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[BLADE]。';
 const HS_BP5_008_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将此成员变为待机状态，将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以从其中将1张费用大于等于9的『莲之空』的成员卡公开并加入手牌。其余的卡片放置入休息室。';
 const HS_PB1_004_ON_ENTER_EFFECT_TEXT =
@@ -330,6 +355,8 @@ const KEKE_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：从自己的能量卡组，将1张能量卡以待机状态放置入能量区。';
 const BP3_010_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的LIVE卡公开并加入手牌。其余放置入休息室。';
+const PL_BP3_014_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将此成员变为待机状态：检视自己卡组顶的2张卡。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的卡片放置入休息室。';
 const SHIKI_LEFT_DRAW_DISCARD_EFFECT_TEXT = '【登场】【左サイド】抽2张卡，将1张手牌放置入休息室。';
 const SHIKI_RIGHT_ENERGY_EFFECT_TEXT = '【登场】【右サイド】将2张能量变为活跃状态。';
 const SHIKI_LIVE_START_POSITION_CHANGE_EFFECT_TEXT =
@@ -362,6 +389,7 @@ const DECLINE_OPTION_LABEL = '不发动';
 const ABILITY_USE_STEP = 'ABILITY_USE';
 const ACTIVATED_ABILITY_USE_STEP = 'ACTIVATED_ABILITY_USE';
 const START_DASH_ARRANGE_STEP_ID = 'START_DASH_ARRANGE_TOP_DECK';
+const PL_BP3_014_ON_ENTER_ARRANGE_STEP_ID = 'PL_BP3_014_ON_ENTER_ARRANGE_TOP_TWO';
 const HS_BP6_001_ARRANGE_STEP_ID = 'HS_BP6_001_ARRANGE_STAGE_PLUS_TWO_TOP_DECK';
 const HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID = 'HS_BP6_001_SELECT_REVEALED_CHEER_TO_TOP';
 const HS_CL1_009_SELECT_CHEER_MEMBER_TO_HAND_STEP_ID =
@@ -429,10 +457,11 @@ interface RevealedCheerCardSelectionConfig {
   readonly orderedResolution: boolean;
 }
 
-interface DrawThenDiscardOneEffectConfig {
+interface DrawThenDiscardCardsEffectConfig {
   readonly ability: PendingAbilityState;
   readonly effectText: string;
   readonly drawCount: number;
+  readonly discardCount: number;
   readonly stepId: string;
   readonly orderedResolution: boolean;
 }
@@ -688,8 +717,37 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     notes: '复用 zone-selection + card-selectors，从休息室筛选成员卡。',
   },
   {
+    abilityId: LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID,
+    cardCodes: ['LL-bp1-001-R+'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: LL_BP1_001_LIVE_START_EFFECT_TEXT,
+    notes: '复用指定姓名手牌弃置费用流程，合计弃3张上原步梦/涩谷香音/日野下花帆后写入 SCORE +3。',
+  },
+  {
+    abilityId: LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID,
+    cardCodes: ['LL-bp2-001-R+'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: LL_BP2_001_LIVE_START_EFFECT_TEXT,
+    notes: '复用指定姓名手牌弃置费用流程，弃任意张渡边曜/鬼冢夏美/大泽瑠璃乃后按弃置张数写入 BLADE。',
+  },
+  {
     abilityId: KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
-    cardCodes: ['PL!SP-PR-004-PR'],
+    baseCardCodes: [
+      'PL!SP-PR-004',
+      'PL!SP-PR-006',
+      'PL!SP-PR-013',
+      'PL!SP-bp1-021',
+      'PL!SP-sd1-014',
+      'PL!SP-sd1-016',
+    ],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -944,6 +1002,27 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     notes: '登场后抽2张卡并将1张手牌放置入休息室；复用 draw helper 与 discard helper。',
   },
   {
+    abilityId: HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+    baseCardCodes: [
+      'PL!HS-bp1-010',
+      'PL!HS-bp1-014',
+      'PL!HS-bp6-020',
+      'PL!N-bp1-014',
+      'PL!N-bp1-015',
+      'PL!N-bp1-019',
+      'PL!N-sd1-013',
+      'PL!N-sd1-021',
+      'PL!N-sd1-022',
+    ],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_EFFECT_TEXT,
+    notes: '登场后抽1张卡并将1张手牌放置入休息室；复用 draw helper 与 discard helper。',
+  },
+  {
     abilityId: HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
     baseCardCodes: ['PL!HS-bp1-006'],
     category: CardAbilityCategory.LIVE_START,
@@ -1069,6 +1148,39 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     notes: 'LIVE开始时可支付1能量，通过 liveModifiers 写入 BLADE +2。',
   },
   {
+    abilityId: BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: [
+      'PL!-bp4-010',
+      'PL!HS-PR-018',
+      'PL!HS-cl1-005',
+      'PL!N-bp4-013',
+      'PL!S-pb1-016',
+      'PL!S-pb1-017',
+      'PL!S-pb1-018',
+      'PL!SP-bp1-006',
+      'PL!SP-bp2-019',
+      'PL!SP-bp2-022',
+    ],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: BP4_010_LIVE_START_EFFECT_TEXT,
+    notes: 'LIVE开始时可支付1能量，通过 liveModifiers 写入 BLADE +2。',
+  },
+  {
+    abilityId: HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-PR-001'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_PR_001_LIVE_START_EFFECT_TEXT,
+    notes: 'LIVE开始时可支付2能量，通过 liveModifiers 写入 BLADE +1。',
+  },
+  {
     abilityId: HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
     baseCardCodes: ['PL!HS-bp1-002'],
     category: CardAbilityCategory.ACTIVATED,
@@ -1095,6 +1207,17 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HS_BP6_001_ON_ENTER_EFFECT_TEXT,
     notes:
       '动态检视张数为结算时己方舞台成员数+2；按基础编号覆盖 P/P+/R+/SEC，含本地全角 R＋。',
+  },
+  {
+    abilityId: PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
+    baseCardCodes: ['PL!-bp3-014', 'PL!-bp3-017', 'PL!-bp3-018', 'PL!N-bp3-022', 'PL!N-bp4-016', 'PL!S-bp6-018'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_BP3_014_ON_ENTER_EFFECT_TEXT,
+    notes: '登场时将来源成员变为待机状态；检视卡组顶2张，按顺序放回任意张到卡组顶，其余放入休息室。',
   },
   {
     abilityId: HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
@@ -1513,6 +1636,7 @@ const MAKI_SELECT_SUCCESS_LIVE_STEP_ID = 'MAKI_SELECT_SUCCESS_LIVE';
 const DISCARD_LOOK_SELECT_DISCARD_STEP_ID = 'DISCARD_LOOK_SELECT_DISCARD';
 const DISCARD_LOOK_SELECT_TAKE_STEP_ID = 'DISCARD_LOOK_SELECT_TAKE';
 const DISCARD_LOOK_REVEAL_SELECTED_STEP_ID = 'DISCARD_LOOK_REVEAL_SELECTED';
+const SELECT_NAMED_HAND_DISCARD_STEP_ID = 'SELECT_NAMED_HAND_DISCARD';
 const KARIN_REVEAL_STEP_ID = 'KARIN_REVEAL_TOP_CARD';
 const KARIN_POSITION_CHANGE_STEP_ID = 'KARIN_POSITION_CHANGE';
 const KOTORI_LIVE_START_SELECT_DISCARD_STEP_ID = 'KOTORI_LIVE_START_SELECT_DISCARD';
@@ -1524,6 +1648,8 @@ const HS_BP2_022_SCORE_BONUS_STEP_ID = 'HS_BP2_022_SCORE_BONUS';
 const HS_SD1_006_SELECT_WAITING_ROOM_LIVE_STEP_ID =
   'HS_SD1_006_SELECT_HASUNOSORA_LIVE_FROM_WAITING_ROOM';
 const HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_SD1_006_LIVE_START_PAY_ENERGY';
+const BP4_010_LIVE_START_PAY_ENERGY_STEP_ID = 'BP4_010_LIVE_START_PAY_ENERGY';
+const HS_PR_001_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_PR_001_LIVE_START_PAY_ENERGY';
 const HS_PB1_004_SELECT_DISCARD_STEP_ID = 'HS_PB1_004_SELECT_DISCARD_FOR_MILL_RECOVER';
 const HS_PB1_004_SELECT_CERISE_LIVE_STEP_ID =
   'HS_PB1_004_SELECT_CERISE_LIVE_FROM_WAITING_ROOM';
@@ -2366,6 +2492,16 @@ export function confirmActiveEffectStep(
   }
 
   if (
+    (effect.abilityId === LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID ||
+      effect.abilityId === LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID) &&
+    effect.stepId === SELECT_NAMED_HAND_DISCARD_STEP_ID
+  ) {
+    return selectedCardIds
+      ? finishNamedHandDiscardLiveStartEffect(game, selectedCardIds)
+      : finishSkipEffect(game);
+  }
+
+  if (
     effect.abilityId === MAKI_ON_ENTER_ABILITY_ID &&
     effect.stepId === MAKI_SELECT_HAND_LIVE_STEP_ID
   ) {
@@ -2531,7 +2667,9 @@ export function confirmActiveEffectStep(
     ((effect.abilityId === START_DASH_LIVE_SUCCESS_ABILITY_ID &&
       effect.stepId === START_DASH_ARRANGE_STEP_ID) ||
       (effect.abilityId === HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID &&
-        effect.stepId === HS_BP6_001_ARRANGE_STEP_ID))
+        effect.stepId === HS_BP6_001_ARRANGE_STEP_ID) ||
+      (effect.abilityId === PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID &&
+        effect.stepId === PL_BP3_014_ON_ENTER_ARRANGE_STEP_ID))
   ) {
     return finishArrangeInspectedDeckTopEffect(game, selectedCardIds ?? []);
   }
@@ -2563,21 +2701,28 @@ export function confirmActiveEffectStep(
     effect.abilityId === SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID &&
     effect.stepId === SHIKI_LEFT_SELECT_DISCARD_STEP_ID
   ) {
-    return finishDrawThenDiscardOneEffect(game, selectedCardId ?? null);
+    return finishDrawThenDiscardCardsEffect(game, selectedCardId ?? null, selectedCardIds);
   }
 
   if (
     effect.abilityId === HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID &&
     effect.stepId === HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID
   ) {
-    return finishDrawThenDiscardOneEffect(game, selectedCardId ?? null);
+    return finishDrawThenDiscardCardsEffect(game, selectedCardId ?? null, selectedCardIds);
+  }
+
+  if (
+    effect.abilityId === HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID &&
+    effect.stepId === HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID
+  ) {
+    return finishDrawThenDiscardCardsEffect(game, selectedCardId ?? null, selectedCardIds);
   }
 
   if (
     effect.abilityId === HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID &&
     effect.stepId === HS_PB1_009_LIVE_START_SELECT_DISCARD_STEP_ID
   ) {
-    return finishDrawThenDiscardOneEffect(game, selectedCardId ?? null);
+    return finishDrawThenDiscardCardsEffect(game, selectedCardId ?? null, selectedCardIds);
   }
 
   if (
@@ -2614,11 +2759,15 @@ export function confirmActiveEffectStep(
   }
 
   if (
-    effect.abilityId === HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID &&
-    effect.stepId === HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID
+    (effect.abilityId === HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID &&
+      effect.stepId === HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID) ||
+    (effect.abilityId === BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID &&
+      effect.stepId === BP4_010_LIVE_START_PAY_ENERGY_STEP_ID) ||
+    (effect.abilityId === HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID &&
+      effect.stepId === HS_PR_001_LIVE_START_PAY_ENERGY_STEP_ID)
   ) {
     return selectedOptionId === 'pay'
-      ? finishHsSd1HimeLiveStartPayEnergyGainBlade(game)
+      ? finishLiveStartPayEnergyGainFixedBlade(game)
       : finishSkipEffect(game);
   }
 
@@ -2955,6 +3104,22 @@ function startPendingAbilityEffect(
       return startKotoriOnEnterSelection(game, ability, options);
     case LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID:
       return startLLBp1OnEnterSelection(game, ability, options);
+    case LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID:
+      return startNamedHandDiscardLiveStartEffect(game, ability, options, {
+        effectText: LL_BP1_001_LIVE_START_EFFECT_TEXT,
+        names: ['上原歩夢', '澁谷かのん', '日野下花帆'],
+        minCount: 3,
+        maxCount: 3,
+        rewardKind: 'SCORE',
+        rewardAmount: 3,
+      });
+    case LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID:
+      return startNamedHandDiscardLiveStartEffect(game, ability, options, {
+        effectText: LL_BP2_001_LIVE_START_EFFECT_TEXT,
+        names: ['渡辺曜', '鬼塚夏美', '大沢瑠璃乃'],
+        minCount: 1,
+        rewardKind: 'BLADE_PER_DISCARDED',
+      });
     case MAKI_ON_ENTER_ABILITY_ID:
       return startMakiOnEnterSelection(game, ability, options);
     case HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID:
@@ -3009,6 +3174,22 @@ function startPendingAbilityEffect(
       return startHsSd1HimeOnEnterActivateEnergyRecoverLive(game, ability, options);
     case HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID:
       return startHsSd1HimeLiveStartPayEnergyGainBlade(game, ability, options);
+    case BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID:
+      return startLiveStartPayEnergyGainFixedBlade(game, ability, {
+        ...options,
+        effectText: BP4_010_LIVE_START_EFFECT_TEXT,
+        stepId: BP4_010_LIVE_START_PAY_ENERGY_STEP_ID,
+        energyCostCount: 1,
+        bladeBonus: 2,
+      });
+    case HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID:
+      return startLiveStartPayEnergyGainFixedBlade(game, ability, {
+        ...options,
+        effectText: HS_PR_001_LIVE_START_EFFECT_TEXT,
+        stepId: HS_PR_001_LIVE_START_PAY_ENERGY_STEP_ID,
+        energyCostCount: 2,
+        bladeBonus: 1,
+      });
     case HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID:
       return startHsBp5IzumiOnEnterWaitDiscardLookTop(game, ability, options);
     case HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID:
@@ -3035,15 +3216,27 @@ function startPendingAbilityEffect(
       return startHsBp5KahoOnEnterMillGainBladeInspection(game, ability, options);
     case HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID:
       return startHsBp6KahoOnEnterLookStagePlusTwo(game, ability, options);
+    case PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID:
+      return startPlBp3OnEnterLookTopTwoArrangeToTop(game, ability, options);
     case HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID:
       return startHsBp6KahoLiveSuccessCheerToTop(game, ability, options);
     case HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID:
       return startHsCl1WatercolorWorldLiveSuccessCheerMemberToHand(game, ability, options);
     case HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID:
-      return startDrawThenDiscardOneEffect(game, {
+      return startDrawThenDiscardCardsEffect(game, {
         ability,
         effectText: HS_BP1_006_ON_ENTER_EFFECT_TEXT,
         drawCount: 2,
+        discardCount: 1,
+        stepId: HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID,
+        orderedResolution: options.orderedResolution === true,
+      });
+    case HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID:
+      return startDrawThenDiscardCardsEffect(game, {
+        ability,
+        effectText: HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_EFFECT_TEXT,
+        drawCount: 1,
+        discardCount: 1,
         stepId: HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID,
         orderedResolution: options.orderedResolution === true,
       });
@@ -3246,10 +3439,11 @@ function startHsPb1KahoLiveStartDrawDiscard(
     effectiveBladeCount,
   });
 
-  return startDrawThenDiscardOneEffect(state, {
+  return startDrawThenDiscardCardsEffect(state, {
     ability,
     effectText: `${HS_PB1_009_LIVE_START_EFFECT_TEXT}（当前${effectiveBladeCount}个）`,
     drawCount: 2,
+    discardCount: 1,
     stepId: HS_PB1_009_LIVE_START_SELECT_DISCARD_STEP_ID,
     orderedResolution: options.orderedResolution === true,
   });
@@ -5348,13 +5542,33 @@ function startHsSd1HimeLiveStartPayEnergyGainBlade(
   ability: PendingAbilityState,
   options: { readonly orderedResolution?: boolean } = {}
 ): GameState {
+  return startLiveStartPayEnergyGainFixedBlade(game, ability, {
+    ...options,
+    effectText: HS_SD1_006_LIVE_START_EFFECT_TEXT,
+    stepId: HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID,
+    energyCostCount: 1,
+    bladeBonus: 2,
+  });
+}
+
+function startLiveStartPayEnergyGainFixedBlade(
+  game: GameState,
+  ability: PendingAbilityState,
+  config: {
+    readonly effectText: string;
+    readonly stepId: string;
+    readonly energyCostCount: number;
+    readonly bladeBonus: number;
+    readonly orderedResolution?: boolean;
+  }
+): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
 
   const activeEnergyCardIds = getActiveEnergyCardIds(player);
-  const canPay = activeEnergyCardIds.length >= 1;
+  const canPay = activeEnergyCardIds.length >= config.energyCostCount;
 
   return addAction(
     {
@@ -5365,20 +5579,23 @@ function startHsSd1HimeLiveStartPayEnergyGainBlade(
         abilityId: ability.abilityId,
         sourceCardId: ability.sourceCardId,
         controllerId: ability.controllerId,
-        effectText: HS_SD1_006_LIVE_START_EFFECT_TEXT,
-        stepId: HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID,
-        stepText: canPay ? '可以支付1张活跃能量，获得2个BLADE。' : '当前没有可支付的活跃能量，可以不发动。',
+        effectText: config.effectText,
+        stepId: config.stepId,
+        stepText: canPay
+          ? `可以支付${config.energyCostCount}张活跃能量，获得${config.bladeBonus}个BLADE。`
+          : '当前没有可支付的活跃能量，可以不发动。',
         awaitingPlayerId: player.id,
         selectableOptions: canPay
           ? [
-              { id: 'pay', label: '支付1能量' },
+              { id: 'pay', label: `支付${config.energyCostCount}能量` },
               { id: 'decline', label: DECLINE_OPTION_LABEL },
             ]
           : [{ id: 'decline', label: DECLINE_OPTION_LABEL }],
         metadata: {
-          orderedResolution: options.orderedResolution === true,
+          orderedResolution: config.orderedResolution === true,
           activeEnergyCardIds,
-          bladeBonus: 2,
+          energyCostCount: config.energyCostCount,
+          bladeBonus: config.bladeBonus,
         },
       },
     },
@@ -5390,17 +5607,14 @@ function startHsSd1HimeLiveStartPayEnergyGainBlade(
       sourceCardId: ability.sourceCardId,
       step: 'START_PAY_ENERGY_OPTION',
       activeEnergyCardIds,
-      bladeBonus: 2,
+      bladeBonus: config.bladeBonus,
     }
   );
 }
 
-function finishHsSd1HimeLiveStartPayEnergyGainBlade(game: GameState): GameState {
+function finishLiveStartPayEnergyGainFixedBlade(game: GameState): GameState {
   const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
-  ) {
+  if (!effect) {
     return game;
   }
 
@@ -5410,7 +5624,11 @@ function finishHsSd1HimeLiveStartPayEnergyGainBlade(game: GameState): GameState 
   }
 
   const costPayment = payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
+    {
+      kind: 'TAP_ACTIVE_ENERGY',
+      count:
+        typeof effect.metadata?.energyCostCount === 'number' ? effect.metadata.energyCostCount : 1,
+    },
   ]);
   if (!costPayment) {
     return game;
@@ -5426,7 +5644,8 @@ function finishHsSd1HimeLiveStartPayEnergyGainBlade(game: GameState): GameState 
   const stateAfterModifier = addLiveModifier(stateAfterCost, {
     kind: 'BLADE',
     playerId: player.id,
-    countDelta: 2,
+    countDelta:
+      typeof effect.metadata?.bladeBonus === 'number' ? effect.metadata.bladeBonus : 2,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
   });
@@ -5439,7 +5658,8 @@ function finishHsSd1HimeLiveStartPayEnergyGainBlade(game: GameState): GameState 
       sourceCardId: effect.sourceCardId,
       step: 'PAY_ENERGY_GAIN_BLADE',
       paidEnergyCardIds: costPayment.paidEnergyCardIds,
-      bladeBonus: 2,
+      bladeBonus:
+        typeof effect.metadata?.bladeBonus === 'number' ? effect.metadata.bladeBonus : 2,
     }),
     isOrderedResolutionEffect(game)
   );
@@ -6364,6 +6584,53 @@ function startHsBp6KahoOnEnterLookStagePlusTwo(
   });
 }
 
+function startPlBp3OnEnterLookTopTwoArrangeToTop(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: StartPendingAbilityEffectOptions = {}
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const sourceWaitPayment = payImmediateEffectCosts(game, player.id, ability.sourceCardId, [
+    { kind: 'SET_SOURCE_MEMBER_ORIENTATION', orientation: OrientationState.WAITING },
+  ]);
+  if (!sourceWaitPayment) {
+    return game;
+  }
+
+  const stateAfterCost = addAction(
+    sourceWaitPayment.gameState,
+    'PAY_COST',
+    player.id,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      sourceSlot: sourceWaitPayment.sourceSlot,
+      orientedMemberCardIds: sourceWaitPayment.orientedMemberCardIds,
+    }
+  );
+
+  return startArrangeInspectedDeckTopEffect(stateAfterCost, {
+    ability,
+    playerId: player.id,
+    effectText: PL_BP3_014_ON_ENTER_EFFECT_TEXT,
+    inspectCount: 2,
+    stepId: PL_BP3_014_ON_ENTER_ARRANGE_STEP_ID,
+    stepText:
+      '请检视卡组顶2张。选择任意张数的卡牌按顺序放置于卡组顶，其余的卡牌放入休息室。',
+    selectionLabel: '选择要放回卡组顶的卡牌',
+    selectMin: 0,
+    selectMax: 2,
+    selectedDestination: 'MAIN_DECK_TOP',
+    unselectedDestination: 'WAITING_ROOM',
+    orderedResolution: options.orderedResolution === true,
+  });
+}
+
 function startHsBp6KahoLiveSuccessCheerToTop(
   game: GameState,
   ability: PendingAbilityState,
@@ -6763,18 +7030,19 @@ function startShikiOnEnterLeftDrawDiscard(
   ability: PendingAbilityState,
   options: { readonly orderedResolution?: boolean } = {}
 ): GameState {
-  return startDrawThenDiscardOneEffect(game, {
+  return startDrawThenDiscardCardsEffect(game, {
     ability,
     effectText: SHIKI_LEFT_DRAW_DISCARD_EFFECT_TEXT,
     drawCount: 2,
+    discardCount: 1,
     stepId: SHIKI_LEFT_SELECT_DISCARD_STEP_ID,
     orderedResolution: options.orderedResolution === true,
   });
 }
 
-function startDrawThenDiscardOneEffect(
+function startDrawThenDiscardCardsEffect(
   game: GameState,
-  config: DrawThenDiscardOneEffectConfig
+  config: DrawThenDiscardCardsEffectConfig
 ): GameState {
   const player = getPlayerById(game, config.ability.controllerId);
   if (!player) {
@@ -6792,6 +7060,7 @@ function startDrawThenDiscardOneEffect(
   }
 
   const selectableCardIds = [...playerAfterDraw.hand.cardIds];
+  const discardCountText = config.discardCount === 1 ? '1张' : `${config.discardCount}张`;
   return addAction(
     {
       ...drawResult.gameState,
@@ -6807,7 +7076,7 @@ function startDrawThenDiscardOneEffect(
         stepId: config.stepId,
         stepText:
           selectableCardIds.length > 0
-            ? '请选择1张手牌放置入休息室。'
+            ? `请选择${discardCountText}手牌放置入休息室。`
             : '没有可放置入休息室的手牌。确认后继续。',
         awaitingPlayerId: player.id,
         selectableCardIds,
@@ -6819,6 +7088,7 @@ function startDrawThenDiscardOneEffect(
           orderedResolution: config.orderedResolution,
           sourceSlot: config.ability.sourceSlot,
           drawCount: config.drawCount,
+          discardCount: config.discardCount,
           drawnCardIds: drawResult.drawnCardIds,
         },
       },
@@ -6832,13 +7102,18 @@ function startDrawThenDiscardOneEffect(
       step: 'DRAW_CARDS_START_DISCARD',
       sourceSlot: config.ability.sourceSlot,
       drawCount: config.drawCount,
+      discardCount: config.discardCount,
       drawnCardIds: drawResult.drawnCardIds,
       selectableCardIds,
     }
   );
 }
 
-function finishDrawThenDiscardOneEffect(game: GameState, selectedCardId: string | null): GameState {
+function finishDrawThenDiscardCardsEffect(
+  game: GameState,
+  selectedCardId: string | null,
+  selectedCardIds?: readonly string[]
+): GameState {
   const effect = game.activeEffect;
   if (!effect) {
     return game;
@@ -6850,7 +7125,17 @@ function finishDrawThenDiscardOneEffect(game: GameState, selectedCardId: string 
   }
 
   const selectableCardIds = effect.selectableCardIds ?? [];
-  if (selectedCardId === null) {
+  const requiredDiscardCount =
+    typeof effect.metadata?.discardCount === 'number' && effect.metadata.discardCount > 0
+      ? Math.floor(effect.metadata.discardCount)
+      : 1;
+  const selectedCardIdsList = selectedCardIds && selectedCardIds.length > 0
+      ? selectedCardIds
+      : selectedCardId
+        ? [selectedCardId]
+        : [];
+
+  if (selectedCardIdsList.length === 0) {
     if (selectableCardIds.length > 0) {
       return game;
     }
@@ -6864,21 +7149,30 @@ function finishDrawThenDiscardOneEffect(game: GameState, selectedCardId: string 
         sourceSlot: effect.metadata?.sourceSlot,
         drawnCardIds: effect.metadata?.drawnCardIds,
         discardedCardId: null,
+        discardedCardIds: [],
       }),
       isOrderedResolutionEffect(game)
     );
   }
 
+  const uniqueSelectedCardIds = [...new Set(selectedCardIdsList)];
   if (
-    !selectableCardIds.includes(selectedCardId) ||
-    !player.hand.cardIds.includes(selectedCardId)
+    uniqueSelectedCardIds.length !== requiredDiscardCount ||
+    uniqueSelectedCardIds.length !== selectedCardIdsList.length ||
+    uniqueSelectedCardIds.some(
+      (cardId) => !selectableCardIds.includes(cardId) || !player.hand.cardIds.includes(cardId)
+    )
   ) {
     return game;
   }
 
-  const stateAfterDiscard = moveHandCardToWaitingRoomForEffect(game, player.id, selectedCardId);
-  if (!stateAfterDiscard) {
-    return game;
+  let stateAfterDiscard = game;
+  for (const selectedHandCardId of uniqueSelectedCardIds) {
+    const state = moveHandCardToWaitingRoomForEffect(stateAfterDiscard, player.id, selectedHandCardId);
+    if (!state) {
+      return game;
+    }
+    stateAfterDiscard = state;
   }
 
   const state = {
@@ -6894,7 +7188,8 @@ function finishDrawThenDiscardOneEffect(game: GameState, selectedCardId: string 
       step: 'DISCARD_HAND_CARD',
       sourceSlot: effect.metadata?.sourceSlot,
       drawnCardIds: effect.metadata?.drawnCardIds,
-      discardedCardId: selectedCardId,
+      discardedCardId: uniqueSelectedCardIds[0],
+      discardedCardIds: uniqueSelectedCardIds,
     }),
     isOrderedResolutionEffect(game)
   );
@@ -7702,6 +7997,158 @@ function finishKarinPositionChange(game: GameState, selectedSlot: SlotPosition |
     }),
     orderedResolution
   );
+}
+
+interface NamedHandDiscardLiveStartConfig {
+  readonly effectText: string;
+  readonly names: readonly string[];
+  readonly minCount: number;
+  readonly maxCount?: number;
+  readonly rewardKind: 'SCORE' | 'BLADE_PER_DISCARDED';
+  readonly rewardAmount?: number;
+}
+
+function startNamedHandDiscardLiveStartEffect(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: { readonly orderedResolution?: boolean } = {},
+  config: NamedHandDiscardLiveStartConfig
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const selectableCardIds = getNamedHandDiscardCandidateIds(game, player.id, config.names);
+  const maxSelectableCards = Math.min(config.maxCount ?? selectableCardIds.length, selectableCardIds.length);
+
+  return addAction(
+    {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      activeEffect: {
+        id: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        controllerId: ability.controllerId,
+        effectText: config.effectText,
+        stepId: SELECT_NAMED_HAND_DISCARD_STEP_ID,
+        stepText: '选择要作为费用放置入休息室的指定姓名手牌。',
+        awaitingPlayerId: player.id,
+        selectableCardIds,
+        selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+        selectableCardMode: 'ORDERED_MULTI',
+        minSelectableCards: config.minCount,
+        maxSelectableCards,
+        canSkipSelection: true,
+        skipSelectionLabel: '不发动',
+        metadata: {
+          orderedResolution: options.orderedResolution === true,
+          sourceSlot: ability.sourceSlot,
+          namedHandDiscardNames: [...config.names],
+          namedHandDiscardRewardKind: config.rewardKind,
+          namedHandDiscardRewardAmount: config.rewardAmount,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'START_SELECT_NAMED_HAND_DISCARD',
+      sourceSlot: ability.sourceSlot,
+      selectableCardIds,
+      minSelectableCards: config.minCount,
+      maxSelectableCards,
+    }
+  );
+}
+
+function finishNamedHandDiscardLiveStartEffect(
+  game: GameState,
+  selectedCardIds: readonly string[]
+): GameState {
+  const effect = game.activeEffect;
+  const player = effect ? getPlayerById(game, effect.controllerId) : null;
+  const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
+  const minCount = effect?.minSelectableCards ?? 0;
+  const maxCount = effect?.maxSelectableCards ?? 0;
+  if (
+    !effect ||
+    !player ||
+    effect.stepId !== SELECT_NAMED_HAND_DISCARD_STEP_ID ||
+    uniqueSelectedCardIds.length !== selectedCardIds.length ||
+    uniqueSelectedCardIds.length < minCount ||
+    uniqueSelectedCardIds.length > maxCount ||
+    !uniqueSelectedCardIds.every(
+      (cardId) =>
+        effect.selectableCardIds?.includes(cardId) === true && player.hand.cardIds.includes(cardId)
+    )
+  ) {
+    return game;
+  }
+
+  const costPayment = paySelectedDiscardHandCost(game, player.id, uniqueSelectedCardIds);
+  if (!costPayment) {
+    return game;
+  }
+
+  const rewardKind =
+    effect.metadata?.namedHandDiscardRewardKind === 'SCORE'
+      ? 'SCORE'
+      : effect.metadata?.namedHandDiscardRewardKind === 'BLADE_PER_DISCARDED'
+        ? 'BLADE_PER_DISCARDED'
+        : null;
+  if (rewardKind === null) {
+    return game;
+  }
+
+  const rewardAmount =
+    rewardKind === 'SCORE'
+      ? typeof effect.metadata?.namedHandDiscardRewardAmount === 'number'
+        ? effect.metadata.namedHandDiscardRewardAmount
+        : 0
+      : uniqueSelectedCardIds.length;
+  const stateAfterModifier = addLiveModifier(costPayment.gameState, {
+    kind: rewardKind === 'SCORE' ? 'SCORE' : 'BLADE',
+    playerId: player.id,
+    countDelta: rewardAmount,
+    sourceCardId: effect.sourceCardId,
+    abilityId: effect.abilityId,
+  });
+  const state = { ...stateAfterModifier, activeEffect: null };
+
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: rewardKind === 'SCORE' ? 'DISCARD_NAMED_HAND_CARDS_GAIN_SCORE' : 'DISCARD_NAMED_HAND_CARDS_GAIN_BLADE',
+      sourceSlot: effect.metadata?.sourceSlot,
+      discardedCardIds: uniqueSelectedCardIds,
+      rewardKind,
+      rewardAmount,
+    }),
+    isOrderedResolutionEffect(game)
+  );
+}
+
+function getNamedHandDiscardCandidateIds(
+  game: GameState,
+  playerId: string,
+  names: readonly string[]
+): readonly string[] {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return [];
+  }
+
+  return player.hand.cardIds.filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return card !== null && names.some((name) => cardNameAliasIs(name)(card));
+  });
 }
 
 function startKotoriLiveStartEffect(

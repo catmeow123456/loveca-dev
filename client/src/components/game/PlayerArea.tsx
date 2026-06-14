@@ -549,7 +549,7 @@ export const PlayerArea = memo(function PlayerArea({
               <button
                 type="button"
                 className={cn(
-                  'absolute left-1/2 top-full z-30 mt-1 w-[min(420px,92vw)] -translate-x-1/2 rounded-lg border border-rose-300/70',
+                  'absolute bottom-full left-1/2 z-30 mb-1 w-[min(420px,92vw)] -translate-x-1/2 rounded-lg border border-rose-300/70',
                   'bg-white/95 px-3 py-1.5 font-semibold text-rose-600 shadow-lg',
                   'transition-colors hover:bg-rose-50 active:scale-95'
                 )}
@@ -901,8 +901,8 @@ export const PlayerArea = memo(function PlayerArea({
 
   // 渲染成功 Live 区 - 显示实际的 Live 卡片（正面朝上公开，叠放显示，无浮窗）
   const renderSuccessZone = () => {
-    // 固定3个横置槽位，轻微叠放显示
-    const containerHeight = 75 + 2 * 34;
+    // 固定3个槽位，容器高度固定
+    const containerHeight = 68 + 2 * 45; // 294px
 
     return (
       <DroppableZone
@@ -914,7 +914,7 @@ export const PlayerArea = memo(function PlayerArea({
       >
         <span className="text-xs text-slate-600 font-medium">成功 Live 卡区</span>
 
-        {/* 卡片区域 - 固定3个横置槽位，竖向轻微叠放显示 */}
+        {/* 卡片区域 - 固定3个槽位，竖向叠放显示 */}
         <div className="relative w-[105px]" style={{ height: `${containerHeight}px` }}>
           {[0, 1, 2].map((slotIndex) => {
             const cardId = successCardIds[slotIndex];
@@ -923,9 +923,9 @@ export const PlayerArea = memo(function PlayerArea({
             return (
               <div
                 key={slotIndex}
-                className="absolute h-[75px] w-[105px]"
+                className="absolute w-[105px] h-[68px]"
                 style={{
-                  top: slotIndex * 34,
+                  top: slotIndex * 45,
                   left: 0,
                   zIndex: 2 - slotIndex, // 上面的框盖住下面的框
                 }}
@@ -942,16 +942,17 @@ export const PlayerArea = memo(function PlayerArea({
                       onMouseEnter={() => setHoveredCard(card.instanceId)}
                       onMouseLeave={() => setHoveredCard(null)}
                     >
-                      <div className="aspect-[5/7] h-[105px] -rotate-90">
+                      <div className="-rotate-90 origin-center">
                         <Card
                           cardData={card.cardData as AnyCardData}
                           instanceId={card.instanceId}
                           imagePath={card.imagePath}
-                          size="responsive"
+                          size="sm"
                           faceUp={true}
                           effectVisualState={getEffectVisualState(card)}
                           interactive={!isOpponent}
                           showHover={false}
+                          className="w-[80px] h-[112px]"
                         />
                       </div>
                     </div>
@@ -1199,7 +1200,6 @@ export const PlayerArea = memo(function PlayerArea({
         id={cardId}
         disabled={isOpponent}
         data={{ cardId, cardCode: card?.cardCode, fromZone: ZoneType.LIVE_ZONE }}
-        className="absolute inset-0 flex items-center justify-center"
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -1214,13 +1214,13 @@ export const PlayerArea = memo(function PlayerArea({
           }}
           onMouseLeave={() => setHoveredCard(null)}
         >
-          <div className="aspect-[5/7] h-[clamp(108px,12vw,168px)] -rotate-90">
+          <div className="-rotate-90 origin-center">
             {card ? (
               <Card
                 cardData={card.cardData as AnyCardData}
                 instanceId={card.instanceId}
                 imagePath={card.imagePath}
-                size="responsive"
+                size="sm"
                 faceUp={shouldShowFront}
                 effectVisualState={getEffectVisualState(card, { faceUp: shouldShowFront })}
                 interactive={!isOpponent}

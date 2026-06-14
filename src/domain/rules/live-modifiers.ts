@@ -74,6 +74,21 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
           ]
         : [],
   },
+  {
+    baseCardCodes: ['PL!N-pb1-004'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasMemberPositionMovedThisTurn(game, playerId, sourceCardId)
+        ? []
+        : [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 2,
+              sourceCardId,
+              abilityId: KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID,
+            },
+          ],
+  },
 ];
 
 const MEMBER_SLOT_ORDER: readonly SlotPosition[] = [
@@ -83,6 +98,8 @@ const MEMBER_SLOT_ORDER: readonly SlotPosition[] = [
 ];
 const HS_BP1_003_CONTINUOUS_SCORE_ABILITY_ID =
   'PL!HS-bp1-003-SEC:continuous-three-different-hasunosora-score';
+const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
+  'PL!N-pb1-004:continuous-not-position-moved-gain-two-blade';
 
 function getScoreModifiers(
   playerId: string,
@@ -212,6 +229,15 @@ function isHasunosoraMemberCard(card: NonNullable<ReturnType<typeof getCardById>
 
 function normalizeContinuousMemberName(name: string): string {
   return name.replace(/[\s　・･·]/g, '');
+}
+
+function hasMemberPositionMovedThisTurn(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  return player?.positionMovedThisTurn.includes(sourceCardId) === true;
 }
 
 export function addLiveModifier(game: GameState, modifier: LiveModifierState): GameState {

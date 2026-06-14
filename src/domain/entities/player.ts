@@ -104,6 +104,12 @@ export interface PlayerState {
   readonly movedToStageThisTurn: readonly string[];
 
   /**
+   * 本回合已在成员区槽位之间移动过的成员卡 ID 列表
+   * 登场不计入此记录。
+   */
+  readonly positionMovedThisTurn: readonly string[];
+
+  /**
    * 待命中的自动能力 ID 列表
    * 参考规则 9.7.2
    */
@@ -140,6 +146,7 @@ export function createPlayerState(
 
     // 初始化临时状态
     movedToStageThisTurn: [],
+    positionMovedThisTurn: [],
     pendingAutoAbilities: [],
   };
 }
@@ -266,12 +273,25 @@ export function recordMoveToStage(player: PlayerState, cardId: string): PlayerSt
 }
 
 /**
+ * 记录卡牌本回合在成员区槽位之间移动
+ */
+export function recordPositionMove(player: PlayerState, cardId: string): PlayerState {
+  return player.positionMovedThisTurn.includes(cardId)
+    ? player
+    : {
+        ...player,
+        positionMovedThisTurn: [...player.positionMovedThisTurn, cardId],
+      };
+}
+
+/**
  * 清除本回合移动记录（回合结束时调用）
  */
 export function clearTurnMoveRecords(player: PlayerState): PlayerState {
   return {
     ...player,
     movedToStageThisTurn: [],
+    positionMovedThisTurn: [],
   };
 }
 
@@ -311,6 +331,13 @@ export function clearPendingAutoAbilities(player: PlayerState): PlayerState {
  */
 export function hasMovedToStageThisTurn(player: PlayerState, cardId: string): boolean {
   return player.movedToStageThisTurn.includes(cardId);
+}
+
+/**
+ * 检查卡牌本回合是否已在成员区槽位之间移动
+ */
+export function hasPositionMovedThisTurn(player: PlayerState, cardId: string): boolean {
+  return player.positionMovedThisTurn.includes(cardId);
 }
 
 // ============================================

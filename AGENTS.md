@@ -41,20 +41,14 @@
 
 例外：如果本批引入新抽象、新模块、新事件边界，或改变 resolver / cost calculator / live modifier registry / 同编号罕度同步机制，应在同一批内同步更新相关设计、覆盖和 gap 文档。若只是复用既有模块追加同构卡效，即使连续做 5-10 张，也先保持主登记册、progress 与测试准确；等用户明确要求“这批收束/提交”时，再做一次批末摘要式收束，避免全文扫描式重写。
 
-## 本地测试卡组与卡图
+## 测试卡组与卡图资产
 
-- 本地测试卡组 YAML 放在 `assets/decks/`。当前默认测试入口 `client/src/lib/localTestData.ts` 静态加载 `系统边界混合.yaml` 作为玩家1、`缪预组.yaml` 作为玩家2；`蓝紫.yaml` 仍保留为可切换测试资产，但不再是默认本地对局。
+- 首页独立的“本地测试对局”入口已于 2026-06-14 移除；后续卡效验证优先使用作者提供的 `pnpm test-env:start` 完整测试环境和云端卡组。
+- 测试卡组 YAML 仍保留在 `assets/decks/`，供预设卡组、对墙打默认对手或后续测试资产参考使用。
 - 本地测试卡图下载脚本是 `scripts/download-local-test-card-images.mjs`。脚本会自动扫描 `assets/decks/*.yaml` / `*.yml`，从 `llocg_db/json/cards.json` 与 `llocg_db/json/cards_cn.json` 找图片元数据，下载原图到 `assets/card/`，并压缩到 `assets/images/{thumb,medium,large}/`。
-- 本地测试卡牌数据源由 `scripts/generate-local-test-card-sources.mjs` 从所有 `assets/decks/*.yaml` / `*.yml` 自动生成到 `client/src/lib/localTestCardSources.generated.ts`。新增或删除本地测试卡组后，先跑生成脚本，再跑卡图下载脚本。
-- 当前三套测试卡组需要 79 张唯一卡图；`assets/card/` 保存原 PNG，`assets/images/` 保存三档 WebP。
+- 当前测试服务器仍依赖 `assets/images/` 的本地图片 fallback；未明确切换到完整对象存储图片前，不要删除 `assets/images/`。
 - 2026-06-14 起，为了让作者提供的一键测试环境更接近真实体验，曾临时从 `/Users/meiyikai/Desktop/文件/个人/codex/loveca/deck` 的外部 YAML 测试卡组补齐卡图，并让下载脚本支持 `--deck-dir=...`、同基础编号多罕度展开，以及 `P+` / `L+` 等文件名别名。这个补图方案只服务本地/测试服务器显示，不是生产卡图资产方案。
 - 生产环境已有独立图片服务器/对象存储提供卡图；卡效实现与验证不要依赖这些临时图片是否存在。提交或上线前必须检查 `assets/card/` 与 `assets/images/` 的 diff，避免把临时补图作为生产资产带入 PR。若生产图片链路正常，临时补图可在上线前从工作树清理，不影响卡效逻辑。
-- 重新生成本地测试卡牌数据源：
-
-```bash
-env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/generate-local-test-card-sources.mjs
-```
-
 - 预览新增卡组会下载哪些图：
 
 ```bash
@@ -66,8 +60,6 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 ```bash
 env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin /Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/download-local-test-card-images.mjs
 ```
-
-- 若新测试卡组使用当前 `client/src/lib/localTestCardSources.generated.ts` 未包含的新卡，先运行生成脚本；否则卡图即使存在，本地测试数据也会报“本地测试卡牌数据缺失”。
 
 ## 关键架构
 

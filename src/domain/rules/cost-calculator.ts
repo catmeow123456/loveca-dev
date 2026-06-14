@@ -254,7 +254,7 @@ export class CostCalculator {
     // 查找目标槽位上的成员（如果有）
     const targetMember = resources.stageMembers.find((m) => m.position === targetPosition);
 
-    if (targetMember) {
+    if (targetMember && canMemberBeRelayedAway(targetMember.data)) {
       const relayDiscount = this.calculateRelayDiscount(targetMember.data);
       const actualCost = Math.max(0, modifiedCost - relayDiscount);
 
@@ -394,6 +394,8 @@ export class CostCalculator {
     const possibleRelayDiscount = targetSlotMember
       ? this.calculateRelayDiscount(targetSlotMember.data)
       : 0;
+    const canRelayTargetMember =
+      targetSlotMember !== null && canMemberBeRelayedAway(targetSlotMember.data);
 
     return {
       baseCost,
@@ -405,7 +407,7 @@ export class CostCalculator {
       possibleRelayDiscount,
       canPayWithoutRelay: availableEnergy >= modifiedCost,
       canPayWithRelay:
-        targetSlotMember !== null &&
+        canRelayTargetMember &&
         availableEnergy >= Math.max(0, modifiedCost - possibleRelayDiscount),
     };
   }
@@ -419,6 +421,10 @@ export class CostCalculator {
  * 费用计算器单例
  */
 export const costCalculator = new CostCalculator();
+
+export function canMemberBeRelayedAway(memberData: MemberCardData): boolean {
+  return !cardCodeMatchesBase(memberData.cardCode, 'LL-bp2-001');
+}
 
 function isNijigasakiMember(memberData: MemberCardData): boolean {
   return (

@@ -7,6 +7,7 @@ import type {
 } from '../../domain/entities/card.js';
 import { createHeartRequirement } from '../../domain/entities/card.js';
 import { CardDataRegistry } from '../../domain/card-data/loader.js';
+import { inheritMissingBladeHeartsByBase } from '../../domain/card-data/blade-heart-inheritance.js';
 import { BladeHeartEffect, CardType, HeartColor } from '../../shared/types/enums.js';
 
 interface CardDbRecord {
@@ -42,7 +43,7 @@ export async function getPublishedCardRegistry(forceRefresh = false): Promise<Ca
   );
 
   const registry = new CardDataRegistry();
-  registry.load(rows.map(mapCardRecordToCardData));
+  registry.load(inheritMissingBladeHeartsByBase(rows).map(mapCardRecordToCardData));
 
   cachedRegistry = registry;
   cacheExpiresAt = Date.now() + CARD_REGISTRY_CACHE_TTL_MS;

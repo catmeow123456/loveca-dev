@@ -124,6 +124,7 @@ describe('member state effect helpers', () => {
     expect(result?.gameState.players[0].memberSlots.memberBelow[SlotPosition.RIGHT]).toEqual([
       belowMember.instanceId,
     ]);
+    expect(result?.gameState.players[0].positionMovedThisTurn).toEqual([member.instanceId]);
   });
 
   it('swaps occupied member slots with their attached cards', () => {
@@ -158,6 +159,10 @@ describe('member state effect helpers', () => {
     ]);
     expect(result?.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([
       energyA.instanceId,
+    ]);
+    expect(result?.gameState.players[0].positionMovedThisTurn).toEqual([
+      memberA.instanceId,
+      memberB.instanceId,
     ]);
     expect(moveMemberBetweenSlots(game, 'p1', memberA.instanceId, SlotPosition.LEFT)).toBeNull();
   });

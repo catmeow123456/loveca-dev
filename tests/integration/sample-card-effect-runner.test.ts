@@ -35,6 +35,7 @@ import { createGameSession } from '../../src/application/game-session';
 import {
   ABILITY_ORDER_SELECTION_ID,
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
+  BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID,
   EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID,
   ELI_ACTIVATED_ABILITY_ID,
@@ -44,6 +45,7 @@ import {
   HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
   HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
   HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID,
+  PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
   HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
@@ -56,13 +58,17 @@ import {
   BP4_003_ACTIVATED_ABILITY_ID,
   HONOKA_ON_ENTER_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
+  HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+  HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID,
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   KARIN_LIVE_START_ABILITY_ID,
   KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
+  LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID,
+  LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID,
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
   HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID,
   HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID,
@@ -260,6 +266,29 @@ function forceMainPhaseForPlayer(session: ReturnType<typeof createGameSession>):
   state.currentSubPhase = SubPhase.NONE;
   state.activePlayerIndex = 0;
   state.waitingPlayerId = null;
+}
+
+function advanceToLiveStartEffects(session: ReturnType<typeof createGameSession>): void {
+  const state = session.state!;
+  const mutableState = state as unknown as {
+    currentPhase: GamePhase;
+    currentSubPhase: SubPhase;
+    currentTurnType: TurnType;
+    activePlayerIndex: number;
+    firstPlayerIndex: number;
+    liveSetCompletedPlayers: string[];
+  };
+  mutableState.currentPhase = GamePhase.LIVE_SET_PHASE;
+  mutableState.currentSubPhase = SubPhase.LIVE_SET_SECOND_DRAW;
+  mutableState.currentTurnType = TurnType.LIVE_PHASE;
+  mutableState.activePlayerIndex = 0;
+  mutableState.firstPlayerIndex = 0;
+  mutableState.liveSetCompletedPlayers = [PLAYER1, PLAYER2];
+
+  const service = new GameService();
+  const advanceResult = service.advancePhase(state);
+  expect(advanceResult.success).toBe(true);
+  (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 }
 
 function removeFromPlayerZones(player: {
@@ -1169,6 +1198,106 @@ describe('sample card effect runner', () => {
     ).toBe(true);
   });
 
+  it('executes PL!HS-bp1-010-N on-enter draw1 and discard1', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-hs-bp1-010-n-on-enter-draw-discard-runner',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const hsCard = createCardInstance(
+      createMemberCard('PL!HS-bp1-010-N', '日野下花帆', 4, '蓮ノ空'),
+      PLAYER1,
+      'p1-hs-bp1-010'
+    );
+    const drawnCard = createCardInstance(
+      createMemberCard('PL!HS-test-bp1-010-drawn', '村野さやか', 1, '蓮ノ空'),
+      PLAYER1,
+      'p1-bp1-010-drawn'
+    );
+    const remainingDeckCard = createCardInstance(
+      createMemberCard('PL!HS-test-bp1-010-remaining', '乙宗梢', 1, '蓮ノ空'),
+      PLAYER1,
+      'p1-bp1-010-remaining'
+    );
+    const energyCardIds = [...session.state!.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.ENERGY)
+      .map((card) => card.instanceId);
+
+    const state = registerCards(session.state!, [hsCard, drawnCard, remainingDeckCard]);
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: { slots: Record<SlotPosition, string | null> };
+    };
+
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(4);
+
+    removeFromPlayerZones(p1);
+    setActiveEnergy(p1, energyCardIds.slice(0, 4));
+    p1.hand.cardIds = [hsCard.instanceId];
+    p1.mainDeck.cardIds = [drawnCard.instanceId, remainingDeckCard.instanceId];
+    p1.memberSlots.slots[SlotPosition.CENTER] = null;
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, hsCard.instanceId, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([drawnCard.instanceId]);
+    expect(session.state?.players[0].hand.cardIds).toEqual([drawnCard.instanceId]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([remainingDeckCard.instanceId]);
+
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'TRIGGER_ABILITY' &&
+          action.payload.abilityId === HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID
+      )
+    ).toBe(true);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        drawnCard.instanceId
+      )
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([drawnCard.instanceId]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([remainingDeckCard.instanceId]);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID &&
+          action.payload.step === 'DISCARD_HAND_CARD' &&
+          action.payload.discardedCardId === drawnCard.instanceId
+      )
+    ).toBe(true);
+  });
+
   it.each(PB1_019_LIKE_MEMBER_ACTIVATION_TEST_CASES)(
     'uses the generic waiting-room-to-hand selection after $cardCode self-sacrifice cost',
     ({ cardCode, name }) => {
@@ -1746,6 +1875,105 @@ describe('sample card effect runner', () => {
     ]);
   });
 
+  it('executes PL!-bp3-014-N on-enter by waiting itself and rearranging top two cards', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-bp3-014-on-enter-rearrange-top-two-runner',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const rinkiCard = createCardInstance(
+      createMemberCard('PL!-bp3-014-N', '星空 凛', 4, '虹咲'),
+      PLAYER1,
+      'p1-rin'
+    );
+    const topCardA = createCardInstance(
+      createMemberCard('PL!HS-test-top-1', '日野下花帆', 1, '蓮ノ空'),
+      PLAYER1,
+      'p1-top-1'
+    );
+    const topCardB = createCardInstance(
+      createMemberCard('PL!HS-test-top-2', '大沢瑠璃乃', 2, '蓮ノ空'),
+      PLAYER1,
+      'p1-top-2'
+    );
+    const energyCardIds = [...session.state!.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.ENERGY)
+      .map((card) => card.instanceId);
+
+    let state = registerCards(session.state!, [rinkiCard, topCardA, topCardB]);
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+
+    removeFromPlayerZones(p1);
+    p1.hand.cardIds = [rinkiCard.instanceId];
+    p1.mainDeck.cardIds = [topCardA.instanceId, topCardB.instanceId];
+    p1.memberSlots.slots[SlotPosition.CENTER] = null;
+    p1.memberSlots.cardStates = new Map();
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(4);
+    setActiveEnergy(p1, energyCardIds.slice(0, 4));
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, rinkiCard.instanceId, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+      topCardA.instanceId,
+      topCardB.instanceId,
+    ]);
+    expect(
+      session.state?.players[0].memberSlots.cardStates.get(rinkiCard.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(session.state?.inspectionZone.cardIds).toEqual([
+      topCardA.instanceId,
+      topCardB.instanceId,
+    ]);
+
+    const arrangeResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [topCardB.instanceId]
+      )
+    );
+
+    expect(arrangeResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCardB.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([topCardA.instanceId]);
+  });
+
   it('executes PL!HS-pb1-004-R on-enter compound cost, mills three, and recovers a Cerise Bouquet Live', () => {
     const session = createGameSession();
     const deck = createDeck();
@@ -2274,6 +2502,214 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([liveCardId!]);
   });
 
+  it('executes LL-bp1-001-R+ live-start discard three named hand cards for score +3', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-ll-bp1-001-live-start-score-runner',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const sourceCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'LL-bp1-001-R+'
+    );
+    const liveCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const handCandidateIds = ownedP1CardIds.filter((cardId) => {
+      const card = state.cardRegistry.get(cardId);
+      return cardId !== sourceCardId && card?.data.cardType === CardType.MEMBER;
+    });
+    const [ayumuCardId, kanonCardId, kahoCardId, nonMatchingCardId] = handCandidateIds;
+
+    expect(sourceCardId).toBeTruthy();
+    expect(liveCardId).toBeTruthy();
+    expect(kahoCardId).toBeTruthy();
+    expect(nonMatchingCardId).toBeTruthy();
+
+    (state.cardRegistry.get(ayumuCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!N-test-ayumu', '上原 步梦', 4);
+    (state.cardRegistry.get(kanonCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!SP-test-kanon', '涩谷 香音', 4);
+    (state.cardRegistry.get(kahoCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!HS-test-kaho', '日野下花帆', 4);
+    (state.cardRegistry.get(nonMatchingCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!N-test-karin', '朝香果林', 4);
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = sourceCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [sourceCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p1.hand.cardIds = [ayumuCardId, kanonCardId, kahoCardId, nonMatchingCardId];
+    p1.liveZone.cardIds = [liveCardId!];
+    p1.liveZone.cardStates = new Map([
+      [liveCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
+    ]);
+
+    advanceToLiveStartEffects(session);
+
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+      ayumuCardId,
+      kanonCardId,
+      kahoCardId,
+    ]);
+    expect(session.state?.activeEffect?.minSelectableCards).toBe(3);
+    expect(session.state?.activeEffect?.maxSelectableCards).toBe(3);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        null,
+        undefined,
+        null,
+        [ayumuCardId, kanonCardId, kahoCardId]
+      )
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([nonMatchingCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
+      ayumuCardId,
+      kanonCardId,
+      kahoCardId,
+    ]);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'SCORE',
+      playerId: PLAYER1,
+      countDelta: 3,
+      sourceCardId: sourceCardId!,
+      abilityId: LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID,
+    });
+  });
+
+  it('executes LL-bp2-001-R+ live-start discard named hand cards for matching blade count', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-ll-bp2-001-live-start-blade-runner',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const liveCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const memberCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const [sourceCardId, youCardId, copyCardId, nonMatchingCardId] = memberCardIds;
+
+    expect(sourceCardId).toBeTruthy();
+    expect(liveCardId).toBeTruthy();
+    expect(copyCardId).toBeTruthy();
+    expect(nonMatchingCardId).toBeTruthy();
+
+    (state.cardRegistry.get(sourceCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('LL-bp2-001-R+', '渡边 曜&鬼冢夏美&大泽瑠璃乃', 20);
+    (state.cardRegistry.get(youCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!S-test-you', '渡边 曜', 4);
+    (state.cardRegistry.get(copyCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('LL-bp2-001-R+', '渡边 曜&鬼冢夏美&大泽瑠璃乃', 20);
+    (state.cardRegistry.get(nonMatchingCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!N-test-karin', '朝香果林', 4);
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = sourceCardId;
+    p1.memberSlots.cardStates = new Map([
+      [sourceCardId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p1.hand.cardIds = [youCardId, copyCardId, nonMatchingCardId];
+    p1.liveZone.cardIds = [liveCardId!];
+    p1.liveZone.cardStates = new Map([
+      [liveCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
+    ]);
+
+    advanceToLiveStartEffects(session);
+
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([youCardId, copyCardId]);
+    expect(session.state?.activeEffect?.minSelectableCards).toBe(1);
+    expect(session.state?.activeEffect?.maxSelectableCards).toBe(2);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        null,
+        undefined,
+        null,
+        [youCardId, copyCardId]
+      )
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([nonMatchingCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([youCardId, copyCardId]);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId,
+      abilityId: LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID,
+    });
+  });
+
   it('executes PL!HS-PR-001-PR on-enter discard then takes one of top three', () => {
     const session = createGameSession();
     const deck = createDeck();
@@ -2378,6 +2814,110 @@ describe('sample card effect runner', () => {
       inspectedCardIds[1],
       inspectedCardIds[2],
     ]);
+  });
+
+  it('executes PL!HS-PR-001-PR live-start pay2 and gains one Blade', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-hs-pr-001-live-start-blade-runner',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    let state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const prCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-PR-001-PR'
+    );
+    const liveCardId = ownedP1CardIds.find(
+      (cardId) =>
+        cardId !== prCardId && state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const energyCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+    );
+    const prCard = state.cardRegistry.get(prCardId!) as unknown as { data: MemberCardData };
+
+    expect(prCardId).toBeTruthy();
+    expect(liveCardId).toBeTruthy();
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(2);
+    prCard.data = createMemberCard('PL!HS-PR-001-PR', '日野下 花帆', 10, "μ's");
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = prCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [prCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p1.liveZone.cardIds = [liveCardId!];
+    setActiveEnergy(p1, energyCardIds.slice(0, 2));
+    state = {
+      ...state,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_SECOND_DRAW,
+      currentTurnType: TurnType.LIVE_PHASE,
+      activePlayerIndex: 0,
+      firstPlayerIndex: 0,
+      liveSetCompletedPlayers: [PLAYER1, PLAYER2],
+    };
+
+    const service = new GameService();
+    const advanceResult = service.advancePhase(state);
+    (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
+
+    expect(advanceResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID
+    );
+
+    const payResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        'pay'
+      )
+    );
+
+    expect(payResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(
+      session.state?.players[0].energyZone.cardStates.get(energyCardIds[0])?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(
+      session.state?.players[0].energyZone.cardStates.get(energyCardIds[1])?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: prCardId,
+      abilityId: HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
+    });
   });
 
   it('executes PL!-bp3-010-N on-enter by revealing a LIVE card from top five', () => {
@@ -3329,6 +3869,84 @@ describe('sample card effect runner', () => {
           action.payload.placedEnergyCardIds[0] === placedEnergyCardId
       )
     ).toBe(true);
+  });
+
+  it('executes PL!SP-PR-013-PR on-enter discard one and place waiting energy through shared shell', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('sample-pr013-keke-place-energy-runner', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const pr013Card = createCardInstance(
+      createMemberCard('PL!SP-PR-013-PR', '鬼冢 冬毬', 4),
+      PLAYER1,
+      'p1-keke-pr013'
+    );
+    const discardCard = createCardInstance(
+      createMemberCard('PL!HS-test-discard', '日野下花帆', 1),
+      PLAYER1,
+      'p1-keke-pr013-discard'
+    );
+
+    let state = registerCards(session.state!, [pr013Card, discardCard]);
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyDeck: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: { slots: Record<SlotPosition, string | null> };
+    };
+    const energyCardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.ENERGY)
+      .map((card) => card.instanceId);
+    const activeEnergyIds = energyCardIds.slice(0, 4);
+    const effectEnergyDeckIds = energyCardIds.slice(4, 7);
+    const placedEnergyCardId = effectEnergyDeckIds[0];
+
+    expect(effectEnergyDeckIds.length).toBe(3);
+
+    removeFromPlayerZones(p1);
+    setActiveEnergy(p1, activeEnergyIds);
+    p1.energyDeck.cardIds = [...effectEnergyDeckIds];
+    p1.hand.cardIds = [pr013Card.instanceId, discardCard.instanceId];
+    p1.memberSlots.slots[SlotPosition.CENTER] = null;
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, pr013Card.instanceId, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([discardCard.instanceId]);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, discardCard.instanceId)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardCard.instanceId]);
+    expect(session.state?.players[0].energyDeck.cardIds).toEqual(effectEnergyDeckIds.slice(1));
+    expect(session.state?.players[0].energyZone.cardIds).toEqual([
+      ...activeEnergyIds,
+      placedEnergyCardId,
+    ]);
+    expect(
+      session.state?.players[0].energyZone.cardStates.get(placedEnergyCardId)?.orientation
+    ).toBe(OrientationState.WAITING);
   });
 
   it('executes PL!SP-bp4-008-P left-side on-enter effect to draw two and discard one', () => {
@@ -5069,6 +5687,204 @@ describe('sample card effect runner', () => {
       countDelta: 2,
       sourceCardId: himeCardId,
       abilityId: HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+    });
+  });
+
+  it('executes PL!-bp4-010-N live-start pay1 and gains two Blade', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-bp4-010-live-start-blade-runner',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    let state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const honokaCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const liveCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const energyCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+    );
+    const honokaCard = state.cardRegistry.get(honokaCardId!) as unknown as { data: MemberCardData };
+
+    expect(honokaCardId).toBeTruthy();
+    expect(liveCardId).toBeTruthy();
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(1);
+    honokaCard.data = createMemberCard('PL!-bp4-010-N', '高坂穗乃果', 15, "μ's");
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = honokaCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [honokaCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p1.liveZone.cardIds = [liveCardId!];
+    setActiveEnergy(p1, energyCardIds.slice(0, 1));
+    state = {
+      ...state,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_SECOND_DRAW,
+      currentTurnType: TurnType.LIVE_PHASE,
+      activePlayerIndex: 0,
+      firstPlayerIndex: 0,
+      liveSetCompletedPlayers: [PLAYER1, PLAYER2],
+    };
+
+    const service = new GameService();
+    const advanceResult = service.advancePhase(state);
+    (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
+
+    expect(advanceResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
+    );
+
+    const payResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        'pay'
+      )
+    );
+
+    expect(payResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(
+      session.state?.players[0].energyZone.cardStates.get(energyCardIds[0])?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId: honokaCardId,
+      abilityId: BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+    });
+  });
+
+  it('executes PL!HS-PR-018-RM live-start pay1 and gains two Blade', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-hs-pr-018-rm-live-start-blade-runner',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    let state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const harunoCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const liveCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const energyCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+    );
+    const harunoCard = state.cardRegistry.get(harunoCardId!) as unknown as { data: MemberCardData };
+
+    expect(harunoCardId).toBeTruthy();
+    expect(liveCardId).toBeTruthy();
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(1);
+    harunoCard.data = createMemberCard('PL!HS-PR-018-RM', '大泽瑠璃乃', 4, "μ's");
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = harunoCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [harunoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p1.liveZone.cardIds = [liveCardId!];
+    setActiveEnergy(p1, energyCardIds.slice(0, 1));
+    state = {
+      ...state,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_SECOND_DRAW,
+      currentTurnType: TurnType.LIVE_PHASE,
+      activePlayerIndex: 0,
+      firstPlayerIndex: 0,
+      liveSetCompletedPlayers: [PLAYER1, PLAYER2],
+    };
+
+    const service = new GameService();
+    const advanceResult = service.advancePhase(state);
+    (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
+
+    expect(advanceResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
+    );
+
+    const payResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        'pay'
+      )
+    );
+
+    expect(payResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(
+      session.state?.players[0].energyZone.cardStates.get(energyCardIds[0])?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId: harunoCardId,
+      abilityId: BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
     });
   });
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SlotPosition, TriggerCondition } from '../../src/shared/types/enums';
 import {
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
+  BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   CARD_ABILITY_DEFINITIONS,
   CardAbilityCategory,
   CardAbilitySourceZone,
@@ -25,7 +26,9 @@ import {
   HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
   HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
+  HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+  PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
   HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
   HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID,
   HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
@@ -36,6 +39,7 @@ import {
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
+  HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID,
   HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
@@ -47,7 +51,9 @@ import {
   isSupportedActivatedAbilityForCard,
   KARIN_LIVE_START_ABILITY_ID,
   KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
+  LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID,
   LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
+  LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID,
   SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID,
   SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
   SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID,
@@ -86,6 +92,27 @@ const GENERIC_DISCARD_LOOK_TOP_CARD_CODES = [
   'PL!N-sd1-003-SD',
 ] as const;
 
+const PL_BP3_014_LOOK_TOP_TWO_ON_ENTER_CARD_CODES = [
+  'PL!-bp3-014-N',
+  'PL!-bp3-017-N',
+  'PL!-bp3-018-N',
+  'PL!N-bp3-022-N',
+  'PL!N-bp4-016-N',
+  'PL!S-bp6-018-N',
+] as const;
+
+const HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_CARD_CODES = [
+  'PL!HS-bp1-010',
+  'PL!HS-bp1-014',
+  'PL!HS-bp6-020',
+  'PL!N-bp1-014',
+  'PL!N-bp1-015',
+  'PL!N-bp1-019',
+  'PL!N-sd1-013',
+  'PL!N-sd1-021',
+  'PL!N-sd1-022',
+] as const;
+
 describe('card effect classification registry', () => {
   it('classifies current sample effects by rule timing and source zone', () => {
     const hs006 = getCardAbilityDefinitions('PL!HS-bp1-006-P').find(
@@ -98,6 +125,19 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+
+    for (const cardCode of HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_CARD_CODES) {
+      const hs006Like = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID
+      );
+      expect(hs006Like).toMatchObject({
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
 
     const hs006LiveStart = getCardAbilityDefinitions('PL!HS-bp1-006-P').find(
       (ability) => ability.abilityId === HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID
@@ -143,6 +183,28 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    const llBp1LiveStart = getCardAbilityDefinitions('LL-bp1-001-R+').find(
+      (ability) => ability.abilityId === LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID
+    );
+    expect(llBp1LiveStart).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const llBp2LiveStart = getCardAbilityDefinitions('LL-bp2-001-R+').find(
+      (ability) => ability.abilityId === LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID
+    );
+    expect(llBp2LiveStart).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
     const hsPr001 = getCardAbilityDefinitions('PL!HS-PR-001-PR').find(
       (ability) => ability.abilityId === GENERIC_DISCARD_LOOK_TOP_ABILITY_ID
     );
@@ -150,6 +212,17 @@ describe('card effect classification registry', () => {
       category: CardAbilityCategory.ON_ENTER,
       sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
       triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsPr001LiveStart = getCardAbilityDefinitions('PL!HS-PR-001-PR').find(
+      (ability) => ability.abilityId === HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID
+    );
+    expect(hsPr001LiveStart).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
       queued: true,
       implemented: true,
     });
@@ -258,6 +331,19 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    for (const cardCode of PL_BP3_014_LOOK_TOP_TWO_ON_ENTER_CARD_CODES) {
+      const hp = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID
+      );
+      expect(hp).toMatchObject({
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
+
     const hsBp6KahoLiveSuccess = getCardAbilityDefinitions('PL!HS-bp6-001-R＋').find(
       (ability) => ability.abilityId === HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID
     );
@@ -356,6 +442,17 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    const bp4HonokaLiveStart = getCardAbilityDefinitions('PL!-bp4-010-N').find(
+      (ability) => ability.abilityId === BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
+    );
+    expect(bp4HonokaLiveStart).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
     const izumi = getCardAbilityDefinitions('PL!HS-bp5-008-AR').find(
       (ability) => ability.abilityId === HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID
     );
@@ -417,16 +514,27 @@ describe('card effect classification registry', () => {
       perTurnLimit: 1,
     });
 
-    const kekeOnEnter = getCardAbilityDefinitions('PL!SP-PR-004-PR').find(
-      (ability) => ability.abilityId === KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID
-    );
-    expect(kekeOnEnter).toMatchObject({
-      category: CardAbilityCategory.ON_ENTER,
-      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
-      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
-      queued: true,
-      implemented: true,
-    });
+    const kekeBaseCardCodes = [
+      'PL!SP-PR-004',
+      'PL!SP-PR-006',
+      'PL!SP-PR-013',
+      'PL!SP-bp1-021',
+      'PL!SP-sd1-014',
+      'PL!SP-sd1-016',
+    ] as const;
+
+    for (const baseCardCode of kekeBaseCardCodes) {
+      const kekeOnEnter = getCardAbilityDefinitions(baseCardCode).find(
+        (ability) => ability.abilityId === KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID
+      );
+      expect(kekeOnEnter).toMatchObject({
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
 
     const shikiLeftOnEnter = getCardAbilityDefinitions('PL!SP-bp4-008-P').find(
       (ability) => ability.abilityId === SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID
@@ -682,6 +790,29 @@ describe('card effect classification registry', () => {
         (ability) => ability.abilityId === KARIN_LIVE_START_ABILITY_ID
       )
     ).toBe(true);
+    expect(
+      getCardAbilityDefinitions('PL!-bp4-010-N').some(
+        (ability) => ability.abilityId === BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
+      )
+    ).toBe(true);
+
+    for (const cardCode of [
+      'PL!HS-PR-018-RM',
+      'PL!HS-cl1-005-CL',
+      'PL!N-bp4-013-N',
+      'PL!S-pb1-016-N',
+      'PL!S-pb1-017-N',
+      'PL!S-pb1-018-N',
+      'PL!SP-bp1-006-P',
+      'PL!SP-bp2-019-N',
+      'PL!SP-bp2-022-N',
+    ]) {
+      expect(
+        getCardAbilityDefinitions(cardCode).some(
+          (ability) => ability.abilityId === BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
+        )
+      ).toBe(true);
+    }
   });
 
   it('enforces common metadata for queued timing abilities and activated abilities', () => {

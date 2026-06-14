@@ -19,6 +19,7 @@ import {
   getCardInSlot,
   addMemberBelowMember,
 } from '../../domain/entities/zone.js';
+import { canMemberBeRelayedAway } from '../../domain/rules/cost-calculator.js';
 import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 
 /**
@@ -60,6 +61,10 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
     const existingCard = ctx.getCardById(game, existingCardId);
     if (!existingCard || !isMemberCardData(existingCard.data)) {
       return failure(game, '目标槽位上的卡牌不是成员卡');
+    }
+
+    if (!canMemberBeRelayedAway(existingCard.data)) {
+      return failure(game, '该成员无法因换手放置入休息室');
     }
 
     // 目标槽位已有特殊成员卡时，堆叠到该成员下方而非替换

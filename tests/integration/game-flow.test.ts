@@ -32,7 +32,7 @@ import {
   GameActionType,
 } from '../../src/application/actions';
 import type { GameState } from '../../src/domain/entities/game';
-import { getPlayerById, getCardById } from '../../src/domain/entities/game';
+import { getPlayerById, getCardById, updatePlayer } from '../../src/domain/entities/game';
 import { getAllMemberCardIds, getCardInSlot } from '../../src/domain/entities/zone';
 
 // ============================================
@@ -255,6 +255,30 @@ describe('GameService 游戏流程测试', () => {
       expect(result.success).toBe(true);
       expect(result.gameState.currentPhase).toBe(GamePhase.ACTIVE_PHASE);
       expect(result.gameState.currentTurnType).toBe(TurnType.SECOND_PLAYER_TURN);
+    });
+
+    it('应该在进入玩家活跃阶段时清除本回合移动记录', () => {
+      let state = initializedGame;
+
+      // 跳过先攻通常阶段的前几个阶段
+      for (let i = 0; i < 3; i++) {
+        const result = gameService.advancePhase(state);
+        state = result.gameState;
+      }
+
+      state = updatePlayer(state, 'player2', (player) => ({
+        ...player,
+        movedToStageThisTurn: ['moved-card'],
+        positionMovedThisTurn: ['position-moved-card'],
+      }));
+
+      const result = gameService.processAction(state, createEndPhaseAction('player1'));
+
+      expect(result.success).toBe(true);
+      expect(result.gameState.currentPhase).toBe(GamePhase.ACTIVE_PHASE);
+      expect(result.gameState.currentTurnType).toBe(TurnType.SECOND_PLAYER_TURN);
+      expect(getPlayerById(result.gameState, 'player2')?.movedToStageThisTurn).toEqual([]);
+      expect(getPlayerById(result.gameState, 'player2')?.positionMovedThisTurn).toEqual([]);
     });
   });
 

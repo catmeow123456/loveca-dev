@@ -7,6 +7,7 @@
 import type { GameState } from '../../domain/entities/game.js';
 import type { PlayerState } from '../../domain/entities/player.js';
 import { updatePlayer } from '../../domain/entities/game.js';
+import { recordPositionMove } from '../../domain/entities/player.js';
 import { ZoneType, SlotPosition } from '../../shared/types/enums.js';
 import {
   addCardToZone,
@@ -492,7 +493,7 @@ export function moveCardUniversal(
         const sourceMemberBelow = player.memberSlots.memberBelow?.[sourceSlot] ?? [];
         const targetMemberBelow = player.memberSlots.memberBelow?.[targetSlot] ?? [];
 
-        return {
+        let nextPlayer = {
           ...player,
           memberSlots: {
             ...player.memberSlots,
@@ -513,6 +514,8 @@ export function moveCardUniversal(
             },
           },
         };
+        nextPlayer = recordPositionMove(nextPlayer, cardId);
+        return recordPositionMove(nextPlayer, targetCardId);
       }
 
       // 1. 先从来源槽位移除成员卡（不清除 energyBelow）
@@ -540,7 +543,7 @@ export function moveCardUniversal(
         ...updated,
         memberSlots: moveMemberBelowWithMember(updated.memberSlots, sourceSlot, targetSlot),
       };
-      return updated;
+      return recordPositionMove(updated, cardId);
     });
     return state;
   }

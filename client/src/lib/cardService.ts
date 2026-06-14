@@ -6,6 +6,7 @@
 import { apiClient, isApiConfigured } from './apiClient';
 import type { AnyCardData, MemberCardData, LiveCardData, EnergyCardData, HeartIcon, BladeHeartItem, BladeHearts } from '@game/domain/entities/card';
 import { createHeartRequirement } from '@game/domain/entities/card';
+import { inheritMissingBladeHeartsByBase } from '@game/domain/card-data/blade-heart-inheritance';
 import { CardType, HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
 
 // ============================================
@@ -169,7 +170,7 @@ class CardService {
       throw new Error(`获取卡牌数据失败: ${result.error.message}`);
     }
 
-    const data = result.data ?? [];
+    const data = inheritMissingBladeHeartsByBase(result.data ?? []);
     const cards = data.map(dbRecordToCardData);
 
     if (!statusFilter) {

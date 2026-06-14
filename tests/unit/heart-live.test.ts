@@ -382,6 +382,20 @@ describe('LiveResolver', () => {
 
       expect(result.bonusHearts.getColorCount(HeartColor.PINK)).toBe(2);
     });
+
+    it('应该正确处理 ALL 加心效果', () => {
+      const revealedCards = [
+        {
+          cardId: 'aokuharuka',
+          bladeHearts: [{ effect: BladeHeartEffect.HEART, heartColor: HeartColor.RAINBOW }],
+        },
+      ];
+
+      const result = resolver.processCheer(revealedCards);
+
+      expect(result.bonusHearts.getColorCount(HeartColor.RAINBOW)).toBe(1);
+      expect(result.bonusHearts.getRainbowCount()).toBe(1);
+    });
   });
 
   describe('Live 判定', () => {

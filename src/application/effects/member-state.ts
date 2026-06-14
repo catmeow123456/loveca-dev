@@ -2,6 +2,7 @@ import type { GameState } from '../../domain/entities/game.js';
 import { getPlayerById, updatePlayer } from '../../domain/entities/game.js';
 import type { MemberCardData } from '../../domain/entities/card.js';
 import { isMemberCardData } from '../../domain/entities/card.js';
+import { recordPositionMove } from '../../domain/entities/player.js';
 import { removeCardFromZone } from '../../domain/entities/zone.js';
 import { FaceState, OrientationState, SlotPosition } from '../../shared/types/enums.js';
 
@@ -160,7 +161,7 @@ export function moveMemberBetweenSlots(
     const fromMemberBelow = currentPlayer.memberSlots.memberBelow[fromSlot] ?? [];
     const toMemberBelow = currentPlayer.memberSlots.memberBelow[toSlot] ?? [];
 
-    return {
+    let nextPlayer = {
       ...currentPlayer,
       memberSlots: {
         ...currentPlayer.memberSlots,
@@ -181,6 +182,8 @@ export function moveMemberBetweenSlots(
         },
       },
     };
+    nextPlayer = recordPositionMove(nextPlayer, cardId);
+    return swappedCardId ? recordPositionMove(nextPlayer, swappedCardId) : nextPlayer;
   });
 
   return {

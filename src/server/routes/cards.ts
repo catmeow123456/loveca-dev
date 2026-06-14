@@ -4,8 +4,17 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
 import { validate } from '../middleware/validate.js';
+import { inheritMissingBladeHeartsByBase } from '../../domain/card-data/blade-heart-inheritance.js';
 
 export const cardsRouter = Router();
+
+interface CardRouteRecord {
+  readonly [key: string]: unknown;
+  readonly card_code: string;
+  readonly card_type: string;
+  readonly blade_hearts?: Array<{ effect: string; heartColor?: string; value?: number }> | null;
+  readonly status?: string;
+}
 
 // ============================================
 // GET /api/cards
@@ -29,8 +38,9 @@ cardsRouter.get('/', async (req, res, next) => {
       query = "SELECT * FROM cards WHERE status = 'PUBLISHED' ORDER BY card_code";
     }
 
-    const { rows } = await pool.query(query, params);
-    res.json({ data: rows, total: rows.length, error: null });
+    const { rows } = await pool.query<CardRouteRecord>(query, params);
+    const cards = inheritMissingBladeHeartsByBase(rows);
+    res.json({ data: cards, total: cards.length, error: null });
   } catch (err) {
     next(err);
   }
@@ -42,9 +52,10 @@ cardsRouter.get('/', async (req, res, next) => {
 
 cardsRouter.get('/export', requireAuth, requireAdmin, async (_req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM cards ORDER BY card_code');
+    const { rows } = await pool.query<CardRouteRecord>('SELECT * FROM cards ORDER BY card_code');
+    const cards = inheritMissingBladeHeartsByBase(rows);
     // Transform to camelCase for export
-    const exported = rows.map((r) => ({
+    const exported = cards.map((r) => ({
       cardCode: r.card_code,
       cardType: r.card_type,
       name: r.name,
@@ -92,7 +103,7 @@ cardsRouter.get('/status-map', requireAuth, requireAdmin, async (_req, res, next
 cardsRouter.get('/:code', async (req, res, next) => {
   try {
     const isAdmin = req.user?.role === 'admin';
-    const { rows } = await pool.query('SELECT * FROM cards WHERE card_code = $1', [
+    const { rows } = await pool.query<CardRouteRecord>('SELECT * FROM cards WHERE card_code = $1', [
       req.params.code,
     ]);
 
@@ -113,7 +124,17 @@ cardsRouter.get('/:code', async (req, res, next) => {
       return;
     }
 
-    res.json({ data: card, error: null });
+    const inheritanceQuery = isAdmin
+      ? 'SELECT * FROM cards WHERE card_type = $1 ORDER BY card_code'
+      : "SELECT * FROM cards WHERE card_type = $1 AND status = 'PUBLISHED' ORDER BY card_code";
+    const { rows: sameTypeRows } = await pool.query<CardRouteRecord>(inheritanceQuery, [
+      card.card_type,
+    ]);
+    const inheritedCard =
+      inheritMissingBladeHeartsByBase(sameTypeRows).find((row) => row.card_code === card.card_code) ??
+      card;
+
+    res.json({ data: inheritedCard, error: null });
   } catch (err) {
     next(err);
   }
