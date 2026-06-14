@@ -31,6 +31,12 @@ cd client && pnpm dev    # Vite dev server (localhost:5173)
 cd client && pnpm test:e2e:mobile # Mobile layout Playwright baseline
 pnpm build:client        # Build frontend (from root)
 
+# Android / PWA packaging (from root)
+pnpm android:pwa:build          # Build Web/PWA assets
+pnpm android:twa:doctor         # Check local Android packaging prerequisites
+pnpm android:assetlinks         # Generate Digital Asset Links from env vars
+pnpm android:twa:build:docker   # Build the Bubblewrap TWA APK/AAB with Docker
+
 # Docker (backend runs in Docker container)
 docker compose up -d --build api   # Rebuild & restart API container
 
@@ -45,6 +51,8 @@ Monorepo implementing the Love Live card game (Loveca):
 - **`src/`** - Backend: game engine + self-hosted API server (TypeScript, Node.js 20+)
 - **`client/`** - Frontend UI (React 19, Vite, Tailwind CSS)
 - **`src/shared/`** - Shared types imported by both (via TypeScript path aliases)
+- **`android/twa/`** - Trusted Web Activity packaging notes and generated Bubblewrap Android project
+- **`assets/`** - Vite public assets, including PWA icons and Digital Asset Links output
 
 ### Domain-Driven Design Layers (Game Engine)
 
@@ -162,4 +170,5 @@ Coverage requirements: 90-95% for rules/live judgment, 90% for ability/zone oper
 - `docs/PROJECT_REQUIREMENTS.md` - Project requirements overview
 - `docs/coding-standard/` - Development spec
 - `docs/minio-requirements.md` - MinIO deployment requirements
+- `docs/android-app-packaging-guide-draft.md` - PWA/TWA/Capacitor Android packaging route and current release blockers
 - `docs/doc_writing_guide.md` - Documentation writing guide

@@ -76,6 +76,23 @@
 - [移动端现状差距清单](UI_MOBILE_ADAPTATION_GAP_ANALYSIS.md)
 - [移动端改进方向](game-table-ui-mobile-improvement-directions.md)
 
+## Android App 打包
+
+当前仓库已落地 Web/PWA 与 TWA 前置项：`client/vite.config.ts` 生成 Web App Manifest、Service Worker 与 PWA 图标声明，`android/twa/loveca/` 保存 Bubblewrap 生成的 TWA Android 工程，根 `package.json` 提供 Android 打包相关脚本。
+
+仍未完成正式发布闭环：
+
+- 线上 `https://loveca.lovelivefun.xyz/manifest.webmanifest` 仍需部署更新后的 manifest、PWA 图标和 Service Worker 产物，并通过 PWA 检查。
+- `assets/.well-known/assetlinks.json` 当前对应本地测试签名包；换正式 release / upload signing key 后必须重新生成并发布。
+- Docker Bubblewrap 本地构建仍默认跳过线上 PWA 校验；正式发布前应关闭该跳过项并完成真机验证。
+- 当前 TWA 路线只打开线上 Web 站点，不把 `client/dist` 作为离线本地资源包发布。
+- Capacitor 本地包路线仍需要先设计 CORS、refresh cookie / token、图片 URL 和深链策略。
+
+相关文档：
+
+- [Android App 打包指南草稿](android-app-packaging-guide-draft.md)
+- [Web 客户端说明](../client/README.md)
+
 ## 图片与对象存储
 
 当前服务端通过 `MINIO_*` 环境变量连接 MinIO 或兼容 S3 对象存储，开发环境可用 `docker-compose.dev.yml` 启动本地 MinIO。

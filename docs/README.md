@@ -78,6 +78,7 @@
 | [移动端现状差距清单](UI_MOBILE_ADAPTATION_GAP_ANALYSIS.md) | 移动端目标态与当前实现之间的差距和优先级 |
 | [移动端改进方向](game-table-ui-mobile-improvement-directions.md) | 游戏桌移动端方案建议，非当前实现说明 |
 | [移动端线框说明](game-table-ui-mobile-wireframe-notes.md) | 低保真结构草案，非当前实现说明 |
+| [Android App 打包指南草稿](android-app-packaging-guide-draft.md) | Web/PWA/TWA/Capacitor 打包路线规划；PWA/TWA 前置项已开始实施 |
 | [历史迁移说明](historical-migrations.md) | 早期外部托管方案的历史参考 |
 | [文档重构需求](archive/documentation-refactor-requirements.md) | 已归档的阶段性文档重构需求；不作为当前实现事实来源 |
 

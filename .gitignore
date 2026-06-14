@@ -11,6 +11,15 @@ node_modules/
 dist/
 build/
 
+# Android packaging outputs and local state
+android/twa/**/.gradle/
+android/twa/**/local.properties
+android/twa/**/*.apk
+android/twa/**/*.apk.idsig
+android/twa/**/*.aab
+android/twa/**/*.keystore
+android/twa/**/*.jks
+
 # Test coverage
 coverage/
 
