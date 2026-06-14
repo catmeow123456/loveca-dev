@@ -20,6 +20,10 @@ import { motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
+import {
+  getCardEffectVisualState,
+  type CardEffectVisualState,
+} from '@/lib/cardEffectAutomationVisuals';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { createScopedZoneId, createZoneId } from '@/lib/zoneUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -174,6 +178,7 @@ export const PlayerArea = memo(function PlayerArea({
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
   const isMobileBoard = useMediaQuery('(max-width: 767px)');
+  const activeEffect = useGameStore((s) => s.playerViewState?.activeEffect ?? null);
 
   // UI 状态选择器（使用 useShallow 合并多个属性）
   const { selectedCardId } = useGameStore(
@@ -318,6 +323,20 @@ export const PlayerArea = memo(function PlayerArea({
     canMoveInspectedToTop ||
     canMoveInspectedToBottom ||
     canReorderInspectedCard;
+  const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
+  const getEffectVisualState = (
+    card: { readonly cardCode: string; readonly instanceId: string },
+    options: {
+      readonly faceUp?: boolean;
+      readonly isActionableNow?: boolean;
+    } = {}
+  ): CardEffectVisualState =>
+    getCardEffectVisualState({
+      cardCode: card.cardCode,
+      isFaceUp: options.faceUp ?? true,
+      isActionableNow:
+        options.isActionableNow === true || activeEffectSourceCardId === card.instanceId,
+    });
 
   // 渲染成员槽位 - 使用响应式尺寸
   // 能量卡重叠设计：能量卡与成员卡同等大小，向左下方偏移 10% * n 的卡牌尺寸
@@ -517,6 +536,9 @@ export const PlayerArea = memo(function PlayerArea({
                   faceUp={true}
                   orientation={orientation}
                   selected={selectedCardId === card.instanceId}
+                  effectVisualState={getEffectVisualState(card, {
+                    isActionableNow: canActivateAbility,
+                  })}
                   onClick={() => allowGeneralOwnZoneInteraction && selectCard(card.instanceId)}
                   onMouseEnter={() => setHoveredCard(card.instanceId)}
                   onMouseLeave={() => setHoveredCard(null)}
@@ -852,6 +874,7 @@ export const PlayerArea = memo(function PlayerArea({
                                     imagePath={card.imagePath}
                                     size="sm"
                                     faceUp={true}
+                                    effectVisualState={getEffectVisualState(card)}
                                     showHover={true}
                                     onMouseEnter={() => setHoveredCard(card.instanceId)}
                                     onMouseLeave={() => setHoveredCard(null)}
@@ -926,6 +949,7 @@ export const PlayerArea = memo(function PlayerArea({
                           imagePath={card.imagePath}
                           size="responsive"
                           faceUp={true}
+                          effectVisualState={getEffectVisualState(card)}
                           interactive={!isOpponent}
                           showHover={false}
                         />
@@ -1198,6 +1222,7 @@ export const PlayerArea = memo(function PlayerArea({
                 imagePath={card.imagePath}
                 size="responsive"
                 faceUp={shouldShowFront}
+                effectVisualState={getEffectVisualState(card, { faceUp: shouldShowFront })}
                 interactive={!isOpponent}
                 showHover={false}
                 className="h-[80px] w-[57px] md:h-[112px] md:w-[80px]"
@@ -1713,6 +1738,7 @@ export const PlayerArea = memo(function PlayerArea({
                     size="sm"
                     faceUp={true}
                     selected={selectedCardId === card.instanceId}
+                    effectVisualState={getEffectVisualState(card)}
                     onClick={() => allowGeneralOwnZoneInteraction && selectCard(card.instanceId)}
                     onMouseEnter={() => setHoveredCard(card.instanceId)}
                     onMouseLeave={() => setHoveredCard(null)}

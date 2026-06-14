@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import { HeartColor, OrientationState } from '@game/shared/types/enums';
 import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData, isEnergyCardData } from '@game/domain/entities/card';
+import type { CardEffectVisualState } from '@/lib/cardEffectAutomationVisuals';
+import { CardEffectMarker } from './CardEffectMarker';
 
 // ============================================
 // 类型定义
@@ -38,6 +40,8 @@ export interface CardProps {
   showInfoOverlay?: boolean;
   /** 数量提示 */
   count?: number;
+  /** 对局中的卡效自动化视觉状态 */
+  effectVisualState?: CardEffectVisualState;
   /** 点击事件 */
   onClick?: () => void;
   /** 双击事件 */
@@ -229,6 +233,7 @@ export const Card = memo(function Card({
   showHover = true,
   showInfoOverlay = true,
   count = undefined,
+  effectVisualState = 'none',
   onClick,
   onDoubleClick,
   onMouseEnter,
@@ -257,10 +262,12 @@ export const Card = memo(function Card({
   return (
     <motion.div
       className={cn(
-        'relative rounded-lg overflow-hidden cursor-pointer',
+        'relative isolate rounded-lg cursor-pointer',
         'shadow-lg transition-shadow duration-200',
         sizeClasses[size],
-        selected && 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-slate-900',
+        selected &&
+          effectVisualState !== 'actionable' &&
+          'ring-2 ring-yellow-400 ring-offset-2 ring-offset-slate-900',
         isResting && 'rotate-90',
         !interactive && 'pointer-events-none',
         className
@@ -288,7 +295,7 @@ export const Card = memo(function Card({
         {faceUp ? (
           <motion.div
             key="front"
-            className="w-full h-full"
+            className="w-full h-full overflow-hidden rounded-lg"
             initial={{ rotateY: 90 }}
             animate={{ rotateY: 0 }}
             exit={{ rotateY: -90 }}
@@ -327,7 +334,7 @@ export const Card = memo(function Card({
         ) : (
           <motion.div
             key="back"
-            className="w-full h-full"
+            className="w-full h-full overflow-hidden rounded-lg"
             initial={{ rotateY: -90 }}
             animate={{ rotateY: 0 }}
             exit={{ rotateY: 90 }}
@@ -338,9 +345,21 @@ export const Card = memo(function Card({
         )}
       </AnimatePresence>
 
+      {effectVisualState !== 'none' && <CardEffectMarker state={effectVisualState} />}
+      {effectVisualState !== 'none' && (
+        <div
+          className={cn(
+            'pointer-events-none absolute -inset-[1px] z-20 rounded-[12px] border',
+            effectVisualState === 'actionable'
+              ? 'border-sky-100 shadow-[0_0_0_1px_rgba(14,165,233,0.95),0_0_14px_rgba(56,189,248,0.95)]'
+              : 'border-sky-300/95 shadow-[0_0_0_1px_rgba(15,23,42,0.82),0_0_8px_rgba(56,189,248,0.68)]'
+          )}
+        />
+      )}
+
       {/* 半透明数量提示 */}
       {count && count > 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-blue-500/30">
+        <div className="absolute inset-0 flex items-center justify-center rounded-lg pointer-events-none bg-blue-500/30">
           <span className="text-blue-800 text-8xl font-bold opacity-50 drop-shadow-md">
             {count}
           </span>
@@ -348,9 +367,9 @@ export const Card = memo(function Card({
       )}
 
       {/* 选中高亮 */}
-      {selected && (
+      {selected && effectVisualState !== 'actionable' && (
         <motion.div
-          className="absolute inset-0 bg-yellow-400/20 pointer-events-none"
+          className="absolute inset-0 rounded-lg bg-yellow-400/20 pointer-events-none"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

@@ -53,6 +53,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 目前已完成的核心方向：
 
+- 对局前端已新增可剥离的卡效自动化视觉标记：正面已自动化卡牌在卡顶中间显示约 4px 小点与 1px 圆角外描边，当前正在处理/可发动时变亮；标记只在 `PlayerArea` 等对局组件中通过 `Card.effectVisualState` 传入，不进入卡牌数据库。控制入口为 `client/src/lib/cardEffectAutomationVisuals.ts`，默认开启，可用 `VITE_CARD_EFFECT_VISUAL_MARKERS=false` / `0` / `off` 关闭；后续若全卡效完成后想剥离，删除该 helper、`CardEffectMarker`、`Card.effectVisualState` prop 和 `PlayerArea` 传参即可。
 - 活跃阶段规则自动化已补齐：进入某玩家活跃阶段时，`GameService` 的 `UNTAP_ALL` 会将该玩家舞台成员和能量全部恢复为活跃状态；不会同时重置非当前玩家。
 - LIVE 判定区会按当前光棒数自动翻推荐应援牌。
 - 玩家仍可手动调整判定区，然后选择接受自动判定。
