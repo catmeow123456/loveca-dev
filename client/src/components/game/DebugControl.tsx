@@ -18,21 +18,22 @@ export const DebugControl = memo(function DebugControl() {
   const currentViewingPlayer = useGameStore((s) => s.getViewingPlayerIdentity());
   const otherPlayer = useGameStore((s) => s.getOpponentPlayerIdentity());
   const gameMode = useGameStore((s) => s.gameMode);
-  const debugFreePlay = useGameStore((s) => s.debugFreePlay);
+  const localFreePlay = useGameStore((s) => s.localFreePlay);
   const isRemoteMode = useGameStore((s) => s.isRemoteMode());
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { setViewingPlayer, addLog, setGameMode, setDebugFreePlay } = useGameStore(
+  const { setViewingPlayer, addLog, setGameMode, setLocalFreePlay } = useGameStore(
     useShallow((s) => ({
       setViewingPlayer: s.setViewingPlayer,
       addLog: s.addLog,
       setGameMode: s.setGameMode,
-      setDebugFreePlay: s.setDebugFreePlay,
+      setLocalFreePlay: s.setLocalFreePlay,
     }))
   );
 
   if (!matchView || isRemoteMode) return null;
   const isDebugMode = gameMode === GameMode.DEBUG;
+  const freePlayLabel = isDebugMode ? '本地免费登场' : '免费登场';
 
   // 切换视角（仅调试模式）
   const handleSwitchView = () => {
@@ -124,17 +125,17 @@ export const DebugControl = memo(function DebugControl() {
         <motion.button
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
-          onClick={() => setDebugFreePlay(!debugFreePlay)}
+          onClick={() => setLocalFreePlay(!localFreePlay)}
           className={cn(
             'flex h-9 items-center gap-1.5 rounded border px-3 text-xs font-semibold transition',
-            debugFreePlay
+            localFreePlay
               ? 'border-[var(--semantic-warning)]/40 bg-[var(--semantic-warning)]/15 text-[var(--semantic-warning)]'
               : 'border-[var(--border-default)] bg-[var(--bg-surface)]/50 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
           )}
           title="开启后成员登场/换手不检查也不支付费用"
         >
           <Zap size={14} />
-          免费登场
+          {freePlayLabel}
         </motion.button>
 
         {/* 模式切换按钮 */}

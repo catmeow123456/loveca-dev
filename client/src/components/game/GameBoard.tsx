@@ -44,6 +44,7 @@ import {
   Swords,
   UserRound,
   X,
+  Zap,
 } from 'lucide-react';
 import {
   SlotPosition,
@@ -115,6 +116,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const opponentLiveWinner = useGameStore((s) => s.isOpponentLiveWinner());
   const isLiveDraw = useGameStore((s) => s.isLiveDraw);
   const gameMode = useGameStore((s) => s.gameMode);
+  const localFreePlay = useGameStore((s) => s.localFreePlay);
+  const isRemoteMode = useGameStore((s) => s.isRemoteMode());
   const isDebugMode = gameMode === GameMode.DEBUG;
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
   const logCount = useGameStore((s) => s.ui.logs.length);
@@ -146,6 +149,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     drawEnergyToZone,
     setDragHints,
     setHoveredCard,
+    setLocalFreePlay,
     getZoneCardIds,
     findViewerCardZone,
     resolveCardDropTarget,
@@ -175,6 +179,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       drawEnergyToZone: s.drawEnergyToZone,
       setDragHints: s.setDragHints,
       setHoveredCard: s.setHoveredCard,
+      setLocalFreePlay: s.setLocalFreePlay,
       getZoneCardIds: s.getZoneCardIds,
       findViewerCardZone: s.findViewerCardZone,
       resolveCardDropTarget: s.resolveCardDropTarget,
@@ -863,6 +868,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const subPhaseInfo =
     currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase)?.display : null;
   const turnNumber = currentTurnCount ?? matchView.turnCount;
+  const showMobileFreePlay = !isRemoteMode;
 
   return (
     <DndContext
@@ -986,7 +992,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
             <div
               className={cn(
                 'safe-bottom fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-[65] grid gap-2 md:hidden',
-                isDebugMode ? 'grid-cols-3' : 'grid-cols-2'
+                isDebugMode && showMobileFreePlay
+                  ? 'grid-cols-4'
+                  : isDebugMode || showMobileFreePlay
+                    ? 'grid-cols-3'
+                    : 'grid-cols-2'
               )}
             >
               <button
@@ -1005,6 +1015,21 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 >
                   <ScrollText size={15} />
                   日志 {logCount}
+                </button>
+              )}
+              {showMobileFreePlay && (
+                <button
+                  type="button"
+                  onClick={() => setLocalFreePlay(!localFreePlay)}
+                  className={cn(
+                    'button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]',
+                    localFreePlay &&
+                      'border-[var(--semantic-warning)]/45 bg-[var(--semantic-warning)]/15 text-[var(--semantic-warning)]'
+                  )}
+                  title="开启后成员登场/换手不检查也不支付费用"
+                >
+                  <Zap size={15} />
+                  免费
                 </button>
               )}
               <button

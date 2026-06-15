@@ -14,18 +14,29 @@ import type {
 } from '../entities/card.js';
 import { CardType } from '../../shared/types/enums.js';
 import { CardDataRegistry } from './loader.js';
-import { MAX_SAME_CODE_COUNT } from '../rules/deck-validator.js';
+import { ENERGY_DECK_SIZE, MAX_SAME_CODE_COUNT } from '../rules/deck-validator.js';
 
 // ============================================
 // YAML Schema 定义
 // ============================================
 
 /**
- * 卡牌条目 Schema（编号 + 数量）
+ * 主卡组卡牌条目 Schema（编号 + 数量）
  */
 export const CardEntrySchema = z.object({
   card_code: z.string().min(1),
-  count: z.number().int().positive().max(4),
+  count: z.number().int().positive().max(MAX_SAME_CODE_COUNT),
+});
+
+/**
+ * 能量卡组卡牌条目 Schema（编号 + 数量）
+ *
+ * 能量卡组没有主卡组“同基础编号最多 4 张”的限制；结构层只限制单条
+ * 条目不能超过完整能量卡组大小。
+ */
+export const EnergyCardEntrySchema = z.object({
+  card_code: z.string().min(1),
+  count: z.number().int().positive().max(ENERGY_DECK_SIZE),
 });
 
 /**
@@ -43,7 +54,7 @@ export const DeckConfigSchema = z.object({
   player_name: z.string().min(1),
   description: z.string().optional(),
   main_deck: MainDeckSchema,
-  energy_deck: z.array(CardEntrySchema),
+  energy_deck: z.array(EnergyCardEntrySchema),
 });
 
 export type DeckConfig = z.infer<typeof DeckConfigSchema>;

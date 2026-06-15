@@ -90,7 +90,11 @@ import {
 import { PhaseManager, phaseManager, PhaseAutoAction } from './phase-manager.js';
 import { isOwnDeskFreeDragWindow } from './command-availability.js';
 import { isPlayerActive as isPlayerActiveByConfig } from '../shared/phase-config/index.js';
-import { getInitialSubPhase, getSubPhaseConfig } from '../shared/phase-config/index.js';
+import {
+  getInitialSubPhase,
+  getSubPhaseConfig,
+  isSuccessEffectSubPhase,
+} from '../shared/phase-config/index.js';
 import { GameEventType } from './events.js';
 import {
   GameAction,
@@ -140,8 +144,8 @@ import {
   RuleActionType,
   type RuleActionResult,
 } from '../domain/rules/rule-actions.js';
-// 注意：采用新方案后，不再自动执行卡牌效果
-// 玩家通过手动拖拽执行效果，系统只负责规则处理（自动清理非法状态）
+// 卡效自动化第一阶段已经接入检查时机与命令结算流程。
+// GameService 继续承担底层规则处理；具体卡效登记、入队与结算由 card-effect-runner 负责。
 
 // ============================================
 // 游戏服务结果类型
@@ -655,18 +659,10 @@ export class GameService {
       if (result.success) {
         state = result.gameState;
       }
-
-      if (
-        state.currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
-        state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS
-      ) {
-        state = this.executeCheckTiming(state, [TriggerCondition.ON_LIVE_SUCCESS]).gameState;
-      }
     }
 
     while (
-      (state.currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
-        state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS) &&
+      isSuccessEffectSubPhase(state.currentSubPhase) &&
       !this.hasSuccessfulLiveForResultSubPhase(state, state.currentSubPhase)
     ) {
       const subPhaseResult = this.phaseManager.advanceToNextSubPhase(state);
@@ -677,9 +673,25 @@ export class GameService {
         break;
       }
       state = this.phaseManager.applySubPhaseTransition(state, subPhaseResult);
+      state = {
+        ...state,
+        effectWindowType: this.phaseManager.getEffectWindowType(state.currentSubPhase),
+      };
       if (!subPhaseResult.shouldAdvancePhase) {
         break;
       }
+    }
+
+    if (
+      newPhase === GamePhase.LIVE_RESULT_PHASE &&
+      isSuccessEffectSubPhase(state.currentSubPhase) &&
+      this.hasSuccessfulLiveForResultSubPhase(state, state.currentSubPhase)
+    ) {
+      state = {
+        ...state,
+        effectWindowType: EffectWindowType.LIVE_SUCCESS,
+      };
+      state = this.executeCheckTiming(state, [TriggerCondition.ON_LIVE_SUCCESS]).gameState;
     }
 
     return state;
@@ -1154,8 +1166,8 @@ export class GameService {
     conditions: readonly TriggerCondition[],
     sourceCardId?: string
   ): GameState {
-    // 简化实现：遍历所有卡牌，检查是否有匹配的自动能力
-    // 实际实现需要更复杂的能力系统集成
+    // 旧 rule-action 自动能力入口暂保留为空实现。
+    // 现行卡效通过 enqueueTriggeredCardEffects / resolvePendingCardEffects 在检查时机中处理。
     return game;
   }
 

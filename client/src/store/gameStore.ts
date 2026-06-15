@@ -28,6 +28,7 @@ import {
   type ViewCardObject,
   type ViewZoneKey,
   type ViewZoneState,
+  shouldIgnoreRemoteSnapshotBySeq,
 } from '@game/online';
 import {
   GameCommandType,
@@ -155,8 +156,8 @@ export interface GameStore {
   gameSession: GameSession;
   /** 当前游戏模式 */
   gameMode: GameMode;
-  /** 本地调试：成员登场/换手不支付费用 */
-  debugFreePlay: boolean;
+  /** 本地兜底：成员登场/换手不支付费用 */
+  localFreePlay: boolean;
   /** UI 状态 */
   ui: UIState;
   /** 当前视角玩家 ID */
@@ -270,8 +271,8 @@ export interface GameStore {
   setDragHints: (isDragging: boolean, highlightedZones?: string[]) => void;
   /** 设置游戏模式（支持游戏内切换） */
   setGameMode: (mode: GameMode) => void;
-  /** 设置本地调试免费登场 */
-  setDebugFreePlay: (enabled: boolean) => void;
+  /** 设置本地免费登场兜底 */
+  setLocalFreePlay: (enabled: boolean) => void;
   /** 接入远程联机会话 */
   connectRemoteSession: (session: RemoteSessionState) => void;
   /** 将远程快照应用到当前联机会话 */
@@ -575,7 +576,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     cardDataRegistry: new Map(),
     gameSession,
     gameMode: GameMode.DEBUG,
-    debugFreePlay: false,
+    localFreePlay: false,
     viewingPlayerId: null,
     remoteSession: null,
     ui: {
@@ -640,7 +641,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         playerViewState: null,
         viewingPlayerId: null,
         gameMode: GameMode.DEBUG,
-        debugFreePlay: false,
+        localFreePlay: false,
         ui: {
           selectedCardId: null,
           hoveredCardId: null,
@@ -654,7 +655,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         },
       });
       get().gameSession.gameMode = GameMode.DEBUG;
-      get().gameSession.debugFreePlay = false;
+      get().gameSession.localFreePlay = false;
     },
 
     advancePhase: () => {
@@ -968,33 +969,35 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      const { gameSession } = get();
+      const { gameSession, localFreePlay } = get();
       // 同步更新 store 和 session 的模式
       gameSession.gameMode = mode;
-      set({ gameMode: mode });
+      gameSession.localFreePlay = localFreePlay;
+      set({ gameMode: mode, localFreePlay });
       get().addLog(`切换游戏模式: ${mode === GameMode.SOLITAIRE ? '对墙打' : '调试'}`, 'info');
       // 同步状态以反映模式变更
       get().syncState();
     },
 
-    setDebugFreePlay: (enabled) => {
+    setLocalFreePlay: (enabled) => {
       if (get().remoteSession) {
         return;
       }
 
       const { gameSession } = get();
-      gameSession.debugFreePlay = enabled;
-      set({ debugFreePlay: enabled });
-      get().addLog(enabled ? '调试免费登场已开启' : '调试免费登场已关闭', 'info');
+
+      gameSession.localFreePlay = enabled;
+      set({ localFreePlay: enabled });
+      get().addLog(enabled ? '免费登场已开启' : '免费登场已关闭', 'info');
     },
 
     connectRemoteSession: (session) => {
-      get().gameSession.debugFreePlay = false;
+      get().gameSession.localFreePlay = false;
       set({
         remoteSession: session,
         viewingPlayerId: session.playerId,
         gameMode: GameMode.DEBUG,
-        debugFreePlay: false,
+        localFreePlay: false,
       });
     },
 
@@ -1766,10 +1769,20 @@ function applyRemoteSnapshot(
   const normalizedPlayerViewState = normalizePlayerViewState(snapshot.playerViewState);
   set((state) => {
     if (
-      state.playerViewState?.match.seq === normalizedPlayerViewState?.match.seq &&
-      state.viewingPlayerId === snapshot.playerId &&
-      state.remoteSession?.playerId === snapshot.playerId &&
-      state.remoteSession?.seat === snapshot.seat
+      normalizedPlayerViewState !== null &&
+      shouldIgnoreRemoteSnapshotBySeq({
+        currentMatchId: state.playerViewState?.match.matchId,
+        currentPlayerId: state.viewingPlayerId,
+        currentSeat: state.playerViewState?.match.viewerSeat,
+        currentSeq: state.playerViewState?.match.seq,
+        remoteMatchId: state.remoteSession?.matchId,
+        remotePlayerId: state.remoteSession?.playerId,
+        remoteSeat: state.remoteSession?.seat,
+        snapshotMatchId: snapshot.matchId,
+        snapshotPlayerId: snapshot.playerId,
+        snapshotSeat: snapshot.seat,
+        snapshotSeq: normalizedPlayerViewState.match.seq,
+      })
     ) {
       return state;
     }

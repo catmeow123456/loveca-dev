@@ -52,7 +52,6 @@ import {
   ZoneType,
   SubPhase,
   CardType,
-  GamePhase,
 } from '@game/shared/types/enums';
 import type { Seat } from '@game/online';
 
@@ -187,6 +186,7 @@ export const PlayerArea = memo(function PlayerArea({
     }))
   );
   const isDragging = useGameStore((s) => s.ui.isDragging);
+  const isRemoteMode = useGameStore((s) => s.isRemoteMode());
   const isRemoteDebugMode = useGameStore((s) => s.isRemoteDebugMode());
   const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
   const canOpenInspection = useGameStore((s) => s.canUseAction(GameCommandType.OPEN_INSPECTION));
@@ -206,6 +206,9 @@ export const PlayerArea = memo(function PlayerArea({
     s.canUseAction(GameCommandType.REORDER_INSPECTED_CARD)
   );
   const canTapMember = useGameStore((s) => s.canUseAction(GameCommandType.TAP_MEMBER));
+  const canActivateAbilityCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.ACTIVATE_ABILITY)
+  );
   const canTapEnergy = useGameStore((s) => s.canUseAction(GameCommandType.TAP_ENERGY));
   const canDrawCardToHand = useGameStore((s) => s.canUseAction(GameCommandType.DRAW_CARD_TO_HAND));
   const canReturnHandCardToTop = useGameStore((s) =>
@@ -379,9 +382,7 @@ export const PlayerArea = memo(function PlayerArea({
       selectedCardId === card.instanceId &&
       !isOpponent &&
       viewerSeat === playerSeat &&
-      matchView?.activeSeat === viewerSeat &&
-      currentPhase === GamePhase.MAIN_PHASE &&
-      currentSubPhase === SubPhase.NONE;
+      canActivateAbilityCommand;
 
     return (
       // 外层容器：包含成员卡和重叠的能量卡
@@ -588,13 +589,34 @@ export const PlayerArea = memo(function PlayerArea({
     );
   };
 
+  const setEnergyCardsOrientation = (targetOrientation: OrientationState) => {
+    if (!allowGeneralOwnZoneInteraction || !canTapEnergy || isDragging) return;
+
+    for (const cardId of energyZoneCardIds) {
+      const currentOrientation = getEnergyCardOrientation(cardId);
+      if (currentOrientation !== targetOrientation) {
+        tapEnergy(cardId);
+      }
+    }
+  };
+
+  const getEnergyCardOrientation = (cardId: string) => {
+    return getCardViewObject(cardId)?.orientation ?? OrientationState.ACTIVE;
+  };
+
   // 渲染能量区 - 横向一排显示，最多显示12张
   const renderEnergyZone = () => {
     const energyCards = energyZoneCardIds.slice(0, 12); // 最多12张
     const energyCount = energyZoneView?.count ?? energyZoneCardIds.length;
     const activeCount = energyZoneCardIds.filter((id) => {
-      return getCardViewObject(id)?.orientation === OrientationState.ACTIVE;
+      return getEnergyCardOrientation(id) === OrientationState.ACTIVE;
     }).length;
+    const canUseEnergyControls =
+      allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging && energyZoneCardIds.length > 0;
+    const hasWaitingEnergy = energyZoneCardIds.some((id) => {
+      return getEnergyCardOrientation(id) !== OrientationState.ACTIVE;
+    });
+    const hasActiveEnergy = activeCount > 0;
 
     return (
       <DroppableZone
@@ -604,14 +626,48 @@ export const PlayerArea = memo(function PlayerArea({
         className="flex flex-col items-start gap-0.5"
         activeClassName="ring-2 ring-indigo-500 bg-indigo-500/20"
       >
-        <span className="text-[10px] text-slate-600 font-medium">
-          能量区 ({activeCount}/{energyCount})
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-slate-600 font-medium">
+            能量区 ({activeCount}/{energyCount})
+          </span>
+          {canUseEnergyControls && (
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                className="flex h-5 min-w-5 items-center justify-center rounded border border-indigo-300/35 bg-indigo-500/10 px-1 text-[9px] font-semibold text-indigo-200 transition hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-35"
+                disabled={!hasWaitingEnergy}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setEnergyCardsOrientation(OrientationState.ACTIVE);
+                }}
+                title="全部能量变为活跃"
+              >
+                <ArrowUpToLine size={10} />
+                全活
+              </button>
+              <button
+                type="button"
+                className="flex h-5 min-w-5 items-center justify-center rounded border border-indigo-300/35 bg-indigo-500/10 px-1 text-[9px] font-semibold text-indigo-200 transition hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-35"
+                disabled={!hasActiveEnergy}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setEnergyCardsOrientation(OrientationState.WAITING);
+                }}
+                title="全部能量变为待机"
+              >
+                <ArrowDownToLine size={10} />
+                全待
+              </button>
+            </div>
+          )}
+        </div>
         {/* 横向布局 */}
         <div className="flex gap-1 flex-wrap max-w-[300px]">
           {energyCards.map((cardId) => {
             const card = getVisibleCardPresentation(cardId);
-            const isActive = getCardViewObject(cardId)?.orientation === OrientationState.ACTIVE;
+            const isActive = getEnergyCardOrientation(cardId) === OrientationState.ACTIVE;
             const imagePath = card?.imagePath ?? null;
 
             return (
@@ -967,7 +1023,7 @@ export const PlayerArea = memo(function PlayerArea({
             );
           })}
         </div>
-        {!isOpponent && (
+        {!isOpponent && !isRemoteMode && (
           <button
             type="button"
             onClick={undoLastStep}
@@ -1092,7 +1148,7 @@ export const PlayerArea = memo(function PlayerArea({
   };
 
   const renderMobileLeftRail = () => (
-    <div className="flex w-[74px] flex-col items-center justify-center gap-2">
+    <div className="flex w-[88px] min-w-0 flex-col items-center justify-center gap-2">
       {renderSuccessZoneCompact()}
       {renderMobileEnergyZone()}
     </div>
@@ -1107,71 +1163,117 @@ export const PlayerArea = memo(function PlayerArea({
   );
 
   const renderMobileEnergyZone = () => {
-    const energyCards = energyZoneCardIds.slice(0, 4);
+    const energyCards = energyZoneCardIds.slice(0, 12);
     const energyCount = energyZoneView?.count ?? energyZoneCardIds.length;
     const activeCount = energyZoneCardIds.filter((id) => {
-      return getCardViewObject(id)?.orientation === OrientationState.ACTIVE;
+      return getEnergyCardOrientation(id) === OrientationState.ACTIVE;
     }).length;
+    const canUseEnergyControls =
+      allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging && energyZoneCardIds.length > 0;
+    const hasWaitingEnergy = energyZoneCardIds.some((id) => {
+      return getEnergyCardOrientation(id) !== OrientationState.ACTIVE;
+    });
+    const hasActiveEnergy = activeCount > 0;
 
     return (
       <DroppableZone
         id={getDroppableId(ZoneType.ENERGY_ZONE)}
         zoneId={createZoneId(ZoneType.ENERGY_ZONE)}
         disabled={!allowGeneralOwnZoneInteraction}
-        className="flex w-full flex-col items-center gap-0.5"
+        className="flex w-full min-w-0 flex-col items-stretch gap-1 overflow-hidden rounded-lg border border-indigo-300/20 bg-indigo-500/[0.055] px-1 py-1"
         activeClassName="ring-2 ring-indigo-500 bg-indigo-500/20"
       >
-        <span className="text-[10px] font-medium text-[var(--text-muted)]">能量区</span>
-        <div className="relative h-[38px] w-[44px] rounded border border-dashed border-indigo-300/30 bg-indigo-500/[0.06]">
-          {energyCards.map((cardId, idx) => {
+        <span className="w-full truncate text-center text-[10px] font-semibold leading-none text-[var(--text-muted)] tabular-nums">
+          能量 {activeCount}/{energyCount}
+        </span>
+        {canUseEnergyControls && (
+          <div className="grid w-full min-w-0 grid-cols-2 gap-0.5">
+            <button
+              type="button"
+              className="inline-flex h-7 min-w-0 items-center justify-center gap-px overflow-hidden rounded-md border border-indigo-300/45 bg-indigo-500/15 px-0.5 text-[9px] font-semibold leading-none text-indigo-50 transition-colors hover:bg-indigo-500/25 disabled:cursor-not-allowed disabled:border-[var(--border-default)] disabled:bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] disabled:text-[var(--text-muted)] disabled:opacity-100"
+              disabled={!hasWaitingEnergy}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setEnergyCardsOrientation(OrientationState.ACTIVE);
+              }}
+              aria-label="全部能量变为活跃"
+              title="全部能量变为活跃"
+            >
+              <ArrowUpToLine size={9} className="shrink-0" />
+              <span className="shrink-0 whitespace-nowrap">全活</span>
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-7 min-w-0 items-center justify-center gap-px overflow-hidden rounded-md border border-indigo-300/45 bg-indigo-500/15 px-0.5 text-[9px] font-semibold leading-none text-indigo-50 transition-colors hover:bg-indigo-500/25 disabled:cursor-not-allowed disabled:border-[var(--border-default)] disabled:bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] disabled:text-[var(--text-muted)] disabled:opacity-100"
+              disabled={!hasActiveEnergy}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setEnergyCardsOrientation(OrientationState.WAITING);
+              }}
+              aria-label="全部能量变为待机"
+              title="全部能量变为待机"
+            >
+              <ArrowDownToLine size={9} className="shrink-0" />
+              <span className="shrink-0 whitespace-nowrap">全待</span>
+            </button>
+          </div>
+        )}
+        <div className="flex max-h-[86px] w-full min-w-0 flex-wrap justify-center gap-0.5 overflow-hidden rounded border border-dashed border-indigo-300/24 bg-indigo-500/[0.04] p-0.5">
+          {energyCards.map((cardId) => {
             const card = getVisibleCardPresentation(cardId);
             const imagePath = card?.imagePath ?? null;
-            const isActive = getCardViewObject(cardId)?.orientation === OrientationState.ACTIVE;
+            const isActive = getEnergyCardOrientation(cardId) === OrientationState.ACTIVE;
 
             return (
-              <DraggableCard
-                key={cardId}
-                id={cardId}
-                disabled={!allowGeneralOwnZoneInteraction}
-                data={{ cardId, cardCode: card?.cardCode, fromZone: ZoneType.ENERGY_ZONE }}
-              >
-                <div
-                  className={cn(
-                    'absolute h-7 w-5 overflow-hidden rounded shadow-sm transition-transform hover:scale-110',
-                    !isActive && 'opacity-45 grayscale'
-                  )}
-                  style={{
-                    left: `${4 + idx * 5}px`,
-                    top: `${5 + idx * 1}px`,
-                    zIndex: idx,
-                  }}
-                  onClick={() => {
-                    if (allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging) {
-                      tapEnergy(cardId);
-                    }
-                  }}
-                  onMouseEnter={() => card && setHoveredCard(card.instanceId)}
-                  onMouseLeave={() => setHoveredCard(null)}
-                  title={
-                    allowGeneralOwnZoneInteraction && canTapEnergy
-                      ? '单击切换活跃/等待'
-                      : '能量区'
-                  }
+              <div key={cardId} className="flex h-7 w-5 items-center justify-center">
+                <DraggableCard
+                  id={cardId}
+                  disabled={!allowGeneralOwnZoneInteraction}
+                  data={{ cardId, cardCode: card?.cardCode, fromZone: ZoneType.ENERGY_ZONE }}
                 >
-                  {imagePath ? (
-                    <img src={imagePath} alt="能量" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-[8px] text-white/70">
-                      E
-                    </div>
-                  )}
-                </div>
-              </DraggableCard>
+                  <div
+                    className={cn(
+                      'h-6 w-4 overflow-hidden rounded shadow-sm transition-transform',
+                      allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging
+                        ? 'cursor-pointer active:scale-95'
+                        : 'cursor-default',
+                      !isActive && 'rotate-90 opacity-45 grayscale'
+                    )}
+                    onClick={() => {
+                      if (allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging) {
+                        tapEnergy(cardId);
+                      }
+                    }}
+                    title={
+                      allowGeneralOwnZoneInteraction && canTapEnergy
+                        ? '点按切换活跃/待机'
+                        : '能量区'
+                    }
+                  >
+                    {imagePath ? (
+                      <img src={imagePath} alt="能量" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-[8px] text-white/70">
+                        E
+                      </div>
+                    )}
+                  </div>
+                </DraggableCard>
+              </div>
             );
           })}
-          <div className="absolute -bottom-1 left-1/2 z-10 -translate-x-1/2 rounded-full border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-1 py-0.5 text-[9px] font-bold text-[var(--text-primary)] shadow-[var(--shadow-sm)]">
-            {activeCount}/{energyCount}
-          </div>
+          {energyZoneCardIds.length > energyCards.length && (
+            <div className="flex h-7 w-5 items-center justify-center rounded border border-indigo-300/20 bg-indigo-500/10 text-[9px] font-bold text-indigo-200">
+              +{energyZoneCardIds.length - energyCards.length}
+            </div>
+          )}
+          {energyCards.length === 0 && (
+            <div className="flex h-7 items-center justify-center text-[9px] text-[var(--text-muted)]">
+              空
+            </div>
+          )}
         </div>
       </DroppableZone>
     );
@@ -1825,7 +1927,7 @@ export const PlayerArea = memo(function PlayerArea({
   );
 
   const renderMobileTabletop = (reversed: boolean = false) => (
-    <div className="grid h-full min-h-0 grid-cols-[74px_minmax(0,1fr)_54px] items-center gap-1 overflow-visible px-0.5 py-1">
+    <div className="grid h-full min-h-0 grid-cols-[88px_minmax(0,1fr)_54px] items-center gap-1 overflow-visible px-0.5 py-1">
       <div className="self-center justify-self-start">{renderMobileLeftRail()}</div>
       <div className="min-w-0 self-center justify-self-center overflow-visible">
         {renderMobileBattleCore(reversed)}
@@ -1924,7 +2026,7 @@ export const PlayerArea = memo(function PlayerArea({
         {/* 对手：手牌和能量区在最上方 */}
         <div className="flex-shrink-0 w-full flex items-center gap-2 relative">
           {/* 能量区 - 右上角 */}
-          <div className="absolute right-2 top-2">{renderEnergyZone()}</div>
+          <div className="absolute right-2 top-2 z-50">{renderEnergyZone()}</div>
           {/* 手牌区 - 居中 */}
           {renderHand()}
         </div>
@@ -2026,7 +2128,7 @@ export const PlayerArea = memo(function PlayerArea({
       {/* 己方：手牌和能量区在最下方 */}
       <div className="flex-shrink-0 w-full flex items-center gap-2 relative">
         {/* 能量区 - 左下角 */}
-        <div className="absolute left-2 bottom-2">{renderEnergyZone()}</div>
+        <div className="absolute left-2 bottom-2 z-50">{renderEnergyZone()}</div>
         {/* 手牌区 - 居中 */}
         {renderHand()}
       </div>

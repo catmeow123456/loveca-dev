@@ -8,18 +8,19 @@ import {
   DeckPayloadValidationError,
   prepareDeckPayloadForStorage,
 } from '../services/deck-storage-service.js';
+import { ENERGY_DECK_SIZE, MAX_SAME_CODE_COUNT } from '../../domain/rules/deck-validator.js';
 
 export const decksRouter = Router();
 
 const mainDeckEntrySchema = z.object({
   card_code: z.string().min(1),
-  count: z.number().int().positive().max(4),
+  count: z.number().int().positive().max(MAX_SAME_CODE_COUNT),
   card_type: z.enum(['MEMBER', 'LIVE']).optional(),
 });
 
 const energyDeckEntrySchema = z.object({
   card_code: z.string().min(1),
-  count: z.number().int().positive().max(4),
+  count: z.number().int().positive().max(ENERGY_DECK_SIZE),
 });
 
 const shareForkSchema = z.object({

@@ -438,6 +438,16 @@ register_test_users() {
   done
 }
 
+seed_test_admin_decks() {
+  if [[ "${TEST_SEED_ADMIN_DECKS:-1}" == "0" ]]; then
+    log "skipping test admin deck seed"
+    return
+  fi
+
+  log "seeding test admin user and recommended deck"
+  node scripts/seed-test-env-admin-decks.mjs
+}
+
 initialize_card_data() {
   log "syncing card data from llocg_db"
   pnpm exec tsx src/scripts/sync-cards-llocg.ts
@@ -519,6 +529,7 @@ main() {
   start_tmux_environment
   wait_for_api
   register_test_users
+  seed_test_admin_decks
 
   log "ready"
   log "frontend: http://127.0.0.1:${FRONTEND_PORT}"

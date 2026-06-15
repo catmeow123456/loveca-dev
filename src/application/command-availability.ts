@@ -20,9 +20,16 @@ export const MAIN_PHASE_MANUAL_COMMAND_TYPES: readonly GameCommandType[] = [
   GameCommandType.RETURN_HAND_CARD_TO_TOP,
 ] as const;
 
+// 仅主阶段当前玩家可用的主流程命令。
+// 不要并入 OWN_DESK_FREE_DRAG_COMMAND_TYPES，否则会把起动效果暴露到 Live/判定整理窗口。
+export const MAIN_PHASE_ACTIVE_PLAYER_COMMAND_TYPES: readonly GameCommandType[] = [
+  ...MAIN_PHASE_MANUAL_COMMAND_TYPES,
+  GameCommandType.ACTIVATE_ABILITY,
+] as const;
+
 // 自由拖拽窗口期间双方玩家均可使用的己方桌面操作命令集。
-// 当前等同于主阶段手动命令集（"信任玩家"原则下所有己方桌面操作对双方开放），
-// 若未来需要仅对活跃玩家开放的操作，在主阶段数组单独添加即可，无需同步。
+// 当前等同于主阶段手动命令集（"信任玩家"原则下所有己方桌面操作对双方开放）。
+// 仅当前玩家可用的主阶段命令应加入 MAIN_PHASE_ACTIVE_PLAYER_COMMAND_TYPES。
 export const OWN_DESK_FREE_DRAG_COMMAND_TYPES: readonly GameCommandType[] = [
   ...MAIN_PHASE_MANUAL_COMMAND_TYPES,
 ];

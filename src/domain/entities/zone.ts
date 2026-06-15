@@ -298,7 +298,8 @@ export function updateCardState(
   cardId: string,
   newState: Partial<CardZoneState>
 ): StatefulZoneState {
-  const currentState = zone.cardStates.get(cardId);
+  const currentState =
+    zone.cardStates.get(cardId) ?? (zone.cardIds.includes(cardId) ? createDefaultCardState() : null);
   if (!currentState) return zone;
 
   const newCardStates = new Map(zone.cardStates);
@@ -450,7 +451,8 @@ export function toggleEnergyOrientation(
   zone: StatefulZoneState,
   cardId: string
 ): StatefulZoneState {
-  const currentState = zone.cardStates.get(cardId);
+  const currentState =
+    zone.cardStates.get(cardId) ?? (zone.cardIds.includes(cardId) ? createDefaultCardState() : null);
   if (!currentState) return zone;
 
   const newOrientation =
@@ -779,9 +781,10 @@ export function tapEnergy(zone: StatefulZoneState, cardId: string): StatefulZone
  * 参考规则 7.4.1
  */
 export function untapAllEnergy(zone: StatefulZoneState): StatefulZoneState {
-  const newCardStates = new Map<string, CardZoneState>();
+  const newCardStates = new Map<string, CardZoneState>(zone.cardStates);
 
-  for (const [cardId, state] of zone.cardStates) {
+  for (const cardId of zone.cardIds) {
+    const state = newCardStates.get(cardId) ?? createDefaultCardState();
     newCardStates.set(cardId, {
       ...state,
       orientation: OrientationState.ACTIVE,
@@ -799,7 +802,8 @@ export function untapAllEnergy(zone: StatefulZoneState): StatefulZoneState {
  */
 export function getActiveEnergyCount(zone: StatefulZoneState): number {
   let count = 0;
-  for (const state of zone.cardStates.values()) {
+  for (const cardId of zone.cardIds) {
+    const state = zone.cardStates.get(cardId) ?? createDefaultCardState();
     if (state.orientation === OrientationState.ACTIVE) {
       count++;
     }
@@ -812,7 +816,8 @@ export function getActiveEnergyCount(zone: StatefulZoneState): number {
  */
 export function getActiveEnergyIds(zone: StatefulZoneState): string[] {
   const result: string[] = [];
-  for (const [cardId, state] of zone.cardStates) {
+  for (const cardId of zone.cardIds) {
+    const state = zone.cardStates.get(cardId) ?? createDefaultCardState();
     if (state.orientation === OrientationState.ACTIVE) {
       result.push(cardId);
     }

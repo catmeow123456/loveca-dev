@@ -1,8 +1,8 @@
 # Loveca card effect reuse audit report
 
-审查日期：2026-06-13  
-审查范围：只读审查当前 `loveca_battle` 已登记/实现的样例卡效；未修改业务代码。  
-输入基准：`references/codex_loveca_reuse_audit_pack.zip` 中的 `loveca_effect_fragments_catalog.json`、`loveca_effect_reuse_report.md`、`codex_loveca_reuse_audit_prompt.md`。  
+审查日期：2026-06-13
+审查范围：只读审查当前 `loveca_battle` 已登记/实现的样例卡效；未修改业务代码。
+输入基准：`references/codex_loveca_reuse_audit_pack.zip` 中的 `loveca_effect_fragments_catalog.json`、`loveca_effect_reuse_report.md`、`codex_loveca_reuse_audit_prompt.md`。
 主要实现入口：`src/application/card-effect-runner.ts`。
 
 > 2026-06-14 更新：本报告下方 reuse table 是早期只读审查快照，部分 “missing abstraction / local helper” 结论已被后续模块化工作关闭。当前权威状态请优先看同目录的 `existing_module_map.md`、`effect_module_coverage.md`、`card_effect_batch_expansions.md`、`module_gap_list.md`、`safe_refactor_plan.md`。
@@ -32,13 +32,13 @@
 | `PL!-sd1-016-SD` | 東條 希 | `src/application/card-effect-runner.ts:327`; `src/application/card-effect-runner.ts:1992`; `src/application/card-effect-runner.ts:2033` | 同 011 | `T01,C01,F03` | `OK_REUSED` + `LOCAL_HELPER_SHOULD_BE_SHARED` | 同 011 | `optionalDiscardHandCost(1)`；`lookTopSelectToHand(3, exactly1, any)` | low | `P1-soon` |
 | `PL!-sd1-019-SD` | START:DASH!! | `src/application/card-effect-runner.ts:337`; `src/application/card-effect-runner.ts:2235`; `src/application/card-effect-runner.ts:2256` | Live 成功：看顶 3，任意张按顺序放回顶，其余进休息室 | `T04,F05` | `OK_REUSED` + `LOCAL_HELPER_SHOULD_BE_SHARED` | T04 队列 OK；`startArrangeInspectedDeckTopEffect` 已是较好的 F05 雏形，但仅 runner 内可用，未成为公共 look-top 控顶模块 | `lookTopReorderTopRestWR(lookN, selectRange, restDest)` | low | `P1-soon` |
 | `PL!-sd1-022-SD` | 僕らは今のなかで | `src/application/card-effect-runner.ts:348`; `src/application/card-effect-runner.ts:1733`; `src/application/card-effect-runner.ts:1778`; `src/domain/rules/live-requirement-modifiers.ts:16` | Live 开始：按成功 Live 数减少无色必要 Heart | `T02,B07,L01,L02,X06,X13` | `OK_REUSED` + `HARD_CODED_SELECTOR` | T02 队列、B07 requirement modifier 和 `applyHeartRequirementModifiers` 复用较好；公式 `successLiveCount * 2`、无色 Heart 仍写在单卡 resolver | `modifyRequiredHearts({scale:successLiveCount,countPer:2,color:RAINBOW})` | medium | `P1-soon` |
-| `PL!N-pb1-004-P+` | 朝香 果林 | `src/application/card-effect-runner.ts:358`; `src/application/card-effect-runner.ts:2160`; `src/application/card-effect-runner.ts:2539`; `src/application/card-effect-runner.ts:2622` | Live 开始：公开顶 1，费用 <=9 成员入手并站位变换，否则入休息室 | `T02,S05,X01,X06,F13`; catalog also has `T05,B08` continuous | `MISSING_ABSTRACTION` + `HARD_CODED_SELECTOR` + `BYPASSES_ENGINE_EVENT` | 顶 1 公开/处理、费用阈值 selector、站位变换均是单卡流程；站位变换直接改 slot/under-card maps，未复用 `moveCardUniversal`；目录中的常时 `[BLADE][BLADE]` 当前未登记，属于 behavior_mismatch/样例实现缺口 | `peekOrRevealDeckTop(1)`；`selector.type(member).costLte(9)`；`positionChange(..., swap=true)`；补 `continuousLiveModifierRegistry` | high | `P1-soon` |
+| `PL!N-pb1-004-P+` | 朝香 果林 | `src/application/card-effect-runner.ts:358`; `src/application/card-effect-runner.ts:2160`; `src/application/card-effect-runner.ts:2539`; `src/application/card-effect-runner.ts:2622` | Live 开始：公开顶 1，费用 <=9 成员入手并站位变换，否则入休息室；后续已补常时：本回合未移动时获得 BLADE | `T02,S05,X01,X06,F13`; catalog also has `T05,B08` continuous | `MISSING_ABSTRACTION` + `HARD_CODED_SELECTOR` + `BYPASSES_ENGINE_EVENT` | 顶 1 公开/处理、费用阈值 selector、站位变换在早期快照中仍是单卡流程；2026-06-14 后续已迁入 `member-state.ts` 站位 helper，并通过 continuous modifier registry 补齐常时 BLADE。剩余问题是 condition/step DSL 未抽象。 | `peekOrRevealDeckTop(1)`；`selector.type(member).costLte(9)`；`positionChange(..., swap=true)`；`continuousLiveModifierRegistry` | medium | `P1-soon` |
 
 ## Behavior mismatch
 
 | card_no | issue | evidence | recommendation |
 |---|---|---|---|
-| `PL!N-pb1-004-P+` | catalog 有常时 `T05,B08`：本回合未移动时获得 `[BLADE][BLADE]`；当前 `CARD_ABILITY_DEFINITIONS` 只登记 Live 开始能力 | catalog segment maps `PL!N-pb1-004-P＋` to `T05,B08` and `T02,S05,X01,X06,F13`; code only registers `KARIN_LIVE_START_ABILITY_ID` at `src/application/card-effect-runner.ts:358` | 如果这张只是“测试用果林样例卡”，在报告/代码注释中继续标注 partial sample；若要按实卡实现，应补 continuous modifier 流程和测试 |
+| `PL!N-pb1-004-P+` | 早期快照曾记录常时 `T05,B08` 未登记；该缺口已在后续提交关闭。 | 现行权威登记册记录 `PL!N-pb1-004` 费用 11「朝香果林」完整已实现；`tests/unit/live-modifiers.test.ts` 覆盖未进行成员区位置移动时 continuous BLADE +2。 | 保留本行作为历史审计关闭记录；当前状态以 `existing_module_map.md` 为准。 |
 
 ## Highest-value findings
 

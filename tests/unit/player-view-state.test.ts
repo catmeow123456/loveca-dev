@@ -397,6 +397,16 @@ describe('PlayerViewState projector', () => {
     state.currentSubPhase = SubPhase.NONE;
     state.waitingPlayerId = null;
     const mainView = projectPlayerViewState(state, PLAYER1);
+    expect(hasEnabledCommand(mainView, GameCommandType.ACTIVATE_ABILITY)).toBe(true);
+    expect(getCommandHint(mainView, GameCommandType.ACTIVATE_ABILITY)?.scope?.zoneKeys).toEqual([
+      'FIRST_MEMBER_LEFT',
+      'FIRST_MEMBER_CENTER',
+      'FIRST_MEMBER_RIGHT',
+    ]);
+    expect(hasEnabledCommand(mainView, GameCommandType.TAP_ENERGY)).toBe(true);
+    expect(getCommandHint(mainView, GameCommandType.TAP_ENERGY)?.scope?.zoneKeys).toEqual([
+      'FIRST_ENERGY_ZONE',
+    ]);
     expect(hasEnabledCommand(mainView, GameCommandType.DRAW_ENERGY_TO_ZONE)).toBe(true);
     expect(hasEnabledCommand(mainView, GameCommandType.MOVE_OWNED_CARD_TO_ZONE)).toBe(true);
     expect(hasEnabledCommand(mainView, GameCommandType.MOVE_PUBLIC_CARD_TO_HAND)).toBe(true);
@@ -410,6 +420,7 @@ describe('PlayerViewState projector', () => {
     expect(hasEnabledCommand(liveSetView, GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK)).toBe(
       true
     );
+    expect(hasEnabledCommand(liveSetView, GameCommandType.ACTIVATE_ABILITY)).toBe(false);
   });
 
   it('主要阶段和表演阶段应向非当前回合玩家暴露 TAP_MEMBER', () => {
@@ -443,6 +454,7 @@ describe('PlayerViewState projector', () => {
     expect(hasEnabledCommand(mainOpponentView, GameCommandType.MOVE_OWNED_CARD_TO_ZONE)).toBe(true);
     expect(hasEnabledCommand(mainOpponentView, GameCommandType.PLAY_MEMBER_TO_SLOT)).toBe(true);
     expect(hasEnabledCommand(mainOpponentView, GameCommandType.OPEN_INSPECTION)).toBe(true);
+    expect(hasEnabledCommand(mainOpponentView, GameCommandType.ACTIVATE_ABILITY)).toBe(false);
     expect(hasEnabledCommand(mainOpponentView, GameCommandType.END_PHASE)).toBe(false);
 
     state.currentPhase = GamePhase.LIVE_SET_PHASE;

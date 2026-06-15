@@ -90,10 +90,11 @@
 
 当前事实：
 
-- 测试卡组 YAML 位于 `assets/decks/`，当前有 `缪预组.yaml`、`蓝紫.yaml` 与 `系统边界混合.yaml`；这些 YAML 仍可供预设卡组、对墙打默认对手或后续测试资产参考。
+- 测试卡组 YAML 位于 `assets/decks/`，当前有 `缪预组.yaml`、`绿莲-6弹ver.yaml`、`蓝紫.yaml` 与 `系统边界混合.yaml`；这些 YAML 仍可供预设卡组、对墙打默认对手或后续测试资产参考。
+- `绿莲-6弹ver.yaml` 已作为新人推荐卡组与 μ's 预组并列接入前端预设；`pnpm test-env:start` 会创建/提权 `test_admin` 管理员账号，并把该卡组以公开卡组写入管理员名下。
 - 首页独立“本地测试对局”入口已于 2026-06-14 移除；后续卡效验证优先使用作者提供的 `pnpm test-env:start` 完整测试环境和云端卡组。
 - 卡图下载脚本为 `scripts/download-local-test-card-images.mjs`。脚本已改为自动扫描 `assets/decks/*.yaml` / `*.yml`，不再硬编码两副卡组。
-- 当前 dry-run 结果：三副测试卡组需要 79 张唯一卡图。本次新增下载 28 张 PNG，旧图跳过 51 张；`assets/card/` 保存 PNG，`assets/images/{thumb,medium,large}/` 保存 WebP，79 张均已压缩成功。
+- 当前 `--dry-run --exact-only` 结果：四副测试卡组引用 99 张精确卡图；实际下载、同编号罕度展开与 WebP 别名数量以脚本输出为准。
 - 当前测试服务器仍依赖 `assets/images/` 的本地图片 fallback；未明确切换到完整对象存储图片前，不要删除 `assets/images/`。
 
 2026-06-14 临时测试服务器补图记录：

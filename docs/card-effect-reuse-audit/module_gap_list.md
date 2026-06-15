@@ -39,7 +39,7 @@
 | card | inline part | why not migrated yet |
 |---|---|---|
 | `PL!-sd1-006-SD` | 公开手牌 Live，成功区 Live 入手，公开牌放成功区 | 涉及 C07、条件“如此做”、双区域交换；当前只有一个 proving card。 |
-| `PL!HS-PR-001-PR` 费用 10「日野下花帆」 | LIVE开始时支付 `[E][E]` 获得 `[BLADE]` 段 | 登场段已落地；LIVE开始时可支付 `[E][E]`，LIVE结束时为止获得 `[BLADE]` 的片段暂未实现。 |
+| `PL!HS-PR-001-PR` 费用 10「日野下花帆」 | 登场看顶 3 选 1 与 LIVE 开始支付 `[E][E]` 获得 `[BLADE]` 的流程串联 | 登场段和 LIVE 开始段均已落地；`effect-costs`、`look-top`、固定 BLADE live modifier 支付壳已复用。剩余问题是完整 step pipeline 尚未配置化。 |
 | `PL!-sd1-003-SD` / `PL!HS-bp1-006-P` 费用 11「藤岛 慈」 / `PL!HS-bp1-004-P` 费用 15「夕雾缀理」 | Heart color / pay-or-decline option step | UI 支持已存在，且已有第二张 Heart 颜色选择样例；夕雾缀理也复用 `selectableOptions` 做 LIVE 开始支付/不发动选择。尚未抽成 generic option-choice step。 |
 | `PL!-sd1-004-SD` | 公开被选 Live 后确认入手的流程串联 | look-top 原语已复用；workflow config 尚未抽。 |
 | `PL!-sd1-009-SD` / `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」 | 休息室卡牌数量条件 | condition AST 尚未建立。 |

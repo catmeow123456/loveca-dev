@@ -1,0 +1,52 @@
+player_name: 绿莲-6弹ver
+description: 莲之空绿莲 6 弹新人推荐卡组
+main_deck:
+  members:
+    - card_code: PL!HS-PR-014-RM
+      count: 4
+    - card_code: PL!HS-sd1-001-SD
+      count: 4
+    - card_code: PL!HS-sd1-012-SD
+      count: 4
+    - card_code: PL!HS-sd1-009-SD
+      count: 4
+    - card_code: PL!HS-PR-019-RM
+      count: 4
+    - card_code: PL!HS-bp6-017-N
+      count: 3
+    - card_code: PL!HS-bp5-001-SEC
+      count: 3
+    - card_code: PL!HS-sd1-006-SD
+      count: 3
+    - card_code: PL!HS-pb1-004-R
+      count: 1
+    - card_code: PL!HS-bp6-001-R+
+      count: 4
+    - card_code: PL!HS-pb1-020-N
+      count: 1
+    - card_code: PL!HS-bp1-003-SEC
+      count: 2
+    - card_code: PL!HS-bp1-002-RM
+      count: 3
+    - card_code: PL!HS-bp5-008-R
+      count: 4
+    - card_code: PL!HS-pb1-009-R
+      count: 2
+    - card_code: PL!HS-pb1-009-P+
+      count: 2
+  lives:
+    - card_code: PL!HS-bp6-027-L
+      count: 3
+    - card_code: PL!HS-bp5-019-L
+      count: 4
+    - card_code: PL!HS-bp2-022-L+
+      count: 4
+    - card_code: PL!HS-cl1-009-CL
+      count: 1
+energy_deck:
+  - card_code: PL!HS-bp6-E04-PE+
+    count: 4
+  - card_code: PL!HS-bp6-E05-PE+
+    count: 4
+  - card_code: PL!HS-bp6-E06-PE+
+    count: 4

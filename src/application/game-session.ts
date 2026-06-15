@@ -263,7 +263,7 @@ export class GameSession {
   private snapshotHistory: MatchSnapshotSummary[] = [];
   private authoritySnapshots = new Map<number, GameState>();
   private undoHistory: GameSessionUndoSnapshot[] = [];
-  private _debugFreePlay = false;
+  private _localFreePlay = false;
 
   constructor(options: GameSessionOptions = {}) {
     this.gameService = new GameService();
@@ -293,15 +293,26 @@ export class GameSession {
   }
 
   /**
-   * 本地调试用：开启后成员登场/换手不检查也不支付费用。
+   * 本地测试兜底用：开启后成员登场/换手不检查也不支付费用。
    * 远程对战不应开放此开关。
    */
+  get localFreePlay(): boolean {
+    return this._localFreePlay;
+  }
+
+  set localFreePlay(enabled: boolean) {
+    this._localFreePlay = enabled;
+  }
+
+  /**
+   * @deprecated Use localFreePlay. Kept only for older local tests and tooling.
+   */
   get debugFreePlay(): boolean {
-    return this._debugFreePlay;
+    return this.localFreePlay;
   }
 
   set debugFreePlay(enabled: boolean) {
-    this._debugFreePlay = enabled;
+    this.localFreePlay = enabled;
   }
 
   /**
@@ -2583,7 +2594,7 @@ export class GameSession {
     state: GameState,
     command: PlayMemberToSlotCommand
   ): CommandExecutionResult {
-    if (this._debugFreePlay) {
+    if (this._localFreePlay) {
       return this.applyPlayMemberToSlotWithoutCostPrompt(state, command);
     }
 

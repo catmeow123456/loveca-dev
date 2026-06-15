@@ -6356,6 +6356,107 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([topCardIds[1]]);
   });
 
+  it('triggers the second player live-success window when only the second player succeeded', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-live-success-second-player-only',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    const p2 = state.players[1] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const ownedP2CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER2)
+      .map((card) => card.instanceId);
+    const failedLiveCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const successfulLiveCardId = ownedP2CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const topCardIds = ownedP2CardIds
+      .filter((cardId) => cardId !== successfulLiveCardId)
+      .filter((cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER)
+      .slice(0, 4);
+
+    expect(failedLiveCardId).toBeTruthy();
+    expect(successfulLiveCardId).toBeTruthy();
+    expect(topCardIds).toHaveLength(4);
+
+    const failedLiveCard = state.cardRegistry.get(failedLiveCardId!) as unknown as {
+      data: LiveCardData;
+    };
+    const successfulLiveCard = state.cardRegistry.get(successfulLiveCardId!) as unknown as {
+      data: LiveCardData;
+    };
+    failedLiveCard.data = createLiveCard('P1-FAILED-LIVE', 'First Player Failed Live');
+    successfulLiveCard.data = createLiveCard('PL!-sd1-019-SD', 'START:DASH!!');
+
+    removeFromPlayerZones(p1);
+    removeFromPlayerZones(p2);
+    p1.liveZone.cardIds = [failedLiveCardId!];
+    p2.liveZone.cardIds = [successfulLiveCardId!];
+    p2.mainDeck.cardIds = topCardIds;
+
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      currentTurnType: TurnType;
+      firstPlayerIndex: number;
+      activePlayerIndex: number;
+      liveResolution: GameState['liveResolution'];
+    };
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.NONE;
+    mutableState.currentTurnType = TurnType.SECOND_PLAYER_TURN;
+    mutableState.firstPlayerIndex = 0;
+    mutableState.activePlayerIndex = 1;
+    mutableState.liveResolution = {
+      ...state.liveResolution,
+      liveResults: new Map([
+        [failedLiveCardId!, false],
+        [successfulLiveCardId!, true],
+      ]),
+    };
+
+    const service = new GameService();
+    const advanceResult = service.advancePhase(state);
+
+    expect(advanceResult.success).toBe(true);
+    expect(advanceResult.gameState.currentPhase).toBe(GamePhase.LIVE_RESULT_PHASE);
+    expect(advanceResult.gameState.currentSubPhase).toBe(SubPhase.RESULT_SECOND_SUCCESS_EFFECTS);
+    expect(advanceResult.gameState.activePlayerIndex).toBe(1);
+    expect(advanceResult.gameState.activeEffect?.abilityId).toBe(
+      START_DASH_LIVE_SUCCESS_ABILITY_ID
+    );
+    expect(advanceResult.gameState.activeEffect?.awaitingPlayerId).toBe(PLAYER2);
+    expect(advanceResult.gameState.activeEffect?.sourceCardId).toBe(successfulLiveCardId);
+    expect(advanceResult.gameState.inspectionZone.cardIds).toEqual(topCardIds.slice(0, 3));
+    expect(advanceResult.gameState.players[1].mainDeck.cardIds).toEqual([topCardIds[3]]);
+  });
+
   it('executes PL!HS-bp6-001-R＋ live-success by moving a revealed cheer card to deck top', () => {
     const session = createGameSession();
     const deck = createDeck();

@@ -440,5 +440,5 @@ describe('GameService 游戏流程测试', () => {
   });
 });
 
-// 注意：卡牌效果测试已移除
-// 采用新方案后，不再自动执行卡牌效果，玩家通过手动拖拽执行效果
+// 旧版 GameService 直连卡效测试已移除；现行自动卡效由 GameSession 命令层与
+// card-effect-runner 的队列/结算流程覆盖。

@@ -1,6 +1,6 @@
 import { GameCommandType } from '../application/game-commands.js';
 import {
-  MAIN_PHASE_MANUAL_COMMAND_TYPES,
+  MAIN_PHASE_ACTIVE_PLAYER_COMMAND_TYPES,
   OWN_DESK_FREE_DRAG_COMMAND_TYPES,
   isOwnDeskFreeDragCommand,
   isOwnDeskFreeDragWindow,
@@ -947,7 +947,7 @@ function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] 
     case GamePhase.MULLIGAN_PHASE:
       return [GameCommandType.MULLIGAN];
     case GamePhase.MAIN_PHASE:
-      return [...MAIN_PHASE_MANUAL_COMMAND_TYPES, GameCommandType.END_PHASE];
+      return [...MAIN_PHASE_ACTIVE_PLAYER_COMMAND_TYPES, GameCommandType.END_PHASE];
     case GamePhase.LIVE_SET_PHASE:
       return [
         GameCommandType.SET_LIVE_CARD,
@@ -1163,6 +1163,7 @@ function buildPhaseCommandHint(
         }),
       });
     case GameCommandType.TAP_MEMBER:
+    case GameCommandType.ACTIVATE_ABILITY:
       return buildCommandHint(command, {
         scope: createCommandScope({
           zoneKeys: [
@@ -1170,6 +1171,12 @@ function buildPhaseCommandHint(
             createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
             createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),
           ],
+        }),
+      });
+    case GameCommandType.TAP_ENERGY:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'ENERGY_ZONE')],
         }),
       });
     case GameCommandType.ATTACH_ENERGY_TO_MEMBER:

@@ -130,11 +130,18 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
   const getVisibleCardPresentation = useGameStore((s) => s.getVisibleCardPresentation);
   const setHoveredCard = useGameStore((s) => s.setHoveredCard);
   const shouldUseCompactDrawer = useMediaQuery('(max-width: 1023px)');
+  const shouldSuppressHoverDrawer = useMediaQuery('(max-width: 767px)');
 
   const card = hoveredCardId ? getVisibleCardPresentation(hoveredCardId) : null;
   const closeDetail = useCallback(() => {
     setHoveredCard(null);
   }, [setHoveredCard]);
+
+  useEffect(() => {
+    if (shouldSuppressHoverDrawer && hoveredCardId) {
+      setHoveredCard(null);
+    }
+  }, [hoveredCardId, setHoveredCard, shouldSuppressHoverDrawer]);
 
   useEffect(() => {
     if (!card) return;
@@ -159,6 +166,10 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
       document.body.style.overflow = previousOverflow;
     };
   }, [card, shouldUseCompactDrawer]);
+
+  if (shouldSuppressHoverDrawer) {
+    return null;
+  }
 
   const content = (
     <AnimatePresence>

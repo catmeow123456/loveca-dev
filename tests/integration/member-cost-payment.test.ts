@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CardType,
+  GameMode,
   GamePhase,
   HeartColor,
   OrientationState,
@@ -438,13 +439,56 @@ describe('member cost payment', () => {
     expect(normalResult.success).toBe(false);
     expect(player.memberSlots.slots[SlotPosition.CENTER]).toBeNull();
 
-    session.debugFreePlay = true;
-    const debugResult = session.executeCommand(
+    session.localFreePlay = true;
+    const localFreePlayResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, memberCardId!, SlotPosition.CENTER)
     );
 
-    expect(debugResult.success).toBe(true);
+    expect(localFreePlayResult.success).toBe(true);
     expect(session.state?.pendingCostPayment).toBeNull();
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(memberCardId);
+    expect(session.state?.players[0].energyZone.cardIds).toEqual([]);
+  });
+
+  it('free play fallback remains available in solitaire mode', () => {
+    const localSession = createGameSession();
+    localSession.localFreePlay = true;
+    expect(localSession.localFreePlay).toBe(true);
+    localSession.gameMode = GameMode.SOLITAIRE;
+    expect(localSession.localFreePlay).toBe(true);
+
+    const session = createGameSession({ gameMode: GameMode.SOLITAIRE });
+    const deck = createDeck();
+
+    session.createGame('member-solitaire-free-play-guard', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+      memberSlots: { slots: Record<SlotPosition, string | null> };
+    };
+    const memberCardId = player.hand.cardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+
+    expect(memberCardId).toBeTruthy();
+    player.energyZone.cardIds = [];
+    player.energyZone.cardStates = new Map();
+
+    session.localFreePlay = true;
+
+    expect(session.localFreePlay).toBe(true);
+    const result = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, memberCardId!, SlotPosition.CENTER)
+    );
+
+    expect(result.success).toBe(true);
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(memberCardId);
     expect(session.state?.players[0].energyZone.cardIds).toEqual([]);
   });

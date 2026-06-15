@@ -9,6 +9,11 @@ import {
   setEnergyOrientation,
   setFirstEnergyCardsOrientation,
 } from '../../src/application/effects/energy';
+import {
+  getActiveEnergyCount,
+  getActiveEnergyIds,
+  toggleEnergyOrientation,
+} from '../../src/domain/entities/zone';
 import { CardType, FaceState, HeartColor, OrientationState } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -156,6 +161,34 @@ describe('energy effect helpers', () => {
     expect(
       result?.gameState.players[0].energyZone.cardStates.get(energyCardIds[3])?.orientation
     ).toBe(OrientationState.WAITING);
+  });
+
+  it('treats missing energy card state as active when counting and toggling', () => {
+    const state = createMutableState();
+    const energyCardId = [...state.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.ENERGY
+    )?.instanceId;
+    expect(energyCardId).toBeTruthy();
+    setPlayerEnergyZones(state, { energyDeckCardIds: [], energyZoneCardIds: [energyCardId!] });
+
+    const p1 = state.players[0] as unknown as {
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    p1.energyZone.cardStates = new Map();
+
+    expect(getActiveEnergyCount(p1.energyZone)).toBe(1);
+    expect(getActiveEnergyIds(p1.energyZone)).toEqual([energyCardId]);
+
+    const waitingZone = toggleEnergyOrientation(p1.energyZone, energyCardId!);
+    expect(waitingZone.cardStates.get(energyCardId!)?.orientation).toBe(OrientationState.WAITING);
+    expect(getActiveEnergyCount(waitingZone)).toBe(0);
+    expect(getActiveEnergyIds(waitingZone)).toEqual([]);
+
+    const activeZone = toggleEnergyOrientation(waitingZone, energyCardId!);
+    expect(activeZone.cardStates.get(energyCardId!)?.orientation).toBe(OrientationState.ACTIVE);
   });
 
   it('rejects invalid energy orientation requests', () => {

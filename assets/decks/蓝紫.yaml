@@ -42,5 +42,5 @@ main_deck:
     - card_code: PL!N-bp4-025-L
       count: 3
 energy_deck:
-  - count: 12
-    card_code: LL-E-003-SD
+  - card_code: LL-E-003-SD
+    count: 12

@@ -51,6 +51,7 @@
 | 卡牌数据管理 | [卡牌数据管理需求](card-data-management/requirements.md)、[卡牌数据管理设计](card-data-management/design.md) | 管理后台、卡牌 CRUD、发布状态和字段边界 |
 | 卡牌数据规范 | [卡牌数据规范](card-data-management/data-spec.md) | `cards` 表字段、同步脚本和管理端输入约束 |
 | 卡牌同步 | [同步需求](card-data-sync/requirements.md)、[同步设计](card-data-sync/design.md) | `llocg_db` 到当前 `cards` 表的同步管线 |
+| 卡牌效果自动化 | [卡效框架设计](card-effect-framework/card_effect_framework_design.md)、[卡效完成状态登记册](card-effect-reuse-audit/existing_module_map.md)、[卡效模块覆盖](card-effect-reuse-audit/effect_module_coverage.md) | 第一阶段卡效框架、已实现基础编号、同型扩样本和当前模块边界 |
 | MinIO 与图片 | [MinIO 需求与设计](minio-requirements.md)、[图片优化方案](image_optimization.md) | 对象存储、图片上传、压缩和访问 URL |
 | 对墙打模式 | [对墙打模式需求](solitaire-mode-requirements.md) | 本地调试模式与对墙打模式边界 |
 | 游戏桌当前 UI | [游戏桌 UI 现状](game-table-design/game-table-ui-current-state.md) | 当前桌面 UI 布局和交互事实 |
