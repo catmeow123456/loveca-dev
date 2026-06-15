@@ -53,6 +53,7 @@
 | 卡牌同步 | [同步需求](card-data-sync/requirements.md)、[同步设计](card-data-sync/design.md) | `llocg_db` 到当前 `cards` 表的同步管线 |
 | 卡牌效果自动化 | [卡效框架设计](card-effect-framework/card_effect_framework_design.md)、[卡效完成状态登记册](card-effect-reuse-audit/existing_module_map.md)、[卡效模块覆盖](card-effect-reuse-audit/effect_module_coverage.md) | 第一阶段卡效框架、已实现基础编号、同型扩样本和当前模块边界 |
 | MinIO 与图片 | [MinIO 需求与设计](minio-requirements.md)、[图片优化方案](image_optimization.md) | 对象存储、图片上传、压缩和访问 URL |
+| 生产发布 | [生产发布 Runbook](production-release-runbook.md) | 当前自托管发布步骤、部署检查、健康检查与回滚边界 |
 | 对墙打模式 | [对墙打模式需求](solitaire-mode-requirements.md) | 本地调试模式与对墙打模式边界 |
 | 游戏桌当前 UI | [游戏桌 UI 现状](game-table-design/game-table-ui-current-state.md) | 当前桌面 UI 布局和交互事实 |
 | 解决区/卡组点击 | [解决区行为](game-table-design/resolution-zone-behavior.md)、[卡组点击行为](game-table-design/deck-click-behavior.md) | 局部交互定稿 |
