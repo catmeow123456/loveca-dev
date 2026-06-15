@@ -17,6 +17,7 @@ import {
   HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID,
   HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
   HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
   HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID,
   HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID,
   HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
@@ -735,6 +736,19 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+
+    const hsPb1012OnEnter = getCardAbilityDefinitions('PL!HS-pb1-012-R').find(
+      (ability) =>
+        ability.abilityId ===
+        HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID
+    );
+    expect(hsPb1012OnEnter).toMatchObject({
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
   });
 
   it('matches implemented abilities by base card code across rarities', () => {
@@ -832,6 +846,16 @@ describe('card effect classification registry', () => {
       expect(
         getCardAbilityDefinitions(cardCode).some(
           (ability) => ability.abilityId === BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
+        )
+      ).toBe(true);
+    }
+
+    for (const cardCode of ['PL!HS-pb1-012-R', 'PL!HS-pb1-012-P+']) {
+      expect(
+        getCardAbilityDefinitions(cardCode).some(
+          (ability) =>
+            ability.abilityId ===
+            HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID
         )
       ).toBe(true);
     }

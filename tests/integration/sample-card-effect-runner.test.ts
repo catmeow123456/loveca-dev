@@ -60,6 +60,7 @@ import {
   HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID,
   HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
   HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
   HANAYO_ACTIVATED_ABILITY_ID,
   BP4_003_ACTIVATED_ABILITY_ID,
   HONOKA_ON_ENTER_ABILITY_ID,
@@ -295,6 +296,141 @@ function advanceToLiveStartEffects(session: ReturnType<typeof createGameSession>
   const advanceResult = service.advancePhase(state);
   expect(advanceResult.success).toBe(true);
   (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
+}
+
+function createTestMemberInstances(
+  ownerId: string,
+  prefix: string,
+  count: number
+): ReturnType<typeof createCardInstance>[] {
+  return Array.from({ length: count }, (_, index) =>
+    createCardInstance(
+      createMemberCard(`PL!HS-test-${prefix}-${index}`, `${prefix} member ${index}`, 1, '蓮ノ空'),
+      ownerId,
+      `${ownerId}-${prefix}-${index}`
+    )
+  );
+}
+
+function setupHsPb1012OnEnterScenario(config: {
+  readonly ownMemberCount: number;
+  readonly opponentMemberCount: number;
+  readonly includeLiveTarget: boolean;
+}): {
+  readonly session: ReturnType<typeof createGameSession>;
+  readonly ginko: ReturnType<typeof createCardInstance>;
+  readonly ownMembers: readonly ReturnType<typeof createCardInstance>[];
+  readonly opponentMembers: readonly ReturnType<typeof createCardInstance>[];
+  readonly ownDeckFiller: ReturnType<typeof createCardInstance>;
+  readonly opponentDeckFiller: ReturnType<typeof createCardInstance>;
+  readonly liveTarget: ReturnType<typeof createCardInstance> | null;
+} {
+  const session = createGameSession();
+  const deck = createDeck();
+
+  session.createGame(
+    `sample-hs-pb1-012-on-enter-${config.ownMemberCount}-${config.opponentMemberCount}-${config.includeLiveTarget}`,
+    PLAYER1,
+    'Player 1',
+    PLAYER2,
+    'Player 2'
+  );
+  session.initializeGame(deck, deck);
+  forceMainPhaseForPlayer(session);
+
+  const ginko = createCardInstance(
+    createMemberCard('PL!HS-pb1-012-R', '百生吟子', 13, '蓮ノ空', 3),
+    PLAYER1,
+    'p1-pb1-012-ginko'
+  );
+  const ownMembers = createTestMemberInstances(PLAYER1, 'pb1-012-own', config.ownMemberCount);
+  const opponentMembers = createTestMemberInstances(
+    PLAYER2,
+    'pb1-012-opponent',
+    config.opponentMemberCount
+  );
+  const ownDeckFiller = createCardInstance(
+    createLiveCard('PL!HS-test-pb1-012-own-filler', 'Own Filler Live', '蓮ノ空'),
+    PLAYER1,
+    'p1-pb1-012-own-filler'
+  );
+  const opponentDeckFiller = createCardInstance(
+    createLiveCard('PL!HS-test-pb1-012-opponent-filler', 'Opponent Filler Live', '蓮ノ空'),
+    PLAYER2,
+    'p2-pb1-012-opponent-filler'
+  );
+  const liveTarget = config.includeLiveTarget
+    ? createCardInstance(
+        createLiveCard('PL!HS-test-pb1-012-live', 'Recoverable Live', '蓮ノ空'),
+        PLAYER1,
+        'p1-pb1-012-live'
+      )
+    : null;
+
+  const registeredState = registerCards(session.state!, [
+    ginko,
+    ...ownMembers,
+    ...opponentMembers,
+    ownDeckFiller,
+    opponentDeckFiller,
+    ...(liveTarget ? [liveTarget] : []),
+  ]);
+  const activeEnergyCardIds = [...registeredState.cardRegistry.values()]
+    .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.ENERGY)
+    .map((card) => card.instanceId)
+    .slice(0, 13);
+
+  let preparedState = updatePlayer(registeredState, PLAYER1, (player) => ({
+    ...player,
+    hand: { ...player.hand, cardIds: [ginko.instanceId] },
+    mainDeck: { ...player.mainDeck, cardIds: [ownDeckFiller.instanceId] },
+    waitingRoom: {
+      ...player.waitingRoom,
+      cardIds: [
+        ...ownMembers.map((card) => card.instanceId),
+        ...(liveTarget ? [liveTarget.instanceId] : []),
+      ],
+    },
+    successZone: { ...player.successZone, cardIds: [] },
+    liveZone: { ...player.liveZone, cardIds: [] },
+    energyDeck: { ...player.energyDeck, cardIds: [] },
+    energyZone: {
+      ...player.energyZone,
+      cardIds: activeEnergyCardIds,
+      cardStates: new Map(
+        activeEnergyCardIds.map((cardId) => [
+          cardId,
+          { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+        ])
+      ),
+    },
+    memberSlots: {
+      ...player.memberSlots,
+      slots: {
+        ...player.memberSlots.slots,
+        [SlotPosition.CENTER]: null,
+      },
+    },
+  }));
+  preparedState = updatePlayer(preparedState, PLAYER2, (player) => ({
+    ...player,
+    hand: { ...player.hand, cardIds: [] },
+    mainDeck: { ...player.mainDeck, cardIds: [opponentDeckFiller.instanceId] },
+    waitingRoom: {
+      ...player.waitingRoom,
+      cardIds: opponentMembers.map((card) => card.instanceId),
+    },
+    successZone: { ...player.successZone, cardIds: [] },
+    liveZone: { ...player.liveZone, cardIds: [] },
+  }));
+  (session as unknown as { authorityState: GameState }).authorityState = preparedState;
+
+  const playResult = session.executeCommand(
+    createPlayMemberToSlotCommand(PLAYER1, ginko.instanceId, SlotPosition.CENTER)
+  );
+  expect(playResult.success).toBe(true);
+
+  return { session, ginko, ownMembers, opponentMembers, ownDeckFiller, opponentDeckFiller, liveTarget };
 }
 
 function removeFromPlayerZones(player: {
@@ -9184,6 +9320,143 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([discardCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([kahoCardId]);
+  });
+
+  it('executes PL!HS-pb1-012-R on-enter recycle, recovers a Live, and gains Blade', () => {
+    const { session, ginko, ownMembers, opponentMembers, ownDeckFiller, opponentDeckFiller, liveTarget } =
+      setupHsPb1012OnEnterScenario({
+        ownMemberCount: 12,
+        opponentMemberCount: 8,
+        includeLiveTarget: true,
+      });
+
+    expect(liveTarget).not.toBeNull();
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableOptions).toEqual([
+      { id: 'continue', label: '继续处理' },
+    ]);
+
+    const recycleResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        'continue'
+      )
+    );
+
+    expect(recycleResult.success).toBe(true);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([liveTarget!.instanceId]);
+    expect(session.state?.players[1].waitingRoom.cardIds).toEqual([]);
+    expect(new Set(session.state?.players[0].mainDeck.cardIds)).toEqual(
+      new Set([ownDeckFiller.instanceId, ...ownMembers.map((card) => card.instanceId)])
+    );
+    expect(new Set(session.state?.players[1].mainDeck.cardIds)).toEqual(
+      new Set([opponentDeckFiller.instanceId, ...opponentMembers.map((card) => card.instanceId)])
+    );
+    expect(session.state?.activeEffect?.stepId).toBe('HS_PB1_012_SELECT_WAITING_ROOM_LIVE');
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([liveTarget!.instanceId]);
+
+    const recoverResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        liveTarget!.instanceId
+      )
+    );
+
+    expect(recoverResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([liveTarget!.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId: ginko.instanceId,
+      abilityId: HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, ginko.instanceId)).toBe(5);
+  });
+
+  it('grants PL!HS-pb1-012-R Blade even when no waiting-room Live can be recovered', () => {
+    const { session, ginko, ownMembers, opponentMembers, ownDeckFiller, opponentDeckFiller } =
+      setupHsPb1012OnEnterScenario({
+        ownMemberCount: 10,
+        opponentMemberCount: 10,
+        includeLiveTarget: false,
+      });
+
+    const recycleResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        'continue'
+      )
+    );
+
+    expect(recycleResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(new Set(session.state?.players[0].mainDeck.cardIds)).toEqual(
+      new Set([ownDeckFiller.instanceId, ...ownMembers.map((card) => card.instanceId)])
+    );
+    expect(new Set(session.state?.players[1].mainDeck.cardIds)).toEqual(
+      new Set([opponentDeckFiller.instanceId, ...opponentMembers.map((card) => card.instanceId)])
+    );
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId: ginko.instanceId,
+      abilityId: HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
+    });
+  });
+
+  it('recycles PL!HS-pb1-012-R waiting-room members without recovery or Blade below twenty total cards', () => {
+    const { session, ownMembers, opponentMembers, ownDeckFiller, opponentDeckFiller, liveTarget } =
+      setupHsPb1012OnEnterScenario({
+        ownMemberCount: 10,
+        opponentMemberCount: 9,
+        includeLiveTarget: true,
+      });
+
+    const recycleResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        'continue'
+      )
+    );
+
+    expect(recycleResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([liveTarget!.instanceId]);
+    expect(new Set(session.state?.players[0].mainDeck.cardIds)).toEqual(
+      new Set([ownDeckFiller.instanceId, ...ownMembers.map((card) => card.instanceId)])
+    );
+    expect(new Set(session.state?.players[1].mainDeck.cardIds)).toEqual(
+      new Set([opponentDeckFiller.instanceId, ...opponentMembers.map((card) => card.instanceId)])
+    );
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId ===
+            HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID
+      )
+    ).toBe(false);
   });
 
   it('executes PL!HS-bp6-031-L live-start recycle and grants Blade to selected Hime', () => {

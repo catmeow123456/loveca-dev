@@ -21,6 +21,14 @@
 
 - `myk_20260611`
 
+## 本次 2026-06-15 快速卡效批处理：`PL!HS-pb1-012-R` 费用 13「百生吟子」
+
+- 已完成 `PL!HS-pb1-012-R / P+` 登场效果：自己和对方各自将休息室所有成员卡洗牌放到自身卡组底；若双方因此合计放到底部的卡片大于等于 20 张，则从自己的休息室回收 1 张 LIVE，并通过 `BLADE` live modifier 获得 BLADE +2。
+- 规则细节：中文/日文同编号文本一致，按基础编号 `PL!HS-pb1-012` 登记；FAQ 路径已覆盖“没有可回收 LIVE 时仍获得 BLADE”。
+- 复用范围：继续沿用 `shuffleZone`、`WAITING_ROOM -> HAND` zone-selection、`addLiveModifier(BLADE)` 与现有登场队列；未新增 resolver / cost calculator / live modifier registry 结构。
+- Focused 验证：`tests/unit/card-effect-classification.test.ts` 覆盖同编号 `R / P+` 基础编号登记；`tests/integration/sample-card-effect-runner.test.ts` 覆盖双方合计 20 张且回收 LIVE、合计 20 张但无 LIVE 仍加 BLADE、合计不足 20 时不回收不加 BLADE。
+- 实时同步：已更新 `docs/card-effect-reuse-audit/existing_module_map.md`；按快速批处理节奏，本窗口未改设计/覆盖/gap 大文档。
+
 ## 本次 2026-06-14 低风险同型 LIVE 开始扩样本（基于 `PL!-bp4-010-N`）
 
 - 收束范围：

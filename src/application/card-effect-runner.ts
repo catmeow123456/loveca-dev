@@ -240,6 +240,8 @@ export const HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID =
   'PL!HS-bp6-027-L:on-cheer-send-non-blade-hasunosora-additional-cheer';
 export const HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp6-031-L:live-start-recycle-miracra-members-gain-blade';
+export const HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID =
+  'PL!HS-pb1-012-R:on-enter-recycle-members-recover-live-gain-blade';
 
 export enum CardAbilityCategory {
   CONTINUOUS = 'CONTINUOUS',
@@ -391,6 +393,8 @@ const HS_BP6_027_ON_CHEER_EFFECT_TEXT =
   '【自动】【1回合1次】自己进行声援时，可以将至多3张因声援被公开的自己的不持有BLADE HEART的「莲之空」卡片放置入休息室。如此做的场合，额外进行等于因此放置入休息室的卡片张数的次数的声援。';
 const HS_BP6_031_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将自己休息室所有成员卡洗牌后放到卡组底。若因此将15张以上『みらくらぱーく！』成员卡放到卡组底，LIVE结束时为止，自己舞台1名「安养寺姬芽」获得BLADE +3。';
+const HS_PB1_012_ON_ENTER_EFFECT_TEXT =
+  '【登场】自己和对方分别将存在于自身休息室的所有成员卡洗牌，放置入自身的卡组底。合计大于等于20张自己与对方的卡片因此被放置入卡组底的场合，从自己的休息室将1张LIVE卡加入手牌，LIVE结束时为止，获得[BLADE][BLADE]。';
 const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
 const DISCARD_HAND_TO_ACTIVATE_STEP_TEXT = '请选择要放置入休息室的手牌。也可以选择不发动此效果。';
 const DECLINE_OPTION_LABEL = '不发动';
@@ -406,6 +410,8 @@ const HS_BP6_027_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID =
   'HS_BP6_027_SELECT_REVEALED_CHEER_TO_WAITING_ROOM';
 const HS_BP6_031_RECYCLE_OPTION_STEP_ID = 'HS_BP6_031_RECYCLE_MEMBERS_OPTION';
 const HS_BP6_031_SELECT_HIME_TARGET_STEP_ID = 'HS_BP6_031_SELECT_HIME_BLADE_TARGET';
+const HS_PB1_012_RECYCLE_CONFIRM_STEP_ID = 'HS_PB1_012_RECYCLE_MEMBERS_CONFIRM';
+const HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'HS_PB1_012_SELECT_WAITING_ROOM_LIVE';
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 const CHISATO_LIVE_START_ACTIVATE_STEP_ID = 'CHISATO_LIVE_START_ACTIVATE_ALL';
 const EMMA_SELECT_TARGET_TYPE_STEP_ID = 'EMMA_SELECT_ACTIVATE_TARGET_TYPE';
@@ -1278,6 +1284,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HS_BP6_031_LIVE_START_EFFECT_TEXT,
     notes:
       'LIVE 开始时可将自己休息室全部成员洗回主卡组底；若其中みらくらぱーく！成员>=15，则选择舞台安养寺姬芽写入 BLADE live modifier。',
+  },
+  {
+    abilityId: HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-pb1-012'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_PB1_012_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '登场时双方各自将休息室成员洗回主卡组底；合计>=20时复用 WAITING_ROOM -> HAND 回收自己休息室LIVE，并通过 BLADE live modifier 获得+2。无LIVE目标时仍获得BLADE。',
   },
   {
     abilityId: HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
@@ -2807,6 +2825,22 @@ export function confirmActiveEffectStep(
   }
 
   if (
+    effect.abilityId === HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID &&
+    effect.stepId === HS_PB1_012_RECYCLE_CONFIRM_STEP_ID
+  ) {
+    return selectedOptionId === 'continue'
+      ? finishHsPb1012RecycleWaitingRoomMembers(game)
+      : game;
+  }
+
+  if (
+    effect.abilityId === HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID &&
+    effect.stepId === HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID
+  ) {
+    return finishHsPb1012RecoverLiveAndGainBlade(game, selectedCardId ?? null);
+  }
+
+  if (
     effect.abilityId === KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID &&
     effect.stepId === KEKE_SELECT_DISCARD_STEP_ID
   ) {
@@ -3339,6 +3373,8 @@ function startPendingAbilityEffect(
       return startHsBp6027TsukiyomiOnCheerAdditionalCheer(game, ability, options);
     case HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID:
       return startHsBp6031LiveStartRecycleMembers(game, ability, options);
+    case HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID:
+      return startHsPb1012OnEnterRecycleMembers(game, ability, options);
     case HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID:
       return startDrawThenDiscardCardsEffect(game, {
         ability,
@@ -7162,6 +7198,223 @@ function finishHsBp6031SelectHimeBladeTarget(
   );
 }
 
+function startHsPb1012OnEnterRecycleMembers(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: StartPendingAbilityEffectOptions = {}
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  const opponent = player ? getOpponent(game, player.id) : null;
+  if (!player) {
+    return game;
+  }
+
+  const ownWaitingRoomMemberCardIds = getWaitingRoomMemberCardIds(game, player.id);
+  const opponentWaitingRoomMemberCardIds = opponent
+    ? getWaitingRoomMemberCardIds(game, opponent.id)
+    : [];
+  const totalWaitingRoomMemberCount =
+    ownWaitingRoomMemberCardIds.length + opponentWaitingRoomMemberCardIds.length;
+
+  return addAction(
+    {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      activeEffect: {
+        id: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        controllerId: ability.controllerId,
+        effectText: HS_PB1_012_ON_ENTER_EFFECT_TEXT,
+        stepId: HS_PB1_012_RECYCLE_CONFIRM_STEP_ID,
+        stepText: `双方将休息室成员洗回卡组底：自己${ownWaitingRoomMemberCardIds.length}张，对方${opponentWaitingRoomMemberCardIds.length}张，合计${totalWaitingRoomMemberCount}张。`,
+        awaitingPlayerId: player.id,
+        selectableOptions: [{ id: 'continue', label: '继续处理' }],
+        metadata: {
+          orderedResolution: options.orderedResolution === true,
+          ownWaitingRoomMemberCardIds,
+          opponentWaitingRoomMemberCardIds,
+          totalWaitingRoomMemberCount,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'START_RECYCLE_BOTH_WAITING_ROOM_MEMBERS',
+      ownWaitingRoomMemberCardIds,
+      opponentWaitingRoomMemberCardIds,
+      totalWaitingRoomMemberCount,
+    }
+  );
+}
+
+function finishHsPb1012RecycleWaitingRoomMembers(game: GameState): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !==
+      HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID ||
+    effect.stepId !== HS_PB1_012_RECYCLE_CONFIRM_STEP_ID
+  ) {
+    return game;
+  }
+
+  const player = getPlayerById(game, effect.controllerId);
+  const opponent = player ? getOpponent(game, player.id) : null;
+  if (!player) {
+    return game;
+  }
+
+  const ownRecycleResult = moveWaitingRoomMembersToDeckBottomShuffled(game, player.id);
+  const opponentRecycleResult = opponent
+    ? moveWaitingRoomMembersToDeckBottomShuffled(ownRecycleResult.gameState, opponent.id)
+    : { gameState: ownRecycleResult.gameState, movedMemberCardIds: [], miraCraMemberCount: 0 };
+  const movedOwnMemberCardIds = ownRecycleResult.movedMemberCardIds;
+  const movedOpponentMemberCardIds = opponentRecycleResult.movedMemberCardIds;
+  const totalMovedMemberCount = movedOwnMemberCardIds.length + movedOpponentMemberCardIds.length;
+  const baseAction = {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    movedOwnMemberCardIds,
+    movedOpponentMemberCardIds,
+    totalMovedMemberCount,
+  };
+
+  if (totalMovedMemberCount < 20) {
+    const state = { ...opponentRecycleResult.gameState, activeEffect: null };
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        ...baseAction,
+        step: 'RECYCLE_MEMBERS_CONDITION_NOT_MET',
+      }),
+      isOrderedResolutionEffect(game)
+    );
+  }
+
+  const selectableLiveCardIds = selectWaitingRoomCardIds(
+    opponentRecycleResult.gameState,
+    player.id,
+    typeIs(CardType.LIVE)
+  );
+  if (selectableLiveCardIds.length === 0) {
+    const stateAfterModifier = addHsPb1012BladeModifier(
+      opponentRecycleResult.gameState,
+      effect,
+      player.id
+    );
+    const state = { ...stateAfterModifier, activeEffect: null };
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        ...baseAction,
+        step: 'RECYCLE_MEMBERS_NO_LIVE_TARGET_GAIN_BLADE',
+        bladeBonus: 2,
+      }),
+      isOrderedResolutionEffect(game)
+    );
+  }
+
+  const zoneSelection = createWaitingRoomToHandSelectionConfig({
+    minCount: 1,
+    maxCount: 1,
+    optional: false,
+  });
+  return addAction(
+    {
+      ...opponentRecycleResult.gameState,
+      activeEffect: createWaitingRoomToHandEffectState({
+        id: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        controllerId: effect.controllerId,
+        effectText: HS_PB1_012_ON_ENTER_EFFECT_TEXT,
+        stepId: HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID,
+        stepText: '请选择自己的休息室中1张LIVE卡加入手牌。之后获得BLADE +2。',
+        awaitingPlayerId: player.id,
+        selectableCardIds: selectableLiveCardIds,
+        canSkipSelection: false,
+        metadata: {
+          orderedResolution: isOrderedResolutionEffect(game),
+          movedOwnMemberCardIds,
+          movedOpponentMemberCardIds,
+          totalMovedMemberCount,
+        },
+        zoneSelection,
+      }),
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      ...baseAction,
+      step: 'RECYCLE_MEMBERS_SELECT_WAITING_ROOM_LIVE',
+      selectableCardIds: selectableLiveCardIds,
+    }
+  );
+}
+
+function finishHsPb1012RecoverLiveAndGainBlade(
+  game: GameState,
+  selectedCardId: string | null
+): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !==
+      HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID ||
+    effect.stepId !== HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID ||
+    selectedCardId === null ||
+    effect.selectableCardIds?.includes(selectedCardId) !== true
+  ) {
+    return game;
+  }
+
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const zoneSelection = getZoneSelectionConfig(effect);
+  const movedState = moveSelectedCardsFromZone(game, player.id, [selectedCardId], zoneSelection);
+  if (!movedState) {
+    return game;
+  }
+
+  const stateAfterModifier = addHsPb1012BladeModifier(movedState, effect, player.id);
+  const state = { ...stateAfterModifier, activeEffect: null };
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'RECOVER_LIVE_GAIN_BLADE',
+      selectedCardId,
+      movedOwnMemberCardIds: effect.metadata?.movedOwnMemberCardIds,
+      movedOpponentMemberCardIds: effect.metadata?.movedOpponentMemberCardIds,
+      totalMovedMemberCount: effect.metadata?.totalMovedMemberCount,
+      bladeBonus: 2,
+    }),
+    isOrderedResolutionEffect(game)
+  );
+}
+
+function addHsPb1012BladeModifier(
+  game: GameState,
+  effect: ActiveEffectState,
+  playerId: string
+): GameState {
+  return addLiveModifier(game, {
+    kind: 'BLADE',
+    playerId,
+    countDelta: 2,
+    sourceCardId: effect.sourceCardId,
+    abilityId: effect.abilityId,
+  });
+}
+
 function moveWaitingRoomMembersToDeckBottomShuffled(
   game: GameState,
   playerId: string
@@ -7203,6 +7456,18 @@ function moveWaitingRoomMembersToDeckBottomShuffled(
     movedMemberCardIds: shuffledMemberCardIds,
     miraCraMemberCount,
   };
+}
+
+function getWaitingRoomMemberCardIds(game: GameState, playerId: string): readonly string[] {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return [];
+  }
+
+  return player.waitingRoom.cardIds.filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return card !== null && isMemberCardData(card.data);
+  });
 }
 
 function countMiraCraMemberCards(game: GameState, cardIds: readonly string[]): number {
