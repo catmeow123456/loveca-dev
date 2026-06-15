@@ -148,7 +148,7 @@ defineAbility({
 
 当前状态：
 
-- `CARD_ABILITY_DEFINITIONS` 已经是雏形。
+- `CARD_ABILITY_DEFINITIONS` 已从 runner 拆到 `src/application/card-effects/definitions/index.ts`；ability id 在 `src/application/card-effects/ability-ids.ts`，definition 类型在 `src/application/card-effects/ability-definition-types.ts`。
 - 仍需要把 resolver dispatch 从大量 `switch abilityId` 逐步变成按 `steps` 执行。
 
 ### 4.2 Event and trigger layer

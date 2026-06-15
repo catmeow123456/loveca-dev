@@ -69,7 +69,8 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 游戏状态实体：`src/domain/entities/game.ts`
 - 区域/卡牌状态：`src/domain/entities/zone.ts`
 - 费用计算入口：`src/domain/rules/cost-calculator.ts`
-- 样例卡效入口：`src/application/card-effect-runner.ts`
+- 卡效定义入口：`src/application/card-effects/definitions/index.ts`
+- 样例卡效执行入口：`src/application/card-effect-runner.ts`
 - 联机/前端视图投影：`src/online/projector.ts`
 - 前端 store：`client/src/store/gameStore.ts`
 - 主桌面：`client/src/components/game/GameBoard.tsx`
@@ -80,8 +81,8 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 规则状态必须通过 `GameSession` / `GameService` / command 层改变，不要让 React 组件直接改权威状态。
 - 不要在 React 组件里硬写具体卡效。
 - 不要在 action handler 里散落具体卡效。
-- 具体卡效目前集中在 `card-effect-runner.ts` 做样例实现，后续应逐步抽象成可扩展 runner。
-- 新增卡效前先在 `card-effect-runner.ts` 的 `CARD_ABILITY_DEFINITIONS` 中按规则分类登记，不要先写单卡散逻辑。
+- 具体卡效定义层目前集中在 `src/application/card-effects/definitions/index.ts`；执行、入队、pending 与 resolver 流程仍集中在 `card-effect-runner.ts`，后续应继续逐步抽象成可扩展 runner。
+- 新增卡效前先在 `CARD_ABILITY_DEFINITIONS` 中按规则分类登记，不要先写单卡散逻辑。
 - 新增卡效时必须先用 `llocg_db/json/cards_cn.json` 或本地卡牌数据确认同基础编号的全部罕度。若同基础编号不同罕度效果文本一致，优先在 `CARD_ABILITY_DEFINITIONS.baseCardCodes` 登记基础编号，并在 resolver / cost calculator / live modifier registry 中使用基础编号判断；不要只给单一罕度写 `cardCodes` 或硬编码 `cardCode === '...-P'`。若只覆盖部分罕度，必须在 `existing_module_map.md` 说明原因。`tests/unit/card-effect-rarity-sync.test.ts` 会阻止 exact `cardCodes` 漏同步同编号罕度。
 - 需要隐藏信息时，以 `projector` / visibility / inspection context 控制前端可见性。
 - 本地测试和正式网页桌面应尽量复用同一套组件和命令，不做“双轨 UI”。

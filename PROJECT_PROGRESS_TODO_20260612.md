@@ -185,6 +185,12 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 本地测试桌面已经进入“LIVE 自动判定 + 卡效分类底座”阶段。
 
+## 本次 2026-06-15 卡效定义层拆文件
+
+- `CARD_ABILITY_DEFINITIONS`、卡面效果文本、能力 id 与 definition 类型已从 `src/application/card-effect-runner.ts` 拆到 `src/application/card-effects/` 下。
+- `card-effect-runner.ts` 继续保留入队、pending、resolver dispatch、执行流程与步骤解释逻辑；行为预期不变。
+- 本次未做声明式 steps 迁移，也未调整费用期间事件消费时机。
+
 目前已完成的核心方向：
 
 - 对局前端已新增可剥离的卡效自动化视觉标记：正面已自动化卡牌在卡顶中间显示约 4px 小点与 1px 圆角外描边，当前正在处理/可发动时变亮；标记只在 `PlayerArea` 等对局组件中通过 `Card.effectVisualState` 传入，不进入卡牌数据库。控制入口为 `client/src/lib/cardEffectAutomationVisuals.ts`，默认开启，可用 `VITE_CARD_EFFECT_VISUAL_MARKERS=false` / `0` / `off` 关闭；后续若全卡效完成后想剥离，删除该 helper、`CardEffectMarker`、`Card.effectVisualState` prop 和 `PlayerArea` 传参即可。
@@ -198,7 +204,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 ## 卡效分类与底座
 
-`card-effect-runner.ts` 已建立 `CARD_ABILITY_DEFINITIONS` 登记入口。新增卡效前先登记分类，不要直接写单卡散逻辑。
+`src/application/card-effects/definitions/index.ts` 已建立 `CARD_ABILITY_DEFINITIONS` 登记入口。新增卡效前先登记分类，不要直接写单卡散逻辑；`card-effect-runner.ts` 仍负责执行与 resolver dispatch。
 
 2026-06-14 起，连续新增多张卡效时采用“快速卡效批处理模式”：每张卡/每个效果段实时更新 `docs/card-effect-reuse-audit/existing_module_map.md`、focused tests 与本 progress 的短记录；`card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`card_effect_batch_expansions.md`、`module_gap_list.md`、`safe_refactor_plan.md` 等设计/覆盖/gap 文档默认不随每张卡更新。若引入新抽象、新模块、新事件边界，或改变 resolver / cost calculator / live modifier registry / 同编号罕度同步机制，则仍需在同一批内同步更新相关文档。若只是复用既有模块追加同构卡效，即使连续做 5-10 张，也先保持主登记册、progress 与测试准确；等用户明确要求“这批收束/提交”时，再做一次批末摘要式收束，避免全文扫描式重写。
 

@@ -120,6 +120,35 @@ const HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_CARD_CODES = [
 ] as const;
 
 describe('card effect classification registry', () => {
+  it('keeps ability definitions addressable with visible effect text', () => {
+    const definitionsByAbilityId = new Map<
+      string,
+      { readonly baseCardCodes?: readonly string[]; readonly effectText: string }
+    >();
+
+    for (const ability of CARD_ABILITY_DEFINITIONS) {
+      expect(ability.abilityId.trim().length).toBeGreaterThan(0);
+      expect(ability.effectText.trim().length).toBeGreaterThan(0);
+
+      const existingDefinition = definitionsByAbilityId.get(ability.abilityId);
+      if (existingDefinition) {
+        expect(ability.effectText).toBe(existingDefinition.effectText);
+        expect(ability.baseCardCodes ?? []).toEqual(existingDefinition.baseCardCodes ?? []);
+      } else {
+        definitionsByAbilityId.set(ability.abilityId, {
+          baseCardCodes: ability.baseCardCodes,
+          effectText: ability.effectText,
+        });
+      }
+
+      if (ability.activatedUi) {
+        expect(ability.activatedUi.abilityId).toBe(ability.abilityId);
+        expect(ability.activatedUi.text.trim().length).toBeGreaterThan(0);
+        expect(ability.activatedUi.title.trim().length).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it('classifies current sample effects by rule timing and source zone', () => {
     const hs006 = getCardAbilityDefinitions('PL!HS-bp1-006-P').find(
       (ability) => ability.abilityId === HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID
