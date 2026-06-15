@@ -265,7 +265,26 @@ export interface MemberStateChangedEvent extends BaseGameEvent {
   readonly previousOrientation: OrientationState;
   /** 新方向状态 */
   readonly nextOrientation: OrientationState;
+  /** 状态变化来源（玩家操作、规则处理、卡片效果等） */
+  readonly cause?: MemberStateChangeCause;
 }
+
+export type MemberStateChangeCause =
+  | {
+      readonly kind: 'PLAYER_ACTION';
+      readonly playerId: string;
+    }
+  | {
+      readonly kind: 'RULE_ACTION';
+      readonly playerId: string;
+    }
+  | {
+      readonly kind: 'CARD_EFFECT';
+      readonly playerId: string;
+      readonly sourceCardId: string;
+      readonly abilityId?: string;
+      readonly pendingAbilityId?: string;
+    };
 
 /**
  * 成员区域移动事件（站位变换/交换）
@@ -641,7 +660,8 @@ export function createMemberStateChangedEvent(
   controllerId: string,
   slot: SlotPosition,
   previousOrientation: OrientationState,
-  nextOrientation: OrientationState
+  nextOrientation: OrientationState,
+  cause?: MemberStateChangeCause
 ): MemberStateChangedEvent {
   return {
     eventId: generateEventId(),
@@ -652,6 +672,7 @@ export function createMemberStateChangedEvent(
     slot,
     previousOrientation,
     nextOrientation,
+    cause,
     triggerPlayerId: controllerId,
   };
 }

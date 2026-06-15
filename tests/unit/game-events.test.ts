@@ -4,8 +4,16 @@ import {
   createDrawEvent,
   createEnterStageEvent,
   createLeaveStageEvent,
+  createLiveStartEvent,
+  createLiveSuccessEvent,
+  createMemberStateChangedEvent,
 } from '../../src/domain/events/game-events';
-import { SlotPosition, ZoneType } from '../../src/shared/types/enums';
+import {
+  OrientationState,
+  SlotPosition,
+  TriggerCondition,
+  ZoneType,
+} from '../../src/shared/types/enums';
 
 describe('game event log', () => {
   it('starts empty on a new game state', () => {
@@ -66,6 +74,63 @@ describe('game event log', () => {
 
     expect(nextGame.actionHistory).toEqual([]);
     expect(nextGame.actionSequence).toBe(0);
+  });
+
+  it('records live start event facts for trigger matching', () => {
+    const event = createLiveStartEvent('p1', ['live-1', 'live-2']);
+
+    expect(event).toMatchObject({
+      eventType: TriggerCondition.ON_LIVE_START,
+      performerId: 'p1',
+      liveCardIds: ['live-1', 'live-2'],
+      triggerPlayerId: 'p1',
+    });
+  });
+
+  it('records live success event facts for trigger matching', () => {
+    const event = createLiveSuccessEvent('p1', ['live-1', 'live-2'], 6);
+
+    expect(event).toMatchObject({
+      eventType: TriggerCondition.ON_LIVE_SUCCESS,
+      playerId: 'p1',
+      successfulLiveCardIds: ['live-1', 'live-2'],
+      score: 6,
+      triggerPlayerId: 'p1',
+    });
+  });
+
+  it('records member state changed event facts and cause context', () => {
+    const event = createMemberStateChangedEvent(
+      'member-1',
+      'p2',
+      SlotPosition.LEFT,
+      OrientationState.ACTIVE,
+      OrientationState.WAITING,
+      {
+        kind: 'CARD_EFFECT',
+        playerId: 'p1',
+        sourceCardId: 'source-member',
+        abilityId: 'ability-1',
+        pendingAbilityId: 'pending-1',
+      }
+    );
+
+    expect(event).toMatchObject({
+      eventType: TriggerCondition.ON_MEMBER_STATE_CHANGED,
+      cardInstanceId: 'member-1',
+      controllerId: 'p2',
+      slot: SlotPosition.LEFT,
+      previousOrientation: OrientationState.ACTIVE,
+      nextOrientation: OrientationState.WAITING,
+      triggerPlayerId: 'p2',
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: 'p1',
+        sourceCardId: 'source-member',
+        abilityId: 'ability-1',
+        pendingAbilityId: 'pending-1',
+      },
+    });
   });
 
   it('keeps relay replacement context on leave-stage events', () => {

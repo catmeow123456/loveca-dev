@@ -1819,10 +1819,15 @@ export class GameSession {
     if (!result.success) {
       return { success: false, gameState: state, error: result.error };
     }
+    const stateWithMemberStateTriggers = enqueueTriggeredCardEffects(
+      result.gameState,
+      [TriggerCondition.ON_MEMBER_STATE_CHANGED]
+    );
+    const abilityResult = resolvePendingCardEffects(stateWithMemberStateTriggers);
 
     return {
       success: true,
-      gameState: result.gameState,
+      gameState: abilityResult.gameState,
       declarationType: 'TAP_MEMBER',
       declarationPublicValue: command.slot,
     };

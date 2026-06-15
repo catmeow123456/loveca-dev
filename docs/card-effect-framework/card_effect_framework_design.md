@@ -163,9 +163,11 @@ defineAbility({
 
 - `GameState.eventLog` / `eventSequence` 与 `emitGameEvent` 已落地，作为后续 trigger matcher 的不可变事件事实来源；`actionHistory` 仍保留用于审计、投影与既有 fallback。
 - `EventBus` 保留为非权威运行时/调试工具，不作为规则触发、联机同步或回放来源。
-- `member-state.ts` 已在成员方向变化、成员槽位移动与交换时写入 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED`；普通 `MOVE_MEMBER_TO_SLOT` 也写入成员槽位移动事件。`enqueueTriggeredCardEffects` 已开始消费 `ON_MEMBER_SLOT_MOVED`。
+- `member-state.ts` 已在成员方向变化、成员槽位移动与交换时写入 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED`；普通 `TAP_MEMBER` 与活跃阶段重置也会写入成员状态变化事件，普通 `MOVE_MEMBER_TO_SLOT` 也写入成员槽位移动事件。`enqueueTriggeredCardEffects` 已开始消费 `ON_MEMBER_STATE_CHANGED` 与 `ON_MEMBER_SLOT_MOVED`。
 - `ON_ENTER_STAGE` 已开始消费 `eventLog`：普通手牌登场写入 `EnterStageEvent(fromZone=HAND)`，卡效从休息室登场写入 `EnterStageEvent(fromZone=WAITING_ROOM)`；入队仍保留 action-history fallback。
 - `ON_LEAVE_STAGE` 已开始消费 `eventLog`：普通舞台成员进休息室、换手替换离场、自送休息室费用会写入 `LeaveStageEvent`；入队仍保留 action-history fallback。
+- `ON_LIVE_START` 已开始消费 `eventLog`：PERFORMANCE 阶段翻开 LIVE 后写入 `LiveStartEvent(performerId, liveCardIds)`，LIVE 开始队列优先使用该事件的表演者、LIVE 卡列表与 `eventId`，仍保留旧 synthetic fallback。
+- `ON_LIVE_SUCCESS` 已开始消费 `eventLog`：LIVE 成功效果窗口写入 `LiveSuccessEvent(playerId, successfulLiveCardIds, score)`，LIVE 成功队列优先使用该事件的成功玩家、成功 LIVE 卡列表与 `eventId`，仍保留 `liveResults` 推导 fallback。
 
 必要事件示例：
 
@@ -433,13 +435,15 @@ P0/P1 覆盖：
 
 当前决策：
 
-- 2026-06-15 已新增 `GameState.eventLog` / `eventSequence` 与 `emitGameEvent`，并让 `member-state.ts` 对成员状态变化、站位变换与成员交换写入 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED`。同日已接入 `ON_MEMBER_SLOT_MOVED` 的最小消费路径，`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」验证自身登场或成员区移动后横置对方原本 BLADE <= 3 成员。
+- 2026-06-15 已新增 `GameState.eventLog` / `eventSequence` 与 `emitGameEvent`，并让 `member-state.ts`、普通 `TAP_MEMBER` 与活跃阶段重置对成员状态变化写入 `ON_MEMBER_STATE_CHANGED`，成员状态变化事件可携带 `PLAYER_ACTION` / `RULE_ACTION` / `CARD_EFFECT` cause；站位变换与成员交换写入 `ON_MEMBER_SLOT_MOVED`。同日已接入 `ON_MEMBER_STATE_CHANGED` 与 `ON_MEMBER_SLOT_MOVED` 的最小消费路径：`PL!N-bp4-018-N` 验证自身 `ACTIVE -> WAITING` 时抽 1 弃 1，`PL!-pb1-015-P＋/R` 验证自己的卡效使对方费用 <= 4 成员 `ACTIVE -> WAITING` 时抽 1，`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」验证自身登场或成员区移动后横置对方原本 BLADE <= 3 成员。
 - 2026-06-15 已把 `ON_ENTER_STAGE` 主路径接入 `eventLog`：普通手牌登场与卡效从休息室登场均写入 `EnterStageEvent`，`enqueueTriggeredCardEffects` 优先从事件流入队。默认检查时机只消费最近登场事件，卡效登场显式传入本次新事件列表。
 - 2026-06-15 已把 `ON_LEAVE_STAGE` 主路径接入 `eventLog`：手动离场、换手替换离场与自送费用均写入 `LeaveStageEvent`，`enqueueTriggeredCardEffects` 优先从事件流入队。
+- 2026-06-15 已把 `ON_LIVE_START` 主路径接入 `eventLog`：LIVE 翻开后写入 `LiveStartEvent`，LIVE 开始 pending ability 的 `eventIds` 绑定真实事件 ID；`PL!HS-bp5-019-L` 分数 6「花结」验证 LIVE 卡来源，`PL!HS-bp6-004-R` 费用 13「百生 吟子」验证舞台成员来源同源双 LIVE 开始能力共享本次事件。
+- 2026-06-15 已把 `ON_LIVE_SUCCESS` 主路径接入 `eventLog`：成功效果窗口写入 `LiveSuccessEvent`，LIVE 成功 pending ability 的 `eventIds` 绑定真实事件 ID；`PL!HS-bp6-001` 费用 4「日野下花帆」验证舞台成员来源，`PL!HS-cl1-009` 分数 1「水彩世界」验证 LIVE 卡来源可只从事件事实入队。
 - 2026-06-13 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」最小起步：先支持 `ON_LEAVE_STAGE` 来源入队，证明舞台成员进休息室时的 AUTO 可以走待处理队列。
 - `PL!HS-bp6-017-N` 费用 11「日野下花帆」继续复用同一离场 AUTO 底座，并验证可选弃手后从休息室按类型分组回收 LIVE/成员各至多 1 张。
 - 2026-06-14 `PL!HS-sd1-001-SD` 费用 9「日野下花帆」为同一离场来源补了 `replacingCardId` 薄元数据；2026-06-15 起该元数据直接来自 `LeaveStageEvent`，入队前即可校验“曾与费用 >= 10 的莲之空成员换手”这类来源条件。
-- 当前触发入队仍是逐事件类型迁移；`ON_ENTER_STAGE`、`ON_MEMBER_SLOT_MOVED` 与 `ON_LEAVE_STAGE` 已优先扫描 `eventLog`，仍保留旧 action-history fallback。这还不是完整 `GameEvent -> trigger matcher`。
+- 当前触发入队仍是逐事件类型迁移；`ON_ENTER_STAGE`、`ON_MEMBER_STATE_CHANGED`、`ON_MEMBER_SLOT_MOVED`、`ON_LEAVE_STAGE`、`ON_LIVE_START` 与 `ON_LIVE_SUCCESS` 已优先扫描 `eventLog`，仍保留旧 fallback。这还不是完整 `GameEvent -> trigger matcher`。
 - 当同一动作同时产生离场 AUTO 与登场能力时，pending ability 顺序选择按同 controller 且同 timing、共享 eventId 或换手 `replacingCardId` 关系聚合，玩家可选择先后顺序。
 
 预留做法：

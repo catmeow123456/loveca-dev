@@ -27,6 +27,29 @@
 - 修复方式：`DebugControl` 外层改为 `pointer-events-none`，实际控制条保留 `pointer-events-auto`，不改变布局与控制条自身交互。
 - 验证：`pnpm --dir client exec tsc -b` passed；Playwright 临时脚本进入对墙打桌面后，左上角按钮上半区/中心/下半区/右侧 `elementFromPoint` 均命中按钮本身，点击按钮左上角内部位置可返回“游戏准备”页。
 
+## 本次 2026-06-15 `ON_MEMBER_STATE_CHANGED` 事件日志消费
+
+- `MemberStateChangedEvent` 现在可携带状态变化来源 `cause`，区分玩家操作、规则处理与卡片效果；普通 `TAP_MEMBER` 会写入 `PLAYER_ACTION`，活跃阶段将待机成员重置为活跃会写入 `RULE_ACTION`，卡效目标选择与自身方向费用会写入 `CARD_EFFECT`。
+- `enqueueTriggeredCardEffects(ON_MEMBER_STATE_CHANGED)` 已开始逐类型消费成员状态变化事件：默认取最近事件，卡效结算会显式传入本次新产生的状态变化事件。当前仍不是完整通用 `GameEvent -> trigger matcher`。
+- 已完成 `PL!N-bp4-018-N`：自己主要阶段中，此成员自身 `ACTIVE -> WAITING` 时抽 1 弃 1；通过手动 `TAP_MEMBER` 事件验证。
+- 已完成 `PL!-pb1-015-P＋ / R`：1 回合 1 次，因自己的卡片效果使对方舞台费用 <= 4 成员 `ACTIVE -> WAITING` 时抽 1；通过 `PL!HS-bp6-004-R` 让对方成员变待机验证 `CARD_EFFECT cause`。
+- 验证：`tests/unit/game-events.test.ts` + `tests/unit/member-state.test.ts` + `tests/unit/effect-costs.test.ts` + `tests/unit/card-effect-classification.test.ts` + `tests/integration/sample-card-effect-runner.test.ts` 共 156 tests passed；`tests/integration/online-command-pipeline.test.ts` 56 tests passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
+## 本次 2026-06-15 `ON_LIVE_START` 事件日志消费
+
+- 已先 `git fetch upstream` 并 fast-forward `effect_refactor_20260615` 到 `upstream/main` 的 `3abcb97`；确认 `6837c82ff3af6b34e4bd552c8d46fdae1fdc3ea4` 已在作者 `main` 中。
+- PERFORMANCE 阶段翻开 LIVE 卡并进入 LIVE 开始检查时机前，现在会写入 `LiveStartEvent(ON_LIVE_START)`，记录表演玩家与本次 LIVE 区卡牌 ID 列表。
+- `enqueueTriggeredCardEffects(ON_LIVE_START)` 改为优先消费 `eventLog` 中最近的 `LiveStartEvent` / 显式 `liveStartEvents`，并把 `PendingAbilityState.eventIds` 绑定真实 `eventId`；无事件时继续保留旧 synthetic `live-start:turn:player` fallback。
+- 回归覆盖 LIVE 卡来源 `PL!HS-bp5-019-L` 分数 6「花结」与舞台成员来源 `PL!HS-bp6-004-R` 费用 13「百生 吟子」：前者确认 LIVE 开始事件包含两张 LIVE 卡，后者确认同源双 LIVE 开始 pending ability 共享本次 `LiveStartEvent.eventId`。
+- 验证：`tests/unit/game-events.test.ts` + `tests/unit/member-state.test.ts` + `tests/unit/card-effect-classification.test.ts` + `tests/integration/sample-card-effect-runner.test.ts` 共 147 tests passed；同步前基线同套件 146 tests passed；`tests/integration/online-command-pipeline.test.ts` 56 tests passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
+## 本次 2026-06-15 `ON_LIVE_SUCCESS` 事件日志消费
+
+- LIVE 结果阶段进入某玩家成功效果窗口时，现在会写入 `LiveSuccessEvent(ON_LIVE_SUCCESS)`，记录成功玩家、本次成功 LIVE 卡列表与当前分数草案；同一玩家同一组成功 LIVE 已写过事件时不会重复写入。
+- `enqueueTriggeredCardEffects(ON_LIVE_SUCCESS)` 改为优先消费 `eventLog` 中最近的 `LiveSuccessEvent` / 显式 `liveSuccessEvents`，并把 `PendingAbilityState.eventIds` 绑定真实 `eventId`；无事件时继续保留旧 `liveResults` 推导与 synthetic fallback，兼容直接 `executeCheckTiming` 的测试/旧路径。
+- 回归覆盖 `LiveSuccessEvent` 工厂、真实阶段推进中二号玩家成功时的事件写入，以及只依赖 `LiveSuccessEvent`、不依赖 `liveResolution.liveResults` 时同时入队舞台成员来源 `PL!HS-bp6-001` 费用 4「日野下花帆」与 LIVE 卡来源 `PL!HS-cl1-009` 分数 1「水彩世界」。
+- 验证：`tests/unit/game-events.test.ts` + `tests/unit/member-state.test.ts` + `tests/unit/card-effect-classification.test.ts` + `tests/integration/sample-card-effect-runner.test.ts` 共 149 tests passed；`tests/integration/online-command-pipeline.test.ts` 56 tests passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
 ## 本次 2026-06-15 `ON_ENTER_STAGE` 事件日志消费
 
 - 普通 `PLAY_MEMBER` 手牌登场现在写入 `EnterStageEvent(fromZone=HAND)`；卡效 `playMembersFromWaitingRoomToEmptySlots` 从休息室登场现在写入 `EnterStageEvent(fromZone=WAITING_ROOM)`。

@@ -82,6 +82,9 @@ import {
 import type {
   EnterStageEvent,
   LeaveStageEvent,
+  LiveStartEvent,
+  LiveSuccessEvent,
+  MemberStateChangedEvent,
   MemberSlotMovedEvent,
 } from '../domain/events/game-events.js';
 import {
@@ -248,6 +251,10 @@ export const HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID
   'PL!HS-bp6-031-L:live-start-recycle-miracra-members-gain-blade';
 export const HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID =
   'PL!HS-pb1-012-R:on-enter-recycle-members-recover-live-gain-blade';
+export const N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID =
+  'PL!N-bp4-018-N:main-phase-active-to-waiting-draw-one-discard-one';
+export const PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID =
+  'PL!-pb1-015:own-effect-wait-opponent-low-cost-draw-one';
 
 export enum CardAbilityCategory {
   CONTINUOUS = 'CONTINUOUS',
@@ -403,6 +410,10 @@ const HS_BP6_031_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将自己休息室所有成员卡洗牌后放到卡组底。若因此将15张以上『みらくらぱーく！』成员卡放到卡组底，LIVE结束时为止，自己舞台1名「安养寺姬芽」获得BLADE +3。';
 const HS_PB1_012_ON_ENTER_EFFECT_TEXT =
   '【登场】自己和对方分别将存在于自身休息室的所有成员卡洗牌，放置入自身的卡组底。合计大于等于20张自己与对方的卡片因此被放置入卡组底的场合，从自己的休息室将1张LIVE卡加入手牌，LIVE结束时为止，获得[BLADE][BLADE]。';
+const N_BP4_018_ACTIVE_TO_WAITING_EFFECT_TEXT =
+  '【自动】自己主要阶段中，此成员从活跃状态变为待机状态时，抽1张卡，将1张手牌放置入休息室。';
+const PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_EFFECT_TEXT =
+  '【自动】[1回合1次]因自己的卡片效果，使对方舞台活跃状态且费用小于等于4的成员变为待机状态时，抽1张卡。';
 const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
 const DISCARD_HAND_TO_ACTIVATE_STEP_TEXT = '请选择要放置入休息室的手牌。也可以选择不发动此效果。';
 const DECLINE_OPTION_LABEL = '不发动';
@@ -420,6 +431,7 @@ const HS_BP6_031_RECYCLE_OPTION_STEP_ID = 'HS_BP6_031_RECYCLE_MEMBERS_OPTION';
 const HS_BP6_031_SELECT_HIME_TARGET_STEP_ID = 'HS_BP6_031_SELECT_HIME_BLADE_TARGET';
 const HS_PB1_012_RECYCLE_CONFIRM_STEP_ID = 'HS_PB1_012_RECYCLE_MEMBERS_CONFIRM';
 const HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'HS_PB1_012_SELECT_WAITING_ROOM_LIVE';
+const N_BP4_018_SELECT_DISCARD_STEP_ID = 'N_BP4_018_SELECT_DISCARD';
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 const CHISATO_LIVE_START_ACTIVATE_STEP_ID = 'CHISATO_LIVE_START_ACTIVATE_ALL';
 const EMMA_SELECT_TARGET_TYPE_STEP_ID = 'EMMA_SELECT_ACTIVATE_TARGET_TYPE';
@@ -541,11 +553,21 @@ interface MemberSlotMovedAbilitySource {
   readonly swappedCardInstanceId?: string;
 }
 
+interface MemberStateChangedAbilitySource {
+  readonly sourceCardId: string;
+  readonly controllerId: string;
+  readonly sourceSlot: SlotPosition;
+  readonly event: MemberStateChangedEvent;
+}
+
 interface EnqueueTriggeredCardEffectsOptions {
   readonly onEnterSources?: readonly OnEnterAbilitySource[];
   readonly enterStageEvents?: readonly EnterStageEvent[];
   readonly onLeaveStageSources?: readonly OnLeaveStageAbilitySource[];
   readonly leaveStageEvents?: readonly LeaveStageEvent[];
+  readonly liveStartEvents?: readonly LiveStartEvent[];
+  readonly liveSuccessEvents?: readonly LiveSuccessEvent[];
+  readonly memberStateChangedEvents?: readonly MemberStateChangedEvent[];
   readonly memberSlotMovedEvents?: readonly MemberSlotMovedEvent[];
 }
 
@@ -1338,6 +1360,31 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '登场时双方各自将休息室成员洗回主卡组底；合计>=20时复用 WAITING_ROOM -> HAND 回收自己休息室LIVE，并通过 BLADE live modifier 获得+2。无LIVE目标时仍获得BLADE。',
   },
   {
+    abilityId: N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
+    cardCodes: ['PL!N-bp4-018-N'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_MEMBER_STATE_CHANGED,
+    queued: true,
+    implemented: true,
+    effectText: N_BP4_018_ACTIVE_TO_WAITING_EFFECT_TEXT,
+    notes:
+      '消费 ON_MEMBER_STATE_CHANGED；仅自己主要阶段中此成员自身从 ACTIVE -> WAITING 时入队，效果复用抽1弃1 helper。',
+  },
+  {
+    abilityId: PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-015'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_MEMBER_STATE_CHANGED,
+    queued: true,
+    implemented: true,
+    effectText: PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_EFFECT_TEXT,
+    perTurnLimit: 1,
+    notes:
+      '消费带 CARD_EFFECT cause 的 ON_MEMBER_STATE_CHANGED；自己的卡效使对方费用<=4成员 ACTIVE -> WAITING 时抽1。',
+  },
+  {
     abilityId: HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
     baseCardCodes: ['PL!HS-bp5-008'],
     category: CardAbilityCategory.ON_ENTER,
@@ -1838,11 +1885,24 @@ export function enqueueTriggeredCardEffects(
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_LIVE_START)) {
-    state = enqueueLiveStartCardEffects(state);
+    state = enqueueLiveStartCardEffects(
+      state,
+      options.liveStartEvents ?? getLatestLiveStartEventsFromLog(state)
+    );
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_LIVE_SUCCESS)) {
-    state = enqueueLiveSuccessCardEffects(state);
+    state = enqueueLiveSuccessCardEffects(
+      state,
+      options.liveSuccessEvents ?? getLatestLiveSuccessEventsFromLog(state)
+    );
+  }
+
+  if (triggerConditions.includes(TriggerCondition.ON_MEMBER_STATE_CHANGED)) {
+    state = enqueueMemberStateChangedCardEffects(
+      state,
+      options.memberStateChangedEvents ?? getLatestMemberStateChangedEventsFromLog(state)
+    );
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_CHEER)) {
@@ -1881,6 +1941,34 @@ function getNewMemberSlotMovedEvents(
     );
 }
 
+function getMemberStateChangedEventsFromLog(game: GameState): readonly MemberStateChangedEvent[] {
+  return game.eventLog
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is MemberStateChangedEvent =>
+        event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED
+    );
+}
+
+function getLatestMemberStateChangedEventsFromLog(game: GameState): readonly MemberStateChangedEvent[] {
+  const events = getMemberStateChangedEventsFromLog(game);
+  const latestEvent = events.at(-1);
+  return latestEvent ? [latestEvent] : [];
+}
+
+function getNewMemberStateChangedEvents(
+  before: GameState,
+  after: GameState
+): readonly MemberStateChangedEvent[] {
+  return after.eventLog
+    .slice(before.eventLog.length)
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is MemberStateChangedEvent =>
+        event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED
+    );
+}
+
 function getEnterStageEventsFromLog(game: GameState): readonly EnterStageEvent[] {
   return game.eventLog
     .map((entry) => entry.event)
@@ -1915,6 +2003,36 @@ function getLeaveStageEventsFromLog(game: GameState): readonly LeaveStageEvent[]
     );
 }
 
+function getLiveStartEventsFromLog(game: GameState): readonly LiveStartEvent[] {
+  return game.eventLog
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is LiveStartEvent =>
+        event.eventType === TriggerCondition.ON_LIVE_START
+    );
+}
+
+function getLatestLiveStartEventsFromLog(game: GameState): readonly LiveStartEvent[] {
+  const liveStartEvents = getLiveStartEventsFromLog(game);
+  const latestEvent = liveStartEvents.at(-1);
+  return latestEvent ? [latestEvent] : [];
+}
+
+function getLiveSuccessEventsFromLog(game: GameState): readonly LiveSuccessEvent[] {
+  return game.eventLog
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is LiveSuccessEvent =>
+        event.eventType === TriggerCondition.ON_LIVE_SUCCESS
+    );
+}
+
+function getLatestLiveSuccessEventsFromLog(game: GameState): readonly LiveSuccessEvent[] {
+  const liveSuccessEvents = getLiveSuccessEventsFromLog(game);
+  const latestEvent = liveSuccessEvents.at(-1);
+  return latestEvent ? [latestEvent] : [];
+}
+
 function getNewLeaveStageEvents(before: GameState, after: GameState): readonly LeaveStageEvent[] {
   return after.eventLog
     .slice(before.eventLog.length)
@@ -1936,6 +2054,183 @@ function createMemberSlotMovedAbilitySourcesFromEvents(
     eventId: event.eventId,
     swappedCardInstanceId: event.swappedCardInstanceId,
   }));
+}
+
+function enqueueMemberStateChangedCardEffects(
+  game: GameState,
+  events: readonly MemberStateChangedEvent[]
+): GameState {
+  let state = game;
+  for (const event of events) {
+    for (const source of createMemberStateChangedAbilitySources(state, event)) {
+      state = enqueueSingleMemberStateChangedCardEffect(state, source);
+    }
+  }
+  return state;
+}
+
+function createMemberStateChangedAbilitySources(
+  game: GameState,
+  event: MemberStateChangedEvent
+): readonly MemberStateChangedAbilitySource[] {
+  const sources: MemberStateChangedAbilitySource[] = [];
+  const changedController = getPlayerById(game, event.controllerId);
+  if (
+    changedController &&
+    changedController.memberSlots.slots[event.slot] === event.cardInstanceId
+  ) {
+    sources.push({
+      sourceCardId: event.cardInstanceId,
+      controllerId: event.controllerId,
+      sourceSlot: event.slot,
+      event,
+    });
+  }
+
+  if (
+    event.cause?.kind === 'CARD_EFFECT' &&
+    event.cause.playerId !== event.controllerId &&
+    event.previousOrientation === OrientationState.ACTIVE &&
+    event.nextOrientation === OrientationState.WAITING
+  ) {
+    const effectController = getPlayerById(game, event.cause.playerId);
+    if (effectController) {
+      for (const sourceSlot of MEMBER_SLOT_ORDER) {
+        const sourceCardId = effectController.memberSlots.slots[sourceSlot];
+        if (!sourceCardId) {
+          continue;
+        }
+        sources.push({
+          sourceCardId,
+          controllerId: effectController.id,
+          sourceSlot,
+          event,
+        });
+      }
+    }
+  }
+
+  return sources;
+}
+
+function enqueueSingleMemberStateChangedCardEffect(
+  game: GameState,
+  source: MemberStateChangedAbilitySource
+): GameState {
+  const sourceCard = getCardById(game, source.sourceCardId);
+  if (!sourceCard) {
+    return game;
+  }
+
+  const abilityDefinitions = getQueuedAbilityDefinitionsForCard(
+    sourceCard.data.cardCode,
+    CardAbilityCategory.AUTO,
+    CardAbilitySourceZone.STAGE_MEMBER,
+    source.sourceSlot
+  ).filter(
+    (ability) =>
+      ability.triggerCondition === TriggerCondition.ON_MEMBER_STATE_CHANGED &&
+      doesMemberStateChangedEventSatisfyAbility(game, source, ability)
+  );
+  if (abilityDefinitions.length === 0) {
+    return game;
+  }
+
+  let state = game;
+  for (const abilityDefinition of abilityDefinitions) {
+    const abilityId = abilityDefinition.abilityId;
+    if (!canUseAbilityThisTurn(state, source.controllerId, abilityId, source.sourceCardId)) {
+      continue;
+    }
+
+    const pendingAbilityId = `${abilityId}:${source.sourceCardId}:${source.event.eventId}`;
+    if (hasAbilityInstance(state, pendingAbilityId)) {
+      continue;
+    }
+
+    const pendingAbility: PendingAbilityState = {
+      id: pendingAbilityId,
+      abilityId,
+      sourceCardId: source.sourceCardId,
+      controllerId: source.controllerId,
+      mandatory: true,
+      timingId: TriggerCondition.ON_MEMBER_STATE_CHANGED,
+      eventIds: [source.event.eventId],
+      sourceSlot: source.sourceSlot,
+      metadata: {
+        changedCardId: source.event.cardInstanceId,
+        changedControllerId: source.event.controllerId,
+        changedSlot: source.event.slot,
+        previousOrientation: source.event.previousOrientation,
+        nextOrientation: source.event.nextOrientation,
+        causedByKind: source.event.cause?.kind ?? null,
+        causedByPlayerId:
+          source.event.cause?.kind === 'CARD_EFFECT' ? source.event.cause.playerId : null,
+        causedBySourceCardId:
+          source.event.cause?.kind === 'CARD_EFFECT' ? source.event.cause.sourceCardId : null,
+        causedByAbilityId:
+          source.event.cause?.kind === 'CARD_EFFECT' ? source.event.cause.abilityId ?? null : null,
+      },
+    };
+
+    state = addAction(
+      {
+        ...state,
+        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+      },
+      'TRIGGER_ABILITY',
+      pendingAbility.controllerId,
+      {
+        pendingAbilityId,
+        abilityId: pendingAbility.abilityId,
+        sourceCardId: source.sourceCardId,
+        timingId: pendingAbility.timingId,
+        sourceSlot: source.sourceSlot,
+        changedCardId: source.event.cardInstanceId,
+        changedControllerId: source.event.controllerId,
+        previousOrientation: source.event.previousOrientation,
+        nextOrientation: source.event.nextOrientation,
+      }
+    );
+  }
+
+  return state;
+}
+
+function doesMemberStateChangedEventSatisfyAbility(
+  game: GameState,
+  source: MemberStateChangedAbilitySource,
+  ability: CardAbilityDefinition
+): boolean {
+  const event = source.event;
+
+  if (ability.abilityId === N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID) {
+    const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
+    return (
+      event.cardInstanceId === source.sourceCardId &&
+      event.controllerId === source.controllerId &&
+      event.previousOrientation === OrientationState.ACTIVE &&
+      event.nextOrientation === OrientationState.WAITING &&
+      game.currentPhase === GamePhase.MAIN_PHASE &&
+      activePlayerId === source.controllerId
+    );
+  }
+
+  if (ability.abilityId === PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID) {
+    const changedCard = getCardById(game, event.cardInstanceId);
+    return (
+      event.cause?.kind === 'CARD_EFFECT' &&
+      event.cause.playerId === source.controllerId &&
+      event.controllerId !== source.controllerId &&
+      event.previousOrientation === OrientationState.ACTIVE &&
+      event.nextOrientation === OrientationState.WAITING &&
+      changedCard !== null &&
+      isMemberCardData(changedCard.data) &&
+      costLte(4)(changedCard)
+    );
+  }
+
+  return false;
 }
 
 function enqueueMemberSlotMovedCardEffects(
@@ -2471,14 +2766,23 @@ function enqueueSingleOnEnterStageAutoCardEffect(
   return state;
 }
 
-function enqueueLiveStartCardEffects(game: GameState): GameState {
+function enqueueLiveStartCardEffects(
+  game: GameState,
+  liveStartEvents: readonly LiveStartEvent[] = []
+): GameState {
+  const liveStartEvent = liveStartEvents.at(-1);
   const performingPlayerId =
-    game.liveResolution.performingPlayerId ?? game.players[game.activePlayerIndex]?.id;
+    liveStartEvent?.performerId ??
+    game.liveResolution.performingPlayerId ??
+    game.players[game.activePlayerIndex]?.id;
   const player = performingPlayerId ? getPlayerById(game, performingPlayerId) : null;
   if (!player) {
     return game;
   }
 
+  const liveCardIds = liveStartEvent?.liveCardIds ?? player.liveZone.cardIds;
+  const liveStartEventId =
+    liveStartEvent?.eventId ?? `live-start:${game.turnCount}:${performingPlayerId}`;
   let state = game;
   const sourceEntries: AbilitySourceEntry[] = [
     ...MEMBER_SLOT_ORDER.flatMap((sourceSlot) => {
@@ -2493,7 +2797,7 @@ function enqueueLiveStartCardEffects(game: GameState): GameState {
           ]
         : [];
     }),
-    ...player.liveZone.cardIds.map((cardId) => ({
+    ...liveCardIds.map((cardId) => ({
       cardId,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
     })),
@@ -2525,7 +2829,7 @@ function enqueueLiveStartCardEffects(game: GameState): GameState {
         controllerId: sourceCard.ownerId,
         mandatory: true,
         timingId: TriggerCondition.ON_LIVE_START,
-        eventIds: [`live-start:${state.turnCount}:${performingPlayerId}`],
+        eventIds: [liveStartEventId],
         sourceSlot: sourceEntry.sourceSlot ?? undefined,
       };
 
@@ -2607,24 +2911,31 @@ function enqueueCheerCardEffects(game: GameState): GameState {
   return state;
 }
 
-function enqueueLiveSuccessCardEffects(game: GameState): GameState {
-  const playerId = getLiveSuccessEffectPlayerId(game);
+function enqueueLiveSuccessCardEffects(
+  game: GameState,
+  liveSuccessEvents: readonly LiveSuccessEvent[] = []
+): GameState {
+  const liveSuccessEvent = liveSuccessEvents.at(-1);
+  const playerId = liveSuccessEvent?.playerId ?? getLiveSuccessEffectPlayerId(game);
   const player = playerId ? getPlayerById(game, playerId) : null;
   if (!player) {
     return game;
   }
 
   let state = game;
-  const successfulLiveCardIds = [...state.liveResolution.liveResults.entries()]
-    .filter(([cardId, isSuccess]) => {
-      const card = getCardById(state, cardId);
-      return isSuccess === true && card?.ownerId === player.id;
-    })
-    .map(([cardId]) => cardId);
+  const successfulLiveCardIds =
+    liveSuccessEvent?.successfulLiveCardIds ??
+    [...state.liveResolution.liveResults.entries()]
+      .filter(([cardId, isSuccess]) => {
+        const card = getCardById(state, cardId);
+        return isSuccess === true && card?.ownerId === player.id;
+      })
+      .map(([cardId]) => cardId);
   if (successfulLiveCardIds.length === 0) {
     return game;
   }
 
+  const liveSuccessEventId = liveSuccessEvent?.eventId;
   const sourceEntries: AbilitySourceEntry[] = [
     ...MEMBER_SLOT_ORDER.flatMap((sourceSlot) => {
       const cardId = player.memberSlots.slots[sourceSlot];
@@ -2671,7 +2982,9 @@ function enqueueLiveSuccessCardEffects(game: GameState): GameState {
         controllerId: player.id,
         mandatory: true,
         timingId: TriggerCondition.ON_LIVE_SUCCESS,
-        eventIds: [`live-success:${state.turnCount}:${player.id}:${sourceCardId}`],
+        eventIds: [
+          liveSuccessEventId ?? `live-success:${state.turnCount}:${player.id}:${sourceCardId}`,
+        ],
         sourceSlot: sourceEntry.sourceSlot ?? undefined,
       };
 
@@ -3097,6 +3410,13 @@ export function confirmActiveEffectStep(
   if (
     effect.abilityId === HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID &&
     effect.stepId === HS_PB1_009_LIVE_START_SELECT_DISCARD_STEP_ID
+  ) {
+    return finishDrawThenDiscardCardsEffect(game, selectedCardId ?? null, selectedCardIds);
+  }
+
+  if (
+    effect.abilityId === N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID &&
+    effect.stepId === N_BP4_018_SELECT_DISCARD_STEP_ID
   ) {
     return finishDrawThenDiscardCardsEffect(game, selectedCardId ?? null, selectedCardIds);
   }
@@ -3636,6 +3956,17 @@ function startPendingAbilityEffect(
       return startHsBp6031LiveStartRecycleMembers(game, ability, options);
     case HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID:
       return startHsPb1012OnEnterRecycleMembers(game, ability, options);
+    case N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID:
+      return startDrawThenDiscardCardsEffect(game, {
+        ability,
+        effectText: N_BP4_018_ACTIVE_TO_WAITING_EFFECT_TEXT,
+        drawCount: 1,
+        discardCount: 1,
+        stepId: N_BP4_018_SELECT_DISCARD_STEP_ID,
+        orderedResolution: options.orderedResolution === true,
+      });
+    case PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID:
+      return resolvePb1015OwnEffectWaitOpponentLowCostDraw(game, ability, options);
     case HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID:
       return startDrawThenDiscardCardsEffect(game, {
         ability,
@@ -4030,18 +4361,26 @@ function finishHsBp6GinkoWaitOpponentLowCostMember(
   }
 
   const state = { ...orientationChange.gameState, activeEffect: null };
+  const stateWithResolveAction = addAction(state, 'RESOLVE_ABILITY', player.id, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    step: 'WAIT_OPPONENT_MEMBER',
+    sourceSlot: effect.metadata?.sourceSlot,
+    targetPlayerId: targetMetadata.targetPlayerId,
+    targetCardId: selectedCardId,
+    previousOrientation: orientationChange.previousOrientation,
+    nextOrientation: orientationChange.nextOrientation,
+  });
+  const stateWithMemberStateTriggers = enqueueTriggeredCardEffects(
+    stateWithResolveAction,
+    [TriggerCondition.ON_MEMBER_STATE_CHANGED],
+    {
+      memberStateChangedEvents: getNewMemberStateChangedEvents(game, orientationChange.gameState),
+    }
+  );
   return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'WAIT_OPPONENT_MEMBER',
-      sourceSlot: effect.metadata?.sourceSlot,
-      targetPlayerId: targetMetadata.targetPlayerId,
-      targetCardId: selectedCardId,
-      previousOrientation: orientationChange.previousOrientation,
-      nextOrientation: orientationChange.nextOrientation,
-    }),
+    stateWithMemberStateTriggers,
     isOrderedResolutionEffect(game)
   );
 }
@@ -8103,6 +8442,41 @@ function startDrawThenDiscardCardsEffect(
       drawnCardIds: drawResult.drawnCardIds,
       selectableCardIds,
     }
+  );
+}
+
+function resolvePb1015OwnEffectWaitOpponentLowCostDraw(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: { readonly orderedResolution?: boolean } = {}
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  let state: GameState = {
+    ...game,
+    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+  };
+  state = recordAbilityUse(state, player.id, ability.abilityId, ability.sourceCardId);
+  const drawResult = drawCardsFromMainDeckToHand(state, player.id, 1);
+  if (!drawResult) {
+    return game;
+  }
+
+  return continuePendingCardEffects(
+    addAction(drawResult.gameState, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'DRAW_CARD',
+      sourceSlot: ability.sourceSlot,
+      changedCardId: ability.metadata?.changedCardId,
+      changedControllerId: ability.metadata?.changedControllerId,
+      drawnCardIds: drawResult.drawnCardIds,
+    }),
+    options.orderedResolution === true
   );
 }
 
