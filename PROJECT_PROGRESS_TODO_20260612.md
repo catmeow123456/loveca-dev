@@ -736,10 +736,11 @@ git diff --check
 本次 2026-06-15 快速卡效批处理：`PL!HS-bp6-027-L` 分数 5「月夜見海月」：
 
 - 已完成 `ON_CHEER` 自动能力：自己进行声援时，可将至多 3 张因声援公开且仍在处理区的自己的无 BLADE HEART「莲之空」卡放置入休息室；如此做时追加等量声援。
+- 后续事件层更新：自动/手动/追加声援现在都会写入 `CheerEvent`；`enqueueTriggeredCardEffects(ON_CHEER)` 优先消费 eventLog 中最新非追加 `CheerEvent`，保留旧 LIVE 区推导 fallback。追加声援仍写事件用于审计，但 `additional=true` 不再二次触发 `ON_CHEER`。
 - 新增/扩展底座：
-  - `src/application/effects/cheer.ts`：抽出声援公开到解决区、登记 `liveResolution.*CheerCardIds` 与即时 refresh 检查的共享 helper。
+  - `src/application/effects/cheer.ts`：抽出声援公开到解决区、登记 `liveResolution.*CheerCardIds`、写入 `CheerEvent` 与即时 refresh 检查的共享 helper。
   - `src/application/effects/cheer-selection.ts`：声援公开卡移动目的地新增 `WAITING_ROOM`。
-  - `card-effect-runner` 新增 `ON_CHEER` 入队，当前扫描表演玩家 LIVE 区来源；追加声援不二次触发 `ON_CHEER`。
+  - `card-effect-runner` 新增 `ON_CHEER` 入队，当前优先消费 `CheerEvent`，旧扫描表演玩家 LIVE 区来源只作 fallback；追加声援不二次触发 `ON_CHEER`。
   - 声援公开卡选择支持 `ORDERED_MULTI` 多选配置，本卡使用 `selectMin=0/selectMax=3`。
 - Focused 验证：`tests/unit/card-effect-classification.test.ts` 覆盖 `AUTO / LIVE_CARD / ON_CHEER` 登记；`tests/integration/sample-card-effect-runner.test.ts` 覆盖排除持有 BLADE HEART 与非莲之空公开卡、移动入休息室、追加等量声援。
 - 实时同步：已更新 `docs/card-effect-reuse-audit/existing_module_map.md`；因新增 `ON_CHEER` 事件边界、声援 helper 与追加声援，已同步 `card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`module_gap_list.md` 与 `safe_refactor_plan.md`。

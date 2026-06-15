@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createGameState, emitGameEvent } from '../../src/domain/entities/game';
 import {
+  createCheerEvent,
   createDrawEvent,
   createEnterStageEvent,
   createLeaveStageEvent,
@@ -95,6 +96,23 @@ describe('game event log', () => {
       playerId: 'p1',
       successfulLiveCardIds: ['live-1', 'live-2'],
       score: 6,
+      triggerPlayerId: 'p1',
+    });
+  });
+
+  it('records cheer event facts for trigger matching', () => {
+    const event = createCheerEvent('p1', ['cheer-1', 'cheer-2'], 2, {
+      automated: true,
+      additional: true,
+    });
+
+    expect(event).toMatchObject({
+      eventType: TriggerCondition.ON_CHEER,
+      playerId: 'p1',
+      revealedCardIds: ['cheer-1', 'cheer-2'],
+      totalBlade: 2,
+      automated: true,
+      additional: true,
       triggerPlayerId: 'p1',
     });
   });

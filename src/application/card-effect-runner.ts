@@ -80,6 +80,7 @@ import {
   setFirstEnergyCardsOrientation,
 } from './effects/energy.js';
 import type {
+  CheerEvent,
   EnterStageEvent,
   LeaveStageEvent,
   LiveStartEvent,
@@ -567,6 +568,7 @@ interface EnqueueTriggeredCardEffectsOptions {
   readonly leaveStageEvents?: readonly LeaveStageEvent[];
   readonly liveStartEvents?: readonly LiveStartEvent[];
   readonly liveSuccessEvents?: readonly LiveSuccessEvent[];
+  readonly cheerEvents?: readonly CheerEvent[];
   readonly memberStateChangedEvents?: readonly MemberStateChangedEvent[];
   readonly memberSlotMovedEvents?: readonly MemberSlotMovedEvent[];
 }
@@ -1906,7 +1908,10 @@ export function enqueueTriggeredCardEffects(
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_CHEER)) {
-    state = enqueueCheerCardEffects(state);
+    state = enqueueCheerCardEffects(
+      state,
+      options.cheerEvents ?? getLatestCheerEventsFromLog(state)
+    );
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_MEMBER_SLOT_MOVED)) {
@@ -2030,6 +2035,18 @@ function getLiveSuccessEventsFromLog(game: GameState): readonly LiveSuccessEvent
 function getLatestLiveSuccessEventsFromLog(game: GameState): readonly LiveSuccessEvent[] {
   const liveSuccessEvents = getLiveSuccessEventsFromLog(game);
   const latestEvent = liveSuccessEvents.at(-1);
+  return latestEvent ? [latestEvent] : [];
+}
+
+function getCheerEventsFromLog(game: GameState): readonly CheerEvent[] {
+  return game.eventLog
+    .map((entry) => entry.event)
+    .filter((event): event is CheerEvent => event.eventType === TriggerCondition.ON_CHEER);
+}
+
+function getLatestCheerEventsFromLog(game: GameState): readonly CheerEvent[] {
+  const cheerEvents = getCheerEventsFromLog(game);
+  const latestEvent = cheerEvents.at(-1);
   return latestEvent ? [latestEvent] : [];
 }
 
@@ -2854,14 +2871,25 @@ function enqueueLiveStartCardEffects(
   return state;
 }
 
-function enqueueCheerCardEffects(game: GameState): GameState {
+function enqueueCheerCardEffects(
+  game: GameState,
+  cheerEvents: readonly CheerEvent[] = []
+): GameState {
+  const cheerEvent = cheerEvents.at(-1);
+  if (cheerEvent?.additional === true) {
+    return game;
+  }
+
   const performingPlayerId =
-    game.liveResolution.performingPlayerId ?? game.players[game.activePlayerIndex]?.id;
+    cheerEvent?.playerId ??
+    game.liveResolution.performingPlayerId ??
+    game.players[game.activePlayerIndex]?.id;
   const player = performingPlayerId ? getPlayerById(game, performingPlayerId) : null;
   if (!player) {
     return game;
   }
 
+  const cheerEventId = cheerEvent?.eventId ?? `cheer:${game.turnCount}:${performingPlayerId}`;
   let state = game;
   for (const sourceCardId of player.liveZone.cardIds) {
     const sourceCard = getCardById(state, sourceCardId);
@@ -2876,7 +2904,7 @@ function enqueueCheerCardEffects(game: GameState): GameState {
 
     for (const abilityDefinition of abilityDefinitions) {
       const abilityId = abilityDefinition.abilityId;
-      const pendingAbilityId = `${abilityId}:${sourceCardId}:turn-${state.turnCount}:cheer-${performingPlayerId}`;
+      const pendingAbilityId = `${abilityId}:${sourceCardId}:${cheerEventId}`;
       if (hasAbilityInstance(state, pendingAbilityId)) {
         continue;
       }
@@ -2888,7 +2916,15 @@ function enqueueCheerCardEffects(game: GameState): GameState {
         controllerId: sourceCard.ownerId,
         mandatory: true,
         timingId: TriggerCondition.ON_CHEER,
-        eventIds: [`cheer:${state.turnCount}:${performingPlayerId}`],
+        eventIds: [cheerEventId],
+        metadata: cheerEvent
+          ? {
+              revealedCardIds: cheerEvent.revealedCardIds,
+              totalBlade: cheerEvent.totalBlade,
+              automated: cheerEvent.automated === true,
+              additional: cheerEvent.additional ?? false,
+            }
+          : undefined,
       };
 
       state = addAction(
@@ -2903,6 +2939,10 @@ function enqueueCheerCardEffects(game: GameState): GameState {
           abilityId: pendingAbility.abilityId,
           sourceCardId,
           timingId: pendingAbility.timingId,
+          revealedCardIds: cheerEvent?.revealedCardIds,
+          totalBlade: cheerEvent?.totalBlade,
+          automated: cheerEvent?.automated,
+          additional: cheerEvent?.additional,
         }
       );
     }

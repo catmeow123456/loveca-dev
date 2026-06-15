@@ -77,7 +77,7 @@
 | `E03` | P1 | 从能量卡组放置能量 | energy deck movement | `core_v2` | Stage 1I 已起步：`src/application/effects/energy.ts` 提供 `placeEnergyFromDeckToZone`，`PL!SP-PR-004-PR` 验证从能量卡组顶放置 1 张待机能量。 |
 | `E04` | P2 | 能量放到成员下/从成员下返回 | attach/return energy under member | `special_hook` | 与附属卡/成员下方结构相关，先保留 hook。 |
 | `E05` | P2 | 能量数量作为条件 | condition: energy count | `core_v2` | 可纳入 condition AST。 |
-| `E06` | P2 | 追加声援/重做声援 | cheer action step | `core_v2` | 2026-06-15 已由 `PL!HS-bp6-027-L` 分数 5「月夜見海月」起步追加声援：按实际移入休息室张数从主卡组顶追加公开并登记本次声援卡；追加声援不二次触发 `ON_CHEER`。重做声援仍待样例。 |
+| `E06` | P2 | 追加声援/重做声援 | cheer action step | `core_v2` | 2026-06-15 已由 `PL!HS-bp6-027-L` 分数 5「月夜見海月」起步追加声援：自动/手动/追加声援会写入 `CheerEvent`，`ON_CHEER` 入队优先消费最新非追加事件；按实际移入休息室张数从主卡组顶追加公开并登记本次声援卡，追加声援不二次触发 `ON_CHEER`。重做声援仍待样例。 |
 | `L01` | P1 | 参照成功LIVE区 | zone query: success live zone | `core_v1` | 001/022 等已用，需要 query module。 |
 | `L02` | P1 | 参照LIVE卡置场/正在LIVE | zone query: current live/live zone | `core_v1` | Live modifier 和成功时能力需要。 |
 | `L03` | P2 | ALL_BLADE当任意颜色HEART | special marker rule | `special_hook` | 属于判定规则 override，不是普通 effect step。 |

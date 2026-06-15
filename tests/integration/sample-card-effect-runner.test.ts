@@ -29,7 +29,7 @@ import {
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
-import { createLiveSuccessEvent } from '../../src/domain/events/game-events';
+import { createCheerEvent, createLiveSuccessEvent } from '../../src/domain/events/game-events';
 import {
   addLiveModifier,
   getMemberEffectiveBladeCount,
@@ -7029,11 +7029,17 @@ describe('sample card effect runner', () => {
       revealedCardIds: initialCheerCardIds,
     };
 
+    const cheerEvent = createCheerEvent(PLAYER1, initialCheerCardIds, initialCheerCardIds.length, {
+      automated: true,
+    });
+    const stateWithCheerEvent = emitGameEvent(state, cheerEvent);
+
     const service = new GameService();
-    const checkResult = service.executeCheckTiming(state, [TriggerCondition.ON_CHEER]);
+    const checkResult = service.executeCheckTiming(stateWithCheerEvent, [TriggerCondition.ON_CHEER]);
     (session as unknown as { authorityState: GameState }).authorityState = checkResult.gameState;
 
     expect(checkResult.success).toBe(true);
+    expect(session.state?.activeEffect?.id).toContain(cheerEvent.eventId);
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID
     );
@@ -7080,6 +7086,22 @@ describe('sample card effect runner', () => {
       ...initialCheerCardIds,
       ...additionalCheerCardIds,
     ]);
+    const cheerEvents = session.state!.eventLog
+      .map((entry) => entry.event)
+      .filter((event) => event.eventType === TriggerCondition.ON_CHEER);
+    expect(cheerEvents).toHaveLength(2);
+    expect(cheerEvents.at(-1)).toMatchObject({
+      playerId: PLAYER1,
+      revealedCardIds: additionalCheerCardIds,
+      totalBlade: 2,
+      additional: true,
+    });
+
+    const recursiveCheckResult = service.executeCheckTiming(session.state!, [
+      TriggerCondition.ON_CHEER,
+    ]);
+    expect(recursiveCheckResult.success).toBe(true);
+    expect(recursiveCheckResult.gameState.pendingAbilities).toEqual([]);
   });
 
   it('does not trigger PL!-sd1-019-SD live-success effect when the Live failed', () => {

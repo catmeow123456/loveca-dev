@@ -1,10 +1,12 @@
 import type { GameState } from '../../domain/entities/game.js';
 import {
   addAction,
+  emitGameEvent,
   getCardById,
   getFirstPlayer,
   updatePlayer,
 } from '../../domain/entities/game.js';
+import { createCheerEvent } from '../../domain/events/game-events.js';
 import { drawFromTop } from '../../domain/entities/zone.js';
 import {
   RuleActionType,
@@ -67,6 +69,13 @@ export function revealCheerCardsFromMainDeck(
         : [...state.liveResolution.secondPlayerCheerCardIds, ...cheerCardIds],
     },
   };
+  state = emitGameEvent(
+    state,
+    createCheerEvent(playerId, cheerCardIds, cheerCount, {
+      automated: options.automated === true,
+      additional: options.additional === true,
+    })
+  );
 
   state = addAction(state, 'CHEER', playerId, {
     cheerCount,

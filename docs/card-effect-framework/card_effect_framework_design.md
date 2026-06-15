@@ -54,7 +54,7 @@
 | `ON_CARD_MOVED` | future AUTO | 任意卡从区域 A 到区域 B 时 |
 | `ON_MEMBER_STATE_CHANGED` | future AUTO | 成员变为待机/活跃时 |
 | `ON_ENERGY_PAID` | future AUTO | 支付能量时 |
-| `ON_CHEER` | `E06` | 自己进行声援时；当前在自动声援公开后、判定确认前入队 |
+| `ON_CHEER` | `E06` | 自己进行声援时；当前在自动声援公开后、判定确认前写入并消费 `CheerEvent` |
 | `ON_PHASE_START/END` | future AUTO | 阶段开始/结束时 |
 
 也就是说，登场、LIVE 开始、LIVE 成功不应该和 `自动` 对立；它们应该是 `TRIGGERED_AUTO` 下最常见、最标准的 trigger。
@@ -63,7 +63,7 @@
 
 2026-06-14 更新：`ON_LIVE_SUCCESS` 已不再只从成功的 LIVE 卡本身入队，也会在存在成功 LIVE 时扫描表演玩家舞台成员来源。`PL!HS-bp6-001-R＋` 费用 4「日野下花帆」验证了舞台成员来源 LIVE 成功时效果；`PL!HS-cl1-009-CL` 分数 1「水彩世界」与同卡共同打开 `effects/cheer-selection.ts`，通过 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 选取“因声援公开且仍在处理区”的卡，再按卡效配置移动到手牌或卡组顶。
 
-2026-06-15 更新：`ON_CHEER` 已以 `PL!HS-bp6-027-L` 分数 5「月夜見海月」落地。当前入队点在自动声援公开完成后，扫描表演玩家 LIVE 区来源；追加声援只补公开卡与 `liveResolution.*CheerCardIds` 登记，不二次触发 `ON_CHEER`，避免为未来非一回合一次卡制造递归语义。
+2026-06-15 更新：`ON_CHEER` 已以 `PL!HS-bp6-027-L` 分数 5「月夜見海月」落地。当前自动/手动/追加声援会写入 `CheerEvent`，入队优先消费 eventLog 中最新非追加事件，旧扫描表演玩家 LIVE 区来源只作 fallback；追加声援事件带 `additional=true`，只补公开卡与 `liveResolution.*CheerCardIds` 登记，不二次触发 `ON_CHEER`，避免为未来非一回合一次卡制造递归语义。
 
 ## 3. Proposed ability definition shape
 
@@ -565,7 +565,7 @@ P0/P1 覆盖：
 
 当前落地：
 
-- `src/application/effects/cheer.ts` 抽出声援公开 helper，负责从主卡组顶公开到解决区、登记 `liveResolution.first/secondPlayerCheerCardIds` / `secondPlayerCheerCardIds`，并沿用即时 refresh 检查。
+- `src/application/effects/cheer.ts` 抽出声援公开 helper，负责从主卡组顶公开到解决区、登记 `liveResolution.first/secondPlayerCheerCardIds` / `secondPlayerCheerCardIds`、写入 `CheerEvent`，并沿用即时 refresh 检查。
 - `PL!HS-bp6-027-L` 分数 5「月夜見海月」结算时按实际移动入休息室张数追加等量声援。
 - 当前边界：追加声援不再次触发 `ON_CHEER`；“重做声援”仍待后续真实样例推进。
 

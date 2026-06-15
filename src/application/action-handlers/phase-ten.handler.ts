@@ -28,7 +28,13 @@ import {
   FaceState,
   TriggerCondition,
 } from '../../shared/types/enums.js';
-import { addAction, updatePlayer, getFirstPlayer } from '../../domain/entities/game.js';
+import {
+  addAction,
+  emitGameEvent,
+  updatePlayer,
+  getFirstPlayer,
+} from '../../domain/entities/game.js';
+import { createCheerEvent } from '../../domain/events/game-events.js';
 import {
   removeCardFromStatefulZone,
   addCardToZone,
@@ -655,6 +661,7 @@ export const handlePerformCheer: ActionHandler<PerformCheerAction> = (
         : [...state.liveResolution.secondPlayerCheerCardIds, ...cheerCardIds],
     },
   };
+  state = emitGameEvent(state, createCheerEvent(playerId, cheerCardIds, cheerCount));
 
   // 记录动作
   state = addAction(state, 'CHEER', playerId, {

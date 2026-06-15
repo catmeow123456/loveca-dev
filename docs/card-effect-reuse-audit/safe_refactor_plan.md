@@ -76,7 +76,7 @@ Stage 1G 应包含：
 
 `PL!HS-bp6-001` 费用 4「日野下花帆」与 `PL!HS-cl1-009` 分数 1「水彩世界」已完成声援公开卡相关段：前者登场动态检视舞台成员数 + 2 并控顶，LIVE 成功时可将本次声援公开卡放回卡组顶；后者 LIVE 成功时从本次声援公开卡中回收费用 4-9 成员。当前新增 `src/application/effects/cheer-selection.ts`，并使 LIVE 成功入队同时支持成功 LIVE 卡来源与表演玩家舞台成员来源。
 
-`PL!HS-bp6-027-L` 分数 5「月夜見海月」已完成 `ON_CHEER` 与追加声援：自动声援公开后扫描表演玩家 LIVE 区来源，选择至多 3 张本次声援公开且无 BLADE HEART 的「莲之空」卡入休息室，并追加等量声援。当前新增 `src/application/effects/cheer.ts` 作为声援公开 helper；追加声援不二次触发 `ON_CHEER`，重做声援仍等待真实样例。
+`PL!HS-bp6-027-L` 分数 5「月夜見海月」已完成 `ON_CHEER` 与追加声援：自动声援公开后写入 `CheerEvent`，入队优先消费 eventLog 并扫描表演玩家 LIVE 区来源，选择至多 3 张本次声援公开且无 BLADE HEART 的「莲之空」卡入休息室，并追加等量声援。当前新增 `src/application/effects/cheer.ts` 作为声援公开 helper；追加声援也写 `CheerEvent(additional=true)`，但不二次触发 `ON_CHEER`，重做声援仍等待真实样例。
 
 本批 17 张 `PL!-sd1-002-SD` 同型样本与 `绿莲-6弹ver.yaml` 已验收的 6 张卡已落地，不再列入首选低风险扩样本清单。建议直接继续：
 
