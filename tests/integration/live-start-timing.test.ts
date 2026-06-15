@@ -6,7 +6,9 @@ import {
   GamePhase,
   HeartColor,
   OrientationState,
+  SlotPosition,
   SubPhase,
+  TriggerCondition,
   TurnType,
 } from '../../src/shared/types/enums';
 import { GameService } from '../../src/application/game-service';
@@ -20,8 +22,13 @@ import {
   createCardInstance,
   createHeartIcon,
   createHeartRequirement,
+  type MemberCardData,
 } from '../../src/domain/entities/card';
-import { addCardToStatefulZone, addCardToZone } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  addCardToZone,
+  placeCardInSlot,
+} from '../../src/domain/entities/zone';
 
 function createLiveCard(instanceId: string, ownerId: string, score = 1) {
   return createCardInstance(
@@ -37,7 +44,11 @@ function createLiveCard(instanceId: string, ownerId: string, score = 1) {
   );
 }
 
-function createMemberCard(instanceId: string, ownerId: string) {
+function createMemberCard(
+  instanceId: string,
+  ownerId: string,
+  overrides: Partial<MemberCardData> = {}
+) {
   return createCardInstance(
     {
       cardCode: `${instanceId}-CODE`,
@@ -46,6 +57,7 @@ function createMemberCard(instanceId: string, ownerId: string) {
       cost: 1,
       blade: 1,
       hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      ...overrides,
     },
     ownerId,
     instanceId
@@ -57,6 +69,13 @@ function createStateReadyToEnterPerformance(cardIds: readonly string[]) {
   const cards = [
     createLiveCard('p1-live', 'p1'),
     createMemberCard('p1-member', 'p1'),
+    createMemberCard('p1-member-2', 'p1'),
+    createMemberCard('p1-member-3', 'p1'),
+    createMemberCard('p1-kotori', 'p1', {
+      cardCode: 'PL!-sd1-003-SD',
+      name: '南ことり',
+    }),
+    createMemberCard('p1-discard', 'p1'),
     createMemberCard('p1-main-deck-filler', 'p1'),
   ];
 
@@ -116,6 +135,36 @@ describe('LIVE_START 时点流程', () => {
     const player = getPlayerById(result.gameState, 'p1')!;
     expect(player.liveZone.cardIds).not.toContain('p1-member');
     expect(player.waitingRoom.cardIds).toContain('p1-member');
+    expect(result.gameState.currentSubPhase).not.toBe(SubPhase.PERFORMANCE_LIVE_START_EFFECTS);
+    expect(result.gameState.effectWindowType).not.toBe(EffectWindowType.LIVE_START);
+  });
+
+  it('LIVE 区只有多张非 Live 卡时，不应触发舞台成员的 LIVE_START 效果', () => {
+    const { service, game } = createStateReadyToEnterPerformance([
+      'p1-member',
+      'p1-member-2',
+      'p1-member-3',
+    ]);
+    const gameWithLiveStartSource = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      hand: addCardToZone(player.hand, 'p1-discard'),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, 'p1-kotori'),
+    }));
+
+    const result = service.advancePhase(gameWithLiveStartSource);
+
+    expect(result.success).toBe(true);
+    const player = getPlayerById(result.gameState, 'p1')!;
+    expect(player.liveZone.cardIds).toEqual([]);
+    expect(player.waitingRoom.cardIds).toEqual(
+      expect.arrayContaining(['p1-member', 'p1-member-2', 'p1-member-3'])
+    );
+    expect(
+      result.gameState.eventLog.some(
+        (entry) => entry.event.eventType === TriggerCondition.ON_LIVE_START
+      )
+    ).toBe(false);
+    expect(result.gameState.activeEffect).toBeNull();
     expect(result.gameState.currentSubPhase).not.toBe(SubPhase.PERFORMANCE_LIVE_START_EFFECTS);
     expect(result.gameState.effectWindowType).not.toBe(EffectWindowType.LIVE_START);
   });

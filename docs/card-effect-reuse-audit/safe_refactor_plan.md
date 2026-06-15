@@ -18,6 +18,8 @@
 - `member-state.ts`
 - `live-modifiers.ts`
 
+`conditions.ts` 已作为第一版 condition/query helper 起步，当前有独立 helper 单测与迁移卡效的集成测试覆盖；继续稳定后再纳入 frozen baseline。
+
 当前验证基线：
 
 ```bash
@@ -125,7 +127,7 @@ Stage 1G 应包含：
 |---|---|
 | `PL!-sd1-006-SD` hand reveal + success-zone exchange | C07/X02/L01/L02 only has one current proving card; low frequency compared with already-migrated modules. |
 | 003 / `PL!HS-bp1-006-P` 费用 11「藤岛 慈」Heart color option step；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」pay-or-decline option step | UI shape exists, but generic option API still needs a stable resolver config shape before extraction. |
-| 009/022/001/`PL!HS-bp1-003` condition builders | Condition AST should be driven by repeated non-precon examples, not invented from one card. |
+| 009/022/001/`PL!HS-bp1-003` condition builders | 第一版纯 query helper 已起步；Condition AST / typed formula builder 仍 should be driven by repeated non-precon examples, not invented from one card. |
 | More movement/event-trigger cards | `PL!N-pb1-004` 已打开 `positionMovedThisTurn`，但完整成员区移动事件触发 `S09` 仍等待真实 AUTO 样例推动。 |
 | `F12` draw-then-deck-placement | F02 has a first draw-2/discard-1 proving path; deck position and refresh semantics still need actual samples. |
 

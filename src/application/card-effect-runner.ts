@@ -20,7 +20,6 @@ import {
 import { addCardToZone, shuffleZone } from '../domain/entities/zone.js';
 import {
   addLiveModifier,
-  getMemberEffectiveBladeCount,
   replaceLiveModifier,
 } from '../domain/rules/live-modifiers.js';
 import {
@@ -49,6 +48,19 @@ import {
   typeIs,
   unitAliasIs,
 } from './effects/card-selectors.js';
+import {
+  countCardsMatchingSelector,
+  countOtherLiveZoneCardsMatching,
+  countStageMembers,
+  countSuccessfulLiveCards,
+  getCardIdsMatchingSelector,
+  getCardIdsInZone,
+  getSourceEffectiveBladeCount,
+  hasAtLeastCardsMatchingSelector,
+  hasOtherStageMember,
+  hasStageMemberMatching,
+  sourceHasBladeAtLeast,
+} from './effects/conditions.js';
 import {
   moveHandCardToWaitingRoomForEffect,
   payImmediateEffectCosts,
@@ -1570,10 +1582,6 @@ function hasBladeHeart(card: CardInstance): boolean {
 
 function isCeriseBouquetMemberCard(card: CardInstance): boolean {
   return isMemberCardData(card.data) && unitAliasIs('Cerise Bouquet')(card);
-}
-
-function isCeriseBouquetLiveCard(card: CardInstance): boolean {
-  return isLiveCardData(card.data) && unitAliasIs('Cerise Bouquet')(card);
 }
 
 function enqueueSingleOnEnterCardEffect(game: GameState, source: OnEnterAbilitySource): GameState {
@@ -3119,8 +3127,9 @@ function startHsPb1KahoLiveStartDrawDiscard(
     return game;
   }
 
-  const effectiveBladeCount = getMemberEffectiveBladeCount(game, player.id, ability.sourceCardId);
-  if (effectiveBladeCount < 8) {
+  const effectiveBladeCount = getSourceEffectiveBladeCount(game, player.id, ability.sourceCardId);
+  const hasEnoughBlade = sourceHasBladeAtLeast(game, player.id, ability.sourceCardId, 8);
+  if (!hasEnoughBlade) {
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
@@ -3442,7 +3451,7 @@ function startHonokaOnEnterSelection(
     return game;
   }
   const selectableCardIds =
-    player.successZone.cardIds.length >= 2
+    countSuccessfulLiveCards(game, player.id) >= 2
       ? selectWaitingRoomCardIds(game, player.id, typeIs(CardType.LIVE))
       : [];
   return startWaitingRoomCardSelection(game, ability, player.id, {
@@ -4018,7 +4027,11 @@ function startHsPb1GinkoDiscardTwoRecoverCeriseMemberAndHasunosoraLive(
     return game;
   }
 
-  const waitingRoomLiveCount = countLiveCardsInWaitingRoom(game, player.id);
+  const waitingRoomLiveCount = countCardsMatchingSelector(
+    game,
+    getCardIdsInZone(game, player.id, ZoneType.WAITING_ROOM),
+    typeIs(CardType.LIVE)
+  );
   if (waitingRoomLiveCount < 3 || player.hand.cardIds.length < 2) {
     const state = {
       ...game,
@@ -4848,8 +4861,9 @@ function finishNicoLiveStartScoreBonus(game: GameState): GameState {
     return game;
   }
 
-  const museWaitingRoomCount = countMuseWaitingRoomCards(game, player.id);
-  const isConditionMet = museWaitingRoomCount >= 25;
+  const waitingRoomCardIds = getCardIdsInZone(game, player.id, ZoneType.WAITING_ROOM);
+  const museWaitingRoomCount = countCardsMatchingSelector(game, waitingRoomCardIds, groupIs("μ's"));
+  const isConditionMet = hasAtLeastCardsMatchingSelector(game, waitingRoomCardIds, groupIs("μ's"), 25);
   let state: GameState = {
     ...game,
     activeEffect: null,
@@ -4880,7 +4894,11 @@ function finishNicoLiveStartScoreBonus(game: GameState): GameState {
 }
 
 function formatNicoEffectText(game: GameState, playerId: string): string {
-  return `${getCardAbilityEffectText(NICO_LIVE_START_SCORE_ABILITY_ID)}（当前${countMuseWaitingRoomCards(game, playerId)}张）`;
+  return `${getCardAbilityEffectText(NICO_LIVE_START_SCORE_ABILITY_ID)}（当前${countCardsMatchingSelector(
+    game,
+    getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM),
+    groupIs("μ's")
+  )}张）`;
 }
 
 function startBokuimaLiveStartRequirementReduction(
@@ -4893,7 +4911,7 @@ function startBokuimaLiveStartRequirementReduction(
     return game;
   }
 
-  const successLiveCount = player.successZone.cardIds.length;
+  const successLiveCount = countSuccessfulLiveCards(game, player.id);
   const reduction = successLiveCount * 2;
   const effectText = `${getCardAbilityEffectText(BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID)}（当前成功LIVE ${successLiveCount}张，减少${reduction}个無Heart）`;
 
@@ -4939,7 +4957,7 @@ function finishBokuimaLiveStartRequirementReduction(game: GameState): GameState 
     return game;
   }
 
-  const successLiveCount = player.successZone.cardIds.length;
+  const successLiveCount = countSuccessfulLiveCards(game, player.id);
   const reduction = successLiveCount * 2;
   let state: GameState = {
     ...game,
@@ -4999,10 +5017,11 @@ function startHsBp5HanamusubiLiveStartRequirementReduction(
     return game;
   }
 
-  const otherHasunosoraLiveZoneCount = countOtherHasunosoraLiveZoneCards(
+  const otherHasunosoraLiveZoneCount = countOtherLiveZoneCardsMatching(
     game,
     player.id,
-    ability.sourceCardId
+    ability.sourceCardId,
+    isHasunosoraCard
   );
   const reduction = otherHasunosoraLiveZoneCount * 2;
   const effectText = `${getCardAbilityEffectText(HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID)}（当前此卡以外莲之空卡 ${otherHasunosoraLiveZoneCount}张，减少${reduction}个绿Heart）`;
@@ -5049,10 +5068,11 @@ function finishHsBp5HanamusubiLiveStartRequirementReduction(game: GameState): Ga
     return game;
   }
 
-  const otherHasunosoraLiveZoneCount = countOtherHasunosoraLiveZoneCards(
+  const otherHasunosoraLiveZoneCount = countOtherLiveZoneCardsMatching(
     game,
     player.id,
-    effect.sourceCardId
+    effect.sourceCardId,
+    isHasunosoraCard
   );
   const reduction = otherHasunosoraLiveZoneCount * 2;
   let state: GameState = {
@@ -5112,7 +5132,11 @@ function startHsBp2AokuharukaLiveStartScoreBonus(
     return game;
   }
 
-  const ceriseBouquetLiveCount = countCeriseBouquetLiveCardsInWaitingRoom(game, player.id);
+  const ceriseBouquetLiveCount = countCardsMatchingSelector(
+    game,
+    getCardIdsInZone(game, player.id, ZoneType.WAITING_ROOM),
+    and(typeIs(CardType.LIVE), unitAliasIs('Cerise Bouquet'))
+  );
   const isConditionMet = ceriseBouquetLiveCount >= 3;
   const effectText = `${getCardAbilityEffectText(HS_BP2_022_LIVE_START_SCORE_ABILITY_ID)}（当前${ceriseBouquetLiveCount}张，${
     isConditionMet ? '满足条件' : '未满足条件'
@@ -5160,7 +5184,11 @@ function finishHsBp2AokuharukaLiveStartScoreBonus(game: GameState): GameState {
     return game;
   }
 
-  const ceriseBouquetLiveCount = countCeriseBouquetLiveCardsInWaitingRoom(game, player.id);
+  const ceriseBouquetLiveCount = countCardsMatchingSelector(
+    game,
+    getCardIdsInZone(game, player.id, ZoneType.WAITING_ROOM),
+    and(typeIs(CardType.LIVE), unitAliasIs('Cerise Bouquet'))
+  );
   const isConditionMet = ceriseBouquetLiveCount >= 3;
   let state: GameState = {
     ...game,
@@ -5202,13 +5230,16 @@ function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
     return game;
   }
 
-  const relatedMemberCardIds = getStageMemberCardIdsMatching(
-    game,
-    player.id,
-    or(cardNameAliasIs('大沢瑠璃乃'), cardNameAliasIs('百生吟子'), cardNameAliasIs('徒町小鈴'))
-  ).filter((cardId) => cardId !== ability.sourceCardId);
+  const relatedMemberSelector = or(
+    cardNameAliasIs('大沢瑠璃乃'),
+    cardNameAliasIs('百生吟子'),
+    cardNameAliasIs('徒町小鈴')
+  );
+  const hasRelatedMember = hasStageMemberMatching(game, player.id, relatedMemberSelector, {
+    excludeCardId: ability.sourceCardId,
+  });
 
-  if (relatedMemberCardIds.length === 0) {
+  if (!hasRelatedMember) {
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
@@ -5223,6 +5254,12 @@ function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
       options.orderedResolution === true
     );
   }
+
+  const relatedMemberCardIds = getStageMemberCardIdsMatching(
+    game,
+    player.id,
+    relatedMemberSelector
+  ).filter((cardId) => cardId !== ability.sourceCardId);
 
   const orientationChange = setFirstEnergyCardsOrientation(
     game,
@@ -5891,61 +5928,6 @@ function isGreenHeartMemberCard(card: CardInstance): boolean {
   );
 }
 
-function countOtherHasunosoraLiveZoneCards(
-  game: GameState,
-  playerId: string,
-  sourceCardId: string
-): number {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return 0;
-  }
-
-  return player.liveZone.cardIds.filter((cardId) => {
-    if (cardId === sourceCardId) {
-      return false;
-    }
-    const card = getCardById(game, cardId);
-    return card !== null && isHasunosoraCard(card);
-  }).length;
-}
-
-function countCeriseBouquetLiveCardsInWaitingRoom(game: GameState, playerId: string): number {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return 0;
-  }
-
-  return player.waitingRoom.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && isCeriseBouquetLiveCard(card);
-  }).length;
-}
-
-function countLiveCardsInWaitingRoom(game: GameState, playerId: string): number {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return 0;
-  }
-
-  return player.waitingRoom.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && isLiveCardData(card.data);
-  }).length;
-}
-
-function countMuseWaitingRoomCards(game: GameState, playerId: string): number {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return 0;
-  }
-
-  return player.waitingRoom.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && isMuseCard(card.data);
-  }).length;
-}
-
 function isMuseCard(cardData: {
   readonly cardCode?: string;
   readonly groupName?: string;
@@ -6336,9 +6318,7 @@ function startHsBp6KahoOnEnterLookStagePlusTwo(
     return game;
   }
 
-  const stageMemberCount = MEMBER_SLOT_ORDER.filter(
-    (slot) => player.memberSlots.slots[slot] !== null
-  ).length;
+  const stageMemberCount = countStageMembers(game, player.id);
   return startArrangeInspectedDeckTopEffect(game, {
     ability,
     playerId: player.id,
@@ -6656,11 +6636,16 @@ function startHsBp6031LiveStartRecycleMembers(
     return game;
   }
 
-  const waitingRoomMemberCardIds = player.waitingRoom.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && isMemberCardData(card.data);
-  });
-  const miraCraMemberCount = countMiraCraMemberCards(game, waitingRoomMemberCardIds);
+  const waitingRoomMemberCardIds = getCardIdsMatchingSelector(
+    game,
+    getCardIdsInZone(game, player.id, ZoneType.WAITING_ROOM),
+    typeIs(CardType.MEMBER)
+  );
+  const miraCraMemberCount = countCardsMatchingSelector(
+    game,
+    waitingRoomMemberCardIds,
+    unitAliasIs('みらくらぱーく！')
+  );
 
   return addAction(
     {
@@ -7052,16 +7037,21 @@ function moveWaitingRoomMembersToDeckBottomShuffled(
     return { gameState: game, movedMemberCardIds: [], miraCraMemberCount: 0 };
   }
 
-  const waitingRoomMemberCardIds = player.waitingRoom.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && isMemberCardData(card.data);
-  });
+  const waitingRoomMemberCardIds = getCardIdsMatchingSelector(
+    game,
+    getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM),
+    typeIs(CardType.MEMBER)
+  );
   const shuffledMemberCardIds = shuffleZone({
     ...player.waitingRoom,
     cardIds: waitingRoomMemberCardIds,
   }).cardIds;
   const waitingRoomMemberCardIdSet = new Set(waitingRoomMemberCardIds);
-  const miraCraMemberCount = countMiraCraMemberCards(game, waitingRoomMemberCardIds);
+  const miraCraMemberCount = countCardsMatchingSelector(
+    game,
+    waitingRoomMemberCardIds,
+    unitAliasIs('みらくらぱーく！')
+  );
 
   return {
     gameState: updatePlayer(game, playerId, (currentPlayer) => ({
@@ -7083,22 +7073,11 @@ function moveWaitingRoomMembersToDeckBottomShuffled(
 }
 
 function getWaitingRoomMemberCardIds(game: GameState, playerId: string): readonly string[] {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return [];
-  }
-
-  return player.waitingRoom.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && isMemberCardData(card.data);
-  });
-}
-
-function countMiraCraMemberCards(game: GameState, cardIds: readonly string[]): number {
-  return cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && isMemberCardData(card.data) && unitAliasIs('みらくらぱーく！')(card);
-  }).length;
+  return getCardIdsMatchingSelector(
+    game,
+    getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM),
+    typeIs(CardType.MEMBER)
+  );
 }
 
 function startArrangeInspectedDeckTopEffect(
@@ -9508,16 +9487,6 @@ function findMemberSlot(
     }
   }
   return null;
-}
-
-function hasOtherStageMember(game: GameState, playerId: string, sourceCardId: string): boolean {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return false;
-  }
-  return Object.values(player.memberSlots.slots).some(
-    (cardId) => cardId !== null && cardId !== sourceCardId
-  );
 }
 
 function getHeartColorOptionsForEffect(effect: ActiveEffectState): readonly HeartColor[] {

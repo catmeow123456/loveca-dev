@@ -643,17 +643,29 @@ export class GameService {
       }
 
       state = this.revealLiveCards(state);
+      state = this.executePendingRuleActions(state).gameState;
       const performingPlayerId =
         state.liveResolution.performingPlayerId ?? state.players[state.activePlayerIndex]?.id;
       const performingPlayer = performingPlayerId
         ? getPlayerById(state, performingPlayerId)
         : null;
-      if (performingPlayer && performingPlayer.liveZone.cardIds.length > 0) {
-        state = emitGameEvent(
-          state,
-          createLiveStartEvent(performingPlayer.id, performingPlayer.liveZone.cardIds)
-        );
+      const liveCardIds = performingPlayer
+        ? this.getLiveCardIdsInLiveZone(state, performingPlayer.id)
+        : [];
+      if (!performingPlayer || liveCardIds.length === 0) {
+        return {
+          ...state,
+          currentSubPhase: SubPhase.NONE,
+          effectWindowType: EffectWindowType.NONE,
+          liveResolution: {
+            ...state.liveResolution,
+            isInLive: false,
+            performingPlayerId: null,
+          },
+        };
       }
+
+      state = emitGameEvent(state, createLiveStartEvent(performingPlayer.id, liveCardIds));
       state = this.executeCheckTiming(state, [TriggerCondition.ON_LIVE_START]).gameState;
 
       if (!this.hasLiveCardInLiveZone(state, state.players[state.activePlayerIndex].id)) {
@@ -661,6 +673,11 @@ export class GameService {
           ...state,
           currentSubPhase: SubPhase.NONE,
           effectWindowType: EffectWindowType.NONE,
+          liveResolution: {
+            ...state.liveResolution,
+            isInLive: false,
+            performingPlayerId: null,
+          },
         };
       }
 
@@ -726,14 +743,18 @@ export class GameService {
   }
 
   private hasLiveCardInLiveZone(state: GameState, playerId: string): boolean {
+    return this.getLiveCardIdsInLiveZone(state, playerId).length > 0;
+  }
+
+  private getLiveCardIdsInLiveZone(state: GameState, playerId: string): readonly string[] {
     const player = getPlayerById(state, playerId);
     if (!player) {
-      return false;
+      return [];
     }
 
-    return player.liveZone.cardIds.some((cardId) => {
+    return player.liveZone.cardIds.filter((cardId) => {
       const card = getCardById(state, cardId);
-      return card ? isLiveCardData(card.data) : false;
+      return card !== null && isLiveCardData(card.data);
     });
   }
 
@@ -1274,22 +1295,8 @@ export class GameService {
   // 检查时机处理（规则 9.5 + 10）
   // ============================================
 
-  /**
-   * 执行检查时机
-   * 根据规则 9.5.3 和第 10 章，自动执行规则处理
-   *
-   * 这是"信任玩家"方案的核心：
-   * - 系统自动清理非法状态
-   * - 玩家可以自由拖拽，系统帮助纠正
-   *
-   * @param game 当前游戏状态
-   * @returns 操作结果
-   */
-  executeCheckTiming(
-    game: GameState,
-    triggerConditions: readonly TriggerCondition[] = []
-  ): GameOperationResult {
-    let state = enqueueTriggeredCardEffects(game, triggerConditions);
+  private executePendingRuleActions(game: GameState): GameOperationResult {
+    let state = game;
     let hasChanges = false;
     let iterations = 0;
     const MAX_ITERATIONS = 100; // 防止无限循环
@@ -1351,15 +1358,47 @@ export class GameService {
       }
     }
 
-    const abilityResult = resolvePendingCardEffects(state);
-    state = abilityResult.gameState;
-    hasChanges = hasChanges || abilityResult.resolvedAbilityIds.length > 0;
-
     return {
       success: true,
       gameState: state,
       triggeredEvents: hasChanges ? ['RULE_ACTIONS_EXECUTED'] : undefined,
       ruleActions: appliedRuleActions,
+    };
+  }
+
+  /**
+   * 执行检查时机
+   * 根据规则 9.5.3 和第 10 章，自动执行规则处理
+   *
+   * 这是"信任玩家"方案的核心：
+   * - 系统自动清理非法状态
+   * - 玩家可以自由拖拽，系统帮助纠正
+   *
+   * @param game 当前游戏状态
+   * @returns 操作结果
+   */
+  executeCheckTiming(
+    game: GameState,
+    triggerConditions: readonly TriggerCondition[] = []
+  ): GameOperationResult {
+    let state = enqueueTriggeredCardEffects(game, triggerConditions);
+    const ruleActionResult = this.executePendingRuleActions(state);
+    state = ruleActionResult.gameState;
+    if (ruleActionResult.triggeredEvents?.includes('GAME_ENDED')) {
+      return ruleActionResult;
+    }
+
+    const abilityResult = resolvePendingCardEffects(state);
+    state = abilityResult.gameState;
+    const hasChanges =
+      (ruleActionResult.ruleActions?.length ?? 0) > 0 ||
+      abilityResult.resolvedAbilityIds.length > 0;
+
+    return {
+      success: true,
+      gameState: state,
+      triggeredEvents: hasChanges ? ['RULE_ACTIONS_EXECUTED'] : undefined,
+      ruleActions: ruleActionResult.ruleActions,
     };
   }
 

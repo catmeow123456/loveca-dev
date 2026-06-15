@@ -185,6 +185,20 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 本地测试桌面已经进入“LIVE 自动判定 + 卡效分类底座”阶段。
 
+## 本次 2026-06-16 condition/query 第二批小收束
+
+- `src/application/effects/conditions.ts` 继续扩展纯函数 query：新增按 cardIds 返回 selector 命中 id、舞台成员存在性、来源以外其他舞台成员等查询。
+- 小范围迁移 runner 内联条件/计数：`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」登场相关成员存在条件、`PL!HS-bp6-001` 费用 4「日野下花帆」登场动态舞台成员数、`PL!HS-bp6-031-L` 分数 8「ファンファーレ！！！」等待室成员与 `みらくらぱーく！` 成员计数、`PL!HS-bp1-006-P` 费用 11「藤岛 慈」LIVE 开始“其他成员”条件。
+- 补 `tests/unit/conditions.test.ts`，覆盖 selector 计数/阈值、区域与成功 LIVE 计数、舞台成员条件、LIVE 区排除来源计数、来源有效 BLADE 阈值查询；文档口径仍保持“第一版 helper 起步”，不提前纳入 frozen baseline。
+- 本次仍不改变事件层、不改变 pending 顺序、不改变费用模块；`PL!HS-bp1-003` 常时三面不同名条件位于 `domain/rules/live-modifiers.ts`，为避免 domain 反向依赖 application，本批暂不迁移。
+
+## 本次 2026-06-15 condition/query 第一版
+
+- 新增 `src/application/effects/conditions.ts`，作为第一版纯函数 query/condition 模块；当前只提供区域计数、selector 计数/阈值、成功 LIVE 数、舞台成员数、LIVE 区排除来源卡计数、来源成员有效 BLADE 阈值查询，不做 AST、不做声明式 steps。
+- 小范围迁移 runner 内联条件/计数：`PL!-sd1-009-SD` 费用 11「矢泽妮可」、`PL!-sd1-022-SD` 分数 4「僕らは今のなかで」、`PL!HS-bp5-019-L` 分数 6「花结」、`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」、`PL!HS-pb1-009-R` 费用 15「日野下花帆」，并顺手复用到 `PL!-sd1-001-SD` 费用 7「高坂穗乃果」成功 LIVE 条件与 `PL!HS-pb1-020-N` 费用 9「百生吟子」休息室 LIVE 数条件。
+- 本次不改变事件层、不改变 pending 顺序、不改变费用模块、不拆 `definitions/index.ts`，只把少量 inline 计数替换为可复用 query 函数。
+- 验证：`tests/unit/card-effect-classification.test.ts` 5 tests passed；`tests/integration/sample-card-effect-runner.test.ts` 133 tests passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
 ## 本次 2026-06-15 卡效定义层拆文件
 
 - `CARD_ABILITY_DEFINITIONS`、卡面效果文本、能力 id 与 definition 类型已从 `src/application/card-effect-runner.ts` 拆到 `src/application/card-effects/` 下。

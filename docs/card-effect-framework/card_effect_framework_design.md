@@ -235,6 +235,8 @@ previousStepSucceeded()
 sourceMovedThisTurn().isFalse()
 ```
 
+当前状态：`src/application/effects/conditions.ts` 已提供第一版纯函数 condition/query helper，包括区域计数、selector 计数/阈值、按 selector 返回 cardIds、成功 LIVE 数、舞台成员数/存在性、其他舞台成员、LIVE 区排除来源卡计数与来源成员有效 BLADE 阈值查询。它只作为 runner 内联条件的复用层，不引入 condition AST、声明式 steps 或通用公式 builder。
+
 ### 4.5 Effect step layer
 
 职责：
