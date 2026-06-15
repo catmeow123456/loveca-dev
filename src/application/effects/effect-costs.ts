@@ -1,6 +1,7 @@
 import type { GameState } from '../../domain/entities/game.js';
-import { getPlayerById, updatePlayer } from '../../domain/entities/game.js';
-import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
+import { emitGameEvent, getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
+import { createLeaveStageEvent } from '../../domain/events/game-events.js';
+import { OrientationState, SlotPosition, ZoneType } from '../../shared/types/enums.js';
 
 export type EffectCostDefinition =
   | {
@@ -131,6 +132,7 @@ export function payImmediateEffectCosts(
         if (!slot) {
           return null;
         }
+        const sourceCard = getCardById(state, sourceCardId);
         const energyBelowCardIds = player.memberSlots.energyBelow[slot] ?? [];
         const memberBelowCardIds = player.memberSlots.memberBelow[slot] ?? [];
         const cardIdsForCost = [sourceCardId, ...energyBelowCardIds, ...memberBelowCardIds];
@@ -156,6 +158,18 @@ export function payImmediateEffectCosts(
             },
           },
         }));
+        if (sourceCard) {
+          state = emitGameEvent(
+            state,
+            createLeaveStageEvent(
+              sourceCardId,
+              slot,
+              ZoneType.WAITING_ROOM,
+              sourceCard.ownerId,
+              playerId
+            )
+          );
+        }
         sourceSlot = slot;
         movedToWaitingRoomCardIds.push(...cardIdsForCost);
         break;

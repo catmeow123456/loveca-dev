@@ -18,6 +18,7 @@
 
 - 在聊天更新和最终回复中提到具体卡牌编号时，同时写清费用/分数与卡名。成员卡格式示例：`PL!SP-bp4-008-P` 费用 13「若菜四季」；LIVE 卡格式示例：`PL!-sd1-019-SD` 分数 4「START:DASH!!」。
 - 需要提交代码或创建 PR 时，commit message 和 PR title 都用中文。
+- 非平凡提交不要只写一行标题。小修可以单行；卡效批次、架构调整、rebase 收束、PR 前清理等提交应使用多行 commit message：标题概括目的，正文说明变更范围、关键实现点、验证命令/结果，以及刻意未处理的本地状态或后续事项。
 - 卡效完成状态的主登记册是 `docs/card-effect-reuse-audit/existing_module_map.md`，按基础编号记录完整/部分/同型/partial 状态。每完成一张卡或一个效果段，优先实时更新该登记册，记录基础编号、费用/分数、卡名、同编号罕度覆盖、已实现段、暂未实现段、复用模块与测试文件。
 
 ## 卡效批处理文档节奏
@@ -112,6 +113,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - “从因声援公开的卡中选择并移动”优先复用 `src/application/effects/cheer-selection.ts`。该 helper 以 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 找到本次声援公开且仍在处理区的卡，再按 selector 移动到手牌、卡组顶或休息室；追加声援优先复用 `src/application/effects/cheer.ts`，只补公开卡与本次声援登记，不二次触发 `ON_CHEER`。后续放回卡组底、重做声援等效果继续扩展同一入口，不要重新扫描整个解决区。
 - “按条件选择舞台成员 -> 改变成员状态”已由 `src/application/effects/stage-member-target-selection.ts` 起步：用 `stage-targets.ts` + `card-selectors.ts` 生成候选 active effect，并在结算时调用 `setMemberOrientation`。新增选择自己/对方舞台成员并变为待机/活跃的效果时，优先复用该配置入口。
 - “成员变为待机/活跃”与“站位变换”作为卡效步骤时，优先复用 `src/application/effects/member-state.ts` 的 `setMemberOrientation` / `moveMemberBetweenSlots`。普通规则流程里的自由横置、拖拽、手动区域移动仍归 `GameSession` / action handler / `zone-operations.ts`，不要为了卡效抽象反向改写桌面规则流程。
+- 事件层已开始向 `GameState.eventLog` 收口：`emitGameEvent` 是权威不可变事件流入口，`EventBus` 只保留作非权威运行时/调试工具。当前普通 `PLAY_MEMBER` 会写入 `ON_ENTER_STAGE`；`member-state.ts` 与普通 `MOVE_MEMBER_TO_SLOT` 已在成员方向变化与成员槽位移动/交换时写入 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED`；卡效从休息室登场会写入 `ON_ENTER_STAGE`；舞台成员进休息室、换手替换离场、自送费用会写入 `ON_LEAVE_STAGE`。`enqueueTriggeredCardEffects` 已消费 `ON_ENTER_STAGE`、`ON_MEMBER_SLOT_MOVED` 与 `ON_LEAVE_STAGE` 事件流，仍保留旧 action-history fallback；`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」是首个成员移动 AUTO proving path。
 - “将此成员从舞台放置入休息室”作为发动费用时，仍优先走 `src/application/effects/effect-costs.ts` 的 `SEND_SOURCE_MEMBER_TO_WAITING_ROOM`；不要和 S01/S02/S05 的状态/站位步骤混成同一个概念。
 - 若效果文本写“公开并加入手牌”，必须先把被选牌加入 `inspectionZone.revealedCardIds`，等待玩家确认后再移动到手牌；不能直接加入手牌。
 - 若效果文本写“将 1 张加入手牌”而不是“可以将 1 张加入手牌”，选择阶段应强制选择；只有没有合法目标时才允许不选。
@@ -213,7 +215,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
   - 当前实现登场段复用抽牌 helper 与手牌弃置壳；LIVE 开始段复用弃 1 手牌 active effect、Heart 颜色 option、`addLiveModifier` 写入路径，并在弃手后检查“其他成员”条件，不满足时只支付费用并结束。
 - `PL!HS-bp2-012-N` 费用 5「乙宗 梢」。
   - 自动：此成员从舞台放置入休息室时，检视卡组顶 5 张；可以公开并加入手牌 1 张成员，其余放置入休息室。
-  - 当前实现打开最小 AUTO / `S08` proving 底座：`ON_LEAVE_STAGE` 入队，复用 look-top 检视/公开/入手/其余进休息室原语。普通手动从舞台进休息室、被换手登场替换、以及自送休息室费用的显式来源都可进入离场 AUTO 入队路径。若同一动作同时产生离场 AUTO 与新成员登场能力，按共享 event window 进入同一个顺序选择窗口。
+  - 当前实现打开最小 AUTO / `S08` proving 底座：`ON_LEAVE_STAGE` 入队，复用 look-top 检视/公开/入手/其余进休息室原语。普通手动从舞台进休息室、被换手登场替换、以及自送休息室费用都会写入 `LeaveStageEvent` 并进入离场 AUTO 入队路径。若同一动作同时产生离场 AUTO 与新成员登场能力，按换手 `replacingCardId` 关系进入同一个顺序选择窗口。
 - `PL!HS-bp6-017-N` 费用 11「日野下花帆」。
   - 自动：此成员从舞台放置入休息室时，可以将 1 张手牌放置入休息室；如此做的场合，从休息室将 LIVE 卡和成员卡至多各 1 张加入手牌。
   - 当前实现复用 `ON_LEAVE_STAGE` AUTO 入队、弃手费用与 `WAITING_ROOM -> HAND` 移动原语；新增选择约束为 LIVE/成员各至多 1 张，来源成员自身进入休息室后也会成为合法成员候选。

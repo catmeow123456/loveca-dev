@@ -340,6 +340,10 @@ export enum TriggerCondition {
   ON_PAY_COST = 'ON_PAY_COST',
 
   // ---- 状态触发 (规则 9.7.6) ----
+  /** 成员状态改变时 */
+  ON_MEMBER_STATE_CHANGED = 'ON_MEMBER_STATE_CHANGED',
+  /** 成员区域移动时 */
+  ON_MEMBER_SLOT_MOVED = 'ON_MEMBER_SLOT_MOVED',
   /** 手牌为空时 */
   ON_HAND_EMPTY = 'ON_HAND_EMPTY',
   /** 卡组为空时 */

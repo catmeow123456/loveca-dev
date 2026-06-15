@@ -9,7 +9,13 @@ import {
   setMemberOrientation,
   setMembersOrientation,
 } from '../../src/application/effects/member-state';
-import { CardType, HeartColor, OrientationState, SlotPosition } from '../../src/shared/types/enums';
+import {
+  CardType,
+  HeartColor,
+  OrientationState,
+  SlotPosition,
+  TriggerCondition,
+} from '../../src/shared/types/enums';
 
 function createMemberCard(cardCode: string): MemberCardData {
   return {
@@ -56,6 +62,15 @@ describe('member state effect helpers', () => {
     expect(
       result?.gameState.players[0].memberSlots.cardStates.get(memberB.instanceId)?.orientation
     ).toBe(OrientationState.ACTIVE);
+    expect(result?.gameState.eventLog).toHaveLength(1);
+    expect(result?.gameState.eventLog[0].event).toMatchObject({
+      eventType: TriggerCondition.ON_MEMBER_STATE_CHANGED,
+      cardInstanceId: memberA.instanceId,
+      controllerId: 'p1',
+      slot: SlotPosition.LEFT,
+      previousOrientation: OrientationState.ACTIVE,
+      nextOrientation: OrientationState.WAITING,
+    });
     expect(setMemberOrientation(game, 'p1', 'missing-card', OrientationState.WAITING)).toBeNull();
   });
 
@@ -88,6 +103,53 @@ describe('member state effect helpers', () => {
     expect(
       result?.gameState.players[0].memberSlots.cardStates.get(memberB.instanceId)?.orientation
     ).toBe(OrientationState.WAITING);
+    expect(result?.gameState.eventLog.map((entry) => entry.event.eventType)).toEqual([
+      TriggerCondition.ON_MEMBER_STATE_CHANGED,
+      TriggerCondition.ON_MEMBER_STATE_CHANGED,
+    ]);
+    expect(result?.gameState.eventLog.map((entry) => entry.event)).toMatchObject([
+      {
+        cardInstanceId: memberA.instanceId,
+        previousOrientation: OrientationState.ACTIVE,
+        nextOrientation: OrientationState.WAITING,
+      },
+      {
+        cardInstanceId: memberB.instanceId,
+        previousOrientation: OrientationState.ACTIVE,
+        nextOrientation: OrientationState.WAITING,
+      },
+    ]);
+  });
+
+  it('does not emit state changed events for unchanged member orientations', () => {
+    const memberA = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
+    const memberB = createCardInstance(createMemberCard('MEM-B'), 'p1', 'member-b');
+    let game = createGameState('member-state-noop-orientation', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [memberA, memberB]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId),
+        SlotPosition.RIGHT,
+        memberB.instanceId
+      ),
+    }));
+
+    const singleResult = setMemberOrientation(
+      game,
+      'p1',
+      memberA.instanceId,
+      OrientationState.ACTIVE
+    );
+    expect(singleResult?.gameState.eventLog).toEqual([]);
+
+    const batchResult = setMembersOrientation(
+      game,
+      'p1',
+      [memberA.instanceId, memberB.instanceId],
+      OrientationState.ACTIVE
+    );
+    expect(batchResult?.gameState.eventLog).toEqual([]);
   });
 
   it('moves a member to an empty slot with attached cards', () => {
@@ -125,6 +187,14 @@ describe('member state effect helpers', () => {
       belowMember.instanceId,
     ]);
     expect(result?.gameState.players[0].positionMovedThisTurn).toEqual([member.instanceId]);
+    expect(result?.gameState.eventLog).toHaveLength(1);
+    expect(result?.gameState.eventLog[0].event).toMatchObject({
+      eventType: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+      cardInstanceId: member.instanceId,
+      controllerId: 'p1',
+      fromSlot: SlotPosition.LEFT,
+      toSlot: SlotPosition.RIGHT,
+    });
   });
 
   it('swaps occupied member slots with their attached cards', () => {
@@ -164,6 +234,25 @@ describe('member state effect helpers', () => {
       memberA.instanceId,
       memberB.instanceId,
     ]);
+    expect(result?.gameState.eventLog).toHaveLength(2);
+    expect(result?.gameState.eventLog.map((entry) => entry.event)).toMatchObject([
+      {
+        eventType: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+        cardInstanceId: memberA.instanceId,
+        controllerId: 'p1',
+        fromSlot: SlotPosition.LEFT,
+        toSlot: SlotPosition.CENTER,
+        swappedCardInstanceId: memberB.instanceId,
+      },
+      {
+        eventType: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+        cardInstanceId: memberB.instanceId,
+        controllerId: 'p1',
+        fromSlot: SlotPosition.CENTER,
+        toSlot: SlotPosition.LEFT,
+        swappedCardInstanceId: memberA.instanceId,
+      },
+    ]);
     expect(moveMemberBetweenSlots(game, 'p1', memberA.instanceId, SlotPosition.LEFT)).toBeNull();
   });
 
@@ -200,5 +289,15 @@ describe('member state effect helpers', () => {
     expect(
       result?.gameState.players[0].memberSlots.cardStates.get(memberA.instanceId)?.orientation
     ).toBe(OrientationState.ACTIVE);
+  });
+
+  it('does not emit member events when helper validation fails', () => {
+    const member = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
+    let game = createGameState('member-state-failed-event', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member]);
+
+    expect(setMemberOrientation(game, 'p1', member.instanceId, OrientationState.WAITING)).toBeNull();
+    expect(moveMemberBetweenSlots(game, 'p1', member.instanceId, SlotPosition.RIGHT)).toBeNull();
+    expect(game.eventLog).toEqual([]);
   });
 });

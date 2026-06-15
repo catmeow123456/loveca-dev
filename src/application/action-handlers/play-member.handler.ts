@@ -8,9 +8,10 @@ import type { GameState } from '../../domain/entities/game.js';
 import type { PlayMemberAction } from '../actions.js';
 import type { ActionHandler, ActionHandlerContext } from './types.js';
 import { success, failure } from './types.js';
-import { TriggerCondition } from '../../shared/types/enums.js';
+import { TriggerCondition, ZoneType } from '../../shared/types/enums.js';
 import { isMemberCardData } from '../../domain/entities/card.js';
-import { addAction, updatePlayer } from '../../domain/entities/game.js';
+import { addAction, emitGameEvent, updatePlayer } from '../../domain/entities/game.js';
+import { createEnterStageEvent, createLeaveStageEvent } from '../../domain/events/game-events.js';
 import {
   removeCardFromZone,
   addCardToZone,
@@ -57,6 +58,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
 
   const existingCardId = getCardInSlot(player.memberSlots, targetSlot);
   let replacedCardId: string | null = null;
+  let replacedCardOwnerId: string | null = null;
   if (existingCardId) {
     const existingCard = ctx.getCardById(game, existingCardId);
     if (!existingCard || !isMemberCardData(existingCard.data)) {
@@ -89,6 +91,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
 
     // 成员区已有成员时，本次登场按换手处理；不因该成员是否本回合新登场而被阻断。
     replacedCardId = existingCardId;
+    replacedCardOwnerId = existingCard.ownerId;
   }
 
   let state = game;
@@ -100,6 +103,19 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
       const newWaitingRoom = addCardToZone(p.waitingRoom, replacedCardId!);
       return { ...p, memberSlots: newSlots, waitingRoom: newWaitingRoom };
     });
+    if (replacedCardOwnerId) {
+      state = emitGameEvent(
+        state,
+        createLeaveStageEvent(
+          replacedCardId,
+          targetSlot,
+          ZoneType.WAITING_ROOM,
+          replacedCardOwnerId,
+          playerId,
+          cardId
+        )
+      );
+    }
   }
 
   // 执行：从手牌移除并放置到舞台
@@ -113,6 +129,10 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
       movedToStageThisTurn: [...p.movedToStageThisTurn, cardId],
     };
   });
+  state = emitGameEvent(
+    state,
+    createEnterStageEvent(cardId, ZoneType.HAND, targetSlot, card.ownerId, playerId)
+  );
 
   // 记录动作
   state = addAction(state, 'PLAY_MEMBER', playerId, {

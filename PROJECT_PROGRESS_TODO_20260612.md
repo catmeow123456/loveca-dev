@@ -21,6 +21,46 @@
 
 - `myk_20260611`
 
+## 本次 2026-06-15 `ON_ENTER_STAGE` 事件日志消费
+
+- 普通 `PLAY_MEMBER` 手牌登场现在写入 `EnterStageEvent(fromZone=HAND)`；卡效 `playMembersFromWaitingRoomToEmptySlots` 从休息室登场现在写入 `EnterStageEvent(fromZone=WAITING_ROOM)`。
+- `enqueueTriggeredCardEffects` 的 `ON_ENTER_STAGE` 路径改为优先消费 `eventLog` / 显式 `EnterStageEvent`，并继续保留旧 `PLAY_MEMBER` action-history fallback。
+- 默认检查时机只消费最近一次登场事件，避免旧登场历史被后上场的舞台监听 AUTO 误触发；卡效登场会显式传入本次新产生的 `EnterStageEvent` 列表。
+- 回归覆盖 `PL!HS-bp6-004-R` 费用 13「百生 吟子」手牌登场、`PL!S-bp2-006-P` 费用 11「津岛善子」从休息室登场后触发 `PL!-sd1-004-SD` 费用 11「南小鸟」登场能力，以及 `PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」登场段。
+- 验证：`tests/unit/game-events.test.ts` + `tests/unit/member-state.test.ts` + `tests/unit/card-effect-classification.test.ts` + `tests/integration/sample-card-effect-runner.test.ts` 共 146 tests passed；`tests/integration/online-command-pipeline.test.ts` 56 tests passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
+## 本次 2026-06-15 `ON_LEAVE_STAGE` 事件日志消费
+
+- `LeaveStageEvent` 现在可携带 `replacingCardId`；普通舞台成员移动进休息室、换手替换离场、以及 `SEND_SOURCE_MEMBER_TO_WAITING_ROOM` 自送费用都会写入 `GameState.eventLog`。
+- `enqueueTriggeredCardEffects` 的 `ON_LEAVE_STAGE` 路径改为优先消费 `eventLog` / 显式 `LeaveStageEvent`，并继续保留旧 `actionHistory` 来源推断作为兼容回退。
+- 换手离场与新成员登场的顺序选择窗口改为识别 `replacingCardId` 关系；因此登场事件和离场事件不需要共享同一个 `eventId`，仍会让玩家选择先后。
+- 回归覆盖 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」、`PL!HS-bp6-017-N` 费用 11「日野下花帆」与 `PL!HS-sd1-001-SD` 费用 9「日野下花帆」三条离场 AUTO proving path。
+- 验证：`tests/unit/game-events.test.ts` + `tests/unit/member-state.test.ts` + `tests/unit/card-effect-classification.test.ts` + `tests/integration/sample-card-effect-runner.test.ts` 共 146 tests passed；`tests/integration/online-command-pipeline.test.ts` 56 tests passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
+## 本次 2026-06-15 成员移动事件消费与 `PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」
+
+- `enqueueTriggeredCardEffects` 已开始消费 `ON_MEMBER_SLOT_MOVED` eventLog：按事件中的移动成员作为 AUTO 来源、用 `eventId` 写入 `PendingAbilityState.eventIds` 并防重复入队。
+- 普通 `MOVE_MEMBER_TO_SLOT` 现在也会写入 `ON_MEMBER_SLOT_MOVED`，并在命令提交时入队/启动对应 AUTO；卡效 helper 的站位变换路径在结算后同样消费新产生的成员移动事件。
+- 已完成 `PL!SP-bp4-011-P`（基础编号 `PL!SP-bp4-011`，费用 7「鬼冢冬毬」）：自身登场或成员区槽位移动/交换时，选择对方舞台原本 BLADE <= 3 的成员变为待机；无合法目标时能力仍入队并以 `SKIP_NO_TARGET` 结算。
+- 边界：登场只走 `ON_ENTER_STAGE`，不额外当作成员区移动重复触发；当前只消费成员槽位移动事件，完整区域移动/支付/状态变化 trigger matcher 仍后续推进。
+- 验证：`tests/unit/card-effect-classification.test.ts` + `tests/integration/sample-card-effect-runner.test.ts` 共 134 tests passed；`pnpm exec tsc --noEmit` passed。
+
+## 本次 2026-06-15 事件日志与成员事件底座
+
+- 新增 `GameState.eventLog` / `eventSequence` 与纯函数 `emitGameEvent`，作为后续 AUTO / trigger matcher 的不可变权威事件流；`actionHistory` 继续保留给审计、UI 与既有流程。
+- `src/domain/events/game-events.ts` 新增 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED` 事件类型与工厂函数；`EventBus` 已标注为非权威运行时工具，不接入规则触发。
+- `src/application/effects/member-state.ts` 已在成员待机/活跃、批量方向变更、站位变换/交换成功后写入 `eventLog`。交换会为主动移动成员和被交换成员各记录一条 `ON_MEMBER_SLOT_MOVED`。
+- 当前边界：本批第一步只写事件事实；随后已用上方 `PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」完成成员移动事件消费 proving path。
+- 验证：`tests/unit/game-events.test.ts` + `tests/unit/member-state.test.ts` 共 10 tests passed；`tests/unit/card-effect-classification.test.ts` + `tests/integration/sample-card-effect-runner.test.ts` 共 131 tests passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
+## 本次 2026-06-15 快速卡效批处理：`PL!HS-pb1-012-R` 费用 13「百生吟子」
+
+- 已完成 `PL!HS-pb1-012-R / P+` 登场效果：自己和对方各自将休息室所有成员卡洗牌放到自身卡组底；若双方因此合计放到底部的卡片大于等于 20 张，则从自己的休息室回收 1 张 LIVE，并通过 `BLADE` live modifier 获得 BLADE +2。
+- 规则细节：中文/日文同编号文本一致，按基础编号 `PL!HS-pb1-012` 登记；FAQ 路径已覆盖“没有可回收 LIVE 时仍获得 BLADE”。
+- 复用范围：继续沿用 `shuffleZone`、`WAITING_ROOM -> HAND` zone-selection、`addLiveModifier(BLADE)` 与现有登场队列；未新增 resolver / cost calculator / live modifier registry 结构。
+- Focused 验证：`tests/unit/card-effect-classification.test.ts` 覆盖同编号 `R / P+` 基础编号登记；`tests/integration/sample-card-effect-runner.test.ts` 覆盖双方合计 20 张且回收 LIVE、合计 20 张但无 LIVE 仍加 BLADE、合计不足 20 时不回收不加 BLADE。
+- 实时同步：已更新 `docs/card-effect-reuse-audit/existing_module_map.md`；按快速批处理节奏，本窗口未改设计/覆盖/gap 大文档。
+
 ## 本次 2026-06-14 低风险同型 LIVE 开始扩样本（基于 `PL!-bp4-010-N`）
 
 - 收束范围：
@@ -473,9 +513,9 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 本次 2026-06-13 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」AUTO proving 收口：
 
 - 新增 `HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID`，登记为 `AUTO` / `STAGE_MEMBER` / `ON_LEAVE_STAGE` 队列能力。
-- `enqueueTriggeredCardEffects` 新增 `ON_LEAVE_STAGE` 入队路径，当前通过最近的 `PLAY_MEMBER` 替换来源、`MOVE_CARD` 从成员区到休息室来源，以及自送休息室费用的显式来源构造最小离场事件来源。
+- `enqueueTriggeredCardEffects` 新增 `ON_LEAVE_STAGE` 入队路径；2026-06-15 起优先消费 `eventLog` 中的 `LeaveStageEvent`，仍兼容最近 `PLAY_MEMBER` 替换来源、`MOVE_CARD` 从成员区到休息室来源等旧 action-history 回退。
 - `PL!HS-bp2-012-N` 费用 5「乙宗 梢」解析复用 look-top：检视顶 5，选择成员后先公开，确认后该成员入手，其余检视牌进休息室。
-- 待处理效果顺序选择从“同一 timingId”扩为“同一 controller 且同 timingId 或共享 eventId”。因此当 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」被普通登场换手替换时，其离场 AUTO 与新登场成员的登场能力会进入同一个顺序选择窗口，由玩家选择先后。
+- 待处理效果顺序选择从“同一 timingId”扩为“同一 controller 且同 timingId、共享 eventId，或换手离场 `replacingCardId` 指向新登场成员”。因此当 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」被普通登场换手替换时，其离场 AUTO 与新登场成员的登场能力会进入同一个顺序选择窗口，由玩家选择先后。
 - 当前仍不是完整 `GameEvent -> trigger matcher` 层；`S08` 只先覆盖舞台成员进入休息室的 proving 路径。更多移动事件、状态变化、每回合限制、when-if 等 AUTO 边界后续继续扩。
 - focused tests 已补：
   - `tests/unit/card-effect-classification.test.ts` 覆盖 AUTO 能力登记与队列 metadata。
@@ -485,7 +525,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 本次 2026-06-13 `PL!HS-bp6-017-N` 费用 11「日野下花帆」AUTO proving 收口：
 
 - 新增 `HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID`，登记为 `AUTO` / `STAGE_MEMBER` / `ON_LEAVE_STAGE` 队列能力。
-- 继续复用 `ON_LEAVE_STAGE` 离场 AUTO 入队路径，并补了薄事件来源接口：`enqueueTriggeredCardEffects` 可从 `LeaveStageEvent` 转换离场来源；当前主流程仍兼容 action-history / explicit-source。
+- 继续复用 `ON_LEAVE_STAGE` 离场 AUTO 入队路径；2026-06-15 起主流程优先从 `eventLog` 的 `LeaveStageEvent` 转换离场来源，并兼容 action-history / explicit-source。
 - 效果流程复用现有弃手费用与 `WAITING_ROOM -> HAND` 移动原语：离场后可选择 1 张手牌放置入休息室；如此做时，从休息室选择 LIVE 卡和成员卡至多各 1 张加入手牌。来源成员自身已进入休息室，因此也会成为合法成员候选。
 - 新增 grouped recovery 校验：多选最多 2 张，但 LIVE 不超过 1 张、成员不超过 1 张；尝试选择两张 LIVE 会被权威层拒绝。
 - focused tests 已补：
@@ -496,7 +536,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 本次 2026-06-13 `PL!HS-pb1-009-R` 费用 15「日野下花帆」AUTO proving 收口：
 
 - 新增 `HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID`，登记为 `AUTO` / `STAGE_MEMBER` / `ON_ENTER_STAGE` 队列能力，`requiredSourceSlots: [CENTER]`，`perTurnLimit: 2`。
-- `enqueueTriggeredCardEffects` 的 `ON_ENTER_STAGE` 现在同时支持登场者自己的 `ON_ENTER` 能力与舞台成员监听登场事件的 AUTO；新增薄 `EnterStageEvent` / on-enter source adapter，当前主流程仍兼容最近 `PLAY_MEMBER` action。
+- `enqueueTriggeredCardEffects` 的 `ON_ENTER_STAGE` 现在同时支持登场者自己的 `ON_ENTER` 能力与舞台成员监听登场事件的 AUTO；2026-06-15 起主流程优先消费 `eventLog` / 显式 `EnterStageEvent`，仍兼容最近 `PLAY_MEMBER` action fallback。
 - “1回合 N 次”限制改为通用实例级底座：`ABILITY_USE` 按来源卡实例计数；同步修正 `PL!-sd1-008-SD` 费用未登记「小泉 花陽」的旧行为，同一实例本回合第二次会被拒绝，另一张同名实例可以发动。
 - 效果段写入 `liveResolution.liveModifiers` 的 `BLADE` modifier：己方「莲之空」成员登场至自己舞台时，来源为中央的此成员获得 BLADE +2。FAQ 覆盖“此成员自己登场到中央也会触发”。
 - 同卡第二段登记为 `LIVE_START` / `STAGE_MEMBER` 队列能力：LIVE 开始时统计此成员有效 BLADE，若大于等于 8，则复用 F02 抽 2 弃 1 流程。

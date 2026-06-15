@@ -6,8 +6,9 @@
 
 import type { GameState } from '../../domain/entities/game.js';
 import type { PlayerState } from '../../domain/entities/player.js';
-import { updatePlayer } from '../../domain/entities/game.js';
+import { emitGameEvent, getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
 import { recordPositionMove } from '../../domain/entities/player.js';
+import { createLeaveStageEvent, createMemberSlotMovedEvent } from '../../domain/events/game-events.js';
 import { ZoneType, SlotPosition } from '../../shared/types/enums.js';
 import {
   addCardToZone,
@@ -481,6 +482,13 @@ export function moveCardUniversal(
   ) {
     const sourceSlot = options.sourceSlot;
     const targetSlot = options.targetSlot;
+    const playerBefore = getPlayerById(state, playerId);
+    const sourceCardIdBefore = playerBefore
+      ? getCardInSlot(playerBefore.memberSlots, sourceSlot)
+      : null;
+    const targetCardIdBefore = playerBefore
+      ? getCardInSlot(playerBefore.memberSlots, targetSlot)
+      : null;
     state = updatePlayer(state, playerId, (player) => {
       const sourceCardId = getCardInSlot(player.memberSlots, sourceSlot);
       const targetCardId = getCardInSlot(player.memberSlots, targetSlot);
@@ -545,8 +553,37 @@ export function moveCardUniversal(
       };
       return recordPositionMove(updated, cardId);
     });
+    if (sourceCardIdBefore === cardId) {
+      state = emitGameEvent(
+        state,
+        createMemberSlotMovedEvent(
+          cardId,
+          playerId,
+          sourceSlot,
+          targetSlot,
+          targetCardIdBefore ?? undefined
+        )
+      );
+      if (targetCardIdBefore && targetCardIdBefore !== cardId) {
+        state = emitGameEvent(
+          state,
+          createMemberSlotMovedEvent(targetCardIdBefore, playerId, targetSlot, sourceSlot, cardId)
+        );
+      }
+    }
     return state;
   }
+
+  const sourceSlot = options?.sourceSlot;
+  const playerBeforeMove = getPlayerById(state, playerId);
+  const cardBeforeMove = getCardById(state, cardId);
+  const shouldEmitLeaveStage =
+    fromZone === ZoneType.MEMBER_SLOT &&
+    toZone === ZoneType.WAITING_ROOM &&
+    sourceSlot !== undefined &&
+    playerBeforeMove !== null &&
+    cardBeforeMove !== null &&
+    getCardInSlot(playerBeforeMove.memberSlots, sourceSlot) === cardId;
 
   // 从来源区域移除
   if (fromZone === ZoneType.RESOLUTION_ZONE) {
@@ -560,6 +597,19 @@ export function moveCardUniversal(
     state = addCardToResolutionZone(state, cardId);
   } else {
     state = addCardToPlayerZone(state, playerId, cardId, toZone, options);
+  }
+
+  if (shouldEmitLeaveStage) {
+    state = emitGameEvent(
+      state,
+      createLeaveStageEvent(
+        cardId,
+        sourceSlot,
+        ZoneType.WAITING_ROOM,
+        cardBeforeMove.ownerId,
+        playerId
+      )
+    );
   }
 
   return state;

@@ -1,10 +1,15 @@
 import type { GameState } from '../../domain/entities/game.js';
-import { getPlayerById, updatePlayer } from '../../domain/entities/game.js';
+import { emitGameEvent, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
 import type { MemberCardData } from '../../domain/entities/card.js';
 import { isMemberCardData } from '../../domain/entities/card.js';
 import { recordPositionMove } from '../../domain/entities/player.js';
 import { removeCardFromZone } from '../../domain/entities/zone.js';
-import { FaceState, OrientationState, SlotPosition } from '../../shared/types/enums.js';
+import {
+  createEnterStageEvent,
+  createMemberSlotMovedEvent,
+  createMemberStateChangedEvent,
+} from '../../domain/events/game-events.js';
+import { FaceState, OrientationState, SlotPosition, ZoneType } from '../../shared/types/enums.js';
 
 export interface SetMemberOrientationResult {
   readonly gameState: GameState;
@@ -52,7 +57,16 @@ export function setMemberOrientation(
     return null;
   }
 
-  const gameState = updatePlayer(game, playerId, (currentPlayer) => {
+  if (currentState.orientation === orientation) {
+    return {
+      gameState: game,
+      cardId,
+      previousOrientation: currentState.orientation,
+      nextOrientation: orientation,
+    };
+  }
+
+  let gameState = updatePlayer(game, playerId, (currentPlayer) => {
     const cardStates = new Map(currentPlayer.memberSlots.cardStates);
     cardStates.set(cardId, {
       ...currentState,
@@ -67,6 +81,14 @@ export function setMemberOrientation(
       },
     };
   });
+  const slot = findMemberSlotByCardId(player.memberSlots.slots, cardId);
+  if (!slot) {
+    return null;
+  }
+  gameState = emitGameEvent(
+    gameState,
+    createMemberStateChangedEvent(cardId, playerId, slot, currentState.orientation, orientation)
+  );
 
   return {
     gameState,
@@ -109,11 +131,11 @@ export function setMembersOrientation(
     };
   }
 
-  const gameState = updatePlayer(game, playerId, (currentPlayer) => {
+  let gameState = updatePlayer(game, playerId, (currentPlayer) => {
     const cardStates = new Map(currentPlayer.memberSlots.cardStates);
     for (const cardId of uniqueCardIds) {
       const currentState = cardStates.get(cardId);
-      if (currentState) {
+      if (currentState && currentState.orientation !== orientation) {
         cardStates.set(cardId, {
           ...currentState,
           orientation,
@@ -129,6 +151,25 @@ export function setMembersOrientation(
       },
     };
   });
+  for (const previous of previousOrientations) {
+    if (previous.orientation === orientation) {
+      continue;
+    }
+    const slot = findMemberSlotByCardId(player.memberSlots.slots, previous.cardId);
+    if (!slot) {
+      return null;
+    }
+    gameState = emitGameEvent(
+      gameState,
+      createMemberStateChangedEvent(
+        previous.cardId,
+        playerId,
+        slot,
+        previous.orientation,
+        orientation
+      )
+    );
+  }
 
   return {
     gameState,
@@ -155,7 +196,7 @@ export function moveMemberBetweenSlots(
   }
 
   const swappedCardId = player.memberSlots.slots[toSlot] ?? null;
-  const gameState = updatePlayer(game, playerId, (currentPlayer) => {
+  let gameState = updatePlayer(game, playerId, (currentPlayer) => {
     const fromEnergyBelow = currentPlayer.memberSlots.energyBelow[fromSlot] ?? [];
     const toEnergyBelow = currentPlayer.memberSlots.energyBelow[toSlot] ?? [];
     const fromMemberBelow = currentPlayer.memberSlots.memberBelow[fromSlot] ?? [];
@@ -185,6 +226,16 @@ export function moveMemberBetweenSlots(
     nextPlayer = recordPositionMove(nextPlayer, cardId);
     return swappedCardId ? recordPositionMove(nextPlayer, swappedCardId) : nextPlayer;
   });
+  gameState = emitGameEvent(
+    gameState,
+    createMemberSlotMovedEvent(cardId, playerId, fromSlot, toSlot, swappedCardId ?? undefined)
+  );
+  if (swappedCardId) {
+    gameState = emitGameEvent(
+      gameState,
+      createMemberSlotMovedEvent(swappedCardId, playerId, toSlot, fromSlot, cardId)
+    );
+  }
 
   return {
     gameState,
@@ -245,7 +296,7 @@ export function playMembersFromWaitingRoomToEmptySlots(
     };
   }
 
-  const gameState = updatePlayer(game, playerId, (currentPlayer) => {
+  let gameState = updatePlayer(game, playerId, (currentPlayer) => {
     let waitingRoom = currentPlayer.waitingRoom;
     const cardStates = new Map(currentPlayer.memberSlots.cardStates);
     const slots = { ...currentPlayer.memberSlots.slots };
@@ -266,6 +317,18 @@ export function playMembersFromWaitingRoomToEmptySlots(
       },
     };
   });
+  for (const playedMember of playedMembers) {
+    gameState = emitGameEvent(
+      gameState,
+      createEnterStageEvent(
+        playedMember.cardId,
+        ZoneType.WAITING_ROOM,
+        playedMember.toSlot,
+        playerId,
+        playerId
+      )
+    );
+  }
 
   return {
     gameState,

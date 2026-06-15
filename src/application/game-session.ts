@@ -24,6 +24,7 @@ import {
   OrientationState,
   SlotPosition,
   SubPhase,
+  TriggerCondition,
   ZoneType,
 } from '../shared/types/enums.js';
 import type { GameState, InspectionContextState } from '../domain/entities/game.js';
@@ -126,8 +127,10 @@ import type {
 import {
   activateCardAbility,
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   getActivatedAbilityLimitStatus,
   isSupportedActivatedAbilityForCard,
+  resolvePendingCardEffects,
 } from './card-effect-runner.js';
 import { isMemberCardData } from '../domain/entities/card.js';
 import { getActiveEnergyIds, tapEnergy } from '../domain/entities/zone.js';
@@ -2407,6 +2410,11 @@ export class GameSession {
     if (!result.success) {
       return { success: false, gameState: state, error: result.error };
     }
+    const stateWithMemberMoveTriggers = enqueueTriggeredCardEffects(
+      result.gameState,
+      [TriggerCondition.ON_MEMBER_SLOT_MOVED]
+    );
+    const abilityResult = resolvePendingCardEffects(stateWithMemberMoveTriggers);
 
     const extraPublicEvents = [
       // 主成员：sourceSlot -> targetSlot
@@ -2526,7 +2534,7 @@ export class GameSession {
 
     return {
       success: true,
-      gameState: result.gameState,
+      gameState: abilityResult.gameState,
       declarationType: 'MEMBER_MOVED_TO_SLOT',
       declarationPublicValue: `${command.sourceSlot}->${command.targetSlot}`,
       extraPublicEvents,

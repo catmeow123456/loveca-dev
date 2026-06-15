@@ -154,6 +154,14 @@ defineAbility({
 - 自动能力通过 trigger matcher 监听 event。
 - 同一时点多个自动能力进入 pending queue，由玩家选择顺序。
 
+当前状态：
+
+- `GameState.eventLog` / `eventSequence` 与 `emitGameEvent` 已落地，作为后续 trigger matcher 的不可变事件事实来源；`actionHistory` 仍保留用于审计、投影与既有 fallback。
+- `EventBus` 保留为非权威运行时/调试工具，不作为规则触发、联机同步或回放来源。
+- `member-state.ts` 已在成员方向变化、成员槽位移动与交换时写入 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED`；普通 `MOVE_MEMBER_TO_SLOT` 也写入成员槽位移动事件。`enqueueTriggeredCardEffects` 已开始消费 `ON_MEMBER_SLOT_MOVED`。
+- `ON_ENTER_STAGE` 已开始消费 `eventLog`：普通手牌登场写入 `EnterStageEvent(fromZone=HAND)`，卡效从休息室登场写入 `EnterStageEvent(fromZone=WAITING_ROOM)`；入队仍保留 action-history fallback。
+- `ON_LEAVE_STAGE` 已开始消费 `eventLog`：普通舞台成员进休息室、换手替换离场、自送休息室费用会写入 `LeaveStageEvent`；入队仍保留 action-history fallback。
+
 必要事件示例：
 
 ```ts
@@ -420,11 +428,14 @@ P0/P1 覆盖：
 
 当前决策：
 
+- 2026-06-15 已新增 `GameState.eventLog` / `eventSequence` 与 `emitGameEvent`，并让 `member-state.ts` 对成员状态变化、站位变换与成员交换写入 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED`。同日已接入 `ON_MEMBER_SLOT_MOVED` 的最小消费路径，`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」验证自身登场或成员区移动后横置对方原本 BLADE <= 3 成员。
+- 2026-06-15 已把 `ON_ENTER_STAGE` 主路径接入 `eventLog`：普通手牌登场与卡效从休息室登场均写入 `EnterStageEvent`，`enqueueTriggeredCardEffects` 优先从事件流入队。默认检查时机只消费最近登场事件，卡效登场显式传入本次新事件列表。
+- 2026-06-15 已把 `ON_LEAVE_STAGE` 主路径接入 `eventLog`：手动离场、换手替换离场与自送费用均写入 `LeaveStageEvent`，`enqueueTriggeredCardEffects` 优先从事件流入队。
 - 2026-06-13 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」最小起步：先支持 `ON_LEAVE_STAGE` 来源入队，证明舞台成员进休息室时的 AUTO 可以走待处理队列。
 - `PL!HS-bp6-017-N` 费用 11「日野下花帆」继续复用同一离场 AUTO 底座，并验证可选弃手后从休息室按类型分组回收 LIVE/成员各至多 1 张。
-- 2026-06-14 `PL!HS-sd1-001-SD` 费用 9「日野下花帆」为同一离场来源补了 `replacingCardId` 薄元数据：从 `PLAY_MEMBER` 的 relay 动作记录换上成员，入队前即可校验“曾与费用 >= 10 的莲之空成员换手”这类来源条件。
-- 当前实现仍主要是 action-history / 显式来源驱动的最小 event window；`enqueueTriggeredCardEffects` 已能接收 `LeaveStageEvent` 转换离场来源，但还不是完整 `GameEvent -> trigger matcher`。
-- 当同一动作同时产生离场 AUTO 与登场能力时，pending ability 顺序选择按同 controller 且同 timing 或共享 eventId 聚合，玩家可选择先后顺序。
+- 2026-06-14 `PL!HS-sd1-001-SD` 费用 9「日野下花帆」为同一离场来源补了 `replacingCardId` 薄元数据；2026-06-15 起该元数据直接来自 `LeaveStageEvent`，入队前即可校验“曾与费用 >= 10 的莲之空成员换手”这类来源条件。
+- 当前触发入队仍是逐事件类型迁移；`ON_ENTER_STAGE`、`ON_MEMBER_SLOT_MOVED` 与 `ON_LEAVE_STAGE` 已优先扫描 `eventLog`，仍保留旧 action-history fallback。这还不是完整 `GameEvent -> trigger matcher`。
+- 当同一动作同时产生离场 AUTO 与登场能力时，pending ability 顺序选择按同 controller 且同 timing、共享 eventId 或换手 `replacingCardId` 关系聚合，玩家可选择先后顺序。
 
 预留做法：
 
@@ -506,11 +517,11 @@ P0/P1 覆盖：
 
 - `PL!HS-bp2-012-N` 费用 5「乙宗 梢」登记为 `AUTO` / `STAGE_MEMBER` / `ON_LEAVE_STAGE` 队列能力。
 - `PL!HS-bp6-017-N` 费用 11「日野下花帆」登记为第二张同触发 AUTO：离场后可弃 1 手牌，若弃手成功，从休息室选择 LIVE 卡和成员卡至多各 1 张加入手牌。
-- `enqueueTriggeredCardEffects` 支持 `ON_LEAVE_STAGE`，当前从最近 `PLAY_MEMBER` 替换、从成员区移动到休息室的 `MOVE_CARD`、以及自送休息室费用显式来源构造离场来源。
+- `enqueueTriggeredCardEffects` 支持 `ON_LEAVE_STAGE`，当前优先从 `eventLog` 的 `LeaveStageEvent` 构造离场来源；最近 `PLAY_MEMBER` 替换、从成员区移动到休息室的 `MOVE_CARD` 等 action-history 来源仍作为兼容回退。
 - `PL!HS-bp2-012-N` 费用 5「乙宗 梢」解析流程复用 look-top：检视顶 5，选择成员后先公开，确认后入手，其余检视牌放置入休息室。
 - `PL!HS-bp6-017-N` 费用 11「日野下花帆」解析流程复用弃手费用与 `WAITING_ROOM -> HAND` 移动原语；新增分组选择约束为 LIVE/成员各至多 1 张。
-- 待处理队列的顺序选择窗口支持同 controller 且同 timingId 或共享 eventId，因此 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」被换手替换时，其离场 AUTO 会和新成员登场能力一起让玩家选择顺序。
-- 当前边界：还没有完整标准 `GameEvent -> trigger matcher`，也没有覆盖所有移动/状态变化 AUTO；后续真实样例继续推动。
+- 待处理队列的顺序选择窗口支持同 controller 且同 timingId、共享 eventId 或换手 `replacingCardId` 关系，因此 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」被换手替换时，其离场 AUTO 会和新成员登场能力一起让玩家选择顺序。
+- 当前边界：还没有完整标准 `GameEvent -> trigger matcher`，只先覆盖成员槽位移动与舞台离场事件消费；更多区域移动/状态变化 AUTO 后续真实样例继续推动。
 - focused tests 覆盖直接离场触发、公开入手/其余进休息室、弃手后分组回收 LIVE/成员、同类双选拒绝，以及与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」登场能力同事件排序。
 
 ### Stage 1P: AUTO enter-stage listener and member effective BLADE
@@ -520,7 +531,7 @@ P0/P1 覆盖：
 当前落地：
 
 - `PL!HS-pb1-009-R` 费用 15「日野下花帆」第一段登记为 `AUTO` / `STAGE_MEMBER` / `ON_ENTER_STAGE`，来源槽位要求 `CENTER`，`perTurnLimit: 2`。
-- `enqueueTriggeredCardEffects` 的 `ON_ENTER_STAGE` 同时处理登场者自己的 `ON_ENTER` 能力与舞台成员监听登场事件的 AUTO；薄 `EnterStageEvent` adapter 与最近 `PLAY_MEMBER` fallback 共存。
+- `enqueueTriggeredCardEffects` 的 `ON_ENTER_STAGE` 同时处理登场者自己的 `ON_ENTER` 能力与舞台成员监听登场事件的 AUTO；2026-06-15 起优先消费 `eventLog` / 显式 `EnterStageEvent`，最近 `PLAY_MEMBER` fallback 继续保留。
 - `perTurnLimit` 已从起动专用校验提升为能力通用限制，按 `playerId + abilityId + sourceCardId + turnCount` 统计；`PL!-sd1-008-SD` 费用未登记「小泉 花陽」也同步修正为同一来源卡实例每回合 1 次。
 - 效果段通过 `addLiveModifier` 写入 BLADE +2，FAQ 覆盖自己登场至中央时也触发。
 - `PL!HS-pb1-009-R` 费用 15「日野下花帆」第二段登记为 `LIVE_START` / `STAGE_MEMBER` 队列能力；LIVE 开始时通过 `getMemberEffectiveBladeCount` 统计印刷 BLADE + 同来源成员 BLADE modifier，达到 8 时复用 F02 抽 2 弃 1 流程。
