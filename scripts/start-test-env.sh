@@ -505,7 +505,8 @@ start_tmux_environment() {
   log "building server once before watch mode"
   pnpm build:server
 
-  tmux new-window -t "$TMUX_SESSION:" -n tsc "cd '$ROOT_DIR' && pnpm dev"
+  tmux new-window -t "$TMUX_SESSION:" -n tsc-shared "cd '$ROOT_DIR' && pnpm dev:shared:build"
+  tmux new-window -t "$TMUX_SESSION:" -n tsc-server "cd '$ROOT_DIR' && pnpm dev:server:build"
   tmux new-window -t "$TMUX_SESSION:" -n api "$(api_command)"
   tmux new-window -t "$TMUX_SESSION:" -n client "cd '$ROOT_DIR/client' && pnpm dev -- --host 0.0.0.0 --port '$FRONTEND_PORT'"
   tmux select-window -t "$TMUX_SESSION:client"
