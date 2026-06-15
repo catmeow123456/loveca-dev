@@ -28,6 +28,7 @@
     "lint:fix": "eslint src/ tests/ --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "version:check": "node scripts/check-version-consistency.mjs",
     "typecheck": "pnpm typecheck:shared && pnpm typecheck:server",
     "typecheck:shared": "tsc --noEmit",
     "typecheck:server": "tsc -p tsconfig.server.json --noEmit",

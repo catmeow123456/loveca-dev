@@ -5,9 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 import { createReadStream, existsSync, readFileSync, statSync } from 'fs';
 
-// 从 package.json 读取版本号
-const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
-const appVersion = pkg.version;
+// 产品版本由仓库根目录 VERSION 维护，并通过 version:check 与 package 版本保持一致。
+const appVersion = readFileSync(path.resolve(__dirname, '../VERSION'), 'utf-8').trim();
 const cacheVersion = `v${appVersion}`;
 const appBuildId =
   process.env.VITE_APP_BUILD_ID?.trim() ||

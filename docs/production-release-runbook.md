@@ -15,15 +15,28 @@
 - `/api/health` 当前只表示 API 进程可响应。数据库、对象存储和必要函数的 ready check 尚未独立落地。
 - `pnpm db:migrate` 需要在有源码、devDependencies 和生产 `DATABASE_URL` 的发布环境中执行；不要假设 API runtime 镜像内可以执行 Drizzle CLI。
 
-## 2. 发布前检查
+## 2. 版本与 tag
+
+- 产品版本以根目录 `VERSION` 为准。
+- 根 `package.json` 与 `client/package.json` 的 `version` 必须和 `VERSION` 保持一致。
+- 前端构建产物中的 `version.json` 使用 `VERSION` 作为 `version`，使用提交 SHA 或 `VITE_APP_BUILD_ID` 作为 `buildId`。
+- 发布 tag 使用 `vX.Y.Z` 格式，并且必须等于 `v${VERSION}`。
+- 正式发布建议使用 annotated tag：
+
+  ```bash
+  git tag -a v3.3.0 -m "发布 v3.3.0"
+  git push origin v3.3.0
+  ```
+
+## 3. 发布前检查
 
 1. 确认 CI 或本地等价命令通过：
 
    ```bash
    pnpm install --frozen-lockfile
    pnpm --dir client install --frozen-lockfile
+   pnpm version:check
    pnpm typecheck:all
-   pnpm lint
    pnpm test:run
    pnpm build:server
    pnpm --dir client build
@@ -64,13 +77,14 @@
    - 对象存储 bucket 已有独立备份或快照。
    - 如果本次包含数据库迁移，确认迁移 SQL 已审查，并明确是否可逆。
 
-## 3. 构建
+## 4. 构建
 
 在发布机或 CI 构建环境执行：
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm --dir client install --frozen-lockfile
+pnpm version:check
 pnpm build:server
 pnpm --dir client build
 docker compose build api
@@ -81,7 +95,7 @@ docker compose build api
 - API：Docker image 中的 `dist/server/index.js`
 - 前端：`client/dist`
 
-## 4. 数据库迁移
+## 5. 数据库迁移
 
 在生产数据库连接确认无误后执行：
 
@@ -96,7 +110,7 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 - 如果迁移包含数据修复，先在测试数据库验证可重复执行性和失败后的处理方式。
 - `docker/init.sql` 包含部分 Drizzle schema 不表达的函数和触发器；新库初始化与已有库迁移不能混为一谈。
 
-## 5. 部署
+## 6. 部署
 
 1. 部署 API：
 
@@ -119,7 +133,7 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 
 4. 确认 TLS、Host、上传体积限制和代理超时符合生产域名配置。
 
-## 6. 发布后检查
+## 7. 发布后检查
 
 1. 检查容器状态：
 
@@ -154,7 +168,7 @@ DATABASE_URL='postgres://...' pnpm db:migrate
    - 创建或进入联机房间。
    - 打开一局对战并确认基础同步正常。
 
-## 7. 回滚
+## 8. 回滚
 
 1. 前端回滚：
 
@@ -183,7 +197,7 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 
 5. 回滚后重新执行发布后检查，并记录失败原因、恢复步骤和是否需要补测试或脚本。
 
-## 8. 后续改进
+## 9. 后续改进
 
 - 增加 `/api/ready`，检查 DB、必要数据库函数、对象存储和关键配置。
 - 为生产 compose 增加 API healthcheck 和可选 migration job。
