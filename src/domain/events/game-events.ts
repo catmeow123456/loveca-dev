@@ -3,7 +3,13 @@
  * 基于 detail_rules.md 第 9.7 章 - 自动能力触发
  */
 
-import { TriggerCondition, ZoneType, GamePhase, SlotPosition } from '../../shared/types/enums.js';
+import {
+  TriggerCondition,
+  ZoneType,
+  GamePhase,
+  SlotPosition,
+  OrientationState,
+} from '../../shared/types/enums.js';
 import type { CardInstance } from '../entities/card.js';
 
 // ============================================
@@ -123,6 +129,8 @@ export interface LeaveStageEvent extends CardMoveEvent {
   readonly fromZone: ZoneType.MEMBER_SLOT;
   /** 离场的槽位 */
   readonly fromSlot: SlotPosition;
+  /** 换手时替换登场的成员 ID */
+  readonly replacingCardId?: string;
 }
 
 /**
@@ -243,6 +251,40 @@ export interface PayCostEvent extends BaseGameEvent {
 // ============================================
 
 /**
+ * 成员状态改变事件
+ */
+export interface MemberStateChangedEvent extends BaseGameEvent {
+  readonly eventType: TriggerCondition.ON_MEMBER_STATE_CHANGED;
+  /** 状态改变的成员卡实例 ID */
+  readonly cardInstanceId: string;
+  /** 成员控制者 ID */
+  readonly controllerId: string;
+  /** 成员所在槽位 */
+  readonly slot: SlotPosition;
+  /** 旧方向状态 */
+  readonly previousOrientation: OrientationState;
+  /** 新方向状态 */
+  readonly nextOrientation: OrientationState;
+}
+
+/**
+ * 成员区域移动事件（站位变换/交换）
+ */
+export interface MemberSlotMovedEvent extends BaseGameEvent {
+  readonly eventType: TriggerCondition.ON_MEMBER_SLOT_MOVED;
+  /** 移动的成员卡实例 ID */
+  readonly cardInstanceId: string;
+  /** 成员控制者 ID */
+  readonly controllerId: string;
+  /** 来源成员区域 */
+  readonly fromSlot: SlotPosition;
+  /** 目标成员区域 */
+  readonly toSlot: SlotPosition;
+  /** 同一次站位变换中被交换的成员卡实例 ID */
+  readonly swappedCardInstanceId?: string;
+}
+
+/**
  * 手牌为空事件
  */
 export interface HandEmptyEvent extends BaseGameEvent {
@@ -284,6 +326,8 @@ export type GameEvent =
   | RelayEvent
   | DrawEvent
   | PayCostEvent
+  | MemberStateChangedEvent
+  | MemberSlotMovedEvent
   | HandEmptyEvent
   | DeckEmptyEvent;
 
@@ -329,6 +373,18 @@ export function isLiveEvent(
     event.eventType === TriggerCondition.ON_LIVE_START ||
     event.eventType === TriggerCondition.ON_LIVE_SUCCESS ||
     event.eventType === TriggerCondition.ON_LIVE_FAIL
+  );
+}
+
+/**
+ * 判断是否为成员状态/成员区域事件
+ */
+export function isMemberStateEvent(
+  event: GameEvent
+): event is MemberStateChangedEvent | MemberSlotMovedEvent {
+  return (
+    event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED ||
+    event.eventType === TriggerCondition.ON_MEMBER_SLOT_MOVED
   );
 }
 
@@ -447,7 +503,8 @@ export function createLeaveStageEvent(
   fromSlot: SlotPosition,
   toZone: ZoneType,
   ownerId: string,
-  controllerId: string
+  controllerId: string,
+  replacingCardId?: string
 ): LeaveStageEvent {
   return {
     eventId: generateEventId(),
@@ -460,6 +517,7 @@ export function createLeaveStageEvent(
     ownerId,
     controllerId,
     triggerPlayerId: controllerId,
+    replacingCardId,
   };
 }
 
@@ -575,6 +633,52 @@ export function createRelayEvent(
   };
 }
 
+/**
+ * 创建成员状态改变事件
+ */
+export function createMemberStateChangedEvent(
+  cardInstanceId: string,
+  controllerId: string,
+  slot: SlotPosition,
+  previousOrientation: OrientationState,
+  nextOrientation: OrientationState
+): MemberStateChangedEvent {
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_MEMBER_STATE_CHANGED,
+    timestamp: Date.now(),
+    cardInstanceId,
+    controllerId,
+    slot,
+    previousOrientation,
+    nextOrientation,
+    triggerPlayerId: controllerId,
+  };
+}
+
+/**
+ * 创建成员区域移动事件
+ */
+export function createMemberSlotMovedEvent(
+  cardInstanceId: string,
+  controllerId: string,
+  fromSlot: SlotPosition,
+  toSlot: SlotPosition,
+  swappedCardInstanceId?: string
+): MemberSlotMovedEvent {
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+    timestamp: Date.now(),
+    cardInstanceId,
+    controllerId,
+    fromSlot,
+    toSlot,
+    swappedCardInstanceId,
+    triggerPlayerId: controllerId,
+  };
+}
+
 // ============================================
 // 事件总线
 // ============================================
@@ -585,8 +689,10 @@ export function createRelayEvent(
 export type EventListener = (event: GameEvent) => void;
 
 /**
- * 事件总线类
- * 用于发布和订阅游戏事件
+ * 非权威的运行时事件总线。
+ *
+ * 用于发布和订阅运行时游戏事件，保留给调试/工具型监听使用，不应作为规则触发、联机同步或回放的权威来源。
+ * 规则内的自动能力触发应优先读取 GameState.eventLog 中的不可变事件流。
  */
 export class EventBus {
   private listeners: Map<TriggerCondition, Set<EventListener>> = new Map();

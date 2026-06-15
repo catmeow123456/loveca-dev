@@ -60,6 +60,7 @@ import {
   SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID,
   SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
   SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID,
+  SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
   YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID,
 } from '../../src/application/card-effect-runner';
 
@@ -725,6 +726,31 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    const tomariAbilities = getCardAbilityDefinitions('PL!SP-bp4-011-P').filter(
+      (ability) =>
+        ability.abilityId ===
+        SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID
+    );
+    expect(tomariAbilities).toHaveLength(2);
+    expect(tomariAbilities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+        }),
+        expect.objectContaining({
+          category: CardAbilityCategory.AUTO,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          triggerCondition: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+          queued: true,
+          implemented: true,
+        }),
+      ])
+    );
+
     const hsBp6031LiveStart = getCardAbilityDefinitions('PL!HS-bp6-031-L').find(
       (ability) =>
         ability.abilityId === HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID
@@ -820,6 +846,13 @@ describe('card effect classification registry', () => {
         ].includes(ability.abilityId)
       )
     ).toHaveLength(3);
+    expect(
+      getCardAbilityDefinitions('PL!SP-bp4-011-SEC').filter(
+        (ability) =>
+          ability.abilityId ===
+          SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID
+      )
+    ).toHaveLength(2);
 
     expect(
       getCardAbilityDefinitions('PL!N-pb1-004-R').some(

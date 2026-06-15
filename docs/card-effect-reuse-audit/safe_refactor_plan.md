@@ -38,7 +38,9 @@ Stage 1G 应包含：
 4. once-per-turn / when-if / source timing rules
 5. UI pending trigger selection
 
-当前已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」完成第一条 proving path：`ON_LEAVE_STAGE` 入队、look-top 解析、与同一动作登场能力共享顺序选择窗口。`PL!HS-bp6-017-N` 费用 11「日野下花帆」完成第二条同触发 proving path：可选弃手后从休息室将 LIVE/成员至多各 1 张加入手牌，并为 `enqueueTriggeredCardEffects` 增加薄 `LeaveStageEvent` source adapter。`PL!HS-sd1-001-SD` 费用 9「日野下花帆」补充验证 relay 来源条件：换手导致离场时携带 `replacingCardId`，入队阶段校验换上成员为费用大于等于 10 的「莲之空」成员。`PL!HS-pb1-009-R` 费用 15「日野下花帆」完成舞台成员监听己方「莲之空」成员登场、实例级每回合 2 次、BLADE +2 写入 live modifier，并在 LIVE 开始用成员有效 BLADE helper 接 F02 抽弃；同卡第一段也验证了手动从顺序选择窗口点选无输入 AUTO 时的 confirm-only active effect，顺序发动不弹该确认壳。后续不要一次性扩成全量事件系统；继续用真实自动能力卡牌逐步扩 `GameEvent`、trigger matcher、when-if 与更多移动/状态事件。
+2026-06-15 已完成第一批事件层地基：`GameState.eventLog` / `eventSequence` 与 `emitGameEvent` 已落地；`member-state.ts` 会在成员方向变化、成员槽位移动与交换时写入 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED`。随后已接入 `ON_MEMBER_SLOT_MOVED` 消费：普通 `MOVE_MEMBER_TO_SLOT` 与卡效站位变换产生的成员移动事件会进入 `enqueueTriggeredCardEffects`，并由 `PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」完成首条 S09 proving path。同日 `ON_ENTER_STAGE` / `ON_LEAVE_STAGE` 主路径也已转为优先消费 `EnterStageEvent` / `LeaveStageEvent`：普通手牌登场、卡效从休息室登场、手动舞台进休息室、换手替换离场、自送费用均写入 `eventLog`，旧 action-history 推断保留为回退。
+
+当前已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」完成第一条 proving path：`ON_LEAVE_STAGE` 入队、look-top 解析、与同一动作登场能力共享顺序选择窗口。`PL!HS-bp6-017-N` 费用 11「日野下花帆」完成第二条同触发 proving path：可选弃手后从休息室将 LIVE/成员至多各 1 张加入手牌；2026-06-15 起 `enqueueTriggeredCardEffects` 已优先从 `eventLog` 的 `LeaveStageEvent` 转换离场来源。`PL!HS-sd1-001-SD` 费用 9「日野下花帆」补充验证 relay 来源条件：换手导致离场时携带 `replacingCardId`，入队阶段校验换上成员为费用大于等于 10 的「莲之空」成员。`PL!HS-pb1-009-R` 费用 15「日野下花帆」完成舞台成员监听己方「莲之空」成员登场、实例级每回合 2 次、BLADE +2 写入 live modifier，并在 LIVE 开始用成员有效 BLADE helper 接 F02 抽弃；同卡第一段也验证了手动从顺序选择窗口点选无输入 AUTO 时的 confirm-only active effect，顺序发动不弹该确认壳。后续不要一次性扩成全量事件系统；继续用真实自动能力卡牌逐步扩 `GameEvent`、trigger matcher、when-if 与更多移动/状态事件。
 
 ## 2. Recommended next implementation batch
 

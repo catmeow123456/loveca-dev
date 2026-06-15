@@ -32,6 +32,7 @@ import { GameService, type DeckConfig } from '../../src/application/game-service
 import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
+  createMoveMemberToSlotCommand,
   createMovePublicCardToWaitingRoomCommand,
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
@@ -96,6 +97,7 @@ import {
   SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID,
   SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
   SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID,
+  SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
   UMI_ON_ENTER_ABILITY_ID,
   YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID,
@@ -222,6 +224,7 @@ function createDeck(): DeckConfig {
     createMemberCard('PL!N-pb1-004-P+', '朝香 果林', 5),
     createMemberCard('PL!SP-PR-004-PR', '唐 可可', 4),
     createMemberCard('PL!SP-bp4-008-P', '若菜四季', 13),
+    createMemberCard('PL!SP-bp4-011-P', '鬼冢冬毬', 7, 'Liella!'),
     createMemberCard('PL!SP-bp5-003-AR', '岚 千砂都', 17),
     createMemberCard('PL!N-pb1-008-P+', '艾玛·维尔德', 17),
     createMemberCard('PL!S-bp2-006-P', '津岛善子', 11),
@@ -7656,6 +7659,21 @@ describe('sample card effect runner', () => {
     );
 
     expect(slotResult.success).toBe(true);
+    const enterStageEvent = session.state?.eventLog
+      .map((entry) => entry.event)
+      .find(
+        (event) =>
+          event.eventType === TriggerCondition.ON_ENTER_STAGE &&
+          event.cardInstanceId === kotoriCardId
+      );
+    expect(enterStageEvent).toMatchObject({
+      eventType: TriggerCondition.ON_ENTER_STAGE,
+      cardInstanceId: kotoriCardId,
+      fromZone: ZoneType.WAITING_ROOM,
+      toZone: ZoneType.MEMBER_SLOT,
+      toSlot: SlotPosition.LEFT,
+      controllerId: PLAYER1,
+    });
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(kotoriCardId);
     expect(session.state?.activeEffect?.abilityId).toBe(KOTORI_ON_ENTER_ABILITY_ID);
     expect(session.state?.activeEffect?.sourceCardId).toBe(kotoriCardId);
@@ -7737,6 +7755,21 @@ describe('sample card effect runner', () => {
     );
 
     expect(moveResult.success).toBe(true);
+    const leaveStageEvent = session.state?.eventLog
+      .map((entry) => entry.event)
+      .find(
+        (event) =>
+          event.eventType === TriggerCondition.ON_LEAVE_STAGE &&
+          event.cardInstanceId === kosuzuCardId
+      );
+    expect(leaveStageEvent).toMatchObject({
+      eventType: TriggerCondition.ON_LEAVE_STAGE,
+      cardInstanceId: kosuzuCardId,
+      fromZone: ZoneType.MEMBER_SLOT,
+      fromSlot: SlotPosition.CENTER,
+      toZone: ZoneType.WAITING_ROOM,
+      controllerId: PLAYER1,
+    });
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID
     );
@@ -7845,6 +7878,20 @@ describe('sample card effect runner', () => {
     );
 
     expect(playResult.success).toBe(true);
+    const leaveStageEvent = session.state?.eventLog
+      .map((entry) => entry.event)
+      .find(
+        (event) =>
+          event.eventType === TriggerCondition.ON_LEAVE_STAGE &&
+          event.cardInstanceId === kosuzuCardId
+      );
+    expect(leaveStageEvent).toMatchObject({
+      eventType: TriggerCondition.ON_LEAVE_STAGE,
+      cardInstanceId: kosuzuCardId,
+      fromSlot: SlotPosition.CENTER,
+      toZone: ZoneType.WAITING_ROOM,
+      replacingCardId: megumiCardId,
+    });
     expect(session.state?.activeEffect?.abilityId).toBe(ABILITY_ORDER_SELECTION_ID);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([megumiCardId, kosuzuCardId]);
     expect(session.state?.pendingAbilities.map((ability) => ability.abilityId)).toEqual([
@@ -7936,6 +7983,20 @@ describe('sample card effect runner', () => {
     );
 
     expect(playResult.success).toBe(true);
+    const leaveStageEvent = session.state?.eventLog
+      .map((entry) => entry.event)
+      .find(
+        (event) =>
+          event.eventType === TriggerCondition.ON_LEAVE_STAGE &&
+          event.cardInstanceId === kahoCardId
+      );
+    expect(leaveStageEvent).toMatchObject({
+      eventType: TriggerCondition.ON_LEAVE_STAGE,
+      cardInstanceId: kahoCardId,
+      fromSlot: SlotPosition.CENTER,
+      toZone: ZoneType.WAITING_ROOM,
+      replacingCardId: highCostHasunosoraCardId,
+    });
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.pendingAbilities).toEqual([]);
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(
@@ -8808,6 +8869,21 @@ describe('sample card effect runner', () => {
     );
 
     expect(playResult.success).toBe(true);
+    const enterStageEvent = session.state?.eventLog
+      .map((entry) => entry.event)
+      .find(
+        (event) =>
+          event.eventType === TriggerCondition.ON_ENTER_STAGE &&
+          event.cardInstanceId === ginkoCardId
+      );
+    expect(enterStageEvent).toMatchObject({
+      eventType: TriggerCondition.ON_ENTER_STAGE,
+      cardInstanceId: ginkoCardId,
+      fromZone: ZoneType.HAND,
+      toZone: ZoneType.MEMBER_SLOT,
+      toSlot: SlotPosition.CENTER,
+      controllerId: PLAYER1,
+    });
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID
     );
@@ -8823,6 +8899,285 @@ describe('sample card effect runner', () => {
     ).toBe(OrientationState.WAITING);
     expect(
       session.state?.players[1].memberSlots.cardStates.get(highCostMemberId!)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+  });
+
+  it('executes PL!SP-bp4-011-P on-enter to wait an opponent member with printed BLADE <= 3', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('sample-tomari-bp4-011-on-enter-wait-low-blade', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const p2 = state.players[1] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const ownedP2CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER2)
+      .map((card) => card.instanceId);
+    const tomariCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!SP-bp4-011-P'
+    );
+    const lowBladeMemberId = ownedP2CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-0'
+    );
+    const highBladeMemberId = ownedP2CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-pb1-009-R'
+    );
+    const energyCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+    );
+
+    expect(tomariCardId).toBeTruthy();
+    expect(lowBladeMemberId).toBeTruthy();
+    expect(highBladeMemberId).toBeTruthy();
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(7);
+
+    removeFromPlayerZones(p1);
+    removeFromPlayerZones(p2);
+    p1.hand.cardIds = [tomariCardId!];
+    setActiveEnergy(p1, energyCardIds.slice(0, 7));
+    p2.memberSlots.slots[SlotPosition.LEFT] = lowBladeMemberId!;
+    p2.memberSlots.slots[SlotPosition.CENTER] = highBladeMemberId!;
+    p2.memberSlots.slots[SlotPosition.RIGHT] = null;
+    p2.memberSlots.cardStates = new Map([
+      [lowBladeMemberId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      [highBladeMemberId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, tomariCardId!, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([lowBladeMemberId]);
+
+    const waitResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, lowBladeMemberId)
+    );
+
+    expect(waitResult.success).toBe(true);
+    expect(
+      session.state?.players[1].memberSlots.cardStates.get(lowBladeMemberId!)?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(
+      session.state?.players[1].memberSlots.cardStates.get(highBladeMemberId!)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+  });
+
+  it('executes PL!SP-bp4-011-P after member slot movement events', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('sample-tomari-bp4-011-move-wait-low-blade', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const p2 = state.players[1] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const ownedP2CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER2)
+      .map((card) => card.instanceId);
+    const tomariCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!SP-bp4-011-P'
+    );
+    const lowBladeMemberId = ownedP2CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-0'
+    );
+    const highBladeMemberId = ownedP2CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-pb1-009-R'
+    );
+
+    expect(tomariCardId).toBeTruthy();
+    expect(lowBladeMemberId).toBeTruthy();
+    expect(highBladeMemberId).toBeTruthy();
+
+    removeFromPlayerZones(p1);
+    removeFromPlayerZones(p2);
+    p1.memberSlots.slots[SlotPosition.LEFT] = tomariCardId!;
+    p1.memberSlots.slots[SlotPosition.CENTER] = null;
+    p1.memberSlots.slots[SlotPosition.RIGHT] = null;
+    p1.memberSlots.cardStates = new Map([
+      [tomariCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p2.memberSlots.slots[SlotPosition.LEFT] = lowBladeMemberId!;
+    p2.memberSlots.slots[SlotPosition.CENTER] = highBladeMemberId!;
+    p2.memberSlots.slots[SlotPosition.RIGHT] = null;
+    p2.memberSlots.cardStates = new Map([
+      [lowBladeMemberId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      [highBladeMemberId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+
+    const moveResult = session.executeCommand(
+      createMoveMemberToSlotCommand(
+        PLAYER1,
+        tomariCardId!,
+        SlotPosition.LEFT,
+        SlotPosition.RIGHT
+      )
+    );
+
+    expect(moveResult.success).toBe(true);
+    expect(session.state?.eventLog.at(-1)?.event).toMatchObject({
+      eventType: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+      cardInstanceId: tomariCardId,
+      fromSlot: SlotPosition.LEFT,
+      toSlot: SlotPosition.RIGHT,
+    });
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([lowBladeMemberId]);
+
+    const waitResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, lowBladeMemberId)
+    );
+
+    expect(waitResult.success).toBe(true);
+    expect(
+      session.state?.players[1].memberSlots.cardStates.get(lowBladeMemberId!)?.orientation
+    ).toBe(OrientationState.WAITING);
+  });
+
+  it('resolves PL!SP-bp4-011-P movement trigger with no effect when no low-BLADE target exists', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('sample-tomari-bp4-011-move-no-target', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const p2 = state.players[1] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const ownedP2CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER2)
+      .map((card) => card.instanceId);
+    const tomariCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!SP-bp4-011-P'
+    );
+    const highBladeMemberId = ownedP2CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-pb1-009-R'
+    );
+
+    expect(tomariCardId).toBeTruthy();
+    expect(highBladeMemberId).toBeTruthy();
+
+    removeFromPlayerZones(p1);
+    removeFromPlayerZones(p2);
+    p1.memberSlots.slots[SlotPosition.LEFT] = tomariCardId!;
+    p1.memberSlots.slots[SlotPosition.CENTER] = null;
+    p1.memberSlots.slots[SlotPosition.RIGHT] = null;
+    p1.memberSlots.cardStates = new Map([
+      [tomariCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p2.memberSlots.slots[SlotPosition.LEFT] = highBladeMemberId!;
+    p2.memberSlots.slots[SlotPosition.CENTER] = null;
+    p2.memberSlots.slots[SlotPosition.RIGHT] = null;
+    p2.memberSlots.cardStates = new Map([
+      [highBladeMemberId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+
+    const moveResult = session.executeCommand(
+      createMoveMemberToSlotCommand(
+        PLAYER1,
+        tomariCardId!,
+        SlotPosition.LEFT,
+        SlotPosition.RIGHT
+      )
+    );
+
+    expect(moveResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID &&
+          action.payload.step === 'SKIP_NO_TARGET'
+      )
+    ).toBe(true);
+    expect(
+      session.state?.players[1].memberSlots.cardStates.get(highBladeMemberId!)?.orientation
     ).toBe(OrientationState.ACTIVE);
   });
 

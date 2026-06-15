@@ -28,6 +28,7 @@ import {
   getSuccessLiveCount,
   needsRefresh,
 } from './player.js';
+import type { GameEvent } from '../events/game-events.js';
 
 // ============================================
 // 游戏配置常量
@@ -103,6 +104,20 @@ export interface GameAction {
   readonly payload: Record<string, unknown>;
   /** 动作序号（用于排序） */
   readonly sequence: number;
+}
+
+/**
+ * 权威规则事件日志条目。
+ *
+ * 与 actionHistory 不同，eventLog 记录“规则上发生了什么事件”，用于后续自动能力触发匹配。
+ */
+export interface GameEventLogEntry {
+  /** 事件日志序号（用于稳定排序） */
+  readonly sequence: number;
+  /** 标准规则事件 */
+  readonly event: GameEvent;
+  /** 促成此事件的动作 ID；没有对应动作时可为空 */
+  readonly causedByActionId?: string;
 }
 
 // ============================================
@@ -570,6 +585,18 @@ export interface GameState {
    */
   readonly actionSequence: number;
 
+  /**
+   * 标准规则事件历史。
+   *
+   * 后续 AUTO/trigger matcher 应以此日志为权威事实来源；当前 actionHistory 仍保留给审计、UI 与既有流程。
+   */
+  readonly eventLog: readonly GameEventLogEntry[];
+
+  /**
+   * 当前规则事件序号计数器
+   */
+  readonly eventSequence: number;
+
   // ---- 临时状态 ----
 
   /**
@@ -659,6 +686,8 @@ export function createGameState(
 
     actionHistory: [],
     actionSequence: 0,
+    eventLog: [],
+    eventSequence: 0,
 
     waitingForInput: false,
     waitingPlayerId: null,
@@ -930,6 +959,27 @@ export function addAction(
     ...game,
     actionHistory: [...game.actionHistory, action],
     actionSequence: game.actionSequence + 1,
+  };
+}
+
+/**
+ * 添加标准规则事件到权威事件日志。
+ */
+export function emitGameEvent(
+  game: GameState,
+  event: GameEvent,
+  metadata: { readonly causedByActionId?: string } = {}
+): GameState {
+  const entry: GameEventLogEntry = {
+    sequence: game.eventSequence + 1,
+    event,
+    causedByActionId: metadata.causedByActionId,
+  };
+
+  return {
+    ...game,
+    eventLog: [...game.eventLog, entry],
+    eventSequence: game.eventSequence + 1,
   };
 }
 

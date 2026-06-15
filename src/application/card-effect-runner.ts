@@ -79,7 +79,11 @@ import {
   setEnergyOrientation,
   setFirstEnergyCardsOrientation,
 } from './effects/energy.js';
-import type { EnterStageEvent, LeaveStageEvent } from '../domain/events/game-events.js';
+import type {
+  EnterStageEvent,
+  LeaveStageEvent,
+  MemberSlotMovedEvent,
+} from '../domain/events/game-events.js';
 import {
   cardCodeMatchesBase,
   getBaseCardCode,
@@ -192,6 +196,8 @@ export const SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID =
   'PL!SP-bp4-008-P:on-enter-right-activate-two-energy';
 export const SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID =
   'PL!SP-bp4-008-P:live-start-position-change';
+export const SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID =
+  'PL!SP-bp4-011-P:auto-enter-or-move-wait-opponent-low-blade-member';
 export const HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID =
   'PL!HS-bp2-002-P:on-enter-take-up-to-two-low-cost-members';
 export const HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID =
@@ -320,6 +326,8 @@ const HS_PB1_009_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】此成员持有的[BLADE]的数量大于等于8个的场合，抽2张卡，将1张手牌放置入休息室。';
 const HS_BP6_004_WAIT_OPPONENT_LOW_COST_MEMBER_EFFECT_TEXT =
   '【登场】/【LIVE开始时】将存在于对方舞台的1名费用小于等于9的成员变为待机状态。';
+const SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_EFFECT_TEXT =
+  '【自动】此成员登场或移动区域时，将1名存在于对方的舞台的原本持有的[BLADE]数量小于等于3个的成员变为待机状态。';
 const HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[BLADE]。因此将[百生吟子]的成员卡放置入休息室的场合，再获得[BLADE]。';
 const GENERIC_DISCARD_LOOK_TOP_EFFECT_TEXT =
@@ -524,11 +532,21 @@ interface OnLeaveStageAbilitySource {
   readonly replacingCardId?: string;
 }
 
+interface MemberSlotMovedAbilitySource {
+  readonly cardId: string;
+  readonly controllerId: string;
+  readonly fromSlot: SlotPosition;
+  readonly toSlot: SlotPosition;
+  readonly eventId: string;
+  readonly swappedCardInstanceId?: string;
+}
+
 interface EnqueueTriggeredCardEffectsOptions {
   readonly onEnterSources?: readonly OnEnterAbilitySource[];
   readonly enterStageEvents?: readonly EnterStageEvent[];
   readonly onLeaveStageSources?: readonly OnLeaveStageAbilitySource[];
   readonly leaveStageEvents?: readonly LeaveStageEvent[];
+  readonly memberSlotMovedEvents?: readonly MemberSlotMovedEvent[];
 }
 
 interface StartPendingAbilityEffectOptions {
@@ -931,6 +949,28 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_EFFECT_TEXT,
     notes:
       '复用可选弃手费用与 BLADE live modifier；弃置的成员姓名归一化为「百生吟子」时额外获得1个 BLADE。',
+  },
+  {
+    abilityId: SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp4-011'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_EFFECT_TEXT,
+    notes: '登场段走自身 ON_ENTER 入队；目标筛选为对方舞台原本 BLADE <= 3 的成员。',
+  },
+  {
+    abilityId: SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp4-011'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+    queued: true,
+    implemented: true,
+    effectText: SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_EFFECT_TEXT,
+    notes: '成员区槽位移动/交换段消费 ON_MEMBER_SLOT_MOVED eventLog；同一次登场不作为移动重复触发。',
   },
   {
     abilityId: SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
@@ -1725,6 +1765,8 @@ const HS_PB1_020_SELECT_DISCARD_STEP_ID = 'HS_PB1_020_SELECT_TWO_HAND_CARDS_TO_D
 const HS_PB1_020_SELECT_WAITING_ROOM_CARDS_STEP_ID =
   'HS_PB1_020_SELECT_CERISE_MEMBER_AND_HASUNOSORA_LIVE';
 const HS_BP6_004_SELECT_OPPONENT_MEMBER_STEP_ID = 'HS_BP6_004_SELECT_OPPONENT_MEMBER_TO_WAIT';
+const SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_STEP_ID =
+  'SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_TO_WAIT';
 const HS_BP6_004_SELECT_DISCARD_STEP_ID = 'HS_BP6_004_SELECT_DISCARD_FOR_BLADE';
 const HS_PB1_009_LIVE_START_SELECT_DISCARD_STEP_ID = 'HS_PB1_009_LIVE_START_SELECT_DISCARD';
 const BP4_003_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'BP4_003_SELECT_WAITING_ROOM_LIVE';
@@ -1764,20 +1806,34 @@ export function enqueueTriggeredCardEffects(
   let state = game;
 
   if (triggerConditions.includes(TriggerCondition.ON_ENTER_STAGE)) {
+    const enterStageEvents =
+      options.enterStageEvents ?? getLatestEnterStageEventsFromLog(state);
+    const eventSources =
+      enterStageEvents.length > 0
+        ? createOnEnterAbilitySourcesFromEvents(enterStageEvents)
+        : undefined;
     const onEnterSources =
-      options.onEnterSources ?? createOnEnterAbilitySourcesFromEvents(options.enterStageEvents);
+      options.onEnterSources ?? eventSources;
     state = enqueueOnEnterCardEffects(state, onEnterSources);
     state = enqueueOnEnterStageAutoCardEffects(
       state,
-      createOnEnterStageAutoSources(state, options.enterStageEvents, onEnterSources)
+      createOnEnterStageAutoSources(
+        state,
+        enterStageEvents.length > 0 ? enterStageEvents : undefined,
+        onEnterSources
+      )
     );
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_LEAVE_STAGE)) {
+    const onLeaveSources =
+      options.onLeaveStageSources ??
+      createOnLeaveStageAbilitySourcesFromEvents(
+        options.leaveStageEvents ?? getLeaveStageEventsFromLog(state)
+      );
     state = enqueueOnLeaveStageCardEffects(
       state,
-      options.onLeaveStageSources ??
-        createOnLeaveStageAbilitySourcesFromEvents(options.leaveStageEvents)
+      onLeaveSources
     );
   }
 
@@ -1791,6 +1847,173 @@ export function enqueueTriggeredCardEffects(
 
   if (triggerConditions.includes(TriggerCondition.ON_CHEER)) {
     state = enqueueCheerCardEffects(state);
+  }
+
+  if (triggerConditions.includes(TriggerCondition.ON_MEMBER_SLOT_MOVED)) {
+    state = enqueueMemberSlotMovedCardEffects(
+      state,
+      options.memberSlotMovedEvents ?? getMemberSlotMovedEventsFromLog(state)
+    );
+  }
+
+  return state;
+}
+
+function getMemberSlotMovedEventsFromLog(game: GameState): readonly MemberSlotMovedEvent[] {
+  return game.eventLog
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is MemberSlotMovedEvent =>
+        event.eventType === TriggerCondition.ON_MEMBER_SLOT_MOVED
+    );
+}
+
+function getNewMemberSlotMovedEvents(
+  before: GameState,
+  after: GameState
+): readonly MemberSlotMovedEvent[] {
+  return after.eventLog
+    .slice(before.eventLog.length)
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is MemberSlotMovedEvent =>
+        event.eventType === TriggerCondition.ON_MEMBER_SLOT_MOVED
+    );
+}
+
+function getEnterStageEventsFromLog(game: GameState): readonly EnterStageEvent[] {
+  return game.eventLog
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is EnterStageEvent =>
+        event.eventType === TriggerCondition.ON_ENTER_STAGE
+    );
+}
+
+function getLatestEnterStageEventsFromLog(game: GameState): readonly EnterStageEvent[] {
+  const enterStageEvents = getEnterStageEventsFromLog(game);
+  const latestEvent = enterStageEvents.at(-1);
+  return latestEvent ? [latestEvent] : [];
+}
+
+function getNewEnterStageEvents(before: GameState, after: GameState): readonly EnterStageEvent[] {
+  return after.eventLog
+    .slice(before.eventLog.length)
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is EnterStageEvent =>
+        event.eventType === TriggerCondition.ON_ENTER_STAGE
+    );
+}
+
+function getLeaveStageEventsFromLog(game: GameState): readonly LeaveStageEvent[] {
+  return game.eventLog
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is LeaveStageEvent =>
+        event.eventType === TriggerCondition.ON_LEAVE_STAGE
+    );
+}
+
+function getNewLeaveStageEvents(before: GameState, after: GameState): readonly LeaveStageEvent[] {
+  return after.eventLog
+    .slice(before.eventLog.length)
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is LeaveStageEvent =>
+        event.eventType === TriggerCondition.ON_LEAVE_STAGE
+    );
+}
+
+function createMemberSlotMovedAbilitySourcesFromEvents(
+  events: readonly MemberSlotMovedEvent[]
+): readonly MemberSlotMovedAbilitySource[] {
+  return events.map((event) => ({
+    cardId: event.cardInstanceId,
+    controllerId: event.controllerId,
+    fromSlot: event.fromSlot,
+    toSlot: event.toSlot,
+    eventId: event.eventId,
+    swappedCardInstanceId: event.swappedCardInstanceId,
+  }));
+}
+
+function enqueueMemberSlotMovedCardEffects(
+  game: GameState,
+  events: readonly MemberSlotMovedEvent[]
+): GameState {
+  let state = game;
+  for (const source of createMemberSlotMovedAbilitySourcesFromEvents(events)) {
+    state = enqueueSingleMemberSlotMovedCardEffect(state, source);
+  }
+  return state;
+}
+
+function enqueueSingleMemberSlotMovedCardEffect(
+  game: GameState,
+  source: MemberSlotMovedAbilitySource
+): GameState {
+  const player = getPlayerById(game, source.controllerId);
+  const sourceCard = getCardById(game, source.cardId);
+  if (!player || !sourceCard || player.memberSlots.slots[source.toSlot] !== source.cardId) {
+    return game;
+  }
+
+  const abilityDefinitions = getQueuedAbilityDefinitionsForCard(
+    sourceCard.data.cardCode,
+    CardAbilityCategory.AUTO,
+    CardAbilitySourceZone.STAGE_MEMBER,
+    source.toSlot
+  ).filter((ability) => ability.triggerCondition === TriggerCondition.ON_MEMBER_SLOT_MOVED);
+  if (abilityDefinitions.length === 0) {
+    return game;
+  }
+
+  let state = game;
+  for (const abilityDefinition of abilityDefinitions) {
+    const abilityId = abilityDefinition.abilityId;
+    if (!canUseAbilityThisTurn(state, source.controllerId, abilityId, source.cardId)) {
+      continue;
+    }
+
+    const pendingAbilityId = `${abilityId}:${source.cardId}:${source.eventId}`;
+    if (hasAbilityInstance(state, pendingAbilityId)) {
+      continue;
+    }
+
+    const pendingAbility: PendingAbilityState = {
+      id: pendingAbilityId,
+      abilityId,
+      sourceCardId: source.cardId,
+      controllerId: source.controllerId,
+      mandatory: true,
+      timingId: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+      eventIds: [source.eventId],
+      sourceSlot: source.toSlot,
+      metadata: {
+        fromSlot: source.fromSlot,
+        toSlot: source.toSlot,
+        swappedCardInstanceId: source.swappedCardInstanceId ?? null,
+      },
+    };
+
+    state = addAction(
+      {
+        ...state,
+        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+      },
+      'TRIGGER_ABILITY',
+      pendingAbility.controllerId,
+      {
+        pendingAbilityId,
+        abilityId: pendingAbility.abilityId,
+        sourceCardId: source.cardId,
+        timingId: pendingAbility.timingId,
+        fromSlot: source.fromSlot,
+        toSlot: source.toSlot,
+        swappedCardInstanceId: source.swappedCardInstanceId ?? null,
+      }
+    );
   }
 
   return state;
@@ -1877,6 +2100,7 @@ function createOnLeaveStageAbilitySourcesFromEvents(
     controllerId: event.controllerId,
     sourceSlot: event.fromSlot,
     eventId: event.eventId,
+    replacingCardId: event.replacingCardId,
   }));
 }
 
@@ -2886,6 +3110,13 @@ export function confirmActiveEffectStep(
   }
 
   if (
+    effect.abilityId === SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID &&
+    effect.stepId === SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_STEP_ID
+  ) {
+    return finishHsBp6GinkoWaitOpponentLowCostMember(game, selectedCardId ?? null);
+  }
+
+  if (
     effect.abilityId === HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID &&
     effect.stepId === HS_BP6_004_SELECT_DISCARD_STEP_ID
   ) {
@@ -3236,7 +3467,35 @@ function isSamePendingAbilityChoiceWindow(
     return true;
   }
 
+  if (isRelayReplacementAbilityChoiceWindow(left, right)) {
+    return true;
+  }
+
   return left.eventIds.some((eventId) => right.eventIds.includes(eventId));
+}
+
+function isRelayReplacementAbilityChoiceWindow(
+  left: PendingAbilityState,
+  right: PendingAbilityState
+): boolean {
+  const enterAbility =
+    left.timingId === TriggerCondition.ON_ENTER_STAGE
+      ? left
+      : right.timingId === TriggerCondition.ON_ENTER_STAGE
+        ? right
+        : null;
+  const leaveAbility =
+    left.timingId === TriggerCondition.ON_LEAVE_STAGE
+      ? left
+      : right.timingId === TriggerCondition.ON_LEAVE_STAGE
+        ? right
+        : null;
+
+  return (
+    enterAbility !== null &&
+    leaveAbility !== null &&
+    leaveAbility.metadata?.replacingCardId === enterAbility.sourceCardId
+  );
 }
 
 function startPendingAbilityEffect(
@@ -3290,6 +3549,8 @@ function startPendingAbilityEffect(
     case HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID:
     case HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID:
       return startHsBp6GinkoWaitOpponentLowCostMember(game, ability, options);
+    case SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID:
+      return startSpBp4011TomariWaitOpponentLowBladeMember(game, ability, options);
     case HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID:
       return startHsBp6GinkoLiveStartDiscardGainBlade(game, ability, options);
     case HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID:
@@ -3668,6 +3929,74 @@ function startHsBp6GinkoWaitOpponentLowCostMember(
   );
 }
 
+function startSpBp4011TomariWaitOpponentLowBladeMember(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: { readonly orderedResolution?: boolean } = {}
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  const opponent = player ? getOpponent(game, player.id) : null;
+  if (!player || !opponent) {
+    return game;
+  }
+
+  const targetSelection = createStageMemberOrientationTargetSelection(game, {
+    ability,
+    effectText: SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_EFFECT_TEXT,
+    stepId: SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名原本持有的 BLADE 数量小于等于3个的成员变为待机状态。',
+    awaitingPlayerId: player.id,
+    targetPlayerId: opponent.id,
+    selector: and(
+      typeIs(CardType.MEMBER),
+      (card) => isMemberCardData(card.data) && card.data.blade <= 3
+    ),
+    targetOrientation: OrientationState.WAITING,
+    selectionLabel: '选择对方舞台上原本 BLADE 小于等于3的成员',
+    orderedResolution: options.orderedResolution === true,
+    metadata: {
+      sourceSlot: ability.sourceSlot,
+    },
+  });
+
+  if (targetSelection.activeEffect === null) {
+    const state = {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+    };
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'SKIP_NO_TARGET',
+        sourceSlot: ability.sourceSlot,
+        targetPlayerId: opponent.id,
+      }),
+      options.orderedResolution === true
+    );
+  }
+
+  return addAction(
+    {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      activeEffect: targetSelection.activeEffect,
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'START_SELECT_OPPONENT_LOW_BLADE_MEMBER',
+      sourceSlot: ability.sourceSlot,
+      targetPlayerId: opponent.id,
+      selectableCardIds: targetSelection.selectableCardIds,
+    }
+  );
+}
+
 function finishHsBp6GinkoWaitOpponentLowCostMember(
   game: GameState,
   selectedCardId: string | null
@@ -3676,7 +4005,8 @@ function finishHsBp6GinkoWaitOpponentLowCostMember(
   if (
     !effect ||
     (effect.abilityId !== HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID &&
-      effect.abilityId !== HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID)
+      effect.abilityId !== HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID &&
+      effect.abilityId !== SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID)
   ) {
     return game;
   }
@@ -4940,14 +5270,7 @@ function finishYoshikoSelectStageSlot(
     toSlot: selectedSlot,
   });
   const stateWithOnEnter = enqueueTriggeredCardEffects(state, [TriggerCondition.ON_ENTER_STAGE], {
-    onEnterSources: [
-      {
-        cardId,
-        controllerId: player.id,
-        sourceSlot: selectedSlot,
-        eventId: `effect-enter:${state.actionSequence}:${cardId}:${selectedSlot}`,
-      },
-    ],
+    enterStageEvents: getNewEnterStageEvents(game, state),
   });
 
   if (!nextCardId) {
@@ -8436,8 +8759,7 @@ function finishMemberPositionChangeEffect(
     ...moveResult.gameState,
     activeEffect: null,
   };
-
-  return continuePendingCardEffects(
+  const stateWithMemberMoveTriggers = enqueueTriggeredCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
@@ -8447,6 +8769,14 @@ function finishMemberPositionChangeEffect(
       toSlot: moveResult.toSlot,
       swappedCardId: moveResult.swappedCardId,
     }),
+    [TriggerCondition.ON_MEMBER_SLOT_MOVED],
+    {
+      memberSlotMovedEvents: getNewMemberSlotMovedEvents(game, moveResult.gameState),
+    }
+  );
+
+  return continuePendingCardEffects(
+    stateWithMemberMoveTriggers,
     orderedResolution
   );
 }
@@ -8663,8 +8993,7 @@ function finishKarinPositionChange(game: GameState, selectedSlot: SlotPosition |
     ...moveResult.gameState,
     activeEffect: null,
   };
-
-  return continuePendingCardEffects(
+  const stateWithMemberMoveTriggers = enqueueTriggeredCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
@@ -8674,6 +9003,14 @@ function finishKarinPositionChange(game: GameState, selectedSlot: SlotPosition |
       toSlot: moveResult.toSlot,
       swappedCardId: moveResult.swappedCardId,
     }),
+    [TriggerCondition.ON_MEMBER_SLOT_MOVED],
+    {
+      memberSlotMovedEvents: getNewMemberSlotMovedEvents(game, moveResult.gameState),
+    }
+  );
+
+  return continuePendingCardEffects(
+    stateWithMemberMoveTriggers,
     orderedResolution
   );
 }
@@ -9533,14 +9870,7 @@ function finishHsBp1SayakaPlayMemberToSourceSlot(
     toSlot: sourceSlot,
   });
   const stateWithOnEnter = enqueueTriggeredCardEffects(state, [TriggerCondition.ON_ENTER_STAGE], {
-    onEnterSources: [
-      {
-        cardId: selectedCardId,
-        controllerId: player.id,
-        sourceSlot,
-        eventId: `effect-enter:${state.actionSequence}:${selectedCardId}:${sourceSlot}`,
-      },
-    ],
+    enterStageEvents: getNewEnterStageEvents(game, state),
   });
 
   return continuePendingCardEffects({ ...stateWithOnEnter, activeEffect: null }, false);
@@ -9583,6 +9913,7 @@ function startSacrificeSelfActivatedEffect(
     return game;
   }
   let state = recordAbilityUse(game, player.id, config.abilityId, cardId);
+  const stateBeforeCost = state;
   const costPayment = payImmediateEffectCosts(state, player.id, cardId, [
     { kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' },
   ]);
@@ -9593,14 +9924,7 @@ function startSacrificeSelfActivatedEffect(
   const movedToWaitingRoomCardIds = costPayment.movedToWaitingRoomCardIds;
   if (costPayment.sourceSlot && movedToWaitingRoomCardIds.includes(cardId)) {
     state = enqueueTriggeredCardEffects(state, [TriggerCondition.ON_LEAVE_STAGE], {
-      onLeaveStageSources: [
-        {
-          cardId,
-          controllerId: player.id,
-          sourceSlot: costPayment.sourceSlot,
-          eventId: `effect-cost:${state.actionSequence}:${cardId}:leave-stage`,
-        },
-      ],
+      leaveStageEvents: getNewLeaveStageEvents(stateBeforeCost, state),
     });
   }
   const zoneSelection = createWaitingRoomToHandSelectionConfig();
