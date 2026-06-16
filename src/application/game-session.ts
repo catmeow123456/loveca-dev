@@ -4,9 +4,9 @@
  * 充当服务器角色，维护权威游戏状态，处理动作并自动推进阶段。
  * 为每个玩家提供独立的联机视图读取接口。
  *
- * 支持 GameMode：
- * - DEBUG: 调试模式，双人同设备手动操作
- * - SOLITAIRE: 对墙打模式，系统自动跳过对手阶段
+ * 支持 GameMode 规则自动化策略：
+ * - DEBUG: 完整双人流程，不自动处理对手流程
+ * - SOLITAIRE: 对墙打策略，系统自动处理对手无输入流程
  */
 
 import { GameService, type DeckConfig, type GameOperationResult } from './game-service.js';
@@ -296,8 +296,8 @@ export class GameSession {
   }
 
   /**
-   * 本地测试兜底用：开启后成员登场/换手不检查也不支付费用。
-   * 远程对战不应开放此开关。
+   * 自由拖拽兜底用：开启后成员登场/换手不检查也不支付费用。
+   * 本地会话可用全局开关；远程联机由 PLAY_MEMBER_TO_SLOT.freePlay 逐命令携带。
    */
   get localFreePlay(): boolean {
     return this._localFreePlay;
@@ -2602,7 +2602,7 @@ export class GameSession {
     state: GameState,
     command: PlayMemberToSlotCommand
   ): CommandExecutionResult {
-    if (this._localFreePlay) {
+    if (this._localFreePlay || command.freePlay === true) {
       return this.applyPlayMemberToSlotWithoutCostPrompt(state, command);
     }
 

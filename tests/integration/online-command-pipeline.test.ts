@@ -20,6 +20,7 @@ import { GameService, type DeckConfig } from '../../src/application/game-service
 import { createManualMoveCardAction } from '../../src/application/actions';
 import {
   createAttachEnergyToMemberCommand,
+  createConfirmStepCommand,
   createConfirmPerformanceOutcomeCommand,
   createDrawCardToHandCommand,
   createDrawEnergyToZoneCommand,
@@ -44,6 +45,7 @@ import {
   createReturnHandCardToTopCommand,
   createSetLiveCardCommand,
   createSelectSuccessLiveCommand,
+  createSubmitJudgmentCommand,
   createTapEnergyCommand,
   createTapMemberCommand,
 } from '../../src/application/game-commands';
@@ -1361,6 +1363,49 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
+  it('成员登场命令可用 freePlay 标记作为自由拖拽兜底跳过费用', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-free-play-member', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+      memberSlots: { slots: Record<SlotPosition, string | null> };
+    };
+    const memberCardId = player.hand.cardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+
+    expect(memberCardId).toBeTruthy();
+    player.energyZone.cardIds = [];
+    player.energyZone.cardStates = new Map();
+
+    const normalResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, memberCardId!, SlotPosition.CENTER)
+    );
+    expect(normalResult.success).toBe(false);
+    expect(player.memberSlots.slots[SlotPosition.CENTER]).toBeNull();
+
+    const freePlayResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, memberCardId!, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    expect(freePlayResult.success).toBe(true);
+    expect(session.state?.pendingCostPayment).toBeNull();
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(memberCardId);
+    expect(session.state?.players[0].energyZone.cardIds).toEqual([]);
+  });
+
   it('切换能量状态命令会更新能量朝向并产出公开声明', () => {
     const session = createGameSession();
     const deck = createTestDeck();
@@ -2521,6 +2566,64 @@ describe('GameSession command pipeline', () => {
 
     expect(confirmResult.success).toBe(true);
     expect(session.state?.liveResolution.liveResults.get(liveCardId!)).toBe(true);
+  });
+
+  it('接受自动判定应先提交空判定草案，再确认判定子阶段推进', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-accept-automatic-judgment-sequence',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+    };
+    const player = state.players[0] as (typeof state.players)[0] & {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    const liveCardId = [...state.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.LIVE
+    )?.instanceId;
+
+    expect(liveCardId).toBeTruthy();
+
+    player.hand.cardIds = [liveCardId!, ...player.hand.cardIds.filter((id) => id !== liveCardId)];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter((cardId) => cardId !== liveCardId);
+    player.liveZone.cardIds = player.liveZone.cardIds.filter((cardId) => cardId !== liveCardId);
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+
+    const moveResult = session.executeCommand(
+      createMoveOwnedCardToZoneCommand(PLAYER1, liveCardId!, ZoneType.HAND, ZoneType.LIVE_ZONE)
+    );
+    expect(moveResult.success).toBe(true);
+
+    const submitResult = session.executeCommand(
+      createSubmitJudgmentCommand(PLAYER1, new Map())
+    );
+    expect(submitResult.success).toBe(true);
+    expect(session.state?.currentSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
+    expect(session.state?.liveResolution.liveResults.has(liveCardId!)).toBe(true);
+
+    const confirmResult = session.executeCommand(
+      createConfirmStepCommand(PLAYER1, SubPhase.PERFORMANCE_JUDGMENT)
+    );
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.currentSubPhase).not.toBe(SubPhase.PERFORMANCE_JUDGMENT);
   });
 
   it('非开放阶段拒绝普通桌面整理命令和底层手动移动动作', () => {

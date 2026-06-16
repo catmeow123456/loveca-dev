@@ -52,7 +52,6 @@ import {
   SubPhase,
   ZoneType,
   CardType,
-  GameMode,
 } from '@game/shared/types/enums';
 import { getPhaseConfig, getSubPhaseConfig } from '@game/shared/phase-config';
 import type { AnyCardData } from '@game/domain/entities/card';
@@ -115,13 +114,12 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const viewerLiveWinner = useGameStore((s) => s.isViewerLiveWinner());
   const opponentLiveWinner = useGameStore((s) => s.isOpponentLiveWinner());
   const isLiveDraw = useGameStore((s) => s.isLiveDraw);
-  const gameMode = useGameStore((s) => s.gameMode);
-  const localFreePlay = useGameStore((s) => s.localFreePlay);
-  const isRemoteMode = useGameStore((s) => s.isRemoteMode());
-  const isDebugMode = gameMode === GameMode.DEBUG;
+  const freePlayEnabled = useGameStore((s) => s.freePlayEnabled);
+  const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
   const logCount = useGameStore((s) => s.ui.logs.length);
   const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
+  const canShowDebugLog = capabilities.canShowDebugLog;
   const prevPhaseRef = useRef<GamePhase | null>(null);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
@@ -149,7 +147,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     drawEnergyToZone,
     setDragHints,
     setHoveredCard,
-    setLocalFreePlay,
+    setFreePlayEnabled,
     getZoneCardIds,
     findViewerCardZone,
     resolveCardDropTarget,
@@ -179,7 +177,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       drawEnergyToZone: s.drawEnergyToZone,
       setDragHints: s.setDragHints,
       setHoveredCard: s.setHoveredCard,
-      setLocalFreePlay: s.setLocalFreePlay,
+      setFreePlayEnabled: s.setFreePlayEnabled,
       getZoneCardIds: s.getZoneCardIds,
       findViewerCardZone: s.findViewerCardZone,
       resolveCardDropTarget: s.resolveCardDropTarget,
@@ -305,11 +303,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   }, [isMobileBattlefield, mobilePanel]);
 
   useEffect(() => {
-    if (!isDebugMode && mobilePanel === 'log') {
+    if (!canShowDebugLog && mobilePanel === 'log') {
       const timer = window.setTimeout(() => setMobilePanel(null), 0);
       return () => window.clearTimeout(timer);
     }
-  }, [isDebugMode, mobilePanel]);
+  }, [canShowDebugLog, mobilePanel]);
 
   useEffect(() => {
     if (!isMobileBattlefield || !mobilePanel) return;
@@ -860,7 +858,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const selfSeat: Seat = viewerSeat;
   const opponentSeat: Seat = selfSeat === 'FIRST' ? 'SECOND' : 'FIRST';
   const resolvedActiveSeat = activeSeat ?? selfSeat;
-  const isSolitaire = gameMode === GameMode.SOLITAIRE;
+  const isSolitaire = capabilities.isSolitairePresentation;
   const showLeaveLocalGameButton = isSolitaire && Boolean(onLeaveLocalGame);
   const selfIdentity = getPlayerIdentityForSeat(selfSeat);
   const opponentIdentity = getPlayerIdentityForSeat(opponentSeat);
@@ -868,7 +866,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const subPhaseInfo =
     currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase)?.display : null;
   const turnNumber = currentTurnCount ?? matchView.turnCount;
-  const showMobileFreePlay = !isRemoteMode;
+  const showMobileFreePlay = capabilities.showFreePlayControl;
+  const freePlayControlTitle =
+    capabilities.freePlayPolicy === 'SESSION_GLOBAL'
+      ? '开启后本地会话的成员登场/换手不检查也不支付费用'
+      : '开启后本客户端提交的成员登场/换手不检查也不支付费用';
 
   return (
     <DndContext
@@ -992,9 +994,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
             <div
               className={cn(
                 'safe-bottom fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-[65] grid gap-2 md:hidden',
-                isDebugMode && showMobileFreePlay
+                canShowDebugLog && showMobileFreePlay
                   ? 'grid-cols-4'
-                  : isDebugMode || showMobileFreePlay
+                  : canShowDebugLog || showMobileFreePlay
                     ? 'grid-cols-3'
                     : 'grid-cols-2'
               )}
@@ -1007,7 +1009,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 <Swords size={15} />
                 对手
               </button>
-              {isDebugMode && (
+              {canShowDebugLog && (
                 <button
                   type="button"
                   onClick={() => setMobilePanel('log')}
@@ -1020,13 +1022,13 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
               {showMobileFreePlay && (
                 <button
                   type="button"
-                  onClick={() => setLocalFreePlay(!localFreePlay)}
+                  onClick={() => setFreePlayEnabled(!freePlayEnabled)}
                   className={cn(
                     'button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]',
-                    localFreePlay &&
+                    freePlayEnabled &&
                       'border-[var(--semantic-warning)]/45 bg-[var(--semantic-warning)]/15 text-[var(--semantic-warning)]'
                   )}
-                  title="开启后成员登场/换手不检查也不支付费用"
+                  title={freePlayControlTitle}
                 >
                   <Zap size={15} />
                   免费
@@ -1560,7 +1562,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         )}
 
         {/* 游戏日志 */}
-        {!isMobileBattlefield && <GameLog />}
+        {!isMobileBattlefield && canShowDebugLog && <GameLog />}
 
         {/* 阶段提示横幅 */}
         <PhaseBanner />

@@ -186,7 +186,7 @@ export const PlayerArea = memo(function PlayerArea({
     }))
   );
   const isDragging = useGameStore((s) => s.ui.isDragging);
-  const isRemoteMode = useGameStore((s) => s.isRemoteMode());
+  const canShowUndo = useGameStore((s) => s.getBattleSurfaceCapabilities().canUndo);
   const isRemoteDebugMode = useGameStore((s) => s.isRemoteDebugMode());
   const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
   const canOpenInspection = useGameStore((s) => s.canUseAction(GameCommandType.OPEN_INSPECTION));
@@ -1023,7 +1023,7 @@ export const PlayerArea = memo(function PlayerArea({
             );
           })}
         </div>
-        {!isOpponent && !isRemoteMode && (
+        {!isOpponent && canShowUndo && (
           <button
             type="button"
             onClick={undoLastStep}

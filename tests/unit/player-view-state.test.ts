@@ -3,6 +3,7 @@ import {
   CardType,
   FaceState,
   GamePhase,
+  GameMode,
   HeartColor,
   SubPhase,
   ZoneType,
@@ -144,6 +145,15 @@ function hasEnabledCommand(view: PlayerViewState, command: GameCommandType): boo
 }
 
 describe('PlayerViewState projector', () => {
+  it('uiHints 只表达 GameSession 规则自动化策略，不表达桌面本地模式', () => {
+    const { state } = createProjectedState();
+
+    const view = projectPlayerViewState(state, PLAYER1, { gameMode: GameMode.SOLITAIRE });
+
+    expect(view.uiHints).toEqual({ gameMode: GameMode.SOLITAIRE });
+    expect('isLocalMode' in (view.uiHints ?? {})).toBe(false);
+  });
+
   it('activeEffect 私有候选卡仅投影给等待玩家，避免对手看到候选数量', () => {
     const { state, p1HandCard, p1WaitingRoomCard } = createProjectedState();
     state.activeEffect = {
@@ -580,6 +590,7 @@ describe('PlayerViewState projector', () => {
     expect(hasEnabledCommand(performanceView, GameCommandType.CONFIRM_PERFORMANCE_OUTCOME)).toBe(
       true
     );
+    expect(hasEnabledCommand(performanceView, GameCommandType.SUBMIT_JUDGMENT)).toBe(true);
   });
 
   it('应投影此 Live 卡分数修正，供判定窗口显示修正后的单卡分数', () => {

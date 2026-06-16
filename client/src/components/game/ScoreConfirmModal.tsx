@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, ShieldCheck } from 'lucide-react';
 import { GameCommandType } from '@game/application/game-commands';
 import { useGameStore } from '@/store/gameStore';
-import { GameMode, GamePhase, SubPhase } from '@game/shared/types/enums';
+import { GamePhase, SubPhase } from '@game/shared/types/enums';
 
 export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
@@ -12,7 +12,9 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
   const selfPlayer = useGameStore((s) => s.getViewingPlayerIdentity());
   const opponentPlayer = useGameStore((s) => s.getOpponentPlayerIdentity());
   const confirmedScoreCount = useGameStore((s) => s.getConfirmedScoreCount());
-  const gameMode = useGameStore((s) => s.gameMode);
+  const scoreConfirmPresentation = useGameStore(
+    (s) => s.getBattleSurfaceCapabilities().scoreConfirmPresentation
+  );
   const confirmScore = useGameStore((s) => s.confirmScore);
   const selfScore = useGameStore((s) => s.getViewerLiveScore());
   const opponentScore = useGameStore((s) => s.getOpponentLiveScore());
@@ -36,14 +38,14 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
 
   if (!shouldShow || !selfPlayer || !opponentPlayer) return null;
 
-  const isDebugMode = gameMode === GameMode.DEBUG;
+  const isDebugPassthrough = scoreConfirmPresentation === 'DEBUG_PASSTHROUGH';
   const canConfirm = canSubmitScore && !selfConfirmed;
 
   return (
     <AnimatePresence>
       <motion.div
         className={`fixed inset-0 z-[110] flex items-center justify-center ${
-          isDebugMode
+          isDebugPassthrough
             ? 'pointer-events-none bg-black/20 backdrop-blur-[1px]'
             : 'modal-backdrop'
         }`}

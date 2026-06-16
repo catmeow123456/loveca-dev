@@ -43,6 +43,7 @@
 
 | 主题 | 推荐入口 | 说明 |
 | --- | --- | --- |
+| 对战模式目的 | [对战模式目的与边界](battle-mode-purpose-and-boundaries.md) | 本地调试、对墙打、正式联机、远程调试联机的目的、受众和能力边界 |
 | 联机模式 | [联机模式准备文档](online-mode-preparation.md) | 联机首版能力、剩余边界、命令/事件/视图约束 |
 | 联机可见性 | [可见性与公开对象矩阵](online-mode-visibility-matrix.md) | `PlayerViewState`、对象可见性和投影规则 |
 | 联机性能 | [正式联机 transport serde 性能问题说明](online-transport-serde-performance.md) | 正式联机响应 JSON-native 契约、性能基准和后续优化顺序 |

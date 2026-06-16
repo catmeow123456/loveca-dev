@@ -1,6 +1,6 @@
 /**
  * 游戏控制面板
- * 根据游戏模式（调试/对墙打）显示不同的控制项
+ * 根据本地/联机模式显示不同的控制项
  */
 
 import { memo } from 'react';
@@ -9,6 +9,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ArrowRightLeft, Crosshair, Eye, Settings2, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
+import type { BattleSurfaceKind } from '@/store/battleSurfaceCapabilities';
 import { GameMode } from '@game/shared/types/enums';
 
 export const DebugControl = memo(function DebugControl() {
@@ -17,23 +18,27 @@ export const DebugControl = memo(function DebugControl() {
   const currentTurnCount = useGameStore((s) => s.getTurnCountView());
   const currentViewingPlayer = useGameStore((s) => s.getViewingPlayerIdentity());
   const otherPlayer = useGameStore((s) => s.getOpponentPlayerIdentity());
-  const gameMode = useGameStore((s) => s.gameMode);
-  const localFreePlay = useGameStore((s) => s.localFreePlay);
-  const isRemoteMode = useGameStore((s) => s.isRemoteMode());
+  const freePlayEnabled = useGameStore((s) => s.freePlayEnabled);
+  const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { setViewingPlayer, addLog, setGameMode, setLocalFreePlay } = useGameStore(
+  const { setViewingPlayer, addLog, setGameMode, setFreePlayEnabled } = useGameStore(
     useShallow((s) => ({
       setViewingPlayer: s.setViewingPlayer,
       addLog: s.addLog,
       setGameMode: s.setGameMode,
-      setLocalFreePlay: s.setLocalFreePlay,
+      setFreePlayEnabled: s.setFreePlayEnabled,
     }))
   );
 
-  if (!matchView || isRemoteMode) return null;
-  const isDebugMode = gameMode === GameMode.DEBUG;
-  const freePlayLabel = isDebugMode ? '本地免费登场' : '免费登场';
+  if (!matchView) return null;
+  const isLocalDebugSurface = capabilities.surface === 'LOCAL_DEBUG';
+  const modeLabel = getBattleSurfaceLabel(capabilities.surface);
+  const freePlayLabel = isLocalDebugSurface ? '本地免费登场' : '免费登场';
+  const freePlayTitle =
+    capabilities.freePlayPolicy === 'SESSION_GLOBAL'
+      ? '开启后本地会话的成员登场/换手不检查也不支付费用'
+      : '开启后本客户端提交的成员登场/换手不检查也不支付费用';
 
   // 切换视角（仅调试模式）
   const handleSwitchView = () => {
@@ -45,7 +50,9 @@ export const DebugControl = memo(function DebugControl() {
 
   // 切换游戏模式
   const handleSwitchMode = () => {
-    setGameMode(isDebugMode ? GameMode.SOLITAIRE : GameMode.DEBUG);
+    if (capabilities.canSwitchLocalMode) {
+      setGameMode(isLocalDebugSurface ? GameMode.SOLITAIRE : GameMode.DEBUG);
+    }
   };
 
   return (
@@ -62,19 +69,19 @@ export const DebugControl = memo(function DebugControl() {
           <div
             className={cn(
               'flex h-8 w-8 items-center justify-center rounded-full border',
-              isDebugMode
+              isLocalDebugSurface
                 ? 'border-[var(--accent-secondary)]/25 bg-[var(--accent-secondary)]/12 text-[var(--accent-secondary)]'
                 : 'border-[var(--semantic-info)]/25 bg-[var(--semantic-info)]/12 text-[var(--semantic-info)]'
             )}
           >
-            {isDebugMode ? <Settings2 size={15} /> : <Crosshair size={15} />}
+            {isLocalDebugSurface ? <Settings2 size={15} /> : <Crosshair size={15} />}
           </div>
           <div className="flex flex-col leading-none">
             <span className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">
               模式
             </span>
             <span className="text-sm font-semibold text-[var(--text-primary)]">
-              {isDebugMode ? '调试' : '对墙打'}
+              {modeLabel}
             </span>
           </div>
         </div>
@@ -96,7 +103,7 @@ export const DebugControl = memo(function DebugControl() {
           </span>
         </div>
 
-        {isDebugMode && (
+        {capabilities.canSwitchPerspective && (
           <>
             <div className="h-6 w-px bg-[var(--border-default)]" />
 
@@ -120,37 +127,56 @@ export const DebugControl = memo(function DebugControl() {
           </>
         )}
 
-        <div className="h-6 w-px bg-[var(--border-default)]" />
+        {capabilities.showFreePlayControl && (
+          <>
+            <div className="h-6 w-px bg-[var(--border-default)]" />
 
-        <motion.button
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.96 }}
-          onClick={() => setLocalFreePlay(!localFreePlay)}
-          className={cn(
-            'flex h-9 items-center gap-1.5 rounded border px-3 text-xs font-semibold transition',
-            localFreePlay
-              ? 'border-[var(--semantic-warning)]/40 bg-[var(--semantic-warning)]/15 text-[var(--semantic-warning)]'
-              : 'border-[var(--border-default)] bg-[var(--bg-surface)]/50 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          )}
-          title="开启后成员登场/换手不检查也不支付费用"
-        >
-          <Zap size={14} />
-          {freePlayLabel}
-        </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => setFreePlayEnabled(!freePlayEnabled)}
+              className={cn(
+                'flex h-9 items-center gap-1.5 rounded border px-3 text-xs font-semibold transition',
+                freePlayEnabled
+                  ? 'border-[var(--semantic-warning)]/40 bg-[var(--semantic-warning)]/15 text-[var(--semantic-warning)]'
+                  : 'border-[var(--border-default)] bg-[var(--bg-surface)]/50 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              )}
+              title={freePlayTitle}
+            >
+              <Zap size={14} />
+              {freePlayLabel}
+            </motion.button>
+          </>
+        )}
 
-        {/* 模式切换按钮 */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={handleSwitchMode}
-          className="button-secondary flex h-9 w-9 items-center justify-center p-0"
-          title={isDebugMode ? '切换到对墙打模式' : '切换到调试模式'}
-        >
-          {isDebugMode ? <Crosshair size={15} /> : <Settings2 size={15} />}
-        </motion.button>
+        {capabilities.canSwitchLocalMode ? (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleSwitchMode}
+            className="button-secondary flex h-9 w-9 items-center justify-center p-0"
+            title={isLocalDebugSurface ? '切换到对墙打模式' : '切换到调试模式'}
+          >
+            {isLocalDebugSurface ? <Crosshair size={15} /> : <Settings2 size={15} />}
+          </motion.button>
+        ) : null}
       </motion.div>
     </div>
   );
 });
+
+function getBattleSurfaceLabel(surface: BattleSurfaceKind): string {
+  switch (surface) {
+    case 'LOCAL_DEBUG':
+      return '调试';
+    case 'SOLITAIRE':
+      return '对墙打';
+    case 'REMOTE_DEBUG':
+      return '远程调试';
+    case 'ONLINE':
+    default:
+      return '联机';
+  }
+}
 
 export default DebugControl;

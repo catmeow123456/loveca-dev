@@ -319,7 +319,6 @@ export function projectPlayerViewState(
     : null;
   const uiHints: UiHintViewState = {
     gameMode: options.gameMode ?? GameMode.DEBUG,
-    isLocalMode: true,
   };
 
   return {

@@ -420,12 +420,12 @@ export enum LiveResult {
 
 /**
  * 游戏模式
- * 控制游戏会话的流程行为和 UI 展示
+ * 控制 GameSession 的规则自动化策略，不代表完整桌面 UI 场景。
  */
 export enum GameMode {
-  /** 调试模式 - 双人同设备，手动切换视角 */
+  /** 完整双人流程 - 不自动处理对手流程 */
   DEBUG = 'DEBUG',
-  /** 对墙打模式 - 单人，系统自动处理对手 */
+  /** 对墙打规则策略 - 系统自动处理对手无输入流程 */
   SOLITAIRE = 'SOLITAIRE',
 }
 

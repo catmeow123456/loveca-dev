@@ -9,6 +9,7 @@
 - [根目录 README](../../README.md)：项目入口、模块目录、运行与部署入口。
 - [系统设计](../../game_system_design.md)：当前架构、状态机、数据流和关键代码路径。
 - [当前实现限制](../current-limitations.md)：跨模块限制、部署差异和未落地能力。
+- [对战模式目的与边界](../battle-mode-purpose-and-boundaries.md)：本地调试、对墙打、正式联机和远程调试联机的目的差异。
 - [联机模式边界规范](online-mode-boundary.md)：联机 UI、store selector、命令和投影边界。
 - [文档编写规范](../doc_writing_guide.md)：文档状态、分类和更新半径规则。
 
@@ -65,6 +66,7 @@
 - 命令执行必须校验用户身份、房间/对局状态、座位映射、阶段窗口和目标对象可见性。
 - 同步传输方式、断线恢复和持久化能力的当前边界以 `docs/current-limitations.md` 和联机专题文档为准。
 - 调试联机能力和正式联机能力应保持边界清晰，不能共用会暴露隐藏信息的调试接口。
+- `GameMode` 只应作为规则自动化策略使用；共享对战桌面是否显示调试控件、撤销、免费登场等，应按 [对战模式目的与边界](../battle-mode-purpose-and-boundaries.md) 的场景能力派生。
 
 ## 5. 前端状态与 UI
 

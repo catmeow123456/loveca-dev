@@ -86,6 +86,10 @@ import {
   type RemoteSessionSource,
   type RemoteSnapshot,
 } from '@/lib/remoteMatchClient';
+import {
+  deriveBattleSurfaceCapabilities,
+  type BattleSurfaceCapabilities,
+} from './battleSurfaceCapabilities';
 
 const REMOTE_SNAPSHOT_PRELOAD_BUDGET_MS = 180;
 
@@ -156,8 +160,8 @@ export interface GameStore {
   gameSession: GameSession;
   /** 当前游戏模式 */
   gameMode: GameMode;
-  /** 本地兜底：成员登场/换手不支付费用 */
-  localFreePlay: boolean;
+  /** 免费登场兜底开关。远程联机时只作为 PLAY_MEMBER_TO_SLOT.freePlay 的本地偏好。 */
+  freePlayEnabled: boolean;
   /** UI 状态 */
   ui: UIState;
   /** 当前视角玩家 ID */
@@ -271,8 +275,8 @@ export interface GameStore {
   setDragHints: (isDragging: boolean, highlightedZones?: string[]) => void;
   /** 设置游戏模式（支持游戏内切换） */
   setGameMode: (mode: GameMode) => void;
-  /** 设置本地免费登场兜底 */
-  setLocalFreePlay: (enabled: boolean) => void;
+  /** 设置免费登场兜底 */
+  setFreePlayEnabled: (enabled: boolean) => void;
   /** 接入远程联机会话 */
   connectRemoteSession: (session: RemoteSessionState) => void;
   /** 将远程快照应用到当前联机会话 */
@@ -283,6 +287,8 @@ export interface GameStore {
   syncRemoteState: () => Promise<void>;
   /** 当前是否处于远程联机模式 */
   isRemoteMode: () => boolean;
+  /** 获取当前共享对战桌面的 UI 能力 */
+  getBattleSurfaceCapabilities: () => BattleSurfaceCapabilities;
   /** 接入远程联机调试会话 */
   connectRemoteDebugSession: (session: Omit<RemoteSessionState, 'source'>) => void;
   /** 断开远程联机调试会话 */
@@ -377,6 +383,8 @@ export interface GameStore {
   // ============ 阶段十新增动作 ============
   /** 确认子阶段完成 */
   confirmSubPhase: (subPhase: SubPhase) => CommandDispatchResult;
+  /** 接受当前自动 Live 判定并推进判定子阶段 */
+  acceptAutomaticJudgment: () => CommandDispatchResult;
   /** 确认 Live 判定结果 */
   confirmJudgment: (judgmentResults: Map<string, boolean>) => CommandDispatchResult;
   /** 确认分数（仅确认己方最终分数） */
@@ -530,6 +538,29 @@ export const useGameStore = create<GameStore>((set, get) => {
     return runStoreCommand(buildCommand(viewingPlayerId), options);
   };
 
+  const runRemoteCommandSequence = (
+    entries: readonly { readonly command: GameCommand; readonly options: StoreCommandOptions }[]
+  ): boolean => {
+    if (!get().remoteSession || entries.length === 0) {
+      return false;
+    }
+
+    const dispatchAt = (index: number): void => {
+      const entry = entries[index];
+      if (!entry) {
+        return;
+      }
+
+      dispatchRemoteCommand(entry.command, entry.options.failureMessage, () => {
+        applyCommandSuccessEffects(entry.options);
+        dispatchAt(index + 1);
+      });
+    };
+
+    dispatchAt(0);
+    return true;
+  };
+
   const autoConfirmOtherLocalWinners = (subPhase: SubPhase): void => {
     if (get().remoteSession) {
       return;
@@ -576,7 +607,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     cardDataRegistry: new Map(),
     gameSession,
     gameMode: GameMode.DEBUG,
-    localFreePlay: false,
+    freePlayEnabled: false,
     viewingPlayerId: null,
     remoteSession: null,
     ui: {
@@ -641,7 +672,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         playerViewState: null,
         viewingPlayerId: null,
         gameMode: GameMode.DEBUG,
-        localFreePlay: false,
+        freePlayEnabled: false,
         ui: {
           selectedCardId: null,
           hoveredCardId: null,
@@ -682,7 +713,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     canUndoLastStep: () => {
-      return !get().remoteSession && get().gameSession.canUndoLastStep();
+      return get().getBattleSurfaceCapabilities().canUndo && get().gameSession.canUndoLastStep();
     },
 
     undoLastStep: () => {
@@ -723,12 +754,18 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     playMemberToSlot: (cardId, slot) => {
-      return runViewerCommand((playerId) => createPlayMemberToSlotCommand(playerId, cardId, slot), {
-        failureMessage: '成员登场失败',
-        successMessage: `成员登场到 ${slot}`,
-        deselectCard: true,
-        logError: true,
-      });
+      return runViewerCommand(
+        (playerId) =>
+          createPlayMemberToSlotCommand(playerId, cardId, slot, {
+            freePlay: get().freePlayEnabled,
+          }),
+        {
+          failureMessage: '成员登场失败',
+          successMessage: `成员登场到 ${slot}`,
+          deselectCard: true,
+          logError: true,
+        }
+      );
     },
 
     activateCardAbility: (cardId, abilityId) => {
@@ -969,25 +1006,22 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      const { gameSession, localFreePlay } = get();
+      const { gameSession, freePlayEnabled } = get();
       // 同步更新 store 和 session 的模式
       gameSession.gameMode = mode;
-      gameSession.localFreePlay = localFreePlay;
-      set({ gameMode: mode, localFreePlay });
+      gameSession.localFreePlay = freePlayEnabled;
+      set({ gameMode: mode, freePlayEnabled });
       get().addLog(`切换游戏模式: ${mode === GameMode.SOLITAIRE ? '对墙打' : '调试'}`, 'info');
       // 同步状态以反映模式变更
       get().syncState();
     },
 
-    setLocalFreePlay: (enabled) => {
-      if (get().remoteSession) {
-        return;
-      }
-
+    setFreePlayEnabled: (enabled) => {
       const { gameSession } = get();
-
-      gameSession.localFreePlay = enabled;
-      set({ localFreePlay: enabled });
+      if (!get().remoteSession) {
+        gameSession.localFreePlay = enabled;
+      }
+      set({ freePlayEnabled: enabled });
       get().addLog(enabled ? '免费登场已开启' : '免费登场已关闭', 'info');
     },
 
@@ -997,7 +1031,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         remoteSession: session,
         viewingPlayerId: session.playerId,
         gameMode: GameMode.DEBUG,
-        localFreePlay: false,
+        freePlayEnabled: false,
       });
     },
 
@@ -1043,6 +1077,12 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     isRemoteMode: () => get().remoteSession !== null,
+
+    getBattleSurfaceCapabilities: () =>
+      deriveBattleSurfaceCapabilities({
+        gameMode: get().gameMode,
+        remoteSessionSource: get().remoteSession?.source ?? null,
+      }),
 
     connectRemoteDebugSession: (session) => {
       get().connectRemoteSession({
@@ -1396,6 +1436,51 @@ export const useGameStore = create<GameStore>((set, get) => {
         autoConfirmOtherLocalWinners(subPhase);
       }
       return result;
+    },
+
+    acceptAutomaticJudgment: () => {
+      const viewingPlayerId = get().viewingPlayerId;
+      if (!viewingPlayerId) {
+        return { success: false, error: '未设置玩家' };
+      }
+
+      const entries = [
+        {
+          command: createSubmitJudgmentCommand(viewingPlayerId, new Map()),
+          options: {
+            failureMessage: '确认判定失败',
+            successMessage: '确认 Live 判定结果',
+            logError: true,
+          },
+        },
+        {
+          command: createConfirmStepCommand(viewingPlayerId, SubPhase.PERFORMANCE_JUDGMENT),
+          options: {
+            failureMessage: '确认子阶段失败',
+            successMessage: `确认子阶段完成: ${SubPhase.PERFORMANCE_JUDGMENT}`,
+            logError: true,
+          },
+        },
+      ] as const;
+
+      if (runRemoteCommandSequence(entries)) {
+        return { success: false, pending: true };
+      }
+
+      for (const entry of entries) {
+        const result = get().gameSession.executeCommand(entry.command);
+        if (!result.success) {
+          if (entry.options.logError) {
+            get().addLog(`${entry.options.failureMessage}: ${result.error}`, 'error');
+          }
+          return { success: false, error: result.error };
+        }
+
+        get().syncState();
+        applyCommandSuccessEffects(entry.options);
+      }
+
+      return { success: true };
     },
 
     confirmJudgment: (judgmentResults) => {

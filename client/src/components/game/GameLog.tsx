@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ScrollText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
-import { GameMode } from '@game/shared/types/enums';
 
 interface GameLogContentProps {
   active?: boolean;
@@ -80,11 +79,10 @@ export const GameLogContent = memo(function GameLogContent({ active = true }: Ga
 });
 
 export const GameLog = memo(function GameLog() {
-  const gameMode = useGameStore((s) => s.gameMode);
+  const canShowDebugLog = useGameStore((s) => s.getBattleSurfaceCapabilities().canShowDebugLog);
   const [isExpanded, setIsExpanded] = useState(false);
-  const isDebugMode = gameMode === GameMode.DEBUG;
 
-  if (!isDebugMode) return null;
+  if (!canShowDebugLog) return null;
 
   return (
     <div className="fixed left-0 top-0 z-[var(--z-game-log)] flex h-full">

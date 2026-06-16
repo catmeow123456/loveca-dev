@@ -142,8 +142,8 @@ export interface PermissionViewState {
 }
 
 export interface UiHintViewState {
+  /** GameSession 规则自动化策略；不是桌面 UI 场景或权威来源。 */
   readonly gameMode: GameMode;
-  readonly isLocalMode: boolean;
 }
 
 export interface PlayerViewState {

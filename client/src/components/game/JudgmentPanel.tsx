@@ -361,8 +361,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     (s) => s.playerViewState?.match.liveResult?.liveCardScoreModifiers ?? {}
   );
   const {
-    confirmJudgment,
-    confirmSubPhase,
+    acceptAutomaticJudgment,
     confirmPerformanceOutcome,
     getCardImagePath,
     moveResolutionCardToZone,
@@ -370,8 +369,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     setHoveredCard,
   } = useGameStore(
     useShallow((s) => ({
-      confirmJudgment: s.confirmJudgment,
-      confirmSubPhase: s.confirmSubPhase,
+      acceptAutomaticJudgment: s.acceptAutomaticJudgment,
       confirmPerformanceOutcome: s.confirmPerformanceOutcome,
       getCardImagePath: s.getCardImagePath,
       moveResolutionCardToZone: s.moveResolutionCardToZone,
@@ -636,7 +634,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
 
   const handleAcceptAutoJudgment = useCallback(() => {
     if (!currentPlayer || !canSubmitJudgment) return;
-    const judgmentResult = confirmJudgment(new Map());
+    const judgmentResult = acceptAutomaticJudgment();
     if (judgmentResult.pending) {
       closeAfterRemoteAdvanceRef.current = true;
       return;
@@ -644,17 +642,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     if (!judgmentResult.success) {
       return;
     }
-
-    const confirmResult = confirmSubPhase(SubPhase.PERFORMANCE_JUDGMENT);
-    if (confirmResult.pending) {
-      closeAfterRemoteAdvanceRef.current = true;
-      return;
-    }
-    if (!confirmResult.success) {
-      return;
-    }
     onClose();
-  }, [canSubmitJudgment, confirmJudgment, confirmSubPhase, currentPlayer, onClose]);
+  }, [acceptAutomaticJudgment, canSubmitJudgment, currentPlayer, onClose]);
 
   const handleLiveFailed = useCallback(() => {
     if (!currentPlayer || !canConfirmPerformanceOutcome) return;

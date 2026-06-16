@@ -151,6 +151,8 @@ export interface PlayMemberToSlotCommand extends BaseGameCommand {
   readonly type: GameCommandType.PLAY_MEMBER_TO_SLOT;
   readonly cardId: string;
   readonly targetSlot: SlotPosition;
+  /** 自由拖拽兜底：跳过登场费用检查与支付。 */
+  readonly freePlay?: boolean;
 }
 
 export interface ActivateAbilityCommand extends BaseGameCommand {
@@ -534,13 +536,15 @@ export function createAttachEnergyToMemberCommand(
 export function createPlayMemberToSlotCommand(
   playerId: string,
   cardId: string,
-  targetSlot: SlotPosition
+  targetSlot: SlotPosition,
+  options: { readonly freePlay?: boolean } = {}
 ): PlayMemberToSlotCommand {
   return {
     type: GameCommandType.PLAY_MEMBER_TO_SLOT,
     playerId,
     cardId,
     targetSlot,
+    ...(options.freePlay ? { freePlay: true } : {}),
     timestamp: Date.now(),
   };
 }
