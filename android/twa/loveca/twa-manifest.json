@@ -20,8 +20,8 @@
     "path": "/app/android.keystore",
     "alias": "loveca"
   },
-  "appVersionName": "4",
-  "appVersionCode": 4,
+  "appVersionName": "6",
+  "appVersionCode": 6,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://loveca.lovelivefun.xyz/manifest.webmanifest",
@@ -43,5 +43,5 @@
   "fileHandlers": [],
   "launchHandlerClientMode": "",
   "displayOverride": [],
-  "appVersion": "4"
+  "appVersion": "6"
 }
