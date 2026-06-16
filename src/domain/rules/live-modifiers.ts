@@ -9,6 +9,7 @@ import type {
 import { getCardById } from '../entities/game.js';
 import { getAllMemberCardIds } from '../entities/zone.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
+import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
 type HeartModifierState = Extract<LiveModifierState, { readonly kind: 'HEART' }>;
@@ -219,12 +220,7 @@ function isHasunosoraMemberCard(card: NonNullable<ReturnType<typeof getCardById>
     return false;
   }
 
-  const groupName = card.data.groupName?.trim();
-  return (
-    groupName === '莲之空' ||
-    groupName === '蓮ノ空' ||
-    normalizeCardCode(card.data.cardCode).startsWith('PL!HS-')
-  );
+  return cardBelongsToGroup(card.data, '蓮ノ空');
 }
 
 function normalizeContinuousMemberName(name: string): string {

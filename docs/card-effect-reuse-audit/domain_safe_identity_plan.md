@@ -2,15 +2,14 @@
 
 审查日期：2026-06-16
 
-本文档记录 Batch G 的边界设计与当前迁移状态。G-1 / G-2 / G-3 已完成，G-4 尚未开始。
+本文档记录 Batch G 的边界设计与当前迁移状态。G-1 / G-2 / G-3 / G-4 已完成。
 
 ## Current Status
 
 - Batch G-1 已完成：`src/shared/utils/card-identity.ts` 提供 shared/domain-safe `cardBelongsToGroup(card, groupName)`，并有 focused unit test 覆盖 alias、文本 normalize 与卡号 fallback。
 - Batch G-2 已完成：application 层 `groupAliasIs(groupName)` 已委托 shared helper；`groupIs(groupName)` 仍保留直接 contains 语义后再走 shared identity fallback。
 - Batch G-3 已完成：`src/domain/rules/cost-calculator.ts` 中 Nijigasaki / Liella! 身份判断已委托 shared helper；费用语义、modifier metadata 与费用计算顺序未改。
-- Batch G-4 尚未开始：`src/domain/rules/live-modifiers.ts` 中 Hasunosora 身份判断仍未迁移。
-- G-4 会触碰 domain/rules，必须作为后续单独授权的小批处理；不得顺手改变 continuous modifier 收集时机。
+- Batch G-4 已完成：`src/domain/rules/live-modifiers.ts` 中 Hasunosora 身份判断已委托 shared helper；continuous modifier 收集时机、三面不同名语义与 SCORE modifier metadata 未改。
 
 ## Why
 
@@ -21,9 +20,9 @@ application 层已经有 `groupAliasIs(groupName)`，用于把团体 alias、文
 - `src/domain/rules/cost-calculator.ts`：`PL!N-pb1-008` 的虹咲成员身份判断已在 G-3 委托 shared `cardBelongsToGroup`。
 - `src/domain/rules/cost-calculator.ts`：`PL!SP-bp5-003` 的 Liella! 成员身份判断已在 G-3 委托 shared `cardBelongsToGroup`。
 
-剩余重复点：
+剩余状态：
 
-- `src/domain/rules/live-modifiers.ts`：`hasThreeDifferentHasunosoraMembersOnStage` 通过 `isHasunosoraMemberCard` 判断「莲之空」成员。
+- Batch G 范围内的 application / cost-calculator / live-modifiers 团体身份判断已统一到底层 shared helper。
 - application runner / selectors 已通过 `groupAliasIs` 覆盖同类语义。
 
 设计目标是让 domain 与 application 共享底层身份事实，同时不让 domain 反向依赖 application。
@@ -120,9 +119,9 @@ function groupAliasIs(groupName: string): CardSelector {
 
 ### Batch G-4: live-modifiers identity
 
-- 迁移 `isHasunosoraMemberCard` 的身份判断到 shared helper。
-- 保留三面均为「莲之空」成员、三名不同名、continuous modifier 收集时机不变。
-- 跑 `tests/unit/live-modifiers.test.ts`，必要时补 Hasunosora alias 与 fallback 单测。
+- 已完成：迁移 `isHasunosoraMemberCard` 的身份判断到 shared helper。
+- 已保持：三面均为「莲之空」成员、三名不同名、continuous modifier 收集时机不变。
+- 已覆盖：`tests/unit/live-modifiers.test.ts` 补充 Hasunosora alias、cardText、fallback、非 MEMBER、重复姓名与缺槽单测。
 
 ## Explicit Non-goals
 

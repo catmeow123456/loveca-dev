@@ -72,6 +72,7 @@
 - Batch G-1 shared domain-safe identity helper：已新增 `src/shared/utils/card-identity.ts` 与 focused 单测，覆盖 μ's / 莲之空 / Liella! / 虹咲 / Aqours alias 与卡号 fallback；未迁任何调用点。
 - Batch G-2 application identity adapter：`groupAliasIs(groupName)` 已委托 shared `cardBelongsToGroup(card.data, groupName)`；`groupIs` 的直接 contains 语义仍保留；未迁 runner 或 domain/rules 调用点。
 - Batch G-3 cost-calculator identity：`cost-calculator.ts` 中 Nijigasaki / Liella! 身份判断已委托 shared `cardBelongsToGroup`；费用语义、modifier id/label/amount/source、费用计算顺序未改；未进入 live-modifiers。
+- Batch G-4 live-modifiers identity：`live-modifiers.ts` 中 Hasunosora 身份判断已委托 shared `cardBelongsToGroup`；三面成员、三名不同名、continuous modifier 收集时机、sourceCardId / abilityId / countDelta 未改。
 
 ## Remaining inventory
 
@@ -112,7 +113,7 @@
 - NS-05 印刷 BLADE 阈值：已由 `memberPrintedBladeLte(maxBlade)` 覆盖，未混入有效 BLADE query。
 - NS-06 多姓名弃手：已由 `cardNameAliasAny(names)` 覆盖。
 - NS-07 规范化卡名包含关系：已由 `cardNameContains(name)` 覆盖，语义是 normalize 后“候选卡名包含传入卡名”，不是 alias 或完全相等。
-- NS-08 Liella! application selector：application 层已由 `groupAliasIs('Liella!')` 覆盖 `Liella!` / `Liella` / `リエラ` / `スーパースター` / `superstar` 与 `PL!SP-` fallback；domain cost-calculator 中的 Liella! 身份已在 G-3 迁移，剩余 domain 身份迁移是 G-4 live-modifiers Hasunosora。
+- NS-08 Liella! application selector：application 层已由 `groupAliasIs('Liella!')` 覆盖 `Liella!` / `Liella` / `リエラ` / `スーパースター` / `superstar` 与 `PL!SP-` fallback；domain cost-calculator 中的 Liella! 身份已在 G-3 迁移，live-modifiers 中的 Hasunosora 身份已在 G-4 迁移；trigger matcher / steps / workflow 不属于该项。
 - NS-09 cost-calculator Nijigasaki 判断：已在 G-3 复用 shared `cardBelongsToGroup(memberData, '虹ヶ咲')`，覆盖 `PL!N-` fallback 与文本别名；待机状态与费用语义未改。
 
 ### domain-blocked
@@ -120,12 +121,12 @@
 | id | current location | current behavior | why blocked / next action |
 |---|---|---|---|
 | DB-01 | `src/domain/rules/live-modifiers.ts` `collectContinuousLiveModifiers` | 为 continuous modifier 收集成功 LIVE 数和舞台成员来源。 | domain 不能 import application `conditions.ts`；短期保留。 |
-| DB-02 | `src/domain/rules/live-modifiers.ts` `hasThreeDifferentHasunosoraMembersOnStage` | `PL!HS-bp1-003` 三面均为不同名「莲之空」成员时 LIVE 合计分数 +1。 | 这是最明确的 domain-blocked condition。后续若要迁，先设计 domain/shared query 与 Hasunosora selector。 |
+| DB-02 | `src/domain/rules/live-modifiers.ts` `hasThreeDifferentHasunosoraMembersOnStage` | `PL!HS-bp1-003` 三面均为不同名「莲之空」成员时 LIVE 合计分数 +1。 | 已在 G-4 将 Hasunosora 身份判断迁到 shared `cardBelongsToGroup`；三面成员、三名不同名、continuous modifier 收集时机与 SCORE modifier metadata 未改。 |
 | DB-03 | `src/domain/rules/live-modifiers.ts` `hasMemberPositionMovedThisTurn` | `PL!N-pb1-004` 未进行成员区位置移动时 BLADE +2。 | 读取 domain turn-state，保留 domain-local 或下沉 query，不走 application helper。 |
 | DB-04 | `src/domain/rules/cost-calculator.ts` `LL-bp2-001` | 手牌中自身按“此卡以外手牌数量”减费。 | 登场费用规则在 domain；不属于 application condition/query 本批。 |
 | DB-05 | `src/domain/rules/cost-calculator.ts` `PL!N-pb1-008` | 舞台存在待机虹咲成员时自身费用 -2。 | 已在 G-3 将虹咲身份判断迁到 shared `cardBelongsToGroup`；待机状态、来源卡 base、费用减少量与费用计算顺序未改。 |
 | DB-06 | `src/domain/rules/cost-calculator.ts` `PL!SP-bp5-003` | 舞台来源使 10 费 Liella! 成员费用 -2。 | 已在 G-3 将 Liella! 身份判断迁到 shared `cardBelongsToGroup`；舞台来源、10 费限制、费用减少量与 modifier metadata 未改。 |
-| DB-07 | domain 中的 Liella/Nijigasaki/Hasunosora 身份判断 | 与 application selector 有语义重叠。 | G-1/G-2/G-3 已完成 shared helper、application adapter 与 cost-calculator 身份迁移；live-modifiers 的 Hasunosora 身份仍未迁移，G-4 必须作为后续单独授权小批处理。 |
+| DB-07 | domain 中的 Liella/Nijigasaki/Hasunosora 身份判断 | 与 application selector 有语义重叠。 | G-1/G-2/G-3/G-4 已完成 shared helper、application adapter、cost-calculator 与 live-modifiers 身份迁移；trigger matcher / steps / workflow 不属于本项。 |
 
 ### formula-builder
 
@@ -159,17 +160,9 @@
 
 ## Suggested next execution batches
 
-### Batch G: domain-safe identity migration
-
-当前状态：G-1 shared helper、G-2 application adapter 与 G-3 cost-calculator identity 已完成。下一步只剩 live-modifiers 身份迁移，必须单独授权小批处理，且不得顺手改变 continuous modifier 收集时机。设计边界见 [`domain_safe_identity_plan.md`](./domain_safe_identity_plan.md)。
-
-1. G-3 已迁移 `cost-calculator.ts` 中 DB-05 / DB-06 的 Nijigasaki、Liella! 身份判断到 shared helper；待机状态、10 费限制、来源卡限制和费用减少量未改。
-2. G-4 可迁移 `live-modifiers.ts` 中 DB-02 / DB-07 的 Hasunosora 身份判断到 shared helper；不改变三面成员、不同名校验或 continuous modifier 收集时机。
-3. G-4 会触碰 domain/rules，进入前需要单独确认范围与验证命令。
-
 ### Batch H: inventory close-out
 
-目标：每个小批完成后同步本文件，避免已完成项继续停留在待办表里。
+目标：Batch G identity migration 已完成后，同步收口本文件，避免已完成项继续停留在待办表里。
 
 1. 已完成的 selector/query 进入 Completed 或已关闭说明。
 2. formula-builder、workflow-step、domain-blocked 继续保留为独立后续方向。

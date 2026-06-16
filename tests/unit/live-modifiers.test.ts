@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
+import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import {
@@ -254,9 +254,154 @@ describe('live modifier helpers', () => {
       )
     ).toBe(false);
   });
+
+  it('recognizes Hasunosora members by group aliases, text alias, and PL!HS fallback', () => {
+    const identityCases = [
+      {
+        label: 'group-aliases',
+        left: createHasunosoraMemberData('OTHER-HS-CN', '日野下花帆', 4, {
+          groupName: '莲之空',
+        }),
+        center: createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13, {
+          groupName: '蓮ノ空',
+        }),
+        right: createHasunosoraMemberData('OTHER-HS-JP', '村野沙耶香', 11, {
+          groupName: '蓮ノ空女学院スクールアイドルクラブ',
+        }),
+      },
+      {
+        label: 'card-text',
+        left: createHasunosoraMemberData('OTHER-HS-TEXT-1', '日野下花帆', 4, {
+          groupName: undefined,
+          cardText: 'Hasunosora のメンバー。',
+        }),
+        center: createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13, {
+          groupName: undefined,
+          cardText: 'Hasunosora のメンバー。',
+        }),
+        right: createHasunosoraMemberData('OTHER-HS-TEXT-2', '村野沙耶香', 11, {
+          groupName: undefined,
+          cardText: 'Hasunosora のメンバー。',
+        }),
+      },
+      {
+        label: 'card-code-fallback',
+        left: createHasunosoraMemberData('PL!HS-test-left', '日野下花帆', 4, {
+          groupName: undefined,
+        }),
+        center: createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13, {
+          groupName: undefined,
+        }),
+        right: createHasunosoraMemberData('PL!HS-test-right', '村野沙耶香', 11, {
+          groupName: undefined,
+        }),
+      },
+    ] as const;
+
+    for (const { label, left, center, right } of identityCases) {
+      const leftCard = createCardInstance(left, 'p1', `${label}-left`);
+      const centerCard = createCardInstance(center, 'p1', `${label}-center`);
+      const rightCard = createCardInstance(right, 'p1', `${label}-right`);
+
+      let game = createGameState(`hs-bp1-003-${label}`, 'p1', 'P1', 'p2', 'P2');
+      game = registerCards(game, [leftCard, centerCard, rightCard]);
+      game = updatePlayer(game, 'p1', (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(
+          placeCardInSlot(
+            placeCardInSlot(player.memberSlots, SlotPosition.LEFT, leftCard.instanceId),
+            SlotPosition.CENTER,
+            centerCard.instanceId
+          ),
+          SlotPosition.RIGHT,
+          rightCard.instanceId
+        ),
+      }));
+
+      expect(hasHsBp1ContinuousScore(game)).toBe(true);
+    }
+  });
+
+  it('does not collect PL!HS-bp1-003 score from non-member Hasunosora cards', () => {
+    const kozue = createCardInstance(
+      createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13),
+      'p1',
+      'kozue'
+    );
+    const kaho = createCardInstance(
+      createHasunosoraMemberData('PL!HS-bp6-001-R＋', '日野下花帆', 4),
+      'p1',
+      'kaho'
+    );
+    const live = createCardInstance(
+      createHasunosoraLiveData('PL!HS-test-live', 'Hasunosora Live'),
+      'p1',
+      'hasunosora-live'
+    );
+
+    let game = createGameState('hs-bp1-003-non-member', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kozue, kaho, live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, kaho.instanceId),
+          SlotPosition.CENTER,
+          kozue.instanceId
+        ),
+        SlotPosition.RIGHT,
+        live.instanceId
+      ),
+    }));
+
+    expect(hasHsBp1ContinuousScore(game)).toBe(false);
+  });
+
+  it('does not collect PL!HS-bp1-003 score unless all three member slots are filled', () => {
+    const kozue = createCardInstance(
+      createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13),
+      'p1',
+      'kozue'
+    );
+    const kaho = createCardInstance(
+      createHasunosoraMemberData('PL!HS-bp6-001-R＋', '日野下花帆', 4),
+      'p1',
+      'kaho'
+    );
+
+    let game = createGameState('hs-bp1-003-missing-slot', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kozue, kaho]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, kaho.instanceId),
+        SlotPosition.CENTER,
+        kozue.instanceId
+      ),
+    }));
+
+    expect(hasHsBp1ContinuousScore(game)).toBe(false);
+  });
 });
 
-function createHasunosoraMemberData(cardCode: string, name: string, cost: number) {
+function hasHsBp1ContinuousScore(game: ReturnType<typeof createGameState>): boolean {
+  return collectLiveModifiers(game).some(
+    (modifier) =>
+      modifier.kind === 'SCORE' &&
+      modifier.abilityId === 'PL!HS-bp1-003-SEC:continuous-three-different-hasunosora-score'
+  );
+}
+
+function createHasunosoraMemberData(
+  cardCode: string,
+  name: string,
+  cost: number,
+  options: {
+    readonly groupName?: string;
+    readonly cardText?: string;
+  } = {}
+) {
+  const groupName = 'groupName' in options ? options.groupName : '莲之空';
   return {
     cardCode,
     name,
@@ -264,6 +409,18 @@ function createHasunosoraMemberData(cardCode: string, name: string, cost: number
     cost,
     blade: 1,
     hearts: [createHeartIcon(HeartColor.GREEN, 1)],
-    groupName: '莲之空',
+    groupName,
+    cardText: options.cardText,
+  };
+}
+
+function createHasunosoraLiveData(cardCode: string, name: string) {
+  return {
+    cardCode,
+    name,
+    cardType: CardType.LIVE,
+    score: 1,
+    requirements: createHeartRequirement({ [HeartColor.GREEN]: 1 }),
+    cardText: 'Hasunosora のLIVE。',
   };
 }
