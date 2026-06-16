@@ -158,7 +158,7 @@
 
 ### Batch G: domain-safe identity planning
 
-目标：处理 domain-blocked 的身份判断重复，但下一步只做边界设计，不让 domain 反向依赖 application。
+目标：处理 domain-blocked 的身份判断重复，但下一步只做边界设计，不让 domain 反向依赖 application。设计边界见 [`domain_safe_identity_plan.md`](./domain_safe_identity_plan.md)。
 
 1. 盘点 DB-05 / DB-06 / DB-07 中 Nijigasaki、Liella!、Hasunosora 身份判断。
 2. 若要统一，先设计 shared/domain-safe identity helper，再考虑迁移 cost-calculator / live-modifiers。
