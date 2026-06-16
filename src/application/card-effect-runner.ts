@@ -38,6 +38,7 @@ import {
 import { revealCheerCardsFromMainDeck } from './effects/cheer.js';
 import {
   and,
+  cardNameAliasAny,
   cardNameAliasIs,
   cardNameIs,
   costGte,
@@ -60,6 +61,7 @@ import {
   countOtherLiveZoneCardsMatching,
   countStageMembers,
   countSuccessfulLiveCards,
+  getCardIdsInZoneMatching,
   getCardIdsMatchingSelector,
   getCardIdsInZone,
   getSourceEffectiveBladeCount,
@@ -7048,11 +7050,7 @@ function moveWaitingRoomMembersToDeckBottomShuffled(
 }
 
 function getWaitingRoomMemberCardIds(game: GameState, playerId: string): readonly string[] {
-  return getCardIdsMatchingSelector(
-    game,
-    getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM),
-    typeIs(CardType.MEMBER)
-  );
+  return getCardIdsInZoneMatching(game, playerId, ZoneType.WAITING_ROOM, typeIs(CardType.MEMBER));
 }
 
 function startArrangeInspectedDeckTopEffect(
@@ -8469,10 +8467,7 @@ function getNamedHandDiscardCandidateIds(
     return [];
   }
 
-  return player.hand.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && names.some((name) => cardNameAliasIs(name)(card));
-  });
+  return getCardIdsMatchingSelector(game, player.hand.cardIds, cardNameAliasAny(names));
 }
 
 function startKotoriLiveStartEffect(

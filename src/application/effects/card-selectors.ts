@@ -153,6 +153,11 @@ export function cardNameAliasIs(name: string): CardSelector {
     );
 }
 
+export function cardNameAliasAny(names: readonly string[]): CardSelector {
+  const selectors = names.map((name) => cardNameAliasIs(name));
+  return (card) => selectors.some((selector) => selector(card));
+}
+
 export function memberHasHeartColor(color: HeartColor): CardSelector {
   return (card) =>
     isMemberCardData(card.data) &&

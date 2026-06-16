@@ -3,6 +3,7 @@ import type { CardInstance, LiveCardData, MemberCardData } from '../../src/domai
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import {
   and,
+  cardNameAliasAny,
   cardNameAliasIs,
   cardNameIs,
   costGte,
@@ -293,6 +294,24 @@ describe('card selectors', () => {
     expect(cardNameAliasIs('大沢瑠璃乃')(memberCard('PL!HS-other', { name: '藤島 慈' }))).toBe(
       false
     );
+  });
+
+  it('matches any current character name alias from a list', () => {
+    const namedDiscardSelector = cardNameAliasAny(['上原歩夢', '澁谷かのん', '日野下花帆']);
+
+    expect(namedDiscardSelector(memberCard('alias-any-ayumu', { name: '上原步梦' }))).toBe(true);
+    expect(namedDiscardSelector(memberCard('alias-any-kanon', { name: '涩谷香音' }))).toBe(true);
+    expect(
+      namedDiscardSelector(
+        memberCard('alias-any-combo', { name: '渡辺 曜&鬼塚夏美&大沢瑠璃乃' })
+      )
+    ).toBe(false);
+    expect(
+      cardNameAliasAny(['渡辺曜', '大沢瑠璃乃'])(
+        memberCard('alias-any-combo-hit', { name: '渡辺 曜&鬼塚夏美&大沢瑠璃乃' })
+      )
+    ).toBe(true);
+    expect(namedDiscardSelector(memberCard('alias-any-other', { name: '藤島 慈' }))).toBe(false);
   });
 
   it('composes selectors with and, or, and not', () => {
