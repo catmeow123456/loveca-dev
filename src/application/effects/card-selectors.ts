@@ -1,6 +1,6 @@
 import type { CardInstance } from '../../domain/entities/card.js';
 import { isMemberCardData } from '../../domain/entities/card.js';
-import type { CardType } from '../../shared/types/enums.js';
+import type { CardType, HeartColor } from '../../shared/types/enums.js';
 
 export type CardSelector = (card: CardInstance) => boolean;
 
@@ -9,6 +9,20 @@ const UNIT_ALIAS_GROUPS: readonly (readonly string[])[] = [
   ['dollchestra', 'DOLLCHESTRA'],
   ['mira-cra-park', 'Mira-Cra Park!', 'みらくらぱーく！', 'みらくらぱーく!'],
   ['edelnote', 'EdelNote'],
+];
+
+const GROUP_ALIAS_GROUPS: readonly {
+  readonly aliases: readonly string[];
+  readonly cardCodePrefixes: readonly string[];
+}[] = [
+  { aliases: ["μ's", 'μ'], cardCodePrefixes: ['PL!-'] },
+  { aliases: ['莲之空', '蓮ノ空'], cardCodePrefixes: ['PL!HS-'] },
+  {
+    aliases: ['Liella!', 'Liella', 'リエラ', 'スーパースター', 'superstar'],
+    cardCodePrefixes: ['PL!SP-'],
+  },
+  { aliases: ['虹咲', '虹ヶ咲', 'Nijigasaki'], cardCodePrefixes: ['PL!N-'] },
+  { aliases: ['Aqours'], cardCodePrefixes: ['PL!S-'] },
 ];
 
 const CARD_NAME_ALIAS_GROUPS: readonly (readonly string[])[] = [
@@ -92,6 +106,7 @@ export function costGte(minCost: number): CardSelector {
 
 export function groupIs(groupName: string): CardSelector {
   const normalizedGroupName = normalizeGroupName(groupName);
+  const groupIdentity = getGroupIdentity(groupName);
   return (card) => {
     const cardGroupName = normalizeGroupName(card.data.groupName);
     const cardText = normalizeGroupName(card.data.cardText);
@@ -99,8 +114,13 @@ export function groupIs(groupName: string): CardSelector {
       return true;
     }
 
-    return normalizedGroupName.includes('μ') && card.data.cardCode.startsWith('PL!-');
+    return groupIdentityMatches(card, groupIdentity);
   };
+}
+
+export function groupAliasIs(groupName: string): CardSelector {
+  const groupIdentity = getGroupIdentity(groupName);
+  return (card) => groupIdentityMatches(card, groupIdentity);
 }
 
 export function unitIs(unitName: string): CardSelector {
@@ -133,6 +153,21 @@ export function cardNameAliasIs(name: string): CardSelector {
     );
 }
 
+export function memberHasHeartColor(color: HeartColor): CardSelector {
+  return (card) =>
+    isMemberCardData(card.data) &&
+    card.data.hearts.some((heart) => heart.color === color && heart.count > 0);
+}
+
+export function hasBladeHeart(): CardSelector {
+  return (card) =>
+    (((card.data as { readonly bladeHearts?: readonly unknown[] }).bladeHearts?.length ?? 0) > 0);
+}
+
+export function memberPrintedBladeLte(maxBlade: number): CardSelector {
+  return (card) => isMemberCardData(card.data) && card.data.blade <= maxBlade;
+}
+
 export function and(...selectors: readonly CardSelector[]): CardSelector {
   return (card) => selectors.every((selector) => selector(card));
 }
@@ -159,6 +194,34 @@ function getNormalizedUnitAliases(unitName: string): readonly string[] {
     aliases.some((alias) => normalizeGroupName(alias) === normalizedUnitName)
   );
   return (aliasGroup ?? [unitName]).map((alias) => normalizeGroupName(alias));
+}
+
+function getGroupIdentity(groupName: string): {
+  readonly normalizedAliases: readonly string[];
+  readonly cardCodePrefixes: readonly string[];
+} {
+  const normalizedGroupName = normalizeGroupName(groupName);
+  const aliasGroup = GROUP_ALIAS_GROUPS.find((group) =>
+    group.aliases.some((alias) => normalizeGroupName(alias) === normalizedGroupName)
+  );
+  return {
+    normalizedAliases: (aliasGroup?.aliases ?? [groupName]).map((alias) => normalizeGroupName(alias)),
+    cardCodePrefixes: aliasGroup?.cardCodePrefixes ?? [],
+  };
+}
+
+function groupIdentityMatches(
+  card: CardInstance,
+  groupIdentity: {
+    readonly normalizedAliases: readonly string[];
+    readonly cardCodePrefixes: readonly string[];
+  }
+): boolean {
+  return (
+    matchesAnyNormalizedAlias(card.data.groupName, groupIdentity.normalizedAliases) ||
+    matchesAnyNormalizedAlias(card.data.cardText, groupIdentity.normalizedAliases) ||
+    groupIdentity.cardCodePrefixes.some((prefix) => card.data.cardCode.startsWith(prefix))
+  );
 }
 
 function matchesAnyNormalizedAlias(

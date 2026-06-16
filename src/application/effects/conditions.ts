@@ -31,6 +31,24 @@ export function countCardsMatchingSelector(
   return getCardIdsMatchingSelector(game, cardIds, selector).length;
 }
 
+export function getCardIdsInZoneMatching(
+  game: GameState,
+  playerId: string,
+  zoneType: PlayerZoneQuery,
+  selector: CardSelector
+): readonly string[] {
+  return getCardIdsMatchingSelector(game, getCardIdsInZone(game, playerId, zoneType), selector);
+}
+
+export function countCardsInZoneMatching(
+  game: GameState,
+  playerId: string,
+  zoneType: PlayerZoneQuery,
+  selector: CardSelector
+): number {
+  return getCardIdsInZoneMatching(game, playerId, zoneType, selector).length;
+}
+
 export function getCardIdsMatchingSelector(
   game: GameState,
   cardIds: readonly string[],
@@ -42,6 +60,31 @@ export function getCardIdsMatchingSelector(
   });
 }
 
+export function hasCardIdsMatchingSelector(
+  game: GameState,
+  cardIds: readonly string[],
+  selector: CardSelector
+): boolean {
+  return cardIds.some((cardId) => {
+    const card = getCardById(game, cardId);
+    return card !== null && selector(card);
+  });
+}
+
+export function allCardIdsMatchingSelector(
+  game: GameState,
+  cardIds: readonly string[],
+  selector: CardSelector
+): boolean {
+  return (
+    cardIds.length > 0 &&
+    cardIds.every((cardId) => {
+      const card = getCardById(game, cardId);
+      return card !== null && selector(card);
+    })
+  );
+}
+
 export function hasAtLeastCardsMatchingSelector(
   game: GameState,
   cardIds: readonly string[],
@@ -49,6 +92,15 @@ export function hasAtLeastCardsMatchingSelector(
   count: number
 ): boolean {
   return countCardsMatchingSelector(game, cardIds, selector) >= count;
+}
+
+export function hasCardInZoneMatching(
+  game: GameState,
+  playerId: string,
+  zoneType: PlayerZoneQuery,
+  selector: CardSelector
+): boolean {
+  return hasCardIdsMatchingSelector(game, getCardIdsInZone(game, playerId, zoneType), selector);
 }
 
 export function countSuccessfulLiveCards(game: GameState, playerId: string): number {

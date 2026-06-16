@@ -10,15 +10,20 @@ import { createGameState, registerCards, updatePlayer } from '../../src/domain/e
 import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import { cardNameAliasIs, typeIs, unitAliasIs } from '../../src/application/effects/card-selectors';
 import {
+  allCardIdsMatchingSelector,
+  countCardsInZoneMatching,
   countCardsInZone,
   countCardsMatchingSelector,
   countOtherLiveZoneCardsMatching,
   countStageMembers,
   countSuccessfulLiveCards,
   getCardIdsInZone,
+  getCardIdsInZoneMatching,
   getCardIdsMatchingSelector,
   getSourceEffectiveBladeCount,
   hasAtLeastCardsMatchingSelector,
+  hasCardIdsMatchingSelector,
+  hasCardInZoneMatching,
   hasOtherStageMember,
   hasStageMemberMatching,
   sourceHasBladeAtLeast,
@@ -85,6 +90,31 @@ describe('effect conditions', () => {
     expect(hasAtLeastCardsMatchingSelector(game, cardIds, typeIs(CardType.MEMBER), 3)).toBe(false);
   });
 
+  it('checks any and all card id matches without treating empty or missing cards as all-matched', () => {
+    const member = memberCard('selector-member');
+    const live = liveCard('selector-live');
+    const missingCardId = 'missing-card';
+
+    let game = createGameState('conditions-card-id-any-all', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member, live]);
+
+    expect(
+      hasCardIdsMatchingSelector(game, [member.instanceId, live.instanceId], typeIs(CardType.LIVE))
+    ).toBe(true);
+    expect(hasCardIdsMatchingSelector(game, [member.instanceId], typeIs(CardType.LIVE))).toBe(
+      false
+    );
+    expect(hasCardIdsMatchingSelector(game, [missingCardId], typeIs(CardType.LIVE))).toBe(false);
+    expect(allCardIdsMatchingSelector(game, [member.instanceId], typeIs(CardType.MEMBER))).toBe(
+      true
+    );
+    expect(
+      allCardIdsMatchingSelector(game, [member.instanceId, live.instanceId], typeIs(CardType.MEMBER))
+    ).toBe(false);
+    expect(allCardIdsMatchingSelector(game, [missingCardId], typeIs(CardType.MEMBER))).toBe(false);
+    expect(allCardIdsMatchingSelector(game, [], typeIs(CardType.MEMBER))).toBe(false);
+  });
+
   it('counts cards in player zones and successful Live cards', () => {
     const waitingMember = memberCard('waiting-member');
     const waitingLive = liveCard('waiting-live');
@@ -111,6 +141,42 @@ describe('effect conditions', () => {
     expect(countCardsInZone(game, 'p1', ZoneType.WAITING_ROOM)).toBe(2);
     expect(countSuccessfulLiveCards(game, 'p1')).toBe(1);
     expect(countCardsInZone(game, 'unknown-player', ZoneType.WAITING_ROOM)).toBe(0);
+  });
+
+  it('filters, counts, and checks cards in zones through selectors', () => {
+    const waitingMember = memberCard('zone-waiting-member');
+    const waitingLive = liveCard('zone-waiting-live');
+    const handLive = liveCard('zone-hand-live');
+
+    let game = createGameState('conditions-zone-selector', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [waitingMember, waitingLive, handLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [waitingMember.instanceId, waitingLive.instanceId, 'missing-zone-card'],
+      },
+      hand: {
+        ...player.hand,
+        cardIds: [handLive.instanceId],
+      },
+    }));
+
+    expect(getCardIdsInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))).toEqual([
+      waitingLive.instanceId,
+    ]);
+    expect(countCardsInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.MEMBER))).toBe(
+      1
+    );
+    expect(hasCardInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))).toBe(
+      true
+    );
+    expect(hasCardInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, cardNameAliasIs('百生吟子'))).toBe(
+      false
+    );
+    expect(hasCardInZoneMatching(game, 'unknown-player', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))).toBe(
+      false
+    );
   });
 
   it('checks stage member count, matching, and other-member presence', () => {

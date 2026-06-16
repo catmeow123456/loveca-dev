@@ -42,13 +42,20 @@ import {
   cardNameIs,
   costGte,
   costLte,
+  groupAliasIs,
   groupIs,
+  hasBladeHeart as hasBladeHeartSelector,
+  memberHasHeartColor,
+  memberPrintedBladeLte,
   normalizeCardName,
+  not,
   or,
   typeIs,
   unitAliasIs,
 } from './effects/card-selectors.js';
 import {
+  allCardIdsMatchingSelector,
+  countCardsInZoneMatching,
   countCardsMatchingSelector,
   countOtherLiveZoneCardsMatching,
   countStageMembers,
@@ -57,6 +64,7 @@ import {
   getCardIdsInZone,
   getSourceEffectiveBladeCount,
   hasAtLeastCardsMatchingSelector,
+  hasCardIdsMatchingSelector,
   hasOtherStageMember,
   hasStageMemberMatching,
   sourceHasBladeAtLeast,
@@ -85,8 +93,12 @@ import {
   getStageMemberOrientationTargetMetadata,
   resolveStageMemberOrientationTargetSelection,
 } from './effects/stage-member-target-selection.js';
-import { getStageMemberCardIdsMatching } from './effects/stage-targets.js';
 import {
+  getStageMemberCardIdsByOrientation,
+  getStageMemberCardIdsMatching,
+} from './effects/stage-targets.js';
+import {
+  getEnergyCardIdsByOrientation,
   placeEnergyFromDeckToZone,
   setEnergyOrientation,
   setFirstEnergyCardsOrientation,
@@ -1562,23 +1574,10 @@ function createEnterStageEventsFromOnEnterSources(
   });
 }
 
-function isHasunosoraCard(card: CardInstance): boolean {
-  return (
-    groupIs('莲之空')(card) || groupIs('蓮ノ空')(card) || card.data.cardCode.startsWith('PL!HS-')
-  );
-}
-
-function isHasunosoraMemberCard(card: CardInstance): boolean {
-  return isMemberCardData(card.data) && isHasunosoraCard(card);
-}
-
-function isHasunosoraLiveCard(card: CardInstance): boolean {
-  return isLiveCardData(card.data) && isHasunosoraCard(card);
-}
-
-function hasBladeHeart(card: CardInstance): boolean {
-  return ((card.data as { readonly bladeHearts?: readonly unknown[] }).bladeHearts?.length ?? 0) > 0;
-}
+const isHasunosoraCard = groupAliasIs('蓮ノ空');
+const isHasunosoraMemberCard = and(typeIs(CardType.MEMBER), isHasunosoraCard);
+const isHasunosoraLiveCard = and(typeIs(CardType.LIVE), isHasunosoraCard);
+const hasBladeHeart = hasBladeHeartSelector();
 
 function isCeriseBouquetMemberCard(card: CardInstance): boolean {
   return isMemberCardData(card.data) && unitAliasIs('Cerise Bouquet')(card);
@@ -3075,11 +3074,11 @@ function finishHsBp5KahoOnEnterMillGainBlade(game: GameState): GameState {
   }
 
   const inspectedCardIds = effect.inspectionCardIds ?? [];
-  const liveCardIds = inspectedCardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && isLiveCardData(card.data);
-  });
-  const bladeBonus = liveCardIds.length > 0 ? 2 : 0;
+  const hasLiveCard = hasCardIdsMatchingSelector(game, inspectedCardIds, typeIs(CardType.LIVE));
+  const liveCardIds = hasLiveCard
+    ? getCardIdsMatchingSelector(game, inspectedCardIds, typeIs(CardType.LIVE))
+    : [];
+  const bladeBonus = hasLiveCard ? 2 : 0;
   const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
   if (!moveResult) {
     return game;
@@ -3249,10 +3248,7 @@ function startSpBp4011TomariWaitOpponentLowBladeMember(
     stepText: '请选择对方舞台上1名原本持有的 BLADE 数量小于等于3个的成员变为待机状态。',
     awaitingPlayerId: player.id,
     targetPlayerId: opponent.id,
-    selector: and(
-      typeIs(CardType.MEMBER),
-      (card) => isMemberCardData(card.data) && card.data.blade <= 3
-    ),
+    selector: memberPrintedBladeLte(3),
     targetOrientation: OrientationState.WAITING,
     selectionLabel: '选择对方舞台上原本 BLADE 小于等于3的成员',
     orderedResolution: options.orderedResolution === true,
@@ -4027,9 +4023,10 @@ function startHsPb1GinkoDiscardTwoRecoverCeriseMemberAndHasunosoraLive(
     return game;
   }
 
-  const waitingRoomLiveCount = countCardsMatchingSelector(
+  const waitingRoomLiveCount = countCardsInZoneMatching(
     game,
-    getCardIdsInZone(game, player.id, ZoneType.WAITING_ROOM),
+    player.id,
+    ZoneType.WAITING_ROOM,
     typeIs(CardType.LIVE)
   );
   if (waitingRoomLiveCount < 3 || player.hand.cardIds.length < 2) {
@@ -5290,7 +5287,7 @@ function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
   const selectableCardIds = selectWaitingRoomCardIds(
     state,
     player.id,
-    (card) => isLiveCardData(card.data) && isHasunosoraCard(card)
+    isHasunosoraLiveCard
   );
 
   if (selectableCardIds.length === 0) {
@@ -5583,7 +5580,7 @@ function startHsBp5IzumiOnEnterInspection(game: GameState, discardCardId: string
     orientedMemberCardIds: sourceWaitPayment.orientedMemberCardIds,
     discardedHandCardIds: [discardCardId],
   });
-  const selector = and(typeIs(CardType.MEMBER), costGte(9), (card) => isHasunosoraCard(card));
+  const selector = and(typeIs(CardType.MEMBER), costGte(9), isHasunosoraCard);
   const inspection = inspectTopCards(stateAfterCost, player.id, {
     count: 5,
     selectablePredicate: selector,
@@ -5878,10 +5875,7 @@ function finishHsPr019GinkoMillGainGreenHeart(game: GameState): GameState {
   const inspectedCardIds = effect.inspectionCardIds ?? [];
   const conditionMet =
     inspectedCardIds.length === 3 &&
-    inspectedCardIds.every((cardId) => {
-      const card = getCardById(game, cardId);
-      return card !== null && isGreenHeartMemberCard(card);
-    });
+    allCardIdsMatchingSelector(game, inspectedCardIds, greenHeartMemberCard);
 
   const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
   if (!moveResult) {
@@ -5921,28 +5915,9 @@ function finishHsPr019GinkoMillGainGreenHeart(game: GameState): GameState {
   );
 }
 
-function isGreenHeartMemberCard(card: CardInstance): boolean {
-  return (
-    isMemberCardData(card.data) &&
-    card.data.hearts.some((heart) => heart.color === HeartColor.GREEN && heart.count > 0)
-  );
-}
-
-function isMuseCard(cardData: {
-  readonly cardCode?: string;
-  readonly groupName?: string;
-  readonly cardText?: string;
-}): boolean {
-  if (cardData.groupName?.includes('μ') || cardData.cardText?.includes('μ')) {
-    return true;
-  }
-
-  return cardData.cardCode?.startsWith('PL!-') === true;
-}
-
-function isMuseLiveCardData(cardData: Parameters<typeof isLiveCardData>[0] | undefined): boolean {
-  return cardData !== undefined && isLiveCardData(cardData) && isMuseCard(cardData);
-}
+const greenHeartMemberCard = memberHasHeartColor(HeartColor.GREEN);
+const museLiveCard = and(typeIs(CardType.LIVE), groupAliasIs("μ's"));
+const liellaMemberCard = and(typeIs(CardType.MEMBER), groupAliasIs('Liella!'));
 
 function startNozomiOnEnterInspection(
   game: GameState,
@@ -6004,7 +5979,7 @@ function startUmiOnEnterInspection(
 
   const inspection = inspectTopCards(game, player.id, {
     count: 5,
-    selectablePredicate: (card) => isMuseLiveCardData(card.data),
+    selectablePredicate: museLiveCard,
   });
   if (!inspection) {
     return game;
@@ -6427,7 +6402,7 @@ function startHsBp6027TsukiyomiOnCheerAdditionalCheer(
     stepText:
       '请选择至多3张因声援被公开的自己的不持有 BLADE HEART 的「莲之空」卡片放置入休息室。之后追加等量声援。',
     selectionLabel: '选择要放置入休息室的声援公开卡',
-    predicate: (card) => isHasunosoraCard(card) && !hasBladeHeart(card),
+    predicate: and(isHasunosoraCard, not(hasBladeHeart)),
     destination: 'WAITING_ROOM',
     optional: true,
     selectMin: 0,
@@ -7616,14 +7591,7 @@ function startChisatoLiveStartActivateAll(
     return game;
   }
 
-  const liellaMemberCardIds = MEMBER_SLOT_ORDER.flatMap((slot) => {
-    const cardId = player.memberSlots.slots[slot];
-    if (!cardId) {
-      return [];
-    }
-    const card = cardId ? getCardById(game, cardId) : null;
-    return card && isMemberCardData(card.data) && isLiellaMemberData(card.data) ? [cardId] : [];
-  });
+  const liellaMemberCardIds = getStageMemberCardIdsMatching(game, player.id, liellaMemberCard);
   const energyCardIds = [...player.energyZone.cardIds];
 
   return addAction(
@@ -7672,14 +7640,7 @@ function finishChisatoLiveStartActivateAll(game: GameState): GameState {
     return game;
   }
 
-  const liellaMemberCardIds = MEMBER_SLOT_ORDER.flatMap((slot) => {
-    const cardId = player.memberSlots.slots[slot];
-    if (!cardId) {
-      return [];
-    }
-    const card = cardId ? getCardById(game, cardId) : null;
-    return card && isMemberCardData(card.data) && isLiellaMemberData(card.data) ? [cardId] : [];
-  });
+  const liellaMemberCardIds = getStageMemberCardIdsMatching(game, player.id, liellaMemberCard);
   const energyCardIds = [...player.energyZone.cardIds];
 
   const memberOrientationChange = setMembersOrientation(
@@ -7734,8 +7695,16 @@ function startEmmaOnEnterActivateMemberOrEnergy(
     return game;
   }
 
-  const waitingMemberCardIds = getStageMemberCardIdsByOrientation(player, OrientationState.WAITING);
-  const waitingEnergyCardIds = getEnergyCardIdsByOrientation(player, OrientationState.WAITING);
+  const waitingMemberCardIds = getStageMemberCardIdsByOrientation(
+    game,
+    player.id,
+    OrientationState.WAITING
+  );
+  const waitingEnergyCardIds = getEnergyCardIdsByOrientation(
+    game,
+    player.id,
+    OrientationState.WAITING
+  );
   const selectableOptions = [
     ...(waitingMemberCardIds.length > 0 ? [{ id: 'member', label: '选择1名成员' }] : []),
     ...(waitingEnergyCardIds.length > 0 ? [{ id: 'energy', label: '将能量变活跃' }] : []),
@@ -7791,8 +7760,16 @@ function startEmmaTargetSelection(game: GameState, selectedOptionId: string | nu
     return game;
   }
 
-  const waitingMemberCardIds = getStageMemberCardIdsByOrientation(player, OrientationState.WAITING);
-  const waitingEnergyCardIds = getEnergyCardIdsByOrientation(player, OrientationState.WAITING);
+  const waitingMemberCardIds = getStageMemberCardIdsByOrientation(
+    game,
+    player.id,
+    OrientationState.WAITING
+  );
+  const waitingEnergyCardIds = getEnergyCardIdsByOrientation(
+    game,
+    player.id,
+    OrientationState.WAITING
+  );
 
   if (selectedOptionId === 'member' && waitingMemberCardIds.length > 0) {
     return addAction(
@@ -7860,7 +7837,9 @@ function finishEmmaActivateMember(game: GameState, selectedCardId: string | null
   if (
     !player ||
     effect.selectableCardIds?.includes(selectedCardId) !== true ||
-    !getStageMemberCardIdsByOrientation(player, OrientationState.WAITING).includes(selectedCardId)
+    !getStageMemberCardIdsByOrientation(game, player.id, OrientationState.WAITING).includes(
+      selectedCardId
+    )
   ) {
     return game;
   }
@@ -7906,7 +7885,11 @@ function finishEmmaActivateEnergy(game: GameState, energyCardIds: readonly strin
     return game;
   }
 
-  const waitingEnergyCardIds = getEnergyCardIdsByOrientation(player, OrientationState.WAITING);
+  const waitingEnergyCardIds = getEnergyCardIdsByOrientation(
+    game,
+    player.id,
+    OrientationState.WAITING
+  );
   if (
     uniqueEnergyCardIds.length !== energyCardIds.length ||
     !uniqueEnergyCardIds.every((cardId) => waitingEnergyCardIds.includes(cardId))
@@ -8108,8 +8091,10 @@ function finishNozomiOnEnter(game: GameState): GameState {
   }
 
   const inspectedCardIds = effect.inspectionCardIds ?? [];
-  const hasMilledLiveCard = inspectedCardIds.some(
-    (cardId) => getCardById(game, cardId)?.data.cardType === CardType.LIVE
+  const hasMilledLiveCard = hasCardIdsMatchingSelector(
+    game,
+    inspectedCardIds,
+    typeIs(CardType.LIVE)
   );
   let drawnCardId: string | null = null;
 
@@ -8168,10 +8153,12 @@ function finishUmiOnEnter(game: GameState, selectedCardId: string | null): GameS
   }
 
   const inspectedCardIds = effect.inspectionCardIds ?? [];
+  const selectedCard = selectedCardId !== null ? getCardById(game, selectedCardId) : null;
   const selectedIsValid =
     selectedCardId !== null &&
     inspectedCardIds.includes(selectedCardId) &&
-    isMuseLiveCardData(getCardById(game, selectedCardId)?.data);
+    selectedCard !== null &&
+    museLiveCard(selectedCard);
   const cardToHandId = selectedIsValid ? selectedCardId : null;
   const moveResult = moveInspectedSelectionToHandRestToWaitingRoom(
     game,
@@ -8701,7 +8688,7 @@ function startHsBp1TsuzuriActivatedRecoverLive(
     return game;
   }
 
-  const selector = and(typeIs(CardType.LIVE), or(groupIs('莲之空'), groupIs('蓮ノ空')));
+  const selector = isHasunosoraLiveCard;
   const selectableCardIds = selectWaitingRoomCardIds(game, player.id, selector);
   if (selectableCardIds.length === 0) {
     return game;
@@ -9006,7 +8993,7 @@ function startHsBp1KosuzuActivatedRecoverLowCostMember(
     return game;
   }
 
-  const selector = and(typeIs(CardType.MEMBER), costLte(4), (card) => isHasunosoraCard(card));
+  const selector = and(typeIs(CardType.MEMBER), costLte(4), isHasunosoraCard);
   const selectableCardIds = selectWaitingRoomCardIds(game, player.id, selector);
   if (selectableCardIds.length === 0) {
     return game;
@@ -9096,7 +9083,7 @@ function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
     return game;
   }
 
-  const selector = and(typeIs(CardType.MEMBER), costLte(15), (card) => isHasunosoraCard(card));
+  const selector = and(typeIs(CardType.MEMBER), costLte(15), isHasunosoraCard);
   const selectableCardIds = selectWaitingRoomCardIds(costPayment.gameState, player.id, selector);
   if (selectableCardIds.length === 0) {
     return game;
@@ -9347,29 +9334,6 @@ function getEmptyMemberSlots(
   return MEMBER_SLOT_ORDER.filter((slot) => player.memberSlots.slots[slot] === null);
 }
 
-function getStageMemberCardIdsByOrientation(
-  player: NonNullable<ReturnType<typeof getPlayerById>>,
-  orientation: OrientationState
-): string[] {
-  return MEMBER_SLOT_ORDER.flatMap((slot) => {
-    const cardId = player.memberSlots.slots[slot];
-    if (!cardId) {
-      return [];
-    }
-    const cardState = player.memberSlots.cardStates.get(cardId);
-    return cardState?.orientation === orientation ? [cardId] : [];
-  });
-}
-
-function getEnergyCardIdsByOrientation(
-  player: NonNullable<ReturnType<typeof getPlayerById>>,
-  orientation: OrientationState
-): string[] {
-  return player.energyZone.cardIds.filter(
-    (cardId) => player.energyZone.cardStates.get(cardId)?.orientation === orientation
-  );
-}
-
 function getYoshikoWaitingRoomCandidateCardIds(game: GameState, playerId: string): string[] {
   const player = getPlayerById(game, playerId);
   if (!player) {
@@ -9387,28 +9351,6 @@ function calculateMemberCostSum(game: GameState, cardIds: readonly string[]): nu
     const card = getCardById(game, cardId);
     return sum + (card && isMemberCardData(card.data) ? card.data.cost : Number.POSITIVE_INFINITY);
   }, 0);
-}
-
-function isLiellaMemberData(memberData: {
-  readonly cardCode: string;
-  readonly groupName?: string;
-  readonly cardText?: string;
-}): boolean {
-  return (
-    memberData.cardCode.startsWith('PL!SP-') ||
-    includesLiella(memberData.groupName) ||
-    includesLiella(memberData.cardText)
-  );
-}
-
-function includesLiella(value: string | undefined): boolean {
-  const normalized = value?.toLowerCase() ?? '';
-  return (
-    normalized.includes('liella') ||
-    normalized.includes('リエラ') ||
-    normalized.includes('スーパースター') ||
-    normalized.includes('superstar')
-  );
 }
 
 function getDiscardLookTopCount(cardCode: string | undefined): number {

@@ -7,7 +7,11 @@ import {
   cardNameIs,
   costGte,
   costLte,
+  groupAliasIs,
   groupIs,
+  hasBladeHeart,
+  memberHasHeartColor,
+  memberPrintedBladeLte,
   not,
   or,
   typeIs,
@@ -15,7 +19,7 @@ import {
   unitAliasOrTextAliasIs,
   unitIs,
 } from '../../src/application/effects/card-selectors';
-import { CardType, HeartColor } from '../../src/shared/types/enums';
+import { BladeHeartEffect, CardType, HeartColor } from '../../src/shared/types/enums';
 
 function memberCard(cardCode: string, overrides: Partial<MemberCardData> = {}): CardInstance {
   return {
@@ -78,6 +82,66 @@ describe('card selectors', () => {
     expect(muse(other)).toBe(false);
   });
 
+  it('matches Muse aliases through groupAliasIs with legacy bare mu support', () => {
+    const explicitMuse = memberCard('OTHER-MUSE-GROUP', { groupName: "μ's" });
+    const textMuse = memberCard('OTHER-MUSE-TEXT', { cardText: "从『μ's』的成员中选择。" });
+    const bareMuGroup = memberCard('OTHER-MUSE-BARE-GROUP', { groupName: 'μ' });
+    const bareMuText = memberCard('OTHER-MUSE-BARE-TEXT', { cardText: '选择1名μ成员。' });
+    const fallbackMuse = memberCard('PL!-fallback');
+    const aqours = memberCard('OTHER-AQOURS', { groupName: 'Aqours' });
+    const other = memberCard('OTHER-GROUP', { groupName: '蓮ノ空' });
+
+    const muse = groupAliasIs("μ's");
+
+    expect(muse(explicitMuse)).toBe(true);
+    expect(muse(textMuse)).toBe(true);
+    expect(muse(bareMuGroup)).toBe(true);
+    expect(muse(bareMuText)).toBe(true);
+    expect(muse(fallbackMuse)).toBe(true);
+    expect(muse(aqours)).toBe(false);
+    expect(muse(other)).toBe(false);
+  });
+
+  it('matches known group aliases and card-code fallbacks through one generic selector', () => {
+    const hasunosoraChinese = memberCard('OTHER-HS-CN', { groupName: '莲之空女学院' });
+    const hasunosoraJapanese = memberCard('OTHER-HS-JP', {
+      groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    });
+    const hasunosoraFallback = memberCard('PL!HS-fallback');
+    const liellaGroup = memberCard('OTHER-SP-GROUP', { groupName: 'Liella!' });
+    const liellaGroupWithoutBang = memberCard('OTHER-SP-GROUP-NO-BANG', { groupName: 'Liella' });
+    const liellaTextWithoutBang = memberCard('OTHER-SP-TEXT-NO-BANG', {
+      cardText: 'Liella のメンバー。',
+    });
+    const liellaText = memberCard('OTHER-SP-TEXT', { cardText: '『リエラ』のメンバー。' });
+    const liellaFallback = memberCard('PL!SP-fallback');
+    const nijigasakiText = memberCard('OTHER-N-TEXT', { cardText: 'Nijigasaki のメンバー。' });
+    const nijigasakiFallback = memberCard('PL!N-fallback');
+    const aqoursText = memberCard('OTHER-S-TEXT', { groupName: 'Aqours' });
+    const aqoursFallback = memberCard('PL!S-fallback');
+    const other = memberCard('OTHER-identity', { groupName: "μ's" });
+
+    const hasunosora = groupAliasIs('蓮ノ空');
+    const liella = groupAliasIs('Liella!');
+    const nijigasaki = groupAliasIs('虹ヶ咲');
+    const aqours = groupAliasIs('Aqours');
+
+    expect(groupAliasIs("μ's")(memberCard('PL!-fallback'))).toBe(true);
+    expect(hasunosora(hasunosoraChinese)).toBe(true);
+    expect(hasunosora(hasunosoraJapanese)).toBe(true);
+    expect(hasunosora(hasunosoraFallback)).toBe(true);
+    expect(liella(liellaGroup)).toBe(true);
+    expect(liella(liellaGroupWithoutBang)).toBe(true);
+    expect(liella(liellaTextWithoutBang)).toBe(true);
+    expect(liella(liellaText)).toBe(true);
+    expect(liella(liellaFallback)).toBe(true);
+    expect(nijigasaki(nijigasakiText)).toBe(true);
+    expect(nijigasaki(nijigasakiFallback)).toBe(true);
+    expect(aqours(aqoursText)).toBe(true);
+    expect(aqours(aqoursFallback)).toBe(true);
+    expect(hasunosora(other)).toBe(false);
+  });
+
   it('matches card unit independently from series group', () => {
     const ceriseLive = liveCard('PL!HS-bp2-022-L', {
       groupName: '蓮ノ空女学院スクールアイドルクラブ',
@@ -131,6 +195,49 @@ describe('card selectors', () => {
     expect(ginko(spacedName)).toBe(true);
     expect(ginko(compactName)).toBe(true);
     expect(ginko(otherName)).toBe(false);
+  });
+
+  it('matches member heart color only for positive heart counts on member cards', () => {
+    const greenMember = memberCard('green-member', {
+      hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+    });
+    const zeroGreenMember = memberCard('zero-green-member', {
+      hearts: [createHeartIcon(HeartColor.GREEN, 0)],
+    });
+    const greenLive = liveCard('green-live', {
+      requirements: createHeartRequirement({ [HeartColor.GREEN]: 1 }),
+    });
+
+    const greenHeartMember = memberHasHeartColor(HeartColor.GREEN);
+
+    expect(greenHeartMember(greenMember)).toBe(true);
+    expect(greenHeartMember(zeroGreenMember)).toBe(false);
+    expect(greenHeartMember(greenLive)).toBe(false);
+  });
+
+  it('matches cards that have printed BLADE HEART items and composes with not', () => {
+    const bladeHeartMember = memberCard('blade-heart-member', {
+      bladeHearts: [{ effect: BladeHeartEffect.DRAW }],
+    });
+    const noBladeHeartMember = memberCard('no-blade-heart-member', { bladeHearts: [] });
+
+    const hasPrintedBladeHeart = hasBladeHeart();
+
+    expect(hasPrintedBladeHeart(bladeHeartMember)).toBe(true);
+    expect(hasPrintedBladeHeart(noBladeHeartMember)).toBe(false);
+    expect(not(hasPrintedBladeHeart)(noBladeHeartMember)).toBe(true);
+  });
+
+  it('matches member printed BLADE at or below a threshold', () => {
+    const lowBladeMember = memberCard('low-blade-member', { blade: 3 });
+    const highBladeMember = memberCard('high-blade-member', { blade: 4 });
+    const live = liveCard('blade-live');
+
+    const printedBladeLte3 = memberPrintedBladeLte(3);
+
+    expect(printedBladeLte3(lowBladeMember)).toBe(true);
+    expect(printedBladeLte3(highBladeMember)).toBe(false);
+    expect(printedBladeLte3(live)).toBe(false);
   });
 
   it('matches current character name aliases across Japanese and Chinese names', () => {
