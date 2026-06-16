@@ -7,41 +7,17 @@ import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Cloud, Database, Layers3, RefreshCw, Star, TriangleAlert, UserRound, Zap } from 'lucide-react';
 import type { DeckRecord } from '@/lib/apiClient';
-import type { DeckConfig } from '@game/domain/card-data/deck-loader';
-import { calculateDeckStats, formatRelativeTime, getDeckPointTextClass } from './DeckStats';
-import { calculateDeckConfigStats, validateDeckConfig, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
+import { formatRelativeTime, getDeckPointTextClass } from './DeckStats';
+import { DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
 import { useGameStore } from '@/store/gameStore';
+import { createDeckRecordCardTypeResolver } from '@/lib/deckRecordUtils';
 import {
-  createDeckRecordCardTypeResolver,
-  deckRecordToConfig,
-} from '@/lib/deckRecordUtils';
+  buildDeckDisplayItems,
+  type DeckDisplayItem,
+  type LocalDeck,
+} from '@/lib/deckDisplay';
 
-// 本地卡组类型（用于离线模式或临时卡组）
-export interface LocalDeck {
-  id: string;
-  name: string;
-  description?: string;
-  config: DeckConfig;
-  isValid: boolean;
-  updatedAt: Date;
-}
-
-// 统一的卡组显示项
-export interface DeckDisplayItem {
-  id: string;
-  name: string;
-  description?: string;
-  isValid: boolean;
-  isCloud: boolean;
-  updatedAt: Date;
-  memberCount: number;
-  liveCount: number;
-  energyCount: number;
-  pointTotal: number;
-  // 原始数据引用
-  cloudDeck?: DeckRecord;
-  localDeck?: LocalDeck;
-}
+export type { DeckDisplayItem, LocalDeck };
 
 interface DeckSelectorProps {
   /** 云端卡组列表 */
@@ -83,49 +59,11 @@ export function DeckSelector({
   
   // 合并并转换为统一显示格式
   const displayDecks = useMemo<DeckDisplayItem[]>(() => {
-    const items: DeckDisplayItem[] = [];
-    
-    // 云端卡组 - 使用 calculateDeckStats 计算统计
-    for (const deck of cloudDecks) {
-      const deckConfig = deckRecordToConfig(deck, { resolveCardType: resolveDeckRecordCardType });
-      const stats = calculateDeckStats(deck, { resolveCardType: resolveDeckRecordCardType });
-      
-      items.push({
-        id: deck.id,
-        name: deck.name,
-        description: deck.description || undefined,
-        isValid: validateDeckConfig(deckConfig).valid,
-        isCloud: true,
-        updatedAt: new Date(deck.updated_at),
-        memberCount: stats.memberCount,
-        liveCount: stats.liveCount,
-        energyCount: stats.energyCount,
-        pointTotal: stats.pointTotal,
-        cloudDeck: deck,
-      });
-    }
-    
-    // 本地卡组
-    for (const deck of localDecks) {
-      const stats = calculateDeckConfigStats(deck.config);
-      
-      items.push({
-        id: deck.id,
-        name: deck.name,
-        description: deck.description,
-        isValid: deck.isValid,
-        isCloud: false,
-        updatedAt: deck.updatedAt,
-        memberCount: stats.memberCount,
-        liveCount: stats.liveCount,
-        energyCount: stats.energyCount,
-        pointTotal: stats.pointTotal,
-        localDeck: deck,
-      });
-    }
-    
-    // 按更新时间排序
-    return items.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    return buildDeckDisplayItems({
+      cloudDecks,
+      localDecks,
+      resolveDeckRecordCardType,
+    });
   }, [cloudDecks, localDecks, resolveDeckRecordCardType]);
 
   return (

@@ -224,6 +224,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const bothReady = Boolean(room && room.members.length === 2 && room.members.every((member) => member.ready));
   const isHost = room?.currentUserRole === 'HOST';
   const hasPendingProposal = Boolean(room?.turnOrderProposal && !room?.turnOrderAgreement?.accepted);
+  const canClearSavedRoom = Boolean(joinedRoomCode && !room);
   const actionState = getRoomActionState({
     room,
     myMember,
@@ -252,6 +253,17 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleClearSavedRoomAndBack = () => {
+    clearOnlineRoomRecovery();
+    disconnectRemoteSession();
+    setRoom(null);
+    setJoinedRoomCode(null);
+    setSelectedDeck(null);
+    setRoomCodeInput('');
+    setError(null);
+    onBack();
   };
 
   const handleJoinRoom = async () => {
@@ -505,7 +517,16 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
 
               {error && (
                 <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
-                  {error}
+                  <div>{error}</div>
+                  {canClearSavedRoom && (
+                    <button
+                      type="button"
+                      onClick={handleClearSavedRoomAndBack}
+                      className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] px-3 py-2 text-sm font-semibold text-[var(--semantic-error)] transition hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
+                    >
+                      清除保存房间并返回首页
+                    </button>
+                  )}
                 </div>
               )}
 

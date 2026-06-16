@@ -15,7 +15,7 @@ import { Card } from '@/components/card/Card';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
-import { HeartColor } from '@game/shared/types/enums';
+import { GamePhase, HeartColor } from '@game/shared/types/enums';
 import { getCardPoint } from '@game/domain/rules/deck-construction';
 
 /**
@@ -129,8 +129,10 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
   const hoveredCardId = useGameStore((s) => s.ui.hoveredCardId);
   const getVisibleCardPresentation = useGameStore((s) => s.getVisibleCardPresentation);
   const setHoveredCard = useGameStore((s) => s.setHoveredCard);
+  const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const shouldUseCompactDrawer = useMediaQuery('(max-width: 1023px)');
-  const shouldSuppressHoverDrawer = useMediaQuery('(max-width: 767px)');
+  const isPhoneWidth = useMediaQuery('(max-width: 767px)');
+  const shouldSuppressHoverDrawer = isPhoneWidth && currentPhase !== GamePhase.MULLIGAN_PHASE;
 
   const card = hoveredCardId ? getVisibleCardPresentation(hoveredCardId) : null;
   const closeDetail = useCallback(() => {

@@ -83,7 +83,6 @@ function getInitialAuthRequest(): InitialAuthRequest {
 
 function getInitialPage(): AppPage {
   const page = new URLSearchParams(window.location.search).get('page');
-  const hasSavedOnlineRoom = !!window.sessionStorage.getItem('loveca.online.room');
   if (
     page === 'deck-manager' ||
     page === 'game-setup' ||
@@ -94,9 +93,6 @@ function getInitialPage(): AppPage {
     page === 'online-admin'
   ) {
     return page;
-  }
-  if (hasSavedOnlineRoom) {
-    return 'online-room';
   }
   return 'home';
 }
@@ -354,6 +350,7 @@ function App() {
       <GameSetupPage
         onBack={() => setCurrentPage('home')}
         onGameStart={() => setCurrentPage('game')}
+        onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
       />
     );
   }
