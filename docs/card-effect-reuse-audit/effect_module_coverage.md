@@ -1,6 +1,9 @@
 # Loveca card effect module coverage
 
-审查日期：2026-06-14
+> 文档类型：专题说明
+> 适用范围：卡效通用模块、覆盖的效果碎片、当前边界、proving cards 与测试入口
+> 当前状态：模块覆盖说明；卡牌完成状态以 `existing_module_map.md` 为准
+> 最后更新：2026-06-16
 
 本文件只记录“哪些通用模块覆盖了哪些效果碎片”。卡牌完成状态请看 `existing_module_map.md`，同构批量扩样本请看 `card_effect_batch_expansions.md`。
 
@@ -15,7 +18,7 @@
 | `src/application/effects/stage-targets.ts` | `S03,X06` | 提供按 `playerId + CardSelector` 扫描左/中/右成员区的目标候选 helper，也可作为登场条件扫描。 | `PL!HS-bp6-004` 费用 13「百生 吟子」、`PL!HS-sd1-006` 费用 15「安养寺姬芽」 |
 | `src/application/effects/stage-member-target-selection.ts` | `S01,S03,X06` | 提供舞台成员目标 active effect 配置入口：按 `targetPlayerId + CardSelector` 生成候选，创建单选 active effect，并在结算时调用 `setMemberOrientation`。 | `PL!HS-bp6-004` 费用 13「百生 吟子」 |
 | `src/application/effects/zone-selection.ts` | `F07,F08,F09` | 提供 `ZoneCardSelectionConfig`、`createWaitingRoomToHandEffectState`、`moveSelectedCardsFromZone`；当前主力是 `WAITING_ROOM -> HAND`，已支持单选与 `maxCount` 多选配置。分组上限仍由具体 runner 校验。 | `PL!-pb1-019` 费用 2「高坂穗乃果」、`PL!-bp4-003` 费用 2「南琴梨」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-004` 费用 15「夕雾缀理」、`PL!HS-bp2-002` 费用 13「村野沙耶香」、`PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp6-017` 费用 11「日野下花帆」、`PL!HS-sd1-006` 费用 15「安养寺姬芽」、`PL!HS-pb1-020` 费用 9「百生吟子」 |
-| `src/application/effects/effect-costs.ts` | `C01,C02,C03,C04,C05,C06,C07,C08,E01` | 提供 `EffectCostDefinition`、弃手选择费用、即时横置能量、自送休息室、将来源成员变为指定方向；复合费用通过多个 definition 顺序组合。隐藏区候选可用 `selectableCardVisibility` 限制投影，公开后的手牌卡通过 `revealedCardIds` 显示确认窗口；指定姓名多选弃置当前由 runner 用 `cardNameAliasIs + ORDERED_MULTI + paySelectedDiscardHandCost` 组合。移动会记录 action，但还没有标准 `GameEvent`。 | `LL-bp1-001` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-bp1-004` 费用 15「夕雾缀理」、`PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp5-008` 费用 4「桂城泉」、`PL!HS-pb1-004` 费用 4「百生吟子」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-004` 费用 13「百生 吟子」、`PL!HS-bp6-017` 费用 11「日野下花帆」等 |
+| `src/application/effects/effect-costs.ts` | `C01,C02,C03,C04,C05,C06,C07,C08,E01` | 提供 `EffectCostDefinition`、弃手选择费用、即时横置能量、自送休息室、将来源成员变为指定方向；复合费用通过多个 definition 顺序组合。隐藏区候选可用 `selectableCardVisibility` 限制投影，公开后的手牌卡通过 `revealedCardIds` 显示确认窗口；指定姓名多选弃置当前由 runner 用 `cardNameAliasIs + ORDERED_MULTI + paySelectedDiscardHandCost` 组合。自送休息室费用已写入 `ON_LEAVE_STAGE` eventLog；弃手、横置能量等费用仍主要是 action/audit 语义，后续需要监听这些事件时再补标准事件。 | `LL-bp1-001` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-bp1-004` 费用 15「夕雾缀理」、`PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp5-008` 费用 4「桂城泉」、`PL!HS-pb1-004` 费用 4「百生吟子」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-004` 费用 13「百生 吟子」、`PL!HS-bp6-017` 费用 11「日野下花帆」等 |
 | `src/application/effects/look-top.ts` | `F03,F04,F05,F06,F13` | 提供看顶进入 inspection、清理 inspection、选中入手/其余入休息室、顶牌入休息室、动态检视数量与控顶等原语；完整流程 orchestration 仍在 runner。 | `PL!-sd1-004` 费用 11「园田海未」、`PL!-sd1-007` 费用 7「东条希」、`PL!-bp3-010` 费用 9「高坂穗乃果」、`PL!HS-bp2-012` 费用 5「乙宗 梢」、`PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp5-008` 费用 4「桂城泉」、`PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-pb1-004` 费用 4「百生吟子」、`PL!HS-PR-019` 费用 2「百生吟子」 |
 | `src/application/effects/cheer-selection.ts` | `F14,F15` | 提供从“因声援公开且仍在处理区”的本次声援卡中筛选、创建选择步骤并移动到目标区域；当前支持手牌、卡组顶、休息室与多选上限配置，卡组底仍待样例。 | `PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-cl1-009` 分数 1「水彩世界」、`PL!HS-bp6-027` 分数 5「月夜見海月」 |
 | `src/application/effects/cheer.ts` | `E06` | 提供声援公开 helper：从主卡组顶公开到解决区、登记本次 `liveResolution.*CheerCardIds`、记录 `CHEER` action，并沿用即时 refresh 检查。当前用于自动声援与追加声援；追加声援不二次触发 `ON_CHEER`。 | `PL!HS-bp6-027` 分数 5「月夜見海月」 |

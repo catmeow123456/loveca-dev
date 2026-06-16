@@ -1,7 +1,12 @@
 # Loveca card effect framework design
 
-日期：2026-06-14
-状态：设计草案；Stage 1A-1S 已按真实卡效逐步落地 recovery/selector、费用、look-top、Live modifier、成员状态、抽弃、能量、登场费用修正、卡效登场、AUTO proving、舞台目标、公开手牌隐私投影与声援公开卡选择等边界。后续快速批处理已补齐 `LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」与 `PL!N-pb1-004` 费用 11「朝香果林」；新增验证指定姓名手牌多选弃置、换手禁止、登场不计入“移动”的成员区位置移动记录，以及未位置移动时 continuous BLADE。
+> 文档类型：设计文档
+> 适用范围：卡效自动化框架形状、模块边界、事件/费用/选择/Live modifier 设计
+> 当前状态：设计草案与阶段性落地说明；卡牌完成状态以 `docs/card-effect-reuse-audit/existing_module_map.md` 为准
+> 最后更新：2026-06-16
+
+状态摘要：Stage 1A-1S 已按真实卡效逐步落地 recovery/selector、费用、look-top、Live modifier、成员状态、抽弃、能量、登场费用修正、卡效登场、AUTO proving、舞台目标、公开手牌隐私投影与声援公开卡选择等边界。后续快速批处理已补齐 `LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」与 `PL!N-pb1-004` 费用 11「朝香果林」；新增验证指定姓名手牌多选弃置、换手禁止、登场不计入“移动”的成员区位置移动记录，以及未位置移动时 continuous BLADE。
+
 目标：面向当前全卡池高频效果片段设计卡效自动化框架，第一阶段用当前已实现的 `PL!-sd1`、测试用 Karin 效果与 `系统边界混合` proving cards 验证框架。
 
 完整 fragment 覆盖矩阵见 `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`。本文负责说明框架形状；覆盖矩阵负责逐项确认 catalog 中 75 个 fragment 都被纳入设计、预留或 custom hook。

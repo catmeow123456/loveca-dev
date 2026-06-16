@@ -1,6 +1,10 @@
 # Loveca card effect module gap list
 
-审查日期：2026-06-14
+> 文档类型：专题说明
+> 适用范围：卡效模块缺口、已关闭缺口、下一批抽象候选和剩余风险
+> 当前状态：缺口跟踪文档；卡牌完成状态以 `existing_module_map.md` 为准
+> 最后更新：2026-06-16
+
 本文件基于 `loveca_effect_fragments_catalog.json` 回扫当前已实现卡牌。它只列 Stage 1A-1F 之后仍值得追踪的缺口；已经有主模块的片段不再作为 P0-now 抽象任务重复列出。
 
 ## Closed or substantially reduced by staged refactors

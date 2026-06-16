@@ -1,6 +1,10 @@
 # Loveca card effect fragment coverage matrix
 
-日期：2026-06-13
+> 文档类型：设计文档
+> 适用范围：卡效 fragment catalog 的框架归属、优先级和当前覆盖状态
+> 当前状态：覆盖矩阵；具体卡牌完成状态以 `docs/card-effect-reuse-audit/existing_module_map.md` 为准
+> 最后更新：2026-06-16
+
 输入：`references/codex_loveca_reuse_audit_pack.zip` 中的 `loveca_effect_fragments_catalog.json`。
 范围：覆盖 catalog 当前 75 个 fragment。这里的“全覆盖”指当前审查包中的 fragment 全覆盖，不代表未来新商品或规则更新不会出现新 fragment。
 

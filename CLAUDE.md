@@ -124,12 +124,12 @@ Phase flow is defined in `src/shared/phase-config/phase-registry.ts`, not hardco
 2. Add config object to `phase-registry.ts` (includes display, behavior, transitions, autoActions)
 3. (Optional) Add special handling in game-service.ts
 
-### "Trust the Player" Philosophy
+### Rule Automation Boundary
 
-- System handles rule processing (Chapter 10 rules), not card effects
-- Players execute effects manually via drag-and-drop
+- System handles core rule processing and the registered first-stage card effects
+- Implemented effects are registered in `CARD_ABILITY_DEFINITIONS` and tracked in `docs/card-effect-reuse-audit/existing_module_map.md`
+- Unregistered or incomplete card effects still rely on explicit player operations plus command validation and audit-style flow
 - `executeCheckTiming()` automatically corrects invalid game states
-- UI provides effect windows as hints, not enforced actions
 
 ### Action Handler Pattern
 
