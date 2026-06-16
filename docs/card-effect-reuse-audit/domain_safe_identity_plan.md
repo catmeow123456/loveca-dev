@@ -2,25 +2,28 @@
 
 审查日期：2026-06-16
 
-本文档记录 Batch G 的边界设计。它只规划 domain-safe 团体身份判断的归属与后续拆批，不代表已经迁移任何 domain 行为。
+本文档记录 Batch G 的边界设计与当前迁移状态。G-1 / G-2 / G-3 已完成，G-4 尚未开始。
 
 ## Current Status
 
 - Batch G-1 已完成：`src/shared/utils/card-identity.ts` 提供 shared/domain-safe `cardBelongsToGroup(card, groupName)`，并有 focused unit test 覆盖 alias、文本 normalize 与卡号 fallback。
 - Batch G-2 已完成：application 层 `groupAliasIs(groupName)` 已委托 shared helper；`groupIs(groupName)` 仍保留直接 contains 语义后再走 shared identity fallback。
-- Batch G-3 尚未开始：`src/domain/rules/cost-calculator.ts` 中 Nijigasaki / Liella! 身份判断仍未迁移。
+- Batch G-3 已完成：`src/domain/rules/cost-calculator.ts` 中 Nijigasaki / Liella! 身份判断已委托 shared helper；费用语义、modifier metadata 与费用计算顺序未改。
 - Batch G-4 尚未开始：`src/domain/rules/live-modifiers.ts` 中 Hasunosora 身份判断仍未迁移。
-- G-3/G-4 都会触碰 domain/rules，必须作为后续单独授权的小批处理；不得顺手改变费用语义或 continuous modifier 收集时机。
+- G-4 会触碰 domain/rules，必须作为后续单独授权的小批处理；不得顺手改变 continuous modifier 收集时机。
 
 ## Why
 
 application 层已经有 `groupAliasIs(groupName)`，用于把团体 alias、文本字段和卡号 fallback 统一成 `CardSelector`。但 domain 层不能 import `src/application/effects/card-selectors.ts`，因此 `cost-calculator.ts` 与 `live-modifiers.ts` 里仍有手写身份判断。
 
-当前重复点：
+已迁移项：
+
+- `src/domain/rules/cost-calculator.ts`：`PL!N-pb1-008` 的虹咲成员身份判断已在 G-3 委托 shared `cardBelongsToGroup`。
+- `src/domain/rules/cost-calculator.ts`：`PL!SP-bp5-003` 的 Liella! 成员身份判断已在 G-3 委托 shared `cardBelongsToGroup`。
+
+剩余重复点：
 
 - `src/domain/rules/live-modifiers.ts`：`hasThreeDifferentHasunosoraMembersOnStage` 通过 `isHasunosoraMemberCard` 判断「莲之空」成员。
-- `src/domain/rules/cost-calculator.ts`：`PL!N-pb1-008` 通过 `isNijigasakiMember` 判断虹咲成员。
-- `src/domain/rules/cost-calculator.ts`：`PL!SP-bp5-003` 通过 `isLiellaMember` 判断 Liella! 成员。
 - application runner / selectors 已通过 `groupAliasIs` 覆盖同类语义。
 
 设计目标是让 domain 与 application 共享底层身份事实，同时不让 domain 反向依赖 application。
@@ -111,9 +114,9 @@ function groupAliasIs(groupName: string): CardSelector {
 
 ### Batch G-3: cost-calculator identity
 
-- 迁移 `isNijigasakiMember` / `isLiellaMember` 的身份判断到 shared helper。
-- 保留费用条件本身：待机状态、10 费限制、来源卡限制、费用减少量都不变。
-- 跑 `tests/unit/cost-calculator.test.ts`，必要时补 Liella / Nijigasaki alias 与 fallback 单测。
+- 已完成：迁移 `isNijigasakiMember` / `isLiellaMember` 的身份判断到 shared helper。
+- 已保持：费用条件本身不变，包括待机状态、10 费限制、来源卡限制、费用减少量。
+- 已覆盖：`tests/unit/cost-calculator.test.ts` 补充 Liella / Nijigasaki alias、cardText 与 fallback 单测。
 
 ### Batch G-4: live-modifiers identity
 

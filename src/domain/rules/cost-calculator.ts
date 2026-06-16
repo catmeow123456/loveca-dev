@@ -6,6 +6,7 @@
 import type { MemberCardData } from '../entities/card.js';
 import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
+import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
 
 // ============================================
 // 费用相关类型
@@ -427,20 +428,7 @@ export function canMemberBeRelayedAway(memberData: MemberCardData): boolean {
 }
 
 function isNijigasakiMember(memberData: MemberCardData): boolean {
-  return (
-    memberData.cardCode.startsWith('PL!N-') ||
-    includesNijigasaki(memberData.groupName) ||
-    includesNijigasaki(memberData.cardText)
-  );
-}
-
-function includesNijigasaki(value: string | undefined): boolean {
-  const normalized = value?.toLowerCase() ?? '';
-  return (
-    normalized.includes('虹咲') ||
-    normalized.includes('虹ヶ咲') ||
-    normalized.includes('nijigasaki')
-  );
+  return cardBelongsToGroup(memberData, '虹ヶ咲');
 }
 
 function isBp5ChisatoCostReducer(memberData: MemberCardData): boolean {
@@ -452,19 +440,5 @@ function isCost10LiellaMember(memberData: MemberCardData): boolean {
 }
 
 function isLiellaMember(memberData: MemberCardData): boolean {
-  return (
-    memberData.cardCode.startsWith('PL!SP-') ||
-    includesLiella(memberData.groupName) ||
-    includesLiella(memberData.cardText)
-  );
-}
-
-function includesLiella(value: string | undefined): boolean {
-  const normalized = value?.toLowerCase() ?? '';
-  return (
-    normalized.includes('liella') ||
-    normalized.includes('リエラ') ||
-    normalized.includes('スーパースター') ||
-    normalized.includes('superstar')
-  );
+  return cardBelongsToGroup(memberData, 'Liella!');
 }
