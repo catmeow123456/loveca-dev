@@ -145,6 +145,12 @@ export function cardNameIs(name: string): CardSelector {
   return (card) => normalizeCardName(card.data.name) === normalizedName;
 }
 
+export function cardNameContains(name: string): CardSelector {
+  const normalizedName = normalizeCardName(name);
+  return (card) =>
+    normalizedName.length > 0 && normalizeCardName(card.data.name).includes(normalizedName);
+}
+
 export function cardNameAliasIs(name: string): CardSelector {
   const normalizedAliases = getNormalizedCardNameAliases(name);
   return (card) =>

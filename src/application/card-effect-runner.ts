@@ -40,6 +40,7 @@ import {
   and,
   cardNameAliasAny,
   cardNameAliasIs,
+  cardNameContains,
   cardNameIs,
   costGte,
   costLte,
@@ -4412,7 +4413,12 @@ function startYoshikoWaitingRoomSelectionAfterCost(game: GameState): GameState {
     return game;
   }
 
-  const selectableCardIds = getYoshikoWaitingRoomCandidateCardIds(costPayment.gameState, player.id);
+  const selectableCardIds = getCardIdsInZoneMatching(
+    costPayment.gameState,
+    player.id,
+    ZoneType.WAITING_ROOM,
+    costLte(4)
+  );
   const emptySlots = getEmptyMemberSlots(player);
   const state = addAction(costPayment.gameState, 'PAY_COST', player.id, {
     pendingAbilityId: effect.id,
@@ -4686,10 +4692,12 @@ function startMakiOnEnterSelection(
   if (!player) {
     return game;
   }
-  const selectableCardIds = player.hand.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && isLiveCardData(card.data);
-  });
+  const selectableCardIds = getCardIdsInZoneMatching(
+    game,
+    player.id,
+    ZoneType.HAND,
+    typeIs(CardType.LIVE)
+  );
   return addAction(
     {
       ...game,
@@ -4730,6 +4738,12 @@ function startMakiSelectSuccessLive(game: GameState, handLiveCardId: string | nu
   if (!player || handLiveCardId === null || !effect.selectableCardIds?.includes(handLiveCardId)) {
     return finishSkipEffect(game);
   }
+  const selectableSuccessLiveCardIds = getCardIdsInZoneMatching(
+    game,
+    player.id,
+    ZoneType.SUCCESS_ZONE,
+    typeIs(CardType.LIVE)
+  );
   return addAction(
     {
       ...game,
@@ -4737,10 +4751,7 @@ function startMakiSelectSuccessLive(game: GameState, handLiveCardId: string | nu
         ...effect,
         stepId: MAKI_SELECT_SUCCESS_LIVE_STEP_ID,
         stepText: '请选择要加入手牌的成功 Live。所公开的手牌 Live 会放置入成功 Live 卡区。',
-        selectableCardIds: player.successZone.cardIds.filter((cardId) => {
-          const card = getCardById(game, cardId);
-          return card !== null && isLiveCardData(card.data);
-        }),
+        selectableCardIds: selectableSuccessLiveCardIds,
         selectableCardVisibility: 'PUBLIC',
         canSkipSelection: true,
         metadata: {
@@ -8684,7 +8695,12 @@ function startHsBp1TsuzuriActivatedRecoverLive(
   }
 
   const selector = isHasunosoraLiveCard;
-  const selectableCardIds = selectWaitingRoomCardIds(game, player.id, selector);
+  const selectableCardIds = getCardIdsInZoneMatching(
+    game,
+    player.id,
+    ZoneType.WAITING_ROOM,
+    selector
+  );
   if (selectableCardIds.length === 0) {
     return game;
   }
@@ -8953,15 +8969,11 @@ function getSameNameWaitingRoomLiveCardIds(
   if (!revealedLiveCard || !isLiveCardData(revealedLiveCard.data)) {
     return [];
   }
-  const revealedName = normalizeCardName(revealedLiveCard.data.name);
-  if (revealedName.length === 0) {
-    return [];
-  }
-
-  return selectWaitingRoomCardIds(
+  return getCardIdsInZoneMatching(
     game,
     playerId,
-    (card) => isLiveCardData(card.data) && normalizeCardName(card.data.name).includes(revealedName)
+    ZoneType.WAITING_ROOM,
+    and(typeIs(CardType.LIVE), cardNameContains(revealedLiveCard.data.name))
   );
 }
 
@@ -8989,7 +9001,12 @@ function startHsBp1KosuzuActivatedRecoverLowCostMember(
   }
 
   const selector = and(typeIs(CardType.MEMBER), costLte(4), isHasunosoraCard);
-  const selectableCardIds = selectWaitingRoomCardIds(game, player.id, selector);
+  const selectableCardIds = getCardIdsInZoneMatching(
+    game,
+    player.id,
+    ZoneType.WAITING_ROOM,
+    selector
+  );
   if (selectableCardIds.length === 0) {
     return game;
   }
@@ -9079,7 +9096,12 @@ function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
   }
 
   const selector = and(typeIs(CardType.MEMBER), costLte(15), isHasunosoraCard);
-  const selectableCardIds = selectWaitingRoomCardIds(costPayment.gameState, player.id, selector);
+  const selectableCardIds = getCardIdsInZoneMatching(
+    costPayment.gameState,
+    player.id,
+    ZoneType.WAITING_ROOM,
+    selector
+  );
   if (selectableCardIds.length === 0) {
     return game;
   }
@@ -9327,18 +9349,6 @@ function getEmptyMemberSlots(
   player: NonNullable<ReturnType<typeof getPlayerById>>
 ): SlotPosition[] {
   return MEMBER_SLOT_ORDER.filter((slot) => player.memberSlots.slots[slot] === null);
-}
-
-function getYoshikoWaitingRoomCandidateCardIds(game: GameState, playerId: string): string[] {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return [];
-  }
-
-  return player.waitingRoom.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && isMemberCardData(card.data) && card.data.cost <= 4;
-  });
 }
 
 function calculateMemberCostSum(game: GameState, cardIds: readonly string[]): number {

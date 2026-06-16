@@ -5,6 +5,7 @@ import {
   and,
   cardNameAliasAny,
   cardNameAliasIs,
+  cardNameContains,
   cardNameIs,
   costGte,
   costLte,
@@ -196,6 +197,19 @@ describe('card selectors', () => {
     expect(ginko(spacedName)).toBe(true);
     expect(ginko(compactName)).toBe(true);
     expect(ginko(otherName)).toBe(false);
+  });
+
+  it('matches normalized card names by containment without alias expansion', () => {
+    const exactName = liveCard('contains-exact', { name: 'Dream Believers' });
+    const spacedName = liveCard('contains-spaced', { name: 'Dream・Believers Special' });
+    const otherName = liveCard('contains-other', { name: '夏めきペイン' });
+    const chineseAlias = memberCard('contains-alias', { name: '大泽瑠璃乃' });
+
+    expect(cardNameContains('Dream Believers')(exactName)).toBe(true);
+    expect(cardNameContains('Dream Believers')(spacedName)).toBe(true);
+    expect(cardNameContains('Dream Believers')(otherName)).toBe(false);
+    expect(cardNameContains('')(exactName)).toBe(false);
+    expect(cardNameContains('大沢瑠璃乃')(chineseAlias)).toBe(false);
   });
 
   it('matches member heart color only for positive heart counts on member cards', () => {
