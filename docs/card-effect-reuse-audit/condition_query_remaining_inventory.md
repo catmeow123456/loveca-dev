@@ -121,12 +121,15 @@
 | id | current location | current behavior | why blocked / next action |
 |---|---|---|---|
 | DB-01 | `src/domain/rules/live-modifiers.ts` `collectContinuousLiveModifiers` | 为 continuous modifier 收集成功 LIVE 数和舞台成员来源。 | domain 不能 import application `conditions.ts`；短期保留。 |
-| DB-02 | `src/domain/rules/live-modifiers.ts` `hasThreeDifferentHasunosoraMembersOnStage` | `PL!HS-bp1-003` 三面均为不同名「莲之空」成员时 LIVE 合计分数 +1。 | 已在 G-4 将 Hasunosora 身份判断迁到 shared `cardBelongsToGroup`；三面成员、三名不同名、continuous modifier 收集时机与 SCORE modifier metadata 未改。 |
 | DB-03 | `src/domain/rules/live-modifiers.ts` `hasMemberPositionMovedThisTurn` | `PL!N-pb1-004` 未进行成员区位置移动时 BLADE +2。 | 读取 domain turn-state，保留 domain-local 或下沉 query，不走 application helper。 |
 | DB-04 | `src/domain/rules/cost-calculator.ts` `LL-bp2-001` | 手牌中自身按“此卡以外手牌数量”减费。 | 登场费用规则在 domain；不属于 application condition/query 本批。 |
-| DB-05 | `src/domain/rules/cost-calculator.ts` `PL!N-pb1-008` | 舞台存在待机虹咲成员时自身费用 -2。 | 已在 G-3 将虹咲身份判断迁到 shared `cardBelongsToGroup`；待机状态、来源卡 base、费用减少量与费用计算顺序未改。 |
-| DB-06 | `src/domain/rules/cost-calculator.ts` `PL!SP-bp5-003` | 舞台来源使 10 费 Liella! 成员费用 -2。 | 已在 G-3 将 Liella! 身份判断迁到 shared `cardBelongsToGroup`；舞台来源、10 费限制、费用减少量与 modifier metadata 未改。 |
-| DB-07 | domain 中的 Liella/Nijigasaki/Hasunosora 身份判断 | 与 application selector 有语义重叠。 | G-1/G-2/G-3/G-4 已完成 shared helper、application adapter、cost-calculator 与 live-modifiers 身份迁移；trigger matcher / steps / workflow 不属于本项。 |
+
+已关闭的 domain identity 项：
+
+- DB-02 live-modifiers Hasunosora：已在 G-4 将 `hasThreeDifferentHasunosoraMembersOnStage` 的 Hasunosora 身份判断迁到 shared `cardBelongsToGroup`；三面成员、三名不同名、continuous modifier 收集时机与 SCORE modifier metadata 未改。
+- DB-05 cost-calculator Nijigasaki：已在 G-3 将 `PL!N-pb1-008` 的虹咲身份判断迁到 shared `cardBelongsToGroup`；待机状态、来源卡 base、费用减少量与费用计算顺序未改。
+- DB-06 cost-calculator Liella!：已在 G-3 将 `PL!SP-bp5-003` 的 Liella! 身份判断迁到 shared `cardBelongsToGroup`；舞台来源、10 费限制、费用减少量与 modifier metadata 未改。
+- DB-07 shared group identity：G-1/G-2/G-3/G-4 已完成 shared helper、application adapter、cost-calculator 与 live-modifiers 身份迁移；trigger matcher / steps / workflow 不属于本项。
 
 ### formula-builder
 
@@ -158,15 +161,14 @@
 | WF-07 | `PL!HS-bp6-001` / `PL!HS-cl1-009` / `PL!HS-bp6-027` | 声援公开卡选择已复用 cheer-selection；卡组底/重做声援仍待真实样例。 |
 | WF-08 | `PL!SP-bp5-003` / `PL!N-pb1-008` | 批量成员/能量 orientation 目标查询与二选一流程。 |
 
-## Suggested next execution batches
+## Remaining Future Directions
 
-### Batch H: inventory close-out
+Batch G identity migration 已完成。本文档后续只保留真实未完成方向：
 
-目标：Batch G identity migration 已完成后，同步收口本文件，避免已完成项继续停留在待办表里。
-
-1. 已完成的 selector/query 进入 Completed 或已关闭说明。
-2. formula-builder、workflow-step、domain-blocked 继续保留为独立后续方向。
-3. 等 trigger matcher 稳定后，再讨论 condition AST 或 steps 接入。
+- `formula-builder`：数量 / 阈值到奖励或修正的表达仍在 runner，后续需要真实重复样例再抽 typed builder。
+- `workflow-step`：look-top、reveal-hand、grouped-selection、支付选项与移动流程仍未配置化。
+- `domain-blocked`：仍有 domain-local turn-state / continuous modifier 查询；这些不应反向依赖 application helper。
+- trigger matcher / steps / condition AST 尚未完成，也不是 Batch G identity migration 的成果。
 
 ## Validation baseline
 

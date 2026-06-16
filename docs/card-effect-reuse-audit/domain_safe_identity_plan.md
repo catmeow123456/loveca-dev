@@ -27,15 +27,15 @@ application 层已经有 `groupAliasIs(groupName)`，用于把团体 alias、文
 
 设计目标是让 domain 与 application 共享底层身份事实，同时不让 domain 反向依赖 application。
 
-## Proposed Boundary
+## Current Boundary
 
-未来 helper 应放在 shared/domain-safe 层，例如：
+shared/domain-safe helper 已落在：
 
 - `src/shared/utils/card-identity.ts`
 
 helper 应只接收 domain 与 shared 层可见的数据，不读取 `GameState`，不依赖 runner，不依赖 application selector。
 
-建议的最小输入形状：
+当前最小输入形状：
 
 ```ts
 interface CardIdentityLike {
@@ -45,7 +45,7 @@ interface CardIdentityLike {
 }
 ```
 
-建议的最小 API：
+当前最小 API：
 
 ```ts
 type GroupIdentityName = "μ's" | '蓮ノ空' | 'Liella!' | '虹ヶ咲' | 'Aqours';
@@ -55,7 +55,7 @@ function cardBelongsToGroup(card: CardIdentityLike, groupName: string): boolean;
 
 `GroupIdentityName` 仅用于 canonical group/table 定义；公开 helper 接受 `string`，未知 group 返回 `false`。
 
-可以后续再补更具体的薄包装：
+如果后续需要更具体的薄包装：
 
 ```ts
 function isHasunosoraCardIdentity(card: CardIdentityLike): boolean;
@@ -96,7 +96,7 @@ function groupAliasIs(groupName: string): CardSelector {
 
 如果仍需要历史 `groupIs(groupName)` 的“传入原文 includes”语义，应单独保留，并明确它比 `groupAliasIs` 更宽。不要把 `groupIs` 的宽匹配偷塞进 domain helper。
 
-## Future Migration Slices
+## Migration Slices
 
 ### Batch G-1: shared helper only
 
