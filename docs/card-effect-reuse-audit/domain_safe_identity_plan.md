@@ -4,6 +4,14 @@
 
 本文档记录 Batch G 的边界设计。它只规划 domain-safe 团体身份判断的归属与后续拆批，不代表已经迁移任何 domain 行为。
 
+## Current Status
+
+- Batch G-1 已完成：`src/shared/utils/card-identity.ts` 提供 shared/domain-safe `cardBelongsToGroup(card, groupName)`，并有 focused unit test 覆盖 alias、文本 normalize 与卡号 fallback。
+- Batch G-2 已完成：application 层 `groupAliasIs(groupName)` 已委托 shared helper；`groupIs(groupName)` 仍保留直接 contains 语义后再走 shared identity fallback。
+- Batch G-3 尚未开始：`src/domain/rules/cost-calculator.ts` 中 Nijigasaki / Liella! 身份判断仍未迁移。
+- Batch G-4 尚未开始：`src/domain/rules/live-modifiers.ts` 中 Hasunosora 身份判断仍未迁移。
+- G-3/G-4 都会触碰 domain/rules，必须作为后续单独授权的小批处理；不得顺手改变费用语义或 continuous modifier 收集时机。
+
 ## Why
 
 application 层已经有 `groupAliasIs(groupName)`，用于把团体 alias、文本字段和卡号 fallback 统一成 `CardSelector`。但 domain 层不能 import `src/application/effects/card-selectors.ts`，因此 `cost-calculator.ts` 与 `live-modifiers.ts` 里仍有手写身份判断。
@@ -90,16 +98,16 @@ function groupAliasIs(groupName: string): CardSelector {
 
 ### Batch G-1: shared helper only
 
-- 新增 `src/shared/utils/card-identity.ts`。
-- 增加 shared helper 单测。
-- 不迁任何调用点。
-- 不改 `cost-calculator.ts`、`live-modifiers.ts`、`card-selectors.ts`、runner。
+- 已完成：新增 `src/shared/utils/card-identity.ts`。
+- 已完成：增加 shared helper 单测。
+- 已保持：未迁任何调用点。
+- 已保持：未改 `cost-calculator.ts`、`live-modifiers.ts`、`card-selectors.ts`、runner。
 
 ### Batch G-2: application adapter
 
-- 让 `groupAliasIs` 复用 shared helper。
-- 保留现有 selector 测试，确认 alias 与 card-code fallback 不漂移。
-- 不改 domain rules。
+- 已完成：让 `groupAliasIs` 复用 shared helper。
+- 已完成：保留并扩充 selector 测试，确认 alias 与 card-code fallback 不漂移。
+- 已保持：未改 domain rules。
 
 ### Batch G-3: cost-calculator identity
 

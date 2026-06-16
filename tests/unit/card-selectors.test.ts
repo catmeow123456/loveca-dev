@@ -109,6 +109,7 @@ describe('card selectors', () => {
     const hasunosoraJapanese = memberCard('OTHER-HS-JP', {
       groupName: '蓮ノ空女学院スクールアイドルクラブ',
     });
+    const hasunosoraText = memberCard('OTHER-HS-TEXT', { cardText: 'Hasunosora のメンバー。' });
     const hasunosoraFallback = memberCard('PL!HS-fallback');
     const liellaGroup = memberCard('OTHER-SP-GROUP', { groupName: 'Liella!' });
     const liellaGroupWithoutBang = memberCard('OTHER-SP-GROUP-NO-BANG', { groupName: 'Liella' });
@@ -116,7 +117,13 @@ describe('card selectors', () => {
       cardText: 'Liella のメンバー。',
     });
     const liellaText = memberCard('OTHER-SP-TEXT', { cardText: '『リエラ』のメンバー。' });
+    const liellaSuperstar = memberCard('OTHER-SP-SUPERSTAR', { cardText: 'スーパースター楽曲。' });
+    const liellaSuperstarEnglish = memberCard('OTHER-SP-SUPERSTAR-EN', {
+      cardText: 'SUPERSTAR member.',
+    });
     const liellaFallback = memberCard('PL!SP-fallback');
+    const nijigasakiGroup = memberCard('OTHER-N-GROUP', { groupName: '虹ヶ咲学園' });
+    const nijigasakiShort = memberCard('OTHER-N-SHORT', { cardText: '虹咲のメンバー。' });
     const nijigasakiText = memberCard('OTHER-N-TEXT', { cardText: 'Nijigasaki のメンバー。' });
     const nijigasakiFallback = memberCard('PL!N-fallback');
     const aqoursText = memberCard('OTHER-S-TEXT', { groupName: 'Aqours' });
@@ -131,17 +138,52 @@ describe('card selectors', () => {
     expect(groupAliasIs("μ's")(memberCard('PL!-fallback'))).toBe(true);
     expect(hasunosora(hasunosoraChinese)).toBe(true);
     expect(hasunosora(hasunosoraJapanese)).toBe(true);
+    expect(groupAliasIs('Hasunosora')(hasunosoraText)).toBe(true);
+    expect(groupAliasIs('Hasunosora')(hasunosoraFallback)).toBe(true);
     expect(hasunosora(hasunosoraFallback)).toBe(true);
     expect(liella(liellaGroup)).toBe(true);
     expect(liella(liellaGroupWithoutBang)).toBe(true);
     expect(liella(liellaTextWithoutBang)).toBe(true);
     expect(liella(liellaText)).toBe(true);
+    expect(liella(liellaSuperstar)).toBe(true);
+    expect(liella(liellaSuperstarEnglish)).toBe(true);
     expect(liella(liellaFallback)).toBe(true);
+    expect(nijigasaki(nijigasakiGroup)).toBe(true);
+    expect(nijigasaki(nijigasakiShort)).toBe(true);
     expect(nijigasaki(nijigasakiText)).toBe(true);
     expect(nijigasaki(nijigasakiFallback)).toBe(true);
     expect(aqours(aqoursText)).toBe(true);
     expect(aqours(aqoursFallback)).toBe(true);
     expect(hasunosora(other)).toBe(false);
+  });
+
+  it('does not match unknown group aliases through groupAliasIs', () => {
+    const customGroup = memberCard('OTHER-CUSTOM-GROUP', {
+      groupName: 'Custom School Idol Club',
+      cardText: 'Custom School Idol Club member.',
+    });
+    const customFallback = memberCard('PL!CUSTOM-fallback');
+
+    const unknownGroup = groupAliasIs('Custom School Idol Club');
+
+    expect(unknownGroup(customGroup)).toBe(false);
+    expect(unknownGroup(customFallback)).toBe(false);
+  });
+
+  it('preserves direct contains matching for groupIs before identity fallback', () => {
+    const customGroup = memberCard('OTHER-CUSTOM-GROUP', {
+      groupName: 'Custom School Idol Club',
+    });
+    const customText = memberCard('OTHER-CUSTOM-TEXT', {
+      cardText: 'Choose a Custom School Idol Club member.',
+    });
+    const other = memberCard('OTHER-CUSTOM-MISS', { groupName: 'Other Group' });
+
+    const custom = groupIs('Custom School Idol Club');
+
+    expect(custom(customGroup)).toBe(true);
+    expect(custom(customText)).toBe(true);
+    expect(custom(other)).toBe(false);
   });
 
   it('matches card unit independently from series group', () => {
