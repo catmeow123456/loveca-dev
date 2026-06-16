@@ -31,6 +31,14 @@ export function countCardsMatchingSelector(
   return getCardIdsMatchingSelector(game, cardIds, selector).length;
 }
 
+export function countCardIdsMatchingSelectors(
+  game: GameState,
+  cardIds: readonly string[],
+  selectors: readonly CardSelector[]
+): readonly number[] {
+  return selectors.map((selector) => countCardsMatchingSelector(game, cardIds, selector));
+}
+
 export function getCardIdsInZoneMatching(
   game: GameState,
   playerId: string,

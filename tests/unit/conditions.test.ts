@@ -11,6 +11,7 @@ import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/z
 import { cardNameAliasIs, typeIs, unitAliasIs } from '../../src/application/effects/card-selectors';
 import {
   allCardIdsMatchingSelector,
+  countCardIdsMatchingSelectors,
   countCardsInZoneMatching,
   countCardsInZone,
   countCardsMatchingSelector,
@@ -88,6 +89,27 @@ describe('effect conditions', () => {
     expect(countCardsMatchingSelector(game, cardIds, typeIs(CardType.MEMBER))).toBe(2);
     expect(hasAtLeastCardsMatchingSelector(game, cardIds, typeIs(CardType.MEMBER), 2)).toBe(true);
     expect(hasAtLeastCardsMatchingSelector(game, cardIds, typeIs(CardType.MEMBER), 3)).toBe(false);
+  });
+
+  it('counts a selected card id list against multiple selectors', () => {
+    const member = memberCard('group-count-member');
+    const live = liveCard('group-count-live');
+    const missingCardId = 'missing-card';
+
+    let game = createGameState('conditions-selector-groups', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member, live]);
+
+    expect(
+      countCardIdsMatchingSelectors(
+        game,
+        [member.instanceId, live.instanceId, missingCardId],
+        [typeIs(CardType.MEMBER), typeIs(CardType.LIVE)]
+      )
+    ).toEqual([1, 1]);
+    expect(countCardIdsMatchingSelectors(game, [missingCardId], [typeIs(CardType.MEMBER)])).toEqual([
+      0,
+    ]);
+    expect(countCardIdsMatchingSelectors(game, [member.instanceId], [])).toEqual([]);
   });
 
   it('checks any and all card id matches without treating empty or missing cards as all-matched', () => {

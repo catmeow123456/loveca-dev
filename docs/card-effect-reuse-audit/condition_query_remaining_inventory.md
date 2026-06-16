@@ -17,7 +17,7 @@
 `conditions.ts` 当前已覆盖：
 
 - 区域卡牌数量：`countCardsInZone`
-- 任意 cardIds + selector 过滤/计数/阈值：`getCardIdsMatchingSelector`、`countCardsMatchingSelector`、`hasAtLeastCardsMatchingSelector`、`hasCardIdsMatchingSelector`、`allCardIdsMatchingSelector`
+- 任意 cardIds + selector 过滤/计数/阈值：`getCardIdsMatchingSelector`、`countCardsMatchingSelector`、`countCardIdsMatchingSelectors`、`hasAtLeastCardsMatchingSelector`、`hasCardIdsMatchingSelector`、`allCardIdsMatchingSelector`
 - 区域 + selector 组合：`getCardIdsInZoneMatching`、`countCardsInZoneMatching`、`hasCardInZoneMatching`
 - 成功 LIVE 数：`countSuccessfulLiveCards`
 - 舞台成员数/存在性：`countStageMembers`、`hasStageMemberMatching`、`hasOtherStageMember`
@@ -67,6 +67,8 @@
 - Batch E-2 Maki exchange candidate query：已把 `PL!-sd1-006` 费用 8「西木野真姬」手牌 LIVE / 成功区 LIVE 候选改为 `getCardIdsInZoneMatching(..., ZoneType.HAND/SUCCESS_ZONE, typeIs(CardType.LIVE))`。公开手牌与区域交换流程仍留在 workflow。
 - Batch E-3 Hasunosora activated candidate query：已把 `PL!HS-bp1-004` 费用 15「夕雾缀理」/ `PL!HS-bp1-003` 费用 13「乙宗梢」/ `PL!HS-bp1-002` 费用 11「村野沙耶香」起动段等待室候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, selector)`。自送费用、能量费用、回收/登场流程仍留在 cost / workflow。
 - Batch E-4 same-name LIVE candidate query：已把 `PL!HS-bp5-001` 费用 11「日野下花帆」起动段等待室“同名 LIVE”候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, and(typeIs(CardType.LIVE), cardNameContains(revealedName)))`。`cardNameContains` 只做 normalize 后包含判断，不做 alias；公开手牌、选择与后续处理仍留在 workflow。
+- Batch F-1 selected ids selector group count：已补 `countCardIdsMatchingSelectors`，并在 `PL!HS-bp6-017` 费用 11「日野下花帆」的已选 LIVE / 成员各至多 1 张校验中复用。选择上限、activeEffect、移动与确认流程仍留在 workflow。
+- Batch F-2 selected ids selector group count：`PL!HS-pb1-020` 费用 9「百生吟子」的 finish 校验已用 `countCardIdsMatchingSelectors` 计算已选 Cerise Bouquet 成员 / 「莲之空」LIVE 数量。强制各 1、activeEffect metadata、选择与移动流程仍留在 workflow。
 
 ## Remaining inventory
 
@@ -81,8 +83,8 @@
 | RQ-05 | `PL!-sd1-006` 费用 8「西木野真姬」 | 扫手牌 LIVE 与成功区 LIVE 作为交换候选。 | 候选查询已用 `getCardIdsInZoneMatching(..., ZoneType.HAND/SUCCESS_ZONE, typeIs(CardType.LIVE))` 收束；公开手牌、选择成功区 LIVE、交换区域与 skip 流程仍是 workflow-step。 |
 | RQ-06 | `PL!HS-pb1-012` 费用 15「百生吟子」 | 双方等待室成员数量合计、移动后成员数量合计，阈值 20。 | `getWaitingRoomMemberCardIds` 已改用 `getCardIdsInZoneMatching`；阈值后续仍是 formula/workflow。 |
 | RQ-07 | `PL!HS-bp6-031` / `PL!HS-pb1-012` 共用的 `moveWaitingRoomMembersToDeckBottomShuffled` | 等待室成员洗回卡组底，并返回成员数量与 `みらくらぱーく！` 数量。 | 查询部分已有部分 zone helper 复用；移动仍属于专用步骤，不搬进 `conditions.ts`。 |
-| RQ-08 | `PL!HS-bp6-017` 费用 11「日野下花帆」 | 弃手后从等待室选 LIVE / 成员各至多 1 张，并校验选中分组数量。 | 可抽“selected ids 按 selector 分组计数”纯 helper；真正的分组选取上限应属于 grouped selection config。 |
-| RQ-09 | `PL!HS-pb1-020` 费用 9「百生吟子」 | 弃 2 后检查等待室是否有 Cerise Bouquet 成员、是否有「莲之空」LIVE，并据此强制选择 1+1 或可用分组。 | 可抽 `hasCardMatchingSelector` / 分组计数 helper；强制选择规则属于 grouped selection config。 |
+| RQ-08 | `PL!HS-bp6-017` 费用 11「日野下花帆」 | 弃手后从等待室选 LIVE / 成员各至多 1 张，并校验选中分组数量。 | 已用 `countCardIdsMatchingSelectors(..., [typeIs(LIVE), typeIs(MEMBER)])` 收束已选 ids 的分组计数；真正的分组选取上限、activeEffect 与移动仍属于 grouped selection workflow。 |
+| RQ-09 | `PL!HS-pb1-020` 费用 9「百生吟子」 | 弃 2 后检查等待室是否有 Cerise Bouquet 成员、是否有「莲之空」LIVE，并据此强制选择 1+1 或可用分组。 | 已用 `countCardIdsMatchingSelectors(..., [Cerise Bouquet 成员, 蓮ノ空 LIVE])` 收束 finish 阶段已选 ids 的分组计数校验；强制各 1、activeEffect metadata、选择与移动流程仍属于 grouped selection workflow。 |
 | RQ-10 | `PL!HS-bp5-001` 起动段 | 手牌 LIVE 候选要求等待室存在同名 LIVE。 | 已用 `cardNameContains` + `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, and(typeIs(CardType.LIVE), ...))` 收束等待室候选；语义仍是 normalize 后“候选卡名包含公开 LIVE 名”，不是 alias 或完全相等。检视/公开/选择/后续处理仍是 workflow-step。 |
 | RQ-11 | `LL-bp1-001` / `LL-bp2-001` 指定姓名弃手 LIVE 开始段 | 手牌中按多个姓名 alias 匹配候选。 | 已用 `cardNameAliasAny` 收束候选 selector；奖励仍是 formula-builder。 |
 | RQ-12 | `PL!S-bp2-006` 费用 11「津岛善子」 | 等待室费用 <=4 成员候选、选择卡费用合计 <=4。 | 候选查询已用 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, costLte(4))` 收束；费用合计 <=4 与登场到空槽仍是 grouped selection / workflow constraint，不放进 `conditions.ts`。 |
@@ -154,28 +156,13 @@
 
 ## Suggested next execution batches
 
-### Batch E: remaining direct query cleanup
-
-目标：继续只收最直的 ready-query，不把流程配置塞进 `conditions.ts`。
-
-1. 优先处理 RQ-05 / RQ-12 / RQ-13 这种候选集合查询，把区域 + selector 的手写组合替换为已有 helper。
-2. 若处理 RQ-13，直接复用已稳定的 `groupAliasIs('蓮ノ空')`；不要再新增 Hasunosora 专用 helper。
-3. RQ-10 已用 `cardNameContains` 锁定“包含名而非 alias/完全相等”的语义；后续若继续迁同名类查询，先补具体样例测试。
-
-### Batch F: grouped-selection query support
-
-目标：只抽“已选 cardIds 按 selector 分组计数/校验”的纯查询，不抽 grouped selection workflow。
-
-1. 可为 RQ-08 / RQ-09 提供 selected ids 分组计数 helper。
-2. 分组选取上限、强制 1+1、activeEffect 元数据和确认流程仍留给后续 grouped selection config。
-
 ### Batch G: domain-safe identity planning
 
-目标：处理 domain-blocked 的身份判断重复，但先设计边界，不让 domain 反向依赖 application。
+目标：处理 domain-blocked 的身份判断重复，但下一步只做边界设计，不让 domain 反向依赖 application。
 
 1. 盘点 DB-05 / DB-06 / DB-07 中 Nijigasaki、Liella!、Hasunosora 身份判断。
 2. 若要统一，先设计 shared/domain-safe identity helper，再考虑迁移 cost-calculator / live-modifiers。
-3. 本批不改变登场费用语义、不改变 continuous modifier 收集时机。
+3. 设计阶段不改 `src/domain/rules/live-modifiers.ts`、`src/domain/rules/cost-calculator.ts`，不改变登场费用语义、不改变 continuous modifier 收集时机。
 
 ### Batch H: inventory close-out
 

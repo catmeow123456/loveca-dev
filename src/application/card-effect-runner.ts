@@ -57,6 +57,7 @@ import {
 } from './effects/card-selectors.js';
 import {
   allCardIdsMatchingSelector,
+  countCardIdsMatchingSelectors,
   countCardsInZoneMatching,
   countCardsMatchingSelector,
   countOtherLiveZoneCardsMatching,
@@ -3889,15 +3890,14 @@ function finishHsBp6KahoRecoverCards(
     return game;
   }
 
-  const selectedCards = uniqueSelectedCardIds.map((cardId) => getCardById(game, cardId));
-  const selectedLiveCount = selectedCards.filter(
-    (card) => card && isLiveCardData(card.data)
-  ).length;
-  const selectedMemberCount = selectedCards.filter(
-    (card) => card && isMemberCardData(card.data)
-  ).length;
+  const selectedGroupCounts = countCardIdsMatchingSelectors(
+    game,
+    uniqueSelectedCardIds,
+    [typeIs(CardType.LIVE), typeIs(CardType.MEMBER)]
+  );
+  const selectedLiveCount = selectedGroupCounts[0] ?? 0;
+  const selectedMemberCount = selectedGroupCounts[1] ?? 0;
   if (
-    selectedCards.some((card) => !card) ||
     selectedLiveCount > 1 ||
     selectedMemberCount > 1 ||
     selectedLiveCount + selectedMemberCount !== uniqueSelectedCardIds.length
@@ -4241,6 +4241,12 @@ function finishHsPb1GinkoRecoverCeriseMemberAndHasunosoraLive(
 
   const ceriseMemberCardIds: string[] = [];
   const hasunosoraLiveCardIds: string[] = [];
+  const selectedGroupCounts = countCardIdsMatchingSelectors(game, uniqueSelectedCardIds, [
+    isCeriseBouquetMemberCard,
+    isHasunosoraLiveCard,
+  ]);
+  const selectedCeriseMemberCount = selectedGroupCounts[0] ?? 0;
+  const selectedHasunosoraLiveCount = selectedGroupCounts[1] ?? 0;
   for (const cardId of uniqueSelectedCardIds) {
     const card = getCardById(game, cardId);
     if (!card) {
@@ -4257,10 +4263,10 @@ function finishHsPb1GinkoRecoverCeriseMemberAndHasunosoraLive(
     }
   }
   if (
-    ceriseMemberCardIds.length > 1 ||
-    hasunosoraLiveCardIds.length > 1 ||
-    (effect.metadata?.hasCeriseMember === true && ceriseMemberCardIds.length !== 1) ||
-    (effect.metadata?.hasHasunosoraLive === true && hasunosoraLiveCardIds.length !== 1)
+    selectedCeriseMemberCount > 1 ||
+    selectedHasunosoraLiveCount > 1 ||
+    (effect.metadata?.hasCeriseMember === true && selectedCeriseMemberCount !== 1) ||
+    (effect.metadata?.hasHasunosoraLive === true && selectedHasunosoraLiveCount !== 1)
   ) {
     return game;
   }
