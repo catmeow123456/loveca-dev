@@ -40,8 +40,10 @@ import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
   createMoveMemberToSlotCommand,
+  createMoveResolutionCardToZoneCommand,
   createMovePublicCardToWaitingRoomCommand,
   createPlayMemberToSlotCommand,
+  createRevealCheerCardCommand,
   createTapMemberCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
@@ -445,6 +447,70 @@ function setupHsPb1012OnEnterScenario(config: {
   expect(playResult.success).toBe(true);
 
   return { session, ginko, ownMembers, opponentMembers, ownDeckFiller, opponentDeckFiller, liveTarget };
+}
+
+function setupTsukiyomiManualCheerAdjustmentSession(): ReturnType<typeof createGameSession> {
+  const session = createGameSession();
+  const deck = createDeck();
+
+  session.createGame(
+    'sample-hs-bp6-027-manual-cheer-adjustment',
+    PLAYER1,
+    'Player 1',
+    PLAYER2,
+    'Player 2'
+  );
+  session.initializeGame(deck, deck);
+
+  const tsukiyomi = createCardInstance(
+    {
+      ...createLiveCard('PL!HS-bp6-027-L', '月夜見海月', '蓮ノ空'),
+      score: 5,
+    },
+    PLAYER1,
+    'p1-tsukiyomi-manual-live'
+  );
+  const selectableCheer = createCardInstance(
+    createMemberCard('PL!HS-test-manual-cheer-target', '日野下 花帆', 1, '蓮ノ空'),
+    PLAYER1,
+    'p1-tsukiyomi-manual-cheer-target'
+  );
+  const deckFiller = createCardInstance(
+    createMemberCard('PL!HS-test-manual-cheer-filler', '村野 沙耶香', 1, '蓮ノ空'),
+    PLAYER1,
+    'p1-tsukiyomi-manual-cheer-filler'
+  );
+
+  let state = registerCards(session.state!, [tsukiyomi, selectableCheer, deckFiller]);
+  state = updatePlayer(state, PLAYER1, (player) => ({
+    ...player,
+    mainDeck: { ...player.mainDeck, cardIds: [selectableCheer.instanceId, deckFiller.instanceId] },
+    liveZone: { ...player.liveZone, cardIds: [tsukiyomi.instanceId] },
+    waitingRoom: { ...player.waitingRoom, cardIds: [] },
+  }));
+  state = {
+    ...state,
+    currentPhase: GamePhase.PERFORMANCE_PHASE,
+    currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+    currentTurnType: TurnType.FIRST_PLAYER_TURN,
+    activePlayerIndex: 0,
+    firstPlayerIndex: 0,
+    resolutionZone: {
+      ...state.resolutionZone,
+      cardIds: [],
+      revealedCardIds: [],
+    },
+    liveResolution: {
+      ...state.liveResolution,
+      isInLive: true,
+      performingPlayerId: PLAYER1,
+      firstPlayerCheerCardIds: [],
+      secondPlayerCheerCardIds: [],
+    },
+  };
+  (session as unknown as { authorityState: GameState }).authorityState = state;
+
+  return session;
 }
 
 function removeFromPlayerZones(player: {
@@ -7103,6 +7169,53 @@ describe('sample card effect runner', () => {
     ]);
     expect(recursiveCheckResult.success).toBe(true);
     expect(recursiveCheckResult.gameState.pendingAbilities).toEqual([]);
+  });
+
+  it('opens PL!HS-bp6-027-L manual cheer adjustment selection after revealing a cheer card', () => {
+    const session = setupTsukiyomiManualCheerAdjustmentSession();
+
+    const revealResult = session.executeCommand(createRevealCheerCardCommand(PLAYER1));
+
+    expect(revealResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+      'p1-tsukiyomi-manual-cheer-target',
+    ]);
+
+    const cheerEvents = session.state!.eventLog
+      .map((entry) => entry.event)
+      .filter((event) => event.eventType === TriggerCondition.ON_CHEER);
+    expect(cheerEvents).toHaveLength(1);
+  });
+
+  it('clears PL!HS-bp6-027-L manual cheer adjustment selection after its target leaves resolution', () => {
+    const session = setupTsukiyomiManualCheerAdjustmentSession();
+
+    const revealResult = session.executeCommand(createRevealCheerCardCommand(PLAYER1));
+    expect(revealResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID
+    );
+
+    const moveResult = session.executeCommand(
+      createMoveResolutionCardToZoneCommand(
+        PLAYER1,
+        'p1-tsukiyomi-manual-cheer-target',
+        ZoneType.MAIN_DECK,
+        'TOP'
+      )
+    );
+
+    expect(moveResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.resolutionZone.cardIds).not.toContain(
+      'p1-tsukiyomi-manual-cheer-target'
+    );
+    expect(session.state?.players[0].mainDeck.cardIds[0]).toBe(
+      'p1-tsukiyomi-manual-cheer-target'
+    );
   });
 
   it('does not trigger PL!-sd1-019-SD live-success effect when the Live failed', () => {

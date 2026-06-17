@@ -131,6 +131,7 @@ import {
   getActivatedAbilityLimitStatus,
   isSupportedActivatedAbilityForCard,
   resolvePendingCardEffects,
+  syncHsBp6027ManualCheerAdjustment,
 } from './card-effect-runner.js';
 import { isMemberCardData } from '../domain/entities/card.js';
 import { getActiveEnergyIds, tapEnergy } from '../domain/entities/zone.js';
@@ -2065,10 +2066,13 @@ export class GameSession {
     }
 
     const revealedState = revealResolutionCard(result.gameState, revealedCardId);
+    const adjustedState = syncHsBp6027ManualCheerAdjustment(revealedState, command.playerId, {
+      allowCreate: true,
+    });
 
     return {
       success: true,
-      gameState: revealedState,
+      gameState: adjustedState,
       declarationType: 'CHEER_REVEALED',
       declarationPublicValue: 1,
       extraPublicEvents: [
@@ -2296,9 +2300,11 @@ export class GameSession {
       return { success: false, gameState: state, error: result.error };
     }
 
+    const adjustedState = syncHsBp6027ManualCheerAdjustment(result.gameState, command.playerId);
+
     return {
       success: true,
-      gameState: result.gameState,
+      gameState: adjustedState,
       extraPublicEvents: [
         buildCardMovedPublicEvent(state, result.gameState, actorSeat, command.cardId, {
           from: createResolutionZoneRef(resolutionIndex),

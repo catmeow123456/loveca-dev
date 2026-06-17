@@ -6434,6 +6434,126 @@ function startHsBp6027TsukiyomiOnCheerAdditionalCheer(
   });
 }
 
+export function syncHsBp6027ManualCheerAdjustment(
+  game: GameState,
+  playerId: string,
+  options: { readonly allowCreate?: boolean } = {}
+): GameState {
+  const activeEffect = game.activeEffect;
+  if (
+    activeEffect &&
+    activeEffect.abilityId === HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID &&
+    activeEffect.stepId === HS_BP6_027_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID
+  ) {
+    return refreshHsBp6027ManualCheerSelection(game, activeEffect);
+  }
+
+  if (activeEffect || options.allowCreate !== true) {
+    return game;
+  }
+
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return game;
+  }
+
+  const selectableCardIds = selectHsBp6027CheerCardIds(game, player.id);
+  if (selectableCardIds.length === 0) {
+    return game;
+  }
+
+  const pendingAbilities = player.liveZone.cardIds.flatMap((sourceCardId) => {
+    const sourceCard = getCardById(game, sourceCardId);
+    const abilityDefinition = getQueuedAbilityDefinitionsForCard(
+      sourceCard?.data.cardCode,
+      CardAbilityCategory.AUTO,
+      CardAbilitySourceZone.LIVE_CARD
+    ).find((ability) => ability.abilityId === HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID);
+    if (!sourceCard || !abilityDefinition) {
+      return [];
+    }
+
+    const pendingAbilityId = `${abilityDefinition.abilityId}:${sourceCardId}:manual-cheer-adjust:${game.turnCount}:${selectableCardIds.join(',')}`;
+    if (hasAbilityInstance(game, pendingAbilityId)) {
+      return [];
+    }
+
+    const pendingAbility: PendingAbilityState = {
+      id: pendingAbilityId,
+      abilityId: abilityDefinition.abilityId,
+      sourceCardId,
+      controllerId: sourceCard.ownerId,
+      mandatory: true,
+      timingId: 'MANUAL_CHEER_ADJUSTMENT',
+      eventIds: [],
+      metadata: {
+        manualCheerAdjustment: true,
+      },
+    };
+    return [pendingAbility];
+  });
+
+  if (pendingAbilities.length === 0) {
+    return game;
+  }
+
+  const state = addAction(
+    {
+      ...game,
+      pendingAbilities: [...game.pendingAbilities, ...pendingAbilities],
+    },
+    'TRIGGER_ABILITY',
+    player.id,
+    {
+      abilityId: HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
+      timingId: 'MANUAL_CHEER_ADJUSTMENT',
+      manualCheerAdjustment: true,
+      selectableCardIds,
+    }
+  );
+
+  return resolvePendingCardEffects(state).gameState;
+}
+
+function refreshHsBp6027ManualCheerSelection(
+  game: GameState,
+  activeEffect: ActiveEffectState
+): GameState {
+  const selectableCardIds = selectHsBp6027CheerCardIds(game, activeEffect.controllerId);
+  if (selectableCardIds.length === 0) {
+    return continuePendingCardEffects(
+      addAction(
+        {
+          ...game,
+          activeEffect: null,
+        },
+        'RESOLVE_ABILITY',
+        activeEffect.controllerId,
+        {
+          pendingAbilityId: activeEffect.id,
+          abilityId: activeEffect.abilityId,
+          sourceCardId: activeEffect.sourceCardId,
+          step: 'MANUAL_CHEER_TARGETS_CLEARED',
+        }
+      ),
+      isOrderedResolutionEffect(game)
+    );
+  }
+
+  return {
+    ...game,
+    activeEffect: {
+      ...activeEffect,
+      selectableCardIds,
+      maxSelectableCards: Math.min(3, selectableCardIds.length),
+    },
+  };
+}
+
+function selectHsBp6027CheerCardIds(game: GameState, playerId: string): readonly string[] {
+  return selectRevealedCheerCardIds(game, playerId, and(isHasunosoraCard, not(hasBladeHeart)));
+}
+
 function startRevealedCheerCardSelection(
   game: GameState,
   config: RevealedCheerCardSelectionConfig
