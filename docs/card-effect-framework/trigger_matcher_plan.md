@@ -1,5 +1,9 @@
 # Trigger matcher T-0 / T-1 plan
 
+> 文档类型：历史/计划文档
+> 适用范围：卡效 trigger matcher 的 T-0/T-1 字段边界、非目标与后续迁移判断
+> 当前状态：T-0/T-1 已落地为纯 matcher；尚未接入 runner，后续迁移需单独审查
+
 本文档记录 Trigger T-0 盘点与 T-1 第一版纯 matcher 的字段边界。当前目标不是实现新卡效，也不是接入 runner，而是确认“事件是否匹配能力”的最小模型不会只适配当前已实现样本。
 
 ## 1. 当前 runner 中承担 trigger matching 的分支

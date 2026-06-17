@@ -1,14 +1,15 @@
 # Loveca 卡效底层重构审查接棒手册
 
+> 文档类型：历史/计划文档
+> 适用范围：卡效底层重构审查窗口的延续、边界回顾与后续窗口启动
+> 当前状态：历史交接参考；不作为当前实现事实的权威来源，当前实现以代码、`card_effect_implementation_guide.md` 与 reuse audit 文档为准
+
 本文档用于新窗口继承当前窗口的“卡效底层审查/把关”职能。它不是替代 `PROJECT_PROGRESS_TODO_20260612.md`、`existing_module_map.md` 或框架设计文档，而是记录当前重构的判断框架、阶段边界、已知坑点和审查清单。
 
 ## 当前工作流
 
-- 仓库路径：`/Users/meiyikai/Desktop/文件/个人/codex/loveca/loveca_battle`
-- 当前大改分支：`effect_refactor_20260615`
-- `origin` 是用户 fork，`upstream` 是作者仓库。
-- 工作区可能长期存在未纳入项：`llocg_db`、`assets/card/`、`assets/images/`、`trigger`。除非用户明确要求，不要纳入提交、不要清理、不要重置。
 - 做卡效底层改动时，默认先读真实代码和相关文档，再给简短计划；如果只是审查隔壁窗口结果，优先看 diff 形状、行为边界和测试结果。
+- 本文中的阶段描述反映 2026-06-16 时的重构交接判断；若与当前代码或权威文档不一致，以当前代码和权威文档为准。
 
 ## 总体路线
 

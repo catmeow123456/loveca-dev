@@ -291,6 +291,7 @@ interface DrawThenDiscardCardsEffectConfig {
   readonly discardCount: number;
   readonly stepId: string;
   readonly orderedResolution: boolean;
+  readonly recordAbilityUseOnStart?: boolean;
 }
 
 interface MemberPositionChangeEffectConfig {
@@ -2937,6 +2938,7 @@ function startPendingAbilityEffect(
         discardCount: 1,
         stepId: N_BP4_018_SELECT_DISCARD_STEP_ID,
         orderedResolution: options.orderedResolution === true,
+        recordAbilityUseOnStart: true,
       });
     case PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID:
       return resolvePb1015OwnEffectWaitOpponentLowCostDraw(game, ability, options);
@@ -7316,7 +7318,11 @@ function startDrawThenDiscardCardsEffect(
     return game;
   }
 
-  const drawResult = drawCardsFromMainDeckToHand(game, player.id, config.drawCount);
+  const stateBeforeDraw =
+    config.recordAbilityUseOnStart === true
+      ? recordAbilityUse(game, player.id, config.ability.abilityId, config.ability.sourceCardId)
+      : game;
+  const drawResult = drawCardsFromMainDeckToHand(stateBeforeDraw, player.id, config.drawCount);
   if (!drawResult) {
     return game;
   }

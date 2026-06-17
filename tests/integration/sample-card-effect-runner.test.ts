@@ -35,6 +35,7 @@ import {
   getMemberEffectiveBladeCount,
 } from '../../src/domain/rules/live-modifiers';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
+import { createTapMemberAction } from '../../src/application/actions';
 import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
@@ -9334,7 +9335,12 @@ describe('sample card effect runner', () => {
       PLAYER1,
       'p1-state-drawn'
     );
-    let state = registerCards(session.state!, [kanata, drawnCard]);
+    const secondDrawnCard = createCardInstance(
+      createMemberCard('STATE-SECOND-DRAWN-MEMBER', 'Second Drawn Member', 1),
+      PLAYER1,
+      'p1-state-second-drawn'
+    );
+    let state = registerCards(session.state!, [kanata, drawnCard, secondDrawnCard]);
     const p1 = state.players[0] as unknown as {
       hand: { cardIds: string[] };
       mainDeck: { cardIds: string[] };
@@ -9348,7 +9354,7 @@ describe('sample card effect runner', () => {
     };
 
     removeFromPlayerZones(p1);
-    p1.mainDeck.cardIds = [drawnCard.instanceId];
+    p1.mainDeck.cardIds = [drawnCard.instanceId, secondDrawnCard.instanceId];
     p1.memberSlots.slots[SlotPosition.LEFT] = kanata.instanceId;
     p1.memberSlots.slots[SlotPosition.CENTER] = null;
     p1.memberSlots.slots[SlotPosition.RIGHT] = null;
@@ -9383,6 +9389,92 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([drawnCard.instanceId]);
+
+    const resetActiveResult = session.executeCommand(
+      createTapMemberCommand(PLAYER1, kanata.instanceId, SlotPosition.LEFT)
+    );
+    expect(resetActiveResult.success).toBe(true);
+    expect(
+      session.state?.players[0].memberSlots.cardStates.get(kanata.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+
+    const secondTapResult = session.executeCommand(
+      createTapMemberCommand(PLAYER1, kanata.instanceId, SlotPosition.LEFT)
+    );
+
+    expect(secondTapResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([secondDrawnCard.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([drawnCard.instanceId]);
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID &&
+          action.payload.step === 'ABILITY_USE'
+      )
+    ).toHaveLength(1);
+  });
+
+  it('queues PL!N-bp4-018-N from the direct TAP_MEMBER action path', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-kanata-bp4-018-state-change-direct-action',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const kanata = createCardInstance(
+      createMemberCard('PL!N-bp4-018-N', '近江彼方', 7),
+      PLAYER1,
+      'p1-kanata-bp4-018-direct'
+    );
+    const drawnCard = createCardInstance(
+      createMemberCard('STATE-DIRECT-DRAWN-MEMBER', 'Direct Drawn Member', 1),
+      PLAYER1,
+      'p1-state-direct-drawn'
+    );
+    let state = registerCards(session.state!, [kanata, drawnCard]);
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+
+    removeFromPlayerZones(p1);
+    p1.mainDeck.cardIds = [drawnCard.instanceId];
+    p1.memberSlots.slots[SlotPosition.LEFT] = kanata.instanceId;
+    p1.memberSlots.slots[SlotPosition.CENTER] = null;
+    p1.memberSlots.slots[SlotPosition.RIGHT] = null;
+    p1.memberSlots.cardStates = new Map([
+      [kanata.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+
+    const actionResult = new GameService().processAction(
+      state,
+      createTapMemberAction(PLAYER1, kanata.instanceId, SlotPosition.LEFT)
+    );
+
+    expect(actionResult.success).toBe(true);
+    expect(actionResult.gameState.activeEffect?.abilityId).toBe(
+      N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID
+    );
+    expect(actionResult.gameState.activeEffect?.selectableCardIds).toEqual([drawnCard.instanceId]);
+    expect(actionResult.gameState.players[0].hand.cardIds).toEqual([drawnCard.instanceId]);
   });
 
   it('executes PL!-pb1-015-P+ when own card effect waits an opponent active low-cost member', () => {

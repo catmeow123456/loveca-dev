@@ -13,7 +13,7 @@ import type { ActionHandler, ActionHandlerContext } from './types.js';
 import { success, failure } from './types.js';
 import { addAction, emitGameEvent, updatePlayer } from '../../domain/entities/game.js';
 import { toggleMemberOrientation, getCardInSlot } from '../../domain/entities/zone.js';
-import { OrientationState } from '../../shared/types/enums.js';
+import { OrientationState, TriggerCondition } from '../../shared/types/enums.js';
 import { createMemberStateChangedEvent } from '../../domain/events/game-events.js';
 
 /**
@@ -74,5 +74,7 @@ export const handleTapMember: ActionHandler<TapMemberAction> = (
     toOrientation: newOrientation,
   });
 
-  return success(state);
+  return success(state, {
+    triggeredEvents: [TriggerCondition.ON_MEMBER_STATE_CHANGED],
+  });
 };

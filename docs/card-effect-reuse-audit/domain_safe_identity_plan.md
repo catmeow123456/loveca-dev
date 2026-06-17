@@ -1,5 +1,9 @@
 # Domain-safe identity helper plan
 
+> 文档类型：历史/计划文档
+> 适用范围：shared/domain-safe 团体身份 helper 的迁移背景、阶段边界与验证记录
+> 当前状态：Batch G-1 到 G-4 已完成；后续身份判断以 `src/shared/utils/card-identity.ts` 与当前调用点为准
+
 审查日期：2026-06-16
 
 本文档记录 Batch G 的边界设计与当前迁移状态。G-1 / G-2 / G-3 / G-4 已完成。

@@ -991,6 +991,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     triggerCondition: TriggerCondition.ON_MEMBER_STATE_CHANGED,
     queued: true,
     implemented: true,
+    perTurnLimit: 1,
     effectText: N_BP4_018_ACTIVE_TO_WAITING_EFFECT_TEXT,
     notes:
       '消费 ON_MEMBER_STATE_CHANGED；仅自己主要阶段中此成员自身从 ACTIVE -> WAITING 时入队，效果复用抽1弃1 helper。',

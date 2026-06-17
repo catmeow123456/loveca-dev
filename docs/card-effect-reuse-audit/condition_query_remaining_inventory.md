@@ -1,5 +1,9 @@
 # Condition/query remaining inventory
 
+> 文档类型：专题说明
+> 适用范围：卡效 condition/query helper 剩余内联查询、候选抽取项与阶段边界
+> 当前状态：持续维护清单；只记录 query/selector 边界，不代表 condition AST、formula builder 或 steps DSL 已落地
+
 审查日期：2026-06-16
 
 本文档只追踪卡效底层重构中的 condition/query 复用摊子。它的目标是把“还剩什么”摊开，而不是推动一次性 AST / DSL / steps 迁移。
