@@ -8,7 +8,13 @@ import {
 } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
-import { cardNameAliasIs, typeIs, unitAliasIs } from '../../src/application/effects/card-selectors';
+import {
+  cardNameAliasIs,
+  costGte,
+  costLte,
+  typeIs,
+  unitAliasIs,
+} from '../../src/application/effects/card-selectors';
 import {
   allCardIdsMatchingSelector,
   countCardIdsMatchingSelectors,
@@ -21,6 +27,7 @@ import {
   getCardIdsInZone,
   getCardIdsInZoneMatching,
   getCardIdsMatchingSelector,
+  getMemberEffectiveCost,
   getSourceEffectiveBladeCount,
   hasAtLeastCardsMatchingSelector,
   hasCardIdsMatchingSelector,
@@ -322,5 +329,81 @@ describe('effect conditions', () => {
     expect(getSourceEffectiveBladeCount(game, 'p1', kaho.instanceId)).toBe(6);
     expect(sourceHasBladeAtLeast(game, 'p1', kaho.instanceId, 6)).toBe(true);
     expect(sourceHasBladeAtLeast(game, 'p1', kaho.instanceId, 7)).toBe(false);
+  });
+
+  it('reads PL!-bp4-008 effective cost only while the source member is on stage and success Live score is at least 6', () => {
+    const hanayo = memberCard('bp4-008-hanayo', {
+      cardCode: 'PL!-bp4-008-P',
+      name: '小泉花阳',
+      cost: 4,
+    });
+    const otherMember = memberCard('other-cost-member', {
+      cardCode: 'PL!-bp4-009-P',
+      name: '其他成员',
+      cost: 4,
+    });
+    const scoreSixLive = liveCard('bp4-008-score-six-live', { score: 6 });
+
+    let game = createGameState('conditions-effective-cost', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hanayo, otherMember, scoreSixLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, hanayo.instanceId),
+      successZone: {
+        ...player.successZone,
+        cardIds: [scoreSixLive.instanceId],
+      },
+    }));
+
+    expect(getMemberEffectiveCost(game, 'p1', hanayo.instanceId)).toBe(7);
+    expect(costLte(4)(hanayo)).toBe(true);
+    expect(costGte(7)(hanayo)).toBe(false);
+
+    const scoreShortGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: {
+        ...player.successZone,
+        cardIds: [],
+      },
+    }));
+    expect(getMemberEffectiveCost(scoreShortGame, 'p1', hanayo.instanceId)).toBe(4);
+
+    const waitingRoomGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [hanayo.instanceId],
+      },
+    }));
+    expect(getMemberEffectiveCost(waitingRoomGame, 'p1', hanayo.instanceId)).toBe(4);
+
+    const otherMemberGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, otherMember.instanceId),
+    }));
+    expect(getMemberEffectiveCost(otherMemberGame, 'p1', otherMember.instanceId)).toBe(4);
+  });
+
+  it('applies PL!-bp4-008 effective cost to synced rarities by base card code', () => {
+    const hanayoR = memberCard('bp4-008-hanayo-r', {
+      cardCode: 'PL!-bp4-008-R',
+      name: '小泉花阳',
+      cost: 4,
+    });
+    const scoreSixLive = liveCard('bp4-008-r-score-six-live', { score: 6 });
+
+    let game = createGameState('conditions-effective-cost-rarity', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hanayoR, scoreSixLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, hanayoR.instanceId),
+      successZone: {
+        ...player.successZone,
+        cardIds: [scoreSixLive.instanceId],
+      },
+    }));
+
+    expect(getMemberEffectiveCost(game, 'p1', hanayoR.instanceId)).toBe(7);
   });
 });

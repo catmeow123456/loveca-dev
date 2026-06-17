@@ -125,6 +125,7 @@ import {
   getBaseCardCode,
   normalizeCardCode,
 } from '../shared/utils/card-code.js';
+import { cardBelongsToGroup } from '../shared/utils/card-identity.js';
 import {
   NOZOMI_ON_ENTER_ABILITY_ID,
   UMI_ON_ENTER_ABILITY_ID,
@@ -158,6 +159,7 @@ import {
   RIN_ACTIVATED_ABILITY_ID,
   PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
+  BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
   BP4_003_ACTIVATED_ABILITY_ID,
   PB1_019_ACTIVATED_ABILITY_ID,
   HANAYO_ACTIVATED_ABILITY_ID,
@@ -788,6 +790,9 @@ const PR_017_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID = 'PR_017_SELECT_WAITING_ROOM
 const BP4_002_SELECT_DISCARD_STEP_ID = 'BP4_002_SELECT_TWO_HAND_CARDS_TO_DISCARD';
 const BP4_002_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID =
   'BP4_002_SELECT_WAITING_ROOM_MUSE_LIVE';
+const BP5_003_SELECT_DISCARD_STEP_ID = 'BP5_003_SELECT_HAND_CARD_TO_DISCARD';
+const BP5_003_SELECT_TOP_TWO_STEP_ID = 'BP5_003_SELECT_TWO_FROM_TOP_FOUR';
+const BP5_003_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'BP5_003_SELECT_WAITING_ROOM_LIVE';
 const PR_018_SELECT_HIGH_SCORE_LIVE_STEP_ID = 'PR_018_SELECT_HIGH_SCORE_LIVE_FROM_WAITING_ROOM';
 const KEKE_SELECT_DISCARD_STEP_ID = 'KEKE_SELECT_DISCARD_FOR_WAITING_ENERGY';
 const SHIKI_LEFT_SELECT_DISCARD_STEP_ID = 'SHIKI_LEFT_SELECT_DISCARD_AFTER_DRAW';
@@ -2343,6 +2348,27 @@ export function confirmActiveEffectStep(
     return finishSelectCardsFromZoneToHandEffect(game, selectedCardId ?? null);
   }
 
+  if (
+    effect.abilityId === BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID &&
+    effect.stepId === BP5_003_SELECT_DISCARD_STEP_ID
+  ) {
+    return selectedCardId ? startBp5003KotoriBranchAfterDiscard(game, selectedCardId) : game;
+  }
+
+  if (
+    effect.abilityId === BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID &&
+    effect.stepId === BP5_003_SELECT_TOP_TWO_STEP_ID
+  ) {
+    return finishBp5003KotoriTakeTopCards(game, selectedCardIds ?? []);
+  }
+
+  if (
+    effect.abilityId === BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID &&
+    effect.stepId === BP5_003_SELECT_WAITING_ROOM_LIVE_STEP_ID
+  ) {
+    return finishSelectCardsFromZoneToHandEffect(game, selectedCardId ?? null);
+  }
+
   if (effect.abilityId === KARIN_LIVE_START_ABILITY_ID && effect.stepId === KARIN_REVEAL_STEP_ID) {
     return finishKarinLiveStart(game);
   }
@@ -2755,6 +2781,8 @@ export function activateCardAbility(
       return startPr017NicoActivatedEffect(game, playerId, cardId);
     case BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID:
       return startBp4002EliActivatedEffect(game, playerId, cardId);
+    case BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID:
+      return startBp5003KotoriActivatedEffect(game, playerId, cardId);
     case BP4_003_ACTIVATED_ABILITY_ID:
       return startBp4ActivatedEffect(game, playerId, cardId);
     case PB1_019_ACTIVATED_ABILITY_ID:
@@ -9942,6 +9970,325 @@ function startBp4002EliActivatedEffect(
     canActivate: (state, controllerId) => successLiveScoreAtLeast(state, controllerId, 6),
     recoverySelectionRequiredWhenHasTargets: true,
   });
+}
+
+function startBp5003KotoriActivatedEffect(
+  game: GameState,
+  playerId: string,
+  cardId: string
+): GameState {
+  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
+    return game;
+  }
+  const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
+  const player = getPlayerById(game, playerId);
+  const sourceCard = getCardById(game, cardId);
+  if (
+    activePlayerId !== playerId ||
+    !player ||
+    !sourceCard ||
+    sourceCard.ownerId !== playerId ||
+    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!-bp5-003') ||
+    !isMemberCardData(sourceCard.data) ||
+    !findMemberSlot(player, cardId) ||
+    player.hand.cardIds.length === 0 ||
+    getActiveEnergyCardIds(player).length < 2
+  ) {
+    return game;
+  }
+
+  const energyCost: EffectCostDefinition = { kind: 'TAP_ACTIVE_ENERGY', count: 2 };
+  const discardCost: EffectCostDefinition = {
+    kind: 'DISCARD_HAND_TO_WAITING_ROOM',
+    minCount: 1,
+    maxCount: 1,
+    optional: false,
+  };
+  const state = recordAbilityUse(
+    game,
+    player.id,
+    BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
+    cardId
+  );
+
+  return addAction(
+    {
+      ...state,
+      activeEffect: {
+        id: `${BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID}:${cardId}:turn-${state.turnCount}:action-${state.actionHistory.length}`,
+        abilityId: BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
+        sourceCardId: cardId,
+        controllerId: player.id,
+        effectText: getCardAbilityEffectText(BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID),
+        stepId: BP5_003_SELECT_DISCARD_STEP_ID,
+        stepText: '请选择1张手牌放置入休息室。',
+        awaitingPlayerId: player.id,
+        selectableCardIds: player.hand.cardIds,
+        selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+        selectionLabel: '选择要放置入休息室的手牌',
+        confirmSelectionLabel: '支付费用',
+        canSkipSelection: false,
+        metadata: {
+          effectCosts: [energyCost, discardCost],
+          handToWaitingRoomCost: {
+            minCount: discardCost.minCount,
+            maxCount: discardCost.maxCount,
+            optional: discardCost.optional,
+          },
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      abilityId: BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
+      sourceCardId: cardId,
+      step: 'START_PAY_ENERGY_SELECT_DISCARD',
+      selectableCardIds: player.hand.cardIds,
+    }
+  );
+}
+
+function startBp5003KotoriBranchAfterDiscard(
+  game: GameState,
+  discardCardId: string
+): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !== BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID ||
+    effect.stepId !== BP5_003_SELECT_DISCARD_STEP_ID ||
+    !effect.selectableCardIds?.includes(discardCardId)
+  ) {
+    return game;
+  }
+
+  const player = getPlayerById(game, effect.controllerId);
+  const discardedCard = getCardById(game, discardCardId);
+  if (!player || !discardedCard || !player.hand.cardIds.includes(discardCardId)) {
+    return game;
+  }
+  const discardedCardIsMuse = cardBelongsToGroup(discardedCard.data, "μ's");
+
+  const energyPayment = payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
+    { kind: 'TAP_ACTIVE_ENERGY', count: 2 },
+  ]);
+  if (!energyPayment) {
+    return game;
+  }
+  const stateAfterDiscard = moveHandCardToWaitingRoomForEffect(
+    energyPayment.gameState,
+    player.id,
+    discardCardId
+  );
+  if (!stateAfterDiscard) {
+    return game;
+  }
+  const stateAfterCost = addAction(stateAfterDiscard, 'PAY_COST', player.id, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    energyCardIds: energyPayment.paidEnergyCardIds,
+    amount: energyPayment.paidEnergyCardIds.length,
+    discardedHandCardIds: [discardCardId],
+    discardedCardIsMuse,
+  });
+
+  if (discardedCardIsMuse) {
+    return startBp5003KotoriLookTopFour(stateAfterCost, effect, player.id, {
+      discardCardId,
+      paidEnergyCardIds: energyPayment.paidEnergyCardIds,
+    });
+  }
+
+  return startBp5003KotoriRecoverLive(stateAfterCost, effect, player.id, {
+    discardCardId,
+    paidEnergyCardIds: energyPayment.paidEnergyCardIds,
+  });
+}
+
+function startBp5003KotoriLookTopFour(
+  game: GameState,
+  effect: ActiveEffectState,
+  playerId: string,
+  metadata: {
+    readonly discardCardId: string;
+    readonly paidEnergyCardIds: readonly string[];
+  }
+): GameState {
+  const inspection = inspectTopCards(game, playerId, { count: 4 });
+  if (!inspection || inspection.inspectedCardIds.length === 0) {
+    return continuePendingCardEffects(
+      addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', playerId, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'NO_TOP_CARDS_TO_INSPECT',
+        discardCardId: metadata.discardCardId,
+        paidEnergyCardIds: metadata.paidEnergyCardIds,
+      }),
+      isOrderedResolutionEffect(game)
+    );
+  }
+
+  const requiredSelectionCount = Math.min(2, inspection.inspectedCardIds.length);
+  return addAction(
+    {
+      ...inspection.gameState,
+      activeEffect: {
+        ...effect,
+        stepId: BP5_003_SELECT_TOP_TWO_STEP_ID,
+        stepText: `检视自己卡组顶的${inspection.inspectedCardIds.length}张卡，选择${requiredSelectionCount}张加入手牌。`,
+        awaitingPlayerId: playerId,
+        selectableCardIds: inspection.selectableCardIds,
+        selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+        selectableCardMode: 'ORDERED_MULTI',
+        inspectionCardIds: inspection.inspectedCardIds,
+        minSelectableCards: requiredSelectionCount,
+        maxSelectableCards: requiredSelectionCount,
+        selectionLabel: '选择要加入手牌的卡',
+        confirmSelectionLabel: '加入手牌',
+        canSkipSelection: false,
+        metadata: {
+          ...effect.metadata,
+          discardCardId: metadata.discardCardId,
+          paidEnergyCardIds: metadata.paidEnergyCardIds,
+          requiredTopSelectionCount: requiredSelectionCount,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    playerId,
+    {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'START_INSPECTION',
+      inspectedCardIds: inspection.inspectedCardIds,
+      selectableCardIds: inspection.selectableCardIds,
+      requiredSelectionCount,
+    }
+  );
+}
+
+function finishBp5003KotoriTakeTopCards(
+  game: GameState,
+  selectedCardIds: readonly string[]
+): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !== BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID ||
+    effect.stepId !== BP5_003_SELECT_TOP_TWO_STEP_ID
+  ) {
+    return game;
+  }
+  const player = getPlayerById(game, effect.controllerId);
+  const inspectedCardIds = effect.inspectionCardIds ?? [];
+  const requiredSelectionCount =
+    typeof effect.metadata?.requiredTopSelectionCount === 'number'
+      ? effect.metadata.requiredTopSelectionCount
+      : Math.min(2, inspectedCardIds.length);
+  const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
+  if (
+    !player ||
+    uniqueSelectedCardIds.length !== selectedCardIds.length ||
+    uniqueSelectedCardIds.length !== requiredSelectionCount ||
+    !uniqueSelectedCardIds.every(
+      (cardId) =>
+        inspectedCardIds.includes(cardId) && effect.selectableCardIds?.includes(cardId) === true
+    )
+  ) {
+    return game;
+  }
+
+  const waitingRoomCardIds = inspectedCardIds.filter(
+    (cardId) => !uniqueSelectedCardIds.includes(cardId)
+  );
+  let state = updatePlayer(game, player.id, (currentPlayer) => ({
+    ...currentPlayer,
+    hand: {
+      ...currentPlayer.hand,
+      cardIds: [...currentPlayer.hand.cardIds, ...uniqueSelectedCardIds],
+    },
+    waitingRoom: {
+      ...currentPlayer.waitingRoom,
+      cardIds: [...currentPlayer.waitingRoom.cardIds, ...waitingRoomCardIds],
+    },
+  }));
+  state = clearInspectionCards({ ...state, activeEffect: null }, inspectedCardIds);
+
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'TAKE_TWO_FROM_TOP_FOUR',
+      selectedCardIds: uniqueSelectedCardIds,
+      waitingRoomCardIds,
+      discardCardId: effect.metadata?.discardCardId,
+      paidEnergyCardIds: effect.metadata?.paidEnergyCardIds,
+    }),
+    isOrderedResolutionEffect(game)
+  );
+}
+
+function startBp5003KotoriRecoverLive(
+  game: GameState,
+  effect: ActiveEffectState,
+  playerId: string,
+  metadata: {
+    readonly discardCardId: string;
+    readonly paidEnergyCardIds: readonly string[];
+  }
+): GameState {
+  const selectableCardIds = selectWaitingRoomCardIds(game, playerId, typeIs(CardType.LIVE));
+  if (selectableCardIds.length === 0) {
+    return continuePendingCardEffects(
+      addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', playerId, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'DISCARD_NON_MUSE_NO_LIVE_TARGET',
+        discardCardId: metadata.discardCardId,
+        paidEnergyCardIds: metadata.paidEnergyCardIds,
+      }),
+      isOrderedResolutionEffect(game)
+    );
+  }
+
+  const zoneSelection = createWaitingRoomToHandSelectionConfig({
+    minCount: 1,
+    maxCount: 1,
+    optional: false,
+  });
+  return addAction(
+    {
+      ...game,
+      activeEffect: createWaitingRoomToHandEffectState({
+        id: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        controllerId: effect.controllerId,
+        effectText: effect.effectText,
+        stepId: BP5_003_SELECT_WAITING_ROOM_LIVE_STEP_ID,
+        stepText: '请选择自己的休息室中1张LIVE卡加入手牌。',
+        awaitingPlayerId: playerId,
+        selectableCardIds,
+        metadata,
+        zoneSelection,
+      }),
+    },
+    'RESOLVE_ABILITY',
+    playerId,
+    {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'SELECT_WAITING_ROOM_LIVE',
+      selectableCardIds,
+    }
+  );
 }
 
 function startPb1ActivatedEffect(game: GameState, playerId: string, cardId: string): GameState {

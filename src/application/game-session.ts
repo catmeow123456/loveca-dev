@@ -133,6 +133,7 @@ import {
   resolvePendingCardEffects,
   syncHsBp6027ManualCheerAdjustment,
 } from './card-effect-runner.js';
+import { getMemberEffectiveCost } from './effects/conditions.js';
 import { isMemberCardData } from '../domain/entities/card.js';
 import { getActiveEnergyIds, tapEnergy } from '../domain/entities/zone.js';
 import {
@@ -2734,6 +2735,7 @@ export class GameSession {
         stageMembers.push({
           cardId: stageCardId,
           data: stageCard.data,
+          effectiveCost: getMemberEffectiveCost(state, command.playerId, stageCardId),
           position: slot,
           orientation:
             player.memberSlots.cardStates.get(stageCardId)?.orientation ?? OrientationState.ACTIVE,

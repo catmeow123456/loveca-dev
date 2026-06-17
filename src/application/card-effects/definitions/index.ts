@@ -34,17 +34,22 @@ import {
   RIN_ACTIVATED_ABILITY_ID,
   PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
+  BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID,
   BP4_003_ACTIVATED_ABILITY_ID,
+  BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
+  BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID,
   PB1_019_ACTIVATED_ABILITY_ID,
   HANAYO_ACTIVATED_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
   KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID,
+  BP4_008_CONTINUOUS_SUCCESS_SCORE_STAGE_COST_ABILITY_ID,
   BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID,
+  BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
   PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID,
   SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
   SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID,
@@ -166,8 +171,14 @@ const PR_017_ACTIVATED_EFFECT_TEXT =
   "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『μ's』的LIVE卡加入手牌。自己的成功LIVE卡区分数合计大于等于9的场合，将2张能量变为活跃。";
 const BP4_002_ACTIVATED_EFFECT_TEXT =
   "【起动】[1回合1次]将2张手牌放置入休息室：从自己的休息室将1张『μ's』的LIVE卡加入手牌。此能力仅可在成功LIVE卡区分数合计大于等于6的场合起动。";
+const BP4_002_CONTINUOUS_EFFECT_TEXT =
+  '【常时】自己的LIVE中的LIVE卡中只要存在不持有【LIVE开始时】能力与【LIVE成功时】能力的卡片，获得[紫ハート][紫ハート]。';
 const BP4_003_EFFECT_TEXT =
   '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。';
+const BP5_003_ACTIVATED_EFFECT_TEXT =
+  "【起动】[1回合1次][E][E]将1张手牌放置入休息室：因此放置入休息室的卡片为『μ's』的卡片的场合，检视自己卡组顶的4张卡。从其中将2张卡片加入手牌。其余的卡片放置入休息室。『μ's』的卡片以外的场合，从自己的休息室将1张LIVE卡加入手牌。";
+const BP5_003_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要自己的舞台中存在大于等于3名名称互不相同的成员，获得[黄ハート]。';
 const PB1_019_EFFECT_TEXT =
   '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。';
 const HANAYO_EFFECT_TEXT = '【起动】[1回合1次][E][E]：将自己卡组顶的10张卡放置入休息室。';
@@ -179,6 +190,8 @@ const BP3_010_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的LIVE卡公开并加入手牌。其余放置入休息室。';
 const BP5_005_ON_ENTER_EFFECT_TEXT =
   '【登场】存在于自己的成功LIVE卡区的卡片的分数合计大于等于6的场合，从自己的能量卡组，将1张能量卡以活跃状态放置入能量区。';
+const BP4_008_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于6，存在于舞台的此成员的费用＋3。';
 const BP5_008_CONTINUOUS_EFFECT_TEXT =
   '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于6，获得[黄ハート][黄ハート]。';
 const SP_BP2_002_ON_ENTER_EFFECT_TEXT =
@@ -187,6 +200,8 @@ const BP6_002_ON_ENTER_EFFECT_TEXT =
   "【登场】检视自己卡组顶的2张卡。可以从其中将1张不持有能力的[μ's]的卡片或持有【常时】能力的[μ's]的卡片公开并加入手牌。其余的卡片放置入休息室。";
 const BP6_005_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将2张手牌放置入休息室：从自己的休息室将至多1张持有[黄HEART]的成员，与至多1张必要HEART中含有[黄HEART]的LIVE卡加入手牌。';
+const BP6_022_CONTINUOUS_EFFECT_TEXT =
+  "【常时】只要此卡存在于自己的成功LIVE卡区，自己的原本分数大于等于5的[μ's]的LIVE卡所需的必要HEART减少[无色HEART][无色HEART]。此效果不会重复生效。";
 const PR_018_ON_ENTER_EFFECT_TEXT = '【登场】从自己的休息室将1张分数大于等于6的LIVE卡加入手牌。';
 const PL_BP3_014_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将此成员变为待机状态：检视自己卡组顶的2张卡。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的卡片放置入休息室。';
@@ -331,13 +346,23 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: BP4_002_ACTIVATED_EFFECT_TEXT,
     perTurnLimit: 1,
-    notes:
-      "仅实现起动段：成功 LIVE 分数合计 >=6 时可弃2手回收1张 μ's LIVE；常时获得紫 Heart +2 暂未实现。",
+    notes: "起动段：成功 LIVE 分数合计 >=6 时可弃2手回收1张 μ's LIVE。",
     activatedUi: {
       abilityId: BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
       text: "起动：[1回合1次]将2张手牌放置入休息室：从自己的休息室将1张『μ's』LIVE卡加入手牌。仅可在成功LIVE分数合计>=6时起动。",
       title: "弃2张手牌，从休息室回收1张『μ's』LIVE卡",
     },
+  },
+  {
+    abilityId: BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!-bp4-002'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: BP4_002_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      '持续修正不进队列；自己的 LIVE 中存在不持有 LIVE 开始/成功能力的 LIVE 时，由 continuous modifier registry 动态收集为 SOURCE_MEMBER 紫 Heart +2。',
   },
   {
     abilityId: BP4_003_ACTIVATED_ABILITY_ID,
@@ -352,6 +377,34 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       text: '起动：将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。',
       title: '将此成员从舞台放置入休息室，从自己的休息室将1张LIVE卡加入手牌',
     },
+  },
+  {
+    abilityId: BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
+    baseCardCodes: ['PL!-bp5-003'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: BP5_003_ACTIVATED_EFFECT_TEXT,
+    perTurnLimit: 1,
+    notes:
+      "起动段：支付2活跃能量并弃1手；按实际弃置卡是否属于 μ's 分支为看顶4取2或休息室回收1张LIVE。",
+    activatedUi: {
+      abilityId: BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
+      text: "起动：[1回合1次][E][E]将1张手牌放置入休息室：若弃置的是『μ's』卡，检视顶4取2；否则从休息室回收1张LIVE。",
+      title: '支付2能量并弃1张手牌，根据弃置卡分支处理',
+    },
+  },
+  {
+    abilityId: BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!-bp5-003'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: BP5_003_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      '持续修正不进队列；自己的舞台存在3名名称互不相同的成员时，由 continuous modifier registry 动态收集为 SOURCE_MEMBER 黄 Heart +1。',
   },
   {
     abilityId: PB1_019_ACTIVATED_ABILITY_ID,
@@ -524,6 +577,17 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '成功 LIVE 分数合计条件走 conditions.ts，只满足时复用 energy.ts 从能量卡组放置活跃能量。',
   },
   {
+    abilityId: BP4_008_CONTINUOUS_SUCCESS_SCORE_STAGE_COST_ABILITY_ID,
+    baseCardCodes: ['PL!-bp4-008'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: BP4_008_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      '持续修正不进队列；成功 LIVE 分数合计 >=6 时，getMemberEffectiveCost 对舞台上的此成员返回印刷费用 +3，并由登场支付方案作为换手减免读取。',
+  },
+  {
     abilityId: BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
     baseCardCodes: ['PL!-bp5-008'],
     category: CardAbilityCategory.CONTINUOUS,
@@ -568,6 +632,17 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: BP6_005_ON_ENTER_EFFECT_TEXT,
     notes:
       '复用弃手费用与 WAITING_ROOM -> HAND；支付可选弃2手后，按持有黄 Heart 成员/必要 Heart 含黄 Heart LIVE 两组各至多1张回收。',
+  },
+  {
+    abilityId: BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
+    baseCardCodes: ['PL!-bp6-022'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.SUCCESS_LIVE_CARD,
+    queued: false,
+    implemented: true,
+    effectText: BP6_022_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      '持续修正不进队列；此卡在成功 LIVE 卡区时，由 continuous modifier registry 对原本分数>=5的 μ’s LIVE 动态投影 RAINBOW 必要 Heart -2，且同效果不叠加。',
   },
   {
     abilityId: PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID,

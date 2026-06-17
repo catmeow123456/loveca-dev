@@ -53,6 +53,7 @@ import {
   BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
   BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+  BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
   BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID,
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID,
@@ -2238,6 +2239,408 @@ describe('sample card effect runner', () => {
       nonMuseLiveId,
       ...discardCardIds,
     ]);
+  });
+
+  it("executes PL!-bp5-003-AR activated ability with μ's discard branch looking top four and taking two", () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('sample-bp5-003-activated-muse-branch', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const sourceCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const memberCardIds = ownedP1CardIds.filter(
+      (cardId) =>
+        cardId !== sourceCardId &&
+        state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const energyCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+    );
+    const discardCardId = memberCardIds[0];
+    const topCardIds = memberCardIds.slice(1, 5);
+    const retryCardId = memberCardIds[5];
+
+    expect(sourceCardId).toBeTruthy();
+    expect(discardCardId).toBeTruthy();
+    expect(topCardIds).toHaveLength(4);
+    expect(retryCardId).toBeTruthy();
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(4);
+
+    const sourceCard = state.cardRegistry.get(sourceCardId!) as unknown as { data: MemberCardData };
+    const discardCard = state.cardRegistry.get(discardCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    sourceCard.data = createMemberCard('PL!-bp5-003-AR', '南ことり', 11);
+    discardCard.data = createMemberCard('PL!-BP5-003-MUSE-DISCARD', '高坂穂乃果', 4, "μ's");
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = sourceCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [sourceCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p1.hand.cardIds = [discardCardId!];
+    p1.mainDeck.cardIds = [...topCardIds, retryCardId!];
+    p1.waitingRoom.cardIds = [];
+    setActiveEnergy(p1, energyCardIds.slice(0, 4));
+
+    const activateResult = session.executeCommand(
+      createActivateAbilityCommand(
+        PLAYER1,
+        sourceCardId!,
+        BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID
+      )
+    );
+
+    expect(activateResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([discardCardId]);
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
+
+    const discardStepId = session.state!.activeEffect!.id;
+    const discardResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, discardStepId, discardCardId)
+    );
+
+    expect(discardResult.success).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardCardId]);
+    expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[0])?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[1])?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.selectableCardMode).toBe('ORDERED_MULTI');
+    expect(session.state?.activeEffect?.minSelectableCards).toBe(2);
+    expect(session.state?.activeEffect?.maxSelectableCards).toBe(2);
+
+    const topSelectionResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        discardStepId,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [topCardIds[1]!, topCardIds[3]!]
+      )
+    );
+
+    expect(topSelectionResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([topCardIds[1], topCardIds[3]]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
+      discardCardId,
+      topCardIds[0],
+      topCardIds[2],
+    ]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([retryCardId]);
+
+    (session.state!.players[0] as unknown as { hand: { cardIds: string[] } }).hand.cardIds = [
+      retryCardId!,
+    ];
+    const secondActivateResult = session.executeCommand(
+      createActivateAbilityCommand(
+        PLAYER1,
+        sourceCardId!,
+        BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID
+      )
+    );
+
+    expect(secondActivateResult.success).toBe(false);
+    expect(session.state?.activeEffect).toBeNull();
+  });
+
+  it("executes PL!-bp5-003-P activated ability with non-μ's discard branch recovering a LIVE", () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('sample-bp5-003-activated-non-muse-branch', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const sourceCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const memberCardIds = ownedP1CardIds.filter(
+      (cardId) =>
+        cardId !== sourceCardId &&
+        state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const targetLiveId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const energyCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+    );
+    const discardCardId = memberCardIds[0];
+
+    expect(sourceCardId).toBeTruthy();
+    expect(discardCardId).toBeTruthy();
+    expect(targetLiveId).toBeTruthy();
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(2);
+
+    const sourceCard = state.cardRegistry.get(sourceCardId!) as unknown as { data: MemberCardData };
+    const discardCard = state.cardRegistry.get(discardCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    const targetLive = state.cardRegistry.get(targetLiveId!) as unknown as { data: LiveCardData };
+    sourceCard.data = createMemberCard('PL!-bp5-003-P', '南ことり', 11);
+    discardCard.data = createMemberCard('PL!N-BP5-003-NON-MUSE-DISCARD', '中須かすみ', 4, '虹咲');
+    targetLive.data = createLiveCard('PL!-BP5-003-TARGET-LIVE', 'Recovery Live');
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = sourceCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [sourceCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p1.hand.cardIds = [discardCardId!];
+    p1.waitingRoom.cardIds = [targetLiveId!];
+    setActiveEnergy(p1, energyCardIds.slice(0, 2));
+
+    const activateResult = session.executeCommand(
+      createActivateAbilityCommand(
+        PLAYER1,
+        sourceCardId!,
+        BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID
+      )
+    );
+    expect(activateResult.success).toBe(true);
+
+    const activeEffectId = session.state!.activeEffect!.id;
+    const discardResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, activeEffectId, discardCardId)
+    );
+
+    expect(discardResult.success).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([targetLiveId, discardCardId]);
+    expect(session.state?.activeEffect?.id).toBe(activeEffectId);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([targetLiveId]);
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
+    expect(session.state?.activeEffect?.metadata?.zoneSelection).toEqual({
+      source: 'WAITING_ROOM',
+      destination: 'HAND',
+      minCount: 1,
+      maxCount: 1,
+      optional: false,
+    });
+
+    const skipRecoveryResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, activeEffectId)
+    );
+
+    expect(skipRecoveryResult.success).toBe(false);
+    expect(session.state?.activeEffect?.id).toBe(activeEffectId);
+
+    const recoverResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, activeEffectId, targetLiveId)
+    );
+
+    expect(recoverResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([targetLiveId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardCardId]);
+  });
+
+  it("allows PL!-bp5-003-R+ non-μ's discard branch to finish when no LIVE target exists", () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('sample-bp5-003-activated-non-muse-no-target', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const sourceCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const discardCardId = ownedP1CardIds.find(
+      (cardId) =>
+        cardId !== sourceCardId && state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const energyCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+    );
+
+    expect(sourceCardId).toBeTruthy();
+    expect(discardCardId).toBeTruthy();
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(2);
+
+    const sourceCard = state.cardRegistry.get(sourceCardId!) as unknown as { data: MemberCardData };
+    const discardCard = state.cardRegistry.get(discardCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    sourceCard.data = createMemberCard('PL!-bp5-003-R+', '南ことり', 11);
+    discardCard.data = createMemberCard('PL!N-BP5-003-NON-MUSE-NO-TARGET', '中須かすみ', 4, '虹咲');
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = sourceCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [sourceCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p1.hand.cardIds = [discardCardId!];
+    p1.waitingRoom.cardIds = [];
+    setActiveEnergy(p1, energyCardIds.slice(0, 2));
+
+    const activateResult = session.executeCommand(
+      createActivateAbilityCommand(
+        PLAYER1,
+        sourceCardId!,
+        BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID
+      )
+    );
+    expect(activateResult.success).toBe(true);
+
+    const discardResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, discardCardId)
+    );
+
+    expect(discardResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardCardId]);
+  });
+
+  it('does not activate PL!-bp5-003-SEC activated ability without two active energy and a hand card', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('sample-bp5-003-activated-cannot-pay', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const sourceCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const handCardId = ownedP1CardIds.find(
+      (cardId) =>
+        cardId !== sourceCardId && state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const energyCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+    );
+
+    expect(sourceCardId).toBeTruthy();
+    expect(handCardId).toBeTruthy();
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(1);
+
+    const sourceCard = state.cardRegistry.get(sourceCardId!) as unknown as { data: MemberCardData };
+    sourceCard.data = createMemberCard('PL!-bp5-003-SEC', '南ことり', 11);
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = sourceCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [sourceCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p1.hand.cardIds = [];
+    setActiveEnergy(p1, energyCardIds.slice(0, 2));
+
+    const noHandResult = session.executeCommand(
+      createActivateAbilityCommand(
+        PLAYER1,
+        sourceCardId!,
+        BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID
+      )
+    );
+    expect(noHandResult.success).toBe(false);
+    expect(session.state?.activeEffect).toBeNull();
+
+    p1.hand.cardIds = [handCardId!];
+    setActiveEnergy(p1, energyCardIds.slice(0, 1));
+    const oneEnergyResult = session.executeCommand(
+      createActivateAbilityCommand(
+        PLAYER1,
+        sourceCardId!,
+        BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID
+      )
+    );
+
+    expect(oneEnergyResult.success).toBe(false);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([handCardId]);
   });
 
   it('executes PL!HS-bp1-006-P on-enter draw2 and discard1', () => {

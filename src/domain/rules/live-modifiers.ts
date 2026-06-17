@@ -1,5 +1,5 @@
 import { HeartColor, SlotPosition } from '../../shared/types/enums.js';
-import { isMemberCardData, type HeartIcon } from '../entities/card.js';
+import { isLiveCardData, isMemberCardData, type HeartIcon } from '../entities/card.js';
 import type {
   GameState,
   LiveModifierState,
@@ -46,6 +46,10 @@ interface ContinuousLiveModifierDefinition {
   readonly collect: (context: ContinuousLiveModifierContext) => readonly LiveModifierState[];
 }
 
+interface SuccessZoneContinuousLiveModifierDefinition extends ContinuousLiveModifierDefinition {
+  readonly nonStackingAbilityId?: string;
+}
+
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
   {
     baseCardCodes: ['PL!-sd1-001'],
@@ -73,6 +77,38 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
               hearts: [{ color: HeartColor.YELLOW, count: 2 }],
               sourceCardId,
               abilityId: BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
+    baseCardCodes: ['PL!-bp4-002'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasLiveWithoutLiveStartOrSuccessAbility(game, playerId)
+        ? [
+            {
+              kind: 'HEART',
+              target: 'SOURCE_MEMBER',
+              playerId,
+              hearts: [{ color: HeartColor.PURPLE, count: 2 }],
+              sourceCardId,
+              abilityId: BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
+    baseCardCodes: ['PL!-bp5-003'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasAtLeastDifferentNamedStageMembers(game, playerId, 3)
+        ? [
+            {
+              kind: 'HEART',
+              target: 'SOURCE_MEMBER',
+              playerId,
+              hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+              sourceCardId,
+              abilityId: BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID,
             },
           ]
         : [],
@@ -109,6 +145,16 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
 ];
 
+const SUCCESS_ZONE_CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly SuccessZoneContinuousLiveModifierDefinition[] =
+  [
+    {
+      baseCardCodes: ['PL!-bp6-022'],
+      nonStackingAbilityId: 'PL!-bp6-022:continuous-success-zone-muse-live-requirement',
+      collect: ({ game, playerId, sourceCardId }) =>
+        collectDreaminGoGoRequirementModifiers(game, playerId, sourceCardId),
+    },
+  ];
+
 const MEMBER_SLOT_ORDER: readonly SlotPosition[] = [
   SlotPosition.LEFT,
   SlotPosition.CENTER,
@@ -118,6 +164,12 @@ const HS_BP1_003_CONTINUOUS_SCORE_ABILITY_ID =
   'PL!HS-bp1-003-SEC:continuous-three-different-hasunosora-score';
 const BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID =
   'PL!-bp5-008:continuous-success-score-yellow-heart';
+const BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID =
+  'PL!-bp4-002:continuous-live-without-timing-purple-heart';
+const BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID =
+  'PL!-bp5-003:continuous-three-different-names-yellow-heart';
+const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
+  'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
 const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
   'PL!N-pb1-004:continuous-not-position-moved-gain-two-blade';
 
@@ -192,9 +244,108 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
         );
       }
     }
+
+    const appliedNonStackingAbilityIds = new Set<string>();
+    for (const cardId of player.successZone.cardIds) {
+      const card = getCardById(game, cardId);
+      if (!card || !isLiveCardData(card.data)) {
+        continue;
+      }
+
+      for (const definition of SUCCESS_ZONE_CONTINUOUS_LIVE_MODIFIER_DEFINITIONS) {
+        if (!doesContinuousDefinitionMatchCardCode(definition, card.data.cardCode)) {
+          continue;
+        }
+        if (
+          definition.nonStackingAbilityId !== undefined &&
+          appliedNonStackingAbilityIds.has(definition.nonStackingAbilityId)
+        ) {
+          continue;
+        }
+
+        modifiers.push(
+          ...definition.collect({
+            game,
+            playerId: player.id,
+            sourceCardId: cardId,
+            successLiveCount,
+          })
+        );
+
+        if (definition.nonStackingAbilityId !== undefined) {
+          appliedNonStackingAbilityIds.add(definition.nonStackingAbilityId);
+        }
+      }
+    }
   }
 
   return modifiers;
+}
+
+function collectDreaminGoGoRequirementModifiers(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly LiveModifierState[] {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return [];
+  }
+
+  return player.liveZone.cardIds.flatMap((liveCardId) => {
+    const card = getCardById(game, liveCardId);
+    if (
+      !card ||
+      !isLiveCardData(card.data) ||
+      card.data.score < 5 ||
+      !cardBelongsToGroup(card.data, "μ's")
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        kind: 'REQUIREMENT' as const,
+        liveCardId,
+        modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+        sourceCardId,
+        abilityId: BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
+      },
+    ];
+  });
+}
+
+function hasLiveWithoutLiveStartOrSuccessAbility(game: GameState, playerId: string): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return false;
+  }
+
+  return player.liveZone.cardIds.some((liveCardId) => {
+    const card = getCardById(game, liveCardId);
+    return (
+      card !== null &&
+      isLiveCardData(card.data) &&
+      !liveHasLiveStartOrSuccessAbility(card.data.cardText)
+    );
+  });
+}
+
+function liveHasLiveStartOrSuccessAbility(cardText: string | undefined): boolean {
+  if (!cardText) {
+    return false;
+  }
+
+  return (
+    cardText.includes('【LIVE开始时】') ||
+    cardText.includes('【LIVE開始時】') ||
+    cardText.includes('【LIVE成功时】') ||
+    cardText.includes('【LIVE成功時】') ||
+    cardText.includes('{{live_start.png|ライブ開始時}}') ||
+    cardText.includes('{{live_success.png|ライブ成功時}}') ||
+    cardText.includes('ライブ開始時') ||
+    cardText.includes('ライブ成功時')
+  );
 }
 
 function doesContinuousDefinitionMatchCardCode(
@@ -210,36 +361,40 @@ function doesContinuousDefinitionMatchCardCode(
 }
 
 function hasThreeDifferentHasunosoraMembersOnStage(game: GameState, playerId: string): boolean {
+  return hasAtLeastDifferentNamedStageMembers(game, playerId, 3, isHasunosoraMemberCard);
+}
+
+function hasAtLeastDifferentNamedStageMembers(
+  game: GameState,
+  playerId: string,
+  minCount: number,
+  predicate: (card: NonNullable<ReturnType<typeof getCardById>>) => boolean = isMemberCard
+): boolean {
   const player = game.players.find((candidate) => candidate.id === playerId);
   if (!player) {
     return false;
   }
 
-  const stagedCards = MEMBER_SLOT_ORDER.map((slot) => player.memberSlots.slots[slot]).map(
-    (cardId) => (cardId ? getCardById(game, cardId) : null)
-  );
-  if (stagedCards.some((card) => card === null)) {
-    return false;
-  }
+  const names = MEMBER_SLOT_ORDER.map((slot) => player.memberSlots.slots[slot])
+    .map((cardId) => (cardId ? getCardById(game, cardId) : null))
+    .filter(
+      (card): card is NonNullable<ReturnType<typeof getCardById>> =>
+        card !== null && isMemberCard(card) && predicate(card)
+    )
+    .map((card) => normalizeContinuousMemberName(card.data.name));
 
-  const memberCards = stagedCards.filter(
-    (card): card is NonNullable<(typeof stagedCards)[number]> =>
-      card !== null && isHasunosoraMemberCard(card)
-  );
-  if (memberCards.length !== MEMBER_SLOT_ORDER.length) {
-    return false;
-  }
+  return new Set(names).size >= minCount;
+}
 
-  return new Set(memberCards.map((card) => normalizeContinuousMemberName(card.data.name))).size ===
-    MEMBER_SLOT_ORDER.length;
+function isMemberCard(card: NonNullable<ReturnType<typeof getCardById>>): boolean {
+  return isMemberCardData(card.data);
 }
 
 function isHasunosoraMemberCard(card: NonNullable<ReturnType<typeof getCardById>>): boolean {
-  if (!isMemberCardData(card.data)) {
-    return false;
-  }
-
-  return cardBelongsToGroup(card.data, '蓮ノ空');
+  return (
+    isMemberCardData(card.data) &&
+    cardBelongsToGroup(card.data, '蓮ノ空')
+  );
 }
 
 function normalizeContinuousMemberName(name: string): string {

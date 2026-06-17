@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
-import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   addLiveModifier,
   collectLiveModifiers,
+  getLiveCardRequirementModifiers,
   getLiveCardScoreModifier,
   getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
@@ -371,6 +372,438 @@ describe('live modifier helpers', () => {
     ]);
   });
 
+  it('collects PL!-bp5-003 as SOURCE_MEMBER yellow Heart +1 with three differently named stage members', () => {
+    const kotori = createCardInstance(
+      {
+        cardCode: 'PL!-bp5-003-AR',
+        name: '南ことり',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 3,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'kotori-bp5-003'
+    );
+    const umi = createCardInstance(
+      {
+        cardCode: 'PL!-TEST-UMI',
+        name: '園田海未',
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'umi-stage'
+    );
+    const rin = createCardInstance(
+      {
+        cardCode: 'PL!-TEST-RIN',
+        name: '星空凛',
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'rin-stage'
+    );
+
+    let game = createGameState('bp5-003-three-names-yellow-heart', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kotori, umi, rin]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kotori.instanceId),
+          SlotPosition.LEFT,
+          umi.instanceId
+        ),
+        SlotPosition.RIGHT,
+        rin.instanceId
+      ),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      sourceCardId: kotori.instanceId,
+      abilityId: 'PL!-bp5-003:continuous-three-different-names-yellow-heart',
+    });
+    expect(getMemberEffectiveHeartIcons(game, 'p1', kotori.instanceId, modifiers)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.YELLOW, 1),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+  });
+
+  it('does not collect PL!-bp5-003 yellow Heart with fewer than three stage member names', () => {
+    const kotori = createBp5003Kotori('kotori-fewer-names');
+    const umi = createCardInstance(
+      {
+        cardCode: 'PL!-TEST-UMI',
+        name: '園田海未',
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'umi-fewer-names'
+    );
+    let game = createGameState('bp5-003-fewer-names', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kotori, umi]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kotori.instanceId),
+        SlotPosition.LEFT,
+        umi.instanceId
+      ),
+    }));
+
+    expect(hasBp5003YellowHeartModifier(game)).toBe(false);
+  });
+
+  it('does not collect PL!-bp5-003 yellow Heart when stage member names are not all different', () => {
+    const kotori = createBp5003Kotori('kotori-duplicate-names');
+    const umi = createCardInstance(
+      {
+        cardCode: 'PL!-TEST-UMI-A',
+        name: '園田海未',
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'umi-duplicate-a'
+    );
+    const anotherUmi = createCardInstance(
+      {
+        cardCode: 'PL!-TEST-UMI-B',
+        name: '園田海未',
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'umi-duplicate-b'
+    );
+    let game = createGameState('bp5-003-duplicate-names', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kotori, umi, anotherUmi]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kotori.instanceId),
+          SlotPosition.LEFT,
+          umi.instanceId
+        ),
+        SlotPosition.RIGHT,
+        anotherUmi.instanceId
+      ),
+    }));
+
+    expect(hasBp5003YellowHeartModifier(game)).toBe(false);
+  });
+
+  it('does not collect PL!-bp5-003 yellow Heart when the source member is not on stage', () => {
+    const kotori = createBp5003Kotori('kotori-off-stage');
+    const umi = createCardInstance(
+      {
+        cardCode: 'PL!-TEST-UMI',
+        name: '園田海未',
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'umi-off-stage'
+    );
+    const rin = createCardInstance(
+      {
+        cardCode: 'PL!-TEST-RIN',
+        name: '星空凛',
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'rin-off-stage'
+    );
+    let game = createGameState('bp5-003-off-stage', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kotori, umi, rin]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      hand: addCardToZone(player.hand, kotori.instanceId),
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, umi.instanceId),
+        SlotPosition.RIGHT,
+        rin.instanceId
+      ),
+    }));
+
+    expect(hasBp5003YellowHeartModifier(game)).toBe(false);
+  });
+
+  it('collects PL!-bp4-002 as SOURCE_MEMBER purple Heart +2 when own LIVE includes a LIVE without LIVE start/success ability', () => {
+    const eli = createCardInstance(
+      {
+        cardCode: 'PL!-bp4-002-R+',
+        name: '绚濑绘里',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 4,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'eli-bp4-002'
+    );
+    const continuousOnlyLive = createCardInstance(
+      {
+        cardCode: 'PL!-NO-TIMING-LIVE',
+        name: 'No Timing Live',
+        cardType: CardType.LIVE,
+        score: 5,
+        requirements: createHeartRequirement({ [HeartColor.PURPLE]: 1 }),
+        cardText: '【常时】此卡的分数+1。',
+      },
+      'p1',
+      'no-timing-live'
+    );
+
+    let game = createGameState('bp4-002-purple-heart', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [eli, continuousOnlyLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, eli.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, continuousOnlyLive.instanceId),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.PURPLE, 2)],
+      sourceCardId: eli.instanceId,
+      abilityId: 'PL!-bp4-002:continuous-live-without-timing-purple-heart',
+    });
+    expect(getMemberEffectiveHeartIcons(game, 'p1', eli.instanceId, modifiers)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.PURPLE, 2),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+  });
+
+  it('does not collect PL!-bp4-002 purple Heart when own LIVE only has LIVE start or LIVE success abilities', () => {
+    const eli = createCardInstance(
+      {
+        cardCode: 'PL!-bp4-002-P+',
+        name: '绚濑绘里',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 4,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'eli-bp4-002-timing'
+    );
+    const liveStartLive = createCardInstance(
+      {
+        cardCode: 'PL!-LIVE-START-LIVE',
+        name: 'Live Start Live',
+        cardType: CardType.LIVE,
+        score: 5,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+        cardText: '【LIVE开始时】此卡的分数+1。',
+      },
+      'p1',
+      'live-start-live'
+    );
+    const liveSuccessLive = createCardInstance(
+      {
+        cardCode: 'PL!-LIVE-SUCCESS-LIVE',
+        name: 'Live Success Live',
+        cardType: CardType.LIVE,
+        score: 5,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+        cardText: '【LIVE成功時】抽1张卡。',
+      },
+      'p1',
+      'live-success-live'
+    );
+
+    let game = createGameState('bp4-002-timing-live-only', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [eli, liveStartLive, liveSuccessLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, eli.instanceId),
+      liveZone: addCardToStatefulZone(
+        addCardToStatefulZone(player.liveZone, liveStartLive.instanceId),
+        liveSuccessLive.instanceId
+      ),
+    }));
+
+    expect(hasBp4002PurpleHeartModifier(game)).toBe(false);
+  });
+
+  it('does not collect PL!-bp4-002 purple Heart when the source member is not on stage', () => {
+    const eli = createCardInstance(
+      {
+        cardCode: 'PL!-bp4-002-SEC',
+        name: '绚濑绘里',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 4,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'eli-bp4-002-off-stage'
+    );
+    const noTimingLive = createCardInstance(
+      {
+        cardCode: 'PL!-NO-TIMING-LIVE',
+        name: 'No Timing Live',
+        cardType: CardType.LIVE,
+        score: 5,
+        requirements: createHeartRequirement({ [HeartColor.PURPLE]: 1 }),
+      },
+      'p1',
+      'no-timing-live-off-stage'
+    );
+
+    let game = createGameState('bp4-002-off-stage', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [eli, noTimingLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      hand: { ...player.hand, cardIds: [eli.instanceId] },
+      liveZone: addCardToStatefulZone(player.liveZone, noTimingLive.instanceId),
+    }));
+
+    expect(hasBp4002PurpleHeartModifier(game)).toBe(false);
+  });
+
+  it('collects PL!-bp6-022 success-zone continuous requirement reduction for original score >=5 μ’s LIVE', () => {
+    const dreamin = createDreaminGoGo('dreamin-source');
+    const targetLive = createCardInstance(
+      createMuseLiveData('PL!-TEST-LIVE', 'μ’s High Score Live', 5),
+      'p1',
+      'target-live'
+    );
+
+    let game = createGameState('bp6-022-requirement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [dreamin, targetLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: addCardToZone(player.successZone, dreamin.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, targetLive.instanceId),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'REQUIREMENT',
+      liveCardId: targetLive.instanceId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+      sourceCardId: dreamin.instanceId,
+      abilityId: 'PL!-bp6-022:continuous-success-zone-muse-live-requirement',
+    });
+    expect(
+      getLiveCardRequirementModifiers(game.liveResolution, targetLive.instanceId, modifiers)
+    ).toEqual([{ color: HeartColor.RAINBOW, countDelta: -2 }]);
+  });
+
+  it('does not stack PL!-bp6-022 requirement reduction from multiple success-zone copies', () => {
+    const firstDreamin = createDreaminGoGo('first-dreamin');
+    const secondDreamin = createDreaminGoGo('second-dreamin');
+    const targetLive = createCardInstance(
+      createMuseLiveData('PL!-TEST-LIVE', 'μ’s High Score Live', 5),
+      'p1',
+      'target-live'
+    );
+
+    let game = createGameState('bp6-022-no-stack', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [firstDreamin, secondDreamin, targetLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: addCardToZone(
+        addCardToZone(player.successZone, firstDreamin.instanceId),
+        secondDreamin.instanceId
+      ),
+      liveZone: addCardToStatefulZone(player.liveZone, targetLive.instanceId),
+    }));
+
+    const modifiers = collectLiveModifiers(game).filter(
+      (modifier) =>
+        modifier.kind === 'REQUIREMENT' &&
+        modifier.abilityId === 'PL!-bp6-022:continuous-success-zone-muse-live-requirement'
+    );
+
+    expect(modifiers).toHaveLength(1);
+    expect(modifiers[0]).toMatchObject({
+      liveCardId: targetLive.instanceId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+      sourceCardId: firstDreamin.instanceId,
+    });
+  });
+
+  it('does not collect PL!-bp6-022 requirement reduction unless Dreamin is in success zone', () => {
+    const dreamin = createDreaminGoGo('dreamin-not-success');
+    const targetLive = createCardInstance(
+      createMuseLiveData('PL!-TEST-LIVE', 'μ’s High Score Live', 5),
+      'p1',
+      'target-live'
+    );
+
+    let game = createGameState('bp6-022-not-success-zone', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [dreamin, targetLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(
+        addCardToStatefulZone(player.liveZone, dreamin.instanceId),
+        targetLive.instanceId
+      ),
+    }));
+
+    expect(hasBp6022RequirementModifier(game)).toBe(false);
+  });
+
+  it('does not collect PL!-bp6-022 requirement reduction for low-score or non-μ’s LIVE targets', () => {
+    const dreamin = createDreaminGoGo('dreamin-source');
+    const lowScoreLive = createCardInstance(
+      createMuseLiveData('PL!-LOW-SCORE-LIVE', 'μ’s Low Score Live', 4),
+      'p1',
+      'low-score-live'
+    );
+    const nonMuseLive = createCardInstance(
+      createHasunosoraLiveData('PL!HS-HIGH-SCORE-LIVE', 'Hasunosora High Score Live', 5),
+      'p1',
+      'non-muse-live'
+    );
+
+    let game = createGameState('bp6-022-target-filter', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [dreamin, lowScoreLive, nonMuseLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: addCardToZone(player.successZone, dreamin.instanceId),
+      liveZone: addCardToStatefulZone(
+        addCardToStatefulZone(player.liveZone, lowScoreLive.instanceId),
+        nonMuseLive.instanceId
+      ),
+    }));
+
+    expect(hasBp6022RequirementModifier(game)).toBe(false);
+  });
+
   it('collects PL!HS-bp1-003 continuous score only for three different Hasunosora members', () => {
     const kozue = createCardInstance(
       createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13),
@@ -584,6 +1017,78 @@ function hasBp5008YellowHeartModifier(game: ReturnType<typeof createGameState>):
   );
 }
 
+function hasBp5003YellowHeartModifier(game: ReturnType<typeof createGameState>): boolean {
+  return collectLiveModifiers(game).some(
+    (modifier) =>
+      modifier.kind === 'HEART' &&
+      modifier.target === 'SOURCE_MEMBER' &&
+      modifier.abilityId === 'PL!-bp5-003:continuous-three-different-names-yellow-heart'
+  );
+}
+
+function hasBp4002PurpleHeartModifier(game: ReturnType<typeof createGameState>): boolean {
+  return collectLiveModifiers(game).some(
+    (modifier) =>
+      modifier.kind === 'HEART' &&
+      modifier.target === 'SOURCE_MEMBER' &&
+      modifier.abilityId === 'PL!-bp4-002:continuous-live-without-timing-purple-heart'
+  );
+}
+
+function hasBp6022RequirementModifier(game: ReturnType<typeof createGameState>): boolean {
+  return collectLiveModifiers(game).some(
+    (modifier) =>
+      modifier.kind === 'REQUIREMENT' &&
+      modifier.abilityId === 'PL!-bp6-022:continuous-success-zone-muse-live-requirement'
+  );
+}
+
+function createBp5003Kotori(instanceId: string) {
+  return createCardInstance(
+    {
+      cardCode: 'PL!-bp5-003-AR',
+      name: '南ことり',
+      cardType: CardType.MEMBER,
+      cost: 11,
+      blade: 3,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    },
+    'p1',
+    instanceId
+  );
+}
+
+function createDreaminGoGo(instanceId: string) {
+  return createCardInstance(
+    {
+      cardCode: 'PL!-bp6-022-L',
+      name: "Dreamin' Go! Go!!",
+      cardType: CardType.LIVE,
+      score: 9,
+      requirements: createHeartRequirement({
+        [HeartColor.PINK]: 5,
+        [HeartColor.YELLOW]: 5,
+        [HeartColor.PURPLE]: 5,
+        [HeartColor.RAINBOW]: 5,
+      }),
+      groupName: "μ's",
+    },
+    'p1',
+    instanceId
+  );
+}
+
+function createMuseLiveData(cardCode: string, name: string, score: number) {
+  return {
+    cardCode,
+    name,
+    cardType: CardType.LIVE,
+    score,
+    requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 3 }),
+    groupName: "μ's",
+  };
+}
+
 function createHasunosoraMemberData(
   cardCode: string,
   name: string,
@@ -606,12 +1111,12 @@ function createHasunosoraMemberData(
   };
 }
 
-function createHasunosoraLiveData(cardCode: string, name: string) {
+function createHasunosoraLiveData(cardCode: string, name: string, score = 1) {
   return {
     cardCode,
     name,
     cardType: CardType.LIVE,
-    score: 1,
+    score,
     requirements: createHeartRequirement({ [HeartColor.GREEN]: 1 }),
     cardText: 'Hasunosora のLIVE。',
   };

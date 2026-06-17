@@ -32,6 +32,7 @@ import { isPlayerActive } from '../shared/phase-config/index.js';
 import {
   collectLiveModifiers,
   getPlayerLiveScoreModifier,
+  projectLiveModifierCompatibility,
 } from '../domain/rules/live-modifiers.js';
 import type {
   LiveResultViewState,
@@ -713,6 +714,15 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
   const firstPlayerId = game.players[0]?.id;
   const secondPlayerId = game.players[1]?.id;
   const liveModifiers = collectLiveModifiers(game);
+  const liveModifierProjection = projectLiveModifierCompatibility(liveModifiers);
+  const liveRequirementReductions = new Map(game.liveResolution.liveRequirementReductions);
+  for (const [cardId, reduction] of liveModifierProjection.liveRequirementReductions.entries()) {
+    liveRequirementReductions.set(cardId, reduction);
+  }
+  const liveRequirementModifiers = new Map(game.liveResolution.liveRequirementModifiers);
+  for (const [cardId, modifiers] of liveModifierProjection.liveRequirementModifiers.entries()) {
+    liveRequirementModifiers.set(cardId, modifiers);
+  }
 
   return {
     scores: {
@@ -734,13 +744,13 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
         : [],
     },
     requirementReductions: Object.fromEntries(
-      [...game.liveResolution.liveRequirementReductions.entries()].map(([cardId, reduction]) => [
+      [...liveRequirementReductions.entries()].map(([cardId, reduction]) => [
         createPublicObjectId(cardId),
         reduction,
       ])
     ),
     requirementModifiers: Object.fromEntries(
-      [...game.liveResolution.liveRequirementModifiers.entries()].map(([cardId, modifiers]) => [
+      [...liveRequirementModifiers.entries()].map(([cardId, modifiers]) => [
         createPublicObjectId(cardId),
         modifiers,
       ])

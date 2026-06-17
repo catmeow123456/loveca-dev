@@ -145,6 +145,47 @@ function hasEnabledCommand(view: PlayerViewState, command: GameCommandType): boo
 }
 
 describe('PlayerViewState projector', () => {
+  it('projects continuous requirement modifiers collected from current live modifiers', () => {
+    let { state } = createProjectedState();
+    const dreamin = createCardInstance(
+      {
+        cardCode: 'PL!-bp6-022-L',
+        name: "Dreamin' Go! Go!!",
+        cardType: CardType.LIVE,
+        score: 9,
+        requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 5 }),
+        groupName: "μ's",
+      },
+      PLAYER1,
+      'p1-dreamin-success'
+    );
+    const targetLive = createCardInstance(
+      {
+        cardCode: 'PL!-PROJECTED-LIVE',
+        name: 'Projected μ’s Live',
+        cardType: CardType.LIVE,
+        score: 5,
+        requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 3 }),
+        groupName: "μ's",
+      },
+      PLAYER1,
+      'p1-projected-live'
+    );
+    state = registerCards(state, [dreamin, targetLive]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      successZone: addCardToZone(player.successZone, dreamin.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, targetLive.instanceId),
+    }));
+
+    const view = projectPlayerViewState(state, PLAYER1);
+    const targetObjectId = createPublicObjectId(targetLive.instanceId);
+
+    expect(view.match.liveResult?.requirementModifiers[targetObjectId]).toEqual([
+      { color: HeartColor.RAINBOW, countDelta: -2 },
+    ]);
+  });
+
   it('uiHints 只表达 GameSession 规则自动化策略，不表达桌面本地模式', () => {
     const { state } = createProjectedState();
 

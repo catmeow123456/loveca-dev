@@ -56,6 +56,8 @@ export interface StageMemberInfo {
   readonly cardId: string;
   /** 成员卡数据 */
   readonly data: MemberCardData;
+  /** 场上有效费用；未提供时按印刷费用处理 */
+  readonly effectiveCost?: number;
   /** 所在槽位 */
   readonly position: SlotPosition;
   /** 成员当前活跃/待机状态 */
@@ -115,10 +117,11 @@ export class CostCalculator {
    * 参考规则 9.6.2.3.2
    *
    * @param relayMemberData 被换手的成员卡数据
+   * @param effectiveCost 被换手成员当前有效费用；未提供时使用印刷费用
    * @returns 减免的费用（等于被换手成员的费用）
    */
-  calculateRelayDiscount(relayMemberData: MemberCardData): number {
-    return relayMemberData.cost;
+  calculateRelayDiscount(relayMemberData: MemberCardData, effectiveCost?: number): number {
+    return Math.max(0, effectiveCost ?? relayMemberData.cost);
   }
 
   /**
@@ -256,7 +259,10 @@ export class CostCalculator {
     const targetMember = resources.stageMembers.find((m) => m.position === targetPosition);
 
     if (targetMember && canMemberBeRelayedAway(targetMember.data)) {
-      const relayDiscount = this.calculateRelayDiscount(targetMember.data);
+      const relayDiscount = this.calculateRelayDiscount(
+        targetMember.data,
+        targetMember.effectiveCost
+      );
       const actualCost = Math.max(0, modifiedCost - relayDiscount);
 
       if (availableEnergy >= actualCost) {
@@ -393,7 +399,7 @@ export class CostCalculator {
     const targetSlotMember =
       resources.stageMembers.find((m) => m.position === targetPosition) ?? null;
     const possibleRelayDiscount = targetSlotMember
-      ? this.calculateRelayDiscount(targetSlotMember.data)
+      ? this.calculateRelayDiscount(targetSlotMember.data, targetSlotMember.effectiveCost)
       : 0;
     const canRelayTargetMember =
       targetSlotMember !== null && canMemberBeRelayedAway(targetSlotMember.data);
