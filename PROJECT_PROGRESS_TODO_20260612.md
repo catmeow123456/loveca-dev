@@ -27,6 +27,29 @@
 - 修复方式：`DebugControl` 外层改为 `pointer-events-none`，实际控制条保留 `pointer-events-auto`，不改变布局与控制条自身交互。
 - 验证：`pnpm --dir client exec tsc -b` passed；Playwright 临时脚本进入对墙打桌面后，左上角按钮上半区/中心/下半区/右侧 `elementFromPoint` 均命中按钮本身，点击按钮左上角内部位置可返回“游戏准备”页。
 
+## 本次 2026-06-15 `ON_MEMBER_STATE_CHANGED` 事件日志消费
+
+- `MemberStateChangedEvent` 现在可携带状态变化来源 `cause`，区分玩家操作、规则处理与卡片效果；普通 `TAP_MEMBER` 会写入 `PLAYER_ACTION`，活跃阶段将待机成员重置为活跃会写入 `RULE_ACTION`，卡效目标选择与自身方向费用会写入 `CARD_EFFECT`。
+- `enqueueTriggeredCardEffects(ON_MEMBER_STATE_CHANGED)` 已开始逐类型消费成员状态变化事件：默认取最近事件，卡效结算会显式传入本次新产生的状态变化事件。当前仍不是完整通用 `GameEvent -> trigger matcher`。
+- 已完成 `PL!N-bp4-018-N`：自己主要阶段中，此成员自身 `ACTIVE -> WAITING` 时抽 1 弃 1；通过手动 `TAP_MEMBER` 事件验证。
+- 已完成 `PL!-pb1-015-P＋ / R`：1 回合 1 次，因自己的卡片效果使对方舞台费用 <= 4 成员 `ACTIVE -> WAITING` 时抽 1；通过 `PL!HS-bp6-004-R` 让对方成员变待机验证 `CARD_EFFECT cause`。
+- 验证：`tests/unit/game-events.test.ts` + `tests/unit/member-state.test.ts` + `tests/unit/effect-costs.test.ts` + `tests/unit/card-effect-classification.test.ts` + `tests/integration/sample-card-effect-runner.test.ts` 共 156 tests passed；`tests/integration/online-command-pipeline.test.ts` 56 tests passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
+## 本次 2026-06-15 `ON_LIVE_START` 事件日志消费
+
+- 已先 `git fetch upstream` 并 fast-forward `effect_refactor_20260615` 到 `upstream/main` 的 `3abcb97`；确认 `6837c82ff3af6b34e4bd552c8d46fdae1fdc3ea4` 已在作者 `main` 中。
+- PERFORMANCE 阶段翻开 LIVE 卡并进入 LIVE 开始检查时机前，现在会写入 `LiveStartEvent(ON_LIVE_START)`，记录表演玩家与本次 LIVE 区卡牌 ID 列表。
+- `enqueueTriggeredCardEffects(ON_LIVE_START)` 改为优先消费 `eventLog` 中最近的 `LiveStartEvent` / 显式 `liveStartEvents`，并把 `PendingAbilityState.eventIds` 绑定真实 `eventId`；无事件时继续保留旧 synthetic `live-start:turn:player` fallback。
+- 回归覆盖 LIVE 卡来源 `PL!HS-bp5-019-L` 分数 6「花结」与舞台成员来源 `PL!HS-bp6-004-R` 费用 13「百生 吟子」：前者确认 LIVE 开始事件包含两张 LIVE 卡，后者确认同源双 LIVE 开始 pending ability 共享本次 `LiveStartEvent.eventId`。
+- 验证：`tests/unit/game-events.test.ts` + `tests/unit/member-state.test.ts` + `tests/unit/card-effect-classification.test.ts` + `tests/integration/sample-card-effect-runner.test.ts` 共 147 tests passed；同步前基线同套件 146 tests passed；`tests/integration/online-command-pipeline.test.ts` 56 tests passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
+## 本次 2026-06-15 `ON_LIVE_SUCCESS` 事件日志消费
+
+- LIVE 结果阶段进入某玩家成功效果窗口时，现在会写入 `LiveSuccessEvent(ON_LIVE_SUCCESS)`，记录成功玩家、本次成功 LIVE 卡列表与当前分数草案；同一玩家同一组成功 LIVE 已写过事件时不会重复写入。
+- `enqueueTriggeredCardEffects(ON_LIVE_SUCCESS)` 改为优先消费 `eventLog` 中最近的 `LiveSuccessEvent` / 显式 `liveSuccessEvents`，并把 `PendingAbilityState.eventIds` 绑定真实 `eventId`；无事件时继续保留旧 `liveResults` 推导与 synthetic fallback，兼容直接 `executeCheckTiming` 的测试/旧路径。
+- 回归覆盖 `LiveSuccessEvent` 工厂、真实阶段推进中二号玩家成功时的事件写入，以及只依赖 `LiveSuccessEvent`、不依赖 `liveResolution.liveResults` 时同时入队舞台成员来源 `PL!HS-bp6-001` 费用 4「日野下花帆」与 LIVE 卡来源 `PL!HS-cl1-009` 分数 1「水彩世界」。
+- 验证：`tests/unit/game-events.test.ts` + `tests/unit/member-state.test.ts` + `tests/unit/card-effect-classification.test.ts` + `tests/integration/sample-card-effect-runner.test.ts` 共 149 tests passed；`tests/integration/online-command-pipeline.test.ts` 56 tests passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
 ## 本次 2026-06-15 `ON_ENTER_STAGE` 事件日志消费
 
 - 普通 `PLAY_MEMBER` 手牌登场现在写入 `EnterStageEvent(fromZone=HAND)`；卡效 `playMembersFromWaitingRoomToEmptySlots` 从休息室登场现在写入 `EnterStageEvent(fromZone=WAITING_ROOM)`。
@@ -162,6 +185,26 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 本地测试桌面已经进入“LIVE 自动判定 + 卡效分类底座”阶段。
 
+## 本次 2026-06-16 condition/query 第二批小收束
+
+- `src/application/effects/conditions.ts` 继续扩展纯函数 query：新增按 cardIds 返回 selector 命中 id、舞台成员存在性、来源以外其他舞台成员等查询。
+- 小范围迁移 runner 内联条件/计数：`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」登场相关成员存在条件、`PL!HS-bp6-001` 费用 4「日野下花帆」登场动态舞台成员数、`PL!HS-bp6-031-L` 分数 8「ファンファーレ！！！」等待室成员与 `みらくらぱーく！` 成员计数、`PL!HS-bp1-006-P` 费用 11「藤岛 慈」LIVE 开始“其他成员”条件。
+- 补 `tests/unit/conditions.test.ts`，覆盖 selector 计数/阈值、区域与成功 LIVE 计数、舞台成员条件、LIVE 区排除来源计数、来源有效 BLADE 阈值查询；文档口径仍保持“第一版 helper 起步”，不提前纳入 frozen baseline。
+- 本次仍不改变事件层、不改变 pending 顺序、不改变费用模块；`PL!HS-bp1-003` 常时三面不同名条件位于 `domain/rules/live-modifiers.ts`，为避免 domain 反向依赖 application，本批暂不迁移。
+
+## 本次 2026-06-15 condition/query 第一版
+
+- 新增 `src/application/effects/conditions.ts`，作为第一版纯函数 query/condition 模块；当前只提供区域计数、selector 计数/阈值、成功 LIVE 数、舞台成员数、LIVE 区排除来源卡计数、来源成员有效 BLADE 阈值查询，不做 AST、不做声明式 steps。
+- 小范围迁移 runner 内联条件/计数：`PL!-sd1-009-SD` 费用 11「矢泽妮可」、`PL!-sd1-022-SD` 分数 4「僕らは今のなかで」、`PL!HS-bp5-019-L` 分数 6「花结」、`PL!HS-bp2-022-L+` 分数 2「アオクハルカ」、`PL!HS-pb1-009-R` 费用 15「日野下花帆」，并顺手复用到 `PL!-sd1-001-SD` 费用 7「高坂穗乃果」成功 LIVE 条件与 `PL!HS-pb1-020-N` 费用 9「百生吟子」休息室 LIVE 数条件。
+- 本次不改变事件层、不改变 pending 顺序、不改变费用模块、不拆 `definitions/index.ts`，只把少量 inline 计数替换为可复用 query 函数。
+- 验证：`tests/unit/card-effect-classification.test.ts` 5 tests passed；`tests/integration/sample-card-effect-runner.test.ts` 133 tests passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
+## 本次 2026-06-15 卡效定义层拆文件
+
+- `CARD_ABILITY_DEFINITIONS`、卡面效果文本、能力 id 与 definition 类型已从 `src/application/card-effect-runner.ts` 拆到 `src/application/card-effects/` 下。
+- `card-effect-runner.ts` 继续保留入队、pending、resolver dispatch、执行流程与步骤解释逻辑；行为预期不变。
+- 本次未做声明式 steps 迁移，也未调整费用期间事件消费时机。
+
 目前已完成的核心方向：
 
 - 对局前端已新增可剥离的卡效自动化视觉标记：正面已自动化卡牌在卡顶中间显示约 4px 小点与 1px 圆角外描边，当前正在处理/可发动时变亮；标记只在 `PlayerArea` 等对局组件中通过 `Card.effectVisualState` 传入，不进入卡牌数据库。控制入口为 `client/src/lib/cardEffectAutomationVisuals.ts`，默认开启，可用 `VITE_CARD_EFFECT_VISUAL_MARKERS=false` / `0` / `off` 关闭；后续若全卡效完成后想剥离，删除该 helper、`CardEffectMarker`、`Card.effectVisualState` prop 和 `PlayerArea` 传参即可。
@@ -175,7 +218,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 ## 卡效分类与底座
 
-`card-effect-runner.ts` 已建立 `CARD_ABILITY_DEFINITIONS` 登记入口。新增卡效前先登记分类，不要直接写单卡散逻辑。
+`src/application/card-effects/definitions/index.ts` 已建立 `CARD_ABILITY_DEFINITIONS` 登记入口。新增卡效前先登记分类，不要直接写单卡散逻辑；`card-effect-runner.ts` 仍负责执行与 resolver dispatch。
 
 2026-06-14 起，连续新增多张卡效时采用“快速卡效批处理模式”：每张卡/每个效果段实时更新 `docs/card-effect-reuse-audit/existing_module_map.md`、focused tests 与本 progress 的短记录；`card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`card_effect_batch_expansions.md`、`module_gap_list.md`、`safe_refactor_plan.md` 等设计/覆盖/gap 文档默认不随每张卡更新。若引入新抽象、新模块、新事件边界，或改变 resolver / cost calculator / live modifier registry / 同编号罕度同步机制，则仍需在同一批内同步更新相关文档。若只是复用既有模块追加同构卡效，即使连续做 5-10 张，也先保持主登记册、progress 与测试准确；等用户明确要求“这批收束/提交”时，再做一次批末摘要式收束，避免全文扫描式重写。
 
@@ -713,10 +756,11 @@ git diff --check
 本次 2026-06-15 快速卡效批处理：`PL!HS-bp6-027-L` 分数 5「月夜見海月」：
 
 - 已完成 `ON_CHEER` 自动能力：自己进行声援时，可将至多 3 张因声援公开且仍在处理区的自己的无 BLADE HEART「莲之空」卡放置入休息室；如此做时追加等量声援。
+- 后续事件层更新：自动/手动/追加声援现在都会写入 `CheerEvent`；`enqueueTriggeredCardEffects(ON_CHEER)` 优先消费 eventLog 中最新非追加 `CheerEvent`，保留旧 LIVE 区推导 fallback。追加声援仍写事件用于审计，但 `additional=true` 不再二次触发 `ON_CHEER`。
 - 新增/扩展底座：
-  - `src/application/effects/cheer.ts`：抽出声援公开到解决区、登记 `liveResolution.*CheerCardIds` 与即时 refresh 检查的共享 helper。
+  - `src/application/effects/cheer.ts`：抽出声援公开到解决区、登记 `liveResolution.*CheerCardIds`、写入 `CheerEvent` 与即时 refresh 检查的共享 helper。
   - `src/application/effects/cheer-selection.ts`：声援公开卡移动目的地新增 `WAITING_ROOM`。
-  - `card-effect-runner` 新增 `ON_CHEER` 入队，当前扫描表演玩家 LIVE 区来源；追加声援不二次触发 `ON_CHEER`。
+  - `card-effect-runner` 新增 `ON_CHEER` 入队，当前优先消费 `CheerEvent`，旧扫描表演玩家 LIVE 区来源只作 fallback；追加声援不二次触发 `ON_CHEER`。
   - 声援公开卡选择支持 `ORDERED_MULTI` 多选配置，本卡使用 `selectMin=0/selectMax=3`。
 - Focused 验证：`tests/unit/card-effect-classification.test.ts` 覆盖 `AUTO / LIVE_CARD / ON_CHEER` 登记；`tests/integration/sample-card-effect-runner.test.ts` 覆盖排除持有 BLADE HEART 与非莲之空公开卡、移动入休息室、追加等量声援。
 - 实时同步：已更新 `docs/card-effect-reuse-audit/existing_module_map.md`；因新增 `ON_CHEER` 事件边界、声援 helper 与追加声援，已同步 `card_effect_framework_design.md`、`card_effect_fragment_coverage_matrix.md`、`effect_module_coverage.md`、`module_gap_list.md` 与 `safe_refactor_plan.md`。

@@ -53,7 +53,14 @@ import {
   isAllMulliganCompleted,
   markMulliganCompleted,
   setSubPhase,
+  emitGameEvent,
 } from '../domain/entities/game.js';
+import {
+  createLiveStartEvent,
+  createLiveSuccessEvent,
+  createMemberStateChangedEvent,
+} from '../domain/events/game-events.js';
+import type { LiveSuccessEvent } from '../domain/events/game-events.js';
 import type { PlayerState } from '../domain/entities/player.js';
 import {
   clearTurnMoveRecords,
@@ -636,6 +643,29 @@ export class GameService {
       }
 
       state = this.revealLiveCards(state);
+      state = this.executePendingRuleActions(state).gameState;
+      const performingPlayerId =
+        state.liveResolution.performingPlayerId ?? state.players[state.activePlayerIndex]?.id;
+      const performingPlayer = performingPlayerId
+        ? getPlayerById(state, performingPlayerId)
+        : null;
+      const liveCardIds = performingPlayer
+        ? this.getLiveCardIdsInLiveZone(state, performingPlayer.id)
+        : [];
+      if (!performingPlayer || liveCardIds.length === 0) {
+        return {
+          ...state,
+          currentSubPhase: SubPhase.NONE,
+          effectWindowType: EffectWindowType.NONE,
+          liveResolution: {
+            ...state.liveResolution,
+            isInLive: false,
+            performingPlayerId: null,
+          },
+        };
+      }
+
+      state = emitGameEvent(state, createLiveStartEvent(performingPlayer.id, liveCardIds));
       state = this.executeCheckTiming(state, [TriggerCondition.ON_LIVE_START]).gameState;
 
       if (!this.hasLiveCardInLiveZone(state, state.players[state.activePlayerIndex].id)) {
@@ -643,6 +673,11 @@ export class GameService {
           ...state,
           currentSubPhase: SubPhase.NONE,
           effectWindowType: EffectWindowType.NONE,
+          liveResolution: {
+            ...state.liveResolution,
+            isInLive: false,
+            performingPlayerId: null,
+          },
         };
       }
 
@@ -691,6 +726,7 @@ export class GameService {
         ...state,
         effectWindowType: EffectWindowType.LIVE_SUCCESS,
       };
+      state = this.emitLiveSuccessEventForResultSubPhase(state, state.currentSubPhase);
       state = this.executeCheckTiming(state, [TriggerCondition.ON_LIVE_SUCCESS]).gameState;
     }
 
@@ -707,14 +743,18 @@ export class GameService {
   }
 
   private hasLiveCardInLiveZone(state: GameState, playerId: string): boolean {
+    return this.getLiveCardIdsInLiveZone(state, playerId).length > 0;
+  }
+
+  private getLiveCardIdsInLiveZone(state: GameState, playerId: string): readonly string[] {
     const player = getPlayerById(state, playerId);
     if (!player) {
-      return false;
+      return [];
     }
 
-    return player.liveZone.cardIds.some((cardId) => {
+    return player.liveZone.cardIds.filter((cardId) => {
       const card = getCardById(state, cardId);
-      return card ? isLiveCardData(card.data) : false;
+      return card !== null && isLiveCardData(card.data);
     });
   }
 
@@ -736,6 +776,56 @@ export class GameService {
     }
 
     return false;
+  }
+
+  private emitLiveSuccessEventForResultSubPhase(
+    state: GameState,
+    subPhase: SubPhase
+  ): GameState {
+    const playerId =
+      subPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS
+        ? state.players[state.firstPlayerIndex]?.id
+        : state.players[state.firstPlayerIndex === 0 ? 1 : 0]?.id;
+
+    if (!playerId) {
+      return state;
+    }
+
+    const successfulLiveCardIds = [...state.liveResolution.liveResults.entries()]
+      .filter(([cardId, isSuccess]) => {
+        const card = state.cardRegistry.get(cardId);
+        return isSuccess === true && card?.ownerId === playerId;
+      })
+      .map(([cardId]) => cardId);
+    if (successfulLiveCardIds.length === 0) {
+      return state;
+    }
+
+    const alreadyLogged = state.eventLog.some((entry) => {
+      const event = entry.event;
+      if (event.eventType !== TriggerCondition.ON_LIVE_SUCCESS) {
+        return false;
+      }
+      const liveSuccessEvent = event as LiveSuccessEvent;
+      return (
+        liveSuccessEvent.playerId === playerId &&
+        liveSuccessEvent.successfulLiveCardIds.length === successfulLiveCardIds.length &&
+        liveSuccessEvent.successfulLiveCardIds.every((cardId) =>
+          successfulLiveCardIds.includes(cardId)
+        )
+      );
+    });
+    if (alreadyLogged) {
+      return state;
+    }
+
+    const score =
+      state.liveResolution.playerScores.get(playerId) ??
+      this.calculateLiveScore(state, playerId);
+    return emitGameEvent(
+      state,
+      createLiveSuccessEvent(playerId, successfulLiveCardIds, score)
+    );
   }
 
   // ============================================
@@ -912,13 +1002,7 @@ export class GameService {
     switch (autoAction.type) {
       case 'UNTAP_ALL':
         // 活跃阶段：将所有能量和成员变为活跃状态
-        return updatePlayer(game, autoAction.playerId, (player) =>
-          clearTurnMoveRecords({
-            ...player,
-            energyZone: untapAllEnergy(player.energyZone),
-            memberSlots: untapAllMembers(player.memberSlots),
-          })
-        );
+        return this.untapAllForActivePhase(game, autoAction.playerId);
 
       case 'DRAW_ENERGY':
         return this.drawEnergy(game, autoAction.playerId);
@@ -930,6 +1014,42 @@ export class GameService {
         }
         return state;
     }
+  }
+
+  private untapAllForActivePhase(game: GameState, playerId: string): GameState {
+    const player = getPlayerById(game, playerId);
+    if (!player) {
+      return game;
+    }
+    const waitingMembers = Object.values(SlotPosition).flatMap((slot) => {
+      const cardId = player.memberSlots.slots[slot];
+      const cardState = cardId ? player.memberSlots.cardStates.get(cardId) : undefined;
+      return cardId && cardState?.orientation === OrientationState.WAITING
+        ? [{ cardId, slot }]
+        : [];
+    });
+
+    let state = updatePlayer(game, playerId, (player) =>
+      clearTurnMoveRecords({
+        ...player,
+        energyZone: untapAllEnergy(player.energyZone),
+        memberSlots: untapAllMembers(player.memberSlots),
+      })
+    );
+    for (const member of waitingMembers) {
+      state = emitGameEvent(
+        state,
+        createMemberStateChangedEvent(
+          member.cardId,
+          playerId,
+          member.slot,
+          OrientationState.WAITING,
+          OrientationState.ACTIVE,
+          { kind: 'RULE_ACTION', playerId }
+        )
+      );
+    }
+    return state;
   }
 
   /**
@@ -1175,22 +1295,8 @@ export class GameService {
   // 检查时机处理（规则 9.5 + 10）
   // ============================================
 
-  /**
-   * 执行检查时机
-   * 根据规则 9.5.3 和第 10 章，自动执行规则处理
-   *
-   * 这是"信任玩家"方案的核心：
-   * - 系统自动清理非法状态
-   * - 玩家可以自由拖拽，系统帮助纠正
-   *
-   * @param game 当前游戏状态
-   * @returns 操作结果
-   */
-  executeCheckTiming(
-    game: GameState,
-    triggerConditions: readonly TriggerCondition[] = []
-  ): GameOperationResult {
-    let state = enqueueTriggeredCardEffects(game, triggerConditions);
+  private executePendingRuleActions(game: GameState): GameOperationResult {
+    let state = game;
     let hasChanges = false;
     let iterations = 0;
     const MAX_ITERATIONS = 100; // 防止无限循环
@@ -1252,15 +1358,47 @@ export class GameService {
       }
     }
 
-    const abilityResult = resolvePendingCardEffects(state);
-    state = abilityResult.gameState;
-    hasChanges = hasChanges || abilityResult.resolvedAbilityIds.length > 0;
-
     return {
       success: true,
       gameState: state,
       triggeredEvents: hasChanges ? ['RULE_ACTIONS_EXECUTED'] : undefined,
       ruleActions: appliedRuleActions,
+    };
+  }
+
+  /**
+   * 执行检查时机
+   * 根据规则 9.5.3 和第 10 章，自动执行规则处理
+   *
+   * 这是"信任玩家"方案的核心：
+   * - 系统自动清理非法状态
+   * - 玩家可以自由拖拽，系统帮助纠正
+   *
+   * @param game 当前游戏状态
+   * @returns 操作结果
+   */
+  executeCheckTiming(
+    game: GameState,
+    triggerConditions: readonly TriggerCondition[] = []
+  ): GameOperationResult {
+    let state = enqueueTriggeredCardEffects(game, triggerConditions);
+    const ruleActionResult = this.executePendingRuleActions(state);
+    state = ruleActionResult.gameState;
+    if (ruleActionResult.triggeredEvents?.includes('GAME_ENDED')) {
+      return ruleActionResult;
+    }
+
+    const abilityResult = resolvePendingCardEffects(state);
+    state = abilityResult.gameState;
+    const hasChanges =
+      (ruleActionResult.ruleActions?.length ?? 0) > 0 ||
+      abilityResult.resolvedAbilityIds.length > 0;
+
+    return {
+      success: true,
+      gameState: state,
+      triggeredEvents: hasChanges ? ['RULE_ACTIONS_EXECUTED'] : undefined,
+      ruleActions: ruleActionResult.ruleActions,
     };
   }
 

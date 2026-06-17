@@ -9,6 +9,7 @@ import {
   createMemberSlotMovedEvent,
   createMemberStateChangedEvent,
 } from '../../domain/events/game-events.js';
+import type { MemberStateChangeCause } from '../../domain/events/game-events.js';
 import { FaceState, OrientationState, SlotPosition, ZoneType } from '../../shared/types/enums.js';
 
 export interface SetMemberOrientationResult {
@@ -49,7 +50,8 @@ export function setMemberOrientation(
   game: GameState,
   playerId: string,
   cardId: string,
-  orientation: OrientationState
+  orientation: OrientationState,
+  cause?: MemberStateChangeCause
 ): SetMemberOrientationResult | null {
   const player = getPlayerById(game, playerId);
   const currentState = player?.memberSlots.cardStates.get(cardId);
@@ -87,7 +89,7 @@ export function setMemberOrientation(
   }
   gameState = emitGameEvent(
     gameState,
-    createMemberStateChangedEvent(cardId, playerId, slot, currentState.orientation, orientation)
+    createMemberStateChangedEvent(cardId, playerId, slot, currentState.orientation, orientation, cause)
   );
 
   return {
@@ -102,7 +104,8 @@ export function setMembersOrientation(
   game: GameState,
   playerId: string,
   cardIds: readonly string[],
-  orientation: OrientationState
+  orientation: OrientationState,
+  cause?: MemberStateChangeCause
 ): SetMembersOrientationResult | null {
   const player = getPlayerById(game, playerId);
   const uniqueCardIds = [...new Set(cardIds)];
@@ -166,7 +169,8 @@ export function setMembersOrientation(
         playerId,
         slot,
         previous.orientation,
-        orientation
+        orientation,
+        cause
       )
     );
   }

@@ -69,7 +69,8 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 游戏状态实体：`src/domain/entities/game.ts`
 - 区域/卡牌状态：`src/domain/entities/zone.ts`
 - 费用计算入口：`src/domain/rules/cost-calculator.ts`
-- 样例卡效入口：`src/application/card-effect-runner.ts`
+- 卡效定义入口：`src/application/card-effects/definitions/index.ts`
+- 样例卡效执行入口：`src/application/card-effect-runner.ts`
 - 联机/前端视图投影：`src/online/projector.ts`
 - 前端 store：`client/src/store/gameStore.ts`
 - 主桌面：`client/src/components/game/GameBoard.tsx`
@@ -80,8 +81,8 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 规则状态必须通过 `GameSession` / `GameService` / command 层改变，不要让 React 组件直接改权威状态。
 - 不要在 React 组件里硬写具体卡效。
 - 不要在 action handler 里散落具体卡效。
-- 具体卡效目前集中在 `card-effect-runner.ts` 做样例实现，后续应逐步抽象成可扩展 runner。
-- 新增卡效前先在 `card-effect-runner.ts` 的 `CARD_ABILITY_DEFINITIONS` 中按规则分类登记，不要先写单卡散逻辑。
+- 具体卡效定义层目前集中在 `src/application/card-effects/definitions/index.ts`；执行、入队、pending 与 resolver 流程仍集中在 `card-effect-runner.ts`，后续应继续逐步抽象成可扩展 runner。
+- 新增卡效前先在 `CARD_ABILITY_DEFINITIONS` 中按规则分类登记，不要先写单卡散逻辑。
 - 新增卡效时必须先用 `llocg_db/json/cards_cn.json` 或本地卡牌数据确认同基础编号的全部罕度。若同基础编号不同罕度效果文本一致，优先在 `CARD_ABILITY_DEFINITIONS.baseCardCodes` 登记基础编号，并在 resolver / cost calculator / live modifier registry 中使用基础编号判断；不要只给单一罕度写 `cardCodes` 或硬编码 `cardCode === '...-P'`。若只覆盖部分罕度，必须在 `existing_module_map.md` 说明原因。`tests/unit/card-effect-rarity-sync.test.ts` 会阻止 exact `cardCodes` 漏同步同编号罕度。
 - 需要隐藏信息时，以 `projector` / visibility / inspection context 控制前端可见性。
 - 本地测试和正式网页桌面应尽量复用同一套组件和命令，不做“双轨 UI”。
@@ -110,10 +111,11 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 能量区卡效步骤优先复用 `src/application/effects/energy.ts`。从能量卡组放置能量到能量区使用 `placeEnergyFromDeckToZone`；将能量变为待机/活跃使用 `setEnergyOrientation` / `setFirstEnergyCardsOrientation`。这些 helper 明确接收目标方向状态；`PL!SP-PR-004-PR` 费用 4「唐 可可」使用它从能量卡组顶放置 1 张待机能量，`PL!SP-bp4-008-P` 费用 13「若菜四季」右侧登场使用它将最多 2 张待机能量变为活跃，不改变普通能量阶段默认活跃放置逻辑。
 - 能量没有个体差异；卡效需要处理 N 张能量时，默认由规则层按能量区顺序自动取符合条件的能量，不让玩家逐张选择具体能量卡。若卡牌文本存在“成员或能量”等分支选择，只保留分支选择；选择能量分支后直接处理能量。
 - “从某区域按条件选择卡 -> 移动到目标区域”属于通用目标选择/移动步骤。当前已由 `src/application/effects/zone-selection.ts` 的 `ZoneCardSelectionConfig` / `moveSelectedCardsFromZone` 覆盖 `WAITING_ROOM -> HAND` 的单选路径，并由 `src/application/effects/card-selectors.ts` 提供 `typeIs` / `groupIs` / `unitIs` / `unitAliasIs` / `unitAliasOrTextAliasIs` / `costLte` / `costGte` / `cardNameIs` / `cardNameAliasIs` / `and` 等最小 selector；新增从休息室回收成员/LIVE、按费用/团体/小组/名称筛选等效果时，优先扩展这个底座，不要在单张卡里重复写移出休息室和加入手牌。小组名条件默认使用 `unitAliasIs` 匹配真实 `unitName`，当前别名覆盖 `Cerise Bouquet`/`スリーズブーケ`、`DOLLCHESTRA`、`Mira-Cra Park!`/`みらくらぱーく！`/`みらくらぱーく!`、`EdelNote`；只有需要处理“所有领域中此卡视为……”等文本身份时，才使用 `unitAliasOrTextAliasIs`。成员名条件默认优先用 `cardNameAliasIs`，当前按卡库常见角色覆盖中日名、空白/中点差异与组合卡 `&` 分隔组件；需要严格卡面名完全一致时才用 `cardNameIs`。
-- “从因声援公开的卡中选择并移动”优先复用 `src/application/effects/cheer-selection.ts`。该 helper 以 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 找到本次声援公开且仍在处理区的卡，再按 selector 移动到手牌、卡组顶或休息室；追加声援优先复用 `src/application/effects/cheer.ts`，只补公开卡与本次声援登记，不二次触发 `ON_CHEER`。后续放回卡组底、重做声援等效果继续扩展同一入口，不要重新扫描整个解决区。
+- “按区域/选择器/来源状态查询条件”已由 `src/application/effects/conditions.ts` 起步：当前只提供纯函数 query，不做 AST、不做声明式 steps。已覆盖区域卡牌计数、selector 计数与阈值、成功 LIVE 数、舞台成员数、舞台成员存在性、其他舞台成员、LIVE 区排除来源卡计数，以及来源成员有效 BLADE 阈值查询；`PL!-sd1-009-SD`、`PL!-sd1-022-SD`、`PL!HS-bp5-019-L`、`PL!HS-bp2-022-L+`、`PL!HS-pb1-009-R`、`PL!HS-sd1-006-SD`、`PL!HS-bp6-001`、`PL!HS-bp6-031-L`、`PL!HS-bp1-006-P` 等条件计数已开始复用该层。
+- “从因声援公开的卡中选择并移动”优先复用 `src/application/effects/cheer-selection.ts`。该 helper 以 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 找到本次声援公开且仍在处理区的卡，再按 selector 移动到手牌、卡组顶或休息室；追加声援优先复用 `src/application/effects/cheer.ts`，写入 `CheerEvent(additional=true)` 并补公开卡与本次声援登记，但不二次触发 `ON_CHEER`。后续放回卡组底、重做声援等效果继续扩展同一入口，不要重新扫描整个解决区。
 - “按条件选择舞台成员 -> 改变成员状态”已由 `src/application/effects/stage-member-target-selection.ts` 起步：用 `stage-targets.ts` + `card-selectors.ts` 生成候选 active effect，并在结算时调用 `setMemberOrientation`。新增选择自己/对方舞台成员并变为待机/活跃的效果时，优先复用该配置入口。
 - “成员变为待机/活跃”与“站位变换”作为卡效步骤时，优先复用 `src/application/effects/member-state.ts` 的 `setMemberOrientation` / `moveMemberBetweenSlots`。普通规则流程里的自由横置、拖拽、手动区域移动仍归 `GameSession` / action handler / `zone-operations.ts`，不要为了卡效抽象反向改写桌面规则流程。
-- 事件层已开始向 `GameState.eventLog` 收口：`emitGameEvent` 是权威不可变事件流入口，`EventBus` 只保留作非权威运行时/调试工具。当前普通 `PLAY_MEMBER` 会写入 `ON_ENTER_STAGE`；`member-state.ts` 与普通 `MOVE_MEMBER_TO_SLOT` 已在成员方向变化与成员槽位移动/交换时写入 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED`；卡效从休息室登场会写入 `ON_ENTER_STAGE`；舞台成员进休息室、换手替换离场、自送费用会写入 `ON_LEAVE_STAGE`。`enqueueTriggeredCardEffects` 已消费 `ON_ENTER_STAGE`、`ON_MEMBER_SLOT_MOVED` 与 `ON_LEAVE_STAGE` 事件流，仍保留旧 action-history fallback；`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」是首个成员移动 AUTO proving path。
+- 事件层已开始向 `GameState.eventLog` 收口：`emitGameEvent` 是权威不可变事件流入口，`EventBus` 只保留作非权威运行时/调试工具。当前普通 `PLAY_MEMBER` 会写入 `ON_ENTER_STAGE`；`member-state.ts`、普通 `TAP_MEMBER` 与活跃阶段重置已在成员方向变化时写入 `ON_MEMBER_STATE_CHANGED`，成员槽位移动/交换会写入 `ON_MEMBER_SLOT_MOVED`；卡效从休息室登场会写入 `ON_ENTER_STAGE`；舞台成员进休息室、换手替换离场、自送费用会写入 `ON_LEAVE_STAGE`；LIVE 翻开进入 LIVE 开始检查时机会写入 `ON_LIVE_START`；LIVE 成功效果窗口会写入 `ON_LIVE_SUCCESS`；自动/手动/追加声援会写入 `ON_CHEER`。`enqueueTriggeredCardEffects` 已消费 `ON_ENTER_STAGE`、`ON_MEMBER_STATE_CHANGED`、`ON_MEMBER_SLOT_MOVED`、`ON_LEAVE_STAGE`、`ON_LIVE_START`、`ON_LIVE_SUCCESS` 与 `ON_CHEER` 事件流，仍保留旧 fallback；`ON_CHEER` 会跳过追加声援事件以避免递归；`PL!N-bp4-018-N` 与 `PL!-pb1-015` 是成员状态变化 AUTO proving path，`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」是成员移动 AUTO proving path。
 - “将此成员从舞台放置入休息室”作为发动费用时，仍优先走 `src/application/effects/effect-costs.ts` 的 `SEND_SOURCE_MEMBER_TO_WAITING_ROOM`；不要和 S01/S02/S05 的状态/站位步骤混成同一个概念。
 - 若效果文本写“公开并加入手牌”，必须先把被选牌加入 `inspectionZone.revealedCardIds`，等待玩家确认后再移动到手牌；不能直接加入手牌。
 - 若效果文本写“将 1 张加入手牌”而不是“可以将 1 张加入手牌”，选择阶段应强制选择；只有没有合法目标时才允许不选。

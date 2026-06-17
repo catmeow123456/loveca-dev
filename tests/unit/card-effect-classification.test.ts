@@ -21,7 +21,9 @@ import {
   HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID,
   HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID,
   HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
+  N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
   BP4_003_ACTIVATED_ABILITY_ID,
+  PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
   HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
   HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID,
@@ -118,6 +120,35 @@ const HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_CARD_CODES = [
 ] as const;
 
 describe('card effect classification registry', () => {
+  it('keeps ability definitions addressable with visible effect text', () => {
+    const definitionsByAbilityId = new Map<
+      string,
+      { readonly baseCardCodes?: readonly string[]; readonly effectText: string }
+    >();
+
+    for (const ability of CARD_ABILITY_DEFINITIONS) {
+      expect(ability.abilityId.trim().length).toBeGreaterThan(0);
+      expect(ability.effectText.trim().length).toBeGreaterThan(0);
+
+      const existingDefinition = definitionsByAbilityId.get(ability.abilityId);
+      if (existingDefinition) {
+        expect(ability.effectText).toBe(existingDefinition.effectText);
+        expect(ability.baseCardCodes ?? []).toEqual(existingDefinition.baseCardCodes ?? []);
+      } else {
+        definitionsByAbilityId.set(ability.abilityId, {
+          baseCardCodes: ability.baseCardCodes,
+          effectText: ability.effectText,
+        });
+      }
+
+      if (ability.activatedUi) {
+        expect(ability.activatedUi.abilityId).toBe(ability.abilityId);
+        expect(ability.activatedUi.text.trim().length).toBeGreaterThan(0);
+        expect(ability.activatedUi.title.trim().length).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it('classifies current sample effects by rule timing and source zone', () => {
     const hs006 = getCardAbilityDefinitions('PL!HS-bp1-006-P').find(
       (ability) => ability.abilityId === HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID
@@ -853,6 +884,21 @@ describe('card effect classification registry', () => {
           SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID
       )
     ).toHaveLength(2);
+    expect(
+      getCardAbilityDefinitions('PL!N-bp4-018-N').some(
+        (ability) =>
+          ability.abilityId === N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID &&
+          ability.triggerCondition === TriggerCondition.ON_MEMBER_STATE_CHANGED
+      )
+    ).toBe(true);
+    expect(
+      getCardAbilityDefinitions('PL!-pb1-015-P＋').some(
+        (ability) =>
+          ability.abilityId === PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID &&
+          ability.triggerCondition === TriggerCondition.ON_MEMBER_STATE_CHANGED &&
+          ability.perTurnLimit === 1
+      )
+    ).toBe(true);
 
     expect(
       getCardAbilityDefinitions('PL!N-pb1-004-R').some(

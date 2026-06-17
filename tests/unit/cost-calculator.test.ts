@@ -329,6 +329,52 @@ describe('CostCalculator', () => {
       expect(directPlan?.actualEnergyCost).toBe(15);
     });
 
+    it('应该通过虹咲 alias、文本和 PL!N- fallback 识别待机成员', () => {
+      const nijigasakiCases = [
+        {
+          label: 'alias',
+          stageMember: createStageMemberInfo('waiting-nijigasaki-alias', 4, SlotPosition.LEFT, {
+            orientation: OrientationState.WAITING,
+            groupName: '虹咲学園スクールアイドル同好会',
+          }),
+        },
+        {
+          label: 'cardText',
+          stageMember: createStageMemberInfo('waiting-nijigasaki-text', 4, SlotPosition.LEFT, {
+            orientation: OrientationState.WAITING,
+            cardText: 'Nijigasaki のメンバー。',
+          }),
+        },
+        {
+          label: 'cardCode',
+          stageMember: createStageMemberInfo('waiting-nijigasaki-code', 4, SlotPosition.LEFT, {
+            orientation: OrientationState.WAITING,
+            cardCode: 'PL!N-test-member',
+          }),
+        },
+      ] as const;
+
+      for (const { label, stageMember } of nijigasakiCases) {
+        const memberData = createMockMemberData(17, `艾玛·维尔德-${label}`, 'PL!N-pb1-008-P+');
+        const resources: AvailableResources = {
+          activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e-${label}-${index}`),
+          stageMembers: [stageMember],
+          sourceCardId: 'source-card',
+          handCardIds: ['source-card'],
+        };
+
+        const result = calculator.checkCanPayCost(memberData, SlotPosition.RIGHT, resources);
+        const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+
+        expect(result.canPay).toBe(true);
+        expect(directPlan?.modifiedCost).toBe(15);
+        expect(directPlan?.costModifierAmount).toBe(2);
+        expect(directPlan?.costModifiers[0]?.id).toBe(
+          'PL!N-pb1-008-P+:hand-self-cost-minus-if-waiting-nijigasaki-member'
+        );
+      }
+    });
+
     it('应该让 PL!N-pb1-008-R 同编号罕度同样获得虹咲待机减费', () => {
       const memberData = createMockMemberData(17, '艾玛·维尔德', 'PL!N-pb1-008-R');
       const resources: AvailableResources = {
@@ -349,6 +395,26 @@ describe('CostCalculator', () => {
       expect(result.canPay).toBe(true);
       expect(directPlan?.modifiedCost).toBe(15);
       expect(directPlan?.costModifierAmount).toBe(2);
+    });
+
+    it('不应该让非待机虹咲成员触发 PL!N-pb1-008-P+ 减费', () => {
+      const memberData = createMockMemberData(17, '艾玛·维尔德', 'PL!N-pb1-008-P+');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('active-nijigasaki-code', 4, SlotPosition.LEFT, {
+            orientation: OrientationState.ACTIVE,
+            cardCode: 'PL!N-test-member',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.RIGHT, resources);
+
+      expect(result.canPay).toBe(false);
+      expect(result.reason).toContain('需要 17 能量');
     });
 
     it('应该让舞台上的 PL!SP-bp5-003-AR 使10费Liella!成员费用减少2', () => {
@@ -396,6 +462,42 @@ describe('CostCalculator', () => {
       expect(result.canPay).toBe(true);
       expect(directPlan?.modifiedCost).toBe(8);
       expect(directPlan?.costModifierAmount).toBe(2);
+    });
+
+    it('应该通过 Liella! alias、文本和 PL!SP- fallback 识别10费目标成员', () => {
+      const liellaTargets = [
+        createMockMemberData(10, '10费Liella alias成员', 'OTHER-LIELLA-ALIAS', {
+          groupName: 'Liella',
+        }),
+        createMockMemberData(10, '10费Liella text成员', 'OTHER-LIELLA-TEXT', {
+          cardText: '『スーパースター』のメンバー。',
+        }),
+        createMockMemberData(10, '10费Liella fallback成员', 'PL!SP-test-cost10'),
+      ];
+
+      for (const memberData of liellaTargets) {
+        const resources: AvailableResources = {
+          activeEnergyIds: Array.from({ length: 8 }, (_, index) => `${memberData.cardCode}-e${index}`),
+          stageMembers: [
+            createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
+              cardCode: 'PL!SP-bp5-003-AR',
+            }),
+          ],
+          sourceCardId: 'source-card',
+          handCardIds: ['source-card'],
+        };
+
+        const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+        const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+
+        expect(result.canPay).toBe(true);
+        expect(directPlan?.totalCost).toBe(10);
+        expect(directPlan?.modifiedCost).toBe(8);
+        expect(directPlan?.costModifierAmount).toBe(2);
+        expect(directPlan?.costModifiers[0]?.id).toBe(
+          'PL!SP-bp5-003-AR:stage-source-cost-minus-cost10-liella'
+        );
+      }
     });
 
     it('应该要求 PL!SP-bp5-003-AR 的目标是10费Liella!成员才减少费用', () => {

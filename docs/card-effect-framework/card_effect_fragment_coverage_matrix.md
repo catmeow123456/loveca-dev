@@ -23,11 +23,11 @@
 | fragment_id | tier | fragment_name | intended_framework_module | bucket | notes |
 |---|---|---|---|---|---|
 | `T01` | P0 | 登场时能力 | trigger registry: `onEnterStage()` | `core_v1` | 登场本质上是标准自动诱发时点，不应和 `AUTO` 分开设计。 |
-| `T02` | P0 | LIVE开始时能力 | trigger registry: `onLiveStart()` | `core_v1` | 已有多张样例；`PL!HS-bp6-004-R` 费用 13「百生 吟子」验证同一来源卡在同一 LIVE 开始窗口产生两条能力时，顺序选择可用 option 按具体效果区分。仍需纳入完整通用 trigger matcher。 |
+| `T02` | P0 | LIVE开始时能力 | trigger registry: `onLiveStart()` | `core_v1` | 已有多张样例；`PL!HS-bp6-004-R` 费用 13「百生 吟子」验证同一来源卡在同一 LIVE 开始窗口产生两条能力时，顺序选择可用 option 按具体效果区分。2026-06-15 起 LIVE 翻开后写入 `LiveStartEvent`，LIVE 开始队列优先消费事件流并把 pending ability 绑定真实 `eventId`；仍需纳入完整通用 trigger matcher。 |
 | `T03` | P0 | 起动能力 | activated ability shell | `core_v1` | 需要统一合法时点、来源、费用、次数限制、UI 展示。 |
-| `T04` | P0 | LIVE成功时能力 | trigger registry: `onLiveSuccess()` | `core_v1` | 已由 019 验证；2026-06-14 追加支持成功 LIVE 卡来源与表演玩家舞台成员来源，`PL!HS-bp6-001` 费用 4「日野下花帆」和 `PL!HS-cl1-009` 分数 1「水彩世界」验证声援公开卡处理。 |
+| `T04` | P0 | LIVE成功时能力 | trigger registry: `onLiveSuccess()` | `core_v1` | 已由 019 验证；2026-06-14 追加支持成功 LIVE 卡来源与表演玩家舞台成员来源，`PL!HS-bp6-001` 费用 4「日野下花帆」和 `PL!HS-cl1-009` 分数 1「水彩世界」验证声援公开卡处理。2026-06-15 起成功效果窗口写入 `LiveSuccessEvent`，LIVE 成功队列优先消费事件流并把 pending ability 绑定真实 `eventId`。 |
 | `T05` | P0 | 常时能力 | continuous modifier registry | `core_v1` | Stage 1D 已起步：`001` 常时 BLADE、`PL!HS-bp1-003` 费用 13「乙宗梢」三面不同名加 LIVE 合计分数、`PL!N-pb1-004` 费用 11「朝香果林」未进行成员区位置移动时 BLADE +2 通过 registry 由 `collectLiveModifiers` 动态收集，不入队、不写状态。 |
-| `T06` | P1 | 自动能力 | generic event trigger: `onEvent(predicate)` | `core_v1` | Stage 1O 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」与 `PL!HS-bp6-017-N` 费用 11「日野下花帆」打开离场 AUTO；`PL!HS-sd1-001` 费用 9「日野下花帆」进一步验证 relay 换手来源条件；Stage 1P 已用 `PL!HS-pb1-009-R` 费用 15「日野下花帆」打开舞台成员监听 `ON_ENTER_STAGE` 的 AUTO；2026-06-15 `PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」验证 `ON_MEMBER_SLOT_MOVED` eventLog 消费，同日 `ON_ENTER_STAGE` / `ON_LEAVE_STAGE` 主路径改为优先消费 `EnterStageEvent` / `LeaveStageEvent`。完整 `GameEvent -> trigger matcher` 仍后续扩。 |
+| `T06` | P1 | 自动能力 | generic event trigger: `onEvent(predicate)` | `core_v1` | Stage 1O 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」与 `PL!HS-bp6-017-N` 费用 11「日野下花帆」打开离场 AUTO；`PL!HS-sd1-001` 费用 9「日野下花帆」进一步验证 relay 换手来源条件；Stage 1P 已用 `PL!HS-pb1-009-R` 费用 15「日野下花帆」打开舞台成员监听 `ON_ENTER_STAGE` 的 AUTO；2026-06-15 `PL!N-bp4-018-N` 与 `PL!-pb1-015` 验证 `ON_MEMBER_STATE_CHANGED` eventLog 消费，`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」验证 `ON_MEMBER_SLOT_MOVED` eventLog 消费，同日 `ON_ENTER_STAGE` / `ON_LEAVE_STAGE` / `ON_LIVE_START` / `ON_LIVE_SUCCESS` 主路径改为优先消费 `EnterStageEvent` / `LeaveStageEvent` / `LiveStartEvent` / `LiveSuccessEvent`。完整 `GameEvent -> trigger matcher` 仍后续扩。 |
 | `T07` | P0 | 每回合1次限制 | limit/gate module | `core_v1` | 已由 `PL!-sd1-008-SD` 费用未登记「小泉 花陽」和 `PL!HS-pb1-009-R` 费用 15「日野下花帆」验证；按来源卡实例而非卡名/玩家同名能力计数。 |
 | `C01` | P0 | 可选弃N张手牌 | cost: `optional(discardHand(n, selector?))` | `core_v1` | Stage 1B 已落地 N=1 手选弃手移动；`PL!HS-bp6-004-R` 费用 13「百生 吟子」继续复用该步骤，并在结算时按弃置卡姓名判断额外 BLADE；`PL!HS-pb1-020` 费用 9「百生吟子」验证弃 2 手牌候选隐私与多选费用；`LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」与 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」验证指定姓名手牌多选弃置。 |
 | `C02` | P0 | 弃N张手牌 | cost: `discardHand(n, selector?)` | `core_v1` | Stage 1B 已落地手牌 -> 休息室移动 API；强制/效果弃牌后续继续复用。 |
@@ -62,8 +62,8 @@
 | `B07` | P1 | 减少LIVE必要HEART | requirement modifier | `core_v1` | Stage 1D 已迁移：当前 022 与 `PL!HS-bp5-019-L` 分数 6「花结」通过 `replaceLiveModifier` 写入 `REQUIREMENT`，旧 requirement Map 仅为兼容投影；`花结` 验证指定绿色 Heart 的负修正。 |
 | `B08` | P1 | 条件成立期间获得BLADE/HEART/分数修正 | continuous printed stat modifier | `core_v1` | Stage 1D 已有 continuous registry；当前 001 动态 BLADE、`PL!HS-bp1-003` 条件型 LIVE 合计分数 +1、`PL!N-pb1-004` 费用 11「朝香果林」未进行成员区位置移动时 BLADE +2 可验证。 |
 | `B09` | P2 | 将LIVE必要HEART改为指定组合 | requirement set/replace modifier | `core_v2` | 与 B07 的 delta 不同，需预留 set semantics。 |
-| `S01` | P0 | 将成员变为待机 | state step: `setMemberOrientation(WAITING)` | `core_v1` | Stage 1E 已起步：`member-state.ts` 提供卡效层成员状态原语；普通规则 TAP_MEMBER 不迁入 card effects。 |
-| `S02` | P0 | 将成员变为活跃 | state step: `setMemberOrientation(ACTIVE)` | `core_v1` | Stage 1E 已起步：与 S01 共用 `setMemberOrientation`；Stage 1M 已补 `setMembersOrientation` 批量方向 helper，并由 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」LIVE 开始验证批量活跃 Liella! 成员；Stage 1N 已由 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证选择 1 名待机舞台成员变活跃。 |
+| `S01` | P0 | 将成员变为待机 | state step: `setMemberOrientation(WAITING)` | `core_v1` | Stage 1E 已起步：`member-state.ts` 提供卡效层成员状态原语；普通规则 TAP_MEMBER 不迁入 card effects，但会写入 `ON_MEMBER_STATE_CHANGED` eventLog。2026-06-15 已由 `PL!N-bp4-018-N` 与 `PL!-pb1-015` 验证成员变待机事件消费。 |
+| `S02` | P0 | 将成员变为活跃 | state step: `setMemberOrientation(ACTIVE)` | `core_v1` | Stage 1E 已起步：与 S01 共用 `setMemberOrientation`；Stage 1M 已补 `setMembersOrientation` 批量方向 helper，并由 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」LIVE 开始验证批量活跃 Liella! 成员；Stage 1N 已由 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证选择 1 名待机舞台成员变活跃。2026-06-15 起成员变活跃同样写入 `ON_MEMBER_STATE_CHANGED` eventLog，活跃阶段规则重置写入 `RULE_ACTION` cause。 |
 | `S03` | P1 | 按费用≤N待机对方成员 | target selector + S01 | `core_v2` | Stage 1Q 已由 `PL!HS-bp6-004-R` 费用 13「百生 吟子」起步：通过 `stage-member-target-selection.ts` + `stage-targets.ts` + `card-selectors.ts` 生成舞台成员目标 active effect，并复用 `setMemberOrientation(WAITING)` 结算。后续可用第二张同型卡继续验证目标配置。 |
 | `S04` | P1 | 按原本BLADE≤N待机对方成员 | target selector + S01 | `core_v2` | 需要 printed stat selector。 |
 | `S05` | P1 | 站位变换/区域移动 | position change step | `core_v1` | Stage 1E 已起步：Karin 站位变换已调用 `moveMemberBetweenSlots`；`PL!SP-bp4-008-P` 费用 13「若菜四季」LIVE 开始可选站位变换也已复用该 helper，支持空槽移动/成员交换并携带下方卡。本批新增 `positionMovedThisTurn`，用于区分“登场”与“成员区位置移动”。2026-06-15 起卡效 helper 与普通 `MOVE_MEMBER_TO_SLOT` 的成员区移动/交换同步写入 `ON_MEMBER_SLOT_MOVED` eventLog；`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」已消费该事件。 |
@@ -77,14 +77,14 @@
 | `E03` | P1 | 从能量卡组放置能量 | energy deck movement | `core_v2` | Stage 1I 已起步：`src/application/effects/energy.ts` 提供 `placeEnergyFromDeckToZone`，`PL!SP-PR-004-PR` 验证从能量卡组顶放置 1 张待机能量。 |
 | `E04` | P2 | 能量放到成员下/从成员下返回 | attach/return energy under member | `special_hook` | 与附属卡/成员下方结构相关，先保留 hook。 |
 | `E05` | P2 | 能量数量作为条件 | condition: energy count | `core_v2` | 可纳入 condition AST。 |
-| `E06` | P2 | 追加声援/重做声援 | cheer action step | `core_v2` | 2026-06-15 已由 `PL!HS-bp6-027-L` 分数 5「月夜見海月」起步追加声援：按实际移入休息室张数从主卡组顶追加公开并登记本次声援卡；追加声援不二次触发 `ON_CHEER`。重做声援仍待样例。 |
-| `L01` | P1 | 参照成功LIVE区 | zone query: success live zone | `core_v1` | 001/022 等已用，需要 query module。 |
-| `L02` | P1 | 参照LIVE卡置场/正在LIVE | zone query: current live/live zone | `core_v1` | Live modifier 和成功时能力需要。 |
+| `E06` | P2 | 追加声援/重做声援 | cheer action step | `core_v2` | 2026-06-15 已由 `PL!HS-bp6-027-L` 分数 5「月夜見海月」起步追加声援：自动/手动/追加声援会写入 `CheerEvent`，`ON_CHEER` 入队优先消费最新非追加事件；按实际移入休息室张数从主卡组顶追加公开并登记本次声援卡，追加声援不二次触发 `ON_CHEER`。重做声援仍待样例。 |
+| `L01` | P1 | 参照成功LIVE区 | zone query: success live zone | `core_v1` | `conditions.ts` 已提供 `countSuccessfulLiveCards`，001/022 等已开始复用第一版 query helper；完整 condition AST 仍后续。 |
+| `L02` | P1 | 参照LIVE卡置场/正在LIVE | zone query: current live/live zone | `core_v1` | `conditions.ts` 已提供 LIVE 区排除来源卡计数 helper，`PL!HS-bp5-019-L` 分数 6「花结」已开始复用；Live modifier 和成功时能力仍继续按样例扩。 |
 | `L03` | P2 | ALL_BLADE当任意颜色HEART | special marker rule | `special_hook` | 属于判定规则 override，不是普通 effect step。 |
 | `L04` | P2 | SCORE标记增加成功LIVE合计分数 | cheer marker resolver | `core_v2` | 可纳入 marker resolution subsystem。 |
 | `L05` | P2 | DRAW标记抽牌 | cheer marker resolver | `core_v2` | 同 L04。 |
 | `L06` | P2 | 不可放入成功LIVE区 | replacement/prohibition rule | `special_hook` | 需要 replacement/prohibition hook，不先通用化。 |
-| `X01` | P0 | 如果/条件成立才执行 | condition combinator | `core_v1` | 整个 DSL 的基础。 |
+| `X01` | P0 | 如果/条件成立才执行 | condition combinator | `core_v1` | `conditions.ts` 已起步为纯函数 query/threshold helper，覆盖区域计数、舞台成员存在性、其他舞台成员、来源 BLADE 阈值等；整个 DSL / condition AST 仍后续。 |
 | `X02` | P0 | 支付/执行成功后“如此做的场合” | previous step result binding | `core_v1` | 不能用模糊 boolean，需要 step result。 |
 | `X03` | P1 | 多选一/从选项中选择 | option choice step | `core_v1` | UI 已有 `selectableOptions`，Stage 1N 已由 `PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证成员/能量目标类型二选一；Stage 1Q 已由 `PL!HS-bp6-004-R` 费用 13「百生 吟子」验证同源多 pending ability 的顺序选择 option。成员分支进入后续选择步骤时清空旧选项，能量分支直接自动结算。 |
 | `X04` | P1 | 按组别/团体名筛选 | selector: group | `core_v1` | 不应硬编码 μ's。 |
@@ -96,7 +96,7 @@
 | `X10` | P2 | 发动/无效其他卡的能力 | referenced ability resolver | `special_hook` | 复杂度高，custom resolver 挂接。 |
 | `X11` | P1 | 手牌中成员/登场费用减少 | cost modifier | `core_v2` | Stage 1L 已起步：`cost-calculator.ts` 支持登场费用修正明细，`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」验证手牌中的自身按其他手牌数量每张 -1 费且自身不计入数量；`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证舞台存在待机状态『虹咲』成员时自身 -2 费；`PL!SP-bp5-003-AR` 费用 17「岚 千砂都」验证舞台来源使手牌中 10 费 Liella! 成员登场费用 -2，且先减费再换手。 |
 | `X12` | P2 | 无能力/能力类型筛选 | selector: ability presence/type | `core_v2` | 可纳入 selector AST。 |
-| `X13` | P2 | 按数量每N个/每1张换算效果 | scaling expression | `core_v1` | 001/022 这类按数量换算已出现；表达层必须有。 |
+| `X13` | P2 | 按数量每N个/每1张换算效果 | scaling expression | `core_v1` | 001/022/花结这类按数量换算已出现；当前只把计数查询迁入 `conditions.ts`，倍率表达层仍在 runner。 |
 
 ## Coverage summary
 
@@ -108,6 +108,6 @@
 
 这里的分配重点是：**设计层不遗漏当前 catalog 中的任何 fragment，但实现层仍按风险和验证样本分批推进。**
 
-Stage 1A-1S 已把 `F07/F08/F09`、`C01/C02/C03/C04/C07/C08/E01`、`F03/F04/F05/F06/F13/F14/F15`、`F01/F02`、`B01/B02/B03/B05/B06/B07/B08/T05`、`S01/S02/S05/S07/S08/S09`、`E02/E03` 与 `X08/X11` 的当前验证集主路径落到模块底座或明确的 proving path。本批 `LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」与 `PL!N-pb1-004` 费用 11「朝香果林」补齐指定姓名手牌弃置、换手禁止、未位置移动时 continuous BLADE。2026-06-15 已加 `GameState.eventLog` / `emitGameEvent` 与 member-state 的成员状态/位置事件写入，并用 `PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」完成 `ON_MEMBER_SLOT_MOVED` 消费 proving path。卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由 `tests/unit/card-effect-rarity-sync.test.ts` 防漏同步；`existing_module_map.md` 是主登记册。
+Stage 1A-1S 已把 `F07/F08/F09`、`C01/C02/C03/C04/C07/C08/E01`、`F03/F04/F05/F06/F13/F14/F15`、`F01/F02`、`B01/B02/B03/B05/B06/B07/B08/T05`、`S01/S02/S05/S07/S08/S09`、`E02/E03` 与 `X08/X11` 的当前验证集主路径落到模块底座或明确的 proving path。本批 `LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」与 `PL!N-pb1-004` 费用 11「朝香果林」补齐指定姓名手牌弃置、换手禁止、未位置移动时 continuous BLADE。2026-06-15 已加 `GameState.eventLog` / `emitGameEvent` 与 member-state 的成员状态/位置事件写入，并用 `PL!N-bp4-018-N`、`PL!-pb1-015` 完成 `ON_MEMBER_STATE_CHANGED` 消费 proving path，用 `PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」完成 `ON_MEMBER_SLOT_MOVED` 消费 proving path；`ON_LIVE_START` / `ON_LIVE_SUCCESS` 也已分别在 LIVE 翻开与成功效果窗口写入 `LiveStartEvent` / `LiveSuccessEvent` 并由对应队列消费。卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由 `tests/unit/card-effect-rarity-sync.test.ts` 防漏同步；`existing_module_map.md` 是主登记册。
 
-下一批建议继续按真实样例小步抽取 condition / look-top / reveal-hand / grouped selection 配置；重做声援与更完整 cheer loop 语义等待新样例，完整事件层继续后置。
+下一批建议继续按真实样例小步抽取 condition / look-top / reveal-hand / grouped selection 配置；condition/query 已有第一版纯函数 helper，但完整 AST 与公式 builder 继续后置。重做声援与更完整 cheer loop 语义等待新样例，完整事件层继续后置。

@@ -87,7 +87,13 @@ export function resolveStageMemberOrientationTargetSelection(
     return null;
   }
 
-  return setMemberOrientation(game, targetPlayerId, selectedCardId, targetOrientation);
+  return setMemberOrientation(game, targetPlayerId, selectedCardId, targetOrientation, {
+    kind: 'CARD_EFFECT',
+    playerId: effect.controllerId,
+    sourceCardId: effect.sourceCardId,
+    abilityId: effect.abilityId,
+    pendingAbilityId: effect.id,
+  });
 }
 
 export function getStageMemberOrientationTargetMetadata(

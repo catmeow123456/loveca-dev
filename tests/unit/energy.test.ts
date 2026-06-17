@@ -5,6 +5,7 @@ import type { GameState } from '../../src/domain/entities/game';
 import type { DeckConfig } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import {
+  getEnergyCardIdsByOrientation,
   placeEnergyFromDeckToZone,
   setEnergyOrientation,
   setFirstEnergyCardsOrientation,
@@ -189,6 +190,40 @@ describe('energy effect helpers', () => {
 
     const activeZone = toggleEnergyOrientation(waitingZone, energyCardId!);
     expect(activeZone.cardStates.get(energyCardId!)?.orientation).toBe(OrientationState.ACTIVE);
+  });
+
+  it('returns energy card ids with the requested orientation without defaulting missing state', () => {
+    const state = createMutableState();
+    const energyCardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.ENERGY)
+      .slice(0, 3)
+      .map((card) => card.instanceId);
+    setPlayerEnergyZones(state, { energyDeckCardIds: [], energyZoneCardIds: energyCardIds });
+
+    const p1 = state.players[0] as unknown as {
+      energyZone: {
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    p1.energyZone.cardStates.set(energyCardIds[0], {
+      orientation: OrientationState.WAITING,
+      face: FaceState.FACE_UP,
+    });
+    p1.energyZone.cardStates.set(energyCardIds[1], {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+    p1.energyZone.cardStates.delete(energyCardIds[2]);
+
+    expect(getEnergyCardIdsByOrientation(state, PLAYER1, OrientationState.WAITING)).toEqual([
+      energyCardIds[0],
+    ]);
+    expect(getEnergyCardIdsByOrientation(state, PLAYER1, OrientationState.ACTIVE)).toEqual([
+      energyCardIds[1],
+    ]);
+    expect(getEnergyCardIdsByOrientation(state, 'missing-player', OrientationState.ACTIVE)).toEqual(
+      []
+    );
   });
 
   it('rejects invalid energy orientation requests', () => {

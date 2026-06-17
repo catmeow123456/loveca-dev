@@ -54,7 +54,7 @@
 | `ON_CARD_MOVED` | future AUTO | 任意卡从区域 A 到区域 B 时 |
 | `ON_MEMBER_STATE_CHANGED` | future AUTO | 成员变为待机/活跃时 |
 | `ON_ENERGY_PAID` | future AUTO | 支付能量时 |
-| `ON_CHEER` | `E06` | 自己进行声援时；当前在自动声援公开后、判定确认前入队 |
+| `ON_CHEER` | `E06` | 自己进行声援时；当前在自动声援公开后、判定确认前写入并消费 `CheerEvent` |
 | `ON_PHASE_START/END` | future AUTO | 阶段开始/结束时 |
 
 也就是说，登场、LIVE 开始、LIVE 成功不应该和 `自动` 对立；它们应该是 `TRIGGERED_AUTO` 下最常见、最标准的 trigger。
@@ -63,7 +63,7 @@
 
 2026-06-14 更新：`ON_LIVE_SUCCESS` 已不再只从成功的 LIVE 卡本身入队，也会在存在成功 LIVE 时扫描表演玩家舞台成员来源。`PL!HS-bp6-001-R＋` 费用 4「日野下花帆」验证了舞台成员来源 LIVE 成功时效果；`PL!HS-cl1-009-CL` 分数 1「水彩世界」与同卡共同打开 `effects/cheer-selection.ts`，通过 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 选取“因声援公开且仍在处理区”的卡，再按卡效配置移动到手牌或卡组顶。
 
-2026-06-15 更新：`ON_CHEER` 已以 `PL!HS-bp6-027-L` 分数 5「月夜見海月」落地。当前入队点在自动声援公开完成后，扫描表演玩家 LIVE 区来源；追加声援只补公开卡与 `liveResolution.*CheerCardIds` 登记，不二次触发 `ON_CHEER`，避免为未来非一回合一次卡制造递归语义。
+2026-06-15 更新：`ON_CHEER` 已以 `PL!HS-bp6-027-L` 分数 5「月夜見海月」落地。当前自动/手动/追加声援会写入 `CheerEvent`，入队优先消费 eventLog 中最新非追加事件，旧扫描表演玩家 LIVE 区来源只作 fallback；追加声援事件带 `additional=true`，只补公开卡与 `liveResolution.*CheerCardIds` 登记，不二次触发 `ON_CHEER`，避免为未来非一回合一次卡制造递归语义。
 
 ## 3. Proposed ability definition shape
 
@@ -148,7 +148,7 @@ defineAbility({
 
 当前状态：
 
-- `CARD_ABILITY_DEFINITIONS` 已经是雏形。
+- `CARD_ABILITY_DEFINITIONS` 已从 runner 拆到 `src/application/card-effects/definitions/index.ts`；ability id 在 `src/application/card-effects/ability-ids.ts`，definition 类型在 `src/application/card-effects/ability-definition-types.ts`。
 - 仍需要把 resolver dispatch 从大量 `switch abilityId` 逐步变成按 `steps` 执行。
 
 ### 4.2 Event and trigger layer
@@ -163,9 +163,11 @@ defineAbility({
 
 - `GameState.eventLog` / `eventSequence` 与 `emitGameEvent` 已落地，作为后续 trigger matcher 的不可变事件事实来源；`actionHistory` 仍保留用于审计、投影与既有 fallback。
 - `EventBus` 保留为非权威运行时/调试工具，不作为规则触发、联机同步或回放来源。
-- `member-state.ts` 已在成员方向变化、成员槽位移动与交换时写入 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED`；普通 `MOVE_MEMBER_TO_SLOT` 也写入成员槽位移动事件。`enqueueTriggeredCardEffects` 已开始消费 `ON_MEMBER_SLOT_MOVED`。
+- `member-state.ts` 已在成员方向变化、成员槽位移动与交换时写入 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED`；普通 `TAP_MEMBER` 与活跃阶段重置也会写入成员状态变化事件，普通 `MOVE_MEMBER_TO_SLOT` 也写入成员槽位移动事件。`enqueueTriggeredCardEffects` 已开始消费 `ON_MEMBER_STATE_CHANGED` 与 `ON_MEMBER_SLOT_MOVED`。
 - `ON_ENTER_STAGE` 已开始消费 `eventLog`：普通手牌登场写入 `EnterStageEvent(fromZone=HAND)`，卡效从休息室登场写入 `EnterStageEvent(fromZone=WAITING_ROOM)`；入队仍保留 action-history fallback。
 - `ON_LEAVE_STAGE` 已开始消费 `eventLog`：普通舞台成员进休息室、换手替换离场、自送休息室费用会写入 `LeaveStageEvent`；入队仍保留 action-history fallback。
+- `ON_LIVE_START` 已开始消费 `eventLog`：PERFORMANCE 阶段翻开 LIVE 后写入 `LiveStartEvent(performerId, liveCardIds)`，LIVE 开始队列优先使用该事件的表演者、LIVE 卡列表与 `eventId`，仍保留旧 synthetic fallback。
+- `ON_LIVE_SUCCESS` 已开始消费 `eventLog`：LIVE 成功效果窗口写入 `LiveSuccessEvent(playerId, successfulLiveCardIds, score)`，LIVE 成功队列优先使用该事件的成功玩家、成功 LIVE 卡列表与 `eventId`，仍保留 `liveResults` 推导 fallback。
 
 必要事件示例：
 
@@ -232,6 +234,8 @@ successLiveCount('self').gte(2)
 previousStepSucceeded()
 sourceMovedThisTurn().isFalse()
 ```
+
+当前状态：`src/application/effects/conditions.ts` 已提供第一版纯函数 condition/query helper，包括区域计数、selector 计数/阈值、按 selector 返回 cardIds、成功 LIVE 数、舞台成员数/存在性、其他舞台成员、LIVE 区排除来源卡计数与来源成员有效 BLADE 阈值查询。它只作为 runner 内联条件的复用层，不引入 condition AST、声明式 steps 或通用公式 builder。
 
 ### 4.5 Effect step layer
 
@@ -433,13 +437,15 @@ P0/P1 覆盖：
 
 当前决策：
 
-- 2026-06-15 已新增 `GameState.eventLog` / `eventSequence` 与 `emitGameEvent`，并让 `member-state.ts` 对成员状态变化、站位变换与成员交换写入 `ON_MEMBER_STATE_CHANGED` / `ON_MEMBER_SLOT_MOVED`。同日已接入 `ON_MEMBER_SLOT_MOVED` 的最小消费路径，`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」验证自身登场或成员区移动后横置对方原本 BLADE <= 3 成员。
+- 2026-06-15 已新增 `GameState.eventLog` / `eventSequence` 与 `emitGameEvent`，并让 `member-state.ts`、普通 `TAP_MEMBER` 与活跃阶段重置对成员状态变化写入 `ON_MEMBER_STATE_CHANGED`，成员状态变化事件可携带 `PLAYER_ACTION` / `RULE_ACTION` / `CARD_EFFECT` cause；站位变换与成员交换写入 `ON_MEMBER_SLOT_MOVED`。同日已接入 `ON_MEMBER_STATE_CHANGED` 与 `ON_MEMBER_SLOT_MOVED` 的最小消费路径：`PL!N-bp4-018-N` 验证自身 `ACTIVE -> WAITING` 时抽 1 弃 1，`PL!-pb1-015-P＋/R` 验证自己的卡效使对方费用 <= 4 成员 `ACTIVE -> WAITING` 时抽 1，`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」验证自身登场或成员区移动后横置对方原本 BLADE <= 3 成员。
 - 2026-06-15 已把 `ON_ENTER_STAGE` 主路径接入 `eventLog`：普通手牌登场与卡效从休息室登场均写入 `EnterStageEvent`，`enqueueTriggeredCardEffects` 优先从事件流入队。默认检查时机只消费最近登场事件，卡效登场显式传入本次新事件列表。
 - 2026-06-15 已把 `ON_LEAVE_STAGE` 主路径接入 `eventLog`：手动离场、换手替换离场与自送费用均写入 `LeaveStageEvent`，`enqueueTriggeredCardEffects` 优先从事件流入队。
+- 2026-06-15 已把 `ON_LIVE_START` 主路径接入 `eventLog`：LIVE 翻开后写入 `LiveStartEvent`，LIVE 开始 pending ability 的 `eventIds` 绑定真实事件 ID；`PL!HS-bp5-019-L` 分数 6「花结」验证 LIVE 卡来源，`PL!HS-bp6-004-R` 费用 13「百生 吟子」验证舞台成员来源同源双 LIVE 开始能力共享本次事件。
+- 2026-06-15 已把 `ON_LIVE_SUCCESS` 主路径接入 `eventLog`：成功效果窗口写入 `LiveSuccessEvent`，LIVE 成功 pending ability 的 `eventIds` 绑定真实事件 ID；`PL!HS-bp6-001` 费用 4「日野下花帆」验证舞台成员来源，`PL!HS-cl1-009` 分数 1「水彩世界」验证 LIVE 卡来源可只从事件事实入队。
 - 2026-06-13 已用 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」最小起步：先支持 `ON_LEAVE_STAGE` 来源入队，证明舞台成员进休息室时的 AUTO 可以走待处理队列。
 - `PL!HS-bp6-017-N` 费用 11「日野下花帆」继续复用同一离场 AUTO 底座，并验证可选弃手后从休息室按类型分组回收 LIVE/成员各至多 1 张。
 - 2026-06-14 `PL!HS-sd1-001-SD` 费用 9「日野下花帆」为同一离场来源补了 `replacingCardId` 薄元数据；2026-06-15 起该元数据直接来自 `LeaveStageEvent`，入队前即可校验“曾与费用 >= 10 的莲之空成员换手”这类来源条件。
-- 当前触发入队仍是逐事件类型迁移；`ON_ENTER_STAGE`、`ON_MEMBER_SLOT_MOVED` 与 `ON_LEAVE_STAGE` 已优先扫描 `eventLog`，仍保留旧 action-history fallback。这还不是完整 `GameEvent -> trigger matcher`。
+- 当前触发入队仍是逐事件类型迁移；`ON_ENTER_STAGE`、`ON_MEMBER_STATE_CHANGED`、`ON_MEMBER_SLOT_MOVED`、`ON_LEAVE_STAGE`、`ON_LIVE_START` 与 `ON_LIVE_SUCCESS` 已优先扫描 `eventLog`，仍保留旧 fallback。这还不是完整 `GameEvent -> trigger matcher`。
 - 当同一动作同时产生离场 AUTO 与登场能力时，pending ability 顺序选择按同 controller 且同 timing、共享 eventId 或换手 `replacingCardId` 关系聚合，玩家可选择先后顺序。
 
 预留做法：
@@ -561,7 +567,7 @@ P0/P1 覆盖：
 
 当前落地：
 
-- `src/application/effects/cheer.ts` 抽出声援公开 helper，负责从主卡组顶公开到解决区、登记 `liveResolution.first/secondPlayerCheerCardIds` / `secondPlayerCheerCardIds`，并沿用即时 refresh 检查。
+- `src/application/effects/cheer.ts` 抽出声援公开 helper，负责从主卡组顶公开到解决区、登记 `liveResolution.first/secondPlayerCheerCardIds` / `secondPlayerCheerCardIds`、写入 `CheerEvent`，并沿用即时 refresh 检查。
 - `PL!HS-bp6-027-L` 分数 5「月夜見海月」结算时按实际移动入休息室张数追加等量声援。
 - 当前边界：追加声援不再次触发 `ON_CHEER`；“重做声援”仍待后续真实样例推进。
 

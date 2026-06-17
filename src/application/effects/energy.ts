@@ -20,6 +20,21 @@ export interface SetEnergyOrientationResult {
   readonly nextOrientation: OrientationState;
 }
 
+export function getEnergyCardIdsByOrientation(
+  game: GameState,
+  playerId: string,
+  orientation: OrientationState
+): string[] {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return [];
+  }
+
+  return player.energyZone.cardIds.filter(
+    (cardId) => player.energyZone.cardStates.get(cardId)?.orientation === orientation
+  );
+}
+
 export function placeEnergyFromDeckToZone(
   game: GameState,
   playerId: string,

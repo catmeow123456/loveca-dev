@@ -1,6 +1,7 @@
 import type { CardInstance } from '../../domain/entities/card.js';
 import { isMemberCardData } from '../../domain/entities/card.js';
-import type { CardType } from '../../shared/types/enums.js';
+import type { CardType, HeartColor } from '../../shared/types/enums.js';
+import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
 
 export type CardSelector = (card: CardInstance) => boolean;
 
@@ -99,8 +100,12 @@ export function groupIs(groupName: string): CardSelector {
       return true;
     }
 
-    return normalizedGroupName.includes('μ') && card.data.cardCode.startsWith('PL!-');
+    return cardBelongsToGroup(card.data, groupName);
   };
+}
+
+export function groupAliasIs(groupName: string): CardSelector {
+  return (card) => cardBelongsToGroup(card.data, groupName);
 }
 
 export function unitIs(unitName: string): CardSelector {
@@ -125,12 +130,38 @@ export function cardNameIs(name: string): CardSelector {
   return (card) => normalizeCardName(card.data.name) === normalizedName;
 }
 
+export function cardNameContains(name: string): CardSelector {
+  const normalizedName = normalizeCardName(name);
+  return (card) =>
+    normalizedName.length > 0 && normalizeCardName(card.data.name).includes(normalizedName);
+}
+
 export function cardNameAliasIs(name: string): CardSelector {
   const normalizedAliases = getNormalizedCardNameAliases(name);
   return (card) =>
     getNormalizedCardNameCandidates(card.data.name).some((candidate) =>
       normalizedAliases.includes(candidate)
     );
+}
+
+export function cardNameAliasAny(names: readonly string[]): CardSelector {
+  const selectors = names.map((name) => cardNameAliasIs(name));
+  return (card) => selectors.some((selector) => selector(card));
+}
+
+export function memberHasHeartColor(color: HeartColor): CardSelector {
+  return (card) =>
+    isMemberCardData(card.data) &&
+    card.data.hearts.some((heart) => heart.color === color && heart.count > 0);
+}
+
+export function hasBladeHeart(): CardSelector {
+  return (card) =>
+    (((card.data as { readonly bladeHearts?: readonly unknown[] }).bladeHearts?.length ?? 0) > 0);
+}
+
+export function memberPrintedBladeLte(maxBlade: number): CardSelector {
+  return (card) => isMemberCardData(card.data) && card.data.blade <= maxBlade;
 }
 
 export function and(...selectors: readonly CardSelector[]): CardSelector {

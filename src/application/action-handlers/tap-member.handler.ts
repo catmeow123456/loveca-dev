@@ -11,9 +11,10 @@ import type { GameState } from '../../domain/entities/game.js';
 import type { TapMemberAction } from '../actions.js';
 import type { ActionHandler, ActionHandlerContext } from './types.js';
 import { success, failure } from './types.js';
-import { addAction, updatePlayer } from '../../domain/entities/game.js';
+import { addAction, emitGameEvent, updatePlayer } from '../../domain/entities/game.js';
 import { toggleMemberOrientation, getCardInSlot } from '../../domain/entities/zone.js';
-import { OrientationState } from '../../shared/types/enums.js';
+import { OrientationState, TriggerCondition } from '../../shared/types/enums.js';
+import { createMemberStateChangedEvent } from '../../domain/events/game-events.js';
 
 /**
  * 处理切换成员状态动作
@@ -56,6 +57,13 @@ export const handleTapMember: ActionHandler<TapMemberAction> = (
     ...p,
     memberSlots: toggleMemberOrientation(p.memberSlots, cardId),
   }));
+  state = emitGameEvent(
+    state,
+    createMemberStateChangedEvent(cardId, playerId, slot, currentOrientation, newOrientation, {
+      kind: 'PLAYER_ACTION',
+      playerId,
+    })
+  );
 
   // 记录动作
   state = addAction(state, 'TAP_MEMBER', playerId, {
@@ -66,5 +74,7 @@ export const handleTapMember: ActionHandler<TapMemberAction> = (
     toOrientation: newOrientation,
   });
 
-  return success(state);
+  return success(state, {
+    triggeredEvents: [TriggerCondition.ON_MEMBER_STATE_CHANGED],
+  });
 };
