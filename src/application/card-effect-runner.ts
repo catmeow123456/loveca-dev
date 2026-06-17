@@ -6540,14 +6540,36 @@ function refreshHsBp6027ManualCheerSelection(
     );
   }
 
-  return {
-    ...game,
-    activeEffect: {
-      ...activeEffect,
-      selectableCardIds,
-      maxSelectableCards: Math.min(3, selectableCardIds.length),
+  const maxSelectableCards = Math.min(3, selectableCardIds.length);
+  const previousSelectableCardIds = activeEffect.selectableCardIds ?? [];
+  const selectionUnchanged =
+    previousSelectableCardIds.length === selectableCardIds.length &&
+    previousSelectableCardIds.every((cardId, index) => cardId === selectableCardIds[index]) &&
+    activeEffect.maxSelectableCards === maxSelectableCards;
+
+  if (selectionUnchanged) {
+    return game;
+  }
+
+  return addAction(
+    {
+      ...game,
+      activeEffect: {
+        ...activeEffect,
+        selectableCardIds,
+        maxSelectableCards,
+      },
     },
-  };
+    'RESOLVE_ABILITY',
+    activeEffect.controllerId,
+    {
+      pendingAbilityId: activeEffect.id,
+      abilityId: activeEffect.abilityId,
+      sourceCardId: activeEffect.sourceCardId,
+      step: 'MANUAL_CHEER_TARGETS_REFRESHED',
+      selectableCardIds,
+    }
+  );
 }
 
 function selectHsBp6027CheerCardIds(game: GameState, playerId: string): readonly string[] {
