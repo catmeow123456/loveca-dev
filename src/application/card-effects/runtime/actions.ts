@@ -1,6 +1,20 @@
-import { getPlayerById, updatePlayer, type GameState } from '../../../domain/entities/game.js';
+import { isMemberCardData } from '../../../domain/entities/card.js';
+import {
+  getCardById,
+  getPlayerById,
+  updatePlayer,
+  type GameState,
+  type LiveModifierState,
+} from '../../../domain/entities/game.js';
+import { addLiveModifier } from '../../../domain/rules/live-modifiers.js';
+import { OrientationState } from '../../../shared/types/enums.js';
 import { paySelectedDiscardHandCost } from '../../effects/effect-costs.js';
 import { drawCardsFromMainDeckToHand, type DrawCardsResult } from '../../effects/draw.js';
+import { shuffleZone } from '../../../domain/entities/zone.js';
+import {
+  setFirstEnergyCardsOrientation,
+  type EnergyOrientationChange,
+} from '../../effects/energy.js';
 
 export interface DrawCardsForEachPlayerResult {
   readonly gameState: GameState;
@@ -40,6 +54,32 @@ export interface RecoverCardsFromWaitingRoomToHandResult {
   readonly movedCardIds: readonly string[];
   readonly selectedCardIds: readonly string[];
   readonly remainingCandidateIds: readonly string[];
+}
+
+export interface ActivateWaitingEnergyCardsForPlayerResult {
+  readonly gameState: GameState;
+  readonly activatedEnergyCardIds: readonly string[];
+  readonly previousOrientations: readonly EnergyOrientationChange[];
+  readonly nextOrientation: OrientationState;
+}
+
+export interface AddBladeLiveModifierForSourceMemberOptions {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly amount: number;
+}
+
+export interface AddBladeLiveModifierForSourceMemberResult {
+  readonly gameState: GameState;
+  readonly modifier: Extract<LiveModifierState, { readonly kind: 'BLADE' }>;
+  readonly bladeBonus: number;
+}
+
+export interface ShuffleWaitingRoomCardsToDeckBottomForPlayerResult {
+  readonly gameState: GameState;
+  readonly movedCardIds: readonly string[];
+  readonly originalCardIds: readonly string[];
 }
 
 export function drawCardsForPlayer(
@@ -194,5 +234,129 @@ export function recoverCardsFromWaitingRoomToHandForPlayer(
     movedCardIds: selectedCardIds,
     selectedCardIds,
     remainingCandidateIds,
+  };
+}
+
+export function activateWaitingEnergyCardsForPlayer(
+  game: GameState,
+  playerId: string,
+  count: number
+): ActivateWaitingEnergyCardsForPlayerResult | null {
+  if (!Number.isInteger(count) || count < 0) {
+    return null;
+  }
+
+  if (count === 0) {
+    const player = getPlayerById(game, playerId);
+    return player
+      ? {
+          gameState: game,
+          activatedEnergyCardIds: [],
+          previousOrientations: [],
+          nextOrientation: OrientationState.ACTIVE,
+        }
+      : null;
+  }
+
+  const orientationResult = setFirstEnergyCardsOrientation(
+    game,
+    playerId,
+    count,
+    OrientationState.ACTIVE,
+    { fromOrientation: OrientationState.WAITING }
+  );
+  if (!orientationResult || orientationResult.updatedEnergyCardIds.length !== count) {
+    return null;
+  }
+
+  return {
+    gameState: orientationResult.gameState,
+    activatedEnergyCardIds: orientationResult.updatedEnergyCardIds,
+    previousOrientations: orientationResult.previousOrientations,
+    nextOrientation: orientationResult.nextOrientation,
+  };
+}
+
+export function addBladeLiveModifierForSourceMember(
+  game: GameState,
+  options: AddBladeLiveModifierForSourceMemberOptions
+): AddBladeLiveModifierForSourceMemberResult | null {
+  const { playerId, sourceCardId, abilityId, amount } = options;
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return null;
+  }
+
+  const player = getPlayerById(game, playerId);
+  const sourceCard = getCardById(game, sourceCardId);
+  if (
+    !player ||
+    !sourceCard ||
+    sourceCard.ownerId !== playerId ||
+    !isMemberCardData(sourceCard.data)
+  ) {
+    return null;
+  }
+
+  const modifier: Extract<LiveModifierState, { readonly kind: 'BLADE' }> = {
+    kind: 'BLADE',
+    playerId,
+    countDelta: amount,
+    sourceCardId,
+    abilityId,
+  };
+
+  return {
+    gameState: addLiveModifier(game, modifier),
+    modifier,
+    bladeBonus: amount,
+  };
+}
+
+export function shuffleWaitingRoomCardsToDeckBottomForPlayer(
+  game: GameState,
+  playerId: string,
+  cardIds: readonly string[]
+): ShuffleWaitingRoomCardsToDeckBottomForPlayerResult | null {
+  const player = getPlayerById(game, playerId);
+  const uniqueCardIds = new Set(cardIds);
+  if (!player || uniqueCardIds.size !== cardIds.length) {
+    return null;
+  }
+
+  if (cardIds.some((cardId) => !player.waitingRoom.cardIds.includes(cardId))) {
+    return null;
+  }
+
+  if (cardIds.length === 0) {
+    return {
+      gameState: game,
+      movedCardIds: [],
+      originalCardIds: [],
+    };
+  }
+
+  const shuffledCardIds = shuffleZone({
+    ...player.waitingRoom,
+    cardIds: [...cardIds],
+  }).cardIds;
+  const selectedCardIdSet = new Set(cardIds);
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    waitingRoom: {
+      ...currentPlayer.waitingRoom,
+      cardIds: currentPlayer.waitingRoom.cardIds.filter(
+        (cardId) => !selectedCardIdSet.has(cardId)
+      ),
+    },
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: [...currentPlayer.mainDeck.cardIds, ...shuffledCardIds],
+    },
+  }));
+
+  return {
+    gameState,
+    movedCardIds: shuffledCardIds,
+    originalCardIds: cardIds,
   };
 }

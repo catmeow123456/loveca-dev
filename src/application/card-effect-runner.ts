@@ -21,7 +21,6 @@ import {
   addCardToZone,
   removeCardFromStatefulZone,
   removeCardFromZone,
-  shuffleZone,
 } from '../domain/entities/zone.js';
 import {
   addLiveModifier,
@@ -94,17 +93,21 @@ import {
   setMembersOrientation,
 } from './effects/member-state.js';
 import {
+  addBladeLiveModifierForSourceMember,
   discardHandCardsToWaitingRoomForPlayer,
   discardOneHandCardToWaitingRoomForPlayer,
   drawCardsForEachPlayer,
   drawCardsForPlayer,
   recoverCardsFromWaitingRoomToHandForPlayer,
+  shuffleWaitingRoomCardsToDeckBottomForPlayer,
 } from './card-effects/runtime/actions.js';
 import { resolveActivatedAbilityWithRegistry } from './card-effects/runtime/activated-registry.js';
 import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime/starter-registry.js';
 import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step-registry.js';
 import { registerHsBp5008IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-008-izumi.js';
 import { registerHsPb1009KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-009-kaho.js';
+import { registerHsSd1006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-006-hime.js';
+import { registerPr017NicoWorkflowHandlers } from './card-effects/workflows/cards/pr-017-nico.js';
 import { registerDiscardCostWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/discard-cost-waiting-room-to-hand.js';
 import { registerDiscardLookTopSelectToHandWorkflowHandlers } from './card-effects/workflows/shared/discard-look-top-select-to-hand.js';
 import { registerDrawThenDiscardWorkflowHandlers } from './card-effects/workflows/shared/draw-then-discard.js';
@@ -156,13 +159,11 @@ import {
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
-  HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID,
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
-  PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
   HANAYO_ACTIVATED_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
@@ -725,7 +726,6 @@ function revealSelectedInspectionCard(
   );
 }
 const NOZOMI_REVEAL_STEP_ID = 'NOZOMI_REVEAL_TOP_FIVE';
-const SELECT_WAITING_ROOM_CARD_STEP_ID = 'SELECT_WAITING_ROOM_CARD';
 const MAKI_SELECT_HAND_LIVE_STEP_ID = 'MAKI_SELECT_HAND_LIVE';
 const MAKI_SELECT_SUCCESS_LIVE_STEP_ID = 'MAKI_SELECT_SUCCESS_LIVE';
 const BP6_024_SUCCESS_REPLACEMENT_STEP_ID = 'BP6_024_SELECT_SUCCESS_REPLACEMENT_LIVE';
@@ -742,8 +742,6 @@ const BOKUIMA_REQUIREMENT_REDUCTION_STEP_ID = 'BOKUIMA_REQUIREMENT_REDUCTION';
 const HS_BP5_019_REQUIREMENT_REDUCTION_STEP_ID = 'HS_BP5_019_REQUIREMENT_REDUCTION';
 const HS_BP2_022_SCORE_BONUS_STEP_ID = 'HS_BP2_022_SCORE_BONUS';
 const BP4_021_SUCCESS_SCORE_MODIFIER_STEP_ID = 'BP4_021_SUCCESS_SCORE_MODIFIER';
-const HS_SD1_006_SELECT_WAITING_ROOM_LIVE_STEP_ID =
-  'HS_SD1_006_SELECT_HASUNOSORA_LIVE_FROM_WAITING_ROOM';
 const HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_SD1_006_LIVE_START_PAY_ENERGY';
 const BP4_010_LIVE_START_PAY_ENERGY_STEP_ID = 'BP4_010_LIVE_START_PAY_ENERGY';
 const HS_PR_001_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_PR_001_LIVE_START_PAY_ENERGY';
@@ -751,7 +749,6 @@ const HS_PB1_004_SELECT_DISCARD_STEP_ID = 'HS_PB1_004_SELECT_DISCARD_FOR_MILL_RE
 const HS_PB1_004_SELECT_CERISE_LIVE_STEP_ID = 'HS_PB1_004_SELECT_CERISE_LIVE_FROM_WAITING_ROOM';
 const HS_PR_019_REVEAL_STEP_ID = 'HS_PR_019_REVEAL_TOP_THREE';
 const HS_BP5_001_REVEAL_STEP_ID = 'HS_BP5_001_REVEAL_TOP_FOUR';
-const PR_017_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID = 'PR_017_SELECT_WAITING_ROOM_MUSE_LIVE';
 const BP5_003_SELECT_DISCARD_STEP_ID = 'BP5_003_SELECT_HAND_CARD_TO_DISCARD';
 const BP5_003_SELECT_TOP_TWO_STEP_ID = 'BP5_003_SELECT_TWO_FROM_TOP_FOUR';
 const BP5_003_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'BP5_003_SELECT_WAITING_ROOM_LIVE';
@@ -798,10 +795,12 @@ registerDiscardLookTopSelectToHandWorkflowHandlers();
 registerHsBp5008IzumiWorkflowHandlers();
 registerDrawThenDiscardWorkflowHandlers();
 registerHsPb1009KahoWorkflowHandlers();
+registerHsSd1006HimeWorkflowHandlers();
 registerWaitingRoomToHandWorkflowHandlers();
 registerSelfSacrificeWaitingRoomToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPayEnergyWaitingRoomToHandWorkflowHandlers();
 registerDiscardCostWaitingRoomToHandWorkflowHandlers();
+registerPr017NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 
 interface CardEffectRunnerResult {
   readonly gameState: GameState;
@@ -2150,13 +2149,6 @@ export function confirmActiveEffectStep(
   }
 
   if (
-    effect.abilityId === HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID &&
-    effect.stepId === SELECT_WAITING_ROOM_CARD_STEP_ID
-  ) {
-    return finishSelectCardsFromZoneToHandEffect(game, selectedCardId ?? null);
-  }
-
-  if (
     (effect.abilityId === LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID ||
       effect.abilityId === LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID) &&
     effect.stepId === SELECT_NAMED_HAND_DISCARD_STEP_ID
@@ -2480,13 +2472,6 @@ export function confirmActiveEffectStep(
   }
 
   if (
-    effect.abilityId === HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID &&
-    effect.stepId === HS_SD1_006_SELECT_WAITING_ROOM_LIVE_STEP_ID
-  ) {
-    return finishSelectCardsFromZoneToHandEffect(game, selectedCardId ?? null);
-  }
-
-  if (
     (effect.abilityId === HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID &&
       effect.stepId === HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID) ||
     (effect.abilityId === BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID &&
@@ -2603,13 +2588,6 @@ export function confirmActiveEffectStep(
     return finishHsBp1SayakaPlayMemberToSourceSlot(game, selectedCardId ?? null);
   }
 
-  if (
-    effect.abilityId === PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID &&
-    effect.stepId === PR_017_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID
-  ) {
-    return finishPr017NicoRecoverMuseLiveActivateEnergy(game, selectedCardId ?? null);
-  }
-
   return game;
 }
 
@@ -2629,8 +2607,6 @@ export function activateCardAbility(
   }
 
   switch (abilityId) {
-    case PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID:
-      return startPr017NicoActivatedEffect(game, playerId, cardId);
     case BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID:
       return startBp5003KotoriActivatedEffect(game, playerId, cardId);
     case HANAYO_ACTIVATED_ABILITY_ID:
@@ -2912,8 +2888,6 @@ function startPendingAbilityEffect(
       return startHsBp2AokuharukaLiveStartScoreBonus(game, ability, options);
     case BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID:
       return startBp4021HeartbeatLiveStartSuccessScoreModifier(game, ability, options);
-    case HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID:
-      return startHsSd1HimeOnEnterActivateEnergyRecoverLive(game, ability, options);
     case HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID:
       return startHsSd1HimeLiveStartPayEnergyGainBlade(game, ability, options);
     case BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID:
@@ -2996,13 +2970,16 @@ function resolveHsPb1KahoOnHasunosoraEnterGainBlade(
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
   };
   state = recordAbilityUse(state, player.id, ability.abilityId, ability.sourceCardId);
-  state = addLiveModifier(state, {
-    kind: 'BLADE',
+  const bladeResult = addBladeLiveModifierForSourceMember(state, {
     playerId: player.id,
-    countDelta: 2,
     sourceCardId: ability.sourceCardId,
     abilityId: ability.abilityId,
+    amount: 2,
   });
+  if (!bladeResult) {
+    return game;
+  }
+  state = bladeResult.gameState;
 
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
@@ -3097,16 +3074,19 @@ function finishHsBp5KahoOnEnterMillGainBlade(game: GameState): GameState {
   if (!moveResult) {
     return game;
   }
-  const stateAfterModifier =
-    bladeBonus > 0
-      ? addLiveModifier(moveResult.gameState, {
-          kind: 'BLADE',
-          playerId: player.id,
-          countDelta: bladeBonus,
-          sourceCardId: effect.sourceCardId,
-          abilityId: effect.abilityId,
-        })
-      : moveResult.gameState;
+  let stateAfterModifier = moveResult.gameState;
+  if (bladeBonus > 0) {
+    const bladeResult = addBladeLiveModifierForSourceMember(moveResult.gameState, {
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      amount: bladeBonus,
+    });
+    if (!bladeResult) {
+      return game;
+    }
+    stateAfterModifier = bladeResult.gameState;
+  }
   const state: GameState = {
     ...stateAfterModifier,
     inspectionContext:
@@ -3380,13 +3360,16 @@ function finishHsBp6GinkoDiscardGainBlade(game: GameState, discardCardId: string
 
   const discardedWasGinko = and(typeIs(CardType.MEMBER), cardNameIs('百生吟子'))(discardCard);
   const bladeBonus = discardedWasGinko ? 2 : 1;
-  const stateAfterModifier = addLiveModifier(discardResult.gameState, {
-    kind: 'BLADE',
+  const bladeResult = addBladeLiveModifierForSourceMember(discardResult.gameState, {
     playerId: player.id,
-    countDelta: bladeBonus,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
+    amount: bladeBonus,
   });
+  if (!bladeResult) {
+    return game;
+  }
+  const stateAfterModifier = bladeResult.gameState;
   const state = { ...stateAfterModifier, activeEffect: null };
 
   return continuePendingCardEffects(
@@ -4137,16 +4120,19 @@ function finishHsBp1TsuzuriLiveStartPayEnergy(game: GameState): GameState {
     energyCardIds: costPayment.paidEnergyCardIds,
     amount: costPayment.paidEnergyCardIds.length,
   });
-  const stateAfterModifier =
-    liveZoneCardCount > 0
-      ? addLiveModifier(stateAfterCost, {
-          kind: 'BLADE',
-          playerId: player.id,
-          countDelta: liveZoneCardCount,
-          sourceCardId: effect.sourceCardId,
-          abilityId: effect.abilityId,
-        })
-      : stateAfterCost;
+  let stateAfterModifier = stateAfterCost;
+  if (liveZoneCardCount > 0) {
+    const bladeResult = addBladeLiveModifierForSourceMember(stateAfterCost, {
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      amount: liveZoneCardCount,
+    });
+    if (!bladeResult) {
+      return game;
+    }
+    stateAfterModifier = bladeResult.gameState;
+  }
   const state = { ...stateAfterModifier, activeEffect: null };
 
   return continuePendingCardEffects(
@@ -5299,78 +5285,6 @@ function finishSelectCardsFromZoneToHandEffect(
   );
 }
 
-function finishPr017NicoRecoverMuseLiveActivateEnergy(
-  game: GameState,
-  selectedCardId: string | null
-): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const selectedCardIds = selectedCardId !== null ? [selectedCardId] : [];
-  const zoneSelection = getZoneSelectionConfig(effect);
-  if (
-    selectedCardIds.length < zoneSelection.minCount ||
-    selectedCardIds.length > zoneSelection.maxCount
-  ) {
-    return game;
-  }
-  const selectedAreValid = selectedCardIds.every(
-    (cardId) =>
-      effect.selectableCardIds?.includes(cardId) === true &&
-      player.waitingRoom.cardIds.includes(cardId)
-  );
-  if (!selectedAreValid) {
-    return game;
-  }
-
-  const recoveryResult = recoverCardsFromWaitingRoomToHandForPlayer(
-    game,
-    player.id,
-    selectedCardIds,
-    {
-      candidateCardIds: effect.selectableCardIds ?? [],
-      minCount: zoneSelection.minCount,
-      maxCount: zoneSelection.maxCount,
-    }
-  );
-  if (!recoveryResult) {
-    return game;
-  }
-
-  const successLiveScore = sumSuccessfulLiveScore(recoveryResult.gameState, player.id);
-  const conditionMet = successLiveScoreAtLeast(recoveryResult.gameState, player.id, 9);
-  const orientationChange = conditionMet
-    ? setFirstEnergyCardsOrientation(recoveryResult.gameState, player.id, 2, OrientationState.ACTIVE, {
-        fromOrientation: OrientationState.WAITING,
-      })
-    : null;
-  const stateAfterEnergy = orientationChange?.gameState ?? recoveryResult.gameState;
-  const state = { ...stateAfterEnergy, activeEffect: null };
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_IF_SUCCESS_SCORE',
-      selectedCardId: selectedCardIds[0] ?? null,
-      selectedCardIds,
-      successLiveScore,
-      conditionMet,
-      activatedEnergyCardIds: orientationChange?.updatedEnergyCardIds ?? [],
-      previousOrientations: orientationChange?.previousOrientations ?? [],
-      nextOrientation: orientationChange?.nextOrientation ?? OrientationState.ACTIVE,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
 function startMakiOnEnterSelection(
   game: GameState,
   ability: PendingAbilityState,
@@ -6278,133 +6192,6 @@ function finishBp4021HeartbeatLiveStartSuccessScoreModifier(game: GameState): Ga
   );
 }
 
-function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const relatedMemberSelector = or(
-    cardNameAliasIs('大沢瑠璃乃'),
-    cardNameAliasIs('百生吟子'),
-    cardNameAliasIs('徒町小鈴')
-  );
-  const hasRelatedMember = hasStageMemberMatching(game, player.id, relatedMemberSelector, {
-    excludeCardId: ability.sourceCardId,
-  });
-
-  if (!hasRelatedMember) {
-    const state = {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-    };
-    return continuePendingCardEffects(
-      addAction(state, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        step: 'CONDITION_NOT_MET',
-      }),
-      options.orderedResolution === true
-    );
-  }
-
-  const relatedMemberCardIds = getStageMemberCardIdsMatching(
-    game,
-    player.id,
-    relatedMemberSelector
-  ).filter((cardId) => cardId !== ability.sourceCardId);
-
-  const orientationChange = setFirstEnergyCardsOrientation(
-    game,
-    player.id,
-    1,
-    OrientationState.ACTIVE,
-    { fromOrientation: OrientationState.WAITING }
-  );
-  if (!orientationChange) {
-    return game;
-  }
-
-  let state = addAction(orientationChange.gameState, 'RESOLVE_ABILITY', player.id, {
-    pendingAbilityId: ability.id,
-    abilityId: ability.abilityId,
-    sourceCardId: ability.sourceCardId,
-    step: 'ACTIVATE_ENERGY',
-    relatedMemberCardIds,
-    activatedEnergyCardIds: orientationChange.updatedEnergyCardIds,
-    previousOrientations: orientationChange.previousOrientations,
-    nextOrientation: orientationChange.nextOrientation,
-  });
-  state = {
-    ...state,
-    pendingAbilities: state.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-  };
-
-  const selectableCardIds = selectWaitingRoomCardIds(
-    state,
-    player.id,
-    isHasunosoraLiveCard
-  );
-
-  if (selectableCardIds.length === 0) {
-    return continuePendingCardEffects(
-      addAction(state, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        step: 'NO_WAITING_ROOM_LIVE_TARGET',
-        relatedMemberCardIds,
-      }),
-      options.orderedResolution === true
-    );
-  }
-
-  const zoneSelection = createWaitingRoomToHandSelectionConfig({
-    minCount: 1,
-    maxCount: 1,
-    optional: false,
-  });
-
-  return addAction(
-    {
-      ...state,
-      activeEffect: createWaitingRoomToHandEffectState({
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText: getCardAbilityEffectText(HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID),
-        stepId: HS_SD1_006_SELECT_WAITING_ROOM_LIVE_STEP_ID,
-        stepText: '请选择自己的休息室中1张『莲之空』的LIVE卡加入手牌。',
-        awaitingPlayerId: player.id,
-        selectableCardIds,
-        canSkipSelection: false,
-        metadata: {
-          orderedResolution: options.orderedResolution === true,
-          relatedMemberCardIds,
-          activatedEnergyCardIds: orientationChange.updatedEnergyCardIds,
-        },
-        zoneSelection,
-      }),
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'SELECT_WAITING_ROOM_LIVE',
-      relatedMemberCardIds,
-      selectableCardIds,
-    }
-  );
-}
-
 function startHsSd1HimeLiveStartPayEnergyGainBlade(
   game: GameState,
   ability: PendingAbilityState,
@@ -6509,13 +6296,18 @@ function finishLiveStartPayEnergyGainFixedBlade(game: GameState): GameState {
     energyCardIds: costPayment.paidEnergyCardIds,
     amount: costPayment.paidEnergyCardIds.length,
   });
-  const stateAfterModifier = addLiveModifier(stateAfterCost, {
-    kind: 'BLADE',
+  const bladeBonus =
+    typeof effect.metadata?.bladeBonus === 'number' ? effect.metadata.bladeBonus : 2;
+  const bladeResult = addBladeLiveModifierForSourceMember(stateAfterCost, {
     playerId: player.id,
-    countDelta: typeof effect.metadata?.bladeBonus === 'number' ? effect.metadata.bladeBonus : 2,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
+    amount: bladeBonus,
   });
+  if (!bladeResult) {
+    return game;
+  }
+  const stateAfterModifier = bladeResult.gameState;
   const state = { ...stateAfterModifier, activeEffect: null };
 
   return continuePendingCardEffects(
@@ -6525,7 +6317,7 @@ function finishLiveStartPayEnergyGainFixedBlade(game: GameState): GameState {
       sourceCardId: effect.sourceCardId,
       step: 'PAY_ENERGY_GAIN_BLADE',
       paidEnergyCardIds: costPayment.paidEnergyCardIds,
-      bladeBonus: typeof effect.metadata?.bladeBonus === 'number' ? effect.metadata.bladeBonus : 2,
+      bladeBonus,
     }),
     isOrderedResolutionEffect(game)
   );
@@ -7567,9 +7359,22 @@ function finishHsBp6031RecycleWaitingRoomMembers(game: GameState): GameState {
     return game;
   }
 
-  const recycleResult = moveWaitingRoomMembersToDeckBottomShuffled(game, player.id);
+  const waitingRoomMemberCardIds = getWaitingRoomMemberCardIds(game, player.id);
+  const miraCraMemberCount = countCardsMatchingSelector(
+    game,
+    waitingRoomMemberCardIds,
+    unitAliasIs('みらくらぱーく！')
+  );
+  const recycleResult = shuffleWaitingRoomCardsToDeckBottomForPlayer(
+    game,
+    player.id,
+    waitingRoomMemberCardIds
+  );
+  if (!recycleResult) {
+    return game;
+  }
   const himeTargetCardIds =
-    recycleResult.miraCraMemberCount >= 15
+    miraCraMemberCount >= 15
       ? getStageMemberCardIdsMatching(
           recycleResult.gameState,
           player.id,
@@ -7580,8 +7385,8 @@ function finishHsBp6031RecycleWaitingRoomMembers(game: GameState): GameState {
     pendingAbilityId: effect.id,
     abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId,
-    movedMemberCardIds: recycleResult.movedMemberCardIds,
-    miraCraMemberCount: recycleResult.miraCraMemberCount,
+    movedMemberCardIds: recycleResult.movedCardIds,
+    miraCraMemberCount,
   };
 
   if (himeTargetCardIds.length === 0) {
@@ -7590,7 +7395,7 @@ function finishHsBp6031RecycleWaitingRoomMembers(game: GameState): GameState {
       addAction(state, 'RESOLVE_ABILITY', player.id, {
         ...baseAction,
         step:
-          recycleResult.miraCraMemberCount >= 15
+          miraCraMemberCount >= 15
             ? 'RECYCLE_MEMBERS_NO_HIME_TARGET'
             : 'RECYCLE_MEMBERS_CONDITION_NOT_MET',
       }),
@@ -7616,8 +7421,8 @@ function finishHsBp6031RecycleWaitingRoomMembers(game: GameState): GameState {
         confirmSelectionLabel: '获得BLADE',
         metadata: {
           orderedResolution: isOrderedResolutionEffect(game),
-          movedMemberCardIds: recycleResult.movedMemberCardIds,
-          miraCraMemberCount: recycleResult.miraCraMemberCount,
+          movedMemberCardIds: recycleResult.movedCardIds,
+          miraCraMemberCount,
         },
       },
     },
@@ -7746,12 +7551,30 @@ function finishHsPb1012RecycleWaitingRoomMembers(game: GameState): GameState {
     return game;
   }
 
-  const ownRecycleResult = moveWaitingRoomMembersToDeckBottomShuffled(game, player.id);
+  const ownWaitingRoomMemberCardIds = getWaitingRoomMemberCardIds(game, player.id);
+  const ownRecycleResult = shuffleWaitingRoomCardsToDeckBottomForPlayer(
+    game,
+    player.id,
+    ownWaitingRoomMemberCardIds
+  );
+  if (!ownRecycleResult) {
+    return game;
+  }
+  const opponentWaitingRoomMemberCardIds = opponent
+    ? getWaitingRoomMemberCardIds(ownRecycleResult.gameState, opponent.id)
+    : [];
   const opponentRecycleResult = opponent
-    ? moveWaitingRoomMembersToDeckBottomShuffled(ownRecycleResult.gameState, opponent.id)
-    : { gameState: ownRecycleResult.gameState, movedMemberCardIds: [], miraCraMemberCount: 0 };
-  const movedOwnMemberCardIds = ownRecycleResult.movedMemberCardIds;
-  const movedOpponentMemberCardIds = opponentRecycleResult.movedMemberCardIds;
+    ? shuffleWaitingRoomCardsToDeckBottomForPlayer(
+        ownRecycleResult.gameState,
+        opponent.id,
+        opponentWaitingRoomMemberCardIds
+      )
+    : { gameState: ownRecycleResult.gameState, movedCardIds: [] };
+  if (!opponentRecycleResult) {
+    return game;
+  }
+  const movedOwnMemberCardIds = ownRecycleResult.movedCardIds;
+  const movedOpponentMemberCardIds = opponentRecycleResult.movedCardIds;
   const totalMovedMemberCount = movedOwnMemberCardIds.length + movedOpponentMemberCardIds.length;
   const baseAction = {
     pendingAbilityId: effect.id,
@@ -7784,6 +7607,9 @@ function finishHsPb1012RecycleWaitingRoomMembers(game: GameState): GameState {
       effect,
       player.id
     );
+    if (!stateAfterModifier) {
+      return game;
+    }
     const state = { ...stateAfterModifier, activeEffect: null };
     return continuePendingCardEffects(
       addAction(state, 'RESOLVE_ABILITY', player.id, {
@@ -7868,6 +7694,9 @@ function finishHsPb1012RecoverLiveAndGainBlade(
   }
 
   const stateAfterModifier = addHsPb1012BladeModifier(recoveryResult.gameState, effect, player.id);
+  if (!stateAfterModifier) {
+    return game;
+  }
   const state = { ...stateAfterModifier, activeEffect: null };
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
@@ -7889,62 +7718,13 @@ function addHsPb1012BladeModifier(
   game: GameState,
   effect: ActiveEffectState,
   playerId: string
-): GameState {
-  return addLiveModifier(game, {
-    kind: 'BLADE',
+): GameState | null {
+  return addBladeLiveModifierForSourceMember(game, {
     playerId,
-    countDelta: 2,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
-  });
-}
-
-function moveWaitingRoomMembersToDeckBottomShuffled(
-  game: GameState,
-  playerId: string
-): {
-  readonly gameState: GameState;
-  readonly movedMemberCardIds: readonly string[];
-  readonly miraCraMemberCount: number;
-} {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return { gameState: game, movedMemberCardIds: [], miraCraMemberCount: 0 };
-  }
-
-  const waitingRoomMemberCardIds = getCardIdsMatchingSelector(
-    game,
-    getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM),
-    typeIs(CardType.MEMBER)
-  );
-  const shuffledMemberCardIds = shuffleZone({
-    ...player.waitingRoom,
-    cardIds: waitingRoomMemberCardIds,
-  }).cardIds;
-  const waitingRoomMemberCardIdSet = new Set(waitingRoomMemberCardIds);
-  const miraCraMemberCount = countCardsMatchingSelector(
-    game,
-    waitingRoomMemberCardIds,
-    unitAliasIs('みらくらぱーく！')
-  );
-
-  return {
-    gameState: updatePlayer(game, playerId, (currentPlayer) => ({
-      ...currentPlayer,
-      waitingRoom: {
-        ...currentPlayer.waitingRoom,
-        cardIds: currentPlayer.waitingRoom.cardIds.filter(
-          (cardId) => !waitingRoomMemberCardIdSet.has(cardId)
-        ),
-      },
-      mainDeck: {
-        ...currentPlayer.mainDeck,
-        cardIds: [...currentPlayer.mainDeck.cardIds, ...shuffledMemberCardIds],
-      },
-    })),
-    movedMemberCardIds: shuffledMemberCardIds,
-    miraCraMemberCount,
-  };
+    amount: 2,
+  })?.gameState ?? null;
 }
 
 function getWaitingRoomMemberCardIds(game: GameState, playerId: string): readonly string[] {
@@ -9303,23 +9083,6 @@ function finishKotoriLiveStartHeartBonus(
   );
 }
 
-function startPr017NicoActivatedEffect(
-  game: GameState,
-  playerId: string,
-  cardId: string
-): GameState {
-  return startSacrificeSelfActivatedEffect(game, playerId, cardId, {
-    abilityId: PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
-    expectedBaseCardCodes: ['PL!-PR-017'],
-    effectText: getCardAbilityEffectText(
-      PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID
-    ),
-    stepId: PR_017_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID,
-    selectablePredicate: and(typeIs(CardType.LIVE), groupIs("μ's")),
-    selectionRequiredWhenHasTargets: true,
-  });
-}
-
 function startBp5003KotoriActivatedEffect(
   game: GameState,
   playerId: string,
@@ -9995,93 +9758,6 @@ function finishHsBp1SayakaPlayMemberToSourceSlot(
   });
 
   return continuePendingCardEffects({ ...stateWithOnEnter, activeEffect: null }, false);
-}
-
-function startSacrificeSelfActivatedEffect(
-  game: GameState,
-  playerId: string,
-  cardId: string,
-  config: {
-    readonly abilityId: string;
-    readonly expectedBaseCardCodes: readonly string[];
-    readonly effectText: string;
-    readonly stepId: string;
-    readonly selectablePredicate: (card: NonNullable<ReturnType<typeof getCardById>>) => boolean;
-    readonly selectionRequiredWhenHasTargets?: boolean;
-  }
-): GameState {
-  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
-    return game;
-  }
-  const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
-  if (activePlayerId !== playerId) {
-    return game;
-  }
-  const player = getPlayerById(game, playerId);
-  const sourceCard = getCardById(game, cardId);
-  if (
-    !player ||
-    !sourceCard ||
-    sourceCard.ownerId !== playerId ||
-    !config.expectedBaseCardCodes.some((baseCardCode) =>
-      cardCodeMatchesBase(sourceCard.data.cardCode, baseCardCode)
-    ) ||
-    !isMemberCardData(sourceCard.data)
-  ) {
-    return game;
-  }
-  const sourceSlot = findMemberSlot(player, cardId);
-  if (!sourceSlot) {
-    return game;
-  }
-  let state = recordAbilityUse(game, player.id, config.abilityId, cardId);
-  const stateBeforeCost = state;
-  const costPayment = payImmediateEffectCosts(state, player.id, cardId, [
-    { kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' },
-  ]);
-  if (!costPayment) {
-    return game;
-  }
-  state = costPayment.gameState;
-  const movedToWaitingRoomCardIds = costPayment.movedToWaitingRoomCardIds;
-  if (costPayment.sourceSlot && movedToWaitingRoomCardIds.includes(cardId)) {
-    state = enqueueTriggeredCardEffects(state, [TriggerCondition.ON_LEAVE_STAGE], {
-      leaveStageEvents: getNewLeaveStageEvents(stateBeforeCost, state),
-    });
-  }
-  const selectableCardIds = selectWaitingRoomCardIds(state, player.id, config.selectablePredicate);
-  const selectionRequired =
-    config.selectionRequiredWhenHasTargets === true && selectableCardIds.length > 0;
-  const zoneSelection = createWaitingRoomToHandSelectionConfig({
-    minCount: selectionRequired ? 1 : 0,
-    optional: !selectionRequired,
-  });
-  state = {
-    ...state,
-    activeEffect: createWaitingRoomToHandEffectState({
-      id: `${config.abilityId}:${cardId}:turn-${state.turnCount}:action-${state.actionHistory.length}`,
-      abilityId: config.abilityId,
-      sourceCardId: cardId,
-      controllerId: player.id,
-      effectText: config.effectText,
-      stepId: config.stepId,
-      awaitingPlayerId: player.id,
-      selectableCardIds,
-      metadata: {
-        sourceSlot,
-        movedToWaitingRoomCardIds,
-      },
-      zoneSelection,
-    }),
-  };
-  return addAction(state, 'RESOLVE_ABILITY', player.id, {
-    abilityId: config.abilityId,
-    sourceCardId: cardId,
-    step: 'PAY_COST',
-    fromSlot: sourceSlot,
-    movedToWaitingRoomCardIds,
-    selectableCardIds,
-  });
 }
 
 function startHanayoActivatedEffect(game: GameState, playerId: string, cardId: string): GameState {

@@ -73,8 +73,10 @@ Current migrated workflow modules:
 - `workflows/shared/discard-cost-waiting-room-to-hand.ts`
 - `workflows/cards/hs-bp5-008-izumi.ts`
 - `workflows/cards/hs-pb1-009-kaho.ts`
+- `workflows/cards/hs-sd1-006-hime.ts`
+- `workflows/cards/pr-017-nico.ts`
 
-Remaining near-term R-4/R-5 candidates include `BP5_003` 分支、`HS_PB1_004` 复合费用、`HS_BP5_001` 公开手牌同名回收、`PR_017` 回收后奖励与 grouped recovery。
+`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。Remaining near-term R-4/R-5 candidates include `BP5_003` 分支、`HS_PB1_004` 复合费用、`HS_BP5_001` 公开手牌同名回收、`HS_PB1_012` 洗回后回收并得 BLADE 与 grouped recovery。
 
 ## R-5 Special Workflow Candidates
 

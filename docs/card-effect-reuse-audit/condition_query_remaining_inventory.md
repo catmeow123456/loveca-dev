@@ -90,7 +90,7 @@
 | RQ-04 | `PL!HS-PR-019` 费用 2「百生吟子」 | 公开顶 3 后判断 3 张是否全部为绿色 Heart 成员。 | 已用 `allCardIdsMatchingSelector(..., memberHasHeartColor(HeartColor.GREEN))`；奖励写入仍留在 runner。 |
 | RQ-05 | `PL!-sd1-006` 费用 8「西木野真姬」 | 扫手牌 LIVE 与成功区 LIVE 作为交换候选。 | 候选查询已用 `getCardIdsInZoneMatching(..., ZoneType.HAND/SUCCESS_ZONE, typeIs(CardType.LIVE))` 收束；公开手牌、选择成功区 LIVE、交换区域与 skip 流程仍是 workflow-step。 |
 | RQ-06 | `PL!HS-pb1-012` 费用 15「百生吟子」 | 双方等待室成员数量合计、移动后成员数量合计，阈值 20。 | `getWaitingRoomMemberCardIds` 已改用 `getCardIdsInZoneMatching`；阈值后续仍是 formula/workflow。 |
-| RQ-07 | `PL!HS-bp6-031` / `PL!HS-pb1-012` 共用的 `moveWaitingRoomMembersToDeckBottomShuffled` | 等待室成员洗回卡组底，并返回成员数量与 `みらくらぱーく！` 数量。 | 查询部分已有部分 zone helper 复用；移动仍属于专用步骤，不搬进 `conditions.ts`。 |
+| RQ-07 | `PL!HS-bp6-031` / `PL!HS-pb1-012` 复用的 `shuffleWaitingRoomCardsToDeckBottomForPlayer` | caller 指定等待室成员洗切后放主卡组底，成员数量与 `みらくらぱーく！` 数量仍由 caller 统计。 | 查询部分已有部分 zone helper 复用；底层移动已下沉到 runtime action，但 selector、计数、奖励与后续流程不搬进 `conditions.ts`。 |
 | RQ-08 | `PL!HS-bp6-017` 费用 11「日野下花帆」 | 弃手后从等待室选 LIVE / 成员各至多 1 张，并校验选中分组数量。 | 已用 `countCardIdsMatchingSelectors(..., [typeIs(LIVE), typeIs(MEMBER)])` 收束已选 ids 的分组计数；真正的分组选取上限、activeEffect 与移动仍属于 grouped selection workflow。 |
 | RQ-09 | `PL!HS-pb1-020` 费用 9「百生吟子」 | 弃 2 后检查等待室是否有 Cerise Bouquet 成员、是否有「莲之空」LIVE，并据此强制选择 1+1 或可用分组。 | 已用 `countCardIdsMatchingSelectors(..., [Cerise Bouquet 成员, 蓮ノ空 LIVE])` 收束 finish 阶段已选 ids 的分组计数校验；强制各 1、activeEffect metadata、选择与移动流程仍属于 grouped selection workflow。 |
 | RQ-10 | `PL!HS-bp5-001` 起动段 | 手牌 LIVE 候选要求等待室存在同名 LIVE。 | 已用 `cardNameContains` + `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, and(typeIs(CardType.LIVE), ...))` 收束等待室候选；语义仍是 normalize 后“候选卡名包含公开 LIVE 名”，不是 alias 或完全相等。检视/公开/选择/后续处理仍是 workflow-step。 |

@@ -8697,6 +8697,21 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[0])?.orientation).toBe(
       OrientationState.ACTIVE
     );
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID &&
+          action.payload.step === 'ACTIVATE_ENERGY' &&
+          Array.isArray(action.payload.activatedEnergyCardIds) &&
+          action.payload.activatedEnergyCardIds[0] === energyCardIds[0] &&
+          Array.isArray(action.payload.previousOrientations) &&
+          action.payload.previousOrientations[0]?.cardId === energyCardIds[0] &&
+          action.payload.previousOrientations[0]?.orientation === OrientationState.WAITING &&
+          action.payload.nextOrientation === OrientationState.ACTIVE
+      )
+    ).toBe(true);
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, targetLiveCardId)
@@ -8706,6 +8721,114 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetLiveCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([otherLiveCardId]);
+  });
+
+  it('continues PL!HS-sd1-006-SD on-enter recovery when there is no waiting energy to activate', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-hs-sd1-006-on-enter-no-waiting-energy-runner',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const memberCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const liveCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const energyCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+    );
+    const himeCardId = memberCardIds[0];
+    const rurinoCardId = memberCardIds[1];
+    const deckFillerCardId = memberCardIds[2];
+    const targetLiveCardId = liveCardIds[0];
+    const himeCard = state.cardRegistry.get(himeCardId!) as unknown as { data: MemberCardData };
+    const rurinoCard = state.cardRegistry.get(rurinoCardId!) as unknown as { data: MemberCardData };
+    const targetLiveCard = state.cardRegistry.get(targetLiveCardId!) as unknown as {
+      data: LiveCardData;
+    };
+
+    expect(himeCardId).toBeTruthy();
+    expect(rurinoCardId).toBeTruthy();
+    expect(deckFillerCardId).toBeTruthy();
+    expect(targetLiveCardId).toBeTruthy();
+    himeCard.data = createMemberCard('PL!HS-sd1-006-SD', '安養寺 姫芽', 0, '蓮ノ空');
+    rurinoCard.data = createMemberCard('PL!HS-test-rurino-no-waiting', '大泽 瑠璃乃', 1, '蓮ノ空');
+    targetLiveCard.data = createLiveCard('PL!HS-test-live-no-waiting', '蓮ノ空 LIVE', '蓮ノ空');
+
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(2);
+
+    removeFromPlayerZones(p1);
+    p1.hand.cardIds = [himeCardId!];
+    p1.mainDeck.cardIds = [deckFillerCardId!];
+    p1.waitingRoom.cardIds = [targetLiveCardId!];
+    p1.memberSlots.slots[SlotPosition.LEFT] = rurinoCardId!;
+    p1.memberSlots.slots[SlotPosition.CENTER] = null;
+    p1.memberSlots.slots[SlotPosition.RIGHT] = null;
+    p1.memberSlots.cardStates = new Map([
+      [rurinoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    setActiveEnergy(p1, energyCardIds.slice(0, 2));
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, himeCardId!, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([targetLiveCardId]);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID &&
+          action.payload.step === 'ACTIVATE_ENERGY' &&
+          Array.isArray(action.payload.activatedEnergyCardIds) &&
+          action.payload.activatedEnergyCardIds.length === 0 &&
+          Array.isArray(action.payload.previousOrientations) &&
+          action.payload.previousOrientations.length === 0 &&
+          action.payload.nextOrientation === OrientationState.ACTIVE
+      )
+    ).toBe(true);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, targetLiveCardId)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([targetLiveCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
   });
 
   it('executes PL!HS-sd1-006-SD live-start pay1 and gains two Blade', () => {
