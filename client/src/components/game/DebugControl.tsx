@@ -56,12 +56,12 @@ export const DebugControl = memo(function DebugControl() {
   };
 
   return (
-    <div className="fixed left-1/2 top-2 z-[140] w-[calc(100vw-1rem)] -translate-x-1/2">
+    <div className="pointer-events-none fixed left-1/2 top-2 z-[140] w-[calc(100vw-1rem)] -translate-x-1/2">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className={cn(
-          'surface-panel-frosted mx-auto flex w-fit max-w-full items-center gap-2 overflow-hidden rounded-lg px-2.5 py-1.5 shadow-[var(--shadow-lg)]'
+          'surface-panel-frosted pointer-events-auto mx-auto flex w-fit max-w-full items-center gap-2 overflow-hidden rounded-lg px-2.5 py-1.5 shadow-[var(--shadow-lg)]'
         )}
       >
         {/* 模式标记 */}

@@ -21,6 +21,12 @@
 
 - `myk_20260611`
 
+## 本次 2026-06-17 对墙打退出按钮点击命中修复
+
+- 修复对墙打桌面左上角“离开房间”偶发点击无反应：`DebugControl` 顶部透明 fixed 外层原本横跨近全屏且 z-index 高于离开按钮，会在按钮上方区域吃掉点击。
+- 修复方式：`DebugControl` 外层改为 `pointer-events-none`，实际控制条保留 `pointer-events-auto`，不改变布局与控制条自身交互。
+- 验证：`pnpm --dir client exec tsc -b` passed；Playwright 临时脚本进入对墙打桌面后，左上角按钮上半区/中心/下半区/右侧 `elementFromPoint` 均命中按钮本身，点击按钮左上角内部位置可返回“游戏准备”页。
+
 ## 本次 2026-06-15 `ON_ENTER_STAGE` 事件日志消费
 
 - 普通 `PLAY_MEMBER` 手牌登场现在写入 `EnterStageEvent(fromZone=HAND)`；卡效 `playMembersFromWaitingRoomToEmptySlots` 从休息室登场现在写入 `EnterStageEvent(fromZone=WAITING_ROOM)`。
