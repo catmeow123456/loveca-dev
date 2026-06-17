@@ -31,6 +31,7 @@ import {
 import { isPlayerActive } from '../shared/phase-config/index.js';
 import {
   collectLiveModifiers,
+  getMemberEffectiveHeartIcons,
   getPlayerLiveScoreModifier,
   projectLiveModifierCompatibility,
 } from '../domain/rules/live-modifiers.js';
@@ -407,6 +408,7 @@ function projectPlayerZones(
 
   addMemberSlotZones(
     game,
+    player.id,
     player.memberSlots,
     player.movedToStageThisTurn,
     ownerSeat,
@@ -480,6 +482,7 @@ function projectBaseZone(
 
 function addMemberSlotZones(
   game: GameState,
+  playerId: string,
   zone: MemberSlotZoneState,
   movedToStageThisTurn: readonly string[],
   ownerSeat: Seat,
@@ -487,6 +490,8 @@ function addMemberSlotZones(
   objects: Record<string, ViewCardObject>,
   zones: Partial<Record<ViewZoneKey, ViewZoneState>>
 ): void {
+  const liveModifiers = collectLiveModifiers(game);
+
   for (const slot of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT]) {
     const occupantId = zone.slots[slot];
     const overlayIds = zone.energyBelow[slot];
@@ -515,6 +520,12 @@ function addMemberSlotZones(
       if (occupant) {
         upsertViewObject(objects, occupant, ownerSeat, 'FRONT', state?.orientation, state?.face, {
           enteredStageThisTurn: movedToStageThisTurn.includes(occupantId),
+          frontInfo: isMemberCardData(occupant.data)
+            ? buildMemberFrontInfoWithHearts(
+                occupant,
+                getMemberEffectiveHeartIcons(game, playerId, occupantId, liveModifiers)
+              )
+            : undefined,
         });
       }
     }
@@ -689,7 +700,7 @@ function upsertViewObject(
   faceState?: ViewCardObject['faceState'],
   metadata?: Pick<
     ViewCardObject,
-    'publiclyRevealed' | 'judgmentResult' | 'enteredStageThisTurn'
+    'publiclyRevealed' | 'judgmentResult' | 'enteredStageThisTurn' | 'frontInfo'
   > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
@@ -706,7 +717,7 @@ function upsertViewObject(
     publiclyRevealed: metadata?.publiclyRevealed,
     judgmentResult: metadata?.judgmentResult,
     enteredStageThisTurn: metadata?.enteredStageThisTurn,
-    frontInfo: surface === 'FRONT' ? buildFrontInfo(card) : undefined,
+    frontInfo: surface === 'FRONT' ? (metadata?.frontInfo ?? buildFrontInfo(card)) : undefined,
   };
 }
 
@@ -810,6 +821,21 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
     name: card.data.name,
     cardType: card.data.cardType,
     text: card.data.cardText,
+  };
+}
+
+function buildMemberFrontInfoWithHearts(
+  card: CardInstance,
+  hearts: readonly { readonly color: HeartColor; readonly count: number }[]
+): ViewFrontCardInfo {
+  const frontInfo = buildFrontInfo(card);
+  if (!isMemberCardData(card.data)) {
+    return frontInfo;
+  }
+
+  return {
+    ...frontInfo,
+    hearts: hearts.map((heart) => ({ color: heart.color, count: heart.count })),
   };
 }
 

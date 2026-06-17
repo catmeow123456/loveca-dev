@@ -119,6 +119,10 @@ export interface EnterStageEvent extends CardMoveEvent {
   readonly toZone: ZoneType.MEMBER_SLOT;
   /** 登场的槽位 */
   readonly toSlot: SlotPosition;
+  /** 换手登场时被替换的成员 ID */
+  readonly replacedMemberCardId?: string;
+  /** 换手登场时被替换成员的有效费用 */
+  readonly replacedMemberEffectiveCost?: number;
 }
 
 /**
@@ -502,7 +506,11 @@ export function createEnterStageEvent(
   fromZone: ZoneType,
   toSlot: SlotPosition,
   ownerId: string,
-  controllerId: string
+  controllerId: string,
+  relay?: {
+    readonly replacedMemberCardId?: string | null;
+    readonly replacedMemberEffectiveCost?: number | null;
+  }
 ): EnterStageEvent {
   return {
     eventId: generateEventId(),
@@ -515,6 +523,8 @@ export function createEnterStageEvent(
     ownerId,
     controllerId,
     triggerPlayerId: controllerId,
+    replacedMemberCardId: relay?.replacedMemberCardId ?? undefined,
+    replacedMemberEffectiveCost: relay?.replacedMemberEffectiveCost ?? undefined,
   };
 }
 

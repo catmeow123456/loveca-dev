@@ -35,11 +35,15 @@ export function cardBelongsToGroup(
     return false;
   }
 
-  const normalizedAliases = groupIdentity.aliases.map((alias) => normalizeGroupIdentityText(alias));
+  return cardMatchesGroupIdentity(card, groupIdentity);
+}
+
+export function getKnownCardGroupIdentityName(
+  card: CardIdentityLike
+): GroupIdentityName | null {
   return (
-    matchesAnyNormalizedAlias(card.groupName, normalizedAliases) ||
-    matchesAnyNormalizedAlias(card.cardText, normalizedAliases) ||
-    groupIdentity.cardCodePrefixes.some((prefix) => card.cardCode?.startsWith(prefix) === true)
+    GROUP_IDENTITY_GROUPS.find((group) => cardMatchesGroupIdentity(card, group))
+      ?.canonicalName ?? null
   );
 }
 
@@ -52,6 +56,21 @@ function getGroupIdentity(groupName: string):
   const normalizedGroupName = normalizeGroupIdentityText(groupName);
   return GROUP_IDENTITY_GROUPS.find((group) =>
     group.aliases.some((alias) => normalizeGroupIdentityText(alias) === normalizedGroupName)
+  );
+}
+
+function cardMatchesGroupIdentity(
+  card: CardIdentityLike,
+  groupIdentity: {
+    readonly aliases: readonly string[];
+    readonly cardCodePrefixes: readonly string[];
+  }
+): boolean {
+  const normalizedAliases = groupIdentity.aliases.map((alias) => normalizeGroupIdentityText(alias));
+  return (
+    matchesAnyNormalizedAlias(card.groupName, normalizedAliases) ||
+    matchesAnyNormalizedAlias(card.cardText, normalizedAliases) ||
+    groupIdentity.cardCodePrefixes.some((prefix) => card.cardCode?.startsWith(prefix) === true)
   );
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   cardBelongsToGroup,
+  getKnownCardGroupIdentityName,
   type CardIdentityLike,
   type GroupIdentityName,
 } from '../../src/shared/utils/card-identity';
@@ -31,6 +32,15 @@ describe('card identity helpers', () => {
     expect(cardBelongsToGroup({ cardCode: 'PL!SP-bp1-001' }, 'Liella!')).toBe(true);
     expect(cardBelongsToGroup({ cardCode: 'PL!N-pb1-001' }, '虹ヶ咲')).toBe(true);
     expect(cardBelongsToGroup({ cardCode: 'PL!S-bp1-001' }, 'Aqours')).toBe(true);
+  });
+
+  it('normalizes known group identity from card data without groupName', () => {
+    expect(getKnownCardGroupIdentityName({ cardCode: 'PL!-bp6-022-L' })).toBe("μ's");
+    expect(getKnownCardGroupIdentityName({ cardCode: 'PL!HS-bp5-003-AR' })).toBe('蓮ノ空');
+    expect(getKnownCardGroupIdentityName({ cardText: '対象の「Nijigasaki」カード' })).toBe(
+      '虹ヶ咲'
+    );
+    expect(getKnownCardGroupIdentityName({ cardCode: 'OTHER-001' })).toBeNull();
   });
 
   it('does not match unrelated groups or unknown identities', () => {

@@ -72,6 +72,8 @@ export const KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID =
 export const BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID = 'PL!-bp3-010-N:on-enter-look-top-reveal-live';
 export const BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID =
   'PL!-bp5-005-AR:on-enter-success-score-place-active-energy';
+export const BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID =
+  'PL!-bp5-007:on-enter-relay-low-cost-discard-to-three-draw-three';
 export const BP4_008_CONTINUOUS_SUCCESS_SCORE_STAGE_COST_ABILITY_ID =
   'PL!-bp4-008:continuous-success-score-stage-cost-plus-three';
 export const BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID =
@@ -84,6 +86,8 @@ export const BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID 
   'PL!-bp6-005:on-enter-discard-two-recover-yellow-heart-member-and-live';
 export const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
   'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
+export const BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID =
+  'PL!-bp6-024:continuous-success-zone-replacement';
 export const PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID =
   'PL!-PR-018-PR:on-enter-recover-high-score-live';
 export const SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID =
@@ -124,6 +128,10 @@ export const HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp5-001-SEC:on-enter-mill-four-gain-blade-if-live';
 export const HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID =
   'PL!HS-bp5-001-SEC:activated-pay-two-reveal-hand-live-recover-same-name-live';
+export const HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID =
+  'PL!HS-bp5-003:auto-leave-stage-position-change-member';
+export const HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID =
+  'PL!HS-bp5-003:live-start-discard-same-group-member-pink-heart';
 export const PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID =
   'PL!-bp3-014-N:on-enter-look-top-two-arrange-to-top';
 export const HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID =

@@ -1088,9 +1088,9 @@ export class GameService {
 
     const liveModifiers = collectLiveModifiers(game);
     const heartBonuses = getPlayerLiveHeartModifiers(game.liveResolution, playerId, liveModifiers);
-    const activeMemberCards = this.getActiveMemberCards(game, player, liveModifiers);
+    const stageMemberCards = this.getStageMemberCardsForLiveJudgment(game, player, liveModifiers);
     if (heartBonuses.length > 0) {
-      activeMemberCards.push(this.createTemporaryLiveHeartSource(heartBonuses));
+      stageMemberCards.push(this.createTemporaryLiveHeartSource(heartBonuses));
     }
     const liveCards = this.getPlayerLiveCards(game, playerId);
     const cheerCardIds = this.getCurrentPerformanceCheerCardIds(game, playerId);
@@ -1100,7 +1100,7 @@ export class GameService {
     }));
     const performance = liveResolver.performLive(
       playerId,
-      activeMemberCards,
+      stageMemberCards,
       liveCards,
       cheerCards
     );
@@ -1192,6 +1192,26 @@ export class GameService {
         continue;
       }
 
+      const card = getCardById(game, cardId);
+      if (card && isMemberCardData(card.data)) {
+        memberCards.push({
+          ...card.data,
+          hearts: getMemberEffectiveHeartIcons(game, player.id, cardId, liveModifiers),
+        });
+      }
+    }
+
+    return memberCards;
+  }
+
+  private getStageMemberCardsForLiveJudgment(
+    game: GameState,
+    player: PlayerState,
+    liveModifiers = collectLiveModifiers(game)
+  ): MemberCardData[] {
+    const memberCards: MemberCardData[] = [];
+
+    for (const cardId of getAllMemberCardIds(player.memberSlots)) {
       const card = getCardById(game, cardId);
       if (card && isMemberCardData(card.data)) {
         memberCards.push({

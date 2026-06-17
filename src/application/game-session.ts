@@ -131,6 +131,7 @@ import {
   getActivatedAbilityLimitStatus,
   isSupportedActivatedAbilityForCard,
   resolvePendingCardEffects,
+  startSuccessZoneReplacementEffect,
   syncHsBp6027ManualCheerAdjustment,
 } from './card-effect-runner.js';
 import { getMemberEffectiveCost } from './effects/conditions.js';
@@ -1581,6 +1582,13 @@ export class GameSession {
     }
 
     if (this.isLiveDeskMoveStageExempt(state, command)) {
+      return null;
+    }
+
+    if (
+      command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
+      state.activeEffect?.awaitingPlayerId === command.playerId
+    ) {
       return null;
     }
 
@@ -3457,6 +3465,32 @@ export class GameSession {
     }
 
     const liveIndex = getOwnedLiveIndex(state, command.playerId, command.cardId);
+    const isPerformanceSuccessWindow =
+      state.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ||
+      state.currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+      state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS;
+    const isResultSettlement = state.currentSubPhase === SubPhase.RESULT_SETTLEMENT;
+    const activePlayerId = state.players[state.activePlayerIndex]?.id ?? null;
+    if (
+      liveIndex !== null &&
+      (isResultSettlement || isPerformanceSuccessWindow) &&
+      (!isResultSettlement || state.liveResolution.liveWinnerIds.includes(command.playerId)) &&
+      (!isPerformanceSuccessWindow || activePlayerId === command.playerId) &&
+      !state.liveResolution.successCardMovedBy.includes(command.playerId)
+    ) {
+      const replacementState = startSuccessZoneReplacementEffect(state, {
+        controllerId: command.playerId,
+        originalCardId: command.cardId,
+        origin: 'LIVE_SUCCESS',
+      });
+      if (replacementState !== null) {
+        return {
+          success: true,
+          gameState: replacementState,
+        };
+      }
+    }
+
     const result = this.gameService.processAction(
       state,
       createSelectSuccessCardAction(command.playerId, command.cardId)

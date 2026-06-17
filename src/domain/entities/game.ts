@@ -159,6 +159,15 @@ export type LiveModifierState =
       readonly abilityId?: string;
     }
   | {
+      readonly kind: 'HEART';
+      readonly target: 'TARGET_MEMBER';
+      readonly playerId: string;
+      readonly targetMemberCardId: string;
+      readonly hearts: readonly HeartIcon[];
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+    }
+  | {
       readonly kind: 'BLADE';
       readonly playerId: string;
       readonly countDelta: number;

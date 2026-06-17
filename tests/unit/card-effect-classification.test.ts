@@ -10,10 +10,12 @@ import {
   BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
   BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID,
   BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID,
+  BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
   BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID,
   BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
+  BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID,
   CARD_ABILITY_DEFINITIONS,
   CardAbilityCategory,
   CardAbilitySourceZone,
@@ -54,6 +56,8 @@ import {
   HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
   HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
   HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+  HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
+  HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
   HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
@@ -323,6 +327,21 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    for (const cardCode of ['PL!-bp5-007-AR', 'PL!-bp5-007-P', 'PL!-bp5-007-R']) {
+      const bp5007Nozomi = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId === BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID
+      );
+      expect(bp5007Nozomi).toMatchObject({
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        baseCardCodes: ['PL!-bp5-007'],
+      });
+    }
+
     const bp5008Hanayo = getCardAbilityDefinitions('PL!-bp5-008-AR').find(
       (ability) => ability.abilityId === BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID
     );
@@ -485,6 +504,37 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    for (const cardCode of [
+      'PL!HS-bp5-003-AR',
+      'PL!HS-bp5-003-P',
+      'PL!HS-bp5-003-R+',
+      'PL!HS-bp5-003-SEC',
+    ]) {
+      const leaveStage = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID
+      );
+      expect(leaveStage).toMatchObject({
+        category: CardAbilityCategory.AUTO,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+        queued: true,
+        implemented: true,
+      });
+
+      const liveStart = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID
+      );
+      expect(liveStart).toMatchObject({
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
+
     const bp6005Rin = getCardAbilityDefinitions('PL!-bp6-005-P').find(
       (ability) =>
         ability.abilityId === BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID
@@ -511,6 +561,17 @@ describe('card effect classification registry', () => {
     expect(bp6022Dreamin).toMatchObject({
       category: CardAbilityCategory.CONTINUOUS,
       sourceZone: CardAbilitySourceZone.SUCCESS_LIVE_CARD,
+      queued: false,
+      implemented: true,
+    });
+
+    const bp6024Crossroads = getCardAbilityDefinitions('PL!-bp6-024-L').find(
+      (ability) =>
+        ability.abilityId === BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID
+    );
+    expect(bp6024Crossroads).toMatchObject({
+      category: CardAbilityCategory.CONTINUOUS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
       queued: false,
       implemented: true,
     });
@@ -1065,6 +1126,21 @@ describe('card effect classification registry', () => {
           HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID
       )
     ).toBe(true);
+    for (const cardCode of [
+      'PL!HS-bp5-003-AR',
+      'PL!HS-bp5-003-P',
+      'PL!HS-bp5-003-R+',
+      'PL!HS-bp5-003-SEC',
+    ]) {
+      expect(
+        getCardAbilityDefinitions(cardCode).filter((ability) =>
+          [
+            HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
+            HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
+          ].includes(ability.abilityId)
+        )
+      ).toHaveLength(2);
+    }
     expect(
       getCardAbilityDefinitions('PL!HS-bp1-003-P+').filter((ability) =>
         [

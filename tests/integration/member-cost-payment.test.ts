@@ -7,6 +7,7 @@ import {
   OrientationState,
   SlotPosition,
   SubPhase,
+  TriggerCondition,
 } from '../../src/shared/types/enums';
 import type {
   AnyCardData,
@@ -510,6 +511,14 @@ describe('member cost payment', () => {
         (action) => action.type === 'PAY_COST' && action.payload.amount === 4
       )
     ).toBe(true);
+    expect(
+      session.state?.eventLog.at(-1)?.event
+    ).toMatchObject({
+      eventType: TriggerCondition.ON_ENTER_STAGE,
+      cardInstanceId: sourceCardId,
+      replacedMemberCardId: stageCardId,
+      replacedMemberEffectiveCost: 7,
+    });
   });
 
   it('debug free play skips entry cost validation and payment', () => {

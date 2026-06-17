@@ -30,6 +30,7 @@ export interface LiveModifierMatch {
   readonly playerId?: string;
   readonly liveCardId?: string;
   readonly sourceCardId?: string;
+  readonly targetMemberCardId?: string;
   readonly abilityId?: string;
 }
 
@@ -514,6 +515,15 @@ function matchesLiveModifier(modifier: LiveModifierState, match: LiveModifierMat
     return false;
   }
 
+  if (match.targetMemberCardId !== undefined) {
+    if (
+      !('targetMemberCardId' in modifier) ||
+      modifier.targetMemberCardId !== match.targetMemberCardId
+    ) {
+      return false;
+    }
+  }
+
   if (match.abilityId !== undefined && modifier.abilityId !== match.abilityId) {
     return false;
   }
@@ -604,9 +614,9 @@ export function getMemberEffectiveHeartIcons(
     .filter(
       (modifier): modifier is HeartModifierState =>
         modifier.kind === 'HEART' &&
-        modifier.target === 'SOURCE_MEMBER' &&
         modifier.playerId === playerId &&
-        modifier.sourceCardId === sourceCardId
+        ((modifier.target === 'SOURCE_MEMBER' && modifier.sourceCardId === sourceCardId) ||
+          (modifier.target === 'TARGET_MEMBER' && modifier.targetMemberCardId === sourceCardId))
     )
     .flatMap((modifier) => modifier.hearts);
 

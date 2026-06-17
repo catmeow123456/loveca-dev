@@ -103,6 +103,48 @@ describe('live modifier helpers', () => {
     ]);
   });
 
+  it('counts targeted member Heart modifiers without projecting them to player Heart bonuses', () => {
+    const target = createCardInstance(
+      {
+        cardCode: 'TARGET-MEMBER',
+        name: 'Target Member',
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'target-member'
+    );
+    let game = createGameState('live-target-member-heart', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [target]);
+    game = addLiveModifier(game, {
+      kind: 'HEART',
+      target: 'TARGET_MEMBER',
+      playerId: 'p1',
+      targetMemberCardId: target.instanceId,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      sourceCardId: 'rurino',
+      abilityId: 'rurino-target-heart',
+    });
+    game = addLiveModifier(game, {
+      kind: 'HEART',
+      target: 'TARGET_MEMBER',
+      playerId: 'p1',
+      targetMemberCardId: 'other-member',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      sourceCardId: 'other-source',
+      abilityId: 'other-target-heart',
+    });
+
+    expect(game.liveResolution.playerHeartBonuses.has('p1')).toBe(false);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1')).toEqual([]);
+    expect(getMemberEffectiveHeartIcons(game, 'p1', target.instanceId)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.PINK, 1),
+    ]);
+  });
+
   it('separates total score modifiers from this-live-card score modifiers', () => {
     let game = createGameState('live-score-targets', 'p1', 'P1', 'p2', 'P2');
 

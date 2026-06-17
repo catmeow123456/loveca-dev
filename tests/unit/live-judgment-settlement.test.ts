@@ -1008,7 +1008,7 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
   });
 
-  it('SOURCE_MEMBER Heart modifier should not contribute when its source member is resting', () => {
+  it('SOURCE_MEMBER Heart modifier contributes when its source member is resting', () => {
     const service = new GameService();
     const member = createCardInstance(
       {
@@ -1076,8 +1076,212 @@ describe('Live 判定与结算', () => {
     });
 
     expect(acceptResult.success).toBe(true);
-    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(false);
-    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(true);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
+  });
+
+  it('resting stage member printed Heart contributes to LIVE judgment', () => {
+    const service = new GameService();
+    const member = createCardInstance(
+      {
+        cardCode: 'RESTING-PRINTED-HEART-MEMBER',
+        name: 'Resting Printed Heart Member',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 0,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+      },
+      'p1',
+      'p1-resting-printed-heart-member'
+    );
+    const live = createCardInstance(
+      {
+        cardCode: 'RESTING-PRINTED-HEART-LIVE',
+        name: 'Resting Printed Heart Live',
+        cardType: CardType.LIVE as const,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'p1-resting-printed-heart-live'
+    );
+
+    let game = createGameState('g-resting-printed-heart-judgment', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member, live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: {
+        ...placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+        cardStates: new Map([
+          [member.instanceId, { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }],
+        ]),
+      },
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+      },
+    };
+
+    const acceptResult = service.processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(true);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
+  });
+
+  it('TARGET_MEMBER Heart modifier helps LIVE judgment while the target member is active', () => {
+    const service = new GameService();
+    const target = createCardInstance(
+      {
+        cardCode: 'TARGET-HEART-MEMBER',
+        name: 'Target Heart Member',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 0,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+      },
+      'p1',
+      'p1-target-heart-member'
+    );
+    const live = createCardInstance(
+      {
+        cardCode: 'TARGET-HEART-LIVE',
+        name: 'Target Heart Live',
+        cardType: CardType.LIVE as const,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 2 }),
+      },
+      'p1',
+      'p1-target-heart-live'
+    );
+
+    let game = createGameState('g-live-target-member-heart', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [target, live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, target.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+        liveModifiers: [
+          {
+            kind: 'HEART',
+            target: 'TARGET_MEMBER',
+            playerId: 'p1',
+            targetMemberCardId: target.instanceId,
+            hearts: [{ color: HeartColor.PINK, count: 1 }],
+            sourceCardId: 'rurino',
+          },
+        ],
+      },
+    };
+
+    const acceptResult = service.processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(true);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
+  });
+
+  it('TARGET_MEMBER Heart modifier helps LIVE judgment while the target member is resting', () => {
+    const service = new GameService();
+    const target = createCardInstance(
+      {
+        cardCode: 'RESTING-TARGET-HEART-MEMBER',
+        name: 'Resting Target Heart Member',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 0,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+      },
+      'p1',
+      'p1-resting-target-heart-member'
+    );
+    const live = createCardInstance(
+      {
+        cardCode: 'RESTING-TARGET-HEART-LIVE',
+        name: 'Resting Target Heart Live',
+        cardType: CardType.LIVE as const,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 2 }),
+      },
+      'p1',
+      'p1-resting-target-heart-live'
+    );
+
+    let game = createGameState('g-live-target-member-heart-resting', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [target, live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: {
+        ...placeCardInSlot(player.memberSlots, SlotPosition.CENTER, target.instanceId),
+        cardStates: new Map([
+          [target.instanceId, { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }],
+        ]),
+      },
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+        liveModifiers: [
+          {
+            kind: 'HEART',
+            target: 'TARGET_MEMBER',
+            playerId: 'p1',
+            targetMemberCardId: target.instanceId,
+            hearts: [{ color: HeartColor.PINK, count: 1 }],
+            sourceCardId: 'rurino',
+          },
+        ],
+      },
+    };
+
+    const acceptResult = service.processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(true);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
   });
 
   it('PL!-bp5-008 continuous SOURCE_MEMBER yellow Heart helps LIVE judgment while source member is active', () => {
@@ -1152,7 +1356,7 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
   });
 
-  it('PL!-bp5-008 continuous SOURCE_MEMBER yellow Heart does not help LIVE judgment while source member is resting', () => {
+  it('PL!-bp5-008 continuous SOURCE_MEMBER yellow Heart helps LIVE judgment while source member is resting', () => {
     const service = new GameService();
     const hanayo = createCardInstance(
       {
@@ -1224,9 +1428,9 @@ describe('Live 判定与结算', () => {
 
     expect(acceptResult.success).toBe(true);
     expect(acceptResult.gameState.liveResolution.liveResults.get(currentLive.instanceId)).toBe(
-      false
+      true
     );
-    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
   });
 
   it('PL!-bp5-003 continuous SOURCE_MEMBER yellow Heart helps LIVE judgment while source member is active', () => {
@@ -1321,7 +1525,7 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
   });
 
-  it('PL!-bp5-003 continuous SOURCE_MEMBER yellow Heart does not help LIVE judgment while source member is resting', () => {
+  it('PL!-bp5-003 continuous SOURCE_MEMBER yellow Heart helps LIVE judgment while source member is resting', () => {
     const service = new GameService();
     const kotori = createCardInstance(
       {
@@ -1415,9 +1619,9 @@ describe('Live 判定与结算', () => {
 
     expect(acceptResult.success).toBe(true);
     expect(acceptResult.gameState.liveResolution.liveResults.get(currentLive.instanceId)).toBe(
-      false
+      true
     );
-    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
   });
 
   it('PL!-bp4-002 continuous SOURCE_MEMBER purple Heart helps LIVE judgment while source member is active', () => {
@@ -1481,7 +1685,7 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
   });
 
-  it('PL!-bp4-002 continuous SOURCE_MEMBER purple Heart does not help LIVE judgment while source member is resting', () => {
+  it('PL!-bp4-002 continuous SOURCE_MEMBER purple Heart helps LIVE judgment while source member is resting', () => {
     const service = new GameService();
     const eli = createCardInstance(
       {
@@ -1541,9 +1745,9 @@ describe('Live 判定与结算', () => {
 
     expect(acceptResult.success).toBe(true);
     expect(acceptResult.gameState.liveResolution.liveResults.get(currentLive.instanceId)).toBe(
-      false
+      true
     );
-    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
   });
 
   it("PL!-bp6-022 success-zone continuous modifier reduces μ's LIVE generic requirement during judgment", () => {

@@ -54,6 +54,13 @@ function findAbility(
   return ability;
 }
 
+function findTomariAbility(triggerCondition: TriggerCondition): CardAbilityDefinition {
+  return findAbility(
+    SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
+    triggerCondition
+  );
+}
+
 function fixtureAbility(
   overrides: Partial<CardAbilityDefinition> = {}
 ): CardAbilityDefinition {
@@ -92,11 +99,69 @@ function expectMatch(
 }
 
 describe('trigger matcher', () => {
-  it('matches PL!SP-bp4-011-R+ cost 7 Onitsuka Tomari on-enter trigger without requiring a target', () => {
-    const ability = findAbility(
-      SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
-      TriggerCondition.ON_ENTER_STAGE
-    );
+  it.each(['PL!SP-bp4-011-P', 'PL!SP-bp4-011-SEC'])(
+    'matches %s cost 7 Onitsuka Tomari on-enter trigger without requiring a target',
+    (cardCode) => {
+      const ability = findTomariAbility(TriggerCondition.ON_ENTER_STAGE);
+      const event = createEnterStageEvent(
+        'source-card',
+        ZoneType.HAND,
+        SlotPosition.CENTER,
+        'p1',
+        'p1'
+      );
+
+      expect(
+        expectMatch(
+          ability,
+          event,
+          {
+            cardCode,
+          },
+          {
+            sourceCard: 'event-subject',
+            controller: 'same-controller',
+            sourceSlot: 'event-to-slot',
+          }
+        )
+      ).toBe(true);
+    }
+  );
+
+  it.each(['PL!SP-bp4-011-P', 'PL!SP-bp4-011-SEC'])(
+    'matches %s cost 7 Onitsuka Tomari member-slot movement trigger',
+    (cardCode) => {
+      const ability = findTomariAbility(TriggerCondition.ON_MEMBER_SLOT_MOVED);
+      const event = createMemberSlotMovedEvent(
+        'source-card',
+        'p1',
+        SlotPosition.LEFT,
+        SlotPosition.RIGHT,
+        'swapped-card'
+      );
+
+      expect(
+        expectMatch(
+          ability,
+          event,
+          {
+            cardCode,
+            category: CardAbilityCategory.AUTO,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            sourceSlot: SlotPosition.RIGHT,
+          },
+          {
+            sourceCard: 'event-subject',
+            controller: 'same-controller',
+            sourceSlot: 'event-to-slot',
+          }
+        )
+      ).toBe(true);
+    }
+  );
+
+  it('does not match PL!SP-bp4-011 on-enter when source facts do not describe the event subject', () => {
+    const ability = findTomariAbility(TriggerCondition.ON_ENTER_STAGE);
     const event = createEnterStageEvent(
       'source-card',
       ZoneType.HAND,
@@ -109,21 +174,74 @@ describe('trigger matcher', () => {
       expectMatch(
         ability,
         event,
-        {},
+        {
+          cardCode: 'PL!SP-bp4-011-P',
+          cardId: 'other-card',
+        },
         {
           sourceCard: 'event-subject',
           controller: 'same-controller',
           sourceSlot: 'event-to-slot',
         }
       )
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it('matches PL!SP-bp4-011-R+ cost 7 Onitsuka Tomari member-slot movement trigger', () => {
-    const ability = findAbility(
-      SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
-      TriggerCondition.ON_MEMBER_SLOT_MOVED
+  it('does not match PL!SP-bp4-011 on-enter when the event controller differs', () => {
+    const ability = findTomariAbility(TriggerCondition.ON_ENTER_STAGE);
+    const event = createEnterStageEvent(
+      'source-card',
+      ZoneType.HAND,
+      SlotPosition.CENTER,
+      'p2',
+      'p2'
     );
+
+    expect(
+      expectMatch(
+        ability,
+        event,
+        {
+          cardCode: 'PL!SP-bp4-011-P',
+        },
+        {
+          sourceCard: 'event-subject',
+          controller: 'same-controller',
+          sourceSlot: 'event-to-slot',
+        }
+      )
+    ).toBe(false);
+  });
+
+  it('does not match PL!SP-bp4-011 on-enter when the source slot differs from the event slot', () => {
+    const ability = findTomariAbility(TriggerCondition.ON_ENTER_STAGE);
+    const event = createEnterStageEvent(
+      'source-card',
+      ZoneType.HAND,
+      SlotPosition.LEFT,
+      'p1',
+      'p1'
+    );
+
+    expect(
+      expectMatch(
+        ability,
+        event,
+        {
+          cardCode: 'PL!SP-bp4-011-P',
+          sourceSlot: SlotPosition.CENTER,
+        },
+        {
+          sourceCard: 'event-subject',
+          controller: 'same-controller',
+          sourceSlot: 'event-to-slot',
+        }
+      )
+    ).toBe(false);
+  });
+
+  it('does not match PL!SP-bp4-011 member-slot movement when source facts do not describe the moved member', () => {
+    const ability = findTomariAbility(TriggerCondition.ON_MEMBER_SLOT_MOVED);
     const event = createMemberSlotMovedEvent(
       'source-card',
       'p1',
@@ -137,6 +255,8 @@ describe('trigger matcher', () => {
         ability,
         event,
         {
+          cardCode: 'PL!SP-bp4-011-P',
+          cardId: 'other-card',
           category: CardAbilityCategory.AUTO,
           sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
           sourceSlot: SlotPosition.RIGHT,
@@ -147,14 +267,67 @@ describe('trigger matcher', () => {
           sourceSlot: 'event-to-slot',
         }
       )
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('does not match PL!SP-bp4-011 member-slot movement when the controller differs', () => {
+    const ability = findTomariAbility(TriggerCondition.ON_MEMBER_SLOT_MOVED);
+    const event = createMemberSlotMovedEvent(
+      'source-card',
+      'p2',
+      SlotPosition.LEFT,
+      SlotPosition.RIGHT
+    );
+
+    expect(
+      expectMatch(
+        ability,
+        event,
+        {
+          cardCode: 'PL!SP-bp4-011-P',
+          category: CardAbilityCategory.AUTO,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          sourceSlot: SlotPosition.RIGHT,
+        },
+        {
+          sourceCard: 'event-subject',
+          controller: 'same-controller',
+          sourceSlot: 'event-to-slot',
+        }
+      )
+    ).toBe(false);
+  });
+
+  it('does not match PL!SP-bp4-011 member-slot movement when the source slot differs from the destination slot', () => {
+    const ability = findTomariAbility(TriggerCondition.ON_MEMBER_SLOT_MOVED);
+    const event = createMemberSlotMovedEvent(
+      'source-card',
+      'p1',
+      SlotPosition.LEFT,
+      SlotPosition.RIGHT
+    );
+
+    expect(
+      expectMatch(
+        ability,
+        event,
+        {
+          cardCode: 'PL!SP-bp4-011-P',
+          category: CardAbilityCategory.AUTO,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          sourceSlot: SlotPosition.LEFT,
+        },
+        {
+          sourceCard: 'event-subject',
+          controller: 'same-controller',
+          sourceSlot: 'event-to-slot',
+        }
+      )
+    ).toBe(false);
   });
 
   it('does not match when triggerCondition differs', () => {
-    const ability = findAbility(
-      SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
-      TriggerCondition.ON_ENTER_STAGE
-    );
+    const ability = findTomariAbility(TriggerCondition.ON_ENTER_STAGE);
     const event = createMemberSlotMovedEvent(
       'source-card',
       'p1',
@@ -166,10 +339,7 @@ describe('trigger matcher', () => {
   });
 
   it('does not match when sourceZone differs', () => {
-    const ability = findAbility(
-      SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
-      TriggerCondition.ON_ENTER_STAGE
-    );
+    const ability = findTomariAbility(TriggerCondition.ON_ENTER_STAGE);
     const event = createEnterStageEvent(
       'source-card',
       ZoneType.HAND,
@@ -216,10 +386,7 @@ describe('trigger matcher', () => {
   });
 
   it('does not match an unknown or missing source card', () => {
-    const ability = findAbility(
-      SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
-      TriggerCondition.ON_ENTER_STAGE
-    );
+    const ability = findTomariAbility(TriggerCondition.ON_ENTER_STAGE);
     const event = createEnterStageEvent(
       'source-card',
       ZoneType.HAND,

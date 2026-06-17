@@ -36,6 +36,7 @@
   - 两段 effect text 与 baseCardCodes 一致，但 triggerCondition、category、sourceZone 不同。
   - 当前 runner 在登场段消费 `EnterStageEvent`，在移动段消费 `MemberSlotMovedEvent`；登场不重复视为移动。
   - 无合法 BLADE <= 3 目标时仍应入队，后续由 no target / skip 结算处理，matcher 不应提前吞掉。
+  - T-1 shadow test 已覆盖 `ON_ENTER_STAGE` / `ON_MEMBER_SLOT_MOVED` 的纯 matcher 输入、同基础编号 `PL!SP-bp4-011-P` / `PL!SP-bp4-011-SEC` 匹配，以及 source card、controller、sourceSlot、sourceZone、triggerCondition 误配不命中。
 - `PL!SP-bp4-008` 费用 13「若菜四季」证明 `requiredSourceSlots` 是 trigger matching 字段：左侧登场、右侧登场、LIVE 开始站位变换分别由定义上的 source slot 过滤。
 - `PL!HS-bp6-027` 分数 5「月夜見海月」证明 `ON_CHEER` 需要事件主体玩家、sourceZone `LIVE_CARD` 与事件 id；追加声援 `additional=true` 属于事件分支 guard。
 - `PL!N-bp4-018` 费用 7「近江彼方」与 `PL!-pb1-015` 费用 7「西木野真姬」证明状态变化触发不仅要看 `ON_MEMBER_STATE_CHANGED`，还要能表达事件主体、controller 关系、`ACTIVE -> WAITING` 方向与 cause 关系。第一版 matcher 只放入通用字段，phase、cost、目标与 selector 仍留在 runner/resolver。

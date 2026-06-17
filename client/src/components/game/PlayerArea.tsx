@@ -550,18 +550,18 @@ export const PlayerArea = memo(function PlayerArea({
               <button
                 type="button"
                 className={cn(
-                  'absolute inset-x-1 bottom-1 z-30 rounded-md border border-rose-300/80',
-                  'bg-white/95 px-1.5 py-1 font-semibold text-rose-600 shadow-lg',
+                  'absolute bottom-full left-1/2 z-30 mb-1 w-[min(420px,92vw)] -translate-x-1/2 rounded-lg border border-rose-300/70',
+                  'bg-white/95 px-3 py-1.5 font-semibold text-rose-600 shadow-lg',
                   'transition-colors hover:bg-rose-50 active:scale-95'
                 )}
-                style={{ fontSize: '11px', lineHeight: 1.15 }}
+                style={{ fontSize: '12px', lineHeight: 1.25 }}
                 onClick={(event) => {
                   event.stopPropagation();
                   activateCardAbility(card.instanceId, activatedAbilityConfig.abilityId);
                 }}
                 title={activatedAbilityConfig.title}
               >
-                <span className="block truncate">{activatedAbilityConfig.text}</span>
+                {activatedAbilityConfig.text}
               </button>
             )}
             {!cardId && <span className="text-slate-600 text-xs">{position}</span>}
