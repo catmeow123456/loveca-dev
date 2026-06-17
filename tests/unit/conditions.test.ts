@@ -28,6 +28,8 @@ import {
   hasOtherStageMember,
   hasStageMemberMatching,
   sourceHasBladeAtLeast,
+  successLiveScoreAtLeast,
+  sumSuccessfulLiveScore,
 } from '../../src/application/effects/conditions';
 import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import { CardType, HeartColor, SlotPosition, ZoneType } from '../../src/shared/types/enums';
@@ -106,9 +108,9 @@ describe('effect conditions', () => {
         [typeIs(CardType.MEMBER), typeIs(CardType.LIVE)]
       )
     ).toEqual([1, 1]);
-    expect(countCardIdsMatchingSelectors(game, [missingCardId], [typeIs(CardType.MEMBER)])).toEqual([
-      0,
-    ]);
+    expect(countCardIdsMatchingSelectors(game, [missingCardId], [typeIs(CardType.MEMBER)])).toEqual(
+      [0]
+    );
     expect(countCardIdsMatchingSelectors(game, [member.instanceId], [])).toEqual([]);
   });
 
@@ -131,7 +133,11 @@ describe('effect conditions', () => {
       true
     );
     expect(
-      allCardIdsMatchingSelector(game, [member.instanceId, live.instanceId], typeIs(CardType.MEMBER))
+      allCardIdsMatchingSelector(
+        game,
+        [member.instanceId, live.instanceId],
+        typeIs(CardType.MEMBER)
+      )
     ).toBe(false);
     expect(allCardIdsMatchingSelector(game, [missingCardId], typeIs(CardType.MEMBER))).toBe(false);
     expect(allCardIdsMatchingSelector(game, [], typeIs(CardType.MEMBER))).toBe(false);
@@ -165,6 +171,36 @@ describe('effect conditions', () => {
     expect(countCardsInZone(game, 'unknown-player', ZoneType.WAITING_ROOM)).toBe(0);
   });
 
+  it('sums successful Live scores and ignores missing or non-Live cards', () => {
+    const scoreSixLive = liveCard('score-six-live', { score: 6 });
+    const scoreThreeLive = liveCard('score-three-live', { score: 3 });
+    const nonLiveCard = memberCard('success-zone-member', { cost: 9 });
+
+    let game = createGameState('conditions-success-live-score', 'p1', 'P1', 'p2', 'P2');
+
+    expect(sumSuccessfulLiveScore(game, 'p1')).toBe(0);
+    expect(successLiveScoreAtLeast(game, 'p1', 6)).toBe(false);
+
+    game = registerCards(game, [scoreSixLive, scoreThreeLive, nonLiveCard]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: {
+        ...player.successZone,
+        cardIds: [
+          scoreSixLive.instanceId,
+          'missing-success-live',
+          nonLiveCard.instanceId,
+          scoreThreeLive.instanceId,
+        ],
+      },
+    }));
+
+    expect(sumSuccessfulLiveScore(game, 'p1')).toBe(9);
+    expect(successLiveScoreAtLeast(game, 'p1', 6)).toBe(true);
+    expect(successLiveScoreAtLeast(game, 'p1', 9)).toBe(true);
+    expect(successLiveScoreAtLeast(game, 'p1', 10)).toBe(false);
+  });
+
   it('filters, counts, and checks cards in zones through selectors', () => {
     const waitingMember = memberCard('zone-waiting-member');
     const waitingLive = liveCard('zone-waiting-live');
@@ -184,21 +220,21 @@ describe('effect conditions', () => {
       },
     }));
 
-    expect(getCardIdsInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))).toEqual([
-      waitingLive.instanceId,
-    ]);
-    expect(countCardsInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.MEMBER))).toBe(
-      1
-    );
+    expect(
+      getCardIdsInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))
+    ).toEqual([waitingLive.instanceId]);
+    expect(
+      countCardsInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.MEMBER))
+    ).toBe(1);
     expect(hasCardInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))).toBe(
       true
     );
-    expect(hasCardInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, cardNameAliasIs('百生吟子'))).toBe(
-      false
-    );
-    expect(hasCardInZoneMatching(game, 'unknown-player', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))).toBe(
-      false
-    );
+    expect(
+      hasCardInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, cardNameAliasIs('百生吟子'))
+    ).toBe(false);
+    expect(
+      hasCardInZoneMatching(game, 'unknown-player', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))
+    ).toBe(false);
   });
 
   it('checks stage member count, matching, and other-member presence', () => {

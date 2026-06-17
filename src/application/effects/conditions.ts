@@ -1,4 +1,4 @@
-import type { CardInstance } from '../../domain/entities/card.js';
+import { isLiveCardData, type CardInstance } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import { getCardById, getPlayerById } from '../../domain/entities/game.js';
 import { getMemberEffectiveBladeCount } from '../../domain/rules/live-modifiers.js';
@@ -115,6 +115,23 @@ export function countSuccessfulLiveCards(game: GameState, playerId: string): num
   return countCardsInZone(game, playerId, ZoneType.SUCCESS_ZONE);
 }
 
+export function sumSuccessfulLiveScore(game: GameState, playerId: string): number {
+  return getCardsInZone(game, playerId, ZoneType.SUCCESS_ZONE).reduce((sum, card) => {
+    if (!isLiveCardData(card.data)) {
+      return sum;
+    }
+    return sum + card.data.score;
+  }, 0);
+}
+
+export function successLiveScoreAtLeast(
+  game: GameState,
+  playerId: string,
+  minScore: number
+): boolean {
+  return sumSuccessfulLiveScore(game, playerId) >= minScore;
+}
+
 export function countStageMembers(game: GameState, playerId: string): number {
   const player = getPlayerById(game, playerId);
   if (!player) {
@@ -167,7 +184,9 @@ export function countOtherLiveZoneCardsMatching(
 ): number {
   return countCardsMatchingSelector(
     game,
-    getCardIdsInZone(game, playerId, ZoneType.LIVE_ZONE).filter((cardId) => cardId !== sourceCardId),
+    getCardIdsInZone(game, playerId, ZoneType.LIVE_ZONE).filter(
+      (cardId) => cardId !== sourceCardId
+    ),
     selector
   );
 }

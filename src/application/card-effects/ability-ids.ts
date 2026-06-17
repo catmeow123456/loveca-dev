@@ -31,6 +31,8 @@ export const HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID =
   'PL!HS-bp5-019-L:live-start-reduce-green-requirement-by-live-zone';
 export const HS_BP2_022_LIVE_START_SCORE_ABILITY_ID =
   'PL!HS-bp2-022-L:live-start-score-plus-if-three-cerise-live';
+export const BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID =
+  'PL!-bp4-021-L:live-start-success-score-requirement-and-score';
 export const HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID =
   'PL!HS-sd1-006-SD:on-enter-if-related-member-activate-energy-recover-live';
 export const HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
@@ -49,6 +51,10 @@ export const ELI_ACTIVATED_ABILITY_ID =
   'PL!-sd1-002-SD:activated-send-self-to-waiting-room-add-member';
 export const RIN_ACTIVATED_ABILITY_ID =
   'PL!-sd1-005-SD:activated-send-self-to-waiting-room-add-live';
+export const PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID =
+  'PL!-PR-017-PR:activated-send-self-recover-muse-live-activate-energy';
+export const BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID =
+  'PL!-bp4-002:activated-discard-two-recover-muse-live-if-success-score';
 export const BP4_003_ACTIVATED_ABILITY_ID =
   'PL!-bp4-003-P:activated-send-self-to-waiting-room-add-live';
 export const PB1_019_ACTIVATED_ABILITY_ID =
@@ -58,6 +64,16 @@ export const START_DASH_LIVE_SUCCESS_ABILITY_ID = 'PL!-sd1-019-SD:live-success-s
 export const KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-PR-004-PR:on-enter-discard-place-waiting-energy';
 export const BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID = 'PL!-bp3-010-N:on-enter-look-top-reveal-live';
+export const BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID =
+  'PL!-bp5-005-AR:on-enter-success-score-place-active-energy';
+export const SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID =
+  'PL!SP-bp2-002-R:on-enter-look-top-take-high-cost-card';
+export const BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID =
+  'PL!-bp6-002:on-enter-look-top-take-no-ability-or-continuous-muse-card';
+export const BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID =
+  'PL!-bp6-005:on-enter-discard-two-recover-yellow-heart-member-and-live';
+export const PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID =
+  'PL!-PR-018-PR:on-enter-recover-high-score-live';
 export const SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID =
   'PL!SP-bp4-008-P:on-enter-left-draw-two-discard-one';
 export const SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID =

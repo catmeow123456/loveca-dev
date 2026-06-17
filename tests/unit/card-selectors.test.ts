@@ -12,6 +12,8 @@ import {
   groupAliasIs,
   groupIs,
   hasBladeHeart,
+  hasNoAbilityOrContinuousAbility,
+  liveRequiresHeartColor,
   memberHasHeartColor,
   memberPrintedBladeLte,
   not,
@@ -272,6 +274,28 @@ describe('card selectors', () => {
     expect(greenHeartMember(greenLive)).toBe(false);
   });
 
+  it('matches LIVE required Heart color only when that color has a positive requirement', () => {
+    const yellowLive = liveCard('yellow-live', {
+      requirements: createHeartRequirement({ [HeartColor.YELLOW]: 1 }),
+    });
+    const pinkLive = liveCard('pink-live', {
+      requirements: createHeartRequirement({ [HeartColor.PINK]: 2 }),
+    });
+    const zeroYellowLive = liveCard('zero-yellow-live', {
+      requirements: createHeartRequirement({ [HeartColor.YELLOW]: 0 }),
+    });
+    const yellowMember = memberCard('yellow-member', {
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+    });
+
+    const yellowRequirementLive = liveRequiresHeartColor(HeartColor.YELLOW);
+
+    expect(yellowRequirementLive(yellowLive)).toBe(true);
+    expect(yellowRequirementLive(pinkLive)).toBe(false);
+    expect(yellowRequirementLive(zeroYellowLive)).toBe(false);
+    expect(yellowRequirementLive(yellowMember)).toBe(false);
+  });
+
   it('matches cards that have printed BLADE HEART items and composes with not', () => {
     const bladeHeartMember = memberCard('blade-heart-member', {
       bladeHearts: [{ effect: BladeHeartEffect.DRAW }],
@@ -283,6 +307,32 @@ describe('card selectors', () => {
     expect(hasPrintedBladeHeart(bladeHeartMember)).toBe(true);
     expect(hasPrintedBladeHeart(noBladeHeartMember)).toBe(false);
     expect(not(hasPrintedBladeHeart)(noBladeHeartMember)).toBe(true);
+  });
+
+  it('matches cards with no ability text or a continuous ability', () => {
+    const noTextMember = memberCard('no-text-member');
+    const blankTextLive = liveCard('blank-text-live', { cardText: '  ' });
+    const continuousMember = memberCard('continuous-member', {
+      cardText: '【常时】LIVE结束时为止，获得[紫ハート]。',
+    });
+    const jpContinuousMember = memberCard('jp-continuous-member', {
+      cardText: '【常時】LIVE終了時まで、[紫ハート]を得る。',
+    });
+    const onEnterMember = memberCard('on-enter-member', {
+      cardText: '【登场】抽1张卡。',
+    });
+    const activatedMember = memberCard('activated-member', {
+      cardText: '【起动】将1张手牌放置入休息室。',
+    });
+
+    const noAbilityOrContinuous = hasNoAbilityOrContinuousAbility();
+
+    expect(noAbilityOrContinuous(noTextMember)).toBe(true);
+    expect(noAbilityOrContinuous(blankTextLive)).toBe(true);
+    expect(noAbilityOrContinuous(continuousMember)).toBe(true);
+    expect(noAbilityOrContinuous(jpContinuousMember)).toBe(true);
+    expect(noAbilityOrContinuous(onEnterMember)).toBe(false);
+    expect(noAbilityOrContinuous(activatedMember)).toBe(false);
   });
 
   it('matches member printed BLADE at or below a threshold', () => {

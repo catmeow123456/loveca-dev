@@ -1,5 +1,5 @@
 import type { CardInstance } from '../../domain/entities/card.js';
-import { isMemberCardData } from '../../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData } from '../../domain/entities/card.js';
 import type { CardType, HeartColor } from '../../shared/types/enums.js';
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
 
@@ -155,9 +155,21 @@ export function memberHasHeartColor(color: HeartColor): CardSelector {
     card.data.hearts.some((heart) => heart.color === color && heart.count > 0);
 }
 
+export function liveRequiresHeartColor(color: HeartColor): CardSelector {
+  return (card) =>
+    isLiveCardData(card.data) && (card.data.requirements.colorRequirements.get(color) ?? 0) > 0;
+}
+
 export function hasBladeHeart(): CardSelector {
   return (card) =>
     (((card.data as { readonly bladeHearts?: readonly unknown[] }).bladeHearts?.length ?? 0) > 0);
+}
+
+export function hasNoAbilityOrContinuousAbility(): CardSelector {
+  return (card) => {
+    const cardText = card.data.cardText?.trim() ?? '';
+    return cardText.length === 0 || /【常[时時]】/.test(cardText);
+  };
 }
 
 export function memberPrintedBladeLte(maxBlade: number): CardSelector {
