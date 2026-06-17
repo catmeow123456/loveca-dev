@@ -494,6 +494,11 @@ describe('card effect classification registry', () => {
         implemented: true,
       });
     }
+    const shiorikoBp3022 = getCardAbilityDefinitions('PL!N-bp3-022-N').find(
+      (ability) =>
+        ability.abilityId === PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID
+    );
+    expect(shiorikoBp3022?.baseCardCodes).toContain('PL!N-bp3-022');
 
     const hsBp6KahoLiveSuccess = getCardAbilityDefinitions('PL!HS-bp6-001-R＋').find(
       (ability) => ability.abilityId === HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID

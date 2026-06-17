@@ -219,6 +219,7 @@ const DECLINE_OPTION_LABEL = '不发动';
 const ABILITY_USE_STEP = 'ABILITY_USE';
 const ACTIVATED_ABILITY_USE_STEP = 'ACTIVATED_ABILITY_USE';
 const START_DASH_ARRANGE_STEP_ID = 'START_DASH_ARRANGE_TOP_DECK';
+const PL_BP3_014_ON_ENTER_OPTION_STEP_ID = 'PL_BP3_014_ON_ENTER_OPTION';
 const PL_BP3_014_ON_ENTER_ARRANGE_STEP_ID = 'PL_BP3_014_ON_ENTER_ARRANGE_TOP_TWO';
 const HS_BP6_001_ARRANGE_STEP_ID = 'HS_BP6_001_ARRANGE_STAGE_PLUS_TWO_TOP_DECK';
 const HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID = 'HS_BP6_001_SELECT_REVEALED_CHEER_TO_TOP';
@@ -2404,6 +2405,18 @@ export function confirmActiveEffectStep(
     effect.stepId === BP4_021_SUCCESS_SCORE_MODIFIER_STEP_ID
   ) {
     return finishBp4021HeartbeatLiveStartSuccessScoreModifier(game);
+  }
+
+  if (
+    effect.abilityId === PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID &&
+    effect.stepId === PL_BP3_014_ON_ENTER_OPTION_STEP_ID
+  ) {
+    if (selectedOptionId === 'decline') {
+      return finishPlBp3OnEnterLookTopTwoDecline(game);
+    }
+    return selectedOptionId === 'activate'
+      ? finishPlBp3OnEnterLookTopTwoActivate(game)
+      : game;
   }
 
   if (
@@ -7196,7 +7209,79 @@ function startPlBp3OnEnterLookTopTwoArrangeToTop(
     return game;
   }
 
-  const sourceWaitPayment = payImmediateEffectCosts(game, player.id, ability.sourceCardId, [
+  return {
+    ...game,
+    activeEffect: {
+      id: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      controllerId: ability.controllerId,
+      effectText: getCardAbilityEffectText(PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID),
+      stepId: PL_BP3_014_ON_ENTER_OPTION_STEP_ID,
+      stepText: '可以将此成员变为待机状态：检视卡组顶2张并调整卡组顶。',
+      awaitingPlayerId: player.id,
+      selectableOptions: [
+        { id: 'activate', label: '发动' },
+        { id: 'decline', label: DECLINE_OPTION_LABEL },
+      ],
+      metadata: {
+        orderedResolution: options.orderedResolution === true,
+      },
+    },
+  };
+}
+
+function finishPlBp3OnEnterLookTopTwoDecline(game: GameState): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !== PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID ||
+    effect.stepId !== PL_BP3_014_ON_ENTER_OPTION_STEP_ID
+  ) {
+    return game;
+  }
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const state = {
+    ...game,
+    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== effect.id),
+    activeEffect: null,
+  };
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'SKIP',
+    }),
+    isOrderedResolutionEffect(game)
+  );
+}
+
+function finishPlBp3OnEnterLookTopTwoActivate(game: GameState): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !== PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID ||
+    effect.stepId !== PL_BP3_014_ON_ENTER_OPTION_STEP_ID
+  ) {
+    return game;
+  }
+  const player = getPlayerById(game, effect.controllerId);
+  const pendingAbility = game.pendingAbilities.find(
+    (ability) =>
+      ability.id === effect.id &&
+      ability.abilityId === effect.abilityId &&
+      ability.sourceCardId === effect.sourceCardId
+  );
+  if (!player || !pendingAbility) {
+    return game;
+  }
+
+  const sourceWaitPayment = payImmediateEffectCosts(game, player.id, pendingAbility.sourceCardId, [
     { kind: 'SET_SOURCE_MEMBER_ORIENTATION', orientation: OrientationState.WAITING },
   ]);
   if (!sourceWaitPayment) {
@@ -7204,15 +7289,15 @@ function startPlBp3OnEnterLookTopTwoArrangeToTop(
   }
 
   const stateAfterCost = addAction(sourceWaitPayment.gameState, 'PAY_COST', player.id, {
-    pendingAbilityId: ability.id,
-    abilityId: ability.abilityId,
-    sourceCardId: ability.sourceCardId,
+    pendingAbilityId: pendingAbility.id,
+    abilityId: pendingAbility.abilityId,
+    sourceCardId: pendingAbility.sourceCardId,
     sourceSlot: sourceWaitPayment.sourceSlot,
     orientedMemberCardIds: sourceWaitPayment.orientedMemberCardIds,
   });
 
-  return startArrangeInspectedDeckTopEffect(stateAfterCost, {
-    ability,
+  return startArrangeInspectedDeckTopEffect({ ...stateAfterCost, activeEffect: null }, {
+    ability: pendingAbility,
     playerId: player.id,
     effectText: getCardAbilityEffectText(PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID),
     inspectCount: 2,
@@ -7223,7 +7308,7 @@ function startPlBp3OnEnterLookTopTwoArrangeToTop(
     selectMax: 2,
     selectedDestination: 'MAIN_DECK_TOP',
     unselectedDestination: 'WAITING_ROOM',
-    orderedResolution: options.orderedResolution === true,
+    orderedResolution: effect.metadata?.orderedResolution === true,
   });
 }
 

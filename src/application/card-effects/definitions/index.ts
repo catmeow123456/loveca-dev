@@ -1048,7 +1048,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_BP3_014_ON_ENTER_EFFECT_TEXT,
     notes:
-      '登场时将来源成员变为待机状态；检视卡组顶2张，按顺序放回任意张到卡组顶，其余放入休息室。',
+      '登场时可选发动；可以将来源成员变为待机状态，检视卡组顶2张，按顺序放回任意张到卡组顶，其余放入休息室。',
   },
   {
     abilityId: HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
