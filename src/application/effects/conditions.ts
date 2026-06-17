@@ -1,7 +1,11 @@
-import { isLiveCardData, type CardInstance } from '../../domain/entities/card.js';
+import type { CardInstance } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import { getCardById, getPlayerById } from '../../domain/entities/game.js';
 import { getMemberEffectiveBladeCount } from '../../domain/rules/live-modifiers.js';
+export {
+  sumSuccessfulLiveScore,
+  successLiveScoreAtLeast,
+} from '../../domain/rules/success-live-score.js';
 import { ZoneType } from '../../shared/types/enums.js';
 import type { CardSelector } from './card-selectors.js';
 
@@ -113,23 +117,6 @@ export function hasCardInZoneMatching(
 
 export function countSuccessfulLiveCards(game: GameState, playerId: string): number {
   return countCardsInZone(game, playerId, ZoneType.SUCCESS_ZONE);
-}
-
-export function sumSuccessfulLiveScore(game: GameState, playerId: string): number {
-  return getCardsInZone(game, playerId, ZoneType.SUCCESS_ZONE).reduce((sum, card) => {
-    if (!isLiveCardData(card.data)) {
-      return sum;
-    }
-    return sum + card.data.score;
-  }, 0);
-}
-
-export function successLiveScoreAtLeast(
-  game: GameState,
-  playerId: string,
-  minScore: number
-): boolean {
-  return sumSuccessfulLiveScore(game, playerId) >= minScore;
 }
 
 export function countStageMembers(game: GameState, playerId: string): number {

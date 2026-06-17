@@ -3,8 +3,10 @@ import {
   BladeHeartEffect,
   CardType,
   EffectWindowType,
+  FaceState,
   HeartColor,
   GamePhase,
+  OrientationState,
   SlotPosition,
   SubPhase,
   TurnType,
@@ -939,7 +941,7 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
   });
 
-  it('统一 Live modifier 应能独立提供 Heart 修正', () => {
+  it('SOURCE_MEMBER Heart modifier should provide hearts through its active source member', () => {
     const service = new GameService();
     const member = createCardInstance(
       {
@@ -985,8 +987,10 @@ describe('Live 判定与结算', () => {
         liveModifiers: [
           {
             kind: 'HEART',
+            target: 'SOURCE_MEMBER',
             playerId: 'p1',
             hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+            sourceCardId: member.instanceId,
           },
         ],
       },
@@ -1002,6 +1006,227 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.success).toBe(true);
     expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(true);
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
+  });
+
+  it('SOURCE_MEMBER Heart modifier should not contribute when its source member is resting', () => {
+    const service = new GameService();
+    const member = createCardInstance(
+      {
+        cardCode: 'RESTING-MODIFIER-HEART-MEMBER',
+        name: 'Resting Modifier Heart Member',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 0,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+      },
+      'p1',
+      'p1-resting-modifier-heart-member'
+    );
+    const live = createCardInstance(
+      {
+        cardCode: 'RESTING-MODIFIER-HEART-LIVE',
+        name: 'Resting Modifier Heart Live',
+        cardType: CardType.LIVE as const,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.YELLOW]: 1 }),
+      },
+      'p1',
+      'p1-resting-modifier-heart-live'
+    );
+
+    let game = createGameState('g-live-modifier-heart-resting-source', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member, live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: {
+        ...placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+        cardStates: new Map([
+          [member.instanceId, { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }],
+        ]),
+      },
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+        liveModifiers: [
+          {
+            kind: 'HEART',
+            target: 'SOURCE_MEMBER',
+            playerId: 'p1',
+            hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+            sourceCardId: member.instanceId,
+          },
+        ],
+      },
+    };
+
+    const acceptResult = service.processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(false);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
+  });
+
+  it('PL!-bp5-008 continuous SOURCE_MEMBER yellow Heart helps LIVE judgment while source member is active', () => {
+    const service = new GameService();
+    const hanayo = createCardInstance(
+      {
+        cardCode: 'PL!-bp5-008-AR',
+        name: '小泉花阳',
+        cardType: CardType.MEMBER as const,
+        cost: 13,
+        blade: 0,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+      },
+      'p1',
+      'p1-hanayo-bp5-008'
+    );
+    const previousSuccessLive = createCardInstance(
+      {
+        cardCode: 'PREVIOUS-SUCCESS-LIVE',
+        name: 'Previous Success Live',
+        cardType: CardType.LIVE as const,
+        score: 6,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'p1-previous-success-live'
+    );
+    const currentLive = createCardInstance(
+      {
+        cardCode: 'CURRENT-YELLOW-LIVE',
+        name: 'Current Yellow Live',
+        cardType: CardType.LIVE as const,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.YELLOW]: 2 }),
+      },
+      'p1',
+      'p1-current-yellow-live'
+    );
+
+    let game = createGameState('g-bp5-008-active-source-heart', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hanayo, previousSuccessLive, currentLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, hanayo.instanceId),
+      successZone: addCardToZone(player.successZone, previousSuccessLive.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, currentLive.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+      },
+    };
+
+    const acceptResult = service.processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(currentLive.instanceId)).toBe(
+      true
+    );
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
+  });
+
+  it('PL!-bp5-008 continuous SOURCE_MEMBER yellow Heart does not help LIVE judgment while source member is resting', () => {
+    const service = new GameService();
+    const hanayo = createCardInstance(
+      {
+        cardCode: 'PL!-bp5-008-AR',
+        name: '小泉花阳',
+        cardType: CardType.MEMBER as const,
+        cost: 13,
+        blade: 0,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+      },
+      'p1',
+      'p1-resting-hanayo-bp5-008'
+    );
+    const previousSuccessLive = createCardInstance(
+      {
+        cardCode: 'PREVIOUS-SUCCESS-LIVE',
+        name: 'Previous Success Live',
+        cardType: CardType.LIVE as const,
+        score: 6,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'p1-resting-previous-success-live'
+    );
+    const currentLive = createCardInstance(
+      {
+        cardCode: 'CURRENT-YELLOW-LIVE',
+        name: 'Current Yellow Live',
+        cardType: CardType.LIVE as const,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.YELLOW]: 2 }),
+      },
+      'p1',
+      'p1-resting-current-yellow-live'
+    );
+
+    let game = createGameState('g-bp5-008-resting-source-heart', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hanayo, previousSuccessLive, currentLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: {
+        ...placeCardInSlot(player.memberSlots, SlotPosition.CENTER, hanayo.instanceId),
+        cardStates: new Map([
+          [hanayo.instanceId, { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }],
+        ]),
+      },
+      successZone: addCardToZone(player.successZone, previousSuccessLive.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, currentLive.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+      },
+    };
+
+    const acceptResult = service.processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(currentLive.instanceId)).toBe(
+      false
+    );
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
   });
 
   it('统一 Live modifier 应能独立提供 Blade 修正', () => {

@@ -6781,6 +6781,7 @@ function finishHsPr019GinkoMillGainGreenHeart(game: GameState): GameState {
   if (conditionMet) {
     state = addLiveModifier(state, {
       kind: 'HEART',
+      target: 'SOURCE_MEMBER',
       playerId: player.id,
       hearts: [{ color: HeartColor.GREEN, count: 1 }],
       sourceCardId: effect.sourceCardId,
@@ -9706,6 +9707,7 @@ function finishKotoriLiveStartHeartBonus(
     },
     {
       kind: 'HEART',
+      target: 'SOURCE_MEMBER',
       playerId: player.id,
       hearts: [heartBonus],
       sourceCardId: effect.sourceCardId,

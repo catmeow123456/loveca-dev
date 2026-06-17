@@ -135,6 +135,7 @@ import {
   collectLiveModifiers,
   getLiveCardRequirementModifiers,
   getLiveCardScoreModifier,
+  getMemberEffectiveHeartIcons,
   getPlayerLiveBladeModifier,
   getPlayerLiveHeartModifiers,
   getPlayerLiveScoreModifier,
@@ -1068,7 +1069,7 @@ export class GameService {
 
     const liveModifiers = collectLiveModifiers(game);
     const heartBonuses = getPlayerLiveHeartModifiers(game.liveResolution, playerId, liveModifiers);
-    const activeMemberCards = [...this.getActiveMemberCards(game, player)];
+    const activeMemberCards = [...this.getActiveMemberCards(game, player, liveModifiers)];
     if (heartBonuses.length > 0) {
       activeMemberCards.push(this.createTemporaryLiveHeartSource(heartBonuses));
     }
@@ -1087,7 +1088,7 @@ export class GameService {
 
     const liveModifiers = collectLiveModifiers(game);
     const heartBonuses = getPlayerLiveHeartModifiers(game.liveResolution, playerId, liveModifiers);
-    const activeMemberCards = this.getActiveMemberCards(game, player);
+    const activeMemberCards = this.getActiveMemberCards(game, player, liveModifiers);
     if (heartBonuses.length > 0) {
       activeMemberCards.push(this.createTemporaryLiveHeartSource(heartBonuses));
     }
@@ -1178,7 +1179,11 @@ export class GameService {
       : game.liveResolution.secondPlayerCheerCardIds;
   }
 
-  private getActiveMemberCards(game: GameState, player: PlayerState): MemberCardData[] {
+  private getActiveMemberCards(
+    game: GameState,
+    player: PlayerState,
+    liveModifiers = collectLiveModifiers(game)
+  ): MemberCardData[] {
     const memberCards: MemberCardData[] = [];
 
     for (const cardId of getAllMemberCardIds(player.memberSlots)) {
@@ -1189,7 +1194,10 @@ export class GameService {
 
       const card = getCardById(game, cardId);
       if (card && isMemberCardData(card.data)) {
-        memberCards.push(card.data);
+        memberCards.push({
+          ...card.data,
+          hearts: getMemberEffectiveHeartIcons(game, player.id, cardId, liveModifiers),
+        });
       }
     }
 

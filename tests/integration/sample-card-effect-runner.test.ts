@@ -3943,6 +3943,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
     expect(session.state?.liveResolution.liveModifiers).not.toContainEqual({
       kind: 'HEART',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       hearts: [{ color: HeartColor.GREEN, count: 1 }],
       sourceCardId: ginko.instanceId,
@@ -3964,6 +3965,7 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'HEART',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       hearts: [{ color: HeartColor.GREEN, count: 1 }],
       sourceCardId: ginko.instanceId,
@@ -7036,11 +7038,10 @@ describe('sample card effect runner', () => {
 
     expect(heartResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.liveResolution.playerHeartBonuses.get(PLAYER1)).toEqual([
-      { color: HeartColor.YELLOW, count: 1 },
-    ]);
+    expect(session.state?.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'HEART',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       hearts: [{ color: HeartColor.YELLOW, count: 1 }],
       sourceCardId: kotoriCardId,
@@ -7173,6 +7174,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'HEART',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       hearts: [{ color: HeartColor.BLUE, count: 1 }],
       sourceCardId: megumiCardId,

@@ -66,6 +66,8 @@ export const KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID =
 export const BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID = 'PL!-bp3-010-N:on-enter-look-top-reveal-live';
 export const BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID =
   'PL!-bp5-005-AR:on-enter-success-score-place-active-energy';
+export const BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID =
+  'PL!-bp5-008:continuous-success-score-yellow-heart';
 export const SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID =
   'PL!SP-bp2-002-R:on-enter-look-top-take-high-cost-card';
 export const BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID =

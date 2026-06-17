@@ -1,19 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
-import { placeCardInSlot } from '../../src/domain/entities/zone';
+import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   addLiveModifier,
   collectLiveModifiers,
   getLiveCardScoreModifier,
   getMemberEffectiveBladeCount,
+  getMemberEffectiveHeartIcons,
+  getPlayerLiveHeartModifiers,
   getPlayerLiveScoreModifier,
   replaceLiveModifier,
 } from '../../src/domain/rules/live-modifiers';
 import { CardType, HeartColor, SlotPosition } from '../../src/shared/types/enums';
 
 describe('live modifier helpers', () => {
-  it('uses liveModifiers as the source for score and heart compatibility projections', () => {
+  it('uses liveModifiers as the source for score projection without projecting source-member hearts', () => {
     let game = createGameState('live-modifier-projection', 'p1', 'P1', 'p2', 'P2');
 
     game = addLiveModifier(game, {
@@ -25,6 +27,7 @@ describe('live modifier helpers', () => {
     });
     game = addLiveModifier(game, {
       kind: 'HEART',
+      target: 'SOURCE_MEMBER',
       playerId: 'p1',
       hearts: [{ color: HeartColor.YELLOW, count: 1 }],
       sourceCardId: 'kotori',
@@ -41,6 +44,7 @@ describe('live modifier helpers', () => {
       },
       {
         kind: 'HEART',
+        target: 'SOURCE_MEMBER',
         playerId: 'p1',
         hearts: [{ color: HeartColor.YELLOW, count: 1 }],
         sourceCardId: 'kotori',
@@ -48,8 +52,53 @@ describe('live modifier helpers', () => {
       },
     ]);
     expect(game.liveResolution.playerScoreBonuses.get('p1')).toBe(1);
-    expect(game.liveResolution.playerHeartBonuses.get('p1')).toEqual([
-      { color: HeartColor.YELLOW, count: 1 },
+    expect(game.liveResolution.playerHeartBonuses.has('p1')).toBe(false);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1')).toEqual([]);
+  });
+
+  it('counts printed hearts plus source-member heart modifiers for the same source member', () => {
+    const kotori = createCardInstance(
+      {
+        cardCode: 'PL!-sd1-003-SD',
+        name: '南ことり',
+        cardType: CardType.MEMBER,
+        cost: 7,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'kotori'
+    );
+    let game = createGameState('live-member-effective-heart', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kotori]);
+    game = addLiveModifier(game, {
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      sourceCardId: 'kotori',
+      abilityId: 'kotori-heart',
+    });
+    game = addLiveModifier(game, {
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      sourceCardId: 'other-source',
+      abilityId: 'other-heart',
+    });
+    game = addLiveModifier(game, {
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p2',
+      hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      sourceCardId: 'kotori',
+      abilityId: 'opponent-heart',
+    });
+
+    expect(getMemberEffectiveHeartIcons(game, 'p1', 'kotori')).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.YELLOW, 1),
     ]);
   });
 
@@ -186,6 +235,140 @@ describe('live modifier helpers', () => {
       )
     ).toBe(false);
     expect(getMemberEffectiveBladeCount(movedGame, 'p1', 'karin')).toBe(1);
+  });
+
+  it('does not collect PL!-bp5-008 source-member Heart when successful LIVE score is less than 6', () => {
+    const hanayo = createCardInstance(
+      {
+        cardCode: 'PL!-bp5-008-AR',
+        name: '小泉花阳',
+        cardType: CardType.MEMBER,
+        cost: 13,
+        blade: 0,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'hanayo'
+    );
+    const lowScoreLive = createCardInstance(
+      {
+        cardCode: 'LOW-SCORE-LIVE',
+        name: 'Low Score Live',
+        cardType: CardType.LIVE,
+        score: 5,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'low-score-live'
+    );
+
+    let game = createGameState('bp5-008-low-score', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hanayo, lowScoreLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, hanayo.instanceId),
+      successZone: addCardToZone(player.successZone, lowScoreLive.instanceId),
+    }));
+
+    expect(hasBp5008YellowHeartModifier(game)).toBe(false);
+    expect(getMemberEffectiveHeartIcons(game, 'p1', hanayo.instanceId)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+    ]);
+  });
+
+  it('collects PL!-bp5-008 as SOURCE_MEMBER yellow Heart +2 at successful LIVE score 6', () => {
+    const hanayo = createCardInstance(
+      {
+        cardCode: 'PL!-bp5-008-P',
+        name: '小泉花阳',
+        cardType: CardType.MEMBER,
+        cost: 13,
+        blade: 0,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'hanayo'
+    );
+    const successLive = createCardInstance(
+      {
+        cardCode: 'SCORE-SIX-LIVE',
+        name: 'Score Six Live',
+        cardType: CardType.LIVE,
+        score: 6,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'score-six-live'
+    );
+
+    let game = createGameState('bp5-008-score-six', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hanayo, successLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, hanayo.instanceId),
+      successZone: addCardToZone(player.successZone, successLive.instanceId),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 2)],
+      sourceCardId: hanayo.instanceId,
+      abilityId: 'PL!-bp5-008:continuous-success-score-yellow-heart',
+    });
+    expect(getMemberEffectiveHeartIcons(game, 'p1', hanayo.instanceId, modifiers)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.YELLOW, 2),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+  });
+
+  it('recomputes PL!-bp5-008 continuous Heart without leaving stale modifiers', () => {
+    const hanayo = createCardInstance(
+      {
+        cardCode: 'PL!-bp5-008-R',
+        name: '小泉花阳',
+        cardType: CardType.MEMBER,
+        cost: 13,
+        blade: 0,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'hanayo'
+    );
+    const successLive = createCardInstance(
+      {
+        cardCode: 'SCORE-SIX-LIVE',
+        name: 'Score Six Live',
+        cardType: CardType.LIVE,
+        score: 6,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'score-six-live'
+    );
+
+    let game = createGameState('bp5-008-dynamic', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hanayo, successLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, hanayo.instanceId),
+      successZone: addCardToZone(player.successZone, successLive.instanceId),
+    }));
+
+    expect(hasBp5008YellowHeartModifier(game)).toBe(true);
+
+    const belowThresholdGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: { ...player.successZone, cardIds: [] },
+    }));
+
+    expect(hasBp5008YellowHeartModifier(belowThresholdGame)).toBe(false);
+    expect(getMemberEffectiveHeartIcons(belowThresholdGame, 'p1', hanayo.instanceId)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+    ]);
   });
 
   it('collects PL!HS-bp1-003 continuous score only for three different Hasunosora members', () => {
@@ -389,6 +572,15 @@ function hasHsBp1ContinuousScore(game: ReturnType<typeof createGameState>): bool
     (modifier) =>
       modifier.kind === 'SCORE' &&
       modifier.abilityId === 'PL!HS-bp1-003-SEC:continuous-three-different-hasunosora-score'
+  );
+}
+
+function hasBp5008YellowHeartModifier(game: ReturnType<typeof createGameState>): boolean {
+  return collectLiveModifiers(game).some(
+    (modifier) =>
+      modifier.kind === 'HEART' &&
+      modifier.target === 'SOURCE_MEMBER' &&
+      modifier.abilityId === 'PL!-bp5-008:continuous-success-score-yellow-heart'
   );
 }
 

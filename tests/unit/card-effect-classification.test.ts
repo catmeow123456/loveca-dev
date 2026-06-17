@@ -6,6 +6,7 @@ import {
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
   BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID,
+  BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID,
   CARD_ABILITY_DEFINITIONS,
@@ -316,6 +317,24 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+
+    const bp5008Hanayo = getCardAbilityDefinitions('PL!-bp5-008-AR').find(
+      (ability) => ability.abilityId === BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID
+    );
+    expect(bp5008Hanayo).toMatchObject({
+      category: CardAbilityCategory.CONTINUOUS,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      queued: false,
+      implemented: true,
+    });
+    for (const cardCode of ['PL!-bp5-008-P', 'PL!-bp5-008-R']) {
+      expect(
+        getCardAbilityDefinitions(cardCode).some(
+          (ability) =>
+            ability.abilityId === BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID
+        )
+      ).toBe(true);
+    }
 
     const spBp2Keke = getCardAbilityDefinitions('PL!SP-bp2-002-R').find(
       (ability) => ability.abilityId === SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID

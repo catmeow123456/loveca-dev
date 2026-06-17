@@ -41,6 +41,7 @@ import {
   KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID,
+  BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID,
@@ -178,6 +179,8 @@ const BP3_010_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的LIVE卡公开并加入手牌。其余放置入休息室。';
 const BP5_005_ON_ENTER_EFFECT_TEXT =
   '【登场】存在于自己的成功LIVE卡区的卡片的分数合计大于等于6的场合，从自己的能量卡组，将1张能量卡以活跃状态放置入能量区。';
+const BP5_008_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于6，获得[黄ハート][黄ハート]。';
 const SP_BP2_002_ON_ENTER_EFFECT_TEXT =
   '【登场】检视自己卡组顶的3张卡。可以将1张其中的费用大于等于11的卡片公开并加入手牌。其余的卡片放置入休息室。';
 const BP6_002_ON_ENTER_EFFECT_TEXT =
@@ -519,6 +522,17 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: BP5_005_ON_ENTER_EFFECT_TEXT,
     notes:
       '成功 LIVE 分数合计条件走 conditions.ts，只满足时复用 energy.ts 从能量卡组放置活跃能量。',
+  },
+  {
+    abilityId: BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!-bp5-008'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: BP5_008_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      '持续修正不进队列；成功 LIVE 分数合计 >=6 时由 continuous modifier registry 动态收集为 SOURCE_MEMBER 黄 Heart +2。',
   },
   {
     abilityId: SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,

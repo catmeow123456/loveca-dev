@@ -10,6 +10,7 @@ import { getCardById } from '../entities/game.js';
 import { getAllMemberCardIds } from '../entities/zone.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
+import { successLiveScoreAtLeast } from './success-live-score.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
 type HeartModifierState = Extract<LiveModifierState, { readonly kind: 'HEART' }>;
@@ -61,6 +62,22 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    baseCardCodes: ['PL!-bp5-008'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      successLiveScoreAtLeast(game, playerId, 6)
+        ? [
+            {
+              kind: 'HEART',
+              target: 'SOURCE_MEMBER',
+              playerId,
+              hearts: [{ color: HeartColor.YELLOW, count: 2 }],
+              sourceCardId,
+              abilityId: BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
     baseCardCodes: ['PL!HS-bp1-003'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasThreeDifferentHasunosoraMembersOnStage(game, playerId)
@@ -99,6 +116,8 @@ const MEMBER_SLOT_ORDER: readonly SlotPosition[] = [
 ];
 const HS_BP1_003_CONTINUOUS_SCORE_ABILITY_ID =
   'PL!HS-bp1-003-SEC:continuous-three-different-hasunosora-score';
+const BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID =
+  'PL!-bp5-008:continuous-success-score-yellow-heart';
 const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
   'PL!N-pb1-004:continuous-not-position-moved-gain-two-blade';
 
@@ -118,7 +137,7 @@ function getHeartModifiers(
 ): HeartModifierState[] {
   return liveModifiers.filter(
     (modifier): modifier is HeartModifierState =>
-      modifier.kind === 'HEART' && modifier.playerId === playerId
+      modifier.kind === 'HEART' && modifier.target === 'PLAYER' && modifier.playerId === playerId
   );
 }
 
@@ -282,7 +301,7 @@ export function projectLiveModifierCompatibility(
       continue;
     }
 
-    if (modifier.kind === 'HEART') {
+    if (modifier.kind === 'HEART' && modifier.target === 'PLAYER') {
       playerHeartBonuses.set(modifier.playerId, [
         ...(playerHeartBonuses.get(modifier.playerId) ?? []),
         ...modifier.hearts,
@@ -413,6 +432,30 @@ export function getMemberEffectiveBladeCount(
     .reduce((total, modifier) => total + modifier.countDelta, 0);
 
   return Math.max(0, sourceCard.data.blade + modifierBladeCount);
+}
+
+export function getMemberEffectiveHeartIcons(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  liveModifiers: readonly LiveModifierState[] = collectLiveModifiers(game)
+): readonly HeartIcon[] {
+  const sourceCard = getCardById(game, sourceCardId);
+  if (!sourceCard || !isMemberCardData(sourceCard.data)) {
+    return [];
+  }
+
+  const modifierHearts = liveModifiers
+    .filter(
+      (modifier): modifier is HeartModifierState =>
+        modifier.kind === 'HEART' &&
+        modifier.target === 'SOURCE_MEMBER' &&
+        modifier.playerId === playerId &&
+        modifier.sourceCardId === sourceCardId
+    )
+    .flatMap((modifier) => modifier.hearts);
+
+  return [...sourceCard.data.hearts, ...modifierHearts];
 }
 
 export function getLiveCardRequirementModifiers(
