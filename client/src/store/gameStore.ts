@@ -577,6 +577,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     entries: readonly { readonly command: GameCommand; readonly options: StoreCommandOptions }[]
   ): boolean => {
     if (isReadonlyReplayMode()) {
+      warnReplayGuardBypass('runRemoteCommandSequence');
       return true;
     }
 
@@ -2146,6 +2147,15 @@ function getReadonlyReplayViewerPlayerId(replay: MatchRecordReplayView): string 
   return viewerPlayerId;
 }
 
+// 只读回放会话下，远程分发安全网被触达意味着上层 isReadonlyReplayMode() 守卫被绕过，
+// 属于编程错误。这些守卫返回 true（“已消费、勿回退本地执行”）以阻止回退到本地 gameSession，
+// 因为本地执行会篡改只读回放视图；返回 false 反而会触发本地变更。此处显式告警以便未来重构尽早暴露绕过。
+function warnReplayGuardBypass(context: string): void {
+  console.error(
+    `[gameStore] ${context} 在只读回放会话中被触达并已忽略；调用方应先通过 isReadonlyReplayMode() 拦截。`
+  );
+}
+
 function dispatchRemoteCommand(
   command: GameCommand,
   failureMessage: string,
@@ -2153,6 +2163,7 @@ function dispatchRemoteCommand(
 ): boolean {
   const store = useGameStore.getState();
   if (store.replaySession) {
+    warnReplayGuardBypass('dispatchRemoteCommand');
     return true;
   }
   const remoteSession = store.remoteSession;
@@ -2197,6 +2208,7 @@ function dispatchRemoteCommand(
 function dispatchRemoteAdvancePhase(): boolean {
   const store = useGameStore.getState();
   if (store.replaySession) {
+    warnReplayGuardBypass('dispatchRemoteAdvancePhase');
     return true;
   }
   const remoteSession = store.remoteSession;
