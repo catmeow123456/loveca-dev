@@ -24,7 +24,7 @@
 | R-1 | partial | runtime action helpers。 | 抽牌、弃牌、回收等原子动作已有 runtime helper 和测试；看顶仍由 `src/application/effects/look-top.ts` 原语承接，更多区域移动/公开确认 helper 待真实 workflow 推动。 |
 | R-2 | partial | activeEffect step handler registry。 | `confirmActiveEffectStep` 已先查 step registry，未命中 fallback 旧分支；look-top、抽后弃、回收等 workflow 已迁入 registry，复杂旧分支仍在 runner。 |
 | R-3 | partial | pending / starter registry。 | `startPendingAbilityEffect` 已先查 starter registry，未命中 fallback 旧 switch；新增 queued workflow 应优先注册 starter。 |
-| R-4 | partial | workflow family 迁出。 | look-top、discard look-top、draw-then-discard、waiting-room recovery、自送回收、支付能量回收、BP4-002 弃手回收、grouped recovery、fixed pay-energy gain-BLADE、arrange-top 与 opponent wait target 已离开 runner；grouped recovery 独立 family，不混入普通 recovery family。 |
+| R-4 | partial | workflow family 迁出。 | look-top、discard look-top、draw-then-discard、waiting-room recovery、自送回收、支付能量回收、BP4-002 弃手回收、grouped recovery、fixed pay-energy gain-BLADE、arrange-top、opponent wait target 与 conditional live modifier 已离开 runner；grouped recovery 独立 family，不混入普通 recovery family。 |
 | R-5 | partial | special card workflow 迁出。 | `HS_BP1_002`、`HS_BP5_001` activated、`HS_PB1_004`、`BP5_003`、`YOSHIKO` 已迁出；瑠璃乃、錯覚CROSSROADS、东条希等复杂特殊卡仍在 runner。 |
 | R-6 | planned | trigger matcher T-2。 | 在 enqueue 边界稳定后，用纯 matcher 替代部分旧 trigger 判定，并保留 shadow 一致性测试。 |
 | R-7 | planned | steps-lite。 | 只对 proven workflow family 建 typed builder；不做完整 DSL。 |
@@ -78,6 +78,7 @@ Current migrated workflow modules:
 - `workflows/shared/pay-energy-gain-blade.ts`
 - `workflows/shared/arrange-inspected-deck-top.ts`
 - `workflows/shared/opponent-wait-target.ts`
+- `workflows/shared/conditional-live-modifier.ts`
 - `workflows/cards/hs-bp5-008-izumi.ts`
 - `workflows/cards/hs-pb1-009-kaho.ts`
 - `workflows/cards/hs-sd1-006-hime.ts`
@@ -92,14 +93,36 @@ Current migrated workflow modules:
 Recent helper modules added outside `actions.ts`:
 
 - `runtime/workflow-helpers.ts`: ability text lookup, ability-use action glue, and PAY_COST action-log glue.
-- `runtime/active-effect.ts`: shared skip finish helper for activeEffect workflows.
+- `runtime/active-effect.ts`: shared activeEffect start glue and skip finish helper for activeEffect workflows.
 - `runtime/source-member.ts`: source member slot lookup helper.
 - `runtime/events.ts`: event-log delta queries for newly entered stage members and newly changed member orientation events.
 - `runtime/grouped-selection.ts`: validates per-group min/max card selections for grouped recovery.
 
-Runner line count after R-4M opponent wait target migration is about 7112 lines, down from about 7336 after R-4L arrange-top. The runner is still registry-first with fallback old branches; it is not complete.
+Runner line count after R-4O conditional live modifier migration is about 6519 lines, down from about 7112 after R-4N consolidation. The runner is still registry-first with fallback old branches; it is not complete.
 
-`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。Remaining near-term R-4/R-5 candidates include activation-energy family 与若干复杂单卡。
+`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。Remaining near-term R-4/R-5 candidates include activation-energy helper cleanup / card workflow wrappers 与若干复杂单卡；暂不强行 family 化 `SHIKI`、`CHISATO`、`EMMA`、`HS_SD1_001`。
+
+## R-4O Conditional Live Modifier Outcome 2026-06-18
+
+R-4O migrated the Live-start confirm-only modifier family into `src/application/card-effects/workflows/shared/conditional-live-modifier.ts`.
+
+Covered effects:
+
+- `NICO_LIVE_START_SCORE_ABILITY_ID` / `NICO_SCORE_BONUS`: waiting-room Muse count controls a player score modifier.
+- `BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID` / `BOKUIMA_REQUIREMENT_REDUCTION`: successful Live count controls a rainbow requirement modifier.
+- `HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID` / `HS_BP5_019_REQUIREMENT_REDUCTION`: other Hasunosora Live-zone cards control a green requirement modifier.
+- `HS_BP2_022_LIVE_START_SCORE_ABILITY_ID` / `HS_BP2_022_SCORE_BONUS`: waiting-room Cerise Bouquet Live count controls a source-Live score modifier.
+- `BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID` / `BP4_021_SUCCESS_SCORE_MODIFIER`: successful Live score total independently controls requirement and score modifiers.
+
+The shared workflow owns only the confirm window, recomputation on confirm, modifier add/replace/null semantics, old payload field names, and ordered pending continuation. Card-specific condition checks and modifier strategies stay in per-ability config/functions, not in the runtime helper.
+
+`runtime/active-effect.ts` now also provides `startPendingActiveEffect` and `startConfirmOnlyActiveEffect`. The helpers remove the pending ability, install an `activeEffect`, and write the start `RESOLVE_ABILITY` action; they do not evaluate conditions, pay costs, mutate zones, create modifiers, enqueue triggers, or decide finish behavior. R-4O uses `startConfirmOnlyActiveEffect`, and existing `pay-energy-gain-blade.ts` uses the lower-level `startPendingActiveEffect`.
+
+Next candidates remain:
+
+- reveal / public-confirm repetition, after reveal axes are stable enough to avoid over-generalizing;
+- activation-energy helper cleanup for `SHIKI`, `CHISATO`, `EMMA`, and `HS_SD1_001`;
+- complex single-card workflows such as `HS_BP5_003`, `BP6_024`, `BP5_007`, and `MAKI`, handled as card workflows unless a real family emerges.
 
 ## R-4I Family Audit Snapshot 2026-06-18
 

@@ -1,13 +1,87 @@
 import {
   addAction,
   getPlayerById,
+  type ActiveEffectState,
   type GameState,
+  type PendingAbilityState,
 } from '../../../domain/entities/game.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export interface FinishSkippedActiveEffectOptions {
   readonly step?: string;
+}
+
+export interface StartPendingActiveEffectConfig {
+  readonly ability: Pick<PendingAbilityState, 'id' | 'abilityId'>;
+  readonly activeEffect: ActiveEffectState;
+  readonly playerId: string;
+  readonly actionPayload: Readonly<Record<string, unknown>>;
+}
+
+export interface StartConfirmOnlyActiveEffectConfig {
+  readonly ability: Pick<
+    PendingAbilityState,
+    'id' | 'abilityId' | 'sourceCardId' | 'controllerId'
+  >;
+  readonly playerId: string;
+  readonly effectText: string;
+  readonly stepId: string;
+  readonly stepText: string;
+  readonly orderedResolution: boolean;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly actionPayload?: Readonly<Record<string, unknown>>;
+}
+
+export function startPendingActiveEffect(
+  game: GameState,
+  config: StartPendingActiveEffectConfig
+): GameState {
+  return addAction(
+    {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter(
+        (candidate) => candidate.id !== config.ability.id
+      ),
+      activeEffect: config.activeEffect,
+    },
+    'RESOLVE_ABILITY',
+    config.playerId,
+    {
+      pendingAbilityId: config.ability.id,
+      abilityId: config.ability.abilityId,
+      ...config.actionPayload,
+    }
+  );
+}
+
+export function startConfirmOnlyActiveEffect(
+  game: GameState,
+  config: StartConfirmOnlyActiveEffectConfig
+): GameState {
+  return startPendingActiveEffect(game, {
+    ability: config.ability,
+    playerId: config.playerId,
+    activeEffect: {
+      id: config.ability.id,
+      abilityId: config.ability.abilityId,
+      sourceCardId: config.ability.sourceCardId,
+      controllerId: config.ability.controllerId,
+      effectText: config.effectText,
+      stepId: config.stepId,
+      stepText: config.stepText,
+      awaitingPlayerId: config.playerId,
+      metadata: {
+        ...config.metadata,
+        orderedResolution: config.orderedResolution,
+      },
+    },
+    actionPayload: {
+      sourceCardId: config.ability.sourceCardId,
+      step: 'START_CONFIRM',
+      ...config.actionPayload,
+    },
+  });
 }
 
 export function finishSkippedActiveEffect(

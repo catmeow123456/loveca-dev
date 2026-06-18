@@ -10,7 +10,10 @@ import {
   HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
+import {
+  finishSkippedActiveEffect,
+  startPendingActiveEffect,
+} from '../../runtime/active-effect.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -82,46 +85,40 @@ function startPayEnergyGainBladeWorkflow(
   const activeEnergyCardIds = getActiveEnergyCardIds(player);
   const canPay = activeEnergyCardIds.length >= config.energyCostCount;
 
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText: getAbilityEffectText(config.abilityId),
-        stepId: config.stepId,
-        stepText: canPay
-          ? `可以支付${config.energyCostCount}张活跃能量，获得${config.bladeBonus}个BLADE。`
-          : '当前没有可支付的活跃能量，可以不发动。',
-        awaitingPlayerId: player.id,
-        selectableOptions: canPay
-          ? [
-              { id: 'pay', label: `支付${config.energyCostCount}能量` },
-              { id: 'decline', label: DECLINE_OPTION_LABEL },
-            ]
-          : [{ id: 'decline', label: DECLINE_OPTION_LABEL }],
-        metadata: {
-          orderedResolution,
-          activeEnergyCardIds,
-          energyCostCount: config.energyCostCount,
-          bladeBonus: config.bladeBonus,
-        },
+  return startPendingActiveEffect(game, {
+    ability,
+    playerId: player.id,
+    activeEffect: {
+      id: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      controllerId: ability.controllerId,
+      effectText: getAbilityEffectText(config.abilityId),
+      stepId: config.stepId,
+      stepText: canPay
+        ? `可以支付${config.energyCostCount}张活跃能量，获得${config.bladeBonus}个BLADE。`
+        : '当前没有可支付的活跃能量，可以不发动。',
+      awaitingPlayerId: player.id,
+      selectableOptions: canPay
+        ? [
+            { id: 'pay', label: `支付${config.energyCostCount}能量` },
+            { id: 'decline', label: DECLINE_OPTION_LABEL },
+          ]
+        : [{ id: 'decline', label: DECLINE_OPTION_LABEL }],
+      metadata: {
+        orderedResolution,
+        activeEnergyCardIds,
+        energyCostCount: config.energyCostCount,
+        bladeBonus: config.bladeBonus,
       },
     },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
+    actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'START_PAY_ENERGY_OPTION',
       activeEnergyCardIds,
       bladeBonus: config.bladeBonus,
-    }
-  );
+    },
+  });
 }
 
 function finishPayEnergyGainBladeWorkflow(

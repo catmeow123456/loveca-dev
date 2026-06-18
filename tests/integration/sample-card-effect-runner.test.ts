@@ -429,6 +429,133 @@ function setupHeartbeatLiveStartScenario(successLiveScores: readonly number[]): 
   };
 }
 
+function getLatestResolveAbilityPayload(
+  state: GameState,
+  abilityId: string
+): Record<string, unknown> | undefined {
+  return state.actionHistory
+    .filter((action) => {
+      const payload = action.payload as { abilityId?: string };
+      return action.type === 'RESOLVE_ABILITY' && payload.abilityId === abilityId;
+    })
+    .at(-1)?.payload as Record<string, unknown> | undefined;
+}
+
+function setupNicoLiveStartScoreScenario(museWaitingRoomCount: number): {
+  readonly session: ReturnType<typeof createGameSession>;
+  readonly startResult: ReturnType<ReturnType<typeof createGameSession>['executeCommand']>;
+  readonly nicoCardId: string;
+  readonly liveCardId: string;
+} {
+  const session = createGameSession();
+  const deck = createDeck();
+
+  session.createGame(
+    `sample-live-start-nico-score-${museWaitingRoomCount}`,
+    PLAYER1,
+    'Player 1',
+    PLAYER2,
+    'Player 2'
+  );
+  session.initializeGame(deck, deck);
+
+  let state = session.state!;
+  const ownedP1CardIds = [...state.cardRegistry.values()]
+    .filter((card) => card.ownerId === PLAYER1)
+    .map((card) => card.instanceId);
+  const nicoCardId = ownedP1CardIds.find(
+    (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!-sd1-009-SD'
+  );
+  const liveCardId = ownedP1CardIds.find(
+    (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+  );
+  expect(nicoCardId).toBeTruthy();
+  expect(liveCardId).toBeTruthy();
+
+  const museWaitingRoomCards = Array.from({ length: museWaitingRoomCount }, (_, index) =>
+    createCardInstance(
+      createMemberCard(`NICO-WAIT-${index}`, `Nico wait member ${index}`, 1, "μ's"),
+      PLAYER1,
+      `p1-nico-wait-${index}`
+    )
+  );
+  state = registerCards(state, museWaitingRoomCards);
+  state = updatePlayer(state, PLAYER1, (player) => ({
+    ...player,
+    hand: { ...player.hand, cardIds: [] },
+    mainDeck: { ...player.mainDeck, cardIds: [] },
+    waitingRoom: {
+      ...player.waitingRoom,
+      cardIds: museWaitingRoomCards.map((card) => card.instanceId),
+    },
+    successZone: { ...player.successZone, cardIds: [] },
+    liveZone: {
+      ...player.liveZone,
+      cardIds: [liveCardId!],
+      cardStates: new Map([
+        [liveCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
+      ]),
+    },
+    memberSlots: {
+      ...player.memberSlots,
+      slots: {
+        ...player.memberSlots.slots,
+        [SlotPosition.LEFT]: null,
+        [SlotPosition.CENTER]: nicoCardId!,
+        [SlotPosition.RIGHT]: null,
+      },
+      cardStates: new Map([
+        [nicoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      ]),
+    },
+  }));
+  const pendingAbility = {
+    id: `${NICO_LIVE_START_SCORE_ABILITY_ID}:${nicoCardId}:test-live-start`,
+    abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
+    sourceCardId: nicoCardId!,
+    controllerId: PLAYER1,
+    mandatory: true,
+    timingId: TriggerCondition.ON_LIVE_START,
+    eventIds: ['test-live-start'],
+  } as const;
+  state = {
+    ...state,
+    currentPhase: GamePhase.LIVE_SET_PHASE,
+    currentSubPhase: SubPhase.LIVE_SET_SECOND_DRAW,
+    currentTurnType: TurnType.LIVE_PHASE,
+    activePlayerIndex: 0,
+    firstPlayerIndex: 0,
+    liveSetCompletedPlayers: [PLAYER1, PLAYER2],
+    pendingAbilities: [pendingAbility],
+    activeEffect: {
+      id: `${ABILITY_ORDER_SELECTION_ID}:test-live-start:${PLAYER1}`,
+      abilityId: ABILITY_ORDER_SELECTION_ID,
+      sourceCardId: nicoCardId!,
+      controllerId: PLAYER1,
+      effectText: '请选择下一个要发动的效果。',
+      stepId: 'SELECT_NEXT_PENDING_ABILITY',
+      stepText: '选择下一个待处理效果',
+      awaitingPlayerId: PLAYER1,
+      selectableCardIds: [nicoCardId!],
+      metadata: {
+        pendingAbilityIds: [pendingAbility.id],
+      },
+    },
+  };
+  (session as unknown as { authorityState: GameState }).authorityState = state;
+
+  const startResult = session.executeCommand(
+    createConfirmEffectStepCommand(PLAYER1, state.activeEffect.id, nicoCardId)
+  );
+
+  return {
+    session,
+    startResult,
+    nicoCardId: nicoCardId!,
+    liveCardId: liveCardId!,
+  };
+}
+
 function createTestMemberInstances(
   ownerId: string,
   prefix: string,
@@ -9225,6 +9352,76 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.sourceCardId).toBe(nicoCardId);
   });
 
+  it('applies PL!-sd1-009-SD live-start score bonus when waiting room has at least 25 Muse cards', () => {
+    const { session, startResult, nicoCardId } = setupNicoLiveStartScoreScenario(25);
+
+    expect(startResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(NICO_LIVE_START_SCORE_ABILITY_ID);
+    expect(session.state?.activeEffect?.sourceCardId).toBe(nicoCardId);
+    expect(session.state?.activeEffect?.effectText).toContain('当前25张');
+    expect(getLatestResolveAbilityPayload(session.state!, NICO_LIVE_START_SCORE_ABILITY_ID)).toEqual({
+      pendingAbilityId: expect.any(String),
+      abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
+      sourceCardId: nicoCardId,
+      step: 'START_CONFIRM',
+    });
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.liveResolution.playerScoreBonuses.get(PLAYER1)).toBe(1);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'SCORE',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: nicoCardId,
+      abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
+    });
+    expect(getLatestResolveAbilityPayload(session.state!, NICO_LIVE_START_SCORE_ABILITY_ID)).toMatchObject({
+      step: 'APPLY_SCORE_BONUS',
+      conditionMet: true,
+      museWaitingRoomCount: 25,
+      scoreBonus: 1,
+    });
+  });
+
+  it('does not apply PL!-sd1-009-SD live-start score bonus below 25 Muse cards', () => {
+    const { session, startResult, nicoCardId } = setupNicoLiveStartScoreScenario(24);
+
+    expect(startResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(NICO_LIVE_START_SCORE_ABILITY_ID);
+    expect(session.state?.activeEffect?.sourceCardId).toBe(nicoCardId);
+    expect(session.state?.activeEffect?.effectText).toContain('当前24张');
+    expect(getLatestResolveAbilityPayload(session.state!, NICO_LIVE_START_SCORE_ABILITY_ID)).toEqual({
+      pendingAbilityId: expect.any(String),
+      abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
+      sourceCardId: nicoCardId,
+      step: 'START_CONFIRM',
+    });
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.liveResolution.playerScoreBonuses.get(PLAYER1)).toBeUndefined();
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) => modifier.abilityId === NICO_LIVE_START_SCORE_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(getLatestResolveAbilityPayload(session.state!, NICO_LIVE_START_SCORE_ABILITY_ID)).toMatchObject({
+      step: 'APPLY_SCORE_BONUS',
+      conditionMet: false,
+      museWaitingRoomCount: 24,
+      scoreBonus: 0,
+    });
+  });
+
   it('labels PL!-sd1-003-SD live-start discard choice as discarding hand to activate', () => {
     const session = createGameSession();
     const deck = createDeck();
@@ -10573,6 +10770,113 @@ describe('sample card effect runner', () => {
     });
   });
 
+  it('clears PL!-sd1-022-SD requirement modifier when successful Live count gives no reduction', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-live-start-bokuima-runner-zero-clear',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const liveCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    expect(liveCardId).toBeTruthy();
+
+    const liveCard = state.cardRegistry.get(liveCardId!) as unknown as { data: LiveCardData };
+    liveCard.data = {
+      ...liveCard.data,
+      cardCode: 'PL!-sd1-022-SD',
+      name: '如今的我们',
+      requirements: createHeartRequirement({
+        [HeartColor.PINK]: 1,
+        [HeartColor.RAINBOW]: 6,
+      }),
+    };
+
+    removeFromPlayerZones(p1);
+    p1.successZone.cardIds = [];
+    p1.liveZone.cardIds = [liveCardId!];
+    p1.liveZone.cardStates = new Map([
+      [liveCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
+    ]);
+
+    let preparedState = addLiveModifier(state, {
+      kind: 'REQUIREMENT',
+      liveCardId: liveCardId!,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+      sourceCardId: liveCardId!,
+      abilityId: BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
+    });
+    preparedState = {
+      ...preparedState,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_SECOND_DRAW,
+      currentTurnType: TurnType.LIVE_PHASE,
+      activePlayerIndex: 0,
+      firstPlayerIndex: 0,
+      liveSetCompletedPlayers: [PLAYER1, PLAYER2],
+    };
+
+    const service = new GameService();
+    const advanceResult = service.advancePhase(preparedState);
+    (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
+
+    expect(advanceResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID);
+    expect(session.state?.activeEffect?.effectText).toContain('当前成功LIVE 0张');
+    expect(session.state?.liveResolution.liveRequirementModifiers.get(liveCardId!)).toEqual([
+      { color: HeartColor.RAINBOW, countDelta: -2 },
+    ]);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.liveResolution.liveRequirementReductions.get(liveCardId!)).toBeUndefined();
+    expect(
+      session.state?.liveResolution.liveRequirementModifiers.get(liveCardId!)
+    ).toBeUndefined();
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) => modifier.abilityId === BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(
+      getLatestResolveAbilityPayload(session.state!, BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID)
+    ).toMatchObject({
+      step: 'APPLY_REQUIREMENT_REDUCTION',
+      successLiveCount: 0,
+      requirementReduction: 0,
+    });
+  });
+
   it('queues PL!-bp4-021-L and reduces requirement when successful Live score is at least six', () => {
     const { session, advanceResult, heartbeatLiveCardId } = setupHeartbeatLiveStartScenario([3, 3]);
 
@@ -10612,6 +10916,17 @@ describe('sample card effect runner', () => {
           modifier.abilityId === BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
       )
     ).toBe(false);
+    expect(
+      getLatestResolveAbilityPayload(
+        session.state!,
+        BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
+      )
+    ).toMatchObject({
+      step: 'APPLY_SUCCESS_SCORE_MODIFIERS',
+      successLiveScore: 6,
+      requirementReduction: 1,
+      scoreBonus: 0,
+    });
   });
 
   it('queues PL!-bp4-021-L and also gives score when successful Live score is at least nine', () => {
@@ -10649,6 +10964,17 @@ describe('sample card effect runner', () => {
       sourceCardId: heartbeatLiveCardId,
       abilityId: BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
     });
+    expect(
+      getLatestResolveAbilityPayload(
+        session.state!,
+        BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
+      )
+    ).toMatchObject({
+      step: 'APPLY_SUCCESS_SCORE_MODIFIERS',
+      successLiveScore: 9,
+      requirementReduction: 1,
+      scoreBonus: 1,
+    });
   });
 
   it('queues PL!-bp4-021-L without writing modifiers when successful Live score is below six', () => {
@@ -10676,6 +11002,17 @@ describe('sample card effect runner', () => {
           modifier.abilityId === BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
       )
     ).toEqual([]);
+    expect(
+      getLatestResolveAbilityPayload(
+        session.state!,
+        BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
+      )
+    ).toMatchObject({
+      step: 'APPLY_SUCCESS_SCORE_MODIFIERS',
+      successLiveScore: 3,
+      requirementReduction: 0,
+      scoreBonus: 0,
+    });
   });
 
   it('queues PL!HS-bp5-019-L from the Live zone and reduces green requirements by other Hasunosora live cards', () => {
@@ -10782,6 +11119,116 @@ describe('sample card effect runner', () => {
       sourceCardId: hanamusubi.instanceId,
       abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
     });
+    expect(
+      getLatestResolveAbilityPayload(
+        session.state!,
+        HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID
+      )
+    ).toMatchObject({
+      step: 'APPLY_REQUIREMENT_REDUCTION',
+      otherHasunosoraLiveZoneCount: 1,
+      requirementReduction: 2,
+    });
+  });
+
+  it('clears PL!HS-bp5-019-L green requirement modifier when no other Hasunosora live card remains', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-live-start-hanamusubi-requirement-zero-clear',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const hanamusubi = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp5-019-L',
+        name: '花结',
+        groupName: 'スリーズブーケ',
+        cardType: CardType.LIVE as const,
+        score: 6,
+        requirements: createHeartRequirement({
+          [HeartColor.GREEN]: 9,
+          [HeartColor.RAINBOW]: 5,
+        }),
+      },
+      PLAYER1,
+      'p1-hanamusubi-live-zero-clear'
+    );
+
+    let state = registerCards(session.state!, [hanamusubi]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardIds: [hanamusubi.instanceId],
+        cardStates: new Map([
+          [
+            hanamusubi.instanceId,
+            { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN },
+          ],
+        ]),
+      },
+    }));
+    state = addLiveModifier(state, {
+      kind: 'REQUIREMENT',
+      liveCardId: hanamusubi.instanceId,
+      modifiers: [{ color: HeartColor.GREEN, countDelta: -2 }],
+      sourceCardId: hanamusubi.instanceId,
+      abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
+    });
+    state = {
+      ...state,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_SECOND_DRAW,
+      currentTurnType: TurnType.LIVE_PHASE,
+      activePlayerIndex: 0,
+      firstPlayerIndex: 0,
+      liveSetCompletedPlayers: [PLAYER1, PLAYER2],
+    };
+
+    const service = new GameService();
+    const advanceResult = service.advancePhase(state);
+    (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
+
+    expect(advanceResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.sourceCardId).toBe(hanamusubi.instanceId);
+    expect(session.state?.activeEffect?.effectText).toContain('当前此卡以外莲之空卡 0张');
+    expect(session.state?.liveResolution.liveRequirementModifiers.get(hanamusubi.instanceId)).toEqual([
+      { color: HeartColor.GREEN, countDelta: -2 },
+    ]);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(
+      session.state?.liveResolution.liveRequirementModifiers.get(hanamusubi.instanceId)
+    ).toBeUndefined();
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) => modifier.abilityId === HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(
+      getLatestResolveAbilityPayload(
+        session.state!,
+        HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID
+      )
+    ).toMatchObject({
+      step: 'APPLY_REQUIREMENT_REDUCTION',
+      otherHasunosoraLiveZoneCount: 0,
+      requirementReduction: 0,
+    });
   });
 
   it('queues PL!HS-bp2-022-L+ from the Live zone and adds score with three Cerise Bouquet live cards in waiting room', () => {
@@ -10861,6 +11308,16 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(HS_BP2_022_LIVE_START_SCORE_ABILITY_ID);
     expect(session.state?.activeEffect?.sourceCardId).toBe(aokuharuka.instanceId);
     expect(session.state?.activeEffect?.effectText).toContain('当前3张，满足条件');
+    expect(
+      getLatestResolveAbilityPayload(session.state!, HS_BP2_022_LIVE_START_SCORE_ABILITY_ID)
+    ).toEqual({
+      pendingAbilityId: expect.any(String),
+      abilityId: HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
+      sourceCardId: aokuharuka.instanceId,
+      step: 'START_CONFIRM',
+      ceriseBouquetLiveCount: 3,
+      scoreBonus: 1,
+    });
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -10876,6 +11333,124 @@ describe('sample card effect runner', () => {
       liveCardId: aokuharuka.instanceId,
       sourceCardId: aokuharuka.instanceId,
       abilityId: HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
+    });
+    expect(
+      getLatestResolveAbilityPayload(session.state!, HS_BP2_022_LIVE_START_SCORE_ABILITY_ID)
+    ).toMatchObject({
+      step: 'APPLY_SCORE_BONUS',
+      conditionMet: true,
+      ceriseBouquetLiveCount: 3,
+      scoreBonus: 1,
+    });
+  });
+
+  it('does not apply PL!HS-bp2-022-L+ score bonus below three Cerise Bouquet live cards in waiting room', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-live-start-aokuharuka-score-unmet',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const aokuharuka = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp2-022-L+',
+        name: 'アオクハルカ',
+        groupName: 'スリーズブーケ',
+        cardType: CardType.LIVE as const,
+        score: 2,
+        requirements: createHeartRequirement({ [HeartColor.GREEN]: 1 }),
+      },
+      PLAYER1,
+      'p1-aokuharuka-live-unmet'
+    );
+    const waitingRoomLives = Array.from({ length: 2 }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `CERISE-LIVE-UNMET-${index}`,
+          name: `Cerise Live Unmet ${index}`,
+          groupName: '蓮ノ空女学院スクールアイドルクラブ',
+          unitName: 'スリーズブーケ',
+          cardType: CardType.LIVE as const,
+          score: 1,
+          requirements: createHeartRequirement({ [HeartColor.GREEN]: 1 }),
+        },
+        PLAYER1,
+        `p1-cerise-live-unmet-${index}`
+      )
+    );
+
+    let state = registerCards(session.state!, [aokuharuka, ...waitingRoomLives]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardIds: [aokuharuka.instanceId],
+        cardStates: new Map([
+          [
+            aokuharuka.instanceId,
+            { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN },
+          ],
+        ]),
+      },
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: waitingRoomLives.map((card) => card.instanceId),
+      },
+    }));
+    state = {
+      ...state,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_SECOND_DRAW,
+      currentTurnType: TurnType.LIVE_PHASE,
+      activePlayerIndex: 0,
+      firstPlayerIndex: 0,
+      liveSetCompletedPlayers: [PLAYER1, PLAYER2],
+    };
+
+    const service = new GameService();
+    const advanceResult = service.advancePhase(state);
+    (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
+
+    expect(advanceResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(HS_BP2_022_LIVE_START_SCORE_ABILITY_ID);
+    expect(session.state?.activeEffect?.sourceCardId).toBe(aokuharuka.instanceId);
+    expect(session.state?.activeEffect?.effectText).toContain('当前2张，未满足条件');
+    expect(
+      getLatestResolveAbilityPayload(session.state!, HS_BP2_022_LIVE_START_SCORE_ABILITY_ID)
+    ).toEqual({
+      pendingAbilityId: expect.any(String),
+      abilityId: HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
+      sourceCardId: aokuharuka.instanceId,
+      step: 'START_CONFIRM',
+      ceriseBouquetLiveCount: 2,
+      scoreBonus: 0,
+    });
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.liveResolution.playerScoreBonuses.get(PLAYER1)).toBeUndefined();
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) => modifier.abilityId === HS_BP2_022_LIVE_START_SCORE_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(
+      getLatestResolveAbilityPayload(session.state!, HS_BP2_022_LIVE_START_SCORE_ABILITY_ID)
+    ).toMatchObject({
+      step: 'APPLY_SCORE_BONUS',
+      conditionMet: false,
+      ceriseBouquetLiveCount: 2,
+      scoreBonus: 0,
     });
   });
 

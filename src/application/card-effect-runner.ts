@@ -22,10 +22,7 @@ import {
   removeCardFromStatefulZone,
   removeCardFromZone,
 } from '../domain/entities/zone.js';
-import {
-  addLiveModifier,
-  replaceLiveModifier,
-} from '../domain/rules/live-modifiers.js';
+import { addLiveModifier } from '../domain/rules/live-modifiers.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -60,13 +57,10 @@ import {
 import {
   allCardIdsMatchingSelector,
   countCardsMatchingSelector,
-  countOtherLiveZoneCardsMatching,
   countStageMembers,
-  countSuccessfulLiveCards,
   getCardIdsInZoneMatching,
   getCardIdsMatchingSelector,
   getCardIdsInZone,
-  hasAtLeastCardsMatchingSelector,
   hasCardIdsMatchingSelector,
   hasOtherStageMember,
   hasStageMemberMatching,
@@ -110,6 +104,7 @@ import { registerPlBp3014RinWorkflowHandlers } from './card-effects/workflows/ca
 import { registerPr017NicoWorkflowHandlers } from './card-effects/workflows/cards/pr-017-nico.js';
 import { registerYoshikoPlayLowCostMembersWorkflowHandlers } from './card-effects/workflows/cards/yoshiko-play-low-cost-members.js';
 import { registerArrangeInspectedDeckTopWorkflowHandlers } from './card-effects/workflows/shared/arrange-inspected-deck-top.js';
+import { registerConditionalLiveModifierWorkflowHandlers } from './card-effects/workflows/shared/conditional-live-modifier.js';
 import { registerDiscardCostWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/discard-cost-waiting-room-to-hand.js';
 import { registerDiscardLookTopSelectToHandWorkflowHandlers } from './card-effects/workflows/shared/discard-look-top-select-to-hand.js';
 import { registerDrawThenDiscardWorkflowHandlers } from './card-effects/workflows/shared/draw-then-discard.js';
@@ -159,11 +154,6 @@ import {
   HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   KARIN_LIVE_START_ABILITY_ID,
   KOTORI_LIVE_START_HEART_ABILITY_ID,
-  NICO_LIVE_START_SCORE_ABILITY_ID,
-  BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
-  HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
-  HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
-  BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HANAYO_ACTIVATED_ABILITY_ID,
   KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -710,11 +700,6 @@ const KARIN_REVEAL_STEP_ID = 'KARIN_REVEAL_TOP_CARD';
 const KARIN_POSITION_CHANGE_STEP_ID = 'KARIN_POSITION_CHANGE';
 const KOTORI_LIVE_START_SELECT_DISCARD_STEP_ID = 'KOTORI_LIVE_START_SELECT_DISCARD';
 const KOTORI_LIVE_START_SELECT_HEART_STEP_ID = 'KOTORI_LIVE_START_SELECT_HEART';
-const NICO_SCORE_BONUS_STEP_ID = 'NICO_SCORE_BONUS';
-const BOKUIMA_REQUIREMENT_REDUCTION_STEP_ID = 'BOKUIMA_REQUIREMENT_REDUCTION';
-const HS_BP5_019_REQUIREMENT_REDUCTION_STEP_ID = 'HS_BP5_019_REQUIREMENT_REDUCTION';
-const HS_BP2_022_SCORE_BONUS_STEP_ID = 'HS_BP2_022_SCORE_BONUS';
-const BP4_021_SUCCESS_SCORE_MODIFIER_STEP_ID = 'BP4_021_SUCCESS_SCORE_MODIFIER';
 const HS_PR_019_REVEAL_STEP_ID = 'HS_PR_019_REVEAL_TOP_THREE';
 const HS_BP5_001_REVEAL_STEP_ID = 'HS_BP5_001_REVEAL_TOP_FOUR';
 const KEKE_SELECT_DISCARD_STEP_ID = 'KEKE_SELECT_DISCARD_FOR_WAITING_ENERGY';
@@ -748,6 +733,7 @@ const HEART_COLOR_OPTION_LABELS: Readonly<Record<HeartColor, string>> = {
 
 registerLookTopSelectToHandWorkflowHandlers();
 registerArrangeInspectedDeckTopWorkflowHandlers();
+registerConditionalLiveModifierWorkflowHandlers();
 registerDiscardLookTopSelectToHandWorkflowHandlers();
 registerBp5003KotoriWorkflowHandlers();
 registerHsBp5008IzumiWorkflowHandlers();
@@ -2145,13 +2131,6 @@ export function confirmActiveEffectStep(
   }
 
   if (
-    effect.abilityId === NICO_LIVE_START_SCORE_ABILITY_ID &&
-    effect.stepId === NICO_SCORE_BONUS_STEP_ID
-  ) {
-    return finishNicoLiveStartScoreBonus(game);
-  }
-
-  if (
     (effect.abilityId === KOTORI_LIVE_START_HEART_ABILITY_ID ||
       effect.abilityId === HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID) &&
     effect.stepId === KOTORI_LIVE_START_SELECT_DISCARD_STEP_ID
@@ -2167,34 +2146,6 @@ export function confirmActiveEffectStep(
     effect.stepId === KOTORI_LIVE_START_SELECT_HEART_STEP_ID
   ) {
     return finishKotoriLiveStartHeartBonus(game, selectedOptionId ?? null);
-  }
-
-  if (
-    effect.abilityId === BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID &&
-    effect.stepId === BOKUIMA_REQUIREMENT_REDUCTION_STEP_ID
-  ) {
-    return finishBokuimaLiveStartRequirementReduction(game);
-  }
-
-  if (
-    effect.abilityId === HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID &&
-    effect.stepId === HS_BP5_019_REQUIREMENT_REDUCTION_STEP_ID
-  ) {
-    return finishHsBp5HanamusubiLiveStartRequirementReduction(game);
-  }
-
-  if (
-    effect.abilityId === HS_BP2_022_LIVE_START_SCORE_ABILITY_ID &&
-    effect.stepId === HS_BP2_022_SCORE_BONUS_STEP_ID
-  ) {
-    return finishHsBp2AokuharukaLiveStartScoreBonus(game);
-  }
-
-  if (
-    effect.abilityId === BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID &&
-    effect.stepId === BP4_021_SUCCESS_SCORE_MODIFIER_STEP_ID
-  ) {
-    return finishBp4021HeartbeatLiveStartSuccessScoreModifier(game);
   }
 
   if (
@@ -2608,16 +2559,6 @@ function startPendingAbilityEffect(
         requiresOtherStageMember: true,
         heartColorOptions: STANDARD_HEART_COLOR_OPTIONS,
       });
-    case NICO_LIVE_START_SCORE_ABILITY_ID:
-      return startNicoLiveStartScoreBonus(game, ability, options);
-    case BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID:
-      return startBokuimaLiveStartRequirementReduction(game, ability, options);
-    case HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID:
-      return startHsBp5HanamusubiLiveStartRequirementReduction(game, ability, options);
-    case HS_BP2_022_LIVE_START_SCORE_ABILITY_ID:
-      return startHsBp2AokuharukaLiveStartScoreBonus(game, ability, options);
-    case BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID:
-      return startBp4021HeartbeatLiveStartSuccessScoreModifier(game, ability, options);
     case HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID:
       return startHsPr019GinkoMillGainGreenHeartInspection(game, ability, options);
     case KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID:
@@ -4175,540 +4116,6 @@ function finishMakiOnEnter(game: GameState, successLiveCardId: string | null): G
       step: 'FINISH',
       handLiveCardId,
       successLiveCardId,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function startNicoLiveStartScoreBonus(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const effectText = formatNicoEffectText(game, player.id);
-
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText,
-        stepId: NICO_SCORE_BONUS_STEP_ID,
-        stepText: effectText,
-        awaitingPlayerId: player.id,
-        metadata: {
-          orderedResolution: options.orderedResolution === true,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_CONFIRM',
-    }
-  );
-}
-
-function finishNicoLiveStartScoreBonus(game: GameState): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const waitingRoomCardIds = getCardIdsInZone(game, player.id, ZoneType.WAITING_ROOM);
-  const museWaitingRoomCount = countCardsMatchingSelector(game, waitingRoomCardIds, groupIs("μ's"));
-  const isConditionMet = hasAtLeastCardsMatchingSelector(game, waitingRoomCardIds, groupIs("μ's"), 25);
-  let state: GameState = {
-    ...game,
-    activeEffect: null,
-  };
-  if (isConditionMet) {
-    state = addLiveModifier(state, {
-      kind: 'SCORE',
-      playerId: player.id,
-      countDelta: 1,
-      sourceCardId: effect.sourceCardId,
-      abilityId: effect.abilityId,
-    });
-  }
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'APPLY_SCORE_BONUS',
-      effectText: getCardAbilityEffectText(NICO_LIVE_START_SCORE_ABILITY_ID),
-      conditionMet: isConditionMet,
-      museWaitingRoomCount,
-      scoreBonus: isConditionMet ? 1 : 0,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function formatNicoEffectText(game: GameState, playerId: string): string {
-  return `${getCardAbilityEffectText(NICO_LIVE_START_SCORE_ABILITY_ID)}（当前${countCardsMatchingSelector(
-    game,
-    getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM),
-    groupIs("μ's")
-  )}张）`;
-}
-
-function startBokuimaLiveStartRequirementReduction(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const successLiveCount = countSuccessfulLiveCards(game, player.id);
-  const reduction = successLiveCount * 2;
-  const effectText = `${getCardAbilityEffectText(BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID)}（当前成功LIVE ${successLiveCount}张，减少${reduction}个無Heart）`;
-
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText,
-        stepId: BOKUIMA_REQUIREMENT_REDUCTION_STEP_ID,
-        stepText: effectText,
-        awaitingPlayerId: player.id,
-        metadata: {
-          orderedResolution: options.orderedResolution === true,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_CONFIRM',
-      successLiveCount,
-      requirementReduction: reduction,
-    }
-  );
-}
-
-function finishBokuimaLiveStartRequirementReduction(game: GameState): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const successLiveCount = countSuccessfulLiveCards(game, player.id);
-  const reduction = successLiveCount * 2;
-  let state: GameState = {
-    ...game,
-    activeEffect: null,
-  };
-  if (reduction > 0) {
-    const modifier = {
-      kind: 'REQUIREMENT' as const,
-      liveCardId: effect.sourceCardId,
-      modifiers: [{ color: HeartColor.RAINBOW, countDelta: -reduction }],
-      sourceCardId: effect.sourceCardId,
-      abilityId: effect.abilityId,
-    };
-    state = replaceLiveModifier(
-      state,
-      {
-        kind: 'REQUIREMENT',
-        liveCardId: effect.sourceCardId,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-      },
-      modifier
-    );
-  } else {
-    state = replaceLiveModifier(
-      state,
-      {
-        kind: 'REQUIREMENT',
-        liveCardId: effect.sourceCardId,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-      },
-      null
-    );
-  }
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'APPLY_REQUIREMENT_REDUCTION',
-      successLiveCount,
-      requirementReduction: reduction,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function startHsBp5HanamusubiLiveStartRequirementReduction(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const otherHasunosoraLiveZoneCount = countOtherLiveZoneCardsMatching(
-    game,
-    player.id,
-    ability.sourceCardId,
-    isHasunosoraCard
-  );
-  const reduction = otherHasunosoraLiveZoneCount * 2;
-  const effectText = `${getCardAbilityEffectText(HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID)}（当前此卡以外莲之空卡 ${otherHasunosoraLiveZoneCount}张，减少${reduction}个绿Heart）`;
-
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText,
-        stepId: HS_BP5_019_REQUIREMENT_REDUCTION_STEP_ID,
-        stepText: effectText,
-        awaitingPlayerId: player.id,
-        metadata: {
-          orderedResolution: options.orderedResolution === true,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_CONFIRM',
-      otherHasunosoraLiveZoneCount,
-      requirementReduction: reduction,
-    }
-  );
-}
-
-function finishHsBp5HanamusubiLiveStartRequirementReduction(game: GameState): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const otherHasunosoraLiveZoneCount = countOtherLiveZoneCardsMatching(
-    game,
-    player.id,
-    effect.sourceCardId,
-    isHasunosoraCard
-  );
-  const reduction = otherHasunosoraLiveZoneCount * 2;
-  let state: GameState = {
-    ...game,
-    activeEffect: null,
-  };
-  if (reduction > 0) {
-    state = replaceLiveModifier(
-      state,
-      {
-        kind: 'REQUIREMENT',
-        liveCardId: effect.sourceCardId,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-      },
-      {
-        kind: 'REQUIREMENT',
-        liveCardId: effect.sourceCardId,
-        modifiers: [{ color: HeartColor.GREEN, countDelta: -reduction }],
-        sourceCardId: effect.sourceCardId,
-        abilityId: effect.abilityId,
-      }
-    );
-  } else {
-    state = replaceLiveModifier(
-      state,
-      {
-        kind: 'REQUIREMENT',
-        liveCardId: effect.sourceCardId,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-      },
-      null
-    );
-  }
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'APPLY_REQUIREMENT_REDUCTION',
-      otherHasunosoraLiveZoneCount,
-      requirementReduction: reduction,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function startHsBp2AokuharukaLiveStartScoreBonus(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const ceriseBouquetLiveCount = countCardsMatchingSelector(
-    game,
-    getCardIdsInZone(game, player.id, ZoneType.WAITING_ROOM),
-    and(typeIs(CardType.LIVE), unitAliasIs('Cerise Bouquet'))
-  );
-  const isConditionMet = ceriseBouquetLiveCount >= 3;
-  const effectText = `${getCardAbilityEffectText(HS_BP2_022_LIVE_START_SCORE_ABILITY_ID)}（当前${ceriseBouquetLiveCount}张，${
-    isConditionMet ? '满足条件' : '未满足条件'
-  }）`;
-
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText,
-        stepId: HS_BP2_022_SCORE_BONUS_STEP_ID,
-        stepText: effectText,
-        awaitingPlayerId: player.id,
-        metadata: {
-          orderedResolution: options.orderedResolution === true,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_CONFIRM',
-      ceriseBouquetLiveCount,
-      scoreBonus: isConditionMet ? 1 : 0,
-    }
-  );
-}
-
-function finishHsBp2AokuharukaLiveStartScoreBonus(game: GameState): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const ceriseBouquetLiveCount = countCardsMatchingSelector(
-    game,
-    getCardIdsInZone(game, player.id, ZoneType.WAITING_ROOM),
-    and(typeIs(CardType.LIVE), unitAliasIs('Cerise Bouquet'))
-  );
-  const isConditionMet = ceriseBouquetLiveCount >= 3;
-  let state: GameState = {
-    ...game,
-    activeEffect: null,
-  };
-  if (isConditionMet) {
-    state = addLiveModifier(state, {
-      kind: 'SCORE',
-      playerId: player.id,
-      countDelta: 1,
-      liveCardId: effect.sourceCardId,
-      sourceCardId: effect.sourceCardId,
-      abilityId: effect.abilityId,
-    });
-  }
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'APPLY_SCORE_BONUS',
-      effectText: getCardAbilityEffectText(HS_BP2_022_LIVE_START_SCORE_ABILITY_ID),
-      conditionMet: isConditionMet,
-      ceriseBouquetLiveCount,
-      scoreBonus: isConditionMet ? 1 : 0,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function startBp4021HeartbeatLiveStartSuccessScoreModifier(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const successLiveScore = sumSuccessfulLiveScore(game, player.id);
-  const reducesRequirement = successLiveScoreAtLeast(game, player.id, 6);
-  const gainsScore = successLiveScoreAtLeast(game, player.id, 9);
-  const effectText = `${getCardAbilityEffectText(
-    BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
-  )}（当前成功LIVE分数合计 ${successLiveScore}，${
-    reducesRequirement ? '减少必要無Heart' : '未减少必要Heart'
-  }，${gainsScore ? '分数+1' : '未获得分数+1'}）`;
-
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText,
-        stepId: BP4_021_SUCCESS_SCORE_MODIFIER_STEP_ID,
-        stepText: effectText,
-        awaitingPlayerId: player.id,
-        metadata: {
-          orderedResolution: options.orderedResolution === true,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_CONFIRM',
-      successLiveScore,
-      requirementReduction: reducesRequirement ? 1 : 0,
-      scoreBonus: gainsScore ? 1 : 0,
-    }
-  );
-}
-
-function finishBp4021HeartbeatLiveStartSuccessScoreModifier(game: GameState): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const successLiveScore = sumSuccessfulLiveScore(game, player.id);
-  const reducesRequirement = successLiveScoreAtLeast(game, player.id, 6);
-  const gainsScore = successLiveScoreAtLeast(game, player.id, 9);
-  let state: GameState = {
-    ...game,
-    activeEffect: null,
-  };
-
-  state = replaceLiveModifier(
-    state,
-    {
-      kind: 'REQUIREMENT',
-      liveCardId: effect.sourceCardId,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-    },
-    reducesRequirement
-      ? {
-          kind: 'REQUIREMENT',
-          liveCardId: effect.sourceCardId,
-          modifiers: [{ color: HeartColor.RAINBOW, countDelta: -1 }],
-          sourceCardId: effect.sourceCardId,
-          abilityId: effect.abilityId,
-        }
-      : null
-  );
-
-  state = replaceLiveModifier(
-    state,
-    {
-      kind: 'SCORE',
-      liveCardId: effect.sourceCardId,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-    },
-    gainsScore
-      ? {
-          kind: 'SCORE',
-          playerId: player.id,
-          countDelta: 1,
-          liveCardId: effect.sourceCardId,
-          sourceCardId: effect.sourceCardId,
-          abilityId: effect.abilityId,
-        }
-      : null
-  );
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'APPLY_SUCCESS_SCORE_MODIFIERS',
-      successLiveScore,
-      requirementReduction: reducesRequirement ? 1 : 0,
-      scoreBonus: gainsScore ? 1 : 0,
     }),
     isOrderedResolutionEffect(game)
   );

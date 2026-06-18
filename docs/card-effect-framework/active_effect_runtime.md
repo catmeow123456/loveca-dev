@@ -100,6 +100,8 @@ Current helper modules outside `runtime/actions.ts`:
 
 | helper | file | responsibility | boundary |
 |---|---|---|---|
+| `startPendingActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 移除对应 pending ability，安装调用方已经拼好的 `activeEffect`，并写入 start `RESOLVE_ABILITY` action。 | 不构造卡文条件，不支付费用，不移动卡，不写 modifier，不 enqueue trigger，不决定 finish/continue 策略。 |
+| `startConfirmOnlyActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 为只有确认窗口的流程拼装 `activeEffect`，设置 step/awaiting player/orderedResolution metadata，并复用 `startPendingActiveEffect` 写入 `START_CONFIRM` action。 | 不判断条件是否满足，不选择 modifier 策略，不重算确认时数值，不清空 activeEffect，不推进 pending。 |
 | `finishSkippedActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 清空当前 `activeEffect`，写入 `RESOLVE_ABILITY` with `step: 'SKIP'` by default，并按 metadata 中的 `orderedResolution` 继续 pending。 | 不处理费用、不检查目标、不 enqueue trigger、不决定卡文策略。 |
 | `getAbilityEffectText` | `src/application/card-effects/runtime/workflow-helpers.ts` | 按 abilityId 读取卡效文本，供 workflow 创建 activeEffect。 | 不创建 activeEffect，不处理 step 或 metadata。 |
 | `recordAbilityUseForContext` | `src/application/card-effects/runtime/workflow-helpers.ts` | 写入旧语义的 `RESOLVE_ABILITY` / `ABILITY_USE` action。 | 不支付费用，不判断发动条件。 |
