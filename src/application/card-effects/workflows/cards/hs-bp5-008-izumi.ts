@@ -5,12 +5,12 @@ import {
 } from '../../../../domain/entities/game.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import { HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID } from '../../ability-ids.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
 import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import {
   and,
   costGte,
@@ -108,7 +108,7 @@ function startHsBp5IzumiOnEnterWaitDiscardLookTop(
         abilityId: ability.abilityId,
         sourceCardId: ability.sourceCardId,
         controllerId: ability.controllerId,
-        effectText: getCardAbilityEffectText(HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID),
+        effectText: getAbilityEffectText(HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID),
         stepId: DISCARD_LOOK_SELECT_DISCARD_STEP_ID,
         stepText: DISCARD_HAND_TO_ACTIVATE_STEP_TEXT,
         awaitingPlayerId: player.id,
@@ -200,7 +200,7 @@ function startHsBp5IzumiOnEnterInspection(
       controllerId: effect.controllerId,
     },
     {
-      effectText: getCardAbilityEffectText(HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID),
+      effectText: getAbilityEffectText(HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID),
       topCount: 5,
       selector: and(typeIs(CardType.MEMBER), costGte(9), groupAliasIs('蓮ノ空')),
       countRule: { minCount: 0, maxCount: 1 },
@@ -212,7 +212,7 @@ function startHsBp5IzumiOnEnterInspection(
       selectionLabel: '请选择要公开并加入手牌的成员卡',
       confirmSelectionLabel: '公开并加入手牌',
       skipSelectionLabel: '不加入',
-      revealStepText: getCardAbilityEffectText(HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID),
+      revealStepText: getAbilityEffectText(HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID),
       revealActionStep: 'REVEAL_SELECTED',
       startActionPayload: { discardCardId },
     },
@@ -221,14 +221,4 @@ function startHsBp5IzumiOnEnterInspection(
       continuePendingCardEffects,
     }
   );
-}
-
-function getCardAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
-  if (!effectText || effectText.trim().length === 0) {
-    throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
-  }
-  return effectText;
 }

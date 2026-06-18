@@ -12,11 +12,11 @@ import {
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
 } from '../../ability-ids.js';
 import type { EffectCostDefinition } from '../../../effects/effect-costs.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
+import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import {
   finishRevealedLookTopSelectToHandWorkflow,
   resolveLookTopSelectToHandSelection,
@@ -293,7 +293,7 @@ function isDiscardLookTopSelectionRequired(cardCode: string | undefined): boolea
 
 function getDiscardLookTopEffectText(cardCode: string | undefined): string {
   if (!cardCode) {
-    return getCardAbilityEffectText(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
+    return getAbilityEffectText(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
   }
   if (
     ['PL!-sd1-011', 'PL!-sd1-012', 'PL!-sd1-016'].some((baseCardCode) =>
@@ -309,17 +309,7 @@ function getDiscardLookTopEffectText(cardCode: string | undefined): string {
     return '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡，将1张加入手牌，其余放置入休息室。';
   }
   if (cardCodeMatchesBase(cardCode, 'PL!-bp3-010')) {
-    return getCardAbilityEffectText(BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID);
+    return getAbilityEffectText(BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID);
   }
-  return getCardAbilityEffectText(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
-}
-
-function getCardAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
-  if (!effectText || effectText.trim().length === 0) {
-    throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
-  }
-  return effectText;
+  return getAbilityEffectText(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
 }

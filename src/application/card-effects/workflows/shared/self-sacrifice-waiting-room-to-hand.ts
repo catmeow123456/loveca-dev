@@ -19,6 +19,10 @@ import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import {
+  getAbilityEffectText,
+  recordAbilityUseForContext,
+} from '../../runtime/workflow-helpers.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import {
@@ -28,7 +32,6 @@ import {
   selectWaitingRoomCardIds,
 } from '../../../effects/zone-selection.js';
 
-const ABILITY_USE_STEP = 'ABILITY_USE';
 const ELI_SELECT_WAITING_ROOM_MEMBER_STEP_ID = 'ELI_SELECT_WAITING_ROOM_MEMBER';
 const RIN_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'RIN_SELECT_WAITING_ROOM_LIVE';
 const BP4_003_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'BP4_003_SELECT_WAITING_ROOM_LIVE';
@@ -134,7 +137,10 @@ function startSelfSacrificeWaitingRoomToHandWorkflow(
     return game;
   }
 
-  let state = recordAbilityUse(game, player.id, config.abilityId, cardId);
+  let state = recordAbilityUseForContext(game, player.id, {
+    abilityId: config.abilityId,
+    sourceCardId: cardId,
+  });
   const stateBeforeCost = state;
   const costPayment = payImmediateEffectCosts(state, player.id, cardId, [
     { kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' },
@@ -165,7 +171,7 @@ function startSelfSacrificeWaitingRoomToHandWorkflow(
       abilityId: config.abilityId,
       sourceCardId: cardId,
       controllerId: player.id,
-      effectText: getCardAbilityEffectText(config.abilityId),
+      effectText: getAbilityEffectText(config.abilityId),
       stepId: config.stepId,
       awaitingPlayerId: player.id,
       selectableCardIds,
@@ -243,20 +249,6 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
   );
 }
 
-function recordAbilityUse(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): GameState {
-  return addAction(game, 'RESOLVE_ABILITY', playerId, {
-    abilityId,
-    sourceCardId,
-    step: ABILITY_USE_STEP,
-    turnCount: game.turnCount,
-  });
-}
-
 function getNewLeaveStageEvents(before: GameState, after: GameState): readonly LeaveStageEvent[] {
   return after.eventLog
     .slice(before.eventLog.length)
@@ -265,16 +257,6 @@ function getNewLeaveStageEvents(before: GameState, after: GameState): readonly L
       (event): event is LeaveStageEvent =>
         event.eventType === TriggerCondition.ON_LEAVE_STAGE
     );
-}
-
-function getCardAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
-  if (!effectText || effectText.trim().length === 0) {
-    throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
-  }
-  return effectText;
 }
 
 function getCardAbilityBaseCardCodes(abilityId: string): readonly string[] {

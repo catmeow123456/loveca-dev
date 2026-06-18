@@ -9,12 +9,15 @@ import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { CardType, GamePhase } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID } from '../../ability-ids.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import {
   discardHandCardsToWaitingRoomForPlayer,
 } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import {
+  getAbilityEffectText,
+  recordAbilityUseForContext,
+} from '../../runtime/workflow-helpers.js';
 import {
   and,
   groupIs,
@@ -29,7 +32,6 @@ import {
 } from '../../../effects/zone-selection.js';
 import { finishWaitingRoomToHandWorkflow } from './waiting-room-to-hand.js';
 
-const ABILITY_USE_STEP = 'ABILITY_USE';
 const SELECT_WAITING_ROOM_CARD_STEP_ID = 'SELECT_WAITING_ROOM_CARD';
 const BP4_002_SELECT_DISCARD_STEP_ID = 'BP4_002_SELECT_TWO_HAND_CARDS_TO_DISCARD';
 const BP4_002_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID =
@@ -127,7 +129,10 @@ function startDiscardCostWaitingRoomToHandWorkflow(
     maxCount: config.discardCount,
     optional: false,
   };
-  const state = recordAbilityUse(game, player.id, config.abilityId, cardId);
+  const state = recordAbilityUseForContext(game, player.id, {
+    abilityId: config.abilityId,
+    sourceCardId: cardId,
+  });
 
   return addAction(
     {
@@ -137,7 +142,7 @@ function startDiscardCostWaitingRoomToHandWorkflow(
         abilityId: config.abilityId,
         sourceCardId: cardId,
         controllerId: player.id,
-        effectText: getCardAbilityEffectText(config.abilityId),
+        effectText: getAbilityEffectText(config.abilityId),
         stepId: config.discardStepId,
         stepText: `请选择${config.discardCount}张手牌放置入休息室。`,
         awaitingPlayerId: player.id,
@@ -260,28 +265,4 @@ function startDiscardCostWaitingRoomRecoveryAfterDiscard(
       selectableCardIds,
     }
   );
-}
-
-function recordAbilityUse(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): GameState {
-  return addAction(game, 'RESOLVE_ABILITY', playerId, {
-    abilityId,
-    sourceCardId,
-    step: ABILITY_USE_STEP,
-    turnCount: game.turnCount,
-  });
-}
-
-function getCardAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
-  if (!effectText || effectText.trim().length === 0) {
-    throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
-  }
-  return effectText;
 }

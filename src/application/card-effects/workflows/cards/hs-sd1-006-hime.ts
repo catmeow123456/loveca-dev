@@ -5,10 +5,10 @@ import {
 } from '../../../../domain/entities/game.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import { HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID } from '../../ability-ids.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import {
   and,
   cardNameAliasIs,
@@ -153,7 +153,7 @@ function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
         abilityId: ability.abilityId,
         sourceCardId: ability.sourceCardId,
         controllerId: ability.controllerId,
-        effectText: getCardAbilityEffectText(HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID),
+        effectText: getAbilityEffectText(HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID),
         stepId: HS_SD1_006_SELECT_WAITING_ROOM_LIVE_STEP_ID,
         stepText: '请选择自己的休息室中1张『莲之空』的LIVE卡加入手牌。',
         awaitingPlayerId: player.id,
@@ -182,14 +182,4 @@ function startHsSd1HimeOnEnterActivateEnergyRecoverLive(
       selectableCardIds,
     }
   );
-}
-
-function getCardAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
-  if (!effectText || effectText.trim().length === 0) {
-    throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
-  }
-  return effectText;
 }

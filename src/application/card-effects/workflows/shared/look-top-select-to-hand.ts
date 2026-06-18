@@ -14,9 +14,9 @@ import {
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
   UMI_ON_ENTER_ABILITY_ID,
 } from '../../ability-ids.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import {
   and,
   costGte,
@@ -118,11 +118,11 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     revealSelectedBeforeHand: true,
     selectStepId: UMI_SELECT_STEP_ID,
     revealStepId: UMI_REVEAL_STEP_ID,
-    selectStepText: getCardAbilityEffectText(UMI_ON_ENTER_ABILITY_ID),
-    noTargetStepText: getCardAbilityEffectText(UMI_ON_ENTER_ABILITY_ID),
+    selectStepText: getAbilityEffectText(UMI_ON_ENTER_ABILITY_ID),
+    noTargetStepText: getAbilityEffectText(UMI_ON_ENTER_ABILITY_ID),
     confirmSelectionLabel: '公开并加入手牌',
     skipSelectionLabel: '不加入',
-    revealStepText: getCardAbilityEffectText(UMI_ON_ENTER_ABILITY_ID),
+    revealStepText: getAbilityEffectText(UMI_ON_ENTER_ABILITY_ID),
     revealActionStep: 'REVEAL_SELECTED',
     noCardsMode: 'open-selection',
     includeInspectedCardIdsInFinishAction: true,
@@ -188,7 +188,7 @@ export function registerLookTopSelectToHandWorkflowHandlers(): void {
         ability,
         {
           ...workflowConfig,
-          effectText: getCardAbilityEffectText(abilityId),
+          effectText: getAbilityEffectText(abilityId),
         },
         {
           orderedResolution: options.orderedResolution,
@@ -569,14 +569,4 @@ function getMaxSelectableCount(countRule: LookTopSelectCountRule): number {
   return 'exactCount' in countRule && countRule.exactCount !== undefined
     ? countRule.exactCount
     : countRule.maxCount;
-}
-
-function getCardAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
-  if (!effectText || effectText.trim().length === 0) {
-    throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
-  }
-  return effectText;
 }

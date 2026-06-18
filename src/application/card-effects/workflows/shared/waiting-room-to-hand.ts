@@ -12,10 +12,10 @@ import {
   LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
   PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import {
   and,
   costLte,
@@ -128,7 +128,7 @@ export function registerWaitingRoomToHandWorkflowHandlers(): void {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
       startWaitingRoomToHandWorkflow(game, {
         ability,
-        effectText: getCardAbilityEffectText(config.abilityId),
+        effectText: getAbilityEffectText(config.abilityId),
         stepId: config.stepId,
         stepText: config.stepText,
         candidateBuilder: config.candidateBuilder,
@@ -283,14 +283,4 @@ function getMaxCount(countRule: WaitingRoomToHandCountRule): number {
 function highScoreLiveCard(card: CardInstance): boolean {
   const score = (card.data as { readonly score?: unknown }).score;
   return typeIs(CardType.LIVE)(card) && typeof score === 'number' && score >= 6;
-}
-
-function getCardAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
-  if (!effectText || effectText.trim().length === 0) {
-    throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
-  }
-  return effectText;
 }

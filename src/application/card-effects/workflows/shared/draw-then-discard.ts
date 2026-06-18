@@ -10,15 +10,17 @@ import {
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
   SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
 } from '../../ability-ids.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import {
   discardHandCardsToWaitingRoomForPlayer,
   drawCardsForPlayer,
 } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import {
+  getAbilityEffectText,
+  recordAbilityUseForContext,
+} from '../../runtime/workflow-helpers.js';
 
-const ABILITY_USE_STEP = 'ABILITY_USE';
 const SHIKI_LEFT_SELECT_DISCARD_STEP_ID = 'SHIKI_LEFT_SELECT_DISCARD_AFTER_DRAW';
 const HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID = 'HS_BP1_006_ON_ENTER_SELECT_DISCARD';
 const N_BP4_018_SELECT_DISCARD_STEP_ID = 'N_BP4_018_SELECT_DISCARD';
@@ -82,7 +84,7 @@ export function registerDrawThenDiscardWorkflowHandlers(): void {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
       startDrawThenDiscardCardsWorkflow(game, {
         ability,
-        effectText: getCardAbilityEffectText(config.abilityId),
+        effectText: getAbilityEffectText(config.abilityId),
         drawCount: config.drawCount,
         discardCount: config.discardCount,
         stepId: config.stepId,
@@ -112,7 +114,10 @@ export function startDrawThenDiscardCardsWorkflow(
 
   const stateBeforeDraw =
     config.recordAbilityUseOnStart === true
-      ? recordAbilityUse(game, player.id, config.ability.abilityId, config.ability.sourceCardId)
+      ? recordAbilityUseForContext(game, player.id, {
+          abilityId: config.ability.abilityId,
+          sourceCardId: config.ability.sourceCardId,
+        })
       : game;
   const drawResult = drawCardsForPlayer(stateBeforeDraw, player.id, config.drawCount);
   if (!drawResult) {
@@ -264,28 +269,4 @@ export function finishDrawThenDiscardCardsWorkflow(
     }),
     effect.metadata?.orderedResolution === true
   );
-}
-
-function recordAbilityUse(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): GameState {
-  return addAction(game, 'RESOLVE_ABILITY', playerId, {
-    abilityId,
-    sourceCardId,
-    step: ABILITY_USE_STEP,
-    turnCount: game.turnCount,
-  });
-}
-
-function getCardAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
-  if (!effectText || effectText.trim().length === 0) {
-    throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
-  }
-  return effectText;
 }

@@ -10,13 +10,16 @@ import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { CardType, GamePhase, OrientationState, TriggerCondition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID } from '../../ability-ids.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import {
   activateWaitingEnergyCardsForPlayer,
   recoverCardsFromWaitingRoomToHandForPlayer,
 } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import {
+  getAbilityEffectText,
+  recordAbilityUseForContext,
+} from '../../runtime/workflow-helpers.js';
 import {
   and,
   groupIs,
@@ -35,7 +38,6 @@ import {
   selectWaitingRoomCardIds,
 } from '../../../effects/zone-selection.js';
 
-const ABILITY_USE_STEP = 'ABILITY_USE';
 const PR_017_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID = 'PR_017_SELECT_WAITING_ROOM_MUSE_LIVE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -100,12 +102,10 @@ function startPr017NicoActivatedEffect(
     return game;
   }
 
-  let state = recordAbilityUse(
-    game,
-    player.id,
-    PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
-    cardId
-  );
+  let state = recordAbilityUseForContext(game, player.id, {
+    abilityId: PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
+    sourceCardId: cardId,
+  });
   const stateBeforeCost = state;
   const costPayment = payImmediateEffectCosts(state, player.id, cardId, [
     { kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' },
@@ -134,7 +134,7 @@ function startPr017NicoActivatedEffect(
       abilityId: PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
       sourceCardId: cardId,
       controllerId: player.id,
-      effectText: getCardAbilityEffectText(PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID),
+      effectText: getAbilityEffectText(PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID),
       stepId: PR_017_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID,
       awaitingPlayerId: player.id,
       selectableCardIds,
@@ -221,20 +221,6 @@ function finishPr017NicoRecoverMuseLiveActivateEnergy(
   );
 }
 
-function recordAbilityUse(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): GameState {
-  return addAction(game, 'RESOLVE_ABILITY', playerId, {
-    abilityId,
-    sourceCardId,
-    step: ABILITY_USE_STEP,
-    turnCount: game.turnCount,
-  });
-}
-
 function getNewLeaveStageEvents(before: GameState, after: GameState): readonly LeaveStageEvent[] {
   return after.eventLog
     .slice(before.eventLog.length)
@@ -243,14 +229,4 @@ function getNewLeaveStageEvents(before: GameState, after: GameState): readonly L
       (event): event is LeaveStageEvent =>
         event.eventType === TriggerCondition.ON_LEAVE_STAGE
     );
-}
-
-function getCardAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
-  if (!effectText || effectText.trim().length === 0) {
-    throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
-  }
-  return effectText;
 }

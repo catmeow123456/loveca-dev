@@ -5,9 +5,9 @@ import {
 } from '../../../../domain/entities/game.js';
 import type { SlotPosition } from '../../../../shared/types/enums.js';
 import { HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID } from '../../ability-ids.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import {
   getSourceEffectiveBladeCount,
   sourceHasBladeAtLeast,
@@ -91,20 +91,10 @@ function startHsPb1KahoLiveStartDrawDiscard(
 
   return startDrawThenDiscardCardsWorkflow(state, {
     ability,
-    effectText: `${getCardAbilityEffectText(HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID)}（当前${effectiveBladeCount}个）`,
+    effectText: `${getAbilityEffectText(HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID)}（当前${effectiveBladeCount}个）`,
     drawCount: 2,
     discardCount: 1,
     stepId: HS_PB1_009_LIVE_START_SELECT_DISCARD_STEP_ID,
     orderedResolution,
   });
-}
-
-function getCardAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
-  if (!effectText || effectText.trim().length === 0) {
-    throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
-  }
-  return effectText;
 }

@@ -12,9 +12,12 @@ import {
   HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID,
   HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import {
+  getAbilityEffectText,
+  recordAbilityUseForContext,
+} from '../../runtime/workflow-helpers.js';
 import {
   and,
   costLte,
@@ -30,7 +33,6 @@ import {
 } from '../../../effects/zone-selection.js';
 import { finishWaitingRoomToHandWorkflow } from './waiting-room-to-hand.js';
 
-const ABILITY_USE_STEP = 'ABILITY_USE';
 const HS_BP1_003_SELECT_WAITING_ROOM_MEMBER_STEP_ID =
   'HS_BP1_003_SELECT_WAITING_ROOM_LOW_COST_MEMBER';
 const HS_BP1_004_SELECT_WAITING_ROOM_LIVE_STEP_ID =
@@ -124,7 +126,10 @@ function startPayEnergyWaitingRoomToHandWorkflow(
     return game;
   }
 
-  let state = recordAbilityUse(game, player.id, config.abilityId, cardId);
+  let state = recordAbilityUseForContext(game, player.id, {
+    abilityId: config.abilityId,
+    sourceCardId: cardId,
+  });
   const costPayment = payImmediateEffectCosts(state, player.id, cardId, [
     { kind: 'TAP_ACTIVE_ENERGY', count: config.energyCost },
   ]);
@@ -145,7 +150,7 @@ function startPayEnergyWaitingRoomToHandWorkflow(
       abilityId: config.abilityId,
       sourceCardId: cardId,
       controllerId: player.id,
-      effectText: getCardAbilityEffectText(config.abilityId),
+      effectText: getAbilityEffectText(config.abilityId),
       stepId: config.stepId,
       stepText: config.stepText,
       awaitingPlayerId: player.id,
@@ -165,28 +170,4 @@ function startPayEnergyWaitingRoomToHandWorkflow(
     paidEnergyCardIds: costPayment.paidEnergyCardIds,
     selectableCardIds,
   });
-}
-
-function recordAbilityUse(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): GameState {
-  return addAction(game, 'RESOLVE_ABILITY', playerId, {
-    abilityId,
-    sourceCardId,
-    step: ABILITY_USE_STEP,
-    turnCount: game.turnCount,
-  });
-}
-
-function getCardAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
-  if (!effectText || effectText.trim().length === 0) {
-    throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
-  }
-  return effectText;
 }

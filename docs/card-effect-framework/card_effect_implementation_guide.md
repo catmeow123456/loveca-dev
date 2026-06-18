@@ -29,15 +29,17 @@
    - 判断本卡应落在 query、runtime action、workflow、continuous modifier 还是 runner dispatch。
 4. `docs/card-effect-framework/runtime_action_helpers.md`
    - 查抽牌、弃牌、回收、看顶等原子动作 helper 是否已有入口。
-5. `docs/card-effect-framework/workflow_module_guide.md`
+5. `docs/card-effect-framework/active_effect_runtime.md`
+   - 多步、可选、confirm-only、skip、pending continuation 流程先查 activeEffect helper 边界。
+6. `docs/card-effect-framework/workflow_module_guide.md`
    - 若有多步流程或特殊复合效果，优先放入 workflow module，不继续直接长进 runner。
-6. `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`
+7. `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`
    - 查效果片段目前落在哪一层：事件、condition/query、selector、cost、workflow 或 runner。
-7. `docs/card-effect-reuse-audit/effect_module_coverage.md`
+8. `docs/card-effect-reuse-audit/effect_module_coverage.md`
    - 查现有模块覆盖和已证明的 helper。
-8. `docs/card-effect-reuse-audit/condition_query_remaining_inventory.md`
+9. `docs/card-effect-reuse-audit/condition_query_remaining_inventory.md`
    - 查当前 condition/query、selector、domain-safe identity、formula-builder、workflow-step 的边界。
-9. 相关测试：
+10. 相关测试：
    - `tests/integration/sample-card-effect-runner.test.ts`
    - `tests/unit/card-effect-classification.test.ts`
    - 若涉及 selector/query/domain，再查对应 unit test。
