@@ -89,6 +89,7 @@ import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime
 import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step-registry.js';
 import { registerBp5003KotoriWorkflowHandlers } from './card-effects/workflows/cards/bp5-003-kotori.js';
 import { registerHsBp1002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-002-sayaka.js';
+import { registerHsBp5003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-003-rurino.js';
 import { registerHsBp5001KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-001-kaho.js';
 import { registerHsBp5008IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-008-izumi.js';
 import { registerHsPb1004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-004-ginko.js';
@@ -612,8 +613,6 @@ const HS_BP5_001_REVEAL_STEP_ID = 'HS_BP5_001_REVEAL_TOP_FOUR';
 const KEKE_SELECT_DISCARD_STEP_ID = 'KEKE_SELECT_DISCARD_FOR_WAITING_ENERGY';
 const HS_BP1_004_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_BP1_004_LIVE_START_PAY_ENERGY';
 const HS_BP6_004_SELECT_DISCARD_STEP_ID = 'HS_BP6_004_SELECT_DISCARD_FOR_BLADE';
-const HS_BP5_003_SELECT_POSITION_MEMBER_STEP_ID = 'HS_BP5_003_SELECT_POSITION_CHANGE_MEMBER';
-const HS_BP5_003_SELECT_POSITION_SLOT_STEP_ID = 'HS_BP5_003_SELECT_POSITION_CHANGE_SLOT';
 const HS_BP5_003_SELECT_DISCARD_STEP_ID = 'HS_BP5_003_SELECT_DISCARD_FOR_MEMBER_HEART';
 const HS_BP5_003_SELECT_HEART_TARGET_STEP_ID = 'HS_BP5_003_SELECT_SAME_GROUP_MEMBER_HEART_TARGET';
 const ABILITY_ORDER_SELECTION_STEP_ID = 'SELECT_NEXT_PENDING_ABILITY';
@@ -657,6 +656,7 @@ registerPr017NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerRevealedCheerSelectionWorkflowHandlers({ continuePendingCardEffects });
 registerHsBp1002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5001KahoWorkflowHandlers();
+registerHsBp5003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1004GinkoWorkflowHandlers();
 registerEmmaWorkflowHandlers();
 registerPlBp3014RinWorkflowHandlers();
@@ -2004,22 +2004,6 @@ export function confirmActiveEffectStep(
     return finishSuccessZoneReplacementEffect(game, selectedCardId ?? null);
   }
 
-  if (
-    effect.abilityId === HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID &&
-    effect.stepId === HS_BP5_003_SELECT_POSITION_MEMBER_STEP_ID
-  ) {
-    return selectedCardId
-      ? startHsBp5003RurinoPositionSlotSelection(game, selectedCardId)
-      : finishSkipEffect(game);
-  }
-
-  if (
-    effect.abilityId === HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID &&
-    effect.stepId === HS_BP5_003_SELECT_POSITION_SLOT_STEP_ID
-  ) {
-    return finishHsBp5003RurinoPositionChange(game, selectedSlot ?? null);
-  }
-
   if (effect.abilityId === KARIN_LIVE_START_ABILITY_ID && effect.stepId === KARIN_REVEAL_STEP_ID) {
     return finishKarinLiveStart(game);
   }
@@ -2381,8 +2365,6 @@ function startPendingAbilityEffect(
       return resolveBp5RinOnEnterSuccessScorePlaceActiveEnergy(game, ability, options);
     case BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID:
       return startBp5007NozomiDiscardToThreeThenDraw(game, ability, options);
-    case HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID:
-      return startHsBp5003RurinoLeaveStagePositionChange(game, ability, options);
     case HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID:
       return resolveHsPb1KahoOnHasunosoraEnterGainBlade(game, ability, options);
     case HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID:
@@ -2666,209 +2648,6 @@ function finishHsBp6GinkoDiscardGainBlade(game: GameState, discardCardId: string
       discardedWasGinko,
       bladeBonus,
     }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function startHsBp5003RurinoLeaveStagePositionChange(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  if (ability.metadata?.toZone !== ZoneType.WAITING_ROOM) {
-    return skipPendingAbilityWithoutActiveEffect(
-      game,
-      ability,
-      player.id,
-      options.orderedResolution === true,
-      'LEAVE_STAGE_NOT_TO_WAITING_ROOM'
-    );
-  }
-
-  const selectableCardIds = getStageMemberPositionChangeCandidates(game).map(
-    (candidate) => candidate.cardId
-  );
-  if (selectableCardIds.length === 0) {
-    return skipPendingAbilityWithoutActiveEffect(
-      game,
-      ability,
-      player.id,
-      options.orderedResolution === true,
-      'NO_POSITION_CHANGE_TARGETS'
-    );
-  }
-
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText: getCardAbilityEffectText(HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID),
-        stepId: HS_BP5_003_SELECT_POSITION_MEMBER_STEP_ID,
-        stepText: '请选择要进行站位变换的成员。也可以选择不发动此效果。',
-        awaitingPlayerId: player.id,
-        selectableCardIds,
-        selectableCardVisibility: 'PUBLIC',
-        selectableCardMode: 'SINGLE',
-        selectionLabel: '选择要站位变换的成员',
-        canSkipSelection: true,
-        skipSelectionLabel: '不发动',
-        metadata: {
-          orderedResolution: options.orderedResolution === true,
-          sourceSlot: ability.sourceSlot,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_SELECT_POSITION_CHANGE_MEMBER',
-      sourceSlot: ability.sourceSlot,
-      selectableCardIds,
-    }
-  );
-}
-
-function startHsBp5003RurinoPositionSlotSelection(
-  game: GameState,
-  selectedMemberCardId: string
-): GameState {
-  const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID ||
-    effect.selectableCardIds?.includes(selectedMemberCardId) !== true
-  ) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  const targetLocation = findStageMemberLocation(game, selectedMemberCardId);
-  if (!player || !targetLocation) {
-    return game;
-  }
-
-  const selectableSlots = MEMBER_SLOT_ORDER.filter((slot) => slot !== targetLocation.slot);
-  if (selectableSlots.length === 0) {
-    return finishSkipEffect(game);
-  }
-
-  return addAction(
-    {
-      ...game,
-      activeEffect: {
-        ...effect,
-        stepId: HS_BP5_003_SELECT_POSITION_SLOT_STEP_ID,
-        stepText: '请选择该成员要移动到的成员区。',
-        selectableCardIds: [],
-        selectableCardVisibility: 'PUBLIC',
-        selectableSlots,
-        selectionLabel: undefined,
-        canSkipSelection: false,
-        skipSelectionLabel: undefined,
-        metadata: {
-          ...effect.metadata,
-          selectedMemberCardId,
-          selectedMemberPlayerId: targetLocation.playerId,
-          selectedMemberSourceSlot: targetLocation.slot,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'SELECT_POSITION_CHANGE_MEMBER',
-      selectedMemberCardId,
-      targetPlayerId: targetLocation.playerId,
-      fromSlot: targetLocation.slot,
-      selectableSlots,
-    }
-  );
-}
-
-function finishHsBp5003RurinoPositionChange(
-  game: GameState,
-  selectedSlot: SlotPosition | null
-): GameState {
-  const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID ||
-    !selectedSlot ||
-    effect.selectableSlots?.includes(selectedSlot) !== true
-  ) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  const selectedMemberCardId =
-    typeof effect.metadata?.selectedMemberCardId === 'string'
-      ? effect.metadata.selectedMemberCardId
-      : null;
-  const selectedMemberPlayerId =
-    typeof effect.metadata?.selectedMemberPlayerId === 'string'
-      ? effect.metadata.selectedMemberPlayerId
-      : null;
-  if (!player || !selectedMemberCardId || !selectedMemberPlayerId) {
-    return game;
-  }
-
-  const currentLocation = findStageMemberLocation(game, selectedMemberCardId);
-  if (
-    !currentLocation ||
-    currentLocation.playerId !== selectedMemberPlayerId ||
-    currentLocation.slot === selectedSlot
-  ) {
-    return game;
-  }
-
-  const moveResult = moveMemberBetweenSlots(
-    game,
-    selectedMemberPlayerId,
-    selectedMemberCardId,
-    selectedSlot
-  );
-  if (!moveResult) {
-    return game;
-  }
-
-  const state = {
-    ...moveResult.gameState,
-    activeEffect: null,
-  };
-  const stateWithMemberMoveTriggers = enqueueTriggeredCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'POSITION_CHANGE',
-      targetPlayerId: selectedMemberPlayerId,
-      targetCardId: selectedMemberCardId,
-      fromSlot: moveResult.fromSlot,
-      toSlot: moveResult.toSlot,
-      swappedCardId: moveResult.swappedCardId,
-    }),
-    [TriggerCondition.ON_MEMBER_SLOT_MOVED],
-    {
-      memberSlotMovedEvents: getNewMemberSlotMovedEvents(game, moveResult.gameState),
-    }
-  );
-
-  return continuePendingCardEffects(
-    stateWithMemberMoveTriggers,
     isOrderedResolutionEffect(game)
   );
 }
@@ -5251,12 +5030,6 @@ function getKnownCardGroupName(card: CardInstance): string | null {
   return (
     getKnownCardGroupIdentityName(card.data) ??
     (typeof card.data.groupName === 'string' ? card.data.groupName : null)
-  );
-}
-
-function getStageMemberPositionChangeCandidates(game: GameState): readonly StageMemberLocation[] {
-  return getStageMemberLocations(game).filter((location) =>
-    MEMBER_SLOT_ORDER.some((slot) => slot !== location.slot)
   );
 }
 
