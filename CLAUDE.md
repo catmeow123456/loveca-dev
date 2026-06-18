@@ -78,7 +78,8 @@ src/
 │   └── services/            # auth-service, mail-service, minio-service,
 │                            # online-room-service, online-match-service, debug-match-service,
 │                            # card-registry-service (published-cards cache for online decks),
-│                            # deck-storage-service (cloud deck normalization + validation)
+│                            # deck-storage-service (cloud deck normalization + validation),
+│                            # match-recorder/read/debug-replay services for replay records
 └── shared/
     ├── types/enums.ts       # All game enums
     └── phase-config/        # Phase configuration registry

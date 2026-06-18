@@ -1,8 +1,13 @@
 import { GameMode } from '../../../src/shared/types/enums';
 
-export type BattleAuthority = 'LOCAL' | 'REMOTE';
+export type BattleAuthority = 'LOCAL' | 'REMOTE' | 'REPLAY';
 
-export type BattleSurfaceKind = 'LOCAL_DEBUG' | 'SOLITAIRE' | 'ONLINE' | 'REMOTE_DEBUG';
+export type BattleSurfaceKind =
+  | 'LOCAL_DEBUG'
+  | 'SOLITAIRE'
+  | 'ONLINE'
+  | 'REMOTE_DEBUG'
+  | 'REPLAY_READONLY';
 
 export type FreePlayPolicy = 'SESSION_GLOBAL' | 'COMMAND_FLAG';
 
@@ -21,16 +26,34 @@ export interface BattleSurfaceCapabilities {
   readonly freePlayPolicy: FreePlayPolicy;
   readonly isSolitairePresentation: boolean;
   readonly scoreConfirmPresentation: ScoreConfirmPresentation;
+  readonly isReadOnly: boolean;
 }
 
 interface BattleSurfaceCapabilityInput {
   readonly gameMode: GameMode;
   readonly remoteSessionSource?: RemoteBattleSessionSource | null;
+  readonly replaySessionActive?: boolean;
 }
 
 export function deriveBattleSurfaceCapabilities(
   input: BattleSurfaceCapabilityInput
 ): BattleSurfaceCapabilities {
+  if (input.replaySessionActive) {
+    return {
+      authority: 'REPLAY',
+      surface: 'REPLAY_READONLY',
+      canSwitchPerspective: false,
+      canSwitchLocalMode: false,
+      canShowDebugLog: false,
+      canUndo: false,
+      showFreePlayControl: false,
+      freePlayPolicy: 'COMMAND_FLAG',
+      isSolitairePresentation: false,
+      scoreConfirmPresentation: 'STANDARD_MODAL',
+      isReadOnly: true,
+    };
+  }
+
   const authority: BattleAuthority = input.remoteSessionSource ? 'REMOTE' : 'LOCAL';
   const surface = deriveBattleSurfaceKind(input);
 
@@ -46,6 +69,7 @@ export function deriveBattleSurfaceCapabilities(
     isSolitairePresentation: surface === 'SOLITAIRE',
     scoreConfirmPresentation:
       surface === 'LOCAL_DEBUG' ? 'DEBUG_PASSTHROUGH' : 'STANDARD_MODAL',
+    isReadOnly: false,
   };
 }
 

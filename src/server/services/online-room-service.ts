@@ -17,6 +17,7 @@ import {
   prepareDeckPayloadForStorage,
 } from './deck-storage-service.js';
 import {
+  OnlineMatchServiceError,
   onlineMatchService,
   type CreateOnlineMatchParams,
   type OnlineMatchService,
@@ -33,6 +34,7 @@ interface OnlineRoomMemberState {
   lockedDeckId: string | null;
   lockedDeckName: string | null;
   resolvedDeckConfig: RuntimeDeckConfig | null;
+  lockedDeckAt: number | null;
   lastSeenAt: number;
 }
 
@@ -98,7 +100,7 @@ export class OnlineRoomService {
 
   async createRoom(roomCodeInput: string, userId: string): Promise<OnlineRoomView> {
     const roomCode = normalizeRoomCode(roomCodeInput);
-    this.cleanupExpiredState();
+    await this.cleanupExpiredState();
 
     const existing = this.rooms.get(roomCode);
     if (existing) {
@@ -130,6 +132,7 @@ export class OnlineRoomService {
           lockedDeckId: null,
           lockedDeckName: null,
           resolvedDeckConfig: null,
+          lockedDeckAt: null,
           lastSeenAt: now,
         },
       ],
@@ -145,7 +148,7 @@ export class OnlineRoomService {
   }
 
   async joinRoom(roomCodeInput: string, userId: string): Promise<OnlineRoomView> {
-    this.cleanupExpiredState();
+    await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
     const existingMember = findMember(room, userId);
@@ -176,6 +179,7 @@ export class OnlineRoomService {
       lockedDeckId: null,
       lockedDeckName: null,
       resolvedDeckConfig: null,
+      lockedDeckAt: null,
       lastSeenAt: now,
     };
     room.members.push(member);
@@ -198,7 +202,7 @@ export class OnlineRoomService {
       return this.buildRoomView(activeInGameRoom, activeInGameMember);
     }
 
-    this.cleanupExpiredState();
+    await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCode);
     const member = findMember(room, userId);
@@ -211,7 +215,7 @@ export class OnlineRoomService {
   }
 
   async lockDeck(roomCodeInput: string, userId: string, deckId: string): Promise<OnlineRoomView> {
-    this.cleanupExpiredState();
+    await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
     if (room.status === 'IN_GAME') {
@@ -228,8 +232,9 @@ export class OnlineRoomService {
     member.lockedDeckId = deck.deckId;
     member.lockedDeckName = deck.deckName;
     member.resolvedDeckConfig = deck.runtimeDeck;
+    member.lockedDeckAt = this.now();
     member.presence = 'ACTIVE';
-    member.lastSeenAt = this.now();
+    member.lastSeenAt = member.lockedDeckAt;
 
     room.turnOrderProposal = null;
     room.turnOrderAgreement = null;
@@ -244,7 +249,7 @@ export class OnlineRoomService {
     userId: string,
     proposal: TurnOrderProposalMode
   ): Promise<OnlineRoomView> {
-    this.cleanupExpiredState();
+    await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
     const member = this.requireMember(room, userId);
@@ -278,7 +283,7 @@ export class OnlineRoomService {
     userId: string,
     accepted: boolean
   ): Promise<OnlineRoomView> {
-    this.cleanupExpiredState();
+    await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
     const member = this.requireMember(room, userId);
@@ -314,7 +319,32 @@ export class OnlineRoomService {
       return this.buildRoomView(room, member);
     }
 
-    const match = this.startMatch(room);
+    let match: Awaited<ReturnType<OnlineMatchService['createMatch']>>;
+    try {
+      match = await this.startMatch(room);
+    } catch (error) {
+      room.turnOrderAgreement = null;
+      room.status = 'READY';
+      touchRoom(room, now);
+      if (error instanceof OnlineRoomServiceError) {
+        throw error;
+      }
+      if (error instanceof OnlineMatchServiceError) {
+        throw new OnlineRoomServiceError(
+          error.code,
+          '无法开始对局：历史对局记录服务暂时不可用，请稍后重试',
+          error.code === 'ONLINE_MATCH_RECORD_BEGIN_FAILED' ||
+            error.code === 'ONLINE_MATCH_RECORD_CHECKPOINT_FAILED'
+            ? 503
+            : 500
+        );
+      }
+      throw new OnlineRoomServiceError(
+        'ONLINE_MATCH_START_FAILED',
+        `无法开始对局：${readErrorMessage(error)}`,
+        500
+      );
+    }
     room.matchId = match.matchId;
     room.status = 'IN_GAME';
     touchRoom(room, now);
@@ -323,7 +353,7 @@ export class OnlineRoomService {
   }
 
   async leaveRoom(roomCodeInput: string, userId: string): Promise<{ room: OnlineRoomView | null }> {
-    this.cleanupExpiredState();
+    await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
     const member = this.requireMember(room, userId);
@@ -384,8 +414,8 @@ export class OnlineRoomService {
     touchRoom(room, now);
   }
 
-  getRoomIfPresent(roomCodeInput: string): OnlineRoomView | null {
-    this.cleanupExpiredState();
+  async getRoomIfPresent(roomCodeInput: string): Promise<OnlineRoomView | null> {
+    await this.cleanupExpiredState();
 
     const roomCode = normalizeRoomCode(roomCodeInput);
     const room = this.rooms.get(roomCode);
@@ -396,8 +426,8 @@ export class OnlineRoomService {
     return this.buildRoomView(room, room.members[0]);
   }
 
-  listAdminRoomSummaries(): readonly OnlineAdminRoomSummary[] {
-    this.cleanupExpiredState();
+  async listAdminRoomSummaries(): Promise<readonly OnlineAdminRoomSummary[]> {
+    await this.cleanupExpiredState();
 
     const now = this.now();
     return [...this.rooms.values()]
@@ -508,7 +538,7 @@ export class OnlineRoomService {
     };
   }
 
-  private startMatch(room: OnlineRoomState) {
+  private async startMatch(room: OnlineRoomState) {
     const host = room.members.find((member) => member.role === 'HOST');
     const guest = room.members.find((member) => member.role === 'GUEST');
     if (!host || !guest || !host.resolvedDeckConfig || !guest.resolvedDeckConfig) {
@@ -528,15 +558,21 @@ export class OnlineRoomService {
         userId: firstMember.userId,
         displayName: firstMember.displayName,
         deck: firstMember.userId === host.userId ? hostDeck : guestDeck,
+        deckId: firstMember.lockedDeckId,
+        deckName: firstMember.lockedDeckName,
+        lockedAt: firstMember.lockedDeckAt,
       },
       second: {
         userId: secondMember.userId,
         displayName: secondMember.displayName,
         deck: secondMember.userId === host.userId ? hostDeck : guestDeck,
+        deckId: secondMember.lockedDeckId,
+        deckName: secondMember.lockedDeckName,
+        lockedAt: secondMember.lockedDeckAt,
       },
     };
 
-    const match = this.matchService.createMatch(params);
+    const match = await this.matchService.createMatch(params);
     room.seatAssignments = {
       FIRST: firstMember.userId,
       SECOND: secondMember.userId,
@@ -545,7 +581,7 @@ export class OnlineRoomService {
     return match;
   }
 
-  private cleanupExpiredState(): void {
+  private async cleanupExpiredState(): Promise<void> {
     const now = this.now();
 
     for (const [roomCode, room] of this.rooms) {
@@ -554,7 +590,13 @@ export class OnlineRoomService {
       if (room.status === 'IN_GAME') {
         if (shouldDestroyRoom(room, now)) {
           if (room.matchId) {
-            this.matchService.deleteMatch(room.matchId);
+            const deleted = await this.matchService.deleteMatch(room.matchId, {
+              reason: 'ROOM_DESTROYED_ALL_ABSENT',
+              now,
+            });
+            if (!deleted) {
+              continue;
+            }
           }
           this.rooms.delete(roomCode);
         }
@@ -573,7 +615,7 @@ export class OnlineRoomService {
         activeMatchIds.add(room.matchId);
       }
     }
-    this.matchService.cleanupExpiredMatches(activeMatchIds, now);
+    await this.matchService.cleanupExpiredMatches(activeMatchIds, now);
   }
 
   private refreshMemberPresence(room: OnlineRoomState, now: number): void {
@@ -676,6 +718,10 @@ function ensureBothDecksLocked(room: OnlineRoomState): void {
       409
     );
   }
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function defaultLoadUserProfile(userId: string): Promise<UserProfileSummary> {

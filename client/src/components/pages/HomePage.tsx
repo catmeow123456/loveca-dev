@@ -14,6 +14,7 @@ import {
   DoorOpen,
   Gamepad2,
   Globe2,
+  History,
   LogOut,
   MonitorCog,
   RefreshCw,
@@ -40,6 +41,7 @@ interface HomePageProps {
   onNavigateToDeckManager: () => void;
   onNavigateToGameSetup: () => void;
   onNavigateToOnlineRoom: () => void;
+  onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToCardAdmin: () => void;
   onNavigateToOnlineAdmin: () => void;
@@ -75,6 +77,7 @@ export function HomePage({
   onNavigateToDeckManager,
   onNavigateToGameSetup,
   onNavigateToOnlineRoom,
+  onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
   onNavigateToCardAdmin,
   onNavigateToOnlineAdmin,
@@ -240,6 +243,18 @@ export function HomePage({
           ? '连接后可用'
           : '服务未配置',
       tone: canUseOnlineRoom ? 'blue' : 'muted',
+    },
+    {
+      title: '历史对局',
+      description: canUseCloudDecks
+        ? '查看历史记录、timeline 与只读回放节点。'
+        : '连接服务后可读取历史对局记录。',
+      icon: History,
+      onClick: onNavigateToMatchRecords,
+      disabled: !canUseCloudDecks,
+      compact: !canUseCloudDecks,
+      status: canUseCloudDecks ? '只读回放' : '连接后可用',
+      tone: canUseCloudDecks ? 'green' : 'muted',
     },
   ];
 

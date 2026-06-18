@@ -186,7 +186,9 @@ export const PlayerArea = memo(function PlayerArea({
     }))
   );
   const isDragging = useGameStore((s) => s.ui.isDragging);
-  const canShowUndo = useGameStore((s) => s.getBattleSurfaceCapabilities().canUndo);
+  const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
+  const canShowUndo = capabilities.canUndo;
+  const isReadOnly = capabilities.isReadOnly;
   const isRemoteDebugMode = useGameStore((s) => s.isRemoteDebugMode());
   const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
   const canOpenInspection = useGameStore((s) => s.canUseAction(GameCommandType.OPEN_INSPECTION));
@@ -301,8 +303,11 @@ export const PlayerArea = memo(function PlayerArea({
   // ========================================
 
   const allowGeneralOwnZoneInteraction =
-    !isOpponent && currentPhase !== null && isOwnDeskFreeDragWindow(currentPhase, currentSubPhase);
-  const allowLiveZoneDeskInteraction = !isOpponent;
+    !isReadOnly &&
+    !isOpponent &&
+    currentPhase !== null &&
+    isOwnDeskFreeDragWindow(currentPhase, currentSubPhase);
+  const allowLiveZoneDeskInteraction = !isReadOnly && !isOpponent;
   const dropScope = `seat-${playerSeat}`;
   const getDroppableId = (zoneType: ZoneType, slotPosition?: SlotPosition) =>
     createScopedZoneId(dropScope, zoneType, slotPosition);
@@ -311,21 +316,23 @@ export const PlayerArea = memo(function PlayerArea({
       ? ((matchView.window.context?.sourceZone as ZoneType | undefined) ?? null)
       : null;
   const canClickMainDeck =
+    !isReadOnly &&
     !isOpponent &&
     canOpenInspection &&
     (!hasOwnedInspectionContext || inspectionSourceZone === ZoneType.MAIN_DECK);
 
   const canDropToLiveZone = allowGeneralOwnZoneInteraction || allowLiveZoneDeskInteraction;
-  const canReceiveInspectionDrop = !isOpponent && hasOwnedInspectionContext;
+  const canReceiveInspectionDrop = !isReadOnly && !isOpponent && hasOwnedInspectionContext;
   // 检查 Live 区是否已达上限（最多3张）
   const liveZoneIsFull = (liveZoneView?.count ?? liveCardIds.length) >= 3;
 
   const canDropMember = allowGeneralOwnZoneInteraction;
   const canDragInspectionCard =
-    canMoveInspectedToZone ||
-    canMoveInspectedToTop ||
-    canMoveInspectedToBottom ||
-    canReorderInspectedCard;
+    !isReadOnly &&
+    (canMoveInspectedToZone ||
+      canMoveInspectedToTop ||
+      canMoveInspectedToBottom ||
+      canReorderInspectedCard);
   const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const getEffectVisualState = (
     card: { readonly cardCode: string; readonly instanceId: string },
@@ -914,9 +921,10 @@ export const PlayerArea = memo(function PlayerArea({
                                   key={cardId}
                                   id={cardId}
                                   disabled={
-                                    !allowGeneralOwnZoneInteraction &&
-                                    !canReceiveInspectionDrop &&
-                                    card.cardData.cardType !== CardType.LIVE
+                                    isReadOnly ||
+                                    (!allowGeneralOwnZoneInteraction &&
+                                      !canReceiveInspectionDrop &&
+                                      card.cardData.cardType !== CardType.LIVE)
                                   }
                                   data={{
                                     cardId,
@@ -964,7 +972,7 @@ export const PlayerArea = memo(function PlayerArea({
       <DroppableZone
         id={getDroppableId(ZoneType.SUCCESS_ZONE)}
         zoneId={createZoneId(ZoneType.SUCCESS_ZONE)}
-        disabled={isOpponent}
+        disabled={isReadOnly || isOpponent}
         className="flex flex-col items-center gap-1 relative"
         activeClassName="ring-2 ring-green-500 bg-green-500/20"
       >
@@ -1006,7 +1014,7 @@ export const PlayerArea = memo(function PlayerArea({
                           size="sm"
                           faceUp={true}
                           effectVisualState={getEffectVisualState(card)}
-                          interactive={!isOpponent}
+                          interactive={!isReadOnly && !isOpponent}
                           showHover={false}
                           className="w-[80px] h-[112px]"
                         />
@@ -1053,7 +1061,7 @@ export const PlayerArea = memo(function PlayerArea({
       <DroppableZone
         id={getDroppableId(ZoneType.SUCCESS_ZONE)}
         zoneId={createZoneId(ZoneType.SUCCESS_ZONE)}
-        disabled={isOpponent}
+        disabled={isReadOnly || isOpponent}
         className="flex h-[104px] w-full flex-col items-center justify-start gap-1 overflow-hidden"
         activeClassName="ring-2 ring-green-500 bg-green-500/20"
       >
@@ -1091,7 +1099,7 @@ export const PlayerArea = memo(function PlayerArea({
                           imagePath={card.imagePath}
                           size="sm"
                           faceUp={true}
-                          interactive={!isOpponent}
+                          interactive={!isReadOnly && !isOpponent}
                           showHover={false}
                           className="h-[72px] w-[52px]"
                         />
@@ -1311,7 +1319,7 @@ export const PlayerArea = memo(function PlayerArea({
     return (
       <DraggableCard
         id={cardId}
-        disabled={isOpponent}
+        disabled={isReadOnly || isOpponent}
         data={{ cardId, cardCode: card?.cardCode, fromZone: ZoneType.LIVE_ZONE }}
       >
         <motion.div
@@ -1336,7 +1344,7 @@ export const PlayerArea = memo(function PlayerArea({
                 size="sm"
                 faceUp={shouldShowFront}
                 effectVisualState={getEffectVisualState(card, { faceUp: shouldShowFront })}
-                interactive={!isOpponent}
+                interactive={!isReadOnly && !isOpponent}
                 showHover={false}
                 className="h-[80px] w-[57px] md:h-[112px] md:w-[80px]"
               />
@@ -1464,8 +1472,10 @@ export const PlayerArea = memo(function PlayerArea({
 
   const renderInspectionZone = () => {
     const isViewerInspectionZone = viewerSeat === playerSeat && hasOwnedInspectionContext;
+    const canUseInspectionActions = !isReadOnly && isViewerInspectionZone;
     const hasVisibleInspectionCards = inspectionCardIds.length > 0;
     const canCloseInspection =
+      canUseInspectionActions &&
       hasFinishInspectionCommand &&
       inspectionBatchAction === null &&
       (!hasVisibleInspectionCards || canMoveInspectedToTop);
@@ -1493,7 +1503,7 @@ export const PlayerArea = memo(function PlayerArea({
       });
 
     const moveAllInspectionCardsToWaitingRoom = async () => {
-      if (inspectionBatchAction) {
+      if (!canUseInspectionActions || inspectionBatchAction) {
         return;
       }
 
@@ -1522,7 +1532,7 @@ export const PlayerArea = memo(function PlayerArea({
     };
 
     const closeInspectionByReturningCardsToTop = async () => {
-      if (inspectionBatchAction) {
+      if (!canUseInspectionActions || inspectionBatchAction) {
         return;
       }
 
@@ -1576,12 +1586,13 @@ export const PlayerArea = memo(function PlayerArea({
                 {inspectionZoneView?.count ?? inspectionCardIds.length}
               </div>
             </div>
-            {isViewerInspectionZone ? (
+            {canUseInspectionActions ? (
               <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
                 <button
                   type="button"
                   disabled={
                     !canMoveInspectedToZone ||
+                    !canUseInspectionActions ||
                     inspectionCardIds.length === 0 ||
                     inspectionBatchAction !== null
                   }
@@ -1589,6 +1600,7 @@ export const PlayerArea = memo(function PlayerArea({
                   className={cn(
                     'inline-flex min-h-8 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium text-white',
                     canMoveInspectedToZone &&
+                      canUseInspectionActions &&
                       inspectionCardIds.length > 0 &&
                       inspectionBatchAction === null
                       ? 'bg-slate-700 hover:bg-slate-600'
@@ -1618,7 +1630,7 @@ export const PlayerArea = memo(function PlayerArea({
             ) : null}
           </DroppableZone>
 
-          {isViewerInspectionZone && hasVisibleInspectionCards ? (
+          {canUseInspectionActions && hasVisibleInspectionCards ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <DroppableZone
                 id={INSPECTION_TARGET_IDS.hand}
@@ -1669,7 +1681,7 @@ export const PlayerArea = memo(function PlayerArea({
               <DroppableZone
                 id={getDroppableId(ZoneType.INSPECTION_ZONE)}
                 zoneId={createZoneId(ZoneType.INSPECTION_ZONE)}
-                disabled={!isViewerInspectionZone}
+                disabled={!canUseInspectionActions}
                 className="overflow-x-auto rounded-lg border border-dashed border-[color:color-mix(in_srgb,var(--accent-primary)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_22%,transparent)] px-2 py-2"
                 activeClassName="outline outline-2 outline-purple-400 bg-purple-500/15"
                 dropTargetClassName="outline outline-2 outline-dashed outline-purple-400/80 bg-purple-500/10"
@@ -1686,9 +1698,9 @@ export const PlayerArea = memo(function PlayerArea({
                         key={cardId}
                         cardId={cardId}
                         imagePath={imagePath}
-                        disabled={!isViewerInspectionZone || !canDragInspectionCard}
-                        showActions={isViewerInspectionZone}
-                        canReveal={canRevealInspectedCard}
+                        disabled={!canUseInspectionActions || !canDragInspectionCard}
+                        showActions={canUseInspectionActions}
+                        canReveal={canUseInspectionActions && canRevealInspectedCard}
                         isRevealed={isInspectionCardPubliclyRevealed(cardId)}
                         onReveal={(targetCardId) => {
                           revealInspectedCard(targetCardId);
@@ -1709,12 +1721,12 @@ export const PlayerArea = memo(function PlayerArea({
             <DroppableZone
               id={getDroppableId(ZoneType.INSPECTION_ZONE)}
               zoneId={createZoneId(ZoneType.INSPECTION_ZONE)}
-              disabled={!isViewerInspectionZone}
+              disabled={!canUseInspectionActions}
               className="rounded-lg border border-dashed border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_36%,transparent)] px-4 py-3 text-center text-xs text-[var(--text-muted)]"
               activeClassName="outline outline-2 outline-purple-400 bg-purple-500/15"
               dropTargetClassName="outline outline-2 outline-dashed outline-purple-400/80 bg-purple-500/10"
             >
-              {isViewerInspectionZone
+              {canUseInspectionActions
                 ? '拖到这里移入检视区。检视区已清空时，也可直接关闭。'
                 : '当前检视区暂无可见卡牌。'}
             </DroppableZone>

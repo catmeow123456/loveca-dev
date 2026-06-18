@@ -22,6 +22,45 @@ die() {
   exit 1
 }
 
+usage() {
+  cat <<'EOF'
+Usage: bash scripts/start-test-env.sh [options]
+
+Options:
+  --no-db-rebuild, --no-reset-data
+      Reuse the existing Postgres Docker volume instead of running compose down -v.
+      This is equivalent to TEST_RESET_DATA=0.
+
+  --db-rebuild, --reset-data
+      Rebuild the test database volume before startup. This is the default and is
+      equivalent to TEST_RESET_DATA=1.
+
+  -h, --help
+      Show this help message.
+EOF
+}
+
+parse_args() {
+  while (($# > 0)); do
+    case "$1" in
+      --no-db-rebuild|--no-reset-data)
+        RESET_DATA=0
+        ;;
+      --db-rebuild|--reset-data)
+        RESET_DATA=1
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown option: $1"
+        ;;
+    esac
+    shift
+  done
+}
+
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
@@ -513,6 +552,8 @@ start_tmux_environment() {
 }
 
 main() {
+  parse_args "$@"
+
   need_cmd node
   need_cmd pnpm
   need_cmd docker

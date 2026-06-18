@@ -107,6 +107,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   const activeSeat = useGameStore((s) => s.getActiveSeatView());
   const permissionView = useGameStore((s) => s.getPermissionView());
   const matchView = useGameStore((s) => s.getMatchView());
+  const isReadOnly = useGameStore((s) => s.getBattleSurfaceCapabilities().isReadOnly);
   const getCommandHint = useGameStore((s) => s.getCommandHint);
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
   const currentTurnCount = useGameStore((s) => s.getTurnCountView());
@@ -122,6 +123,9 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   );
 
   const isMyTurn = useMemo(() => {
+    if (isReadOnly) {
+      return false;
+    }
     if (isInspectionWindow) {
       return false;
     }
@@ -129,7 +133,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
       return (permissionView.availableCommands ?? []).some((hint) => hint.enabled);
     }
     return false;
-  }, [isInspectionWindow, permissionView]);
+  }, [isInspectionWindow, isReadOnly, permissionView]);
 
   // 判断是否是先攻玩家的回合
   const isFirstPlayerTurn = activeSeat === 'FIRST';
@@ -148,6 +152,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   // 是否显示操作按钮
   const showActionButton =
     !!actionConfig &&
+    !isReadOnly &&
     !isInspectionWindow &&
     (actionConfig.command === 'OPEN_JUDGMENT' ? isMyTurn : actionHint?.enabled === true);
 
@@ -164,6 +169,10 @@ export const PhaseIndicator = memo(function PhaseIndicator({
 
   // 处理主按钮点击
   const handleAction = () => {
+    if (isReadOnly) {
+      return;
+    }
+
     // 演出判定阶段：打开判定面板（不直接 confirmSubPhase）
     if (currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT && onOpenJudgment) {
       onOpenJudgment();
@@ -246,7 +255,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
                 )}
                 style={isMyTurn ? { background: 'color-mix(in srgb, var(--semantic-success) 16%, transparent)' } : undefined}
               >
-                {isInspectionWindow ? '检视' : isMyTurn ? '我方' : '对手'}
+                {isReadOnly ? '回放' : isInspectionWindow ? '检视' : isMyTurn ? '我方' : '对手'}
               </span>
             )}
           </div>
@@ -290,7 +299,13 @@ export const PhaseIndicator = memo(function PhaseIndicator({
             )}
             style={isMyTurn ? { background: 'color-mix(in srgb, var(--semantic-success) 16%, transparent)' } : undefined}
           >
-            {isInspectionWindow ? '检视处理中' : isMyTurn ? '你的回合' : '对手回合'}
+            {isReadOnly
+              ? '历史回放'
+              : isInspectionWindow
+                ? '检视处理中'
+                : isMyTurn
+                  ? '你的回合'
+                  : '对手回合'}
           </div>
         </div>
 

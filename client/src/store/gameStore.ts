@@ -29,6 +29,7 @@ import {
   type ViewZoneKey,
   type ViewZoneState,
   shouldIgnoreRemoteSnapshotBySeq,
+  type MatchRecordReplayView,
 } from '@game/online';
 import {
   GameCommandType,
@@ -150,6 +151,17 @@ export interface RemoteSessionState {
   readonly playerId: string | null;
 }
 
+export interface ReplayReadonlySessionState {
+  readonly matchId: string;
+  readonly viewerSeat: Seat;
+  readonly viewerPlayerId: string;
+  readonly checkpointSeq: number;
+  readonly timelineSeq: number;
+  readonly recordStatus: string;
+  readonly recordCompleteness: string;
+  readonly partialReasonSummary: string | null;
+}
+
 export interface GameStore {
   // ============ 状态 ============
   /** 联机视图状态（按当前视角投影） */
@@ -168,6 +180,8 @@ export interface GameStore {
   viewingPlayerId: string | null;
   /** 当前远程联机会话 */
   remoteSession: RemoteSessionState | null;
+  /** 当前历史回放只读会话 */
+  replaySession: ReplayReadonlySessionState | null;
 
   // ============ 动作 ============
   /** 加载卡牌数据 (带文件名映射) */
@@ -277,6 +291,15 @@ export interface GameStore {
   setGameMode: (mode: GameMode) => void;
   /** 设置免费登场兜底 */
   setFreePlayEnabled: (enabled: boolean) => void;
+  /** 进入历史对局只读回放 */
+  enterReadonlyReplay: (
+    replay: MatchRecordReplayView,
+    options?: { shouldCommit?: () => boolean }
+  ) => Promise<void>;
+  /** 离开历史对局只读回放 */
+  leaveReadonlyReplay: () => void;
+  /** 当前是否处于历史对局只读回放 */
+  isReadonlyReplayMode: () => boolean;
   /** 接入远程联机会话 */
   connectRemoteSession: (session: RemoteSessionState) => void;
   /** 将远程快照应用到当前联机会话 */
@@ -487,6 +510,13 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
   });
 
+  const isReadonlyReplayMode = (): boolean => get().replaySession !== null;
+
+  const rejectReadonlyReplayCommand = (): CommandDispatchResult => ({
+    success: false,
+    error: '历史回放为只读模式，不能提交操作',
+  });
+
   const applyCommandSuccessEffects = (
     options: Omit<StoreCommandOptions, 'failureMessage'>
   ): void => {
@@ -505,6 +535,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     command: GameCommand,
     options: StoreCommandOptions
   ): CommandDispatchResult => {
+    if (isReadonlyReplayMode()) {
+      return rejectReadonlyReplayCommand();
+    }
+
     if (
       dispatchRemoteCommand(command, options.failureMessage, () => {
         applyCommandSuccessEffects(options);
@@ -530,6 +564,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     buildCommand: (playerId: string) => GameCommand,
     options: StoreCommandOptions
   ): CommandDispatchResult => {
+    if (isReadonlyReplayMode()) {
+      return rejectReadonlyReplayCommand();
+    }
+
     const viewingPlayerId = get().viewingPlayerId;
     if (!viewingPlayerId) {
       return { success: false, error: '未设置玩家' };
@@ -541,6 +579,11 @@ export const useGameStore = create<GameStore>((set, get) => {
   const runRemoteCommandSequence = (
     entries: readonly { readonly command: GameCommand; readonly options: StoreCommandOptions }[]
   ): boolean => {
+    if (isReadonlyReplayMode()) {
+      warnReplayGuardBypass('runRemoteCommandSequence');
+      return true;
+    }
+
     if (!get().remoteSession || entries.length === 0) {
       return false;
     }
@@ -562,6 +605,9 @@ export const useGameStore = create<GameStore>((set, get) => {
   };
 
   const autoConfirmOtherLocalWinners = (subPhase: SubPhase): void => {
+    if (isReadonlyReplayMode()) {
+      return;
+    }
     if (get().remoteSession) {
       return;
     }
@@ -610,6 +656,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     freePlayEnabled: false,
     viewingPlayerId: null,
     remoteSession: null,
+    replaySession: null,
     ui: {
       selectedCardId: null,
       hoveredCardId: null,
@@ -640,7 +687,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       gameSession.createGame(gameId, player1Id, player1Name, player2Id, player2Name);
 
       // 默认设置玩家1为初始视角
-      set({ viewingPlayerId: player1Id });
+      set({ viewingPlayerId: player1Id, replaySession: null });
 
       // 同步状态
       get().syncState();
@@ -649,6 +696,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     initializeGame: (player1Deck, player2Deck) => {
       const { gameSession } = get();
+      set({ replaySession: null });
 
       const result = gameSession.initializeGame(player1Deck, player2Deck);
 
@@ -671,6 +719,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({
         playerViewState: null,
         viewingPlayerId: null,
+        replaySession: null,
         gameMode: GameMode.DEBUG,
         freePlayEnabled: false,
         ui: {
@@ -690,6 +739,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     advancePhase: () => {
+      if (isReadonlyReplayMode()) {
+        return;
+      }
+
       if (dispatchRemoteAdvancePhase()) {
         return;
       }
@@ -713,10 +766,16 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     canUndoLastStep: () => {
+      if (isReadonlyReplayMode()) {
+        return false;
+      }
       return get().getBattleSurfaceCapabilities().canUndo && get().gameSession.canUndoLastStep();
     },
 
     undoLastStep: () => {
+      if (isReadonlyReplayMode()) {
+        return rejectReadonlyReplayCommand();
+      }
       if (get().remoteSession) {
         return { success: false, error: '远程对战暂不支持撤销' };
       }
@@ -870,6 +929,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     mulligan: (cardIdsToMulligan) => {
+      if (isReadonlyReplayMode()) {
+        return rejectReadonlyReplayCommand();
+      }
+
       const { viewingPlayerId, gameSession } = get();
       if (!viewingPlayerId) {
         return { success: false, error: '未设置玩家' };
@@ -948,6 +1011,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     setViewingPlayer: (playerId) => {
+      if (isReadonlyReplayMode()) {
+        return;
+      }
       if (get().remoteSession) {
         return;
       }
@@ -1002,6 +1068,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     setGameMode: (mode) => {
+      if (isReadonlyReplayMode()) {
+        return;
+      }
       if (get().remoteSession) {
         return;
       }
@@ -1017,6 +1086,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     setFreePlayEnabled: (enabled) => {
+      if (isReadonlyReplayMode()) {
+        return;
+      }
       const { gameSession } = get();
       if (!get().remoteSession) {
         gameSession.localFreePlay = enabled;
@@ -1025,10 +1097,78 @@ export const useGameStore = create<GameStore>((set, get) => {
       get().addLog(enabled ? '免费登场已开启' : '免费登场已关闭', 'info');
     },
 
+    enterReadonlyReplay: async (replay, options) => {
+      const viewerPlayerId = getReadonlyReplayViewerPlayerId(replay);
+      const normalizedPlayerViewState = normalizeReadonlyReplayViewState(replay.playerViewState);
+
+      await preloadFrontTransitions(
+        get().playerViewState,
+        normalizedPlayerViewState,
+        get().cardDataRegistry
+      );
+
+      // 卡图预加载是异步的，快速切换 checkpoint 时较早的请求可能在较新请求之后完成。
+      // 若调用方判定本次注入已过期，则放弃提交，避免旧 checkpoint 覆盖当前桌面视图。
+      if (options?.shouldCommit && !options.shouldCommit()) {
+        return;
+      }
+
+      get().gameSession.localFreePlay = false;
+      set((state) => ({
+        playerViewState: normalizedPlayerViewState,
+        viewingPlayerId: viewerPlayerId,
+        remoteSession: null,
+        replaySession: {
+          matchId: replay.matchId,
+          viewerSeat: replay.viewerSeat,
+          viewerPlayerId,
+          checkpointSeq: replay.timelineCursor.checkpointSeq,
+          timelineSeq: replay.timelineCursor.timelineSeq,
+          recordStatus: replay.recordStatus,
+          recordCompleteness: replay.recordCompleteness,
+          partialReasonSummary: replay.partialReasonSummary,
+        },
+        gameMode: GameMode.DEBUG,
+        freePlayEnabled: false,
+        ui: {
+          ...state.ui,
+          selectedCardId: null,
+          hoveredCardId: null,
+          isDragging: false,
+          highlightedZones: [],
+          waitingForInput: false,
+          inputRequestType: null,
+        },
+      }));
+    },
+
+    leaveReadonlyReplay: () => {
+      set((state) => ({
+        playerViewState: null,
+        viewingPlayerId: null,
+        replaySession: null,
+        freePlayEnabled: false,
+        ui: {
+          ...state.ui,
+          selectedCardId: null,
+          hoveredCardId: null,
+          isDragging: false,
+          highlightedZones: [],
+          waitingForInput: false,
+          inputRequestType: null,
+        },
+      }));
+      get().gameSession.localFreePlay = false;
+    },
+
+    isReadonlyReplayMode: () => isReadonlyReplayMode(),
+
     connectRemoteSession: (session) => {
       get().gameSession.localFreePlay = false;
       set({
         remoteSession: session,
+        replaySession: null,
+        playerViewState: null,
         viewingPlayerId: session.playerId,
         gameMode: GameMode.DEBUG,
         freePlayEnabled: false,
@@ -1036,7 +1176,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     applyRemoteSnapshot: async (snapshot) => {
-      await preloadRemoteSnapshotFrontTransitions(
+      if (isReadonlyReplayMode()) {
+        return;
+      }
+      await preloadFrontTransitions(
         get().playerViewState,
         snapshot.playerViewState,
         get().cardDataRegistry
@@ -1047,12 +1190,16 @@ export const useGameStore = create<GameStore>((set, get) => {
     disconnectRemoteSession: () => {
       set({
         remoteSession: null,
+        replaySession: null,
         playerViewState: null,
         viewingPlayerId: null,
       });
     },
 
     syncRemoteState: async () => {
+      if (isReadonlyReplayMode()) {
+        return;
+      }
       const remoteSession = get().remoteSession;
       if (!remoteSession) {
         return;
@@ -1068,7 +1215,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      await preloadRemoteSnapshotFrontTransitions(
+      await preloadFrontTransitions(
         get().playerViewState,
         snapshot.playerViewState,
         get().cardDataRegistry
@@ -1082,6 +1229,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       deriveBattleSurfaceCapabilities({
         gameMode: get().gameMode,
         remoteSessionSource: get().remoteSession?.source ?? null,
+        replaySessionActive: get().replaySession !== null,
       }),
 
     connectRemoteDebugSession: (session) => {
@@ -1102,6 +1250,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     isRemoteDebugMode: () => get().remoteSession?.source === 'DEBUG',
 
     syncState: () => {
+      if (isReadonlyReplayMode()) {
+        return;
+      }
       if (get().remoteSession) {
         return;
       }
@@ -1154,6 +1305,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     getCommandHint: (command) => {
+      if (isReadonlyReplayMode()) {
+        return null;
+      }
       const permissionView = get().playerViewState?.permissions;
       if (!permissionView) {
         return null;
@@ -1164,6 +1318,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     canUseAction: (actionType) => {
+      if (isReadonlyReplayMode()) {
+        return false;
+      }
       return get().getCommandHint(actionType)?.enabled === true;
     },
 
@@ -1439,6 +1596,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     acceptAutomaticJudgment: () => {
+      if (isReadonlyReplayMode()) {
+        return rejectReadonlyReplayCommand();
+      }
+
       const viewingPlayerId = get().viewingPlayerId;
       if (!viewingPlayerId) {
         return { success: false, error: '未设置玩家' };
@@ -1893,7 +2054,9 @@ function applyRemoteSnapshot(
   });
 }
 
-async function preloadRemoteSnapshotFrontTransitions(
+// 通用的卡图预加载:对比前后两个 PlayerViewState，预取新翻面卡的图片。
+// 不含任何远程会话特有逻辑，远程同步、历史回放等路径均可复用。
+async function preloadFrontTransitions(
   previousViewState: PlayerViewState | null,
   nextViewState: PlayerViewState | null,
   cardDataRegistry: ReadonlyMap<string, AnyCardData>
@@ -1964,12 +2127,54 @@ function normalizePlayerViewState(playerViewState: PlayerViewState | null): Play
   };
 }
 
+function normalizeReadonlyReplayViewState(playerViewState: PlayerViewState): PlayerViewState {
+  const normalized = normalizePlayerViewState(playerViewState);
+  if (!normalized) {
+    throw new Error('历史回放视图状态为空');
+  }
+
+  return {
+    ...normalized,
+    permissions: {
+      ...normalized.permissions,
+      availableCommands: [],
+    },
+  };
+}
+
+function getReadonlyReplayViewerPlayerId(replay: MatchRecordReplayView): string {
+  const viewerSeat = replay.viewerSeat;
+  if (viewerSeat !== replay.playerViewState.match.viewerSeat) {
+    throw new Error('历史回放视角与投影视角不一致');
+  }
+
+  const viewerPlayerId = replay.playerViewState.match.participants[viewerSeat]?.id;
+  if (!viewerPlayerId) {
+    throw new Error('历史回放缺少当前视角玩家信息');
+  }
+
+  return viewerPlayerId;
+}
+
+// 只读回放会话下，远程分发安全网被触达意味着上层 isReadonlyReplayMode() 守卫被绕过，
+// 属于编程错误。这些守卫返回 true（“已消费、勿回退本地执行”）以阻止回退到本地 gameSession，
+// 因为本地执行会篡改只读回放视图；返回 false 反而会触发本地变更。此处显式告警以便未来重构尽早暴露绕过。
+function warnReplayGuardBypass(context: string): void {
+  console.error(
+    `[gameStore] ${context} 在只读回放会话中被触达并已忽略；调用方应先通过 isReadonlyReplayMode() 拦截。`
+  );
+}
+
 function dispatchRemoteCommand(
   command: GameCommand,
   failureMessage: string,
   onSuccess?: () => void
 ): boolean {
   const store = useGameStore.getState();
+  if (store.replaySession) {
+    warnReplayGuardBypass('dispatchRemoteCommand');
+    return true;
+  }
   const remoteSession = store.remoteSession;
   if (!remoteSession) {
     return false;
@@ -1989,7 +2194,7 @@ function dispatchRemoteCommand(
         return;
       }
 
-      await preloadRemoteSnapshotFrontTransitions(
+      await preloadFrontTransitions(
         useGameStore.getState().playerViewState,
         result.snapshot.playerViewState,
         useGameStore.getState().cardDataRegistry
@@ -2011,6 +2216,10 @@ function dispatchRemoteCommand(
 
 function dispatchRemoteAdvancePhase(): boolean {
   const store = useGameStore.getState();
+  if (store.replaySession) {
+    warnReplayGuardBypass('dispatchRemoteAdvancePhase');
+    return true;
+  }
   const remoteSession = store.remoteSession;
   if (!remoteSession) {
     return false;
@@ -2025,7 +2234,7 @@ function dispatchRemoteAdvancePhase(): boolean {
         return;
       }
 
-      await preloadRemoteSnapshotFrontTransitions(
+      await preloadFrontTransitions(
         useGameStore.getState().playerViewState,
         result.snapshot.playerViewState,
         useGameStore.getState().cardDataRegistry

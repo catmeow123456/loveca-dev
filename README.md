@@ -89,11 +89,19 @@ docker compose -f docker-compose.dev.yml up -d
 pnpm test-env:start
 ```
 
-脚本会先加载本地测试默认值并校验对局启动必需配置，停止同名 tmux session，使用 compose project `loveca` 执行 `down -v` 清理数据库 volume，确认 `3007`、`5173`、`5432` 端口空闲后启动 Postgres。若配置指向本地 MinIO，也会启动并检查本地 MinIO；若指向远端 MinIO，则只检查远端 bucket 可读。数据库迁移完成后会从 `llocg_db` 同步卡牌数据，执行 card code / group name 标准化与校验，然后启动 API 和前端。API 健康检查通过后会自动注册默认测试用户：
+脚本会先加载本地测试默认值并校验对局启动必需配置，停止同名 tmux session，默认使用 compose project `loveca` 执行 `down -v` 清理数据库 volume，确认 `3007`、`5173`、`5432` 端口空闲后启动 Postgres。若配置指向本地 MinIO，也会启动并检查本地 MinIO；若指向远端 MinIO，则只检查远端 bucket 可读。数据库迁移完成后会从 `llocg_db` 同步卡牌数据，执行 card code / group name 标准化与校验，然后启动 API 和前端。API 健康检查通过后会自动注册默认测试用户：
 
 ```text
 test_player_1 / test_password_1
 test_player_2 / test_password_2
+```
+
+需要保留现有测试数据库 volume 时，使用：
+
+```bash
+bash scripts/start-test-env.sh --no-db-rebuild
+# 或：
+pnpm test-env:start -- --no-db-rebuild
 ```
 
 可通过环境变量覆盖脚本行为：
@@ -102,6 +110,7 @@ test_player_2 / test_password_2
 TEST_TMUX_SESSION=loveca-test \
 TEST_COMPOSE_PROJECT=loveca \
 TEST_FRONTEND_PORT=5173 \
+TEST_RESET_DATA=0 \
 TEST_USERS='alice:password123:Alice,bob:password123:Bob' \
 pnpm test-env:start
 ```

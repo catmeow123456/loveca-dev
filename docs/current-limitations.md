@@ -34,13 +34,17 @@
 仍未落地或未完整闭环：
 
 - WebSocket/SSE 等实时传输增强；当前正式联机使用短间隔 HTTP 轮询。
-- 对局事件持久化、快照持久化、进程重启后的恢复和回放。
+- 对局记录与回放仍处于阶段性闭环：已接入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 明细、普通玩家历史列表/详情/timeline/checkpoint 投影读取、前端历史入口、历史 checkpoint 只读 GameBoard 桌面展示，以及部分语义化 decision record。仍未支持进程重启后恢复运行中对局、完整随机记录、完整决策覆盖、自由拖拽/手动处理原因结构化、确定性重演、逐命令动画播放、公开分享回放和长期兼容策略。
 - 全卡池完整自动裁判、声明式卡文解释器、自动能力全事件编排和完整回放语义。当前已接入的卡效自动化属于第一阶段白名单能力，覆盖范围以卡效登记册为准。
 
 相关文档：
 
 - [联机模式准备文档](online-mode-preparation.md)
 - [联机模式边界规范](coding-standard/online-mode-boundary.md)
+- [对局记录与回放需求](match-replay-requirements.md)
+- [对局记录与回放设计](match-replay-design.md)
+- [对局记录与回放第一阶段实施计划](match-replay-phase1-implementation-plan.md)
+- [对局回放 checkpoint / bundle 序列化与复水契约](match-replay-serialization-contract.md)
 
 ## 对局规则自动化
 

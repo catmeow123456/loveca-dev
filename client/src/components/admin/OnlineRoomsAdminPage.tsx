@@ -1,22 +1,39 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent, ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Activity,
   Clock3,
+  Database,
+  Download,
+  Eye,
+  FileText,
+  ListTree,
   Pause,
   Play,
   RefreshCw,
   ShieldCheck,
+  Upload,
   Users,
 } from 'lucide-react';
 import { PageHeader, ThemeToggle } from '@/components/common';
-import { fetchOnlineAdminRooms } from '@/lib/onlineClient';
+import {
+  exportDebugReplayBundle,
+  fetchDebugReplayCheckpoint,
+  fetchDebugReplayTimeline,
+  fetchOnlineAdminRooms,
+  importDebugReplayBundle,
+} from '@/lib/onlineClient';
 import type {
+  DebugReplayCheckpointView,
+  DebugReplayImportSummary,
+  DebugReplayTimelineView,
   OnlineAdminRoomMemberSummary,
   OnlineAdminRoomSummary,
   OnlineRoomStatus,
+  ReplayRecordFrame,
+  Seat,
 } from '@game/online';
 
 const ADMIN_ROOM_POLL_INTERVAL_MS = 2000;
@@ -33,6 +50,21 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [replayImportText, setReplayImportText] = useState('');
+  const [replayError, setReplayError] = useState<string | null>(null);
+  const [exportingMatchId, setExportingMatchId] = useState<string | null>(null);
+  const [isImportingReplay, setIsImportingReplay] = useState(false);
+  const [importedReplay, setImportedReplay] = useState<DebugReplayImportSummary | null>(null);
+  const [replayTimeline, setReplayTimeline] = useState<DebugReplayTimelineView | null>(null);
+  const [checkpointView, setCheckpointView] = useState<DebugReplayCheckpointView | null>(null);
+  const [viewerSeat, setViewerSeat] = useState<Seat>('FIRST');
+  const [selectedCheckpointSeq, setSelectedCheckpointSeq] = useState<number | null>(null);
+
+  // 始终持有最新的 viewerSeat，供异步回放加载读取，避免回调闭包捕获过时座位值。
+  const viewerSeatRef = useRef<Seat>(viewerSeat);
+  useEffect(() => {
+    viewerSeatRef.current = viewerSeat;
+  }, [viewerSeat]);
 
   const loadRooms = useCallback(async (showLoading: boolean) => {
     if (showLoading) {
@@ -53,6 +85,109 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
       setIsRefreshing(false);
     }
   }, []);
+
+  const loadReplayBundle = useCallback(
+    async (bundle: unknown) => {
+      setIsImportingReplay(true);
+      setReplayError(null);
+      try {
+        const imported = await importDebugReplayBundle(bundle);
+        const timeline = await fetchDebugReplayTimeline(imported.bundleId);
+        const checkpointSeq = findFirstCheckpointSeq(timeline.recordFrames);
+        const nextCheckpointView =
+          checkpointSeq !== null
+            ? await fetchDebugReplayCheckpoint(imported.bundleId, checkpointSeq, viewerSeatRef.current)
+            : null;
+
+        setImportedReplay(imported);
+        setReplayTimeline(timeline);
+        setSelectedCheckpointSeq(checkpointSeq);
+        setCheckpointView(nextCheckpointView);
+      } catch (loadError) {
+        setReplayError(loadError instanceof Error ? loadError.message : '导入调试回放包失败');
+      } finally {
+        setIsImportingReplay(false);
+      }
+    },
+    []
+  );
+
+  const handleExportReplay = useCallback(
+    async (matchId: string, mode: 'DOWNLOAD' | 'LOAD') => {
+      setExportingMatchId(matchId);
+      setReplayError(null);
+      try {
+        const bundle = await exportDebugReplayBundle(matchId);
+        if (mode === 'DOWNLOAD') {
+          downloadJson(`debug-replay-${matchId}.json`, bundle);
+        } else {
+          await loadReplayBundle(bundle);
+        }
+      } catch (exportError) {
+        setReplayError(exportError instanceof Error ? exportError.message : '导出调试回放包失败');
+      } finally {
+        setExportingMatchId(null);
+      }
+    },
+    [loadReplayBundle]
+  );
+
+  const handleImportReplayText = useCallback(async () => {
+    if (!replayImportText.trim()) {
+      setReplayError('请先填入调试回放包 JSON');
+      return;
+    }
+
+    try {
+      await loadReplayBundle(JSON.parse(replayImportText));
+    } catch (parseError) {
+      setReplayError(parseError instanceof Error ? parseError.message : '调试回放包 JSON 格式异常');
+    }
+  }, [loadReplayBundle, replayImportText]);
+
+  const handleImportReplayFile = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file) {
+        return;
+      }
+
+      try {
+        const text = await file.text();
+        setReplayImportText(text);
+        await loadReplayBundle(JSON.parse(text));
+      } catch (fileError) {
+        setReplayError(fileError instanceof Error ? fileError.message : '调试回放包文件读取失败');
+      }
+    },
+    [loadReplayBundle]
+  );
+
+  const handleLoadCheckpoint = useCallback(
+    async (checkpointSeq: number, seat: Seat = viewerSeatRef.current) => {
+      if (!importedReplay) {
+        return;
+      }
+
+      setReplayError(null);
+      try {
+        const nextCheckpointView = await fetchDebugReplayCheckpoint(
+          importedReplay.bundleId,
+          checkpointSeq,
+          seat
+        );
+        setSelectedCheckpointSeq(checkpointSeq);
+        setViewerSeat(seat);
+        setCheckpointView(nextCheckpointView);
+      } catch (checkpointError) {
+        setReplayError(
+          checkpointError instanceof Error ? checkpointError.message : '读取调试回放检查点失败'
+        );
+      }
+    },
+    [importedReplay]
+  );
 
   useEffect(() => {
     void loadRooms(true);
@@ -169,7 +304,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-[1040px] w-full border-collapse text-left text-sm">
+              <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
                 <thead className="border-b border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-xs uppercase text-[var(--text-muted)]">
                   <tr>
                     <th className="px-4 py-3 font-semibold">房间</th>
@@ -177,6 +312,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
                     <th className="px-4 py-3 font-semibold">对局</th>
                     <th className="px-4 py-3 font-semibold">阶段</th>
                     <th className="px-4 py-3 font-semibold">最近活动</th>
+                    <th className="px-4 py-3 font-semibold">调试回放</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -249,12 +385,174 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
                           ) : null}
                         </div>
                       </td>
+                      <td className="px-4 py-4">
+                        {room.match ? (
+                          <div className="flex flex-col gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleExportReplay(room.match!.matchId, 'LOAD')}
+                              disabled={exportingMatchId === room.match.matchId}
+                              className="button-primary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold disabled:opacity-50"
+                            >
+                              <Eye size={14} />
+                              载入
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleExportReplay(room.match!.matchId, 'DOWNLOAD')
+                              }
+                              disabled={exportingMatchId === room.match.matchId}
+                              className="button-ghost inline-flex min-h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs disabled:opacity-50"
+                            >
+                              <Download size={14} />
+                              导出
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-[var(--text-muted)]">-</span>
+                        )}
+                      </td>
                     </motion.tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
+        </section>
+
+        <section className="surface-panel overflow-hidden">
+          <div className="border-b border-[var(--border-subtle)] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Database size={18} className="text-[var(--accent-primary)]" />
+                <div className="min-w-0">
+                  <div className="font-semibold text-[var(--text-primary)]">Debug Replay E0</div>
+                  <div className="text-xs text-[var(--text-muted)]">
+                    {importedReplay
+                      ? `${shortId(importedReplay.bundleId)} · ${importedReplay.checkpointCount} checkpoint`
+                      : '未载入'}
+                  </div>
+                </div>
+              </div>
+              <label className="button-ghost inline-flex h-10 cursor-pointer items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm">
+                <Upload size={15} />
+                文件
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={handleImportReplayFile}
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="grid gap-0 lg:grid-cols-[minmax(280px,420px)_1fr]">
+            <div className="border-b border-[var(--border-subtle)] p-4 lg:border-b-0 lg:border-r">
+              <textarea
+                value={replayImportText}
+                onChange={(event) => setReplayImportText(event.target.value)}
+                className="min-h-40 w-full resize-y rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none transition focus:border-[var(--border-active)]"
+                placeholder="DebugReplayBundle JSON"
+                spellCheck={false}
+              />
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleImportReplayText()}
+                  disabled={isImportingReplay}
+                  className="button-primary inline-flex min-h-10 items-center justify-center gap-2 px-4 text-sm disabled:opacity-50"
+                >
+                  <Upload size={15} />
+                  导入
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReplayImportText('');
+                    setImportedReplay(null);
+                    setReplayTimeline(null);
+                    setCheckpointView(null);
+                    setSelectedCheckpointSeq(null);
+                    setReplayError(null);
+                  }}
+                  className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] px-4 text-sm"
+                >
+                  <FileText size={15} />
+                  清空
+                </button>
+              </div>
+
+              {replayError ? (
+                <div className="mt-3 rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-3 py-2 text-sm text-[var(--semantic-error)]">
+                  {replayError}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="grid min-h-[360px] gap-0 xl:grid-cols-[minmax(280px,360px)_1fr]">
+              <div className="border-b border-[var(--border-subtle)] p-4 xl:border-b-0 xl:border-r">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                  <ListTree size={16} className="text-[var(--accent-primary)]" />
+                  Timeline
+                </div>
+                {replayTimeline ? (
+                  <div className="max-h-[520px] overflow-y-auto pr-1">
+                    <div className="grid gap-2">
+                      {replayTimeline.recordFrames.map((frame) => (
+                        <TimelineButton
+                          key={frame.timelineSeq}
+                          frame={frame}
+                          selectedCheckpointSeq={selectedCheckpointSeq}
+                          onSelectCheckpoint={(checkpointSeq) =>
+                            void handleLoadCheckpoint(checkpointSeq)
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <EmptyReplayPanel label="暂无 timeline" />
+                )}
+              </div>
+
+              <div className="p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                    <Eye size={16} className="text-[var(--accent-primary)]" />
+                    Checkpoint
+                  </div>
+                  <div className="inline-flex rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-1">
+                    {(['FIRST', 'SECOND'] as const).map((seat) => (
+                      <button
+                        key={seat}
+                        type="button"
+                        onClick={() =>
+                          selectedCheckpointSeq !== null
+                            ? void handleLoadCheckpoint(selectedCheckpointSeq, seat)
+                            : setViewerSeat(seat)
+                        }
+                        className={`h-8 rounded-md px-3 text-xs font-semibold transition ${
+                          viewerSeat === seat
+                            ? 'bg-[var(--accent-primary)] text-white'
+                            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)]'
+                        }`}
+                      >
+                        {seat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {checkpointView ? (
+                  <CheckpointSummary checkpointView={checkpointView} now={now} />
+                ) : (
+                  <EmptyReplayPanel label="暂无 checkpoint" />
+                )}
+              </div>
+            </div>
+          </div>
         </section>
       </main>
     </div>
@@ -271,6 +569,125 @@ function StatTile({ icon, label, value }: { icon: ReactNode; label: string; valu
         <div className="text-xs text-[var(--text-muted)]">{label}</div>
         <div className="text-2xl font-bold leading-tight text-[var(--text-primary)]">{value}</div>
       </div>
+    </div>
+  );
+}
+
+function TimelineButton({
+  frame,
+  selectedCheckpointSeq,
+  onSelectCheckpoint,
+}: {
+  frame: ReplayRecordFrame;
+  selectedCheckpointSeq: number | null;
+  onSelectCheckpoint: (checkpointSeq: number) => void;
+}) {
+  const checkpointSeq = frame.relatedCheckpointSeq;
+  const isSelected = checkpointSeq !== null && checkpointSeq === selectedCheckpointSeq;
+
+  return (
+    <button
+      type="button"
+      onClick={() => checkpointSeq !== null && onSelectCheckpoint(checkpointSeq)}
+      disabled={checkpointSeq === null}
+      className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+        isSelected
+          ? 'border-[var(--border-active)] bg-[var(--accent-primary)]/10'
+          : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]'
+      } disabled:cursor-default disabled:opacity-70`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-mono text-xs font-semibold text-[var(--accent-primary)]">
+          #{frame.timelineSeq}
+        </span>
+        <span className="rounded-full border border-[var(--border-subtle)] px-2 py-0.5 text-[10px] text-[var(--text-muted)]">
+          {frame.frameType}
+        </span>
+      </div>
+      <div className="mt-1 text-sm font-medium text-[var(--text-primary)]">{frame.summary}</div>
+      <div className="mt-1 text-xs text-[var(--text-muted)]">
+        {formatDateTime(frame.createdAt)}
+        {checkpointSeq !== null ? ` · checkpoint ${checkpointSeq}` : ''}
+      </div>
+    </button>
+  );
+}
+
+function CheckpointSummary({
+  checkpointView,
+  now,
+}: {
+  checkpointView: DebugReplayCheckpointView;
+  now: number;
+}) {
+  const visibleObjectCount = Object.keys(checkpointView.playerViewState.objects).length;
+  const frontObjectCount = Object.values(checkpointView.playerViewState.objects).filter(
+    (object) => object.surface === 'FRONT'
+  ).length;
+  const zoneEntries = Object.entries(checkpointView.playerViewState.table.zones).slice(0, 10);
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MiniMetric label="视角" value={checkpointView.viewerSeat} />
+        <MiniMetric label="可见对象" value={visibleObjectCount} />
+        <MiniMetric label="正面对象" value={frontObjectCount} />
+      </div>
+
+      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="font-semibold text-[var(--text-primary)]">
+              {checkpointView.checkpointInfo.phase}
+            </div>
+            <div className="text-xs text-[var(--text-secondary)]">
+              {checkpointView.checkpointInfo.subPhase}
+            </div>
+          </div>
+          <div className="text-right text-xs text-[var(--text-muted)]">
+            <div>T{checkpointView.checkpointInfo.turnCount}</div>
+            <div>{formatRelativeMs(now - checkpointView.checkpointInfo.createdAt)}</div>
+          </div>
+        </div>
+        <div className="mt-3 grid gap-1.5 text-xs text-[var(--text-muted)]">
+          <span>match {shortId(checkpointView.checkpointInfo.matchId)}</span>
+          <span>timeline #{checkpointView.checkpointInfo.timelineSeq}</span>
+          <span>public seq {checkpointView.checkpointInfo.relatedPublicSeq ?? '-'}</span>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+        <div className="border-b border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold uppercase text-[var(--text-muted)]">
+          Zones
+        </div>
+        <div className="grid divide-y divide-[var(--border-subtle)]">
+          {zoneEntries.map(([zoneKey, zone]) => (
+            <div key={zoneKey} className="grid grid-cols-[1fr_auto] gap-3 px-3 py-2 text-sm">
+              <span className="truncate font-mono text-xs text-[var(--text-secondary)]">
+                {zoneKey}
+              </span>
+              <span className="text-xs font-semibold text-[var(--text-primary)]">{zone.count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2">
+      <div className="text-xs text-[var(--text-muted)]">{label}</div>
+      <div className="mt-1 truncate font-semibold text-[var(--text-primary)]">{value}</div>
+    </div>
+  );
+}
+
+function EmptyReplayPanel({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-sm text-[var(--text-muted)]">
+      {label}
     </div>
   );
 }
@@ -358,4 +775,18 @@ function formatRelativeMs(ms: number): string {
 
 function shortId(value: string): string {
   return value.length > 10 ? `${value.slice(0, 6)}...${value.slice(-4)}` : value;
+}
+
+function findFirstCheckpointSeq(frames: readonly ReplayRecordFrame[]): number | null {
+  return frames.find((frame) => frame.relatedCheckpointSeq !== null)?.relatedCheckpointSeq ?? null;
+}
+
+function downloadJson(filename: string, payload: unknown): void {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

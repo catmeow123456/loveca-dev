@@ -1,5 +1,13 @@
 import { apiClient, getAccessToken, getApiBaseUrl } from '@/lib/apiClient';
 import type {
+  DebugReplayBundle,
+  DebugReplayCheckpointView,
+  DebugReplayImportSummary,
+  DebugReplayTimelineView,
+  MatchRecordDetailView,
+  MatchRecordReplayView,
+  MatchRecordSummaryView,
+  MatchRecordTimelineView,
   OnlineAdminRoomSummary,
   OnlineCommandResult,
   OnlineMatchSnapshot,
@@ -156,6 +164,94 @@ export async function fetchOnlineAdminRooms(): Promise<readonly OnlineAdminRoomS
   const response = await apiClient.get<OnlineAdminRoomSummary[]>('/api/online/admin/rooms');
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取联机房间监控数据失败');
+  }
+  return response.data;
+}
+
+export async function fetchMatchRecords(): Promise<readonly MatchRecordSummaryView[]> {
+  const response = await apiClient.get<MatchRecordSummaryView[]>('/api/online/match-records');
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取历史对局记录失败');
+  }
+  return response.data;
+}
+
+export async function fetchMatchRecordDetail(matchId: string): Promise<MatchRecordDetailView> {
+  const response = await apiClient.get<MatchRecordDetailView>(
+    `/api/online/match-records/${encodeURIComponent(matchId)}`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取历史对局详情失败');
+  }
+  return response.data;
+}
+
+export async function fetchMatchRecordTimeline(matchId: string): Promise<MatchRecordTimelineView> {
+  const response = await apiClient.get<MatchRecordTimelineView>(
+    `/api/online/match-records/${encodeURIComponent(matchId)}/timeline`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取历史对局时间线失败');
+  }
+  return response.data;
+}
+
+export async function fetchMatchRecordReplay(
+  matchId: string,
+  cursor?: number
+): Promise<MatchRecordReplayView> {
+  const search =
+    cursor !== undefined && Number.isSafeInteger(cursor) && cursor > 0 ? `?cursor=${cursor}` : '';
+  const response = await apiClient.get<MatchRecordReplayView>(
+    `/api/online/match-records/${encodeURIComponent(matchId)}/replay${search}`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取历史对局回放节点失败');
+  }
+  return response.data;
+}
+
+export async function exportDebugReplayBundle(matchId: string): Promise<DebugReplayBundle> {
+  const response = await apiClient.post<DebugReplayBundle>(
+    `/api/online/admin/matches/${encodeURIComponent(matchId)}/debug-replay/export`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '导出调试回放包失败');
+  }
+  return response.data;
+}
+
+export async function importDebugReplayBundle(bundle: unknown): Promise<DebugReplayImportSummary> {
+  const response = await apiClient.post<DebugReplayImportSummary>(
+    '/api/online/admin/debug-replay/import',
+    { bundle }
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '导入调试回放包失败');
+  }
+  return response.data;
+}
+
+export async function fetchDebugReplayTimeline(bundleId: string): Promise<DebugReplayTimelineView> {
+  const response = await apiClient.get<DebugReplayTimelineView>(
+    `/api/online/admin/debug-replay/${encodeURIComponent(bundleId)}/timeline`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取调试回放时间线失败');
+  }
+  return response.data;
+}
+
+export async function fetchDebugReplayCheckpoint(
+  bundleId: string,
+  checkpointSeq: number,
+  viewerSeat: 'FIRST' | 'SECOND'
+): Promise<DebugReplayCheckpointView> {
+  const response = await apiClient.get<DebugReplayCheckpointView>(
+    `/api/online/admin/debug-replay/${encodeURIComponent(bundleId)}/checkpoints/${checkpointSeq}?viewerSeat=${viewerSeat}`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取调试回放检查点失败');
   }
   return response.data;
 }
