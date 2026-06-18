@@ -11,6 +11,7 @@ import {
   GameSetupPage,
   OnlineDebugPage,
   OnlineRoomPage,
+  MatchRecordsPage,
   SharedDeckPage,
 } from '@/components/pages';
 import { CardAdminPage } from '@/components/admin/CardAdminPage';
@@ -35,6 +36,7 @@ type AppPage =
   | 'deck-manager'
   | 'game-setup'
   | 'online-room'
+  | 'match-records'
   | 'online-debug'
   | 'game'
   | 'card-admin'
@@ -87,6 +89,7 @@ function getInitialPage(): AppPage {
     page === 'deck-manager' ||
     page === 'game-setup' ||
     page === 'online-room' ||
+    page === 'match-records' ||
     page === 'online-debug' ||
     page === 'game' ||
     page === 'card-admin' ||
@@ -359,6 +362,10 @@ function App() {
     return <OnlineRoomPage onBack={() => setCurrentPage('home')} />;
   }
 
+  if (effectivePage === 'match-records') {
+    return <MatchRecordsPage onBack={() => setCurrentPage('home')} />;
+  }
+
   if (effectivePage === 'online-debug') {
     return <OnlineDebugPage onBack={() => setCurrentPage('home')} />;
   }
@@ -385,6 +392,7 @@ function App() {
       onNavigateToDeckManager={() => setCurrentPage('deck-manager')}
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
+      onNavigateToMatchRecords={() => setCurrentPage('match-records')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToCardAdmin={() => setCurrentPage('card-admin')}
       onNavigateToOnlineAdmin={() => setCurrentPage('online-admin')}

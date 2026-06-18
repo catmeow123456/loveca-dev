@@ -64,12 +64,12 @@ function createRuntimeDeck(prefix: string): DeckConfig {
   return { mainDeck, energyDeck };
 }
 
-function createOnlineMatch(): {
+async function createOnlineMatch(): Promise<{
   matchService: OnlineMatchService;
   matchId: string;
-} {
-  const matchService = new OnlineMatchService();
-  const match = matchService.createMatch({
+}> {
+  const matchService = new OnlineMatchService({ recorder: null });
+  const match = await matchService.createMatch({
     roomCode: 'PERF01',
     first: {
       userId: 'u1',
@@ -147,8 +147,8 @@ function byteLength(value: unknown): number {
 }
 
 describePerf('online match performance benchmark', () => {
-  it('measures formal online JSON-native snapshot and command response hot paths', () => {
-    const { matchService, matchId } = createOnlineMatch();
+  it('measures formal online JSON-native snapshot and command response hot paths', async () => {
+    const { matchService, matchId } = await createOnlineMatch();
     const firstSnapshot = matchService.getMatchSnapshot(matchId, 'u1') as OnlineMatchSnapshot;
     expect(firstSnapshot.playerViewState.objects).toBeTruthy();
 
@@ -158,7 +158,7 @@ describePerf('online match performance benchmark', () => {
     const objectCount = Object.keys(firstSnapshot.playerViewState.objects).length;
     const zoneCount = Object.keys(firstSnapshot.playerViewState.table.zones).length;
 
-    const commandResult = matchService.executeCommand(
+    const commandResult = await matchService.executeCommand(
       matchId,
       'u1',
       createMulliganCommand('client-player-id-is-ignored', [])

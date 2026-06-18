@@ -3,12 +3,13 @@ import { createMulliganCommand } from '../../src/application/game-commands';
 import type { DeckConfig } from '../../src/application/game-service';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
-import { HeartColor, CardType } from '../../src/shared/types/enums';
+import { CardType, GameEndReason, GamePhase, HeartColor } from '../../src/shared/types/enums';
 import {
   OnlineRoomService,
   OnlineRoomServiceError,
 } from '../../src/server/services/online-room-service';
 import { OnlineMatchService } from '../../src/server/services/online-match-service';
+import type { MatchRecorderService } from '../../src/server/services/match-recorder-service';
 
 vi.mock('../../src/server/db/pool.js', () => ({
   pool: {
@@ -96,9 +97,75 @@ function assertNoTransportOnlyValues(value: unknown, path = 'value'): void {
   }
 }
 
+function createInMemoryMatchService(): OnlineMatchService {
+  return new OnlineMatchService({ recorder: null });
+}
+
+type TestRecorder = Pick<
+  MatchRecorderService,
+  | 'beginMatch'
+  | 'recordInitialCheckpoint'
+  | 'markPartial'
+  | 'sealMatch'
+  | 'getRecordCursor'
+  | 'appendMatchRecordFrame'
+>;
+
+function createTestRecorder(overrides: Partial<TestRecorder> = {}): TestRecorder {
+  return {
+    beginMatch: vi.fn(async () => ({
+      matchId: 'test-match',
+      status: 'IN_PROGRESS',
+      completeness: 'FULL',
+      turnCount: 0,
+      lastTimelineSeq: 0,
+      lastCheckpointSeq: 0,
+      lastPublicSeq: 0,
+      lastPrivateSeqBySeat: { FIRST: 0, SECOND: 0 },
+      lastAuditSeq: 0,
+      lastCommandSeq: 0,
+      lastGameEventSeq: 0,
+      recordSchemaVersion: 1,
+    })),
+    recordInitialCheckpoint: vi.fn(async () => ({
+      matchId: 'test-match',
+      timelineSeq: 1,
+      checkpointSeq: 1,
+      payloadHash: 'sha256:test',
+    })),
+    markPartial: vi.fn(async () => undefined),
+    sealMatch: vi.fn(async (input) => ({
+      matchId: input.matchId,
+      timelineSeq: 2,
+      status: input.status,
+      completeness: input.completeness ?? (input.status === 'COMPLETED' ? 'FULL' : 'PARTIAL'),
+    })),
+    getRecordCursor: vi.fn(async (matchId) => ({
+      matchId,
+      status: 'IN_PROGRESS',
+      completeness: 'FULL',
+      turnCount: 0,
+      lastTimelineSeq: 1,
+      lastCheckpointSeq: 1,
+      lastPublicSeq: 0,
+      lastPrivateSeqBySeat: { FIRST: 0, SECOND: 0 },
+      lastAuditSeq: 0,
+      lastCommandSeq: 0,
+      lastGameEventSeq: 0,
+    })),
+    appendMatchRecordFrame: vi.fn(async (input) => ({
+      matchId: input.matchId,
+      timelineSeq: 2,
+      checkpointSeq: input.writeAuthorityCheckpoint === false ? null : 2,
+      payloadHash: input.writeAuthorityCheckpoint === false ? null : 'sha256:test',
+    })),
+    ...overrides,
+  };
+}
+
 describe('OnlineRoomService', () => {
   it('应完成正式房间准备流程并在接受提议后生成联机对局', async () => {
-    const matchService = new OnlineMatchService();
+    const matchService = createInMemoryMatchService();
     const service = new OnlineRoomService({
       matchService,
       loadUserProfile: async (userId) => ({
@@ -157,7 +224,7 @@ describe('OnlineRoomService', () => {
       modified: false,
     });
 
-    const commandResult = matchService.executeCommand(
+    const commandResult = await matchService.executeCommand(
       started.matchId!,
       'u2',
       createMulliganCommand('ignored-client-player-id', [])
@@ -173,9 +240,316 @@ describe('OnlineRoomService', () => {
     expect(commandRoundTrip.snapshot?.playerViewState.match.viewerSeat).toBe('FIRST');
   });
 
+  it('recorder 启动失败时不应进入 IN_GAME 或创建运行中 match', async () => {
+    const recorder = createTestRecorder({
+      beginMatch: vi.fn(async () => {
+        throw new Error('database unavailable');
+      }),
+    });
+    const matchService = new OnlineMatchService({ recorder });
+    const service = new OnlineRoomService({
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (_userId, deckId) => ({
+        deckId,
+        deckName: deckId,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('recfail', 'u1');
+    await service.joinRoom('recfail', 'u2');
+    await service.lockDeck('recfail', 'u1', 'deck-a');
+    await service.lockDeck('recfail', 'u2', 'deck-b');
+    await service.proposeTurnOrder('recfail', 'u1', 'HOST_FIRST');
+
+    let startError: unknown;
+    try {
+      await service.respondTurnOrder('recfail', 'u2', true);
+    } catch (error) {
+      startError = error;
+    }
+
+    expect(startError).toMatchObject({
+      code: 'ONLINE_MATCH_RECORD_BEGIN_FAILED',
+      message: '无法开始对局：历史对局记录服务暂时不可用，请稍后重试',
+      statusCode: 503,
+    });
+    expect(startError).not.toMatchObject({
+      message: expect.stringContaining('database unavailable'),
+    });
+
+    const room = await service.getRoomIfPresent('recfail');
+    expect(room?.status).toBe('READY');
+    expect(room?.matchId).toBeNull();
+    expect(recorder.recordInitialCheckpoint).not.toHaveBeenCalled();
+  });
+
+  it('命令处理后应追加 recorder 时间线与 authority checkpoint', async () => {
+    let now = 5_500_000;
+    const recorder = createTestRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'APP01',
+      startedAt: now,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+
+    now += 1_000;
+    const commandResult = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createMulliganCommand('ignored-client-player-id', [])
+    );
+
+    expect(commandResult?.success).toBe(true);
+    expect(recorder.getRecordCursor).toHaveBeenCalledWith(match.matchId);
+    expect(recorder.appendMatchRecordFrame).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matchId: match.matchId,
+        frameType: 'COMMAND_ACCEPTED',
+        writeAuthorityCheckpoint: true,
+        relatedCommandSeq: 1,
+        latestPrivateSeqBySeat: expect.objectContaining({
+          FIRST: expect.any(Number),
+          SECOND: expect.any(Number),
+        }),
+      })
+    );
+  });
+
+  it('命令 append 失败时不阻断对局，但会标记记录为 PARTIAL', async () => {
+    let now = 5_600_000;
+    const recorder = createTestRecorder({
+      appendMatchRecordFrame: vi.fn(async () => {
+        throw new Error('append failed');
+      }),
+    });
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'APP02',
+      startedAt: now,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+
+    now += 1_000;
+    const commandResult = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createMulliganCommand('ignored-client-player-id', [])
+    );
+
+    expect(commandResult?.success).toBe(true);
+    expect(matchService.getMatch(match.matchId)).not.toBeNull();
+    expect(recorder.markPartial).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matchId: match.matchId,
+        completeness: 'PARTIAL',
+        partialReason: 'command_accepted append failed',
+        recorderError: 'append failed',
+      })
+    );
+  });
+
+  it('非当前玩家推进阶段被服务层拒绝时应追加 rejected timeline', async () => {
+    let now = 5_700_000;
+    const recorder = createTestRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'APP03',
+      startedAt: now,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+    const nonActiveUserId = match.session.isActivePlayer(match.participants.FIRST.playerId)
+      ? 'u2'
+      : 'u1';
+
+    now += 1_000;
+    const result = await matchService.advancePhase(match.matchId, nonActiveUserId);
+
+    expect(result?.success).toBe(false);
+    expect(recorder.appendMatchRecordFrame).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matchId: match.matchId,
+        frameType: 'COMMAND_REJECTED',
+        summary: '服务层拒绝阶段推进：当前不是该玩家的推进时机',
+        writeAuthorityCheckpoint: false,
+      })
+    );
+  });
+
+  it('对局房间销毁前应先封存运行中 match 为 INTERRUPTED/PARTIAL', async () => {
+    let now = 6_000_000;
+    const recorder = createTestRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (_userId, deckId) => ({
+        deckId,
+        deckName: deckId,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('seal1', 'u1');
+    await service.joinRoom('seal1', 'u2');
+    await service.lockDeck('seal1', 'u1', 'deck-a');
+    await service.lockDeck('seal1', 'u2', 'deck-b');
+    await service.proposeTurnOrder('seal1', 'u1', 'HOST_FIRST');
+    const started = await service.respondTurnOrder('seal1', 'u2', true);
+    await service.leaveRoom('seal1', 'u1');
+    await service.leaveRoom('seal1', 'u2');
+
+    now += 61_000;
+
+    await expect(service.getRoomIfPresent('seal1')).resolves.toBeNull();
+    expect(matchService.getMatch(started.matchId!)).toBeNull();
+    expect(recorder.sealMatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matchId: started.matchId,
+        status: 'INTERRUPTED',
+        completeness: 'PARTIAL',
+        endReason: 'ROOM_DESTROYED_ALL_ABSENT',
+      })
+    );
+  });
+
+  it('封存失败时应保留运行中 match 和房间以便后续重试', async () => {
+    let now = 7_000_000;
+    const recorder = createTestRecorder({
+      sealMatch: vi.fn(async () => {
+        throw new Error('seal failed');
+      }),
+    });
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (_userId, deckId) => ({
+        deckId,
+        deckName: deckId,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('sealx', 'u1');
+    await service.joinRoom('sealx', 'u2');
+    await service.lockDeck('sealx', 'u1', 'deck-a');
+    await service.lockDeck('sealx', 'u2', 'deck-b');
+    await service.proposeTurnOrder('sealx', 'u1', 'HOST_FIRST');
+    const started = await service.respondTurnOrder('sealx', 'u2', true);
+    await service.leaveRoom('sealx', 'u1');
+    await service.leaveRoom('sealx', 'u2');
+
+    now += 61_000;
+
+    const room = await service.getRoomIfPresent('sealx');
+    expect(room?.status).toBe('IN_GAME');
+    expect(matchService.getMatch(started.matchId!)).not.toBeNull();
+    expect(recorder.markPartial).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matchId: started.matchId,
+        status: 'INTERRUPTED',
+        completeness: 'INCOMPLETE',
+        partialReason: 'interrupted seal failed',
+      })
+    );
+  });
+
+  it('GAME_END match 删除时应封存为 COMPLETED/FULL 并记录胜者座位', async () => {
+    let now = 8_000_000;
+    const recorder = createTestRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'END01',
+      startedAt: now,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+    const state = match.session.state as {
+      currentPhase: GamePhase;
+      endInfo: {
+        reason: GameEndReason;
+        winnerId: string | null;
+        loserId: string | null;
+        isDraw: boolean;
+        endTimestamp: number;
+        finalTurnCount: number;
+      };
+      isEnded: boolean;
+      turnCount: number;
+    };
+    state.currentPhase = GamePhase.GAME_END;
+    state.isEnded = true;
+    state.endInfo = {
+      reason: GameEndReason.VICTORY_CONDITION,
+      winnerId: match.participants.FIRST.playerId,
+      loserId: match.participants.SECOND.playerId,
+      isDraw: false,
+      endTimestamp: now + 5_000,
+      finalTurnCount: state.turnCount,
+    };
+
+    const deleted = await matchService.deleteMatch(match.matchId, {
+      reason: 'TEST_DELETE',
+      now: now + 6_000,
+    });
+
+    expect(deleted).toBe(true);
+    expect(matchService.getMatch(match.matchId)).toBeNull();
+    expect(recorder.sealMatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matchId: match.matchId,
+        status: 'COMPLETED',
+        completeness: 'FULL',
+        winnerSeat: 'FIRST',
+        endReason: GameEndReason.VICTORY_CONDITION,
+        endedAt: now + 5_000,
+      })
+    );
+  });
+
   it('同一用户重复加入同一房间时应复用原成员槽位', async () => {
     const service = new OnlineRoomService({
-      matchService: new OnlineMatchService(),
+      matchService: createInMemoryMatchService(),
       loadUserProfile: async (userId) => ({ userId, displayName: userId }),
       loadOwnedDeck: async (_userId, deckId) => ({
         deckId,
@@ -194,7 +568,7 @@ describe('OnlineRoomService', () => {
 
   it('准备阶段房主离开后应把房主身份转移给剩余玩家', async () => {
     const service = new OnlineRoomService({
-      matchService: new OnlineMatchService(),
+      matchService: createInMemoryMatchService(),
       loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
       loadOwnedDeck: (_userId, deckId) =>
         Promise.resolve({
@@ -213,7 +587,7 @@ describe('OnlineRoomService', () => {
   });
 
   it('对局内离开后应保留房间并允许同一用户恢复为 ACTIVE', async () => {
-    const matchService = new OnlineMatchService();
+    const matchService = createInMemoryMatchService();
     const service = new OnlineRoomService({
       matchService,
       loadUserProfile: async (userId) => ({ userId, displayName: userId }),
@@ -235,7 +609,7 @@ describe('OnlineRoomService', () => {
     expect(left.room?.status).toBe('IN_GAME');
     expect(left.room?.currentUserPresence).toBe('LEFT');
 
-    const commandResult = matchService.executeCommand(
+    const commandResult = await matchService.executeCommand(
       started.matchId!,
       'u1',
       createMulliganCommand('ignored-client-player-id', [])
@@ -255,7 +629,7 @@ describe('OnlineRoomService', () => {
     let now = 1_000_000;
     const service = new OnlineRoomService({
       now: () => now,
-      matchService: new OnlineMatchService(),
+      matchService: createInMemoryMatchService(),
       loadUserProfile: async (userId) => ({ userId, displayName: userId }),
       loadOwnedDeck: async (_userId, deckId) => ({
         deckId,
@@ -269,7 +643,7 @@ describe('OnlineRoomService', () => {
 
     now += 61_000;
 
-    expect(service.getRoomIfPresent('stale1')).toBeNull();
+    await expect(service.getRoomIfPresent('stale1')).resolves.toBeNull();
 
     const recreated = await service.createRoom('stale1', 'u3');
     expect(recreated.currentUserId).toBe('u3');
@@ -278,7 +652,7 @@ describe('OnlineRoomService', () => {
 
   it('双方都失联后对局房间和 match 应在宽限期后一起销毁', async () => {
     let now = 2_000_000;
-    const matchService = new OnlineMatchService();
+    const matchService = createInMemoryMatchService();
     const service = new OnlineRoomService({
       now: () => now,
       matchService,
@@ -299,13 +673,13 @@ describe('OnlineRoomService', () => {
 
     now += 61_000;
 
-    expect(service.getRoomIfPresent('gone1')).toBeNull();
+    await expect(service.getRoomIfPresent('gone1')).resolves.toBeNull();
     expect(matchService.getMatch(started.matchId!)).toBeNull();
   });
 
   it('对局请求刷新成员活跃时间后不应因房间轮询停滞销毁房间', async () => {
     let now = 3_000_000;
-    const matchService = new OnlineMatchService();
+    const matchService = createInMemoryMatchService();
     const service = new OnlineRoomService({
       now: () => now,
       matchService,
@@ -327,7 +701,7 @@ describe('OnlineRoomService', () => {
     now += 61_000;
     await service.touchInGameMemberByMatch(started.matchId!, 'u1');
 
-    const room = service.getRoomIfPresent('live1');
+    const room = await service.getRoomIfPresent('live1');
     expect(room?.status).toBe('IN_GAME');
     expect(room?.members.find((member) => member.userId === 'u1')?.presence).toBe('ACTIVE');
     expect(matchService.getMatch(started.matchId!)).not.toBeNull();
@@ -335,7 +709,7 @@ describe('OnlineRoomService', () => {
 
   it('对局中断超过宽限期后成员房间轮询先恢复时不应销毁 match', async () => {
     let now = 4_000_000;
-    const matchService = new OnlineMatchService();
+    const matchService = createInMemoryMatchService();
     const service = new OnlineRoomService({
       now: () => now,
       matchService,
@@ -364,7 +738,7 @@ describe('OnlineRoomService', () => {
 
   it('非成员创建已占用房间号时应返回冲突错误', async () => {
     const service = new OnlineRoomService({
-      matchService: new OnlineMatchService(),
+      matchService: createInMemoryMatchService(),
       loadUserProfile: async (userId) => ({ userId, displayName: userId }),
       loadOwnedDeck: async (_userId, deckId) => ({
         deckId,
@@ -383,7 +757,7 @@ describe('OnlineRoomService', () => {
 
   it('管理员房间摘要应返回活跃房间与对局元数据且不暴露卡组内容', async () => {
     let now = 5_000_000;
-    const matchService = new OnlineMatchService();
+    const matchService = createInMemoryMatchService();
     const service = new OnlineRoomService({
       now: () => now,
       matchService,
@@ -414,7 +788,7 @@ describe('OnlineRoomService', () => {
 
     now += 12_000;
 
-    const summaries = service.listAdminRoomSummaries();
+    const summaries = await service.listAdminRoomSummaries();
     expect(summaries.map((room) => room.roomCode).sort()).toEqual(['GAME1', 'PREP1', 'READY1']);
 
     const gameSummary = summaries.find((room) => room.roomCode === 'GAME1');

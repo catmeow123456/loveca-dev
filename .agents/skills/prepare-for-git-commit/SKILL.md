@@ -3,6 +3,8 @@ name: prepare-for-git-commit
 description: git commit操作的前期准备，包括代码规范检查，以及commit message编写
 ---
 
+提示：需要启动开发测试环境时，使用 `bash scripts/start-test-env.sh` 来干净地启动开发测试。
+
 步骤：
 1. 检查代码、文档和配置是否引入 bug，是否符合当前系统设计，是否存在不合理实现、弱类型、妥协降级或静默吞错。
 2. 分析git暂存区的代码修改是否符合 `docs/coding-standard/` 和 `docs/doc_writing_guide.md`，并给出结论。

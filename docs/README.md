@@ -48,6 +48,7 @@
 | 联机可见性 | [可见性与公开对象矩阵](online-mode-visibility-matrix.md) | `PlayerViewState`、对象可见性和投影规则 |
 | 联机性能 | [正式联机 transport serde 性能问题说明](online-transport-serde-performance.md) | 正式联机响应 JSON-native 契约、性能基准和后续优化顺序 |
 | 联机拖拽回归 | [自由拖拽核对表](online-mode-free-drag-checklist.md) | 手工回归 checklist，不是产品需求文档 |
+| 对局记录与回放 | [需求](match-replay-requirements.md)、[设计](match-replay-design.md)、[第一阶段实施计划](match-replay-phase1-implementation-plan.md)、[Phase 2 只读 GameBoard 实施计划](match-replay-phase2-gameboard-readonly-implementation-plan.md)、[序列化与复水契约](match-replay-serialization-contract.md) | 历史对局保存、玩家视角回放、卡组快照、卡效复盘、确定性重演需求和架构承接 |
 | 卡组管理 | [卡组管理需求](deck-management/requirements.md)、[卡组管理设计](deck-management/design.md) | 云端卡组、DeckLog、分享、游戏入口选组 |
 | 卡牌数据管理 | [卡牌数据管理需求](card-data-management/requirements.md)、[卡牌数据管理设计](card-data-management/design.md) | 管理后台、卡牌 CRUD、发布状态和字段边界 |
 | 卡牌数据规范 | [卡牌数据规范](card-data-management/data-spec.md) | `cards` 表字段、同步脚本和管理端输入约束 |

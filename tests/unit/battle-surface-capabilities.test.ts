@@ -20,6 +20,7 @@ describe('battle surface capabilities', () => {
         freePlayPolicy: 'SESSION_GLOBAL',
         isSolitairePresentation: false,
         scoreConfirmPresentation: 'DEBUG_PASSTHROUGH',
+        isReadOnly: false,
       }
     );
   });
@@ -38,6 +39,7 @@ describe('battle surface capabilities', () => {
         freePlayPolicy: 'SESSION_GLOBAL',
         isSolitairePresentation: true,
         scoreConfirmPresentation: 'STANDARD_MODAL',
+        isReadOnly: false,
       }
     );
   });
@@ -59,6 +61,7 @@ describe('battle surface capabilities', () => {
         freePlayPolicy: 'COMMAND_FLAG',
         isSolitairePresentation: false,
         scoreConfirmPresentation: 'STANDARD_MODAL',
+        isReadOnly: false,
       }
     );
   });
@@ -80,6 +83,29 @@ describe('battle surface capabilities', () => {
         freePlayPolicy: 'COMMAND_FLAG',
         isSolitairePresentation: false,
         scoreConfirmPresentation: 'STANDARD_MODAL',
+        isReadOnly: false,
+      }
+    );
+  });
+
+  it('派生历史回放只读桌面能力', () => {
+    expectCapabilities(
+      deriveBattleSurfaceCapabilities({
+        gameMode: GameMode.DEBUG,
+        replaySessionActive: true,
+      }),
+      {
+        authority: 'REPLAY',
+        surface: 'REPLAY_READONLY',
+        canSwitchPerspective: false,
+        canSwitchLocalMode: false,
+        canShowDebugLog: false,
+        canUndo: false,
+        showFreePlayControl: false,
+        freePlayPolicy: 'COMMAND_FLAG',
+        isSolitairePresentation: false,
+        scoreConfirmPresentation: 'STANDARD_MODAL',
+        isReadOnly: true,
       }
     );
   });

@@ -35,6 +35,7 @@ import { parseZoneId } from '@/lib/zoneUtils';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
+import { GameCommandType } from '@game/application/game-commands';
 import {
   ChevronRight,
   DoorOpen,
@@ -116,10 +117,18 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const isLiveDraw = useGameStore((s) => s.isLiveDraw);
   const freePlayEnabled = useGameStore((s) => s.freePlayEnabled);
   const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
+  const replaySession = useGameStore((s) => s.replaySession);
+  const canConfirmEffectCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.CONFIRM_EFFECT_STEP)
+  );
+  const canConfirmCostPaymentCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.CONFIRM_COST_PAYMENT)
+  );
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
   const logCount = useGameStore((s) => s.ui.logs.length);
   const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
   const canShowDebugLog = capabilities.canShowDebugLog;
+  const isReadOnly = capabilities.isReadOnly;
   const prevPhaseRef = useRef<GamePhase | null>(null);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
@@ -215,7 +224,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const activeEffectRevealedCardIds =
     activeEffect?.revealedObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const canConfirmActiveEffect =
-    !!activeEffect && !!viewerSeat && activeEffect.waitingSeat === viewerSeat;
+    !isReadOnly &&
+    canConfirmEffectCommand &&
+    !!activeEffect &&
+    !!viewerSeat &&
+    activeEffect.waitingSeat === viewerSeat;
   const activeEffectUsesOrderedMultiSelect =
     activeEffect?.selectableObjectMode === 'ORDERED_MULTI';
   const activeEffectMinSelectableCards = activeEffect?.minSelectableObjects ?? 0;
@@ -239,6 +252,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     pendingCostPayment?.payableEnergyObjectIds.map((objectId) => objectId.replace(/^obj_/, '')) ??
     [];
   const canConfirmCostPayment =
+    !isReadOnly &&
+    canConfirmCostPaymentCommand &&
     !!pendingCostPayment &&
     !!viewerSeat &&
     pendingCostPayment.playerSeat === viewerSeat &&
@@ -331,15 +346,24 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const shouldShowWinnerAnimation = isResultAnimationWindow && isViewerWinnerInCurrentLive;
 
   const handleLiveAnimationComplete = useCallback(() => {
+    if (isReadOnly) {
+      return;
+    }
     if (currentSubPhase !== SubPhase.RESULT_ANIMATION) {
       return;
     }
     confirmSubPhase(SubPhase.RESULT_ANIMATION);
-  }, [confirmSubPhase, currentSubPhase]);
+  }, [confirmSubPhase, currentSubPhase, isReadOnly]);
 
   // 拖拽开始处理
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
+      if (isReadOnly) {
+        setActiveCardId(null);
+        setDragHints(false);
+        return;
+      }
+
       const cardId = event.active.id as string;
       setActiveCardId(cardId);
 
@@ -384,7 +408,14 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
       setDragHints(true, suggested);
     },
-    [currentPhase, currentSubPhase, matchView?.window?.windowType, setDragHints, getKnownCardType]
+    [
+      currentPhase,
+      currentSubPhase,
+      isReadOnly,
+      matchView?.window?.windowType,
+      setDragHints,
+      getKnownCardType,
+    ]
   );
 
   // 拖拽结束处理 - 统一处理所有区域间的拖拽
@@ -394,6 +425,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       setActiveCardId(null);
       setDragHints(false);
 
+      if (isReadOnly) return;
       if (!over) return;
 
       const cardId = active.id as string;
@@ -837,6 +869,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       getKnownCardType,
       resolveCardDropTarget,
       getCardSlotPosition,
+      isReadOnly,
     ]
   );
 
@@ -901,6 +934,16 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           className="pointer-events-none absolute inset-0"
           style={{ background: 'var(--gradient-stage-glow)' }}
         />
+
+        {isReadOnly && replaySession && (
+          <div className="pointer-events-none fixed left-4 top-4 z-[130] max-w-[calc(100vw-2rem)] rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+            <span className="text-[var(--accent-primary)]">历史回放</span>
+            <span className="mx-1.5 text-[var(--text-muted)]">·</span>
+            <span>checkpoint {replaySession.checkpointSeq}</span>
+            <span className="mx-1.5 text-[var(--text-muted)]">·</span>
+            <span className="text-[var(--text-muted)]">只读</span>
+          </div>
+        )}
 
         {isMobileBattlefield ? (
           <div className="relative z-10 flex h-full min-h-0 flex-col overflow-hidden md:hidden">
@@ -1568,14 +1611,14 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         <PhaseBanner />
 
         {/* 调试控制面板 */}
-        {!isMobileBattlefield && <DebugControl />}
+        {!isReadOnly && !isMobileBattlefield && <DebugControl />}
 
         {/* 卡牌详情浮窗 */}
         <CardDetailOverlay />
 
         {/* Live 结果动画 */}
         <LiveResultAnimation
-          visible={shouldShowWinnerAnimation}
+          visible={!isReadOnly && shouldShowWinnerAnimation}
           isViewerWinner={isViewerWinnerInCurrentLive}
           scoreInfo={
             shouldShowWinnerAnimation
@@ -1598,10 +1641,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         />
 
         {/* Live 分数最终确认弹窗（居中） */}
-        <ScoreConfirmModal />
+        {!isReadOnly && <ScoreConfirmModal />}
 
         {/* 换牌面板 */}
-        <MulliganPanel isOpen={mulliganPanelOpen} />
+        <MulliganPanel isOpen={!isReadOnly && mulliganPanelOpen} />
 
         {/* 拖拽覆盖层 - 显示正在拖拽的卡牌 */}
         <DragOverlay>

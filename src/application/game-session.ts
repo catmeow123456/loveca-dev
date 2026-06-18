@@ -27,7 +27,11 @@ import {
   TriggerCondition,
   ZoneType,
 } from '../shared/types/enums.js';
-import type { GameState, InspectionContextState } from '../domain/entities/game.js';
+import type {
+  GameEventLogEntry,
+  GameState,
+  InspectionContextState,
+} from '../domain/entities/game.js';
 import {
   GAME_CONFIG,
   addAction,
@@ -835,8 +839,26 @@ export class GameSession {
     return this.commandLog.filter((record) => record.seq > seq);
   }
 
+  getGameEventsSince(seq: number): readonly GameEventLogEntry[] {
+    if (!this.authorityState) {
+      return [];
+    }
+
+    return this.authorityState.eventLog
+      .filter((entry) => entry.sequence > seq)
+      .map((entry) => cloneTransportableValue(entry));
+  }
+
+  getCurrentGameEventSeq(): number {
+    return this.authorityState?.eventSequence ?? 0;
+  }
+
   getSnapshotHistory(): readonly MatchSnapshotSummary[] {
     return this.snapshotHistory;
+  }
+
+  getAuthoritySnapshotForRecord(): GameState | null {
+    return this.authorityState ? cloneGameState(this.authorityState) : null;
   }
 
   getAuthoritySnapshotAtOrBefore(publicSeq: number): GameState | null {

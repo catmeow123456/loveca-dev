@@ -432,11 +432,12 @@ graph TD
 - 云端卡组与离线模式并存
 - 正式联机房间闭环：创建/加入、云端卡组锁定、先后手确认、服务端权威对局、轮询同步、离开/短暂恢复与管理员房间观测
 - 面向联机的 `PlayerViewState` 脱敏投影、可见性策略和命令权限投影
+- 对局记录与回放阶段性闭环：`src/server/services/match-recorder-service.ts` 写入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 与部分 decision record；`src/server/services/match-replay-read-service.ts` 按参与者玩家视角读取历史列表、详情、timeline 与只读 checkpoint 投影；`client/src/components/pages/MatchRecordsPage.tsx` 可打开只读 `GameBoard` 回放节点
 
 ### 10.2 规划中
 
 - WebSocket/SSE 等实时传输增强（当前正式联机使用短间隔 HTTP 轮询）
-- 对局事件持久化、快照持久化、进程重启后恢复与回放
+- 对局记录与回放后续增强：进程重启后恢复运行中对局、完整随机记录、完整决策覆盖、自由拖拽/手动处理原因结构化、确定性重演、逐命令动画、公开分享回放与长期兼容策略
 - 更完整的自动能力编排与检查时机接线
 - 更高覆盖的性能与稳定性专项测试
 
