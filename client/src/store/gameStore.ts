@@ -1097,7 +1097,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       const viewerPlayerId = getReadonlyReplayViewerPlayerId(replay);
       const normalizedPlayerViewState = normalizeReadonlyReplayViewState(replay.playerViewState);
 
-      await preloadRemoteSnapshotFrontTransitions(
+      await preloadFrontTransitions(
         get().playerViewState,
         normalizedPlayerViewState,
         get().cardDataRegistry
@@ -1169,7 +1169,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (isReadonlyReplayMode()) {
         return;
       }
-      await preloadRemoteSnapshotFrontTransitions(
+      await preloadFrontTransitions(
         get().playerViewState,
         snapshot.playerViewState,
         get().cardDataRegistry
@@ -1205,7 +1205,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      await preloadRemoteSnapshotFrontTransitions(
+      await preloadFrontTransitions(
         get().playerViewState,
         snapshot.playerViewState,
         get().cardDataRegistry
@@ -2044,7 +2044,9 @@ function applyRemoteSnapshot(
   });
 }
 
-async function preloadRemoteSnapshotFrontTransitions(
+// 通用的卡图预加载:对比前后两个 PlayerViewState，预取新翻面卡的图片。
+// 不含任何远程会话特有逻辑，远程同步、历史回放等路径均可复用。
+async function preloadFrontTransitions(
   previousViewState: PlayerViewState | null,
   nextViewState: PlayerViewState | null,
   cardDataRegistry: ReadonlyMap<string, AnyCardData>
@@ -2172,7 +2174,7 @@ function dispatchRemoteCommand(
         return;
       }
 
-      await preloadRemoteSnapshotFrontTransitions(
+      await preloadFrontTransitions(
         useGameStore.getState().playerViewState,
         result.snapshot.playerViewState,
         useGameStore.getState().cardDataRegistry
@@ -2211,7 +2213,7 @@ function dispatchRemoteAdvancePhase(): boolean {
         return;
       }
 
-      await preloadRemoteSnapshotFrontTransitions(
+      await preloadFrontTransitions(
         useGameStore.getState().playerViewState,
         result.snapshot.playerViewState,
         useGameStore.getState().cardDataRegistry

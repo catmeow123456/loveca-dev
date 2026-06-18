@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -60,6 +60,12 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
   const [viewerSeat, setViewerSeat] = useState<Seat>('FIRST');
   const [selectedCheckpointSeq, setSelectedCheckpointSeq] = useState<number | null>(null);
 
+  // 始终持有最新的 viewerSeat，供异步回放加载读取，避免回调闭包捕获过时座位值。
+  const viewerSeatRef = useRef<Seat>(viewerSeat);
+  useEffect(() => {
+    viewerSeatRef.current = viewerSeat;
+  }, [viewerSeat]);
+
   const loadRooms = useCallback(async (showLoading: boolean) => {
     if (showLoading) {
       setIsLoading(true);
@@ -90,7 +96,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
         const checkpointSeq = findFirstCheckpointSeq(timeline.recordFrames);
         const nextCheckpointView =
           checkpointSeq !== null
-            ? await fetchDebugReplayCheckpoint(imported.bundleId, checkpointSeq, viewerSeat)
+            ? await fetchDebugReplayCheckpoint(imported.bundleId, checkpointSeq, viewerSeatRef.current)
             : null;
 
         setImportedReplay(imported);
@@ -103,7 +109,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
         setIsImportingReplay(false);
       }
     },
-    [viewerSeat]
+    []
   );
 
   const handleExportReplay = useCallback(
@@ -159,7 +165,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
   );
 
   const handleLoadCheckpoint = useCallback(
-    async (checkpointSeq: number, seat: Seat = viewerSeat) => {
+    async (checkpointSeq: number, seat: Seat = viewerSeatRef.current) => {
       if (!importedReplay) {
         return;
       }
@@ -180,7 +186,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
         );
       }
     },
-    [importedReplay, viewerSeat]
+    [importedReplay]
   );
 
   useEffect(() => {
