@@ -94,7 +94,9 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
           return;
         }
         if (replayBoardOpenRef.current) {
-          await enterReadonlyReplay(nextReplay);
+          await enterReadonlyReplay(nextReplay, {
+            shouldCommit: () => requestId === latestReplayRequestRef.current,
+          });
         }
         if (requestId !== latestReplayRequestRef.current) {
           return;
@@ -216,8 +218,11 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     }
     setError(null);
     replayBoardOpenRef.current = true;
+    const requestId = latestReplayRequestRef.current;
     try {
-      await enterReadonlyReplay(replay);
+      await enterReadonlyReplay(replay, {
+        shouldCommit: () => requestId === latestReplayRequestRef.current,
+      });
       setReplayBoardOpen(true);
     } catch (openError) {
       replayBoardOpenRef.current = false;

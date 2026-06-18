@@ -292,7 +292,10 @@ export interface GameStore {
   /** 设置免费登场兜底 */
   setFreePlayEnabled: (enabled: boolean) => void;
   /** 进入历史对局只读回放 */
-  enterReadonlyReplay: (replay: MatchRecordReplayView) => Promise<void>;
+  enterReadonlyReplay: (
+    replay: MatchRecordReplayView,
+    options?: { shouldCommit?: () => boolean }
+  ) => Promise<void>;
   /** 离开历史对局只读回放 */
   leaveReadonlyReplay: () => void;
   /** 当前是否处于历史对局只读回放 */
@@ -1094,7 +1097,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       get().addLog(enabled ? '免费登场已开启' : '免费登场已关闭', 'info');
     },
 
-    enterReadonlyReplay: async (replay) => {
+    enterReadonlyReplay: async (replay, options) => {
       const viewerPlayerId = getReadonlyReplayViewerPlayerId(replay);
       const normalizedPlayerViewState = normalizeReadonlyReplayViewState(replay.playerViewState);
 
@@ -1103,6 +1106,12 @@ export const useGameStore = create<GameStore>((set, get) => {
         normalizedPlayerViewState,
         get().cardDataRegistry
       );
+
+      // 卡图预加载是异步的，快速切换 checkpoint 时较早的请求可能在较新请求之后完成。
+      // 若调用方判定本次注入已过期，则放弃提交，避免旧 checkpoint 覆盖当前桌面视图。
+      if (options?.shouldCommit && !options.shouldCommit()) {
+        return;
+      }
 
       get().gameSession.localFreePlay = false;
       set((state) => ({
