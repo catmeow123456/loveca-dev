@@ -3,10 +3,12 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import { CardType, OrientationState, SlotPosition } from '../../../../shared/types/enums.js';
+import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import { HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID } from '../../ability-ids.js';
 import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
+import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
 import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
+import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -81,7 +83,7 @@ function startHsBp5IzumiOnEnterWaitDiscardLookTop(
     return game;
   }
 
-  const sourceSlot = findMemberSlot(player, ability.sourceCardId);
+  const sourceSlot = getSourceMemberSlot(game, ability.controllerId, ability.sourceCardId);
   const sourceState = player.memberSlots.cardStates.get(ability.sourceCardId);
   const canWaitSource =
     sourceSlot !== null && sourceState?.orientation !== OrientationState.WAITING;
@@ -219,42 +221,6 @@ function startHsBp5IzumiOnEnterInspection(
       continuePendingCardEffects,
     }
   );
-}
-
-function finishSkippedActiveEffect(
-  game: GameState,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-  const state = { ...game, activeEffect: null };
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'SKIP',
-    }),
-    effect.metadata?.orderedResolution === true
-  );
-}
-
-function findMemberSlot(
-  player: NonNullable<ReturnType<typeof getPlayerById>>,
-  cardId: string
-): SlotPosition | null {
-  for (const slot of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const) {
-    if (player.memberSlots.slots[slot] === cardId) {
-      return slot;
-    }
-  }
-  return null;
 }
 
 function getCardAbilityEffectText(abilityId: string): string {

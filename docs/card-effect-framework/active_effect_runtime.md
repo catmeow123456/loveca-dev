@@ -94,6 +94,22 @@ step handler 完成后应明确决定：
 
 这些决策应由 workflow helper 统一承接，而不是每张卡重复写相同样板。
 
+## Current Glue Helpers
+
+Current helper modules outside `runtime/actions.ts`:
+
+| helper | file | responsibility | boundary |
+|---|---|---|---|
+| `finishSkippedActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 清空当前 `activeEffect`，写入 `RESOLVE_ABILITY` with `step: 'SKIP'` by default，并按 metadata 中的 `orderedResolution` 继续 pending。 | 不处理费用、不检查目标、不 enqueue trigger、不决定卡文策略。 |
+| `getAbilityEffectText` | `src/application/card-effects/runtime/workflow-helpers.ts` | 按 abilityId 读取卡效文本，供 workflow 创建 activeEffect。 | 不创建 activeEffect，不处理 step 或 metadata。 |
+| `recordAbilityUseForContext` | `src/application/card-effects/runtime/workflow-helpers.ts` | 写入旧语义的 `RESOLVE_ABILITY` / `ABILITY_USE` action。 | 不支付费用，不判断发动条件。 |
+| `recordPayCostAction` | `src/application/card-effects/runtime/workflow-helpers.ts` | 写入 `PAY_COST` action，并保留调用方传入的 payload 字段。 | 不支付费用，不移动卡，不判断费用能否支付，不决定卡效策略。 |
+| `getSourceMemberSlot` | `src/application/card-effects/runtime/source-member.ts` | 查询来源成员当前所在舞台槽位。 | 只读查询；不移动成员，不判断卡文是否合法。 |
+| `getNewEnterStageEvents` | `src/application/card-effects/runtime/events.ts` | 从 before/after game 的 eventLog 差异中取新产生的 `ON_ENTER_STAGE` 事件。 | 只读查询；不 enqueue trigger，不构造事件，不移动卡。 |
+| `getNewMemberStateChangedEvents` | `src/application/card-effects/runtime/events.ts` | 从 before/after game 的 eventLog 差异中取新产生的 `ON_MEMBER_STATE_CHANGED` 事件。 | 只读查询；不 enqueue trigger，不构造事件，不改变成员状态。 |
+
+These helpers are intentionally small. If a proposed helper starts to own payment timing, grouped recovery policy, trigger matching, or full activeEffect construction, it belongs in a separate audit before implementation.
+
 ## Migration Target
 
 Priority:

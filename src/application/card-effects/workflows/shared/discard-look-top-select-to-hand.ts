@@ -13,6 +13,7 @@ import {
 } from '../../ability-ids.js';
 import type { EffectCostDefinition } from '../../../effects/effect-costs.js';
 import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
+import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
@@ -187,30 +188,6 @@ function startDiscardLookTopInspection(
       orderedResolution: metadata.orderedResolution,
       continuePendingCardEffects,
     }
-  );
-}
-
-function finishSkippedActiveEffect(
-  game: GameState,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-  const state = { ...game, activeEffect: null };
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'SKIP',
-    }),
-    effect.metadata?.orderedResolution === true
   );
 }
 
