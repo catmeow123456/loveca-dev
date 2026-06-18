@@ -8,7 +8,7 @@ import {
   TriggerCondition,
   ZoneType,
 } from '../shared/types/enums.js';
-import { isLiveCardData, isMemberCardData, type CardInstance } from '../domain/entities/card.js';
+import { isMemberCardData, type CardInstance } from '../domain/entities/card.js';
 import type { ActiveEffectState, GameState, PendingAbilityState } from '../domain/entities/game.js';
 import {
   addAction,
@@ -19,8 +19,6 @@ import {
 } from '../domain/entities/game.js';
 import {
   addCardToZone,
-  removeCardFromStatefulZone,
-  removeCardFromZone,
 } from '../domain/entities/zone.js';
 import { addLiveModifier } from '../domain/rules/live-modifiers.js';
 import {
@@ -37,7 +35,6 @@ import {
   costGte,
   costLte,
   groupAliasIs,
-  groupIs,
   hasBladeHeart as hasBladeHeartSelector,
   memberHasHeartColor,
   memberPrintedBladeLte,
@@ -88,12 +85,16 @@ import { resolveActivatedAbilityWithRegistry } from './card-effects/runtime/acti
 import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime/starter-registry.js';
 import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step-registry.js';
 import { registerBp5003KotoriWorkflowHandlers } from './card-effects/workflows/cards/bp5-003-kotori.js';
+import {
+  registerBp6024SuccessReplacementWorkflowHandlers,
+} from './card-effects/workflows/cards/bp6-024-success-replacement.js';
 import { registerHsBp1002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-002-sayaka.js';
 import { registerHsBp5003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-003-rurino.js';
 import { registerHsBp5001KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-001-kaho.js';
 import { registerHsBp5008IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-008-izumi.js';
 import { registerHsPb1004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-004-ginko.js';
 import { registerHsPb1009KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-009-kaho.js';
+import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/maki-on-enter.js';
 import {
   isHsSd1001HighCostHasunosoraRelayReplacement,
   registerHsSd1001KahoWorkflowHandlers,
@@ -139,10 +140,8 @@ import {
   getBaseCardCode,
   normalizeCardCode,
 } from '../shared/utils/card-code.js';
-import { cardBelongsToGroup, getKnownCardGroupIdentityName } from '../shared/utils/card-identity.js';
 import {
   NOZOMI_ON_ENTER_ABILITY_ID,
-  MAKI_ON_ENTER_ABILITY_ID,
   LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID,
   LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID,
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
@@ -154,12 +153,10 @@ import {
   KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
   BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID,
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
-  BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID,
   HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
   HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
   HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID,
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
-  HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
   HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
   HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
   HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
@@ -600,9 +597,6 @@ function revealSelectedInspectionCard(
   );
 }
 const NOZOMI_REVEAL_STEP_ID = 'NOZOMI_REVEAL_TOP_FIVE';
-const MAKI_SELECT_HAND_LIVE_STEP_ID = 'MAKI_SELECT_HAND_LIVE';
-const MAKI_SELECT_SUCCESS_LIVE_STEP_ID = 'MAKI_SELECT_SUCCESS_LIVE';
-const BP6_024_SUCCESS_REPLACEMENT_STEP_ID = 'BP6_024_SELECT_SUCCESS_REPLACEMENT_LIVE';
 const SELECT_NAMED_HAND_DISCARD_STEP_ID = 'SELECT_NAMED_HAND_DISCARD';
 const KARIN_REVEAL_STEP_ID = 'KARIN_REVEAL_TOP_CARD';
 const KARIN_POSITION_CHANGE_STEP_ID = 'KARIN_POSITION_CHANGE';
@@ -613,8 +607,6 @@ const HS_BP5_001_REVEAL_STEP_ID = 'HS_BP5_001_REVEAL_TOP_FOUR';
 const KEKE_SELECT_DISCARD_STEP_ID = 'KEKE_SELECT_DISCARD_FOR_WAITING_ENERGY';
 const HS_BP1_004_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_BP1_004_LIVE_START_PAY_ENERGY';
 const HS_BP6_004_SELECT_DISCARD_STEP_ID = 'HS_BP6_004_SELECT_DISCARD_FOR_BLADE';
-const HS_BP5_003_SELECT_DISCARD_STEP_ID = 'HS_BP5_003_SELECT_DISCARD_FOR_MEMBER_HEART';
-const HS_BP5_003_SELECT_HEART_TARGET_STEP_ID = 'HS_BP5_003_SELECT_SAME_GROUP_MEMBER_HEART_TARGET';
 const ABILITY_ORDER_SELECTION_STEP_ID = 'SELECT_NEXT_PENDING_ABILITY';
 const KOTORI_HEART_COLOR_OPTIONS = [HeartColor.PINK, HeartColor.YELLOW, HeartColor.PURPLE] as const;
 const STANDARD_HEART_COLOR_OPTIONS = [
@@ -640,6 +632,7 @@ registerArrangeInspectedDeckTopWorkflowHandlers();
 registerConditionalLiveModifierWorkflowHandlers();
 registerDiscardLookTopSelectToHandWorkflowHandlers();
 registerBp5003KotoriWorkflowHandlers();
+registerBp6024SuccessReplacementWorkflowHandlers();
 registerHsBp5008IzumiWorkflowHandlers();
 registerDrawThenDiscardWorkflowHandlers();
 registerGroupedRecoveryWorkflowHandlers();
@@ -658,6 +651,7 @@ registerHsBp1002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5001KahoWorkflowHandlers();
 registerHsBp5003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1004GinkoWorkflowHandlers();
+registerMakiOnEnterWorkflowHandlers();
 registerEmmaWorkflowHandlers();
 registerPlBp3014RinWorkflowHandlers();
 registerShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1983,27 +1977,6 @@ export function confirmActiveEffectStep(
       : finishSkipEffect(game);
   }
 
-  if (
-    effect.abilityId === MAKI_ON_ENTER_ABILITY_ID &&
-    effect.stepId === MAKI_SELECT_HAND_LIVE_STEP_ID
-  ) {
-    return startMakiSelectSuccessLive(game, selectedCardId ?? null);
-  }
-
-  if (
-    effect.abilityId === MAKI_ON_ENTER_ABILITY_ID &&
-    effect.stepId === MAKI_SELECT_SUCCESS_LIVE_STEP_ID
-  ) {
-    return finishMakiOnEnter(game, selectedCardId ?? null);
-  }
-
-  if (
-    effect.abilityId === BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID &&
-    effect.stepId === BP6_024_SUCCESS_REPLACEMENT_STEP_ID
-  ) {
-    return finishSuccessZoneReplacementEffect(game, selectedCardId ?? null);
-  }
-
   if (effect.abilityId === KARIN_LIVE_START_ABILITY_ID && effect.stepId === KARIN_REVEAL_STEP_ID) {
     return finishKarinLiveStart(game);
   }
@@ -2088,22 +2061,6 @@ export function confirmActiveEffectStep(
     return selectedCardId
       ? finishHsBp6GinkoDiscardGainBlade(game, selectedCardId)
       : finishSkipEffect(game);
-  }
-
-  if (
-    effect.abilityId === HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID &&
-    effect.stepId === HS_BP5_003_SELECT_DISCARD_STEP_ID
-  ) {
-    return selectedCardId
-      ? startHsBp5003RurinoSameGroupMemberSelection(game, selectedCardId)
-      : finishSkipEffect(game);
-  }
-
-  if (
-    effect.abilityId === HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID &&
-    effect.stepId === HS_BP5_003_SELECT_HEART_TARGET_STEP_ID
-  ) {
-    return finishHsBp5003RurinoTargetMemberHeart(game, selectedCardId ?? null);
   }
 
   if (
@@ -2359,8 +2316,6 @@ function startPendingAbilityEffect(
         minCount: 1,
         rewardKind: 'BLADE_PER_DISCARDED',
       });
-    case MAKI_ON_ENTER_ABILITY_ID:
-      return startMakiOnEnterSelection(game, ability, options);
     case BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID:
       return resolveBp5RinOnEnterSuccessScorePlaceActiveEnergy(game, ability, options);
     case BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID:
@@ -2369,8 +2324,6 @@ function startPendingAbilityEffect(
       return resolveHsPb1KahoOnHasunosoraEnterGainBlade(game, ability, options);
     case HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID:
       return startHsBp6GinkoLiveStartDiscardGainBlade(game, ability, options);
-    case HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID:
-      return startHsBp5003RurinoLiveStartDiscard(game, ability, options);
     case HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID:
       return startHsBp1TsuzuriLiveStartPayEnergy(game, ability, options);
     case KARIN_LIVE_START_ABILITY_ID:
@@ -2647,205 +2600,6 @@ function finishHsBp6GinkoDiscardGainBlade(game: GameState, discardCardId: string
       discardedCardId: discardResult.discardedCardIds[0],
       discardedWasGinko,
       bladeBonus,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function startHsBp5003RurinoLiveStartDiscard(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  if (player.hand.cardIds.length === 0) {
-    return skipPendingAbilityWithoutActiveEffect(
-      game,
-      ability,
-      player.id,
-      options.orderedResolution === true,
-      'NO_HAND_TO_DISCARD'
-    );
-  }
-
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: createDiscardHandToWaitingRoomActivationEffect({
-        ability,
-        effectText: getCardAbilityEffectText(
-          HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID
-        ),
-        playerId: player.id,
-        stepId: HS_BP5_003_SELECT_DISCARD_STEP_ID,
-        selectableCardIds: player.hand.cardIds,
-        orderedResolution: options.orderedResolution === true,
-        metadata: {
-          sourceSlot: ability.sourceSlot,
-        },
-      }),
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_SELECT_DISCARD',
-      sourceSlot: ability.sourceSlot,
-      selectableCardIds: player.hand.cardIds,
-    }
-  );
-}
-
-function startHsBp5003RurinoSameGroupMemberSelection(
-  game: GameState,
-  discardCardId: string
-): GameState {
-  const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID ||
-    effect.selectableCardIds?.includes(discardCardId) !== true
-  ) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  const discardCard = getCardById(game, discardCardId);
-  if (!player || !discardCard || !player.hand.cardIds.includes(discardCardId)) {
-    return game;
-  }
-
-  const discardResult = discardOneHandCardToWaitingRoomForPlayer(game, player.id, discardCardId, {
-    candidateCardIds: effect.selectableCardIds ?? [],
-  });
-  if (!discardResult) {
-    return game;
-  }
-
-  const discardedGroupName = getKnownCardGroupName(discardCard);
-  const selectableCardIds =
-    discardedGroupName !== null
-      ? getStageMemberLocations(discardResult.gameState)
-          .map((location) => ({
-            ...location,
-            card: getCardById(discardResult.gameState, location.cardId),
-          }))
-          .filter(
-            (candidate): candidate is StageMemberLocation & { readonly card: CardInstance } =>
-              candidate.card !== null &&
-              isMemberCardData(candidate.card.data) &&
-              cardBelongsToGroup(candidate.card.data, discardedGroupName)
-          )
-          .map((candidate) => candidate.cardId)
-      : [];
-
-  if (selectableCardIds.length === 0) {
-    const state = {
-      ...discardResult.gameState,
-      activeEffect: null,
-    };
-    return continuePendingCardEffects(
-      addAction(state, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        step: 'DISCARD_HAND_CARD_NO_SAME_GROUP_TARGET',
-        sourceSlot: effect.metadata?.sourceSlot,
-        discardedCardId: discardResult.discardedCardIds[0],
-        discardedGroupName,
-      }),
-      isOrderedResolutionEffect(game)
-    );
-  }
-
-  return addAction(
-    {
-      ...discardResult.gameState,
-      activeEffect: {
-        ...effect,
-        stepId: HS_BP5_003_SELECT_HEART_TARGET_STEP_ID,
-        stepText: '请选择与弃置卡片持有相同团体名的成员。',
-        selectableCardIds,
-        selectableCardVisibility: 'PUBLIC',
-        selectableCardMode: 'SINGLE',
-        selectionLabel: '选择获得桃Heart的成员',
-        canSkipSelection: false,
-        skipSelectionLabel: undefined,
-        metadata: {
-          ...effect.metadata,
-          discardedCardId: discardResult.discardedCardIds[0],
-          discardedGroupName,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'DISCARD_HAND_CARD',
-      sourceSlot: effect.metadata?.sourceSlot,
-      discardedCardId: discardResult.discardedCardIds[0],
-      discardedGroupName,
-      selectableCardIds,
-    }
-  );
-}
-
-function finishHsBp5003RurinoTargetMemberHeart(
-  game: GameState,
-  selectedCardId: string | null
-): GameState {
-  const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID ||
-    !selectedCardId ||
-    effect.selectableCardIds?.includes(selectedCardId) !== true
-  ) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  const targetLocation = findStageMemberLocation(game, selectedCardId);
-  if (!player || !targetLocation) {
-    return game;
-  }
-
-  const stateAfterModifier = addLiveModifier(
-    {
-      ...game,
-      activeEffect: null,
-    },
-    {
-      kind: 'HEART',
-      target: 'TARGET_MEMBER',
-      playerId: targetLocation.playerId,
-      targetMemberCardId: selectedCardId,
-      hearts: [{ color: HeartColor.PINK, count: 1 }],
-      sourceCardId: effect.sourceCardId,
-      abilityId: effect.abilityId,
-    }
-  );
-
-  return continuePendingCardEffects(
-    addAction(stateAfterModifier, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'APPLY_TARGET_MEMBER_HEART',
-      sourceSlot: effect.metadata?.sourceSlot,
-      discardedCardId: effect.metadata?.discardedCardId ?? null,
-      discardedGroupName: effect.metadata?.discardedGroupName ?? null,
-      targetPlayerId: targetLocation.playerId,
-      targetCardId: selectedCardId,
-      heartColor: HeartColor.PINK,
     }),
     isOrderedResolutionEffect(game)
   );
@@ -3273,379 +3027,6 @@ function finishSelectCardsFromZoneToHandEffect(
       step: 'FINISH',
       selectedCardId: recoveryResult.movedCardIds[0] ?? null,
       selectedCardIds: recoveryResult.movedCardIds,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function startMakiOnEnterSelection(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-  const selectableCardIds = getCardIdsInZoneMatching(
-    game,
-    player.id,
-    ZoneType.HAND,
-    typeIs(CardType.LIVE)
-  );
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText: getCardAbilityEffectText(MAKI_ON_ENTER_ABILITY_ID),
-        stepId: MAKI_SELECT_HAND_LIVE_STEP_ID,
-        stepText: getCardAbilityEffectText(MAKI_ON_ENTER_ABILITY_ID),
-        awaitingPlayerId: player.id,
-        selectableCardIds,
-        selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
-        canSkipSelection: true,
-        metadata: { orderedResolution: options.orderedResolution === true },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_SELECT_HAND_LIVE',
-      selectableCardIds,
-    }
-  );
-}
-
-function startMakiSelectSuccessLive(game: GameState, handLiveCardId: string | null): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player || handLiveCardId === null || !effect.selectableCardIds?.includes(handLiveCardId)) {
-    return finishSkipEffect(game);
-  }
-  const selectableSuccessLiveCardIds = getCardIdsInZoneMatching(
-    game,
-    player.id,
-    ZoneType.SUCCESS_ZONE,
-    typeIs(CardType.LIVE)
-  );
-  return addAction(
-    {
-      ...game,
-      activeEffect: {
-        ...effect,
-        stepId: MAKI_SELECT_SUCCESS_LIVE_STEP_ID,
-        stepText: '请选择要加入手牌的成功 Live。所公开的手牌 Live 会放置入成功 Live 卡区。',
-        selectableCardIds: selectableSuccessLiveCardIds,
-        selectableCardVisibility: 'PUBLIC',
-        canSkipSelection: true,
-        metadata: {
-          ...effect.metadata,
-          handLiveCardId,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'REVEAL_HAND_LIVE',
-      handLiveCardId,
-    }
-  );
-}
-
-type SuccessZoneReplacementOrigin = 'LIVE_SUCCESS' | 'MAKI_HAND_SUCCESS_SWAP';
-
-interface StartSuccessZoneReplacementOptions {
-  readonly controllerId: string;
-  readonly originalCardId: string;
-  readonly origin: SuccessZoneReplacementOrigin;
-  readonly successLiveCardId?: string;
-}
-
-function isBp6024SuccessReplacementCard(game: GameState, cardId: string): boolean {
-  const card = getCardById(game, cardId);
-  return (
-    card !== null &&
-    isLiveCardData(card.data) &&
-    cardCodeMatchesBase(card.data.cardCode, 'PL!-bp6-024')
-  );
-}
-
-function getBp6024ReplacementCandidateIds(game: GameState, playerId: string): readonly string[] {
-  return getCardIdsInZoneMatching(
-    game,
-    playerId,
-    ZoneType.WAITING_ROOM,
-    and(typeIs(CardType.LIVE), groupIs("μ's"))
-  );
-}
-
-export function startSuccessZoneReplacementEffect(
-  game: GameState,
-  options: StartSuccessZoneReplacementOptions
-): GameState | null {
-  if (!isBp6024SuccessReplacementCard(game, options.originalCardId)) {
-    return null;
-  }
-  const player = getPlayerById(game, options.controllerId);
-  if (!player) {
-    return null;
-  }
-  const selectableCardIds = getBp6024ReplacementCandidateIds(game, player.id);
-  if (selectableCardIds.length === 0) {
-    return null;
-  }
-
-  return addAction(
-    {
-      ...game,
-      activeEffect: {
-        id: `${BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID}:${options.originalCardId}:${game.actionHistory.length}`,
-        abilityId: BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID,
-        sourceCardId: options.originalCardId,
-        controllerId: player.id,
-        effectText:
-          "【常时】此卡放置入成功LIVE卡区的场合，可以改为从自己的休息室将1张[μ's]的LIVE卡放置入成功LIVE卡区。",
-        stepId: BP6_024_SUCCESS_REPLACEMENT_STEP_ID,
-        stepText:
-          "可以改为从自己的休息室选择1张『μ's』LIVE卡放置入成功LIVE卡区。",
-        awaitingPlayerId: player.id,
-        selectableCardIds,
-        selectableCardVisibility: 'PUBLIC',
-        canSkipSelection: true,
-        skipSelectionLabel: '不替代',
-        selectionLabel: "选择要放置入成功LIVE卡区的『μ's』LIVE",
-        metadata: {
-          successZoneReplacement: true,
-          origin: options.origin,
-          originalCardId: options.originalCardId,
-          successLiveCardId: options.successLiveCardId,
-          orderedResolution: game.activeEffect?.metadata?.orderedResolution === true,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      abilityId: BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID,
-      sourceCardId: options.originalCardId,
-      step: 'START_SUCCESS_ZONE_REPLACEMENT',
-      origin: options.origin,
-      selectableCardIds,
-    }
-  );
-}
-
-function markLiveSuccessCardMoved(
-  game: GameState,
-  playerId: string,
-  liveCardId: string
-): GameState {
-  const successCardMovedBy = game.liveResolution.successCardMovedBy.includes(playerId)
-    ? game.liveResolution.successCardMovedBy
-    : [...game.liveResolution.successCardMovedBy, playerId];
-  return {
-    ...game,
-    liveResolution: {
-      ...game.liveResolution,
-      liveResults: new Map(game.liveResolution.liveResults).set(liveCardId, true),
-      successCardMovedBy,
-      settlementConfirmedBy: game.liveResolution.settlementConfirmedBy.filter(
-        (confirmedPlayerId) => confirmedPlayerId !== playerId
-      ),
-    },
-  };
-}
-
-function finishLiveSuccessReplacementEffect(
-  game: GameState,
-  playerId: string,
-  originalCardId: string,
-  replacementCardId: string | null
-): GameState {
-  let state = replacementCardId
-    ? updatePlayer(game, playerId, (currentPlayer) => ({
-        ...currentPlayer,
-        waitingRoom: removeCardFromZone(currentPlayer.waitingRoom, replacementCardId),
-        successZone: addCardToZone(currentPlayer.successZone, replacementCardId),
-      }))
-    : updatePlayer(game, playerId, (currentPlayer) => ({
-        ...currentPlayer,
-        liveZone: removeCardFromStatefulZone(currentPlayer.liveZone, originalCardId),
-        successZone: addCardToZone(currentPlayer.successZone, originalCardId),
-      }));
-
-  state = markLiveSuccessCardMoved(state, playerId, originalCardId);
-  return state;
-}
-
-function finishMakiSuccessReplacementEffect(
-  game: GameState,
-  playerId: string,
-  handLiveCardId: string,
-  successLiveCardId: string,
-  replacementCardId: string | null
-): GameState {
-  return replacementCardId
-    ? updatePlayer(game, playerId, (currentPlayer) => ({
-        ...currentPlayer,
-        hand: {
-          ...currentPlayer.hand,
-          cardIds: [...currentPlayer.hand.cardIds, successLiveCardId],
-        },
-        waitingRoom: removeCardFromZone(currentPlayer.waitingRoom, replacementCardId),
-        successZone: {
-          ...currentPlayer.successZone,
-          cardIds: [
-            ...currentPlayer.successZone.cardIds.filter((cardId) => cardId !== successLiveCardId),
-            replacementCardId,
-          ],
-        },
-      }))
-    : updatePlayer(game, playerId, (currentPlayer) => ({
-        ...currentPlayer,
-        hand: {
-          ...currentPlayer.hand,
-          cardIds: [
-            ...currentPlayer.hand.cardIds.filter((cardId) => cardId !== handLiveCardId),
-            successLiveCardId,
-          ],
-        },
-        successZone: {
-          ...currentPlayer.successZone,
-          cardIds: [
-            ...currentPlayer.successZone.cardIds.filter((cardId) => cardId !== successLiveCardId),
-            handLiveCardId,
-          ],
-        },
-      }));
-}
-
-function finishSuccessZoneReplacementEffect(
-  game: GameState,
-  selectedCardId: string | null
-): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  const originalCardId =
-    typeof effect.metadata?.originalCardId === 'string' ? effect.metadata.originalCardId : null;
-  const origin =
-    effect.metadata?.origin === 'LIVE_SUCCESS' ||
-    effect.metadata?.origin === 'MAKI_HAND_SUCCESS_SWAP'
-      ? effect.metadata.origin
-      : null;
-  if (!player || originalCardId === null || origin === null) {
-    return finishSkipEffect(game);
-  }
-
-  const replacementCardId =
-    selectedCardId !== null && effect.selectableCardIds?.includes(selectedCardId)
-      ? selectedCardId
-      : null;
-  let state = game;
-
-  if (origin === 'LIVE_SUCCESS') {
-    state = finishLiveSuccessReplacementEffect(state, player.id, originalCardId, replacementCardId);
-  } else {
-    const successLiveCardId =
-      typeof effect.metadata?.successLiveCardId === 'string'
-        ? effect.metadata.successLiveCardId
-        : null;
-    if (successLiveCardId === null) {
-      return finishSkipEffect(game);
-    }
-    state = finishMakiSuccessReplacementEffect(
-      state,
-      player.id,
-      originalCardId,
-      successLiveCardId,
-      replacementCardId
-    );
-  }
-
-  state = { ...state, activeEffect: null };
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: replacementCardId ? 'FINISH_REPLACE' : 'FINISH_SKIP',
-      origin,
-      originalCardId,
-      replacementCardId,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function finishMakiOnEnter(game: GameState, successLiveCardId: string | null): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  const handLiveCardId =
-    typeof effect.metadata?.handLiveCardId === 'string' ? effect.metadata.handLiveCardId : null;
-  if (
-    !player ||
-    handLiveCardId === null ||
-    successLiveCardId === null ||
-    !effect.selectableCardIds?.includes(successLiveCardId)
-  ) {
-    return finishSkipEffect(game);
-  }
-  const replacementState = startSuccessZoneReplacementEffect(game, {
-    controllerId: player.id,
-    originalCardId: handLiveCardId,
-    origin: 'MAKI_HAND_SUCCESS_SWAP',
-    successLiveCardId,
-  });
-  if (replacementState !== null) {
-    return replacementState;
-  }
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    hand: {
-      ...currentPlayer.hand,
-      cardIds: [
-        ...currentPlayer.hand.cardIds.filter((cardId) => cardId !== handLiveCardId),
-        successLiveCardId,
-      ],
-    },
-    successZone: {
-      ...currentPlayer.successZone,
-      cardIds: [
-        ...currentPlayer.successZone.cardIds.filter((cardId) => cardId !== successLiveCardId),
-        handLiveCardId,
-      ],
-    },
-  }));
-  state = { ...state, activeEffect: null };
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'FINISH',
-      handLiveCardId,
-      successLiveCardId,
     }),
     isOrderedResolutionEffect(game)
   );
@@ -5024,13 +4405,6 @@ function getStageMemberLocations(game: GameState): readonly StageMemberLocation[
 
 function findStageMemberLocation(game: GameState, cardId: string): StageMemberLocation | null {
   return getStageMemberLocations(game).find((location) => location.cardId === cardId) ?? null;
-}
-
-function getKnownCardGroupName(card: CardInstance): string | null {
-  return (
-    getKnownCardGroupIdentityName(card.data) ??
-    (typeof card.data.groupName === 'string' ? card.data.groupName : null)
-  );
 }
 
 function findMemberSlot(

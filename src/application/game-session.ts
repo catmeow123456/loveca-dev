@@ -131,8 +131,8 @@ import {
   getActivatedAbilityLimitStatus,
   isSupportedActivatedAbilityForCard,
   resolvePendingCardEffects,
-  startSuccessZoneReplacementEffect,
 } from './card-effect-runner.js';
+import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/bp6-024-success-replacement.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { getMemberEffectiveCost } from './effects/conditions.js';
 import { isMemberCardData } from '../domain/entities/card.js';

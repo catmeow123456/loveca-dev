@@ -7035,6 +7035,109 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
   });
 
+  it('executes PL!-sd1-006-SD on-enter natural hand LIVE and success LIVE swap', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-maki-on-enter-natural-hand-success-live-swap',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const maki = createCardInstance(
+      createMemberCard('PL!-sd1-006-SD', '西木野真姫', 1, "μ's"),
+      PLAYER1,
+      'p1-maki-natural-swap-source'
+    );
+    const handLive = createCardInstance(
+      createLiveCard('PL!-test-maki-natural-hand-live', 'Maki hand LIVE', "μ's"),
+      PLAYER1,
+      'p1-maki-natural-hand-live'
+    );
+    const successLive = createCardInstance(
+      createLiveCard('PL!-test-maki-natural-success-live', 'Maki success LIVE', "μ's"),
+      PLAYER1,
+      'p1-maki-natural-success-live'
+    );
+    const registeredState = registerCards(state, [maki, handLive, successLive]);
+    (session as unknown as { authorityState: GameState }).authorityState = registeredState;
+
+    const energyCardIds = [...registeredState.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.ENERGY)
+      .map((card) => card.instanceId);
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(1);
+
+    removeFromPlayerZones(p1);
+    setActiveEnergy(p1, energyCardIds.slice(0, 1));
+    p1.hand.cardIds = [maki.instanceId, handLive.instanceId];
+    p1.successZone.cardIds = [successLive.instanceId];
+    p1.memberSlots.slots[SlotPosition.CENTER] = null;
+    p1.memberSlots.cardStates = new Map();
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, maki.instanceId, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(MAKI_ON_ENTER_ABILITY_ID);
+    expect(session.state?.activeEffect?.stepId).toBe('MAKI_SELECT_HAND_LIVE');
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([handLive.instanceId]);
+
+    const revealResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, handLive.instanceId)
+    );
+
+    expect(revealResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(MAKI_ON_ENTER_ABILITY_ID);
+    expect(session.state?.activeEffect?.stepId).toBe('MAKI_SELECT_SUCCESS_LIVE');
+    expect(session.state?.activeEffect?.metadata?.handLiveCardId).toBe(handLive.instanceId);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([successLive.instanceId]);
+
+    const finishResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        successLive.instanceId
+      )
+    );
+
+    expect(finishResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([successLive.instanceId]);
+    expect(session.state?.players[0].successZone.cardIds).toEqual([handLive.instanceId]);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === MAKI_ON_ENTER_ABILITY_ID &&
+          action.payload.step === 'FINISH' &&
+          action.payload.handLiveCardId === handLive.instanceId &&
+          action.payload.successLiveCardId === successLive.instanceId
+      )
+    ).toBe(true);
+  });
+
   it('executes PL!-PR-018-PR on-enter to recover one score 6 or higher LIVE from waiting room', () => {
     const session = createGameSession();
     const deck = createDeck();
@@ -17252,6 +17355,143 @@ describe('sample card effect runner', () => {
           action.payload.step === 'NO_HAND_TO_DISCARD'
       )
     ).toBe(true);
+  });
+
+  it('skips PL!HS-bp5-003 live-start discard and continues later pending effects', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-rurino-live-start-skip-discard-continues-pending',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const p2 = state.players[1] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const rurinoCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-bp5-003-AR'
+    );
+    const ginkoCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-bp6-004-R'
+    );
+    const discardCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-HASU-0'
+    );
+    const liveCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+
+    expect(rurinoCardId).toBeTruthy();
+    expect(ginkoCardId).toBeTruthy();
+    expect(discardCardId).toBeTruthy();
+    expect(liveCardId).toBeTruthy();
+
+    removeFromPlayerZones(p1);
+    removeFromPlayerZones(p2);
+    p1.hand.cardIds = [discardCardId!];
+    p1.liveZone.cardIds = [liveCardId!];
+    p1.liveZone.cardStates = new Map([
+      [liveCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
+    ]);
+    p1.memberSlots.slots[SlotPosition.LEFT] = ginkoCardId!;
+    p1.memberSlots.slots[SlotPosition.CENTER] = rurinoCardId!;
+    p1.memberSlots.slots[SlotPosition.RIGHT] = null;
+    p1.memberSlots.cardStates = new Map([
+      [ginkoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      [rurinoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+
+    advanceToLiveStartEffects(session);
+
+    expect(session.state?.activeEffect?.abilityId).toBe(ABILITY_ORDER_SELECTION_ID);
+
+    const rurinoOptionId = session.state!.activeEffect!.selectableOptions!.find((option) =>
+      option.id.includes(HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID)
+    )!.id;
+    const chooseRurinoResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        null,
+        undefined,
+        rurinoOptionId
+      )
+    );
+
+    expect(chooseRurinoResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID
+    );
+
+    const skipRurinoResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(skipRurinoResult.success).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toEqual([discardCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID &&
+          action.payload.step === 'SKIP'
+      )
+    ).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(ABILITY_ORDER_SELECTION_ID);
+
+    const ginkoOptionId = session.state!.activeEffect!.selectableOptions!.find((option) =>
+      option.id.includes(HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID)
+    )!.id;
+    const chooseGinkoResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        null,
+        undefined,
+        ginkoOptionId
+      )
+    );
+
+    expect(chooseGinkoResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([discardCardId]);
   });
 
   it('executes PL!HS-bp6-017-N leave-stage AUTO to discard then recover one live and one member', () => {

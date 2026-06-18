@@ -25,7 +25,7 @@
 | R-2 | partial | activeEffect step handler registry。 | `confirmActiveEffectStep` 已先查 step registry，未命中 fallback 旧分支；look-top、抽后弃、回收等 workflow 已迁入 registry，复杂旧分支仍在 runner。 |
 | R-3 | partial | pending / starter registry。 | `startPendingAbilityEffect` 已先查 starter registry，未命中 fallback 旧 switch；新增 queued workflow 应优先注册 starter。 |
 | R-4 | partial | workflow family 迁出。 | look-top、discard look-top、draw-then-discard、waiting-room recovery、自送回收、支付能量回收、BP4-002 弃手回收、grouped recovery、fixed pay-energy gain-BLADE、arrange-top、opponent wait target、conditional live modifier 与 revealed-cheer selection 已离开 runner；grouped recovery 独立 family，不混入普通 recovery family。 |
-| R-5 | partial | special card workflow 迁出。 | `HS_BP1_002`、`HS_BP5_001` activated、`HS_PB1_004`、`BP5_003`、`YOSHIKO` 已迁出；`HS_BP5_003` 离场站位变换段已迁出，LIVE 开始弃手加 Heart 段仍在 runner；錯覚CROSSROADS、东条希等复杂特殊卡仍在 runner。 |
+| R-5 | partial | special card workflow 迁出。 | `HS_BP1_002`、`HS_BP5_001` activated、`HS_PB1_004`、`BP5_003`、`YOSHIKO` 已迁出；`HS_BP5_003` 离场站位变换段与 LIVE 开始弃手加 Heart 段均已迁入 Rurino 单卡 workflow；錯覚CROSSROADS、东条希等复杂特殊卡仍在 runner。 |
 | R-6 | planned | trigger matcher T-2。 | 在 enqueue 边界稳定后，用纯 matcher 替代部分旧 trigger 判定，并保留 shadow 一致性测试。 |
 | R-7 | planned | steps-lite。 | 只对 proven workflow family 建 typed builder；不做完整 DSL。 |
 
@@ -80,6 +80,7 @@ Current migrated workflow modules:
 - `workflows/shared/opponent-wait-target.ts`
 - `workflows/shared/conditional-live-modifier.ts`
 - `workflows/shared/revealed-cheer-selection.ts`
+- `workflows/cards/bp6-024-success-replacement.ts`
 - `workflows/cards/hs-bp5-008-izumi.ts`
 - `workflows/cards/hs-pb1-009-kaho.ts`
 - `workflows/cards/hs-sd1-001-kaho.ts`
@@ -89,6 +90,7 @@ Current migrated workflow modules:
 - `workflows/cards/hs-bp5-001-kaho.ts`
 - `workflows/cards/hs-bp5-003-rurino.ts`
 - `workflows/cards/hs-pb1-004-ginko.ts`
+- `workflows/cards/maki-on-enter.ts`
 - `workflows/cards/bp5-003-kotori.ts`
 - `workflows/cards/n-pb1-008-emma.ts`
 - `workflows/cards/pl-bp3-014-rin.ts`
@@ -104,9 +106,9 @@ Recent helper modules added outside `actions.ts`:
 - `runtime/events.ts`: event-log delta queries for newly entered stage members and newly changed member orientation events.
 - `runtime/grouped-selection.ts`: validates per-group min/max card selections for grouped recovery.
 
-Runner line count after R-4Q-c CHISATO / EMMA single-card workflow migration was about 5285 lines, down from about 5667 after R-4Q-b. R-5B `HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE` migration brings the runner to about 5058 lines. The runner is still registry-first with fallback old branches; it is not complete.
+Runner line count after R-4Q-c CHISATO / EMMA single-card workflow migration was about 5285 lines, down from about 5667 after R-4Q-b. R-5B `HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE` migration brought the runner to about 5058 lines. R-5C `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART` migration brought the runner to about 4830 lines. R-5D `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT` migration brought the runner to about 4595 lines. R-5E `MAKI_ON_ENTER` migration brings the runner to about 4432 lines. The runner is still registry-first with fallback old branches; it is not complete.
 
-`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。`HS_SD1_001`、`SHIKI`、`CHISATO`、`EMMA` 与 `HS_BP5_003` 离场站位变换段已迁到单卡 workflow wrapper。Remaining near-term R-4/R-5 candidates include complex single-card workflows and helper cleanup only when another stable repeated axis appears.
+`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。`HS_SD1_001`、`SHIKI`、`CHISATO`、`EMMA`、`HS_BP5_003` 两段效果、`BP6_024` 成功区替代 hook 与 `MAKI` 登场交换已迁到单卡 workflow wrapper / hook。Remaining near-term R-4/R-5 candidates include complex single-card workflows and helper cleanup only when another stable repeated axis appears.
 
 ## R-4O Conditional Live Modifier Outcome 2026-06-18
 
@@ -124,10 +126,61 @@ The shared workflow owns only the confirm window, recomputation on confirm, modi
 
 `runtime/active-effect.ts` now also provides `startPendingActiveEffect` and `startConfirmOnlyActiveEffect`. The helpers remove the pending ability, install an `activeEffect`, and write the start `RESOLVE_ABILITY` action; they do not evaluate conditions, pay costs, mutate zones, create modifiers, enqueue triggers, or decide finish behavior. R-4O uses `startConfirmOnlyActiveEffect`, and existing `pay-energy-gain-blade.ts` uses the lower-level `startPendingActiveEffect`.
 
-Current follow-up candidates after R-5B:
+Current follow-up candidates after R-5E:
 
-- `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID` as the next single-card workflow slice for Rurino;
-- keep `BP6_024`, `BP5_007`, and `MAKI` deferred until their replacement / hand-adjust / swap boundaries are reviewed again.
+- keep `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID` deferred because its hand-adjust, draw, pending, and event-order boundary remains higher risk.
+- EMMA 0-target coverage remains a non-blocking follow-up for an active-energy / EMMA window, not this runner decentralization slice.
+
+## R-5E MAKI On-Enter Workflow Outcome 2026-06-18
+
+R-5E migrated only `MAKI_ON_ENTER_ABILITY_ID` into `src/application/card-effects/workflows/cards/maki-on-enter.ts`.
+
+Covered flow:
+
+- starter still opens `MAKI_SELECT_HAND_LIVE` even when no hand Live is selectable, writes `START_SELECT_HAND_LIVE`, and preserves ordered pending metadata;
+- selecting a hand Live advances to `MAKI_SELECT_SUCCESS_LIVE`, writes `REVEAL_HAND_LIVE`, and preserves `metadata.handLiveCardId`;
+- both selection steps remain skippable through the old `SKIP` action semantics;
+- finish first calls `startSuccessZoneReplacementEffect` with `origin: 'MAKI_HAND_SUCCESS_SWAP'`; when BP6_024 opens a replacement activeEffect, MAKI returns immediately and does not natural-swap;
+- when no replacement hook opens, the natural swap moves the selected hand Live to successZone, returns the selected success Live to hand, writes `FINISH`, clears activeEffect, and continues pending.
+
+The workflow reuses `startPendingActiveEffect`, `finishSkippedActiveEffect`, `getAbilityEffectText`, the starter/step registries, and the BP6_024 hook. It does not introduce a replacement DSL or new runtime helper. Runner line count after R-5E is about 4432 lines.
+
+Test coverage added one GameSession regression in `sample-card-effect-runner.test.ts` for the no-BP6_024 natural swap path, locking the two MAKI steps, final hand/successZone zones, and `FINISH` payload.
+
+## R-5D BP6_024 Success-Zone Replacement Hook Outcome 2026-06-18
+
+R-5D migrated only `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID` success-zone replacement hook and step into `src/application/card-effects/workflows/cards/bp6-024-success-replacement.ts`.
+
+Covered flow:
+
+- GameSession's successful-Live placement command still tries `startSuccessZoneReplacementEffect` before the natural `createSelectSuccessCardAction` path;
+- MAKI finish still calls the same hook for `MAKI_HAND_SUCCESS_SWAP`; MAKI itself was later migrated in R-5E;
+- `LIVE_SUCCESS` replacement success keeps the original BP6_024 Live in liveZone, moves the selected waiting-room `μ's` Live to successZone, and marks `successCardMovedBy` / `liveResults`;
+- `LIVE_SUCCESS` skip or no candidate keeps the natural move from liveZone to successZone;
+- `MAKI_HAND_SUCCESS_SWAP` replacement success keeps the original BP6_024 Live in hand, returns the prior success Live to hand, and moves the selected waiting-room `μ's` Live to successZone;
+- `MAKI_HAND_SUCCESS_SWAP` skip keeps the natural hand/success-zone swap;
+- action steps remain `START_SUCCESS_ZONE_REPLACEMENT`, `FINISH_REPLACE`, and `FINISH_SKIP`, with the old origin / original-card / success-live / ordered-resolution metadata shape.
+
+The module registers the BP6_024 activeEffect step handler through the step registry and exports `startSuccessZoneReplacementEffect` for GameSession and MAKI. It deliberately does not introduce a replacement DSL or shared replacement family. Runner line count after R-5D is about 4595 lines.
+
+No new runtime helpers were added. Existing sample coverage already locks ordinary successful Live replacement, skip, no-candidate natural placement, and the MAKI swap replacement path.
+
+## R-5C HS_BP5_003 Live-Start Same-Group Heart Outcome 2026-06-18
+
+R-5C migrated only `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID` into `src/application/card-effects/workflows/cards/hs-bp5-003-rurino.ts`.
+
+Covered flow:
+
+- no hand still resolves without opening an activeEffect and writes `NO_HAND_TO_DISCARD`;
+- the discard selection keeps `HS_BP5_003_SELECT_DISCARD_FOR_MEMBER_HEART`, optional skip label `不发动`, awaiting-player-only visibility, and the old hand-to-waiting-room cost metadata;
+- skipped selection still goes through `finishSkippedActiveEffect`, writes `SKIP`, and continues ordered pending resolution;
+- selected hand cards move through `discardOneHandCardToWaitingRoomForPlayer`, then same-group stage targets are found from both players using the discarded card's identity group fallback;
+- no same-group target writes `DISCARD_HAND_CARD_NO_SAME_GROUP_TARGET`;
+- target confirmation writes a `TARGET_MEMBER` pink Heart +1 live modifier and `APPLY_TARGET_MEMBER_HEART`, then continues pending.
+
+Together with R-5B, both `HS_BP5_003` segments now live in the Rurino single-card workflow file. The workflow remains card-specific and does not introduce a shared Heart, discard, or position-change family. Runner line count after R-5C is about 4830 lines.
+
+Test coverage added one GameSession regression in `sample-card-effect-runner.test.ts` that skips the discard selection, verifies the old `SKIP` action and unchanged hand/waiting-room zones, then verifies pending resolution returns to the ability-order selection and can continue to the next Live-start pending effect.
 
 ## R-5B HS_BP5_003 Leave-Stage Position Change Outcome 2026-06-18
 
@@ -144,7 +197,7 @@ The workflow reuses `getAbilityEffectText`, `startPendingActiveEffect`, `finishS
 
 Not migrated in R-5B:
 
-- `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID` remains in runner and should be the next Rurino single-card slice.
+- `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID` remained in runner at R-5B and was later migrated in R-5C.
 - `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID`, `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID`, and `MAKI_ON_ENTER_ABILITY_ID` remain deferred.
 
 Test coverage added one GameSession regression in `sample-card-effect-runner.test.ts` that locks the `POSITION_CHANGE` action before `ON_MEMBER_SLOT_MOVED` trigger consumption and verifies the following pending effect continues.
@@ -165,10 +218,9 @@ New workflow files:
 
 Both workflows reuse `getAbilityEffectText` and `startPendingActiveEffect`; `EMMA` also reuses `activateWaitingEnergyCardsForPlayer` with an up-to-two waiting-energy count. `CHISATO` deliberately keeps `setEnergyOrientation(..., allEnergyCardIds, ACTIVE)` because the old effect activates all energy, not only waiting energy.
 
-Current candidates after R-5B:
+Current candidates after R-5E:
 
-- `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID` as the remaining `HS_BP5_003` card-specific workflow slice;
-- `BP6_024`, `BP5_007`, and `MAKI` remain deferred until their timing and replacement boundaries are reviewed again;
+- keep `BP5_007` deferred; EMMA 0-target coverage remains a separate active-energy / EMMA follow-up;
 - reveal / public-confirm helper cleanup only after another stable repeated axis appears.
 
 ## R-4Q-b SHIKI Workflow Outcome 2026-06-18
@@ -210,10 +262,9 @@ Covered effects:
 
 The shared workflow reuses `effects/cheer-selection.ts` for selecting cards that were revealed by the current cheer and are still in the processing zone, and `effects/cheer.ts` for additional cheer. It preserves old skip/no-target payload fields and does not change cheer context consumption, processing-zone cleanup, event-log timing, or pending continuation.
 
-Current candidates after R-5B:
+Current candidates after R-5E:
 
-- `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID` as the remaining `HS_BP5_003` card-specific workflow slice;
-- `BP6_024`, `BP5_007`, and `MAKI` remain deferred until their timing and replacement boundaries are reviewed again;
+- keep `BP5_007` deferred; EMMA 0-target coverage remains a separate active-energy / EMMA follow-up;
 - reveal / public-confirm helper cleanup only after another stable repeated axis appears.
 
 ## R-4I Family Audit Snapshot 2026-06-18
@@ -270,11 +321,12 @@ Tests now cover existing success paths plus HS_BP6_017 empty-hand skip, HS_PB1_0
 
 ## R-5 Special Workflow Candidates
 
-These effects may remain card-specific, but should leave runner:
+These effects may remain card-specific, but should leave runner only after a narrow review:
 
-- `PL!HS-bp5-003` 费用 2「大泽瑠璃乃」：LIVE 开始弃手后同团成员获得桃 Heart 仍待迁移；离场站位变换已在 R-5B 迁出。
-- `PL!-bp6-024-L` 分数 3「錯覚CROSSROADS」：成功区放置替代。
-- `PL!-bp5-007` 费用 13「东条希」：换手登场后双方弃到 3 并各抽 3。
+- `PL!HS-bp5-003` 费用 2「大泽瑠璃乃」：LIVE 开始弃手后同团成员获得桃 Heart 与离场站位变换均已迁入 Rurino 单卡 workflow。
+- `PL!-bp6-024-L` 分数 3「錯覚CROSSROADS」：成功区放置替代 hook 已迁入 BP6_024 单卡 hook 模块。
+- `MAKI_ON_ENTER_ABILITY_ID`：已迁入 MAKI 单卡 workflow，保留对 BP6_024 replacement hook 的调用。
+- `PL!-bp5-007` 费用 13「东条希」：换手登场后双方弃到 3 并各抽 3，继续暂缓。
 
 ## Guardrails
 
