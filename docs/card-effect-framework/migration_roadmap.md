@@ -69,6 +69,8 @@ Current migrated workflow modules:
 
 - `workflows/shared/look-top-select-to-hand.ts`
 - `workflows/shared/discard-look-top-select-to-hand.ts`
+- `workflows/shared/named-hand-discard-live-start.ts`
+- `workflows/shared/live-start-discard-gain-heart.ts`
 - `workflows/shared/draw-then-discard.ts`
 - `workflows/shared/waiting-room-to-hand.ts`
 - `workflows/shared/self-sacrifice-waiting-room-to-hand.ts`
@@ -81,6 +83,8 @@ Current migrated workflow modules:
 - `workflows/shared/conditional-live-modifier.ts`
 - `workflows/shared/revealed-cheer-selection.ts`
 - `workflows/cards/bp6-024-success-replacement.ts`
+- `workflows/cards/bp5-005-rin.ts`
+- `workflows/cards/hs-bp6-004-ginko.ts`
 - `workflows/cards/hs-bp5-008-izumi.ts`
 - `workflows/cards/hs-pb1-009-kaho.ts`
 - `workflows/cards/hs-sd1-001-kaho.ts`
@@ -106,9 +110,9 @@ Recent helper modules added outside `actions.ts`:
 - `runtime/events.ts`: event-log delta queries for newly entered stage members and newly changed member orientation events.
 - `runtime/grouped-selection.ts`: validates per-group min/max card selections for grouped recovery.
 
-Runner line count after R-4Q-c CHISATO / EMMA single-card workflow migration was about 5285 lines, down from about 5667 after R-4Q-b. R-5B `HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE` migration brought the runner to about 5058 lines. R-5C `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART` migration brought the runner to about 4830 lines. R-5D `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT` migration brought the runner to about 4595 lines. R-5E `MAKI_ON_ENTER` migration brings the runner to about 4432 lines. The runner is still registry-first with fallback old branches; it is not complete.
+Runner line count after R-4Q-c CHISATO / EMMA single-card workflow migration was about 5285 lines, down from about 5667 after R-4Q-b. R-5B `HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE` migration brought the runner to about 5058 lines. R-5C `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART` migration brought the runner to about 4830 lines. R-5D `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT` migration brought the runner to about 4595 lines. R-5E `MAKI_ON_ENTER` migration brought the runner to about 4432 lines. R-5F `LL_BP1_001` / `LL_BP2_001` named hand discard Live-start migration brings the runner to about 4239 lines. The runner is still registry-first with fallback old branches; it is not complete.
 
-`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。`HS_SD1_001`、`SHIKI`、`CHISATO`、`EMMA`、`HS_BP5_003` 两段效果、`BP6_024` 成功区替代 hook 与 `MAKI` 登场交换已迁到单卡 workflow wrapper / hook。Remaining near-term R-4/R-5 candidates include complex single-card workflows and helper cleanup only when another stable repeated axis appears.
+`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。`HS_SD1_001`、`SHIKI`、`CHISATO`、`EMMA`、`HS_BP5_003` 两段效果、`BP6_024` 成功区替代 hook、`MAKI` 登场交换与 LL named hand discard Live-start family 已迁到 workflow wrapper / hook。Remaining near-term R-4/R-5 candidates include complex workflows and helper cleanup only when another stable repeated axis appears.
 
 ## R-4O Conditional Live Modifier Outcome 2026-06-18
 
@@ -126,10 +130,136 @@ The shared workflow owns only the confirm window, recomputation on confirm, modi
 
 `runtime/active-effect.ts` now also provides `startPendingActiveEffect` and `startConfirmOnlyActiveEffect`. The helpers remove the pending ability, install an `activeEffect`, and write the start `RESOLVE_ABILITY` action; they do not evaluate conditions, pay costs, mutate zones, create modifiers, enqueue triggers, or decide finish behavior. R-4O uses `startConfirmOnlyActiveEffect`, and existing `pay-energy-gain-blade.ts` uses the lower-level `startPendingActiveEffect`.
 
-Current follow-up candidates after R-5E:
+Current follow-up candidates after R-5K:
 
 - keep `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID` deferred because its hand-adjust, draw, pending, and event-order boundary remains higher risk.
 - EMMA 0-target coverage remains a non-blocking follow-up for an active-energy / EMMA window, not this runner decentralization slice.
+
+## R-5K HS_BP1_004 Live-Start Pay Energy Gain Blade Outcome 2026-06-19
+
+R-5K migrated `HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID` into the existing shared workflow `src/application/card-effects/workflows/shared/pay-energy-gain-blade.ts`.
+
+Covered flow:
+
+- step id remains `HS_BP1_004_LIVE_START_PAY_ENERGY`;
+- starter still writes `START_PAY_ENERGY_OPTION`;
+- HS_BP1_004 start payload keeps `activeEnergyCardIds` and `liveZoneCardCount`;
+- activeEffect metadata keeps `orderedResolution`, `activeEnergyCardIds`, and `liveZoneCardCount`;
+- pay / decline options are unchanged, and insufficient active energy still exposes only decline;
+- decline still resolves through `finishSkippedActiveEffect`;
+- pay finish still uses `payImmediateEffectCosts` with `TAP_ACTIVE_ENERGY` count 1;
+- PAY_COST payload still keeps `pendingAbilityId`, `abilityId`, `sourceCardId`, `energyCardIds`, and `amount`;
+- finish recomputes the BLADE bonus from the current `liveZone.cardIds.length` after paying, rather than trusting start metadata;
+- when the recomputed live-zone count is 0, the workflow skips the BLADE modifier but still clears activeEffect, writes `PAY_ENERGY_GAIN_BLADE`, and continues pending;
+- finish action still writes `PAY_ENERGY_GAIN_BLADE` with `paidEnergyCardIds` and `bladeBonus`.
+
+The shared workflow gained only one narrow configuration axis: fixed BLADE bonus versus current live-zone card count. The new axis is sourced by the real HS_BP1_004 card text and is not a general formula or reward DSL. The existing fixed-bonus configs for HS_SD1_006, BP4_010, and HS_PR_001 retain their old metadata, payload, cost payment, and modifier semantics. Runner line count after R-5K is about 3707 lines.
+
+Existing sample coverage still locks HS_BP1_004 paying 1 energy with 2 LIVE-zone cards for BLADE +2, plus the fixed-bonus pay-energy paths. R-5K added `tests/integration/pay-energy-gain-blade.test.ts` to lock HS_BP1_004 with 3 LIVE-zone cards: start step/options/metadata, paid energy orientation, BLADE modifier countDelta 3, and `PAY_ENERGY_GAIN_BLADE` payload `bladeBonus: 3`.
+
+## R-5J BP5_005 Success-Score Active Energy Workflow Outcome 2026-06-19
+
+R-5J migrated only `BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID` into the new single-card file `src/application/card-effects/workflows/cards/bp5-005-rin.ts`.
+
+Covered flow:
+
+- this remains an immediate pending starter and does not open an activeEffect;
+- missing player still returns the original game state;
+- `successLiveScore` still comes from `sumSuccessfulLiveScore(game, player.id)`;
+- `conditionMet` still comes from `successLiveScoreAtLeast(game, player.id, 6)`;
+- when `conditionMet` is true, the workflow still calls `placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.ACTIVE)`;
+- when `conditionMet` is false, or energy placement returns null, the workflow still removes the pending ability, writes the resolve action, and continues pending with `placedEnergyCardIds: []`;
+- action step remains `PLACE_ACTIVE_ENERGY_IF_SUCCESS_LIVE_SCORE`;
+- payload keeps `pendingAbilityId`, `abilityId`, `sourceCardId`, `successLiveScore`, `conditionMet`, and `placedEnergyCardIds`;
+- ordered pending continuation still uses the starter registry's `orderedResolution` option.
+
+The workflow reuses existing helpers only: starter registry, `sumSuccessfulLiveScore`, `successLiveScoreAtLeast`, `placeEnergyFromDeckToZone`, and `OrientationState.ACTIVE`. No runtime helper, trigger matcher integration, or steps DSL was added. Runner line count after R-5J is about 3836 lines.
+
+Existing sample coverage locks the `conditionMet: true` path at successful Live score 6 and active energy placement. R-5J added `tests/integration/bp5-005-rin.test.ts` to lock the `conditionMet: false` path: no energy placement, pending removal, resolve action, and `placedEnergyCardIds: []`.
+
+## R-5I HS_BP6_004 Live-Start Discard Gain Blade Outcome 2026-06-19
+
+R-5I migrated only `HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID` into the new single-card file `src/application/card-effects/workflows/cards/hs-bp6-004-ginko.ts`.
+
+Covered flow:
+
+- `HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID` and `HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID` remain in their existing paths;
+- starter still writes `START_SELECT_DISCARD`, opens `HS_BP6_004_SELECT_DISCARD_FOR_BLADE`, and keeps `sourceSlot` plus `selectableCardIds` in the action payload;
+- discard activeEffect keeps the old optional hand-to-waiting-room cost metadata, `AWAITING_PLAYER_ONLY` card visibility, selection label, and `不发动` skip label;
+- skip still resolves through `finishSkippedActiveEffect` and continues pending;
+- finish still validates that the selected card id is in the activeEffect candidates and still in hand;
+- discard still uses `discardOneHandCardToWaitingRoomForPlayer` with `candidateCardIds` from the activeEffect;
+- `discardedWasGinko` still uses the old selector shape `and(typeIs(CardType.MEMBER), cardNameIs('百生吟子'))`;
+- BLADE modifier still uses `addBladeLiveModifierForSourceMember` with amount 2 for discarded Ginko and 1 otherwise;
+- finish still writes `DISCARD_HAND_CARD_GAIN_BLADE` with `sourceSlot`, `discardedCardId`, `discardedWasGinko`, and `bladeBonus`.
+
+This is intentionally a single-card workflow because the 「百生吟子」 extra BLADE branch is card-specific. No shared discard-gain-BLADE family, runtime helper, trigger matcher integration, or steps DSL was added. Runner line count after R-5I is about 3875 lines.
+
+Existing sample coverage already locks the LIVE-start order selection with the wait-opponent-member effect, the Ginko-discard `bladeBonus: 2` path, and continuation with other LIVE-start pending effects. R-5I did not add duplicate tests.
+
+## R-5H HS_PB1_009 Enter-Stage Blade Workflow Outcome 2026-06-19
+
+R-5H migrated only `HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID` into the existing single-card file `src/application/card-effects/workflows/cards/hs-pb1-009-kaho.ts`.
+
+Covered flow:
+
+- trigger matching, center-slot requirement, and per-turn-limit enqueue rules remain in the existing runner/GameSession path;
+- manual order selection still uses the confirm-only pending bridge via `startConfirmOnlyPendingAbilityEffect`;
+- the bridge still keeps the pending ability in place and does not write a `START_CONFIRM` action;
+- confirming the bridge returns to the starter with `skipManualConfirmation`, then removes the pending ability;
+- real resolution still records `ABILITY_USE`, applies `addBladeLiveModifierForSourceMember` with amount 2, writes `APPLY_BLADE_BONUS`, and continues pending;
+- `APPLY_BLADE_BONUS` keeps `pendingAbilityId`, `abilityId`, `sourceCardId`, `bladeBonus: 2`, and `sourceSlot`;
+- if the BLADE modifier helper cannot apply, resolution returns the original game state without partially removing pending or recording ability use.
+
+The workflow reuses existing helpers only: `startConfirmOnlyPendingAbilityEffect`, `getAbilityEffectText`, `recordAbilityUseForContext`, `addBladeLiveModifierForSourceMember`, and the starter registry. No runtime helper, trigger matcher integration, or steps DSL was added. Runner line count after R-5H is about 3977 lines.
+
+Existing `sample-card-effect-runner.test.ts` coverage already locks the auto BLADE +2 path with `ABILITY_USE`, manual confirm-only pending bridge, ordered resolution without confirm-only, and the per-turn limit of two uses. R-5H did not add duplicate tests.
+
+## R-5G Live-Start Discard Gain Heart Outcome 2026-06-19
+
+R-5G migrated only the two existing LIVE-start discard-to-gain-Heart effects into `src/application/card-effects/workflows/shared/live-start-discard-gain-heart.ts`.
+
+Covered effects:
+
+- `KOTORI_LIVE_START_HEART_ABILITY_ID`: discard 1 hand card, then choose only PINK / YELLOW / PURPLE Heart.
+- `HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID`: discard 1 hand card, require another stage member before Heart selection, then choose from the six standard Heart colors.
+
+Covered flow:
+
+- starter still writes `START_SELECT_DISCARD` and opens `KOTORI_LIVE_START_SELECT_DISCARD`;
+- discard activeEffect keeps the old optional hand-to-waiting-room cost metadata, selection label, skip label, and `AWAITING_PLAYER_ONLY` card visibility;
+- skip still resolves through `finishSkippedActiveEffect` and writes old `SKIP` semantics;
+- discard still uses `discardOneHandCardToWaitingRoomForPlayer` with `candidateCardIds` from the activeEffect;
+- discard finish still writes `DISCARD_HAND_CARD`, then opens `KOTORI_LIVE_START_SELECT_HEART`;
+- HS_BP1_006 no-other-member path clears the activeEffect, writes `DISCARD_HAND_CARD_NO_OTHER_MEMBER`, and continues pending without a Heart modifier;
+- Heart confirmation still writes `APPLY_HEART_BONUS` with only `heartColor` in the action payload and adds a `HEART` live modifier targeting `SOURCE_MEMBER`.
+
+This shared family deliberately supports only the two proven configuration axes from these cards: whether another stage member is required, and the exact Heart color options. It is not a general discard or reward DSL. Runner line count after R-5G is about 4026 lines.
+
+Existing sample coverage still locks Kotori yellow Heart, HS_BP1_006 blue Heart with another member, and HS_BP1_006 no-other-member no-Heart paths. R-5G also added `tests/integration/live-start-discard-gain-heart.test.ts` to lock HS_BP1_006's six standard Heart color options after the discard step.
+
+## R-5F Named Hand Discard Live-Start Outcome 2026-06-19
+
+R-5F migrated only the two existing named hand discard Live-start effects into `src/application/card-effects/workflows/shared/named-hand-discard-live-start.ts`.
+
+Covered effects:
+
+- `LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID`: named candidates are 上原歩夢 / 澁谷かのん / 日野下花帆, discard exactly 3, gain SCORE +3.
+- `LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID`: named candidates are 渡辺曜 / 鬼塚夏美 / 大沢瑠璃乃, discard at least 1 and at most the current selectable count, gain BLADE equal to discarded count.
+
+Covered flow:
+
+- starter still writes `START_SELECT_NAMED_HAND_DISCARD` and opens `SELECT_NAMED_HAND_DISCARD`;
+- metadata keeps `namedHandDiscardNames`, `namedHandDiscardRewardKind`, `namedHandDiscardRewardAmount`, `sourceSlot`, and `orderedResolution`;
+- candidates still come only from current hand cards matching `cardNameAliasAny(names)`;
+- finish validates de-duplicated selected card ids, min/max count, selectable membership, and current hand membership before discarding;
+- no selected card ids still resolves through the shared skip helper and old `SKIP` semantics;
+- discard still uses `discardHandCardsToWaitingRoomForPlayer` with `candidateCardIds` from the activeEffect;
+- finish writes `DISCARD_NAMED_HAND_CARDS_GAIN_SCORE` or `DISCARD_NAMED_HAND_CARDS_GAIN_BLADE`, then appends the SCORE / BLADE live modifier and continues pending.
+
+This shared family deliberately supports only the two proven reward kinds from these cards: fixed SCORE and BLADE per discarded card. It is not a general cost/reward DSL. Runner line count after R-5F is about 4239 lines.
+
+Existing sample coverage still locks LL-bp1-001 SCORE +3 and LL-bp2-001 BLADE per discarded-card success paths. R-5F also added `tests/integration/named-hand-discard-live-start.test.ts` to lock the LL-bp2 default max-count behavior when only one named card is selectable.
 
 ## R-5E MAKI On-Enter Workflow Outcome 2026-06-18
 
@@ -218,7 +348,7 @@ New workflow files:
 
 Both workflows reuse `getAbilityEffectText` and `startPendingActiveEffect`; `EMMA` also reuses `activateWaitingEnergyCardsForPlayer` with an up-to-two waiting-energy count. `CHISATO` deliberately keeps `setEnergyOrientation(..., allEnergyCardIds, ACTIVE)` because the old effect activates all energy, not only waiting energy.
 
-Current candidates after R-5E:
+Current candidates after R-5F:
 
 - keep `BP5_007` deferred; EMMA 0-target coverage remains a separate active-energy / EMMA follow-up;
 - reveal / public-confirm helper cleanup only after another stable repeated axis appears.
@@ -262,7 +392,7 @@ Covered effects:
 
 The shared workflow reuses `effects/cheer-selection.ts` for selecting cards that were revealed by the current cheer and are still in the processing zone, and `effects/cheer.ts` for additional cheer. It preserves old skip/no-target payload fields and does not change cheer context consumption, processing-zone cleanup, event-log timing, or pending continuation.
 
-Current candidates after R-5E:
+Current candidates after R-5F:
 
 - keep `BP5_007` deferred; EMMA 0-target coverage remains a separate active-energy / EMMA follow-up;
 - reveal / public-confirm helper cleanup only after another stable repeated axis appears.
