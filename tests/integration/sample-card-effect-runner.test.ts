@@ -13088,6 +13088,108 @@ describe('sample card effect runner', () => {
     }
   });
 
+  it('resolves PL!N-pb1-008-P+ energy branch with one waiting energy', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('sample-emma-activate-one-energy', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const emmaCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!N-pb1-008-P+'
+    );
+    const energyCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+    );
+
+    expect(emmaCardId).toBeTruthy();
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(3);
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = emmaCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [emmaCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    setEnergyZoneCards(p1, [
+      { cardId: energyCardIds[0], orientation: OrientationState.WAITING },
+      { cardId: energyCardIds[1], orientation: OrientationState.ACTIVE },
+      { cardId: energyCardIds[2], orientation: OrientationState.ACTIVE },
+    ]);
+
+    const pendingAbility: PendingAbilityState = {
+      id: 'pending-emma-one-energy',
+      abilityId: EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID,
+      sourceCardId: emmaCardId!,
+      controllerId: PLAYER1,
+      mandatory: false,
+      timingId: TriggerCondition.ON_ENTER_STAGE,
+      eventIds: [],
+      sourceSlot: SlotPosition.CENTER,
+    };
+    const startState = resolvePendingAbilityStarterWithRegistry(
+      { ...state, pendingAbilities: [pendingAbility] },
+      pendingAbility,
+      {},
+      { continuePendingCardEffects: (nextState) => nextState }
+    );
+
+    expect(startState?.activeEffect?.abilityId).toBe(
+      EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID
+    );
+    expect(startState?.activeEffect?.selectableOptions).toEqual([
+      { id: 'energy', label: '将能量变活跃' },
+    ]);
+    (session as unknown as { authorityState: GameState }).authorityState = startState!;
+
+    const selectEnergyBranchResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        'energy'
+      )
+    );
+
+    expect(selectEnergyBranchResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[0])?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID &&
+          action.payload.step === 'ACTIVATE_ENERGY' &&
+          Array.isArray(action.payload.activatedEnergyCardIds) &&
+          action.payload.activatedEnergyCardIds.length === 1 &&
+          action.payload.activatedEnergyCardIds[0] === energyCardIds[0] &&
+          action.payload.nextOrientation === OrientationState.ACTIVE
+      )
+    ).toBe(true);
+  });
+
   it('executes PL!S-bp2-006-P on-enter effect play from waiting room to empty slots', () => {
     const session = createGameSession();
     const deck = createDeck();

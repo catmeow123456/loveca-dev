@@ -89,8 +89,10 @@ Current migrated workflow modules:
 - `workflows/cards/hs-bp5-001-kaho.ts`
 - `workflows/cards/hs-pb1-004-ginko.ts`
 - `workflows/cards/bp5-003-kotori.ts`
+- `workflows/cards/n-pb1-008-emma.ts`
 - `workflows/cards/pl-bp3-014-rin.ts`
 - `workflows/cards/sp-bp4-008-shiki.ts`
+- `workflows/cards/sp-bp5-003-chisato.ts`
 - `workflows/cards/yoshiko-play-low-cost-members.ts`
 
 Recent helper modules added outside `actions.ts`:
@@ -101,9 +103,9 @@ Recent helper modules added outside `actions.ts`:
 - `runtime/events.ts`: event-log delta queries for newly entered stage members and newly changed member orientation events.
 - `runtime/grouped-selection.ts`: validates per-group min/max card selections for grouped recovery.
 
-Runner line count after R-4Q-b SHIKI single-card workflow migration is about 5667 lines, down from about 5944 after R-4Q-a. The runner is still registry-first with fallback old branches; it is not complete.
+Runner line count after R-4Q-c CHISATO / EMMA single-card workflow migration is about 5285 lines, down from about 5667 after R-4Q-b. The runner is still registry-first with fallback old branches; it is not complete.
 
-`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。`HS_SD1_001` 与 `SHIKI` 已迁到单卡 workflow wrapper。Remaining near-term R-4/R-5 candidates include activation-energy helper cleanup / card workflow wrappers 与若干复杂单卡；暂不强行 family 化 `CHISATO`、`EMMA`。
+`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。`HS_SD1_001`、`SHIKI`、`CHISATO` 与 `EMMA` 已迁到单卡 workflow wrapper。Remaining near-term R-4/R-5 candidates include complex single-card workflows and helper cleanup only when another stable repeated axis appears.
 
 ## R-4O Conditional Live Modifier Outcome 2026-06-18
 
@@ -121,10 +123,30 @@ The shared workflow owns only the confirm window, recomputation on confirm, modi
 
 `runtime/active-effect.ts` now also provides `startPendingActiveEffect` and `startConfirmOnlyActiveEffect`. The helpers remove the pending ability, install an `activeEffect`, and write the start `RESOLVE_ABILITY` action; they do not evaluate conditions, pay costs, mutate zones, create modifiers, enqueue triggers, or decide finish behavior. R-4O uses `startConfirmOnlyActiveEffect`, and existing `pay-energy-gain-blade.ts` uses the lower-level `startPendingActiveEffect`.
 
-Current follow-up candidates:
+Current follow-up candidates after R-4Q-c:
 
-- activation-energy helper cleanup for `CHISATO` and `EMMA`; `SHIKI` was later migrated in R-4Q-b as a card workflow wrapper;
 - complex single-card workflows such as `HS_BP5_003`, `BP6_024`, `BP5_007`, and `MAKI`, handled as card workflows unless a real family emerges.
+
+## R-4Q-c CHISATO / EMMA Workflow Outcome 2026-06-18
+
+R-4Q-c migrated `CHISATO` and `EMMA` into single-card workflow wrappers without introducing a shared activation-energy family.
+
+Covered effects:
+
+- `CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID` / `CHISATO_LIVE_START_ACTIVATE_ALL`: Live-start confirm window rechecks current own-stage Liella! members and all own energy cards, then activates those members and every energy card with the old `ACTIVATE_MEMBERS_AND_ENERGY` payload fields.
+- `EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID` / `EMMA_SELECT_ACTIVATE_TARGET_TYPE` / `EMMA_SELECT_MEMBER_TO_ACTIVATE`: on-enter target-type selection can activate one current waiting stage member or up to two waiting energy cards in energy-zone order, preserving old no-target, member, and energy payload fields.
+
+New workflow files:
+
+- `src/application/card-effects/workflows/cards/sp-bp5-003-chisato.ts`
+- `src/application/card-effects/workflows/cards/n-pb1-008-emma.ts`
+
+Both workflows reuse `getAbilityEffectText` and `startPendingActiveEffect`; `EMMA` also reuses `activateWaitingEnergyCardsForPlayer` with an up-to-two waiting-energy count. `CHISATO` deliberately keeps `setEnergyOrientation(..., allEnergyCardIds, ACTIVE)` because the old effect activates all energy, not only waiting energy.
+
+Current candidates after R-4Q-c:
+
+- complex single-card workflows such as `HS_BP5_003`, `BP6_024`, `BP5_007`, and `MAKI`, handled as card workflows unless a real family emerges;
+- reveal / public-confirm helper cleanup only after another stable repeated axis appears.
 
 ## R-4Q-b SHIKI Workflow Outcome 2026-06-18
 
@@ -137,9 +159,9 @@ Covered effects:
 
 The workflow reuses `getAbilityEffectText`, `startPendingActiveEffect`, and `activateWaitingEnergyCardsForPlayer`. It passes an up-to-two waiting-energy count so 0, 1, or 2 waiting energy cards all resolve. The position-change branch remains card-specific, and `ON_MEMBER_SLOT_MOVED` enqueue still happens after the move and `POSITION_CHANGE` action through the injected runner lifecycle hook.
 
-Current activation-energy candidates remain:
+R-4Q-c follow-up:
 
-- `CHISATO` and `EMMA` as separate card workflow wrappers unless another stable shared axis appears.
+- `CHISATO` and `EMMA` were later migrated as separate card workflow wrappers.
 
 ## R-4Q-a HS_SD1_001 Relay-Replaced Energy Outcome 2026-06-18
 
@@ -149,9 +171,9 @@ The runner still owns the `ON_LEAVE_STAGE` enqueue lifecycle and high-cost Hasun
 
 `runtime/active-effect.ts` now also provides `startConfirmOnlyPendingAbilityEffect` and `finishConfirmOnlyPendingAbilityEffect`. This bridge is for manual ordered pending selection: it installs a confirm-only `activeEffect` without removing the pending ability, then resumes the starter through a callback with `skipManualConfirmation`. It is distinct from `startConfirmOnlyActiveEffect`, which removes pending and writes a start action.
 
-Current activation-energy candidates after R-4Q-b:
+R-4Q-c follow-up:
 
-- `CHISATO` and `EMMA` as separate card workflow wrappers unless another stable shared axis appears.
+- `CHISATO` and `EMMA` were later migrated as separate card workflow wrappers.
 
 ## R-4P Revealed-Cheer Selection Outcome 2026-06-18
 
@@ -165,9 +187,8 @@ Covered effects:
 
 The shared workflow reuses `effects/cheer-selection.ts` for selecting cards that were revealed by the current cheer and are still in the processing zone, and `effects/cheer.ts` for additional cheer. It preserves old skip/no-target payload fields and does not change cheer context consumption, processing-zone cleanup, event-log timing, or pending continuation.
 
-Current candidates after R-4Q-b:
+Current candidates after R-4Q-c:
 
-- activation-energy helper cleanup / card workflow wrappers for `CHISATO` and `EMMA`;
 - complex single-card workflows such as `HS_BP5_003`, `BP6_024`, `BP5_007`, and `MAKI`, handled as card workflows unless a real family emerges;
 - reveal / public-confirm helper cleanup only after another stable repeated axis appears.
 
@@ -221,7 +242,7 @@ Tests now cover existing success paths plus HS_BP6_017 empty-hand skip, HS_PB1_0
 - Opponent wait target family: R-4M migrated `HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER`, `HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER`, and `SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER` into `src/application/card-effects/workflows/shared/opponent-wait-target.ts`. The config axes are target selector, start action step, step text, and selection label; the workflow preserves `SKIP_NO_TARGET`, `WAIT_OPPONENT_MEMBER`, member-state event enqueue timing, and source/target payload fields.
 - Fixed pay-energy gain-BLADE family: R-4K migrated `HS_SD1_006`, `BP4_010`, and `HS_PR_001` into `src/application/card-effects/workflows/shared/pay-energy-gain-blade.ts`. The config axes are energy cost count and fixed BLADE bonus. `recordPayCostAction` now lives in `runtime/workflow-helpers.ts` and is also used by `workflows/cards/hs-bp5-001-kaho.ts`.
 - Arrange top family: R-4L migrated `START_DASH` and `HS_BP6_001` into `src/application/card-effects/workflows/shared/arrange-inspected-deck-top.ts`, with `PL_BP3_014` handled by the thin wrapper `src/application/card-effects/workflows/cards/pl-bp3-014-rin.ts`. The shared core owns inspection, ordered deck-top return, unselected waiting-room movement, and inspection cleanup; the wrapper owns only the source-wait option and PAY_COST action before entering the shared core.
-- Activation energy helper cleanup: R-4Q-a migrated `HS_SD1_001` into a single-card workflow, and R-4Q-b migrated `SHIKI` into a card workflow wrapper. `CHISATO` and `EMMA` still activate waiting energy/member orientations, but targets and event context differ. Keep as helper cleanup unless two or more step shapes become identical.
+- Activation energy helper cleanup: R-4Q-a migrated `HS_SD1_001` into a single-card workflow, R-4Q-b migrated `SHIKI`, and R-4Q-c migrated `CHISATO` / `EMMA`. Do not retroactively collapse them into a shared activation-energy family unless another stable repeated axis appears.
 
 ## R-5 Special Workflow Candidates
 

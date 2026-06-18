@@ -70,10 +70,7 @@ import {
   moveInspectedCardsToWaitingRoom,
   moveTopDeckCardsToWaitingRoom,
 } from './effects/look-top.js';
-import {
-  moveMemberBetweenSlots,
-  setMembersOrientation,
-} from './effects/member-state.js';
+import { moveMemberBetweenSlots } from './effects/member-state.js';
 import {
   addBladeLiveModifierForSourceMember,
   discardHandCardsToWaitingRoomForPlayer,
@@ -101,9 +98,11 @@ import {
   registerHsSd1001KahoWorkflowHandlers,
 } from './card-effects/workflows/cards/hs-sd1-001-kaho.js';
 import { registerHsSd1006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-006-hime.js';
+import { registerEmmaWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-008-emma.js';
 import { registerPlBp3014RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-014-rin.js';
 import { registerPr017NicoWorkflowHandlers } from './card-effects/workflows/cards/pr-017-nico.js';
 import { registerShikiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-008-shiki.js';
+import { registerChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-003-chisato.js';
 import { registerYoshikoPlayLowCostMembersWorkflowHandlers } from './card-effects/workflows/cards/yoshiko-play-low-cost-members.js';
 import { registerArrangeInspectedDeckTopWorkflowHandlers } from './card-effects/workflows/shared/arrange-inspected-deck-top.js';
 import { registerConditionalLiveModifierWorkflowHandlers } from './card-effects/workflows/shared/conditional-live-modifier.js';
@@ -123,15 +122,8 @@ import {
   getStageMemberOrientationTargetMetadata,
   resolveStageMemberOrientationTargetSelection,
 } from './effects/stage-member-target-selection.js';
-import {
-  getStageMemberCardIdsByOrientation,
-  getStageMemberCardIdsMatching,
-} from './effects/stage-targets.js';
-import {
-  getEnergyCardIdsByOrientation,
-  placeEnergyFromDeckToZone,
-  setEnergyOrientation,
-} from './effects/energy.js';
+import { getStageMemberCardIdsMatching } from './effects/stage-targets.js';
+import { placeEnergyFromDeckToZone } from './effects/energy.js';
 import type {
   CheerEvent,
   EnterStageEvent,
@@ -167,8 +159,6 @@ import {
   HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID,
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
   HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
-  CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID,
-  EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID,
   HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
   HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
   HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
@@ -199,9 +189,6 @@ const HS_BP6_031_SELECT_HIME_TARGET_STEP_ID = 'HS_BP6_031_SELECT_HIME_BLADE_TARG
 const HS_PB1_012_RECYCLE_CONFIRM_STEP_ID = 'HS_PB1_012_RECYCLE_MEMBERS_CONFIRM';
 const HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'HS_PB1_012_SELECT_WAITING_ROOM_LIVE';
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
-const CHISATO_LIVE_START_ACTIVATE_STEP_ID = 'CHISATO_LIVE_START_ACTIVATE_ALL';
-const EMMA_SELECT_TARGET_TYPE_STEP_ID = 'EMMA_SELECT_ACTIVATE_TARGET_TYPE';
-const EMMA_SELECT_MEMBER_STEP_ID = 'EMMA_SELECT_MEMBER_TO_ACTIVATE';
 
 interface DiscardHandToWaitingRoomEffectConfig {
   readonly ability: PendingAbilityState;
@@ -671,8 +658,10 @@ registerRevealedCheerSelectionWorkflowHandlers({ continuePendingCardEffects });
 registerHsBp1002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5001KahoWorkflowHandlers();
 registerHsPb1004GinkoWorkflowHandlers();
+registerEmmaWorkflowHandlers();
 registerPlBp3014RinWorkflowHandlers();
 registerShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerChisatoWorkflowHandlers();
 registerYoshikoPlayLowCostMembersWorkflowHandlers({ enqueueTriggeredCardEffects });
 
 interface CardEffectRunnerResult {
@@ -2142,27 +2131,6 @@ export function confirmActiveEffectStep(
       : finishSkipEffect(game);
   }
 
-  if (
-    effect.abilityId === CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID &&
-    effect.stepId === CHISATO_LIVE_START_ACTIVATE_STEP_ID
-  ) {
-    return finishChisatoLiveStartActivateAll(game);
-  }
-
-  if (
-    effect.abilityId === EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID &&
-    effect.stepId === EMMA_SELECT_TARGET_TYPE_STEP_ID
-  ) {
-    return startEmmaTargetSelection(game, selectedOptionId ?? null);
-  }
-
-  if (
-    effect.abilityId === EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID &&
-    effect.stepId === EMMA_SELECT_MEMBER_STEP_ID
-  ) {
-    return finishEmmaActivateMember(game, selectedCardId ?? null);
-  }
-
   return game;
 }
 
@@ -2438,10 +2406,6 @@ function startPendingAbilityEffect(
       return startHsPr019GinkoMillGainGreenHeartInspection(game, ability, options);
     case KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID:
       return startKekeOnEnterPlaceWaitingEnergy(game, ability, options);
-    case CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID:
-      return startChisatoLiveStartActivateAll(game, ability, options);
-    case EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID:
-      return startEmmaOnEnterActivateMemberOrEnergy(game, ability, options);
     case HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID:
       return startHsBp5KahoOnEnterMillGainBladeInspection(game, ability, options);
     case HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID:
@@ -4017,7 +3981,6 @@ function finishHsPr019GinkoMillGainGreenHeart(game: GameState): GameState {
 }
 
 const greenHeartMemberCard = memberHasHeartColor(HeartColor.GREEN);
-const liellaMemberCard = and(typeIs(CardType.MEMBER), groupAliasIs('Liella!'));
 
 function startNozomiOnEnterInspection(
   game: GameState,
@@ -4692,351 +4655,6 @@ function resolvePb1015OwnEffectWaitOpponentLowCostDraw(
       drawnCardIds: drawResult.drawnCardIds,
     }),
     options.orderedResolution === true
-  );
-}
-
-function startChisatoLiveStartActivateAll(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const liellaMemberCardIds = getStageMemberCardIdsMatching(game, player.id, liellaMemberCard);
-  const energyCardIds = [...player.energyZone.cardIds];
-
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText: getCardAbilityEffectText(CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID),
-        stepId: CHISATO_LIVE_START_ACTIVATE_STEP_ID,
-        stepText: `确认后将${liellaMemberCardIds.length}名Liella!成员和${energyCardIds.length}张能量变为活跃状态。`,
-        awaitingPlayerId: player.id,
-        metadata: {
-          orderedResolution: options.orderedResolution === true,
-          sourceSlot: ability.sourceSlot,
-          liellaMemberCardIds,
-          energyCardIds,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_CONFIRM',
-      sourceSlot: ability.sourceSlot,
-      liellaMemberCardIds,
-      energyCardIds,
-    }
-  );
-}
-
-function finishChisatoLiveStartActivateAll(game: GameState): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const liellaMemberCardIds = getStageMemberCardIdsMatching(game, player.id, liellaMemberCard);
-  const energyCardIds = [...player.energyZone.cardIds];
-
-  const memberOrientationChange = setMembersOrientation(
-    game,
-    player.id,
-    liellaMemberCardIds,
-    OrientationState.ACTIVE
-  );
-  if (!memberOrientationChange) {
-    return game;
-  }
-
-  const energyOrientationChange = setEnergyOrientation(
-    memberOrientationChange.gameState,
-    player.id,
-    energyCardIds,
-    OrientationState.ACTIVE
-  );
-  if (!energyOrientationChange) {
-    return game;
-  }
-
-  const state = {
-    ...energyOrientationChange.gameState,
-    activeEffect: null,
-  };
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'ACTIVATE_MEMBERS_AND_ENERGY',
-      sourceSlot: effect.metadata?.sourceSlot,
-      activatedMemberCardIds: memberOrientationChange.updatedMemberCardIds,
-      previousMemberOrientations: memberOrientationChange.previousOrientations,
-      activatedEnergyCardIds: energyOrientationChange.updatedEnergyCardIds,
-      previousEnergyOrientations: energyOrientationChange.previousOrientations,
-      nextOrientation: OrientationState.ACTIVE,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function startEmmaOnEnterActivateMemberOrEnergy(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const waitingMemberCardIds = getStageMemberCardIdsByOrientation(
-    game,
-    player.id,
-    OrientationState.WAITING
-  );
-  const waitingEnergyCardIds = getEnergyCardIdsByOrientation(
-    game,
-    player.id,
-    OrientationState.WAITING
-  );
-  const selectableOptions = [
-    ...(waitingMemberCardIds.length > 0 ? [{ id: 'member', label: '选择1名成员' }] : []),
-    ...(waitingEnergyCardIds.length > 0 ? [{ id: 'energy', label: '将能量变活跃' }] : []),
-  ];
-
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText: getCardAbilityEffectText(EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID),
-        stepId: EMMA_SELECT_TARGET_TYPE_STEP_ID,
-        stepText:
-          selectableOptions.length > 0
-            ? '请选择要变为活跃状态的目标类型。'
-            : '当前没有待机状态的舞台成员或能量。确认后继续。',
-        awaitingPlayerId: player.id,
-        selectableOptions,
-        canSkipSelection: selectableOptions.length === 0,
-        skipSelectionLabel: selectableOptions.length === 0 ? '确认' : undefined,
-        metadata: {
-          orderedResolution: options.orderedResolution === true,
-          waitingMemberCardIds,
-          waitingEnergyCardIds,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_SELECT_TARGET_TYPE',
-      waitingMemberCardIds,
-      waitingEnergyCardIds,
-    }
-  );
-}
-
-function startEmmaTargetSelection(game: GameState, selectedOptionId: string | null): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const waitingMemberCardIds = getStageMemberCardIdsByOrientation(
-    game,
-    player.id,
-    OrientationState.WAITING
-  );
-  const waitingEnergyCardIds = getEnergyCardIdsByOrientation(
-    game,
-    player.id,
-    OrientationState.WAITING
-  );
-
-  if (selectedOptionId === 'member' && waitingMemberCardIds.length > 0) {
-    return addAction(
-      {
-        ...game,
-        activeEffect: {
-          ...effect,
-          stepId: EMMA_SELECT_MEMBER_STEP_ID,
-          stepText: '请选择1名要变为活跃状态的舞台成员。',
-          selectableCardIds: waitingMemberCardIds,
-          selectableCardMode: 'SINGLE',
-          minSelectableCards: undefined,
-          maxSelectableCards: undefined,
-          selectableOptions: undefined,
-          canSkipSelection: false,
-          skipSelectionLabel: undefined,
-          selectionLabel: '选择要变为活跃的成员',
-          confirmSelectionLabel: '变为活跃',
-          metadata: {
-            ...effect.metadata,
-            waitingMemberCardIds,
-            waitingEnergyCardIds,
-          },
-        },
-      },
-      'RESOLVE_ABILITY',
-      player.id,
-      {
-        pendingAbilityId: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        step: 'SELECT_MEMBER_TARGET',
-        waitingMemberCardIds,
-      }
-    );
-  }
-
-  if (selectedOptionId === 'energy' && waitingEnergyCardIds.length > 0) {
-    return finishEmmaActivateEnergy(game, waitingEnergyCardIds.slice(0, 2));
-  }
-
-  if (waitingMemberCardIds.length > 0 || waitingEnergyCardIds.length > 0) {
-    return game;
-  }
-
-  const state = { ...game, activeEffect: null };
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'FINISH_NO_TARGETS',
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function finishEmmaActivateMember(game: GameState, selectedCardId: string | null): GameState {
-  const effect = game.activeEffect;
-  if (!effect || selectedCardId === null) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (
-    !player ||
-    effect.selectableCardIds?.includes(selectedCardId) !== true ||
-    !getStageMemberCardIdsByOrientation(game, player.id, OrientationState.WAITING).includes(
-      selectedCardId
-    )
-  ) {
-    return game;
-  }
-
-  const orientationChange = setMembersOrientation(
-    game,
-    player.id,
-    [selectedCardId],
-    OrientationState.ACTIVE
-  );
-  if (!orientationChange) {
-    return game;
-  }
-
-  const state = {
-    ...orientationChange.gameState,
-    activeEffect: null,
-  };
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'ACTIVATE_MEMBER',
-      activatedMemberCardIds: orientationChange.updatedMemberCardIds,
-      previousOrientations: orientationChange.previousOrientations,
-      nextOrientation: orientationChange.nextOrientation,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-function finishEmmaActivateEnergy(game: GameState, energyCardIds: readonly string[]): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  const uniqueEnergyCardIds = [...new Set(energyCardIds)];
-  if (!player || uniqueEnergyCardIds.length === 0 || uniqueEnergyCardIds.length > 2) {
-    return game;
-  }
-
-  const waitingEnergyCardIds = getEnergyCardIdsByOrientation(
-    game,
-    player.id,
-    OrientationState.WAITING
-  );
-  if (
-    uniqueEnergyCardIds.length !== energyCardIds.length ||
-    !uniqueEnergyCardIds.every((cardId) => waitingEnergyCardIds.includes(cardId))
-  ) {
-    return game;
-  }
-
-  const orientationChange = setEnergyOrientation(
-    game,
-    player.id,
-    uniqueEnergyCardIds,
-    OrientationState.ACTIVE
-  );
-  if (!orientationChange) {
-    return game;
-  }
-
-  const state = {
-    ...orientationChange.gameState,
-    activeEffect: null,
-  };
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'ACTIVATE_ENERGY',
-      activatedEnergyCardIds: orientationChange.updatedEnergyCardIds,
-      previousOrientations: orientationChange.previousOrientations,
-      nextOrientation: orientationChange.nextOrientation,
-    }),
-    isOrderedResolutionEffect(game)
   );
 }
 
