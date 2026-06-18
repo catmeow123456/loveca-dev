@@ -8,6 +8,28 @@ import {
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
+export const CONFIRM_ONLY_PENDING_ABILITY_STEP_ID = 'CONFIRM_ONLY_EFFECT';
+
+export interface StartConfirmOnlyPendingAbilityEffectConfig {
+  readonly ability: Pick<
+    PendingAbilityState,
+    'id' | 'abilityId' | 'sourceCardId' | 'controllerId'
+  >;
+  readonly effectText: string;
+  readonly orderedResolution: boolean;
+}
+
+export interface ContinueConfirmOnlyPendingAbilityOptions {
+  readonly orderedResolution: boolean;
+  readonly skipManualConfirmation: true;
+}
+
+export type ContinueConfirmOnlyPendingAbility = (
+  game: GameState,
+  ability: PendingAbilityState,
+  options: ContinueConfirmOnlyPendingAbilityOptions
+) => GameState;
+
 export interface FinishSkippedActiveEffectOptions {
   readonly step?: string;
 }
@@ -81,6 +103,52 @@ export function startConfirmOnlyActiveEffect(
       step: 'START_CONFIRM',
       ...config.actionPayload,
     },
+  });
+}
+
+export function startConfirmOnlyPendingAbilityEffect(
+  game: GameState,
+  config: StartConfirmOnlyPendingAbilityEffectConfig
+): GameState {
+  return {
+    ...game,
+    activeEffect: {
+      id: config.ability.id,
+      abilityId: config.ability.abilityId,
+      sourceCardId: config.ability.sourceCardId,
+      controllerId: config.ability.controllerId,
+      effectText: config.effectText,
+      stepId: CONFIRM_ONLY_PENDING_ABILITY_STEP_ID,
+      stepText: '确认后继续处理此效果。',
+      awaitingPlayerId: config.ability.controllerId,
+      metadata: {
+        confirmOnlyPendingAbility: true,
+        orderedResolution: config.orderedResolution,
+      },
+    },
+  };
+}
+
+export function finishConfirmOnlyPendingAbilityEffect(
+  game: GameState,
+  continuePendingAbility: ContinueConfirmOnlyPendingAbility
+): GameState {
+  const effect = game.activeEffect;
+  if (!effect || effect.metadata?.confirmOnlyPendingAbility !== true) {
+    return game;
+  }
+  const pendingAbility = game.pendingAbilities.find(
+    (ability) =>
+      ability.id === effect.id &&
+      ability.abilityId === effect.abilityId &&
+      ability.sourceCardId === effect.sourceCardId
+  );
+  if (!pendingAbility) {
+    return game;
+  }
+  return continuePendingAbility({ ...game, activeEffect: null }, pendingAbility, {
+    orderedResolution: effect.metadata.orderedResolution === true,
+    skipManualConfirmation: true,
   });
 }
 

@@ -30,13 +30,6 @@ import {
   selectWaitingRoomCardIds,
 } from './effects/zone-selection.js';
 import {
-  moveRevealedCheerCards,
-  selectRevealedCheerCardIds,
-  type CheerCardPredicate,
-  type RevealedCheerCardDestination,
-} from './effects/cheer-selection.js';
-import { revealCheerCardsFromMainDeck } from './effects/cheer.js';
-import {
   and,
   cardNameAliasAny,
   cardNameAliasIs,
@@ -90,6 +83,10 @@ import {
   recoverCardsFromWaitingRoomToHandForPlayer,
   shuffleWaitingRoomCardsToDeckBottomForPlayer,
 } from './card-effects/runtime/actions.js';
+import {
+  finishConfirmOnlyPendingAbilityEffect,
+  startConfirmOnlyPendingAbilityEffect,
+} from './card-effects/runtime/active-effect.js';
 import { resolveActivatedAbilityWithRegistry } from './card-effects/runtime/activated-registry.js';
 import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime/starter-registry.js';
 import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step-registry.js';
@@ -99,9 +96,14 @@ import { registerHsBp5001KahoWorkflowHandlers } from './card-effects/workflows/c
 import { registerHsBp5008IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-008-izumi.js';
 import { registerHsPb1004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-004-ginko.js';
 import { registerHsPb1009KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-009-kaho.js';
+import {
+  isHsSd1001HighCostHasunosoraRelayReplacement,
+  registerHsSd1001KahoWorkflowHandlers,
+} from './card-effects/workflows/cards/hs-sd1-001-kaho.js';
 import { registerHsSd1006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-006-hime.js';
 import { registerPlBp3014RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-014-rin.js';
 import { registerPr017NicoWorkflowHandlers } from './card-effects/workflows/cards/pr-017-nico.js';
+import { registerShikiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-008-shiki.js';
 import { registerYoshikoPlayLowCostMembersWorkflowHandlers } from './card-effects/workflows/cards/yoshiko-play-low-cost-members.js';
 import { registerArrangeInspectedDeckTopWorkflowHandlers } from './card-effects/workflows/shared/arrange-inspected-deck-top.js';
 import { registerConditionalLiveModifierWorkflowHandlers } from './card-effects/workflows/shared/conditional-live-modifier.js';
@@ -113,6 +115,7 @@ import { registerLookTopSelectToHandWorkflowHandlers } from './card-effects/work
 import { registerOpponentWaitTargetWorkflowHandlers } from './card-effects/workflows/shared/opponent-wait-target.js';
 import { registerPayEnergyGainBladeWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-gain-blade.js';
 import { registerPayEnergyWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-waiting-room-to-hand.js';
+import { registerRevealedCheerSelectionWorkflowHandlers } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { registerSelfSacrificeWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/self-sacrifice-waiting-room-to-hand.js';
 import { registerWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/waiting-room-to-hand.js';
 import {
@@ -128,7 +131,6 @@ import {
   getEnergyCardIdsByOrientation,
   placeEnergyFromDeckToZone,
   setEnergyOrientation,
-  setFirstEnergyCardsOrientation,
 } from './effects/energy.js';
 import type {
   CheerEvent,
@@ -160,8 +162,6 @@ import {
   BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID,
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
   BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID,
-  SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID,
-  SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID,
   HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
   HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
   HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID,
@@ -170,9 +170,6 @@ import {
   CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID,
   EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID,
   HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
-  HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
-  HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
-  HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
   HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
   HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
@@ -197,11 +194,6 @@ const DECLINE_OPTION_LABEL = '不发动';
 const ABILITY_USE_STEP = 'ABILITY_USE';
 const ACTIVATED_ABILITY_USE_STEP = 'ACTIVATED_ABILITY_USE';
 const BP5_007_SELECT_HAND_DISCARD_STEP_ID = 'BP5_007_SELECT_HAND_DISCARD_TO_THREE';
-const HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID = 'HS_BP6_001_SELECT_REVEALED_CHEER_TO_TOP';
-const HS_CL1_009_SELECT_CHEER_MEMBER_TO_HAND_STEP_ID =
-  'HS_CL1_009_SELECT_REVEALED_CHEER_MEMBER_TO_HAND';
-const HS_BP6_027_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID =
-  'HS_BP6_027_SELECT_REVEALED_CHEER_TO_WAITING_ROOM';
 const HS_BP6_031_RECYCLE_OPTION_STEP_ID = 'HS_BP6_031_RECYCLE_MEMBERS_OPTION';
 const HS_BP6_031_SELECT_HIME_TARGET_STEP_ID = 'HS_BP6_031_SELECT_HIME_BLADE_TARGET';
 const HS_PB1_012_RECYCLE_CONFIRM_STEP_ID = 'HS_PB1_012_RECYCLE_MEMBERS_CONFIRM';
@@ -210,7 +202,6 @@ const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.
 const CHISATO_LIVE_START_ACTIVATE_STEP_ID = 'CHISATO_LIVE_START_ACTIVATE_ALL';
 const EMMA_SELECT_TARGET_TYPE_STEP_ID = 'EMMA_SELECT_ACTIVATE_TARGET_TYPE';
 const EMMA_SELECT_MEMBER_STEP_ID = 'EMMA_SELECT_MEMBER_TO_ACTIVATE';
-const CONFIRM_ONLY_EFFECT_STEP_ID = 'CONFIRM_ONLY_EFFECT';
 
 interface DiscardHandToWaitingRoomEffectConfig {
   readonly ability: PendingAbilityState;
@@ -241,32 +232,6 @@ interface ArrangeInspectedDeckTopConfig {
   readonly selectMax: number;
   readonly selectedDestination: InspectedCardDestination;
   readonly unselectedDestination: InspectedCardDestination;
-  readonly orderedResolution: boolean;
-}
-
-interface RevealedCheerCardSelectionConfig {
-  readonly ability: PendingAbilityState;
-  readonly playerId: string;
-  readonly effectText: string;
-  readonly stepId: string;
-  readonly stepText: string;
-  readonly selectionLabel: string;
-  readonly predicate?: CheerCardPredicate;
-  readonly destination: RevealedCheerCardDestination;
-  readonly optional: boolean;
-  readonly selectMin?: number;
-  readonly selectMax?: number;
-  readonly additionalCheerEqualToMoved?: boolean;
-  readonly skipSelectionLabel?: string;
-  readonly orderedResolution: boolean;
-}
-
-interface MemberPositionChangeEffectConfig {
-  readonly ability: PendingAbilityState;
-  readonly effectText: string;
-  readonly stepId: string;
-  readonly stepText: string;
-  readonly optional: boolean;
   readonly orderedResolution: boolean;
 }
 
@@ -583,51 +548,6 @@ function createDiscardHandToWaitingRoomActivationEffect(
   };
 }
 
-function startConfirmOnlyPendingAbilityEffect(
-  game: GameState,
-  ability: PendingAbilityState,
-  effectText: string,
-  options: StartPendingAbilityEffectOptions = {}
-): GameState {
-  return {
-    ...game,
-    activeEffect: {
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
-      effectText,
-      stepId: CONFIRM_ONLY_EFFECT_STEP_ID,
-      stepText: '确认后继续处理此效果。',
-      awaitingPlayerId: ability.controllerId,
-      metadata: {
-        confirmOnlyPendingAbility: true,
-        orderedResolution: options.orderedResolution === true,
-      },
-    },
-  };
-}
-
-function finishConfirmOnlyPendingAbilityEffect(game: GameState): GameState {
-  const effect = game.activeEffect;
-  if (!effect || effect.metadata?.confirmOnlyPendingAbility !== true) {
-    return game;
-  }
-  const pendingAbility = game.pendingAbilities.find(
-    (ability) =>
-      ability.id === effect.id &&
-      ability.abilityId === effect.abilityId &&
-      ability.sourceCardId === effect.sourceCardId
-  );
-  if (!pendingAbility) {
-    return game;
-  }
-  return startPendingAbilityEffect({ ...game, activeEffect: null }, pendingAbility, {
-    orderedResolution: effect.metadata.orderedResolution === true,
-    skipManualConfirmation: true,
-  });
-}
-
 function recordAbilityUse(
   game: GameState,
   playerId: string,
@@ -709,8 +629,6 @@ const HS_BP5_003_SELECT_POSITION_MEMBER_STEP_ID = 'HS_BP5_003_SELECT_POSITION_CH
 const HS_BP5_003_SELECT_POSITION_SLOT_STEP_ID = 'HS_BP5_003_SELECT_POSITION_CHANGE_SLOT';
 const HS_BP5_003_SELECT_DISCARD_STEP_ID = 'HS_BP5_003_SELECT_DISCARD_FOR_MEMBER_HEART';
 const HS_BP5_003_SELECT_HEART_TARGET_STEP_ID = 'HS_BP5_003_SELECT_SAME_GROUP_MEMBER_HEART_TARGET';
-const SHIKI_RIGHT_ACTIVATE_ENERGY_STEP_ID = 'SHIKI_RIGHT_ACTIVATE_ENERGY';
-const SHIKI_LIVE_START_POSITION_CHANGE_STEP_ID = 'SHIKI_LIVE_START_POSITION_CHANGE';
 const ABILITY_ORDER_SELECTION_STEP_ID = 'SELECT_NEXT_PENDING_ABILITY';
 const KOTORI_HEART_COLOR_OPTIONS = [HeartColor.PINK, HeartColor.YELLOW, HeartColor.PURPLE] as const;
 const STANDARD_HEART_COLOR_OPTIONS = [
@@ -740,6 +658,7 @@ registerHsBp5008IzumiWorkflowHandlers();
 registerDrawThenDiscardWorkflowHandlers();
 registerGroupedRecoveryWorkflowHandlers();
 registerHsPb1009KahoWorkflowHandlers();
+registerHsSd1001KahoWorkflowHandlers();
 registerHsSd1006HimeWorkflowHandlers();
 registerWaitingRoomToHandWorkflowHandlers();
 registerSelfSacrificeWaitingRoomToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -748,10 +667,12 @@ registerOpponentWaitTargetWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPayEnergyWaitingRoomToHandWorkflowHandlers();
 registerDiscardCostWaitingRoomToHandWorkflowHandlers();
 registerPr017NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerRevealedCheerSelectionWorkflowHandlers({ continuePendingCardEffects });
 registerHsBp1002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5001KahoWorkflowHandlers();
 registerHsPb1004GinkoWorkflowHandlers();
 registerPlBp3014RinWorkflowHandlers();
+registerShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerYoshikoPlayLowCostMembersWorkflowHandlers({ enqueueTriggeredCardEffects });
 
 interface CardEffectRunnerResult {
@@ -1312,16 +1233,7 @@ function isHighCostHasunosoraRelayReplacement(
   game: GameState,
   source: OnLeaveStageAbilitySource
 ): boolean {
-  if (!source.replacingCardId) {
-    return false;
-  }
-  const replacingCard = getCardById(game, source.replacingCardId);
-  return (
-    replacingCard !== null &&
-    isMemberCardData(replacingCard.data) &&
-    isHasunosoraCard(replacingCard) &&
-    costGte(10)(replacingCard)
-  );
+  return isHsSd1001HighCostHasunosoraRelayReplacement(game, source.replacingCardId);
 }
 
 function enqueueSingleOnLeaveStageCardEffect(
@@ -2036,7 +1948,7 @@ export function confirmActiveEffectStep(
     );
   }
   if (effect.metadata?.confirmOnlyPendingAbility === true) {
-    return finishConfirmOnlyPendingAbilityEffect(game);
+    return finishConfirmOnlyPendingAbilityEffect(game, startPendingAbilityEffect);
   }
 
   const registryResult = resolveActiveEffectStepWithRegistry(
@@ -2149,31 +2061,10 @@ export function confirmActiveEffectStep(
   }
 
   if (
-    effect.abilityId === HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID &&
-    effect.stepId === HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID
-  ) {
-    return finishRevealedCheerCardSelection(game, selectedCardId ?? null);
-  }
-
-  if (
     effect.abilityId === BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID &&
     effect.stepId === BP5_007_SELECT_HAND_DISCARD_STEP_ID
   ) {
     return finishBp5007NozomiDiscardToThree(game, selectedCardId ?? null, selectedCardIds);
-  }
-
-  if (
-    effect.abilityId === HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID &&
-    effect.stepId === HS_CL1_009_SELECT_CHEER_MEMBER_TO_HAND_STEP_ID
-  ) {
-    return finishRevealedCheerCardSelection(game, selectedCardId ?? null);
-  }
-
-  if (
-    effect.abilityId === HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID &&
-    effect.stepId === HS_BP6_027_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID
-  ) {
-    return finishRevealedCheerCardSelection(game, selectedCardIds ?? []);
   }
 
   if (
@@ -2249,20 +2140,6 @@ export function confirmActiveEffectStep(
     return selectedOptionId === 'pay'
       ? finishHsBp1TsuzuriLiveStartPayEnergy(game)
       : finishSkipEffect(game);
-  }
-
-  if (
-    effect.abilityId === SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID &&
-    effect.stepId === SHIKI_RIGHT_ACTIVATE_ENERGY_STEP_ID
-  ) {
-    return finishShikiOnEnterRightActivateEnergy(game);
-  }
-
-  if (
-    effect.abilityId === SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID &&
-    effect.stepId === SHIKI_LIVE_START_POSITION_CHANGE_STEP_ID
-  ) {
-    return finishMemberPositionChangeEffect(game, selectedSlot ?? null);
   }
 
   if (
@@ -2536,8 +2413,6 @@ function startPendingAbilityEffect(
       return resolveBp5RinOnEnterSuccessScorePlaceActiveEnergy(game, ability, options);
     case BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID:
       return startBp5007NozomiDiscardToThreeThenDraw(game, ability, options);
-    case HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID:
-      return resolveHsSd1KahoRelayReplacedActivateEnergy(game, ability, options);
     case HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID:
       return startHsBp5003RurinoLeaveStagePositionChange(game, ability, options);
     case HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID:
@@ -2563,22 +2438,12 @@ function startPendingAbilityEffect(
       return startHsPr019GinkoMillGainGreenHeartInspection(game, ability, options);
     case KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID:
       return startKekeOnEnterPlaceWaitingEnergy(game, ability, options);
-    case SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID:
-      return startShikiOnEnterRightActivateEnergy(game, ability, options);
-    case SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID:
-      return startShikiLiveStartPositionChange(game, ability, options);
     case CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID:
       return startChisatoLiveStartActivateAll(game, ability, options);
     case EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID:
       return startEmmaOnEnterActivateMemberOrEnergy(game, ability, options);
     case HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID:
       return startHsBp5KahoOnEnterMillGainBladeInspection(game, ability, options);
-    case HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID:
-      return startHsBp6KahoLiveSuccessCheerToTop(game, ability, options);
-    case HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID:
-      return startHsCl1WatercolorWorldLiveSuccessCheerMemberToHand(game, ability, options);
-    case HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID:
-      return startHsBp6027TsukiyomiOnCheerAdditionalCheer(game, ability, options);
     case HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID:
       return startHsBp6031LiveStartRecycleMembers(game, ability, options);
     case HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID:
@@ -2600,12 +2465,11 @@ function resolveHsPb1KahoOnHasunosoraEnterGainBlade(
     return game;
   }
   if (options.manualConfirmation === true && options.skipManualConfirmation !== true) {
-    return startConfirmOnlyPendingAbilityEffect(
-      game,
+    return startConfirmOnlyPendingAbilityEffect(game, {
       ability,
-      getCardAbilityEffectText(HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID),
-      options
-    );
+      effectText: getCardAbilityEffectText(HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID),
+      orderedResolution: options.orderedResolution === true,
+    });
   }
 
   let state: GameState = {
@@ -2647,12 +2511,11 @@ function startHsBp5KahoOnEnterMillGainBladeInspection(
     return game;
   }
   if (options.manualConfirmation === true && options.skipManualConfirmation !== true) {
-    return startConfirmOnlyPendingAbilityEffect(
-      game,
+    return startConfirmOnlyPendingAbilityEffect(game, {
       ability,
-      getCardAbilityEffectText(HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID),
-      options
-    );
+      effectText: getCardAbilityEffectText(HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID),
+      orderedResolution: options.orderedResolution === true,
+    });
   }
 
   const inspection = inspectTopCards(game, player.id, {
@@ -3604,82 +3467,6 @@ function finishHsBp1TsuzuriLiveStartPayEnergy(game: GameState): GameState {
   );
 }
 
-function resolveHsSd1KahoRelayReplacedActivateEnergy(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: StartPendingAbilityEffectOptions = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  const replacingCardId =
-    typeof ability.metadata?.replacingCardId === 'string' ? ability.metadata.replacingCardId : null;
-  if (!player || !replacingCardId) {
-    return game;
-  }
-  if (options.manualConfirmation === true && options.skipManualConfirmation !== true) {
-    return startConfirmOnlyPendingAbilityEffect(
-      game,
-      ability,
-      getCardAbilityEffectText(HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID),
-      options
-    );
-  }
-
-  const replacingCard = getCardById(game, replacingCardId);
-  if (
-    !replacingCard ||
-    !isMemberCardData(replacingCard.data) ||
-    !isHasunosoraCard(replacingCard) ||
-    !costGte(10)(replacingCard)
-  ) {
-    const state = {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-    };
-    return continuePendingCardEffects(
-      addAction(state, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        step: 'CONDITION_NOT_MET',
-        replacingCardId,
-      }),
-      options.orderedResolution === true
-    );
-  }
-
-  const orientationChange = setFirstEnergyCardsOrientation(
-    game,
-    player.id,
-    2,
-    OrientationState.ACTIVE,
-    { fromOrientation: OrientationState.WAITING }
-  );
-  if (!orientationChange) {
-    return game;
-  }
-
-  const state = {
-    ...orientationChange.gameState,
-    pendingAbilities: orientationChange.gameState.pendingAbilities.filter(
-      (candidate) => candidate.id !== ability.id
-    ),
-  };
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'ACTIVATE_TWO_ENERGY_AFTER_RELAY',
-      replacingCardId,
-      activatedEnergyCardIds: orientationChange.updatedEnergyCardIds,
-      previousOrientations: orientationChange.previousOrientations,
-      nextOrientation: orientationChange.nextOrientation,
-    }),
-    options.orderedResolution === true
-  );
-}
-
 function finishSelectCardsFromZoneToHandEffect(
   game: GameState,
   selectedCardId: string | null,
@@ -4346,398 +4133,6 @@ function startKarinLiveStartInspection(
   });
 }
 
-function startHsBp6KahoLiveSuccessCheerToTop(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: StartPendingAbilityEffectOptions = {}
-): GameState {
-  return startRevealedCheerCardSelection(game, {
-    ability,
-    playerId: ability.controllerId,
-    effectText: getCardAbilityEffectText(HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID),
-    stepId: HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID,
-    stepText: '请选择1张因声援被公开的自己的卡片放置到卡组顶。也可以选择不放置。',
-    selectionLabel: '选择要放回卡组顶的声援公开卡',
-    destination: 'MAIN_DECK_TOP',
-    optional: true,
-    skipSelectionLabel: '不放置',
-    orderedResolution: options.orderedResolution === true,
-  });
-}
-
-function startHsCl1WatercolorWorldLiveSuccessCheerMemberToHand(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: StartPendingAbilityEffectOptions = {}
-): GameState {
-  return startRevealedCheerCardSelection(game, {
-    ability,
-    playerId: ability.controllerId,
-    effectText: getCardAbilityEffectText(HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID),
-    stepId: HS_CL1_009_SELECT_CHEER_MEMBER_TO_HAND_STEP_ID,
-    stepText: '请选择1张因声援被公开的费用4-9成员卡加入手牌。',
-    selectionLabel: '选择要加入手牌的声援公开成员',
-    predicate: (card) => isMemberCardData(card.data) && costGte(4)(card) && costLte(9)(card),
-    destination: 'HAND',
-    optional: false,
-    orderedResolution: options.orderedResolution === true,
-  });
-}
-
-function startHsBp6027TsukiyomiOnCheerAdditionalCheer(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: StartPendingAbilityEffectOptions = {}
-): GameState {
-  return startRevealedCheerCardSelection(game, {
-    ability,
-    playerId: ability.controllerId,
-    effectText: getCardAbilityEffectText(HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID),
-    stepId: HS_BP6_027_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID,
-    stepText:
-      '请选择至多3张因声援被公开的自己的不持有 BLADE HEART 的「莲之空」卡片放置入休息室。之后追加等量声援。',
-    selectionLabel: '选择要放置入休息室的声援公开卡',
-    predicate: and(isHasunosoraCard, not(hasBladeHeart)),
-    destination: 'WAITING_ROOM',
-    optional: true,
-    selectMin: 0,
-    selectMax: 3,
-    additionalCheerEqualToMoved: true,
-    skipSelectionLabel: '不放置',
-    orderedResolution: options.orderedResolution === true,
-  });
-}
-
-export function syncHsBp6027ManualCheerAdjustment(
-  game: GameState,
-  playerId: string,
-  options: { readonly allowCreate?: boolean } = {}
-): GameState {
-  const activeEffect = game.activeEffect;
-  if (
-    activeEffect &&
-    activeEffect.abilityId === HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID &&
-    activeEffect.stepId === HS_BP6_027_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID
-  ) {
-    return refreshHsBp6027ManualCheerSelection(game, activeEffect);
-  }
-
-  if (activeEffect || options.allowCreate !== true) {
-    return game;
-  }
-
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return game;
-  }
-
-  const selectableCardIds = selectHsBp6027CheerCardIds(game, player.id);
-  if (selectableCardIds.length === 0) {
-    return game;
-  }
-
-  const pendingAbilities = player.liveZone.cardIds.flatMap((sourceCardId) => {
-    const sourceCard = getCardById(game, sourceCardId);
-    const abilityDefinition = getQueuedAbilityDefinitionsForCard(
-      sourceCard?.data.cardCode,
-      CardAbilityCategory.AUTO,
-      CardAbilitySourceZone.LIVE_CARD
-    ).find((ability) => ability.abilityId === HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID);
-    if (!sourceCard || !abilityDefinition) {
-      return [];
-    }
-
-    const pendingAbilityId = `${abilityDefinition.abilityId}:${sourceCardId}:manual-cheer-adjust:${game.turnCount}:${selectableCardIds.join(',')}`;
-    if (hasAbilityInstance(game, pendingAbilityId)) {
-      return [];
-    }
-
-    const pendingAbility: PendingAbilityState = {
-      id: pendingAbilityId,
-      abilityId: abilityDefinition.abilityId,
-      sourceCardId,
-      controllerId: sourceCard.ownerId,
-      mandatory: true,
-      timingId: 'MANUAL_CHEER_ADJUSTMENT',
-      eventIds: [],
-      metadata: {
-        manualCheerAdjustment: true,
-      },
-    };
-    return [pendingAbility];
-  });
-
-  if (pendingAbilities.length === 0) {
-    return game;
-  }
-
-  const state = addAction(
-    {
-      ...game,
-      pendingAbilities: [...game.pendingAbilities, ...pendingAbilities],
-    },
-    'TRIGGER_ABILITY',
-    player.id,
-    {
-      abilityId: HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
-      timingId: 'MANUAL_CHEER_ADJUSTMENT',
-      manualCheerAdjustment: true,
-      selectableCardIds,
-    }
-  );
-
-  return resolvePendingCardEffects(state).gameState;
-}
-
-function refreshHsBp6027ManualCheerSelection(
-  game: GameState,
-  activeEffect: ActiveEffectState
-): GameState {
-  const selectableCardIds = selectHsBp6027CheerCardIds(game, activeEffect.controllerId);
-  if (selectableCardIds.length === 0) {
-    return continuePendingCardEffects(
-      addAction(
-        {
-          ...game,
-          activeEffect: null,
-        },
-        'RESOLVE_ABILITY',
-        activeEffect.controllerId,
-        {
-          pendingAbilityId: activeEffect.id,
-          abilityId: activeEffect.abilityId,
-          sourceCardId: activeEffect.sourceCardId,
-          step: 'MANUAL_CHEER_TARGETS_CLEARED',
-        }
-      ),
-      isOrderedResolutionEffect(game)
-    );
-  }
-
-  const maxSelectableCards = Math.min(3, selectableCardIds.length);
-  const previousSelectableCardIds = activeEffect.selectableCardIds ?? [];
-  const selectionUnchanged =
-    previousSelectableCardIds.length === selectableCardIds.length &&
-    previousSelectableCardIds.every((cardId, index) => cardId === selectableCardIds[index]) &&
-    activeEffect.maxSelectableCards === maxSelectableCards;
-
-  if (selectionUnchanged) {
-    return game;
-  }
-
-  return addAction(
-    {
-      ...game,
-      activeEffect: {
-        ...activeEffect,
-        selectableCardIds,
-        maxSelectableCards,
-      },
-    },
-    'RESOLVE_ABILITY',
-    activeEffect.controllerId,
-    {
-      pendingAbilityId: activeEffect.id,
-      abilityId: activeEffect.abilityId,
-      sourceCardId: activeEffect.sourceCardId,
-      step: 'MANUAL_CHEER_TARGETS_REFRESHED',
-      selectableCardIds,
-    }
-  );
-}
-
-function selectHsBp6027CheerCardIds(game: GameState, playerId: string): readonly string[] {
-  return selectRevealedCheerCardIds(game, playerId, and(isHasunosoraCard, not(hasBladeHeart)));
-}
-
-function startRevealedCheerCardSelection(
-  game: GameState,
-  config: RevealedCheerCardSelectionConfig
-): GameState {
-  const player = getPlayerById(game, config.playerId);
-  if (!player) {
-    return game;
-  }
-
-  const selectableCardIds = selectRevealedCheerCardIds(game, player.id, config.predicate);
-  if (selectableCardIds.length === 0) {
-    const state = {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter(
-        (candidate) => candidate.id !== config.ability.id
-      ),
-    };
-    return continuePendingCardEffects(
-      addAction(state, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: config.ability.id,
-        abilityId: config.ability.abilityId,
-        sourceCardId: config.ability.sourceCardId,
-        step: 'NO_REVEALED_CHEER_TARGET',
-      }),
-      config.orderedResolution
-    );
-  }
-
-  const selectMin = config.selectMin ?? (config.optional ? 0 : 1);
-  const selectMax = Math.min(config.selectMax ?? 1, selectableCardIds.length);
-  const useMultiSelect =
-    selectMax > 1 || config.selectMin !== undefined || config.selectMax !== undefined;
-  const confirmSelectionLabel =
-    config.destination === 'HAND'
-      ? '加入手牌'
-      : config.destination === 'WAITING_ROOM'
-        ? '放置入休息室'
-        : '放回卡组顶';
-
-  const state: GameState = {
-    ...game,
-    pendingAbilities: game.pendingAbilities.filter(
-      (candidate) => candidate.id !== config.ability.id
-    ),
-    activeEffect: {
-      id: config.ability.id,
-      abilityId: config.ability.abilityId,
-      sourceCardId: config.ability.sourceCardId,
-      controllerId: config.ability.controllerId,
-      effectText: config.effectText,
-      stepId: config.stepId,
-      stepText: config.stepText,
-      awaitingPlayerId: player.id,
-      selectableCardIds,
-      selectableCardVisibility: 'PUBLIC',
-      selectableCardMode: useMultiSelect ? 'ORDERED_MULTI' : 'SINGLE',
-      minSelectableCards: useMultiSelect ? selectMin : undefined,
-      maxSelectableCards: useMultiSelect ? selectMax : undefined,
-      selectionLabel: config.selectionLabel,
-      confirmSelectionLabel,
-      canSkipSelection: config.optional,
-      skipSelectionLabel: config.skipSelectionLabel,
-      metadata: {
-        cheerRevealedCardSelection: true,
-        destination: config.destination,
-        additionalCheerEqualToMoved: config.additionalCheerEqualToMoved === true,
-        orderedResolution: config.orderedResolution,
-      },
-    },
-  };
-
-  return addAction(state, 'RESOLVE_ABILITY', player.id, {
-    pendingAbilityId: config.ability.id,
-    abilityId: config.ability.abilityId,
-    sourceCardId: config.ability.sourceCardId,
-    step: 'START_SELECT_REVEALED_CHEER_CARD',
-    selectableCardIds,
-    destination: config.destination,
-  });
-}
-
-function finishRevealedCheerCardSelection(
-  game: GameState,
-  selectedCardIdOrIds: string | readonly string[] | null
-): GameState {
-  const effect = game.activeEffect;
-  if (!effect || effect.metadata?.cheerRevealedCardSelection !== true) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const destination =
-    effect.metadata?.destination === 'HAND' ||
-    effect.metadata?.destination === 'MAIN_DECK_TOP' ||
-    effect.metadata?.destination === 'WAITING_ROOM'
-      ? effect.metadata.destination
-      : null;
-  if (!destination) {
-    return game;
-  }
-
-  const selectedCardIds =
-    selectedCardIdOrIds === null
-      ? []
-      : Array.isArray(selectedCardIdOrIds)
-        ? selectedCardIdOrIds
-        : [selectedCardIdOrIds];
-  const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
-  const minCount =
-    effect.selectableCardMode === 'ORDERED_MULTI' ? (effect.minSelectableCards ?? 0) : 0;
-  const maxCount =
-    effect.selectableCardMode === 'ORDERED_MULTI'
-      ? (effect.maxSelectableCards ?? effect.selectableCardIds?.length ?? 0)
-      : 1;
-
-  if (uniqueSelectedCardIds.length === 0) {
-    if (effect.canSkipSelection !== true) {
-      return game;
-    }
-    const state = {
-      ...game,
-      activeEffect: null,
-    };
-    return continuePendingCardEffects(
-      addAction(state, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        step: 'SKIP_REVEALED_CHEER_CARD_SELECTION',
-        destination,
-      }),
-      isOrderedResolutionEffect(game)
-    );
-  }
-
-  if (
-    uniqueSelectedCardIds.length !== selectedCardIds.length ||
-    uniqueSelectedCardIds.length < minCount ||
-    uniqueSelectedCardIds.length > maxCount ||
-    !uniqueSelectedCardIds.every((cardId) => effect.selectableCardIds?.includes(cardId) === true)
-  ) {
-    return game;
-  }
-
-  const moveResult = moveRevealedCheerCards(game, player.id, uniqueSelectedCardIds, destination);
-  if (!moveResult) {
-    return game;
-  }
-
-  let state: GameState = {
-    ...moveResult.gameState,
-    activeEffect: null,
-  };
-  let additionalCheerCardIds: readonly string[] = [];
-  if (
-    effect.metadata?.additionalCheerEqualToMoved === true &&
-    moveResult.movedCardIds.length > 0
-  ) {
-    const cheerResult = revealCheerCardsFromMainDeck(
-      state,
-      player.id,
-      moveResult.movedCardIds.length,
-      {
-        automated: true,
-        additional: true,
-      }
-    );
-    state = cheerResult.gameState;
-    additionalCheerCardIds = cheerResult.cheerCardIds;
-  }
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'MOVE_REVEALED_CHEER_CARD',
-      movedCardIds: moveResult.movedCardIds,
-      additionalCheerCardIds,
-      destination,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
 function startHsBp6031LiveStartRecycleMembers(
   game: GameState,
   ability: PendingAbilityState,
@@ -5300,100 +4695,6 @@ function resolvePb1015OwnEffectWaitOpponentLowCostDraw(
   );
 }
 
-function startShikiOnEnterRightActivateEnergy(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const waitingEnergyCardIds = player.energyZone.cardIds.filter(
-    (cardId) => player.energyZone.cardStates.get(cardId)?.orientation === OrientationState.WAITING
-  );
-  const maxActivateCount = Math.min(2, waitingEnergyCardIds.length);
-  const stepText = `确认后将至多2张待机能量变为活跃状态。（当前可变为活跃：${maxActivateCount}张）`;
-
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
-        effectText: getCardAbilityEffectText(SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID),
-        stepId: SHIKI_RIGHT_ACTIVATE_ENERGY_STEP_ID,
-        stepText,
-        awaitingPlayerId: player.id,
-        metadata: {
-          orderedResolution: options.orderedResolution === true,
-          sourceSlot: ability.sourceSlot,
-          fromOrientation: OrientationState.WAITING,
-          nextOrientation: OrientationState.ACTIVE,
-          maxActivateCount,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_CONFIRM',
-      sourceSlot: ability.sourceSlot,
-      waitingEnergyCardIds,
-      maxActivateCount,
-    }
-  );
-}
-
-function finishShikiOnEnterRightActivateEnergy(game: GameState): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const orientationChange = setFirstEnergyCardsOrientation(
-    game,
-    player.id,
-    2,
-    OrientationState.ACTIVE,
-    { fromOrientation: OrientationState.WAITING }
-  );
-  if (!orientationChange) {
-    return game;
-  }
-
-  const state = {
-    ...orientationChange.gameState,
-    activeEffect: null,
-  };
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'ACTIVATE_ENERGY',
-      sourceSlot: effect.metadata?.sourceSlot,
-      activatedEnergyCardIds: orientationChange.updatedEnergyCardIds,
-      previousOrientations: orientationChange.previousOrientations,
-      nextOrientation: orientationChange.nextOrientation,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
 function startChisatoLiveStartActivateAll(
   game: GameState,
   ability: PendingAbilityState,
@@ -5736,159 +5037,6 @@ function finishEmmaActivateEnergy(game: GameState, energyCardIds: readonly strin
       nextOrientation: orientationChange.nextOrientation,
     }),
     isOrderedResolutionEffect(game)
-  );
-}
-
-function startShikiLiveStartPositionChange(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  return startMemberPositionChangeEffect(game, {
-    ability,
-    effectText: getCardAbilityEffectText(SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID),
-    stepId: SHIKI_LIVE_START_POSITION_CHANGE_STEP_ID,
-    stepText: '请选择若菜四季要移动到的成员区。也可以选择不进行站位变换。',
-    optional: true,
-    orderedResolution: options.orderedResolution === true,
-  });
-}
-
-function startMemberPositionChangeEffect(
-  game: GameState,
-  config: MemberPositionChangeEffectConfig
-): GameState {
-  const player = getPlayerById(game, config.ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const sourceSlot =
-    config.ability.sourceSlot ?? findMemberSlot(player, config.ability.sourceCardId);
-  if (!sourceSlot) {
-    return continuePendingCardEffects(
-      {
-        ...game,
-        pendingAbilities: game.pendingAbilities.filter(
-          (candidate) => candidate.id !== config.ability.id
-        ),
-      },
-      config.orderedResolution
-    );
-  }
-
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter(
-        (candidate) => candidate.id !== config.ability.id
-      ),
-      activeEffect: {
-        id: config.ability.id,
-        abilityId: config.ability.abilityId,
-        sourceCardId: config.ability.sourceCardId,
-        controllerId: config.ability.controllerId,
-        effectText: config.effectText,
-        stepId: config.stepId,
-        stepText: config.stepText,
-        awaitingPlayerId: player.id,
-        selectableSlots: Object.values(SlotPosition).filter((slot) => slot !== sourceSlot),
-        canSkipSelection: config.optional,
-        skipSelectionLabel: config.optional ? '不发动' : undefined,
-        metadata: {
-          orderedResolution: config.orderedResolution,
-          sourceSlot,
-          optional: config.optional,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: config.ability.id,
-      abilityId: config.ability.abilityId,
-      sourceCardId: config.ability.sourceCardId,
-      step: 'START_POSITION_CHANGE',
-      sourceSlot,
-      optional: config.optional,
-    }
-  );
-}
-
-function finishMemberPositionChangeEffect(
-  game: GameState,
-  selectedSlot: SlotPosition | null
-): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const orderedResolution = isOrderedResolutionEffect(game);
-  if (!selectedSlot) {
-    if (effect.canSkipSelection !== true) {
-      return game;
-    }
-
-    const state = {
-      ...game,
-      activeEffect: null,
-    };
-
-    return continuePendingCardEffects(
-      addAction(state, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        step: 'POSITION_CHANGE_SKIPPED',
-        sourceSlot: effect.metadata?.sourceSlot,
-      }),
-      orderedResolution
-    );
-  }
-
-  if (!effect.selectableSlots?.includes(selectedSlot)) {
-    return game;
-  }
-
-  const sourceSlot = findMemberSlot(player, effect.sourceCardId);
-  if (!sourceSlot || sourceSlot === selectedSlot) {
-    return game;
-  }
-
-  const moveResult = moveMemberBetweenSlots(game, player.id, effect.sourceCardId, selectedSlot);
-  if (!moveResult) {
-    return game;
-  }
-
-  const state = {
-    ...moveResult.gameState,
-    activeEffect: null,
-  };
-  const stateWithMemberMoveTriggers = enqueueTriggeredCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'POSITION_CHANGE',
-      fromSlot: moveResult.fromSlot,
-      toSlot: moveResult.toSlot,
-      swappedCardId: moveResult.swappedCardId,
-    }),
-    [TriggerCondition.ON_MEMBER_SLOT_MOVED],
-    {
-      memberSlotMovedEvents: getNewMemberSlotMovedEvents(game, moveResult.gameState),
-    }
-  );
-
-  return continuePendingCardEffects(
-    stateWithMemberMoveTriggers,
-    orderedResolution
   );
 }
 

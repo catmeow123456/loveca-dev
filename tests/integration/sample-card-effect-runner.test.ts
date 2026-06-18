@@ -28,6 +28,7 @@ import {
   registerCards,
   updatePlayer,
   type GameState,
+  type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { createCheerEvent, createLiveSuccessEvent } from '../../src/domain/events/game-events';
 import {
@@ -132,6 +133,7 @@ import {
   YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID,
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
 } from '../../src/application/card-effect-runner';
+import { resolvePendingAbilityStarterWithRegistry } from '../../src/application/card-effects/runtime/starter-registry';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -8632,6 +8634,21 @@ describe('sample card effect runner', () => {
       SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID
     );
     expect(session.state?.activeEffect?.metadata?.sourceSlot).toBe(SlotPosition.RIGHT);
+    expect(session.state?.activeEffect?.metadata?.maxActivateCount).toBe(2);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID &&
+          action.payload.step === 'START_CONFIRM' &&
+          action.payload.sourceSlot === SlotPosition.RIGHT &&
+          Array.isArray(action.payload.waitingEnergyCardIds) &&
+          action.payload.waitingEnergyCardIds[0] === energyToActivate[0] &&
+          action.payload.waitingEnergyCardIds[1] === energyToActivate[1] &&
+          action.payload.waitingEnergyCardIds[2] === waitingEnergyToLeave &&
+          action.payload.maxActivateCount === 2
+      )
+    ).toBe(true);
     expect(
       session.state?.actionHistory.some(
         (action) =>
@@ -8665,12 +8682,147 @@ describe('sample card effect runner', () => {
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.abilityId === SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID &&
           action.payload.step === 'ACTIVATE_ENERGY' &&
+          action.payload.sourceSlot === SlotPosition.RIGHT &&
           Array.isArray(action.payload.activatedEnergyCardIds) &&
           action.payload.activatedEnergyCardIds[0] === energyToActivate[0] &&
-          action.payload.activatedEnergyCardIds[1] === energyToActivate[1]
+          action.payload.activatedEnergyCardIds[1] === energyToActivate[1] &&
+          Array.isArray(action.payload.previousOrientations) &&
+          action.payload.previousOrientations.some(
+            (entry: { readonly cardId: string; readonly orientation: OrientationState }) =>
+              entry.cardId === energyToActivate[0] &&
+              entry.orientation === OrientationState.WAITING
+          ) &&
+          action.payload.previousOrientations.some(
+            (entry: { readonly cardId: string; readonly orientation: OrientationState }) =>
+              entry.cardId === energyToActivate[1] &&
+              entry.orientation === OrientationState.WAITING
+          ) &&
+          action.payload.nextOrientation === OrientationState.ACTIVE
       )
     ).toBe(true);
   });
+
+  for (const scenario of [
+    { waitingEnergyCount: 0, label: 'no waiting energy' },
+    { waitingEnergyCount: 1, label: 'one waiting energy' },
+  ] as const) {
+    it(`resolves PL!SP-bp4-008-P right-side on-enter effect with ${scenario.label}`, () => {
+      const session = createGameSession();
+      const deck = createDeck();
+
+      session.createGame(
+        `sample-shiki-right-energy-${scenario.waitingEnergyCount}-runner`,
+        PLAYER1,
+        'Player 1',
+        PLAYER2,
+        'Player 2'
+      );
+      session.initializeGame(deck, deck);
+      forceMainPhaseForPlayer(session);
+
+      const state = session.state!;
+      const p1 = state.players[0] as unknown as {
+        hand: { cardIds: string[] };
+        mainDeck: { cardIds: string[] };
+        waitingRoom: { cardIds: string[] };
+        successZone: { cardIds: string[] };
+        liveZone: { cardIds: string[] };
+        energyDeck: { cardIds: string[] };
+        energyZone: {
+          cardIds: string[];
+          cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+        };
+        memberSlots: {
+          slots: Record<SlotPosition, string | null>;
+          cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+        };
+      };
+
+      const ownedP1CardIds = [...state.cardRegistry.values()]
+        .filter((card) => card.ownerId === PLAYER1)
+        .map((card) => card.instanceId);
+      const shikiCardId = ownedP1CardIds.find(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!SP-bp4-008-P'
+      );
+      const relayMemberCardId = ownedP1CardIds.find(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!-sd1-003-SD'
+      );
+      const energyCardIds = ownedP1CardIds.filter(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+      );
+      const energyCards = energyCardIds.slice(0, 3);
+      const waitingEnergyCardIds = energyCards.slice(0, scenario.waitingEnergyCount);
+
+      expect(shikiCardId).toBeTruthy();
+      expect(relayMemberCardId).toBeTruthy();
+      expect(energyCards).toHaveLength(3);
+
+      removeFromPlayerZones(p1);
+      p1.energyDeck.cardIds = [];
+      setEnergyZoneCards(
+        p1,
+        energyCards.map((cardId, index) => ({
+          cardId,
+          orientation:
+            index < scenario.waitingEnergyCount
+              ? OrientationState.WAITING
+              : OrientationState.ACTIVE,
+        }))
+      );
+      p1.hand.cardIds = [shikiCardId!];
+      p1.memberSlots.slots[SlotPosition.RIGHT] = relayMemberCardId!;
+      p1.memberSlots.cardStates = new Map([
+        [relayMemberCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      ]);
+
+      const playResult = session.executeCommand(
+        createPlayMemberToSlotCommand(PLAYER1, shikiCardId!, SlotPosition.RIGHT)
+      );
+
+      expect(playResult.success).toBe(true);
+      expect(session.state?.activeEffect?.abilityId).toBe(
+        SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID
+      );
+      expect(session.state?.activeEffect?.metadata?.maxActivateCount).toBe(
+        scenario.waitingEnergyCount
+      );
+      expect(
+        session.state?.actionHistory.some(
+          (action) =>
+            action.type === 'RESOLVE_ABILITY' &&
+            action.payload.abilityId === SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID &&
+            action.payload.step === 'START_CONFIRM' &&
+            action.payload.sourceSlot === SlotPosition.RIGHT &&
+            action.payload.maxActivateCount === scenario.waitingEnergyCount &&
+            Array.isArray(action.payload.waitingEnergyCardIds) &&
+            action.payload.waitingEnergyCardIds.length === scenario.waitingEnergyCount
+        )
+      ).toBe(true);
+
+      const confirmResult = session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      );
+
+      expect(confirmResult.success).toBe(true);
+      expect(session.state?.activeEffect).toBeNull();
+      for (const cardId of waitingEnergyCardIds) {
+        expect(session.state?.players[0].energyZone.cardStates.get(cardId)?.orientation).toBe(
+          OrientationState.ACTIVE
+        );
+      }
+      expect(
+        session.state?.actionHistory.some(
+          (action) =>
+            action.type === 'RESOLVE_ABILITY' &&
+            action.payload.abilityId === SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID &&
+            action.payload.step === 'ACTIVATE_ENERGY' &&
+            Array.isArray(action.payload.activatedEnergyCardIds) &&
+            action.payload.activatedEnergyCardIds.length === scenario.waitingEnergyCount &&
+            action.payload.nextOrientation === OrientationState.ACTIVE
+        )
+      ).toBe(true);
+    });
+  }
 
   it('does not trigger PL!SP-bp4-008-P right-side on-enter effect from the center slot', () => {
     const session = createGameSession();
@@ -8889,6 +9041,196 @@ describe('sample card effect runner', () => {
           action.payload.swappedCardId === rightMemberCardId
       )
     ).toBe(true);
+    expect(
+      session.state?.eventLog.some(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_MEMBER_SLOT_MOVED &&
+          entry.event.cardInstanceId === shikiCardId &&
+          entry.event.controllerId === PLAYER1 &&
+          entry.event.fromSlot === SlotPosition.CENTER &&
+          entry.event.toSlot === SlotPosition.RIGHT &&
+          entry.event.swappedCardInstanceId === rightMemberCardId
+      )
+    ).toBe(true);
+  });
+
+  it('allows PL!SP-bp4-008-P live-start position change to be skipped', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-shiki-live-start-position-change-skip-runner',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const shikiCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!SP-bp4-008-P'
+    );
+    const rightMemberCardId = ownedP1CardIds.find(
+      (cardId) =>
+        cardId !== shikiCardId && state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-0'
+    );
+
+    expect(shikiCardId).toBeTruthy();
+    expect(rightMemberCardId).toBeTruthy();
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = shikiCardId!;
+    p1.memberSlots.slots[SlotPosition.RIGHT] = rightMemberCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [shikiCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      [rightMemberCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+
+    const pendingAbility: PendingAbilityState = {
+      id: 'pending-shiki-position-skip',
+      abilityId: SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID,
+      sourceCardId: shikiCardId!,
+      controllerId: PLAYER1,
+      mandatory: false,
+      timingId: TriggerCondition.ON_LIVE_START,
+      eventIds: [],
+      sourceSlot: SlotPosition.CENTER,
+    };
+    const startState = resolvePendingAbilityStarterWithRegistry(
+      { ...state, pendingAbilities: [pendingAbility] },
+      pendingAbility,
+      {},
+      { continuePendingCardEffects: (nextState) => nextState }
+    );
+
+    expect(startState?.activeEffect?.canSkipSelection).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState = startState!;
+
+    const skipResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(skipResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(shikiCardId);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBe(
+      rightMemberCardId
+    );
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID &&
+          action.payload.step === 'POSITION_CHANGE_SKIPPED' &&
+          action.payload.sourceSlot === SlotPosition.CENTER
+      )
+    ).toBe(true);
+  });
+
+  it('keeps PL!SP-bp4-008-P live-start position change unchanged for an invalid slot', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-shiki-live-start-position-change-invalid-runner',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const shikiCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!SP-bp4-008-P'
+    );
+    const rightMemberCardId = ownedP1CardIds.find(
+      (cardId) =>
+        cardId !== shikiCardId && state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-0'
+    );
+
+    expect(shikiCardId).toBeTruthy();
+    expect(rightMemberCardId).toBeTruthy();
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = shikiCardId!;
+    p1.memberSlots.slots[SlotPosition.RIGHT] = rightMemberCardId!;
+    p1.memberSlots.cardStates = new Map([
+      [shikiCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      [rightMemberCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+
+    const pendingAbility: PendingAbilityState = {
+      id: 'pending-shiki-position-invalid',
+      abilityId: SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID,
+      sourceCardId: shikiCardId!,
+      controllerId: PLAYER1,
+      mandatory: false,
+      timingId: TriggerCondition.ON_LIVE_START,
+      eventIds: [],
+      sourceSlot: SlotPosition.CENTER,
+    };
+    const startState = resolvePendingAbilityStarterWithRegistry(
+      { ...state, pendingAbilities: [pendingAbility] },
+      pendingAbility,
+      {},
+      { continuePendingCardEffects: (nextState) => nextState }
+    );
+
+    expect(startState?.activeEffect?.selectableSlots).toEqual([
+      SlotPosition.LEFT,
+      SlotPosition.RIGHT,
+    ]);
+    (session as unknown as { authorityState: GameState }).authorityState = startState!;
+    const actionCountBeforeInvalidSelection = session.state!.actionHistory.length;
+
+    const invalidResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        SlotPosition.CENTER
+      )
+    );
+
+    expect(invalidResult.success).toBe(false);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID
+    );
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(shikiCardId);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBe(
+      rightMemberCardId
+    );
+    expect(session.state?.actionHistory).toHaveLength(actionCountBeforeInvalidSelection);
   });
 
   it('limits PL!-sd1-008-SD activated ability to once per turn per source card', () => {
@@ -12166,6 +12508,115 @@ describe('sample card effect runner', () => {
     expect(cheerEvents).toHaveLength(1);
   });
 
+  it('lets PL!HS-bp6-027-L revealed cheer selection skip without adding cheer', () => {
+    const session = setupTsukiyomiManualCheerAdjustmentSession();
+
+    const revealResult = session.executeCommand(createRevealCheerCardCommand(PLAYER1));
+    expect(revealResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID
+    );
+    const effectId = session.state!.activeEffect!.id;
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        effectId,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        []
+      )
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(
+      'p1-tsukiyomi-manual-cheer-target-0'
+    );
+    expect(session.state?.resolutionZone.cardIds).toContain(
+      'p1-tsukiyomi-manual-cheer-target-0'
+    );
+    const cheerEvents = session.state!.eventLog
+      .map((entry) => entry.event)
+      .filter((event) => event.eventType === TriggerCondition.ON_CHEER);
+    expect(cheerEvents).toHaveLength(1);
+    expect(
+      getLatestResolveAbilityPayload(
+        session.state!,
+        HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID
+      )
+    ).toMatchObject({
+      step: 'SKIP_REVEALED_CHEER_CARD_SELECTION',
+      destination: 'WAITING_ROOM',
+    });
+  });
+
+  it('does not offer PL!HS-bp6-027-L cards that were not revealed by the current cheer', () => {
+    const session = setupTsukiyomiManualCheerAdjustmentSession();
+    const state = session.state!;
+    const mutableState = state as unknown as {
+      resolutionZone: GameState['resolutionZone'];
+    };
+    mutableState.resolutionZone = {
+      ...state.resolutionZone,
+      cardIds: ['p1-tsukiyomi-manual-cheer-filler'],
+      revealedCardIds: ['p1-tsukiyomi-manual-cheer-filler'],
+    };
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const revealResult = session.executeCommand(createRevealCheerCardCommand(PLAYER1));
+
+    expect(revealResult.success).toBe(true);
+    expect(session.state?.resolutionZone.revealedCardIds).toEqual([
+      'p1-tsukiyomi-manual-cheer-filler',
+      'p1-tsukiyomi-manual-cheer-target-0',
+    ]);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+      'p1-tsukiyomi-manual-cheer-target-0',
+    ]);
+  });
+
+  it('keeps PL!HS-bp6-027-L selection open when choosing more than three cheer cards', () => {
+    const session = setupTsukiyomiManualCheerAdjustmentSession(4);
+
+    for (let index = 0; index < 4; index++) {
+      const revealResult = session.executeCommand(createRevealCheerCardCommand(PLAYER1));
+      expect(revealResult.success).toBe(true);
+    }
+
+    const effectId = session.state!.activeEffect!.id;
+    const beforeActionCount = session.state!.actionHistory.length;
+    const selectedCardIds = [
+      'p1-tsukiyomi-manual-cheer-target-0',
+      'p1-tsukiyomi-manual-cheer-target-1',
+      'p1-tsukiyomi-manual-cheer-target-2',
+      'p1-tsukiyomi-manual-cheer-target-3',
+    ];
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        effectId,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        selectedCardIds
+      )
+    );
+
+    expect(confirmResult.success).toBe(false);
+    expect(session.state?.activeEffect?.id).toBe(effectId);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual(selectedCardIds);
+    expect(session.state?.activeEffect?.maxSelectableCards).toBe(3);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.actionHistory).toHaveLength(beforeActionCount);
+  });
+
   it('clears PL!HS-bp6-027-L manual cheer adjustment selection after its target leaves resolution', () => {
     const session = setupTsukiyomiManualCheerAdjustmentSession();
 
@@ -13953,14 +14404,297 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[2])?.orientation).toBe(
       OrientationState.WAITING
     );
-    expect(
-      session.state?.actionHistory.some(
+    const resolveAction = session.state?.actionHistory.find(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' &&
+        action.payload.abilityId === HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID &&
+        action.payload.step === 'ACTIVATE_TWO_ENERGY_AFTER_RELAY'
+    );
+    expect(resolveAction?.payload).toMatchObject({
+      replacingCardId: highCostHasunosoraCardId,
+      activatedEnergyCardIds: [energyCardIds[0], energyCardIds[1]],
+      previousOrientations: [
+        { cardId: energyCardIds[0], orientation: OrientationState.WAITING },
+        { cardId: energyCardIds[1], orientation: OrientationState.WAITING },
+      ],
+      nextOrientation: OrientationState.ACTIVE,
+    });
+  });
+
+  it.each([
+    { waitingEnergyCount: 0, expectedActivatedCount: 0 },
+    { waitingEnergyCount: 1, expectedActivatedCount: 1 },
+  ])(
+    'resolves PL!HS-sd1-001-SD relay replacement with $waitingEnergyCount waiting energy',
+    ({ waitingEnergyCount, expectedActivatedCount }) => {
+      const session = createGameSession();
+      const deck = createDeck();
+
+      session.createGame(
+        `sample-hs-sd1-001-relay-${waitingEnergyCount}-waiting-energy`,
+        PLAYER1,
+        'Player 1',
+        PLAYER2,
+        'Player 2'
+      );
+      session.initializeGame(deck, deck);
+      forceMainPhaseForPlayer(session);
+
+      let state = session.state!;
+      const highCostHasunosoraMember = createCardInstance(
+        createMemberCard(
+          `PL!HS-test-sd1-001-relay-member-${waitingEnergyCount}`,
+          '蓮ノ空 10 Cost Member',
+          10,
+          '蓮ノ空'
+        ),
+        PLAYER1,
+        `p1-sd1-001-relay-member-${waitingEnergyCount}`
+      );
+      state = registerCards(state, [highCostHasunosoraMember]);
+      const ownedP1CardIds = [...state.cardRegistry.values()]
+        .filter((card) => card.ownerId === PLAYER1)
+        .map((card) => card.instanceId);
+      const kahoCardId = ownedP1CardIds.find(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-sd1-001-SD'
+      );
+      const energyCardIds = ownedP1CardIds.filter(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+      );
+      const highCostHasunosoraCardId = highCostHasunosoraMember.instanceId;
+
+      expect(kahoCardId).toBeTruthy();
+      expect(energyCardIds.length).toBeGreaterThanOrEqual(2);
+
+      const preparedState = updatePlayer(state, PLAYER1, (player) => ({
+        ...player,
+        hand: { ...player.hand, cardIds: [highCostHasunosoraCardId] },
+        waitingRoom: { ...player.waitingRoom, cardIds: [] },
+        successZone: { ...player.successZone, cardIds: [] },
+        liveZone: { ...player.liveZone, cardIds: [] },
+        energyZone: {
+          ...player.energyZone,
+          cardIds: energyCardIds.slice(0, 2),
+          cardStates: new Map(
+            energyCardIds.slice(0, 2).map((cardId, index) => [
+              cardId,
+              {
+                orientation:
+                  index < waitingEnergyCount ? OrientationState.WAITING : OrientationState.ACTIVE,
+                face: FaceState.FACE_UP,
+              },
+            ])
+          ),
+        },
+        memberSlots: {
+          ...player.memberSlots,
+          slots: {
+            [SlotPosition.LEFT]: null,
+            [SlotPosition.CENTER]: kahoCardId!,
+            [SlotPosition.RIGHT]: null,
+          },
+          cardStates: new Map([
+            [kahoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+          ]),
+        },
+      }));
+      const pendingAbility: PendingAbilityState = {
+        id: `test-hs-sd1-001-${waitingEnergyCount}-waiting-energy`,
+        abilityId: HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
+        sourceCardId: kahoCardId!,
+        controllerId: PLAYER1,
+        mandatory: true,
+        timingId: TriggerCondition.ON_LEAVE_STAGE,
+        eventIds: [`test-leave-stage-event-${waitingEnergyCount}`],
+        metadata: {
+          replacingCardId: highCostHasunosoraCardId,
+        },
+      };
+      const resultState = resolvePendingAbilityStarterWithRegistry(
+        {
+          ...preparedState,
+          pendingAbilities: [pendingAbility],
+        },
+        pendingAbility,
+        {},
+        {
+          continuePendingCardEffects: (nextState) => nextState,
+        }
+      );
+
+      expect(resultState).not.toBeNull();
+      expect(resultState?.activeEffect).toBeNull();
+      const resolveAction = resultState?.actionHistory.find(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.abilityId === HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID &&
           action.payload.step === 'ACTIVATE_TWO_ENERGY_AFTER_RELAY'
+      );
+      const expectedActivatedEnergyCardIds = energyCardIds.slice(0, expectedActivatedCount);
+      expect(resolveAction?.payload).toMatchObject({
+        replacingCardId: highCostHasunosoraCardId,
+        activatedEnergyCardIds: expectedActivatedEnergyCardIds,
+        previousOrientations: expectedActivatedEnergyCardIds.map((cardId) => ({
+          cardId,
+          orientation: OrientationState.WAITING,
+        })),
+        nextOrientation: OrientationState.ACTIVE,
+      });
+      for (const cardId of expectedActivatedEnergyCardIds) {
+        expect(resultState?.players[0].energyZone.cardStates.get(cardId)?.orientation).toBe(
+          OrientationState.ACTIVE
+        );
+      }
+    }
+  );
+
+  it('keeps PL!HS-sd1-001-SD relay replacement condition checked inside the workflow', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-hs-sd1-001-relay-condition-not-met-starter',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    let state = session.state!;
+    const lowCostHasunosoraMember = createCardInstance(
+      createMemberCard('PL!HS-test-sd1-001-low-cost-relay-member', '蓮ノ空 Low Cost Member', 9, '蓮ノ空'),
+      PLAYER1,
+      'p1-sd1-001-low-cost-relay-member'
+    );
+    state = registerCards(state, [lowCostHasunosoraMember]);
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const kahoCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-sd1-001-SD'
+    );
+    const pendingAbility: PendingAbilityState = {
+      id: 'test-hs-sd1-001-condition-not-met',
+      abilityId: HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
+      sourceCardId: kahoCardId!,
+      controllerId: PLAYER1,
+      mandatory: true,
+      timingId: TriggerCondition.ON_LEAVE_STAGE,
+      eventIds: ['test-leave-stage-event'],
+      metadata: {
+        replacingCardId: lowCostHasunosoraMember.instanceId,
+      },
+    };
+
+    const resultState = resolvePendingAbilityStarterWithRegistry(
+      {
+        ...state,
+        pendingAbilities: [pendingAbility],
+      },
+      pendingAbility,
+      {},
+      {
+        continuePendingCardEffects: (nextState) => nextState,
+      }
+    );
+
+    expect(resultState).not.toBeNull();
+    expect(resultState?.activeEffect).toBeNull();
+    expect(resultState?.pendingAbilities).toEqual([]);
+    expect(
+      resultState?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID &&
+          action.payload.step === 'CONDITION_NOT_MET' &&
+          action.payload.replacingCardId === lowCostHasunosoraMember.instanceId
       )
     ).toBe(true);
+  });
+
+  it('does not trigger PL!HS-sd1-001-SD relay replacement ability on ordinary leave stage', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-hs-sd1-001-ordinary-leave-no-trigger',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const kahoCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-sd1-001-SD'
+    );
+    const energyCardIds = ownedP1CardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
+    );
+
+    expect(kahoCardId).toBeTruthy();
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(1);
+
+    const preparedState = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      hand: { ...player.hand, cardIds: [] },
+      mainDeck: { ...player.mainDeck, cardIds: [] },
+      waitingRoom: { ...player.waitingRoom, cardIds: [] },
+      successZone: { ...player.successZone, cardIds: [] },
+      liveZone: { ...player.liveZone, cardIds: [] },
+      energyZone: {
+        ...player.energyZone,
+        cardIds: [energyCardIds[0]],
+        cardStates: new Map([
+          [energyCardIds[0], { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }],
+        ]),
+      },
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          [SlotPosition.LEFT]: null,
+          [SlotPosition.CENTER]: kahoCardId!,
+          [SlotPosition.RIGHT]: null,
+        },
+        cardStates: new Map([
+          [kahoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+        ]),
+      },
+    }));
+    (session as unknown as { authorityState: GameState }).authorityState = preparedState;
+
+    const moveResult = session.executeCommand(
+      createMovePublicCardToWaitingRoomCommand(
+        PLAYER1,
+        kahoCardId!,
+        ZoneType.MEMBER_SLOT,
+        SlotPosition.CENTER
+      )
+    );
+
+    expect(moveResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(
+      session.state?.pendingAbilities.some(
+        (ability) => ability.abilityId === HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'TRIGGER_ABILITY' &&
+          action.payload.abilityId === HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[0])?.orientation).toBe(
+      OrientationState.WAITING
+    );
   });
 
   it('shows a confirm-only step when manually choosing PL!HS-sd1-001-SD no-input AUTO from order selection', () => {

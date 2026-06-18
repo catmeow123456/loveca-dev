@@ -102,6 +102,8 @@ Current helper modules outside `runtime/actions.ts`:
 |---|---|---|---|
 | `startPendingActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 移除对应 pending ability，安装调用方已经拼好的 `activeEffect`，并写入 start `RESOLVE_ABILITY` action。 | 不构造卡文条件，不支付费用，不移动卡，不写 modifier，不 enqueue trigger，不决定 finish/continue 策略。 |
 | `startConfirmOnlyActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 为只有确认窗口的流程拼装 `activeEffect`，设置 step/awaiting player/orderedResolution metadata，并复用 `startPendingActiveEffect` 写入 `START_CONFIRM` action。 | 不判断条件是否满足，不选择 modifier 策略，不重算确认时数值，不清空 activeEffect，不推进 pending。 |
+| `startConfirmOnlyPendingAbilityEffect` | `src/application/card-effects/runtime/active-effect.ts` | 为手动选择 pending ability 后需要先确认的流程安装 confirm-only `activeEffect`，保留原 pending ability，不写 start action。 | 不移除 pending，不结算卡效，不调用 starter，不应替代 `startConfirmOnlyActiveEffect`。 |
+| `finishConfirmOnlyPendingAbilityEffect` | `src/application/card-effects/runtime/active-effect.ts` | 确认 confirm-only pending bridge 后，清空 `activeEffect`，通过调用方传入的 callback 以 `skipManualConfirmation` 重新进入 pending starter。 | 不 import runner，不知道具体卡效，不改变 pending 顺序；重新进入哪个 starter 由调用方注入。 |
 | `finishSkippedActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 清空当前 `activeEffect`，写入 `RESOLVE_ABILITY` with `step: 'SKIP'` by default，并按 metadata 中的 `orderedResolution` 继续 pending。 | 不处理费用、不检查目标、不 enqueue trigger、不决定卡文策略。 |
 | `getAbilityEffectText` | `src/application/card-effects/runtime/workflow-helpers.ts` | 按 abilityId 读取卡效文本，供 workflow 创建 activeEffect。 | 不创建 activeEffect，不处理 step 或 metadata。 |
 | `recordAbilityUseForContext` | `src/application/card-effects/runtime/workflow-helpers.ts` | 写入旧语义的 `RESOLVE_ABILITY` / `ABILITY_USE` action。 | 不支付费用，不判断发动条件。 |
@@ -111,6 +113,8 @@ Current helper modules outside `runtime/actions.ts`:
 | `getNewMemberStateChangedEvents` | `src/application/card-effects/runtime/events.ts` | 从 before/after game 的 eventLog 差异中取新产生的 `ON_MEMBER_STATE_CHANGED` 事件。 | 只读查询；不 enqueue trigger，不构造事件，不改变成员状态。 |
 
 These helpers are intentionally small. If a proposed helper starts to own payment timing, grouped recovery policy, trigger matching, or full activeEffect construction, it belongs in a separate audit before implementation.
+
+`startConfirmOnlyActiveEffect` and `startConfirmOnlyPendingAbilityEffect` are deliberately separate. Use the active-effect version when the workflow is truly starting and should remove the pending ability immediately. Use the pending-ability bridge only for ordered/manual pending selection where the player must confirm a no-input ability before the same pending ability resumes through its starter.
 
 ## Migration Target
 

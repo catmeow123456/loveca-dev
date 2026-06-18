@@ -132,8 +132,8 @@ import {
   isSupportedActivatedAbilityForCard,
   resolvePendingCardEffects,
   startSuccessZoneReplacementEffect,
-  syncHsBp6027ManualCheerAdjustment,
 } from './card-effect-runner.js';
+import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { getMemberEffectiveCost } from './effects/conditions.js';
 import { isMemberCardData } from '../domain/entities/card.js';
 import { getActiveEnergyIds, tapEnergy } from '../domain/entities/zone.js';
@@ -2075,9 +2075,18 @@ export class GameSession {
     }
 
     const revealedState = revealResolutionCard(result.gameState, revealedCardId);
-    const adjustedState = syncHsBp6027ManualCheerAdjustment(revealedState, command.playerId, {
-      allowCreate: true,
-    });
+    const adjustedState = syncHsBp6027ManualCheerAdjustment(
+      revealedState,
+      command.playerId,
+      {
+        allowCreate: true,
+      },
+      {
+        resolvePendingCardEffects,
+        continuePendingCardEffects: (nextState) =>
+          resolvePendingCardEffects(nextState).gameState,
+      }
+    );
 
     return {
       success: true,
@@ -2309,7 +2318,16 @@ export class GameSession {
       return { success: false, gameState: state, error: result.error };
     }
 
-    const adjustedState = syncHsBp6027ManualCheerAdjustment(result.gameState, command.playerId);
+    const adjustedState = syncHsBp6027ManualCheerAdjustment(
+      result.gameState,
+      command.playerId,
+      {},
+      {
+        resolvePendingCardEffects,
+        continuePendingCardEffects: (nextState) =>
+          resolvePendingCardEffects(nextState).gameState,
+      }
+    );
 
     return {
       success: true,

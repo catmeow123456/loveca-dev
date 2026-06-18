@@ -22,24 +22,26 @@
 
 1. `docs/card-effect-framework/README.md`
    - 先确认当前卡效框架目标、模块边界和禁止事项。
-2. `docs/card-effect-reuse-audit/existing_module_map.md`
+2. `docs/card-effect-framework/new_card_effect_cookbook.md`
+   - 按常见效果形状先找可复用 workflow/helper 和必测路径。
+3. `docs/card-effect-reuse-audit/existing_module_map.md`
    - 先查目标卡号或同型卡是否已经登记。
    - 若有同型，优先复用同型 resolver / helper / 测试形状。
-3. `docs/card-effect-framework/module_boundaries.md`
+4. `docs/card-effect-framework/module_boundaries.md`
    - 判断本卡应落在 query、runtime action、workflow、continuous modifier 还是 runner dispatch。
-4. `docs/card-effect-framework/runtime_action_helpers.md`
+5. `docs/card-effect-framework/runtime_action_helpers.md`
    - 查抽牌、弃牌、回收、看顶等原子动作 helper 是否已有入口。
-5. `docs/card-effect-framework/active_effect_runtime.md`
+6. `docs/card-effect-framework/active_effect_runtime.md`
    - 多步、可选、confirm-only、skip、pending continuation 流程先查 activeEffect helper 边界。
-6. `docs/card-effect-framework/workflow_module_guide.md`
+7. `docs/card-effect-framework/workflow_module_guide.md`
    - 若有多步流程或特殊复合效果，优先放入 workflow module，不继续直接长进 runner。
-7. `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`
+8. `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`
    - 查效果片段目前落在哪一层：事件、condition/query、selector、cost、workflow 或 runner。
-8. `docs/card-effect-reuse-audit/effect_module_coverage.md`
+9. `docs/card-effect-reuse-audit/effect_module_coverage.md`
    - 查现有模块覆盖和已证明的 helper。
-9. `docs/card-effect-reuse-audit/condition_query_remaining_inventory.md`
+10. `docs/card-effect-reuse-audit/condition_query_remaining_inventory.md`
    - 查当前 condition/query、selector、domain-safe identity、formula-builder、workflow-step 的边界。
-10. 相关测试：
+11. 相关测试：
    - `tests/integration/sample-card-effect-runner.test.ts`
    - `tests/unit/card-effect-classification.test.ts`
    - 若涉及 selector/query/domain，再查对应 unit test。

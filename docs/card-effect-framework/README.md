@@ -22,10 +22,12 @@
 ### 新增或扩展卡效
 
 1. [卡效实现指南](card_effect_implementation_guide.md)
-2. [模块边界](module_boundaries.md)
-3. [runtime 原子动作 helper](runtime_action_helpers.md)
-4. [workflow 模块指南](workflow_module_guide.md)
-5. [卡效完成状态登记册](../card-effect-reuse-audit/existing_module_map.md)
+2. [新卡效开发 cookbook](new_card_effect_cookbook.md)
+3. [模块边界](module_boundaries.md)
+4. [runtime 原子动作 helper](runtime_action_helpers.md)
+5. [activeEffect 运行时](active_effect_runtime.md)
+6. [workflow 模块指南](workflow_module_guide.md)
+7. [卡效完成状态登记册](../card-effect-reuse-audit/existing_module_map.md)
 
 ### 拆分 runner 或设计新 helper
 
@@ -53,6 +55,7 @@
 |---|---|
 | [target_architecture.md](target_architecture.md) | 卡效系统最终目标态、目录结构和调度模型。 |
 | [module_boundaries.md](module_boundaries.md) | query、runtime action、workflow、runner、domain modifier 等模块边界。 |
+| [new_card_effect_cookbook.md](new_card_effect_cookbook.md) | 新增/扩展卡效时按常见效果选择 workflow/helper 的一页式入口。 |
 | [runtime_action_helpers.md](runtime_action_helpers.md) | 抽牌、弃牌、回收、看顶、区域移动等原子动作 helper 的参数轴和迁移状态。 |
 | [workflow_module_guide.md](workflow_module_guide.md) | workflow family 与特殊卡 workflow 应如何组织、导出和测试。 |
 | [active_effect_runtime.md](active_effect_runtime.md) | activeEffect / stepId / metadata / 可见性 / step handler registry 的运行时约定。 |
