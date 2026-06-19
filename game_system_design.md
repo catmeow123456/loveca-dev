@@ -46,9 +46,9 @@ graph TB
 
     subgraph Server[服务端 API]
         App[Express App]
-        Routes[Auth/Cards/Decks/Profiles/Images/Online]
+        Routes[Auth/Cards/Decks/Profiles/Images/Online/Battle]
         Middleware[鉴权与校验中间件]
-        OnlineSvc[OnlineRoomService + OnlineMatchService]
+        OnlineSvc[OnlineRoomService + OnlineMatchService + SolitaireMatchService]
     end
 
     subgraph Infra[基础设施]
@@ -347,11 +347,13 @@ graph LR
     App --> ProfilesR[Profiles Route]
     App --> ImagesR[Images Route]
     App --> OnlineR[Online Route]
+    App --> BattleR[Battle Route]
 
     AuthR --> AuthSvc[auth-service + mail-service]
     DecksR --> Scraper[decklog-scraper]
     ImagesR --> MinioSvc[minio-service]
     OnlineR --> OnlineSvc[online-room-service + online-match-service]
+    BattleR --> OnlineSvc
 ```
 
 代码路径：
@@ -363,6 +365,7 @@ graph LR
 - `src/server/routes/profiles.ts`
 - `src/server/routes/images.ts`
 - `src/server/routes/online.ts`
+- `src/server/routes/battle.ts`
 - `src/server/services/`
 
 ### 8.2 数据模型设计
@@ -431,8 +434,9 @@ graph TD
 - 认证、卡组、卡牌、图片管理 API
 - 云端卡组与离线模式并存
 - 正式联机房间闭环：创建/加入、云端卡组锁定、先后手确认、服务端权威对局、轮询同步、离开/短暂恢复与管理员房间观测
+- 服务端可记录对墙打：`src/server/services/solitaire-match-service.ts` 复用 recorded match 链路创建 `GameMode.SOLITAIRE` 权威对局，`src/server/routes/battle.ts` 提供对墙打创建、运行中快照/命令/推进/离开，以及中性历史读取入口
 - 面向联机的 `PlayerViewState` 脱敏投影、可见性策略和命令权限投影
-- 对局记录与回放阶段性闭环：`src/server/services/match-recorder-service.ts` 写入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 与部分 decision record；`src/server/services/match-replay-read-service.ts` 按参与者玩家视角读取历史列表、详情、timeline 与只读 checkpoint 投影；`client/src/components/pages/MatchRecordsPage.tsx` 可打开只读 `GameBoard` 回放节点
+- 对局记录与回放阶段性闭环：`src/server/services/match-recorder-service.ts` 写入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 与部分 decision record；`src/server/services/match-replay-read-service.ts` 按参与者玩家视角读取正式联机与服务端可记录对墙打的历史列表、详情、timeline 与只读 checkpoint 投影；`client/src/components/pages/MatchRecordsPage.tsx` 可打开只读 `GameBoard` 回放节点
 
 ### 10.2 规划中
 

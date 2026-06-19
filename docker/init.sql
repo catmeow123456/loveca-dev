@@ -217,6 +217,13 @@ CREATE TABLE IF NOT EXISTS public.match_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id TEXT NOT NULL,
   room_code TEXT NOT NULL,
+  match_mode TEXT NOT NULL DEFAULT 'ONLINE'
+    CHECK (match_mode IN ('ONLINE', 'SOLITAIRE')),
+  automation_game_mode TEXT NOT NULL DEFAULT 'DEBUG'
+    CHECK (automation_game_mode IN ('DEBUG', 'SOLITAIRE')),
+  origin_kind TEXT NOT NULL DEFAULT 'ONLINE_ROOM'
+    CHECK (origin_kind IN ('ONLINE_ROOM', 'SOLITAIRE')),
+  origin_label TEXT NOT NULL DEFAULT '在线房间',
   status TEXT NOT NULL DEFAULT 'IN_PROGRESS'
     CHECK (status IN ('IN_PROGRESS', 'COMPLETED', 'SURRENDERED', 'INTERRUPTED', 'CORRUPTED')),
   completeness TEXT NOT NULL DEFAULT 'FULL'
@@ -241,6 +248,7 @@ CREATE TABLE IF NOT EXISTS public.match_records (
   card_data_version TEXT NOT NULL,
   card_data_hash TEXT NOT NULL,
   replay_capabilities JSONB NOT NULL DEFAULT '[]'::jsonb,
+  replay_limitations JSONB NOT NULL DEFAULT '[]'::jsonb,
   partial_reason TEXT,
   last_recorder_error TEXT,
   append_failure_at TIMESTAMPTZ,
@@ -251,6 +259,7 @@ CREATE TABLE IF NOT EXISTS public.match_records (
 
 CREATE INDEX IF NOT EXISTS idx_match_records_first_user_id ON public.match_records(first_user_id);
 CREATE INDEX IF NOT EXISTS idx_match_records_second_user_id ON public.match_records(second_user_id);
+CREATE INDEX IF NOT EXISTS idx_match_records_match_mode ON public.match_records(match_mode);
 CREATE INDEX IF NOT EXISTS idx_match_records_status ON public.match_records(status);
 CREATE INDEX IF NOT EXISTS idx_match_records_started_at ON public.match_records(started_at);
 
@@ -261,7 +270,7 @@ CREATE TABLE IF NOT EXISTS public.match_deck_snapshots (
   user_id TEXT NOT NULL,
   source_deck_id TEXT,
   source_deck_name TEXT,
-  source TEXT NOT NULL CHECK (source IN ('ONLINE_RUNTIME_DECK', 'PUBLISHED_CARDS_SNAPSHOT')),
+  source TEXT NOT NULL CHECK (source IN ('ONLINE_RUNTIME_DECK', 'PUBLISHED_CARDS_SNAPSHOT', 'SOLITAIRE_DEFAULT_DECK')),
   main_deck JSONB NOT NULL,
   energy_deck JSONB NOT NULL,
   card_summaries JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -285,6 +294,9 @@ CREATE TABLE IF NOT EXISTS public.match_participants (
   seat TEXT NOT NULL CHECK (seat IN ('FIRST', 'SECOND')),
   display_name TEXT NOT NULL,
   player_id TEXT NOT NULL,
+  participant_kind TEXT NOT NULL DEFAULT 'USER'
+    CHECK (participant_kind IN ('USER', 'SYSTEM')),
+  owner_user_id TEXT,
   deck_snapshot_id UUID CONSTRAINT match_participants_deck_snapshot_id_match_deck_snapshots_id_fk REFERENCES public.match_deck_snapshots(id) ON DELETE SET NULL,
   replay_access TEXT NOT NULL DEFAULT 'PARTICIPANT'
     CHECK (replay_access IN ('PARTICIPANT', 'ADMIN')),
@@ -297,6 +309,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_match_participants_match_user
   ON public.match_participants(match_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_match_participants_user_id
   ON public.match_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_match_participants_owner_user_id
+  ON public.match_participants(owner_user_id);
 
 CREATE TABLE IF NOT EXISTS public.match_timeline_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

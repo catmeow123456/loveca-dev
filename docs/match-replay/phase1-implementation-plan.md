@@ -2,8 +2,8 @@
 
 > 文档类型：实施计划
 > 适用范围：管理员调试回放包 E0，以及对局记录 P0-P3 的落地顺序、服务改造、逻辑数据模型、读取 API 和测试安排
-> 当前状态：阶段性实施记录 v0.6；E0-P1 已落地，P2 已起步至 P2c
-> 最后更新：2026-06-18
+> 当前状态：阶段性实施记录 v0.7；E0-P1 已落地，P2 已起步至 P2c，P1 读取与记录模型已扩展到服务端可记录对墙打
+> 最后更新：2026-06-19
 
 ## 1. 目标与边界
 
@@ -37,6 +37,9 @@ P2-P3 属于第一阶段增强：
 - `GameSession` 当前已有 `getPublicEventsSince` / `getPrivateEventsSince` / `getSealedAuditSince` / `getCommandLogSince` / `getGameEventsSince` 等增量读取入口，recorder 已用于命令/系统 frame 的 public/private 事件明细落库；玩家回放读取已有基本过滤与读模型，后续仍需补节点范围读取、完整 UI 与长期兼容策略。
 - `online-room-service` 当前锁卡后保留 `deckId`、`deckName` 和运行时 `DeckConfig`，并在开局时把运行时卡牌摘要写入历史卡组快照；这仍标记为 `ONLINE_RUNTIME_DECK` / `RUNTIME_ACCEPTED`，不是最终的 `PUBLISHED_CARDS_SNAPSHOT` 链路。
 - `src/server/db/schema.ts` 与 `docker/init.sql` 已新增 P0/P1 历史对局记录模型和 P2 decision record 表；P1c-P1e 已提供普通用户历史入口、timeline、authority checkpoint 投影读取、public/private event 明细读取，P2a-P2c 已记录 active effect、部分玩家命令和待处理能力顺序选择。sealed audit 普通读取不会开放，decision record 仍是 partial，尚未覆盖自由拖拽/手动处理原因、完整随机记录与确定性重演。
+- 2026-06-19 起，记录模型已新增 `matchMode` / `automationGameMode` / `originKind` / `originLabel` / `participantKind` / `ownerUserId` 与 `replayLimitations`。正式联机默认写入 `ONLINE / DEBUG / ONLINE_ROOM`；服务端可记录对墙打写入 `SOLITAIRE / SOLITAIRE / SOLITAIRE`，SECOND participant 为 `SYSTEM`，默认对手 deck snapshot source 为 `SOLITAIRE_DEFAULT_DECK`。
+- `src/server/services/solitaire-match-service.ts` 已复用 `OnlineMatchService` 的 recorded runtime，服务端加载用户云端卡组和默认对手 YAML，不接受前端上传运行时卡组事实；`/api/battle/solitaire-matches` 提供创建、snapshot、command、advance 与 leave。第一版对手自动流程仍压缩在玩家命令后的 checkpoint 中，并通过 `SOLITAIRE_AUTOMATION_COMPRESSED` 标记。
+- 历史读取已有中性 `/api/battle/match-records...` alias；旧 `/api/online/match-records...` 仍作为兼容路径保留。前端历史页默认调用 `/api/battle`。
 
 因此第一阶段的关键仍不是新增一套 replay engine，而是沉淀记录事实边界和只读回放读取模型；E0/P0/P1 已完成基础落地，后续围绕 P2 的决策、随机、手动原因和 P3 UI / 审计能力收束。
 

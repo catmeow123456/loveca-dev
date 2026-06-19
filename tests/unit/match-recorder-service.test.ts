@@ -254,12 +254,14 @@ describe('MatchRecorderService P0a', () => {
     ).toBe(true);
 
     const recordInsert = calls.find((call) => call.text.includes('INSERT INTO match_records'));
-    expect(readJsonbParam(recordInsert?.values[9])).toEqual([
+    expect(recordInsert?.values.slice(2, 6)).toEqual(['ONLINE', 'DEBUG', 'ONLINE_ROOM', 'REC001']);
+    expect(readJsonbParam(recordInsert?.values[13])).toEqual([
       'AUTHORITY_CHECKPOINT',
       'PUBLIC_EVENTS',
       'PRIVATE_EVENTS',
       'DECISION_RECORDS_PARTIAL',
     ]);
+    expect(readJsonbParam(recordInsert?.values[14])).toEqual([]);
 
     const firstDeckInsert = calls.find((call) =>
       call.text.includes('INSERT INTO match_deck_snapshots')
@@ -743,6 +745,54 @@ describe('MatchRecorderService P0a', () => {
       cost: 1,
       imageFilename: 'A-MEM-0.webp',
     });
+  });
+
+  it('从对墙打 OnlineMatchState 构造输入时保留模式、系统参与者与默认对手卡组来源', async () => {
+    const matchService = new OnlineMatchService({ recorder: null });
+    const match = await matchService.createMatch({
+      roomCode: 'SOL001',
+      matchMode: 'SOLITAIRE',
+      automationGameMode: 'SOLITAIRE',
+      originKind: 'SOLITAIRE',
+      originLabel: '对墙打',
+      startedAt: 1_000,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deckId: 'deck-a',
+        deckName: 'Alpha Deck',
+        deckSource: 'PUBLISHED_CARDS_SNAPSHOT',
+        lockedAt: 900,
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'system:solitaire-opponent',
+        displayName: '对手 (AI)',
+        deckId: 'solitaire-default-opponent',
+        deckName: '缪预组.yaml',
+        deckSource: 'SOLITAIRE_DEFAULT_DECK',
+        participantKind: 'SYSTEM',
+        ownerUserId: 'u1',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+
+    const input = buildMatchRecorderBeginInputFromOnlineMatch(match);
+
+    expect(input).toMatchObject({
+      matchMode: 'SOLITAIRE',
+      automationGameMode: 'SOLITAIRE',
+      originKind: 'SOLITAIRE',
+      originLabel: '对墙打',
+      replayLimitations: ['SOLITAIRE_AUTOMATION_COMPRESSED'],
+    });
+    expect(input.participants.SECOND).toMatchObject({
+      userId: 'system:solitaire-opponent',
+      participantKind: 'SYSTEM',
+      ownerUserId: 'u1',
+    });
+    expect(input.deckSnapshots.FIRST.source).toBe('PUBLISHED_CARDS_SNAPSHOT');
+    expect(input.deckSnapshots.SECOND.source).toBe('SOLITAIRE_DEFAULT_DECK');
   });
 
   it('markPartial 记录追加失败摘要，不伪装成完整记录', async () => {

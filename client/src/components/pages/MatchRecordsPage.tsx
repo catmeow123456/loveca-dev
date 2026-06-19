@@ -282,7 +282,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
             {isLoadingRecords ? (
               <LoadingPanel label="读取历史对局" />
             ) : records.length === 0 ? (
-              <EmptyPanel title="暂无历史对局" detail="完成正式联机对局后会在这里显示。" />
+              <EmptyPanel title="暂无历史对局" detail="完成正式联机或对墙打后会在这里显示。" />
             ) : (
               <div className="mt-3 grid gap-2 lg:max-h-[calc(100dvh-12rem)] lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1">
                 {records.map((record) => (
@@ -417,7 +417,9 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
           </div>
           <div className="pointer-events-auto fixed left-4 right-4 top-4 z-[230] flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
             <div className="min-w-0">
-              <div className="truncate text-sm font-bold">历史桌面回放</div>
+              <div className="truncate text-sm font-bold">
+                {formatMatchModeLabel(replay.sourceMatchMode)}桌面回放
+              </div>
               <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
                 <span>checkpoint {replay.replayPosition.checkpointSeq}</span>
                 <span>timeline {replay.replayPosition.timelineSeq}</span>
@@ -497,7 +499,10 @@ function MatchRecordButton({
             <span>{formatDateTime(record.startedAt)}</span>
           </div>
         </div>
-        <StatusPill status={record.status} completeness={record.completeness} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <ModePill mode={record.matchMode} />
+          <StatusPill status={record.status} completeness={record.completeness} />
+        </div>
       </div>
       {record.partialReasonSummary ? (
         <div className="mt-2 flex items-center gap-1.5 text-xs text-[var(--semantic-warning)]">
@@ -524,6 +529,8 @@ function MatchRecordSummary({
 
   return (
     <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <InfoTile label="模式" value={formatMatchModeLabel(record.matchMode)} />
+      <InfoTile label="来源" value={record.originLabel} />
       <InfoTile icon={<UserRound size={15} />} label="FIRST" value={first?.displayName ?? '-'} />
       <InfoTile icon={<UserRound size={15} />} label="SECOND" value={second?.displayName ?? '-'} />
       <InfoTile
@@ -651,7 +658,8 @@ function ReplayMetricGrid({ replay }: { replay: MatchRecordReplayView }) {
   ).length;
 
   return (
-    <div className="grid min-w-0 grid-cols-3 gap-2">
+    <div className="grid min-w-0 grid-cols-2 gap-2">
+      <MiniMetric label="模式" value={formatMatchModeLabel(replay.sourceMatchMode)} />
       <MiniMetric label="视角" value={replay.viewerSeat} />
       <MiniMetric label="对象" value={objectCount} />
       <MiniMetric label="正面" value={frontCount} />
@@ -979,6 +987,18 @@ function StatusPill({
   );
 }
 
+function ModePill({ mode }: { mode: MatchRecordSummaryView['matchMode'] }) {
+  const tone =
+    mode === 'SOLITAIRE'
+      ? 'border-[color:var(--semantic-warning)]/35 text-[var(--semantic-warning)]'
+      : 'border-[var(--border-subtle)] text-[var(--text-muted)]';
+  return (
+    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone}`}>
+      {formatMatchModeLabel(mode)}
+    </span>
+  );
+}
+
 interface ZoneSummary {
   readonly key: string;
   readonly label: string;
@@ -1036,6 +1056,10 @@ function formatDateTime(value: number | null): string {
     hour: '2-digit',
     minute: '2-digit',
   })}`;
+}
+
+function formatMatchModeLabel(mode: MatchRecordSummaryView['matchMode']): string {
+  return mode === 'SOLITAIRE' ? '对墙打' : '正式联机';
 }
 
 function formatEventPayload(payload: unknown): string | null {

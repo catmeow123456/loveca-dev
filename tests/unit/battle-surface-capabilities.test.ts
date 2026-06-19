@@ -7,41 +7,35 @@ import { GameMode } from '../../src/shared/types/enums';
 
 describe('battle surface capabilities', () => {
   it('派生本地调试桌面能力', () => {
-    expectCapabilities(
-      deriveBattleSurfaceCapabilities({ gameMode: GameMode.DEBUG }),
-      {
-        authority: 'LOCAL',
-        surface: 'LOCAL_DEBUG',
-        canSwitchPerspective: true,
-        canSwitchLocalMode: true,
-        canShowDebugLog: true,
-        canUndo: true,
-        showFreePlayControl: true,
-        freePlayPolicy: 'SESSION_GLOBAL',
-        isSolitairePresentation: false,
-        scoreConfirmPresentation: 'DEBUG_PASSTHROUGH',
-        isReadOnly: false,
-      }
-    );
+    expectCapabilities(deriveBattleSurfaceCapabilities({ gameMode: GameMode.DEBUG }), {
+      authority: 'LOCAL',
+      surface: 'LOCAL_DEBUG',
+      canSwitchPerspective: true,
+      canSwitchLocalMode: true,
+      canShowDebugLog: true,
+      canUndo: true,
+      showFreePlayControl: true,
+      freePlayPolicy: 'SESSION_GLOBAL',
+      isSolitairePresentation: false,
+      scoreConfirmPresentation: 'DEBUG_PASSTHROUGH',
+      isReadOnly: false,
+    });
   });
 
   it('派生本地对墙打桌面能力', () => {
-    expectCapabilities(
-      deriveBattleSurfaceCapabilities({ gameMode: GameMode.SOLITAIRE }),
-      {
-        authority: 'LOCAL',
-        surface: 'SOLITAIRE',
-        canSwitchPerspective: false,
-        canSwitchLocalMode: true,
-        canShowDebugLog: false,
-        canUndo: true,
-        showFreePlayControl: true,
-        freePlayPolicy: 'SESSION_GLOBAL',
-        isSolitairePresentation: true,
-        scoreConfirmPresentation: 'STANDARD_MODAL',
-        isReadOnly: false,
-      }
-    );
+    expectCapabilities(deriveBattleSurfaceCapabilities({ gameMode: GameMode.SOLITAIRE }), {
+      authority: 'LOCAL',
+      surface: 'SOLITAIRE',
+      canSwitchPerspective: false,
+      canSwitchLocalMode: true,
+      canShowDebugLog: false,
+      canUndo: true,
+      showFreePlayControl: true,
+      freePlayPolicy: 'SESSION_GLOBAL',
+      isSolitairePresentation: true,
+      scoreConfirmPresentation: 'STANDARD_MODAL',
+      isReadOnly: false,
+    });
   });
 
   it('派生正式联机桌面能力', () => {
@@ -84,6 +78,51 @@ describe('battle surface capabilities', () => {
         isSolitairePresentation: false,
         scoreConfirmPresentation: 'STANDARD_MODAL',
         isReadOnly: false,
+      }
+    );
+  });
+
+  it('派生远程对墙打桌面能力', () => {
+    expectCapabilities(
+      deriveBattleSurfaceCapabilities({
+        gameMode: GameMode.DEBUG,
+        remoteSessionSource: 'SOLITAIRE',
+      }),
+      {
+        authority: 'REMOTE',
+        surface: 'SOLITAIRE',
+        canSwitchPerspective: false,
+        canSwitchLocalMode: false,
+        canShowDebugLog: false,
+        canUndo: false,
+        showFreePlayControl: true,
+        freePlayPolicy: 'COMMAND_FLAG',
+        isSolitairePresentation: true,
+        scoreConfirmPresentation: 'STANDARD_MODAL',
+        isReadOnly: false,
+      }
+    );
+  });
+
+  it('派生对墙打来源历史回放只读桌面能力', () => {
+    expectCapabilities(
+      deriveBattleSurfaceCapabilities({
+        gameMode: GameMode.DEBUG,
+        replaySessionActive: true,
+        replaySourceMatchMode: 'SOLITAIRE',
+      }),
+      {
+        authority: 'REPLAY',
+        surface: 'REPLAY_READONLY',
+        canSwitchPerspective: false,
+        canSwitchLocalMode: false,
+        canShowDebugLog: false,
+        canUndo: false,
+        showFreePlayControl: false,
+        freePlayPolicy: 'COMMAND_FLAG',
+        isSolitairePresentation: true,
+        scoreConfirmPresentation: 'STANDARD_MODAL',
+        isReadOnly: true,
       }
     );
   });

@@ -54,12 +54,12 @@ interface OnlineRoomState {
   updatedAt: number;
 }
 
-interface UserProfileSummary {
+export interface UserProfileSummary {
   readonly userId: string;
   readonly displayName: string;
 }
 
-interface OwnedDeckSummary {
+export interface OwnedDeckSummary {
   readonly deckId: string;
   readonly deckName: string;
   readonly runtimeDeck: RuntimeDeckConfig;
@@ -94,8 +94,8 @@ export class OnlineRoomService {
   constructor(deps: OnlineRoomServiceDeps = {}) {
     this.now = deps.now ?? (() => Date.now());
     this.matchService = deps.matchService ?? onlineMatchService;
-    this.loadUserProfile = deps.loadUserProfile ?? defaultLoadUserProfile;
-    this.loadOwnedDeck = deps.loadOwnedDeck ?? defaultLoadOwnedDeck;
+    this.loadUserProfile = deps.loadUserProfile ?? loadUserProfileForOnlineMatch;
+    this.loadOwnedDeck = deps.loadOwnedDeck ?? loadOwnedDeckForOnlineMatch;
   }
 
   async createRoom(roomCodeInput: string, userId: string): Promise<OnlineRoomView> {
@@ -724,7 +724,7 @@ function readErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function defaultLoadUserProfile(userId: string): Promise<UserProfileSummary> {
+export async function loadUserProfileForOnlineMatch(userId: string): Promise<UserProfileSummary> {
   const { rows } = await pool.query<{ username: string; display_name: string | null }>(
     'SELECT username, display_name FROM profiles WHERE id = $1 LIMIT 1',
     [userId]
@@ -740,7 +740,10 @@ async function defaultLoadUserProfile(userId: string): Promise<UserProfileSummar
   };
 }
 
-async function defaultLoadOwnedDeck(userId: string, deckId: string): Promise<OwnedDeckSummary> {
+export async function loadOwnedDeckForOnlineMatch(
+  userId: string,
+  deckId: string
+): Promise<OwnedDeckSummary> {
   const { rows } = await pool.query<{
     id: string;
     name: string;

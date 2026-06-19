@@ -3,6 +3,7 @@ import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import { projectPlayerViewState } from '../../online/projector.js';
 import type {
+  MatchAutomationGameMode,
   MatchDecisionRecordStatus,
   MatchDecisionSubmissionSummary,
   MatchDecisionTransitionSemantics,
@@ -16,16 +17,21 @@ import type {
   MatchRecordVisiblePrivateEventView,
   MatchRecordCompleteness,
   MatchRecordDetailView,
+  MatchMode,
+  MatchOriginKind,
+  MatchParticipantKind,
   MatchRecordReplayView,
   MatchRecordStatus,
   MatchRecordSummaryView,
   MatchRecordTimelineView,
   ReplayCapability,
   ReplayCheckpointType,
+  ReplayLimitation,
   ReplayRecordFrameType,
   ReplaySerializedPayloadEnvelope,
 } from '../../online/replay-types.js';
 import type { Seat } from '../../online/types.js';
+import { GameMode } from '../../shared/types/enums.js';
 import {
   GAME_STATE_SCHEMA_VERSION,
   REPLAY_CARD_DATA_VERSION,
@@ -60,6 +66,10 @@ interface MatchReplayReadServiceDeps {
 interface RecordAccessRow {
   readonly match_id: string;
   readonly room_code: string;
+  readonly match_mode: MatchMode;
+  readonly automation_game_mode: MatchAutomationGameMode;
+  readonly origin_kind: MatchOriginKind;
+  readonly origin_label: string;
   readonly status: MatchRecordStatus;
   readonly completeness: MatchRecordCompleteness;
   readonly started_at: Date | string | number;
@@ -75,6 +85,7 @@ interface RecordAccessRow {
   readonly card_data_version: string;
   readonly card_data_hash: string;
   readonly replay_capabilities: unknown;
+  readonly replay_limitations: unknown;
   readonly partial_reason: string | null;
   readonly viewer_seat: Seat;
   readonly viewer_player_id: string;
@@ -88,6 +99,8 @@ interface ParticipantRow {
   readonly user_id: string;
   readonly display_name: string;
   readonly player_id: string;
+  readonly participant_kind: MatchParticipantKind;
+  readonly owner_user_id: string | null;
 }
 
 interface DeckSnapshotRow {
@@ -252,7 +265,7 @@ export class MatchReplayReadService {
 
     const [participants, deckSnapshots] = await Promise.all([
       this.queryClient.query<ParticipantRow>(
-        `SELECT seat, user_id, display_name, player_id
+        `SELECT seat, user_id, display_name, player_id, participant_kind, owner_user_id
         FROM match_participants
         WHERE match_id = $1
         ORDER BY seat`,
@@ -284,6 +297,8 @@ export class MatchReplayReadService {
         userId: row.user_id,
         displayName: row.display_name,
         playerId: row.player_id,
+        participantKind: row.participant_kind,
+        ownerUserId: row.owner_user_id,
       })),
       deckSnapshots: deckSnapshots.rows.map((row) => ({
         seat: row.seat,
@@ -337,9 +352,14 @@ export class MatchReplayReadService {
 
     return {
       matchId,
+      matchMode: access.match_mode,
+      automationGameMode: access.automation_game_mode,
+      originKind: access.origin_kind,
+      originLabel: access.origin_label,
       viewerSeat: access.viewer_seat,
       recordStatus: access.status,
       recordCompleteness: access.completeness,
+      replayLimitations: readLimitations(access.replay_limitations),
       partialReasonSummary: sanitizePartialReason(access.partial_reason),
       timelineSummary: filterTimelineRowsForViewer(timeline.rows, access.viewer_seat).map((row) =>
         mapTimelineRow(row, access.viewer_seat)
@@ -380,6 +400,7 @@ export class MatchReplayReadService {
     await this.validateCardDataCompatibility(matchId, access, authorityState);
     const playerViewState = projectPlayerViewState(authorityState, access.viewer_player_id, {
       seq: checkpoint.related_public_seq ?? 0,
+      gameMode: toProjectorGameMode(access.automation_game_mode),
     });
     const frame = await this.getTimelineFrame(matchId, checkpoint.timeline_seq);
     const mappedFrame = frame ? mapTimelineRow(frame, access.viewer_seat) : null;
@@ -391,6 +412,10 @@ export class MatchReplayReadService {
 
     return {
       matchId,
+      sourceMatchMode: access.match_mode,
+      automationGameMode: access.automation_game_mode,
+      originKind: access.origin_kind,
+      originLabel: access.origin_label,
       viewerSeat: access.viewer_seat,
       replayPosition: {
         timelineSeq: checkpoint.timeline_seq,
@@ -418,6 +443,7 @@ export class MatchReplayReadService {
       playerViewState,
       recordStatus: access.status,
       recordCompleteness: access.completeness,
+      replayLimitations: readLimitations(access.replay_limitations),
       partialReasonSummary: sanitizePartialReason(access.partial_reason),
     };
   }
@@ -637,6 +663,10 @@ function recordAccessSelectSql(): string {
   return `SELECT
     record.match_id,
     record.room_code,
+    record.match_mode,
+    record.automation_game_mode,
+    record.origin_kind,
+    record.origin_label,
     record.status,
     record.completeness,
     record.started_at,
@@ -652,6 +682,7 @@ function recordAccessSelectSql(): string {
     record.card_data_version,
     record.card_data_hash,
     record.replay_capabilities,
+    record.replay_limitations,
     record.partial_reason,
     viewer.seat AS viewer_seat,
     viewer.player_id AS viewer_player_id,
@@ -661,9 +692,10 @@ function recordAccessSelectSql(): string {
   FROM match_records record
   INNER JOIN match_participants viewer
     ON viewer.match_id = record.match_id
+    AND viewer.participant_kind = 'USER'
   LEFT JOIN match_participants opponent
     ON opponent.match_id = record.match_id
-    AND opponent.user_id <> viewer.user_id`;
+    AND opponent.seat <> viewer.seat`;
 }
 
 function validateRecordCompatibility(access: RecordAccessRow): void {
@@ -833,6 +865,10 @@ function mapRecordSummaryRow(row: RecordAccessRow): MatchRecordSummaryView {
   return {
     matchId: row.match_id,
     roomCode: row.room_code,
+    matchMode: row.match_mode,
+    automationGameMode: row.automation_game_mode,
+    originKind: row.origin_kind,
+    originLabel: row.origin_label,
     status: row.status,
     completeness: row.completeness,
     startedAt: dateToMs(row.started_at),
@@ -848,6 +884,7 @@ function mapRecordSummaryRow(row: RecordAccessRow): MatchRecordSummaryView {
     lastTimelineSeq: row.last_timeline_seq,
     lastCheckpointSeq: row.last_checkpoint_seq,
     replayCapabilities: readCapabilities(row.replay_capabilities),
+    replayLimitations: readLimitations(row.replay_limitations),
     partialReasonSummary: sanitizePartialReason(row.partial_reason),
   };
 }
@@ -997,6 +1034,17 @@ function readCapabilities(value: unknown): readonly ReplayCapability[] {
   return Array.isArray(parsed)
     ? (parsed.filter((entry) => typeof entry === 'string') as ReplayCapability[])
     : [];
+}
+
+function readLimitations(value: unknown): readonly ReplayLimitation[] {
+  const parsed = typeof value === 'string' ? safeJsonParse(value) : value;
+  return Array.isArray(parsed)
+    ? (parsed.filter((entry) => typeof entry === 'string') as ReplayLimitation[])
+    : [];
+}
+
+function toProjectorGameMode(value: MatchAutomationGameMode): GameMode {
+  return value === 'SOLITAIRE' ? GameMode.SOLITAIRE : GameMode.DEBUG;
 }
 
 function readJsonArrayLength(value: unknown): number {

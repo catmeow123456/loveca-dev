@@ -10,7 +10,7 @@ import {
   DeckConfigSchema,
   type DeckLoadResult,
   type CardDataRegistry,
-} from './deck-loader';
+} from './deck-loader.js';
 
 /**
  * 从 YAML 文件加载卡组 (Node.js 环境)

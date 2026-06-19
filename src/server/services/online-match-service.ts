@@ -7,13 +7,18 @@ import type { GameState } from '../../domain/entities/game.js';
 import type {
   MatchRecordCompleteness,
   MatchRecordStatus,
+  MatchAutomationGameMode,
+  MatchDeckSnapshotSource,
+  MatchMode,
+  MatchOriginKind,
+  MatchParticipantKind,
   OnlineAdminMatchSummary,
   OnlineCommandResult,
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
   Seat,
 } from '../../online/index.js';
-import { GamePhase } from '../../shared/types/enums.js';
+import { GameMode, GamePhase } from '../../shared/types/enums.js';
 import {
   buildMatchRecorderBeginInputFromOnlineMatch,
   matchRecorderService,
@@ -32,6 +37,8 @@ export interface OnlineMatchParticipant {
   readonly playerId: string;
   readonly displayName: string;
   readonly seat: Seat;
+  readonly participantKind: MatchParticipantKind;
+  readonly ownerUserId: string | null;
 }
 
 export interface CreateOnlineMatchPlayerParams {
@@ -40,11 +47,18 @@ export interface CreateOnlineMatchPlayerParams {
   readonly deck: DeckConfig;
   readonly deckId?: string | null;
   readonly deckName?: string | null;
+  readonly deckSource?: MatchDeckSnapshotSource;
   readonly lockedAt?: number | null;
+  readonly participantKind?: MatchParticipantKind;
+  readonly ownerUserId?: string | null;
 }
 
 export interface CreateOnlineMatchParams {
   readonly roomCode: string;
+  readonly matchMode?: MatchMode;
+  readonly automationGameMode?: MatchAutomationGameMode;
+  readonly originKind?: MatchOriginKind;
+  readonly originLabel?: string;
   readonly startedAt?: number;
   readonly first: CreateOnlineMatchPlayerParams;
   readonly second: CreateOnlineMatchPlayerParams;
@@ -55,6 +69,7 @@ export interface OnlineMatchDeckSnapshot {
   readonly userId: string;
   readonly sourceDeckId: string | null;
   readonly sourceDeckName: string | null;
+  readonly source: MatchDeckSnapshotSource;
   readonly mainDeck: readonly AnyCardData[];
   readonly energyDeck: readonly AnyCardData[];
   readonly lockedAt: number | null;
@@ -63,6 +78,10 @@ export interface OnlineMatchDeckSnapshot {
 export interface OnlineMatchState {
   readonly matchId: string;
   readonly roomCode: string;
+  readonly matchMode: MatchMode;
+  readonly automationGameMode: MatchAutomationGameMode;
+  readonly originKind: MatchOriginKind;
+  readonly originLabel: string;
   readonly session: GameSession;
   readonly participants: Readonly<Record<Seat, OnlineMatchParticipant>>;
   readonly deckSnapshots: Readonly<Record<Seat, OnlineMatchDeckSnapshot>>;
@@ -125,13 +144,18 @@ export class OnlineMatchService {
 
   async createMatch(params: CreateOnlineMatchParams): Promise<OnlineMatchState> {
     const matchId = this.idGenerator();
-    const session = createGameSession();
+    const automationGameMode = params.automationGameMode ?? 'DEBUG';
+    const session = createGameSession({ gameMode: toGameMode(automationGameMode) });
     const firstPlayerId = `${matchId}:FIRST:${params.first.userId}`;
     const secondPlayerId = `${matchId}:SECOND:${params.second.userId}`;
     const now = params.startedAt ?? this.now();
     const state: OnlineMatchState = {
       matchId,
       roomCode: params.roomCode,
+      matchMode: params.matchMode ?? 'ONLINE',
+      automationGameMode,
+      originKind: params.originKind ?? 'ONLINE_ROOM',
+      originLabel: params.originLabel ?? params.roomCode,
       session,
       participants: {
         FIRST: {
@@ -139,12 +163,16 @@ export class OnlineMatchService {
           playerId: firstPlayerId,
           displayName: params.first.displayName,
           seat: 'FIRST',
+          participantKind: params.first.participantKind ?? 'USER',
+          ownerUserId: params.first.ownerUserId ?? null,
         },
         SECOND: {
           userId: params.second.userId,
           playerId: secondPlayerId,
           displayName: params.second.displayName,
           seat: 'SECOND',
+          participantKind: params.second.participantKind ?? 'USER',
+          ownerUserId: params.second.ownerUserId ?? null,
         },
       },
       deckSnapshots: {
@@ -366,13 +394,12 @@ export class OnlineMatchService {
 
     if (!match.session.isActivePlayer(participant.playerId)) {
       touchMatch(match);
+      const rejectedAttemptSeq = ++this.serviceRejectedAttemptSeq;
       await this.appendSessionRecordFrame(match, 'COMMAND_REJECTED', {
         summary: '服务层拒绝阶段推进：当前不是该玩家的推进时机',
         force: true,
         writeAuthorityCheckpoint: false,
-        dedupeKey: `service-rejected:advance-phase:${participant.seat}:${
-          ++this.serviceRejectedAttemptSeq
-        }`,
+        dedupeKey: `service-rejected:advance-phase:${participant.seat}:${rejectedAttemptSeq}`,
       });
       return {
         success: false,
@@ -725,10 +752,15 @@ function createRuntimeDeckSnapshot(
     userId: params.userId,
     sourceDeckId: params.deckId ?? null,
     sourceDeckName: params.deckName ?? null,
+    source: params.deckSource ?? 'ONLINE_RUNTIME_DECK',
     mainDeck: deck.mainDeck,
     energyDeck: deck.energyDeck,
     lockedAt: params.lockedAt ?? null,
   };
+}
+
+function toGameMode(value: MatchAutomationGameMode): GameMode {
+  return value === 'SOLITAIRE' ? GameMode.SOLITAIRE : GameMode.DEBUG;
 }
 
 function getParticipantByUserId(

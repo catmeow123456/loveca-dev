@@ -29,7 +29,18 @@ export type MatchRecordCompleteness = 'FULL' | 'PARTIAL' | 'INCOMPLETE';
 
 export type MatchRecordReplayAccess = 'PARTICIPANT' | 'ADMIN';
 
-export type MatchDeckSnapshotSource = 'ONLINE_RUNTIME_DECK' | 'PUBLISHED_CARDS_SNAPSHOT';
+export type MatchMode = 'ONLINE' | 'SOLITAIRE';
+
+export type MatchAutomationGameMode = 'DEBUG' | 'SOLITAIRE';
+
+export type MatchOriginKind = 'ONLINE_ROOM' | 'SOLITAIRE';
+
+export type MatchParticipantKind = 'USER' | 'SYSTEM';
+
+export type MatchDeckSnapshotSource =
+  | 'ONLINE_RUNTIME_DECK'
+  | 'PUBLISHED_CARDS_SNAPSHOT'
+  | 'SOLITAIRE_DEFAULT_DECK';
 
 export type MatchDeckSnapshotValidationState = 'RUNTIME_ACCEPTED' | 'VALID' | 'INVALID';
 
@@ -49,7 +60,8 @@ export type ReplayLimitation =
   | 'NOT_USER_HISTORY_RECORD'
   | 'GAME_EVENTS_SNAPSHOT'
   | 'DECISION_RECORDS_UNAVAILABLE'
-  | 'DECK_SNAPSHOT_FROM_RUNTIME_STATE';
+  | 'DECK_SNAPSHOT_FROM_RUNTIME_STATE'
+  | 'SOLITAIRE_AUTOMATION_COMPRESSED';
 
 export type MatchDecisionType =
   | 'ACTIVE_EFFECT_OPENED'
@@ -293,6 +305,8 @@ export interface MatchRecordParticipantView {
   readonly userId: string;
   readonly displayName: string;
   readonly playerId: string;
+  readonly participantKind: MatchParticipantKind;
+  readonly ownerUserId: string | null;
 }
 
 export interface MatchRecordDeckSnapshotView {
@@ -311,6 +325,10 @@ export interface MatchRecordDeckSnapshotView {
 export interface MatchRecordSummaryView {
   readonly matchId: string;
   readonly roomCode: string;
+  readonly matchMode: MatchMode;
+  readonly automationGameMode: MatchAutomationGameMode;
+  readonly originKind: MatchOriginKind;
+  readonly originLabel: string;
   readonly status: MatchRecordStatus;
   readonly completeness: MatchRecordCompleteness;
   readonly startedAt: number;
@@ -326,6 +344,7 @@ export interface MatchRecordSummaryView {
   readonly lastTimelineSeq: number;
   readonly lastCheckpointSeq: number;
   readonly replayCapabilities: readonly ReplayCapability[];
+  readonly replayLimitations: readonly ReplayLimitation[];
   readonly partialReasonSummary: string | null;
 }
 
@@ -353,9 +372,14 @@ export interface MatchRecordTimelineEntryView {
 
 export interface MatchRecordTimelineView {
   readonly matchId: string;
+  readonly matchMode: MatchMode;
+  readonly automationGameMode: MatchAutomationGameMode;
+  readonly originKind: MatchOriginKind;
+  readonly originLabel: string;
   readonly viewerSeat: Seat;
   readonly recordStatus: MatchRecordStatus;
   readonly recordCompleteness: MatchRecordCompleteness;
+  readonly replayLimitations: readonly ReplayLimitation[];
   readonly partialReasonSummary: string | null;
   readonly timelineSummary: readonly MatchRecordTimelineEntryView[];
 }
@@ -442,6 +466,10 @@ export interface MatchRecordReplayPosition {
 
 export interface MatchRecordReplayView {
   readonly matchId: string;
+  readonly sourceMatchMode: MatchMode;
+  readonly automationGameMode: MatchAutomationGameMode;
+  readonly originKind: MatchOriginKind;
+  readonly originLabel: string;
   readonly viewerSeat: Seat;
   readonly replayPosition: MatchRecordReplayPosition;
   readonly timelineSummary: MatchRecordTimelineEntryView | null;
@@ -453,5 +481,6 @@ export interface MatchRecordReplayView {
   readonly playerViewState: PlayerViewState;
   readonly recordStatus: MatchRecordStatus;
   readonly recordCompleteness: MatchRecordCompleteness;
+  readonly replayLimitations: readonly ReplayLimitation[];
   readonly partialReasonSummary: string | null;
 }

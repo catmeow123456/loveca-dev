@@ -48,6 +48,7 @@ import {
 } from '@/lib/deckRecordUtils';
 import { useAuthStore } from '@/store/authStore';
 import { isApiConfigured } from '@/lib/apiClient';
+import { createSolitaireMatch } from '@/lib/solitaireMatchClient';
 
 type SetupStep = 0 | 1 | 2 | 3;
 
@@ -67,7 +68,9 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
   const isDebugMode = gameMode === GameMode.DEBUG;
   const maxStep: SetupStep = isDebugMode ? 3 : 2;
   const offlineMode = useAuthStore((s) => s.offlineMode);
+  const authenticatedUser = useAuthStore((s) => s.user);
   const canUseOnlineRoom = !offlineMode && isApiConfigured;
+  const canUseRecordedSolitaire = canUseOnlineRoom && authenticatedUser !== null;
 
   // Deck store
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
@@ -78,6 +81,8 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
   // Game store
   const initializeGame = useGameStore((s) => s.initializeGame);
   const createGame = useGameStore((s) => s.createGame);
+  const connectRemoteSession = useGameStore((s) => s.connectRemoteSession);
+  const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
   const setGameMode = useGameStore((s) => s.setGameMode);
 
@@ -154,6 +159,23 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
     setError(null);
 
     try {
+      if (gameMode === GameMode.SOLITAIRE && canUseRecordedSolitaire) {
+        const deckId = selectedP1Deck.cloudDeck?.id;
+        if (!deckId) {
+          throw new Error('卡组数据无效');
+        }
+        const created = await createSolitaireMatch(deckId);
+        connectRemoteSession({
+          source: 'SOLITAIRE',
+          matchId: created.matchId,
+          seat: created.snapshot.seat,
+          playerId: created.snapshot.playerId,
+        });
+        await applyRemoteSnapshot(created.snapshot);
+        onGameStart();
+        return;
+      }
+
       // 创建 CardDataRegistry 和 DeckLoader
       const registry = new CardDataRegistry();
       registry.load(Array.from(cardDataRegistry.values()));
@@ -563,10 +585,21 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                     )}
 
                     {gameMode === GameMode.SOLITAIRE && (
-                      <div className="surface-panel flex items-center gap-3 p-4">
-                        <Bot size={22} className="text-[var(--text-muted)]" />
-                        <div className="text-sm text-[var(--text-secondary)]">
-                          对手卡组已自动准备完成
+                      <div className="surface-panel flex items-start gap-3 p-4">
+                        <Bot size={22} className="mt-0.5 shrink-0 text-[var(--text-muted)]" />
+                        <div className="min-w-0 text-sm text-[var(--text-secondary)]">
+                          <div>对手卡组已自动准备完成</div>
+                          <div
+                            className={`mt-1 text-xs ${
+                              canUseRecordedSolitaire
+                                ? 'text-[var(--semantic-success)]'
+                                : 'text-[var(--text-muted)]'
+                            }`}
+                          >
+                            {canUseRecordedSolitaire
+                              ? '在线记录：本局会保存到历史并可复盘'
+                              : '本地模式：本局不会保存历史'}
+                          </div>
                         </div>
                       </div>
                     )}
