@@ -47,13 +47,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import {
-  SlotPosition,
-  GamePhase,
-  SubPhase,
-  ZoneType,
-  CardType,
-} from '@game/shared/types/enums';
+import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType } from '@game/shared/types/enums';
 import { getPhaseConfig, getSubPhaseConfig } from '@game/shared/phase-config';
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { Seat } from '@game/online';
@@ -229,8 +223,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     !!activeEffect &&
     !!viewerSeat &&
     activeEffect.waitingSeat === viewerSeat;
-  const activeEffectUsesOrderedMultiSelect =
-    activeEffect?.selectableObjectMode === 'ORDERED_MULTI';
+  const activeEffectUsesOrderedMultiSelect = activeEffect?.selectableObjectMode === 'ORDERED_MULTI';
   const activeEffectMinSelectableCards = activeEffect?.minSelectableObjects ?? 0;
   const activeEffectMaxSelectableCards =
     activeEffect?.maxSelectableObjects ?? activeEffectSelectableCardIds.length;
@@ -239,9 +232,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     activeEffectUsesOrderedMultiSelect &&
     activeEffectOrderedSelection.length >= activeEffectMinSelectableCards &&
     activeEffectOrderedSelection.length <= activeEffectMaxSelectableCards &&
-    activeEffectOrderedSelection.every((cardId) =>
-      activeEffectSelectableCardIds.includes(cardId)
-    );
+    activeEffectOrderedSelection.every((cardId) => activeEffectSelectableCardIds.includes(cardId));
   const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
   const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
   const pendingCostSourceCardId = pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
@@ -937,7 +928,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
         {isReadOnly && replaySession && (
           <div className="pointer-events-none fixed left-4 top-4 z-[130] max-w-[calc(100vw-2rem)] rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
-            <span className="text-[var(--accent-primary)]">历史回放</span>
+            <span className="text-[var(--accent-primary)]">
+              {replaySession.sourceMatchMode === 'SOLITAIRE' ? '对墙打回放' : '历史回放'}
+            </span>
             <span className="mx-1.5 text-[var(--text-muted)]">·</span>
             <span>checkpoint {replaySession.checkpointSeq}</span>
             <span className="mx-1.5 text-[var(--text-muted)]">·</span>
@@ -1119,7 +1112,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                           </div>
                           <div className="mt-0.5 text-xs text-[var(--text-muted)]">
                             {mobilePanel === 'opponent'
-                              ? opponentIdentity?.name ?? opponentSeat
+                              ? (opponentIdentity?.name ?? opponentSeat)
                               : `${logCount} 条记录`}
                           </div>
                         </div>
@@ -1269,9 +1262,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
                   处理中的效果
                 </div>
-                <div className="mt-1 text-sm font-semibold">
-                  {activeEffectSourceLabel}
-                </div>
+                <div className="mt-1 text-sm font-semibold">{activeEffectSourceLabel}</div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">

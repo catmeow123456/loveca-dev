@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type {
+  MatchAutomationGameMode,
   MatchDeckSnapshotSource,
   MatchDeckSnapshotValidationState,
   MatchDecisionRecordStatus,
@@ -20,11 +21,15 @@ import type {
   MatchDecisionTransitionSemantics,
   MatchDecisionType,
   MatchDecisionVisibleContextSummary,
+  MatchMode,
+  MatchOriginKind,
+  MatchParticipantKind,
   MatchRecordCompleteness,
   MatchRecordReplayAccess,
   MatchRecordStatus,
   ReplayCapability,
   ReplayCheckpointType,
+  ReplayLimitation,
   ReplayRecordFrameType,
   ReplaySerializedPayloadEnvelope,
   ReplayVisibilityScope,
@@ -240,6 +245,13 @@ export const matchRecords = pgTable(
       .primaryKey(),
     matchId: text('match_id').notNull().unique(),
     roomCode: text('room_code').notNull(),
+    matchMode: text('match_mode').$type<MatchMode>().notNull().default('ONLINE'),
+    automationGameMode: text('automation_game_mode')
+      .$type<MatchAutomationGameMode>()
+      .notNull()
+      .default('DEBUG'),
+    originKind: text('origin_kind').$type<MatchOriginKind>().notNull().default('ONLINE_ROOM'),
+    originLabel: text('origin_label').notNull().default('在线房间'),
     status: text('status').$type<MatchRecordStatus>().notNull().default('IN_PROGRESS'),
     completeness: text('completeness').$type<MatchRecordCompleteness>().notNull().default('FULL'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
@@ -268,6 +280,10 @@ export const matchRecords = pgTable(
       .$type<ReplayCapability[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
+    replayLimitations: jsonb('replay_limitations')
+      .$type<ReplayLimitation[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     partialReason: text('partial_reason'),
     lastRecorderError: text('last_recorder_error'),
     appendFailureAt: timestamp('append_failure_at', { withTimezone: true }),
@@ -277,8 +293,18 @@ export const matchRecords = pgTable(
   (table) => [
     index('idx_match_records_first_user_id').on(table.firstUserId),
     index('idx_match_records_second_user_id').on(table.secondUserId),
+    index('idx_match_records_match_mode').on(table.matchMode),
     index('idx_match_records_status').on(table.status),
     index('idx_match_records_started_at').on(table.startedAt),
+    check('match_records_match_mode_check', sql`${table.matchMode} IN ('ONLINE', 'SOLITAIRE')`),
+    check(
+      'match_records_automation_game_mode_check',
+      sql`${table.automationGameMode} IN ('DEBUG', 'SOLITAIRE')`
+    ),
+    check(
+      'match_records_origin_kind_check',
+      sql`${table.originKind} IN ('ONLINE_ROOM', 'SOLITAIRE')`
+    ),
     check(
       'match_records_status_check',
       sql`${table.status} IN ('IN_PROGRESS', 'COMPLETED', 'SURRENDERED', 'INTERRUPTED', 'CORRUPTED')`
@@ -329,7 +355,7 @@ export const matchDeckSnapshots = pgTable(
     check('match_deck_snapshots_seat_check', sql`${table.seat} IN ('FIRST', 'SECOND')`),
     check(
       'match_deck_snapshots_source_check',
-      sql`${table.source} IN ('ONLINE_RUNTIME_DECK', 'PUBLISHED_CARDS_SNAPSHOT')`
+      sql`${table.source} IN ('ONLINE_RUNTIME_DECK', 'PUBLISHED_CARDS_SNAPSHOT', 'SOLITAIRE_DEFAULT_DECK')`
     ),
     check(
       'match_deck_snapshots_validation_state_check',
@@ -351,6 +377,11 @@ export const matchParticipants = pgTable(
     seat: text('seat').$type<'FIRST' | 'SECOND'>().notNull(),
     displayName: text('display_name').notNull(),
     playerId: text('player_id').notNull(),
+    participantKind: text('participant_kind')
+      .$type<MatchParticipantKind>()
+      .notNull()
+      .default('USER'),
+    ownerUserId: text('owner_user_id'),
     deckSnapshotId: uuid('deck_snapshot_id').references(() => matchDeckSnapshots.id, {
       onDelete: 'set null',
     }),
@@ -364,7 +395,9 @@ export const matchParticipants = pgTable(
     uniqueIndex('uq_match_participants_match_seat').on(table.matchId, table.seat),
     uniqueIndex('uq_match_participants_match_user').on(table.matchId, table.userId),
     index('idx_match_participants_user_id').on(table.userId),
+    index('idx_match_participants_owner_user_id').on(table.ownerUserId),
     check('match_participants_seat_check', sql`${table.seat} IN ('FIRST', 'SECOND')`),
+    check('match_participants_kind_check', sql`${table.participantKind} IN ('USER', 'SYSTEM')`),
     check(
       'match_participants_replay_access_check',
       sql`${table.replayAccess} IN ('PARTICIPANT', 'ADMIN')`

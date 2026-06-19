@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import type {
+  MatchAutomationGameMode,
   MatchDeckSnapshotSource,
   MatchDeckSnapshotValidationState,
   MatchDecisionCardSummary,
@@ -10,9 +11,13 @@ import type {
   MatchDecisionTransitionSemantics,
   MatchDecisionType,
   MatchDecisionVisibleContextSummary,
+  MatchMode,
+  MatchOriginKind,
+  MatchParticipantKind,
   MatchRecordCompleteness,
   MatchRecordStatus,
   ReplayCapability,
+  ReplayLimitation,
   ReplayRecordFrameType,
   ReplayVisibilityScope,
 } from '../../online/replay-types.js';
@@ -37,6 +42,7 @@ const DEFAULT_REPLAY_CAPABILITIES: readonly ReplayCapability[] = [
   'PRIVATE_EVENTS',
   'DECISION_RECORDS_PARTIAL',
 ];
+const DEFAULT_REPLAY_LIMITATIONS: readonly ReplayLimitation[] = [];
 
 export interface MatchRecorderQueryResult<T> {
   readonly rows: T[];
@@ -55,6 +61,8 @@ export interface MatchRecorderParticipantInput {
   readonly userId: string;
   readonly displayName: string;
   readonly playerId: string;
+  readonly participantKind?: MatchParticipantKind;
+  readonly ownerUserId?: string | null;
 }
 
 export interface MatchRecorderCardSummary {
@@ -89,6 +97,10 @@ export interface MatchRecorderDeckSnapshotInput {
 export interface BeginMatchRecordInput {
   readonly matchId: string;
   readonly roomCode: string;
+  readonly matchMode?: MatchMode;
+  readonly automationGameMode?: MatchAutomationGameMode;
+  readonly originKind?: MatchOriginKind;
+  readonly originLabel?: string;
   readonly startedAt: number;
   readonly participants: Readonly<Record<Seat, MatchRecorderParticipantInput>>;
   readonly deckSnapshots: Readonly<Record<Seat, MatchRecorderDeckSnapshotInput>>;
@@ -96,6 +108,7 @@ export interface BeginMatchRecordInput {
   readonly cardDataVersion?: string;
   readonly cardDataHash?: string;
   readonly replayCapabilities?: readonly ReplayCapability[];
+  readonly replayLimitations?: readonly ReplayLimitation[];
 }
 
 export interface RecordInitialCheckpointInput {
@@ -294,11 +307,16 @@ export class MatchRecorderService {
       const cardDataVersion = input.cardDataVersion ?? REPLAY_CARD_DATA_VERSION;
       const cardDataHash = input.cardDataHash ?? assertSharedCardDataHash(input.deckSnapshots);
       const replayCapabilities = input.replayCapabilities ?? DEFAULT_REPLAY_CAPABILITIES;
+      const replayLimitations = input.replayLimitations ?? DEFAULT_REPLAY_LIMITATIONS;
 
       await client.query(
         `INSERT INTO match_records (
           match_id,
           room_code,
+          match_mode,
+          automation_game_mode,
+          origin_kind,
+          origin_label,
           status,
           completeness,
           started_at,
@@ -308,11 +326,16 @@ export class MatchRecorderService {
           rules_version,
           card_data_version,
           card_data_hash,
-          replay_capabilities
-        ) VALUES ($1, $2, 'IN_PROGRESS', 'FULL', $3, $4, $5, $6, $7, $8, $9, $10)`,
+          replay_capabilities,
+          replay_limitations
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'IN_PROGRESS', 'FULL', $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
         [
           input.matchId,
           input.roomCode,
+          input.matchMode ?? 'ONLINE',
+          input.automationGameMode ?? 'DEBUG',
+          input.originKind ?? 'ONLINE_ROOM',
+          input.originLabel ?? input.roomCode,
           toDate(input.startedAt),
           input.participants.FIRST.userId,
           input.participants.SECOND.userId,
@@ -321,6 +344,7 @@ export class MatchRecorderService {
           cardDataVersion,
           cardDataHash,
           toJsonbParam(replayCapabilities),
+          toJsonbParam(replayLimitations),
         ]
       );
 
@@ -379,15 +403,19 @@ export class MatchRecorderService {
             seat,
             display_name,
             player_id,
+            participant_kind,
+            owner_user_id,
             deck_snapshot_id,
             replay_access
-          ) VALUES ($1, $2, $3, $4, $5, $6, 'PARTICIPANT')`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PARTICIPANT')`,
           [
             input.matchId,
             participant.userId,
             seat,
             participant.displayName,
             participant.playerId,
+            participant.participantKind ?? 'USER',
+            participant.ownerUserId ?? null,
             deckSnapshotIds[seat] ?? null,
           ]
         );
@@ -738,6 +766,10 @@ export function buildMatchRecorderBeginInputFromOnlineMatch(
   return {
     matchId: match.matchId,
     roomCode: match.roomCode,
+    matchMode: match.matchMode,
+    automationGameMode: match.automationGameMode,
+    originKind: match.originKind,
+    originLabel: match.originLabel,
     startedAt: match.startedAt,
     participants: {
       FIRST: {
@@ -745,12 +777,16 @@ export function buildMatchRecorderBeginInputFromOnlineMatch(
         userId: match.participants.FIRST.userId,
         displayName: match.participants.FIRST.displayName,
         playerId: match.participants.FIRST.playerId,
+        participantKind: match.participants.FIRST.participantKind,
+        ownerUserId: match.participants.FIRST.ownerUserId,
       },
       SECOND: {
         seat: 'SECOND',
         userId: match.participants.SECOND.userId,
         displayName: match.participants.SECOND.displayName,
         playerId: match.participants.SECOND.playerId,
+        participantKind: match.participants.SECOND.participantKind,
+        ownerUserId: match.participants.SECOND.ownerUserId,
       },
     },
     deckSnapshots: {
@@ -761,6 +797,10 @@ export function buildMatchRecorderBeginInputFromOnlineMatch(
     cardDataVersion: REPLAY_CARD_DATA_VERSION,
     cardDataHash,
     replayCapabilities: DEFAULT_REPLAY_CAPABILITIES,
+    replayLimitations:
+      match.matchMode === 'SOLITAIRE'
+        ? ['SOLITAIRE_AUTOMATION_COMPRESSED']
+        : DEFAULT_REPLAY_LIMITATIONS,
   };
 }
 
@@ -1194,7 +1234,7 @@ function buildDeckSnapshotInput(
     userId: snapshot.userId,
     sourceDeckId: snapshot.sourceDeckId,
     sourceDeckName: snapshot.sourceDeckName,
-    source: 'ONLINE_RUNTIME_DECK',
+    source: snapshot.source,
     mainDeck: snapshot.mainDeck.map((card) => card.cardCode),
     energyDeck: snapshot.energyDeck.map((card) => card.cardCode),
     cardSummaries: Object.fromEntries(allCards.map((card) => [card.cardCode, summarizeCard(card)])),

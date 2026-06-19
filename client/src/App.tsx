@@ -136,7 +136,7 @@ function App() {
   // Game state
   const matchView = useGameStore((s) => s.getMatchView());
   const loadCardData = useGameStore((s) => s.loadCardData);
-  const leaveLocalGame = useGameStore((s) => s.leaveLocalGame);
+  const leaveCurrentGame = useGameStore((s) => s.leaveCurrentGame);
   const initDeckStore = useDeckStore((s) => s.init);
 
   // 初始化认证 - 使用 ref 确保只执行一次
@@ -339,8 +339,9 @@ function App() {
       <div className="h-screen overflow-hidden">
         <GameBoard
           onLeaveLocalGame={() => {
-            leaveLocalGame();
-            setCurrentPage('game-setup');
+            void leaveCurrentGame().finally(() => {
+              setCurrentPage('game-setup');
+            });
           }}
         />
       </div>

@@ -2,7 +2,7 @@
 
 > 文档类型：实施计划
 > 适用范围：历史对局页面选择 checkpoint 后，复用现有 `GameBoard` / `PlayerArea` 展示 `MatchRecordReplayView.playerViewState`，并保证回放模式只读
-> 当前状态：已实施 v1.0
+> 当前状态：已实施 v1.1；只读桌面已支持正式联机与对墙打来源语义
 > 最后更新：2026-06-19
 
 ## 1. 目标
@@ -21,8 +21,10 @@ Phase 2 目标是在已有历史记录读取能力基础上，把普通历史页
 当前暂存区已经具备 Phase 2 的主要后端前提：
 
 - `GET /api/online/match-records/:matchId/replay` 已返回 `MatchRecordReplayView`。
+- `GET /api/battle/match-records/:matchId/replay` 已作为中性历史读取路径接入前端；旧 `/api/online/...` 路径保留兼容。
 - `MatchRecordReplayView.playerViewState` 与实时桌面 store 使用的 `PlayerViewState` 是同一类型。
 - 服务端 `match-replay-read-service` 会从 authority checkpoint 复水，再调用 `projectPlayerViewState(authorityState, viewerPlayerId, ...)` 生成玩家视角投影。
+- `MatchRecordReplayView.sourceMatchMode` / `automationGameMode` 会透传来源模式；对墙打来源回放仍是只读 `REPLAY_READONLY` surface，但会保留 `isSolitairePresentation=true` 的展示语义。
 - 普通 replay 响应已经包含 `replayPosition`、`checkpointInfo`、`visibleEvents`、`visiblePrivateEvents`、`visibleDecisions` 和 `playerViewState`，但不返回 authority payload、sealed audit 或对手私密事件。
 - `MatchRecordsPage` 已能读取列表、详情、timeline 和指定 checkpoint 的 replay，并维护当前 `replay` 状态。
 - `GameBoard` / `PlayerArea` 的主要展示查询都读 `gameStore.playerViewState`，理论上可以直接展示 replay checkpoint。

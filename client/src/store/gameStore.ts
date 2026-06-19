@@ -30,6 +30,7 @@ import {
   type ViewZoneState,
   shouldIgnoreRemoteSnapshotBySeq,
   type MatchRecordReplayView,
+  type MatchMode,
 } from '@game/online';
 import {
   GameCommandType,
@@ -87,6 +88,7 @@ import {
   type RemoteSessionSource,
   type RemoteSnapshot,
 } from '@/lib/remoteMatchClient';
+import { leaveSolitaireMatch } from '@/lib/solitaireMatchClient';
 import {
   deriveBattleSurfaceCapabilities,
   type BattleSurfaceCapabilities,
@@ -153,6 +155,7 @@ export interface RemoteSessionState {
 
 export interface ReplayReadonlySessionState {
   readonly matchId: string;
+  readonly sourceMatchMode: MatchMode;
   readonly viewerSeat: Seat;
   readonly viewerPlayerId: string;
   readonly checkpointSeq: number;
@@ -198,6 +201,8 @@ export interface GameStore {
   initializeGame: (player1Deck: DeckConfig, player2Deck: DeckConfig) => void;
   /** 退出本地对局并清空当前桌面状态 */
   leaveLocalGame: () => void;
+  /** 退出当前桌面对局；远程对墙打会先请求服务端封存记录 */
+  leaveCurrentGame: () => Promise<void>;
   /** 推进阶段 */
   advancePhase: () => void;
   /** 是否可以撤销本地上一步 */
@@ -738,6 +743,27 @@ export const useGameStore = create<GameStore>((set, get) => {
       get().gameSession.localFreePlay = false;
     },
 
+    leaveCurrentGame: async () => {
+      const remoteSession = get().remoteSession;
+      if (!remoteSession) {
+        get().leaveLocalGame();
+        return;
+      }
+
+      if (remoteSession.source === 'SOLITAIRE') {
+        try {
+          await leaveSolitaireMatch(remoteSession.matchId);
+        } catch (error) {
+          get().addLog(
+            `离开对墙打失败: ${error instanceof Error ? error.message : String(error)}`,
+            'error'
+          );
+        }
+      }
+
+      get().disconnectRemoteSession();
+    },
+
     advancePhase: () => {
       if (isReadonlyReplayMode()) {
         return;
@@ -1120,6 +1146,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         remoteSession: null,
         replaySession: {
           matchId: replay.matchId,
+          sourceMatchMode: replay.sourceMatchMode,
           viewerSeat: replay.viewerSeat,
           viewerPlayerId,
           checkpointSeq: replay.replayPosition.checkpointSeq,
@@ -1230,6 +1257,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         gameMode: get().gameMode,
         remoteSessionSource: get().remoteSession?.source ?? null,
         replaySessionActive: get().replaySession !== null,
+        replaySourceMatchMode: get().replaySession?.sourceMatchMode ?? null,
       }),
 
     connectRemoteDebugSession: (session) => {

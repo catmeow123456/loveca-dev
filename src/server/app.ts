@@ -13,6 +13,7 @@ import { profilesRouter } from './routes/profiles.js';
 import { imagesRouter, publicImagesRouter } from './routes/images.js';
 import { debugOnlineRouter } from './routes/debug-online.js';
 import { onlineRouter } from './routes/online.js';
+import { battleRouter } from './routes/battle.js';
 import { appConfigRouter } from './routes/app-config.js';
 
 export function createApp(): express.Express {
@@ -65,6 +66,7 @@ export function createApp(): express.Express {
   app.use('/api/profiles', profilesRouter);
   app.use('/api/images', imagesRouter);
   app.use('/api/online', onlineRouter);
+  app.use('/api/battle', battleRouter);
   if (config.isDev) {
     app.use('/images', publicImagesRouter);
     app.use('/api/debug', debugOnlineRouter);

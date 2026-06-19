@@ -169,7 +169,7 @@ export async function fetchOnlineAdminRooms(): Promise<readonly OnlineAdminRoomS
 }
 
 export async function fetchMatchRecords(): Promise<readonly MatchRecordSummaryView[]> {
-  const response = await apiClient.get<MatchRecordSummaryView[]>('/api/online/match-records');
+  const response = await apiClient.get<MatchRecordSummaryView[]>('/api/battle/match-records');
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取历史对局记录失败');
   }
@@ -178,7 +178,7 @@ export async function fetchMatchRecords(): Promise<readonly MatchRecordSummaryVi
 
 export async function fetchMatchRecordDetail(matchId: string): Promise<MatchRecordDetailView> {
   const response = await apiClient.get<MatchRecordDetailView>(
-    `/api/online/match-records/${encodeURIComponent(matchId)}`
+    `/api/battle/match-records/${encodeURIComponent(matchId)}`
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取历史对局详情失败');
@@ -188,7 +188,7 @@ export async function fetchMatchRecordDetail(matchId: string): Promise<MatchReco
 
 export async function fetchMatchRecordTimeline(matchId: string): Promise<MatchRecordTimelineView> {
   const response = await apiClient.get<MatchRecordTimelineView>(
-    `/api/online/match-records/${encodeURIComponent(matchId)}/timeline`
+    `/api/battle/match-records/${encodeURIComponent(matchId)}/timeline`
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取历史对局时间线失败');
@@ -206,7 +206,7 @@ export async function fetchMatchRecordReplay(
       ? `?checkpointSeq=${checkpointSeq}`
       : '';
   const response = await apiClient.get<MatchRecordReplayView>(
-    `/api/online/match-records/${encodeURIComponent(matchId)}/replay${search}`
+    `/api/battle/match-records/${encodeURIComponent(matchId)}/replay${search}`
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取历史对局回放节点失败');

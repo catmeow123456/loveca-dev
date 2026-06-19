@@ -19,5 +19,6 @@
 ## 维护规则
 
 - 联机当前事实优先写入 `preparation.md` 或 `current-limitations.md`，不要散落到根层临时计划。
+- 历史对局读取当前已有中性 `/api/battle/match-records...` 路径；`/api/online/match-records...` 只作为正式联机时期的兼容 alias 保留。涉及 replay / 对墙打记录时，同步检查 [对局记录与回放文档](../match-replay/README.md)。
 - 编码约束写入 `boundary-standard.md`；通用开发规范只保留跨主题规则和链接。
 - 本主题文件之间使用本目录内相对链接，不再在 `docs/` 根层新增 `online-mode-*` 文档。

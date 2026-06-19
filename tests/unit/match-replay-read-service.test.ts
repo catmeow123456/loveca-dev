@@ -10,7 +10,7 @@ import type {
 } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { createPublicObjectId } from '../../src/online/projector';
-import { CardType, HeartColor } from '../../src/shared/types/enums';
+import { CardType, GameMode, HeartColor } from '../../src/shared/types/enums';
 import {
   MatchReplayReadService,
   type MatchReplayReadQueryClient,
@@ -268,6 +268,10 @@ function createHarness(options: CreateHarnessOptions = {}) {
   const accessRow = {
     match_id: 'match-read-1',
     room_code: 'READ1',
+    match_mode: 'ONLINE',
+    automation_game_mode: 'DEBUG',
+    origin_kind: 'ONLINE_ROOM',
+    origin_label: 'READ1',
     status: 'IN_PROGRESS',
     completeness: 'PARTIAL',
     started_at: new Date(1_000),
@@ -283,6 +287,7 @@ function createHarness(options: CreateHarnessOptions = {}) {
     card_data_version: REPLAY_CARD_DATA_VERSION,
     card_data_hash: cardDataHash,
     replay_capabilities: ['AUTHORITY_CHECKPOINT'],
+    replay_limitations: [],
     partial_reason: 'command_accepted append failed: database stack',
     viewer_seat: 'FIRST',
     viewer_player_id: 'p1',
@@ -347,8 +352,22 @@ function createHarness(options: CreateHarnessOptions = {}) {
       if (text.includes('FROM match_participants')) {
         return {
           rows: [
-            { seat: 'FIRST', user_id: 'u1', display_name: 'Alpha', player_id: 'p1' },
-            { seat: 'SECOND', user_id: 'u2', display_name: 'Beta', player_id: 'p2' },
+            {
+              seat: 'FIRST',
+              user_id: 'u1',
+              display_name: 'Alpha',
+              player_id: 'p1',
+              participant_kind: 'USER',
+              owner_user_id: null,
+            },
+            {
+              seat: 'SECOND',
+              user_id: 'u2',
+              display_name: 'Beta',
+              player_id: 'p2',
+              participant_kind: 'USER',
+              owner_user_id: null,
+            },
           ] as T[],
         };
       }
@@ -419,6 +438,55 @@ describe('MatchReplayReadService P1b', () => {
       partialReasonSummary: '记录不完整，部分回放节点可能缺失',
     });
     expect(JSON.stringify(records)).not.toContain('database stack');
+  });
+
+  it('读取对墙打历史时保留来源模式、限制标记并按 SOLITAIRE 投影', async () => {
+    const { service } = createHarness({
+      accessOverrides: {
+        match_mode: 'SOLITAIRE',
+        automation_game_mode: 'SOLITAIRE',
+        origin_kind: 'SOLITAIRE',
+        origin_label: '对墙打',
+        replay_limitations: ['SOLITAIRE_AUTOMATION_COMPRESSED'],
+        opponent_user_id: 'system:solitaire-opponent',
+        opponent_display_name: '对手 (AI)',
+      },
+      deckSnapshotOverrides: {
+        SECOND: {
+          source_deck_id: 'solitaire-default-opponent',
+          source_deck_name: '缪预组.yaml',
+          source: 'SOLITAIRE_DEFAULT_DECK',
+        },
+      },
+    });
+
+    const records = await service.listMatchRecordsForUser('u1');
+    const timeline = await service.getMatchRecordTimeline('match-read-1', 'u1');
+    const replay = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+
+    expect(records[0]).toMatchObject({
+      matchMode: 'SOLITAIRE',
+      automationGameMode: 'SOLITAIRE',
+      originKind: 'SOLITAIRE',
+      originLabel: '对墙打',
+      opponentDisplayName: '对手 (AI)',
+      replayLimitations: ['SOLITAIRE_AUTOMATION_COMPRESSED'],
+    });
+    expect(timeline).toMatchObject({
+      matchMode: 'SOLITAIRE',
+      automationGameMode: 'SOLITAIRE',
+      originKind: 'SOLITAIRE',
+      originLabel: '对墙打',
+      replayLimitations: ['SOLITAIRE_AUTOMATION_COMPRESSED'],
+    });
+    expect(replay).toMatchObject({
+      sourceMatchMode: 'SOLITAIRE',
+      automationGameMode: 'SOLITAIRE',
+      originKind: 'SOLITAIRE',
+      originLabel: '对墙打',
+      replayLimitations: ['SOLITAIRE_AUTOMATION_COMPRESSED'],
+    });
+    expect(replay?.playerViewState.uiHints?.gameMode).toBe(GameMode.SOLITAIRE);
   });
 
   it('从 authority checkpoint 复水为当前玩家视角，不返回权威 payload 或对手隐藏手牌', async () => {

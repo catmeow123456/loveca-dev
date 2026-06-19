@@ -2,8 +2,8 @@
 
 > 文档类型：实现契约 / review 基线
 > 适用范围：`DebugReplayBundle`、`Replay Checkpoint`、历史回放读取前的权威状态复水
-> 当前状态：v0.1；E0/P0/P1 实施前基线
-> 最后更新：2026-06-18
+> 当前状态：v0.2；已补充服务端可记录对墙打 replay limitation
+> 最后更新：2026-06-19
 
 ## 1. 契约目的
 
@@ -145,6 +145,8 @@ E0a 若只能导出当前 authority checkpoint 和运行时可获得事实，必
 - `NOT_USER_HISTORY_RECORD`
 
 导入端必须读取这些能力标记。缺少完整 timeline 的 bundle 只能打开为有限调试视图，不能伪装成完整回放。
+
+服务端可记录对墙打如果仍把对手自动流程压缩在玩家命令后的 checkpoint 中，根记录或相关 checkpoint capability/limitation 必须标记 `SOLITAIRE_AUTOMATION_COMPRESSED`。该标记表示 replay 可查看状态节点，但不能逐步展开对手自动换牌、自动跳过主阶段或自动确认等中间动作。
 
 ## 7. 序列化流程
 
