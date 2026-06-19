@@ -130,6 +130,22 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    baseCardCodes: ['PL!SP-bp5-012'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!hasLiellaLiveWithRequirementTotalAtLeast(game, playerId, 8)) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_BP5_012_CONTINUOUS_LIELLA_LIVE_REQUIREMENT_EIGHT_YELLOW_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
     baseCardCodes: ['PL!HS-bp1-003'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasThreeDifferentHasunosoraMembersOnStage(game, playerId)
@@ -189,6 +205,8 @@ const BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID =
   'PL!-bp4-002:continuous-live-without-timing-purple-heart';
 const BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID =
   'PL!-bp5-003:continuous-three-different-names-yellow-heart';
+const SP_BP5_012_CONTINUOUS_LIELLA_LIVE_REQUIREMENT_EIGHT_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart';
 const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
   'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
 const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
@@ -352,6 +370,27 @@ function hasLiveWithoutLiveStartOrSuccessAbility(game: GameState, playerId: stri
       card !== null &&
       isLiveCardData(card.data) &&
       !liveHasLiveStartOrSuccessAbility(card.data.cardText)
+    );
+  });
+}
+
+function hasLiellaLiveWithRequirementTotalAtLeast(
+  game: GameState,
+  playerId: string,
+  minRequirementTotal: number
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return false;
+  }
+
+  return player.liveZone.cardIds.some((liveCardId) => {
+    const card = getCardById(game, liveCardId);
+    return (
+      card !== null &&
+      isLiveCardData(card.data) &&
+      cardBelongsToGroup(card.data, 'Liella!') &&
+      card.data.requirements.totalRequired >= minRequirementTotal
     );
   });
 }

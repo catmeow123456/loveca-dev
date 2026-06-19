@@ -1,13 +1,16 @@
+import { createHeartIcon } from '../../../../domain/entities/card.js';
 import {
   addAction,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { createHeartIcon } from '../../../../domain/entities/card.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, OrientationState } from '../../../../shared/types/enums.js';
-import { N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID } from '../../ability-ids.js';
+import {
+  N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
+  SP_BP4_012_LIVE_START_PAY_ENERGY_GAIN_RED_HEART_ABILITY_ID,
+} from '../../ability-ids.js';
 import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
@@ -20,30 +23,57 @@ import {
 } from '../../runtime/workflow-helpers.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 
+const DECLINE_OPTION_LABEL = '不发动';
 const N_SD1_010_LIVE_START_PAY_ENERGY_STEP_ID = 'N_SD1_010_LIVE_START_PAY_ENERGY';
-const ENERGY_COST_COUNT = 2;
+const SP_BP4_012_LIVE_START_PAY_ENERGY_STEP_ID = 'SP_BP4_012_LIVE_START_PAY_ENERGY';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerNSd1010ShiorikoWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
-    N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
-    (game, ability, options) =>
-      startNSd1010ShiorikoLiveStartWorkflow(game, ability, options.orderedResolution === true)
-  );
-  registerActiveEffectStepHandler(
-    N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
-    N_SD1_010_LIVE_START_PAY_ENERGY_STEP_ID,
-    (game, input, context) =>
-      input.selectedOptionId === 'pay'
-        ? finishNSd1010ShiorikoPayEnergyWorkflow(game, context.continuePendingCardEffects)
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
-  );
+interface PayEnergyGainHeartWorkflowConfig {
+  readonly abilityId: string;
+  readonly stepId: string;
+  readonly energyCostCount: number;
+  readonly heartColor: HeartColor;
+  readonly heartCount: number;
+  readonly heartLabel: string;
 }
 
-function startNSd1010ShiorikoLiveStartWorkflow(
+const PAY_ENERGY_GAIN_HEART_WORKFLOWS: readonly PayEnergyGainHeartWorkflowConfig[] = [
+  {
+    abilityId: N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
+    stepId: N_SD1_010_LIVE_START_PAY_ENERGY_STEP_ID,
+    energyCostCount: 2,
+    heartColor: HeartColor.GREEN,
+    heartCount: 1,
+    heartLabel: '绿色Heart',
+  },
+  {
+    abilityId: SP_BP4_012_LIVE_START_PAY_ENERGY_GAIN_RED_HEART_ABILITY_ID,
+    stepId: SP_BP4_012_LIVE_START_PAY_ENERGY_STEP_ID,
+    energyCostCount: 1,
+    heartColor: HeartColor.RED,
+    heartCount: 1,
+    heartLabel: '红色Heart',
+  },
+];
+
+export function registerPayEnergyGainHeartWorkflowHandlers(): void {
+  for (const config of PAY_ENERGY_GAIN_HEART_WORKFLOWS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
+      startPayEnergyGainHeartWorkflow(game, ability, config, options.orderedResolution === true)
+    );
+    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
+      input.selectedOptionId === 'pay'
+        ? finishPayEnergyGainHeartWorkflow(game, config, context.continuePendingCardEffects)
+        : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+    );
+  }
+}
+
+function startPayEnergyGainHeartWorkflow(
   game: GameState,
   ability: PendingAbilityState,
+  config: PayEnergyGainHeartWorkflowConfig,
   orderedResolution: boolean
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
@@ -52,7 +82,7 @@ function startNSd1010ShiorikoLiveStartWorkflow(
   }
 
   const activeEnergyCardIds = getActiveEnergyCardIds(player);
-  const canPay = activeEnergyCardIds.length >= ENERGY_COST_COUNT;
+  const canPay = activeEnergyCardIds.length >= config.energyCostCount;
 
   return startPendingActiveEffect(game, {
     ability,
@@ -62,46 +92,43 @@ function startNSd1010ShiorikoLiveStartWorkflow(
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
       controllerId: ability.controllerId,
-      effectText: getAbilityEffectText(
-        N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID
-      ),
-      stepId: N_SD1_010_LIVE_START_PAY_ENERGY_STEP_ID,
+      effectText: getAbilityEffectText(config.abilityId),
+      stepId: config.stepId,
       stepText: canPay
-        ? '可以支付2张活跃能量，获得1个绿色Heart。'
+        ? `可以支付${config.energyCostCount}张活跃能量，获得${config.heartCount}个${config.heartLabel}。`
         : '当前没有足够可支付的活跃能量，可以不发动。',
       awaitingPlayerId: player.id,
       selectableOptions: canPay
         ? [
-            { id: 'pay', label: '支付2能量' },
-            { id: 'decline', label: '不发动' },
+            { id: 'pay', label: `支付${config.energyCostCount}能量` },
+            { id: 'decline', label: DECLINE_OPTION_LABEL },
           ]
-        : [{ id: 'decline', label: '不发动' }],
+        : [{ id: 'decline', label: DECLINE_OPTION_LABEL }],
       metadata: {
         orderedResolution,
         activeEnergyCardIds,
-        energyCostCount: ENERGY_COST_COUNT,
+        energyCostCount: config.energyCostCount,
+        heartColor: config.heartColor,
+        heartCount: config.heartCount,
       },
     },
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'START_PAY_ENERGY_OPTION',
       activeEnergyCardIds,
-      heartColor: HeartColor.GREEN,
-      heartCount: 1,
+      heartColor: config.heartColor,
+      heartCount: config.heartCount,
     },
   });
 }
 
-function finishNSd1010ShiorikoPayEnergyWorkflow(
+function finishPayEnergyGainHeartWorkflow(
   game: GameState,
+  config: PayEnergyGainHeartWorkflowConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID ||
-    effect.stepId !== N_SD1_010_LIVE_START_PAY_ENERGY_STEP_ID
-  ) {
+  if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.stepId) {
     return game;
   }
 
@@ -110,8 +137,12 @@ function finishNSd1010ShiorikoPayEnergyWorkflow(
     return game;
   }
 
+  const energyCostCount =
+    typeof effect.metadata?.energyCostCount === 'number'
+      ? effect.metadata.energyCostCount
+      : config.energyCostCount;
   const costPayment = payImmediateEffectCosts(game, player.id, effect.sourceCardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: ENERGY_COST_COUNT },
+    { kind: 'TAP_ACTIVE_ENERGY', count: energyCostCount },
   ]);
   if (!costPayment) {
     return game;
@@ -131,7 +162,7 @@ function finishNSd1010ShiorikoPayEnergyWorkflow(
       memberCardId: effect.sourceCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
-      hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      hearts: [createHeartIcon(config.heartColor, config.heartCount)],
     }
   );
   if (!modifierResult) {
@@ -143,10 +174,10 @@ function finishNSd1010ShiorikoPayEnergyWorkflow(
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
-      step: 'PAY_ENERGY_GAIN_GREEN_HEART',
+      step: 'PAY_ENERGY_GAIN_HEART',
       paidEnergyCardIds: costPayment.paidEnergyCardIds,
-      heartColor: HeartColor.GREEN,
-      heartCount: 1,
+      heartColor: config.heartColor,
+      heartCount: config.heartCount,
     }),
     effect.metadata?.orderedResolution === true
   );

@@ -15,7 +15,7 @@ import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
 } from '../../ability-ids.js';
-import { unitAliasIs } from '../../../effects/card-selectors.js';
+import { groupAliasIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
   finishSkippedActiveEffect,
@@ -51,14 +51,17 @@ const DISCARD_LOOK_TOP_FIVE_LIVE_BASE_CARD_CODES = [
   'PL!HS-bp1-011',
   'PL!HS-bp6-022',
 ] as const;
-const DISCARD_LOOK_TOP_UNIT_CARD_CONFIGS = [
-  { baseCardCode: 'PL!HS-bp1-009', unitAlias: 'みらくらぱーく！', topCount: 5 },
-  { baseCardCode: 'PL!HS-pb1-018', unitAlias: 'DOLLCHESTRA', topCount: 5 },
-  { baseCardCode: 'PL!SP-pb1-015', unitAlias: 'CatChu!', topCount: 5 },
-  { baseCardCode: 'PL!SP-pb1-016', unitAlias: 'KALEIDOSCORE', topCount: 5 },
-  { baseCardCode: 'PL!SP-pb1-017', unitAlias: '5yncri5e!', topCount: 5 },
-  { baseCardCode: 'PL!-pb1-016', unitAlias: 'lilywhite', topCount: 4 },
+const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS = [
+  { baseCardCode: 'PL!HS-bp1-009', alias: 'みらくらぱーく！', selectorKind: 'UNIT', topCount: 5 },
+  { baseCardCode: 'PL!HS-pb1-018', alias: 'DOLLCHESTRA', selectorKind: 'UNIT', topCount: 5 },
+  { baseCardCode: 'PL!SP-bp1-005', alias: 'Liella!', selectorKind: 'GROUP', topCount: 5 },
+  { baseCardCode: 'PL!SP-pb1-015', alias: 'CatChu!', selectorKind: 'UNIT', topCount: 5 },
+  { baseCardCode: 'PL!SP-pb1-016', alias: 'KALEIDOSCORE', selectorKind: 'UNIT', topCount: 5 },
+  { baseCardCode: 'PL!SP-pb1-017', alias: '5yncri5e!', selectorKind: 'UNIT', topCount: 5 },
+  { baseCardCode: 'PL!-pb1-016', alias: 'lilywhite', selectorKind: 'UNIT', topCount: 4 },
 ] as const;
+
+type DiscardLookTopAliasSelectorKind = 'UNIT' | 'GROUP';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -66,7 +69,8 @@ interface DiscardLookTopMetadata {
   readonly topCount: number;
   readonly memberOnly: boolean;
   readonly liveOnly: boolean;
-  readonly unitAlias?: string;
+  readonly cardSelectorAlias?: string;
+  readonly cardSelectorKind?: DiscardLookTopAliasSelectorKind;
   readonly selectionRequired: boolean;
   readonly revealSelectedBeforeHand: boolean;
   readonly orderedResolution: boolean;
@@ -134,17 +138,18 @@ function startDiscardLookTopSelectToHandWorkflow(
   const selectableCardIds = player.hand.cardIds.filter((cardId) => cardId !== ability.sourceCardId);
   const cardCode = sourceCard.data.cardCode;
   const selectableCardType = getDiscardLookTopSelectableCardType(cardCode);
-  const unitAlias = getDiscardLookTopUnitAlias(cardCode);
+  const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
   const metadata: DiscardLookTopMetadata = {
     topCount: getDiscardLookTopCount(cardCode),
     memberOnly: selectableCardType === 'MEMBER',
     liveOnly: selectableCardType === 'LIVE',
-    unitAlias,
+    cardSelectorAlias: aliasCardConfig?.alias,
+    cardSelectorKind: aliasCardConfig?.selectorKind,
     selectionRequired: isDiscardLookTopSelectionRequired(cardCode),
     revealSelectedBeforeHand:
       isDiscardLookTopMemberCard(cardCode) ||
       isDiscardLookTopFiveLiveCard(cardCode) ||
-      unitAlias !== undefined,
+      aliasCardConfig !== undefined,
     orderedResolution: options.orderedResolution,
   };
 
@@ -239,22 +244,22 @@ function createLookTopConfig(
     selectionRequiredWhenHasTargets: metadata.selectionRequired,
     revealSelectedBeforeHand:
       metadata.revealSelectedBeforeHand &&
-      (metadata.memberOnly || metadata.liveOnly || metadata.unitAlias !== undefined),
+      (metadata.memberOnly || metadata.liveOnly || metadata.cardSelectorAlias !== undefined),
     selectStepId: DISCARD_LOOK_SELECT_TAKE_STEP_ID,
     revealStepId: DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
     selectStepText: metadata.liveOnly
       ? '请选择其中1张LIVE卡加入手牌，其余放置入休息室。'
       : metadata.memberOnly
         ? '请选择其中1张成员卡加入手牌，其余放置入休息室。'
-        : metadata.unitAlias
-          ? `请选择其中1张${metadata.unitAlias}的卡加入手牌，其余放置入休息室。`
+        : metadata.cardSelectorAlias
+          ? `请选择其中1张${metadata.cardSelectorAlias}的卡加入手牌，其余放置入休息室。`
           : '请选择其中1张卡加入手牌，其余放置入休息室。',
     noTargetStepText: metadata.liveOnly
       ? '没有可加入手牌的LIVE卡。确认后其余卡片放置入休息室。'
       : metadata.memberOnly
         ? '没有可加入手牌的成员卡。确认后其余卡片放置入休息室。'
-        : metadata.unitAlias
-          ? `没有可加入手牌的${metadata.unitAlias}的卡。确认后其余卡片放置入休息室。`
+        : metadata.cardSelectorAlias
+          ? `没有可加入手牌的${metadata.cardSelectorAlias}的卡。确认后其余卡片放置入休息室。`
           : '没有可加入手牌的卡片。确认后其余卡片放置入休息室。',
     selectionLabel: metadata.selectionRequired
       ? '请选择要加入手牌的卡牌'
@@ -279,8 +284,11 @@ function createDiscardLookTopSelector(
   if (metadata.memberOnly) {
     return (card) => isMemberCardData(card.data);
   }
-  if (metadata.unitAlias) {
-    return unitAliasIs(metadata.unitAlias);
+  if (metadata.cardSelectorAlias && metadata.cardSelectorKind === 'GROUP') {
+    return groupAliasIs(metadata.cardSelectorAlias);
+  }
+  if (metadata.cardSelectorAlias && metadata.cardSelectorKind === 'UNIT') {
+    return unitAliasIs(metadata.cardSelectorAlias);
   }
   return () => true;
 }
@@ -296,11 +304,19 @@ function getDiscardLookTopMetadata(
     topCount,
     memberOnly: metadata?.memberOnly === true,
     liveOnly: metadata?.liveOnly === true,
-    unitAlias: typeof metadata?.unitAlias === 'string' ? metadata.unitAlias : undefined,
+    cardSelectorAlias:
+      typeof metadata?.cardSelectorAlias === 'string' ? metadata.cardSelectorAlias : undefined,
+    cardSelectorKind: getDiscardLookTopAliasSelectorKind(metadata?.cardSelectorKind),
     selectionRequired: metadata?.selectionRequired === true,
     revealSelectedBeforeHand: metadata?.revealSelectedBeforeHand === true,
     orderedResolution: metadata?.orderedResolution === true,
   };
+}
+
+function getDiscardLookTopAliasSelectorKind(
+  value: unknown
+): DiscardLookTopAliasSelectorKind | undefined {
+  return value === 'UNIT' || value === 'GROUP' ? value : undefined;
 }
 
 function getDiscardLookTopCount(cardCode: string | undefined): number {
@@ -321,9 +337,9 @@ function getDiscardLookTopCount(cardCode: string | undefined): number {
   if (isDiscardLookTopFiveLiveCard(cardCode)) {
     return 5;
   }
-  const unitCardConfig = getDiscardLookTopUnitCardConfig(cardCode);
-  if (unitCardConfig) {
-    return unitCardConfig.topCount;
+  const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
+  if (aliasCardConfig) {
+    return aliasCardConfig.topCount;
   }
   return 3;
 }
@@ -397,10 +413,10 @@ function getDiscardLookTopEffectText(cardCode: string | undefined): string {
   if (isDiscardLookTopFiveLiveCard(cardCode)) {
     return getAbilityEffectText(BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID);
   }
-  const unitAlias = getDiscardLookTopUnitAlias(cardCode);
-  if (unitAlias) {
+  const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
+  if (aliasCardConfig) {
     const topCount = getDiscardLookTopCount(cardCode);
-    return `【登场】可以将1张手牌放置入休息室：检视自己卡组顶的${topCount}张卡。可以将1张其中的${unitAlias}的卡公开并加入手牌。其余的卡片放置入休息室。`;
+    return `【登场】可以将1张手牌放置入休息室：检视自己卡组顶的${topCount}张卡。可以将1张其中的${aliasCardConfig.alias}的卡公开并加入手牌。其余的卡片放置入休息室。`;
   }
   return getAbilityEffectText(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
 }
@@ -436,17 +452,13 @@ function isDiscardLookTopFourMemberCard(cardCode: string | undefined): boolean {
   );
 }
 
-function getDiscardLookTopUnitAlias(cardCode: string | undefined): string | undefined {
-  return getDiscardLookTopUnitCardConfig(cardCode)?.unitAlias;
-}
-
-function getDiscardLookTopUnitCardConfig(
+function getDiscardLookTopAliasCardConfig(
   cardCode: string | undefined
-): (typeof DISCARD_LOOK_TOP_UNIT_CARD_CONFIGS)[number] | undefined {
+): (typeof DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS)[number] | undefined {
   if (!cardCode) {
     return undefined;
   }
-  return DISCARD_LOOK_TOP_UNIT_CARD_CONFIGS.find(({ baseCardCode }) =>
+  return DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS.find(({ baseCardCode }) =>
     cardCodeMatchesBase(cardCode, baseCardCode)
   );
 }
