@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type {
   AnyCardData,
   EnergyCardData,
+  LiveCardData,
   MemberCardData,
 } from '../../src/domain/entities/card';
 import {
   createCardInstance,
   createHeartIcon,
+  createHeartRequirement,
 } from '../../src/domain/entities/card';
 import { registerCards, updatePlayer, type GameState } from '../../src/domain/entities/game';
 import {
@@ -24,6 +26,7 @@ import {
   OrientationState,
   SlotPosition,
   SubPhase,
+  TriggerCondition,
   TurnType,
 } from '../../src/shared/types/enums';
 
@@ -47,6 +50,16 @@ function createEnergyCard(cardCode: string): EnergyCardData {
     cardCode,
     name: `Energy ${cardCode}`,
     cardType: CardType.ENERGY,
+  };
+}
+
+function createLiveCard(cardCode: string, score: number): LiveCardData {
+  return {
+    cardCode,
+    name: `Live ${cardCode}`,
+    cardType: CardType.LIVE,
+    score,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
   };
 }
 
@@ -75,6 +88,91 @@ function forceMainPhaseForPlayer(session: ReturnType<typeof createGameSession>):
 }
 
 describe('BP5-007 Nozomi hand-adjust workflow', () => {
+  it('uses replaced member effective cost when checking the low-cost relay trigger', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'bp5-007-nozomi-effective-cost-relay-check',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const nozomi = createCardInstance(
+      createMemberCard('PL!-bp5-007-AR', '東條 希', 6),
+      PLAYER1,
+      'p1-bp5-007-nozomi-effective'
+    );
+    const effectiveCostRelayMember = createCardInstance(
+      createMemberCard('PL!-bp4-008-P', '小泉花阳', 4),
+      PLAYER1,
+      'p1-bp4-008-effective-relay'
+    );
+    const successLive = createCardInstance(
+      createLiveCard('PL!-test-success-live', 6),
+      PLAYER1,
+      'p1-success-live-six'
+    );
+
+    let state = registerCards(session.state!, [nozomi, effectiveCostRelayMember, successLive]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      hand: {
+        ...player.hand,
+        cardIds: [nozomi.instanceId],
+      },
+      mainDeck: {
+        ...player.mainDeck,
+        cardIds: [],
+      },
+      waitingRoom: { ...player.waitingRoom, cardIds: [] },
+      successZone: { ...player.successZone, cardIds: [successLive.instanceId] },
+      liveZone: { ...player.liveZone, cardIds: [] },
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          [SlotPosition.LEFT]: null,
+          [SlotPosition.CENTER]: effectiveCostRelayMember.instanceId,
+          [SlotPosition.RIGHT]: null,
+        },
+        cardStates: new Map([
+          [
+            effectiveCostRelayMember.instanceId,
+            { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+          ],
+        ]),
+      },
+    }));
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, nozomi.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.eventLog.at(-1)?.event).toMatchObject({
+      eventType: TriggerCondition.ON_ENTER_STAGE,
+      cardInstanceId: nozomi.instanceId,
+      replacedMemberCardId: effectiveCostRelayMember.instanceId,
+      replacedMemberEffectiveCost: 7,
+    });
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'TRIGGER_ABILITY' &&
+          action.payload.abilityId ===
+            BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
   it('skips controller discard, opens opponent discard, then draws three for each player', () => {
     const session = createGameSession();
     const deck = createDeck();

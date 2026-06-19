@@ -734,6 +734,10 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
   for (const [cardId, modifiers] of liveModifierProjection.liveRequirementModifiers.entries()) {
     liveRequirementModifiers.set(cardId, modifiers);
   }
+  const playerHeartBonuses = new Map(game.liveResolution.playerHeartBonuses);
+  for (const [playerId, hearts] of liveModifierProjection.playerHeartBonuses.entries()) {
+    playerHeartBonuses.set(playerId, hearts);
+  }
 
   return {
     scores: {
@@ -749,9 +753,9 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
         : 0,
     },
     heartBonuses: {
-      FIRST: firstPlayerId ? (game.liveResolution.playerHeartBonuses.get(firstPlayerId) ?? []) : [],
+      FIRST: firstPlayerId ? (playerHeartBonuses.get(firstPlayerId) ?? []) : [],
       SECOND: secondPlayerId
-        ? (game.liveResolution.playerHeartBonuses.get(secondPlayerId) ?? [])
+        ? (playerHeartBonuses.get(secondPlayerId) ?? [])
         : [],
     },
     requirementReductions: Object.fromEntries(

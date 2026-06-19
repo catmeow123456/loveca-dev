@@ -204,7 +204,9 @@ function getHeartModifiers(
 ): HeartModifierState[] {
   return liveModifiers.filter(
     (modifier): modifier is HeartModifierState =>
-      modifier.kind === 'HEART' && modifier.target === 'PLAYER' && modifier.playerId === playerId
+      modifier.kind === 'HEART' &&
+      getHeartModifierTarget(modifier) === 'PLAYER' &&
+      modifier.playerId === playerId
   );
 }
 
@@ -522,7 +524,7 @@ export function projectLiveModifierCompatibility(
       continue;
     }
 
-    if (modifier.kind === 'HEART' && modifier.target === 'PLAYER') {
+    if (modifier.kind === 'HEART' && getHeartModifierTarget(modifier) === 'PLAYER') {
       playerHeartBonuses.set(modifier.playerId, [
         ...(playerHeartBonuses.get(modifier.playerId) ?? []),
         ...modifier.hearts,
@@ -680,12 +682,24 @@ export function getMemberEffectiveHeartIcons(
       (modifier): modifier is HeartModifierState =>
         modifier.kind === 'HEART' &&
         modifier.playerId === playerId &&
-        ((modifier.target === 'SOURCE_MEMBER' && modifier.sourceCardId === sourceCardId) ||
-          (modifier.target === 'TARGET_MEMBER' && modifier.targetMemberCardId === sourceCardId))
+        ((getHeartModifierTarget(modifier) === 'SOURCE_MEMBER' &&
+          modifier.sourceCardId === sourceCardId) ||
+          (getHeartModifierTarget(modifier) === 'TARGET_MEMBER' &&
+            getHeartModifierTargetMemberCardId(modifier) === sourceCardId))
     )
     .flatMap((modifier) => modifier.hearts);
 
   return [...sourceCard.data.hearts, ...modifierHearts];
+}
+
+function getHeartModifierTarget(modifier: HeartModifierState): HeartModifierState['target'] {
+  return (
+    (modifier as { readonly target?: HeartModifierState['target'] }).target ?? 'PLAYER'
+  );
+}
+
+function getHeartModifierTargetMemberCardId(modifier: HeartModifierState): string | undefined {
+  return (modifier as { readonly targetMemberCardId?: string }).targetMemberCardId;
 }
 
 export function getLiveCardRequirementModifiers(

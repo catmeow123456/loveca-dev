@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
-import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
+import {
+  createGameState,
+  registerCards,
+  updatePlayer,
+  type LiveModifierState,
+} from '../../src/domain/entities/game';
 import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   addHeartLiveModifierForMember,
@@ -13,8 +18,10 @@ import {
   getMemberEffectiveHeartIcons,
   getPlayerLiveHeartModifiers,
   getPlayerLiveScoreModifier,
+  projectLiveModifierCompatibility,
   replaceLiveModifier,
 } from '../../src/domain/rules/live-modifiers';
+import { fromTransport, toTransport } from '../../src/online/serde';
 import { CardType, HeartColor, SlotPosition } from '../../src/shared/types/enums';
 
 describe('live modifier helpers', () => {
@@ -319,6 +326,123 @@ describe('live modifier helpers', () => {
       createHeartIcon(HeartColor.PINK, 1),
       createHeartIcon(HeartColor.PINK, 1),
     ]);
+  });
+
+  it('keeps legacy player Heart modifiers in player Heart compatibility projection', () => {
+    const legacyModifier = {
+      kind: 'HEART',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      sourceCardId: 'legacy-source',
+      abilityId: 'legacy-player-heart',
+    } as unknown as LiveModifierState;
+    let game = createGameState('legacy-player-heart-compatibility', 'p1', 'P1', 'p2', 'P2');
+    game = addLiveModifier(game, legacyModifier);
+
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1')).toEqual([
+      createHeartIcon(HeartColor.GREEN, 1),
+    ]);
+    expect(projectLiveModifierCompatibility(game.liveResolution.liveModifiers).playerHeartBonuses.get('p1')).toEqual([
+      createHeartIcon(HeartColor.GREEN, 1),
+    ]);
+  });
+
+  it('preserves Heart modifier semantics through online transport JSON round trip', () => {
+    const source = createCardInstance(
+      {
+        cardCode: 'ROUND-TRIP-SOURCE',
+        name: 'Round Trip Source',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'round-trip-source'
+    );
+    let game = createGameState('heart-modifier-json-round-trip', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source]);
+    const modifiers: readonly LiveModifierState[] = [
+      {
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        playerId: 'p1',
+        hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+        sourceCardId: source.instanceId,
+        abilityId: 'source-member-heart',
+      },
+      {
+        kind: 'HEART',
+        target: 'PLAYER',
+        playerId: 'p1',
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+        sourceCardId: 'player-source',
+        abilityId: 'player-heart',
+      },
+      {
+        kind: 'HEART',
+        playerId: 'p2',
+        hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+        sourceCardId: 'legacy-source',
+        abilityId: 'legacy-player-heart',
+      } as unknown as LiveModifierState,
+    ];
+
+    const encoded = JSON.stringify(toTransport(modifiers));
+    const decoded = fromTransport<readonly LiveModifierState[]>(JSON.parse(encoded));
+
+    expect(decoded).toEqual(modifiers);
+    expect(getMemberEffectiveHeartIcons(game, 'p1', source.instanceId, decoded)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.YELLOW, 1),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', decoded)).toEqual([
+      createHeartIcon(HeartColor.GREEN, 1),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p2', decoded)).toEqual([
+      createHeartIcon(HeartColor.PURPLE, 1),
+    ]);
+  });
+
+  it('combines source-member and target-member Heart modifiers for the same member', () => {
+    const target = createCardInstance(
+      {
+        cardCode: 'MIXED-HEART-TARGET',
+        name: 'Mixed Heart Target',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'mixed-heart-target'
+    );
+    let game = createGameState('mixed-member-heart-modifiers', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [target]);
+    game = addLiveModifier(game, {
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      sourceCardId: target.instanceId,
+      abilityId: 'source-heart',
+    });
+    game = addLiveModifier(game, {
+      kind: 'HEART',
+      target: 'TARGET_MEMBER',
+      playerId: 'p1',
+      targetMemberCardId: target.instanceId,
+      hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      sourceCardId: 'other-source',
+      abilityId: 'target-heart',
+    });
+
+    expect(getMemberEffectiveHeartIcons(game, 'p1', target.instanceId)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.YELLOW, 1),
+      createHeartIcon(HeartColor.BLUE, 1),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1')).toEqual([]);
   });
 
   it('separates total score modifiers from this-live-card score modifiers', () => {

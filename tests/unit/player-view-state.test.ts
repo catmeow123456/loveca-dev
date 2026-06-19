@@ -20,7 +20,12 @@ import {
   type LiveCardData,
   type MemberCardData,
 } from '../../src/domain/entities/card';
-import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
+import {
+  createGameState,
+  registerCards,
+  updatePlayer,
+  type LiveModifierState,
+} from '../../src/domain/entities/game';
 import { addCardToStatefulZone, addCardToZone } from '../../src/domain/entities/zone';
 import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import type { PlayerViewState } from '../../src/online/types';
@@ -195,6 +200,63 @@ describe('PlayerViewState projector', () => {
       { color: HeartColor.PINK, count: 1 },
     ]);
     expect(view.match.liveResult?.heartBonuses.FIRST).toEqual([]);
+  });
+
+  it('keeps legacy player Heart bonuses in liveResult without mixing member Hearts', () => {
+    let { state } = createProjectedState();
+    const sourceMember = createCardInstance(
+      createTestMember('PL!HS-bp5-003-AR', '大泽瑠璃乃'),
+      PLAYER1,
+      'p1-rurino'
+    );
+    const targetMember = createCardInstance(
+      createTestMember('PL!-bp5-005-AR', '星空凛'),
+      PLAYER1,
+      'p1-target-muse'
+    );
+    state = registerCards(state, [sourceMember, targetMember]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.LEFT]: targetMember.instanceId,
+          [SlotPosition.CENTER]: sourceMember.instanceId,
+        },
+        cardStates: new Map([
+          [targetMember.instanceId, createDefaultCardState()],
+          [sourceMember.instanceId, createDefaultCardState()],
+        ]),
+      },
+    }));
+    state = addLiveModifier(state, {
+      kind: 'HEART',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER1,
+      targetMemberCardId: targetMember.instanceId,
+      hearts: [{ color: HeartColor.PINK, count: 1 }],
+      sourceCardId: sourceMember.instanceId,
+      abilityId: 'PL!HS-bp5-003:live-start-discard-same-group-member-heart',
+    });
+    state = addLiveModifier(state, {
+      kind: 'HEART',
+      playerId: PLAYER1,
+      hearts: [{ color: HeartColor.GREEN, count: 1 }],
+      sourceCardId: 'legacy-player-heart-source',
+      abilityId: 'legacy-player-heart',
+    } as unknown as LiveModifierState);
+
+    const view = projectPlayerViewState(state, PLAYER1);
+    const targetObject = view.objects[createPublicObjectId(targetMember.instanceId)];
+
+    expect(targetObject?.frontInfo?.hearts).toEqual([
+      { color: HeartColor.PINK, count: 1 },
+      { color: HeartColor.PINK, count: 1 },
+    ]);
+    expect(view.match.liveResult?.heartBonuses.FIRST).toEqual([
+      { color: HeartColor.GREEN, count: 1 },
+    ]);
   });
 
   it('projects continuous requirement modifiers collected from current live modifiers', () => {
