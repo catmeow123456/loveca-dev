@@ -6,8 +6,7 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import type { LeaveStageEvent } from '../../../../domain/events/game-events.js';
-import { CardType, GamePhase, TriggerCondition } from '../../../../shared/types/enums.js';
+import { CardType, GamePhase } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   BP4_003_ACTIVATED_ABILITY_ID,
@@ -23,8 +22,11 @@ import {
   getAbilityEffectText,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
+import {
+  paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
+  type EnqueueTriggeredCardEffectsForLeaveStage,
+} from '../../runtime/leave-stage-triggers.js';
 import { typeIs } from '../../../effects/card-selectors.js';
-import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -38,14 +40,7 @@ const BP4_003_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'BP4_003_SELECT_WAITING_ROOM_LI
 const PB1_019_SELECT_WAITING_ROOM_MEMBER_STEP_ID = 'PB1_019_SELECT_WAITING_ROOM_MEMBER';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
-
-type EnqueueTriggeredCardEffects = (
-  game: GameState,
-  triggerConditions: readonly TriggerCondition[],
-  options?: {
-    readonly leaveStageEvents?: readonly LeaveStageEvent[];
-  }
-) => GameState;
+type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForLeaveStage;
 
 export interface SelfSacrificeWaitingRoomToHandWorkflowDependencies {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
@@ -141,20 +136,17 @@ function startSelfSacrificeWaitingRoomToHandWorkflow(
     abilityId: config.abilityId,
     sourceCardId: cardId,
   });
-  const stateBeforeCost = state;
-  const costPayment = payImmediateEffectCosts(state, player.id, cardId, [
-    { kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' },
-  ]);
+  const costPayment = paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+    state,
+    player.id,
+    cardId,
+    dependencies.enqueueTriggeredCardEffects
+  );
   if (!costPayment) {
     return game;
   }
   state = costPayment.gameState;
   const movedToWaitingRoomCardIds = costPayment.movedToWaitingRoomCardIds;
-  if (costPayment.sourceSlot && movedToWaitingRoomCardIds.includes(cardId)) {
-    state = dependencies.enqueueTriggeredCardEffects(state, [TriggerCondition.ON_LEAVE_STAGE], {
-      leaveStageEvents: getNewLeaveStageEvents(stateBeforeCost, state),
-    });
-  }
 
   const selectableCardIds = selectWaitingRoomCardIds(state, player.id, config.selectablePredicate);
   const selectionRequired =
@@ -247,16 +239,6 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
     }),
     effect.metadata?.orderedResolution === true
   );
-}
-
-function getNewLeaveStageEvents(before: GameState, after: GameState): readonly LeaveStageEvent[] {
-  return after.eventLog
-    .slice(before.eventLog.length)
-    .map((entry) => entry.event)
-    .filter(
-      (event): event is LeaveStageEvent =>
-        event.eventType === TriggerCondition.ON_LEAVE_STAGE
-    );
 }
 
 function getCardAbilityBaseCardCodes(abilityId: string): readonly string[] {

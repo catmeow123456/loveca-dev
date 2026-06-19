@@ -9,9 +9,8 @@ import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { CardType, GamePhase } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID } from '../../ability-ids.js';
-import { discardHandCardsToWaitingRoomForPlayer } from '../../runtime/actions.js';
 import {
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
@@ -210,26 +209,22 @@ function startDiscardCostWaitingRoomRecoveryAfterDiscard(
     return game;
   }
 
-  const discardResult = discardHandCardsToWaitingRoomForPlayer(
+  const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
     uniqueSelectedCardIds,
     {
       count: discardCount,
       candidateCardIds: effect.selectableCardIds ?? [],
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;
   }
-  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
 
   const selectableCardIds = selectWaitingRoomCardIds(
-    stateWithEnterWaitingRoomTriggers,
+    discardResult.gameState,
     player.id,
     config.recoverySelector
   );
@@ -247,7 +242,7 @@ function startDiscardCostWaitingRoomRecoveryAfterDiscard(
 
   return addAction(
     {
-      ...stateWithEnterWaitingRoomTriggers,
+      ...discardResult.gameState,
       activeEffect: createWaitingRoomToHandEffectState({
         id: effect.id,
         abilityId: effect.abilityId,

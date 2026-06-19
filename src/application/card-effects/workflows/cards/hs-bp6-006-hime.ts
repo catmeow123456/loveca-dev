@@ -8,12 +8,19 @@ import { addMemberActivePhaseSkip } from '../../../../domain/rules/member-active
 import { OrientationState } from '../../../../shared/types/enums.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import { HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID } from '../../ability-ids.js';
+import {
+  enqueueMemberStateChangedTriggersFromOrientationResult,
+  type EnqueueTriggeredCardEffectsForMemberStateChanged,
+} from '../../runtime/member-state-changed-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
+type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
 
-export function registerHsBp6006HimeWorkflowHandlers(): void {
+export function registerHsBp6006HimeWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
+}): void {
   registerPendingAbilityStarterHandler(
     HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID,
     (game, ability, options, context) =>
@@ -21,7 +28,8 @@ export function registerHsBp6006HimeWorkflowHandlers(): void {
         game,
         ability,
         options.orderedResolution === true,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
   );
 }
@@ -30,7 +38,8 @@ function resolveHsBp6006HimeLiveSuccess(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
@@ -82,25 +91,37 @@ function resolveHsBp6006HimeLiveSuccess(
     );
   }
 
-  state = addMemberActivePhaseSkip(waitResult.gameState, {
+  const stateWithSkipMarker = addMemberActivePhaseSkip(waitResult.gameState, {
     playerId: player.id,
     memberCardId: ability.sourceCardId,
     sourceCardId: ability.sourceCardId,
     abilityId: ability.abilityId,
   });
 
+  const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
+    state,
+    {
+      ...waitResult,
+      gameState: stateWithSkipMarker,
+    },
+    enqueueTriggeredCardEffects,
+    {
+      prepareGameStateBeforeEnqueue: (stateAfterSkip, result) =>
+        addAction(stateAfterSkip, 'RESOLVE_ABILITY', player.id, {
+          pendingAbilityId: ability.id,
+          abilityId: ability.abilityId,
+          sourceCardId: ability.sourceCardId,
+          step: 'WAIT_SOURCE_SKIP_NEXT_ACTIVE',
+          sourceSlot,
+          previousOrientation: result.previousOrientation,
+          nextOrientation: result.nextOrientation,
+          skipNextActivePlayerId: player.id,
+          skipNextActiveMemberCardId: ability.sourceCardId,
+        }),
+    }
+  );
   return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'WAIT_SOURCE_SKIP_NEXT_ACTIVE',
-      sourceSlot,
-      previousOrientation: waitResult.previousOrientation,
-      nextOrientation: waitResult.nextOrientation,
-      skipNextActivePlayerId: player.id,
-      skipNextActiveMemberCardId: ability.sourceCardId,
-    }),
+    stateWithMemberStateTriggers.gameState,
     orderedResolution
   );
 }

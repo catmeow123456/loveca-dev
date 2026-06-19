@@ -100,6 +100,27 @@ describe('HS-bp6-006 安養寺 姫芽 workflow', () => {
       },
     ]);
     expect(
+      result.gameState.eventLog
+        .map((entry) => entry.event)
+        .find(
+          (event) =>
+            event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED &&
+            event.cardInstanceId === hime.instanceId
+        )
+    ).toMatchObject({
+      eventType: TriggerCondition.ON_MEMBER_STATE_CHANGED,
+      cardInstanceId: hime.instanceId,
+      controllerId: PLAYER1,
+      previousOrientation: OrientationState.ACTIVE,
+      nextOrientation: OrientationState.WAITING,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: PLAYER1,
+        sourceCardId: hime.instanceId,
+        abilityId: HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID,
+      },
+    });
+    expect(
       result.gameState.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&

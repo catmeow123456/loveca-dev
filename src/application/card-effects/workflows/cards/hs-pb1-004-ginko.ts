@@ -7,9 +7,8 @@ import {
 import { OrientationState, CardType } from '../../../../shared/types/enums.js';
 import { HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID } from '../../ability-ids.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
-import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
 import {
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -168,24 +167,20 @@ function finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomForPlayer(
+  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
     energyPayment.gameState,
     player.id,
     discardCardId,
     {
       candidateCardIds: effect.selectableCardIds ?? [],
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;
   }
-  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
 
-  const stateAfterCost = addAction(stateWithEnterWaitingRoomTriggers, 'PAY_COST', player.id, {
+  const stateAfterCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
     pendingAbilityId: effect.id,
     abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId,

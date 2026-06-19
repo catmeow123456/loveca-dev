@@ -8,6 +8,10 @@ import { OrientationState } from '../../../../shared/types/enums.js';
 import { EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import {
+  enqueueMemberStateChangedTriggersFromOrientationResult,
+  type EnqueueTriggeredCardEffectsForMemberStateChanged,
+} from '../../runtime/member-state-changed-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -19,8 +23,11 @@ export const EMMA_SELECT_TARGET_TYPE_STEP_ID = 'EMMA_SELECT_ACTIVATE_TARGET_TYPE
 export const EMMA_SELECT_MEMBER_STEP_ID = 'EMMA_SELECT_MEMBER_TO_ACTIVATE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
+type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
 
-export function registerEmmaWorkflowHandlers(): void {
+export function registerEmmaWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
+}): void {
   registerPendingAbilityStarterHandler(
     EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID,
     (game, ability, options) =>
@@ -43,7 +50,8 @@ export function registerEmmaWorkflowHandlers(): void {
       finishEmmaActivateMember(
         game,
         input.selectedCardId ?? null,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
   );
 }
@@ -191,7 +199,8 @@ function startEmmaTargetSelection(
 function finishEmmaActivateMember(
   game: GameState,
   selectedCardId: string | null,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
   const effect = game.activeEffect;
   if (!effect || selectedCardId === null) {
@@ -219,21 +228,33 @@ function finishEmmaActivateMember(
     return game;
   }
 
-  const state = {
-    ...orientationChange.gameState,
-    activeEffect: null,
-  };
-
+  const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
+    game,
+    orientationChange,
+    enqueueTriggeredCardEffects,
+    {
+      prepareGameStateBeforeEnqueue: (state, result) =>
+        addAction(
+          {
+            ...state,
+            activeEffect: null,
+          },
+          'RESOLVE_ABILITY',
+          player.id,
+          {
+            pendingAbilityId: effect.id,
+            abilityId: effect.abilityId,
+            sourceCardId: effect.sourceCardId,
+            step: 'ACTIVATE_MEMBER',
+            activatedMemberCardIds: result.updatedMemberCardIds,
+            previousOrientations: result.previousOrientations,
+            nextOrientation: result.nextOrientation,
+          }
+        ),
+    }
+  );
   return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'ACTIVATE_MEMBER',
-      activatedMemberCardIds: orientationChange.updatedMemberCardIds,
-      previousOrientations: orientationChange.previousOrientations,
-      nextOrientation: orientationChange.nextOrientation,
-    }),
+    stateWithMemberStateTriggers.gameState,
     effect.metadata?.orderedResolution === true
   );
 }

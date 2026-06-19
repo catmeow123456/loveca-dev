@@ -7,6 +7,10 @@ import {
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import { CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import {
+  enqueueMemberStateChangedTriggersFromOrientationResult,
+  type EnqueueTriggeredCardEffectsForMemberStateChanged,
+} from '../../runtime/member-state-changed-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -18,10 +22,13 @@ import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js
 export const CHISATO_LIVE_START_ACTIVATE_STEP_ID = 'CHISATO_LIVE_START_ACTIVATE_ALL';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
+type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
 
 const liellaMemberCard = and(typeIs(CardType.MEMBER), groupAliasIs('Liella!'));
 
-export function registerChisatoWorkflowHandlers(): void {
+export function registerChisatoWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
+}): void {
   registerPendingAbilityStarterHandler(
     CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID,
     (game, ability, options) =>
@@ -31,7 +38,11 @@ export function registerChisatoWorkflowHandlers(): void {
     CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID,
     CHISATO_LIVE_START_ACTIVATE_STEP_ID,
     (game, _input, context) =>
-      finishChisatoLiveStartActivateAll(game, context.continuePendingCardEffects)
+      finishChisatoLiveStartActivateAll(
+        game,
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
+      )
   );
 }
 
@@ -79,7 +90,8 @@ function startChisatoLiveStartActivateAll(
 
 function finishChisatoLiveStartActivateAll(
   game: GameState,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -114,24 +126,39 @@ function finishChisatoLiveStartActivateAll(
     return game;
   }
 
-  const state = {
-    ...energyOrientationChange.gameState,
-    activeEffect: null,
-  };
-
+  const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
+    game,
+    {
+      ...memberOrientationChange,
+      gameState: energyOrientationChange.gameState,
+    },
+    enqueueTriggeredCardEffects,
+    {
+      prepareGameStateBeforeEnqueue: (state, result) =>
+        addAction(
+          {
+            ...state,
+            activeEffect: null,
+          },
+          'RESOLVE_ABILITY',
+          player.id,
+          {
+            pendingAbilityId: effect.id,
+            abilityId: effect.abilityId,
+            sourceCardId: effect.sourceCardId,
+            step: 'ACTIVATE_MEMBERS_AND_ENERGY',
+            sourceSlot: effect.metadata?.sourceSlot,
+            activatedMemberCardIds: result.updatedMemberCardIds,
+            previousMemberOrientations: result.previousOrientations,
+            activatedEnergyCardIds: energyOrientationChange.updatedEnergyCardIds,
+            previousEnergyOrientations: energyOrientationChange.previousOrientations,
+            nextOrientation: OrientationState.ACTIVE,
+          }
+        ),
+    }
+  );
   return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'ACTIVATE_MEMBERS_AND_ENERGY',
-      sourceSlot: effect.metadata?.sourceSlot,
-      activatedMemberCardIds: memberOrientationChange.updatedMemberCardIds,
-      previousMemberOrientations: memberOrientationChange.previousOrientations,
-      activatedEnergyCardIds: energyOrientationChange.updatedEnergyCardIds,
-      previousEnergyOrientations: energyOrientationChange.previousOrientations,
-      nextOrientation: OrientationState.ACTIVE,
-    }),
+    stateWithMemberStateTriggers.gameState,
     effect.metadata?.orderedResolution === true
   );
 }

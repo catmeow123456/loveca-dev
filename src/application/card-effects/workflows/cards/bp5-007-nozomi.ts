@@ -6,12 +6,9 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID } from '../../ability-ids.js';
+import { drawCardsForEachPlayer } from '../../runtime/actions.js';
 import {
-  discardHandCardsToWaitingRoomForPlayer,
-  drawCardsForEachPlayer,
-} from '../../runtime/actions.js';
-import {
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -196,23 +193,19 @@ function finishBp5007NozomiDiscardToThree(
     return game;
   }
 
-  const discardResult = discardHandCardsToWaitingRoomForPlayer(
+  const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
     uniqueSelectedCardIds,
     {
       count: discardCount,
       candidateCardIds: selectableCardIds,
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;
   }
-  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
 
   const playerIds = Array.isArray(effect.metadata?.discardPlayerIds)
     ? effect.metadata.discardPlayerIds.filter((value): value is string => typeof value === 'string')
@@ -225,7 +218,7 @@ function finishBp5007NozomiDiscardToThree(
 
   const stateAfterDiscard = addAction(
     {
-      ...stateWithEnterWaitingRoomTriggers,
+      ...discardResult.gameState,
       activeEffect: null,
     },
     'RESOLVE_ABILITY',

@@ -119,6 +119,8 @@ export function drawCardsForEachPlayer(
   };
 }
 
+// Raw action helper: only moves hand cards to waiting room and records EnterWaitingRoomEvent.
+// Workflows must use discardHandCardsToWaitingRoomAndEnqueueTriggers; bare low-level calls need a comment explaining why trigger enqueue is skipped.
 export function discardHandCardsToWaitingRoomForPlayer(
   game: GameState,
   playerId: string,
@@ -165,6 +167,8 @@ export function discardHandCardsToWaitingRoomForPlayer(
   };
 }
 
+// Raw action helper: single-card convenience path, still only records EnterWaitingRoomEvent.
+// Workflows must use discardOneHandCardToWaitingRoomAndEnqueueTriggers; bare low-level calls need a comment explaining why trigger enqueue is skipped.
 export function discardOneHandCardToWaitingRoomForPlayer(
   game: GameState,
   playerId: string,

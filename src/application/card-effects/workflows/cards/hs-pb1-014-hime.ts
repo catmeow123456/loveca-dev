@@ -10,14 +10,13 @@ import type { MemberSlotMovedEvent } from '../../../../domain/events/game-events
 import { CardType, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
 import { toPlayerLocalSlotForControllerPerspective } from '../../../../shared/utils/slot-perspective.js';
 import { and, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
-import { moveMemberBetweenSlots } from '../../../effects/member-state.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { HS_PB1_014_ON_ENTER_MOVE_OPPONENT_FRONT_ABILITY_ID } from '../../ability-ids.js';
 import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import { getNewMemberSlotMovedEvents } from '../../runtime/events.js';
+import { moveMemberBetweenSlotsAndEnqueueTriggers } from '../../runtime/member-slot-moved-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -200,42 +199,43 @@ function finishHsPb1014HimeMoveOpponentFront(
     );
   }
 
-  const moveResult = moveMemberBetweenSlots(game, targetPlayerId, selectedCardId, targetLocalSlot);
+  const moveResult = moveMemberBetweenSlotsAndEnqueueTriggers(
+    game,
+    targetPlayerId,
+    selectedCardId,
+    targetLocalSlot,
+    enqueueTriggeredCardEffects,
+    {
+      prepareGameStateBeforeEnqueue: (state, result) =>
+        addAction(
+          {
+            ...state,
+            activeEffect: null,
+          },
+          'RESOLVE_ABILITY',
+          player.id,
+          {
+            pendingAbilityId: effect.id,
+            abilityId: effect.abilityId,
+            sourceCardId: effect.sourceCardId,
+            step: 'MOVE_OPPONENT_MEMBER_FRONT_SLOT',
+            sourceSlot,
+            targetLocalSlot,
+            targetPlayerId,
+            targetCardId: selectedCardId,
+            fromSlot: result.fromSlot,
+            toSlot: result.toSlot,
+            swappedCardId: result.swappedCardId,
+          }
+        ),
+    }
+  );
   if (!moveResult) {
     return game;
   }
 
-  const stateWithResolveAction = addAction(
-    {
-      ...moveResult.gameState,
-      activeEffect: null,
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'MOVE_OPPONENT_MEMBER_FRONT_SLOT',
-      sourceSlot,
-      targetLocalSlot,
-      targetPlayerId,
-      targetCardId: selectedCardId,
-      fromSlot: moveResult.fromSlot,
-      toSlot: moveResult.toSlot,
-      swappedCardId: moveResult.swappedCardId,
-    }
-  );
-  const stateWithMoveTriggers = enqueueTriggeredCardEffects(
-    stateWithResolveAction,
-    [TriggerCondition.ON_MEMBER_SLOT_MOVED],
-    {
-      memberSlotMovedEvents: getNewMemberSlotMovedEvents(game, moveResult.gameState),
-    }
-  );
-
   return continuePendingCardEffects(
-    stateWithMoveTriggers,
+    moveResult.gameState,
     effect.metadata?.orderedResolution === true
   );
 }

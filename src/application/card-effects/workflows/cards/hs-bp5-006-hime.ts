@@ -13,9 +13,8 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import { discardHandCardsToWaitingRoomForPlayer } from '../../runtime/actions.js';
 import {
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -142,27 +141,23 @@ function finishHsBp5006HimeDiscard(
     return game;
   }
 
-  const discardResult = discardHandCardsToWaitingRoomForPlayer(
+  const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
     uniqueSelectedCardIds,
     {
       count: 2,
       candidateCardIds: effect.selectableCardIds ?? [],
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;
   }
-  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
 
   const hearts = [{ color: HeartColor.PINK, count: 2 }];
   const modifierResult = addHeartLiveModifierForMember(
-    { ...stateWithEnterWaitingRoomTriggers, activeEffect: null },
+    { ...discardResult.gameState, activeEffect: null },
     {
       playerId: player.id,
       memberCardId: effect.sourceCardId,

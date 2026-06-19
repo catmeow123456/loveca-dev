@@ -13,12 +13,9 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
+import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import {
-  addBladeLiveModifierForSourceMember,
-  discardOneHandCardToWaitingRoomForPlayer,
-} from '../../runtime/actions.js';
-import {
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -111,21 +108,22 @@ function finishHsBp6GinkoDiscardGainBlade(
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomForPlayer(game, player.id, discardCardId, {
-    candidateCardIds: effect.selectableCardIds ?? [],
-  });
+  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+    game,
+    player.id,
+    discardCardId,
+    {
+      candidateCardIds: effect.selectableCardIds ?? [],
+    },
+    enqueueTriggeredCardEffects
+  );
   if (!discardResult) {
     return game;
   }
-  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
 
   const discardedWasGinko = ginkoMember(discardCard);
   const bladeBonus = discardedWasGinko ? 2 : 1;
-  const bladeResult = addBladeLiveModifierForSourceMember(stateWithEnterWaitingRoomTriggers, {
+  const bladeResult = addBladeLiveModifierForSourceMember(discardResult.gameState, {
     playerId: player.id,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,

@@ -13,9 +13,8 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import { discardHandCardsToWaitingRoomForPlayer } from '../../runtime/actions.js';
 import {
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -163,23 +162,19 @@ function finishNamedHandDiscardLiveStartEffect(
     return game;
   }
 
-  const discardResult = discardHandCardsToWaitingRoomForPlayer(
+  const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
     uniqueSelectedCardIds,
     {
       count: uniqueSelectedCardIds.length,
       candidateCardIds: effect.selectableCardIds ?? [],
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;
   }
-  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
 
   const rewardKind =
     effect.metadata?.namedHandDiscardRewardKind === 'SCORE'
@@ -197,7 +192,7 @@ function finishNamedHandDiscardLiveStartEffect(
         ? effect.metadata.namedHandDiscardRewardAmount
         : 0
       : discardResult.discardedCardIds.length;
-  const stateAfterModifier = addLiveModifier(stateWithEnterWaitingRoomTriggers, {
+  const stateAfterModifier = addLiveModifier(discardResult.gameState, {
     kind: rewardKind === 'SCORE' ? 'SCORE' : 'BLADE',
     playerId: player.id,
     countDelta: rewardAmount,

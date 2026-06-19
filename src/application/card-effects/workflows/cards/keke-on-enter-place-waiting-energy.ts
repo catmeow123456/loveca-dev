@@ -11,9 +11,8 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
 import {
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -100,20 +99,21 @@ function finishKekeOnEnterPlaceWaitingEnergy(
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomForPlayer(game, player.id, discardCardId, {
-    candidateCardIds: effect.selectableCardIds ?? [],
-  });
+  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+    game,
+    player.id,
+    discardCardId,
+    {
+      candidateCardIds: effect.selectableCardIds ?? [],
+    },
+    enqueueTriggeredCardEffects
+  );
   if (!discardResult) {
     return game;
   }
-  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
 
   const energyPlacement = placeEnergyFromDeckToZone(
-    stateWithEnterWaitingRoomTriggers,
+    discardResult.gameState,
     player.id,
     1,
     OrientationState.WAITING

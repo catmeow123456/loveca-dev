@@ -14,7 +14,7 @@ import { BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID } from '../../abilit
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import {
@@ -22,7 +22,6 @@ import {
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
-import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import {
   payImmediateEffectCosts,
@@ -189,23 +188,19 @@ function startBp5003KotoriBranchAfterDiscard(
   if (!energyPayment) {
     return game;
   }
-  const discardResult = discardOneHandCardToWaitingRoomForPlayer(
+  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
     energyPayment.gameState,
     player.id,
     discardCardId,
     {
       candidateCardIds: effect.selectableCardIds ?? [],
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;
   }
-  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
-  const stateAfterCost = addAction(stateWithEnterWaitingRoomTriggers, 'PAY_COST', player.id, {
+  const stateAfterCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
     pendingAbilityId: effect.id,
     abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId,

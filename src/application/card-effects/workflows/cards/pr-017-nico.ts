@@ -5,9 +5,8 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import type { LeaveStageEvent } from '../../../../domain/events/game-events.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { CardType, GamePhase, OrientationState, TriggerCondition } from '../../../../shared/types/enums.js';
+import { CardType, GamePhase, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import {
@@ -21,6 +20,10 @@ import {
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import {
+  paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
+  type EnqueueTriggeredCardEffectsForLeaveStage,
+} from '../../runtime/leave-stage-triggers.js';
+import {
   and,
   groupIs,
   typeIs,
@@ -30,7 +33,6 @@ import {
   sumSuccessfulLiveScore,
 } from '../../../effects/conditions.js';
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
-import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -41,14 +43,7 @@ import {
 const PR_017_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID = 'PR_017_SELECT_WAITING_ROOM_MUSE_LIVE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
-
-type EnqueueTriggeredCardEffects = (
-  game: GameState,
-  triggerConditions: readonly TriggerCondition[],
-  options?: {
-    readonly leaveStageEvents?: readonly LeaveStageEvent[];
-  }
-) => GameState;
+type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForLeaveStage;
 
 export interface Pr017NicoWorkflowDependencies {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
@@ -106,20 +101,17 @@ function startPr017NicoActivatedEffect(
     abilityId: PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
     sourceCardId: cardId,
   });
-  const stateBeforeCost = state;
-  const costPayment = payImmediateEffectCosts(state, player.id, cardId, [
-    { kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' },
-  ]);
+  const costPayment = paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+    state,
+    player.id,
+    cardId,
+    dependencies.enqueueTriggeredCardEffects
+  );
   if (!costPayment) {
     return game;
   }
   state = costPayment.gameState;
   const movedToWaitingRoomCardIds = costPayment.movedToWaitingRoomCardIds;
-  if (costPayment.sourceSlot && movedToWaitingRoomCardIds.includes(cardId)) {
-    state = dependencies.enqueueTriggeredCardEffects(state, [TriggerCondition.ON_LEAVE_STAGE], {
-      leaveStageEvents: getNewLeaveStageEvents(stateBeforeCost, state),
-    });
-  }
 
   const selectableCardIds = selectWaitingRoomCardIds(
     state,
@@ -219,14 +211,4 @@ function finishPr017NicoRecoverMuseLiveActivateEnergy(
     }),
     effect.metadata?.orderedResolution === true
   );
-}
-
-function getNewLeaveStageEvents(before: GameState, after: GameState): readonly LeaveStageEvent[] {
-  return after.eventLog
-    .slice(before.eventLog.length)
-    .map((entry) => entry.event)
-    .filter(
-      (event): event is LeaveStageEvent =>
-        event.eventType === TriggerCondition.ON_LEAVE_STAGE
-    );
 }

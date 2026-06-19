@@ -7,12 +7,9 @@ import {
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
   SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
 } from '../../ability-ids.js';
+import { drawCardsForPlayer } from '../../runtime/actions.js';
 import {
-  discardHandCardsToWaitingRoomForPlayer,
-  drawCardsForPlayer,
-} from '../../runtime/actions.js';
-import {
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -198,7 +195,7 @@ export function finishDrawThenDiscardCardsWorkflow(
   selectedCardId: string | null,
   selectedCardIds: readonly string[] | undefined,
   continuePendingCardEffects: ContinuePendingCardEffects,
-  enqueueTriggeredCardEffects?: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -253,28 +250,22 @@ export function finishDrawThenDiscardCardsWorkflow(
     return game;
   }
 
-  const discardResult = discardHandCardsToWaitingRoomForPlayer(
+  const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
     uniqueSelectedCardIds,
     {
       count: requiredDiscardCount,
       candidateCardIds: selectableCardIds,
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;
   }
-  const stateWithEnterWaitingRoomTriggers = enqueueTriggeredCardEffects
-    ? enqueueEnterWaitingRoomTriggersFromDiscardResult(
-        discardResult.gameState,
-        discardResult,
-        enqueueTriggeredCardEffects
-      )
-    : discardResult.gameState;
 
   const state = {
-    ...stateWithEnterWaitingRoomTriggers,
+    ...discardResult.gameState,
     activeEffect: null,
   };
 

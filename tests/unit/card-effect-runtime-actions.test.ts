@@ -16,6 +16,11 @@ import {
   shuffleWaitingRoomCardsToDeckBottomForPlayer,
 } from '../../src/application/card-effects/runtime/actions';
 import {
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
+  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../src/application/card-effects/runtime/enter-waiting-room-triggers';
+import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
   revealHandCardForActiveEffect,
 } from '../../src/application/card-effects/runtime/active-effect';
@@ -241,6 +246,77 @@ describe('card effect runtime actions', () => {
     expect(result?.gameState.eventLog).toEqual([]);
   });
 
+  it('wraps hand discard with enter-waiting-room trigger enqueue', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 4);
+    setPlayerZones(state, 0, { handCardIds: cardIds, mainDeckCardIds: [] });
+    const calls: {
+      readonly triggerConditions: readonly TriggerCondition[];
+      readonly eventCardIds: readonly string[];
+    }[] = [];
+    const enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom = (
+      game,
+      triggerConditions,
+      options
+    ) => {
+      calls.push({
+        triggerConditions,
+        eventCardIds: options?.enterWaitingRoomEvents?.[0]?.cardInstanceIds ?? [],
+      });
+      return { ...game, turnNumber: game.turnNumber + 1 };
+    };
+
+    const result = discardHandCardsToWaitingRoomAndEnqueueTriggers(
+      state,
+      PLAYER1,
+      [cardIds[0], cardIds[2]],
+      {
+        count: 2,
+        candidateCardIds: cardIds,
+      },
+      enqueueTriggeredCardEffects
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.discardedCardIds).toEqual([cardIds[0], cardIds[2]]);
+    expect(result?.enterWaitingRoomEvent?.cardInstanceIds).toEqual([cardIds[0], cardIds[2]]);
+    expect(result?.gameState.turnNumber).toBe(state.turnNumber + 1);
+    expect(calls).toEqual([
+      {
+        triggerConditions: [TriggerCondition.ON_ENTER_WAITING_ROOM],
+        eventCardIds: [cardIds[0], cardIds[2]],
+      },
+    ]);
+  });
+
+  it('does not enqueue enter-waiting-room triggers for a zero-card wrapper discard', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 2);
+    setPlayerZones(state, 0, { handCardIds: cardIds, mainDeckCardIds: [] });
+    let enqueueCallCount = 0;
+    const enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom = (game) => {
+      enqueueCallCount += 1;
+      return { ...game, turnNumber: game.turnNumber + 1 };
+    };
+
+    const result = discardHandCardsToWaitingRoomAndEnqueueTriggers(
+      state,
+      PLAYER1,
+      [],
+      {
+        count: 0,
+        candidateCardIds: cardIds,
+      },
+      enqueueTriggeredCardEffects
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.discardedCardIds).toEqual([]);
+    expect(result?.enterWaitingRoomEvent).toBeUndefined();
+    expect(result?.gameState).toBe(state);
+    expect(enqueueCallCount).toBe(0);
+  });
+
   it('discards one hand card to waiting room with the single-card helper', () => {
     const state = createMutableState();
     const cardIds = ownedMemberIds(state, PLAYER1, 3);
@@ -255,6 +331,35 @@ describe('card effect runtime actions', () => {
     expect(result?.enterWaitingRoomEvent?.cardInstanceIds).toEqual([cardIds[1]]);
     expect(result?.gameState.players[0].hand.cardIds).toEqual([cardIds[0], cardIds[2]]);
     expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual([cardIds[1]]);
+  });
+
+  it('wraps one-card hand discard with enter-waiting-room trigger enqueue', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 3);
+    setPlayerZones(state, 0, { handCardIds: cardIds, mainDeckCardIds: [] });
+    const calls: TriggerCondition[][] = [];
+    const enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom = (
+      game,
+      triggerConditions
+    ) => {
+      calls.push([...triggerConditions]);
+      return { ...game, turnNumber: game.turnNumber + 1 };
+    };
+
+    const result = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+      state,
+      PLAYER1,
+      cardIds[1],
+      {
+        candidateCardIds: [cardIds[1]],
+      },
+      enqueueTriggeredCardEffects
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.discardedCardIds).toEqual([cardIds[1]]);
+    expect(result?.gameState.turnNumber).toBe(state.turnNumber + 1);
+    expect(calls).toEqual([[TriggerCondition.ON_ENTER_WAITING_ROOM]]);
   });
 
   it('rejects discard selections outside exact count or candidates', () => {

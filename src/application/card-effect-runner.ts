@@ -518,12 +518,12 @@ registerGroupedRecoveryWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNamedHandDiscardLiveStartWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartDiscardGainHeartWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp5007NozomiWorkflowHandlers({ enqueueTriggeredCardEffects });
-registerHsPb1009KahoWorkflowHandlers();
+registerHsPb1009KahoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1014HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1029ZenhouiKyunWorkflowHandlers();
 registerHsBp6003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp6004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
-registerHsBp6006HimeWorkflowHandlers();
+registerHsBp6006HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsSd1001KahoWorkflowHandlers();
 registerHsSd1006HimeWorkflowHandlers();
 registerHsPb1012GinkoWorkflowHandlers();
@@ -552,10 +552,10 @@ registerMakiOnEnterWorkflowHandlers();
 registerNSd1010ShiorikoWorkflowHandlers();
 registerPb1015MakiWorkflowHandlers();
 registerSd1008HanayoWorkflowHandlers();
-registerEmmaWorkflowHandlers();
+registerEmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp3014RinWorkflowHandlers();
 registerShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
-registerChisatoWorkflowHandlers();
+registerChisatoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerYoshikoPlayLowCostMembersWorkflowHandlers({ enqueueTriggeredCardEffects });
 
 interface CardEffectRunnerResult {

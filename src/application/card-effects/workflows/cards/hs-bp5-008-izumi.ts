@@ -2,9 +2,8 @@ import { addAction, getPlayerById, type GameState } from '../../../../domain/ent
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import { HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID } from '../../ability-ids.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
-import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
 import {
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
@@ -173,24 +172,20 @@ function startHsBp5IzumiOnEnterInspection(
   if (!sourceWaitPayment) {
     return game;
   }
-  const discardResult = discardOneHandCardToWaitingRoomForPlayer(
+  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
     sourceWaitPayment.gameState,
     player.id,
     discardCardId,
     {
       candidateCardIds: effect.selectableCardIds ?? [],
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;
   }
-  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
 
-  const stateAfterCost = addAction(stateWithEnterWaitingRoomTriggers, 'PAY_COST', player.id, {
+  const stateAfterCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
     pendingAbilityId: effect.id,
     abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId,

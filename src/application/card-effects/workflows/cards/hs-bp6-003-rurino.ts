@@ -35,12 +35,11 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
+import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
+import { discardOneHandCardToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
 import {
-  discardOneHandCardToWaitingRoomForPlayer,
-  recoverCardsFromWaitingRoomToHandForPlayer,
-} from '../../runtime/actions.js';
-import { enqueueEnterWaitingRoomTriggersFromDiscardResult } from '../../runtime/enter-waiting-room-triggers.js';
-import { getNewMemberStateChangedEvents } from '../../runtime/events.js';
+  enqueueMemberStateChangedTriggersFromOrientationResult,
+} from '../../runtime/member-state-changed-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -233,18 +232,19 @@ function finishHsBp6003RurinoActivateMember(
 
   const selectableCardIds = selectWaitingRoomCardIds(stateAfterAction, player.id, miraCraLive);
   if (selectableCardIds.length === 0) {
-    const state = enqueueTriggeredCardEffects(
+    const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
+      game,
+      orientationChange,
+      enqueueTriggeredCardEffects,
       {
-        ...stateAfterAction,
-        activeEffect: null,
-      },
-      [TriggerCondition.ON_MEMBER_STATE_CHANGED],
-      {
-        memberStateChangedEvents: getNewMemberStateChangedEvents(game, orientationChange.gameState),
+        prepareGameStateBeforeEnqueue: () => ({
+          ...stateAfterAction,
+          activeEffect: null,
+        }),
       }
     );
     return continuePendingCardEffects(
-      addAction(state, 'RESOLVE_ABILITY', player.id, {
+      addAction(stateWithMemberStateTriggers.gameState, 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: effect.id,
         abilityId: effect.abilityId,
         sourceCardId: effect.sourceCardId,
@@ -280,13 +280,14 @@ function finishHsBp6003RurinoActivateMember(
     }),
   };
 
-  return enqueueTriggeredCardEffects(
-    stateWithRecoverStep,
-    [TriggerCondition.ON_MEMBER_STATE_CHANGED],
+  return enqueueMemberStateChangedTriggersFromOrientationResult(
+    game,
+    orientationChange,
+    enqueueTriggeredCardEffects,
     {
-      memberStateChangedEvents: getNewMemberStateChangedEvents(game, orientationChange.gameState),
+      prepareGameStateBeforeEnqueue: () => stateWithRecoverStep,
     }
-  );
+  ).gameState;
 }
 
 function finishHsBp6003RurinoRecoverLive(
@@ -398,20 +399,21 @@ function startHsBp6003RurinoHeartTargetSelection(
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomForPlayer(game, player.id, discardCardId, {
-    candidateCardIds: effect.selectableCardIds ?? [],
-  });
+  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+    game,
+    player.id,
+    discardCardId,
+    {
+      candidateCardIds: effect.selectableCardIds ?? [],
+    },
+    enqueueTriggeredCardEffects
+  );
   if (!discardResult) {
     return game;
   }
 
-  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
   const selectableCardIds = getStageMemberCardIdsMatching(
-    stateWithEnterWaitingRoomTriggers,
+    discardResult.gameState,
     player.id,
     miraCraMember
   );
@@ -419,7 +421,7 @@ function startHsBp6003RurinoHeartTargetSelection(
     return continuePendingCardEffects(
       addAction(
         {
-          ...stateWithEnterWaitingRoomTriggers,
+          ...discardResult.gameState,
           activeEffect: null,
         },
         'RESOLVE_ABILITY',
@@ -439,7 +441,7 @@ function startHsBp6003RurinoHeartTargetSelection(
 
   return addAction(
     {
-      ...stateWithEnterWaitingRoomTriggers,
+      ...discardResult.gameState,
       activeEffect: {
         ...effect,
         stepId: HS_BP6_003_SELECT_HEART_TARGET_STEP_ID,

@@ -1,4 +1,3 @@
-import type { MemberStateChangedEvent } from '../../../../domain/events/game-events.js';
 import {
   addAction,
   getOpponent,
@@ -6,14 +5,17 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { CardType, OrientationState, TriggerCondition } from '../../../../shared/types/enums.js';
+import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import {
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
   SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
 } from '../../ability-ids.js';
-import { getNewMemberStateChangedEvents } from '../../runtime/events.js';
+import {
+  enqueueMemberStateChangedTriggersFromOrientationResult,
+  type EnqueueTriggeredCardEffectsForMemberStateChanged,
+} from '../../runtime/member-state-changed-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -36,13 +38,7 @@ const SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_STEP_ID =
   'SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_TO_WAIT';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
-type EnqueueTriggeredCardEffects = (
-  game: GameState,
-  triggerConditions: readonly TriggerCondition[],
-  options?: {
-    readonly memberStateChangedEvents?: readonly MemberStateChangedEvent[];
-  }
-) => GameState;
+type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
 
 interface OpponentWaitTargetWorkflowConfig {
   readonly abilityId: string;
@@ -216,27 +212,35 @@ function finishOpponentWaitTargetWorkflow(
     return game;
   }
 
-  const state = { ...orientationChange.gameState, activeEffect: null };
-  const stateWithResolveAction = addAction(state, 'RESOLVE_ABILITY', player.id, {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    step: 'WAIT_OPPONENT_MEMBER',
-    sourceSlot: effect.metadata?.sourceSlot,
-    targetPlayerId: targetMetadata.targetPlayerId,
-    targetCardId: selectedCardId,
-    previousOrientation: orientationChange.previousOrientation,
-    nextOrientation: orientationChange.nextOrientation,
-  });
-  const stateWithMemberStateTriggers = enqueueTriggeredCardEffects(
-    stateWithResolveAction,
-    [TriggerCondition.ON_MEMBER_STATE_CHANGED],
+  const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
+    game,
+    orientationChange,
+    enqueueTriggeredCardEffects,
     {
-      memberStateChangedEvents: getNewMemberStateChangedEvents(game, orientationChange.gameState),
+      prepareGameStateBeforeEnqueue: (state, result) =>
+        addAction(
+          {
+            ...state,
+            activeEffect: null,
+          },
+          'RESOLVE_ABILITY',
+          player.id,
+          {
+            pendingAbilityId: effect.id,
+            abilityId: effect.abilityId,
+            sourceCardId: effect.sourceCardId,
+            step: 'WAIT_OPPONENT_MEMBER',
+            sourceSlot: effect.metadata?.sourceSlot,
+            targetPlayerId: targetMetadata.targetPlayerId,
+            targetCardId: selectedCardId,
+            previousOrientation: result.previousOrientation,
+            nextOrientation: result.nextOrientation,
+          }
+        ),
     }
   );
   return continuePendingCardEffects(
-    stateWithMemberStateTriggers,
+    stateWithMemberStateTriggers.gameState,
     effect.metadata?.orderedResolution === true
   );
 }

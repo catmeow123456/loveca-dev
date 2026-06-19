@@ -5,7 +5,7 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import type { EnterStageEvent } from '../../../../domain/events/game-events.js';
+import type { EnterStageEvent, LeaveStageEvent } from '../../../../domain/events/game-events.js';
 import {
   CardType,
   GamePhase,
@@ -17,6 +17,7 @@ import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { getNewEnterStageEvents } from '../../runtime/events.js';
+import { paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../runtime/leave-stage-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -27,7 +28,6 @@ import {
   typeIs,
 } from '../../../effects/card-selectors.js';
 import { getCardIdsInZoneMatching } from '../../../effects/conditions.js';
-import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { playMembersFromWaitingRoomToEmptySlots } from '../../../effects/member-state.js';
 
 const HS_BP1_002_SELECT_WAITING_ROOM_MEMBER_STEP_ID =
@@ -40,6 +40,7 @@ type EnqueueTriggeredCardEffects = (
   triggerConditions: readonly TriggerCondition[],
   options?: {
     readonly enterStageEvents?: readonly EnterStageEvent[];
+    readonly leaveStageEvents?: readonly LeaveStageEvent[];
   }
 ) => GameState;
 
@@ -55,7 +56,8 @@ export function registerHsBp1002SayakaWorkflowHandlers(
     (game, playerId, cardId) => startHsBp1SayakaActivatedPlayMemberToSourceSlot(
       game,
       playerId,
-      cardId
+      cardId,
+      dependencies
     )
   );
   registerActiveEffectStepHandler(
@@ -74,7 +76,8 @@ export function registerHsBp1002SayakaWorkflowHandlers(
 function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
   game: GameState,
   playerId: string,
-  cardId: string
+  cardId: string,
+  dependencies: HsBp1002SayakaWorkflowDependencies
 ): GameState {
   if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
     return game;
@@ -95,10 +98,17 @@ function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
     return game;
   }
 
-  const costPayment = payImmediateEffectCosts(game, player.id, cardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: 2 },
-    { kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' },
-  ]);
+  const costPayment = paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+    game,
+    player.id,
+    cardId,
+    dependencies.enqueueTriggeredCardEffects,
+    {
+      additionalCostsBeforeSourceMemberToWaitingRoom: [
+        { kind: 'TAP_ACTIVE_ENERGY', count: 2 },
+      ],
+    }
+  );
   if (!costPayment || !costPayment.sourceSlot) {
     return game;
   }

@@ -12,13 +12,10 @@ import {
   HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
+import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import {
-  discardHandCardsToWaitingRoomForPlayer,
-  discardOneHandCardToWaitingRoomForPlayer,
-  recoverCardsFromWaitingRoomToHandForPlayer,
-} from '../../runtime/actions.js';
-import {
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
+  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import {
@@ -365,33 +362,38 @@ function startGroupedRecoveryAfterDiscard(
 
   const discardResult =
     config.discardCount === 1
-      ? discardOneHandCardToWaitingRoomForPlayer(game, player.id, uniqueSelectedCardIds[0]!, {
-          candidateCardIds: effect.selectableCardIds ?? [],
-        })
-      : discardHandCardsToWaitingRoomForPlayer(game, player.id, uniqueSelectedCardIds, {
-          count: 2,
-          candidateCardIds: effect.selectableCardIds ?? [],
-        });
+      ? discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+          game,
+          player.id,
+          uniqueSelectedCardIds[0]!,
+          {
+            candidateCardIds: effect.selectableCardIds ?? [],
+          },
+          enqueueTriggeredCardEffects
+        )
+      : discardHandCardsToWaitingRoomAndEnqueueTriggers(
+          game,
+          player.id,
+          uniqueSelectedCardIds,
+          {
+            count: 2,
+            candidateCardIds: effect.selectableCardIds ?? [],
+          },
+          enqueueTriggeredCardEffects
+        );
   if (!discardResult) {
     return game;
   }
-  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
 
-  const selectableCardIds = selectWaitingRoomCardIds(
-    stateWithEnterWaitingRoomTriggers,
-    player.id,
-    (card) => config.groups.some((group) => group.selector(card))
+  const selectableCardIds = selectWaitingRoomCardIds(discardResult.gameState, player.id, (card) =>
+    config.groups.some((group) => group.selector(card))
   );
   const requiredGroupKeys = config.groups
     .filter(
       (group) =>
         group.requiredIfAvailable &&
         selectableCardIds.some((cardId) => {
-          const card = stateWithEnterWaitingRoomTriggers.cardRegistry.get(cardId);
+          const card = discardResult.gameState.cardRegistry.get(cardId);
           return card ? group.selector(card) : false;
         })
     )
@@ -400,18 +402,13 @@ function startGroupedRecoveryAfterDiscard(
 
   if (selectableCardIds.length === 0 && config.noTargetActionStep) {
     return continuePendingCardEffects(
-      addAction(
-        { ...stateWithEnterWaitingRoomTriggers, activeEffect: null },
-        'RESOLVE_ABILITY',
-        player.id,
-        {
-          pendingAbilityId: effect.id,
-          abilityId: effect.abilityId,
-          sourceCardId: effect.sourceCardId,
-          step: config.noTargetActionStep,
-          discardedHandCardIds: discardResult.discardedCardIds,
-        }
-      ),
+      addAction({ ...discardResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: config.noTargetActionStep,
+        discardedHandCardIds: discardResult.discardedCardIds,
+      }),
       effect.metadata?.orderedResolution === true
     );
   }
@@ -424,7 +421,7 @@ function startGroupedRecoveryAfterDiscard(
 
   return addAction(
     {
-      ...stateWithEnterWaitingRoomTriggers,
+      ...discardResult.gameState,
       activeEffect: {
         ...effect,
         stepId: config.recoveryStepId,

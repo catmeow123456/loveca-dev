@@ -14,12 +14,8 @@ import {
   HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import {
-  addBladeLiveModifierForSourceMember,
-  discardHandCardsToWaitingRoomForPlayer,
-  drawCardsForPlayer,
-} from '../../runtime/actions.js';
-import { enqueueEnterWaitingRoomTriggersFromDiscardResult } from '../../runtime/enter-waiting-room-triggers.js';
+import { addBladeLiveModifierForSourceMember, drawCardsForPlayer } from '../../runtime/actions.js';
+import { discardHandCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -139,24 +135,21 @@ function finishHsPb1003RurinoOnEnterDiscardDraw(
     return game;
   }
 
-  const discardResult = discardHandCardsToWaitingRoomForPlayer(
+  const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
     uniqueSelectedCardIds,
     {
       count: uniqueSelectedCardIds.length,
       candidateCardIds: effect.selectableCardIds ?? [],
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;
   }
 
-  const state = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-    discardResult.gameState,
-    discardResult,
-    enqueueTriggeredCardEffects
-  );
+  const state = discardResult.gameState;
 
   const drawResult = drawCardsForPlayer(
     state,
