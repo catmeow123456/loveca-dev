@@ -16921,7 +16921,7 @@ describe('sample card effect runner', () => {
     ).toBe(true);
   });
 
-  it('lets PL!HS-bp5-003 discard a hand card and grant pink Heart only to same-group member targets', () => {
+  it('lets PL!HS-bp5-003 discard a hand card and grant pink Heart to same-group member targets on either stage', () => {
     const session = createGameSession();
     const deck = createDeck();
 
@@ -16972,6 +16972,9 @@ describe('sample card effect runner', () => {
     const mismatchLiellaCardId = ownedP2CardIds.find(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!SP-bp4-011-P'
     );
+    const opponentHasuCardId = ownedP2CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-HASU-2'
+    );
     const liveCardId = ownedP1CardIds.find(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
     );
@@ -16980,6 +16983,7 @@ describe('sample card effect runner', () => {
     expect(discardHasuCardId).toBeTruthy();
     expect(targetHasuCardId).toBeTruthy();
     expect(mismatchLiellaCardId).toBeTruthy();
+    expect(opponentHasuCardId).toBeTruthy();
     expect(liveCardId).toBeTruthy();
 
     removeFromPlayerZones(p1);
@@ -16997,10 +17001,11 @@ describe('sample card effect runner', () => {
       [rurinoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
     p2.memberSlots.slots[SlotPosition.LEFT] = mismatchLiellaCardId!;
-    p2.memberSlots.slots[SlotPosition.CENTER] = null;
+    p2.memberSlots.slots[SlotPosition.CENTER] = opponentHasuCardId!;
     p2.memberSlots.slots[SlotPosition.RIGHT] = null;
     p2.memberSlots.cardStates = new Map([
       [mismatchLiellaCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      [opponentHasuCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
     advanceToLiveStartEffects(session);
@@ -17019,11 +17024,12 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([
       targetHasuCardId,
       rurinoCardId,
+      opponentHasuCardId,
     ]);
     expect(session.state?.activeEffect?.selectableCardIds).not.toContain(mismatchLiellaCardId);
 
     const targetResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, targetHasuCardId)
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, opponentHasuCardId)
     );
 
     expect(targetResult.success).toBe(true);
@@ -17032,8 +17038,8 @@ describe('sample card effect runner', () => {
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'HEART',
       target: 'TARGET_MEMBER',
-      playerId: PLAYER1,
-      targetMemberCardId: targetHasuCardId,
+      playerId: PLAYER2,
+      targetMemberCardId: opponentHasuCardId,
       hearts: [{ color: HeartColor.PINK, count: 1 }],
       sourceCardId: rurinoCardId,
       abilityId: HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,

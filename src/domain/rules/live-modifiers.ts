@@ -51,6 +51,20 @@ interface SuccessZoneContinuousLiveModifierDefinition extends ContinuousLiveModi
   readonly nonStackingAbilityId?: string;
 }
 
+export interface HeartLiveModifierForMemberOptions {
+  readonly playerId: string;
+  readonly memberCardId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly hearts: readonly HeartIcon[];
+}
+
+export interface AddHeartLiveModifierForMemberResult {
+  readonly gameState: GameState;
+  readonly modifier: HeartModifierState;
+  readonly heartBonus: readonly HeartIcon[];
+}
+
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
   {
     baseCardCodes: ['PL!-sd1-001'],
@@ -68,51 +82,51 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
   {
     baseCardCodes: ['PL!-bp5-008'],
-    collect: ({ game, playerId, sourceCardId }) =>
-      successLiveScoreAtLeast(game, playerId, 6)
-        ? [
-            {
-              kind: 'HEART',
-              target: 'SOURCE_MEMBER',
-              playerId,
-              hearts: [{ color: HeartColor.YELLOW, count: 2 }],
-              sourceCardId,
-              abilityId: BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
-            },
-          ]
-        : [],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!successLiveScoreAtLeast(game, playerId, 6)) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.YELLOW, count: 2 }],
+      });
+      return modifier ? [modifier] : [];
+    },
   },
   {
     baseCardCodes: ['PL!-bp4-002'],
-    collect: ({ game, playerId, sourceCardId }) =>
-      hasLiveWithoutLiveStartOrSuccessAbility(game, playerId)
-        ? [
-            {
-              kind: 'HEART',
-              target: 'SOURCE_MEMBER',
-              playerId,
-              hearts: [{ color: HeartColor.PURPLE, count: 2 }],
-              sourceCardId,
-              abilityId: BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID,
-            },
-          ]
-        : [],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!hasLiveWithoutLiveStartOrSuccessAbility(game, playerId)) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.PURPLE, count: 2 }],
+      });
+      return modifier ? [modifier] : [];
+    },
   },
   {
     baseCardCodes: ['PL!-bp5-003'],
-    collect: ({ game, playerId, sourceCardId }) =>
-      hasAtLeastDifferentNamedStageMembers(game, playerId, 3)
-        ? [
-            {
-              kind: 'HEART',
-              target: 'SOURCE_MEMBER',
-              playerId,
-              hearts: [{ color: HeartColor.YELLOW, count: 1 }],
-              sourceCardId,
-              abilityId: BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID,
-            },
-          ]
-        : [],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!hasAtLeastDifferentNamedStageMembers(game, playerId, 3)) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+      });
+      return modifier ? [modifier] : [];
+    },
   },
   {
     baseCardCodes: ['PL!HS-bp1-003'],
@@ -413,6 +427,57 @@ function hasMemberPositionMovedThisTurn(
 
 export function addLiveModifier(game: GameState, modifier: LiveModifierState): GameState {
   return setLiveModifiers(game, [...game.liveResolution.liveModifiers, modifier]);
+}
+
+export function createHeartLiveModifierForMember(
+  game: GameState,
+  options: HeartLiveModifierForMemberOptions
+): HeartModifierState | null {
+  const memberCard = getCardById(game, options.memberCardId);
+  if (
+    !memberCard ||
+    memberCard.ownerId !== options.playerId ||
+    !isMemberCardData(memberCard.data) ||
+    options.hearts.length === 0 ||
+    options.hearts.some((heart) => !(heart.count > 0))
+  ) {
+    return null;
+  }
+
+  const baseModifier = {
+    kind: 'HEART' as const,
+    playerId: options.playerId,
+    hearts: options.hearts,
+    sourceCardId: options.sourceCardId,
+    abilityId: options.abilityId,
+  };
+
+  return options.memberCardId === options.sourceCardId
+    ? {
+        ...baseModifier,
+        target: 'SOURCE_MEMBER',
+      }
+    : {
+        ...baseModifier,
+        target: 'TARGET_MEMBER',
+        targetMemberCardId: options.memberCardId,
+      };
+}
+
+export function addHeartLiveModifierForMember(
+  game: GameState,
+  options: HeartLiveModifierForMemberOptions
+): AddHeartLiveModifierForMemberResult | null {
+  const modifier = createHeartLiveModifierForMember(game, options);
+  if (!modifier) {
+    return null;
+  }
+
+  return {
+    gameState: addLiveModifier(game, modifier),
+    modifier,
+    heartBonus: options.hearts,
+  };
 }
 
 export function replaceLiveModifier(

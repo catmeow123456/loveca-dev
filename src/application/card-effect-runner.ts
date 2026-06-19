@@ -32,7 +32,6 @@ import {
   costLte,
   groupAliasIs,
   hasBladeHeart as hasBladeHeartSelector,
-  memberHasHeartColor,
   memberPrintedBladeLte,
   normalizeCardName,
   not,
@@ -41,30 +40,23 @@ import {
   unitAliasIs,
 } from './effects/card-selectors.js';
 import {
-  allCardIdsMatchingSelector,
   countCardsMatchingSelector,
   countStageMembers,
   getCardIdsInZoneMatching,
   getCardIdsMatchingSelector,
   getCardIdsInZone,
-  hasCardIdsMatchingSelector,
   hasStageMemberMatching,
 } from './effects/conditions.js';
-import {
-  payImmediateEffectCosts,
-  type EffectCostDefinition,
-} from './effects/effect-costs.js';
+import { payImmediateEffectCosts } from './effects/effect-costs.js';
 import {
   clearInspectionCards,
   inspectTopCards,
-  moveInspectedCardsToWaitingRoom,
   moveTopDeckCardsToWaitingRoom,
 } from './effects/look-top.js';
 import { moveMemberBetweenSlots } from './effects/member-state.js';
 import {
   addBladeLiveModifierForSourceMember,
   discardHandCardsToWaitingRoomForPlayer,
-  discardOneHandCardToWaitingRoomForPlayer,
   drawCardsForEachPlayer,
   drawCardsForPlayer,
   recoverCardsFromWaitingRoomToHandForPlayer,
@@ -89,7 +81,10 @@ import { registerHsBp5001KahoWorkflowHandlers } from './card-effects/workflows/c
 import { registerHsBp5008IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-008-izumi.js';
 import { registerHsPb1004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-004-ginko.js';
 import { registerHsPb1009KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-009-kaho.js';
+import { registerHsPr019GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pr-019-ginko.js';
+import { registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers } from './card-effects/workflows/cards/keke-on-enter-place-waiting-energy.js';
 import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/maki-on-enter.js';
+import { registerNozomiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/nozomi-on-enter.js';
 import {
   isHsSd1001HighCostHasunosoraRelayReplacement,
   registerHsSd1001KahoWorkflowHandlers,
@@ -122,7 +117,6 @@ import {
   resolveStageMemberOrientationTargetSelection,
 } from './effects/stage-member-target-selection.js';
 import { getStageMemberCardIdsMatching } from './effects/stage-targets.js';
-import { placeEnergyFromDeckToZone } from './effects/energy.js';
 import type {
   CheerEvent,
   EnterStageEvent,
@@ -138,15 +132,11 @@ import {
   normalizeCardCode,
 } from '../shared/utils/card-code.js';
 import {
-  NOZOMI_ON_ENTER_ABILITY_ID,
   KARIN_LIVE_START_ABILITY_ID,
-  HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HANAYO_ACTIVATED_ABILITY_ID,
-  KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
   HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
-  HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
   HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
   HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
@@ -165,8 +155,6 @@ export * from './card-effects/ability-definition-types.js';
 export { CARD_ABILITY_DEFINITIONS } from './card-effects/definitions/index.js';
 
 export const ABILITY_ORDER_SELECTION_ID = 'system:select-pending-card-effect';
-const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
-const DISCARD_HAND_TO_ACTIVATE_STEP_TEXT = '请选择要放置入休息室的手牌。也可以选择不发动此效果。';
 const DECLINE_OPTION_LABEL = '不发动';
 const ABILITY_USE_STEP = 'ABILITY_USE';
 const ACTIVATED_ABILITY_USE_STEP = 'ACTIVATED_ABILITY_USE';
@@ -176,16 +164,6 @@ const HS_BP6_031_SELECT_HIME_TARGET_STEP_ID = 'HS_BP6_031_SELECT_HIME_BLADE_TARG
 const HS_PB1_012_RECYCLE_CONFIRM_STEP_ID = 'HS_PB1_012_RECYCLE_MEMBERS_CONFIRM';
 const HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'HS_PB1_012_SELECT_WAITING_ROOM_LIVE';
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
-
-interface DiscardHandToWaitingRoomEffectConfig {
-  readonly ability: PendingAbilityState;
-  readonly playerId: string;
-  readonly effectText: string;
-  readonly stepId: string;
-  readonly selectableCardIds: readonly string[];
-  readonly orderedResolution: boolean;
-  readonly metadata?: Readonly<Record<string, unknown>>;
-}
 
 interface RevealSelectedInspectionCardConfig {
   readonly stepId: string;
@@ -486,42 +464,6 @@ function toSlotPosition(value: unknown): SlotPosition | null {
     : null;
 }
 
-function createDiscardHandToWaitingRoomActivationEffect(
-  config: DiscardHandToWaitingRoomEffectConfig
-): ActiveEffectState {
-  const discardCost: EffectCostDefinition = {
-    kind: 'DISCARD_HAND_TO_WAITING_ROOM',
-    minCount: 1,
-    maxCount: 1,
-    optional: true,
-  };
-  return {
-    id: config.ability.id,
-    abilityId: config.ability.abilityId,
-    sourceCardId: config.ability.sourceCardId,
-    controllerId: config.ability.controllerId,
-    effectText: config.effectText,
-    stepId: config.stepId,
-    stepText: DISCARD_HAND_TO_ACTIVATE_STEP_TEXT,
-    awaitingPlayerId: config.playerId,
-    selectableCardIds: config.selectableCardIds,
-    selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
-    selectionLabel: DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL,
-    canSkipSelection: true,
-    skipSelectionLabel: DECLINE_OPTION_LABEL,
-    metadata: {
-      ...config.metadata,
-      orderedResolution: config.orderedResolution,
-      effectCosts: [discardCost],
-      handToWaitingRoomCost: {
-        minCount: discardCost.minCount,
-        maxCount: discardCost.maxCount,
-        optional: discardCost.optional,
-      },
-    },
-  };
-}
-
 function recordAbilityUse(
   game: GameState,
   playerId: string,
@@ -585,12 +527,8 @@ function revealSelectedInspectionCard(
     }
   );
 }
-const NOZOMI_REVEAL_STEP_ID = 'NOZOMI_REVEAL_TOP_FIVE';
 const KARIN_REVEAL_STEP_ID = 'KARIN_REVEAL_TOP_CARD';
 const KARIN_POSITION_CHANGE_STEP_ID = 'KARIN_POSITION_CHANGE';
-const HS_PR_019_REVEAL_STEP_ID = 'HS_PR_019_REVEAL_TOP_THREE';
-const HS_BP5_001_REVEAL_STEP_ID = 'HS_BP5_001_REVEAL_TOP_FOUR';
-const KEKE_SELECT_DISCARD_STEP_ID = 'KEKE_SELECT_DISCARD_FOR_WAITING_ENERGY';
 const ABILITY_ORDER_SELECTION_STEP_ID = 'SELECT_NEXT_PENDING_ABILITY';
 
 registerLookTopSelectToHandWorkflowHandlers();
@@ -619,6 +557,9 @@ registerBp5005RinWorkflowHandlers();
 registerRevealedCheerSelectionWorkflowHandlers({ continuePendingCardEffects });
 registerHsBp1002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5001KahoWorkflowHandlers();
+registerHsPr019GinkoWorkflowHandlers();
+registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers();
+registerNozomiOnEnterWorkflowHandlers();
 registerHsBp5003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1004GinkoWorkflowHandlers();
 registerMakiOnEnterWorkflowHandlers();
@@ -1919,24 +1860,6 @@ export function confirmActiveEffectStep(
     return registryResult;
   }
 
-  if (effect.abilityId === NOZOMI_ON_ENTER_ABILITY_ID && effect.stepId === NOZOMI_REVEAL_STEP_ID) {
-    return finishNozomiOnEnter(game);
-  }
-
-  if (
-    effect.abilityId === HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID &&
-    effect.stepId === HS_PR_019_REVEAL_STEP_ID
-  ) {
-    return finishHsPr019GinkoMillGainGreenHeart(game);
-  }
-
-  if (
-    effect.abilityId === HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID &&
-    effect.stepId === HS_BP5_001_REVEAL_STEP_ID
-  ) {
-    return finishHsBp5KahoOnEnterMillGainBlade(game);
-  }
-
   if (effect.abilityId === KARIN_LIVE_START_ABILITY_ID && effect.stepId === KARIN_REVEAL_STEP_ID) {
     return finishKarinLiveStart(game);
   }
@@ -1985,15 +1908,6 @@ export function confirmActiveEffectStep(
     effect.stepId === HS_PB1_012_SELECT_WAITING_ROOM_LIVE_STEP_ID
   ) {
     return finishHsPb1012RecoverLiveAndGainBlade(game, selectedCardId ?? null);
-  }
-
-  if (
-    effect.abilityId === KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID &&
-    effect.stepId === KEKE_SELECT_DISCARD_STEP_ID
-  ) {
-    return selectedCardId
-      ? finishKekeOnEnterPlaceWaitingEnergy(game, selectedCardId)
-      : finishSkipEffect(game);
   }
 
   return game;
@@ -2222,18 +2136,10 @@ function startPendingAbilityEffect(
   }
 
   switch (ability.abilityId) {
-    case NOZOMI_ON_ENTER_ABILITY_ID:
-      return startNozomiOnEnterInspection(game, ability, options);
     case BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID:
       return startBp5007NozomiDiscardToThreeThenDraw(game, ability, options);
     case KARIN_LIVE_START_ABILITY_ID:
       return startKarinLiveStartInspection(game, ability, options);
-    case HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID:
-      return startHsPr019GinkoMillGainGreenHeartInspection(game, ability, options);
-    case KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID:
-      return startKekeOnEnterPlaceWaitingEnergy(game, ability, options);
-    case HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID:
-      return startHsBp5KahoOnEnterMillGainBladeInspection(game, ability, options);
     case HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID:
       return startHsBp6031LiveStartRecycleMembers(game, ability, options);
     case HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID:
@@ -2243,121 +2149,6 @@ function startPendingAbilityEffect(
     default:
       return game;
   }
-}
-
-function startHsBp5KahoOnEnterMillGainBladeInspection(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: StartPendingAbilityEffectOptions = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-  if (options.manualConfirmation === true && options.skipManualConfirmation !== true) {
-    return startConfirmOnlyPendingAbilityEffect(game, {
-      ability,
-      effectText: getCardAbilityEffectText(HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID),
-      orderedResolution: options.orderedResolution === true,
-    });
-  }
-
-  const inspection = inspectTopCards(game, player.id, {
-    count: 4,
-    reveal: true,
-  });
-  if (!inspection) {
-    return game;
-  }
-  const { gameState, inspectedCardIds } = inspection;
-
-  const state: GameState = {
-    ...gameState,
-    pendingAbilities: gameState.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-    activeEffect: {
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
-      effectText: getCardAbilityEffectText(HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID),
-      stepId: HS_BP5_001_REVEAL_STEP_ID,
-      stepText: '卡组顶4张已公开。确认后将这些牌放入休息室，并在其中有LIVE卡时获得[BLADE][BLADE]。',
-      awaitingPlayerId: player.id,
-      inspectionCardIds: inspectedCardIds,
-      metadata: {
-        sourceZone: ZoneType.MAIN_DECK,
-        orderedResolution: options.orderedResolution === true,
-      },
-    },
-  };
-
-  return addAction(state, 'RESOLVE_ABILITY', player.id, {
-    pendingAbilityId: ability.id,
-    abilityId: ability.abilityId,
-    sourceCardId: ability.sourceCardId,
-    step: 'START_INSPECTION',
-    inspectedCardIds,
-  });
-}
-
-function finishHsBp5KahoOnEnterMillGainBlade(game: GameState): GameState {
-  const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID ||
-    effect.stepId !== HS_BP5_001_REVEAL_STEP_ID
-  ) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const inspectedCardIds = effect.inspectionCardIds ?? [];
-  const hasLiveCard = hasCardIdsMatchingSelector(game, inspectedCardIds, typeIs(CardType.LIVE));
-  const liveCardIds = hasLiveCard
-    ? getCardIdsMatchingSelector(game, inspectedCardIds, typeIs(CardType.LIVE))
-    : [];
-  const bladeBonus = hasLiveCard ? 2 : 0;
-  const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
-  if (!moveResult) {
-    return game;
-  }
-  let stateAfterModifier = moveResult.gameState;
-  if (bladeBonus > 0) {
-    const bladeResult = addBladeLiveModifierForSourceMember(moveResult.gameState, {
-      playerId: player.id,
-      sourceCardId: effect.sourceCardId,
-      abilityId: effect.abilityId,
-      amount: bladeBonus,
-    });
-    if (!bladeResult) {
-      return game;
-    }
-    stateAfterModifier = bladeResult.gameState;
-  }
-  const state: GameState = {
-    ...stateAfterModifier,
-    inspectionContext:
-      stateAfterModifier.inspectionZone.cardIds.length > 0
-        ? stateAfterModifier.inspectionContext
-        : null,
-    activeEffect: null,
-  };
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'MILL_TOP_FOUR_GAIN_BLADE_IF_LIVE',
-      milledCardIds: moveResult.movedCardIds,
-      liveCardIds,
-      bladeBonus,
-    }),
-    isOrderedResolutionEffect(game)
-  );
 }
 
 interface Bp5007NozomiEffectContext {
@@ -2639,164 +2430,6 @@ function finishSelectCardsFromZoneToHandEffect(
     }),
     isOrderedResolutionEffect(game)
   );
-}
-
-function startHsPr019GinkoMillGainGreenHeartInspection(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: StartPendingAbilityEffectOptions = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const inspection = inspectTopCards(game, player.id, {
-    count: 3,
-    reveal: true,
-  });
-  if (!inspection) {
-    return game;
-  }
-
-  const { gameState, inspectedCardIds } = inspection;
-  const state = {
-    ...gameState,
-    pendingAbilities: gameState.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-    activeEffect: {
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
-      effectText: getCardAbilityEffectText(HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID),
-      stepId: HS_PR_019_REVEAL_STEP_ID,
-      stepText:
-        '卡组顶3张已公开。确认后将这些牌放入休息室，并在均为持有绿色Heart的成员时获得绿色Heart。',
-      awaitingPlayerId: player.id,
-      inspectionCardIds: inspectedCardIds,
-      metadata: {
-        sourceZone: ZoneType.MAIN_DECK,
-        orderedResolution: options.orderedResolution === true,
-      },
-    },
-  };
-
-  return addAction(state, 'RESOLVE_ABILITY', player.id, {
-    pendingAbilityId: ability.id,
-    abilityId: ability.abilityId,
-    sourceCardId: ability.sourceCardId,
-    step: 'START_INSPECTION',
-    inspectedCardIds,
-  });
-}
-
-function finishHsPr019GinkoMillGainGreenHeart(game: GameState): GameState {
-  const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID ||
-    effect.stepId !== HS_PR_019_REVEAL_STEP_ID
-  ) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const inspectedCardIds = effect.inspectionCardIds ?? [];
-  const conditionMet =
-    inspectedCardIds.length === 3 &&
-    allCardIdsMatchingSelector(game, inspectedCardIds, greenHeartMemberCard);
-
-  const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
-  if (!moveResult) {
-    return game;
-  }
-
-  let state: GameState = {
-    ...moveResult.gameState,
-    inspectionContext:
-      moveResult.gameState.inspectionZone.cardIds.length > 0
-        ? moveResult.gameState.inspectionContext
-        : null,
-    activeEffect: null,
-  };
-
-  if (conditionMet) {
-    state = addLiveModifier(state, {
-      kind: 'HEART',
-      target: 'SOURCE_MEMBER',
-      playerId: player.id,
-      hearts: [{ color: HeartColor.GREEN, count: 1 }],
-      sourceCardId: effect.sourceCardId,
-      abilityId: effect.abilityId,
-    });
-  }
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'FINISH_MILL_TOP_THREE_CHECK_GREEN_HEART_MEMBERS',
-      milledCardIds: moveResult.movedCardIds,
-      conditionMet,
-      heartBonus: conditionMet ? [{ color: HeartColor.GREEN, count: 1 }] : [],
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
-const greenHeartMemberCard = memberHasHeartColor(HeartColor.GREEN);
-
-function startNozomiOnEnterInspection(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const inspection = inspectTopCards(game, player.id, {
-    count: 5,
-    reveal: true,
-  });
-  if (!inspection) {
-    return game;
-  }
-  const { gameState, inspectedCardIds } = inspection;
-
-  const state = {
-    ...gameState,
-    pendingAbilities: gameState.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-    activeEffect: {
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
-      effectText: getCardAbilityEffectText(NOZOMI_ON_ENTER_ABILITY_ID),
-      stepId: NOZOMI_REVEAL_STEP_ID,
-      stepText: '卡组顶5张已公开。确认后将这些牌放入休息室，并在其中有LIVE卡时抽1张。',
-      awaitingPlayerId: player.id,
-      inspectionCardIds: inspectedCardIds,
-      metadata: {
-        sourceZone: ZoneType.MAIN_DECK,
-        orderedResolution: options.orderedResolution === true,
-      },
-    },
-  };
-
-  return addAction(state, 'RESOLVE_ABILITY', player.id, {
-    pendingAbilityId: ability.id,
-    abilityId: ability.abilityId,
-    sourceCardId: ability.sourceCardId,
-    step: 'START_INSPECTION',
-    inspectedCardIds,
-  });
 }
 
 function startKarinLiveStartInspection(
@@ -3310,88 +2943,6 @@ function getWaitingRoomMemberCardIds(game: GameState, playerId: string): readonl
   return getCardIdsInZoneMatching(game, playerId, ZoneType.WAITING_ROOM, typeIs(CardType.MEMBER));
 }
 
-function startKekeOnEnterPlaceWaitingEnergy(
-  game: GameState,
-  ability: PendingAbilityState,
-  options: { readonly orderedResolution?: boolean } = {}
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const selectableCardIds = player.hand.cardIds.filter((cardId) => cardId !== ability.sourceCardId);
-  return addAction(
-    {
-      ...game,
-      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: createDiscardHandToWaitingRoomActivationEffect({
-        ability,
-        playerId: player.id,
-        effectText: getCardAbilityEffectText(KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID),
-        stepId: KEKE_SELECT_DISCARD_STEP_ID,
-        selectableCardIds,
-        orderedResolution: options.orderedResolution === true,
-      }),
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'START_SELECT_DISCARD',
-      selectableCardIds,
-    }
-  );
-}
-
-function finishKekeOnEnterPlaceWaitingEnergy(game: GameState, discardCardId: string): GameState {
-  const effect = game.activeEffect;
-  if (!effect || !effect.selectableCardIds?.includes(discardCardId)) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player || !player.hand.cardIds.includes(discardCardId)) {
-    return game;
-  }
-
-  const discardResult = discardOneHandCardToWaitingRoomForPlayer(game, player.id, discardCardId, {
-    candidateCardIds: effect.selectableCardIds ?? [],
-  });
-  if (!discardResult) {
-    return game;
-  }
-
-  const energyPlacement = placeEnergyFromDeckToZone(
-    discardResult.gameState,
-    player.id,
-    1,
-    OrientationState.WAITING
-  );
-  if (!energyPlacement) {
-    return game;
-  }
-
-  const state = {
-    ...energyPlacement.gameState,
-    activeEffect: null,
-  };
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'PLACE_WAITING_ENERGY',
-      discardCardId,
-      placedEnergyCardIds: energyPlacement.placedEnergyCardIds,
-    }),
-    isOrderedResolutionEffect(game)
-  );
-}
-
 function resolvePb1015OwnEffectWaitOpponentLowCostDraw(
   game: GameState,
   ability: PendingAbilityState,
@@ -3424,60 +2975,6 @@ function resolvePb1015OwnEffectWaitOpponentLowCostDraw(
       drawnCardIds: drawResult.drawnCardIds,
     }),
     options.orderedResolution === true
-  );
-}
-
-function finishNozomiOnEnter(game: GameState): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const inspectedCardIds = effect.inspectionCardIds ?? [];
-  const hasMilledLiveCard = hasCardIdsMatchingSelector(
-    game,
-    inspectedCardIds,
-    typeIs(CardType.LIVE)
-  );
-  let drawnCardId: string | null = null;
-
-  const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
-  if (!moveResult) {
-    return game;
-  }
-  let state = moveResult.gameState;
-
-  if (hasMilledLiveCard) {
-    const drawResult = drawCardsForPlayer(state, player.id, 1);
-    if (!drawResult) {
-      return game;
-    }
-    state = drawResult.gameState;
-    drawnCardId = drawResult.drawnCardIds[0] ?? null;
-  }
-
-  state = {
-    ...state,
-    inspectionContext: state.inspectionZone.cardIds.length > 0 ? state.inspectionContext : null,
-    activeEffect: null,
-  };
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'FINISH',
-      milledCardIds: moveResult.movedCardIds,
-      hasMilledLiveCard,
-      drawnCardId,
-    }),
-    isOrderedResolutionEffect(game)
   );
 }
 

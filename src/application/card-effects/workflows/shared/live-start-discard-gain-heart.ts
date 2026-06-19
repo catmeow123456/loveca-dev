@@ -4,7 +4,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { hasOtherStageMember } from '../../../effects/conditions.js';
 import type { EffectCostDefinition } from '../../../effects/effect-costs.js';
@@ -247,23 +247,22 @@ function finishLiveStartDiscardGainHeartBonus(
   }
 
   const heartBonus = { color: selectedColor, count: 1 };
-  const state = addLiveModifier(
+  const modifierResult = addHeartLiveModifierForMember(
+    { ...game, activeEffect: null },
     {
-      ...game,
-      activeEffect: null,
-    },
-    {
-      kind: 'HEART',
-      target: 'SOURCE_MEMBER',
       playerId: player.id,
-      hearts: [heartBonus],
+      memberCardId: effect.sourceCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
+      hearts: [heartBonus],
     }
   );
+  if (!modifierResult) {
+    return game;
+  }
 
   return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
+    addAction(modifierResult.gameState, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,

@@ -3,8 +3,10 @@ import { createCardInstance, createHeartIcon, createHeartRequirement } from '../
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
+  addHeartLiveModifierForMember,
   addLiveModifier,
   collectLiveModifiers,
+  createHeartLiveModifierForMember,
   getLiveCardRequirementModifiers,
   getLiveCardScoreModifier,
   getMemberEffectiveBladeCount,
@@ -16,6 +18,180 @@ import {
 import { CardType, HeartColor, SlotPosition } from '../../src/shared/types/enums';
 
 describe('live modifier helpers', () => {
+  it('creates source-member Heart modifiers when the member is the source card', () => {
+    const source = createCardInstance(
+      {
+        cardCode: 'SOURCE-MEMBER',
+        name: 'Source Member',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'source-member'
+    );
+    let game = createGameState('source-member-heart-helper', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source]);
+
+    const modifier = createHeartLiveModifierForMember(game, {
+      playerId: 'p1',
+      memberCardId: source.instanceId,
+      sourceCardId: source.instanceId,
+      abilityId: 'source-heart',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+    });
+
+    expect(modifier).toEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      sourceCardId: source.instanceId,
+      abilityId: 'source-heart',
+    });
+  });
+
+  it('creates target-member Heart modifiers when a different member gains Heart', () => {
+    const source = createCardInstance(
+      {
+        cardCode: 'SOURCE-MEMBER',
+        name: 'Source Member',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'source-member'
+    );
+    const target = createCardInstance(
+      {
+        cardCode: 'TARGET-MEMBER',
+        name: 'Target Member',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p2',
+      'target-member'
+    );
+    let game = createGameState('target-member-heart-helper', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source, target]);
+
+    const modifier = createHeartLiveModifierForMember(game, {
+      playerId: 'p2',
+      memberCardId: target.instanceId,
+      sourceCardId: source.instanceId,
+      abilityId: 'target-heart',
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    });
+
+    expect(modifier).toEqual({
+      kind: 'HEART',
+      target: 'TARGET_MEMBER',
+      playerId: 'p2',
+      targetMemberCardId: target.instanceId,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      sourceCardId: source.instanceId,
+      abilityId: 'target-heart',
+    });
+  });
+
+  it('adds member Heart modifiers without projecting them to player Heart bonuses', () => {
+    const source = createCardInstance(
+      {
+        cardCode: 'SOURCE-MEMBER',
+        name: 'Source Member',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'source-member'
+    );
+    let game = createGameState('add-member-heart-helper', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source]);
+
+    const result = addHeartLiveModifierForMember(game, {
+      playerId: 'p1',
+      memberCardId: source.instanceId,
+      sourceCardId: source.instanceId,
+      abilityId: 'source-heart',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.heartBonus).toEqual([createHeartIcon(HeartColor.YELLOW, 1)]);
+    expect(result?.gameState.liveResolution.playerHeartBonuses.has('p1')).toBe(false);
+    expect(getPlayerLiveHeartModifiers(result!.gameState.liveResolution, 'p1')).toEqual([]);
+  });
+
+  it('rejects invalid member Heart helper inputs without modifying state', () => {
+    const member = createCardInstance(
+      {
+        cardCode: 'VALID-MEMBER',
+        name: 'Valid Member',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'valid-member'
+    );
+    const liveCard = createCardInstance(
+      {
+        cardCode: 'LIVE-CARD',
+        name: 'Live Card',
+        cardType: CardType.LIVE,
+        score: 1,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'live-card'
+    );
+    let game = createGameState('invalid-member-heart-helper', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member, liveCard]);
+
+    const baseOptions = {
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      abilityId: 'invalid-heart',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+    };
+
+    expect(
+      createHeartLiveModifierForMember(game, {
+        ...baseOptions,
+        memberCardId: 'missing-member',
+      })
+    ).toBeNull();
+    expect(
+      createHeartLiveModifierForMember(game, {
+        ...baseOptions,
+        memberCardId: liveCard.instanceId,
+      })
+    ).toBeNull();
+    expect(
+      createHeartLiveModifierForMember(game, {
+        ...baseOptions,
+        playerId: 'p2',
+        memberCardId: member.instanceId,
+      })
+    ).toBeNull();
+    expect(
+      addHeartLiveModifierForMember(game, {
+        ...baseOptions,
+        memberCardId: member.instanceId,
+        hearts: [createHeartIcon(HeartColor.YELLOW, 0)],
+      })
+    ).toBeNull();
+    expect(game.liveResolution.liveModifiers).toEqual([]);
+  });
+
   it('uses liveModifiers as the source for score projection without projecting source-member hearts', () => {
     let game = createGameState('live-modifier-projection', 'p1', 'P1', 'p2', 'P2');
 

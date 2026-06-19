@@ -86,6 +86,7 @@ Current migrated workflow modules:
 - `workflows/cards/bp5-005-rin.ts`
 - `workflows/cards/hs-bp6-004-ginko.ts`
 - `workflows/cards/hs-bp5-008-izumi.ts`
+- `workflows/cards/hs-pr-019-ginko.ts`
 - `workflows/cards/hs-pb1-009-kaho.ts`
 - `workflows/cards/hs-sd1-001-kaho.ts`
 - `workflows/cards/hs-sd1-006-hime.ts`
@@ -94,9 +95,11 @@ Current migrated workflow modules:
 - `workflows/cards/hs-bp5-001-kaho.ts`
 - `workflows/cards/hs-bp5-003-rurino.ts`
 - `workflows/cards/hs-pb1-004-ginko.ts`
+- `workflows/cards/keke-on-enter-place-waiting-energy.ts`
 - `workflows/cards/maki-on-enter.ts`
 - `workflows/cards/bp5-003-kotori.ts`
 - `workflows/cards/n-pb1-008-emma.ts`
+- `workflows/cards/nozomi-on-enter.ts`
 - `workflows/cards/pl-bp3-014-rin.ts`
 - `workflows/cards/sp-bp4-008-shiki.ts`
 - `workflows/cards/sp-bp5-003-chisato.ts`
@@ -130,10 +133,131 @@ The shared workflow owns only the confirm window, recomputation on confirm, modi
 
 `runtime/active-effect.ts` now also provides `startPendingActiveEffect` and `startConfirmOnlyActiveEffect`. The helpers remove the pending ability, install an `activeEffect`, and write the start `RESOLVE_ABILITY` action; they do not evaluate conditions, pay costs, mutate zones, create modifiers, enqueue triggers, or decide finish behavior. R-4O uses `startConfirmOnlyActiveEffect`, and existing `pay-energy-gain-blade.ts` uses the lower-level `startPendingActiveEffect`.
 
-Current follow-up candidates after R-5K:
+Current follow-up candidates after R-5O:
 
 - keep `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID` deferred because its hand-adjust, draw, pending, and event-order boundary remains higher risk.
+- consider `KARIN_LIVE_START_ABILITY_ID` as a future single-card review target, but do not merge it with Nozomi / Kaho / HS_PR_019 into a generic mill reward DSL without a new evidence pass.
+- keep `target: 'PLAYER'` Heart type and `playerHeartBonuses` compatibility projection as a later domain cleanup candidate; no real application card effect currently writes PLAYER Heart.
 - EMMA 0-target coverage remains a non-blocking follow-up for an active-energy / EMMA window, not this runner decentralization slice.
+
+## R-5O NOZOMI On-Enter Mill Draw Outcome 2026-06-19
+
+R-5O migrated only `NOZOMI_ON_ENTER_ABILITY_ID` into the new single-card workflow file `src/application/card-effects/workflows/cards/nozomi-on-enter.ts`.
+
+Covered flow:
+
+- step id remains `NOZOMI_REVEAL_TOP_FIVE`;
+- starter still inspects the top 5 cards with public reveal, removes the pending ability, and opens activeEffect;
+- start action remains `START_INSPECTION` and keeps `pendingAbilityId`, `abilityId`, `sourceCardId`, and `inspectedCardIds`;
+- activeEffect keeps `inspectionCardIds`, `sourceZone: ZoneType.MAIN_DECK`, and `orderedResolution`;
+- finish validates ability id and step id before resolving;
+- finish moves inspected cards with `moveInspectedCardsToWaitingRoom`;
+- draw condition still uses `hasCardIdsMatchingSelector(game, inspectedCardIds, typeIs(CardType.LIVE))`;
+- when a LIVE card was milled, the workflow draws 1 with `drawCardsForPlayer`;
+- when no LIVE card was milled, it does not draw and writes `drawnCardId: null`;
+- if the draw branch fails, the workflow returns the original game and does not half-commit the mill;
+- the inspection context is cleared when the inspection zone is empty;
+- finish action step remains `FINISH` with `milledCardIds`, `hasMilledLiveCard`, and `drawnCardId`;
+- ordered pending continuation uses the activeEffect metadata.
+
+The workflow reuses existing helpers only: pending starter registry, activeEffect step registry, `startPendingActiveEffect`, `getAbilityEffectText`, `inspectTopCards`, `moveInspectedCardsToWaitingRoom`, `hasCardIdsMatchingSelector`, and `drawCardsForPlayer`. No runtime helper, trigger matcher integration, cost-calculator change, or steps DSL was added. Runner line count after R-5O is about 3204 lines.
+
+Existing sample coverage already locks both major paths: PL!-sd1-007-SD mills a LIVE and draws 1 with `drawnCardId`, and the no-LIVE path mills 5 without drawing with `hasMilledLiveCard: false` and `drawnCardId: null`. R-5O did not add a duplicate focused test.
+
+## HEART Modifier Helper Cleanup Outcome 2026-06-19
+
+This cleanup did not migrate a card workflow. It consolidated real “member gains HEART” writes through domain helpers in `src/domain/rules/live-modifiers.ts`:
+
+- `createHeartLiveModifierForMember(game, options)` validates and creates a member HEART modifier without mutating game state;
+- `addHeartLiveModifierForMember(game, options)` calls the builder, writes the modifier with `addLiveModifier`, and returns the new state, modifier, and `heartBonus`.
+
+The helper deliberately lives in the domain rule module because continuous HEART effects are also collected there; placing it in application runtime actions would make domain rules depend back on application code. The public game action is now “a member gains HEART”. Internally it keeps existing modifier compatibility:
+
+- when `memberCardId === sourceCardId`, the helper creates the old `target: SOURCE_MEMBER` shape;
+- when `memberCardId !== sourceCardId`, the helper creates the old `target: TARGET_MEMBER` shape with `targetMemberCardId`;
+- `playerId` means the player who owns the member receiving HEART, not necessarily the effect controller.
+
+Read-only scan found no real application card effect writing `target: PLAYER`. The `LiveModifierState` `PLAYER` union branch and `playerHeartBonuses` compatibility projection remain in place for a future type/compat cleanup window.
+
+Updated HEART users:
+
+- `workflows/shared/live-start-discard-gain-heart.ts`: Kotori and HS_BP1_006 source-member HEART now use `addHeartLiveModifierForMember`;
+- `workflows/cards/hs-pr-019-ginko.ts`: HS_PR_019 green source-member HEART now uses `addHeartLiveModifierForMember`;
+- `workflows/cards/hs-bp5-003-rurino.ts`: Rurino same-group pink target-member HEART now uses `addHeartLiveModifierForMember` while preserving opponent-stage targets and actionHistory execution by the effect controller;
+- continuous HEART definitions for BP5_008, BP4_002, and BP5_003 now use `createHeartLiveModifierForMember` and filter nulls.
+
+`tests/unit/live-modifiers.test.ts` now locks source-member helper output, target-member helper output, member HEART staying out of `playerHeartBonuses` / `getPlayerLiveHeartModifiers`, and invalid member/heart inputs returning null. Existing integration coverage continues to lock Kotori / HS_BP1_006, HS_PR_019, Rurino target-member HEART, and continuous HEART modifier behavior. Runner line count is unchanged by this helper cleanup.
+
+## R-5N KEKE On-Enter Place Waiting Energy Outcome 2026-06-19
+
+R-5N migrated only `KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID` into the new single-card workflow file `src/application/card-effects/workflows/cards/keke-on-enter-place-waiting-energy.ts`.
+
+Covered flow:
+
+- step id remains `KEKE_SELECT_DISCARD_FOR_WAITING_ENERGY`;
+- starter still builds discard candidates from the current hand excluding the source card id;
+- starter removes the pending ability, opens the discard-hand activeEffect, and writes `START_SELECT_DISCARD`;
+- activeEffect keeps awaiting-player-only card visibility, optional discard cost metadata, `orderedResolution`, and the old selection / skip labels;
+- start action payload keeps `sourceCardId`, `step: START_SELECT_DISCARD`, and `selectableCardIds`;
+- missing selected card still resolves through the shared skip finish path and writes the old `SKIP` action;
+- finish validates the selected card is in `selectableCardIds` and still in hand;
+- discard still uses `discardOneHandCardToWaitingRoomForPlayer` with activeEffect candidates;
+- energy placement still uses `placeEnergyFromDeckToZone(..., 1, OrientationState.WAITING)`;
+- if placement returns null, the workflow returns the original game and does not half-commit the discard;
+- finish clears activeEffect, writes `PLACE_WAITING_ENERGY`, and continues pending from the activeEffect metadata;
+- finish payload keeps `discardCardId` and `placedEnergyCardIds`.
+
+The workflow reuses existing helpers only: pending starter registry, activeEffect step registry, `startPendingActiveEffect`, `finishSkippedActiveEffect`, `getAbilityEffectText`, `discardOneHandCardToWaitingRoomForPlayer`, and `placeEnergyFromDeckToZone`. No runtime helper, trigger matcher integration, cost-calculator change, or steps DSL was added. Runner line count after R-5N is about 3314 lines.
+
+Existing sample coverage still locks KEKE success and source-only skip paths. R-5N added `tests/integration/keke-on-enter-place-waiting-energy.test.ts` to lock that the source card is excluded from discard candidates and skip does not place energy while writing `SKIP`.
+
+## R-5M HS_PR_019 On-Enter Mill Gain Green Heart Outcome 2026-06-19
+
+R-5M migrated only `HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID` into the new single-card workflow file `src/application/card-effects/workflows/cards/hs-pr-019-ginko.ts`.
+
+Covered flow:
+
+- no manual-confirmation pending bridge was added; the old flow still opens the inspection activeEffect directly;
+- step id remains `HS_PR_019_REVEAL_TOP_THREE`;
+- starter still inspects the top 3 cards with public reveal, removes the pending ability, and opens activeEffect;
+- start payload keeps `inspectedCardIds`;
+- activeEffect keeps `inspectionCardIds`, `sourceZone: ZoneType.MAIN_DECK`, and `orderedResolution`;
+- finish validates ability id and step id before resolving;
+- `conditionMet` remains `inspectedCardIds.length === 3 && allCardIdsMatchingSelector(game, inspectedCardIds, memberHasHeartColor(HeartColor.GREEN))`;
+- finish moves the inspected cards with `moveInspectedCardsToWaitingRoom` before writing the modifier;
+- the inspection context is cleared when the inspection zone is empty;
+- if `conditionMet` is true, the workflow writes a `HEART` / `SOURCE_MEMBER` green Heart modifier with count 1;
+- if `conditionMet` is false, no modifier is written;
+- finish action step remains `FINISH_MILL_TOP_THREE_CHECK_GREEN_HEART_MEMBERS` with `milledCardIds`, `conditionMet`, and `heartBonus`;
+- ordered pending continuation uses the activeEffect metadata.
+
+The workflow reuses existing helpers only: pending starter registry, activeEffect step registry, `startPendingActiveEffect`, `getAbilityEffectText`, `inspectTopCards`, `moveInspectedCardsToWaitingRoom`, `allCardIdsMatchingSelector`, `memberHasHeartColor`, and now the domain member HEART helper. No runtime helper, trigger matcher integration, cost-calculator change, or steps DSL was added. Runner line count after R-5M is about 3460 lines.
+
+Existing sample coverage still locks the three-green-Heart-member path and green Heart modifier. R-5M added `tests/integration/hs-pr-019-ginko.test.ts` to lock the false path: when one revealed card is not a green-Heart member, all 3 revealed cards move to waiting room, no HEART modifier is added, and the resolve payload writes `conditionMet: false` with `heartBonus: []`.
+
+## R-5L HS_BP5_001 On-Enter Mill Gain Blade Outcome 2026-06-19
+
+R-5L migrated only `HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID` into the existing single-card workflow file `src/application/card-effects/workflows/cards/hs-bp5-001-kaho.ts`. The activated HS_BP5_001 path in the same file was left intact.
+
+Covered flow:
+
+- manual confirmation still uses the confirm-only pending bridge via `startConfirmOnlyPendingAbilityEffect`;
+- step id remains `HS_BP5_001_REVEAL_TOP_FOUR`;
+- starter still inspects the top 4 cards with public reveal and writes `START_INSPECTION`;
+- start payload keeps `inspectedCardIds`;
+- activeEffect keeps `inspectionCardIds`, `sourceZone: ZoneType.MAIN_DECK`, and `orderedResolution`;
+- finish validates ability id and step id before resolving;
+- finish moves the inspected cards with `moveInspectedCardsToWaitingRoom`;
+- LIVE detection still uses `typeIs(CardType.LIVE)` over the inspected cards;
+- if a LIVE card is present, `addBladeLiveModifierForSourceMember` adds BLADE +2;
+- if no LIVE card is present, `bladeBonus` is 0 and no modifier is written;
+- the inspection context is cleared when the inspection zone is empty;
+- finish action step remains `MILL_TOP_FOUR_GAIN_BLADE_IF_LIVE` with `milledCardIds`, `liveCardIds`, and `bladeBonus`;
+- ordered pending continuation uses the activeEffect metadata.
+
+The workflow reuses existing helpers only: pending starter registry, activeEffect step registry, `startConfirmOnlyPendingAbilityEffect`, `getAbilityEffectText`, `inspectTopCards`, `moveInspectedCardsToWaitingRoom`, selector queries, and `addBladeLiveModifierForSourceMember`. No runtime helper, trigger matcher integration, cost-calculator change, or steps DSL was added. Runner line count after R-5L is about 3581 lines.
+
+Existing sample coverage still locks the path where a revealed LIVE gives BLADE +2. R-5L added `tests/integration/hs-bp5-001-kaho.test.ts` to lock the no-LIVE path: all 4 revealed cards move to waiting room, no BLADE modifier is added, and the resolve payload writes `bladeBonus: 0` with `liveCardIds: []`.
 
 ## R-5K HS_BP1_004 Live-Start Pay Energy Gain Blade Outcome 2026-06-19
 

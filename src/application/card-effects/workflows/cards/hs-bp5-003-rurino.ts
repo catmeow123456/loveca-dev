@@ -10,7 +10,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import {
   HeartColor,
   SlotPosition,
@@ -518,24 +518,22 @@ function finishHsBp5003RurinoTargetMemberHeart(
   }
 
   const hearts = [{ color: HeartColor.PINK, count: 1 }];
-  const stateAfterModifier = addLiveModifier(
+  const modifierResult = addHeartLiveModifierForMember(
+    { ...game, activeEffect: null },
     {
-      ...game,
-      activeEffect: null,
-    },
-    {
-      kind: 'HEART',
-      target: 'TARGET_MEMBER',
       playerId: targetLocation.playerId,
-      targetMemberCardId: selectedCardId,
-      hearts,
+      memberCardId: selectedCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
+      hearts,
     }
   );
+  if (!modifierResult) {
+    return game;
+  }
 
   return continuePendingCardEffects(
-    addAction(stateAfterModifier, 'RESOLVE_ABILITY', player.id, {
+    addAction(modifierResult.gameState, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
