@@ -2,7 +2,7 @@
 
 > 文档类型：历史/计划文档
 > 适用范围：对战桌面能力层收敛的背景、迁移步骤和阶段性记录
-> 当前状态：已归档；当前事实以 `docs/battle-mode-purpose-and-boundaries.md`、`docs/coding-standard/online-mode-boundary.md` 和代码中的 `client/src/store/battleSurfaceCapabilities.ts` 为准
+> 当前状态：已归档；当前事实以 `docs/battle-mode-purpose-and-boundaries.md`、`docs/online-mode/boundary-standard.md` 和代码中的 `client/src/store/battleSurfaceCapabilities.ts` 为准
 
 ## 背景
 
@@ -22,7 +22,7 @@
 - 远程联机提交 `PLAY_MEMBER_TO_SLOT` 时，会按当前客户端按钮状态携带 `freePlay: true`。
 - 服务端仍校验自由拖拽窗口、操作者、己方手牌、成员卡类型和目标槽位，只在该次命令中跳过登场费用检查与支付。
 - 本地调试视角切换、模式切换、日志面板与分数确认调试遮罩已被局部限制为“非远程 DEBUG”。
-- `docs/online-mode-free-drag-checklist.md` 已明确“免费登场”是规则自动化缺口的正式兜底，不是远程房间全局调试开关或作弊开关。
+- `docs/online-mode/free-drag-checklist.md` 已明确“免费登场”是规则自动化缺口的正式兜底，不是远程房间全局调试开关或作弊开关。
 
 但这只是止血，不是边界收敛完成；第一批能力层落地前的遗留问题包括：
 
@@ -209,7 +209,7 @@ if (capabilities.canShowDebugLog) {
 - `src/online/types.ts`
 - `src/application/game-session.ts`
 - `src/application/game-commands.ts`
-- `docs/online-mode-free-drag-checklist.md`
+- `docs/online-mode/free-drag-checklist.md`
 
 `client/src/components/pages/GameSetupPage.tsx` 是本地开局配置页面，可以继续直接使用 `GameMode` 表达用户选择的本地规则模式；它不是本次共享对战桌面能力收敛的核心目标。
 
@@ -249,4 +249,4 @@ if (capabilities.canShowDebugLog) {
 - 免费登场在本地和联机均可用；远程只通过命令级 `freePlay` 生效，不写入远程房间全局状态。
 - 能力对象有 focused 单测覆盖四种 surface 与关键字段。
 - `GameMode` 相关代码注释不再把 `DEBUG` 描述成完整 UI 场景；共享桌面文档用 `BattleSurfaceKind` / 能力对象描述 UI 场景。
-- `docs/online-mode-free-drag-checklist.md` 与代码行为保持一致。
+- `docs/online-mode/free-drag-checklist.md` 与代码行为保持一致。

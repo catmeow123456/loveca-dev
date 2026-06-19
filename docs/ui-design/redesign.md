@@ -5,7 +5,7 @@
 > 最后更新: 2026-06-12
 > 当前状态: 设计目标多数已落地；本文不作为当前 UI token、CSS 变量或组件实现的权威来源
 
-本文档保留 UI 重设计的设计思想、分层原则和历史取舍。当前 UI 编码规范、主题 token 和组件实现以代码与 [前端 UI 开发规范](coding-standard/ui-standard.md) 为准。
+本文档保留 UI 重设计的设计思想、分层原则和历史取舍。当前 UI 编码规范、主题 token 和组件实现以代码与 [前端 UI 开发规范](standard.md) 为准。
 
 ## 1. 维护边界
 
@@ -13,7 +13,7 @@
 
 | 位置 | 维护内容 |
 | --- | --- |
-| `docs/coding-standard/ui-standard.md` | 现行 UI 编码约束、主题 token 使用方式和组件边界 |
+| `docs/ui-design/standard.md` | 现行 UI 编码约束、主题 token 使用方式和组件边界 |
 | `client/src/index.css` | 当前 CSS 变量、全局样式和主题实现 |
 | `client/src/lib/theme.ts` | 主题检测、持久化和切换逻辑 |
 | `client/src/components/` | 页面和组件实现 |

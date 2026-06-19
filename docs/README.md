@@ -44,11 +44,9 @@
 | 主题 | 推荐入口 | 说明 |
 | --- | --- | --- |
 | 对战模式目的 | [对战模式目的与边界](battle-mode-purpose-and-boundaries.md) | 本地调试、对墙打、正式联机、远程调试联机的目的、受众和能力边界 |
-| 联机模式 | [联机模式准备文档](online-mode-preparation.md) | 联机首版能力、剩余边界、命令/事件/视图约束 |
-| 联机可见性 | [可见性与公开对象矩阵](online-mode-visibility-matrix.md) | `PlayerViewState`、对象可见性和投影规则 |
-| 联机性能 | [正式联机 transport serde 性能问题说明](online-transport-serde-performance.md) | 正式联机响应 JSON-native 契约、性能基准和后续优化顺序 |
-| 联机拖拽回归 | [自由拖拽核对表](online-mode-free-drag-checklist.md) | 手工回归 checklist，不是产品需求文档 |
-| 对局记录与回放 | [需求](match-replay-requirements.md)、[设计](match-replay-design.md)、[第一阶段实施计划](match-replay-phase1-implementation-plan.md)、[Phase 2 只读 GameBoard 实施计划](match-replay-phase2-gameboard-readonly-implementation-plan.md)、[序列化与复水契约](match-replay-serialization-contract.md) | 历史对局保存、玩家视角回放、卡组快照、卡效复盘、确定性重演需求和架构承接 |
+| 联机模式 | [专题索引](online-mode/README.md)、[准备文档](online-mode/preparation.md)、[边界规范](online-mode/boundary-standard.md) | 联机首版能力、玩家视角投影、自由拖拽、运行期同步和编码边界 |
+| 对局记录与回放 | [专题索引](match-replay/README.md)、[需求](match-replay/requirements.md)、[设计](match-replay/design.md)、[序列化与复水契约](match-replay/serialization-contract.md) | 历史对局保存、玩家视角回放、卡组快照、卡效复盘、确定性重演需求和架构承接 |
+| UI 设计 | [专题索引](ui-design/README.md)、[UI 规范](ui-design/standard.md)、[移动端适配需求](ui-design/mobile-adaptation-requirements.md)、[游戏桌 UI 现状](ui-design/game-table/current-state.md) | 前端 UI 规范、主题重设计、移动端适配和游戏桌交互设计 |
 | 卡组管理 | [卡组管理需求](deck-management/requirements.md)、[卡组管理设计](deck-management/design.md) | 云端卡组、DeckLog、分享、游戏入口选组 |
 | 卡牌数据管理 | [卡牌数据管理需求](card-data-management/requirements.md)、[卡牌数据管理设计](card-data-management/design.md) | 管理后台、卡牌 CRUD、发布状态和字段边界 |
 | 卡牌数据规范 | [卡牌数据规范](card-data-management/data-spec.md) | `cards` 表字段、同步脚本和管理端输入约束 |
@@ -57,8 +55,6 @@
 | MinIO 与图片 | [MinIO 需求与设计](minio-requirements.md)、[图片优化方案](image_optimization.md) | 对象存储、图片上传、压缩和访问 URL |
 | 生产发布 | [生产发布 Runbook](production-release-runbook.md) | 当前自托管发布步骤、部署检查、健康检查与回滚边界 |
 | 对墙打模式 | [对墙打模式需求](solitaire-mode-requirements.md) | 本地调试模式与对墙打模式边界 |
-| 游戏桌当前 UI | [游戏桌 UI 现状](game-table-design/game-table-ui-current-state.md) | 当前桌面 UI 布局和交互事实 |
-| 解决区/卡组点击 | [解决区行为](game-table-design/resolution-zone-behavior.md)、[卡组点击行为](game-table-design/deck-click-behavior.md) | 局部交互定稿 |
 | 特殊成员堆叠 | [特殊成员卡堆叠](special-member-stacking.md) | `memberBelow` 当前能力和边界 |
 
 ## 编码标准
@@ -66,8 +62,8 @@
 | 文档 | 说明 |
 | --- | --- |
 | [开发规范](coding-standard/dev-standard.md) | 共享引擎、服务端 API、联机边界与测试规范 |
-| [联机模式边界规范](coding-standard/online-mode-boundary.md) | 联机 UI、store selector、命令和投影边界 |
-| [前端 UI 开发规范](coding-standard/ui-standard.md) | React 组件、主题 token、页面布局和覆盖层 |
+| [联机模式边界规范](online-mode/boundary-standard.md) | 联机 UI、store selector、命令和投影边界 |
+| [前端 UI 开发规范](ui-design/standard.md) | React 组件、主题 token、页面布局和覆盖层 |
 | [文档编写规范](doc_writing_guide.md) | 文档状态、类型和维护规则 |
 
 ## 计划与历史参考
@@ -77,11 +73,6 @@
 | 文档 | 当前用途 |
 | --- | --- |
 | [卡组分享功能方案](deck-management/share-plan.md) | 历史方案与增强项参考；当前事实以卡组需求/设计文档为准 |
-| [UI 重设计方案](UI_REDESIGN.md) | 历史设计背景和遗留清理参考；当前 UI 规范以 `ui-standard.md` 和代码为准 |
-| [移动端适配需求](UI_MOBILE_ADAPTATION_REQUIREMENTS.md) | 移动端后续实施标准，部分内容不是当前实现 |
-| [移动端现状差距清单](UI_MOBILE_ADAPTATION_GAP_ANALYSIS.md) | 移动端目标态与当前实现之间的差距和优先级 |
-| [移动端改进方向](game-table-ui-mobile-improvement-directions.md) | 游戏桌移动端方案建议，非当前实现说明 |
-| [移动端线框说明](game-table-ui-mobile-wireframe-notes.md) | 低保真结构草案，非当前实现说明 |
 | [Android App 打包指南草稿](android-app-packaging-guide-draft.md) | Web/PWA/TWA/Capacitor 打包路线规划；PWA/TWA 前置项已开始实施 |
 | [历史迁移说明](historical-migrations.md) | 早期外部托管方案的历史参考 |
 | [对战模式边界收敛计划](archive/battle-mode-boundary-plan.md) | 已归档的桌面能力层收敛计划；当前事实以对战模式目的文档、联机边界规范和代码为准 |

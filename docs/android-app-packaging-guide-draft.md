@@ -23,8 +23,8 @@ Loveca 当前是 Web 优先架构：
 
 - [Web 客户端说明](../client/README.md)
 - [当前实现限制](current-limitations.md)
-- [移动端适配需求](UI_MOBILE_ADAPTATION_REQUIREMENTS.md)
-- [移动端现状差距清单](UI_MOBILE_ADAPTATION_GAP_ANALYSIS.md)
+- [移动端适配需求](ui-design/mobile-adaptation-requirements.md)
+- [移动端现状差距清单](ui-design/mobile-adaptation-gap-analysis.md)
 - [MinIO 对象存储](minio-requirements.md)
 
 ## 2. 总体建议

@@ -39,12 +39,12 @@
 
 相关文档：
 
-- [联机模式准备文档](online-mode-preparation.md)
-- [联机模式边界规范](coding-standard/online-mode-boundary.md)
-- [对局记录与回放需求](match-replay-requirements.md)
-- [对局记录与回放设计](match-replay-design.md)
-- [对局记录与回放第一阶段实施计划](match-replay-phase1-implementation-plan.md)
-- [对局回放 checkpoint / bundle 序列化与复水契约](match-replay-serialization-contract.md)
+- [联机模式准备文档](online-mode/preparation.md)
+- [联机模式边界规范](online-mode/boundary-standard.md)
+- [对局记录与回放需求](match-replay/requirements.md)
+- [对局记录与回放设计](match-replay/design.md)
+- [对局记录与回放第一阶段实施计划](match-replay/phase1-implementation-plan.md)
+- [对局回放 checkpoint / bundle 序列化与复水契约](match-replay/serialization-contract.md)
 
 ## 对局规则自动化
 
@@ -62,7 +62,7 @@
 
 - [系统设计](../game_system_design.md)
 - [开发规范](coding-standard/dev-standard.md)
-- [联机模式准备文档](online-mode-preparation.md)
+- [联机模式准备文档](online-mode/preparation.md)
 - [卡效框架设计](card-effect-framework/card_effect_framework_design.md)
 - [卡效完成状态登记册](card-effect-reuse-audit/existing_module_map.md)
 
@@ -78,10 +78,10 @@
 
 相关文档：
 
-- [游戏桌 UI 现状](game-table-design/game-table-ui-current-state.md)
-- [移动端适配需求](UI_MOBILE_ADAPTATION_REQUIREMENTS.md)
-- [移动端现状差距清单](UI_MOBILE_ADAPTATION_GAP_ANALYSIS.md)
-- [移动端改进方向](game-table-ui-mobile-improvement-directions.md)
+- [游戏桌 UI 现状](ui-design/game-table/current-state.md)
+- [移动端适配需求](ui-design/mobile-adaptation-requirements.md)
+- [移动端现状差距清单](ui-design/mobile-adaptation-gap-analysis.md)
+- [移动端改进方向](ui-design/game-table/mobile-improvement-directions.md)
 
 ## Android App 打包
 

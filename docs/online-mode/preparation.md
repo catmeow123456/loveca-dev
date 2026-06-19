@@ -11,18 +11,18 @@
 
 当前保留的联机文档为：
 
-- `docs/online-mode-preparation.md`：联机模式总览与当前实现边界。
-- `docs/online-mode-visibility-matrix.md`：可见性、投影、公共对象跟踪。
-- `docs/online-mode-free-drag-checklist.md`：自由拖拽权限模型与最小回归测试。
-- `docs/online-transport-serde-performance.md`：正式联机 snapshot / command response 的 JSON-native transport 热路径、性能基准和后续 snapshot diff / 增量同步边界。
+- `docs/online-mode/preparation.md`：联机模式总览与当前实现边界。
+- `docs/online-mode/visibility-matrix.md`：可见性、投影、公共对象跟踪。
+- `docs/online-mode/free-drag-checklist.md`：自由拖拽权限模型与最小回归测试。
+- `docs/online-mode/transport-serde-performance.md`：正式联机 snapshot / command response 的 JSON-native transport 热路径、性能基准和后续 snapshot diff / 增量同步边界。
 
 编码约束另见：
 
-- `docs/coding-standard/online-mode-boundary.md`
+- `docs/online-mode/boundary-standard.md`
 
 ## 2. 当前实现事实
 
-当前代码已经具备正式双人联机的基础产品闭环：房间、卡组锁定、先后手确认、服务端权威对局、轮询同步、运行期玩家视角 snapshot、离开房间、短暂恢复和管理员观测。正式联机响应侧已改为 JSON-native DTO 热路径，相关性能与后续 snapshot diff / 增量同步边界见 `docs/online-transport-serde-performance.md`。卡效自动化第一阶段已经接入普通成员登场费用、Live 判定与修正、部分触发/起动/自动能力和第一批登记卡效。剩余缺口主要集中在实时传输、事件/快照的长期持久化、全卡池完整自动裁判和完整重放恢复语义。
+当前代码已经具备正式双人联机的基础产品闭环：房间、卡组锁定、先后手确认、服务端权威对局、轮询同步、运行期玩家视角 snapshot、离开房间、短暂恢复和管理员观测。正式联机响应侧已改为 JSON-native DTO 热路径，相关性能与后续 snapshot diff / 增量同步边界见 `docs/online-mode/transport-serde-performance.md`。卡效自动化第一阶段已经接入普通成员登场费用、Live 判定与修正、部分触发/起动/自动能力和第一批登记卡效。剩余缺口主要集中在实时传输、事件/快照的长期持久化、全卡池完整自动裁判和完整重放恢复语义。
 
 相关代码路径：
 
@@ -109,7 +109,7 @@
 
 注意：前端 UI 层可能在部分非正式窗口仍允许拖起己方卡牌，但正式事实以 `GameSession` 接受命令为准。换牌阶段、活跃/能量/抽卡等自动通常阶段的普通桌面移动应被服务端拒绝。
 
-详细拖拽回归项见 `docs/online-mode-free-drag-checklist.md`。
+详细拖拽回归项见 `docs/online-mode/free-drag-checklist.md`。
 
 ## 6. 可见性与公共对象
 
@@ -132,7 +132,7 @@
 - 已公开对象进入手牌、主卡组或能量卡组时，进入目标区这一步仍可作为公共移动被观察；之后对非持有者不再持续投影该对象。
 - 对象之后重新进入公开链路时，首版可继续沿用同一个 `publicObjectId`。
 
-详细矩阵见 `docs/online-mode-visibility-matrix.md`。
+详细矩阵见 `docs/online-mode/visibility-matrix.md`。
 
 ## 7. 事件输出原则
 

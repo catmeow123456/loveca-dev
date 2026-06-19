@@ -49,7 +49,7 @@ P2-P3 属于第一阶段增强：
 - 时间线写入应以 `RecordFrame` 或等价账本节点统一排序；命令、公共事件、私密事件、审计、规则事件、决策、随机事实和 checkpoint 不应各自形成互不对齐的回放顺序。
 - `MatchRecorder` 负责生成并持久化 `timelineSeq` / `checkpointSeq`，不得把现有 `authoritySnapshots` 的 `publicSeq` key 作为持久 checkpoint 主键。
 - 需要保存同一 `publicSeq` 下的多个历史节点时，recorder 应从命令提交后的权威状态或显式 transition frame 采集 checkpoint payload；现有 `authoritySnapshots: Map<publicSeq, GameState>` 只能作为恢复辅助，不能保证保留同一公共事件序号下的多个中间状态。
-- checkpoint、debug bundle、payload envelope、序列化、复水、hash 校验、压缩和权限边界必须遵守 [checkpoint / bundle 序列化与复水契约](match-replay-serialization-contract.md)；不得直接保存裸 `GameState` JSON。
+- checkpoint、debug bundle、payload envelope、序列化、复水、hash 校验、压缩和权限边界必须遵守 [checkpoint / bundle 序列化与复水契约](serialization-contract.md)；不得直接保存裸 `GameState` JSON。
 - 锁卡结果必须变成可持久化快照输入；仅保存运行时牌组列表不足以满足历史展示和数据版本隔离。
 - 记录状态和完整性分开表达：`status` 表示生命周期，`completeness` 表示记录是否完整。P0 硬写入失败时正式对局不进入 `IN_GAME`；P1 增量追加失败时允许对局继续，但必须同步或尽最大努力把 `completeness` 降级为 `PARTIAL` / `INCOMPLETE` 并留下服务端错误。
 - 记录层应同时采集可用的 `GameEvent` 与 `PublicEvent`：`GameEvent` 作为规则事实输入，`PublicEvent` 作为公开展示事实输入，二者通过 timeline 关联而不是混写为同一类事件。

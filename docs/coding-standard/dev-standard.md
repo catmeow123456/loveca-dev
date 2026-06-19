@@ -10,7 +10,7 @@
 - [系统设计](../../game_system_design.md)：当前架构、状态机、数据流和关键代码路径。
 - [当前实现限制](../current-limitations.md)：跨模块限制、部署差异和未落地能力。
 - [对战模式目的与边界](../battle-mode-purpose-and-boundaries.md)：本地调试、对墙打、正式联机和远程调试联机的目的差异。
-- [联机模式边界规范](online-mode-boundary.md)：联机 UI、store selector、命令和投影边界。
+- [联机模式边界规范](../online-mode/boundary-standard.md)：联机 UI、store selector、命令和投影边界。
 - [文档编写规范](../doc_writing_guide.md)：文档状态、分类和更新半径规则。
 
 仅调整项目目录、依赖版本、局部组件结构、测试补充或不改变外部行为的实现细节时，通常不需要同步修改本文档。
@@ -73,7 +73,7 @@
 - `gameStore`、`deckStore`、`authStore` 负责桥接应用状态和 UI；组件不应复制复杂业务状态作为第二事实来源。
 - React selector 应保持 snapshot 稳定，避免每次渲染创建新对象导致循环更新。
 - 拖拽、双击、按钮等 UI 操作应转换为明确命令；UI 可做可用性提示，但最终合法性由命令层或服务端判定。
-- UI 主题、布局、覆盖层和组件交互规范以 [前端 UI 开发规范](ui-standard.md) 为准。
+- UI 主题、布局、覆盖层和组件交互规范以 [前端 UI 开发规范](../ui-design/standard.md) 为准。
 - 移动端、重设计方案或历史设计稿不得替代当前 UI 规范和代码事实。
 
 ## 6. 测试规范

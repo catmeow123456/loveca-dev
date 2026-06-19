@@ -4,9 +4,9 @@
 > 适用范围: 移动端适配需求与当前前端实现之间的差距
 > 最后更新: 2026-06-13
 > 当前状态: 现行事实清单；每次完成移动端适配任务后需要同步更新
-> 对照需求: [Loveca UI 移动端适配需求文档](./UI_MOBILE_ADAPTATION_REQUIREMENTS.md)
+> 对照需求: [Loveca UI 移动端适配需求文档](mobile-adaptation-requirements.md)
 
-本文档记录当前代码相对于移动端目标态的差距。需求、验收标准和目标状态仍以 `UI_MOBILE_ADAPTATION_REQUIREMENTS.md` 为准；本清单只描述当前实现是否满足、风险在哪里、后续应优先处理什么。
+本文档记录当前代码相对于移动端目标态的差距。需求、验收标准和目标状态仍以 `mobile-adaptation-requirements.md` 为准；本清单只描述当前实现是否满足、风险在哪里、后续应优先处理什么。
 
 ## 维护规则
 

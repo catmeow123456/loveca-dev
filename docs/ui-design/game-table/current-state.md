@@ -305,7 +305,7 @@ Live 区固定 3 槽，与成员槽横向对齐。
 - `JudgmentPanel` 只是这个区域当前的 UI 载体，不是独立规则区域
 - 表演判定成功后不会立刻进入成功效果窗口；双方表演完成后才进入先攻成功效果、后攻成功效果
 - 当前实现将双方表演后的成功效果窗口挂到 `LIVE_RESULT_PHASE` 的 `RESULT_*_SUCCESS_EFFECTS` 子阶段；这是现行状态机表达，UI 按该状态渲染成功效果窗口
-- 相关定稿见 `docs/game-table-design/resolution-zone-behavior.md`
+- 相关定稿见 `docs/ui-design/game-table/resolution-zone-behavior.md`
 
 ### 5.4 分数确认弹窗
 

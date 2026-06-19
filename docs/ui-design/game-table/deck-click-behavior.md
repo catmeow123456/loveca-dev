@@ -5,7 +5,7 @@
 > 当前状态：当前点击语义说明；需与 `client/src/components/game/GameBoard.tsx`、`src/application/game-session.ts` 和检视区命令保持同步
 > 目的：固定“点击主卡组 / 点击能量卡组”在牌桌上的默认语义，避免继续沿用当前代码里偏调试工具化的理解。
 >
-> 本文是 `docs/game-table-design/` 下的子文档。
+> 本文是 `docs/ui-design/game-table/` 下的子文档。
 > 若与 `game-table-ui-current-state.md` 的旧描述冲突，以本文为准。
 
 ## 1. 设计目标
@@ -29,9 +29,9 @@
 
 相关上位文档：
 
-- `docs/online-mode-preparation.md`
-- `docs/online-mode-visibility-matrix.md`
-- `docs/online-mode-free-drag-checklist.md`
+- `docs/online-mode/preparation.md`
+- `docs/online-mode/visibility-matrix.md`
+- `docs/online-mode/free-drag-checklist.md`
 
 ## 3. 默认点击行为
 
