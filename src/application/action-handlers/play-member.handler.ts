@@ -21,6 +21,7 @@ import {
   addMemberBelowMember,
 } from '../../domain/entities/zone.js';
 import { canMemberBeRelayedAway } from '../../domain/rules/cost-calculator.js';
+import { getMemberEffectiveCost } from '../effects/conditions.js';
 import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 
 /**
@@ -59,6 +60,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   const existingCardId = getCardInSlot(player.memberSlots, targetSlot);
   let replacedCardId: string | null = null;
   let replacedCardOwnerId: string | null = null;
+  let replacedMemberEffectiveCost: number | null = null;
   if (existingCardId) {
     const existingCard = ctx.getCardById(game, existingCardId);
     if (!existingCard || !isMemberCardData(existingCard.data)) {
@@ -92,6 +94,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
     // 成员区已有成员时，本次登场按换手处理；不因该成员是否本回合新登场而被阻断。
     replacedCardId = existingCardId;
     replacedCardOwnerId = existingCard.ownerId;
+    replacedMemberEffectiveCost = getMemberEffectiveCost(game, playerId, existingCardId);
   }
 
   let state = game;
@@ -131,7 +134,10 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   });
   state = emitGameEvent(
     state,
-    createEnterStageEvent(cardId, ZoneType.HAND, targetSlot, card.ownerId, playerId)
+    createEnterStageEvent(cardId, ZoneType.HAND, targetSlot, card.ownerId, playerId, {
+      replacedMemberCardId: replacedCardId,
+      replacedMemberEffectiveCost,
+    })
   );
 
   // 记录动作

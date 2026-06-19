@@ -144,7 +144,25 @@ export type LiveModifierState =
     }
   | {
       readonly kind: 'HEART';
+      readonly target: 'SOURCE_MEMBER';
       readonly playerId: string;
+      readonly hearts: readonly HeartIcon[];
+      readonly sourceCardId: string;
+      readonly abilityId?: string;
+    }
+  | {
+      readonly kind: 'HEART';
+      readonly target: 'PLAYER';
+      readonly playerId: string;
+      readonly hearts: readonly HeartIcon[];
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+    }
+  | {
+      readonly kind: 'HEART';
+      readonly target: 'TARGET_MEMBER';
+      readonly playerId: string;
+      readonly targetMemberCardId: string;
       readonly hearts: readonly HeartIcon[];
       readonly sourceCardId?: string;
       readonly abilityId?: string;

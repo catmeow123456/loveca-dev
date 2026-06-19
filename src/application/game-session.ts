@@ -135,8 +135,10 @@ import {
   getActivatedAbilityLimitStatus,
   isSupportedActivatedAbilityForCard,
   resolvePendingCardEffects,
-  syncHsBp6027ManualCheerAdjustment,
 } from './card-effect-runner.js';
+import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/bp6-024-success-replacement.js';
+import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
+import { getMemberEffectiveCost } from './effects/conditions.js';
 import { isMemberCardData } from '../domain/entities/card.js';
 import { getActiveEnergyIds, tapEnergy } from '../domain/entities/zone.js';
 import {
@@ -1605,6 +1607,13 @@ export class GameSession {
       return null;
     }
 
+    if (
+      command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
+      state.activeEffect?.awaitingPlayerId === command.playerId
+    ) {
+      return null;
+    }
+
     if (state.waitingPlayerId !== null) {
       return state.waitingPlayerId === command.playerId ? null : '当前不是该玩家的操作时机';
     }
@@ -2088,9 +2097,18 @@ export class GameSession {
     }
 
     const revealedState = revealResolutionCard(result.gameState, revealedCardId);
-    const adjustedState = syncHsBp6027ManualCheerAdjustment(revealedState, command.playerId, {
-      allowCreate: true,
-    });
+    const adjustedState = syncHsBp6027ManualCheerAdjustment(
+      revealedState,
+      command.playerId,
+      {
+        allowCreate: true,
+      },
+      {
+        resolvePendingCardEffects,
+        continuePendingCardEffects: (nextState) =>
+          resolvePendingCardEffects(nextState).gameState,
+      }
+    );
 
     return {
       success: true,
@@ -2322,7 +2340,16 @@ export class GameSession {
       return { success: false, gameState: state, error: result.error };
     }
 
-    const adjustedState = syncHsBp6027ManualCheerAdjustment(result.gameState, command.playerId);
+    const adjustedState = syncHsBp6027ManualCheerAdjustment(
+      result.gameState,
+      command.playerId,
+      {},
+      {
+        resolvePendingCardEffects,
+        continuePendingCardEffects: (nextState) =>
+          resolvePendingCardEffects(nextState).gameState,
+      }
+    );
 
     return {
       success: true,
@@ -2756,6 +2783,7 @@ export class GameSession {
         stageMembers.push({
           cardId: stageCardId,
           data: stageCard.data,
+          effectiveCost: getMemberEffectiveCost(state, command.playerId, stageCardId),
           position: slot,
           orientation:
             player.memberSlots.cardStates.get(stageCardId)?.orientation ?? OrientationState.ACTIVE,
@@ -3477,6 +3505,32 @@ export class GameSession {
     }
 
     const liveIndex = getOwnedLiveIndex(state, command.playerId, command.cardId);
+    const isPerformanceSuccessWindow =
+      state.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ||
+      state.currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
+      state.currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS;
+    const isResultSettlement = state.currentSubPhase === SubPhase.RESULT_SETTLEMENT;
+    const activePlayerId = state.players[state.activePlayerIndex]?.id ?? null;
+    if (
+      liveIndex !== null &&
+      (isResultSettlement || isPerformanceSuccessWindow) &&
+      (!isResultSettlement || state.liveResolution.liveWinnerIds.includes(command.playerId)) &&
+      (!isPerformanceSuccessWindow || activePlayerId === command.playerId) &&
+      !state.liveResolution.successCardMovedBy.includes(command.playerId)
+    ) {
+      const replacementState = startSuccessZoneReplacementEffect(state, {
+        controllerId: command.playerId,
+        originalCardId: command.cardId,
+        origin: 'LIVE_SUCCESS',
+      });
+      if (replacementState !== null) {
+        return {
+          success: true,
+          gameState: replacementState,
+        };
+      }
+    }
+
     const result = this.gameService.processAction(
       state,
       createSelectSuccessCardAction(command.playerId, command.cardId)

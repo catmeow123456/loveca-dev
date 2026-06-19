@@ -8,7 +8,13 @@ import {
 } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
-import { cardNameAliasIs, typeIs, unitAliasIs } from '../../src/application/effects/card-selectors';
+import {
+  cardNameAliasIs,
+  costGte,
+  costLte,
+  typeIs,
+  unitAliasIs,
+} from '../../src/application/effects/card-selectors';
 import {
   allCardIdsMatchingSelector,
   countCardIdsMatchingSelectors,
@@ -21,6 +27,7 @@ import {
   getCardIdsInZone,
   getCardIdsInZoneMatching,
   getCardIdsMatchingSelector,
+  getMemberEffectiveCost,
   getSourceEffectiveBladeCount,
   hasAtLeastCardsMatchingSelector,
   hasCardIdsMatchingSelector,
@@ -28,6 +35,8 @@ import {
   hasOtherStageMember,
   hasStageMemberMatching,
   sourceHasBladeAtLeast,
+  successLiveScoreAtLeast,
+  sumSuccessfulLiveScore,
 } from '../../src/application/effects/conditions';
 import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import { CardType, HeartColor, SlotPosition, ZoneType } from '../../src/shared/types/enums';
@@ -106,9 +115,9 @@ describe('effect conditions', () => {
         [typeIs(CardType.MEMBER), typeIs(CardType.LIVE)]
       )
     ).toEqual([1, 1]);
-    expect(countCardIdsMatchingSelectors(game, [missingCardId], [typeIs(CardType.MEMBER)])).toEqual([
-      0,
-    ]);
+    expect(countCardIdsMatchingSelectors(game, [missingCardId], [typeIs(CardType.MEMBER)])).toEqual(
+      [0]
+    );
     expect(countCardIdsMatchingSelectors(game, [member.instanceId], [])).toEqual([]);
   });
 
@@ -131,7 +140,11 @@ describe('effect conditions', () => {
       true
     );
     expect(
-      allCardIdsMatchingSelector(game, [member.instanceId, live.instanceId], typeIs(CardType.MEMBER))
+      allCardIdsMatchingSelector(
+        game,
+        [member.instanceId, live.instanceId],
+        typeIs(CardType.MEMBER)
+      )
     ).toBe(false);
     expect(allCardIdsMatchingSelector(game, [missingCardId], typeIs(CardType.MEMBER))).toBe(false);
     expect(allCardIdsMatchingSelector(game, [], typeIs(CardType.MEMBER))).toBe(false);
@@ -165,6 +178,36 @@ describe('effect conditions', () => {
     expect(countCardsInZone(game, 'unknown-player', ZoneType.WAITING_ROOM)).toBe(0);
   });
 
+  it('sums successful Live scores and ignores missing or non-Live cards', () => {
+    const scoreSixLive = liveCard('score-six-live', { score: 6 });
+    const scoreThreeLive = liveCard('score-three-live', { score: 3 });
+    const nonLiveCard = memberCard('success-zone-member', { cost: 9 });
+
+    let game = createGameState('conditions-success-live-score', 'p1', 'P1', 'p2', 'P2');
+
+    expect(sumSuccessfulLiveScore(game, 'p1')).toBe(0);
+    expect(successLiveScoreAtLeast(game, 'p1', 6)).toBe(false);
+
+    game = registerCards(game, [scoreSixLive, scoreThreeLive, nonLiveCard]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: {
+        ...player.successZone,
+        cardIds: [
+          scoreSixLive.instanceId,
+          'missing-success-live',
+          nonLiveCard.instanceId,
+          scoreThreeLive.instanceId,
+        ],
+      },
+    }));
+
+    expect(sumSuccessfulLiveScore(game, 'p1')).toBe(9);
+    expect(successLiveScoreAtLeast(game, 'p1', 6)).toBe(true);
+    expect(successLiveScoreAtLeast(game, 'p1', 9)).toBe(true);
+    expect(successLiveScoreAtLeast(game, 'p1', 10)).toBe(false);
+  });
+
   it('filters, counts, and checks cards in zones through selectors', () => {
     const waitingMember = memberCard('zone-waiting-member');
     const waitingLive = liveCard('zone-waiting-live');
@@ -184,21 +227,21 @@ describe('effect conditions', () => {
       },
     }));
 
-    expect(getCardIdsInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))).toEqual([
-      waitingLive.instanceId,
-    ]);
-    expect(countCardsInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.MEMBER))).toBe(
-      1
-    );
+    expect(
+      getCardIdsInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))
+    ).toEqual([waitingLive.instanceId]);
+    expect(
+      countCardsInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.MEMBER))
+    ).toBe(1);
     expect(hasCardInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))).toBe(
       true
     );
-    expect(hasCardInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, cardNameAliasIs('百生吟子'))).toBe(
-      false
-    );
-    expect(hasCardInZoneMatching(game, 'unknown-player', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))).toBe(
-      false
-    );
+    expect(
+      hasCardInZoneMatching(game, 'p1', ZoneType.WAITING_ROOM, cardNameAliasIs('百生吟子'))
+    ).toBe(false);
+    expect(
+      hasCardInZoneMatching(game, 'unknown-player', ZoneType.WAITING_ROOM, typeIs(CardType.LIVE))
+    ).toBe(false);
   });
 
   it('checks stage member count, matching, and other-member presence', () => {
@@ -286,5 +329,81 @@ describe('effect conditions', () => {
     expect(getSourceEffectiveBladeCount(game, 'p1', kaho.instanceId)).toBe(6);
     expect(sourceHasBladeAtLeast(game, 'p1', kaho.instanceId, 6)).toBe(true);
     expect(sourceHasBladeAtLeast(game, 'p1', kaho.instanceId, 7)).toBe(false);
+  });
+
+  it('reads PL!-bp4-008 effective cost only while the source member is on stage and success Live score is at least 6', () => {
+    const hanayo = memberCard('bp4-008-hanayo', {
+      cardCode: 'PL!-bp4-008-P',
+      name: '小泉花阳',
+      cost: 4,
+    });
+    const otherMember = memberCard('other-cost-member', {
+      cardCode: 'PL!-bp4-009-P',
+      name: '其他成员',
+      cost: 4,
+    });
+    const scoreSixLive = liveCard('bp4-008-score-six-live', { score: 6 });
+
+    let game = createGameState('conditions-effective-cost', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hanayo, otherMember, scoreSixLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, hanayo.instanceId),
+      successZone: {
+        ...player.successZone,
+        cardIds: [scoreSixLive.instanceId],
+      },
+    }));
+
+    expect(getMemberEffectiveCost(game, 'p1', hanayo.instanceId)).toBe(7);
+    expect(costLte(4)(hanayo)).toBe(true);
+    expect(costGte(7)(hanayo)).toBe(false);
+
+    const scoreShortGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: {
+        ...player.successZone,
+        cardIds: [],
+      },
+    }));
+    expect(getMemberEffectiveCost(scoreShortGame, 'p1', hanayo.instanceId)).toBe(4);
+
+    const waitingRoomGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [hanayo.instanceId],
+      },
+    }));
+    expect(getMemberEffectiveCost(waitingRoomGame, 'p1', hanayo.instanceId)).toBe(4);
+
+    const otherMemberGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, otherMember.instanceId),
+    }));
+    expect(getMemberEffectiveCost(otherMemberGame, 'p1', otherMember.instanceId)).toBe(4);
+  });
+
+  it('applies PL!-bp4-008 effective cost to synced rarities by base card code', () => {
+    const hanayoR = memberCard('bp4-008-hanayo-r', {
+      cardCode: 'PL!-bp4-008-R',
+      name: '小泉花阳',
+      cost: 4,
+    });
+    const scoreSixLive = liveCard('bp4-008-r-score-six-live', { score: 6 });
+
+    let game = createGameState('conditions-effective-cost-rarity', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hanayoR, scoreSixLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, hanayoR.instanceId),
+      successZone: {
+        ...player.successZone,
+        cardIds: [scoreSixLive.instanceId],
+      },
+    }));
+
+    expect(getMemberEffectiveCost(game, 'p1', hanayoR.instanceId)).toBe(7);
   });
 });

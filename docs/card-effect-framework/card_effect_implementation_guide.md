@@ -20,16 +20,28 @@
 
 新增或扩展卡效前，按顺序查看：
 
-1. `docs/card-effect-reuse-audit/existing_module_map.md`
+1. `docs/card-effect-framework/README.md`
+   - 先确认当前卡效框架目标、模块边界和禁止事项。
+2. `docs/card-effect-framework/new_card_effect_cookbook.md`
+   - 按常见效果形状先找可复用 workflow/helper 和必测路径。
+3. `docs/card-effect-reuse-audit/existing_module_map.md`
    - 先查目标卡号或同型卡是否已经登记。
    - 若有同型，优先复用同型 resolver / helper / 测试形状。
-2. `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`
+4. `docs/card-effect-framework/module_boundaries.md`
+   - 判断本卡应落在 query、runtime action、workflow、continuous modifier 还是 runner dispatch。
+5. `docs/card-effect-framework/runtime_action_helpers.md`
+   - 查抽牌、弃牌、回收、看顶等原子动作 helper 是否已有入口。
+6. `docs/card-effect-framework/active_effect_runtime.md`
+   - 多步、可选、confirm-only、skip、pending continuation 流程先查 activeEffect helper 边界。
+7. `docs/card-effect-framework/workflow_module_guide.md`
+   - 若有多步流程或特殊复合效果，优先放入 workflow module，不继续直接长进 runner。
+8. `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`
    - 查效果片段目前落在哪一层：事件、condition/query、selector、cost、workflow 或 runner。
-3. `docs/card-effect-reuse-audit/effect_module_coverage.md`
+9. `docs/card-effect-reuse-audit/effect_module_coverage.md`
    - 查现有模块覆盖和已证明的 helper。
-4. `docs/card-effect-reuse-audit/condition_query_remaining_inventory.md`
+10. `docs/card-effect-reuse-audit/condition_query_remaining_inventory.md`
    - 查当前 condition/query、selector、domain-safe identity、formula-builder、workflow-step 的边界。
-5. 相关测试：
+11. 相关测试：
    - `tests/integration/sample-card-effect-runner.test.ts`
    - `tests/unit/card-effect-classification.test.ts`
    - 若涉及 selector/query/domain，再查对应 unit test。
@@ -47,16 +59,18 @@
 - 声援选择：`src/application/effects/cheer-selection.ts`
 - shared 团体身份：`src/shared/utils/card-identity.ts`
 - 卡效定义：`src/application/card-effects/`
-- runner 接线：`src/application/card-effect-runner.ts`
+- runtime 原子动作：`src/application/card-effects/runtime/`
+- workflow 目标目录：`src/application/card-effects/workflows/`
+- runner 接线：`src/application/card-effect-runner.ts`，只保留调度入口和未迁移旧逻辑
 
 新增 helper 的条件：
 
 - 至少有真实卡效需要它。
-- helper 是纯函数或只读 query。
-- helper 不偷塞 workflow、pending、事件消费或费用支付时机。
+- helper 是纯函数、只读 query，或明确的 runtime 原子动作。
+- helper 不偷塞完整 workflow、pending 顺序、事件消费或费用支付时机。
 - helper 有 focused unit test 或被现有 integration test 覆盖。
 
-不要为了减少 runner 行数而搬运一段同样命令式的 workflow。
+不要为了减少 runner 行数而搬运一段同样命令式的 workflow。复杂卡效应迁入 `workflows/`，并复用 runtime action 与 activeEffect runtime。
 
 ## Definition Checklist
 
@@ -82,7 +96,7 @@
 - 候选扫描优先用 selector/query helper。
 - 团体身份优先用 `groupAliasIs` 或 shared `cardBelongsToGroup`。
 - 指定姓名优先用 `cardNameAliasIs` / `cardNameAliasAny` / `cardNameContains`，不要混淆 alias、contains、equality。
-- workflow 仍可留在 runner，除非已经有稳定同型和明确 helper。
+- 简单旧 workflow 可暂留 runner；新增复杂 workflow 或迁移中的 workflow 应进入 `src/application/card-effects/workflows/`。
 - 不直接做 steps 解释器或 DSL。
 
 实现后：

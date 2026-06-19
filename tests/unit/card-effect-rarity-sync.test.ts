@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CARD_ABILITY_DEFINITIONS } from '../../src/application/card-effect-runner';
 import { getBaseCardCode, normalizeCardCode } from '../../src/shared/utils/card-code';
@@ -10,13 +10,18 @@ interface LlocgCardRecord {
 }
 
 function loadCardCodeFamilies(): Map<string, readonly string[]> {
-  const cards = JSON.parse(
-    readFileSync(new URL('../../llocg_db/json/cards_cn.json', import.meta.url), 'utf8')
-  ) as Record<string, LlocgCardRecord>;
+  const cards = {
+    ...loadLlocgCards('../../llocg_db/json/cards_cn.json'),
+    ...loadLlocgCards('../../llocg_db/json/cards.json'),
+  };
   const families = new Map<string, string[]>();
 
-  for (const rawCardCode of Object.keys(cards)) {
-    const cardCode = normalizeCardCode(rawCardCode);
+  for (const [rawCardCode, record] of Object.entries(cards)) {
+    const sourceCardCode = record.detail?.card_number ?? rawCardCode;
+    if (!sourceCardCode) {
+      continue;
+    }
+    const cardCode = normalizeCardCode(sourceCardCode);
     const baseCardCode = getBaseCardCode(cardCode);
     families.set(baseCardCode, [...(families.get(baseCardCode) ?? []), cardCode]);
   }
@@ -27,6 +32,14 @@ function loadCardCodeFamilies(): Map<string, readonly string[]> {
       [...new Set(cardCodes)].sort(),
     ])
   );
+}
+
+function loadLlocgCards(relativePath: string): Record<string, LlocgCardRecord> {
+  const url = new URL(relativePath, import.meta.url);
+  if (!existsSync(url)) {
+    return {};
+  }
+  return JSON.parse(readFileSync(url, 'utf8')) as Record<string, LlocgCardRecord>;
 }
 
 describe('card effect rarity synchronization', () => {

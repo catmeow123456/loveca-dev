@@ -31,6 +31,8 @@ export const HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID =
   'PL!HS-bp5-019-L:live-start-reduce-green-requirement-by-live-zone';
 export const HS_BP2_022_LIVE_START_SCORE_ABILITY_ID =
   'PL!HS-bp2-022-L:live-start-score-plus-if-three-cerise-live';
+export const BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID =
+  'PL!-bp4-021-L:live-start-success-score-requirement-and-score';
 export const HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID =
   'PL!HS-sd1-006-SD:on-enter-if-related-member-activate-energy-recover-live';
 export const HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
@@ -49,8 +51,18 @@ export const ELI_ACTIVATED_ABILITY_ID =
   'PL!-sd1-002-SD:activated-send-self-to-waiting-room-add-member';
 export const RIN_ACTIVATED_ABILITY_ID =
   'PL!-sd1-005-SD:activated-send-self-to-waiting-room-add-live';
+export const PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID =
+  'PL!-PR-017-PR:activated-send-self-recover-muse-live-activate-energy';
+export const BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID =
+  'PL!-bp4-002:activated-discard-two-recover-muse-live-if-success-score';
+export const BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID =
+  'PL!-bp4-002:continuous-live-without-timing-purple-heart';
 export const BP4_003_ACTIVATED_ABILITY_ID =
   'PL!-bp4-003-P:activated-send-self-to-waiting-room-add-live';
+export const BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID =
+  'PL!-bp5-003:activated-pay-two-energy-discard-branch';
+export const BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID =
+  'PL!-bp5-003:continuous-three-different-names-yellow-heart';
 export const PB1_019_ACTIVATED_ABILITY_ID =
   'PL!-pb1-019-N:activated-send-self-to-waiting-room-add-member';
 export const HANAYO_ACTIVATED_ABILITY_ID = 'PL!-sd1-008-SD:activated-pay-two-mill-ten';
@@ -58,6 +70,26 @@ export const START_DASH_LIVE_SUCCESS_ABILITY_ID = 'PL!-sd1-019-SD:live-success-s
 export const KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-PR-004-PR:on-enter-discard-place-waiting-energy';
 export const BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID = 'PL!-bp3-010-N:on-enter-look-top-reveal-live';
+export const BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID =
+  'PL!-bp5-005-AR:on-enter-success-score-place-active-energy';
+export const BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID =
+  'PL!-bp5-007:on-enter-relay-low-cost-discard-to-three-draw-three';
+export const BP4_008_CONTINUOUS_SUCCESS_SCORE_STAGE_COST_ABILITY_ID =
+  'PL!-bp4-008:continuous-success-score-stage-cost-plus-three';
+export const BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID =
+  'PL!-bp5-008:continuous-success-score-yellow-heart';
+export const SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID =
+  'PL!SP-bp2-002-R:on-enter-look-top-take-high-cost-card';
+export const BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID =
+  'PL!-bp6-002:on-enter-look-top-take-no-ability-or-continuous-muse-card';
+export const BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID =
+  'PL!-bp6-005:on-enter-discard-two-recover-yellow-heart-member-and-live';
+export const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
+  'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
+export const BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID =
+  'PL!-bp6-024:continuous-success-zone-replacement';
+export const PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID =
+  'PL!-PR-018-PR:on-enter-recover-high-score-live';
 export const SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID =
   'PL!SP-bp4-008-P:on-enter-left-draw-two-discard-one';
 export const SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID =
@@ -96,6 +128,10 @@ export const HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp5-001-SEC:on-enter-mill-four-gain-blade-if-live';
 export const HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID =
   'PL!HS-bp5-001-SEC:activated-pay-two-reveal-hand-live-recover-same-name-live';
+export const HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID =
+  'PL!HS-bp5-003:auto-leave-stage-position-change-member';
+export const HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID =
+  'PL!HS-bp5-003:live-start-discard-same-group-member-pink-heart';
 export const PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID =
   'PL!-bp3-014-N:on-enter-look-top-two-arrange-to-top';
 export const HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID =

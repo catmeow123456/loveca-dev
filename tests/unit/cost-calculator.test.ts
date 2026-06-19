@@ -45,6 +45,7 @@ function createStageMemberInfo(
     readonly cardCode?: string;
     readonly groupName?: string;
     readonly cardText?: string;
+    readonly effectiveCost?: number;
   } = {}
 ): StageMemberInfo {
   return {
@@ -53,6 +54,7 @@ function createStageMemberInfo(
       groupName: options.groupName,
       cardText: options.cardText,
     }),
+    effectiveCost: options.effectiveCost,
     position,
     orientation: options.orientation ?? OrientationState.ACTIVE,
   };
@@ -135,6 +137,29 @@ describe('CostCalculator', () => {
       expect(relayPlan?.relayDiscount).toBe(3);
       expect(relayPlan?.actualEnergyCost).toBe(1); // 4 - 3 = 1
       expect(relayPlan?.memberToRelay).toBe('member-1');
+    });
+
+    it('应该使用舞台成员有效费用计算换手减免', () => {
+      const memberData = createMockMemberData(11);
+      const resources: AvailableResources = {
+        activeEnergyIds: ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'],
+        stageMembers: [
+          createStageMemberInfo('effective-cost-member', 4, SlotPosition.CENTER, {
+            cardCode: 'PL!-bp4-008-P',
+            effectiveCost: 7,
+          }),
+        ],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      const relayPlan = result.availablePlans.find((plan) => plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(directPlan).toBeUndefined();
+      expect(relayPlan?.relayDiscount).toBe(7);
+      expect(relayPlan?.actualEnergyCost).toBe(4);
+      expect(relayPlan?.memberToRelay).toBe('effective-cost-member');
     });
 
     it('应该在换手后费用为负时设为0', () => {
