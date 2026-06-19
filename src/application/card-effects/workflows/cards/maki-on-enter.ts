@@ -9,6 +9,7 @@ import { CardType, ZoneType } from '../../../../shared/types/enums.js';
 import { MAKI_ON_ENTER_ABILITY_ID } from '../../ability-ids.js';
 import {
   finishSkippedActiveEffect,
+  revealHandCardForActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -119,32 +120,23 @@ function startMakiSelectSuccessLive(
     typeIs(CardType.LIVE)
   );
 
-  return addAction(
-    {
-      ...game,
-      activeEffect: {
-        ...effect,
-        stepId: MAKI_SELECT_SUCCESS_LIVE_STEP_ID,
-        stepText: '请选择要加入手牌的成功 Live。所公开的手牌 Live 会放置入成功 Live 卡区。',
-        selectableCardIds: selectableSuccessLiveCardIds,
-        selectableCardVisibility: 'PUBLIC',
-        canSkipSelection: true,
-        metadata: {
-          ...effect.metadata,
-          handLiveCardId,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'REVEAL_HAND_LIVE',
+  return revealHandCardForActiveEffect(game, {
+    effect,
+    playerId: player.id,
+    selectedCardId: handLiveCardId,
+    nextStepId: MAKI_SELECT_SUCCESS_LIVE_STEP_ID,
+    nextStepText: '请选择要加入手牌的成功 Live。所公开的手牌 Live 会放置入成功 Live 卡区。',
+    selectableCardIds: selectableSuccessLiveCardIds,
+    selectableCardVisibility: 'PUBLIC',
+    canSkipSelection: true,
+    metadata: {
       handLiveCardId,
-    }
-  );
+    },
+    actionStep: 'REVEAL_HAND_LIVE',
+    actionPayload: {
+      handLiveCardId,
+    },
+  });
 }
 
 function finishMakiOnEnter(

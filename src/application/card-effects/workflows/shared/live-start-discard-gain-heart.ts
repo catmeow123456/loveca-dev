@@ -7,12 +7,12 @@ import {
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { hasOtherStageMember } from '../../../effects/conditions.js';
-import type { EffectCostDefinition } from '../../../effects/effect-costs.js';
 import {
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
   KOTORI_LIVE_START_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
+  createOptionalDiscardHandToWaitingRoomActiveEffect,
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
@@ -23,10 +23,6 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 export const KOTORI_LIVE_START_SELECT_DISCARD_STEP_ID = 'KOTORI_LIVE_START_SELECT_DISCARD';
 export const KOTORI_LIVE_START_SELECT_HEART_STEP_ID = 'KOTORI_LIVE_START_SELECT_HEART';
-
-const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
-const DISCARD_HAND_TO_ACTIVATE_STEP_TEXT = '请选择要放置入休息室的手牌。也可以选择不发动此效果。';
-const DECLINE_OPTION_LABEL = '不发动';
 
 const KOTORI_HEART_COLOR_OPTIONS = [HeartColor.PINK, HeartColor.YELLOW, HeartColor.PURPLE] as const;
 const STANDARD_HEART_COLOR_OPTIONS = [
@@ -111,42 +107,22 @@ function startLiveStartDiscardGainHeartEffect(
   }
 
   const selectableCardIds = player.hand.cardIds;
-  const discardCost: EffectCostDefinition = {
-    kind: 'DISCARD_HAND_TO_WAITING_ROOM',
-    minCount: 1,
-    maxCount: 1,
-    optional: true,
-  };
 
   return startPendingActiveEffect(game, {
     ability,
     playerId: player.id,
-    activeEffect: {
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
+    activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
+      ability,
+      playerId: player.id,
       effectText: getAbilityEffectText(config.abilityId),
       stepId: KOTORI_LIVE_START_SELECT_DISCARD_STEP_ID,
-      stepText: DISCARD_HAND_TO_ACTIVATE_STEP_TEXT,
-      awaitingPlayerId: player.id,
       selectableCardIds,
-      selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
-      selectionLabel: DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL,
-      canSkipSelection: true,
-      skipSelectionLabel: DECLINE_OPTION_LABEL,
+      orderedResolution,
       metadata: {
         requiresOtherStageMemberForHeart: config.requiresOtherStageMember,
         heartColorOptions: [...config.heartColorOptions],
-        orderedResolution,
-        effectCosts: [discardCost],
-        handToWaitingRoomCost: {
-          minCount: discardCost.minCount,
-          maxCount: discardCost.maxCount,
-          optional: discardCost.optional,
-        },
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'START_SELECT_DISCARD',

@@ -138,7 +138,7 @@ Current boundary:
 - 只洗切 `cardIds` 这组卡，再追加到主卡组底；不洗整个主卡组。
 - `cardIds=[]` 是 no-op，返回空 `movedCardIds`。
 - 不扫描成员/LIVE 等 selector；`miraCraMemberCount`、合计移动数量、奖励、回收、activeEffect、pending continue 与 action payload 都由 caller 负责。
-- 不作为万能 `moveAnyZoneToAnyZone`；休息室登场、grouped recovery、reveal confirm 仍暂缓。
+- 不作为万能 `moveAnyZoneToAnyZone`；休息室登场、grouped recovery 仍需独立审查。手牌公开确认已有 `active-effect.ts` 的 reveal-from-hand 胶水 helper，但它不移动区域。
 
 ## Live Modifier Action Parameters
 
@@ -164,7 +164,33 @@ Current boundary:
 - 不生成 action history；`bladeBonus`、费用、弃置、公开、洗回等 payload 仍由 caller 保持原样。
 - 不处理 `TARGET_MEMBER` BLADE，例如 `PL!HS-bp6-031` 指定安养寺姬芽获得 BLADE +3。
 - 不处理 `PL!-sd1-001`、`PL!N-pb1-004` 这类 continuous / dynamic projection。
-- reveal / 公开确认 helper 仍暂缓，等待 reveal-hand wrapper 或更多真实样例稳定后再抽。
+
+## Reveal-From-Hand ActiveEffect Helper
+
+`revealHandCardForActiveEffect` lives in `src/application/card-effects/runtime/active-effect.ts`, not `runtime/actions.ts`, because it advances activeEffect state and writes the reveal action rather than performing a zone move.
+
+Current boundary:
+
+- validates that the current activeEffect exists, the selected card is in `effect.selectableCardIds`, the player exists, and the selected card is still in that player's hand;
+- switches to the caller-provided next `stepId` / `stepText`;
+- appends the selected hand card to `activeEffect.revealedCardIds`, preserving existing revealed ids and de-duplicating;
+- applies caller-provided next-step candidate/visibility/label/metadata patches;
+- writes `RESOLVE_ABILITY` with the caller-provided action step and payload fields.
+
+It deliberately does not pay costs, move cards, recover cards, swap success-zone cards, compute same-name targets, continue pending, or decide skip semantics. Current real users are HS_BP5_001 activated reveal-hand-LIVE recovery and MAKI on-enter hand-LIVE reveal before success-zone swap.
+
+## Optional Discard-Hand ActiveEffect Shell
+
+`createOptionalDiscardHandToWaitingRoomActiveEffect` also lives in `src/application/card-effects/runtime/active-effect.ts`. It is documented here because it exposes the standard discard-hand cost metadata, but it is not a runtime action helper: it only builds an `ActiveEffectState`.
+
+Current boundary:
+
+- constructs the old optional discard-one-hand window with `selectableCardVisibility: AWAITING_PLAYER_ONLY`;
+- keeps the default step text, selection label, `不发动` skip label, `canSkipSelection: true`, `effectCosts`, and `handToWaitingRoomCost`;
+- merges caller metadata with `orderedResolution` and the fixed discard cost metadata;
+- preserves caller-provided `selectableCardIds` exactly.
+
+It deliberately does not remove pending abilities, write action history, discard a card, pay costs, continue pending, decide skip semantics, or model grouped / hand-adjust discard flows. Current users are KEKE, HS_BP6_004, HS_BP5_003 live-start Heart, live-start discard-gain-Heart, and discard-look-top selection windows.
 
 ## Planned Helpers
 

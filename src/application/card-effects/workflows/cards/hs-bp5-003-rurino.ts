@@ -26,6 +26,7 @@ import {
   HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
+  createOptionalDiscardHandToWaitingRoomActiveEffect,
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
@@ -33,6 +34,7 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
+import { getNewMemberSlotMovedEvents } from '../../runtime/events.js';
 import { moveMemberBetweenSlots } from '../../../effects/member-state.js';
 
 export const HS_BP5_003_SELECT_POSITION_MEMBER_STEP_ID =
@@ -43,9 +45,6 @@ export const HS_BP5_003_SELECT_DISCARD_STEP_ID =
 export const HS_BP5_003_SELECT_HEART_TARGET_STEP_ID =
   'HS_BP5_003_SELECT_SAME_GROUP_MEMBER_HEART_TARGET';
 
-const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
-const DISCARD_HAND_TO_ACTIVATE_STEP_TEXT = '请选择要放置入休息室的手牌。也可以选择不发动此效果。';
-const DECLINE_OPTION_LABEL = '不发动';
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -354,43 +353,22 @@ function startHsBp5003RurinoLiveStartDiscard(
     );
   }
 
-  const discardCost = {
-    kind: 'DISCARD_HAND_TO_WAITING_ROOM' as const,
-    minCount: 1,
-    maxCount: 1,
-    optional: true,
-  };
-
   return startPendingActiveEffect(game, {
     ability,
     playerId: player.id,
-    activeEffect: {
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
+    activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
+      ability,
+      playerId: player.id,
       effectText: getAbilityEffectText(
         HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID
       ),
       stepId: HS_BP5_003_SELECT_DISCARD_STEP_ID,
-      stepText: DISCARD_HAND_TO_ACTIVATE_STEP_TEXT,
-      awaitingPlayerId: player.id,
       selectableCardIds: player.hand.cardIds,
-      selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
-      selectionLabel: DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL,
-      canSkipSelection: true,
-      skipSelectionLabel: DECLINE_OPTION_LABEL,
+      orderedResolution,
       metadata: {
         sourceSlot: ability.sourceSlot,
-        orderedResolution,
-        effectCosts: [discardCost],
-        handToWaitingRoomCost: {
-          minCount: discardCost.minCount,
-          maxCount: discardCost.maxCount,
-          optional: discardCost.optional,
-        },
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'START_SELECT_DISCARD',
@@ -597,17 +575,4 @@ function getStageMemberPositionChangeCandidates(game: GameState): readonly Stage
   return getStageMemberLocations(game).filter((location) =>
     MEMBER_SLOT_ORDER.some((slot) => slot !== location.slot)
   );
-}
-
-function getNewMemberSlotMovedEvents(
-  before: GameState,
-  after: GameState
-): readonly MemberSlotMovedEvent[] {
-  return after.eventLog
-    .slice(before.eventLog.length)
-    .map((entry) => entry.event)
-    .filter(
-      (event): event is MemberSlotMovedEvent =>
-        event.eventType === TriggerCondition.ON_MEMBER_SLOT_MOVED
-    );
 }

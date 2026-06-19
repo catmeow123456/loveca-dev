@@ -17,7 +17,10 @@ import {
   HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
   HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { startConfirmOnlyPendingAbilityEffect } from '../../runtime/active-effect.js';
+import {
+  revealHandCardForActiveEffect,
+  startConfirmOnlyPendingAbilityEffect,
+} from '../../runtime/active-effect.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -327,38 +330,25 @@ function revealHsBp5KahoActivatedHandLive(
     return game;
   }
 
-  return addAction(
-    {
-      ...game,
-      activeEffect: {
-        ...effect,
-        stepId: HS_BP5_001_REVEAL_HAND_LIVE_STEP_ID,
-        stepText: '已公开手牌LIVE。确认后从休息室选择1张同名LIVE卡加入手牌。',
-        revealedCardIds: [selectedHandLiveCardId],
-        selectableCardIds: [],
-        selectableCardVisibility: 'PUBLIC',
-        selectionLabel: undefined,
-        confirmSelectionLabel: undefined,
-        canSkipSelection: false,
-        skipSelectionLabel: undefined,
-        metadata: {
-          ...effect.metadata,
-          revealedHandLiveCardId: selectedHandLiveCardId,
-          revealedHandLiveCardName: revealedHandLive.data.name,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'REVEAL_HAND_LIVE',
+  return revealHandCardForActiveEffect(game, {
+    effect,
+    playerId: player.id,
+    selectedCardId: selectedHandLiveCardId,
+    nextStepId: HS_BP5_001_REVEAL_HAND_LIVE_STEP_ID,
+    nextStepText: '已公开手牌LIVE。确认后从休息室选择1张同名LIVE卡加入手牌。',
+    selectableCardIds: [],
+    selectableCardVisibility: 'PUBLIC',
+    canSkipSelection: false,
+    metadata: {
       revealedHandLiveCardId: selectedHandLiveCardId,
       revealedHandLiveCardName: revealedHandLive.data.name,
-    }
-  );
+    },
+    actionStep: 'REVEAL_HAND_LIVE',
+    actionPayload: {
+      revealedHandLiveCardId: selectedHandLiveCardId,
+      revealedHandLiveCardName: revealedHandLive.data.name,
+    },
+  });
 }
 
 function startHsBp5KahoActivatedSelectSameNameLive(game: GameState): GameState {

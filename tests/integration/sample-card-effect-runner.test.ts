@@ -7112,7 +7112,17 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(MAKI_ON_ENTER_ABILITY_ID);
     expect(session.state?.activeEffect?.stepId).toBe('MAKI_SELECT_SUCCESS_LIVE');
     expect(session.state?.activeEffect?.metadata?.handLiveCardId).toBe(handLive.instanceId);
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual([handLive.instanceId]);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([successLive.instanceId]);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === MAKI_ON_ENTER_ABILITY_ID &&
+          action.payload.step === 'REVEAL_HAND_LIVE' &&
+          action.payload.handLiveCardId === handLive.instanceId
+      )
+    ).toBe(true);
 
     const finishResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -9571,6 +9581,15 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBeNull();
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBe(karinCardId);
     expect(
+      session.state?.eventLog.some(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_MEMBER_SLOT_MOVED &&
+          entry.event.cardInstanceId === karinCardId &&
+          entry.event.fromSlot === SlotPosition.CENTER &&
+          entry.event.toSlot === SlotPosition.RIGHT
+      )
+    ).toBe(true);
+    expect(
       session.state?.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
@@ -9586,7 +9605,8 @@ describe('sample card effect runner', () => {
           action.payload.abilityId === KARIN_LIVE_START_ABILITY_ID &&
           action.payload.step === 'POSITION_CHANGE' &&
           action.payload.fromSlot === SlotPosition.CENTER &&
-          action.payload.toSlot === SlotPosition.RIGHT
+          action.payload.toSlot === SlotPosition.RIGHT &&
+          action.payload.swappedCardId === null
       )
     ).toBe(true);
   });

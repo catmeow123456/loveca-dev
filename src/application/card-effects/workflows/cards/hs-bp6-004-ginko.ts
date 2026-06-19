@@ -7,9 +7,9 @@ import {
 } from '../../../../domain/entities/game.js';
 import { CardType } from '../../../../shared/types/enums.js';
 import { and, cardNameIs, typeIs } from '../../../effects/card-selectors.js';
-import type { EffectCostDefinition } from '../../../effects/effect-costs.js';
 import { HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import {
+  createOptionalDiscardHandToWaitingRoomActiveEffect,
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
@@ -22,10 +22,6 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 export const HS_BP6_004_SELECT_DISCARD_STEP_ID = 'HS_BP6_004_SELECT_DISCARD_FOR_BLADE';
-
-const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
-const DISCARD_HAND_TO_ACTIVATE_STEP_TEXT = '请选择要放置入休息室的手牌。也可以选择不发动此效果。';
-const DECLINE_OPTION_LABEL = '不发动';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -62,41 +58,21 @@ function startHsBp6GinkoLiveStartDiscardGainBlade(
   }
 
   const selectableCardIds = player.hand.cardIds;
-  const discardCost: EffectCostDefinition = {
-    kind: 'DISCARD_HAND_TO_WAITING_ROOM',
-    minCount: 1,
-    maxCount: 1,
-    optional: true,
-  };
 
   return startPendingActiveEffect(game, {
     ability,
     playerId: player.id,
-    activeEffect: {
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
+    activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
+      ability,
+      playerId: player.id,
       effectText: getAbilityEffectText(HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID),
       stepId: HS_BP6_004_SELECT_DISCARD_STEP_ID,
-      stepText: DISCARD_HAND_TO_ACTIVATE_STEP_TEXT,
-      awaitingPlayerId: player.id,
       selectableCardIds,
-      selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
-      selectionLabel: DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL,
-      canSkipSelection: true,
-      skipSelectionLabel: DECLINE_OPTION_LABEL,
+      orderedResolution,
       metadata: {
         sourceSlot: ability.sourceSlot,
-        orderedResolution,
-        effectCosts: [discardCost],
-        handToWaitingRoomCost: {
-          minCount: discardCost.minCount,
-          maxCount: discardCost.maxCount,
-          optional: discardCost.optional,
-        },
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'START_SELECT_DISCARD',

@@ -11,8 +11,10 @@ import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
 } from '../../ability-ids.js';
-import type { EffectCostDefinition } from '../../../effects/effect-costs.js';
-import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
+import {
+  createOptionalDiscardHandToWaitingRoomActiveEffect,
+  finishSkippedActiveEffect,
+} from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
@@ -24,9 +26,6 @@ import {
   type LookTopSelectToHandWorkflowConfig,
 } from './look-top-select-to-hand.js';
 
-const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
-const DISCARD_HAND_TO_ACTIVATE_STEP_TEXT = '请选择要放置入休息室的手牌。也可以选择不发动此效果。';
-const DECLINE_OPTION_LABEL = '不发动';
 const DISCARD_LOOK_SELECT_DISCARD_STEP_ID = 'DISCARD_LOOK_SELECT_DISCARD';
 const DISCARD_LOOK_SELECT_TAKE_STEP_ID = 'DISCARD_LOOK_SELECT_TAKE';
 const DISCARD_LOOK_REVEAL_SELECTED_STEP_ID = 'DISCARD_LOOK_REVEAL_SELECTED';
@@ -89,12 +88,6 @@ function startDiscardLookTopSelectToHandWorkflow(
   const selectableCardIds = player.hand.cardIds.filter((cardId) => cardId !== ability.sourceCardId);
   const cardCode = sourceCard.data.cardCode;
   const selectableCardType = getDiscardLookTopSelectableCardType(cardCode);
-  const discardCost: EffectCostDefinition = {
-    kind: 'DISCARD_HAND_TO_WAITING_ROOM',
-    minCount: 1,
-    maxCount: 1,
-    optional: true,
-  };
   const metadata: DiscardLookTopMetadata = {
     topCount: getDiscardLookTopCount(cardCode),
     memberOnly: selectableCardType === 'MEMBER',
@@ -110,30 +103,17 @@ function startDiscardLookTopSelectToHandWorkflow(
     {
       ...game,
       pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-      activeEffect: {
-        id: ability.id,
-        abilityId: ability.abilityId,
-        sourceCardId: ability.sourceCardId,
-        controllerId: ability.controllerId,
+      activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
+        ability,
+        playerId: player.id,
         effectText: getDiscardLookTopEffectText(cardCode),
         stepId: DISCARD_LOOK_SELECT_DISCARD_STEP_ID,
-        stepText: DISCARD_HAND_TO_ACTIVATE_STEP_TEXT,
-        awaitingPlayerId: player.id,
         selectableCardIds,
-        selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
-        selectionLabel: DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL,
-        canSkipSelection: true,
-        skipSelectionLabel: DECLINE_OPTION_LABEL,
+        orderedResolution: options.orderedResolution,
         metadata: {
           ...metadata,
-          effectCosts: [discardCost],
-          handToWaitingRoomCost: {
-            minCount: discardCost.minCount,
-            maxCount: discardCost.maxCount,
-            optional: discardCost.optional,
-          },
         },
-      },
+      }),
     },
     'RESOLVE_ABILITY',
     player.id,

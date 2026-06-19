@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createHeartIcon } from '../../src/domain/entities/card';
-import type { GameState } from '../../src/domain/entities/game';
+import { emitGameEvent, type GameState } from '../../src/domain/entities/game';
+import {
+  createDrawEvent,
+  createMemberSlotMovedEvent,
+} from '../../src/domain/events/game-events';
 import type { DeckConfig } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import {
@@ -14,7 +18,18 @@ import {
   recoverCardsFromWaitingRoomToHandForPlayer,
   shuffleWaitingRoomCardsToDeckBottomForPlayer,
 } from '../../src/application/card-effects/runtime/actions';
-import { CardType, FaceState, HeartColor, OrientationState } from '../../src/shared/types/enums';
+import {
+  createOptionalDiscardHandToWaitingRoomActiveEffect,
+  revealHandCardForActiveEffect,
+} from '../../src/application/card-effects/runtime/active-effect';
+import { getNewMemberSlotMovedEvents } from '../../src/application/card-effects/runtime/events';
+import {
+  CardType,
+  FaceState,
+  HeartColor,
+  OrientationState,
+  SlotPosition,
+} from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -111,6 +126,38 @@ function setPlayerEnergyZone(
   );
 }
 
+function withRevealHandActiveEffect(
+  state: GameState,
+  options: {
+    readonly selectableCardIds: readonly string[];
+    readonly revealedCardIds?: readonly string[];
+  }
+): GameState {
+  return {
+    ...state,
+    activeEffect: {
+      id: 'effect-1',
+      abilityId: 'test:reveal-hand',
+      sourceCardId: 'source-card',
+      controllerId: PLAYER1,
+      effectText: '公开手牌测试',
+      stepId: 'SELECT_HAND',
+      stepText: '选择手牌',
+      awaitingPlayerId: PLAYER1,
+      selectableCardIds: options.selectableCardIds,
+      selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+      revealedCardIds: options.revealedCardIds,
+      selectionLabel: '选择要公开的手牌',
+      confirmSelectionLabel: '公开',
+      canSkipSelection: true,
+      skipSelectionLabel: '不公开',
+      metadata: {
+        orderedResolution: true,
+      },
+    },
+  };
+}
+
 describe('card effect runtime actions', () => {
   it('draws cards for one player using existing card-effect draw semantics', () => {
     const state = createMutableState();
@@ -200,6 +247,237 @@ describe('card effect runtime actions', () => {
     ).toBeNull();
     expect(state.players[0].hand.cardIds).toEqual(cardIds);
     expect(state.players[0].waitingRoom.cardIds).toEqual([]);
+  });
+
+  it('reveals a selected hand card for the active effect and advances to the next step', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 3);
+    setPlayerZones(state, 0, { handCardIds: cardIds, mainDeckCardIds: [] });
+    const activeState = withRevealHandActiveEffect(state, {
+      selectableCardIds: [cardIds[0], cardIds[1]],
+    });
+
+    const result = revealHandCardForActiveEffect(activeState, {
+      effect: activeState.activeEffect!,
+      playerId: PLAYER1,
+      selectedCardId: cardIds[1],
+      nextStepId: 'CONFIRM_REVEALED',
+      nextStepText: '已公开手牌',
+      selectableCardIds: [],
+      metadata: { revealedHandCardId: cardIds[1] },
+      actionStep: 'REVEAL_HAND_CARD',
+      actionPayload: { revealedHandCardId: cardIds[1] },
+    });
+
+    expect(result.activeEffect?.stepId).toBe('CONFIRM_REVEALED');
+    expect(result.activeEffect?.stepText).toBe('已公开手牌');
+    expect(result.activeEffect?.revealedCardIds).toEqual([cardIds[1]]);
+    expect(result.activeEffect?.selectableCardIds).toEqual([]);
+    expect(result.activeEffect?.selectableCardVisibility).toBe('PUBLIC');
+    expect(result.activeEffect?.metadata).toEqual({
+      orderedResolution: true,
+      revealedHandCardId: cardIds[1],
+    });
+    expect(result.actionHistory.at(-1)?.payload).toMatchObject({
+      pendingAbilityId: 'effect-1',
+      abilityId: 'test:reveal-hand',
+      sourceCardId: 'source-card',
+      step: 'REVEAL_HAND_CARD',
+      revealedHandCardId: cardIds[1],
+    });
+  });
+
+  it('preserves and deduplicates existing active-effect revealed hand cards', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 3);
+    setPlayerZones(state, 0, { handCardIds: cardIds, mainDeckCardIds: [] });
+    const activeState = withRevealHandActiveEffect(state, {
+      selectableCardIds: [cardIds[1], cardIds[2]],
+      revealedCardIds: [cardIds[0], cardIds[1]],
+    });
+
+    const result = revealHandCardForActiveEffect(activeState, {
+      effect: activeState.activeEffect!,
+      playerId: PLAYER1,
+      selectedCardId: cardIds[1],
+      nextStepId: 'CONFIRM_REVEALED',
+      nextStepText: '已公开手牌',
+      actionStep: 'REVEAL_HAND_CARD',
+    });
+
+    expect(result.activeEffect?.revealedCardIds).toEqual([cardIds[0], cardIds[1]]);
+  });
+
+  it('does not update reveal-from-hand effects for invalid candidates, missing hand cards, or missing players', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 3);
+    setPlayerZones(state, 0, { handCardIds: [cardIds[0]], mainDeckCardIds: [cardIds[2]] });
+    const activeState = withRevealHandActiveEffect(state, {
+      selectableCardIds: [cardIds[0], cardIds[1]],
+    });
+    const baseOptions = {
+      effect: activeState.activeEffect!,
+      nextStepId: 'CONFIRM_REVEALED',
+      nextStepText: '已公开手牌',
+      actionStep: 'REVEAL_HAND_CARD',
+    };
+
+    expect(
+      revealHandCardForActiveEffect(activeState, {
+        ...baseOptions,
+        playerId: PLAYER1,
+        selectedCardId: cardIds[2],
+      })
+    ).toBe(activeState);
+    expect(
+      revealHandCardForActiveEffect(activeState, {
+        ...baseOptions,
+        playerId: PLAYER1,
+        selectedCardId: cardIds[1],
+      })
+    ).toBe(activeState);
+    expect(
+      revealHandCardForActiveEffect(activeState, {
+        ...baseOptions,
+        playerId: 'missing-player',
+        selectedCardId: cardIds[0],
+      })
+    ).toBe(activeState);
+    expect(activeState.actionHistory).toEqual(state.actionHistory);
+  });
+
+  it('creates the default optional discard-one-hand activeEffect shell', () => {
+    const activeEffect = createOptionalDiscardHandToWaitingRoomActiveEffect({
+      ability: {
+        id: 'pending-1',
+        abilityId: 'test:optional-discard',
+        sourceCardId: 'source-card',
+        controllerId: PLAYER1,
+      },
+      playerId: PLAYER1,
+      effectText: '弃1张手牌测试',
+      stepId: 'SELECT_DISCARD',
+      selectableCardIds: ['hand-1', 'hand-2'],
+      orderedResolution: false,
+    });
+
+    expect(activeEffect).toMatchObject({
+      id: 'pending-1',
+      abilityId: 'test:optional-discard',
+      sourceCardId: 'source-card',
+      controllerId: PLAYER1,
+      effectText: '弃1张手牌测试',
+      stepId: 'SELECT_DISCARD',
+      stepText: '请选择要放置入休息室的手牌。也可以选择不发动此效果。',
+      awaitingPlayerId: PLAYER1,
+      selectableCardIds: ['hand-1', 'hand-2'],
+      selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+      selectionLabel: '请选择要放置入休息室的卡牌',
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
+    expect(activeEffect.metadata).toMatchObject({
+      orderedResolution: false,
+      effectCosts: [
+        {
+          kind: 'DISCARD_HAND_TO_WAITING_ROOM',
+          minCount: 1,
+          maxCount: 1,
+          optional: true,
+        },
+      ],
+      handToWaitingRoomCost: {
+        minCount: 1,
+        maxCount: 1,
+        optional: true,
+      },
+    });
+  });
+
+  it('merges optional discard metadata patches with orderedResolution and cost metadata', () => {
+    const activeEffect = createOptionalDiscardHandToWaitingRoomActiveEffect({
+      ability: {
+        id: 'pending-1',
+        abilityId: 'test:optional-discard',
+        sourceCardId: 'source-card',
+        controllerId: PLAYER1,
+      },
+      playerId: PLAYER1,
+      effectText: '弃1张手牌测试',
+      stepId: 'SELECT_DISCARD',
+      selectableCardIds: ['hand-1'],
+      orderedResolution: true,
+      metadata: {
+        sourceSlot: 'CENTER',
+        orderedResolution: false,
+      },
+    });
+
+    expect(activeEffect.metadata).toMatchObject({
+      sourceSlot: 'CENTER',
+      orderedResolution: true,
+      effectCosts: [
+        {
+          kind: 'DISCARD_HAND_TO_WAITING_ROOM',
+          minCount: 1,
+          maxCount: 1,
+          optional: true,
+        },
+      ],
+      handToWaitingRoomCost: {
+        minCount: 1,
+        maxCount: 1,
+        optional: true,
+      },
+    });
+  });
+
+  it('keeps optional discard selectableCardIds and label overrides caller-owned', () => {
+    const selectableCardIds = ['hand-1', 'hand-2'];
+    const activeEffect = createOptionalDiscardHandToWaitingRoomActiveEffect({
+      ability: {
+        id: 'pending-1',
+        abilityId: 'test:optional-discard',
+        sourceCardId: 'source-card',
+        controllerId: PLAYER1,
+      },
+      playerId: PLAYER1,
+      effectText: '弃1张手牌测试',
+      stepId: 'SELECT_DISCARD',
+      selectableCardIds,
+      orderedResolution: false,
+      stepText: '自定义弃手说明',
+      selectionLabel: '自定义选择标签',
+      skipSelectionLabel: '自定义跳过',
+    });
+
+    expect(activeEffect.selectableCardIds).toEqual(selectableCardIds);
+    expect(activeEffect.stepText).toBe('自定义弃手说明');
+    expect(activeEffect.selectionLabel).toBe('自定义选择标签');
+    expect(activeEffect.skipSelectionLabel).toBe('自定义跳过');
+  });
+
+  it('returns only newly added member-slot-moved events from the event log delta', () => {
+    let before = createMutableState();
+    const oldSlotMovedEvent = createMemberSlotMovedEvent(
+      'old-member',
+      PLAYER1,
+      SlotPosition.LEFT,
+      SlotPosition.CENTER
+    );
+    before = emitGameEvent(before, oldSlotMovedEvent);
+
+    const newSlotMovedEvent = createMemberSlotMovedEvent(
+      'new-member',
+      PLAYER1,
+      SlotPosition.CENTER,
+      SlotPosition.RIGHT
+    );
+    const afterDrawEvent = createDrawEvent(PLAYER1, ['drawn-card'], 1);
+    let after = emitGameEvent(before, afterDrawEvent);
+    after = emitGameEvent(after, newSlotMovedEvent);
+
+    expect(getNewMemberSlotMovedEvents(before, after)).toEqual([newSlotMovedEvent]);
   });
 
   it('recovers one waiting-room card to hand without mutating the original state', () => {

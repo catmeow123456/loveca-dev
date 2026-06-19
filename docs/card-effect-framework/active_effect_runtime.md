@@ -102,6 +102,8 @@ Current helper modules outside `runtime/actions.ts`:
 |---|---|---|---|
 | `startPendingActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 移除对应 pending ability，安装调用方已经拼好的 `activeEffect`，并写入 start `RESOLVE_ABILITY` action。 | 不构造卡文条件，不支付费用，不移动卡，不写 modifier，不 enqueue trigger，不决定 finish/continue 策略。 |
 | `startConfirmOnlyActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 为只有确认窗口的流程拼装 `activeEffect`，设置 step/awaiting player/orderedResolution metadata，并复用 `startPendingActiveEffect` 写入 `START_CONFIRM` action。 | 不判断条件是否满足，不选择 modifier 策略，不重算确认时数值，不清空 activeEffect，不推进 pending。 |
+| `createOptionalDiscardHandToWaitingRoomActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 构造“可选弃 1 手牌到休息室”的 activeEffect shell，统一旧 step text、候选可见性、selection/skip label、`effectCosts` 与 `handToWaitingRoomCost` metadata。 | 只返回 `ActiveEffectState`；不移除 pending，不写 action，不执行弃牌，不支付费用，不处理额外费用、分组选择、hand-adjust、skip 或 pending continuation。 |
+| `revealHandCardForActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 校验当前 activeEffect 的手牌候选，确认所选卡仍在该玩家手牌，将该卡加入 `revealedCardIds`，切换到调用方指定的下一 step，并写入调用方指定 action payload。 | 不支付费用，不扫描后续目标，不移动区域，不回收/交换，不清空 activeEffect，不推进 pending，不决定 skip 语义。 |
 | `startConfirmOnlyPendingAbilityEffect` | `src/application/card-effects/runtime/active-effect.ts` | 为手动选择 pending ability 后需要先确认的流程安装 confirm-only `activeEffect`，保留原 pending ability，不写 start action。 | 不移除 pending，不结算卡效，不调用 starter，不应替代 `startConfirmOnlyActiveEffect`。 |
 | `finishConfirmOnlyPendingAbilityEffect` | `src/application/card-effects/runtime/active-effect.ts` | 确认 confirm-only pending bridge 后，清空 `activeEffect`，通过调用方传入的 callback 以 `skipManualConfirmation` 重新进入 pending starter。 | 不 import runner，不知道具体卡效，不改变 pending 顺序；重新进入哪个 starter 由调用方注入。 |
 | `finishSkippedActiveEffect` | `src/application/card-effects/runtime/active-effect.ts` | 清空当前 `activeEffect`，写入 `RESOLVE_ABILITY` with `step: 'SKIP'` by default，并按 metadata 中的 `orderedResolution` 继续 pending。 | 不处理费用、不检查目标、不 enqueue trigger、不决定卡文策略。 |
@@ -115,6 +117,10 @@ Current helper modules outside `runtime/actions.ts`:
 These helpers are intentionally small. If a proposed helper starts to own payment timing, grouped recovery policy, trigger matching, or full activeEffect construction, it belongs in a separate audit before implementation.
 
 `startConfirmOnlyActiveEffect` and `startConfirmOnlyPendingAbilityEffect` are deliberately separate. Use the active-effect version when the workflow is truly starting and should remove the pending ability immediately. Use the pending-ability bridge only for ordered/manual pending selection where the player must confirm a no-input ability before the same pending ability resumes through its starter.
+
+`revealHandCardForActiveEffect` is only for “selected hand card becomes public while the same activeEffect advances to a follow-up step.” It preserves existing `revealedCardIds` and de-duplicates them, defaults the next step's selectable-card visibility to `PUBLIC`, and leaves all card-specific facts in caller-supplied metadata/action payload. It is not a reveal DSL and should not be used for look-top inspection, cheer processing-zone reveal, cost payment, or zone movement.
+
+`createOptionalDiscardHandToWaitingRoomActiveEffect` is only the reusable selection-window shell for optional single-card hand discard costs. The caller still decides when to remove the pending ability, what action payload starts the window, how skip resolves, and how the selected card is discarded later. Do not use it for windows with extra energy/source costs, grouped selection, discard-to-N hand adjustment, or other effects whose metadata would require a mini configuration interpreter.
 
 ## Migration Target
 

@@ -17,6 +17,7 @@ import {
 } from '../../ability-ids.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { getNewMemberSlotMovedEvents } from '../../runtime/events.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -298,17 +299,4 @@ function finishShikiLiveStartPositionChange(
     stateWithMemberMoveTriggers,
     effect.metadata?.orderedResolution === true
   );
-}
-
-function getNewMemberSlotMovedEvents(
-  before: GameState,
-  after: GameState
-): readonly MemberSlotMovedEvent[] {
-  return after.eventLog
-    .slice(before.eventLog.length)
-    .map((entry) => entry.event)
-    .filter(
-      (event): event is MemberSlotMovedEvent =>
-        event.eventType === TriggerCondition.ON_MEMBER_SLOT_MOVED
-    );
 }

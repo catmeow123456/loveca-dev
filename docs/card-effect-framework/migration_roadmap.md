@@ -25,7 +25,7 @@
 | R-2 | partial | activeEffect step handler registry。 | `confirmActiveEffectStep` 已先查 step registry，未命中 fallback 旧分支；look-top、抽后弃、回收等 workflow 已迁入 registry，复杂旧分支仍在 runner。 |
 | R-3 | partial | pending / starter registry。 | `startPendingAbilityEffect` 已先查 starter registry，未命中 fallback 旧 switch；新增 queued workflow 应优先注册 starter。 |
 | R-4 | partial | workflow family 迁出。 | look-top、discard look-top、draw-then-discard、waiting-room recovery、自送回收、支付能量回收、BP4-002 弃手回收、grouped recovery、fixed pay-energy gain-BLADE、arrange-top、opponent wait target、conditional live modifier 与 revealed-cheer selection 已离开 runner；grouped recovery 独立 family，不混入普通 recovery family。 |
-| R-5 | partial | special card workflow 迁出。 | `HS_BP1_002`、`HS_BP5_001` activated、`HS_PB1_004`、`BP5_003`、`YOSHIKO` 已迁出；`HS_BP5_003` 离场站位变换段与 LIVE 开始弃手加 Heart 段均已迁入 Rurino 单卡 workflow；錯覚CROSSROADS、东条希等复杂特殊卡仍在 runner。 |
+| R-5 | partial | special card workflow 迁出。 | `HS_BP1_002`、`HS_BP5_001` activated、`HS_PB1_004`、`BP5_003`、`YOSHIKO`、`HANAYO` activated、`BP5_007` pending workflow 已迁出；`HS_BP5_003` 离场站位变换段与 LIVE 开始弃手加 Heart 段均已迁入 Rurino 单卡 workflow；runner 完整卡效 fallback 已清空，但仍保留若干 matcher / relay / trigger 条件胶水。 |
 | R-6 | planned | trigger matcher T-2。 | 在 enqueue 边界稳定后，用纯 matcher 替代部分旧 trigger 判定，并保留 shadow 一致性测试。 |
 | R-7 | planned | steps-lite。 | 只对 proven workflow family 建 typed builder；不做完整 DSL。 |
 
@@ -85,6 +85,7 @@ Current migrated workflow modules:
 - `workflows/cards/bp6-024-success-replacement.ts`
 - `workflows/cards/bp5-005-rin.ts`
 - `workflows/cards/hs-bp6-004-ginko.ts`
+- `workflows/cards/hs-bp6-031-fanfare.ts`
 - `workflows/cards/hs-bp5-008-izumi.ts`
 - `workflows/cards/hs-pr-019-ginko.ts`
 - `workflows/cards/hs-pb1-009-kaho.ts`
@@ -95,11 +96,14 @@ Current migrated workflow modules:
 - `workflows/cards/hs-bp5-001-kaho.ts`
 - `workflows/cards/hs-bp5-003-rurino.ts`
 - `workflows/cards/hs-pb1-004-ginko.ts`
+- `workflows/cards/hs-pb1-012-ginko.ts`
 - `workflows/cards/keke-on-enter-place-waiting-energy.ts`
 - `workflows/cards/maki-on-enter.ts`
 - `workflows/cards/bp5-003-kotori.ts`
 - `workflows/cards/n-pb1-008-emma.ts`
+- `workflows/cards/n-pb1-004-karin.ts`
 - `workflows/cards/nozomi-on-enter.ts`
+- `workflows/cards/pb1-015-maki.ts`
 - `workflows/cards/pl-bp3-014-rin.ts`
 - `workflows/cards/sp-bp4-008-shiki.ts`
 - `workflows/cards/sp-bp5-003-chisato.ts`
@@ -108,9 +112,9 @@ Current migrated workflow modules:
 Recent helper modules added outside `actions.ts`:
 
 - `runtime/workflow-helpers.ts`: ability text lookup, ability-use action glue, and PAY_COST action-log glue.
-- `runtime/active-effect.ts`: shared activeEffect start glue, skip finish helper, and confirm-only pending bridge for activeEffect workflows.
+- `runtime/active-effect.ts`: shared activeEffect start glue, optional discard-one-hand activeEffect shell, reveal-from-hand step glue, skip finish helper, and confirm-only pending bridge for activeEffect workflows.
 - `runtime/source-member.ts`: source member slot lookup helper.
-- `runtime/events.ts`: event-log delta queries for newly entered stage members and newly changed member orientation events.
+- `runtime/events.ts`: event-log delta queries for newly entered stage members, newly changed member orientation events, and newly moved member-slot events.
 - `runtime/grouped-selection.ts`: validates per-group min/max card selections for grouped recovery.
 
 Runner line count after R-4Q-c CHISATO / EMMA single-card workflow migration was about 5285 lines, down from about 5667 after R-4Q-b. R-5B `HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE` migration brought the runner to about 5058 lines. R-5C `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART` migration brought the runner to about 4830 lines. R-5D `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT` migration brought the runner to about 4595 lines. R-5E `MAKI_ON_ENTER` migration brought the runner to about 4432 lines. R-5F `LL_BP1_001` / `LL_BP2_001` named hand discard Live-start migration brings the runner to about 4239 lines. The runner is still registry-first with fallback old branches; it is not complete.
@@ -133,12 +137,130 @@ The shared workflow owns only the confirm window, recomputation on confirm, modi
 
 `runtime/active-effect.ts` now also provides `startPendingActiveEffect` and `startConfirmOnlyActiveEffect`. The helpers remove the pending ability, install an `activeEffect`, and write the start `RESOLVE_ABILITY` action; they do not evaluate conditions, pay costs, mutate zones, create modifiers, enqueue triggers, or decide finish behavior. R-4O uses `startConfirmOnlyActiveEffect`, and existing `pay-energy-gain-blade.ts` uses the lower-level `startPendingActiveEffect`.
 
-Current follow-up candidates after R-5O:
+Current follow-up candidates after R-5U:
 
-- keep `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID` deferred because its hand-adjust, draw, pending, and event-order boundary remains higher risk.
-- consider `KARIN_LIVE_START_ABILITY_ID` as a future single-card review target, but do not merge it with Nozomi / Kaho / HS_PR_019 into a generic mill reward DSL without a new evidence pass.
+- runner complete card-effect fallbacks are now empty; keep remaining matcher / relay / trigger condition glue in runner until those framework boundaries are explicitly reopened.
 - keep `target: 'PLAYER'` Heart type and `playerHeartBonuses` compatibility projection as a later domain cleanup candidate; no real application card effect currently writes PLAYER Heart.
 - EMMA 0-target coverage remains a non-blocking follow-up for an active-energy / EMMA window, not this runner decentralization slice.
+
+## R-5U BP5_007 Nozomi Relay Hand Adjust Draw Workflow Outcome 2026-06-19
+
+R-5U migrated only `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID` pending starter / discard step / draw resolver into the new single-card workflow file `src/application/card-effects/workflows/cards/bp5-007-nozomi.ts`.
+
+Covered flow:
+
+- the `enqueueSingleOnEnterCardEffect` low-cost relay filter and `isBp5007NozomiLowerCostRelayOnEnter` matcher glue remain in runner;
+- the pending starter still removes the pending ability first, then either opens the next discard window or directly draws;
+- discard player order remains `[controller, opponent]`;
+- each discard count is recomputed from that player's current hand count minus 3, and players at 3 or fewer cards are skipped;
+- discard windows keep `BP5_007_SELECT_HAND_DISCARD_TO_THREE`, awaiting-player-only ordered multi-select, exact min/max count, old labels, and `orderedResolution` / `discardPlayerIds` / `discardPlayerIndex` / `discardCount` metadata;
+- discard confirmation keeps selected-card fallback, duplicate rejection, selectable-card validation, current-hand validation, and `discardHandCardsToWaitingRoomForPlayer` with the old count / candidate card ids;
+- final draw still uses `drawCardsForEachPlayer([controller, opponent], 3)`, returns the original game on draw failure, and continues pending effects with the original ordered-resolution flag;
+- `START_DISCARD_TO_THREE`, `DISCARD_TO_THREE`, and `DRAW_THREE_AFTER_HAND_ADJUST` payload names are preserved.
+
+The workflow reuses existing helpers only: pending starter registry, active-effect step registry, `getAbilityEffectText`, `discardHandCardsToWaitingRoomForPlayer`, `drawCardsForEachPlayer`, and the registry-provided `continuePendingCardEffects` context. No runtime helper, hand-adjust DSL, shared family, trigger matcher integration, cost-calculator change, or new card effect was added. The workflow is 268 lines; it stays single-card because the two-player order, per-player skip windows, current-hand validation, activeEffect clear timing, final draw timing, and ordered continuation are all tightly coupled to this one card. A later helper cleanup candidate would need at least one more real card with the same two-player hand-adjust shape.
+
+Existing sample coverage still locks both-player discard, direct draw when both players are already at 3 or fewer cards, non-relay no-trigger, and not-lower-cost relay no-trigger. R-5U added `tests/integration/bp5-007-nozomi.test.ts` to lock the controller-skip / opponent-discard branch plus the key `START_DISCARD_TO_THREE`, `DISCARD_TO_THREE`, and `DRAW_THREE_AFTER_HAND_ADJUST` payloads. Runner line count after R-5U is about 2157 lines.
+
+## R-5T SD1_008 Hanayo Activated Pay Energy Mill Workflow Outcome 2026-06-19
+
+R-5T migrated only `HANAYO_ACTIVATED_ABILITY_ID` activated fallback into the new single-card workflow file `src/application/card-effects/workflows/cards/sd1-008-hanayo.ts`.
+
+Covered flow:
+
+- `activateCardAbility` still checks `canUseActivatedAbilityThisTurn` before activated registry dispatch;
+- the workflow still rejects existing `activeEffect`, non-main phase, non-active player, missing player/source card, non-owner source card, and non-`PL!-sd1-008` source card;
+- action order remains ability-use recording, immediate `TAP_ACTIVE_ENERGY x2` payment, top-10 mill, `PAY_COST`, then `RESOLVE_ABILITY` with `MILL_TOP_TEN`;
+- `PAY_COST` payload keeps only `abilityId`, `sourceCardId`, and `energyCardIds`, with no added `amount`;
+- `RESOLVE_ABILITY` payload keeps `abilityId`, `sourceCardId`, `effectText`, `step: 'MILL_TOP_TEN'`, and `milledCardIds`;
+- cost failure or mill failure returns the original game and does not half-commit ability-use or cost actions;
+- per-turn limit remains owned by the existing activated ability gate, not the workflow.
+
+The workflow reuses existing helpers only: activated ability registry, `recordAbilityUseForContext`, `recordPayCostAction`, `getAbilityEffectText`, `payImmediateEffectCosts`, and `moveTopDeckCardsToWaitingRoom`. No runtime helper, trigger matcher integration, cost-calculator change, steps DSL, or new card effect was added. The workflow is 71 lines, so no extraction was needed. Runner line count after R-5T is about 2383 lines.
+
+Existing sample coverage still locks HANAYO success, `PAY_COST`, `ABILITY_USE`, same-card once-per-turn behavior, and another same-name card being usable. R-5T did not add a duplicate focused test. After R-5T, the remaining complete card-effect fallback candidate in runner is `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID`.
+
+## R-5S PB1_015 Own-Effect Wait Opponent Low-Cost Draw Resolver Outcome 2026-06-19
+
+R-5S migrated only `PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID` pending resolution into the new single-card workflow file `src/application/card-effects/workflows/cards/pb1-015-maki.ts`.
+
+Covered flow:
+
+- the resolver remains an immediate pending starter and does not open activeEffect;
+- pending removal still happens before ability-use recording;
+- ability-use recording now uses the existing `recordAbilityUseForContext` helper and keeps the old `ABILITY_USE` action shape;
+- draw still uses `drawCardsForPlayer(..., 1)`;
+- if drawing fails, the workflow returns the original game and does not half-commit pending removal or ability-use recording;
+- finish action step remains `DRAW_CARD`;
+- payload keeps `pendingAbilityId`, `abilityId`, `sourceCardId`, `sourceSlot`, `changedCardId`, `changedControllerId`, and `drawnCardIds`;
+- ordered pending continuation still uses `options.orderedResolution`.
+
+The workflow reuses existing helpers only: pending starter registry, `recordAbilityUseForContext`, `drawCardsForPlayer`, and the registry-provided `continuePendingCardEffects` context. No runtime helper, trigger matcher integration, cost-calculator change, or steps DSL was added. The existing PB1_015 matcher condition in `doesMemberStateChangedEventSatisfyAbility` remains in runner. Runner line count after R-5S is about 2445 lines.
+
+Existing sample coverage still locks the trigger/action flow: the opponent low-cost member waits by own card effect, `TRIGGER_ABILITY` carries the changed card, and `RESOLVE_ABILITY` writes `DRAW_CARD` with the drawn card id. R-5S did not add a duplicate focused test.
+
+## R-5R HS_PB1_012 On-Enter Recycle Recover Live Gain Blade Outcome 2026-06-19
+
+R-5R migrated only `HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID` into the new single-card workflow file `src/application/card-effects/workflows/cards/hs-pb1-012-ginko.ts`.
+
+Covered flow:
+
+- step ids remain `HS_PB1_012_RECYCLE_MEMBERS_CONFIRM` and `HS_PB1_012_SELECT_WAITING_ROOM_LIVE`;
+- starter still forces the `continue` option and writes `START_RECYCLE_BOTH_WAITING_ROOM_MEMBERS`;
+- start payload and metadata keep `ownWaitingRoomMemberCardIds`, `opponentWaitingRoomMemberCardIds`, and `totalWaitingRoomMemberCount`;
+- confirm still recomputes current own and opponent waiting-room members instead of trusting start metadata;
+- confirm still recycles own waiting-room members first, then opponent waiting-room members;
+- `totalMovedMemberCount < 20` still clears activeEffect, writes `RECYCLE_MEMBERS_CONDITION_NOT_MET`, and continues pending without recovering LIVE or adding BLADE;
+- `totalMovedMemberCount >= 20` with no own waiting-room LIVE still gives the source member BLADE +2, writes `RECYCLE_MEMBERS_NO_LIVE_TARGET_GAIN_BLADE`, and continues pending;
+- `totalMovedMemberCount >= 20` with own waiting-room LIVE still opens the waiting-room LIVE selection step, recovers exactly 1 selected LIVE to hand, gives the source member BLADE +2, writes `RECOVER_LIVE_GAIN_BLADE`, and continues pending;
+- `RECOVER_LIVE_GAIN_BLADE` payload keeps `selectedCardId`, `movedOwnMemberCardIds`, `movedOpponentMemberCardIds`, `totalMovedMemberCount`, and `bladeBonus`;
+- if the source-member BLADE helper returns null, the workflow returns the original game and does not half-commit the recovery / recycle branch.
+
+The workflow reuses existing helpers only: pending starter registry, activeEffect step registry, `startPendingActiveEffect`, `getAbilityEffectText`, `shuffleWaitingRoomCardsToDeckBottomForPlayer`, `createWaitingRoomToHandSelectionConfig`, `createWaitingRoomToHandEffectState`, `recoverCardsFromWaitingRoomToHandForPlayer`, `addBladeLiveModifierForSourceMember`, plus existing opponent and selector/query helpers. R-5R deliberately does not introduce a recycle shared family or DSL. Runner line count after R-5R is about 2480 lines.
+
+Existing sample coverage still locks the true path, the no-LIVE-but-BLADE path, and the `<20` no-BLADE path. R-5R added `tests/integration/hs-pb1-012-ginko.test.ts` to lock confirm-time reread of both waiting rooms and the recover-LIVE finish payload / BLADE ordering.
+
+## R-5Q HS_BP6_031 Fanfare Recycle Workflow Outcome 2026-06-19
+
+R-5Q migrated only `HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID` into the new single-card workflow file `src/application/card-effects/workflows/cards/hs-bp6-031-fanfare.ts`.
+
+Covered flow:
+
+- step ids remain `HS_BP6_031_RECYCLE_MEMBERS_OPTION` and `HS_BP6_031_SELECT_HIME_BLADE_TARGET`;
+- starter still opens the activate / decline option window and writes `START_RECYCLE_WAITING_ROOM_MEMBERS_OPTION`;
+- start payload and metadata keep `waitingRoomMemberCardIds` and `miraCraMemberCount`;
+- activate finish still recomputes current waiting-room members and current `みらくらぱーく！` member count before recycling;
+- member recycle still uses `shuffleWaitingRoomCardsToDeckBottomForPlayer`;
+- `miraCraMemberCount < 15` still clears activeEffect, writes `RECYCLE_MEMBERS_CONDITION_NOT_MET`, and continues pending without BLADE;
+- `miraCraMemberCount >= 15` with no own-stage `安養寺姫芽` target still clears activeEffect, writes `RECYCLE_MEMBERS_NO_HIME_TARGET`, and continues pending without BLADE;
+- when an own-stage `安養寺姫芽` target exists, the workflow opens the Hime target selection step and writes `RECYCLE_MEMBERS_SELECT_HIME_TARGET`;
+- target confirmation still gives the selected Hime BLADE +3, writes `TARGET_HIME_GAIN_BLADE`, clears activeEffect, and continues pending;
+- decline still resolves through the shared skip finish path, writes `SKIP`, does not recycle waiting-room members, and does not add BLADE.
+
+The workflow reuses existing helpers only: pending starter registry, activeEffect step registry, `startPendingActiveEffect`, `finishSkippedActiveEffect`, `getAbilityEffectText`, `shuffleWaitingRoomCardsToDeckBottomForPlayer`, and `addBladeLiveModifierForSourceMember`. The Hime BLADE modifier keeps the old internal shape by using the selected Hime as the modifier source card while the action payload keeps the original effect source card. R-5Q deliberately does not introduce a recycle shared family or DSL. Runner line count after R-5Q is about 2756 lines.
+
+Existing sample coverage still locks the true path and the `<15` no-BLADE path. R-5Q added `tests/integration/hs-bp6-031-fanfare.test.ts` to lock decline and the `>=15` but no-Hime-target branch.
+
+## R-5P KARIN Live-Start Reveal Position Change Outcome 2026-06-19
+
+R-5P migrated only `KARIN_LIVE_START_ABILITY_ID` into the new single-card workflow file `src/application/card-effects/workflows/cards/n-pb1-004-karin.ts`.
+
+Covered flow:
+
+- step ids remain `KARIN_REVEAL_TOP_CARD` and `KARIN_POSITION_CHANGE`;
+- main-deck-empty path still removes the pending ability, writes `FINISH`, keeps `inspectedCardIds: []` and `destination: null`, and continues pending;
+- starter still inspects the top 1 card with public reveal and writes `START_INSPECTION`;
+- activeEffect metadata keeps `sourceZone: ZoneType.MAIN_DECK` and `orderedResolution`;
+- reveal finish still sends a revealed cost-9-or-less MEMBER to hand with `destination: HAND`, otherwise sends the revealed card to waiting room with `destination: WAITING_ROOM`;
+- reveal finish clears `inspectionZone` / `inspectionContext`, writes `REVEAL_FINISH` with `inspectedCardIds`, `revealedCardId`, and `destination`, then either continues pending or opens the position-change step when the source KARIN remains on stage;
+- position-change confirmation with no selected slot still returns the original game and does not write `SKIP`;
+- successful position change still clears `activeEffect`, writes `POSITION_CHANGE`, enqueues `ON_MEMBER_SLOT_MOVED` triggers with the new slot-moved event delta, then continues pending.
+
+The workflow reuses existing helpers only: pending starter registry, activeEffect step registry, `startPendingActiveEffect`, `getAbilityEffectText`, `inspectTopCards`, `clearInspectionCards`, `moveMemberBetweenSlots`, and the event delta helper. It deliberately does not introduce a mill reward DSL or position-change DSL. Runner line count after R-5P is about 2974 lines.
+
+R-5P also promoted the duplicated local `getNewMemberSlotMovedEvents(before, after)` helper into `src/application/card-effects/runtime/events.ts`. The helper only reads the eventLog delta and filters newly added `ON_MEMBER_SLOT_MOVED` events; it does not enqueue triggers or decide timing. `SHIKI`, `HS_BP5_003` Rurino, and KARIN now use this shared helper.
+
+Existing sample coverage already locks KARIN's low-cost member reveal-to-hand path, position-change payload, and ordered resolution. R-5P strengthened that sample to assert the `ON_MEMBER_SLOT_MOVED` eventLog entry and `POSITION_CHANGE` payload including `swappedCardId`. `tests/unit/card-effect-runtime-actions.test.ts` also now locks that the event delta helper returns only newly added member-slot-moved events.
 
 ## R-5O NOZOMI On-Enter Mill Draw Outcome 2026-06-19
 
@@ -163,6 +285,60 @@ Covered flow:
 The workflow reuses existing helpers only: pending starter registry, activeEffect step registry, `startPendingActiveEffect`, `getAbilityEffectText`, `inspectTopCards`, `moveInspectedCardsToWaitingRoom`, `hasCardIdsMatchingSelector`, and `drawCardsForPlayer`. No runtime helper, trigger matcher integration, cost-calculator change, or steps DSL was added. Runner line count after R-5O is about 3204 lines.
 
 Existing sample coverage already locks both major paths: PL!-sd1-007-SD mills a LIVE and draws 1 with `drawnCardId`, and the no-LIVE path mills 5 without drawing with `hasMilledLiveCard: false` and `drawnCardId: null`. R-5O did not add a duplicate focused test.
+
+## Reveal-From-Hand Helper Cleanup Outcome 2026-06-19
+
+This cleanup did not migrate a runner fallback. It added `revealHandCardForActiveEffect` to `src/application/card-effects/runtime/active-effect.ts` for the stable “select a hand card, reveal it to both players, and advance the same activeEffect to the next step” shape.
+
+Current real users:
+
+- `HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID` in `workflows/cards/hs-bp5-001-kaho.ts`;
+- `MAKI_ON_ENTER_ABILITY_ID` in `workflows/cards/maki-on-enter.ts`.
+
+Helper boundary:
+
+- validates activeEffect, candidate membership, player existence, and that the selected card is still in that player's hand;
+- preserves and de-duplicates existing `activeEffect.revealedCardIds`;
+- switches to the caller-provided next step, next text, candidate visibility, metadata patch, and action payload;
+- defaults the next selectable-card visibility to `PUBLIC`;
+- does not pay costs, move cards, recover cards, swap success-zone cards, compute same-name targets, clear activeEffect, continue pending, or decide skip semantics.
+
+HS_BP5_001 kept the old `REVEAL_HAND_LIVE` action step and `revealedHandLiveCardId` / `revealedHandLiveCardName` payload and metadata. MAKI kept the old `REVEAL_HAND_LIVE` action step and `handLiveCardId` payload and metadata. The cleanup also fixes MAKI's reveal visibility: after revealing the hand LIVE, the activeEffect now includes `revealedCardIds: [handLiveCardId]`, matching the projection model used by HS_BP5_001.
+
+Runner line count is unchanged at about 3204 lines.
+
+## Optional Discard-One-Hand ActiveEffect Shell Cleanup Outcome 2026-06-19
+
+This cleanup did not migrate a runner fallback. It added `createOptionalDiscardHandToWaitingRoomActiveEffect` to `src/application/card-effects/runtime/active-effect.ts` for the stable “open an optional discard 1 hand card to waiting room selection window” shape.
+
+The helper only constructs `ActiveEffectState`. It keeps the old default discard-window semantics:
+
+- step text `请选择要放置入休息室的手牌。也可以选择不发动此效果。`;
+- `selectableCardVisibility: AWAITING_PLAYER_ONLY`;
+- selection label `请选择要放置入休息室的卡牌`;
+- `canSkipSelection: true`;
+- skip label `不发动`;
+- `effectCosts: [{ kind: DISCARD_HAND_TO_WAITING_ROOM, minCount: 1, maxCount: 1, optional: true }]`;
+- matching `handToWaitingRoomCost`;
+- caller metadata plus `orderedResolution`.
+
+Replaced pure optional-discard-one windows:
+
+- `workflows/cards/keke-on-enter-place-waiting-energy.ts`;
+- `workflows/cards/hs-bp6-004-ginko.ts`;
+- `workflows/cards/hs-bp5-003-rurino.ts` for only the LIVE-start discard Heart segment;
+- `workflows/shared/live-start-discard-gain-heart.ts`;
+- `workflows/shared/discard-look-top-select-to-hand.ts`.
+
+The helper deliberately does not remove pending abilities, write action history, execute `discardOneHandCardToWaitingRoomForPlayer`, pay costs, continue pending, decide skip semantics, process extra costs, grouped recovery, or hand-adjust logic. These more complex discard windows remain explicit follow-up candidates rather than helper users:
+
+- `workflows/cards/bp5-003-kotori.ts`;
+- `workflows/cards/hs-pb1-004-ginko.ts`;
+- `workflows/cards/hs-bp5-008-izumi.ts`;
+- `workflows/shared/grouped-recovery.ts`;
+- `workflows/shared/discard-cost-waiting-room-to-hand.ts`.
+
+Runner line count is unchanged at about 3204 lines.
 
 ## HEART Modifier Helper Cleanup Outcome 2026-06-19
 

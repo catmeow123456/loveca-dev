@@ -5,8 +5,13 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../domain/entities/game.js';
+import type { EffectCostDefinition } from '../../effects/effect-costs.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
+
+const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
+const DISCARD_HAND_TO_ACTIVATE_STEP_TEXT = '请选择要放置入休息室的手牌。也可以选择不发动此效果。';
+const DECLINE_OPTION_LABEL = '不发动';
 
 export const CONFIRM_ONLY_PENDING_ABILITY_STEP_ID = 'CONFIRM_ONLY_EFFECT';
 
@@ -53,6 +58,39 @@ export interface StartConfirmOnlyActiveEffectConfig {
   readonly orderedResolution: boolean;
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly actionPayload?: Readonly<Record<string, unknown>>;
+}
+
+export interface CreateOptionalDiscardHandToWaitingRoomActiveEffectConfig {
+  readonly ability: Pick<
+    PendingAbilityState,
+    'id' | 'abilityId' | 'sourceCardId' | 'controllerId'
+  >;
+  readonly playerId: string;
+  readonly effectText: string;
+  readonly stepId: string;
+  readonly selectableCardIds: readonly string[];
+  readonly orderedResolution: boolean;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly stepText?: string;
+  readonly selectionLabel?: string;
+  readonly skipSelectionLabel?: string;
+}
+
+export interface RevealHandCardForActiveEffectOptions {
+  readonly effect: ActiveEffectState;
+  readonly playerId: string;
+  readonly selectedCardId: string | null | undefined;
+  readonly nextStepId: string;
+  readonly nextStepText: string;
+  readonly actionStep: string;
+  readonly actionPayload?: Readonly<Record<string, unknown>>;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly selectableCardIds?: readonly string[];
+  readonly selectableCardVisibility?: ActiveEffectState['selectableCardVisibility'];
+  readonly selectionLabel?: string;
+  readonly confirmSelectionLabel?: string;
+  readonly canSkipSelection?: boolean;
+  readonly skipSelectionLabel?: string;
 }
 
 export function startPendingActiveEffect(
@@ -104,6 +142,100 @@ export function startConfirmOnlyActiveEffect(
       ...config.actionPayload,
     },
   });
+}
+
+export function createOptionalDiscardHandToWaitingRoomActiveEffect(
+  config: CreateOptionalDiscardHandToWaitingRoomActiveEffectConfig
+): ActiveEffectState {
+  const discardCost: EffectCostDefinition = {
+    kind: 'DISCARD_HAND_TO_WAITING_ROOM',
+    minCount: 1,
+    maxCount: 1,
+    optional: true,
+  };
+
+  return {
+    id: config.ability.id,
+    abilityId: config.ability.abilityId,
+    sourceCardId: config.ability.sourceCardId,
+    controllerId: config.ability.controllerId,
+    effectText: config.effectText,
+    stepId: config.stepId,
+    stepText: config.stepText ?? DISCARD_HAND_TO_ACTIVATE_STEP_TEXT,
+    awaitingPlayerId: config.playerId,
+    selectableCardIds: config.selectableCardIds,
+    selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+    selectionLabel: config.selectionLabel ?? DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL,
+    canSkipSelection: true,
+    skipSelectionLabel: config.skipSelectionLabel ?? DECLINE_OPTION_LABEL,
+    metadata: {
+      ...config.metadata,
+      orderedResolution: config.orderedResolution,
+      effectCosts: [discardCost],
+      handToWaitingRoomCost: {
+        minCount: discardCost.minCount,
+        maxCount: discardCost.maxCount,
+        optional: discardCost.optional,
+      },
+    },
+  };
+}
+
+export function revealHandCardForActiveEffect(
+  game: GameState,
+  options: RevealHandCardForActiveEffectOptions
+): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.id !== options.effect.id ||
+    effect.abilityId !== options.effect.abilityId ||
+    options.selectedCardId === null ||
+    options.selectedCardId === undefined ||
+    effect.selectableCardIds?.includes(options.selectedCardId) !== true
+  ) {
+    return game;
+  }
+
+  const player = getPlayerById(game, options.playerId);
+  if (!player || !player.hand.cardIds.includes(options.selectedCardId)) {
+    return game;
+  }
+
+  const revealedCardIds = Array.from(
+    new Set([...(effect.revealedCardIds ?? []), options.selectedCardId])
+  );
+
+  return addAction(
+    {
+      ...game,
+      activeEffect: {
+        ...effect,
+        stepId: options.nextStepId,
+        stepText: options.nextStepText,
+        revealedCardIds,
+        selectableCardIds: options.selectableCardIds,
+        selectableCardVisibility: options.selectableCardVisibility ?? 'PUBLIC',
+        selectionLabel: options.selectionLabel,
+        confirmSelectionLabel: options.confirmSelectionLabel,
+        canSkipSelection: options.canSkipSelection,
+        skipSelectionLabel: options.skipSelectionLabel,
+        metadata: {
+          ...effect.metadata,
+          ...options.metadata,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: options.actionStep,
+      ...options.actionPayload,
+    }
+  );
 }
 
 export function startConfirmOnlyPendingAbilityEffect(
