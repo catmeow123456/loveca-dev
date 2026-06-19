@@ -29,6 +29,7 @@ function createMemberCard(
   cost: number,
   options: {
     readonly groupName?: string;
+    readonly unitName?: string;
     readonly cardText?: string;
   } = {}
 ): MemberCardData {
@@ -36,6 +37,7 @@ function createMemberCard(
     cardCode,
     name,
     groupName: options.groupName,
+    unitName: options.unitName,
     cardText: options.cardText,
     cardType: CardType.MEMBER,
     cost,
@@ -94,6 +96,28 @@ function forceMainPhaseForPlayer(session: ReturnType<typeof createGameSession>):
   state.currentSubPhase = SubPhase.NONE;
   state.activePlayerIndex = 0;
   state.waitingPlayerId = null;
+}
+
+function setActiveEnergyCountForPlayer(
+  session: ReturnType<typeof createGameSession>,
+  playerIndex: number,
+  count: number
+): void {
+  const state = session.state!;
+  const player = state.players[playerIndex] as unknown as {
+    energyDeck: { cardIds: string[] };
+    energyZone: {
+      cardIds: string[];
+      cardStates: Map<string, { orientation: OrientationState }>;
+    };
+  };
+  const cardIds = [...player.energyZone.cardIds, ...player.energyDeck.cardIds].slice(0, count);
+  const cardIdSet = new Set(cardIds);
+  player.energyZone.cardIds = cardIds;
+  player.energyZone.cardStates = new Map(
+    cardIds.map((cardId) => [cardId, { orientation: OrientationState.ACTIVE }])
+  );
+  player.energyDeck.cardIds = player.energyDeck.cardIds.filter((cardId) => !cardIdSet.has(cardId));
 }
 
 describe('member cost payment', () => {
@@ -256,6 +280,186 @@ describe('member cost payment', () => {
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(protectedCardId);
     expect(session.state?.players[0].hand.cardIds).toEqual([incomingCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(protectedCardId);
+  });
+
+  it('prevents PL!HS-bp6-006 from being relayed away by a non-Mira-Cra member', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('hs-bp6-006-non-miracra-relay-prohibition', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+      waitingRoom: { cardIds: string[] };
+    };
+    const ownedMemberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const incomingCardId = ownedMemberCardIds[0];
+    const himeCardId = ownedMemberCardIds[1];
+
+    expect(incomingCardId).toBeTruthy();
+    expect(himeCardId).toBeTruthy();
+
+    (state.cardRegistry.get(incomingCardId!) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!HS-test-cerise-incoming', 'Non Mira-Cra Incoming', 4, {
+        groupName: '蓮ノ空',
+      });
+    (state.cardRegistry.get(himeCardId!) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!HS-bp6-006-SEC', '安養寺 姫芽', 20, {
+        groupName: '蓮ノ空',
+      });
+    setActiveEnergyCountForPlayer(session, 0, 4);
+
+    player.hand.cardIds = [incomingCardId!];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== incomingCardId && cardId !== himeCardId
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = himeCardId!;
+    player.memberSlots.cardStates = new Map([
+      [himeCardId!, { orientation: OrientationState.ACTIVE }],
+    ]);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, incomingCardId!, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success).toBe(false);
+    expect(playResult.error).toContain('无法因换手');
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(himeCardId);
+    expect(session.state?.players[0].hand.cardIds).toEqual([incomingCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(himeCardId);
+  });
+
+  it('allows PL!HS-bp6-006 to be relayed away by a Mira-Cra member', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('hs-bp6-006-miracra-relay-allowed', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+      waitingRoom: { cardIds: string[] };
+    };
+    const ownedMemberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const incomingCardId = ownedMemberCardIds[0];
+    const himeCardId = ownedMemberCardIds[1];
+
+    expect(incomingCardId).toBeTruthy();
+    expect(himeCardId).toBeTruthy();
+
+    (state.cardRegistry.get(incomingCardId!) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!HS-test-miracra-incoming', 'Mira-Cra Incoming', 4, {
+        groupName: '蓮ノ空',
+        unitName: 'みらくらぱーく！',
+      });
+    (state.cardRegistry.get(himeCardId!) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!HS-bp6-006-SEC', '安養寺 姫芽', 20, {
+        groupName: '蓮ノ空',
+        unitName: 'みらくらぱーく！',
+      });
+
+    player.hand.cardIds = [incomingCardId!];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== incomingCardId && cardId !== himeCardId
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = himeCardId!;
+    player.memberSlots.cardStates = new Map([
+      [himeCardId!, { orientation: OrientationState.ACTIVE }],
+    ]);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, incomingCardId!, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(incomingCardId);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(himeCardId);
+    expect(session.state?.players[0].hand.cardIds).not.toContain(incomingCardId);
+  });
+
+  it('applies PL!HS-bp6-006 hand cost reduction using pre-relay Mira-Cra stage count', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('hs-bp6-006-q249-cost-payment', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const ownedMemberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const himeIncomingCardId = ownedMemberCardIds[0];
+    const stageCardIds = ownedMemberCardIds.slice(1, 4);
+
+    expect(himeIncomingCardId).toBeTruthy();
+    expect(stageCardIds).toHaveLength(3);
+
+    (state.cardRegistry.get(himeIncomingCardId!) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!HS-bp6-006-SEC', '安養寺 姫芽', 20, {
+        groupName: '蓮ノ空',
+        unitName: 'みらくらぱーく！',
+      });
+    for (const stageCardId of stageCardIds) {
+      (state.cardRegistry.get(stageCardId) as unknown as { data: MemberCardData }).data =
+        createMemberCard(`PL!HS-test-miracra-${stageCardId}`, 'Mira-Cra Stage', 4, {
+          groupName: '蓮ノ空',
+          unitName: 'みらくらぱーく！',
+        });
+    }
+    setActiveEnergyCountForPlayer(session, 0, 10);
+
+    player.hand.cardIds = [himeIncomingCardId!];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== himeIncomingCardId && !stageCardIds.includes(cardId)
+    );
+    player.memberSlots.slots[SlotPosition.LEFT] = stageCardIds[0]!;
+    player.memberSlots.slots[SlotPosition.CENTER] = stageCardIds[1]!;
+    player.memberSlots.slots[SlotPosition.RIGHT] = stageCardIds[2]!;
+    player.memberSlots.cardStates = new Map(
+      stageCardIds.map((cardId) => [cardId, { orientation: OrientationState.ACTIVE }])
+    );
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, himeIncomingCardId!, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(
+      himeIncomingCardId
+    );
+    expect(
+      session.state?.actionHistory.some(
+        (action) => action.type === 'PAY_COST' && action.payload.amount === 10
+      )
+    ).toBe(true);
   });
 
   it('applies PL!N-pb1-008-P+ cost reduction when a waiting Nijigasaki member is on stage', () => {

@@ -151,6 +151,8 @@ export interface EnterHandEvent extends CardMoveEvent {
 export interface EnterWaitingRoomEvent extends CardMoveEvent {
   readonly eventType: TriggerCondition.ON_ENTER_WAITING_ROOM;
   readonly toZone: ZoneType.WAITING_ROOM;
+  /** 同一次规则移动中进入休息室的卡牌。cardInstanceId 保留首张以兼容单卡读取。 */
+  readonly cardInstanceIds?: readonly string[];
 }
 
 // ============================================
@@ -551,6 +553,37 @@ export function createLeaveStageEvent(
     controllerId,
     triggerPlayerId: controllerId,
     replacingCardId,
+  };
+}
+
+/**
+ * 创建卡牌进入休息室事件。
+ *
+ * 多张手牌同批放入休息室时使用 cardInstanceIds 表示同一事件组，避免“1张以上”
+ * 的自动能力按每张牌重复触发。
+ */
+export function createEnterWaitingRoomEvent(
+  cardInstanceIds: readonly string[],
+  fromZone: ZoneType,
+  ownerId: string,
+  controllerId: string
+): EnterWaitingRoomEvent {
+  const firstCardId = cardInstanceIds[0];
+  if (!firstCardId) {
+    throw new Error('createEnterWaitingRoomEvent requires at least one card instance id');
+  }
+
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_ENTER_WAITING_ROOM,
+    timestamp: Date.now(),
+    cardInstanceId: firstCardId,
+    cardInstanceIds: [...cardInstanceIds],
+    fromZone,
+    toZone: ZoneType.WAITING_ROOM,
+    ownerId,
+    controllerId,
+    triggerPlayerId: controllerId,
   };
 }
 

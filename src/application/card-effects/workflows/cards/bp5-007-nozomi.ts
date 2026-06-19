@@ -10,6 +10,10 @@ import {
   discardHandCardsToWaitingRoomForPlayer,
   drawCardsForEachPlayer,
 } from '../../runtime/actions.js';
+import {
+  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -25,7 +29,9 @@ interface Bp5007NozomiEffectContext {
   readonly controllerId: string;
 }
 
-export function registerBp5007NozomiWorkflowHandlers(): void {
+export function registerBp5007NozomiWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerPendingAbilityStarterHandler(
     BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
     (game, ability, options, context) =>
@@ -44,7 +50,8 @@ export function registerBp5007NozomiWorkflowHandlers(): void {
         game,
         input.selectedCardId ?? null,
         input.selectedCardIds,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
   );
 }
@@ -148,7 +155,8 @@ function finishBp5007NozomiDiscardToThree(
   game: GameState,
   selectedCardId: string | null,
   selectedCardIds: readonly string[] | undefined,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (
@@ -200,6 +208,11 @@ function finishBp5007NozomiDiscardToThree(
   if (!discardResult) {
     return game;
   }
+  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
+    discardResult.gameState,
+    discardResult,
+    enqueueTriggeredCardEffects
+  );
 
   const playerIds = Array.isArray(effect.metadata?.discardPlayerIds)
     ? effect.metadata.discardPlayerIds.filter((value): value is string => typeof value === 'string')
@@ -212,7 +225,7 @@ function finishBp5007NozomiDiscardToThree(
 
   const stateAfterDiscard = addAction(
     {
-      ...discardResult.gameState,
+      ...stateWithEnterWaitingRoomTriggers,
       activeEffect: null,
     },
     'RESOLVE_ABILITY',

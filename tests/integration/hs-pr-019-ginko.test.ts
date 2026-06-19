@@ -8,7 +8,10 @@ import {
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
-import { HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
+  HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   GamePhase,
@@ -184,6 +187,92 @@ describe('HS-PR-019 Ginko workflow', () => {
           action.payload.heartBonus.length === 0 &&
           Array.isArray(action.payload.milledCardIds) &&
           action.payload.milledCardIds.join(',') === topCardIds.join(',')
+      )
+    ).toBe(true);
+  });
+
+  it('mills top three and adds pink Heart for PL!HS-PR-021-RM when all revealed cards are pink-Heart members', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('hs-pr-021-condition-true', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const hime = createCardInstance(
+      createMemberCard('PL!HS-PR-021-RM', '安養寺 姫芽', HeartColor.PINK),
+      PLAYER1,
+      'p1-hs-pr-021-hime'
+    );
+    const topCards = [0, 1, 2].map((index) =>
+      createCardInstance(
+        createMemberCard(`PL!HS-pr-021-test-pink-${index}`, `Pink ${index}`, HeartColor.PINK),
+        PLAYER1,
+        `p1-hs-pr-021-top-${index}`
+      )
+    );
+    const state = registerCards(session.state!, [hime, ...topCards]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const topCardIds = topCards.map((card) => card.instanceId);
+
+    removeFromPlayerZones(p1);
+    p1.hand.cardIds = [hime.instanceId];
+    p1.mainDeck.cardIds = [...topCardIds];
+    p1.memberSlots.slots = {
+      [SlotPosition.LEFT]: null,
+      [SlotPosition.CENTER]: null,
+      [SlotPosition.RIGHT]: null,
+    };
+    p1.memberSlots.cardStates = new Map();
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, hime.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.stepId).toBe('HS_PR_021_REVEAL_TOP_THREE');
+    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      playerId: PLAYER1,
+      sourceCardId: hime.instanceId,
+      abilityId: HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
+      target: 'SOURCE_MEMBER',
+      hearts: [{ color: HeartColor.PINK, count: 1 }],
+    });
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID &&
+          action.payload.sourceCardId === hime.instanceId &&
+          action.payload.step === 'FINISH_MILL_TOP_THREE_CHECK_PINK_HEART_MEMBERS' &&
+          action.payload.conditionMet === true
       )
     ).toBe(true);
   });

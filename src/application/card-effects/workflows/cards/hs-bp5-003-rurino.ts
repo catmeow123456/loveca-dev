@@ -1,8 +1,8 @@
-import {
-  isMemberCardData,
-  type CardInstance,
-} from '../../../../domain/entities/card.js';
-import type { MemberSlotMovedEvent } from '../../../../domain/events/game-events.js';
+import { isMemberCardData, type CardInstance } from '../../../../domain/entities/card.js';
+import type {
+  EnterWaitingRoomEvent,
+  MemberSlotMovedEvent,
+} from '../../../../domain/events/game-events.js';
 import {
   addAction,
   getCardById,
@@ -21,6 +21,7 @@ import {
   cardBelongsToGroup,
   getKnownCardGroupIdentityName,
 } from '../../../../shared/utils/card-identity.js';
+import { toPlayerLocalSlotForControllerPerspective } from '../../../../shared/utils/slot-perspective.js';
 import {
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
   HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
@@ -34,14 +35,13 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
+import { enqueueEnterWaitingRoomTriggersFromDiscardResult } from '../../runtime/enter-waiting-room-triggers.js';
 import { getNewMemberSlotMovedEvents } from '../../runtime/events.js';
 import { moveMemberBetweenSlots } from '../../../effects/member-state.js';
 
-export const HS_BP5_003_SELECT_POSITION_MEMBER_STEP_ID =
-  'HS_BP5_003_SELECT_POSITION_CHANGE_MEMBER';
+export const HS_BP5_003_SELECT_POSITION_MEMBER_STEP_ID = 'HS_BP5_003_SELECT_POSITION_CHANGE_MEMBER';
 export const HS_BP5_003_SELECT_POSITION_SLOT_STEP_ID = 'HS_BP5_003_SELECT_POSITION_CHANGE_SLOT';
-export const HS_BP5_003_SELECT_DISCARD_STEP_ID =
-  'HS_BP5_003_SELECT_DISCARD_FOR_MEMBER_HEART';
+export const HS_BP5_003_SELECT_DISCARD_STEP_ID = 'HS_BP5_003_SELECT_DISCARD_FOR_MEMBER_HEART';
 export const HS_BP5_003_SELECT_HEART_TARGET_STEP_ID =
   'HS_BP5_003_SELECT_SAME_GROUP_MEMBER_HEART_TARGET';
 
@@ -52,6 +52,7 @@ type EnqueueTriggeredCardEffects = (
   game: GameState,
   triggerConditions: readonly TriggerCondition[],
   options?: {
+    readonly enterWaitingRoomEvents?: readonly EnterWaitingRoomEvent[];
     readonly memberSlotMovedEvents?: readonly MemberSlotMovedEvent[];
   }
 ) => GameState;
@@ -113,7 +114,8 @@ export function registerHsBp5003RurinoWorkflowHandlers(deps: {
         ? startHsBp5003RurinoSameGroupMemberSelection(
             game,
             input.selectedCardId,
-            context.continuePendingCardEffects
+            context.continuePendingCardEffects,
+            deps.enqueueTriggeredCardEffects
           )
         : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
   );
@@ -215,7 +217,14 @@ function startHsBp5003RurinoPositionSlotSelection(
     return game;
   }
 
-  const selectableSlots = MEMBER_SLOT_ORDER.filter((slot) => slot !== targetLocation.slot);
+  const currentControllerPerspectiveSlot = toPlayerLocalSlotForControllerPerspective(
+    targetLocation.slot,
+    targetLocation.playerId,
+    player.id
+  );
+  const selectableSlots = MEMBER_SLOT_ORDER.filter(
+    (slot) => slot !== currentControllerPerspectiveSlot
+  );
   if (selectableSlots.length === 0) {
     return game;
   }
@@ -238,6 +247,7 @@ function startHsBp5003RurinoPositionSlotSelection(
           selectedMemberCardId,
           selectedMemberPlayerId: targetLocation.playerId,
           selectedMemberSourceSlot: targetLocation.slot,
+          selectedMemberSourceControllerPerspectiveSlot: currentControllerPerspectiveSlot,
         },
       },
     },
@@ -251,6 +261,7 @@ function startHsBp5003RurinoPositionSlotSelection(
       selectedMemberCardId,
       targetPlayerId: targetLocation.playerId,
       fromSlot: targetLocation.slot,
+      fromControllerPerspectiveSlot: currentControllerPerspectiveSlot,
       selectableSlots,
     }
   );
@@ -285,10 +296,15 @@ function finishHsBp5003RurinoPositionChange(
   }
 
   const currentLocation = findStageMemberLocation(game, selectedMemberCardId);
+  const targetLocalSlot = toPlayerLocalSlotForControllerPerspective(
+    selectedSlot,
+    player.id,
+    selectedMemberPlayerId
+  );
   if (
     !currentLocation ||
     currentLocation.playerId !== selectedMemberPlayerId ||
-    currentLocation.slot === selectedSlot
+    currentLocation.slot === targetLocalSlot
   ) {
     return game;
   }
@@ -297,7 +313,7 @@ function finishHsBp5003RurinoPositionChange(
     game,
     selectedMemberPlayerId,
     selectedMemberCardId,
-    selectedSlot
+    targetLocalSlot
   );
   if (!moveResult) {
     return game;
@@ -316,6 +332,8 @@ function finishHsBp5003RurinoPositionChange(
       targetPlayerId: selectedMemberPlayerId,
       targetCardId: selectedMemberCardId,
       fromSlot: moveResult.fromSlot,
+      controllerPerspectiveSlot: selectedSlot,
+      targetLocalSlot,
       toSlot: moveResult.toSlot,
       swappedCardId: moveResult.swappedCardId,
     }),
@@ -381,7 +399,8 @@ function startHsBp5003RurinoLiveStartDiscard(
 function startHsBp5003RurinoSameGroupMemberSelection(
   game: GameState,
   discardCardId: string,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
   const effect = game.activeEffect;
   if (
@@ -403,14 +422,19 @@ function startHsBp5003RurinoSameGroupMemberSelection(
   if (!discardResult) {
     return game;
   }
+  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
+    discardResult.gameState,
+    discardResult,
+    enqueueTriggeredCardEffects
+  );
 
   const discardedGroupName = getKnownCardGroupName(discardCard);
   const selectableCardIds =
     discardedGroupName !== null
-      ? getStageMemberLocations(discardResult.gameState)
+      ? getStageMemberLocations(stateWithEnterWaitingRoomTriggers)
           .map((location) => ({
             ...location,
-            card: getCardById(discardResult.gameState, location.cardId),
+            card: getCardById(stateWithEnterWaitingRoomTriggers, location.cardId),
           }))
           .filter(
             (candidate): candidate is StageMemberLocation & { readonly card: CardInstance } =>
@@ -423,7 +447,7 @@ function startHsBp5003RurinoSameGroupMemberSelection(
 
   if (selectableCardIds.length === 0) {
     const state = {
-      ...discardResult.gameState,
+      ...stateWithEnterWaitingRoomTriggers,
       activeEffect: null,
     };
     return continuePendingCardEffects(
@@ -442,7 +466,7 @@ function startHsBp5003RurinoSameGroupMemberSelection(
 
   return addAction(
     {
-      ...discardResult.gameState,
+      ...stateWithEnterWaitingRoomTriggers,
       activeEffect: {
         ...effect,
         stepId: HS_BP5_003_SELECT_HEART_TARGET_STEP_ID,

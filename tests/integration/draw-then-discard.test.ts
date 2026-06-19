@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type {
-  AnyCardData,
-  EnergyCardData,
-  MemberCardData,
-} from '../../src/domain/entities/card';
+import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
 import {
@@ -12,11 +8,16 @@ import {
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
-import { MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
+  MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
+  FaceState,
   GamePhase,
   HeartColor,
+  OrientationState,
   SlotPosition,
   SubPhase,
   TurnType,
@@ -88,13 +89,7 @@ describe('draw-then-discard shared workflow', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame(
-      'draw-then-discard-two-shizuku',
-      PLAYER1,
-      'Player 1',
-      PLAYER2,
-      'Player 2'
-    );
+    session.createGame('draw-then-discard-two-shizuku', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -102,6 +97,11 @@ describe('draw-then-discard shared workflow', () => {
       createMemberCard('PL!N-PR-005-PR', '桜坂しずく', 13),
       PLAYER1,
       'p1-n-pr-005-source'
+    );
+    const pb1003Source = createCardInstance(
+      createMemberCard('PL!HS-pb1-003-R', '大沢瑠璃乃', 15),
+      PLAYER1,
+      'p1-draw-discard-pb1-003'
     );
     const handCards = [0, 1].map((index) =>
       createCardInstance(
@@ -118,7 +118,7 @@ describe('draw-then-discard shared workflow', () => {
       )
     );
 
-    let state = registerCards(session.state!, [source, ...handCards, ...drawnCards]);
+    let state = registerCards(session.state!, [source, pb1003Source, ...handCards, ...drawnCards]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
     const p1 = state.players[0] as unknown as {
@@ -127,10 +127,18 @@ describe('draw-then-discard shared workflow', () => {
       waitingRoom: { cardIds: string[] };
       successZone: { cardIds: string[] };
       liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
     };
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [source.instanceId, ...handCards.map((card) => card.instanceId)];
     p1.mainDeck.cardIds = drawnCards.map((card) => card.instanceId);
+    p1.memberSlots.slots[SlotPosition.RIGHT] = pb1003Source.instanceId;
+    p1.memberSlots.cardStates = new Map([
+      [pb1003Source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
 
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -183,6 +191,16 @@ describe('draw-then-discard shared workflow', () => {
           action.payload.discardedCardIds[1] === selectedDiscardIds[1]
       )
     ).toBe(true);
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === pb1003Source.instanceId &&
+          action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
+      )
+    ).toHaveLength(1);
   });
 
   it('allows draw two discard two to discard one when only one hand card is available', () => {

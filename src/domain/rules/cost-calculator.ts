@@ -152,6 +152,22 @@ export class CostCalculator {
       }
     }
 
+    if (cardCodeMatchesBase(memberData.cardCode, 'PL!HS-bp6-006')) {
+      const miraCraStageMemberCount = resources.stageMembers.filter((stageMember) =>
+        isMiraCraMember(stageMember.data)
+      ).length;
+      const amount = Math.min(memberData.cost, miraCraStageMemberCount * 2);
+
+      if (amount > 0) {
+        modifiers.push({
+          id: 'PL!HS-bp6-006:hand-self-cost-minus-two-per-miracra-stage-member',
+          label: '自己的舞台每有1名みらくらぱーく！成员，费用减少2',
+          amount,
+          sourceCardId: resources.sourceCardId,
+        });
+      }
+    }
+
     if (cardCodeMatchesBase(memberData.cardCode, 'PL!N-pb1-008')) {
       const hasWaitingNijigasakiMember = resources.stageMembers.some(
         (stageMember) =>
@@ -258,7 +274,7 @@ export class CostCalculator {
     // 查找目标槽位上的成员（如果有）
     const targetMember = resources.stageMembers.find((m) => m.position === targetPosition);
 
-    if (targetMember && canMemberBeRelayedAway(targetMember.data)) {
+    if (targetMember && canMemberBeRelayedAway(targetMember.data, memberData)) {
       const relayDiscount = this.calculateRelayDiscount(
         targetMember.data,
         targetMember.effectiveCost
@@ -402,7 +418,7 @@ export class CostCalculator {
       ? this.calculateRelayDiscount(targetSlotMember.data, targetSlotMember.effectiveCost)
       : 0;
     const canRelayTargetMember =
-      targetSlotMember !== null && canMemberBeRelayedAway(targetSlotMember.data);
+      targetSlotMember !== null && canMemberBeRelayedAway(targetSlotMember.data, memberData);
 
     return {
       baseCost,
@@ -429,8 +445,19 @@ export class CostCalculator {
  */
 export const costCalculator = new CostCalculator();
 
-export function canMemberBeRelayedAway(memberData: MemberCardData): boolean {
-  return !cardCodeMatchesBase(memberData.cardCode, 'LL-bp2-001');
+export function canMemberBeRelayedAway(
+  memberData: MemberCardData,
+  incomingMemberData?: MemberCardData
+): boolean {
+  if (cardCodeMatchesBase(memberData.cardCode, 'LL-bp2-001')) {
+    return false;
+  }
+
+  if (cardCodeMatchesBase(memberData.cardCode, 'PL!HS-bp6-006')) {
+    return incomingMemberData !== undefined && isMiraCraMember(incomingMemberData);
+  }
+
+  return true;
 }
 
 function isNijigasakiMember(memberData: MemberCardData): boolean {
@@ -447,4 +474,17 @@ function isCost10LiellaMember(memberData: MemberCardData): boolean {
 
 function isLiellaMember(memberData: MemberCardData): boolean {
   return cardBelongsToGroup(memberData, 'Liella!');
+}
+
+function isMiraCraMember(memberData: MemberCardData): boolean {
+  return matchesMiraCraText(memberData.unitName) || matchesMiraCraText(memberData.cardText);
+}
+
+function matchesMiraCraText(value: string | undefined): boolean {
+  const normalized = value?.replace(/[『』「」'’]/g, '').replace(/！/g, '!').toLowerCase() ?? '';
+  return (
+    normalized.includes('みらくらぱーく!') ||
+    normalized.includes('mira-cra park') ||
+    normalized.includes('miracra park')
+  );
 }

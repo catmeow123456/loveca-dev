@@ -9,20 +9,18 @@ import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { CardType, GamePhase } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID } from '../../ability-ids.js';
+import { discardHandCardsToWaitingRoomForPlayer } from '../../runtime/actions.js';
 import {
-  discardHandCardsToWaitingRoomForPlayer,
-} from '../../runtime/actions.js';
+  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
-import {
-  and,
-  groupIs,
-  typeIs,
-} from '../../../effects/card-selectors.js';
+import { and, groupIs, typeIs } from '../../../effects/card-selectors.js';
 import { successLiveScoreAtLeast } from '../../../effects/conditions.js';
 import { type EffectCostDefinition } from '../../../effects/effect-costs.js';
 import {
@@ -34,8 +32,7 @@ import { finishWaitingRoomToHandWorkflow } from './waiting-room-to-hand.js';
 
 const SELECT_WAITING_ROOM_CARD_STEP_ID = 'SELECT_WAITING_ROOM_CARD';
 const BP4_002_SELECT_DISCARD_STEP_ID = 'BP4_002_SELECT_TWO_HAND_CARDS_TO_DISCARD';
-const BP4_002_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID =
-  'BP4_002_SELECT_WAITING_ROOM_MUSE_LIVE';
+const BP4_002_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID = 'BP4_002_SELECT_WAITING_ROOM_MUSE_LIVE';
 
 interface DiscardCostWaitingRoomToHandWorkflowConfig {
   readonly abilityId: string;
@@ -61,14 +58,18 @@ const BP4_002_DISCARD_RECOVER_WORKFLOW: DiscardCostWaitingRoomToHandWorkflowConf
   recoverySelectionRequiredWhenHasTargets: true,
 };
 
-export function registerDiscardCostWaitingRoomToHandWorkflowHandlers(): void {
-  registerActivatedAbilityHandler(BP4_002_DISCARD_RECOVER_WORKFLOW.abilityId, (game, playerId, cardId) =>
-    startDiscardCostWaitingRoomToHandWorkflow(
-      game,
-      playerId,
-      cardId,
-      BP4_002_DISCARD_RECOVER_WORKFLOW
-    )
+export function registerDiscardCostWaitingRoomToHandWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
+  registerActivatedAbilityHandler(
+    BP4_002_DISCARD_RECOVER_WORKFLOW.abilityId,
+    (game, playerId, cardId) =>
+      startDiscardCostWaitingRoomToHandWorkflow(
+        game,
+        playerId,
+        cardId,
+        BP4_002_DISCARD_RECOVER_WORKFLOW
+      )
   );
   registerActiveEffectStepHandler(
     BP4_002_DISCARD_RECOVER_WORKFLOW.abilityId,
@@ -78,7 +79,8 @@ export function registerDiscardCostWaitingRoomToHandWorkflowHandlers(): void {
         ? startDiscardCostWaitingRoomRecoveryAfterDiscard(
             game,
             input.selectedCardIds,
-            BP4_002_DISCARD_RECOVER_WORKFLOW
+            BP4_002_DISCARD_RECOVER_WORKFLOW,
+            deps.enqueueTriggeredCardEffects
           )
         : game
   );
@@ -183,7 +185,8 @@ function startDiscardCostWaitingRoomToHandWorkflow(
 function startDiscardCostWaitingRoomRecoveryAfterDiscard(
   game: GameState,
   selectedCardIds: readonly string[],
-  config: DiscardCostWaitingRoomToHandWorkflowConfig
+  config: DiscardCostWaitingRoomToHandWorkflowConfig,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -219,9 +222,14 @@ function startDiscardCostWaitingRoomRecoveryAfterDiscard(
   if (!discardResult) {
     return game;
   }
+  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
+    discardResult.gameState,
+    discardResult,
+    enqueueTriggeredCardEffects
+  );
 
   const selectableCardIds = selectWaitingRoomCardIds(
-    discardResult.gameState,
+    stateWithEnterWaitingRoomTriggers,
     player.id,
     config.recoverySelector
   );
@@ -239,7 +247,7 @@ function startDiscardCostWaitingRoomRecoveryAfterDiscard(
 
   return addAction(
     {
-      ...discardResult.gameState,
+      ...stateWithEnterWaitingRoomTriggers,
       activeEffect: createWaitingRoomToHandEffectState({
         id: effect.id,
         abilityId: effect.abilityId,

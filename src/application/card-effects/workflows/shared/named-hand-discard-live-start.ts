@@ -14,6 +14,10 @@ import {
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
 import { discardHandCardsToWaitingRoomForPlayer } from '../../runtime/actions.js';
+import {
+  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -50,7 +54,9 @@ const NAMED_HAND_DISCARD_LIVE_START_CONFIGS: readonly NamedHandDiscardLiveStartC
   },
 ];
 
-export function registerNamedHandDiscardLiveStartWorkflowHandlers(): void {
+export function registerNamedHandDiscardLiveStartWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   for (const config of NAMED_HAND_DISCARD_LIVE_START_CONFIGS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
       startNamedHandDiscardLiveStartEffect(
@@ -68,7 +74,8 @@ export function registerNamedHandDiscardLiveStartWorkflowHandlers(): void {
           ? finishNamedHandDiscardLiveStartEffect(
               game,
               input.selectedCardIds,
-              context.continuePendingCardEffects
+              context.continuePendingCardEffects,
+              deps.enqueueTriggeredCardEffects
             )
           : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
     );
@@ -133,7 +140,8 @@ function startNamedHandDiscardLiveStartEffect(
 function finishNamedHandDiscardLiveStartEffect(
   game: GameState,
   selectedCardIds: readonly string[],
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
@@ -167,6 +175,11 @@ function finishNamedHandDiscardLiveStartEffect(
   if (!discardResult) {
     return game;
   }
+  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
+    discardResult.gameState,
+    discardResult,
+    enqueueTriggeredCardEffects
+  );
 
   const rewardKind =
     effect.metadata?.namedHandDiscardRewardKind === 'SCORE'
@@ -184,7 +197,7 @@ function finishNamedHandDiscardLiveStartEffect(
         ? effect.metadata.namedHandDiscardRewardAmount
         : 0
       : discardResult.discardedCardIds.length;
-  const stateAfterModifier = addLiveModifier(discardResult.gameState, {
+  const stateAfterModifier = addLiveModifier(stateWithEnterWaitingRoomTriggers, {
     kind: rewardKind === 'SCORE' ? 'SCORE' : 'BLADE',
     playerId: player.id,
     countDelta: rewardAmount,

@@ -17,7 +17,10 @@ import {
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
-import { BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
+  HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -218,6 +221,11 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
         `p2-hand-${index}`
       )
     );
+    const p2Pb1003Source = createCardInstance(
+      createMemberCard('PL!HS-pb1-003-R', '大沢瑠璃乃', 15),
+      PLAYER2,
+      'p2-bp5-007-pb1-003'
+    );
     const p2DrawCards = Array.from({ length: 3 }, (_, index) =>
       createCardInstance(
         createMemberCard(`PL!-test-p2-draw-${index}`, `P2 draw ${index}`),
@@ -231,6 +239,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
       relayMember,
       ...p1HandCards,
       ...p1DrawCards,
+      p2Pb1003Source,
       ...p2HandCards,
       ...p2DrawCards,
     ]);
@@ -279,10 +288,15 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
         ...player.memberSlots,
         slots: {
           [SlotPosition.LEFT]: null,
-          [SlotPosition.CENTER]: null,
+          [SlotPosition.CENTER]: p2Pb1003Source.instanceId,
           [SlotPosition.RIGHT]: null,
         },
-        cardStates: new Map(),
+        cardStates: new Map([
+          [
+            p2Pb1003Source.instanceId,
+            { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+          ],
+        ]),
       },
     }));
     (session as unknown as { authorityState: GameState }).authorityState = state;
@@ -318,8 +332,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
     const startActions = session.state!.actionHistory.filter(
       (action) =>
         action.type === 'RESOLVE_ABILITY' &&
-        action.payload.abilityId ===
-          BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID &&
+        action.payload.abilityId === BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID &&
         action.payload.step === 'START_DISCARD_TO_THREE'
     );
     expect(startActions).toHaveLength(1);
@@ -359,8 +372,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
     const discardAction = session.state!.actionHistory.find(
       (action) =>
         action.type === 'RESOLVE_ABILITY' &&
-        action.payload.abilityId ===
-          BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID &&
+        action.payload.abilityId === BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID &&
         action.payload.step === 'DISCARD_TO_THREE'
     );
     expect(discardAction?.playerId).toBe(PLAYER2);
@@ -373,8 +385,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
     const drawAction = session.state!.actionHistory.find(
       (action) =>
         action.type === 'RESOLVE_ABILITY' &&
-        action.payload.abilityId ===
-          BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID &&
+        action.payload.abilityId === BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID &&
         action.payload.step === 'DRAW_THREE_AFTER_HAND_ADJUST'
     );
     expect(drawAction?.playerId).toBe(PLAYER1);
@@ -385,5 +396,15 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
         [PLAYER2]: p2DrawCards.map((card) => card.instanceId),
       },
     });
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === p2Pb1003Source.instanceId &&
+          action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
+      )
+    ).toHaveLength(1);
   });
 });

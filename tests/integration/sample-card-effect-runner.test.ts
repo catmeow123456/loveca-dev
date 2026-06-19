@@ -14589,12 +14589,16 @@ describe('sample card effect runner', () => {
     );
 
     expect(selectOpponentResult.success).toBe(true);
+    expect(session.state?.activeEffect?.selectableSlots).toEqual([
+      SlotPosition.LEFT,
+      SlotPosition.CENTER,
+    ]);
     const moveOpponentResult = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
         session.state!.activeEffect!.id,
         undefined,
-        SlotPosition.RIGHT
+        SlotPosition.LEFT
       )
     );
 

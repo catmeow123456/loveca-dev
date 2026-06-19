@@ -10,6 +10,7 @@ import { getCardById } from '../entities/game.js';
 import { getAllMemberCardIds } from '../entities/zone.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
+import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/slot-perspective.js';
 import { successLiveScoreAtLeast } from './success-live-score.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
@@ -144,6 +145,11 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    baseCardCodes: ['PL!HS-pb1-014'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      collectPb1014FrontHighCostHeartModifier(game, playerId, sourceCardId),
+  },
+  {
     baseCardCodes: ['PL!N-pb1-004'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasMemberPositionMovedThisTurn(game, playerId, sourceCardId)
@@ -187,6 +193,8 @@ const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
   'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
 const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
   'PL!N-pb1-004:continuous-not-position-moved-gain-two-blade';
+const HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID =
+  'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart';
 
 function getScoreModifiers(
   playerId: string,
@@ -381,6 +389,48 @@ function hasThreeDifferentHasunosoraMembersOnStage(game: GameState, playerId: st
   return hasAtLeastDifferentNamedStageMembers(game, playerId, 3, isHasunosoraMemberCard);
 }
 
+function collectPb1014FrontHighCostHeartModifier(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly LiveModifierState[] {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  const opponent = game.players.find((candidate) => candidate.id !== playerId);
+  if (!player || !opponent) {
+    return [];
+  }
+
+  const sourceSlot = MEMBER_SLOT_ORDER.find(
+    (slot) => player.memberSlots.slots[slot] === sourceCardId
+  );
+  if (!sourceSlot) {
+    return [];
+  }
+
+  const sourceCard = getCardById(game, sourceCardId);
+  const opponentSlot = toPlayerLocalSlotForControllerPerspective(sourceSlot, playerId, opponent.id);
+  const opponentCardId = opponent.memberSlots.slots[opponentSlot];
+  const opponentCard = opponentCardId ? getCardById(game, opponentCardId) : null;
+  if (
+    !sourceCard ||
+    !opponentCard ||
+    !isMemberCardData(sourceCard.data) ||
+    !isMemberCardData(opponentCard.data) ||
+    opponentCard.data.cost <= sourceCard.data.cost
+  ) {
+    return [];
+  }
+
+  const modifier = createHeartLiveModifierForMember(game, {
+    playerId,
+    memberCardId: sourceCardId,
+    sourceCardId,
+    abilityId: HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID,
+    hearts: [{ color: HeartColor.PINK, count: 1 }],
+  });
+  return modifier ? [modifier] : [];
+}
+
 function hasAtLeastDifferentNamedStageMembers(
   game: GameState,
   playerId: string,
@@ -408,10 +458,7 @@ function isMemberCard(card: NonNullable<ReturnType<typeof getCardById>>): boolea
 }
 
 function isHasunosoraMemberCard(card: NonNullable<ReturnType<typeof getCardById>>): boolean {
-  return (
-    isMemberCardData(card.data) &&
-    cardBelongsToGroup(card.data, '蓮ノ空')
-  );
+  return isMemberCardData(card.data) && cardBelongsToGroup(card.data, '蓮ノ空');
 }
 
 function normalizeContinuousMemberName(name: string): string {

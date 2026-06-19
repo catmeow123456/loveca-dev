@@ -35,6 +35,16 @@ export const HS_BP2_022_LIVE_START_SCORE_ABILITY_ID =
   'PL!HS-bp2-022-L:live-start-score-plus-if-three-cerise-live';
 export const BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID =
   'PL!-bp4-021-L:live-start-success-score-requirement-and-score';
+export const HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID =
+  'PL!HS-pb1-029-L:live-start-draw-reduce-requirement-by-extra-heart-miracra';
+export const HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!HS-bp1-023-L:live-success-higher-score-hasunosora-place-waiting-energy';
+export const HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID =
+  'PL!HS-bp2-014-N:on-enter-draw-cannot-live-until-live-end';
+export const HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID =
+  'PL!HS-pb1-003-R:on-enter-discard-miracra-members-draw-plus-one';
+export const HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID =
+  'PL!HS-pb1-003-R:auto-hand-to-waiting-gain-pink-heart-blade';
 export const HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID =
   'PL!HS-sd1-006-SD:on-enter-if-related-member-activate-energy-recover-live';
 export const HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
@@ -53,6 +63,8 @@ export const HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABI
   'PL!HS-pb1-004-R:on-enter-pay-energy-discard-mill-three-recover-cerise-live';
 export const HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID =
   'PL!HS-PR-019-PR:on-enter-mill-three-gain-green-heart-if-all-green-member';
+export const HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID =
+  'PL!HS-PR-021-PR:on-enter-mill-three-gain-pink-heart-if-all-pink-member';
 export const ELI_ACTIVATED_ABILITY_ID =
   'PL!-sd1-002-SD:activated-send-self-to-waiting-room-add-member';
 export const RIN_ACTIVATED_ABILITY_ID =
@@ -120,12 +132,22 @@ export const HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID =
   'PL!HS-pb1-009-R:auto-center-hasunosora-enter-gain-two-blade';
 export const HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID =
   'PL!HS-pb1-009-R:live-start-draw-two-discard-if-eight-blade';
+export const HS_PB1_014_ON_ENTER_MOVE_OPPONENT_FRONT_ABILITY_ID =
+  'PL!HS-pb1-014-R:on-enter-move-opponent-member-front-if-all-miracra';
+export const HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID =
+  'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart';
 export const HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID =
   'PL!HS-bp6-004-R:on-enter-wait-opponent-low-cost-member';
 export const HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID =
   'PL!HS-bp6-004-R:live-start-wait-opponent-low-cost-member';
 export const HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp6-004-R:live-start-discard-gain-blade';
+export const HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID =
+  'PL!HS-bp6-006:live-success-wait-skip-next-active';
+export const HS_BP6_003_ON_ENTER_ACTIVATE_MIRACRA_MEMBER_RECOVER_LIVE_ABILITY_ID =
+  'PL!HS-bp6-003-R:on-enter-activate-miracra-member-recover-miracra-live';
+export const HS_BP6_003_LIVE_START_DISCARD_GAIN_MIRACRA_HEART_ABILITY_ID =
+  'PL!HS-bp6-003-R:live-start-discard-gain-miracra-member-pink-heart';
 export const CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID =
   'PL!SP-bp5-003-AR:live-start-activate-liella-members-and-energy';
 export const EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID =
@@ -140,6 +162,8 @@ export const HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID =
   'PL!HS-bp5-003:auto-leave-stage-position-change-member';
 export const HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID =
   'PL!HS-bp5-003:live-start-discard-same-group-member-pink-heart';
+export const HS_BP5_006_LIVE_START_DISCARD_SAME_GROUP_CARDS_SOURCE_HEART_ABILITY_ID =
+  'PL!HS-bp5-006:live-start-discard-same-group-cards-gain-pink-heart';
 export const PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID =
   'PL!-bp3-014-N:on-enter-look-top-two-arrange-to-top';
 export const HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID =

@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CardType, OrientationState, SlotPosition } from '../../src/shared/types/enums';
 import {
+  canMemberBeRelayedAway,
   CostCalculator,
   StageMemberInfo,
   AvailableResources,
@@ -21,6 +22,7 @@ function createMockMemberData(
   cardCode: string = 'TEST-001',
   options: {
     readonly groupName?: string;
+    readonly unitName?: string;
     readonly cardText?: string;
   } = {}
 ): MemberCardData {
@@ -28,6 +30,7 @@ function createMockMemberData(
     cardCode,
     name,
     groupName: options.groupName,
+    unitName: options.unitName,
     cardText: options.cardText,
     cardType: CardType.MEMBER,
     cost,
@@ -44,6 +47,7 @@ function createStageMemberInfo(
     readonly orientation?: OrientationState;
     readonly cardCode?: string;
     readonly groupName?: string;
+    readonly unitName?: string;
     readonly cardText?: string;
     readonly effectiveCost?: number;
   } = {}
@@ -52,6 +56,7 @@ function createStageMemberInfo(
     cardId,
     data: createMockMemberData(cost, 'Stage Member', options.cardCode, {
       groupName: options.groupName,
+      unitName: options.unitName,
       cardText: options.cardText,
     }),
     effectiveCost: options.effectiveCost,
@@ -641,6 +646,116 @@ describe('CostCalculator', () => {
       expect(result).not.toContain(SlotPosition.LEFT);
       expect(result).toContain(SlotPosition.CENTER);
       expect(result).toContain(SlotPosition.RIGHT);
+    });
+  });
+
+  describe('PL!HS-bp6-006 cost reduction and relay restriction', () => {
+    it.each([
+      { miraCraCount: 0, expectedModifiedCost: 20 },
+      { miraCraCount: 1, expectedModifiedCost: 18 },
+      { miraCraCount: 2, expectedModifiedCost: 16 },
+      { miraCraCount: 3, expectedModifiedCost: 14 },
+    ])(
+      'reduces hand cost by 2 per own Mira-Cra stage member: $miraCraCount members',
+      ({ miraCraCount, expectedModifiedCost }) => {
+        const memberData = createMockMemberData(20, '安養寺 姫芽', 'PL!HS-bp6-006-SEC', {
+          unitName: 'みらくらぱーく！',
+        });
+        const stageMembers = Array.from({ length: miraCraCount }, (_, index) =>
+          createStageMemberInfo(`miracra-${index}`, 4, Object.values(SlotPosition)[index], {
+            unitName: 'みらくらぱーく！',
+          })
+        );
+        const resources: AvailableResources = {
+          activeEnergyIds: Array.from({ length: 20 }, (_, index) => `e${index}`),
+          stageMembers,
+          sourceCardId: 'hime-source',
+          handCardIds: ['hime-source'],
+        };
+
+        const info = calculator.calculateModifiedPlayCost(memberData, resources);
+
+        expect(info.modifiedCost).toBe(expectedModifiedCost);
+        expect(info.modifierAmount).toBe(20 - expectedModifiedCost);
+      }
+    );
+
+    it('applies the Mira-Cra cost reduction before relay discount for Q249', () => {
+      const memberData = createMockMemberData(20, '安養寺 姫芽', 'PL!HS-bp6-006-SEC', {
+        unitName: 'みらくらぱーく！',
+      });
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 14 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('relay-target', 4, SlotPosition.CENTER, {
+            unitName: 'みらくらぱーく！',
+          }),
+          createStageMemberInfo('miracra-left', 4, SlotPosition.LEFT, {
+            unitName: 'みらくらぱーく！',
+          }),
+          createStageMemberInfo('miracra-right', 4, SlotPosition.RIGHT, {
+            unitName: 'みらくらぱーく！',
+          }),
+        ],
+        sourceCardId: 'hime-source',
+        handCardIds: ['hime-source'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+      const relayPlan = result.availablePlans.find((plan) => plan.isRelay);
+
+      expect(result.canPay).toBe(true);
+      expect(relayPlan).toBeDefined();
+      expect(relayPlan?.modifiedCost).toBe(14);
+      expect(relayPlan?.costModifierAmount).toBe(6);
+      expect(relayPlan?.relayDiscount).toBe(4);
+      expect(relayPlan?.actualEnergyCost).toBe(10);
+    });
+
+    it('counts only own stage Mira-Cra members supplied in resources', () => {
+      const memberData = createMockMemberData(20, '安養寺 姫芽', 'PL!HS-bp6-006-P', {
+        unitName: 'みらくらぱーく！',
+      });
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 20 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('own-miracra', 4, SlotPosition.CENTER, {
+            unitName: 'みらくらぱーく！',
+          }),
+          createStageMemberInfo('own-cerise', 4, SlotPosition.LEFT, {
+            unitName: 'スリーズブーケ',
+          }),
+        ],
+      };
+
+      const info = calculator.calculateModifiedPlayCost(memberData, resources);
+
+      expect(info.modifiedCost).toBe(18);
+      expect(info.modifierAmount).toBe(2);
+    });
+
+    it('allows PL!HS-bp6-006 to be relayed away only by Mira-Cra members', () => {
+      const protectedMember = createMockMemberData(20, '安養寺 姫芽', 'PL!HS-bp6-006-R＋', {
+        unitName: 'みらくらぱーく！',
+      });
+      const miraCraIncoming = createMockMemberData(4, '大沢瑠璃乃', 'PL!HS-test-miracra', {
+        unitName: 'みらくらぱーく！',
+      });
+      const nonMiraCraIncoming = createMockMemberData(4, '日野下花帆', 'PL!HS-test-cerise', {
+        unitName: 'スリーズブーケ',
+      });
+
+      expect(canMemberBeRelayedAway(protectedMember, nonMiraCraIncoming)).toBe(false);
+      expect(canMemberBeRelayedAway(protectedMember, miraCraIncoming)).toBe(true);
+    });
+
+    it('keeps LL-bp2-001 relay prohibition unchanged', () => {
+      const protectedMember = createMockMemberData(20, 'LL member', 'LL-bp2-001-R+');
+      const incoming = createMockMemberData(4, 'Incoming', 'PL!HS-test-miracra', {
+        unitName: 'みらくらぱーく！',
+      });
+
+      expect(canMemberBeRelayedAway(protectedMember, incoming)).toBe(false);
     });
   });
 

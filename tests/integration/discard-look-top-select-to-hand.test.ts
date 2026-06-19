@@ -20,11 +20,14 @@ import type { DeckConfig } from '../../src/application/game-service';
 import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
+  HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
+  FaceState,
   GamePhase,
   HeartColor,
+  OrientationState,
   SlotPosition,
   SubPhase,
   TurnType,
@@ -129,6 +132,11 @@ describe('discard look top select to hand shared workflow', () => {
       PLAYER1,
       'p1-hs-bp1-011-source'
     );
+    const pb1003Source = createCardInstance(
+      createMemberCard('PL!HS-pb1-003-R', '大沢瑠璃乃', 15),
+      PLAYER1,
+      'p1-discard-look-pb1-003'
+    );
     const discardCard = createCardInstance(
       createMemberCard('PL!HS-test-discard', 'Discard target'),
       PLAYER1,
@@ -143,7 +151,7 @@ describe('discard look top select to hand shared workflow', () => {
       createCardInstance(createMemberCard('PL!HS-test-extra-5', 'Extra 5'), PLAYER1, 'top-5'),
     ];
 
-    let state = registerCards(session.state!, [source, discardCard, ...topCards]);
+    let state = registerCards(session.state!, [source, pb1003Source, discardCard, ...topCards]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
     const p1 = state.players[0] as unknown as {
@@ -152,10 +160,18 @@ describe('discard look top select to hand shared workflow', () => {
       waitingRoom: { cardIds: string[] };
       successZone: { cardIds: string[] };
       liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
     };
     clearPlayerZones(p1);
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+    p1.memberSlots.slots[SlotPosition.RIGHT] = pb1003Source.instanceId;
+    p1.memberSlots.cardStates = new Map([
+      [pb1003Source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
 
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -214,6 +230,16 @@ describe('discard look top select to hand shared workflow', () => {
       topCards[4]!.instanceId,
     ]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[5]!.instanceId]);
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === pb1003Source.instanceId &&
+          action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
+      )
+    ).toHaveLength(1);
   });
 
   it('lets PL!HS-bp1-009 inspect top five and reveal a Mira-Cra Park card including LIVE', () => {
@@ -1018,13 +1044,7 @@ describe('discard look top select to hand shared workflow', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame(
-      'discard-look-top-two-karin',
-      PLAYER1,
-      'Player 1',
-      PLAYER2,
-      'Player 2'
-    );
+    session.createGame('discard-look-top-two-karin', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 

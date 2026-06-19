@@ -23,6 +23,10 @@ import {
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
+import {
+  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import {
   finishRevealedLookTopSelectToHandWorkflow,
@@ -69,7 +73,9 @@ interface DiscardLookTopMetadata {
   readonly orderedResolution: boolean;
 }
 
-export function registerDiscardLookTopSelectToHandWorkflowHandlers(): void {
+export function registerDiscardLookTopSelectToHandWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   for (const abilityId of [
     GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
     BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
@@ -80,21 +86,34 @@ export function registerDiscardLookTopSelectToHandWorkflowHandlers(): void {
         continuePendingCardEffects: context.continuePendingCardEffects,
       })
     );
-    registerActiveEffectStepHandler(abilityId, DISCARD_LOOK_SELECT_DISCARD_STEP_ID, (game, input, context) =>
-      input.selectedCardId
-        ? startDiscardLookTopInspection(game, input.selectedCardId, context.continuePendingCardEffects)
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+    registerActiveEffectStepHandler(
+      abilityId,
+      DISCARD_LOOK_SELECT_DISCARD_STEP_ID,
+      (game, input, context) =>
+        input.selectedCardId
+          ? startDiscardLookTopInspection(
+              game,
+              input.selectedCardId,
+              context.continuePendingCardEffects,
+              deps.enqueueTriggeredCardEffects
+            )
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
     );
-    registerActiveEffectStepHandler(abilityId, DISCARD_LOOK_SELECT_TAKE_STEP_ID, (game, input, context) =>
-      resolveLookTopSelectToHandSelection(
-        game,
-        input.selectedCardId ?? null,
-        input.selectedCardIds,
-        context
-      )
+    registerActiveEffectStepHandler(
+      abilityId,
+      DISCARD_LOOK_SELECT_TAKE_STEP_ID,
+      (game, input, context) =>
+        resolveLookTopSelectToHandSelection(
+          game,
+          input.selectedCardId ?? null,
+          input.selectedCardIds,
+          context
+        )
     );
-    registerActiveEffectStepHandler(abilityId, DISCARD_LOOK_REVEAL_SELECTED_STEP_ID, (game, _input, context) =>
-      finishRevealedLookTopSelectToHandWorkflow(game, context)
+    registerActiveEffectStepHandler(
+      abilityId,
+      DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
+      (game, _input, context) => finishRevealedLookTopSelectToHandWorkflow(game, context)
     );
   }
 }
@@ -161,7 +180,8 @@ function startDiscardLookTopSelectToHandWorkflow(
 function startDiscardLookTopInspection(
   game: GameState,
   discardCardId: string,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (!effect || !effect.selectableCardIds?.includes(discardCardId)) {
@@ -182,9 +202,14 @@ function startDiscardLookTopInspection(
   if (!discardResult) {
     return game;
   }
+  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
+    discardResult.gameState,
+    discardResult,
+    enqueueTriggeredCardEffects
+  );
 
   return startLookTopSelectToHandWorkflow(
-    discardResult.gameState,
+    stateWithEnterWaitingRoomTriggers,
     {
       id: effect.id,
       abilityId: effect.abilityId,
@@ -245,7 +270,9 @@ function createLookTopConfig(
   };
 }
 
-function createDiscardLookTopSelector(metadata: DiscardLookTopMetadata): (card: CardInstance) => boolean {
+function createDiscardLookTopSelector(
+  metadata: DiscardLookTopMetadata
+): (card: CardInstance) => boolean {
   if (metadata.liveOnly) {
     return (card) => isLiveCardData(card.data);
   }

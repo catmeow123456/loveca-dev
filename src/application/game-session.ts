@@ -1596,8 +1596,13 @@ export class GameSession {
           }
           const minCount = state.activeEffect.minSelectableCards ?? 0;
           const maxCount =
-            state.activeEffect.maxSelectableCards ?? state.activeEffect.selectableCardIds?.length ?? 0;
-          if (command.selectedCardIds.length < minCount || command.selectedCardIds.length > maxCount) {
+            state.activeEffect.maxSelectableCards ??
+            state.activeEffect.selectableCardIds?.length ??
+            0;
+          if (
+            command.selectedCardIds.length < minCount ||
+            command.selectedCardIds.length > maxCount
+          ) {
             return '选择的卡牌数量不符合当前效果';
           }
           for (const cardId of command.selectedCardIds) {
@@ -2051,10 +2056,9 @@ export class GameSession {
     if (!result.success) {
       return { success: false, gameState: state, error: result.error };
     }
-    const stateWithMemberStateTriggers = enqueueTriggeredCardEffects(
-      result.gameState,
-      [TriggerCondition.ON_MEMBER_STATE_CHANGED]
-    );
+    const stateWithMemberStateTriggers = enqueueTriggeredCardEffects(result.gameState, [
+      TriggerCondition.ON_MEMBER_STATE_CHANGED,
+    ]);
     const abilityResult = resolvePendingCardEffects(stateWithMemberStateTriggers);
 
     return {
@@ -2305,8 +2309,7 @@ export class GameSession {
       },
       {
         resolvePendingCardEffects,
-        continuePendingCardEffects: (nextState) =>
-          resolvePendingCardEffects(nextState).gameState,
+        continuePendingCardEffects: (nextState) => resolvePendingCardEffects(nextState).gameState,
       }
     );
 
@@ -2546,8 +2549,7 @@ export class GameSession {
       {},
       {
         resolvePendingCardEffects,
-        continuePendingCardEffects: (nextState) =>
-          resolvePendingCardEffects(nextState).gameState,
+        continuePendingCardEffects: (nextState) => resolvePendingCardEffects(nextState).gameState,
       }
     );
 
@@ -2670,10 +2672,9 @@ export class GameSession {
     if (!result.success) {
       return { success: false, gameState: state, error: result.error };
     }
-    const stateWithMemberMoveTriggers = enqueueTriggeredCardEffects(
-      result.gameState,
-      [TriggerCondition.ON_MEMBER_SLOT_MOVED]
-    );
+    const stateWithMemberMoveTriggers = enqueueTriggeredCardEffects(result.gameState, [
+      TriggerCondition.ON_MEMBER_SLOT_MOVED,
+    ]);
     const abilityResult = resolvePendingCardEffects(stateWithMemberMoveTriggers);
 
     const extraPublicEvents = [
@@ -3001,7 +3002,9 @@ export class GameSession {
     if (!plan) {
       return {
         success: false,
-        error: costCheck.reason ?? `费用不足：需要 ${card.data.cost}，可用活跃能量 ${activeEnergyIds.length}`,
+        error:
+          costCheck.reason ??
+          `费用不足：需要 ${card.data.cost}，可用活跃能量 ${activeEnergyIds.length}`,
       };
     }
 

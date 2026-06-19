@@ -14,22 +14,21 @@ import { BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID } from '../../abilit
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
+  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
+import {
   getAbilityEffectText,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
-import {
-  discardOneHandCardToWaitingRoomForPlayer,
-} from '../../runtime/actions.js';
+import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import {
   payImmediateEffectCosts,
   type EffectCostDefinition,
 } from '../../../effects/effect-costs.js';
-import {
-  clearInspectionCards,
-  inspectTopCards,
-} from '../../../effects/look-top.js';
+import { clearInspectionCards, inspectTopCards } from '../../../effects/look-top.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -43,7 +42,9 @@ const BP5_003_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'BP5_003_SELECT_WAITING_ROOM_LI
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerBp5003KotoriWorkflowHandlers(): void {
+export function registerBp5003KotoriWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerActivatedAbilityHandler(
     BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
     startBp5003KotoriActivatedEffect
@@ -56,7 +57,8 @@ export function registerBp5003KotoriWorkflowHandlers(): void {
         ? startBp5003KotoriBranchAfterDiscard(
             game,
             input.selectedCardId,
-            context.continuePendingCardEffects
+            context.continuePendingCardEffects,
+            deps.enqueueTriggeredCardEffects
           )
         : game
   );
@@ -161,7 +163,8 @@ function startBp5003KotoriActivatedEffect(
 function startBp5003KotoriBranchAfterDiscard(
   game: GameState,
   discardCardId: string,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (
@@ -197,7 +200,12 @@ function startBp5003KotoriBranchAfterDiscard(
   if (!discardResult) {
     return game;
   }
-  const stateAfterCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
+  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
+    discardResult.gameState,
+    discardResult,
+    enqueueTriggeredCardEffects
+  );
+  const stateAfterCost = addAction(stateWithEnterWaitingRoomTriggers, 'PAY_COST', player.id, {
     pendingAbilityId: effect.id,
     abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId,

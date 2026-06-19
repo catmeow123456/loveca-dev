@@ -2,10 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createHeartIcon } from '../../src/domain/entities/card';
 import { emitGameEvent, type GameState } from '../../src/domain/entities/game';
-import {
-  createDrawEvent,
-  createMemberSlotMovedEvent,
-} from '../../src/domain/events/game-events';
+import { createDrawEvent, createMemberSlotMovedEvent } from '../../src/domain/events/game-events';
 import type { DeckConfig } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import {
@@ -29,6 +26,8 @@ import {
   HeartColor,
   OrientationState,
   SlotPosition,
+  TriggerCondition,
+  ZoneType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -211,6 +210,35 @@ describe('card effect runtime actions', () => {
     expect(result?.discardedCardIds).toEqual([cardIds[1], cardIds[3]]);
     expect(result?.gameState.players[0].hand.cardIds).toEqual([cardIds[0], cardIds[2]]);
     expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual([cardIds[1], cardIds[3]]);
+    expect(result?.enterWaitingRoomEvent).toMatchObject({
+      eventType: TriggerCondition.ON_ENTER_WAITING_ROOM,
+      cardInstanceId: cardIds[1],
+      cardInstanceIds: [cardIds[1], cardIds[3]],
+      fromZone: ZoneType.HAND,
+      toZone: ZoneType.WAITING_ROOM,
+      ownerId: PLAYER1,
+      controllerId: PLAYER1,
+    });
+    expect(result?.gameState.eventLog.map((entry) => entry.event)).toEqual([
+      result?.enterWaitingRoomEvent,
+    ]);
+  });
+
+  it('does not record a hand-to-waiting-room event for zero discarded cards', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 2);
+    setPlayerZones(state, 0, { handCardIds: cardIds, mainDeckCardIds: [] });
+
+    const result = discardHandCardsToWaitingRoomForPlayer(state, PLAYER1, [], {
+      count: 0,
+      candidateCardIds: cardIds,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.discardedCardIds).toEqual([]);
+    expect(result?.enterWaitingRoomEvent).toBeUndefined();
+    expect(result?.gameState).toBe(state);
+    expect(result?.gameState.eventLog).toEqual([]);
   });
 
   it('discards one hand card to waiting room with the single-card helper', () => {
@@ -224,6 +252,7 @@ describe('card effect runtime actions', () => {
 
     expect(result).not.toBeNull();
     expect(result?.discardedCardIds).toEqual([cardIds[1]]);
+    expect(result?.enterWaitingRoomEvent?.cardInstanceIds).toEqual([cardIds[1]]);
     expect(result?.gameState.players[0].hand.cardIds).toEqual([cardIds[0], cardIds[2]]);
     expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual([cardIds[1]]);
   });

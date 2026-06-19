@@ -67,7 +67,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
       return failure(game, '目标槽位上的卡牌不是成员卡');
     }
 
-    if (!canMemberBeRelayedAway(existingCard.data)) {
+    if (!canMemberBeRelayedAway(existingCard.data, card.data)) {
       return failure(game, '该成员无法因换手放置入休息室');
     }
 

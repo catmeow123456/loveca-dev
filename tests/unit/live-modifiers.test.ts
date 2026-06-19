@@ -668,6 +668,88 @@ describe('live modifier helpers', () => {
     expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
   });
 
+  it('collects PL!HS-pb1-014 continuous SOURCE_MEMBER pink Heart only when front opponent cost is higher', () => {
+    const hime = createCardInstance(
+      {
+        cardCode: 'PL!HS-pb1-014-R',
+        name: '安養寺姫芽',
+        groupName: '莲之空',
+        unitName: 'みらくらぱーく！',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'hime-pb1-014'
+    );
+    const highCostOpponent = createCardInstance(
+      {
+        cardCode: 'OPP-HIGH',
+        name: 'High Cost Opponent',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p2',
+      'opponent-high'
+    );
+    const lowCostOpponent = createCardInstance(
+      {
+        cardCode: 'OPP-LOW',
+        name: 'Low Cost Opponent',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p2',
+      'opponent-low'
+    );
+
+    let game = createGameState('hs-pb1-014-front-high-cost', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hime, highCostOpponent, lowCostOpponent]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, hime.instanceId),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.RIGHT,
+        highCostOpponent.instanceId
+      ),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      sourceCardId: hime.instanceId,
+      abilityId: 'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart',
+    });
+
+    const lowCostGame = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.RIGHT,
+        lowCostOpponent.instanceId
+      ),
+    }));
+    expect(
+      collectLiveModifiers(lowCostGame).some(
+        (modifier) =>
+          modifier.kind === 'HEART' &&
+          modifier.abilityId === 'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart'
+      )
+    ).toBe(false);
+  });
+
   it('recomputes PL!-bp5-008 continuous Heart without leaving stale modifiers', () => {
     const hanayo = createCardInstance(
       {

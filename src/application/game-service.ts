@@ -87,7 +87,6 @@ import {
   placeCardInSlot,
   removeCardFromSlot,
   untapAllEnergy,
-  untapAllMembers,
   shuffleZone,
   drawFromTop,
   getAllMemberCardIds,
@@ -141,6 +140,8 @@ import {
   getPlayerLiveScoreModifier,
 } from '../domain/rules/live-modifiers.js';
 import { revealCheerCardsFromMainDeck } from './effects/cheer.js';
+import { clearLiveProhibitionsUntilLiveEnd } from '../domain/rules/live-prohibitions.js';
+import { consumeMemberActivePhaseSkipsForPlayer } from '../domain/rules/member-active-skips.js';
 
 function isTriggerCondition(event: GameEventType | string): event is TriggerCondition {
   return Object.values(TriggerCondition).includes(event as TriggerCondition);
@@ -559,6 +560,12 @@ export class GameService {
     ) {
       state = { ...state, liveSetCompletedPlayers: [] };
     }
+    if (
+      game.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
+      transition.newPhase === GamePhase.ACTIVE_PHASE
+    ) {
+      state = clearLiveProhibitionsUntilLiveEnd(state);
+    }
 
     // 执行阶段自动处理
     for (const autoAction of transition.autoActions) {
@@ -647,9 +654,7 @@ export class GameService {
       state = this.executePendingRuleActions(state).gameState;
       const performingPlayerId =
         state.liveResolution.performingPlayerId ?? state.players[state.activePlayerIndex]?.id;
-      const performingPlayer = performingPlayerId
-        ? getPlayerById(state, performingPlayerId)
-        : null;
+      const performingPlayer = performingPlayerId ? getPlayerById(state, performingPlayerId) : null;
       const liveCardIds = performingPlayer
         ? this.getLiveCardIdsInLiveZone(state, performingPlayer.id)
         : [];
@@ -779,10 +784,7 @@ export class GameService {
     return false;
   }
 
-  private emitLiveSuccessEventForResultSubPhase(
-    state: GameState,
-    subPhase: SubPhase
-  ): GameState {
+  private emitLiveSuccessEventForResultSubPhase(state: GameState, subPhase: SubPhase): GameState {
     const playerId =
       subPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS
         ? state.players[state.firstPlayerIndex]?.id
@@ -821,12 +823,8 @@ export class GameService {
     }
 
     const score =
-      state.liveResolution.playerScores.get(playerId) ??
-      this.calculateLiveScore(state, playerId);
-    return emitGameEvent(
-      state,
-      createLiveSuccessEvent(playerId, successfulLiveCardIds, score)
-    );
+      state.liveResolution.playerScores.get(playerId) ?? this.calculateLiveScore(state, playerId);
+    return emitGameEvent(state, createLiveSuccessEvent(playerId, successfulLiveCardIds, score));
   }
 
   // ============================================
@@ -1018,25 +1016,42 @@ export class GameService {
   }
 
   private untapAllForActivePhase(game: GameState, playerId: string): GameState {
-    const player = getPlayerById(game, playerId);
+    const skipResult = consumeMemberActivePhaseSkipsForPlayer(game, playerId);
+    const skippedMemberCardIdSet = new Set(skipResult.skippedMemberCardIds);
+    const player = getPlayerById(skipResult.gameState, playerId);
     if (!player) {
-      return game;
+      return skipResult.gameState;
     }
     const waitingMembers = Object.values(SlotPosition).flatMap((slot) => {
       const cardId = player.memberSlots.slots[slot];
       const cardState = cardId ? player.memberSlots.cardStates.get(cardId) : undefined;
-      return cardId && cardState?.orientation === OrientationState.WAITING
+      return cardId &&
+        cardState?.orientation === OrientationState.WAITING &&
+        !skippedMemberCardIdSet.has(cardId)
         ? [{ cardId, slot }]
         : [];
     });
 
-    let state = updatePlayer(game, playerId, (player) =>
-      clearTurnMoveRecords({
+    let state = updatePlayer(skipResult.gameState, playerId, (player) => {
+      const memberCardStates = new Map(player.memberSlots.cardStates);
+      for (const [cardId, cardState] of memberCardStates) {
+        if (!skippedMemberCardIdSet.has(cardId)) {
+          memberCardStates.set(cardId, {
+            ...cardState,
+            orientation: OrientationState.ACTIVE,
+          });
+        }
+      }
+
+      return clearTurnMoveRecords({
         ...player,
         energyZone: untapAllEnergy(player.energyZone),
-        memberSlots: untapAllMembers(player.memberSlots),
-      })
-    );
+        memberSlots: {
+          ...player.memberSlots,
+          cardStates: memberCardStates,
+        },
+      });
+    });
     for (const member of waitingMembers) {
       state = emitGameEvent(
         state,
@@ -1098,12 +1113,7 @@ export class GameService {
       cardId,
       bladeHearts: this.getCardBladeHearts(game, cardId),
     }));
-    const performance = liveResolver.performLive(
-      playerId,
-      stageMemberCards,
-      liveCards,
-      cheerCards
-    );
+    const performance = liveResolver.performLive(playerId, stageMemberCards, liveCards, cheerCards);
 
     let stateAfterPerformance = game;
     for (let i = 0; i < performance.cheerResult.drawCount; i++) {
@@ -1860,7 +1870,7 @@ export class GameService {
       }
     }
 
-    return state;
+    return clearLiveProhibitionsUntilLiveEnd(state);
   }
 }
 

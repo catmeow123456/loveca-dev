@@ -8,14 +8,14 @@ import { OrientationState, CardType } from '../../../../shared/types/enums.js';
 import { HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID } from '../../ability-ids.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
 import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
+import {
+  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import {
-  and,
-  typeIs,
-  unitAliasIs,
-} from '../../../effects/card-selectors.js';
+import { and, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import {
   payImmediateEffectCosts,
   type EffectCostDefinition,
@@ -31,12 +31,13 @@ import { finishWaitingRoomToHandWorkflow } from '../shared/waiting-room-to-hand.
 const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
 const DECLINE_OPTION_LABEL = '不发动';
 const HS_PB1_004_SELECT_DISCARD_STEP_ID = 'HS_PB1_004_SELECT_DISCARD_FOR_MILL_RECOVER';
-const HS_PB1_004_SELECT_CERISE_LIVE_STEP_ID =
-  'HS_PB1_004_SELECT_CERISE_LIVE_FROM_WAITING_ROOM';
+const HS_PB1_004_SELECT_CERISE_LIVE_STEP_ID = 'HS_PB1_004_SELECT_CERISE_LIVE_FROM_WAITING_ROOM';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerHsPb1004GinkoWorkflowHandlers(): void {
+export function registerHsPb1004GinkoWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerPendingAbilityStarterHandler(
     HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
     (game, ability, options) =>
@@ -52,7 +53,8 @@ export function registerHsPb1004GinkoWorkflowHandlers(): void {
         ? finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
             game,
             input.selectedCardId,
-            context.continuePendingCardEffects
+            context.continuePendingCardEffects,
+            deps.enqueueTriggeredCardEffects
           )
         : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
   );
@@ -140,7 +142,8 @@ function startHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
 function finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
   game: GameState,
   discardCardId: string,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (
@@ -176,8 +179,13 @@ function finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
   if (!discardResult) {
     return game;
   }
+  const stateWithEnterWaitingRoomTriggers = enqueueEnterWaitingRoomTriggersFromDiscardResult(
+    discardResult.gameState,
+    discardResult,
+    enqueueTriggeredCardEffects
+  );
 
-  const stateAfterCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
+  const stateAfterCost = addAction(stateWithEnterWaitingRoomTriggers, 'PAY_COST', player.id, {
     pendingAbilityId: effect.id,
     abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId,
