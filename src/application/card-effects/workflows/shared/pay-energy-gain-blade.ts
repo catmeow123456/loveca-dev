@@ -10,6 +10,7 @@ import {
   HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+  S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   finishSkippedActiveEffect,
@@ -28,6 +29,7 @@ const DECLINE_OPTION_LABEL = '不发动';
 const HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_SD1_006_LIVE_START_PAY_ENERGY';
 const BP4_010_LIVE_START_PAY_ENERGY_STEP_ID = 'BP4_010_LIVE_START_PAY_ENERGY';
 const HS_PR_001_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_PR_001_LIVE_START_PAY_ENERGY';
+const S_PR_013_LIVE_START_PAY_ENERGY_STEP_ID = 'S_PR_013_LIVE_START_PAY_ENERGY';
 const HS_BP1_004_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_BP1_004_LIVE_START_PAY_ENERGY';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -59,6 +61,12 @@ const PAY_ENERGY_GAIN_BLADE_WORKFLOWS: readonly PayEnergyGainBladeWorkflowConfig
     stepId: HS_PR_001_LIVE_START_PAY_ENERGY_STEP_ID,
     energyCostCount: 2,
     bladeBonusSource: { kind: 'FIXED', amount: 1 },
+  },
+  {
+    abilityId: S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+    stepId: S_PR_013_LIVE_START_PAY_ENERGY_STEP_ID,
+    energyCostCount: 2,
+    bladeBonusSource: { kind: 'FIXED', amount: 2 },
   },
   {
     abilityId: HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,

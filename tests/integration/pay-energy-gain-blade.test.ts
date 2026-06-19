@@ -14,7 +14,10 @@ import { registerCards, type GameState } from '../../src/domain/entities/game';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
-import { HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+  S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -124,6 +127,129 @@ function advanceToLiveStartEffects(session: ReturnType<typeof createGameSession>
 }
 
 describe('pay energy gain Blade workflow', () => {
+  it('pays two active energy for PL!S-PR-013 and gives the source member Blade +2', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'pay-energy-gain-blade-s-pr-013-fixed-two',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const source = createCardInstance(
+      createMemberCard('PL!S-PR-013-PR', '高海千歌', 11),
+      PLAYER1,
+      'p1-s-pr-013-source'
+    );
+    const liveCard = createCardInstance(
+      createLiveCard('PL!S-test-live', 'Live'),
+      PLAYER1,
+      'p1-s-pr-013-live'
+    );
+    let state = registerCards(session.state!, [source, liveCard]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const energyCardIds = state.players[0].energyDeck.cardIds.slice(0, 2);
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = source.instanceId;
+    p1.memberSlots.cardStates = new Map([
+      [source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p1.liveZone.cardIds = [liveCard.instanceId];
+    p1.liveZone.cardStates = new Map([
+      [liveCard.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
+    ]);
+    setActiveEnergy(p1, energyCardIds);
+
+    advanceToLiveStartEffects(session);
+
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.stepId).toBe('S_PR_013_LIVE_START_PAY_ENERGY');
+    expect(session.state?.activeEffect?.selectableOptions).toEqual([
+      { id: 'pay', label: '支付2能量' },
+      { id: 'decline', label: '不发动' },
+    ]);
+    expect(session.state?.activeEffect?.metadata?.activeEnergyCardIds).toEqual(energyCardIds);
+    expect(session.state?.activeEffect?.metadata?.energyCostCount).toBe(2);
+    expect(session.state?.activeEffect?.metadata?.bladeBonus).toBe(2);
+
+    const payResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        'pay'
+      )
+    );
+
+    expect(payResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    for (const energyCardId of energyCardIds) {
+      expect(session.state?.players[0].energyZone.cardStates.get(energyCardId)?.orientation).toBe(
+        OrientationState.WAITING
+      );
+    }
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId: source.instanceId,
+      abilityId: S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+    });
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'PAY_COST' &&
+          action.payload.abilityId ===
+            S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === source.instanceId &&
+          action.payload.amount === 2 &&
+          Array.isArray(action.payload.energyCardIds) &&
+          action.payload.energyCardIds.length === 2
+      )
+    ).toBe(true);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === source.instanceId &&
+          action.payload.step === 'PAY_ENERGY_GAIN_BLADE' &&
+          action.payload.bladeBonus === 2 &&
+          Array.isArray(action.payload.paidEnergyCardIds) &&
+          action.payload.paidEnergyCardIds.length === 2
+      )
+    ).toBe(true);
+  });
+
   it('uses current live-zone count for HS-bp1-004 Blade bonus after paying energy', () => {
     const session = createGameSession();
     const deck = createDeck();

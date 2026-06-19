@@ -13,6 +13,7 @@ import {
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_DISCARD_ONE_ABILITY_ID,
+  MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
   HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
   HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
@@ -27,6 +28,8 @@ import {
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
+  S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+  N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
   HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
@@ -47,6 +50,7 @@ import {
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
   BP4_008_CONTINUOUS_SUCCESS_SCORE_STAGE_COST_ABILITY_ID,
   BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
+  PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID,
@@ -111,6 +115,8 @@ const LL_BP2_001_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将手牌的任意张数的「渡边 曜」与「鬼冢夏美」与「大泽瑠璃乃」放置入休息室：LIVE结束时为止，因支付此费用被放置入休息室的卡片每有1张，获得[BLADE]。';
 const HS_BP1_006_ON_ENTER_EFFECT_TEXT = '【登场】抽2张卡，将1张手牌放置入休息室。';
 const HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_EFFECT_TEXT = '【登场】抽1张卡，将1张手牌放置入休息室。';
+const MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_EFFECT_TEXT =
+  '【登场】抽2张卡，将2张手牌放置入休息室。';
 const HS_BP1_006_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：自己的舞台上存在其他的成员的场合，指定1个任意Heart的颜色。LIVE结束时为止，获得1个指定颜色的Heart。';
 const HS_BP1_004_ACTIVATED_EFFECT_TEXT =
@@ -167,6 +173,10 @@ const BP4_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[BLADE][BLADE]。';
 const HS_PR_001_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[BLADE]。';
+const S_PR_013_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[BLADE][BLADE]。';
+const N_SD1_010_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[緑ハート]。';
 const HS_BP5_008_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将此成员变为待机状态，将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以从其中将1张费用大于等于9的『莲之空』的成员卡公开并加入手牌。其余的卡片放置入休息室。';
 const HS_PB1_004_ON_ENTER_EFFECT_TEXT =
@@ -204,6 +214,8 @@ const BP4_008_CONTINUOUS_EFFECT_TEXT =
   '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于6，存在于舞台的此成员的费用＋3。';
 const BP5_008_CONTINUOUS_EFFECT_TEXT =
   '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于6，获得[黄ハート][黄ハート]。';
+const PL_BP5_013_ON_ENTER_EFFECT_TEXT =
+  '【登场】将对方舞台上1名费用小于等于4的成员变为待机状态。';
 const SP_BP2_002_ON_ENTER_EFFECT_TEXT =
   '【登场】检视自己卡组顶的3张卡。可以将1张其中的费用大于等于11的卡片公开并加入手牌。其余的卡片放置入休息室。';
 const BP6_002_ON_ENTER_EFFECT_TEXT =
@@ -485,6 +497,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'PL!-sd1-015',
       'PL!-sd1-016',
       'PL!HS-PR-001',
+      'PL!HS-PR-002',
+      'PL!HS-PR-005',
+      'PL!S-PR-013',
+      'PL!S-PR-019',
       'PL!HS-cl1-007',
       'PL!HS-pb1-011',
       'PL!N-PR-004',
@@ -621,6 +637,17 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: BP5_008_CONTINUOUS_EFFECT_TEXT,
     notes:
       '持续修正不进队列；成功 LIVE 分数合计 >=6 时由 continuous modifier registry 动态收集为 SOURCE_MEMBER 黄 Heart +2。',
+  },
+  {
+    abilityId: PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!-bp5-013'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_BP5_013_ON_ENTER_EFFECT_TEXT,
+    notes: '复用对手舞台成员目标筛选与成员方向 helper，将对方费用<=4成员变为待机状态。',
   },
   {
     abilityId: SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
@@ -956,7 +983,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
-    baseCardCodes: ['PL!HS-bp1-006'],
+    baseCardCodes: ['PL!HS-bp1-006', 'PL!N-sd1-010'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -985,6 +1012,23 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_EFFECT_TEXT,
     notes: '登场后抽1张卡并将1张手牌放置入休息室；复用 draw helper 与 discard helper。',
+  },
+  {
+    abilityId: MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+    baseCardCodes: [
+      'PL!N-PR-005',
+      'PL!N-PR-007',
+      'PL!N-PR-011',
+      'PL!N-bp3-024',
+      'PL!S-bp2-010',
+    ],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_EFFECT_TEXT,
+    notes: '登场后抽2张卡并将2张手牌放置入休息室；复用 draw-then-discard shared workflow。',
   },
   {
     abilityId: HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
@@ -1144,7 +1188,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
-    baseCardCodes: ['PL!HS-PR-001'],
+    baseCardCodes: ['PL!HS-PR-001', 'PL!HS-PR-002', 'PL!HS-PR-005'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -1152,6 +1196,28 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_PR_001_LIVE_START_EFFECT_TEXT,
     notes: 'LIVE开始时可支付2能量，通过 liveModifiers 写入 BLADE +1。',
+  },
+  {
+    abilityId: S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-PR-013', 'PL!S-PR-019'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_PR_013_LIVE_START_EFFECT_TEXT,
+    notes: 'LIVE开始时可支付2能量，通过 liveModifiers 写入 BLADE +2。',
+  },
+  {
+    abilityId: N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!N-sd1-010'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: N_SD1_010_LIVE_START_EFFECT_TEXT,
+    notes: 'LIVE开始时可支付2能量，通过 liveModifiers 写入来源成员绿色 Heart +1。',
   },
   {
     abilityId: HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,

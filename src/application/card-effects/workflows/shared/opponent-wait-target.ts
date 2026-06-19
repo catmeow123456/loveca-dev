@@ -10,6 +10,7 @@ import { CardType, OrientationState, TriggerCondition } from '../../../../shared
 import {
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+  PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
   SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
 } from '../../ability-ids.js';
 import { getNewMemberStateChangedEvents } from '../../runtime/events.js';
@@ -30,6 +31,7 @@ import {
 } from '../../../effects/stage-member-target-selection.js';
 
 const HS_BP6_004_SELECT_OPPONENT_MEMBER_STEP_ID = 'HS_BP6_004_SELECT_OPPONENT_MEMBER_TO_WAIT';
+const PL_BP5_013_SELECT_OPPONENT_MEMBER_STEP_ID = 'PL_BP5_013_SELECT_OPPONENT_MEMBER_TO_WAIT';
 const SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_STEP_ID =
   'SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_TO_WAIT';
 
@@ -53,8 +55,18 @@ interface OpponentWaitTargetWorkflowConfig {
 }
 
 const lowCostOpponentMemberSelector = and(typeIs(CardType.MEMBER), costLte(9));
+const costLteFourOpponentMemberSelector = and(typeIs(CardType.MEMBER), costLte(4));
 
 const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[] = [
+  {
+    abilityId: PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
+    effectTextAbilityId: PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
+    stepId: PL_BP5_013_SELECT_OPPONENT_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名费用小于等于4的成员变为待机状态。',
+    selectionLabel: '选择对方舞台上费用小于等于4的成员',
+    selector: costLteFourOpponentMemberSelector,
+    startActionStep: 'START_SELECT_OPPONENT_COST_LTE_FOUR_MEMBER',
+  },
   {
     abilityId: HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
     effectTextAbilityId: HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,

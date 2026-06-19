@@ -29,6 +29,12 @@ import {
 const DISCARD_LOOK_SELECT_DISCARD_STEP_ID = 'DISCARD_LOOK_SELECT_DISCARD';
 const DISCARD_LOOK_SELECT_TAKE_STEP_ID = 'DISCARD_LOOK_SELECT_TAKE';
 const DISCARD_LOOK_REVEAL_SELECTED_STEP_ID = 'DISCARD_LOOK_REVEAL_SELECTED';
+const HS_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES = [
+  'PL!HS-PR-001',
+  'PL!HS-PR-002',
+  'PL!HS-PR-005',
+] as const;
+const S_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES = ['PL!S-PR-013', 'PL!S-PR-019'] as const;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -258,7 +264,8 @@ function isDiscardLookTopSelectionRequired(cardCode: string | undefined): boolea
     'PL!-sd1-011',
     'PL!-sd1-012',
     'PL!-sd1-016',
-    'PL!HS-PR-001',
+    ...HS_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES,
+    ...S_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES,
     'PL!HS-cl1-007',
     'PL!HS-pb1-011',
     'PL!N-PR-004',
@@ -285,7 +292,11 @@ function getDiscardLookTopEffectText(cardCode: string | undefined): string {
   if (cardCodeMatchesBase(cardCode, 'PL!-sd1-015')) {
     return '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的成员卡公开并加入手牌。其余的卡片放置入休息室。';
   }
-  if (cardCodeMatchesBase(cardCode, 'PL!HS-PR-001')) {
+  if (
+    [...HS_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES, ...S_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES].some(
+      (baseCardCode) => cardCodeMatchesBase(cardCode, baseCardCode)
+    )
+  ) {
     return '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡，将1张加入手牌，其余放置入休息室。';
   }
   if (cardCodeMatchesBase(cardCode, 'PL!-bp3-010')) {

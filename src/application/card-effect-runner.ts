@@ -67,6 +67,7 @@ import { registerHsPb1009KahoWorkflowHandlers } from './card-effects/workflows/c
 import { registerHsPr019GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pr-019-ginko.js';
 import { registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers } from './card-effects/workflows/cards/keke-on-enter-place-waiting-energy.js';
 import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/maki-on-enter.js';
+import { registerNSd1010ShiorikoWorkflowHandlers } from './card-effects/workflows/cards/n-sd1-010-shioriko.js';
 import { registerKarinWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-004-karin.js';
 import { registerNozomiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/nozomi-on-enter.js';
 import { registerPb1015MakiWorkflowHandlers } from './card-effects/workflows/cards/pb1-015-maki.js';
@@ -527,6 +528,7 @@ registerNozomiOnEnterWorkflowHandlers();
 registerHsBp5003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1004GinkoWorkflowHandlers();
 registerMakiOnEnterWorkflowHandlers();
+registerNSd1010ShiorikoWorkflowHandlers();
 registerPb1015MakiWorkflowHandlers();
 registerSd1008HanayoWorkflowHandlers();
 registerEmmaWorkflowHandlers();

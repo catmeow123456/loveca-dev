@@ -12,6 +12,7 @@ import {
   BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID,
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
   BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
+  PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID,
   BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
@@ -49,6 +50,7 @@ import {
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+  MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
   HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
   HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID,
@@ -63,6 +65,8 @@ import {
   HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
+  N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
+  S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID,
   HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
@@ -105,11 +109,15 @@ const PB1_019_LIKE_MEMBER_ACTIVATION_CARD_CODES = [
 ] as const;
 
 const GENERIC_DISCARD_LOOK_TOP_CARD_CODES = [
+  'PL!HS-PR-002-PR',
+  'PL!HS-PR-005-PR',
   'PL!HS-cl1-007-CL',
   'PL!HS-pb1-011-R',
   'PL!N-PR-004-PR',
   'PL!N-PR-006-PR',
   'PL!N-PR-013-PR',
+  'PL!S-PR-013-PR',
+  'PL!S-PR-019-PR',
   'PL!N-bp1-007-R',
   'PL!N-bp1-010-R',
   'PL!N-sd1-002-SD',
@@ -135,6 +143,14 @@ const HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_CARD_CODES = [
   'PL!N-sd1-013',
   'PL!N-sd1-021',
   'PL!N-sd1-022',
+] as const;
+
+const MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_CARD_CODES = [
+  'PL!N-PR-005-PR',
+  'PL!N-PR-007-PR',
+  'PL!N-PR-011-PR',
+  'PL!N-bp3-024-N',
+  'PL!S-bp2-010-N',
 ] as const;
 
 describe('card effect classification registry', () => {
@@ -184,6 +200,19 @@ describe('card effect classification registry', () => {
         (ability) => ability.abilityId === HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID
       );
       expect(hs006Like).toMatchObject({
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    for (const cardCode of MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_CARD_CODES) {
+      const drawTwoDiscardTwo = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID
+      );
+      expect(drawTwoDiscardTwo).toMatchObject({
         category: CardAbilityCategory.ON_ENTER,
         sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
         triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -280,6 +309,79 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    for (const cardCode of ['PL!HS-PR-002-PR', 'PL!HS-PR-005-PR']) {
+      const prOnEnter = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === GENERIC_DISCARD_LOOK_TOP_ABILITY_ID
+      );
+      expect(prOnEnter).toMatchObject({
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+
+      const prLiveStart = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId === HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID
+      );
+      expect(prLiveStart).toMatchObject({
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    for (const cardCode of ['PL!S-PR-013-PR', 'PL!S-PR-019-PR']) {
+      const sPrOnEnter = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === GENERIC_DISCARD_LOOK_TOP_ABILITY_ID
+      );
+      expect(sPrOnEnter).toMatchObject({
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+
+      const sPrLiveStart = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId === S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID
+      );
+      expect(sPrLiveStart).toMatchObject({
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    const nSd1010OnEnter = getCardAbilityDefinitions('PL!N-sd1-010-SD').find(
+      (ability) => ability.abilityId === HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID
+    );
+    expect(nSd1010OnEnter).toMatchObject({
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const nSd1010LiveStart = getCardAbilityDefinitions('PL!N-sd1-010-SD').find(
+      (ability) =>
+        ability.abilityId === N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID
+    );
+    expect(nSd1010LiveStart).toMatchObject({
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
     for (const cardCode of GENERIC_DISCARD_LOOK_TOP_CARD_CODES) {
       const hs001Like = getCardAbilityDefinitions(cardCode).find(
         (ability) => ability.abilityId === GENERIC_DISCARD_LOOK_TOP_ABILITY_ID
@@ -359,6 +461,18 @@ describe('card effect classification registry', () => {
         )
       ).toBe(true);
     }
+
+    const bp5013Umi = getCardAbilityDefinitions('PL!-bp5-013-N').find(
+      (ability) =>
+        ability.abilityId === PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID
+    );
+    expect(bp5013Umi).toMatchObject({
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
 
     const spBp2Keke = getCardAbilityDefinitions('PL!SP-bp2-002-R').find(
       (ability) => ability.abilityId === SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID
