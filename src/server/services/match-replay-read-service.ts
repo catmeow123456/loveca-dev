@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+import type { AnyCardData } from '../../domain/entities/card.js';
+import type { GameState } from '../../domain/entities/game.js';
 import { projectPlayerViewState } from '../../online/projector.js';
 import type {
   MatchDecisionRecordStatus,
@@ -23,7 +26,20 @@ import type {
   ReplaySerializedPayloadEnvelope,
 } from '../../online/replay-types.js';
 import type { Seat } from '../../online/types.js';
-import { rehydrateAuthorityGameState } from './replay-payload-serialization.js';
+import {
+  GAME_STATE_SCHEMA_VERSION,
+  REPLAY_CARD_DATA_VERSION,
+  REPLAY_RECORD_SCHEMA_VERSION,
+  REPLAY_RULES_VERSION,
+} from './replay-constants.js';
+import {
+  ReplayPayloadSerializationError,
+  rehydrateAuthorityGameState,
+  stableJsonStringify,
+  toReplayJsonValue,
+} from './replay-payload-serialization.js';
+
+const REPLAY_READ_SEATS: readonly Seat[] = ['FIRST', 'SECOND'];
 
 interface MatchReplayReadQueryResult<T> {
   readonly rows: T[];
@@ -54,6 +70,10 @@ interface RecordAccessRow {
   readonly turn_count: number;
   readonly last_timeline_seq: number;
   readonly last_checkpoint_seq: number;
+  readonly record_version: number;
+  readonly rules_version: string;
+  readonly card_data_version: string;
+  readonly card_data_hash: string;
   readonly replay_capabilities: unknown;
   readonly partial_reason: string | null;
   readonly viewer_seat: Seat;
@@ -110,10 +130,19 @@ interface CheckpointRow {
   readonly turn_count: number;
   readonly phase: string;
   readonly sub_phase: string;
+  readonly schema_version: string;
   readonly payload: ReplaySerializedPayloadEnvelope;
   readonly payload_hash: string;
   readonly capabilities: unknown;
   readonly created_at: Date | string | number;
+}
+
+interface DeckSnapshotCompatibilityRow {
+  readonly seat: Seat;
+  readonly main_deck: unknown;
+  readonly energy_deck: unknown;
+  readonly card_data_version: string;
+  readonly card_data_hash: string;
 }
 
 interface PublicEventRow {
@@ -327,6 +356,7 @@ export class MatchReplayReadService {
     if (!access) {
       return null;
     }
+    validateRecordCompatibility(access);
 
     const checkpoint = await this.getAuthorityCheckpoint(matchId, checkpointSeq);
     if (!checkpoint) {
@@ -343,8 +373,11 @@ export class MatchReplayReadService {
         409
       );
     }
+    validateCheckpointCompatibility(checkpoint);
 
-    const authorityState = rehydrateAuthorityGameState(checkpoint.payload);
+    const authorityState = rehydrateAuthorityCheckpoint(checkpoint);
+    validateCheckpointMatchesAuthorityState(matchId, checkpoint, authorityState);
+    await this.validateCardDataCompatibility(matchId, access, authorityState);
     const playerViewState = projectPlayerViewState(authorityState, access.viewer_player_id, {
       seq: checkpoint.related_public_seq ?? 0,
     });
@@ -359,7 +392,7 @@ export class MatchReplayReadService {
     return {
       matchId,
       viewerSeat: access.viewer_seat,
-      timelineCursor: {
+      replayPosition: {
         timelineSeq: checkpoint.timeline_seq,
         checkpointSeq: checkpoint.checkpoint_seq,
       },
@@ -421,6 +454,7 @@ export class MatchReplayReadService {
         turn_count,
         phase,
         sub_phase,
+        schema_version,
         payload,
         payload_hash,
         capabilities,
@@ -435,6 +469,27 @@ export class MatchReplayReadService {
     );
 
     return result.rows[0] ?? null;
+  }
+
+  private async validateCardDataCompatibility(
+    matchId: string,
+    access: RecordAccessRow,
+    authorityState: GameState
+  ): Promise<void> {
+    const snapshots = await this.queryClient.query<DeckSnapshotCompatibilityRow>(
+      `SELECT
+        seat,
+        main_deck,
+        energy_deck,
+        card_data_version,
+        card_data_hash
+      FROM match_deck_snapshots
+      WHERE match_id = $1
+      ORDER BY seat`,
+      [matchId]
+    );
+
+    validateDeckSnapshotsCompatibility(access, snapshots.rows, authorityState);
   }
 
   private async getTimelineFrame(
@@ -592,6 +647,10 @@ function recordAccessSelectSql(): string {
     record.turn_count,
     record.last_timeline_seq,
     record.last_checkpoint_seq,
+    record.record_version,
+    record.rules_version,
+    record.card_data_version,
+    record.card_data_hash,
     record.replay_capabilities,
     record.partial_reason,
     viewer.seat AS viewer_seat,
@@ -605,6 +664,169 @@ function recordAccessSelectSql(): string {
   LEFT JOIN match_participants opponent
     ON opponent.match_id = record.match_id
     AND opponent.user_id <> viewer.user_id`;
+}
+
+function validateRecordCompatibility(access: RecordAccessRow): void {
+  if (access.record_version !== REPLAY_RECORD_SCHEMA_VERSION) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_SCHEMA_UNSUPPORTED',
+      '历史对局记录版本不兼容',
+      409
+    );
+  }
+  if (access.rules_version !== REPLAY_RULES_VERSION) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_RULES_UNSUPPORTED',
+      '历史对局规则版本不兼容',
+      409
+    );
+  }
+  if (access.card_data_version !== REPLAY_CARD_DATA_VERSION) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_CARD_DATA_UNSUPPORTED',
+      '历史对局卡牌数据版本不兼容',
+      409
+    );
+  }
+}
+
+function validateCheckpointCompatibility(checkpoint: CheckpointRow): void {
+  if (
+    checkpoint.schema_version !== GAME_STATE_SCHEMA_VERSION ||
+    checkpoint.payload.sourceSchemaVersion !== GAME_STATE_SCHEMA_VERSION
+  ) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_CHECKPOINT_UNSUPPORTED',
+      '历史对局权威状态版本不兼容',
+      409
+    );
+  }
+}
+
+function rehydrateAuthorityCheckpoint(checkpoint: CheckpointRow): GameState {
+  try {
+    return rehydrateAuthorityGameState(checkpoint.payload);
+  } catch (error) {
+    if (error instanceof ReplayPayloadSerializationError) {
+      const isIntegrityError =
+        error.message.includes('hash') || error.message.includes('byte length');
+      throw new MatchReplayReadServiceError(
+        isIntegrityError
+          ? 'MATCH_RECORD_CHECKPOINT_CORRUPTED'
+          : 'MATCH_RECORD_CHECKPOINT_UNSUPPORTED',
+        isIntegrityError ? '历史对局检查点内容损坏' : '历史对局检查点序列化格式不兼容',
+        409
+      );
+    }
+    throw error;
+  }
+}
+
+function validateCheckpointMatchesAuthorityState(
+  matchId: string,
+  checkpoint: CheckpointRow,
+  authorityState: GameState
+): void {
+  if (
+    authorityState.gameId !== matchId ||
+    checkpoint.turn_count !== authorityState.turnCount ||
+    checkpoint.phase !== String(authorityState.currentPhase) ||
+    checkpoint.sub_phase !== String(authorityState.currentSubPhase)
+  ) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_CHECKPOINT_MISMATCH',
+      '历史对局检查点与权威状态不一致',
+      409
+    );
+  }
+}
+
+function validateDeckSnapshotsCompatibility(
+  access: RecordAccessRow,
+  rows: readonly DeckSnapshotCompatibilityRow[],
+  authorityState: GameState
+): void {
+  const snapshotsBySeat = new Map(rows.map((row) => [row.seat, row] as const));
+  for (const seat of REPLAY_READ_SEATS) {
+    const snapshot = snapshotsBySeat.get(seat);
+    if (!snapshot) {
+      throw new MatchReplayReadServiceError(
+        'MATCH_RECORD_CARD_DATA_HASH_MISMATCH',
+        '历史对局卡组快照不完整',
+        409
+      );
+    }
+    if (snapshot.card_data_version !== access.card_data_version) {
+      throw new MatchReplayReadServiceError(
+        'MATCH_RECORD_CARD_DATA_UNSUPPORTED',
+        '历史对局卡组快照卡牌数据版本不一致',
+        409
+      );
+    }
+    if (snapshot.card_data_hash !== access.card_data_hash) {
+      throw new MatchReplayReadServiceError(
+        'MATCH_RECORD_CARD_DATA_HASH_MISMATCH',
+        '历史对局卡组快照卡牌数据 hash 不一致',
+        409
+      );
+    }
+  }
+
+  const expectedHash = hashJsonValue(buildRecordCardDataHashInput(snapshotsBySeat, authorityState));
+  if (expectedHash !== access.card_data_hash) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_CARD_DATA_HASH_MISMATCH',
+      '历史对局卡牌数据 hash 校验失败',
+      409
+    );
+  }
+}
+
+function buildRecordCardDataHashInput(
+  snapshotsBySeat: ReadonlyMap<Seat, DeckSnapshotCompatibilityRow>,
+  authorityState: GameState
+): readonly unknown[] {
+  const cardDataByCode = new Map<string, AnyCardData>();
+  for (const card of authorityState.cardRegistry.values()) {
+    if (!cardDataByCode.has(card.data.cardCode)) {
+      cardDataByCode.set(card.data.cardCode, card.data as AnyCardData);
+    }
+  }
+
+  return REPLAY_READ_SEATS.flatMap((seat) => {
+    const snapshot = snapshotsBySeat.get(seat);
+    if (!snapshot) {
+      throw new MatchReplayReadServiceError(
+        'MATCH_RECORD_CARD_DATA_HASH_MISMATCH',
+        '历史对局卡组快照不完整',
+        409
+      );
+    }
+
+    return [
+      ...readJsonArray<string>(snapshot.main_deck),
+      ...readJsonArray<string>(snapshot.energy_deck),
+    ].map((cardCode) => {
+      const cardData = cardDataByCode.get(cardCode);
+      if (!cardData) {
+        throw new MatchReplayReadServiceError(
+          'MATCH_RECORD_CARD_DATA_HASH_MISMATCH',
+          `历史对局卡组快照引用了不存在的卡牌: ${cardCode}`,
+          409
+        );
+      }
+
+      return {
+        seat,
+        cardCode,
+        data: toReplayJsonValue(cardData),
+      };
+    });
+  });
+}
+
+function hashJsonValue(value: unknown): string {
+  return `sha256:${createHash('sha256').update(stableJsonStringify(value)).digest('hex')}`;
 }
 
 function mapRecordSummaryRow(row: RecordAccessRow): MatchRecordSummaryView {
@@ -634,8 +856,8 @@ function mapTimelineRow(row: TimelineRow, viewerSeat: Seat): MatchRecordTimeline
   return {
     timelineSeq: row.timeline_seq,
     frameType: row.frame_type,
-    visibilityScope: row.visibility_scope as MatchRecordTimelineEntryView['visibilityScope'],
-    summary: row.summary,
+    visibilityScope: getTimelineVisibilityScopeForViewer(row),
+    summary: getTimelineSummaryForViewer(row),
     createdAt: dateToMs(row.created_at),
     relatedCheckpointSeq: row.related_checkpoint_seq,
     relatedPublicSeq: row.related_public_seq,
@@ -647,6 +869,22 @@ function mapTimelineRow(row: TimelineRow, viewerSeat: Seat): MatchRecordTimeline
     phase: row.phase,
     subPhase: row.sub_phase,
   };
+}
+
+function getTimelineVisibilityScopeForViewer(
+  row: TimelineRow
+): MatchRecordTimelineEntryView['visibilityScope'] {
+  return isAdminCheckpointTimelineRow(row)
+    ? 'SYSTEM'
+    : (row.visibility_scope as MatchRecordTimelineEntryView['visibilityScope']);
+}
+
+function getTimelineSummaryForViewer(row: TimelineRow): string {
+  return isAdminCheckpointTimelineRow(row) ? '历史检查点' : row.summary;
+}
+
+function isAdminCheckpointTimelineRow(row: TimelineRow): boolean {
+  return row.visibility_scope === 'ADMIN' && row.related_checkpoint_seq !== null;
 }
 
 function filterTimelineRowsForViewer(

@@ -164,7 +164,7 @@ onlineRouter.get('/match-records/:matchId/replay', requireAuth, async (req, res)
     const replay = await matchReplayReadService.getMatchRecordReplay(
       readPathParam(req.params.matchId),
       req.user!.id,
-      readOptionalSeq(req.query?.cursor)
+      readReplayCheckpointSeqQuery(req.query)
     );
     if (!replay) {
       respondMatchRecordNotFound(res);
@@ -470,6 +470,15 @@ function readOptionalSeq(value: unknown): number | undefined {
 
   const seq = Number(raw);
   return Number.isSafeInteger(seq) && seq >= 0 ? seq : undefined;
+}
+
+function readReplayCheckpointSeqQuery(query: unknown): number | undefined {
+  if (!query || typeof query !== 'object') {
+    return undefined;
+  }
+
+  const params = query as { readonly checkpointSeq?: unknown; readonly cursor?: unknown };
+  return readOptionalSeq(params.checkpointSeq) ?? readOptionalSeq(params.cursor);
 }
 
 function readRequiredSeq(value: unknown): number | null {

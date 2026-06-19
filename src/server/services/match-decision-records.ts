@@ -59,6 +59,7 @@ export function buildMatchDecisionRecordsForCommand(
         effect: beforeEffect,
         command: input.command,
         submittedCommandSeq: input.submittedCommandSeq ?? null,
+        occurrenceKey: buildCommandOccurrenceKey(input.command, input.submittedCommandSeq),
         resultSummary: summarizeActiveEffectTransition(beforeEffect, afterEffect),
         getSeatForPlayer: input.getSeatForPlayer,
       })
@@ -70,6 +71,7 @@ export function buildMatchDecisionRecordsForCommand(
       matchId: input.matchId,
       beforeState: input.beforeState,
       afterState: input.afterState,
+      transitionOccurrenceKey: buildCommandOccurrenceKey(input.command, input.submittedCommandSeq),
       getSeatForPlayer: input.getSeatForPlayer,
     })
   );
@@ -81,6 +83,7 @@ export function buildMatchDecisionRecordsForStateTransition(input: {
   readonly matchId: string;
   readonly beforeState: GameState | null;
   readonly afterState: GameState | null;
+  readonly transitionOccurrenceKey?: string | null;
   readonly getSeatForPlayer: (playerId: string | null | undefined) => Seat | null;
 }): readonly MatchDecisionRecordInput[] {
   const beforeEffect = input.beforeState?.activeEffect ?? null;
@@ -98,6 +101,7 @@ export function buildMatchDecisionRecordsForStateTransition(input: {
       matchId: input.matchId,
       state: input.afterState,
       effect: afterEffect,
+      occurrenceKey: input.transitionOccurrenceKey ?? buildStateTransitionOccurrenceKey(input.afterState),
       getSeatForPlayer: input.getSeatForPlayer,
     }),
   ];
@@ -107,12 +111,13 @@ function buildActiveEffectOpenedRecord(input: {
   readonly matchId: string;
   readonly state: GameState;
   readonly effect: ActiveEffectState;
+  readonly occurrenceKey: string;
   readonly getSeatForPlayer: (playerId: string | null | undefined) => Seat | null;
 }): MatchDecisionRecordInput {
   const base = summarizeActiveEffect(input.state, input.effect, input.getSeatForPlayer);
   return {
     ...base,
-    decisionId: buildDecisionId(input.matchId, 'opened', input.effect),
+    decisionId: buildDecisionId(input.matchId, 'opened', input.effect, input.occurrenceKey),
     decisionType: 'ACTIVE_EFFECT_OPENED',
     status: 'OPENED',
     transitionSemantics: 'STRUCTURED',
@@ -125,6 +130,7 @@ function buildActiveEffectSubmittedRecord(input: {
   readonly effect: ActiveEffectState;
   readonly command: ConfirmEffectStepCommand;
   readonly submittedCommandSeq: number | null;
+  readonly occurrenceKey: string;
   readonly resultSummary: string;
   readonly getSeatForPlayer: (playerId: string | null | undefined) => Seat | null;
 }): MatchDecisionRecordInput {
@@ -141,7 +147,7 @@ function buildActiveEffectSubmittedRecord(input: {
 
   return {
     ...base,
-    decisionId: buildDecisionId(input.matchId, 'submitted', input.effect),
+    decisionId: buildDecisionId(input.matchId, 'submitted', input.effect, input.occurrenceKey),
     decisionType: 'ACTIVE_EFFECT_SUBMITTED',
     status: 'SUBMITTED',
     submittedCommandSeq: input.submittedCommandSeq,
@@ -157,6 +163,7 @@ function buildPendingAbilityOrderSubmittedRecord(input: {
   readonly effect: ActiveEffectState;
   readonly command: ConfirmEffectStepCommand;
   readonly submittedCommandSeq: number | null;
+  readonly occurrenceKey: string;
   readonly resultSummary: string;
   readonly getSeatForPlayer: (playerId: string | null | undefined) => Seat | null;
 }): MatchDecisionRecordInput {
@@ -172,7 +179,7 @@ function buildPendingAbilityOrderSubmittedRecord(input: {
 
   return {
     ...sourceSummary,
-    decisionId: buildDecisionId(input.matchId, 'submitted', input.effect),
+    decisionId: buildDecisionId(input.matchId, 'submitted', input.effect, input.occurrenceKey),
     decisionSchemaVersion: 1,
     decisionType: 'PENDING_ABILITY_ORDER_SUBMITTED',
     status: 'SUBMITTED',
@@ -681,7 +688,8 @@ function isSameActiveEffectDecisionStep(
 function buildDecisionId(
   matchId: string,
   status: 'opened' | 'submitted',
-  effect: ActiveEffectState
+  effect: ActiveEffectState,
+  occurrenceKey: string
 ): string {
   return [
     'decision',
@@ -691,9 +699,31 @@ function buildDecisionId(
     effect.abilityId,
     effect.stepId,
     effect.awaitingPlayerId ?? 'none',
+    occurrenceKey,
   ]
     .map((part) => encodeURIComponent(part))
     .join(':');
+}
+
+function buildCommandOccurrenceKey(
+  command: GameCommand,
+  submittedCommandSeq: number | null | undefined
+): string {
+  if (submittedCommandSeq !== null && submittedCommandSeq !== undefined) {
+    return `cmd-seq-${submittedCommandSeq}`;
+  }
+  return `cmd-ts-${command.timestamp}`;
+}
+
+function buildStateTransitionOccurrenceKey(state: GameState): string {
+  return [
+    'state',
+    `action-${state.actionSequence}`,
+    `event-${state.eventSequence}`,
+    `turn-${state.turnCount}`,
+    String(state.currentPhase),
+    String(state.currentSubPhase),
+  ].join('-');
 }
 
 function buildCommandDecisionId(

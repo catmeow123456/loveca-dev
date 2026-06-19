@@ -115,6 +115,7 @@ export class OnlineMatchService {
   > | null;
   private readonly sealedMatchIds = new Set<string>();
   private readonly partialRecordMatchIds = new Set<string>();
+  private serviceRejectedAttemptSeq = 0;
 
   constructor(deps: OnlineMatchServiceDeps = {}) {
     this.now = deps.now ?? (() => Date.now());
@@ -369,6 +370,9 @@ export class OnlineMatchService {
         summary: '服务层拒绝阶段推进：当前不是该玩家的推进时机',
         force: true,
         writeAuthorityCheckpoint: false,
+        dedupeKey: `service-rejected:advance-phase:${participant.seat}:${
+          ++this.serviceRejectedAttemptSeq
+        }`,
       });
       return {
         success: false,
@@ -563,6 +567,7 @@ export class OnlineMatchService {
       readonly force?: boolean;
       readonly writeAuthorityCheckpoint?: boolean;
       readonly decisionRecords?: readonly MatchDecisionRecordInput[];
+      readonly dedupeKey?: string;
     } = {}
   ): Promise<boolean> {
     if (!this.recorder || this.sealedMatchIds.has(match.matchId)) {
@@ -638,6 +643,7 @@ export class OnlineMatchService {
           SECOND: secondPrivateEvents,
         },
         decisionRecords: options.decisionRecords,
+        dedupeKey: options.dedupeKey,
         createdAt: this.now(),
       });
       return true;

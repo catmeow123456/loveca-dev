@@ -198,10 +198,13 @@ export async function fetchMatchRecordTimeline(matchId: string): Promise<MatchRe
 
 export async function fetchMatchRecordReplay(
   matchId: string,
-  cursor?: number
+  options: { readonly checkpointSeq?: number } = {}
 ): Promise<MatchRecordReplayView> {
+  const { checkpointSeq } = options;
   const search =
-    cursor !== undefined && Number.isSafeInteger(cursor) && cursor > 0 ? `?cursor=${cursor}` : '';
+    checkpointSeq !== undefined && Number.isSafeInteger(checkpointSeq) && checkpointSeq > 0
+      ? `?checkpointSeq=${checkpointSeq}`
+      : '';
   const response = await apiClient.get<MatchRecordReplayView>(
     `/api/online/match-records/${encodeURIComponent(matchId)}/replay${search}`
   );

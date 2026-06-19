@@ -392,17 +392,25 @@ describe('OnlineRoomService', () => {
       : 'u1';
 
     now += 1_000;
-    const result = await matchService.advancePhase(match.matchId, nonActiveUserId);
+    const firstResult = await matchService.advancePhase(match.matchId, nonActiveUserId);
+    now += 1_000;
+    const secondResult = await matchService.advancePhase(match.matchId, nonActiveUserId);
 
-    expect(result?.success).toBe(false);
-    expect(recorder.appendMatchRecordFrame).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(firstResult?.success).toBe(false);
+    expect(secondResult?.success).toBe(false);
+    const appendCalls = vi.mocked(recorder.appendMatchRecordFrame).mock.calls.map(([input]) => input);
+    expect(appendCalls).toHaveLength(2);
+    appendCalls.forEach((input) => {
+      expect(input).toMatchObject({
         matchId: match.matchId,
         frameType: 'COMMAND_REJECTED',
         summary: '服务层拒绝阶段推进：当前不是该玩家的推进时机',
         writeAuthorityCheckpoint: false,
-      })
-    );
+      });
+    });
+    expect(appendCalls[0]?.dedupeKey).toMatch(/^service-rejected:advance-phase:/);
+    expect(appendCalls[1]?.dedupeKey).toMatch(/^service-rejected:advance-phase:/);
+    expect(appendCalls[1]?.dedupeKey).not.toBe(appendCalls[0]?.dedupeKey);
   });
 
   it('对局房间销毁前应先封存运行中 match 为 INTERRUPTED/PARTIAL', async () => {

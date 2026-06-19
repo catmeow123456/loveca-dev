@@ -12,7 +12,10 @@ import {
 import type { CardInstance, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { CardType, HeartColor, SlotPosition } from '../../src/shared/types/enums';
-import { buildMatchDecisionRecordsForCommand } from '../../src/server/services/match-decision-records';
+import {
+  buildMatchDecisionRecordsForCommand,
+  buildMatchDecisionRecordsForStateTransition,
+} from '../../src/server/services/match-decision-records';
 
 function createMember(cardCode: string, name: string): MemberCardData {
   return {
@@ -366,6 +369,78 @@ describe('match decision records P2', () => {
       stepId: 'confirm-reveal',
       stepText: '公开所选卡牌',
     });
+  });
+
+  it('同一 activeEffect step 重复发生时，decisionId 使用发生序列避免去重吞记录', () => {
+    const effect = createEffect();
+    const getSeatForPlayer = (playerId: string | null | undefined) =>
+      playerId === 'p1' ? 'FIRST' : null;
+
+    const firstSubmitted = buildMatchDecisionRecordsForCommand({
+      matchId: 'match-decision-1',
+      beforeState: createState(effect),
+      afterState: createState(effect),
+      command: {
+        type: GameCommandType.CONFIRM_EFFECT_STEP,
+        playerId: 'p1',
+        effectId: effect.id,
+        selectedCardId: 'candidate-card',
+        timestamp: 9_000,
+      },
+      commandSucceeded: true,
+      submittedCommandSeq: 21,
+      getSeatForPlayer,
+    });
+    const secondSubmitted = buildMatchDecisionRecordsForCommand({
+      matchId: 'match-decision-1',
+      beforeState: createState(effect),
+      afterState: createState(effect),
+      command: {
+        type: GameCommandType.CONFIRM_EFFECT_STEP,
+        playerId: 'p1',
+        effectId: effect.id,
+        selectedCardId: 'candidate-card',
+        timestamp: 9_100,
+      },
+      commandSucceeded: true,
+      submittedCommandSeq: 22,
+      getSeatForPlayer,
+    });
+
+    expect(firstSubmitted).toHaveLength(1);
+    expect(secondSubmitted).toHaveLength(1);
+    expect(firstSubmitted[0]?.decisionId).not.toBe(secondSubmitted[0]?.decisionId);
+    expect(firstSubmitted[0]?.decisionId).toContain('cmd-seq-21');
+    expect(secondSubmitted[0]?.decisionId).toContain('cmd-seq-22');
+
+    const firstOpenedState = {
+      ...createState(effect),
+      actionSequence: 30,
+      eventSequence: 40,
+    };
+    const secondOpenedState = {
+      ...createState(effect),
+      actionSequence: 31,
+      eventSequence: 41,
+    };
+    const firstOpened = buildMatchDecisionRecordsForStateTransition({
+      matchId: 'match-decision-1',
+      beforeState: createState(null),
+      afterState: firstOpenedState,
+      getSeatForPlayer,
+    });
+    const secondOpened = buildMatchDecisionRecordsForStateTransition({
+      matchId: 'match-decision-1',
+      beforeState: createState(null),
+      afterState: secondOpenedState,
+      getSeatForPlayer,
+    });
+
+    expect(firstOpened).toHaveLength(1);
+    expect(secondOpened).toHaveLength(1);
+    expect(firstOpened[0]?.decisionId).not.toBe(secondOpened[0]?.decisionId);
+    expect(firstOpened[0]?.decisionId).toContain('state-action-30-event-40');
+    expect(secondOpened[0]?.decisionId).toContain('state-action-31-event-41');
   });
 
   it('记录同一时点待处理能力顺序选择的候选来源与选中能力', () => {

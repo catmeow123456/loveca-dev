@@ -23,7 +23,7 @@ Phase 2 目标是在已有历史记录读取能力基础上，把普通历史页
 - `GET /api/online/match-records/:matchId/replay` 已返回 `MatchRecordReplayView`。
 - `MatchRecordReplayView.playerViewState` 与实时桌面 store 使用的 `PlayerViewState` 是同一类型。
 - 服务端 `match-replay-read-service` 会从 authority checkpoint 复水，再调用 `projectPlayerViewState(authorityState, viewerPlayerId, ...)` 生成玩家视角投影。
-- 普通 replay 响应已经包含 `timelineCursor`、`checkpointInfo`、`visibleEvents`、`visiblePrivateEvents`、`visibleDecisions` 和 `playerViewState`，但不返回 authority payload、sealed audit 或对手私密事件。
+- 普通 replay 响应已经包含 `replayPosition`、`checkpointInfo`、`visibleEvents`、`visiblePrivateEvents`、`visibleDecisions` 和 `playerViewState`，但不返回 authority payload、sealed audit 或对手私密事件。
 - `MatchRecordsPage` 已能读取列表、详情、timeline 和指定 checkpoint 的 replay，并维护当前 `replay` 状态。
 - `GameBoard` / `PlayerArea` 的主要展示查询都读 `gameStore.playerViewState`，理论上可以直接展示 replay checkpoint。
 
@@ -329,7 +329,7 @@ const isReadOnly = useGameStore((s) => s.getBattleSurfaceCapabilities().isReadOn
 历史页加载 checkpoint：
 
 ```ts
-const nextReplay = await fetchMatchRecordReplay(matchId, checkpointSeq);
+const nextReplay = await fetchMatchRecordReplay(matchId, { checkpointSeq });
 setReplay(nextReplay);
 await enterReadonlyReplay(nextReplay);
 ```
@@ -338,7 +338,7 @@ await enterReadonlyReplay(nextReplay);
 
 ```ts
 const requestId = ++latestReplayRequestRef.current;
-const nextReplay = await fetchMatchRecordReplay(matchId, checkpointSeq);
+const nextReplay = await fetchMatchRecordReplay(matchId, { checkpointSeq });
 if (requestId !== latestReplayRequestRef.current) return;
 setReplay(nextReplay);
 await enterReadonlyReplay(nextReplay);

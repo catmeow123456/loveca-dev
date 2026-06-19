@@ -31,6 +31,15 @@ interface QueryCall {
   readonly values: readonly unknown[];
 }
 
+interface ExistingTimelineFrameFixture {
+  readonly dedupeKey: string;
+  readonly row: {
+    readonly timeline_seq: number;
+    readonly related_checkpoint_seq: number | null;
+    readonly payload_hash: string | null;
+  };
+}
+
 function createTestMemberCard(cardCode: string, name: string): MemberCardData {
   return {
     cardCode,
@@ -148,7 +157,10 @@ function createBeginInput(): BeginMatchRecordInput {
   };
 }
 
-function createRecorderHarness(cursorOverrides: Partial<Record<string, unknown>> = {}) {
+function createRecorderHarness(
+  cursorOverrides: Partial<Record<string, unknown>> = {},
+  options: { readonly existingTimelineFrame?: ExistingTimelineFrameFixture } = {}
+) {
   const calls: QueryCall[] = [];
   let generatedDeckSnapshotId = 0;
   const cursorRow = {
@@ -179,6 +191,16 @@ function createRecorderHarness(cursorOverrides: Partial<Record<string, unknown>>
       }
       if (text.includes('FROM match_records') && text.includes('FOR UPDATE')) {
         return { rows: [cursorRow] as T[] };
+      }
+      if (text.includes('FROM match_timeline_entries frame')) {
+        if (
+          options.existingTimelineFrame &&
+          values[0] === cursorRow.match_id &&
+          values[1] === options.existingTimelineFrame.dedupeKey
+        ) {
+          return { rows: [options.existingTimelineFrame.row] as T[] };
+        }
+        return { rows: [] as T[] };
       }
       if (text.includes('FROM match_records') && !text.includes('FOR UPDATE')) {
         return { rows: [cursorRow] as T[] };
@@ -494,6 +516,129 @@ describe('MatchRecorderService P0a', () => {
       5,
       authorityState!.turnCount,
     ]);
+  });
+
+  it('appendMatchRecordFrame 命中 dedupeKey 时返回既有 timeline，不重复写入', async () => {
+    const { service, calls } = createRecorderHarness(
+      {},
+      {
+        existingTimelineFrame: {
+          dedupeKey: 'retry-command-2',
+          row: {
+            timeline_seq: 6,
+            related_checkpoint_seq: 3,
+            payload_hash: 'sha256:existing-checkpoint',
+          },
+        },
+      }
+    );
+    const session = createGameSession();
+    session.createGame('match-recorder-1', 'p1', 'Alpha', 'p2', 'Beta');
+    const initialized = session.initializeGame(createRuntimeDeck('A'), createRuntimeDeck('B'));
+    expect(initialized.success).toBe(true);
+
+    const result = await service.appendMatchRecordFrame({
+      matchId: 'match-recorder-1',
+      frameType: 'COMMAND_ACCEPTED',
+      authorityState: session.getAuthoritySnapshotForRecord(),
+      relatedCommandSeq: 2,
+      dedupeKey: 'retry-command-2',
+      createdAt: 4_000,
+    });
+
+    expect(result).toEqual({
+      matchId: 'match-recorder-1',
+      timelineSeq: 6,
+      checkpointSeq: 3,
+      payloadHash: 'sha256:existing-checkpoint',
+    });
+    expect(calls.some((call) => call.text.includes('INSERT INTO match_timeline_entries'))).toBe(
+      false
+    );
+    expect(calls.some((call) => call.text.includes('INSERT INTO match_checkpoints'))).toBe(false);
+    expect(
+      calls.some((call) => call.text.includes('last_private_seq_by_seat = jsonb_build_object'))
+    ).toBe(false);
+  });
+
+  it('appendMatchRecordFrame 默认 dedupeKey 使用稳定事实序号支持重试幂等', async () => {
+    const { service, calls } = createRecorderHarness(
+      {},
+      {
+        existingTimelineFrame: {
+          dedupeKey: 'SYSTEM_TRANSITION:public:6',
+          row: {
+            timeline_seq: 9,
+            related_checkpoint_seq: 5,
+            payload_hash: 'sha256:existing-system-transition',
+          },
+        },
+      }
+    );
+    const session = createGameSession();
+    session.createGame('match-recorder-1', 'p1', 'Alpha', 'p2', 'Beta');
+    const initialized = session.initializeGame(createRuntimeDeck('A'), createRuntimeDeck('B'));
+    expect(initialized.success).toBe(true);
+
+    const result = await service.appendMatchRecordFrame({
+      matchId: 'match-recorder-1',
+      frameType: 'SYSTEM_TRANSITION',
+      authorityState: session.getAuthoritySnapshotForRecord(),
+      relatedPublicSeq: 6,
+      createdAt: 4_000,
+    });
+
+    expect(result).toEqual({
+      matchId: 'match-recorder-1',
+      timelineSeq: 9,
+      checkpointSeq: 5,
+      payloadHash: 'sha256:existing-system-transition',
+    });
+    const dedupeLookup = calls.find((call) =>
+      call.text.includes('FROM match_timeline_entries frame')
+    );
+    expect(dedupeLookup?.values).toEqual(['match-recorder-1', 'SYSTEM_TRANSITION:public:6']);
+    expect(calls.some((call) => call.text.includes('INSERT INTO match_timeline_entries'))).toBe(
+      false
+    );
+  });
+
+  it('appendMatchRecordFrame 默认 dedupeKey 在 game event 与 public seq 同时存在时优先 game event', async () => {
+    const { service, calls } = createRecorderHarness(
+      {},
+      {
+        existingTimelineFrame: {
+          dedupeKey: 'SYSTEM_TRANSITION:game-event:5',
+          row: {
+            timeline_seq: 10,
+            related_checkpoint_seq: 6,
+            payload_hash: 'sha256:existing-game-event',
+          },
+        },
+      }
+    );
+
+    const result = await service.appendMatchRecordFrame({
+      matchId: 'match-recorder-1',
+      frameType: 'SYSTEM_TRANSITION',
+      relatedPublicSeq: 6,
+      relatedGameEventSeq: 5,
+      createdAt: 4_000,
+    });
+
+    expect(result).toEqual({
+      matchId: 'match-recorder-1',
+      timelineSeq: 10,
+      checkpointSeq: 6,
+      payloadHash: 'sha256:existing-game-event',
+    });
+    const dedupeLookup = calls.find((call) =>
+      call.text.includes('FROM match_timeline_entries frame')
+    );
+    expect(dedupeLookup?.values).toEqual(['match-recorder-1', 'SYSTEM_TRANSITION:game-event:5']);
+    expect(calls.some((call) => call.text.includes('INSERT INTO match_timeline_entries'))).toBe(
+      false
+    );
   });
 
   it('appendMatchRecordFrame 为拒绝命令只追加 timeline，不写 checkpoint', async () => {

@@ -88,7 +88,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
         const [nextDetail, nextTimeline, nextReplay] = await Promise.all([
           fetchMatchRecordDetail(matchId),
           fetchMatchRecordTimeline(matchId),
-          fetchMatchRecordReplay(matchId, checkpointSeq),
+          fetchMatchRecordReplay(matchId, { checkpointSeq }),
         ]);
         if (requestId !== latestReplayRequestRef.current) {
           return;
@@ -170,7 +170,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     };
   }, [replayBoardOpen]);
 
-  const checkpointSeq = replay?.timelineCursor.checkpointSeq ?? null;
+  const checkpointSeq = replay?.replayPosition.checkpointSeq ?? null;
   const visibleZones = useMemo(
     () => (replay ? summarizeZones(replay.playerViewState.table.zones) : []),
     [replay]
@@ -368,7 +368,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
             <PanelTitle
               icon={<Eye size={16} />}
               title="回放节点"
-              detail={replay ? `checkpoint ${replay.timelineCursor.checkpointSeq}` : '未载入'}
+              detail={replay ? `checkpoint ${replay.replayPosition.checkpointSeq}` : '未载入'}
             />
 
             {isLoadingNode && !replay ? (
@@ -419,8 +419,8 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
             <div className="min-w-0">
               <div className="truncate text-sm font-bold">历史桌面回放</div>
               <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
-                <span>checkpoint {replay.timelineCursor.checkpointSeq}</span>
-                <span>timeline {replay.timelineCursor.timelineSeq}</span>
+                <span>checkpoint {replay.replayPosition.checkpointSeq}</span>
+                <span>timeline {replay.replayPosition.timelineSeq}</span>
                 <span>{replay.recordCompleteness}</span>
               </div>
             </div>

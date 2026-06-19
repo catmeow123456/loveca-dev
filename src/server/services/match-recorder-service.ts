@@ -253,6 +253,18 @@ interface CursorRow {
   readonly last_game_event_seq: number;
 }
 
+interface ExistingTimelineFrameRow {
+  readonly timeline_seq: number;
+  readonly related_checkpoint_seq: number | null;
+  readonly payload_hash: string | null;
+}
+
+interface ExistingTimelineFrame {
+  readonly timelineSeq: number;
+  readonly checkpointSeq: number | null;
+  readonly payloadHash: string | null;
+}
+
 export class MatchRecorderServiceError extends Error {
   readonly code: string;
 
@@ -479,11 +491,6 @@ export class MatchRecorderService {
     return this.transaction(async (client) => {
       const cursor = await lockRecordCursor(client, input.matchId);
       const timelineSeq = cursor.lastTimelineSeq + 1;
-      const shouldWriteCheckpoint =
-        !!input.authorityState &&
-        input.frameType !== 'COMMAND_REJECTED' &&
-        input.writeAuthorityCheckpoint !== false;
-      const checkpointSeq = shouldWriteCheckpoint ? cursor.lastCheckpointSeq + 1 : null;
       const createdAt = input.createdAt ?? this.now();
       const relatedPublicSeq = nullableSeq(input.relatedPublicSeq);
       const relatedPrivateSeq = nullableSeq(input.relatedPrivateSeq);
@@ -495,6 +502,28 @@ export class MatchRecorderService {
         cursor.lastPrivateSeqBySeat,
         input.latestPrivateSeqBySeat
       );
+      const dedupeKey =
+        input.dedupeKey ??
+        buildTransitionDedupeKey(input.frameType, {
+          timelineSeq,
+          relatedPublicSeq,
+          relatedCommandSeq,
+          relatedGameEventSeq,
+        });
+      const existingFrame = await findTimelineFrameByDedupeKey(client, input.matchId, dedupeKey);
+      if (existingFrame) {
+        return {
+          matchId: input.matchId,
+          timelineSeq: existingFrame.timelineSeq,
+          checkpointSeq: existingFrame.checkpointSeq,
+          payloadHash: existingFrame.payloadHash,
+        };
+      }
+      const shouldWriteCheckpoint =
+        !!input.authorityState &&
+        input.frameType !== 'COMMAND_REJECTED' &&
+        input.writeAuthorityCheckpoint !== false;
+      const checkpointSeq = shouldWriteCheckpoint ? cursor.lastCheckpointSeq + 1 : null;
 
       await insertTimelineFrame(client, {
         matchId: input.matchId,
@@ -509,14 +538,7 @@ export class MatchRecorderService {
         relatedCommandSeq,
         relatedGameEventSeq,
         relatedDecisionId: decisionRecords.length === 1 ? decisionRecords[0].decisionId : null,
-        dedupeKey:
-          input.dedupeKey ??
-          buildTransitionDedupeKey(input.frameType, {
-            timelineSeq,
-            relatedPublicSeq,
-            relatedCommandSeq,
-            relatedGameEventSeq,
-          }),
+        dedupeKey,
         turnCount: input.authorityState?.turnCount ?? cursor.turnCount,
         phase: input.authorityState ? String(input.authorityState.currentPhase) : 'UNKNOWN',
         subPhase: input.authorityState ? String(input.authorityState.currentSubPhase) : 'UNKNOWN',
@@ -818,6 +840,36 @@ function mapCursorRow(row: CursorRow): MatchRecordCursor {
     lastAuditSeq: row.last_audit_seq,
     lastCommandSeq: row.last_command_seq,
     lastGameEventSeq: row.last_game_event_seq,
+  };
+}
+
+async function findTimelineFrameByDedupeKey(
+  client: MatchRecorderQueryClient,
+  matchId: string,
+  dedupeKey: string
+): Promise<ExistingTimelineFrame | null> {
+  const result = await client.query<ExistingTimelineFrameRow>(
+    `SELECT
+      frame.timeline_seq,
+      frame.related_checkpoint_seq,
+      checkpoint.payload_hash
+    FROM match_timeline_entries frame
+    LEFT JOIN match_checkpoints checkpoint
+      ON checkpoint.match_id = frame.match_id
+      AND checkpoint.timeline_seq = frame.timeline_seq
+    WHERE frame.match_id = $1
+      AND frame.dedupe_key = $2
+    LIMIT 1`,
+    [matchId, dedupeKey]
+  );
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+  return {
+    timelineSeq: row.timeline_seq,
+    checkpointSeq: row.related_checkpoint_seq,
+    payloadHash: row.payload_hash,
   };
 }
 
@@ -1257,11 +1309,11 @@ function buildTransitionDedupeKey(
   if (input.relatedCommandSeq) {
     return `${frameType}:command:${input.relatedCommandSeq}`;
   }
-  if (input.relatedPublicSeq) {
-    return `${frameType}:public:${input.relatedPublicSeq}:timeline:${input.timelineSeq}`;
-  }
   if (input.relatedGameEventSeq) {
-    return `${frameType}:game-event:${input.relatedGameEventSeq}:timeline:${input.timelineSeq}`;
+    return `${frameType}:game-event:${input.relatedGameEventSeq}`;
+  }
+  if (input.relatedPublicSeq) {
+    return `${frameType}:public:${input.relatedPublicSeq}`;
   }
   return `${frameType}:timeline:${input.timelineSeq}`;
 }

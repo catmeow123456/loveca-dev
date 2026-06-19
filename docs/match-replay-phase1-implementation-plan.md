@@ -370,7 +370,7 @@ P1 在每次命令或系统推进后追加：
 
 - `GET /api/online/match-records`：当前用户参与的历史对局列表。
 - `GET /api/online/match-records/:matchId`：对局详情、参与者、卡组摘要、结果和能力标记。
-- `GET /api/online/match-records/:matchId/replay?cursor=...`：按当前用户参与视角读取指定节点。
+- `GET /api/online/match-records/:matchId/replay?checkpointSeq=...`：按当前用户参与视角读取指定 checkpoint 节点。迁移期可兼容旧 `cursor` 查询参数，但新代码应使用 `checkpointSeq`，避免和 timeline 翻页游标混淆。
 - `GET /api/online/match-records/:matchId/timeline`：当前用户可见的时间线摘要。
 - `GET /api/online/admin/match-records/:matchId/audit`：高权限审计读取，后续再开放。
 
@@ -379,7 +379,7 @@ P1 在每次命令或系统推进后追加：
 普通玩家 replay 响应应接近：
 
 - `playerViewState`
-- `timelineCursor`
+- `replayPosition`
 - `timelineSummary`
 - `recordFrame`
 - `visibleEvents`
@@ -574,10 +574,9 @@ pnpm --dir client exec tsc -b
 
 ## 11. 后续开发顺序建议
 
-截至 2026-06-18，E0-P1 已落地，P2 已推进到 active effect、部分玩家命令和待处理能力顺序选择记录。后续不再重复 E0/P0/P1 施工清单，按以下顺序收束：
+截至 2026-06-18，E0-P1 已落地，P2 已推进到 active effect、部分玩家命令和待处理能力顺序选择记录。2026-06-19 已修复 active effect 决策记录的发生序列区分，并让 recorder 的默认 timeline `dedupeKey` 优先使用 command/game-event/public 稳定事实序号；命中相同 key 时会直接返回既有 frame，避免重试写入被唯一约束标记为 partial。后续不再重复 E0/P0/P1 施工清单，按以下顺序收束：
 
-1. 修复 P2 decisionId 对同一 active effect step 多次提交的去重问题，避免重复步骤被 `ON CONFLICT` 静默吞掉。
-2. 补 P2d 自由拖拽、手动处理原因和更多规则外调试命令的结构化 decision record。
-3. 补完整随机记录与 seed / shuffle / reveal 事实边界，再评估是否进入确定性重演。
-4. 增强只读回放 UI：节点范围事件、decision 详情、partial/incomplete 提示和更清晰的玩家视角导航。
-5. 最后做 P3 UI、审计增强、公开分享或自动复盘等非第一阶段能力。
+1. 补 P2d 自由拖拽、手动处理原因和更多规则外调试命令的结构化 decision record。
+2. 补完整随机记录与 seed / shuffle / reveal 事实边界，再评估是否进入确定性重演。
+3. 增强只读回放 UI：节点范围事件、decision 详情、partial/incomplete 提示和更清晰的玩家视角导航。
+4. 最后做 P3 UI、审计增强、公开分享或自动复盘等非第一阶段能力。

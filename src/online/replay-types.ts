@@ -435,13 +435,15 @@ export interface MatchRecordCheckpointInfo {
   readonly capabilities: readonly ReplayCapability[];
 }
 
+export interface MatchRecordReplayPosition {
+  readonly timelineSeq: number;
+  readonly checkpointSeq: number;
+}
+
 export interface MatchRecordReplayView {
   readonly matchId: string;
   readonly viewerSeat: Seat;
-  readonly timelineCursor: {
-    readonly timelineSeq: number;
-    readonly checkpointSeq: number;
-  };
+  readonly replayPosition: MatchRecordReplayPosition;
   readonly timelineSummary: MatchRecordTimelineEntryView | null;
   readonly recordFrame: MatchRecordTimelineEntryView | null;
   readonly visibleEvents: readonly MatchRecordVisibleEventView[];

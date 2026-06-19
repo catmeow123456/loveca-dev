@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
@@ -14,8 +15,18 @@ import {
   MatchReplayReadService,
   type MatchReplayReadQueryClient,
 } from '../../src/server/services/match-replay-read-service';
-import { GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants';
-import { serializeReplayPayload } from '../../src/server/services/replay-payload-serialization';
+import type { ReplaySerializedPayloadEnvelope } from '../../src/online/replay-types';
+import {
+  GAME_STATE_SCHEMA_VERSION,
+  REPLAY_CARD_DATA_VERSION,
+  REPLAY_RECORD_SCHEMA_VERSION,
+  REPLAY_RULES_VERSION,
+} from '../../src/server/services/replay-constants';
+import {
+  serializeReplayPayload,
+  stableJsonStringify,
+  toReplayJsonValue,
+} from '../../src/server/services/replay-payload-serialization';
 
 vi.mock('../../src/server/db/pool.js', () => ({
   pool: {
@@ -68,18 +79,31 @@ function createRuntimeDeck(prefix: string): DeckConfig {
   return { mainDeck, energyDeck };
 }
 
-function createHarness() {
+interface CreateHarnessOptions {
+  readonly accessOverrides?: Readonly<Record<string, unknown>>;
+  readonly checkpointOverrides?: Readonly<Record<string, unknown>>;
+  readonly mutatePayload?: (
+    payload: ReplaySerializedPayloadEnvelope
+  ) => ReplaySerializedPayloadEnvelope;
+  readonly deckSnapshotOverrides?: Partial<
+    Readonly<Record<'FIRST' | 'SECOND', Readonly<Record<string, unknown>>>>
+  >;
+}
+
+function createHarness(options: CreateHarnessOptions = {}) {
   const session = createGameSession();
   session.createGame('match-read-1', 'p1', 'Alpha', 'p2', 'Beta');
-  const initialized = session.initializeGame(createRuntimeDeck('A'), createRuntimeDeck('B'));
+  const firstDeck = createRuntimeDeck('A');
+  const secondDeck = createRuntimeDeck('B');
+  const initialized = session.initializeGame(firstDeck, secondDeck);
   expect(initialized.success).toBe(true);
   const authorityState = session.getAuthoritySnapshotForRecord();
   expect(authorityState).not.toBeNull();
-  const payload = serializeReplayPayload(
-    authorityState!,
-    'AUTHORITY_GAME_STATE',
-    GAME_STATE_SCHEMA_VERSION
-  );
+  const cardDataHash = createCardDataHash({ FIRST: firstDeck, SECOND: secondDeck });
+  const payload =
+    options.mutatePayload?.(
+      serializeReplayPayload(authorityState!, 'AUTHORITY_GAME_STATE', GAME_STATE_SCHEMA_VERSION)
+    ) ?? serializeReplayPayload(authorityState!, 'AUTHORITY_GAME_STATE', GAME_STATE_SCHEMA_VERSION);
   const initialTimelineRow = {
     timeline_seq: 1,
     frame_type: 'MATCH_INITIALIZED',
@@ -254,6 +278,10 @@ function createHarness() {
     turn_count: authorityState!.turnCount,
     last_timeline_seq: 2,
     last_checkpoint_seq: 1,
+    record_version: REPLAY_RECORD_SCHEMA_VERSION,
+    rules_version: REPLAY_RULES_VERSION,
+    card_data_version: REPLAY_CARD_DATA_VERSION,
+    card_data_hash: cardDataHash,
     replay_capabilities: ['AUTHORITY_CHECKPOINT'],
     partial_reason: 'command_accepted append failed: database stack',
     viewer_seat: 'FIRST',
@@ -261,6 +289,52 @@ function createHarness() {
     opponent_seat: 'SECOND',
     opponent_user_id: 'u2',
     opponent_display_name: 'Beta',
+    ...options.accessOverrides,
+  };
+  const deckSnapshotRows = [
+    {
+      seat: 'FIRST',
+      source_deck_id: 'deck-a',
+      source_deck_name: 'Alpha Deck',
+      source: 'ONLINE_RUNTIME_DECK',
+      main_deck: firstDeck.mainDeck.map((card) => card.cardCode),
+      energy_deck: firstDeck.energyDeck.map((card) => card.cardCode),
+      validation_state: 'RUNTIME_ACCEPTED',
+      card_data_version: REPLAY_CARD_DATA_VERSION,
+      card_data_hash: cardDataHash,
+      locked_at: new Date(900),
+      ...options.deckSnapshotOverrides?.FIRST,
+    },
+    {
+      seat: 'SECOND',
+      source_deck_id: 'deck-b',
+      source_deck_name: 'Beta Deck',
+      source: 'ONLINE_RUNTIME_DECK',
+      main_deck: secondDeck.mainDeck.map((card) => card.cardCode),
+      energy_deck: secondDeck.energyDeck.map((card) => card.cardCode),
+      validation_state: 'RUNTIME_ACCEPTED',
+      card_data_version: REPLAY_CARD_DATA_VERSION,
+      card_data_hash: cardDataHash,
+      locked_at: new Date(900),
+      ...options.deckSnapshotOverrides?.SECOND,
+    },
+  ];
+  const checkpointRow = {
+    checkpoint_seq: 1,
+    timeline_seq: 2,
+    checkpoint_type: 'AUTHORITY',
+    related_public_seq: 3,
+    related_command_seq: 1,
+    related_game_event_seq: 4,
+    turn_count: authorityState!.turnCount,
+    phase: String(authorityState!.currentPhase),
+    sub_phase: String(authorityState!.currentSubPhase),
+    schema_version: GAME_STATE_SCHEMA_VERSION,
+    payload,
+    payload_hash: payload.payloadHash,
+    capabilities: ['AUTHORITY_CHECKPOINT'],
+    created_at: new Date(2_000),
+    ...options.checkpointOverrides,
   };
 
   const client: MatchReplayReadQueryClient = {
@@ -280,41 +354,12 @@ function createHarness() {
       }
       if (text.includes('FROM match_deck_snapshots')) {
         return {
-          rows: [
-            {
-              seat: 'FIRST',
-              source_deck_id: 'deck-a',
-              source_deck_name: 'Alpha Deck',
-              source: 'ONLINE_RUNTIME_DECK',
-              main_deck: ['A-MEM-1', 'A-LIVE-1'],
-              energy_deck: ['A-ENE-1'],
-              validation_state: 'RUNTIME_ACCEPTED',
-              card_data_version: 'ONLINE_RUNTIME_CARD_DATA_SNAPSHOT',
-              card_data_hash: 'sha256:cards',
-              locked_at: new Date(900),
-            },
-          ] as T[],
+          rows: deckSnapshotRows as T[],
         };
       }
       if (text.includes('FROM match_checkpoints')) {
         return {
-          rows: [
-            {
-              checkpoint_seq: 1,
-              timeline_seq: 2,
-              checkpoint_type: 'AUTHORITY',
-              related_public_seq: 3,
-              related_command_seq: 1,
-              related_game_event_seq: 4,
-              turn_count: authorityState!.turnCount,
-              phase: String(authorityState!.currentPhase),
-              sub_phase: String(authorityState!.currentSubPhase),
-              payload,
-              payload_hash: payload.payloadHash,
-              capabilities: ['AUTHORITY_CHECKPOINT'],
-              created_at: new Date(2_000),
-            },
-          ] as T[],
+          rows: [checkpointRow] as T[],
         };
       }
       if (text.includes('FROM match_record_public_events')) {
@@ -349,6 +394,17 @@ function createHarness() {
   };
 }
 
+function createCardDataHash(decks: Readonly<Record<'FIRST' | 'SECOND', DeckConfig>>): string {
+  const input = (['FIRST', 'SECOND'] as const).flatMap((seat) =>
+    [...decks[seat].mainDeck, ...decks[seat].energyDeck].map((card) => ({
+      seat,
+      cardCode: card.cardCode,
+      data: toReplayJsonValue(card),
+    }))
+  );
+  return `sha256:${createHash('sha256').update(stableJsonStringify(input)).digest('hex')}`;
+}
+
 describe('MatchReplayReadService P1b', () => {
   it('列出当前用户历史对局，并只返回脱敏的不完整原因摘要', async () => {
     const { service } = createHarness();
@@ -372,6 +428,7 @@ describe('MatchReplayReadService P1b', () => {
     const replay = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
 
     expect(replay?.viewerSeat).toBe('FIRST');
+    expect(replay?.replayPosition).toEqual({ timelineSeq: 2, checkpointSeq: 1 });
     expect(replay?.checkpointInfo.checkpointSeq).toBe(1);
     expect(replay?.playerViewState.match.viewerSeat).toBe('FIRST');
     expect(
@@ -379,6 +436,9 @@ describe('MatchReplayReadService P1b', () => {
     ).toBeUndefined();
     expect(JSON.stringify(replay)).not.toContain('payloadEnvelope');
     expect(JSON.stringify(replay)).not.toContain('AUTHORITY_GAME_STATE');
+    expect(
+      (replay as unknown as { readonly timelineCursor?: unknown } | null)?.timelineCursor
+    ).toBeUndefined();
   });
 
   it('普通 timeline 与 replay 事件模型只暴露当前玩家可见事实', async () => {
@@ -388,10 +448,17 @@ describe('MatchReplayReadService P1b', () => {
     const replay = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
 
     expect(timeline?.timelineSummary.map((entry) => entry.timelineSeq)).toEqual([1, 2]);
+    expect(timeline?.timelineSummary[0]).toMatchObject({
+      timelineSeq: 1,
+      visibilityScope: 'SYSTEM',
+      summary: '历史检查点',
+      relatedCheckpointSeq: 1,
+    });
     expect(timeline?.timelineSummary[1]).toMatchObject({
       relatedPrivateSeq: 2,
       relatedPrivateSeqForViewer: 2,
     });
+    expect(JSON.stringify(timeline)).not.toContain('初始化权威检查点');
     expect(JSON.stringify(timeline)).not.toContain('对手私有事件批次');
     expect(replay?.visibleEvents).toEqual([
       expect.objectContaining({
@@ -440,5 +507,46 @@ describe('MatchReplayReadService P1b', () => {
     const { service } = createHarness();
 
     await expect(service.getMatchRecordDetail('match-read-1', 'u3')).resolves.toBeNull();
+  });
+
+  it('规则版本不兼容时拒绝读取回放节点', async () => {
+    const { service } = createHarness({
+      accessOverrides: { rules_version: 'LOVECABATTLE_RULES_V0' },
+    });
+
+    await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
+      code: 'MATCH_RECORD_RULES_UNSUPPORTED',
+      statusCode: 409,
+    });
+  });
+
+  it('权威状态 schema 不兼容时拒绝复水投影', async () => {
+    const { service } = createHarness({
+      mutatePayload: (payload) => ({
+        ...payload,
+        sourceSchemaVersion: 'GAME_STATE_V0',
+      }),
+    });
+
+    await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
+      code: 'MATCH_RECORD_CHECKPOINT_UNSUPPORTED',
+      statusCode: 409,
+    });
+  });
+
+  it('卡组快照无法重算为记录中的 cardDataHash 时拒绝读取', async () => {
+    const badHash = 'sha256:bad';
+    const { service } = createHarness({
+      accessOverrides: { card_data_hash: badHash },
+      deckSnapshotOverrides: {
+        FIRST: { card_data_hash: badHash },
+        SECOND: { card_data_hash: badHash },
+      },
+    });
+
+    await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
+      code: 'MATCH_RECORD_CARD_DATA_HASH_MISMATCH',
+      statusCode: 409,
+    });
   });
 });
