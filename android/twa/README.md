@@ -92,7 +92,7 @@ This writes `assets/.well-known/assetlinks.json`, which Vite publishes at `/.wel
 The current local test APK uses this SHA-256 certificate fingerprint:
 
 ```text
-E9:4F:11:F9:C4:FD:A3:52:83:4A:E6:A0:88:05:4C:51:9B:AB:29:4C:E7:5F:D3:D7:41:8F:51:B7:11:35:EC:77
+4B:E1:D5:DC:97:96:50:6A:D1:46:05:29:AF:2E:BA:B9:B6:62:49:12:90:88:B4:0A:0C:F8:11:B7:30:AE:33:5E
 ```
 
 Regenerate `assetlinks.json` when replacing the local test key with the final release or upload signing key.

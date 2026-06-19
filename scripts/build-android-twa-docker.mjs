@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -15,6 +16,11 @@ const proxyUrl =
   '';
 const gradleCacheVolume =
   process.env.ANDROID_TWA_GRADLE_CACHE_VOLUME || 'loveca-android-gradle-cache';
+const twaManifest = JSON.parse(
+  readFileSync(path.join(projectDir, 'twa-manifest.json'), 'utf8')
+);
+const appVersionName = String(twaManifest.appVersionName || twaManifest.appVersion || '').trim();
+const appVersionCode = String(twaManifest.appVersionCode || '').trim();
 
 function fail(message) {
   console.error(message);
@@ -42,6 +48,14 @@ if (!keystorePassword) {
 
 if (!keyPassword) {
   fail('BUBBLEWRAP_KEY_PASSWORD is required.');
+}
+
+if (!appVersionName) {
+  fail('twa-manifest.json appVersionName is required.');
+}
+
+if (!appVersionCode) {
+  fail('twa-manifest.json appVersionCode is required.');
 }
 
 function getProxyOptions(urlText) {
@@ -83,7 +97,8 @@ function getProxyOptions(urlText) {
 const buildFlags = skipPwaValidation ? ' --skipPwaValidation' : '';
 const shellCommand = [
   'yes | /root/.bubblewrap/android_sdk/tools/bin/sdkmanager --sdk_root=/root/.bubblewrap/android_sdk --licenses >/tmp/android-sdk-licenses.log',
-  `printf 'y\\n' | bubblewrap build${buildFlags}`,
+  'bubblewrap update --skipVersionUpgrade',
+  `bubblewrap build${buildFlags}`,
 ].join(' && ');
 const proxyOptions = getProxyOptions(proxyUrl);
 const dockerArgs = [

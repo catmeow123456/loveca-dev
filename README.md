@@ -6,6 +6,10 @@
 
 Love Live 卡牌游戏的开源实现，包含游戏引擎、自托管 API 服务器和 Web 客户端。
 
+## 公网服务
+
+当前可直接访问公网游戏服务：[loveca.lovelivefun.xyz](https://loveca.lovelivefun.xyz/)。
+
 ## 项目结构
 
 - `src/application`、`src/domain`、`src/shared`：共享对局引擎、规则、阶段配置与领域模型
