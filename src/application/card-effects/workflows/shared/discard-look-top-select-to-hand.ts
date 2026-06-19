@@ -1,4 +1,8 @@
-import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
+import {
+  isLiveCardData,
+  isMemberCardData,
+  type CardInstance,
+} from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
@@ -11,6 +15,7 @@ import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
 } from '../../ability-ids.js';
+import { unitAliasIs } from '../../../effects/card-selectors.js';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
   finishSkippedActiveEffect,
@@ -35,6 +40,22 @@ const HS_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES = [
   'PL!HS-PR-005',
 ] as const;
 const S_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES = ['PL!S-PR-013', 'PL!S-PR-019'] as const;
+const N_PB1_DISCARD_LOOK_TOP_TWO_BASE_CARD_CODES = ['PL!N-pb1-028', 'PL!N-pb1-035'] as const;
+const DISCARD_LOOK_TOP_FIVE_MEMBER_BASE_CARD_CODES = ['PL!-sd1-015', 'PL!HS-bp2-010'] as const;
+const DISCARD_LOOK_TOP_FOUR_MEMBER_BASE_CARD_CODES = ['PL!S-bp3-004'] as const;
+const DISCARD_LOOK_TOP_FIVE_LIVE_BASE_CARD_CODES = [
+  'PL!-bp3-010',
+  'PL!HS-bp1-011',
+  'PL!HS-bp6-022',
+] as const;
+const DISCARD_LOOK_TOP_UNIT_CARD_CONFIGS = [
+  { baseCardCode: 'PL!HS-bp1-009', unitAlias: 'みらくらぱーく！', topCount: 5 },
+  { baseCardCode: 'PL!HS-pb1-018', unitAlias: 'DOLLCHESTRA', topCount: 5 },
+  { baseCardCode: 'PL!SP-pb1-015', unitAlias: 'CatChu!', topCount: 5 },
+  { baseCardCode: 'PL!SP-pb1-016', unitAlias: 'KALEIDOSCORE', topCount: 5 },
+  { baseCardCode: 'PL!SP-pb1-017', unitAlias: '5yncri5e!', topCount: 5 },
+  { baseCardCode: 'PL!-pb1-016', unitAlias: 'lilywhite', topCount: 4 },
+] as const;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -42,6 +63,7 @@ interface DiscardLookTopMetadata {
   readonly topCount: number;
   readonly memberOnly: boolean;
   readonly liveOnly: boolean;
+  readonly unitAlias?: string;
   readonly selectionRequired: boolean;
   readonly revealSelectedBeforeHand: boolean;
   readonly orderedResolution: boolean;
@@ -94,14 +116,17 @@ function startDiscardLookTopSelectToHandWorkflow(
   const selectableCardIds = player.hand.cardIds.filter((cardId) => cardId !== ability.sourceCardId);
   const cardCode = sourceCard.data.cardCode;
   const selectableCardType = getDiscardLookTopSelectableCardType(cardCode);
+  const unitAlias = getDiscardLookTopUnitAlias(cardCode);
   const metadata: DiscardLookTopMetadata = {
     topCount: getDiscardLookTopCount(cardCode),
     memberOnly: selectableCardType === 'MEMBER',
     liveOnly: selectableCardType === 'LIVE',
+    unitAlias,
     selectionRequired: isDiscardLookTopSelectionRequired(cardCode),
     revealSelectedBeforeHand:
-      cardCodeMatchesBase(cardCode, 'PL!-sd1-015') ||
-      cardCodeMatchesBase(cardCode, 'PL!-bp3-010'),
+      isDiscardLookTopMemberCard(cardCode) ||
+      isDiscardLookTopFiveLiveCard(cardCode) ||
+      unitAlias !== undefined,
     orderedResolution: options.orderedResolution,
   };
 
@@ -184,37 +209,53 @@ function createLookTopConfig(
   return {
     effectText,
     topCount: metadata.topCount,
-    selector: metadata.liveOnly
-      ? (card) => isLiveCardData(card.data)
-      : metadata.memberOnly
-        ? (card) => isMemberCardData(card.data)
-        : () => true,
+    selector: createDiscardLookTopSelector(metadata),
     countRule: { minCount: 0, maxCount: 1 },
     selectionRequiredWhenHasTargets: metadata.selectionRequired,
     revealSelectedBeforeHand:
-      metadata.revealSelectedBeforeHand && (metadata.memberOnly || metadata.liveOnly),
+      metadata.revealSelectedBeforeHand &&
+      (metadata.memberOnly || metadata.liveOnly || metadata.unitAlias !== undefined),
     selectStepId: DISCARD_LOOK_SELECT_TAKE_STEP_ID,
     revealStepId: DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
     selectStepText: metadata.liveOnly
       ? '请选择其中1张LIVE卡加入手牌，其余放置入休息室。'
       : metadata.memberOnly
         ? '请选择其中1张成员卡加入手牌，其余放置入休息室。'
-        : '请选择其中1张卡加入手牌，其余放置入休息室。',
+        : metadata.unitAlias
+          ? `请选择其中1张${metadata.unitAlias}的卡加入手牌，其余放置入休息室。`
+          : '请选择其中1张卡加入手牌，其余放置入休息室。',
     noTargetStepText: metadata.liveOnly
       ? '没有可加入手牌的LIVE卡。确认后其余卡片放置入休息室。'
       : metadata.memberOnly
         ? '没有可加入手牌的成员卡。确认后其余卡片放置入休息室。'
-        : '没有可加入手牌的卡片。确认后其余卡片放置入休息室。',
+        : metadata.unitAlias
+          ? `没有可加入手牌的${metadata.unitAlias}的卡。确认后其余卡片放置入休息室。`
+          : '没有可加入手牌的卡片。确认后其余卡片放置入休息室。',
     selectionLabel: metadata.selectionRequired
       ? '请选择要加入手牌的卡牌'
       : metadata.liveOnly
         ? '请选择要加入手牌的LIVE卡'
-        : '请选择要加入手牌的成员卡',
+        : metadata.memberOnly
+          ? '请选择要加入手牌的成员卡'
+          : '请选择要加入手牌的卡牌',
     confirmSelectionLabel: '加入手牌',
     skipSelectionLabel: '不加入',
     revealStepText: effectText,
     revealActionStep: 'REVEAL_SELECTED',
   };
+}
+
+function createDiscardLookTopSelector(metadata: DiscardLookTopMetadata): (card: CardInstance) => boolean {
+  if (metadata.liveOnly) {
+    return (card) => isLiveCardData(card.data);
+  }
+  if (metadata.memberOnly) {
+    return (card) => isMemberCardData(card.data);
+  }
+  if (metadata.unitAlias) {
+    return unitAliasIs(metadata.unitAlias);
+  }
+  return () => true;
 }
 
 function getDiscardLookTopMetadata(
@@ -228,6 +269,7 @@ function getDiscardLookTopMetadata(
     topCount,
     memberOnly: metadata?.memberOnly === true,
     liveOnly: metadata?.liveOnly === true,
+    unitAlias: typeof metadata?.unitAlias === 'string' ? metadata.unitAlias : undefined,
     selectionRequired: metadata?.selectionRequired === true,
     revealSelectedBeforeHand: metadata?.revealSelectedBeforeHand === true,
     orderedResolution: metadata?.orderedResolution === true,
@@ -235,11 +277,26 @@ function getDiscardLookTopMetadata(
 }
 
 function getDiscardLookTopCount(cardCode: string | undefined): number {
-  if (cardCode && cardCodeMatchesBase(cardCode, 'PL!-sd1-015')) {
+  if (
+    cardCode &&
+    N_PB1_DISCARD_LOOK_TOP_TWO_BASE_CARD_CODES.some((baseCardCode) =>
+      cardCodeMatchesBase(cardCode, baseCardCode)
+    )
+  ) {
+    return 2;
+  }
+  if (isDiscardLookTopFourMemberCard(cardCode)) {
+    return 4;
+  }
+  if (isDiscardLookTopFiveMemberCard(cardCode)) {
     return 5;
   }
-  if (cardCode && cardCodeMatchesBase(cardCode, 'PL!-bp3-010')) {
+  if (isDiscardLookTopFiveLiveCard(cardCode)) {
     return 5;
+  }
+  const unitCardConfig = getDiscardLookTopUnitCardConfig(cardCode);
+  if (unitCardConfig) {
+    return unitCardConfig.topCount;
   }
   return 3;
 }
@@ -247,10 +304,10 @@ function getDiscardLookTopCount(cardCode: string | undefined): number {
 function getDiscardLookTopSelectableCardType(
   cardCode: string | undefined
 ): 'MEMBER' | 'LIVE' | null {
-  if (cardCode && cardCodeMatchesBase(cardCode, 'PL!-sd1-015')) {
+  if (isDiscardLookTopMemberCard(cardCode)) {
     return 'MEMBER';
   }
-  if (cardCode && cardCodeMatchesBase(cardCode, 'PL!-bp3-010')) {
+  if (isDiscardLookTopFiveLiveCard(cardCode)) {
     return 'LIVE';
   }
   return null;
@@ -266,6 +323,7 @@ function isDiscardLookTopSelectionRequired(cardCode: string | undefined): boolea
     'PL!-sd1-016',
     ...HS_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES,
     ...S_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES,
+    ...N_PB1_DISCARD_LOOK_TOP_TWO_BASE_CARD_CODES,
     'PL!HS-cl1-007',
     'PL!HS-pb1-011',
     'PL!N-PR-004',
@@ -289,8 +347,11 @@ function getDiscardLookTopEffectText(cardCode: string | undefined): string {
   ) {
     return '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。';
   }
-  if (cardCodeMatchesBase(cardCode, 'PL!-sd1-015')) {
+  if (isDiscardLookTopFiveMemberCard(cardCode)) {
     return '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的成员卡公开并加入手牌。其余的卡片放置入休息室。';
+  }
+  if (isDiscardLookTopFourMemberCard(cardCode)) {
+    return '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的4张卡。可以将1张其中的成员卡公开并加入手牌。其余的卡片放置入休息室。';
   }
   if (
     [...HS_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES, ...S_PR_DISCARD_LOOK_TOP_BASE_CARD_CODES].some(
@@ -299,8 +360,66 @@ function getDiscardLookTopEffectText(cardCode: string | undefined): string {
   ) {
     return '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡，将1张加入手牌，其余放置入休息室。';
   }
-  if (cardCodeMatchesBase(cardCode, 'PL!-bp3-010')) {
+  if (
+    N_PB1_DISCARD_LOOK_TOP_TWO_BASE_CARD_CODES.some((baseCardCode) =>
+      cardCodeMatchesBase(cardCode, baseCardCode)
+    )
+  ) {
+    return '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的2张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。';
+  }
+  if (isDiscardLookTopFiveLiveCard(cardCode)) {
     return getAbilityEffectText(BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID);
   }
+  const unitAlias = getDiscardLookTopUnitAlias(cardCode);
+  if (unitAlias) {
+    const topCount = getDiscardLookTopCount(cardCode);
+    return `【登场】可以将1张手牌放置入休息室：检视自己卡组顶的${topCount}张卡。可以将1张其中的${unitAlias}的卡公开并加入手牌。其余的卡片放置入休息室。`;
+  }
   return getAbilityEffectText(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
+}
+
+function isDiscardLookTopFiveLiveCard(cardCode: string | undefined): boolean {
+  return (
+    cardCode !== undefined &&
+    DISCARD_LOOK_TOP_FIVE_LIVE_BASE_CARD_CODES.some((baseCardCode) =>
+      cardCodeMatchesBase(cardCode, baseCardCode)
+    )
+  );
+}
+
+function isDiscardLookTopMemberCard(cardCode: string | undefined): boolean {
+  return isDiscardLookTopFiveMemberCard(cardCode) || isDiscardLookTopFourMemberCard(cardCode);
+}
+
+function isDiscardLookTopFiveMemberCard(cardCode: string | undefined): boolean {
+  return (
+    cardCode !== undefined &&
+    DISCARD_LOOK_TOP_FIVE_MEMBER_BASE_CARD_CODES.some((baseCardCode) =>
+      cardCodeMatchesBase(cardCode, baseCardCode)
+    )
+  );
+}
+
+function isDiscardLookTopFourMemberCard(cardCode: string | undefined): boolean {
+  return (
+    cardCode !== undefined &&
+    DISCARD_LOOK_TOP_FOUR_MEMBER_BASE_CARD_CODES.some((baseCardCode) =>
+      cardCodeMatchesBase(cardCode, baseCardCode)
+    )
+  );
+}
+
+function getDiscardLookTopUnitAlias(cardCode: string | undefined): string | undefined {
+  return getDiscardLookTopUnitCardConfig(cardCode)?.unitAlias;
+}
+
+function getDiscardLookTopUnitCardConfig(
+  cardCode: string | undefined
+): (typeof DISCARD_LOOK_TOP_UNIT_CARD_CONFIGS)[number] | undefined {
+  if (!cardCode) {
+    return undefined;
+  }
+  return DISCARD_LOOK_TOP_UNIT_CARD_CONFIGS.find(({ baseCardCode }) =>
+    cardCodeMatchesBase(cardCode, baseCardCode)
+  );
 }

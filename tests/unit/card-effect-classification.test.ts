@@ -109,15 +109,28 @@ const PB1_019_LIKE_MEMBER_ACTIVATION_CARD_CODES = [
 ] as const;
 
 const GENERIC_DISCARD_LOOK_TOP_CARD_CODES = [
+  'PL!-pb1-016-P＋',
+  'PL!-pb1-016-R',
   'PL!HS-PR-002-PR',
   'PL!HS-PR-005-PR',
+  'PL!HS-bp1-009-P',
+  'PL!HS-bp1-009-R',
+  'PL!HS-bp2-010-N',
   'PL!HS-cl1-007-CL',
   'PL!HS-pb1-011-R',
+  'PL!HS-pb1-018-N',
   'PL!N-PR-004-PR',
   'PL!N-PR-006-PR',
   'PL!N-PR-013-PR',
+  'PL!N-pb1-028-N',
+  'PL!N-pb1-035-N',
   'PL!S-PR-013-PR',
   'PL!S-PR-019-PR',
+  'PL!S-bp3-004-P',
+  'PL!S-bp3-004-R',
+  'PL!SP-pb1-015-N',
+  'PL!SP-pb1-016-N',
+  'PL!SP-pb1-017-N',
   'PL!N-bp1-007-R',
   'PL!N-bp1-010-R',
   'PL!N-sd1-002-SD',
@@ -131,6 +144,12 @@ const PL_BP3_014_LOOK_TOP_TWO_ON_ENTER_CARD_CODES = [
   'PL!N-bp3-022-N',
   'PL!N-bp4-016-N',
   'PL!S-bp6-018-N',
+] as const;
+
+const BP3_010_TOP_FIVE_LIVE_CARD_CODES = [
+  'PL!-bp3-010-N',
+  'PL!HS-bp1-011-N',
+  'PL!HS-bp6-022-N',
 ] as const;
 
 const HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_CARD_CODES = [
@@ -395,16 +414,18 @@ describe('card effect classification registry', () => {
       });
     }
 
-    const bp3TopLive = getCardAbilityDefinitions('PL!-bp3-010-N').find(
-      (ability) => ability.abilityId === BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID
-    );
-    expect(bp3TopLive).toMatchObject({
-      category: CardAbilityCategory.ON_ENTER,
-      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
-      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
-      queued: true,
-      implemented: true,
-    });
+    for (const cardCode of BP3_010_TOP_FIVE_LIVE_CARD_CODES) {
+      const bp3TopLive = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID
+      );
+      expect(bp3TopLive).toMatchObject({
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
 
     const hsBp2Recover = getCardAbilityDefinitions('PL!HS-bp2-002-P').find(
       (ability) => ability.abilityId === HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID
