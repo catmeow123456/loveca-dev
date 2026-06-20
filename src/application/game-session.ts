@@ -840,6 +840,8 @@ export class GameSession {
           draft.beforePublicSeq,
           draft.beforeAuditSeq
         ),
+        // GameSession 暂不独立计算对手后续操作；远程请求式撤销在服务层用
+        // 最新 undoEntryId、revision 校验和 pending 请求失效兜住 stale 请求。
         hasOpponentFollowup: false,
       },
     });

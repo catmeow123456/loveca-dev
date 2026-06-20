@@ -38,6 +38,7 @@ export interface UndoEntrySummary {
   readonly afterCaptureCursor: UndoRuntimeCaptureCursor;
   readonly hasHumanOpponentReveal: boolean;
   readonly hasRandomOrShuffle: boolean;
+  /** 首版远程撤销由服务层通过最新 undoEntryId、revision 与 pending 请求失效判断对手后续操作。 */
   readonly hasOpponentFollowup: boolean;
 }
 

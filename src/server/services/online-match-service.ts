@@ -792,6 +792,8 @@ export class OnlineMatchService {
     match.pendingUndoRequest = null;
     incrementRemoteRevision(match);
     touchMatch(match);
+    // 接受请求这个记录事实仍属于原 recordBranch；权威状态已在上方回滚。
+    // 本帧不写 checkpoint，下面的 UNDO_APPLIED 才开启回滚后的新记录分支。
     await this.appendSessionRecordFrame(match, 'UNDO_ACCEPTED', {
       summary: `接受撤销请求：${request.summary}`,
       force: true,
