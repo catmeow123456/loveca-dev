@@ -29,6 +29,13 @@
       "when": 1781880106094,
       "tag": "0003_right_rictor",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781906400000,
+      "tag": "0004_remote_undo_event_identity",
+      "breakpoints": true
     }
   ]
 }

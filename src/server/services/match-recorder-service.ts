@@ -160,7 +160,14 @@ export interface AppendMatchRecordFrameInput {
   readonly matchId: string;
   readonly frameType: Extract<
     ReplayRecordFrameType,
-    'COMMAND_ACCEPTED' | 'COMMAND_REJECTED' | 'SYSTEM_TRANSITION'
+    | 'COMMAND_ACCEPTED'
+    | 'COMMAND_REJECTED'
+    | 'SYSTEM_TRANSITION'
+    | 'UNDO_REQUESTED'
+    | 'UNDO_ACCEPTED'
+    | 'UNDO_REJECTED'
+    | 'UNDO_EXPIRED'
+    | 'UNDO_APPLIED'
   >;
   readonly visibilityScope?: ReplayVisibilityScope;
   readonly summary?: string;
@@ -1002,7 +1009,7 @@ async function insertPublicEventRows(
         payload,
         created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      ON CONFLICT (match_id, event_seq) DO NOTHING`,
+      ON CONFLICT (match_id, timeline_seq, event_seq) DO NOTHING`,
       [
         input.matchId,
         input.timelineSeq,
@@ -1042,7 +1049,7 @@ async function insertPrivateEventRows(
           payload,
           created_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        ON CONFLICT (match_id, seat, event_seq) DO NOTHING`,
+        ON CONFLICT (match_id, seat, timeline_seq, event_seq) DO NOTHING`,
         [
           input.matchId,
           seat,
@@ -1323,7 +1330,7 @@ function mergePrivateSeqBySeat(
 function defaultVisibilityForFrame(
   frameType: AppendMatchRecordFrameInput['frameType']
 ): ReplayVisibilityScope {
-  return frameType === 'SYSTEM_TRANSITION' ? 'SYSTEM' : 'PRIVATE';
+  return frameType === 'SYSTEM_TRANSITION' || frameType.startsWith('UNDO_') ? 'SYSTEM' : 'PRIVATE';
 }
 
 function defaultSummaryForFrame(frameType: AppendMatchRecordFrameInput['frameType']): string {
@@ -1334,6 +1341,16 @@ function defaultSummaryForFrame(frameType: AppendMatchRecordFrameInput['frameTyp
       return '命令被拒绝';
     case 'SYSTEM_TRANSITION':
       return '系统推进并保存权威检查点';
+    case 'UNDO_REQUESTED':
+      return '撤销请求已创建';
+    case 'UNDO_ACCEPTED':
+      return '撤销请求已接受';
+    case 'UNDO_REJECTED':
+      return '撤销请求已拒绝';
+    case 'UNDO_EXPIRED':
+      return '撤销请求已失效';
+    case 'UNDO_APPLIED':
+      return '撤销已应用并保存权威检查点';
   }
 }
 

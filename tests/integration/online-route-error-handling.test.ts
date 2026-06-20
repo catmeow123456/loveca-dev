@@ -19,6 +19,7 @@ vi.mock('../../src/server/db/pool.js', () => ({
 
 import { onlineRouter } from '../../src/server/routes/online';
 import { onlineMatchService } from '../../src/server/services/online-match-service';
+import { onlineRoomService } from '../../src/server/services/online-room-service';
 
 function createMockResponse() {
   const response = {
@@ -133,5 +134,91 @@ describe('onlineRouter error handling', () => {
         message: 'advance blew up',
       },
     });
+  });
+
+  it('撤销请求路由校验参数后应透传当前用户与撤销目标', async () => {
+    vi.spyOn(onlineMatchService, 'getMatch').mockReturnValue({ matchId: 'm1' } as never);
+    vi.spyOn(onlineMatchService, 'createUndoRequest').mockResolvedValue({
+      success: true,
+      snapshot: { matchId: 'm1', seq: 12 },
+    } as never);
+
+    const response = await invokeRoute('/matches/:matchId/undo-requests', 'post', {
+      params: { matchId: 'm1' },
+      body: {
+        expectedRevision: 11,
+        undoEntryId: 'm1:undo:1',
+        idempotencyKey: 'request-key',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(onlineMatchService.createUndoRequest).toHaveBeenCalledWith('m1', 'u1', {
+      expectedRevision: 11,
+      undoEntryId: 'm1:undo:1',
+      idempotencyKey: 'request-key',
+    });
+    expect(onlineRoomService.touchInGameMemberByMatch).toHaveBeenCalledWith('m1', 'u1');
+    expect(response.body?.error).toBeNull();
+    expect(response.body?.data).toMatchObject({ success: true });
+  });
+
+  it('撤销请求路由拒绝非法参数', async () => {
+    const createUndoRequest = vi.spyOn(onlineMatchService, 'createUndoRequest');
+    const response = await invokeRoute('/matches/:matchId/undo-requests', 'post', {
+      params: { matchId: 'm1' },
+      body: {
+        expectedRevision: -1,
+        undoEntryId: '',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(createUndoRequest).not.toHaveBeenCalled();
+    expect(response.body).toEqual({
+      data: null,
+      error: { code: 'INVALID_REQUEST', message: '撤销请求参数非法' },
+    });
+  });
+
+  it('撤销接受与拒绝路由应透传 requestId 和响应 revision', async () => {
+    vi.spyOn(onlineMatchService, 'getMatch').mockReturnValue({ matchId: 'm1' } as never);
+    vi.spyOn(onlineMatchService, 'acceptUndoRequest').mockResolvedValue({
+      success: true,
+      snapshot: { matchId: 'm1', seq: 14 },
+    } as never);
+    vi.spyOn(onlineMatchService, 'rejectUndoRequest').mockResolvedValue({
+      success: true,
+      snapshot: { matchId: 'm1', seq: 15 },
+    } as never);
+
+    const acceptResponse = await invokeRoute(
+      '/matches/:matchId/undo-requests/:requestId/accept',
+      'post',
+      {
+        params: { matchId: 'm1', requestId: 'req-1' },
+        body: { expectedRevision: 13, idempotencyKey: 'accept-key' },
+      }
+    );
+    const rejectResponse = await invokeRoute(
+      '/matches/:matchId/undo-requests/:requestId/reject',
+      'post',
+      {
+        params: { matchId: 'm1', requestId: 'req-2' },
+        body: { expectedRevision: 14, idempotencyKey: 'reject-key' },
+      }
+    );
+
+    expect(acceptResponse.statusCode).toBe(200);
+    expect(rejectResponse.statusCode).toBe(200);
+    expect(onlineMatchService.acceptUndoRequest).toHaveBeenCalledWith('m1', 'u1', 'req-1', {
+      expectedRevision: 13,
+      idempotencyKey: 'accept-key',
+    });
+    expect(onlineMatchService.rejectUndoRequest).toHaveBeenCalledWith('m1', 'u1', 'req-2', {
+      expectedRevision: 14,
+      idempotencyKey: 'reject-key',
+    });
+    expect(onlineRoomService.touchInGameMemberByMatch).toHaveBeenCalledWith('m1', 'u1');
   });
 });

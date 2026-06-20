@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createMulliganCommand } from '../../src/application/game-commands';
+import {
+  createMulliganCommand,
+  createOpenInspectionCommand,
+} from '../../src/application/game-commands';
 import type { DeckConfig } from '../../src/application/game-service';
 import type {
   AnyCardData,
@@ -8,7 +11,7 @@ import type {
   MemberCardData,
 } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
-import { GameMode, CardType, HeartColor } from '../../src/shared/types/enums';
+import { GameMode, CardType, HeartColor, GamePhase, ZoneType } from '../../src/shared/types/enums';
 import { OnlineMatchService } from '../../src/server/services/online-match-service';
 import { SolitaireMatchService } from '../../src/server/services/solitaire-match-service';
 
@@ -131,8 +134,10 @@ describe('SolitaireMatchService', () => {
       deckId: '11111111-1111-4111-8111-111111111111',
     });
 
-    expect(service.getMatchSnapshot(result.matchId, 'system:solitaire-opponent')).toBeNull();
-    expect(service.getMatchSnapshot(result.matchId, 'other-user')).toBeNull();
+    await expect(
+      service.getMatchSnapshot(result.matchId, 'system:solitaire-opponent')
+    ).resolves.toBeNull();
+    await expect(service.getMatchSnapshot(result.matchId, 'other-user')).resolves.toBeNull();
     await expect(
       service.executeCommand(
         result.matchId,
@@ -145,5 +150,95 @@ describe('SolitaireMatchService', () => {
     ).resolves.toBeNull();
     await expect(service.leaveMatch(result.matchId, 'system:solitaire-opponent')).resolves.toBeNull();
     expect(matchService.getMatch(result.matchId)).not.toBeNull();
+  });
+
+  it('服务端可记录对墙打允许 FIRST 真实用户按 revision 撤销最近一步', async () => {
+    const { service } = createHarness();
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    const mainPhaseResult = await service.executeCommand(
+      created.matchId,
+      'user-1',
+      createMulliganCommand('ignored-player', [])
+    );
+    expect(mainPhaseResult?.success).toBe(true);
+    expect(mainPhaseResult?.snapshot?.playerViewState.match.phase).toBe(GamePhase.MAIN_PHASE);
+
+    const commandResult = await service.executeCommand(
+      created.matchId,
+      'user-1',
+      createOpenInspectionCommand('ignored-player', ZoneType.MAIN_DECK, 1)
+    );
+
+    expect(commandResult?.success).toBe(true);
+    expect(commandResult?.snapshot?.seq).toBeGreaterThan(mainPhaseResult!.snapshot!.seq);
+    const undoView = commandResult?.snapshot?.playerViewState.match.undo;
+    expect(undoView).toMatchObject({
+      policy: 'REMOTE_IMMEDIATE',
+      canUndoNow: true,
+      disabledReason: null,
+    });
+    expect(undoView?.entry?.label).toBe('OPEN_INSPECTION');
+
+    const undoResult = await service.undoLatest(created.matchId, 'user-1', {
+      expectedRevision: commandResult!.snapshot!.seq,
+      undoEntryId: undoView!.entry!.undoEntryId,
+      idempotencyKey: 'undo-test-1',
+    });
+
+    expect(undoResult?.success).toBe(true);
+    expect(undoResult?.snapshot?.seq).toBeGreaterThan(commandResult!.snapshot!.seq);
+    expect(undoResult?.snapshot?.playerViewState.match.seq).toBe(undoResult?.snapshot?.seq);
+    expect(undoResult?.snapshot?.playerViewState.match.undo?.canUndoNow).toBe(false);
+
+    const repeated = await service.undoLatest(created.matchId, 'user-1', {
+      expectedRevision: commandResult!.snapshot!.seq,
+      undoEntryId: undoView!.entry!.undoEntryId,
+      idempotencyKey: 'undo-test-1',
+    });
+    expect(repeated?.success).toBe(true);
+    expect(repeated?.snapshot?.seq).toBe(undoResult?.snapshot?.seq);
+  });
+
+  it('服务端可记录对墙打撤销拒绝旧 revision 与非参与用户', async () => {
+    const { service } = createHarness();
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+    const mainPhaseResult = await service.executeCommand(
+      created.matchId,
+      'user-1',
+      createMulliganCommand('ignored-player', [])
+    );
+    expect(mainPhaseResult?.success).toBe(true);
+    expect(mainPhaseResult?.snapshot?.playerViewState.match.phase).toBe(GamePhase.MAIN_PHASE);
+
+    const commandResult = await service.executeCommand(
+      created.matchId,
+      'user-1',
+      createOpenInspectionCommand('ignored-player', ZoneType.MAIN_DECK, 1)
+    );
+    const undoEntry = commandResult?.snapshot?.playerViewState.match.undo?.entry;
+    expect(undoEntry).toBeTruthy();
+
+    const stale = await service.undoLatest(created.matchId, 'user-1', {
+      expectedRevision: created.snapshot.seq,
+      undoEntryId: undoEntry!.undoEntryId,
+    });
+    expect(stale).toMatchObject({
+      success: false,
+      error: '对局状态已更新，请刷新后重试',
+    });
+
+    await expect(
+      service.undoLatest(created.matchId, 'system:solitaire-opponent', {
+        expectedRevision: commandResult!.snapshot!.seq,
+        undoEntryId: undoEntry!.undoEntryId,
+      })
+    ).resolves.toBeNull();
   });
 });

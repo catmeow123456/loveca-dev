@@ -14,6 +14,7 @@
 | [联机模式边界规范](boundary-standard.md) | 编码标准 | 联机 UI、store selector、命令、投影和公共事件边界 |
 | [可见性与公开对象矩阵](visibility-matrix.md) | 专题说明 | `PlayerViewState`、对象可见性和公开对象投影规则 |
 | [自由拖拽核对表](free-drag-checklist.md) | 专题说明 | 自由拖拽权限模型和最小回归 checklist |
+| [远程撤销恢复需求设计与实施计划](remote-undo-requirements-design.md) | 需求设计与实施文档 | 服务端可记录对墙打、正式联机和远程调试联机的撤销恢复边界 |
 | [Transport Serde 性能说明](transport-serde-performance.md) | 专题说明 | 正式联机 JSON-native 响应热路径、性能基准和后续增量同步边界 |
 
 ## 维护规则

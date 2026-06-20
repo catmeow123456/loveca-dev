@@ -160,6 +160,64 @@ export async function executeOnlineMatchCommand(
   return response.data;
 }
 
+export async function createOnlineUndoRequest(
+  matchId: string,
+  input: {
+    readonly expectedRevision: number;
+    readonly undoEntryId: string;
+    readonly idempotencyKey?: string;
+  }
+): Promise<OnlineCommandResult> {
+  const response = await apiClient.post<OnlineCommandResult>(
+    `/api/online/matches/${encodeURIComponent(matchId)}/undo-requests`,
+    input
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '撤销请求发送失败');
+  }
+  return response.data;
+}
+
+export async function acceptOnlineUndoRequest(
+  matchId: string,
+  requestId: string,
+  input: {
+    readonly expectedRevision: number;
+    readonly idempotencyKey?: string;
+  }
+): Promise<OnlineCommandResult> {
+  const response = await apiClient.post<OnlineCommandResult>(
+    `/api/online/matches/${encodeURIComponent(matchId)}/undo-requests/${encodeURIComponent(
+      requestId
+    )}/accept`,
+    input
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '接受撤销请求失败');
+  }
+  return response.data;
+}
+
+export async function rejectOnlineUndoRequest(
+  matchId: string,
+  requestId: string,
+  input: {
+    readonly expectedRevision: number;
+    readonly idempotencyKey?: string;
+  }
+): Promise<OnlineCommandResult> {
+  const response = await apiClient.post<OnlineCommandResult>(
+    `/api/online/matches/${encodeURIComponent(matchId)}/undo-requests/${encodeURIComponent(
+      requestId
+    )}/reject`,
+    input
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '拒绝撤销请求失败');
+  }
+  return response.data;
+}
+
 export async function fetchOnlineAdminRooms(): Promise<readonly OnlineAdminRoomSummary[]> {
   const response = await apiClient.get<OnlineAdminRoomSummary[]>('/api/online/admin/rooms');
   if (!response.data) {

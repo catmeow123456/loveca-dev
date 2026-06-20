@@ -571,7 +571,7 @@ export class MatchReplayReadService {
         AND frame.timeline_seq = event.timeline_seq
       WHERE event.match_id = $1
         AND event.timeline_seq <= $2
-      ORDER BY event.event_seq ASC`,
+      ORDER BY event.timeline_seq ASC, event.event_seq ASC`,
       [matchId, timelineSeq]
     );
 
@@ -602,7 +602,7 @@ export class MatchReplayReadService {
       WHERE event.match_id = $1
         AND event.seat = $2
         AND event.timeline_seq <= $3
-      ORDER BY event.event_seq ASC`,
+      ORDER BY event.timeline_seq ASC, event.event_seq ASC`,
       [matchId, viewerSeat, timelineSeq]
     );
 

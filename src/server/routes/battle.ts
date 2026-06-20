@@ -18,6 +18,12 @@ const deckSelectionSchema = z.object({
   deckId: z.string().uuid(),
 });
 
+const remoteUndoSchema = z.object({
+  expectedRevision: z.number().int().min(0),
+  undoEntryId: z.string().min(1),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
 battleRouter.post('/solitaire-matches', requireAuth, async (req, res) => {
   const parsed = deckSelectionSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -38,9 +44,9 @@ battleRouter.post('/solitaire-matches', requireAuth, async (req, res) => {
   }
 });
 
-battleRouter.get('/solitaire-matches/:matchId/snapshot', requireAuth, (req, res) => {
+battleRouter.get('/solitaire-matches/:matchId/snapshot', requireAuth, async (req, res) => {
   try {
-    const snapshot = solitaireMatchService.getMatchSnapshot(
+    const snapshot = await solitaireMatchService.getMatchSnapshot(
       readPathParam(req.params.matchId),
       req.user!.id,
       { sinceSeq: readOptionalSeq(req.query?.sinceSeq) }
@@ -103,6 +109,37 @@ battleRouter.post('/solitaire-matches/:matchId/advance', requireAuth, async (req
       error: result.success
         ? null
         : { code: 'ADVANCE_REJECTED', message: result.error ?? '阶段推进失败' },
+    });
+  } catch (error) {
+    respondBattleError(res, error);
+  }
+});
+
+battleRouter.post('/solitaire-matches/:matchId/undo', requireAuth, async (req, res) => {
+  const parsed = remoteUndoSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '撤销参数非法' } });
+    return;
+  }
+
+  try {
+    const result = await solitaireMatchService.undoLatest(
+      readPathParam(req.params.matchId),
+      req.user!.id,
+      parsed.data
+    );
+    if (!result) {
+      respondMatchNotFound(res);
+      return;
+    }
+
+    res.json({
+      data: result,
+      error: result.success
+        ? null
+        : { code: 'UNDO_REJECTED', message: result.error ?? '撤销失败' },
     });
   } catch (error) {
     respondBattleError(res, error);

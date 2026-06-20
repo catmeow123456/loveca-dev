@@ -357,8 +357,8 @@ CREATE TABLE IF NOT EXISTS public.match_record_public_events (
   created_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_match_record_public_events_match_seq
-  ON public.match_record_public_events(match_id, event_seq);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_match_record_public_events_match_timeline_seq
+  ON public.match_record_public_events(match_id, timeline_seq, event_seq);
 CREATE INDEX IF NOT EXISTS idx_match_record_public_events_timeline
   ON public.match_record_public_events(match_id, timeline_seq);
 CREATE INDEX IF NOT EXISTS idx_match_record_public_events_type
@@ -426,7 +426,7 @@ CREATE TABLE IF NOT EXISTS public.match_record_private_events (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_match_record_private_events_match_seat_seq
-  ON public.match_record_private_events(match_id, seat, event_seq);
+  ON public.match_record_private_events(match_id, seat, timeline_seq, event_seq);
 CREATE INDEX IF NOT EXISTS idx_match_record_private_events_timeline
   ON public.match_record_private_events(match_id, timeline_seq);
 CREATE INDEX IF NOT EXISTS idx_match_record_private_events_seat

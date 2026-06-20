@@ -4,6 +4,7 @@ import type { GameCommand } from '../../application/game-commands.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
+import { projectPlayerViewState } from '../../online/projector.js';
 import type {
   MatchRecordCompleteness,
   MatchRecordStatus,
@@ -16,7 +17,10 @@ import type {
   OnlineCommandResult,
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
+  OnlineUndoView,
   Seat,
+  UndoPolicy,
+  UndoRuntimeCaptureCursor,
 } from '../../online/index.js';
 import { GameMode, GamePhase } from '../../shared/types/enums.js';
 import {
@@ -24,6 +28,7 @@ import {
   matchRecorderService,
   type MatchRecorderService,
   type MatchDecisionRecordInput,
+  type AppendMatchRecordFrameInput,
 } from './match-recorder-service.js';
 import {
   buildMatchDecisionRecordsForCommand,
@@ -31,6 +36,7 @@ import {
 } from './match-decision-records.js';
 
 const MATCH_STALE_TTL_MS = 30 * 60 * 1000;
+const UNDO_REQUEST_TTL_MS = 60 * 1000;
 
 export interface OnlineMatchParticipant {
   readonly userId: string;
@@ -86,8 +92,40 @@ export interface OnlineMatchState {
   readonly participants: Readonly<Record<Seat, OnlineMatchParticipant>>;
   readonly deckSnapshots: Readonly<Record<Seat, OnlineMatchDeckSnapshot>>;
   readonly startedAt: number;
+  remoteRevision: number;
+  recordBranchId: string;
+  recordCaptureCursor: UndoRuntimeCaptureCursor;
+  pendingUndoRequest: OnlineUndoRequestState | null;
+  readonly appliedUndoKeys: Set<string>;
   updatedAt: number;
   lastActivityAt: number;
+}
+
+export interface RemoteUndoInput {
+  readonly expectedRevision: number;
+  readonly undoEntryId: string;
+  readonly idempotencyKey?: string | null;
+}
+
+interface OnlineUndoRequestState {
+  readonly requestId: string;
+  readonly requesterSeat: Seat;
+  readonly responderSeat: Seat;
+  readonly requesterUserId: string;
+  readonly responderUserId: string;
+  readonly targetUndoEntryId: string;
+  readonly targetRevision: number;
+  readonly summary: string;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+  readonly idempotencyKey: string | null;
+}
+
+export interface CreateUndoRequestInput extends RemoteUndoInput {}
+
+export interface RespondUndoRequestInput {
+  readonly expectedRevision: number;
+  readonly idempotencyKey?: string | null;
 }
 
 interface OnlineMatchServiceDeps {
@@ -180,6 +218,17 @@ export class OnlineMatchService {
         SECOND: createRuntimeDeckSnapshot('SECOND', params.second),
       },
       startedAt: now,
+      remoteRevision: 0,
+      recordBranchId: `${matchId}:branch:0`,
+      recordCaptureCursor: {
+        publicSeq: 0,
+        privateSeqBySeat: { FIRST: 0, SECOND: 0 },
+        auditSeq: 0,
+        commandSeq: 0,
+        gameEventSeq: 0,
+      },
+      pendingUndoRequest: null,
+      appliedUndoKeys: new Set<string>(),
       updatedAt: now,
       lastActivityAt: now,
     };
@@ -216,6 +265,8 @@ export class OnlineMatchService {
       );
       throw new Error(initialized.error ?? '正式联机对局初始化失败');
     }
+    state.remoteRevision = session.getCurrentPublicEventSeq();
+    state.recordCaptureCursor = session.getRuntimeCaptureCursor();
 
     if (this.recorder) {
       const authorityState = session.getAuthoritySnapshotForRecord();
@@ -280,7 +331,7 @@ export class OnlineMatchService {
       durationMs: Math.max(0, now - match.startedAt),
       updatedAt: match.updatedAt,
       lastActivityAt: match.lastActivityAt,
-      seq: match.session.getCurrentPublicEventSeq(),
+      seq: match.remoteRevision,
       turnCount: firstPlayerView.match.turnCount,
       phase: firstPlayerView.match.phase,
       subPhase: firstPlayerView.match.subPhase,
@@ -288,17 +339,17 @@ export class OnlineMatchService {
     };
   }
 
-  getMatchSnapshot(matchId: string, userId: string): OnlineMatchSnapshot | null;
+  getMatchSnapshot(matchId: string, userId: string): Promise<OnlineMatchSnapshot | null>;
   getMatchSnapshot(
     matchId: string,
     userId: string,
     options: { readonly sinceSeq?: number }
-  ): OnlineMatchSnapshotResponse | null;
-  getMatchSnapshot(
+  ): Promise<OnlineMatchSnapshotResponse | null>;
+  async getMatchSnapshot(
     matchId: string,
     userId: string,
     options: { readonly sinceSeq?: number } = {}
-  ): OnlineMatchSnapshotResponse | null {
+  ): Promise<OnlineMatchSnapshotResponse | null> {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -309,8 +360,9 @@ export class OnlineMatchService {
       return null;
     }
 
+    await this.expirePendingUndoRequestIfNeeded(match);
     touchMatch(match);
-    const currentSeq = match.session.getCurrentPublicEventSeq();
+    const currentSeq = match.remoteRevision;
     if (options.sinceSeq !== undefined && options.sinceSeq >= currentSeq) {
       return {
         matchId: match.matchId,
@@ -359,6 +411,9 @@ export class OnlineMatchService {
     });
 
     touchMatch(match);
+    if (result.success) {
+      incrementRemoteRevision(match);
+    }
     await this.appendSessionRecordFrame(
       match,
       result.success ? 'COMMAND_ACCEPTED' : 'COMMAND_REJECTED',
@@ -371,6 +426,10 @@ export class OnlineMatchService {
         success: false,
         error: result.error,
       };
+    }
+
+    if (match.pendingUndoRequest) {
+      await this.expirePendingUndoRequest(match, '新命令已执行，撤销请求失效');
     }
 
     await this.sealCompletedMatchIfNeeded(match);
@@ -417,6 +476,9 @@ export class OnlineMatchService {
       getSeatForPlayer: (playerId) => getSeatByPlayerId(match, playerId),
     });
     touchMatch(match);
+    if (result.success) {
+      incrementRemoteRevision(match);
+    }
     await this.appendSessionRecordFrame(
       match,
       result.success ? 'SYSTEM_TRANSITION' : 'COMMAND_REJECTED',
@@ -434,7 +496,396 @@ export class OnlineMatchService {
       };
     }
 
+    if (match.pendingUndoRequest) {
+      await this.expirePendingUndoRequest(match, '阶段已推进，撤销请求失效');
+    }
+
     await this.sealCompletedMatchIfNeeded(match);
+
+    return {
+      success: true,
+      snapshot: buildSnapshot(match, participant),
+    };
+  }
+
+  getUndoAvailability(
+    matchId: string,
+    userId: string,
+    policy?: UndoPolicy
+  ): OnlineUndoView | null {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant) {
+      return null;
+    }
+
+    return match.session.getUndoAvailability(
+      participant.playerId,
+      policy ?? deriveRemoteUndoPolicy(match, participant)
+    );
+  }
+
+  async undoLatest(
+    matchId: string,
+    userId: string,
+    input: RemoteUndoInput
+  ): Promise<OnlineCommandResult | null> {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant) {
+      return null;
+    }
+
+    const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
+    const appliedUndoKey = idempotencyKey
+      ? `${input.undoEntryId}:${idempotencyKey}`
+      : null;
+    if (appliedUndoKey && match.appliedUndoKeys.has(appliedUndoKey)) {
+      touchMatch(match);
+      return {
+        success: true,
+        snapshot: buildSnapshot(match, participant),
+      };
+    }
+
+    if (input.expectedRevision !== match.remoteRevision) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '对局状态已更新，请刷新后重试',
+      };
+    }
+
+    const policy = deriveRemoteUndoPolicy(match, participant);
+    const availability = match.session.getUndoAvailability(participant.playerId, policy);
+    if (!availability.canUndoNow || !availability.entry) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: availability.disabledReason ?? '当前不能撤销',
+      };
+    }
+    if (availability.entry.undoEntryId !== input.undoEntryId) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '撤销目标已变化，请刷新后重试',
+      };
+    }
+
+    const undoResult = match.session.undoLastStepForPlayer(
+      participant.playerId,
+      input.undoEntryId
+    );
+    if (!undoResult.success) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: undoResult.error,
+      };
+    }
+
+    match.recordBranchId = `${match.matchId}:branch:${match.remoteRevision + 1}`;
+    incrementRemoteRevision(match);
+    touchMatch(match);
+    await this.appendSessionRecordFrame(match, 'UNDO_APPLIED', {
+      summary: `撤销操作：${availability.entry.label}`,
+      force: true,
+      writeAuthorityCheckpoint: true,
+      dedupeKey:
+        appliedUndoKey ??
+        `${match.recordBranchId}:UNDO_APPLIED:${availability.entry.undoEntryId}:${match.remoteRevision}`,
+    });
+    match.recordCaptureCursor = match.session.getRuntimeCaptureCursor();
+    if (appliedUndoKey) {
+      match.appliedUndoKeys.add(appliedUndoKey);
+    }
+
+    return {
+      success: true,
+      snapshot: buildSnapshot(match, participant),
+    };
+  }
+
+  async createUndoRequest(
+    matchId: string,
+    userId: string,
+    input: CreateUndoRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant) {
+      return null;
+    }
+
+    await this.expirePendingUndoRequestIfNeeded(match);
+    const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
+    if (
+      idempotencyKey &&
+      match.pendingUndoRequest?.idempotencyKey === idempotencyKey &&
+      match.pendingUndoRequest.requesterUserId === participant.userId &&
+      match.pendingUndoRequest.targetUndoEntryId === input.undoEntryId
+    ) {
+      touchMatch(match);
+      return {
+        success: true,
+        snapshot: buildSnapshot(match, participant),
+      };
+    }
+
+    if (deriveRemoteUndoPolicy(match, participant) !== 'REMOTE_REQUEST') {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '当前对局不支持请求撤销',
+      };
+    }
+    if (input.expectedRevision !== match.remoteRevision) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '对局状态已更新，请刷新后重试',
+      };
+    }
+    if (match.pendingUndoRequest) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '已有撤销请求待处理',
+      };
+    }
+
+    const availability = match.session.getUndoAvailability(participant.playerId, 'REMOTE_REQUEST');
+    if (!availability.canUndoNow || !availability.entry) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: availability.disabledReason ?? '当前不能请求撤销',
+      };
+    }
+    if (availability.entry.undoEntryId !== input.undoEntryId) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '撤销目标已变化，请刷新后重试',
+      };
+    }
+
+    const responderSeat = getOpponentSeat(participant.seat);
+    const responder = match.participants[responderSeat];
+    const now = this.now();
+    match.pendingUndoRequest = {
+      requestId: `${match.matchId}:undo-request:${match.remoteRevision + 1}`,
+      requesterSeat: participant.seat,
+      responderSeat,
+      requesterUserId: participant.userId,
+      responderUserId: responder.userId,
+      targetUndoEntryId: availability.entry.undoEntryId,
+      targetRevision: match.remoteRevision,
+      summary: availability.entry.label,
+      createdAt: now,
+      expiresAt: now + UNDO_REQUEST_TTL_MS,
+      idempotencyKey,
+    };
+
+    incrementRemoteRevision(match);
+    touchMatch(match);
+    await this.appendSessionRecordFrame(match, 'UNDO_REQUESTED', {
+      summary: `请求撤销：${availability.entry.label}`,
+      force: true,
+      writeAuthorityCheckpoint: false,
+      dedupeKey: `${match.recordBranchId}:UNDO_REQUESTED:${match.pendingUndoRequest.requestId}`,
+    });
+
+    return {
+      success: true,
+      snapshot: buildSnapshot(match, participant),
+    };
+  }
+
+  async acceptUndoRequest(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondUndoRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant) {
+      return null;
+    }
+
+    await this.expirePendingUndoRequestIfNeeded(match);
+    const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
+    const acceptedUndoKey = idempotencyKey
+      ? buildUndoRequestSettlementKey('accept', requestId, participant.userId, idempotencyKey)
+      : null;
+    if (acceptedUndoKey && match.appliedUndoKeys.has(acceptedUndoKey)) {
+      touchMatch(match);
+      return {
+        success: true,
+        snapshot: buildSnapshot(match, participant),
+      };
+    }
+
+    const request = match.pendingUndoRequest;
+    if (!request || request.requestId !== requestId) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '撤销请求不存在或已失效',
+      };
+    }
+    if (request.responderSeat !== participant.seat) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '只有对手可以处理撤销请求',
+      };
+    }
+    if (input.expectedRevision !== match.remoteRevision) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '对局状态已更新，请刷新后重试',
+      };
+    }
+
+    const requester = match.participants[request.requesterSeat];
+    const availability = match.session.getUndoAvailability(requester.playerId, 'REMOTE_REQUEST');
+    if (!availability.canUndoNow || availability.entry?.undoEntryId !== request.targetUndoEntryId) {
+      await this.expirePendingUndoRequest(match, '撤销目标已变化，请重新发起');
+      return {
+        success: false,
+        error: '撤销目标已变化，请重新发起',
+      };
+    }
+
+    const undoResult = match.session.undoLastStepForPlayer(
+      requester.playerId,
+      request.targetUndoEntryId
+    );
+    if (!undoResult.success) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: undoResult.error,
+      };
+    }
+
+    match.pendingUndoRequest = null;
+    incrementRemoteRevision(match);
+    touchMatch(match);
+    // 接受请求这个记录事实仍属于原 recordBranch；权威状态已在上方回滚。
+    // 本帧不写 checkpoint，下面的 UNDO_APPLIED 才开启回滚后的新记录分支。
+    await this.appendSessionRecordFrame(match, 'UNDO_ACCEPTED', {
+      summary: `接受撤销请求：${request.summary}`,
+      force: true,
+      writeAuthorityCheckpoint: false,
+      dedupeKey: `${match.recordBranchId}:UNDO_ACCEPTED:${request.requestId}:${match.remoteRevision}`,
+    });
+
+    match.recordBranchId = `${match.matchId}:branch:${match.remoteRevision + 1}`;
+    incrementRemoteRevision(match);
+    await this.appendSessionRecordFrame(match, 'UNDO_APPLIED', {
+      summary: `撤销操作：${request.summary}`,
+      force: true,
+      writeAuthorityCheckpoint: true,
+      dedupeKey: `${match.recordBranchId}:UNDO_APPLIED:${request.requestId}:${
+        idempotencyKey ?? match.remoteRevision
+      }`,
+    });
+    match.recordCaptureCursor = match.session.getRuntimeCaptureCursor();
+    if (acceptedUndoKey) {
+      match.appliedUndoKeys.add(acceptedUndoKey);
+    }
+
+    return {
+      success: true,
+      snapshot: buildSnapshot(match, participant),
+    };
+  }
+
+  async rejectUndoRequest(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondUndoRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant) {
+      return null;
+    }
+
+    await this.expirePendingUndoRequestIfNeeded(match);
+    const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
+    const rejectedUndoKey = idempotencyKey
+      ? buildUndoRequestSettlementKey('reject', requestId, participant.userId, idempotencyKey)
+      : null;
+    if (rejectedUndoKey && match.appliedUndoKeys.has(rejectedUndoKey)) {
+      touchMatch(match);
+      return {
+        success: true,
+        snapshot: buildSnapshot(match, participant),
+      };
+    }
+
+    const request = match.pendingUndoRequest;
+    if (!request || request.requestId !== requestId) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '撤销请求不存在或已失效',
+      };
+    }
+    if (request.responderSeat !== participant.seat) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '只有对手可以处理撤销请求',
+      };
+    }
+    if (input.expectedRevision !== match.remoteRevision) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '对局状态已更新，请刷新后重试',
+      };
+    }
+
+    match.pendingUndoRequest = null;
+    incrementRemoteRevision(match);
+    touchMatch(match);
+    await this.appendSessionRecordFrame(match, 'UNDO_REJECTED', {
+      summary: `拒绝撤销请求：${request.summary}`,
+      force: true,
+      writeAuthorityCheckpoint: false,
+      dedupeKey: `${match.recordBranchId}:UNDO_REJECTED:${request.requestId}:${match.remoteRevision}`,
+    });
+    if (rejectedUndoKey) {
+      match.appliedUndoKeys.add(rejectedUndoKey);
+    }
 
     return {
       success: true,
@@ -485,6 +936,34 @@ export class OnlineMatchService {
     this.matches.clear();
     this.sealedMatchIds.clear();
     this.partialRecordMatchIds.clear();
+  }
+
+  private async expirePendingUndoRequestIfNeeded(match: OnlineMatchState): Promise<void> {
+    const request = match.pendingUndoRequest;
+    if (!request || request.expiresAt > this.now()) {
+      return;
+    }
+    await this.expirePendingUndoRequest(match, '撤销请求已超时');
+  }
+
+  private async expirePendingUndoRequest(
+    match: OnlineMatchState,
+    summary: string
+  ): Promise<void> {
+    const request = match.pendingUndoRequest;
+    if (!request) {
+      return;
+    }
+
+    match.pendingUndoRequest = null;
+    incrementRemoteRevision(match);
+    touchMatch(match);
+    await this.appendSessionRecordFrame(match, 'UNDO_EXPIRED', {
+      summary: `${summary}：${request.summary}`,
+      force: true,
+      writeAuthorityCheckpoint: false,
+      dedupeKey: `${match.recordBranchId}:UNDO_EXPIRED:${request.requestId}:${match.remoteRevision}`,
+    });
   }
 
   private async markRecordIncomplete(
@@ -588,7 +1067,7 @@ export class OnlineMatchService {
 
   private async appendSessionRecordFrame(
     match: OnlineMatchState,
-    frameType: 'COMMAND_ACCEPTED' | 'COMMAND_REJECTED' | 'SYSTEM_TRANSITION',
+    frameType: AppendMatchRecordFrameInput['frameType'],
     options: {
       readonly summary?: string;
       readonly force?: boolean;
@@ -611,19 +1090,20 @@ export class OnlineMatchService {
         );
         return false;
       }
+      const captureCursor = match.recordCaptureCursor;
 
       const firstPrivateEvents = match.session.getPrivateEventsSince(
         match.participants.FIRST.playerId,
-        cursor.lastPrivateSeqBySeat.FIRST
+        captureCursor.privateSeqBySeat.FIRST
       );
       const secondPrivateEvents = match.session.getPrivateEventsSince(
         match.participants.SECOND.playerId,
-        cursor.lastPrivateSeqBySeat.SECOND
+        captureCursor.privateSeqBySeat.SECOND
       );
-      const publicEvents = match.session.getPublicEventsSince(cursor.lastPublicSeq);
-      const sealedAudit = match.session.getSealedAuditSince(cursor.lastAuditSeq);
-      const commandLog = match.session.getCommandLogSince(cursor.lastCommandSeq);
-      const gameEvents = match.session.getGameEventsSince(cursor.lastGameEventSeq);
+      const publicEvents = match.session.getPublicEventsSince(captureCursor.publicSeq);
+      const sealedAudit = match.session.getSealedAuditSince(captureCursor.auditSeq);
+      const commandLog = match.session.getCommandLogSince(captureCursor.commandSeq);
+      const gameEvents = match.session.getGameEventsSince(captureCursor.gameEventSeq);
       const hasNewFacts =
         publicEvents.length > 0 ||
         firstPrivateEvents.length > 0 ||
@@ -659,10 +1139,10 @@ export class OnlineMatchService {
         latestPrivateSeqBySeat: {
           FIRST:
             latestSeq(firstPrivateEvents, (event) => event.seq) ??
-            cursor.lastPrivateSeqBySeat.FIRST,
+            captureCursor.privateSeqBySeat.FIRST,
           SECOND:
             latestSeq(secondPrivateEvents, (event) => event.seq) ??
-            cursor.lastPrivateSeqBySeat.SECOND,
+            captureCursor.privateSeqBySeat.SECOND,
         },
         publicEvents,
         privateEventsBySeat: {
@@ -670,9 +1150,20 @@ export class OnlineMatchService {
           SECOND: secondPrivateEvents,
         },
         decisionRecords: options.decisionRecords,
-        dedupeKey: options.dedupeKey,
+        dedupeKey:
+          options.dedupeKey ??
+          buildRemoteFrameDedupeKey(match, frameType, {
+            relatedPublicSeq:
+              latestSeq(publicEvents, (event) => event.seq) ??
+              match.session.getCurrentPublicEventSeq(),
+            relatedCommandSeq: latestSeq(commandLog, (record) => record.seq),
+            relatedGameEventSeq:
+              latestSeq(gameEvents, (event) => event.sequence) ??
+              match.session.getCurrentGameEventSeq(),
+          }),
         createdAt: this.now(),
       });
+      match.recordCaptureCursor = match.session.getRuntimeCaptureCursor();
       return true;
     } catch (error) {
       await this.markRecordAppendFailed(
@@ -721,16 +1212,27 @@ function buildSnapshot(
   match: OnlineMatchState,
   participant: OnlineMatchParticipant
 ): OnlineMatchSnapshot {
-  const playerViewState = match.session.getPlayerViewState(participant.playerId);
-  if (!playerViewState) {
+  const authorityState = match.session.getAuthoritySnapshotForRecord();
+  if (!authorityState) {
     throw new Error('联机玩家视图不存在');
   }
+  const projectedViewState = projectPlayerViewState(authorityState, participant.playerId, {
+    seq: match.remoteRevision,
+    gameMode: match.session.gameMode,
+  });
+  const playerViewState = {
+    ...projectedViewState,
+    match: {
+      ...projectedViewState.match,
+      undo: buildOnlineUndoView(match, participant),
+    },
+  };
 
   return {
     matchId: match.matchId,
     seat: participant.seat,
     playerId: participant.playerId,
-    seq: match.session.getCurrentPublicEventSeq(),
+    seq: match.remoteRevision,
     playerViewState,
   };
 }
@@ -790,6 +1292,93 @@ function getSeatByPlayerId(
     return 'SECOND';
   }
   return null;
+}
+
+function incrementRemoteRevision(match: OnlineMatchState): void {
+  match.remoteRevision += 1;
+}
+
+function deriveRemoteUndoPolicy(
+  match: OnlineMatchState,
+  participant: OnlineMatchParticipant
+): UndoPolicy {
+  if (
+    match.matchMode === 'SOLITAIRE' &&
+    participant.seat === 'FIRST' &&
+    participant.participantKind === 'USER'
+  ) {
+    return 'REMOTE_IMMEDIATE';
+  }
+  if (match.matchMode === 'ONLINE' && participant.participantKind === 'USER') {
+    return 'REMOTE_REQUEST';
+  }
+  return 'NONE';
+}
+
+function buildOnlineUndoView(
+  match: OnlineMatchState,
+  participant: OnlineMatchParticipant
+): OnlineUndoView {
+  const policy = deriveRemoteUndoPolicy(match, participant);
+  const base = match.session.getUndoAvailability(participant.playerId, policy);
+  const pendingRequest = match.pendingUndoRequest
+    ? {
+        requestId: match.pendingUndoRequest.requestId,
+        requesterSeat: match.pendingUndoRequest.requesterSeat,
+        targetUndoEntryId: match.pendingUndoRequest.targetUndoEntryId,
+        targetRevision: match.pendingUndoRequest.targetRevision,
+        summary: match.pendingUndoRequest.summary,
+        expiresAt: new Date(match.pendingUndoRequest.expiresAt).toISOString(),
+      }
+    : null;
+
+  if (!pendingRequest) {
+    return base;
+  }
+
+  return {
+    ...base,
+    canUndoNow: false,
+    disabledReason: '已有撤销请求待处理',
+    pendingRequest,
+  };
+}
+
+function getOpponentSeat(seat: Seat): Seat {
+  return seat === 'FIRST' ? 'SECOND' : 'FIRST';
+}
+
+function buildUndoRequestSettlementKey(
+  action: 'accept' | 'reject',
+  requestId: string,
+  userId: string,
+  idempotencyKey: string
+): string {
+  return `undo-request:${action}:${requestId}:${userId}:${idempotencyKey}`;
+}
+
+function normalizeOptionalKey(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function buildRemoteFrameDedupeKey(
+  match: OnlineMatchState,
+  frameType: AppendMatchRecordFrameInput['frameType'],
+  refs: {
+    readonly relatedPublicSeq: number | null;
+    readonly relatedCommandSeq: number | null;
+    readonly relatedGameEventSeq: number | null;
+  }
+): string {
+  return [
+    match.recordBranchId,
+    frameType,
+    `revision:${match.remoteRevision}`,
+    `public:${refs.relatedPublicSeq ?? 0}`,
+    `command:${refs.relatedCommandSeq ?? 0}`,
+    `game-event:${refs.relatedGameEventSeq ?? 0}`,
+  ].join(':');
 }
 
 function touchMatch(match: OnlineMatchState): void {

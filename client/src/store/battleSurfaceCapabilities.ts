@@ -1,4 +1,5 @@
 import { GameMode } from '../../../src/shared/types/enums';
+import type { UndoPolicy } from '../../../src/online/types';
 
 export type BattleAuthority = 'LOCAL' | 'REMOTE' | 'REPLAY';
 
@@ -22,6 +23,7 @@ export interface BattleSurfaceCapabilities {
   readonly canSwitchLocalMode: boolean;
   readonly canShowDebugLog: boolean;
   readonly canUndo: boolean;
+  readonly undoPolicy: UndoPolicy;
   readonly showFreePlayControl: boolean;
   readonly freePlayPolicy: FreePlayPolicy;
   readonly isSolitairePresentation: boolean;
@@ -47,6 +49,7 @@ export function deriveBattleSurfaceCapabilities(
       canSwitchLocalMode: false,
       canShowDebugLog: false,
       canUndo: false,
+      undoPolicy: 'NONE',
       showFreePlayControl: false,
       freePlayPolicy: 'COMMAND_FLAG',
       isSolitairePresentation: input.replaySourceMatchMode === 'SOLITAIRE',
@@ -57,6 +60,7 @@ export function deriveBattleSurfaceCapabilities(
 
   const authority: BattleAuthority = input.remoteSessionSource ? 'REMOTE' : 'LOCAL';
   const surface = deriveBattleSurfaceKind(input);
+  const undoPolicy = deriveUndoPolicy(authority, surface);
 
   return {
     authority,
@@ -64,13 +68,27 @@ export function deriveBattleSurfaceCapabilities(
     canSwitchPerspective: surface === 'LOCAL_DEBUG',
     canSwitchLocalMode: authority === 'LOCAL',
     canShowDebugLog: surface === 'LOCAL_DEBUG',
-    canUndo: authority === 'LOCAL',
+    canUndo: undoPolicy !== 'NONE',
+    undoPolicy,
     showFreePlayControl: true,
     freePlayPolicy: authority === 'LOCAL' ? 'SESSION_GLOBAL' : 'COMMAND_FLAG',
     isSolitairePresentation: surface === 'SOLITAIRE',
     scoreConfirmPresentation: surface === 'LOCAL_DEBUG' ? 'DEBUG_PASSTHROUGH' : 'STANDARD_MODAL',
     isReadOnly: false,
   };
+}
+
+function deriveUndoPolicy(authority: BattleAuthority, surface: BattleSurfaceKind): UndoPolicy {
+  if (authority === 'LOCAL') {
+    return 'LOCAL_IMMEDIATE';
+  }
+  if (surface === 'SOLITAIRE') {
+    return 'REMOTE_IMMEDIATE';
+  }
+  if (surface === 'ONLINE') {
+    return 'REMOTE_REQUEST';
+  }
+  return 'NONE';
 }
 
 function deriveBattleSurfaceKind(input: BattleSurfaceCapabilityInput): BattleSurfaceKind {

@@ -187,7 +187,8 @@ export const PlayerArea = memo(function PlayerArea({
   );
   const isDragging = useGameStore((s) => s.ui.isDragging);
   const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
-  const canShowUndo = capabilities.canUndo;
+  const canShowUndo = capabilities.undoPolicy !== 'NONE';
+  const undoButtonLabel = capabilities.undoPolicy === 'REMOTE_REQUEST' ? '请求撤销' : '撤销';
   const isReadOnly = capabilities.isReadOnly;
   const isRemoteDebugMode = useGameStore((s) => s.isRemoteDebugMode());
   const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
@@ -1042,10 +1043,10 @@ export const PlayerArea = memo(function PlayerArea({
                 ? 'border-[var(--border-default)] bg-[var(--bg-frosted)] text-[var(--text-primary)] hover:border-[var(--accent-primary)]'
                 : 'cursor-not-allowed border-slate-700/50 bg-slate-900/25 text-slate-600'
             )}
-            title="撤销上一步"
+            title={undoButtonLabel}
           >
             <Undo2 size={13} />
-            撤销
+            {undoButtonLabel}
           </button>
         )}
       </DroppableZone>

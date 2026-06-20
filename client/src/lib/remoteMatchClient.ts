@@ -12,13 +12,17 @@ import {
 } from './onlineDebugClient';
 import {
   advanceOnlineMatchPhase,
+  acceptOnlineUndoRequest,
+  createOnlineUndoRequest,
   executeOnlineMatchCommand,
   fetchOnlineMatchSnapshot,
+  rejectOnlineUndoRequest,
 } from './onlineClient';
 import {
   advanceSolitaireMatchPhase,
   executeSolitaireMatchCommand,
   fetchSolitaireMatchSnapshot,
+  undoSolitaireMatch,
 } from './solitaireMatchClient';
 
 export type RemoteSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE';
@@ -79,4 +83,64 @@ export async function advanceRemotePhase(
   }
 
   return advanceOnlineMatchPhase(matchId);
+}
+
+export async function undoRemoteMatch(
+  source: RemoteSessionSource,
+  matchId: string,
+  input: {
+    readonly expectedRevision: number;
+    readonly undoEntryId: string;
+    readonly idempotencyKey?: string;
+  }
+): Promise<RemoteCommandExecutionResult> {
+  if (source === 'SOLITAIRE') {
+    return undoSolitaireMatch(matchId, input);
+  }
+  throw new Error('当前远程对局暂不支持撤销');
+}
+
+export async function createRemoteUndoRequest(
+  source: RemoteSessionSource,
+  matchId: string,
+  input: {
+    readonly expectedRevision: number;
+    readonly undoEntryId: string;
+    readonly idempotencyKey?: string;
+  }
+): Promise<RemoteCommandExecutionResult> {
+  if (source === 'ONLINE') {
+    return createOnlineUndoRequest(matchId, input);
+  }
+  throw new Error('当前远程对局不使用请求式撤销');
+}
+
+export async function acceptRemoteUndoRequest(
+  source: RemoteSessionSource,
+  matchId: string,
+  requestId: string,
+  input: {
+    readonly expectedRevision: number;
+    readonly idempotencyKey?: string;
+  }
+): Promise<RemoteCommandExecutionResult> {
+  if (source === 'ONLINE') {
+    return acceptOnlineUndoRequest(matchId, requestId, input);
+  }
+  throw new Error('当前远程对局不支持接受撤销请求');
+}
+
+export async function rejectRemoteUndoRequest(
+  source: RemoteSessionSource,
+  matchId: string,
+  requestId: string,
+  input: {
+    readonly expectedRevision: number;
+    readonly idempotencyKey?: string;
+  }
+): Promise<RemoteCommandExecutionResult> {
+  if (source === 'ONLINE') {
+    return rejectOnlineUndoRequest(matchId, requestId, input);
+  }
+  throw new Error('当前远程对局不支持拒绝撤销请求');
 }

@@ -83,8 +83,12 @@ import { preloadImage, resolveCardImagePath } from '@/lib/imageService';
 import { type ParsedZoneId } from '@/lib/zoneUtils';
 import {
   advanceRemotePhase,
+  acceptRemoteUndoRequest,
+  createRemoteUndoRequest,
   executeRemoteCommand,
   fetchRemoteSnapshot,
+  rejectRemoteUndoRequest,
+  undoRemoteMatch,
   type RemoteSessionSource,
   type RemoteSnapshot,
 } from '@/lib/remoteMatchClient';
@@ -209,6 +213,8 @@ export interface GameStore {
   canUndoLastStep: () => boolean;
   /** 撤销本地上一步 */
   undoLastStep: () => CommandDispatchResult;
+  /** 处理正式联机撤销请求 */
+  respondRemoteUndoRequest: (requestId: string, accepted: boolean) => CommandDispatchResult;
   /** 选择卡牌 */
   selectCard: (cardId: string | null) => void;
   /** 取消选择 */
@@ -795,15 +801,32 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (isReadonlyReplayMode()) {
         return false;
       }
-      return get().getBattleSurfaceCapabilities().canUndo && get().gameSession.canUndoLastStep();
+      const capabilities = get().getBattleSurfaceCapabilities();
+      if (capabilities.undoPolicy === 'LOCAL_IMMEDIATE') {
+        return get().gameSession.canUndoLastStep();
+      }
+      if (
+        capabilities.undoPolicy === 'REMOTE_IMMEDIATE' ||
+        capabilities.undoPolicy === 'REMOTE_REQUEST'
+      ) {
+        return get().playerViewState?.match.undo?.canUndoNow === true;
+      }
+      return false;
     },
 
     undoLastStep: () => {
       if (isReadonlyReplayMode()) {
         return rejectReadonlyReplayCommand();
       }
+      const capabilities = get().getBattleSurfaceCapabilities();
       if (get().remoteSession) {
-        return { success: false, error: '远程对战暂不支持撤销' };
+        if (capabilities.undoPolicy === 'REMOTE_IMMEDIATE') {
+          return dispatchRemoteUndoLastStep();
+        }
+        if (capabilities.undoPolicy === 'REMOTE_REQUEST') {
+          return dispatchRemoteUndoRequest();
+        }
+        return { success: false, error: '当前远程对局暂不支持撤销' };
       }
 
       const result = get().gameSession.undoLastStep();
@@ -824,6 +847,13 @@ export const useGameStore = create<GameStore>((set, get) => {
       }));
       get().addLog('撤销上一步', 'action');
       return { success: true };
+    },
+
+    respondRemoteUndoRequest: (requestId, accepted) => {
+      if (isReadonlyReplayMode()) {
+        return rejectReadonlyReplayCommand();
+      }
+      return dispatchRemoteUndoRequestResponse(requestId, accepted);
     },
 
     selectCard: (cardId) => {
@@ -2286,4 +2316,171 @@ function dispatchRemoteAdvancePhase(): boolean {
     });
 
   return true;
+}
+
+function dispatchRemoteUndoLastStep(): CommandDispatchResult {
+  const store = useGameStore.getState();
+  if (store.replaySession) {
+    warnReplayGuardBypass('dispatchRemoteUndoLastStep');
+    return { success: false, pending: true };
+  }
+  const remoteSession = store.remoteSession;
+  if (!remoteSession) {
+    return { success: false, error: '未连接远程对局' };
+  }
+  const undoView = store.playerViewState?.match.undo;
+  const undoEntry = undoView?.entry;
+  if (!undoView?.canUndoNow || !undoEntry) {
+    return {
+      success: false,
+      error: undoView?.disabledReason ?? '没有可撤销的步骤',
+    };
+  }
+
+  void undoRemoteMatch(remoteSession.source, remoteSession.matchId, {
+    expectedRevision: store.playerViewState?.match.seq ?? 0,
+    undoEntryId: undoEntry.undoEntryId,
+    idempotencyKey: createClientIdempotencyKey('undo'),
+  })
+    .then(async (result) => {
+      if (!result.success || !result.snapshot) {
+        useGameStore
+          .getState()
+          .addLog(`撤销失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+        return;
+      }
+
+      await preloadFrontTransitions(
+        useGameStore.getState().playerViewState,
+        result.snapshot.playerViewState,
+        useGameStore.getState().cardDataRegistry
+      );
+      applyRemoteSnapshot(result.snapshot, useGameStore.setState);
+      useGameStore.getState().addLog('撤销上一步', 'action');
+    })
+    .catch((error) => {
+      useGameStore
+        .getState()
+        .addLog(`撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`, 'error');
+    });
+
+  return { success: false, pending: true };
+}
+
+function dispatchRemoteUndoRequest(): CommandDispatchResult {
+  const store = useGameStore.getState();
+  if (store.replaySession) {
+    warnReplayGuardBypass('dispatchRemoteUndoRequest');
+    return { success: false, pending: true };
+  }
+  const remoteSession = store.remoteSession;
+  if (!remoteSession) {
+    return { success: false, error: '未连接远程对局' };
+  }
+  const undoView = store.playerViewState?.match.undo;
+  const undoEntry = undoView?.entry;
+  if (!undoView?.canUndoNow || !undoEntry) {
+    return {
+      success: false,
+      error: undoView?.disabledReason ?? '没有可请求撤销的步骤',
+    };
+  }
+
+  void createRemoteUndoRequest(remoteSession.source, remoteSession.matchId, {
+    expectedRevision: store.playerViewState?.match.seq ?? 0,
+    undoEntryId: undoEntry.undoEntryId,
+    idempotencyKey: createClientIdempotencyKey('undo-request'),
+  })
+    .then(async (result) => {
+      if (!result.success || !result.snapshot) {
+        useGameStore
+          .getState()
+          .addLog(`请求撤销失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+        return;
+      }
+
+      await preloadFrontTransitions(
+        useGameStore.getState().playerViewState,
+        result.snapshot.playerViewState,
+        useGameStore.getState().cardDataRegistry
+      );
+      applyRemoteSnapshot(result.snapshot, useGameStore.setState);
+      useGameStore.getState().addLog('已发送撤销请求', 'action');
+    })
+    .catch((error) => {
+      useGameStore
+        .getState()
+        .addLog(
+          `请求撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
+          'error'
+        );
+    });
+
+  return { success: false, pending: true };
+}
+
+function dispatchRemoteUndoRequestResponse(
+  requestId: string,
+  accepted: boolean
+): CommandDispatchResult {
+  const store = useGameStore.getState();
+  if (store.replaySession) {
+    warnReplayGuardBypass('dispatchRemoteUndoRequestResponse');
+    return { success: false, pending: true };
+  }
+  const remoteSession = store.remoteSession;
+  if (!remoteSession) {
+    return { success: false, error: '未连接远程对局' };
+  }
+
+  const input = {
+    expectedRevision: store.playerViewState?.match.seq ?? 0,
+    idempotencyKey: createClientIdempotencyKey(accepted ? 'undo-accept' : 'undo-reject'),
+  };
+  const request = accepted
+    ? acceptRemoteUndoRequest(remoteSession.source, remoteSession.matchId, requestId, input)
+    : rejectRemoteUndoRequest(remoteSession.source, remoteSession.matchId, requestId, input);
+
+  void request
+    .then(async (result) => {
+      if (!result.success || !result.snapshot) {
+        useGameStore
+          .getState()
+          .addLog(
+            `${accepted ? '接受' : '拒绝'}撤销失败: ${
+              result.error ?? '服务端拒绝了该操作'
+            }`,
+            'error'
+          );
+        return;
+      }
+
+      await preloadFrontTransitions(
+        useGameStore.getState().playerViewState,
+        result.snapshot.playerViewState,
+        useGameStore.getState().cardDataRegistry
+      );
+      applyRemoteSnapshot(result.snapshot, useGameStore.setState);
+      useGameStore.getState().addLog(accepted ? '已接受撤销请求' : '已拒绝撤销请求', 'action');
+    })
+    .catch((error) => {
+      useGameStore
+        .getState()
+        .addLog(
+          `${accepted ? '接受' : '拒绝'}撤销失败: ${
+            error instanceof Error ? error.message : '网络请求失败'
+          }`,
+          'error'
+        );
+    });
+
+  return { success: false, pending: true };
+}
+
+function createClientIdempotencyKey(prefix: string): string {
+  const random =
+    globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}:${random}`;
 }

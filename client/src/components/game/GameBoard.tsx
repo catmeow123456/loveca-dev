@@ -38,11 +38,13 @@ import { isOwnDeskFreeDragWindow } from '@game/application/command-availability'
 import { GameCommandType } from '@game/application/game-commands';
 import {
   ChevronRight,
+  Check,
   DoorOpen,
   EyeOff,
   Maximize2,
   ScrollText,
   Swords,
+  Undo2,
   UserRound,
   X,
   Zap,
@@ -151,6 +153,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     setDragHints,
     setHoveredCard,
     setFreePlayEnabled,
+    respondRemoteUndoRequest,
     getZoneCardIds,
     findViewerCardZone,
     resolveCardDropTarget,
@@ -181,6 +184,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       setDragHints: s.setDragHints,
       setHoveredCard: s.setHoveredCard,
       setFreePlayEnabled: s.setFreePlayEnabled,
+      respondRemoteUndoRequest: s.respondRemoteUndoRequest,
       getZoneCardIds: s.getZoneCardIds,
       findViewerCardZone: s.findViewerCardZone,
       resolveCardDropTarget: s.resolveCardDropTarget,
@@ -252,6 +256,15 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const autoCostEnergyIds = pendingCostPayment
     ? pendingCostEnergyIds.slice(0, pendingCostPayment.finalEnergyCost)
     : [];
+  const pendingUndoRequest = matchView?.undo?.pendingRequest ?? null;
+  const pendingUndoRequesterName = pendingUndoRequest
+    ? getPlayerIdentityForSeat(pendingUndoRequest.requesterSeat)?.name ??
+      (pendingUndoRequest.requesterSeat === 'FIRST' ? '先攻玩家' : '后攻玩家')
+    : '';
+  const pendingUndoIsRequester =
+    !!pendingUndoRequest && !!viewerSeat && pendingUndoRequest.requesterSeat === viewerSeat;
+  const pendingUndoCanRespond =
+    !!pendingUndoRequest && !!viewerSeat && pendingUndoRequest.requesterSeat !== viewerSeat;
 
   useEffect(() => {
     setActiveEffectOrderedSelection([]);
@@ -1636,6 +1649,57 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
         {/* 换牌面板 */}
         <MulliganPanel isOpen={!isReadOnly && mulliganPanelOpen} />
+
+        {pendingUndoRequest && (
+          <div className="pointer-events-auto fixed inset-0 z-[110] flex items-center justify-center px-4">
+            <div className="modal-backdrop absolute inset-0" />
+            <div className="modal-surface modal-accent-indigo relative w-[min(92vw,460px)] p-5 text-[var(--text-primary)]">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--accent-primary)]">
+                  <Undo2 className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                    撤销请求
+                  </div>
+                  <div className="mt-1 text-sm font-semibold">
+                    {pendingUndoRequesterName} 请求撤销上一步
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+                    {pendingUndoRequest.summary}
+                  </p>
+                </div>
+              </div>
+
+              {pendingUndoIsRequester ? (
+                <div className="mt-4 rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                  等待对手回应
+                </div>
+              ) : (
+                <div className="mt-5 flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={!pendingUndoCanRespond}
+                    onClick={() => respondRemoteUndoRequest(pendingUndoRequest.requestId, false)}
+                    className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                    拒绝
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!pendingUndoCanRespond}
+                    onClick={() => respondRemoteUndoRequest(pendingUndoRequest.requestId, true)}
+                    className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold"
+                  >
+                    <Check className="h-4 w-4" aria-hidden="true" />
+                    接受
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 拖拽覆盖层 - 显示正在拖拽的卡牌 */}
         <DragOverlay>

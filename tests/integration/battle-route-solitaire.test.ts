@@ -11,6 +11,7 @@ vi.mock('../../src/server/services/solitaire-match-service.js', () => ({
     getMatchSnapshot: vi.fn(),
     executeCommand: vi.fn(),
     advancePhase: vi.fn(),
+    undoLatest: vi.fn(),
     leaveMatch: vi.fn(),
   },
 }));
@@ -122,6 +123,54 @@ describe('battleRouter solitaire match routes', () => {
     expect(response.body).toEqual({
       data: null,
       error: { code: 'INVALID_REQUEST', message: '卡组参数非法' },
+    });
+  });
+
+  it('对墙打撤销路由校验 revision 与 undo entry 后透传当前用户', async () => {
+    vi.mocked(solitaireMatchService.undoLatest).mockResolvedValue({
+      success: true,
+      snapshot: {
+        matchId: 'match-1',
+        seat: 'FIRST',
+        playerId: 'player-1',
+        seq: 8,
+        playerViewState: {},
+      },
+    } as never);
+
+    const response = await invokeRoute('/solitaire-matches/:matchId/undo', 'post', {
+      params: { matchId: 'match-1' },
+      body: {
+        expectedRevision: 7,
+        undoEntryId: 'match-1:undo:1',
+        idempotencyKey: 'undo-key-1',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(solitaireMatchService.undoLatest).toHaveBeenCalledWith('match-1', 'user-1', {
+      expectedRevision: 7,
+      undoEntryId: 'match-1:undo:1',
+      idempotencyKey: 'undo-key-1',
+    });
+    expect(response.body?.error).toBeNull();
+    expect(response.body?.data).toMatchObject({ success: true });
+  });
+
+  it('对墙打撤销路由拒绝非法参数', async () => {
+    const response = await invokeRoute('/solitaire-matches/:matchId/undo', 'post', {
+      params: { matchId: 'match-1' },
+      body: {
+        expectedRevision: -1,
+        undoEntryId: '',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(solitaireMatchService.undoLatest).not.toHaveBeenCalled();
+    expect(response.body).toEqual({
+      data: null,
+      error: { code: 'INVALID_REQUEST', message: '撤销参数非法' },
     });
   });
 });
