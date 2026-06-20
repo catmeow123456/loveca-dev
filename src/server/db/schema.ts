@@ -467,7 +467,11 @@ export const matchRecordPublicEvents = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
   },
   (table) => [
-    uniqueIndex('uq_match_record_public_events_match_seq').on(table.matchId, table.eventSeq),
+    uniqueIndex('uq_match_record_public_events_match_timeline_seq').on(
+      table.matchId,
+      table.timelineSeq,
+      table.eventSeq
+    ),
     index('idx_match_record_public_events_timeline').on(table.matchId, table.timelineSeq),
     index('idx_match_record_public_events_type').on(table.matchId, table.eventType),
     check(
@@ -580,6 +584,7 @@ export const matchRecordPrivateEvents = pgTable(
     uniqueIndex('uq_match_record_private_events_match_seat_seq').on(
       table.matchId,
       table.seat,
+      table.timelineSeq,
       table.eventSeq
     ),
     index('idx_match_record_private_events_timeline').on(table.matchId, table.timelineSeq),

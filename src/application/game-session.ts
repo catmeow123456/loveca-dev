@@ -89,6 +89,10 @@ import type {
   SealedAuditRecord,
   SealedAuditRecordDraft,
   Seat,
+  OnlineUndoView,
+  UndoEntrySummary,
+  UndoPolicy,
+  UndoRuntimeCaptureCursor,
   WindowStatus,
 } from '../online/types.js';
 import type {
@@ -243,6 +247,25 @@ interface GameSessionUndoSnapshot {
   readonly authoritySnapshots: Map<number, GameState>;
 }
 
+interface GameSessionUndoDraft {
+  readonly snapshot: GameSessionUndoSnapshot;
+  readonly actorPlayerId: string;
+  readonly actorSeat: Seat;
+  readonly label: string;
+  readonly boundaryKey: string;
+  readonly createdAt: number;
+  readonly beforeCommandSeq: number;
+  readonly beforePublicSeq: number;
+  readonly beforeGameEventSeq: number;
+  readonly beforeAuditSeq: number;
+  readonly beforeCaptureCursor: UndoRuntimeCaptureCursor;
+}
+
+interface GameSessionUndoEntry {
+  readonly snapshot: GameSessionUndoSnapshot;
+  readonly summary: UndoEntrySummary;
+}
+
 // ============================================
 // GameSession 类
 // ============================================
@@ -272,7 +295,8 @@ export class GameSession {
   private commandSeq = 0;
   private snapshotHistory: MatchSnapshotSummary[] = [];
   private authoritySnapshots = new Map<number, GameState>();
-  private undoHistory: GameSessionUndoSnapshot[] = [];
+  private undoHistory: GameSessionUndoEntry[] = [];
+  private undoEntrySeq = 0;
   private _localFreePlay = false;
 
   constructor(options: GameSessionOptions = {}) {
@@ -346,6 +370,7 @@ export class GameSession {
     this.snapshotHistory = [];
     this.authoritySnapshots = new Map();
     this.undoHistory = [];
+    this.undoEntrySeq = 0;
 
     const initialState = this.gameService.createGame(
       gameId,
@@ -400,12 +425,10 @@ export class GameSession {
       };
     }
 
-    const undoBoundaryKey = this.getUndoBoundaryKey(this.authorityState);
-    const undoSnapshot = this.captureUndoSnapshot();
+    const undoDraft = this.captureUndoDraft(action.playerId, action.type);
     const result = this.gameService.processAction(this.authorityState, action);
 
     if (result.success) {
-      this.pushUndoSnapshot(undoSnapshot);
       this.setAuthorityState(result.gameState, {
         source: 'PLAYER',
         actorPlayerId: action.playerId,
@@ -422,7 +445,7 @@ export class GameSession {
       });
 
       this.runPostCommitAutomation(action.playerId);
-      this.clearUndoHistoryIfBoundaryChanged(undoBoundaryKey);
+      this.finalizeUndoEntry(undoDraft);
     }
 
     return {
@@ -471,8 +494,7 @@ export class GameSession {
       };
     }
 
-    const undoBoundaryKey = this.getUndoBoundaryKey(this.authorityState);
-    const undoSnapshot = this.captureUndoSnapshot();
+    const undoDraft = this.captureUndoDraft(command.playerId, command.type);
     const result = this.applyCommand(this.authorityState, command);
     if (!result.success) {
       this.recordCommand(command, 'REJECTED', result.error);
@@ -493,7 +515,6 @@ export class GameSession {
       };
     }
 
-    this.pushUndoSnapshot(undoSnapshot);
     this.setAuthorityState(result.gameState, {
       source: 'PLAYER',
       actorPlayerId: command.playerId,
@@ -506,7 +527,7 @@ export class GameSession {
     this.recordCommand(command, 'ACCEPTED');
 
     this.runPostCommitAutomation(command.playerId);
-    this.clearUndoHistoryIfBoundaryChanged(undoBoundaryKey);
+    this.finalizeUndoEntry(undoDraft);
 
     return {
       success: true,
@@ -588,12 +609,10 @@ export class GameSession {
       };
     }
 
-    const undoBoundaryKey = this.getUndoBoundaryKey(this.authorityState);
-    const undoSnapshot = this.captureUndoSnapshot();
+    const undoDraft = this.captureUndoDraft(getActivePlayer(this.authorityState).id, 'ADVANCE_PHASE');
     const result = this.gameService.advancePhase(this.authorityState);
 
     if (result.success) {
-      this.pushUndoSnapshot(undoSnapshot);
       this.setAuthorityState(result.gameState, { source: 'SYSTEM' });
 
       // 发送阶段变更事件
@@ -605,7 +624,7 @@ export class GameSession {
 
       // 继续自动推进（如果新阶段是自动阶段）
       this.autoAdvance(this.authorityState);
-      this.clearUndoHistoryIfBoundaryChanged(undoBoundaryKey);
+      this.finalizeUndoEntry(undoDraft);
     }
 
     return {
@@ -627,8 +646,8 @@ export class GameSession {
       };
     }
 
-    const snapshot = this.undoHistory.pop();
-    if (!snapshot) {
+    const entry = this.undoHistory.pop();
+    if (!entry) {
       return {
         success: false,
         gameState: this.authorityState,
@@ -636,11 +655,106 @@ export class GameSession {
       };
     }
 
-    this.restoreUndoSnapshot(snapshot);
+    this.restoreUndoSnapshot(entry.snapshot);
 
     return {
       success: true,
       gameState: this.authorityState,
+    };
+  }
+
+  getUndoAvailability(
+    playerId: string,
+    policy: UndoPolicy = 'LOCAL_IMMEDIATE'
+  ): OnlineUndoView {
+    if (policy === 'NONE') {
+      return createUndoAvailability(policy, false, null, '当前桌面不支持撤销');
+    }
+    if (!this.authorityState) {
+      return createUndoAvailability(policy, false, null, '游戏尚未开始');
+    }
+
+    const viewerSeat = getSeatForPlayer(this.authorityState, playerId);
+    if (!viewerSeat) {
+      return createUndoAvailability(policy, false, null, '玩家不存在');
+    }
+
+    const entry = this.undoHistory.at(-1)?.summary ?? null;
+    if (!entry) {
+      return createUndoAvailability(policy, false, null, '没有可撤销的步骤');
+    }
+    if (entry.actorPlayerId !== playerId) {
+      return createUndoAvailability(policy, false, entry, '只能撤销自己最近一次操作');
+    }
+    if (policy === 'REMOTE_REQUEST' && entry.hasHumanOpponentReveal) {
+      return createUndoAvailability(policy, false, entry, '该操作已公开隐藏信息，暂不支持远程撤销');
+    }
+    if (policy === 'REMOTE_REQUEST' && entry.hasRandomOrShuffle) {
+      return createUndoAvailability(
+        policy,
+        false,
+        entry,
+        '该操作包含随机或洗切处理，暂不支持远程撤销'
+      );
+    }
+    if (entry.hasOpponentFollowup) {
+      return createUndoAvailability(policy, false, entry, '对手已有后续操作，不能撤销');
+    }
+
+    return createUndoAvailability(policy, true, entry, null);
+  }
+
+  undoLastStepForPlayer(playerId: string, undoEntryId: string): GameOperationResult {
+    if (!this.authorityState) {
+      return {
+        success: false,
+        gameState: null as unknown as GameState,
+        error: '游戏尚未开始',
+      };
+    }
+
+    const latestEntry = this.undoHistory.at(-1);
+    if (!latestEntry) {
+      return {
+        success: false,
+        gameState: this.authorityState,
+        error: '没有可撤销的步骤',
+      };
+    }
+    if (latestEntry.summary.undoEntryId !== undoEntryId) {
+      return {
+        success: false,
+        gameState: this.authorityState,
+        error: '撤销目标已变化，请刷新后重试',
+      };
+    }
+    if (latestEntry.summary.actorPlayerId !== playerId) {
+      return {
+        success: false,
+        gameState: this.authorityState,
+        error: '只能撤销自己最近一次操作',
+      };
+    }
+
+    this.undoHistory.pop();
+    this.restoreUndoSnapshot(latestEntry.snapshot);
+
+    return {
+      success: true,
+      gameState: this.authorityState,
+    };
+  }
+
+  getRuntimeCaptureCursor(): UndoRuntimeCaptureCursor {
+    return {
+      publicSeq: this.publicEventSeq,
+      privateSeqBySeat: {
+        FIRST: latestSeq(this.privateEventsBySeat.FIRST, (event) => event.seq) ?? 0,
+        SECOND: latestSeq(this.privateEventsBySeat.SECOND, (event) => event.seq) ?? 0,
+      },
+      auditSeq: this.sealedAuditSeq,
+      commandSeq: this.commandSeq,
+      gameEventSeq: this.getCurrentGameEventSeq(),
     };
   }
 
@@ -669,8 +783,70 @@ export class GameSession {
     };
   }
 
-  private pushUndoSnapshot(snapshot: GameSessionUndoSnapshot): void {
-    this.undoHistory.push(snapshot);
+  private captureUndoDraft(actorPlayerId: string, label: string): GameSessionUndoDraft {
+    if (!this.authorityState) {
+      throw new Error('Cannot capture undo draft before game starts');
+    }
+
+    const actorSeat = getSeatForPlayer(this.authorityState, actorPlayerId);
+    if (!actorSeat) {
+      throw new Error(`Cannot capture undo draft for unknown player: ${actorPlayerId}`);
+    }
+
+    return {
+      snapshot: this.captureUndoSnapshot(),
+      actorPlayerId,
+      actorSeat,
+      label,
+      boundaryKey: this.getUndoBoundaryKey(this.authorityState),
+      createdAt: Date.now(),
+      beforeCommandSeq: this.commandSeq,
+      beforePublicSeq: this.publicEventSeq,
+      beforeGameEventSeq: this.getCurrentGameEventSeq(),
+      beforeAuditSeq: this.sealedAuditSeq,
+      beforeCaptureCursor: this.getRuntimeCaptureCursor(),
+    };
+  }
+
+  private finalizeUndoEntry(draft: GameSessionUndoDraft): void {
+    if (!this.authorityState) {
+      return;
+    }
+
+    if (this.getUndoBoundaryKey(this.authorityState) !== draft.boundaryKey) {
+      this.undoHistory = [];
+      return;
+    }
+
+    this.pushUndoEntry({
+      snapshot: draft.snapshot,
+      summary: {
+        undoEntryId: `${this.authorityState.gameId}:undo:${++this.undoEntrySeq}`,
+        actorPlayerId: draft.actorPlayerId,
+        actorSeat: draft.actorSeat,
+        label: draft.label,
+        boundaryKey: draft.boundaryKey,
+        createdAt: draft.createdAt,
+        beforeCommandSeq: draft.beforeCommandSeq,
+        afterCommandSeq: this.commandSeq,
+        beforePublicSeq: draft.beforePublicSeq,
+        afterPublicSeq: this.publicEventSeq,
+        beforeGameEventSeq: draft.beforeGameEventSeq,
+        afterGameEventSeq: this.getCurrentGameEventSeq(),
+        beforeCaptureCursor: draft.beforeCaptureCursor,
+        afterCaptureCursor: this.getRuntimeCaptureCursor(),
+        hasHumanOpponentReveal: this.hasHumanOpponentRevealSince(draft.beforePublicSeq),
+        hasRandomOrShuffle: this.hasRandomOrShuffleSince(
+          draft.beforePublicSeq,
+          draft.beforeAuditSeq
+        ),
+        hasOpponentFollowup: false,
+      },
+    });
+  }
+
+  private pushUndoEntry(entry: GameSessionUndoEntry): void {
+    this.undoHistory.push(entry);
     if (this.undoHistory.length > MAX_UNDO_HISTORY) {
       this.undoHistory.shift();
     }
@@ -711,6 +887,28 @@ export class GameSession {
     if (this.getUndoBoundaryKey(this.authorityState) !== previousBoundaryKey) {
       this.undoHistory = [];
     }
+  }
+
+  private hasHumanOpponentRevealSince(publicSeq: number): boolean {
+    return this.publicEvents.some(
+      (event) =>
+        event.seq > publicSeq &&
+        (event.type === 'CardRevealed' ||
+          event.type === 'CardRevealedAndMoved' ||
+          event.type === 'CardsInspectedSummary')
+    );
+  }
+
+  private hasRandomOrShuffleSince(publicSeq: number, auditSeq: number): boolean {
+    return (
+      this.publicEvents.some((event) => event.seq > publicSeq && event.type === 'DeckRefreshed') ||
+      this.sealedAuditRecords.some(
+        (record) =>
+          record.seq > auditSeq &&
+          (record.type.toUpperCase().includes('RANDOM') ||
+            record.type.toUpperCase().includes('SHUFFLE'))
+      )
+    );
   }
 
   private cloneForUndo<T>(value: T): T {
@@ -3915,6 +4113,28 @@ function buildCardMovedPublicEvent(
     from: refs.from,
     to: refs.to,
   };
+}
+
+function createUndoAvailability(
+  policy: UndoPolicy,
+  canUndoNow: boolean,
+  entry: UndoEntrySummary | null,
+  disabledReason: string | null
+): OnlineUndoView {
+  return {
+    policy,
+    canUndoNow,
+    disabledReason,
+    entry,
+    pendingRequest: null,
+  };
+}
+
+function latestSeq<T>(items: readonly T[], getSeq: (item: T) => number): number | null {
+  return items.reduce<number | null>((latest, item) => {
+    const seq = getSeq(item);
+    return latest === null || seq > latest ? seq : latest;
+  }, null);
 }
 
 function buildPublicCardInfo(cardId: string): PublicCardInfo {

@@ -520,6 +520,84 @@ describe('MatchRecorderService P0a', () => {
     ]);
   });
 
+  it('appendMatchRecordFrame 为 UNDO_APPLIED 追加撤销 frame、checkpoint 与 timeline 事件身份', async () => {
+    const { service, calls } = createRecorderHarness();
+    const session = createGameSession();
+    session.createGame('match-recorder-1', 'p1', 'Alpha', 'p2', 'Beta');
+    const initialized = session.initializeGame(createRuntimeDeck('A'), createRuntimeDeck('B'));
+    expect(initialized.success).toBe(true);
+
+    const result = await service.appendMatchRecordFrame({
+      matchId: 'match-recorder-1',
+      frameType: 'UNDO_APPLIED',
+      authorityState: session.getAuthoritySnapshotForRecord(),
+      relatedPublicSeq: 2,
+      relatedCommandSeq: 1,
+      relatedGameEventSeq: 4,
+      latestPrivateSeqBySeat: { FIRST: 2 },
+      publicEvents: [
+        {
+          type: 'PhaseStarted',
+          eventId: 'public-event-2-branch',
+          matchId: 'match-recorder-1',
+          seq: 2,
+          timestamp: 4_100,
+          source: 'SYSTEM',
+          phase: 'MAIN',
+          activeSeat: 'FIRST',
+        },
+      ],
+      privateEventsBySeat: {
+        FIRST: [
+          {
+            type: 'HandUpdated',
+            eventId: 'private-event-first-2-branch',
+            matchId: 'match-recorder-1',
+            seq: 2,
+            timestamp: 4_110,
+            seat: 'FIRST',
+            relatedPublicSeq: 2,
+          },
+        ],
+      },
+      dedupeKey: 'branch-1:UNDO_APPLIED:undo-1',
+      createdAt: 4_000,
+    });
+
+    expect(result).toMatchObject({
+      matchId: 'match-recorder-1',
+      timelineSeq: 8,
+      checkpointSeq: 4,
+    });
+
+    const timelineInsert = calls.find((call) =>
+      call.text.includes('INSERT INTO match_timeline_entries')
+    );
+    expect(timelineInsert?.values).toEqual(
+      expect.arrayContaining([
+        'UNDO_APPLIED',
+        'SYSTEM',
+        4,
+        2,
+        null,
+        1,
+        4,
+        'branch-1:UNDO_APPLIED:undo-1',
+      ])
+    );
+    expect(calls.some((call) => call.text.includes('INSERT INTO match_checkpoints'))).toBe(true);
+    expect(
+      calls
+        .find((call) => call.text.includes('INSERT INTO match_record_public_events'))
+        ?.text.includes('ON CONFLICT (match_id, timeline_seq, event_seq) DO NOTHING')
+    ).toBe(true);
+    expect(
+      calls
+        .find((call) => call.text.includes('INSERT INTO match_record_private_events'))
+        ?.text.includes('ON CONFLICT (match_id, seat, timeline_seq, event_seq) DO NOTHING')
+    ).toBe(true);
+  });
+
   it('appendMatchRecordFrame 命中 dedupeKey 时返回既有 timeline，不重复写入', async () => {
     const { service, calls } = createRecorderHarness(
       {},

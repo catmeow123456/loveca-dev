@@ -15,7 +15,11 @@ import {
   type OwnedDeckSummary,
   type UserProfileSummary,
 } from './online-room-service.js';
-import { onlineMatchService, type OnlineMatchService } from './online-match-service.js';
+import {
+  onlineMatchService,
+  type OnlineMatchService,
+  type RemoteUndoInput,
+} from './online-match-service.js';
 
 const DEFAULT_SOLITAIRE_OPPONENT_DECK_PATH =
   process.env.SOLITAIRE_DEFAULT_OPPONENT_DECK_PATH ?? 'assets/decks/缪预组.yaml';
@@ -112,7 +116,7 @@ export class SolitaireMatchService {
       },
     });
 
-    const snapshot = this.matchService.getMatchSnapshot(match.matchId, input.userId);
+    const snapshot = await this.matchService.getMatchSnapshot(match.matchId, input.userId);
     if (!snapshot || 'modified' in snapshot) {
       throw new SolitaireMatchServiceError(
         'SOLITAIRE_MATCH_SNAPSHOT_FAILED',
@@ -127,11 +131,11 @@ export class SolitaireMatchService {
     };
   }
 
-  getMatchSnapshot(
+  async getMatchSnapshot(
     matchId: string,
     userId: string,
     options: { readonly sinceSeq?: number } = {}
-  ): OnlineMatchSnapshotResponse | null {
+  ): Promise<OnlineMatchSnapshotResponse | null> {
     const match = this.getPlayableSolitaireMatch(matchId, userId);
     if (!match) {
       return null;
@@ -157,6 +161,18 @@ export class SolitaireMatchService {
       return null;
     }
     return this.matchService.advancePhase(matchId, userId);
+  }
+
+  async undoLatest(
+    matchId: string,
+    userId: string,
+    input: RemoteUndoInput
+  ): Promise<OnlineCommandResult | null> {
+    const match = this.getPlayableSolitaireMatch(matchId, userId);
+    if (!match) {
+      return null;
+    }
+    return this.matchService.undoLatest(matchId, userId, input);
   }
 
   async leaveMatch(matchId: string, userId: string): Promise<boolean | null> {

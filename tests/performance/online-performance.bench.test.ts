@@ -101,6 +101,21 @@ function measure(label: string, sample: () => void): BenchmarkStats {
   return summarize(label, samples);
 }
 
+async function measureAsync(label: string, sample: () => Promise<void>): Promise<BenchmarkStats> {
+  for (let i = 0; i < WARMUP_COUNT; i += 1) {
+    await sample();
+  }
+
+  const samples: number[] = [];
+  for (let i = 0; i < SAMPLE_COUNT; i += 1) {
+    const startedAt = performance.now();
+    await sample();
+    samples.push(performance.now() - startedAt);
+  }
+
+  return summarize(label, samples);
+}
+
 interface BenchmarkStats {
   readonly label: string;
   readonly samples: number;
@@ -149,7 +164,7 @@ function byteLength(value: unknown): number {
 describePerf('online match performance benchmark', () => {
   it('measures formal online JSON-native snapshot and command response hot paths', async () => {
     const { matchService, matchId } = await createOnlineMatch();
-    const firstSnapshot = matchService.getMatchSnapshot(matchId, 'u1') as OnlineMatchSnapshot;
+    const firstSnapshot = (await matchService.getMatchSnapshot(matchId, 'u1')) as OnlineMatchSnapshot;
     expect(firstSnapshot.playerViewState.objects).toBeTruthy();
 
     const snapshotEnvelope = { data: firstSnapshot, error: null };
@@ -167,8 +182,8 @@ describePerf('online match performance benchmark', () => {
     expect(commandResult?.snapshot).toBeTruthy();
 
     const afterCommandSeq = commandResult?.snapshot?.seq ?? firstSnapshot.seq;
-    const unchangedStats = measure('snapshot unchanged short-circuit', () => {
-      const response = matchService.getMatchSnapshot(matchId, 'u1', {
+    const unchangedStats = await measureAsync('snapshot unchanged short-circuit', async () => {
+      const response = await matchService.getMatchSnapshot(matchId, 'u1', {
         sinceSeq: afterCommandSeq,
       });
       if (!response || !('modified' in response)) {
@@ -176,8 +191,8 @@ describePerf('online match performance benchmark', () => {
       }
     });
 
-    const fullSnapshotStats = measure('snapshot full projection', () => {
-      const response = matchService.getMatchSnapshot(matchId, 'u1') as OnlineMatchSnapshot;
+    const fullSnapshotStats = await measureAsync('snapshot full projection', async () => {
+      const response = (await matchService.getMatchSnapshot(matchId, 'u1')) as OnlineMatchSnapshot;
       if (!response.playerViewState) {
         throw new Error('Expected full snapshot response');
       }

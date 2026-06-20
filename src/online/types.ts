@@ -11,6 +11,53 @@ import type { HeartIcon } from '../domain/entities/card.js';
 
 export type Seat = 'FIRST' | 'SECOND';
 
+export type UndoPolicy = 'NONE' | 'LOCAL_IMMEDIATE' | 'REMOTE_IMMEDIATE' | 'REMOTE_REQUEST';
+
+export interface UndoRuntimeCaptureCursor {
+  readonly publicSeq: number;
+  readonly privateSeqBySeat: Readonly<Record<Seat, number>>;
+  readonly auditSeq: number;
+  readonly commandSeq: number;
+  readonly gameEventSeq: number;
+}
+
+export interface UndoEntrySummary {
+  readonly undoEntryId: string;
+  readonly actorPlayerId: string;
+  readonly actorSeat: Seat;
+  readonly label: string;
+  readonly boundaryKey: string;
+  readonly createdAt: number;
+  readonly beforeCommandSeq: number;
+  readonly afterCommandSeq: number;
+  readonly beforePublicSeq: number;
+  readonly afterPublicSeq: number;
+  readonly beforeGameEventSeq: number;
+  readonly afterGameEventSeq: number;
+  readonly beforeCaptureCursor: UndoRuntimeCaptureCursor;
+  readonly afterCaptureCursor: UndoRuntimeCaptureCursor;
+  readonly hasHumanOpponentReveal: boolean;
+  readonly hasRandomOrShuffle: boolean;
+  readonly hasOpponentFollowup: boolean;
+}
+
+export interface UndoRequestView {
+  readonly requestId: string;
+  readonly requesterSeat: Seat;
+  readonly targetUndoEntryId: string;
+  readonly targetRevision: number;
+  readonly summary: string;
+  readonly expiresAt: string;
+}
+
+export interface OnlineUndoView {
+  readonly policy: UndoPolicy;
+  readonly canUndoNow: boolean;
+  readonly disabledReason: string | null;
+  readonly entry: UndoEntrySummary | null;
+  readonly pendingRequest: UndoRequestView | null;
+}
+
 export type ViewerSurface = 'NONE' | 'BACK' | 'FRONT';
 
 export type PublicEventSource = 'PLAYER' | 'SYSTEM';
@@ -45,6 +92,7 @@ export interface MatchViewState {
   readonly prioritySeat: Seat | null;
   readonly window: ViewWindowState | null;
   readonly liveResult?: LiveResultViewState;
+  readonly undo?: OnlineUndoView;
   readonly seq: number;
 }
 

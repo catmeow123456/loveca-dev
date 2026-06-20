@@ -34,6 +34,17 @@ const turnOrderResponseSchema = z.object({
   accepted: z.boolean(),
 });
 
+const undoRequestSchema = z.object({
+  expectedRevision: z.number().int().min(0),
+  undoEntryId: z.string().min(1),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+const undoRequestResponseSchema = z.object({
+  expectedRevision: z.number().int().min(0),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
 onlineRouter.get('/admin/rooms', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const rooms = await onlineRoomService.listAdminRoomSummaries();
@@ -307,7 +318,7 @@ onlineRouter.post('/rooms/:roomCode/leave', requireAuth, async (req, res) => {
   }
 });
 
-onlineRouter.get('/matches/:matchId/snapshot', requireAuth, (req, res) => {
+onlineRouter.get('/matches/:matchId/snapshot', requireAuth, async (req, res) => {
   try {
     const matchId = readPathParam(req.params.matchId);
     const match = onlineMatchService.getMatch(matchId);
@@ -316,7 +327,7 @@ onlineRouter.get('/matches/:matchId/snapshot', requireAuth, (req, res) => {
       return;
     }
 
-    const snapshot = onlineMatchService.getMatchSnapshot(match.matchId, req.user!.id, {
+    const snapshot = await onlineMatchService.getMatchSnapshot(match.matchId, req.user!.id, {
       sinceSeq: readOptionalSeq(req.query?.sinceSeq),
     });
     if (!snapshot) {
@@ -388,6 +399,125 @@ onlineRouter.post('/matches/:matchId/advance', requireAuth, async (req, res) => 
       error: result.success
         ? null
         : { code: 'ADVANCE_REJECTED', message: result.error ?? '阶段推进失败' },
+    });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.post('/matches/:matchId/undo-requests', requireAuth, async (req, res) => {
+  const parsed = undoRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '撤销请求参数非法' } });
+    return;
+  }
+
+  try {
+    const matchId = readPathParam(req.params.matchId);
+    const match = onlineMatchService.getMatch(matchId);
+    if (!match) {
+      respondMatchNotFound(res);
+      return;
+    }
+
+    const result = await onlineMatchService.createUndoRequest(
+      match.matchId,
+      req.user!.id,
+      parsed.data
+    );
+    if (!result) {
+      respondMatchForbidden(res);
+      return;
+    }
+
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
+    res.json({
+      data: result,
+      error: result.success
+        ? null
+        : { code: 'UNDO_REQUEST_REJECTED', message: result.error ?? '撤销请求失败' },
+    });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.post('/matches/:matchId/undo-requests/:requestId/accept', requireAuth, async (req, res) => {
+  const parsed = undoRequestResponseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '撤销响应参数非法' } });
+    return;
+  }
+
+  try {
+    const matchId = readPathParam(req.params.matchId);
+    const match = onlineMatchService.getMatch(matchId);
+    if (!match) {
+      respondMatchNotFound(res);
+      return;
+    }
+
+    const result = await onlineMatchService.acceptUndoRequest(
+      match.matchId,
+      req.user!.id,
+      readPathParam(req.params.requestId),
+      parsed.data
+    );
+    if (!result) {
+      respondMatchForbidden(res);
+      return;
+    }
+
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
+    res.json({
+      data: result,
+      error: result.success
+        ? null
+        : { code: 'UNDO_ACCEPT_REJECTED', message: result.error ?? '接受撤销失败' },
+    });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.post('/matches/:matchId/undo-requests/:requestId/reject', requireAuth, async (req, res) => {
+  const parsed = undoRequestResponseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '撤销响应参数非法' } });
+    return;
+  }
+
+  try {
+    const matchId = readPathParam(req.params.matchId);
+    const match = onlineMatchService.getMatch(matchId);
+    if (!match) {
+      respondMatchNotFound(res);
+      return;
+    }
+
+    const result = await onlineMatchService.rejectUndoRequest(
+      match.matchId,
+      req.user!.id,
+      readPathParam(req.params.requestId),
+      parsed.data
+    );
+    if (!result) {
+      respondMatchForbidden(res);
+      return;
+    }
+
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
+    res.json({
+      data: result,
+      error: result.success
+        ? null
+        : { code: 'UNDO_REJECT_REJECTED', message: result.error ?? '拒绝撤销失败' },
     });
   } catch (error) {
     respondOnlineError(res, error);

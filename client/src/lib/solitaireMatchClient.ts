@@ -73,6 +73,24 @@ export async function advanceSolitaireMatchPhase(matchId: string): Promise<Onlin
   return response.data;
 }
 
+export async function undoSolitaireMatch(
+  matchId: string,
+  input: {
+    readonly expectedRevision: number;
+    readonly undoEntryId: string;
+    readonly idempotencyKey?: string;
+  }
+): Promise<OnlineCommandResult> {
+  const response = await apiClient.post<OnlineCommandResult>(
+    `/api/battle/solitaire-matches/${encodeURIComponent(matchId)}/undo`,
+    input
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '对墙打撤销失败');
+  }
+  return response.data;
+}
+
 export async function leaveSolitaireMatch(matchId: string): Promise<void> {
   const response = await apiClient.post<{ readonly left: boolean }>(
     `/api/battle/solitaire-matches/${encodeURIComponent(matchId)}/leave`
