@@ -6,7 +6,9 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
+import { startConfirmOnlyPendingAbilityEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -14,12 +16,48 @@ export function registerSpBp2024VitaminSummerWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
-      resolveSpBp2024VitaminSummerLiveSuccess(
-        game,
-        ability,
-        options.orderedResolution === true,
-        context.continuePendingCardEffects
-      )
+      startSpBp2024VitaminSummerLiveSuccess(game, ability, options, context.continuePendingCardEffects)
+  );
+}
+
+function startSpBp2024VitaminSummerLiveSuccess(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: {
+    readonly orderedResolution?: boolean;
+    readonly manualConfirmation?: boolean;
+    readonly skipManualConfirmation?: boolean;
+  },
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const orderedResolution = options.orderedResolution === true;
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  if (options.manualConfirmation === true && options.skipManualConfirmation !== true) {
+    const opponent = game.players.find((candidate) => candidate.id !== ability.controllerId);
+    const ownHandCount = player.hand.cardIds.length;
+    const opponentHandCount = opponent?.hand.cardIds.length ?? 0;
+    const conditionMet = ownHandCount > opponentHandCount;
+    return startConfirmOnlyPendingAbilityEffect(game, {
+      ability,
+      effectText: getAbilityEffectText(
+        SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID
+      ),
+      orderedResolution,
+      stepText: conditionMet
+        ? `自己手牌 ${ownHandCount} 张，对方手牌 ${opponentHandCount} 张，条件满足。确认后此 LIVE 分数 +1。`
+        : `自己手牌 ${ownHandCount} 张，对方手牌 ${opponentHandCount} 张，条件不满足。确认后不增加分数。`,
+    });
+  }
+
+  return resolveSpBp2024VitaminSummerLiveSuccess(
+    game,
+    ability,
+    orderedResolution,
+    continuePendingCardEffects
   );
 }
 

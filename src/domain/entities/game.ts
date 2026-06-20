@@ -457,6 +457,12 @@ export interface PendingCostPaymentState {
   readonly relayDiscount: number;
   /** 目标槽位原成员 */
   readonly replacedMemberCardId: string | null;
+  /** 本次换手的完整成员列表；旧单换手长度为 1，双换手长度为 2。 */
+  readonly relayReplacements?: readonly {
+    readonly cardId: string;
+    readonly slot: SlotPosition;
+    readonly effectiveCost: number;
+  }[];
   /** 可用于支付的活跃能量 */
   readonly payableEnergyCardIds: readonly string[];
   /** 费用计算说明，给 UI 和调试使用 */

@@ -7,6 +7,7 @@ import type { MemberCardData } from '../entities/card.js';
 import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
+import { canUseDoubleRelay } from '../../shared/rules/double-relay.js';
 
 // ============================================
 // 费用相关类型
@@ -28,12 +29,27 @@ export interface CostPaymentPlan {
   readonly energyToTap: readonly string[];
   /** 换手的成员（将移动到休息室的成员卡 ID） */
   readonly memberToRelay: string | null;
+  /** 本次换手的完整成员列表；单换手长度为 1，双换手长度为 2。 */
+  readonly relayReplacements: readonly RelayReplacementPlan[];
   /** 换手减免的费用 */
   readonly relayDiscount: number;
   /** 实际需要支付的能量数量 */
   readonly actualEnergyCost: number;
   /** 是否发生换手 */
   readonly isRelay: boolean;
+}
+
+export interface RelayReplacementPlan {
+  readonly cardId: string;
+  readonly slot: SlotPosition;
+  readonly effectiveCost: number;
+}
+
+export type RelayMode = 'SINGLE' | 'DOUBLE';
+
+export interface PlayMemberCostOptions {
+  readonly relayMode?: RelayMode;
+  readonly relayReplacementSlots?: readonly SlotPosition[];
 }
 
 /**
@@ -247,7 +263,8 @@ export class CostCalculator {
   checkCanPayCost(
     memberData: MemberCardData,
     targetPosition: SlotPosition,
-    resources: AvailableResources
+    resources: AvailableResources,
+    options: PlayMemberCostOptions = {}
   ): CostCheckResult {
     const costInfo = this.calculateModifiedPlayCost(memberData, resources);
     const baseCost = costInfo.baseCost;
@@ -256,7 +273,7 @@ export class CostCalculator {
     const availablePlans: CostPaymentPlan[] = [];
 
     // 方案1：直接支付（不换手）
-    if (availableEnergy >= modifiedCost) {
+    if (options.relayMode === undefined && availableEnergy >= modifiedCost) {
       availablePlans.push({
         totalCost: baseCost,
         modifiedCost,
@@ -264,6 +281,7 @@ export class CostCalculator {
         costModifierAmount: costInfo.modifierAmount,
         energyToTap: resources.activeEnergyIds.slice(0, modifiedCost),
         memberToRelay: null,
+        relayReplacements: [],
         relayDiscount: 0,
         actualEnergyCost: modifiedCost,
         isRelay: false,
@@ -274,10 +292,24 @@ export class CostCalculator {
     // 查找目标槽位上的成员（如果有）
     const targetMember = resources.stageMembers.find((m) => m.position === targetPosition);
 
-    if (targetMember && canMemberBeRelayedAway(targetMember.data, memberData)) {
-      const relayDiscount = this.calculateRelayDiscount(
-        targetMember.data,
-        targetMember.effectiveCost
+    if (options.relayMode === 'DOUBLE') {
+      const doubleRelayPlan = this.createDoubleRelayPlan(
+        memberData,
+        targetPosition,
+        resources,
+        options
+      );
+      if (!doubleRelayPlan.ok) {
+        return {
+          canPay: false,
+          availablePlans: [],
+          reason: doubleRelayPlan.reason,
+        };
+      }
+
+      const relayDiscount = doubleRelayPlan.replacements.reduce(
+        (sum, replacement) => sum + replacement.effectiveCost,
+        0
       );
       const actualCost = Math.max(0, modifiedCost - relayDiscount);
 
@@ -288,7 +320,27 @@ export class CostCalculator {
           costModifiers: costInfo.modifiers,
           costModifierAmount: costInfo.modifierAmount,
           energyToTap: resources.activeEnergyIds.slice(0, actualCost),
+          memberToRelay: doubleRelayPlan.replacements[0]?.cardId ?? null,
+          relayReplacements: doubleRelayPlan.replacements,
+          relayDiscount,
+          actualEnergyCost: actualCost,
+          isRelay: true,
+        });
+      }
+    } else if (targetMember && canMemberBeRelayedAway(targetMember.data, memberData)) {
+      const targetReplacement = this.createRelayReplacementPlan(targetMember);
+      const relayDiscount = targetReplacement.effectiveCost;
+      const actualCost = Math.max(0, modifiedCost - relayDiscount);
+
+      if (availableEnergy >= actualCost) {
+        availablePlans.push({
+          totalCost: baseCost,
+          modifiedCost,
+          costModifiers: costInfo.modifiers,
+          costModifierAmount: costInfo.modifierAmount,
+          energyToTap: resources.activeEnergyIds.slice(0, actualCost),
           memberToRelay: targetMember.cardId,
+          relayReplacements: [targetReplacement],
           relayDiscount,
           actualEnergyCost: actualCost,
           isRelay: true,
@@ -339,10 +391,64 @@ export class CostCalculator {
   generateAllPaymentPlans(
     memberData: MemberCardData,
     targetPosition: SlotPosition,
-    resources: AvailableResources
+    resources: AvailableResources,
+    options: PlayMemberCostOptions = {}
   ): CostPaymentPlan[] {
-    const result = this.checkCanPayCost(memberData, targetPosition, resources);
+    const result = this.checkCanPayCost(memberData, targetPosition, resources, options);
     return [...result.availablePlans];
+  }
+
+  private createRelayReplacementPlan(stageMember: StageMemberInfo): RelayReplacementPlan {
+    return {
+      cardId: stageMember.cardId,
+      slot: stageMember.position,
+      effectiveCost: this.calculateRelayDiscount(stageMember.data, stageMember.effectiveCost),
+    };
+  }
+
+  private createDoubleRelayPlan(
+    memberData: MemberCardData,
+    targetPosition: SlotPosition,
+    resources: AvailableResources,
+    options: PlayMemberCostOptions
+  ):
+    | { readonly ok: true; readonly replacements: readonly RelayReplacementPlan[] }
+    | { readonly ok: false; readonly reason: string } {
+    if (!canUseDoubleRelay(memberData)) {
+      return { ok: false, reason: '只有 PL!SP-bp4-004 支持双换手' };
+    }
+
+    const replacementSlots = options.relayReplacementSlots ?? [];
+    const uniqueSlots = new Set(replacementSlots);
+    if (replacementSlots.length !== 2 || uniqueSlots.size !== 2) {
+      return { ok: false, reason: '双换手必须选择正好2个不同成员槽位' };
+    }
+    if (!uniqueSlots.has(targetPosition)) {
+      return { ok: false, reason: '双换手必须包含拖拽目标格成员' };
+    }
+
+    const targetMember = resources.stageMembers.find((member) => member.position === targetPosition);
+    if (!targetMember) {
+      return { ok: false, reason: '双换手暂不支持拖拽到空成员区' };
+    }
+
+    const replacements: RelayReplacementPlan[] = [];
+    const orderedReplacementSlots = [
+      targetPosition,
+      ...replacementSlots.filter((slot) => slot !== targetPosition),
+    ];
+    for (const slot of orderedReplacementSlots) {
+      const stageMember = resources.stageMembers.find((member) => member.position === slot);
+      if (!stageMember) {
+        return { ok: false, reason: '双换手选择的槽位必须都有己方成员' };
+      }
+      if (!canMemberBeRelayedAway(stageMember.data, memberData)) {
+        return { ok: false, reason: '选择的成员无法因换手放置入休息室' };
+      }
+      replacements.push(this.createRelayReplacementPlan(stageMember));
+    }
+
+    return { ok: true, replacements };
   }
 
   /**

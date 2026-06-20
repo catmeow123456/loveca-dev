@@ -142,6 +142,9 @@ describe('CostCalculator', () => {
       expect(relayPlan?.relayDiscount).toBe(3);
       expect(relayPlan?.actualEnergyCost).toBe(1); // 4 - 3 = 1
       expect(relayPlan?.memberToRelay).toBe('member-1');
+      expect(relayPlan?.relayReplacements).toEqual([
+        { cardId: 'member-1', slot: SlotPosition.CENTER, effectiveCost: 3 },
+      ]);
     });
 
     it('应该使用舞台成员有效费用计算换手减免', () => {
@@ -165,6 +168,112 @@ describe('CostCalculator', () => {
       expect(relayPlan?.relayDiscount).toBe(7);
       expect(relayPlan?.actualEnergyCost).toBe(4);
       expect(relayPlan?.memberToRelay).toBe('effective-cost-member');
+      expect(relayPlan?.relayReplacements).toEqual([
+        {
+          cardId: 'effective-cost-member',
+          slot: SlotPosition.CENTER,
+          effectiveCost: 7,
+        },
+      ]);
+    });
+
+    it('allows explicit double relay only for PL!SP-bp4-004 and sums effective costs', () => {
+      const memberData = createMockMemberData(22, '平安名すみれ', 'PL!SP-bp4-004-P');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 9 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('center-member', 4, SlotPosition.CENTER, { effectiveCost: 9 }),
+          createStageMemberInfo('left-member', 4, SlotPosition.LEFT, { effectiveCost: 4 }),
+        ],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources, {
+        relayMode: 'DOUBLE',
+        relayReplacementSlots: [SlotPosition.LEFT, SlotPosition.CENTER],
+      });
+
+      expect(result.canPay).toBe(true);
+      expect(result.availablePlans).toHaveLength(1);
+      expect(result.availablePlans[0]).toMatchObject({
+        memberToRelay: 'center-member',
+        relayDiscount: 13,
+        actualEnergyCost: 9,
+        isRelay: true,
+      });
+      expect(result.availablePlans[0]?.relayReplacements).toEqual([
+        { cardId: 'center-member', slot: SlotPosition.CENTER, effectiveCost: 9 },
+        { cardId: 'left-member', slot: SlotPosition.LEFT, effectiveCost: 4 },
+      ]);
+    });
+
+    it('rejects explicit double relay for non PL!SP-bp4-004 members', () => {
+      const memberData = createMockMemberData(22, 'Other Member', 'PL!SP-bp4-005-P');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 20 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('center-member', 4, SlotPosition.CENTER),
+          createStageMemberInfo('left-member', 4, SlotPosition.LEFT),
+        ],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources, {
+        relayMode: 'DOUBLE',
+        relayReplacementSlots: [SlotPosition.CENTER, SlotPosition.LEFT],
+      });
+
+      expect(result.canPay).toBe(false);
+      expect(result.reason).toContain('PL!SP-bp4-004');
+    });
+
+    it('rejects invalid explicit double relay slot selections', () => {
+      const memberData = createMockMemberData(22, '平安名すみれ', 'PL!SP-bp4-004-P');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 20 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('center-member', 4, SlotPosition.CENTER),
+          createStageMemberInfo('left-member', 4, SlotPosition.LEFT),
+        ],
+      };
+
+      expect(
+        calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources, {
+          relayMode: 'DOUBLE',
+          relayReplacementSlots: [SlotPosition.CENTER, SlotPosition.CENTER],
+        }).canPay
+      ).toBe(false);
+      expect(
+        calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources, {
+          relayMode: 'DOUBLE',
+          relayReplacementSlots: [SlotPosition.LEFT, SlotPosition.RIGHT],
+        }).canPay
+      ).toBe(false);
+      expect(
+        calculator.checkCanPayCost(memberData, SlotPosition.RIGHT, resources, {
+          relayMode: 'DOUBLE',
+          relayReplacementSlots: [SlotPosition.CENTER, SlotPosition.LEFT],
+        }).canPay
+      ).toBe(false);
+    });
+
+    it('rejects double relay when a selected member cannot be relayed away', () => {
+      const memberData = createMockMemberData(22, '平安名すみれ', 'PL!SP-bp4-004-P');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 20 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('center-member', 4, SlotPosition.CENTER),
+          createStageMemberInfo('protected-member', 4, SlotPosition.LEFT, {
+            cardCode: 'LL-bp2-001-R+',
+          }),
+        ],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources, {
+        relayMode: 'DOUBLE',
+        relayReplacementSlots: [SlotPosition.CENTER, SlotPosition.LEFT],
+      });
+
+      expect(result.canPay).toBe(false);
+      expect(result.reason).toContain('无法因换手');
     });
 
     it('应该在换手后费用为负时设为0', () => {

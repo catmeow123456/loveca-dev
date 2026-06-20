@@ -3,7 +3,9 @@ import type { LiveCardData, MemberCardData } from '../../src/domain/entities/car
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { addCardToStatefulZone } from '../../src/domain/entities/zone';
+import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { GameService } from '../../src/application/game-service';
+import { createGameSession } from '../../src/application/game-session';
 import { SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -37,6 +39,16 @@ function createOpponentLive(): LiveCardData {
   };
 }
 
+function createTinyStarsLive(): LiveCardData {
+  return {
+    cardCode: 'PL!SP-bp1-024-L',
+    name: 'Tiny Stars',
+    cardType: CardType.LIVE,
+    score: 2,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+  };
+}
+
 function createHandCard(cardCode: string): MemberCardData {
   return {
     cardCode,
@@ -55,12 +67,16 @@ function setupVitaminSummerLiveSuccess(options: {
   readonly ownScore?: number;
   readonly opponentScore?: number;
   readonly sourceCardCode?: string;
+  readonly includeExtraLiveSuccess?: boolean;
 }) {
   const sourceLive = createCardInstance(
     createVitaminSummer(options.sourceCardCode),
     PLAYER1,
     'vitamin-summer'
   );
+  const extraLive = options.includeExtraLiveSuccess
+    ? createCardInstance(createTinyStarsLive(), PLAYER1, 'tiny-stars-live')
+    : null;
   const opponentLive = createCardInstance(createOpponentLive(), PLAYER2, 'opponent-live');
   const ownHandCards = Array.from({ length: options.ownHandCount }, (_, index) =>
     createCardInstance(createHandCard(`P1-HAND-${index}`), PLAYER1, `p1-hand-${index}`)
@@ -70,11 +86,22 @@ function setupVitaminSummerLiveSuccess(options: {
   );
 
   let game = createGameState('sp-bp2-024-vitamin-summer', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, [sourceLive, opponentLive, ...ownHandCards, ...opponentHandCards]);
+  game = registerCards(game, [
+    sourceLive,
+    ...(extraLive ? [extraLive] : []),
+    opponentLive,
+    ...ownHandCards,
+    ...opponentHandCards,
+  ]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     hand: { ...player.hand, cardIds: ownHandCards.map((card) => card.instanceId) },
-    liveZone: addCardToStatefulZone(player.liveZone, sourceLive.instanceId),
+    liveZone: extraLive
+      ? addCardToStatefulZone(
+          addCardToStatefulZone(player.liveZone, sourceLive.instanceId),
+          extraLive.instanceId
+        )
+      : addCardToStatefulZone(player.liveZone, sourceLive.instanceId),
   }));
   game = updatePlayer(game, PLAYER2, (player) => ({
     ...player,
@@ -91,6 +118,7 @@ function setupVitaminSummerLiveSuccess(options: {
       ...game.liveResolution,
       liveResults: new Map([
         [sourceLive.instanceId, true],
+        ...(extraLive ? ([[extraLive.instanceId, true]] as const) : []),
         [opponentLive.instanceId, true],
       ]),
       playerScores: new Map([
@@ -103,7 +131,25 @@ function setupVitaminSummerLiveSuccess(options: {
 
   const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
   expect(result.success).toBe(true);
-  return { state: result.gameState, sourceLive, opponentLive, ownHandCards, opponentHandCards };
+  return {
+    state: result.gameState,
+    sourceLive,
+    extraLive,
+    opponentLive,
+    ownHandCards,
+    opponentHandCards,
+  };
+}
+
+function confirmEffectStep(state: ReturnType<typeof setupVitaminSummerLiveSuccess>['state']) {
+  const session = createGameSession();
+  session.createGame('sp-bp2-024-vitamin-summer-session', PLAYER1, 'P1', PLAYER2, 'P2');
+  (session as unknown as { authorityState: typeof state }).authorityState = state;
+  const result = session.executeCommand(
+    createConfirmEffectStepCommand(PLAYER1, state.activeEffect!.id)
+  );
+  expect(result.success).toBe(true);
+  return session.state!;
 }
 
 describe('PL!SP-bp2-024 Vitamin SUMMER! live success workflow', () => {
@@ -223,5 +269,81 @@ describe('PL!SP-bp2-024 Vitamin SUMMER! live success workflow', () => {
     expect(result.gameState.liveResolution.playerScores.get(PLAYER1)).toBe(6);
     expect(result.gameState.liveResolution.playerScores.get(PLAYER2)).toBe(5);
     expect(result.gameState.liveResolution.liveWinnerIds).toEqual([PLAYER1]);
+  });
+
+  it('shows a condition summary before resolving when manually chosen from a live-success queue', () => {
+    const { state, sourceLive } = setupVitaminSummerLiveSuccess({
+      ownHandCount: 3,
+      opponentHandCount: 2,
+      includeExtraLiveSuccess: true,
+    });
+
+    expect(state.activeEffect?.canResolveInOrder).toBe(true);
+    expect(state.activeEffect?.selectableCardIds).toContain(sourceLive.instanceId);
+
+    const session = createGameSession();
+    session.createGame('sp-bp2-024-vitamin-summer-order', PLAYER1, 'P1', PLAYER2, 'P2');
+    (session as unknown as { authorityState: typeof state }).authorityState = state;
+    const selectResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, state.activeEffect!.id, sourceLive.instanceId)
+    );
+
+    expect(selectResult.success).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      abilityId: SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID,
+      sourceCardId: sourceLive.instanceId,
+      stepId: 'CONFIRM_ONLY_EFFECT',
+      stepText: '自己手牌 3 张，对方手牌 2 张，条件满足。确认后此 LIVE 分数 +1。',
+    });
+
+    const resolvedState = confirmEffectStep(session.state!);
+
+    expect(resolvedState.liveResolution.playerScores.get(PLAYER1)).toBe(6);
+    expect(
+      resolvedState.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID &&
+          action.payload.sourceCardId === sourceLive.instanceId &&
+          action.payload.conditionMet === true &&
+          action.payload.scoreBonus === 1
+      )
+    ).toBe(true);
+  });
+
+  it('shows a failed condition summary before resolving when manually chosen', () => {
+    const { state, sourceLive } = setupVitaminSummerLiveSuccess({
+      ownHandCount: 2,
+      opponentHandCount: 2,
+      includeExtraLiveSuccess: true,
+    });
+
+    const session = createGameSession();
+    session.createGame('sp-bp2-024-vitamin-summer-order-false', PLAYER1, 'P1', PLAYER2, 'P2');
+    (session as unknown as { authorityState: typeof state }).authorityState = state;
+    const selectResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, state.activeEffect!.id, sourceLive.instanceId)
+    );
+
+    expect(selectResult.success).toBe(true);
+    expect(session.state?.activeEffect?.stepText).toBe(
+      '自己手牌 2 张，对方手牌 2 张，条件不满足。确认后不增加分数。'
+    );
+
+    const resolvedState = confirmEffectStep(session.state!);
+
+    expect(resolvedState.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+    expect(
+      resolvedState.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID &&
+          action.payload.sourceCardId === sourceLive.instanceId &&
+          action.payload.conditionMet === false &&
+          action.payload.scoreBonus === 0
+      )
+    ).toBe(true);
   });
 });

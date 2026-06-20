@@ -111,6 +111,12 @@ export interface CardMoveEvent extends BaseGameEvent {
   readonly controllerId: string;
 }
 
+export interface RelayReplacementEventData {
+  readonly cardId: string;
+  readonly slot: SlotPosition;
+  readonly effectiveCost: number;
+}
+
 /**
  * 成员登场事件
  */
@@ -123,6 +129,8 @@ export interface EnterStageEvent extends CardMoveEvent {
   readonly replacedMemberCardId?: string;
   /** 换手登场时被替换成员的有效费用 */
   readonly replacedMemberEffectiveCost?: number;
+  /** 换手登场时被替换成员的完整列表。 */
+  readonly relayReplacements?: readonly RelayReplacementEventData[];
 }
 
 /**
@@ -512,8 +520,11 @@ export function createEnterStageEvent(
   relay?: {
     readonly replacedMemberCardId?: string | null;
     readonly replacedMemberEffectiveCost?: number | null;
+    readonly relayReplacements?: readonly RelayReplacementEventData[];
   }
 ): EnterStageEvent {
+  const relayReplacements = relay?.relayReplacements ?? [];
+  const firstReplacement = relayReplacements[0];
   return {
     eventId: generateEventId(),
     eventType: TriggerCondition.ON_ENTER_STAGE,
@@ -525,8 +536,11 @@ export function createEnterStageEvent(
     ownerId,
     controllerId,
     triggerPlayerId: controllerId,
-    replacedMemberCardId: relay?.replacedMemberCardId ?? undefined,
-    replacedMemberEffectiveCost: relay?.replacedMemberEffectiveCost ?? undefined,
+    replacedMemberCardId:
+      relay?.replacedMemberCardId ?? firstReplacement?.cardId ?? undefined,
+    replacedMemberEffectiveCost:
+      relay?.replacedMemberEffectiveCost ?? firstReplacement?.effectiveCost ?? undefined,
+    relayReplacements: relayReplacements.length > 0 ? relayReplacements : undefined,
   };
 }
 

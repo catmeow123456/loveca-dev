@@ -442,13 +442,28 @@ register_user() {
   local payload
   local response_file
   local status
+  local curl_exit
+  local attempt
 
   payload="$(node -e 'console.log(JSON.stringify({ username: process.argv[1], password: process.argv[2], displayName: process.argv[3] }))' "$username" "$password" "$display_name")"
   response_file="$(mktemp)"
-  status="$(curl -sS -o "$response_file" -w '%{http_code}' \
-    -H 'Content-Type: application/json' \
-    -d "$payload" \
-    "http://127.0.0.1:${PORT}/api/auth/register")"
+  for attempt in 1 2 3 4 5; do
+    if status="$(curl -sS -o "$response_file" -w '%{http_code}' \
+      -H 'Content-Type: application/json' \
+      -d "$payload" \
+      "http://127.0.0.1:${PORT}/api/auth/register")"; then
+      break
+    fi
+
+    curl_exit="$?"
+    if [[ "$attempt" == "5" ]]; then
+      rm -f "$response_file"
+      die "failed to register test user $username: curl exit $curl_exit"
+    fi
+
+    log "test user registration request failed for $username, retrying (${attempt}/5)"
+    sleep 1
+  done
 
   if [[ "$status" == "201" ]]; then
     log "registered test user: $username"
@@ -547,7 +562,7 @@ start_tmux_environment() {
   tmux new-window -t "$TMUX_SESSION:" -n tsc-shared "cd '$ROOT_DIR' && pnpm dev:shared:build"
   tmux new-window -t "$TMUX_SESSION:" -n tsc-server "cd '$ROOT_DIR' && pnpm dev:server:build"
   tmux new-window -t "$TMUX_SESSION:" -n api "$(api_command)"
-  tmux new-window -t "$TMUX_SESSION:" -n client "cd '$ROOT_DIR/client' && pnpm dev -- --host 0.0.0.0 --port '$FRONTEND_PORT'"
+  tmux new-window -t "$TMUX_SESSION:" -n client "cd '$ROOT_DIR/client' && pnpm dev --host 0.0.0.0 --port '$FRONTEND_PORT'"
   tmux select-window -t "$TMUX_SESSION:client"
 }
 

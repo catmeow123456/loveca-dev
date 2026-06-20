@@ -74,6 +74,8 @@ import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/ca
 import { registerKarinWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-004-karin.js';
 import { registerNozomiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/nozomi-on-enter.js';
 import { registerPb1015MakiWorkflowHandlers } from './card-effects/workflows/cards/pb1-015-maki.js';
+import { registerPlBp3026OhLovePeaceWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-026-oh-love-peace.js';
+import { registerPlPb1018NicoWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-018-nico.js';
 import { registerSd1008HanayoWorkflowHandlers } from './card-effects/workflows/cards/sd1-008-hanayo.js';
 import {
   isHsSd1001HighCostHasunosoraRelayReplacement,
@@ -83,10 +85,17 @@ import { registerHsSd1006HimeWorkflowHandlers } from './card-effects/workflows/c
 import { registerEmmaWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-008-emma.js';
 import { registerPlBp3014RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-014-rin.js';
 import { registerPr017NicoWorkflowHandlers } from './card-effects/workflows/cards/pr-017-nico.js';
+import { registerSpBp2009NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-009-natsumi.js';
+import { registerSpBp1024TinyStarsWorkflowHandlers } from './card-effects/workflows/cards/sp-bp1-024-tiny-stars.js';
 import { registerSpBp2024VitaminSummerWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-024-vitamin-summer.js';
 import { registerSpBp4001KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-001-kanon.js';
+import { registerSpBp4004SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-004-sumire.js';
+import { registerSpBp4024NonfictionWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-024-nonfiction.js';
 import { registerShikiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-008-shiki.js';
+import { registerSpBp5002KekeWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-002-keke.js';
 import { registerChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-003-chisato.js';
+import { registerSpSd2012KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-012-kanon.js';
+import { registerSpSd2025AspireWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-025-aspire.js';
 import { registerYoshikoPlayLowCostMembersWorkflowHandlers } from './card-effects/workflows/cards/yoshiko-play-low-cost-members.js';
 import { registerArrangeInspectedDeckTopWorkflowHandlers } from './card-effects/workflows/shared/arrange-inspected-deck-top.js';
 import { registerConditionalLiveModifierWorkflowHandlers } from './card-effects/workflows/shared/conditional-live-modifier.js';
@@ -185,6 +194,13 @@ interface OnEnterAbilitySource {
   readonly eventId: string;
   readonly replacedMemberCardId?: string;
   readonly replacedMemberEffectiveCost?: number;
+  readonly relayReplacements?: readonly RelayReplacementMetadata[];
+}
+
+interface RelayReplacementMetadata {
+  readonly cardId: string;
+  readonly slot: SlotPosition;
+  readonly effectiveCost: number;
 }
 
 interface OnEnterStageAutoSource {
@@ -555,13 +571,22 @@ registerHsPb1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerMakiOnEnterWorkflowHandlers();
 registerPb1015MakiWorkflowHandlers();
+registerPlBp3026OhLovePeaceWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlPb1018NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSd1008HanayoWorkflowHandlers();
 registerEmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp3014RinWorkflowHandlers();
+registerSpBp2009NatsumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp1024TinyStarsWorkflowHandlers();
 registerSpBp2024VitaminSummerWorkflowHandlers();
 registerSpBp4001KanonWorkflowHandlers();
+registerSpBp4004SumireWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp4024NonfictionWorkflowHandlers();
 registerShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp5002KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerChisatoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpSd2012KanonWorkflowHandlers();
+registerSpSd2025AspireWorkflowHandlers();
 registerYoshikoPlayLowCostMembersWorkflowHandlers({ enqueueTriggeredCardEffects });
 
 interface CardEffectRunnerResult {
@@ -1323,6 +1348,7 @@ function getLatestPlayMemberOnEnterSources(game: GameState): readonly OnEnterAbi
         typeof action.payload.replacedCardId === 'string'
           ? action.payload.replacedCardId
           : undefined,
+      relayReplacements: getRelayReplacementsFromPayload(action.payload.relayReplacements),
     },
   ];
 }
@@ -1341,6 +1367,7 @@ function createOnEnterAbilitySourcesFromEvents(
     eventId: event.eventId,
     replacedMemberCardId: event.replacedMemberCardId,
     replacedMemberEffectiveCost: event.replacedMemberEffectiveCost,
+    relayReplacements: event.relayReplacements,
   }));
 }
 
@@ -1412,6 +1439,7 @@ function createEnterStageEventsFromOnEnterSources(
         triggerPlayerId: source.controllerId,
         replacedMemberCardId: source.replacedMemberCardId,
         replacedMemberEffectiveCost: source.replacedMemberEffectiveCost,
+        relayReplacements: source.relayReplacements,
       },
     ];
   });
@@ -1461,10 +1489,13 @@ function enqueueSingleOnEnterCardEffect(game: GameState, source: OnEnterAbilityS
       eventIds: [source.eventId],
       sourceSlot: source.sourceSlot ?? undefined,
       metadata:
-        source.replacedMemberCardId || source.replacedMemberEffectiveCost !== undefined
+        source.replacedMemberCardId ||
+        source.replacedMemberEffectiveCost !== undefined ||
+        (source.relayReplacements && source.relayReplacements.length > 0)
           ? {
               replacedMemberCardId: source.replacedMemberCardId ?? null,
               replacedMemberEffectiveCost: source.replacedMemberEffectiveCost ?? null,
+              relayReplacements: source.relayReplacements ?? [],
             }
           : undefined,
     };
@@ -1484,11 +1515,37 @@ function enqueueSingleOnEnterCardEffect(game: GameState, source: OnEnterAbilityS
         sourceSlot: source.sourceSlot,
         replacedMemberCardId: source.replacedMemberCardId ?? null,
         replacedMemberEffectiveCost: source.replacedMemberEffectiveCost ?? null,
+        relayReplacements: source.relayReplacements ?? [],
       }
     );
   }
 
   return state;
+}
+
+function getRelayReplacementsFromPayload(
+  value: unknown
+): readonly RelayReplacementMetadata[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const replacements = value.flatMap((entry): RelayReplacementMetadata[] => {
+    if (!entry || typeof entry !== 'object') {
+      return [];
+    }
+    const candidate = entry as Record<string, unknown>;
+    const cardId = typeof candidate.cardId === 'string' ? candidate.cardId : null;
+    const slot = toSlotPosition(candidate.slot);
+    const effectiveCost =
+      typeof candidate.effectiveCost === 'number' ? candidate.effectiveCost : null;
+    if (!cardId || slot === null || effectiveCost === null) {
+      return [];
+    }
+    return [{ cardId, slot, effectiveCost }];
+  });
+
+  return replacements.length > 0 ? replacements : undefined;
 }
 
 function isBp5007NozomiLowerCostRelayOnEnter(

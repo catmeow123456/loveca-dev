@@ -153,6 +153,10 @@ export interface PlayMemberToSlotCommand extends BaseGameCommand {
   readonly targetSlot: SlotPosition;
   /** 自由拖拽兜底：跳过登场费用检查与支付。 */
   readonly freePlay?: boolean;
+  /** 显式换手模式；未传时保持旧拖拽行为。 */
+  readonly relayMode?: 'SINGLE' | 'DOUBLE';
+  /** 显式选择的被换手成员槽位。双换手时必须正好 2 个。 */
+  readonly relayReplacementSlots?: readonly SlotPosition[];
 }
 
 export interface ActivateAbilityCommand extends BaseGameCommand {
@@ -537,7 +541,11 @@ export function createPlayMemberToSlotCommand(
   playerId: string,
   cardId: string,
   targetSlot: SlotPosition,
-  options: { readonly freePlay?: boolean } = {}
+  options: {
+    readonly freePlay?: boolean;
+    readonly relayMode?: 'SINGLE' | 'DOUBLE';
+    readonly relayReplacementSlots?: readonly SlotPosition[];
+  } = {}
 ): PlayMemberToSlotCommand {
   return {
     type: GameCommandType.PLAY_MEMBER_TO_SLOT,
@@ -545,6 +553,10 @@ export function createPlayMemberToSlotCommand(
     cardId,
     targetSlot,
     ...(options.freePlay ? { freePlay: true } : {}),
+    ...(options.relayMode ? { relayMode: options.relayMode } : {}),
+    ...(options.relayReplacementSlots
+      ? { relayReplacementSlots: [...options.relayReplacementSlots] }
+      : {}),
     timestamp: Date.now(),
   };
 }

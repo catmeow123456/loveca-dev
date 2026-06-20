@@ -2901,6 +2901,8 @@ export class GameSession {
       state,
       createPlayMemberAction(command.playerId, command.cardId, command.targetSlot, {
         isRelay: replacedCardId !== null,
+        relayMode: command.relayMode,
+        relayReplacementSlots: command.relayReplacementSlots,
       })
     );
     if (!result.success) {
@@ -2923,24 +2925,41 @@ export class GameSession {
       }),
     ];
 
+    const replacementSlots =
+      command.relayMode === 'DOUBLE'
+        ? command.relayReplacementSlots ?? []
+        : replacedCardId
+          ? [command.targetSlot]
+          : [];
+
     // 仅当被置换成员实际离开了槽位时才创建置换事件
     // （stackedBelow 路径下特殊成员仍留在槽位，不应产生虚假事件）
     const resultPlayer = result.gameState.players.find((p) => p.id === command.playerId);
-    const actuallyDisplaced =
-      replacedCardId &&
-      resultPlayer &&
-      resultPlayer.memberSlots.slots[command.targetSlot] !== replacedCardId;
-
-    if (actuallyDisplaced) {
+    for (const replacementSlot of replacementSlots) {
+      const replacementCardId = player.memberSlots.slots[replacementSlot];
+      const actuallyDisplaced =
+        replacementCardId &&
+        resultPlayer &&
+        resultPlayer.memberSlots.slots[replacementSlot] !== replacementCardId &&
+        resultPlayer.waitingRoom.cardIds.includes(replacementCardId);
+      if (!actuallyDisplaced) {
+        continue;
+      }
       extraPublicEvents.unshift(
-        buildCardMovedPublicEvent(state, result.gameState, actorSeat, replacedCardId, {
-          from: buildZoneRefForMove(state, command.playerId, replacedCardId, ZoneType.MEMBER_SLOT, {
-            slot: command.targetSlot,
-          }),
+        buildCardMovedPublicEvent(state, result.gameState, actorSeat, replacementCardId, {
+          from: buildZoneRefForMove(
+            state,
+            command.playerId,
+            replacementCardId,
+            ZoneType.MEMBER_SLOT,
+            {
+              slot: replacementSlot,
+            }
+          ),
           to: buildZoneRefForMove(
             result.gameState,
             command.playerId,
-            replacedCardId,
+            replacementCardId,
             ZoneType.WAITING_ROOM
           ),
         })
@@ -2992,12 +3011,20 @@ export class GameSession {
       }
     }
 
-    const costCheck = costCalculator.checkCanPayCost(card.data, command.targetSlot, {
-      activeEnergyIds,
-      stageMembers,
-      sourceCardId: command.cardId,
-      handCardIds: player.hand.cardIds,
-    });
+    const costCheck = costCalculator.checkCanPayCost(
+      card.data,
+      command.targetSlot,
+      {
+        activeEnergyIds,
+        stageMembers,
+        sourceCardId: command.cardId,
+        handCardIds: player.hand.cardIds,
+      },
+      {
+        relayMode: command.relayMode,
+        relayReplacementSlots: command.relayReplacementSlots,
+      }
+    );
     const plan = costCalculator.selectOptimalPlan(costCheck.availablePlans);
     if (!plan) {
       return {
@@ -3024,6 +3051,7 @@ export class GameSession {
         finalEnergyCost: plan.actualEnergyCost,
         relayDiscount: plan.relayDiscount,
         replacedMemberCardId: plan.memberToRelay,
+        relayReplacements: plan.relayReplacements,
         payableEnergyCardIds: activeEnergyIds,
         explanation: this.formatPlayMemberCostExplanation(plan),
       },
@@ -3064,6 +3092,9 @@ export class GameSession {
       playerId: payment.playerId,
       cardId: payment.sourceCardId,
       targetSlot: payment.targetSlot,
+      relayMode:
+        payment.relayReplacements && payment.relayReplacements.length > 1 ? 'DOUBLE' : undefined,
+      relayReplacementSlots: payment.relayReplacements?.map((replacement) => replacement.slot),
       timestamp: command.timestamp,
     });
   }
@@ -3097,6 +3128,9 @@ export class GameSession {
         sourceCardId: payment.sourceCardId,
         energyCardIds: [...energyCardIds],
         amount: payment.finalEnergyCost,
+        relayDiscount: payment.relayDiscount,
+        replacedMemberCardId: payment.replacedMemberCardId,
+        relayReplacements: payment.relayReplacements ?? [],
       }
     );
     return paidState;

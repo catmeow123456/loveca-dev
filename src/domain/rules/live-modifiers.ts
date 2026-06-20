@@ -11,6 +11,7 @@ import { getAllMemberCardIds } from '../entities/zone.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
 import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/slot-perspective.js';
+import { hasMemberPositionMovedThisTurn } from './member-turn-state.js';
 import { successLiveScoreAtLeast } from './success-live-score.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
@@ -502,15 +503,6 @@ function isHasunosoraMemberCard(card: NonNullable<ReturnType<typeof getCardById>
 
 function normalizeContinuousMemberName(name: string): string {
   return name.replace(/[\s　・･·]/g, '');
-}
-
-function hasMemberPositionMovedThisTurn(
-  game: GameState,
-  playerId: string,
-  sourceCardId: string
-): boolean {
-  const player = game.players.find((candidate) => candidate.id === playerId);
-  return player?.positionMovedThisTurn.includes(sourceCardId) === true;
 }
 
 export function addLiveModifier(game: GameState, modifier: LiveModifierState): GameState {

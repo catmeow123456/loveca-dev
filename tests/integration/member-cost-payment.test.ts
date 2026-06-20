@@ -8,6 +8,7 @@ import {
   SlotPosition,
   SubPhase,
   TriggerCondition,
+  ZoneType,
 } from '../../src/shared/types/enums';
 import type {
   AnyCardData,
@@ -19,6 +20,7 @@ import { createHeartIcon, createHeartRequirement } from '../../src/domain/entiti
 import type { DeckConfig } from '../../src/application/game-service';
 import { createPlayMemberToSlotCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { createPublicObjectId } from '../../src/online/projector';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -723,6 +725,153 @@ describe('member cost payment', () => {
       replacedMemberCardId: stageCardId,
       replacedMemberEffectiveCost: 7,
     });
+  });
+
+  it('plays PL!SP-bp4-004 with explicit double relay and records both replacements', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('sp-bp4-004-double-relay-payment', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    setActiveEnergyCountForPlayer(session, 0, 9);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const ownedMemberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const sourceCardId = ownedMemberCardIds[0];
+    const centerCardId = ownedMemberCardIds[1];
+    const leftCardId = ownedMemberCardIds[2];
+
+    expect(sourceCardId).toBeTruthy();
+    expect(centerCardId).toBeTruthy();
+    expect(leftCardId).toBeTruthy();
+
+    const sourceCard = state.cardRegistry.get(sourceCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    sourceCard.data = createMemberCard('PL!SP-bp4-004-P', '平安名すみれ', 22, {
+      groupName: 'Liella!',
+    });
+    const centerCard = state.cardRegistry.get(centerCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    centerCard.data = createMemberCard('PL!SP-test-center', 'Center Liella', 8, {
+      groupName: 'Liella!',
+    });
+    const leftCard = state.cardRegistry.get(leftCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    leftCard.data = createMemberCard('PL!SP-test-left', 'Left Liella', 5, {
+      groupName: 'Liella!',
+    });
+
+    player.hand.cardIds = [sourceCardId!];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== sourceCardId && cardId !== centerCardId && cardId !== leftCardId
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = centerCardId!;
+    player.memberSlots.slots[SlotPosition.LEFT] = leftCardId!;
+    player.memberSlots.cardStates = new Map([
+      [centerCardId!, { orientation: OrientationState.ACTIVE }],
+      [leftCardId!, { orientation: OrientationState.ACTIVE }],
+    ]);
+
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, sourceCardId!, SlotPosition.CENTER, {
+        relayMode: 'DOUBLE',
+        relayReplacementSlots: [SlotPosition.CENTER, SlotPosition.LEFT],
+      })
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.pendingCostPayment).toBeNull();
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(sourceCardId);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.LEFT]).toBeNull();
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+      expect.arrayContaining([centerCardId, leftCardId])
+    );
+
+    const leaveEvents = session.state?.eventLog
+      .map((entry) => entry.event)
+      .filter((event) => event.eventType === TriggerCondition.ON_LEAVE_STAGE);
+    expect(leaveEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          cardInstanceId: centerCardId,
+          fromSlot: SlotPosition.CENTER,
+          replacingCardId: sourceCardId,
+        }),
+        expect.objectContaining({
+          cardInstanceId: leftCardId,
+          fromSlot: SlotPosition.LEFT,
+          replacingCardId: sourceCardId,
+        }),
+      ])
+    );
+
+    const enterEvent = session.state?.eventLog.at(-1)?.event;
+    expect(enterEvent).toMatchObject({
+      eventType: TriggerCondition.ON_ENTER_STAGE,
+      cardInstanceId: sourceCardId,
+      toSlot: SlotPosition.CENTER,
+      replacedMemberCardId: centerCardId,
+      replacedMemberEffectiveCost: 8,
+      relayReplacements: [
+        { cardId: centerCardId, slot: SlotPosition.CENTER, effectiveCost: 8 },
+        { cardId: leftCardId, slot: SlotPosition.LEFT, effectiveCost: 5 },
+      ],
+    });
+
+    const payCostAction = session.state?.actionHistory.find(
+      (action) => action.type === 'PAY_COST' && action.payload.sourceCardId === sourceCardId
+    );
+    expect(payCostAction?.payload).toMatchObject({
+      amount: 9,
+      relayDiscount: 13,
+      replacedMemberCardId: centerCardId,
+      relayReplacements: [
+        { cardId: centerCardId, slot: SlotPosition.CENTER, effectiveCost: 8 },
+        { cardId: leftCardId, slot: SlotPosition.LEFT, effectiveCost: 5 },
+      ],
+    });
+
+    const playAction = session.state?.actionHistory.find(
+      (action) => action.type === 'PLAY_MEMBER' && action.payload.cardId === sourceCardId
+    );
+    expect(playAction?.payload).toMatchObject({
+      isRelay: true,
+      replacedCardId: centerCardId,
+      replacedMemberCardIds: [centerCardId, leftCardId],
+      relayReplacements: [
+        { cardId: centerCardId, slot: SlotPosition.CENTER, effectiveCost: 8 },
+        { cardId: leftCardId, slot: SlotPosition.LEFT, effectiveCost: 5 },
+      ],
+    });
+
+    const publicEvents = session.getPublicEventsSince(beforeSeq);
+    expect(
+      publicEvents.filter(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          [centerCardId, leftCardId].some(
+            (cardId) => event.card?.publicObjectId === createPublicObjectId(cardId!)
+          ) &&
+          event.from?.zone === ZoneType.MEMBER_SLOT &&
+          event.to?.zone === ZoneType.WAITING_ROOM
+      )
+    ).toHaveLength(2);
   });
 
   it('debug free play skips entry cost validation and payment', () => {

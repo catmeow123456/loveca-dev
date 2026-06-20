@@ -13497,7 +13497,11 @@ describe('sample card effect runner', () => {
 
     expect(selectMembersResult.success).toBe(true);
     expect(session.state?.activeEffect?.stepId).toBe('YOSHIKO_SELECT_STAGE_SLOT');
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([waitingMemberCardIds[0]]);
+    expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
+    expect(session.state?.activeEffect?.selectableSlots).toEqual([
+      SlotPosition.LEFT,
+      SlotPosition.RIGHT,
+    ]);
     expect(
       session.state?.eventLog
         .map((entry) => entry.event)
@@ -13518,7 +13522,8 @@ describe('sample card effect runner', () => {
     );
 
     expect(firstSlotResult.success).toBe(true);
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([waitingMemberCardIds[1]]);
+    expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
+    expect(session.state?.activeEffect?.selectableSlots).toEqual([SlotPosition.RIGHT]);
 
     const secondSlotResult = session.executeCommand(
       createConfirmEffectStepCommand(
