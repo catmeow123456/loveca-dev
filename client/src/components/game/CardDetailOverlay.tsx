@@ -15,7 +15,7 @@ import { Card } from '@/components/card/Card';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
-import { GamePhase, HeartColor } from '@game/shared/types/enums';
+import { HeartColor } from '@game/shared/types/enums';
 import { getCardPoint } from '@game/domain/rules/deck-construction';
 
 /**
@@ -129,21 +129,12 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
   const hoveredCardId = useGameStore((s) => s.ui.hoveredCardId);
   const getVisibleCardPresentation = useGameStore((s) => s.getVisibleCardPresentation);
   const setHoveredCard = useGameStore((s) => s.setHoveredCard);
-  const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const shouldUseCompactDrawer = useMediaQuery('(max-width: 1023px)');
-  const isPhoneWidth = useMediaQuery('(max-width: 767px)');
-  const shouldSuppressHoverDrawer = isPhoneWidth && currentPhase !== GamePhase.MULLIGAN_PHASE;
 
   const card = hoveredCardId ? getVisibleCardPresentation(hoveredCardId) : null;
   const closeDetail = useCallback(() => {
     setHoveredCard(null);
   }, [setHoveredCard]);
-
-  useEffect(() => {
-    if (shouldSuppressHoverDrawer && hoveredCardId) {
-      setHoveredCard(null);
-    }
-  }, [hoveredCardId, setHoveredCard, shouldSuppressHoverDrawer]);
 
   useEffect(() => {
     if (!card) return;
@@ -168,10 +159,6 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
       document.body.style.overflow = previousOverflow;
     };
   }, [card, shouldUseCompactDrawer]);
-
-  if (shouldSuppressHoverDrawer) {
-    return null;
-  }
 
   const content = (
     <AnimatePresence>
@@ -202,7 +189,7 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
 function DesktopCardDetailPanel({ card }: { card: VisibleCardPresentation }) {
   return (
     <aside
-      className="pointer-events-none fixed right-4 top-1/2 z-[200] -translate-y-1/2"
+      className="pointer-events-none fixed bottom-3 right-3 top-3 z-[200]"
       aria-label={`${card.cardData.name} 卡牌详情`}
     >
       <motion.div
@@ -211,8 +198,8 @@ function DesktopCardDetailPanel({ card }: { card: VisibleCardPresentation }) {
         exit={{ opacity: 0, x: 20 }}
         transition={{ duration: 0.2 }}
         className={cn(
-          'max-h-[calc(100dvh-2rem)] w-[280px] max-w-[280px]',
-          'surface-panel-frosted cute-scrollbar overflow-y-auto p-4',
+          'h-full w-[min(380px,calc(100vw-1.5rem))] max-w-[380px] xl:w-[400px] xl:max-w-[400px]',
+          'surface-panel-frosted cute-scrollbar overflow-hidden p-3',
           'border-[var(--border-default)] shadow-[var(--shadow-lg)]'
         )}
       >
@@ -296,12 +283,14 @@ function CardDetailContent({
   const isMobile = density === 'mobile';
 
   return (
-    <div className={cn('space-y-3', isMobile && 'pb-1')}>
+    <div className={cn(isMobile ? 'space-y-3 pb-1' : 'flex h-full min-h-0 flex-col gap-2.5')}>
       {/* 大尺寸卡牌图片 */}
       <div
         className={cn(
           'flex justify-center',
-          isMobile && 'rounded-2xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_44%,transparent)] p-3'
+          isMobile
+            ? 'rounded-2xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_44%,transparent)] p-3'
+            : 'shrink-0'
         )}
       >
         <Card
@@ -313,12 +302,17 @@ function CardDetailContent({
           interactive={false}
           showHover={false}
           showInfoOverlay={false}
-          className="max-w-full"
+          className={cn('max-w-full', !isMobile && 'h-[196px] w-[140px]')}
         />
       </div>
 
       {/* 卡牌名称 */}
-      <h3 className="break-words text-center text-lg font-bold text-[var(--text-primary)]">
+      <h3
+        className={cn(
+          'break-words text-center font-bold text-[var(--text-primary)]',
+          isMobile ? 'text-lg' : 'text-base leading-tight'
+        )}
+      >
         {card.cardData.name}
       </h3>
 
@@ -344,9 +338,16 @@ function CardDetailContent({
 
       {/* 卡牌效果文本 */}
       {card.cardData.cardText && (
-        <div className="border-t border-[var(--border-subtle)] pt-3">
+        <div className={cn('min-h-0 border-t border-[var(--border-subtle)] pt-2', !isMobile && 'flex flex-1 flex-col')}>
           <span className="text-xs text-[var(--text-muted)]">效果</span>
-          <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-[var(--text-secondary)]">
+          <p
+            className={cn(
+              'mt-1 whitespace-pre-wrap break-words text-[var(--text-secondary)]',
+              isMobile
+                ? 'text-sm leading-relaxed'
+                : 'cute-scrollbar min-h-0 flex-1 overflow-y-auto text-[12px] leading-[1.42]'
+            )}
+          >
             {card.cardData.cardText}
           </p>
         </div>

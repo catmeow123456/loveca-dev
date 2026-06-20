@@ -25,6 +25,7 @@ import { PhaseBanner } from './PhaseBanner';
 import { LiveResultAnimation, type LiveScoreInfo } from './LiveResultAnimation';
 import { DebugControl } from './DebugControl';
 import { CardDetailOverlay } from './CardDetailOverlay';
+import { CardDetailPressTarget } from './CardDetailPressTarget';
 import { JudgmentPanel } from './JudgmentPanel';
 import { ScoreConfirmModal } from './ScoreConfirmModal';
 import { Card } from '@/components/card/Card';
@@ -125,6 +126,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
   const canShowDebugLog = capabilities.canShowDebugLog;
   const isReadOnly = capabilities.isReadOnly;
+  const canShowUndo = capabilities.undoPolicy !== 'NONE';
+  const undoButtonLabel = capabilities.undoPolicy === 'REMOTE_REQUEST' ? '请求撤销' : '撤销';
+  const mobileUndoButtonLabel = capabilities.undoPolicy === 'REMOTE_REQUEST' ? '请求' : '撤销';
+  const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
+  const undoLastStep = useGameStore((s) => s.undoLastStep);
   const prevPhaseRef = useRef<GamePhase | null>(null);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
@@ -904,6 +910,16 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase)?.display : null;
   const turnNumber = currentTurnCount ?? matchView.turnCount;
   const showMobileFreePlay = capabilities.showFreePlayControl;
+  const mobileActionCount =
+    2 + (canShowDebugLog ? 1 : 0) + (showMobileFreePlay ? 1 : 0) + (canShowUndo ? 1 : 0);
+  const mobileActionGridClass =
+    mobileActionCount >= 5
+      ? 'grid-cols-5'
+      : mobileActionCount === 4
+        ? 'grid-cols-4'
+        : mobileActionCount === 3
+          ? 'grid-cols-3'
+          : 'grid-cols-2';
   const freePlayControlTitle =
     capabilities.freePlayPolicy === 'SESSION_GLOBAL'
       ? '开启后本地会话的成员登场/换手不检查也不支付费用'
@@ -1043,11 +1059,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
             <div
               className={cn(
                 'safe-bottom fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-[65] grid gap-2 md:hidden',
-                canShowDebugLog && showMobileFreePlay
-                  ? 'grid-cols-4'
-                  : canShowDebugLog || showMobileFreePlay
-                    ? 'grid-cols-3'
-                    : 'grid-cols-2'
+                mobileActionGridClass
               )}
             >
               <button
@@ -1072,15 +1084,32 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 <button
                   type="button"
                   onClick={() => setFreePlayEnabled(!freePlayEnabled)}
+                  aria-pressed={freePlayEnabled}
                   className={cn(
-                    'button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]',
-                    freePlayEnabled &&
-                      'border-[var(--semantic-warning)]/45 bg-[var(--semantic-warning)]/15 text-[var(--semantic-warning)]'
+                    'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-md)] border px-2 py-2 text-xs font-semibold transition shadow-none backdrop-blur-[2px]',
+                    freePlayEnabled
+                      ? 'border-[color:color-mix(in_srgb,var(--semantic-warning)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_24%,var(--bg-frosted))] text-[var(--semantic-warning)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--semantic-warning)_22%,transparent),0_0_18px_color-mix(in_srgb,var(--semantic-warning)_20%,transparent)]'
+                      : 'button-secondary border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)]'
                   )}
                   title={freePlayControlTitle}
                 >
-                  <Zap size={15} />
+                  <Zap size={15} className={cn(freePlayEnabled && 'fill-current')} />
                   免费
+                </button>
+              )}
+              {canShowUndo && (
+                <button
+                  type="button"
+                  onClick={undoLastStep}
+                  disabled={!canUndoLastStep}
+                  className={cn(
+                    'button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]',
+                    !canUndoLastStep && 'cursor-not-allowed opacity-50'
+                  )}
+                  title={undoButtonLabel}
+                >
+                  <Undo2 size={15} />
+                  {mobileUndoButtonLabel}
                 </button>
               )}
               <button
@@ -1312,12 +1341,12 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                       : '已公开卡牌';
 
                     return (
-                      <div
+                      <CardDetailPressTarget
                         key={cardId}
-                        onMouseEnter={() => presentation && setHoveredCard(cardId)}
-                        onMouseLeave={() => setHoveredCard(null)}
-                        className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] p-1.5"
+                        cardId={presentation?.instanceId ?? null}
+                        disabled={!presentation}
                         title={label}
+                        className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] p-1.5"
                       >
                         {presentation ? (
                           <Card
@@ -1336,7 +1365,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                         <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
                           {label}
                         </span>
-                      </div>
+                      </CardDetailPressTarget>
                     );
                   })}
                 </div>
@@ -1386,8 +1415,6 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                           }
                           confirmEffectStep(activeEffect.id, cardId);
                         }}
-                        onMouseEnter={() => presentation && setHoveredCard(cardId)}
-                        onMouseLeave={() => setHoveredCard(null)}
                         className={`group relative flex min-w-0 flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors ${
                           isOrderedSelected
                             ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
@@ -1405,14 +1432,16 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                           </span>
                         )}
                         {presentation ? (
-                          <Card
-                            cardData={presentation.cardData as AnyCardData}
-                            instanceId={presentation.instanceId}
-                            imagePath={presentation.imagePath}
-                            size="sm"
-                            faceUp={true}
-                            showHover={false}
-                          />
+                          <CardDetailPressTarget cardId={presentation.instanceId} title={label}>
+                            <Card
+                              cardData={presentation.cardData as AnyCardData}
+                              instanceId={presentation.instanceId}
+                              imagePath={presentation.imagePath}
+                              size="sm"
+                              faceUp={true}
+                              showHover={false}
+                            />
+                          </CardDetailPressTarget>
                         ) : (
                           <div className="flex h-[84px] w-[60px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
                             ?

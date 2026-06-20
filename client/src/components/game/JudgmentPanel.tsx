@@ -18,6 +18,7 @@ import { applyHeartRequirementModifiers } from '@game/domain/rules/live-requirem
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   SubPhase,
   HeartColor,
@@ -28,6 +29,7 @@ import {
 import { isSuccessEffectSubPhase } from '@game/shared/phase-config';
 import { useGameStore } from '@/store/gameStore';
 import { DroppableZone } from './interaction';
+import { CardDetailPressTarget } from './CardDetailPressTarget';
 import type {
   BladeHearts,
   HeartRequirement,
@@ -360,6 +362,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   const liveCardScoreModifiers = useGameStore(
     (s) => s.playerViewState?.match.liveResult?.liveCardScoreModifiers ?? {}
   );
+  const shouldUseHoverPreview = useMediaQuery('(min-width: 1024px)');
   const {
     acceptAutomaticJudgment,
     confirmPerformanceOutcome,
@@ -803,11 +806,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                         };
                     const canInspectFront = viewObject?.surface === 'FRONT' && frontInfo !== null;
                     return (
-                      <div
+                      <CardDetailPressTarget
                         key={id}
+                        cardId={canInspectFront ? id : null}
+                        disabled={!canInspectFront}
                         className="relative group flex flex-col items-center gap-0.5"
-                        onMouseEnter={() => canInspectFront && setHoveredCard(id)}
-                        onMouseLeave={() => setHoveredCard(null)}
+                        enableHover={shouldUseHoverPreview}
                       >
                         {canInspectFront && frontInfo ? (
                           <SortableCheerCard
@@ -873,7 +877,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                             放回
                           </button>
                         </div>
-                      </div>
+                      </CardDetailPressTarget>
                     );
                   })}
                 </div>

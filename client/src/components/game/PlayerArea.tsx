@@ -32,6 +32,7 @@ import { GameCommandType } from '@game/application/game-commands';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import { getActivatedAbilityUiConfig } from '@game/application/card-effect-runner';
 import { Card } from '@/components/card/Card';
+import { CardDetailPressTarget } from './CardDetailPressTarget';
 import { DraggableCard, DroppableZone } from './interaction';
 import {
   ArrowDownToLine,
@@ -427,7 +428,10 @@ export const PlayerArea = memo(function PlayerArea({
                     fromZone: ZoneType.MEMBER_SLOT,
                   }}
                 >
-                  <div
+                  <CardDetailPressTarget
+                    cardId={energyCard?.instanceId ?? null}
+                    disabled={!energyCard}
+                    title={`附加能量 #${originalIndex + 1}（可拖走）`}
                     className={cn(
                       'w-full h-full rounded-lg overflow-hidden shadow-md cursor-grab active:cursor-grabbing',
                       isDragging
@@ -435,9 +439,6 @@ export const PlayerArea = memo(function PlayerArea({
                         : 'transition-[transform,box-shadow] duration-200 hover:scale-105 hover:z-50 hover:shadow-xl',
                       'border-2 border-indigo-400/50 bg-slate-800'
                     )}
-                    onMouseEnter={() => energyCard && setHoveredCard(energyCard.instanceId)}
-                    onMouseLeave={() => setHoveredCard(null)}
-                    title={`附加能量 #${originalIndex + 1}（可拖走）`}
                   >
                     {imagePath ? (
                       <img src={imagePath} alt="附加能量" className="w-full h-full object-cover" />
@@ -446,7 +447,7 @@ export const PlayerArea = memo(function PlayerArea({
                         E
                       </div>
                     )}
-                  </div>
+                  </CardDetailPressTarget>
                 </DraggableCard>
               </div>
             );
@@ -478,7 +479,10 @@ export const PlayerArea = memo(function PlayerArea({
                     fromZone: ZoneType.MEMBER_SLOT,
                   }}
                 >
-                  <div
+                  <CardDetailPressTarget
+                    cardId={memberCard?.instanceId ?? null}
+                    disabled={!memberCard}
+                    title={`堆叠成员 #${originalIndex + 1}（可拖走）`}
                     className={cn(
                       'w-full h-full rounded-lg overflow-hidden shadow-md cursor-grab active:cursor-grabbing',
                       isDragging
@@ -486,9 +490,6 @@ export const PlayerArea = memo(function PlayerArea({
                         : 'transition-[transform,box-shadow] duration-200 hover:scale-105 hover:z-50 hover:shadow-xl',
                       'border-2 border-amber-400/60 bg-slate-800'
                     )}
-                    onMouseEnter={() => memberCard && setHoveredCard(memberCard.instanceId)}
-                    onMouseLeave={() => setHoveredCard(null)}
-                    title={`堆叠成员 #${originalIndex + 1}（可拖走）`}
                   >
                     {imagePath ? (
                       <img src={imagePath} alt="堆叠成员" className="w-full h-full object-cover" />
@@ -497,7 +498,7 @@ export const PlayerArea = memo(function PlayerArea({
                         M
                       </div>
                     )}
-                  </div>
+                  </CardDetailPressTarget>
                 </DraggableCard>
               </div>
             );
@@ -537,21 +538,21 @@ export const PlayerArea = memo(function PlayerArea({
                 }}
                 onDoubleClick={handleDoubleClick}
               >
-                <Card
-                  cardData={card.cardData as AnyCardData}
-                  instanceId={card.instanceId}
-                  imagePath={card.imagePath}
-                  size="responsive"
-                  faceUp={true}
-                  orientation={orientation}
-                  selected={selectedCardId === card.instanceId}
-                  effectVisualState={getEffectVisualState(card, {
-                    isActionableNow: canActivateAbility,
-                  })}
-                  onClick={() => allowGeneralOwnZoneInteraction && selectCard(card.instanceId)}
-                  onMouseEnter={() => setHoveredCard(card.instanceId)}
-                  onMouseLeave={() => setHoveredCard(null)}
-                />
+                <CardDetailPressTarget cardId={card.instanceId} className="h-full w-full">
+                  <Card
+                    cardData={card.cardData as AnyCardData}
+                    instanceId={card.instanceId}
+                    imagePath={card.imagePath}
+                    size="responsive"
+                    faceUp={true}
+                    orientation={orientation}
+                    selected={selectedCardId === card.instanceId}
+                    effectVisualState={getEffectVisualState(card, {
+                      isActionableNow: canActivateAbility,
+                    })}
+                    onClick={() => allowGeneralOwnZoneInteraction && selectCard(card.instanceId)}
+                  />
+                </CardDetailPressTarget>
               </DraggableCard>
             )}
             {card && canActivateAbility && activatedAbilityConfig && (
@@ -695,39 +696,39 @@ export const PlayerArea = memo(function PlayerArea({
                     !isActive && 'z-10'
                   )}
                 >
-                  <div
-                    className={cn(
-                      'h-7 w-5 rounded overflow-hidden shadow-sm cursor-pointer',
-                      isDragging
-                        ? 'transition-none'
-                        : 'transition-[transform,filter] duration-150 hover:scale-110 hover:z-10',
-                      !isActive && 'rotate-90 opacity-55 grayscale'
-                    )}
-                    onClick={() => {
-                      if (allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging) {
-                        tapEnergy(cardId);
+                  <CardDetailPressTarget cardId={card?.instanceId ?? null} disabled={!card}>
+                    <div
+                      className={cn(
+                        'h-7 w-5 rounded overflow-hidden shadow-sm cursor-pointer',
+                        isDragging
+                          ? 'transition-none'
+                          : 'transition-[transform,filter] duration-150 hover:scale-110 hover:z-10',
+                        !isActive && 'rotate-90 opacity-55 grayscale'
+                      )}
+                      onClick={() => {
+                        if (allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging) {
+                          tapEnergy(cardId);
+                        }
+                      }}
+                      title={
+                        isOpponent
+                          ? isActive
+                            ? '活跃'
+                            : '等待'
+                          : allowGeneralOwnZoneInteraction && canTapEnergy
+                            ? '单击切换活跃/等待'
+                            : '当前阶段不可操作'
                       }
-                    }}
-                    onMouseEnter={() => card && setHoveredCard(card.instanceId)}
-                    onMouseLeave={() => setHoveredCard(null)}
-                    title={
-                      isOpponent
-                        ? isActive
-                          ? '活跃'
-                          : '等待'
-                        : allowGeneralOwnZoneInteraction && canTapEnergy
-                          ? '单击切换活跃/等待'
-                          : '当前阶段不可操作'
-                    }
-                  >
-                    {imagePath ? (
-                      <img src={imagePath} alt="能量" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[8px] text-white/70">
-                        E
-                      </div>
-                    )}
-                  </div>
+                    >
+                      {imagePath ? (
+                        <img src={imagePath} alt="能量" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[8px] text-white/70">
+                          E
+                        </div>
+                      )}
+                    </div>
+                  </CardDetailPressTarget>
                 </DraggableCard>
               </div>
             );
@@ -933,17 +934,17 @@ export const PlayerArea = memo(function PlayerArea({
                                     fromZone: ZoneType.WAITING_ROOM,
                                   }}
                                 >
-                                  <Card
-                                    cardData={card.cardData as AnyCardData}
-                                    instanceId={card.instanceId}
-                                    imagePath={card.imagePath}
-                                    size="sm"
-                                    faceUp={true}
-                                    effectVisualState={getEffectVisualState(card)}
-                                    showHover={true}
-                                    onMouseEnter={() => setHoveredCard(card.instanceId)}
-                                    onMouseLeave={() => setHoveredCard(null)}
-                                  />
+                                  <CardDetailPressTarget cardId={card.instanceId} title={card.cardData.name}>
+                                    <Card
+                                      cardData={card.cardData as AnyCardData}
+                                      instanceId={card.instanceId}
+                                      imagePath={card.imagePath}
+                                      size="sm"
+                                      faceUp={true}
+                                      effectVisualState={getEffectVisualState(card)}
+                                      showHover={true}
+                                    />
+                                  </CardDetailPressTarget>
                                 </DraggableCard>
                               );
                             })}
@@ -1002,10 +1003,9 @@ export const PlayerArea = memo(function PlayerArea({
                     data={{ cardId, cardCode: card.cardCode, fromZone: ZoneType.SUCCESS_ZONE }}
                     className="absolute inset-0 flex items-center justify-center"
                   >
-                    <div
-                      className="w-full h-full flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
-                      onMouseEnter={() => setHoveredCard(card.instanceId)}
-                      onMouseLeave={() => setHoveredCard(null)}
+                    <CardDetailPressTarget
+                      cardId={card.instanceId}
+                      className="flex h-full w-full cursor-pointer items-center justify-center transition-transform hover:scale-105"
                     >
                       <div className="-rotate-90 origin-center">
                         <Card
@@ -1020,7 +1020,7 @@ export const PlayerArea = memo(function PlayerArea({
                           className="w-[80px] h-[112px]"
                         />
                       </div>
-                    </div>
+                    </CardDetailPressTarget>
                   </DraggableCard>
                 ) : (
                   // 无卡片 - 显示虚线框占位符
@@ -1088,10 +1088,9 @@ export const PlayerArea = memo(function PlayerArea({
                     disabled={!allowGeneralOwnZoneInteraction}
                     data={{ cardId, cardCode: card.cardCode, fromZone: ZoneType.SUCCESS_ZONE }}
                   >
-                    <div
+                    <CardDetailPressTarget
+                      cardId={card.instanceId}
                       className="flex h-full w-full cursor-pointer items-center justify-center transition-transform hover:scale-105"
-                      onMouseEnter={() => setHoveredCard(card.instanceId)}
-                      onMouseLeave={() => setHoveredCard(null)}
                     >
                       <div className="-rotate-90 origin-center">
                         <Card
@@ -1105,7 +1104,7 @@ export const PlayerArea = memo(function PlayerArea({
                           className="h-[72px] w-[52px]"
                         />
                       </div>
-                    </div>
+                    </CardDetailPressTarget>
                   </DraggableCard>
                 ) : (
                   <div className="flex h-full w-full items-center justify-center rounded border border-dashed border-slate-600/60 bg-slate-800/20">
@@ -1258,33 +1257,35 @@ export const PlayerArea = memo(function PlayerArea({
                   disabled={!allowGeneralOwnZoneInteraction}
                   data={{ cardId, cardCode: card?.cardCode, fromZone: ZoneType.ENERGY_ZONE }}
                 >
-                  <div
-                    className={cn(
-                      'h-[22px] w-4 overflow-hidden rounded-[3px] shadow-sm transition-transform',
-                      allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging
-                        ? 'cursor-pointer active:scale-95'
-                        : 'cursor-default',
-                      !isActive && 'rotate-90 opacity-45 grayscale'
-                    )}
-                    onClick={() => {
-                      if (allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging) {
-                        tapEnergy(cardId);
+                  <CardDetailPressTarget cardId={card?.instanceId ?? null} disabled={!card}>
+                    <div
+                      className={cn(
+                        'h-[22px] w-4 overflow-hidden rounded-[3px] shadow-sm transition-transform',
+                        allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging
+                          ? 'cursor-pointer active:scale-95'
+                          : 'cursor-default',
+                        !isActive && 'rotate-90 opacity-45 grayscale'
+                      )}
+                      onClick={() => {
+                        if (allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging) {
+                          tapEnergy(cardId);
+                        }
+                      }}
+                      title={
+                        allowGeneralOwnZoneInteraction && canTapEnergy
+                          ? '点按切换活跃/待机'
+                          : '能量区'
                       }
-                    }}
-                    title={
-                      allowGeneralOwnZoneInteraction && canTapEnergy
-                        ? '点按切换活跃/待机'
-                        : '能量区'
-                    }
-                  >
-                    {imagePath ? (
-                      <img src={imagePath} alt="能量" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-[8px] text-white/70">
-                        E
-                      </div>
-                    )}
-                  </div>
+                    >
+                      {imagePath ? (
+                        <img src={imagePath} alt="能量" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-[8px] text-white/70">
+                          E
+                        </div>
+                      )}
+                    </div>
+                  </CardDetailPressTarget>
                 </DraggableCard>
               </div>
             );
@@ -1329,14 +1330,12 @@ export const PlayerArea = memo(function PlayerArea({
           exit={{ opacity: 0, scale: 0.9 }}
           // 横置卡牌的容器：需要调整尺寸以适应旋转后的卡牌
           className="relative flex h-[50px] w-[70px] items-center justify-center md:h-[68px] md:w-[105px]"
-          onMouseEnter={() => {
-            if (shouldShowFront && card) {
-              setHoveredCard(card.instanceId);
-            }
-          }}
-          onMouseLeave={() => setHoveredCard(null)}
         >
-          <div className="-rotate-90 origin-center">
+          <CardDetailPressTarget
+            cardId={shouldShowFront && card ? card.instanceId : null}
+            disabled={!shouldShowFront || !card}
+            className="-rotate-90 origin-center"
+          >
             {card ? (
               <Card
                 cardData={card.cardData as AnyCardData}
@@ -1354,7 +1353,7 @@ export const PlayerArea = memo(function PlayerArea({
                 <img src="/back.jpg" alt="Card Back" className="h-full w-full object-cover" />
               </div>
             )}
-          </div>
+          </CardDetailPressTarget>
 
           {/* 判定结果指示器 */}
           {showJudgment && (
@@ -1695,24 +1694,24 @@ export const PlayerArea = memo(function PlayerArea({
                     const imagePath = showFront && card ? card.imagePath : '/back.jpg';
 
                     return (
-                      <SortableInspectionCard
+                      <CardDetailPressTarget
                         key={cardId}
-                        cardId={cardId}
-                        imagePath={imagePath}
-                        disabled={!canUseInspectionActions || !canDragInspectionCard}
-                        showActions={canUseInspectionActions}
-                        canReveal={canUseInspectionActions && canRevealInspectedCard}
-                        isRevealed={isInspectionCardPubliclyRevealed(cardId)}
-                        onReveal={(targetCardId) => {
-                          revealInspectedCard(targetCardId);
-                        }}
-                        onMouseEnter={() => {
-                          if (showFront && card) {
-                            setHoveredCard(card.instanceId);
-                          }
-                        }}
-                        onMouseLeave={() => setHoveredCard(null)}
-                      />
+                        cardId={showFront && card ? card.instanceId : null}
+                        disabled={!showFront || !card}
+                        className="shrink-0"
+                      >
+                        <SortableInspectionCard
+                          cardId={cardId}
+                          imagePath={imagePath}
+                          disabled={!canUseInspectionActions || !canDragInspectionCard}
+                          showActions={canUseInspectionActions}
+                          canReveal={canUseInspectionActions && canRevealInspectedCard}
+                          isRevealed={isInspectionCardPubliclyRevealed(cardId)}
+                          onReveal={(targetCardId) => {
+                            revealInspectedCard(targetCardId);
+                          }}
+                        />
+                      </CardDetailPressTarget>
                     );
                   })}
                 </div>
@@ -1857,19 +1856,19 @@ export const PlayerArea = memo(function PlayerArea({
                   disabled={!isDraggable}
                   data={{ cardId, cardCode: card.cardCode, fromZone: ZoneType.HAND }}
                 >
-                  <Card
-                    cardData={card.cardData as AnyCardData}
-                    instanceId={card.instanceId}
-                    imagePath={card.imagePath}
-                    size="sm"
-                    faceUp={true}
-                    selected={selectedCardId === card.instanceId}
-                    effectVisualState={getEffectVisualState(card)}
-                    onClick={() => allowGeneralOwnZoneInteraction && selectCard(card.instanceId)}
-                    onMouseEnter={() => setHoveredCard(card.instanceId)}
-                    onMouseLeave={() => setHoveredCard(null)}
-                    showHover={false}
-                  />
+                  <CardDetailPressTarget cardId={card.instanceId}>
+                    <Card
+                      cardData={card.cardData as AnyCardData}
+                      instanceId={card.instanceId}
+                      imagePath={card.imagePath}
+                      size="sm"
+                      faceUp={true}
+                      selected={selectedCardId === card.instanceId}
+                      effectVisualState={getEffectVisualState(card)}
+                      onClick={() => allowGeneralOwnZoneInteraction && selectCard(card.instanceId)}
+                      showHover={false}
+                    />
+                  </CardDetailPressTarget>
                 </DraggableCard>
               </div>
             </div>
