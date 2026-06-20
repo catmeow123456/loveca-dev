@@ -777,6 +777,18 @@ export class OnlineMatchService {
       };
     }
 
+    const undoResult = match.session.undoLastStepForPlayer(
+      requester.playerId,
+      request.targetUndoEntryId
+    );
+    if (!undoResult.success) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: undoResult.error,
+      };
+    }
+
     match.pendingUndoRequest = null;
     incrementRemoteRevision(match);
     touchMatch(match);
@@ -786,17 +798,6 @@ export class OnlineMatchService {
       writeAuthorityCheckpoint: false,
       dedupeKey: `${match.recordBranchId}:UNDO_ACCEPTED:${request.requestId}:${match.remoteRevision}`,
     });
-
-    const undoResult = match.session.undoLastStepForPlayer(
-      requester.playerId,
-      request.targetUndoEntryId
-    );
-    if (!undoResult.success) {
-      return {
-        success: false,
-        error: undoResult.error,
-      };
-    }
 
     match.recordBranchId = `${match.matchId}:branch:${match.remoteRevision + 1}`;
     incrementRemoteRevision(match);

@@ -451,6 +451,79 @@ describe('OnlineRoomService', () => {
     expect(repeatedAccept?.snapshot?.seq).toBe(acceptResult?.snapshot?.seq);
   });
 
+  it('正式联机接受撤销时应先回滚权威状态再写入 accepted frame', async () => {
+    let now = 5_850_000;
+    let match: OnlineMatchState | null = null;
+    let initialHandCount = 0;
+    let initialDeckCount = 0;
+    let acceptedFrameObserved = false;
+    const recorder = createTestRecorder({
+      appendMatchRecordFrame: vi.fn(async (input) => {
+        if (input.frameType === 'UNDO_ACCEPTED') {
+          acceptedFrameObserved = true;
+          expect(match?.pendingUndoRequest).toBeNull();
+          expect(match?.session.state?.players[0].hand.cardIds).toHaveLength(initialHandCount);
+          expect(match?.session.state?.players[0].mainDeck.cardIds).toHaveLength(initialDeckCount);
+        }
+        return {
+          matchId: input.matchId,
+          timelineSeq: 2,
+          checkpointSeq: input.writeAuthorityCheckpoint === false ? null : 2,
+          payloadHash: input.writeAuthorityCheckpoint === false ? null : 'sha256:test',
+        };
+      }),
+    });
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    match = await matchService.createMatch({
+      roomCode: 'UNDO05',
+      startedAt: now,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+    forceMainPhaseForFirst(match);
+
+    initialHandCount = match.session.state!.players[0].hand.cardIds.length;
+    initialDeckCount = match.session.state!.players[0].mainDeck.cardIds.length;
+    const commandResult = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored-client-player-id')
+    );
+    expect(commandResult?.success).toBe(true);
+    expect(match.session.state?.players[0].hand.cardIds).toHaveLength(initialHandCount + 1);
+    const undoEntry = commandResult?.snapshot?.playerViewState.match.undo?.entry;
+    expect(undoEntry).toBeTruthy();
+
+    now += 1_000;
+    const requestResult = await matchService.createUndoRequest(match.matchId, 'u1', {
+      expectedRevision: commandResult!.snapshot!.seq,
+      undoEntryId: undoEntry!.undoEntryId,
+      idempotencyKey: 'request-order',
+    });
+    const requestId = requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
+    expect(requestResult?.success).toBe(true);
+    expect(requestId).toBeTruthy();
+
+    now += 1_000;
+    const acceptResult = await matchService.acceptUndoRequest(match.matchId, 'u2', requestId!, {
+      expectedRevision: requestResult!.snapshot!.seq,
+      idempotencyKey: 'accept-order',
+    });
+
+    expect(acceptResult?.success).toBe(true);
+    expect(acceptedFrameObserved).toBe(true);
+    expect(match.session.state?.players[0].hand.cardIds).toHaveLength(initialHandCount);
+    expect(match.session.state?.players[0].mainDeck.cardIds).toHaveLength(initialDeckCount);
+  });
+
   it('正式联机撤销请求被拒绝后应只清除 pending 并保留原动作', async () => {
     let now = 5_900_000;
     const matchService = new OnlineMatchService({ now: () => now, recorder: null });
