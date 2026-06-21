@@ -30,7 +30,10 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
 import { GameCommandType } from '@game/application/game-commands';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
-import { getActivatedAbilityUiConfig } from '@game/application/card-effect-runner';
+import {
+  CardAbilitySourceZone,
+  getActivatedAbilityUiConfig,
+} from '@game/application/card-effect-runner';
 import { Card } from '@/components/card/Card';
 import { CardModifierBadgeStack } from '@/components/card/CardModifierBadgeStack';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
@@ -396,7 +399,10 @@ export const PlayerArea = memo(function PlayerArea({
 
     // 堆叠成员卡偏移量：向右下方偏移
     const memberBelowOffsetPercent = 8;
-    const activatedAbilityConfig = getActivatedAbilityUiConfig(card?.cardCode);
+    const activatedAbilityConfig = getActivatedAbilityUiConfig(
+      card?.cardCode,
+      CardAbilitySourceZone.STAGE_MEMBER
+    );
     const canActivateAbility =
       card !== null &&
       activatedAbilityConfig !== null &&
@@ -930,35 +936,80 @@ export const PlayerArea = memo(function PlayerArea({
                             {waitingRoomCardIds.map((cardId: string) => {
                               const card = getVisibleCardPresentation(cardId);
                               if (!card) return null;
+                              const isWaitingRoomCardSelected =
+                                selectedCardId === card.instanceId;
+                              const activatedAbilityConfig = getActivatedAbilityUiConfig(
+                                card.cardCode,
+                                CardAbilitySourceZone.WAITING_ROOM
+                              );
+                              const canActivateWaitingRoomAbility =
+                                activatedAbilityConfig !== null &&
+                                !isOpponent &&
+                                viewerSeat === playerSeat &&
+                                canActivateAbilityCommand &&
+                                isWaitingRoomCardSelected;
 
                               return (
-                                <DraggableCard
-                                  key={cardId}
-                                  id={cardId}
-                                  disabled={
-                                    isReadOnly ||
-                                    (!allowGeneralOwnZoneInteraction &&
-                                      !canReceiveInspectionDrop &&
-                                      card.cardData.cardType !== CardType.LIVE)
-                                  }
-                                  data={{
-                                    cardId,
-                                    cardCode: card.cardCode,
-                                    fromZone: ZoneType.WAITING_ROOM,
-                                  }}
-                                >
-                                  <CardDetailPressTarget cardId={card.instanceId} title={card.cardData.name}>
-                                    <Card
-                                      cardData={card.cardData as AnyCardData}
-                                      instanceId={card.instanceId}
-                                      imagePath={card.imagePath}
-                                      size="sm"
-                                      faceUp={true}
-                                      effectVisualState={getEffectVisualState(card)}
-                                      showHover={true}
-                                    />
-                                  </CardDetailPressTarget>
-                                </DraggableCard>
+                                <div key={cardId} className="relative">
+                                  <DraggableCard
+                                    id={cardId}
+                                    disabled={
+                                      isReadOnly ||
+                                      (!allowGeneralOwnZoneInteraction &&
+                                        !canReceiveInspectionDrop &&
+                                        card.cardData.cardType !== CardType.LIVE)
+                                    }
+                                    data={{
+                                      cardId,
+                                      cardCode: card.cardCode,
+                                      fromZone: ZoneType.WAITING_ROOM,
+                                    }}
+                                  >
+                                    <CardDetailPressTarget
+                                      cardId={card.instanceId}
+                                      title={card.cardData.name}
+                                    >
+                                      <Card
+                                        cardData={card.cardData as AnyCardData}
+                                        instanceId={card.instanceId}
+                                        imagePath={card.imagePath}
+                                        size="sm"
+                                        faceUp={true}
+                                        selected={isWaitingRoomCardSelected}
+                                        effectVisualState={getEffectVisualState(card, {
+                                          isActionableNow: canActivateWaitingRoomAbility,
+                                        })}
+                                        onClick={() =>
+                                          allowGeneralOwnZoneInteraction &&
+                                          selectCard(card.instanceId)
+                                        }
+                                        showHover={true}
+                                      />
+                                    </CardDetailPressTarget>
+                                  </DraggableCard>
+                                  {canActivateWaitingRoomAbility && activatedAbilityConfig && (
+                                    <button
+                                      type="button"
+                                      className={cn(
+                                        'absolute bottom-full left-1/2 z-30 mb-1 w-[min(420px,92vw)] -translate-x-1/2 rounded-lg border border-rose-300/70',
+                                        'bg-white/95 px-3 py-1.5 font-semibold text-rose-600 shadow-lg',
+                                        'transition-colors hover:bg-rose-50 active:scale-95'
+                                      )}
+                                      style={{ fontSize: '12px', lineHeight: 1.25 }}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        activateCardAbility(
+                                          card.instanceId,
+                                          activatedAbilityConfig.abilityId
+                                        );
+                                        setWaitingRoomExpanded(false);
+                                      }}
+                                      title={activatedAbilityConfig.title}
+                                    >
+                                      {activatedAbilityConfig.text}
+                                    </button>
+                                  )}
+                                </div>
                               );
                             })}
                           </div>

@@ -710,6 +710,7 @@ describe('PlayerViewState projector', () => {
       'FIRST_MEMBER_LEFT',
       'FIRST_MEMBER_CENTER',
       'FIRST_MEMBER_RIGHT',
+      'FIRST_WAITING_ROOM',
     ]);
     expect(hasEnabledCommand(mainView, GameCommandType.TAP_ENERGY)).toBe(true);
     expect(getCommandHint(mainView, GameCommandType.TAP_ENERGY)?.scope?.zoneKeys).toEqual([

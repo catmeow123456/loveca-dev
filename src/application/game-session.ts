@@ -138,9 +138,14 @@ import {
   confirmActiveEffectStep,
   enqueueTriggeredCardEffects,
   getActivatedAbilityLimitStatus,
+  getCardAbilityDefinitions,
   isSupportedActivatedAbilityForCard,
   resolvePendingCardEffects,
 } from './card-effect-runner.js';
+import {
+  CardAbilityCategory,
+  CardAbilitySourceZone,
+} from './card-effects/ability-definition-types.js';
 import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/bp6-024-success-replacement.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { getMemberEffectiveCost } from './effects/conditions.js';
@@ -1423,7 +1428,18 @@ export class GameSession {
         ) {
           return '该卡牌没有这个起动效果';
         }
-        if (!Object.values(player.memberSlots.slots).includes(command.cardId)) {
+        const sourceZone =
+          getCardAbilityDefinitions(card.data.cardCode).find(
+            (ability) =>
+              ability.category === CardAbilityCategory.ACTIVATED &&
+              ability.implemented &&
+              ability.abilityId === command.abilityId
+          )?.sourceZone ?? CardAbilitySourceZone.STAGE_MEMBER;
+        if (sourceZone === CardAbilitySourceZone.WAITING_ROOM) {
+          if (!player.waitingRoom.cardIds.includes(command.cardId)) {
+            return '起动效果来源卡当前不在自己的休息室';
+          }
+        } else if (!Object.values(player.memberSlots.slots).includes(command.cardId)) {
           return '起动效果来源成员当前不在舞台';
         }
         const limitStatus = getActivatedAbilityLimitStatus(

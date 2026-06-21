@@ -79,6 +79,9 @@ import { registerHsPb1003RurinoWorkflowHandlers } from './card-effects/workflows
 import { registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers } from './card-effects/workflows/cards/keke-on-enter-place-waiting-energy.js';
 import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/maki-on-enter.js';
 import { registerKarinWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-004-karin.js';
+import { registerNBp1002KasumiWorkflowHandlers } from './card-effects/workflows/cards/n-bp1-002-kasumi.js';
+import { registerNBp3008EmmaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-008-emma.js';
+import { registerNPb1006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-006-kanata.js';
 import { registerNPr026RinaWorkflowHandlers } from './card-effects/workflows/cards/n-pr-026-rina.js';
 import { registerNozomiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/nozomi-on-enter.js';
 import { registerPb1015MakiWorkflowHandlers } from './card-effects/workflows/cards/pb1-015-maki.js';
@@ -121,6 +124,7 @@ import { registerOpponentWaitTargetWorkflowHandlers } from './card-effects/workf
 import { registerPayEnergyGainBladeWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-gain-blade.js';
 import { registerPayEnergyGainHeartWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-gain-heart.js';
 import { registerPayEnergyWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-waiting-room-to-hand.js';
+import { registerRelayEnterDrawDiscardWorkflowHandlers } from './card-effects/workflows/shared/relay-enter-draw-discard.js';
 import { registerRevealedCheerSelectionWorkflowHandlers } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { registerSelfPositionChangeWorkflowHandlers } from './card-effects/workflows/shared/self-position-change.js';
 import { registerSelfSacrificeWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/self-sacrifice-waiting-room-to-hand.js';
@@ -164,7 +168,6 @@ import {
 export * from './card-effects/ability-ids.js';
 export * from './card-effects/ability-definition-types.js';
 export { CARD_ABILITY_DEFINITIONS } from './card-effects/definitions/index.js';
-
 export const ABILITY_ORDER_SELECTION_ID = 'system:select-pending-card-effect';
 const DECLINE_OPTION_LABEL = '不发动';
 const ABILITY_USE_STEP = 'ABILITY_USE';
@@ -176,7 +179,6 @@ interface RevealSelectedInspectionCardConfig {
   readonly stepText: string;
   readonly actionStep: string;
 }
-
 type InspectedCardDestination = 'MAIN_DECK_TOP' | 'WAITING_ROOM';
 interface ArrangeInspectedDeckTopConfig {
   readonly ability: PendingAbilityState;
@@ -192,13 +194,11 @@ interface ArrangeInspectedDeckTopConfig {
   readonly unselectedDestination: InspectedCardDestination;
   readonly orderedResolution: boolean;
 }
-
 interface AbilitySourceEntry {
   readonly cardId: string;
   readonly sourceZone: CardAbilitySourceZone;
   readonly sourceSlot?: SlotPosition;
 }
-
 interface OnEnterAbilitySource {
   readonly cardId: string;
   readonly controllerId: string;
@@ -208,13 +208,11 @@ interface OnEnterAbilitySource {
   readonly replacedMemberEffectiveCost?: number;
   readonly relayReplacements?: readonly RelayReplacementMetadata[];
 }
-
 interface RelayReplacementMetadata {
   readonly cardId: string;
   readonly slot: SlotPosition;
   readonly effectiveCost: number;
 }
-
 interface OnEnterStageAutoSource {
   readonly sourceCardId: string;
   readonly controllerId: string;
@@ -222,7 +220,6 @@ interface OnEnterStageAutoSource {
   readonly enteredCardId: string;
   readonly eventId: string;
 }
-
 interface OnLeaveStageAbilitySource {
   readonly cardId: string;
   readonly controllerId: string;
@@ -304,12 +301,14 @@ export function doesAbilityDefinitionMatchCardCode(
 }
 
 export function getActivatedAbilityUiConfig(
-  cardCode: string | undefined
+  cardCode: string | undefined,
+  sourceZone: CardAbilitySourceZone = CardAbilitySourceZone.STAGE_MEMBER
 ): ActivatedAbilityUiConfig | null {
   const definition = getCardAbilityDefinitions(cardCode).find(
     (ability) =>
       ability.category === CardAbilityCategory.ACTIVATED &&
       ability.implemented &&
+      ability.sourceZone === sourceZone &&
       ability.activatedUi
   );
   return definition?.activatedUi ?? null;
@@ -512,7 +511,6 @@ function revealSelectedInspectionCard(
   );
 }
 const ABILITY_ORDER_SELECTION_STEP_ID = 'SELECT_NEXT_PENDING_ABILITY';
-
 registerLookTopSelectToHandWorkflowHandlers();
 registerArrangeInspectedDeckTopWorkflowHandlers();
 registerConditionalLiveModifierWorkflowHandlers();
@@ -522,6 +520,7 @@ registerBp6024SuccessReplacementWorkflowHandlers();
 registerHsBp5008IzumiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp6031FanfareWorkflowHandlers();
 registerDrawThenDiscardWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerRelayEnterDrawDiscardWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerGroupedRecoveryWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNamedHandDiscardLiveStartWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartDiscardGainHeartWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -568,6 +567,9 @@ registerHsBp1023DododoWorkflowHandlers();
 registerHsPb1002SayakaWorkflowHandlers();
 registerHsPb1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp1002KasumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp3008EmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNPb1006KanataWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerMakiOnEnterWorkflowHandlers();
 registerPb1015MakiWorkflowHandlers();
 registerPlBp3026OhLovePeaceWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -588,7 +590,6 @@ registerChisatoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpSd2012KanonWorkflowHandlers();
 registerSpSd2025AspireWorkflowHandlers();
 registerYoshikoPlayLowCostMembersWorkflowHandlers({ enqueueTriggeredCardEffects });
-
 interface CardEffectRunnerResult {
   readonly gameState: GameState;
   readonly resolvedAbilityIds: readonly string[];

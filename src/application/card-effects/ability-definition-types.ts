@@ -12,6 +12,7 @@ export enum CardAbilityCategory {
 export enum CardAbilitySourceZone {
   PLAYED_MEMBER = 'PLAYED_MEMBER',
   STAGE_MEMBER = 'STAGE_MEMBER',
+  WAITING_ROOM = 'WAITING_ROOM',
   LIVE_CARD = 'LIVE_CARD',
   SUCCESS_LIVE_CARD = 'SUCCESS_LIVE_CARD',
 }

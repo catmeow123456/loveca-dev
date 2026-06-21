@@ -1262,6 +1262,15 @@ function buildPhaseCommandHint(
         }),
       });
     case GameCommandType.TAP_MEMBER:
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_LEFT'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
+            createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),
+          ],
+        }),
+      });
     case GameCommandType.ACTIVATE_ABILITY:
       return buildCommandHint(command, {
         scope: createCommandScope({
@@ -1269,6 +1278,7 @@ function buildPhaseCommandHint(
             createOwnedViewZoneKey(viewerSeat, 'MEMBER_LEFT'),
             createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
             createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),
+            createOwnedViewZoneKey(viewerSeat, 'WAITING_ROOM'),
           ],
         }),
       });
