@@ -11,8 +11,8 @@ import { recordPositionMove } from '../../domain/entities/player.js';
 import { createLeaveStageEvent, createMemberSlotMovedEvent } from '../../domain/events/game-events.js';
 import { ZoneType, SlotPosition } from '../../shared/types/enums.js';
 import {
-  type BaseZoneState,
   addCardToZone,
+  addCardsToZone,
   removeCardFromZone,
   addCardToStatefulZone,
   removeCardFromStatefulZone,
@@ -169,10 +169,12 @@ const MEMBER_SLOT_ACCESSOR: ZoneAccessor = {
     // 先查找成员卡槽位
     for (const slot of Object.values(SlotPosition)) {
       if (getCardInSlot(p.memberSlots, slot) === cardId) {
-        // 裸 remove 不知道目标区域；主成员去休息室时的 memberBelow 清理由 moveCardUniversal 处理。
+        // 裸 remove 也必须守住空主槽不能残留 memberBelow 的 invariant。
+        const [slotsWithoutMemberBelow, memberBelowIds] = popMemberBelowMember(p.memberSlots, slot);
         return {
           ...p,
-          memberSlots: removeCardFromSlot(p.memberSlots, slot),
+          memberSlots: removeCardFromSlot(slotsWithoutMemberBelow, slot),
+          waitingRoom: addCardsToZone(p.waitingRoom, memberBelowIds),
         };
       }
     }
@@ -645,8 +647,4 @@ function moveMemberBelowToWaitingRoom(
       waitingRoom: addCardsToZone(player.waitingRoom, memberBelowIds),
     };
   });
-}
-
-function addCardsToZone(zone: BaseZoneState, cardIds: readonly string[]): BaseZoneState {
-  return cardIds.reduce((nextZone, cardId) => addCardToZone(nextZone, cardId), zone);
 }

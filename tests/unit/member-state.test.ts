@@ -5,6 +5,7 @@ import { createGameState, registerCards, updatePlayer } from '../../src/domain/e
 import { recordMoveToStage, recordPositionMove } from '../../src/domain/entities/player';
 import {
   addEnergyBelowMember,
+  addMemberBelowMember,
   placeCardInSlot,
   removeCardFromSlot,
 } from '../../src/domain/entities/zone';
@@ -18,12 +19,14 @@ import {
   setMemberOrientation,
   setMembersOrientation,
 } from '../../src/application/effects/member-state';
+import { removeCardFromPlayerZone } from '../../src/application/action-handlers/zone-operations';
 import {
   CardType,
   HeartColor,
   OrientationState,
   SlotPosition,
   TriggerCondition,
+  ZoneType,
 } from '../../src/shared/types/enums';
 
 function createMemberCard(cardCode: string): MemberCardData {
@@ -204,6 +207,29 @@ describe('member state effect helpers', () => {
       fromSlot: SlotPosition.LEFT,
       toSlot: SlotPosition.RIGHT,
     });
+  });
+
+  it('defensively clears memberBelow when a main member is removed through the bare zone helper', () => {
+    const member = createCardInstance(createMemberCard('MEM-HOST'), 'p1', 'member-host');
+    const belowMember = createCardInstance(createMemberCard('MEM-BELOW'), 'p1', 'member-below');
+    let game = createGameState('member-state-bare-remove', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member, belowMember]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.LEFT, member.instanceId);
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.LEFT, belowMember.instanceId);
+      return { ...player, memberSlots };
+    });
+
+    const result = removeCardFromPlayerZone(
+      game,
+      'p1',
+      member.instanceId,
+      ZoneType.MEMBER_SLOT
+    );
+
+    expect(result.players[0].memberSlots.slots[SlotPosition.LEFT]).toBeNull();
+    expect(result.players[0].memberSlots.memberBelow[SlotPosition.LEFT]).toEqual([]);
+    expect(result.players[0].waitingRoom.cardIds).toContain(belowMember.instanceId);
   });
 
   it('swaps occupied member slots with their attached cards', () => {

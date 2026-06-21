@@ -13,7 +13,7 @@ import { isMemberCardData, type MemberCardData } from '../../domain/entities/car
 import { addAction, emitGameEvent, updatePlayer } from '../../domain/entities/game.js';
 import { createEnterStageEvent, createLeaveStageEvent } from '../../domain/events/game-events.js';
 import {
-  type BaseZoneState,
+  addCardsToZone,
   removeCardFromZone,
   addCardToZone,
   placeCardInSlot,
@@ -241,11 +241,4 @@ function collectReplacementsFromSlots(
   }
 
   return { ok: true, replacements };
-}
-
-function addCardsToZone(
-  zone: BaseZoneState,
-  cardIds: readonly string[]
-): BaseZoneState {
-  return cardIds.reduce((nextZone, cardId) => addCardToZone(nextZone, cardId), zone);
 }

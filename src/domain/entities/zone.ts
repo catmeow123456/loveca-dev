@@ -246,6 +246,16 @@ export function addCardToZone(
 }
 
 /**
+ * 向基础区域按给定顺序追加多张卡牌
+ */
+export function addCardsToZone(
+  zone: BaseZoneState,
+  cardIds: readonly string[]
+): BaseZoneState {
+  return cardIds.reduce((nextZone, cardId) => addCardToZone(nextZone, cardId), zone);
+}
+
+/**
  * 从基础区域移除卡牌
  */
 export function removeCardFromZone(zone: BaseZoneState, cardId: string): BaseZoneState {
