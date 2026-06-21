@@ -100,6 +100,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 成员区 | BOTH | BOTH | `FRONT` | `FRONT` | NONE |
 | 成员下方能量 | BOTH | BOTH | `FRONT` | `FRONT` | PUBLIC_ORDERED |
+| 成员下方堆叠成员（`memberBelow`） | BOTH | BOTH | `FRONT` | `FRONT` | PUBLIC_ORDERED |
 | 能量区 | BOTH | BOTH | `FRONT` | `FRONT` | NONE |
 | Live 放置区（里侧） | BOTH | BOTH | `FRONT` | `BACK` | NONE |
 | Live 放置区（翻开后） | BOTH | BOTH | `FRONT` | `FRONT` | NONE |

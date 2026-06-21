@@ -1445,6 +1445,84 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
+  it('显式 asMemberBelow 移动只允许堆叠到特殊成员下方', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-explicit-member-below-special-only',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        memberBelow: Record<SlotPosition, string[]>;
+      };
+    };
+
+    const memberCardIds = player.hand.cardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const [stackingCardId, normalHostId, specialHostId] = memberCardIds;
+
+    expect(stackingCardId).toBeTruthy();
+    expect(normalHostId).toBeTruthy();
+    expect(specialHostId).toBeTruthy();
+
+    player.hand.cardIds = player.hand.cardIds.filter(
+      (cardId) => cardId !== normalHostId && cardId !== specialHostId
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = normalHostId!;
+    player.memberSlots.slots[SlotPosition.RIGHT] = specialHostId!;
+    player.memberSlots.memberBelow[SlotPosition.CENTER] = [];
+    player.memberSlots.memberBelow[SlotPosition.RIGHT] = [];
+
+    const specialHost = state.cardRegistry.get(specialHostId!) as unknown as {
+      data: MemberCardData;
+    };
+    specialHost.data = {
+      ...specialHost.data,
+      cardCode: 'PL!HS-pb1-002-R',
+      name: '村野さやか',
+    };
+
+    const invalidResult = session.executeCommand(
+      createMoveOwnedCardToZoneCommand(
+        PLAYER1,
+        stackingCardId!,
+        ZoneType.HAND,
+        ZoneType.MEMBER_SLOT,
+        { targetSlot: SlotPosition.CENTER, asMemberBelow: true }
+      )
+    );
+    expect(invalidResult.success).toBe(false);
+    expect(session.state?.players[0].hand.cardIds).toContain(stackingCardId);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
+
+    const validResult = session.executeCommand(
+      createMoveOwnedCardToZoneCommand(
+        PLAYER1,
+        stackingCardId!,
+        ZoneType.HAND,
+        ZoneType.MEMBER_SLOT,
+        { targetSlot: SlotPosition.RIGHT, asMemberBelow: true }
+      )
+    );
+    expect(validResult.success).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).not.toContain(stackingCardId);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.RIGHT]).toEqual([
+      stackingCardId,
+    ]);
+  });
+
   it('成员登场命令可用 freePlay 标记作为自由拖拽兜底跳过费用', () => {
     const session = createGameSession();
     const deck = createTestDeck();

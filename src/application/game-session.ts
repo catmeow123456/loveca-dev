@@ -1486,7 +1486,8 @@ export class GameSession {
         if (
           card?.data.cardType === CardType.MEMBER &&
           command.fromZone === ZoneType.HAND &&
-          command.toZone === ZoneType.MEMBER_SLOT
+          command.toZone === ZoneType.MEMBER_SLOT &&
+          command.asMemberBelow !== true
         ) {
           return '手牌成员登场到成员区必须使用专用登场命令';
         }

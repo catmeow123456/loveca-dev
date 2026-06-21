@@ -48,6 +48,7 @@ import {
 import { liveProhibitedPlayerLiveZoneToWaitingRoom } from '../../domain/rules/live-prohibitions.js';
 import { phaseManager, type SubPhaseAutoAction } from '../phase-manager.js';
 import { isUserActionRequired } from '../../shared/phase-config/index.js';
+import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 
 function haveAllWinnersConfirmed(game: GameState, confirmedPlayerIds: readonly string[]): boolean {
   const winners = game.liveResolution.liveWinnerIds;
@@ -319,6 +320,24 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
 
   // memberBelow 堆叠必须由命令层显式声明；普通手动拖拽保持换手/移动语义。
   const asMemberBelow = action.asMemberBelow === true;
+  if (asMemberBelow) {
+    if (toZone !== ZoneType.MEMBER_SLOT || !targetSlot) {
+      return failure(game, 'memberBelow 堆叠必须指定目标成员槽位');
+    }
+    if (card.data.cardType !== CardType.MEMBER) {
+      return failure(game, '只有成员卡可以堆叠到特殊成员下方');
+    }
+
+    const targetMemberCardId = player.memberSlots.slots[targetSlot as SlotPosition] ?? null;
+    const targetMemberCard = targetMemberCardId ? ctx.getCardById(game, targetMemberCardId) : null;
+    if (
+      !targetMemberCard ||
+      targetMemberCard.data.cardType !== CardType.MEMBER ||
+      !isSpecialMemberCard(targetMemberCard.data.cardCode)
+    ) {
+      return failure(game, '目标槽位不是特殊成员卡，无法堆叠成员卡');
+    }
+  }
   // memberBelow 中的卡牌不是来源槽位的主成员，不能携带 sourceSlot
   // 否则 moveCardUniversal 会误走 MEMBER_SLOT ↔ MEMBER_SLOT 槽位互换路径，
   // 导致源槽位主成员被意外移除（游戏状态损坏）

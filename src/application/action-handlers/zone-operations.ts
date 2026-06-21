@@ -10,6 +10,7 @@ import { emitGameEvent, getCardById, getPlayerById, updatePlayer } from '../../d
 import { recordPositionMove } from '../../domain/entities/player.js';
 import { createLeaveStageEvent, createMemberSlotMovedEvent } from '../../domain/events/game-events.js';
 import { ZoneType, SlotPosition } from '../../shared/types/enums.js';
+import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 import {
   addCardToZone,
   addCardsToZone,
@@ -214,11 +215,7 @@ const MEMBER_SLOT_ACCESSOR: ZoneAccessor = {
     if (options.asMemberBelow) {
       const memberCardId = getCardInSlot(p.memberSlots, options.targetSlot);
       if (!memberCardId) {
-        // 防御：目标槽位无成员卡（前端视图可能滞后），回退为普通成员放置
-        return {
-          ...p,
-          memberSlots: placeCardInSlot(p.memberSlots, options.targetSlot, cardId),
-        };
+        return p;
       }
       return {
         ...p,
@@ -270,6 +267,23 @@ function getZoneAccessor(zone: ZoneType): ZoneAccessor | undefined {
   );
 }
 
+function canAddMemberBelowToSlot(
+  game: GameState,
+  playerId: string,
+  targetSlot?: SlotPosition
+): boolean {
+  if (!targetSlot) {
+    return false;
+  }
+  const player = getPlayerById(game, playerId);
+  const targetMemberCardId = player ? getCardInSlot(player.memberSlots, targetSlot) : null;
+  if (!targetMemberCardId) {
+    return false;
+  }
+  const targetMemberCard = getCardById(game, targetMemberCardId);
+  return targetMemberCard !== null && isSpecialMemberCard(targetMemberCard.data.cardCode);
+}
+
 /**
  * 从玩家的指定区域移除卡牌
  *
@@ -311,6 +325,12 @@ export function addCardToPlayerZone(
   zone: ZoneType,
   options?: ZoneAddOptions
 ): GameState {
+  if (zone === ZoneType.MEMBER_SLOT && options?.asMemberBelow) {
+    if (!canAddMemberBelowToSlot(game, playerId, options.targetSlot)) {
+      return game;
+    }
+  }
+
   const accessor = getZoneAccessor(zone);
   if (!accessor) {
     console.warn(`未知的区域类型: ${zone}`);
@@ -339,6 +359,14 @@ export function moveCardBetweenZones(
   toZone: ZoneType,
   options?: ZoneAddOptions
 ): GameState {
+  if (
+    toZone === ZoneType.MEMBER_SLOT &&
+    options?.asMemberBelow &&
+    !canAddMemberBelowToSlot(game, playerId, options.targetSlot)
+  ) {
+    return game;
+  }
+
   let state = removeCardFromPlayerZone(game, playerId, cardId, fromZone);
   state = addCardToPlayerZone(state, playerId, cardId, toZone, options);
   return state;
@@ -481,6 +509,14 @@ export function moveCardUniversal(
   options?: ZoneAddOptions
 ): GameState {
   let state = game;
+
+  if (
+    toZone === ZoneType.MEMBER_SLOT &&
+    options?.asMemberBelow &&
+    !canAddMemberBelowToSlot(state, playerId, options.targetSlot)
+  ) {
+    return state;
+  }
 
   // 特殊情况：成员卡在 MEMBER_SLOT 之间移动时，随成员一并移动 energyBelow（规则 4.5.5.3）
   if (
