@@ -2641,6 +2641,41 @@ export class GameSession {
           ),
         })
       );
+
+      if (
+        command.fromZone === ZoneType.MEMBER_SLOT &&
+        command.toZone === ZoneType.WAITING_ROOM &&
+        command.sourceSlot
+      ) {
+        const memberBelowIds = getMainMemberBelowIds(
+          state,
+          command.playerId,
+          command.cardId,
+          command.sourceSlot
+        );
+        for (const memberCardId of memberBelowIds) {
+          if (!playerOwnsCardInWaitingRoom(result.gameState, command.playerId, memberCardId)) {
+            continue;
+          }
+          extraPublicEvents.push(
+            buildCardMovedPublicEvent(state, result.gameState, actorSeat, memberCardId, {
+              from: buildZoneRefForMove(
+                state,
+                command.playerId,
+                memberCardId,
+                ZoneType.MEMBER_SLOT,
+                { slot: command.sourceSlot }
+              ),
+              to: buildZoneRefForMove(
+                result.gameState,
+                command.playerId,
+                memberCardId,
+                ZoneType.WAITING_ROOM
+              ),
+            })
+          );
+        }
+      }
     }
 
     return {
@@ -2946,9 +2981,9 @@ export class GameSession {
           ? [command.targetSlot]
           : [];
 
-    // 仅当被置换成员实际离开了槽位时才创建置换事件
-    // （stackedBelow 路径下特殊成员仍留在槽位，不应产生虚假事件）
+    // 仅当被置换成员实际离开了槽位时才创建置换事件。
     const resultPlayer = result.gameState.players.find((p) => p.id === command.playerId);
+    const replacementMoveEvents: PublicEventDraft[] = [];
     for (const replacementSlot of replacementSlots) {
       const replacementCardId = player.memberSlots.slots[replacementSlot];
       const actuallyDisplaced =
@@ -2959,7 +2994,7 @@ export class GameSession {
       if (!actuallyDisplaced) {
         continue;
       }
-      extraPublicEvents.unshift(
+      replacementMoveEvents.push(
         buildCardMovedPublicEvent(state, result.gameState, actorSeat, replacementCardId, {
           from: buildZoneRefForMove(
             state,
@@ -2978,7 +3013,33 @@ export class GameSession {
           ),
         })
       );
+
+      for (const memberCardId of player.memberSlots.memberBelow?.[replacementSlot] ?? []) {
+        if (!playerOwnsCardInWaitingRoom(result.gameState, command.playerId, memberCardId)) {
+          continue;
+        }
+        replacementMoveEvents.push(
+          buildCardMovedPublicEvent(state, result.gameState, actorSeat, memberCardId, {
+            from: buildZoneRefForMove(
+              state,
+              command.playerId,
+              memberCardId,
+              ZoneType.MEMBER_SLOT,
+              {
+                slot: replacementSlot,
+              }
+            ),
+            to: buildZoneRefForMove(
+              result.gameState,
+              command.playerId,
+              memberCardId,
+              ZoneType.WAITING_ROOM
+            ),
+          })
+        );
+      }
     }
+    extraPublicEvents.unshift(...replacementMoveEvents);
 
     return {
       success: true,
@@ -3176,24 +3237,59 @@ export class GameSession {
       return { success: false, gameState: state, error: result.error };
     }
 
+    const extraPublicEvents: PublicEventDraft[] = [
+      buildCardMovedPublicEvent(state, result.gameState, actorSeat, command.cardId, {
+        from: buildZoneRefForMove(state, command.playerId, command.cardId, command.fromZone, {
+          slot: command.sourceSlot,
+        }),
+        to: buildZoneRefForMove(
+          result.gameState,
+          command.playerId,
+          command.cardId,
+          ZoneType.WAITING_ROOM
+        ),
+      }),
+    ];
+
+    if (command.fromZone === ZoneType.MEMBER_SLOT && command.sourceSlot) {
+      const memberBelowIds = getMainMemberBelowIds(
+        state,
+        command.playerId,
+        command.cardId,
+        command.sourceSlot
+      );
+      for (const memberCardId of memberBelowIds) {
+        if (!playerOwnsCardInWaitingRoom(result.gameState, command.playerId, memberCardId)) {
+          continue;
+        }
+        extraPublicEvents.push(
+          buildCardMovedPublicEvent(state, result.gameState, actorSeat, memberCardId, {
+            from: buildZoneRefForMove(
+              state,
+              command.playerId,
+              memberCardId,
+              ZoneType.MEMBER_SLOT,
+              {
+                slot: command.sourceSlot,
+              }
+            ),
+            to: buildZoneRefForMove(
+              result.gameState,
+              command.playerId,
+              memberCardId,
+              ZoneType.WAITING_ROOM
+            ),
+          })
+        );
+      }
+    }
+
     return {
       success: true,
       gameState: result.gameState,
       declarationType: 'MOVE_PUBLIC_CARD_TO_WAITING_ROOM',
       declarationPublicValue: command.fromZone,
-      extraPublicEvents: [
-        buildCardMovedPublicEvent(state, result.gameState, actorSeat, command.cardId, {
-          from: buildZoneRefForMove(state, command.playerId, command.cardId, command.fromZone, {
-            slot: command.sourceSlot,
-          }),
-          to: buildZoneRefForMove(
-            result.gameState,
-            command.playerId,
-            command.cardId,
-            ZoneType.WAITING_ROOM
-          ),
-        }),
-      ],
+      extraPublicEvents,
     };
   }
 
@@ -4748,6 +4844,27 @@ function isCardInOwnedZone(
     default:
       return false;
   }
+}
+
+function getMainMemberBelowIds(
+  state: GameState,
+  playerId: string,
+  cardId: string,
+  slot: SlotPosition
+): readonly string[] {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (!player || player.memberSlots.slots[slot] !== cardId) {
+    return [];
+  }
+  return player.memberSlots.memberBelow?.[slot] ?? [];
+}
+
+function playerOwnsCardInWaitingRoom(
+  state: GameState,
+  playerId: string,
+  cardId: string
+): boolean {
+  return isCardInOwnedZone(state, playerId, ZoneType.WAITING_ROOM, cardId);
 }
 
 function validateCardMoveTarget(

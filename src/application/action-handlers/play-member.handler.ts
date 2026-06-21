@@ -13,16 +13,16 @@ import { isMemberCardData, type MemberCardData } from '../../domain/entities/car
 import { addAction, emitGameEvent, updatePlayer } from '../../domain/entities/game.js';
 import { createEnterStageEvent, createLeaveStageEvent } from '../../domain/events/game-events.js';
 import {
+  type BaseZoneState,
   removeCardFromZone,
   addCardToZone,
   placeCardInSlot,
   removeCardFromSlot,
   getCardInSlot,
-  addMemberBelowMember,
+  popMemberBelowMember,
 } from '../../domain/entities/zone.js';
 import { canMemberBeRelayedAway } from '../../domain/rules/cost-calculator.js';
 import { getMemberEffectiveCost } from '../effects/conditions.js';
-import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 import { canUseDoubleRelay } from '../../shared/rules/double-relay.js';
 
 interface RelayReplacementExecution {
@@ -66,43 +66,18 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   }
 
   const existingCardId = getCardInSlot(player.memberSlots, targetSlot);
-  const relayReplacements = collectRelayReplacements(game, action, ctx, card.data, existingCardId);
+  const relayReplacements = collectRelayReplacements(
+    game,
+    action,
+    ctx,
+    card.data,
+    existingCardId
+  );
   if (!relayReplacements.ok) {
     return failure(game, relayReplacements.error);
   }
   const replacements = relayReplacements.replacements;
   const firstReplacement = replacements[0] ?? null;
-
-  if (existingCardId && replacements.length === 0) {
-    const existingCard = ctx.getCardById(game, existingCardId);
-    if (!existingCard || !isMemberCardData(existingCard.data)) {
-      return failure(game, '目标槽位上的卡牌不是成员卡');
-    }
-
-    if (!canMemberBeRelayedAway(existingCard.data, card.data)) {
-      return failure(game, '该成员无法因换手放置入休息室');
-    }
-
-    // 目标槽位已有特殊成员卡时，堆叠到该成员下方而非替换
-    if (isSpecialMemberCard(existingCard.data.cardCode)) {
-      let state = game;
-      state = updatePlayer(state, playerId, (p) => ({
-        ...p,
-        hand: removeCardFromZone(p.hand, cardId),
-        memberSlots: addMemberBelowMember(p.memberSlots, targetSlot, cardId),
-        movedToStageThisTurn: [...p.movedToStageThisTurn, cardId],
-      }));
-
-      state = addAction(state, 'PLAY_MEMBER', playerId, {
-        cardId,
-        targetSlot,
-        stackedBelow: existingCardId,
-        energyPayment: 'MANUAL',
-      });
-
-      return success(state);
-    }
-  }
 
   let state = game;
 
@@ -112,8 +87,15 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
       let newSlots = p.memberSlots;
       let newWaitingRoom = p.waitingRoom;
       for (const replacement of replacements) {
-        newSlots = removeCardFromSlot(newSlots, replacement.slot);
-        newWaitingRoom = addCardToZone(newWaitingRoom, replacement.cardId);
+        const [slotsWithoutMemberBelow, memberBelowIds] = popMemberBelowMember(
+          newSlots,
+          replacement.slot
+        );
+        newSlots = removeCardFromSlot(slotsWithoutMemberBelow, replacement.slot);
+        newWaitingRoom = addCardsToZone(
+          addCardToZone(newWaitingRoom, replacement.cardId),
+          memberBelowIds
+        );
       }
       return { ...p, memberSlots: newSlots, waitingRoom: newWaitingRoom };
     });
@@ -220,15 +202,6 @@ function collectRelayReplacements(
     return { ok: true, replacements: [] };
   }
 
-  const existingCard = ctx.getCardById(game, existingCardId);
-  if (
-    existingCard &&
-    isMemberCardData(existingCard.data) &&
-    isSpecialMemberCard(existingCard.data.cardCode)
-  ) {
-    return { ok: true, replacements: [] };
-  }
-
   return collectReplacementsFromSlots(game, action, ctx, incomingMemberData, [action.targetSlot]);
 }
 
@@ -256,9 +229,6 @@ function collectReplacementsFromSlots(
     if (!replacementCard || !isMemberCardData(replacementCard.data)) {
       return { ok: false, error: '目标槽位上的卡牌不是成员卡' };
     }
-    if (isSpecialMemberCard(replacementCard.data.cardCode)) {
-      return { ok: false, error: '特殊成员不能作为换手成员' };
-    }
     if (!canMemberBeRelayedAway(replacementCard.data, incomingMemberData)) {
       return { ok: false, error: '该成员无法因换手放置入休息室' };
     }
@@ -271,4 +241,11 @@ function collectReplacementsFromSlots(
   }
 
   return { ok: true, replacements };
+}
+
+function addCardsToZone(
+  zone: BaseZoneState,
+  cardIds: readonly string[]
+): BaseZoneState {
+  return cardIds.reduce((nextZone, cardId) => addCardToZone(nextZone, cardId), zone);
 }

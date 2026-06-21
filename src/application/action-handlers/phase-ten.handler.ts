@@ -46,7 +46,6 @@ import {
   moveCardUniversal,
 } from './zone-operations.js';
 import { liveProhibitedPlayerLiveZoneToWaitingRoom } from '../../domain/rules/live-prohibitions.js';
-import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 import { phaseManager, type SubPhaseAutoAction } from '../phase-manager.js';
 import { isUserActionRequired } from '../../shared/phase-config/index.js';
 
@@ -318,28 +317,14 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
     }
   }
 
-  // 检测成员卡是否应堆叠到特殊成员卡下方
-  // 优先使用命令层显式传入的标记，否则根据来源和目标自动检测
-  let asMemberBelow = action.asMemberBelow ?? false;
+  // memberBelow 堆叠必须由命令层显式声明；普通手动拖拽保持换手/移动语义。
+  const asMemberBelow = action.asMemberBelow === true;
   // memberBelow 中的卡牌不是来源槽位的主成员，不能携带 sourceSlot
   // 否则 moveCardUniversal 会误走 MEMBER_SLOT ↔ MEMBER_SLOT 槽位互换路径，
   // 导致源槽位主成员被意外移除（游戏状态损坏）
   const isCardInMemberBelow =
-    fromZone === ZoneType.MEMBER_SLOT && findMemberBelowSlot(player.memberSlots, cardId) !== null;
-
-  if (!asMemberBelow && isMemberCard && toZone === ZoneType.MEMBER_SLOT && targetSlot) {
-    const isAutoDetectSource =
-      fromZone === ZoneType.HAND || fromZone === ZoneType.WAITING_ROOM || isCardInMemberBelow;
-    if (isAutoDetectSource) {
-      const targetMemberId = player.memberSlots.slots[targetSlot as SlotPosition] ?? null;
-      if (targetMemberId) {
-        const targetMember = ctx.getCardById(game, targetMemberId);
-        if (targetMember && isSpecialMemberCard(targetMember.data.cardCode)) {
-          asMemberBelow = true;
-        }
-      }
-    }
-  }
+    fromZone === ZoneType.MEMBER_SLOT &&
+    findMemberBelowSlot(player.memberSlots, cardId) !== null;
 
   let state = game;
 

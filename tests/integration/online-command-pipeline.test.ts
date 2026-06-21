@@ -1363,6 +1363,88 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
+  it('成员登场到特殊成员所在槽位时默认换手，并将其下方成员一并送去休息室', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-special-member-relay', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    forceMainPhaseForPlayer(session);
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        memberBelow: Record<SlotPosition, string[]>;
+      };
+    };
+
+    const memberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const [enteringCardId, specialMemberId, belowMemberId] = memberCardIds;
+
+    expect(enteringCardId).toBeTruthy();
+    expect(specialMemberId).toBeTruthy();
+    expect(belowMemberId).toBeTruthy();
+
+    const specialMember = state.cardRegistry.get(specialMemberId!) as unknown as {
+      data: MemberCardData;
+    };
+    specialMember.data = {
+      ...specialMember.data,
+      cardCode: 'PL!HS-pb1-002-R',
+      name: '村野さやか',
+    };
+
+    player.hand.cardIds = player.hand.cardIds.filter(
+      (cardId) => cardId !== specialMemberId && cardId !== belowMemberId
+    );
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== specialMemberId && cardId !== belowMemberId
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = specialMemberId!;
+    player.memberSlots.memberBelow[SlotPosition.CENTER] = [belowMemberId!];
+
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    const result = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, enteringCardId!, SlotPosition.CENTER)
+    );
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(enteringCardId);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(specialMemberId);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(belowMemberId);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).not.toContain(
+      enteringCardId
+    );
+
+    const events = session.getPublicEventsSince(beforeSeq);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(specialMemberId!) &&
+          event.from?.zone === ZoneType.MEMBER_SLOT &&
+          event.from?.slot === SlotPosition.CENTER &&
+          event.to?.zone === ZoneType.WAITING_ROOM
+      )
+    ).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(belowMemberId!) &&
+          event.from?.zone === ZoneType.MEMBER_SLOT &&
+          event.from?.slot === SlotPosition.CENTER &&
+          event.to?.zone === ZoneType.WAITING_ROOM
+      )
+    ).toBe(true);
+  });
+
   it('成员登场命令可用 freePlay 标记作为自由拖拽兜底跳过费用', () => {
     const session = createGameSession();
     const deck = createTestDeck();
@@ -2180,6 +2262,79 @@ describe('GameSession command pipeline', () => {
         (event) =>
           event.type === 'PlayerDeclared' &&
           event.declarationType === 'MOVE_PUBLIC_CARD_TO_WAITING_ROOM'
+      )
+    ).toBe(true);
+  });
+
+  it('公开区主成员进入休息室时会将下方成员一并送去休息室并发出公开移动事件', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-member-below-to-waiting', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    forceMainPhaseForPlayer(session);
+    const player = state.players[0] as unknown as {
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        memberBelow: Record<SlotPosition, string[]>;
+      };
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+    };
+    const memberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const [stageMemberId, belowMemberId] = memberCardIds;
+
+    expect(stageMemberId).toBeTruthy();
+    expect(belowMemberId).toBeTruthy();
+
+    player.hand.cardIds = player.hand.cardIds.filter(
+      (cardId) => cardId !== stageMemberId && cardId !== belowMemberId
+    );
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== stageMemberId && cardId !== belowMemberId
+    );
+    player.memberSlots.slots[SlotPosition.LEFT] = stageMemberId!;
+    player.memberSlots.memberBelow[SlotPosition.LEFT] = [belowMemberId!];
+
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    const result = session.executeCommand(
+      createMovePublicCardToWaitingRoomCommand(
+        PLAYER1,
+        stageMemberId!,
+        ZoneType.MEMBER_SLOT,
+        SlotPosition.LEFT
+      )
+    );
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.LEFT]).toBeNull();
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.LEFT]).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(stageMemberId);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(belowMemberId);
+
+    const events = session.getPublicEventsSince(beforeSeq);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(stageMemberId!) &&
+          event.from?.zone === ZoneType.MEMBER_SLOT &&
+          event.from?.slot === SlotPosition.LEFT &&
+          event.to?.zone === ZoneType.WAITING_ROOM
+      )
+    ).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(belowMemberId!) &&
+          event.from?.zone === ZoneType.MEMBER_SLOT &&
+          event.from?.slot === SlotPosition.LEFT &&
+          event.to?.zone === ZoneType.WAITING_ROOM
       )
     ).toBe(true);
   });

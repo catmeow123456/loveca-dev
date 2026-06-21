@@ -41,6 +41,10 @@ import {
   HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID,
   HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID,
   HS_PB1_002_LIVE_START_MEMBER_BELOW_COUNT_COST_BLUE_HEART_ABILITY_ID,
+  BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
+  BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
+  N_PR_026_ON_ENTER_STACK_LOW_COST_NIJIGASAKI_MEMBER_FROM_WAITING_ABILITY_ID,
+  N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
   SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID,
   HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID,
@@ -260,6 +264,14 @@ const HS_PB1_002_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】公开1张手牌的「村野さやか」的成员卡：将因此公开的卡片放置入此成员下方。';
 const HS_PB1_002_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】LIVE结束时为止，每有1张存在于此成员下方的成员卡，此卡的费用+4然后获得[青ハート]。存在于下方的成员卡因此能力至多计算3张。';
+const BP6_003_LIVE_START_EFFECT_TEXT =
+  "【LIVE开始时】【中央】可以公开1张手牌的费用小于等于2的『μ's』成员卡，将其放置于此成员下方。如此做的场合，指定1个任意颜色的HEART。LIVE结束时为止，获得1个指定颜色的HEART。";
+const BP6_003_LIVE_SUCCESS_EFFECT_TEXT =
+  "【LIVE成功时】可以将1张存在于此成员下方的费用小于等于2的『μ's』成员卡，登场至不存在成员的区域。";
+const N_PR_026_ON_ENTER_EFFECT_TEXT =
+  '【登场】从自己的休息室将1张费用小于等于9的『虹ヶ咲』成员卡放置于此成员下方。';
+const N_PR_026_LIVE_SUCCESS_DELEGATE_EFFECT_TEXT =
+  '【常时】此成员获得其下方费用小于等于9的『虹ヶ咲』成员卡持有的全部【LIVE成功时】能力。';
 const SP_BP2_024_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己的手牌张数多于对方的场合，此卡的分数＋１。';
 const SP_BP4_004_ON_ENTER_EFFECT_TEXT =
@@ -757,6 +769,55 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HS_PB1_002_LIVE_START_EFFECT_TEXT,
     notes:
       'LIVE 开始直接结算；按来源成员当前槽位下方成员卡数量最多3张计算，写入 SOURCE_MEMBER 蓝 Heart 与 MEMBER_COST +4/张 live modifier，重复发动可叠加。',
+  },
+  {
+    abilityId: BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!-bp6-003'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    requiredSourceSlots: [SlotPosition.CENTER],
+    effectText: BP6_003_LIVE_START_EFFECT_TEXT,
+    notes:
+      "窄单卡 workflow；中央限定，公开手牌费用<=2 μ's 成员并压到 source memberBelow，随后用 SOURCE_MEMBER Heart modifier 写入所选6色之一。FAQ Q247：只按本次成功放置获得1个Heart。",
+  },
+  {
+    abilityId: BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
+    baseCardCodes: ['PL!-bp6-003'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: BP6_003_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      "窄单卡 workflow；从来源成员当前槽位 memberBelow 选择费用<=2 μ's 成员登场到空成员区，并对本次效果登场显式入队 ON_ENTER_STAGE。",
+  },
+  {
+    abilityId: N_PR_026_ON_ENTER_STACK_LOW_COST_NIJIGASAKI_MEMBER_FROM_WAITING_ABILITY_ID,
+    baseCardCodes: ['PL!N-PR-026'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: N_PR_026_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '窄单卡 workflow；休息室费用<=9 虹ヶ咲成员必须选1张放到此 special member 下方，使用 memberBelow raw helper，不作为登场入队。',
+  },
+  {
+    abilityId: N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
+    baseCardCodes: ['PL!N-PR-026'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: N_PR_026_LIVE_SUCCESS_DELEGATE_EFFECT_TEXT,
+    notes:
+      '用 queued LIVE_SUCCESS pseudo ability 表达常时获得；结算时枚举下方费用<=9 虹ヶ咲成员已实现的舞台 LIVE_SUCCESS 定义，以 Rina 自身作为 sourceCardId/sourceSlot 生成 synthetic pending abilities。',
   },
   {
     abilityId: HS_PB1_028_LIVE_START_ACTIVATE_DOLLCHESTRA_MEMBER_LIVE_START_ABILITY_ID,

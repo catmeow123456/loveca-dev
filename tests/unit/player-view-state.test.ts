@@ -199,7 +199,150 @@ describe('PlayerViewState projector', () => {
       { color: HeartColor.PINK, count: 1 },
       { color: HeartColor.PINK, count: 1 },
     ]);
+    expect(targetObject?.frontInfo?.modifierDelta).toEqual({
+      heartDeltas: [{ color: HeartColor.PINK, count: 1 }],
+    });
     expect(view.match.liveResult?.heartBonuses.FIRST).toEqual([]);
+  });
+
+  it('projects SOURCE_MEMBER Heart modifier deltas on the source staged member only', () => {
+    let { state } = createProjectedState();
+    const sourceMember = createCardInstance(
+      createTestMember('MEM-SOURCE-HEART', '加心成员'),
+      PLAYER1,
+      'p1-source-heart'
+    );
+    state = registerCards(state, [sourceMember]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.CENTER]: sourceMember.instanceId,
+        },
+        cardStates: new Map([[sourceMember.instanceId, createDefaultCardState()]]),
+      },
+    }));
+    state = addLiveModifier(state, {
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: PLAYER1,
+      hearts: [{ color: HeartColor.BLUE, count: 1 }],
+      sourceCardId: sourceMember.instanceId,
+      abilityId: 'test-source-member-heart',
+    });
+
+    const view = projectPlayerViewState(state, PLAYER1);
+    const sourceObject = view.objects[createPublicObjectId(sourceMember.instanceId)];
+
+    expect(sourceObject?.frontInfo?.hearts).toEqual([
+      { color: HeartColor.PINK, count: 1 },
+      { color: HeartColor.BLUE, count: 1 },
+    ]);
+    expect(sourceObject?.frontInfo?.modifierDelta).toEqual({
+      heartDeltas: [{ color: HeartColor.BLUE, count: 1 }],
+    });
+  });
+
+  it('projects BLADE modifier delta without changing printed card data', () => {
+    let { state } = createProjectedState();
+    const sourceMember = createCardInstance(
+      createTestMember('MEM-SOURCE-BLADE', '加刃成员'),
+      PLAYER1,
+      'p1-source-blade'
+    );
+    state = registerCards(state, [sourceMember]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.CENTER]: sourceMember.instanceId,
+        },
+        cardStates: new Map([[sourceMember.instanceId, createDefaultCardState()]]),
+      },
+    }));
+    state = addLiveModifier(state, {
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId: sourceMember.instanceId,
+      abilityId: 'test-source-member-blade',
+    });
+
+    const view = projectPlayerViewState(state, PLAYER1);
+    const sourceObject = view.objects[createPublicObjectId(sourceMember.instanceId)];
+
+    expect(sourceObject?.frontInfo?.modifierDelta).toEqual({ bladeDelta: 2 });
+    expect(sourceObject?.frontInfo?.hearts).toEqual([{ color: HeartColor.PINK, count: 1 }]);
+  });
+
+  it('omits member modifier delta when staged member has no non-card modifier', () => {
+    let { state } = createProjectedState();
+    const member = createCardInstance(
+      createTestMember('MEM-NO-MODIFIER', '无修正成员'),
+      PLAYER1,
+      'p1-no-modifier'
+    );
+    state = registerCards(state, [member]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.CENTER]: member.instanceId,
+        },
+        cardStates: new Map([[member.instanceId, createDefaultCardState()]]),
+      },
+    }));
+
+    const view = projectPlayerViewState(state, PLAYER1);
+    const memberObject = view.objects[createPublicObjectId(member.instanceId)];
+
+    expect(memberObject?.frontInfo?.modifierDelta).toBeUndefined();
+  });
+
+  it('projects public staged member modifier deltas to opponent view without exposing hidden cards', () => {
+    let { state, p1HandCard } = createProjectedState();
+    const targetMember = createCardInstance(
+      createTestMember('MEM-PUBLIC-DELTA', '公开修正成员'),
+      PLAYER1,
+      'p1-public-delta'
+    );
+    state = registerCards(state, [targetMember]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.LEFT]: targetMember.instanceId,
+        },
+        cardStates: new Map([[targetMember.instanceId, createDefaultCardState()]]),
+      },
+    }));
+    state = addLiveModifier(state, {
+      kind: 'HEART',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER1,
+      targetMemberCardId: targetMember.instanceId,
+      hearts: [{ color: HeartColor.GREEN, count: 1 }],
+      sourceCardId: 'test-public-delta-source',
+      abilityId: 'test-public-delta',
+    });
+
+    const opponentView = projectPlayerViewState(state, PLAYER2);
+    const targetObject = opponentView.objects[createPublicObjectId(targetMember.instanceId)];
+    const hiddenHandObject = opponentView.objects[createPublicObjectId(p1HandCard.instanceId)];
+
+    expect(targetObject?.frontInfo?.modifierDelta).toEqual({
+      heartDeltas: [{ color: HeartColor.GREEN, count: 1 }],
+    });
+    expect(hiddenHandObject).toBeUndefined();
+    expect(opponentView.table.zones.FIRST_HAND.objectIds).toBeUndefined();
   });
 
   it('keeps legacy player Heart bonuses in liveResult without mixing member Hearts', () => {

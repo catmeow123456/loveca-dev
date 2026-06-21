@@ -50,6 +50,7 @@ import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step
 import { registerBp5003KotoriWorkflowHandlers } from './card-effects/workflows/cards/bp5-003-kotori.js';
 import { registerBp5007NozomiWorkflowHandlers } from './card-effects/workflows/cards/bp5-007-nozomi.js';
 import { registerBp5005RinWorkflowHandlers } from './card-effects/workflows/cards/bp5-005-rin.js';
+import { registerBp6003KotoriWorkflowHandlers } from './card-effects/workflows/cards/bp6-003-kotori.js';
 import { registerBp6024SuccessReplacementWorkflowHandlers } from './card-effects/workflows/cards/bp6-024-success-replacement.js';
 import { registerHsBp1008KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-008-kosuzu.js';
 import { registerHsBp1002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-002-sayaka.js';
@@ -78,6 +79,7 @@ import { registerHsPb1003RurinoWorkflowHandlers } from './card-effects/workflows
 import { registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers } from './card-effects/workflows/cards/keke-on-enter-place-waiting-energy.js';
 import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/maki-on-enter.js';
 import { registerKarinWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-004-karin.js';
+import { registerNPr026RinaWorkflowHandlers } from './card-effects/workflows/cards/n-pr-026-rina.js';
 import { registerNozomiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/nozomi-on-enter.js';
 import { registerPb1015MakiWorkflowHandlers } from './card-effects/workflows/cards/pb1-015-maki.js';
 import { registerPlBp3026OhLovePeaceWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-026-oh-love-peace.js';
@@ -548,6 +550,7 @@ registerLiveStartDiscardGainHeartWorkflowHandlers({ enqueueTriggeredCardEffects 
 registerLiveStartDiscardSameUnitGainHeartBladeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHandlers();
 registerBp5007NozomiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerBp6003KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1009KahoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1014HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1021KosuzuWorkflowHandlers();
@@ -593,6 +596,7 @@ registerPlBp3026OhLovePeaceWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb1018NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSd1008HanayoWorkflowHandlers();
 registerEmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNPr026RinaWorkflowHandlers();
 registerPlBp3014RinWorkflowHandlers();
 registerSpBp2009NatsumiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp1024TinyStarsWorkflowHandlers();

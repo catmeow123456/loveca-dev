@@ -133,6 +133,11 @@ export interface ViewHeartIcon {
   readonly count: number;
 }
 
+export interface ViewMemberModifierDelta {
+  readonly bladeDelta?: number;
+  readonly heartDeltas?: readonly ViewHeartIcon[];
+}
+
 export interface ViewBladeHeartItem {
   readonly effect: BladeHeartEffect;
   readonly heartColor?: HeartColor;
@@ -155,6 +160,7 @@ export interface ViewFrontCardInfo {
   readonly score?: number;
   readonly requiredHearts?: ViewHeartRequirement;
   readonly hearts?: readonly ViewHeartIcon[];
+  readonly modifierDelta?: ViewMemberModifierDelta;
   readonly bladeHearts?: readonly ViewBladeHeartItem[];
   readonly text?: string;
 }

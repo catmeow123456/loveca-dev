@@ -46,6 +46,17 @@ export interface PlayMembersFromWaitingRoomResult {
   }[];
 }
 
+export interface PlayMemberBelowCardToEmptySlotResult {
+  readonly gameState: GameState;
+  readonly playedMember: {
+    readonly cardId: string;
+    readonly fromSlot: SlotPosition;
+    readonly toSlot: SlotPosition;
+    readonly hostCardId: string;
+    readonly data: MemberCardData;
+  };
+}
+
 export function setMemberOrientation(
   game: GameState,
   playerId: string,
@@ -337,6 +348,80 @@ export function playMembersFromWaitingRoomToEmptySlots(
   return {
     gameState,
     playedMembers,
+  };
+}
+
+export function playMemberBelowCardToEmptySlot(
+  game: GameState,
+  playerId: string,
+  options: {
+    readonly hostCardId: string;
+    readonly fromSlot: SlotPosition;
+    readonly cardId: string;
+    readonly toSlot: SlotPosition;
+  }
+): PlayMemberBelowCardToEmptySlotResult | null {
+  const player = getPlayerById(game, playerId);
+  const card = game.cardRegistry.get(options.cardId);
+  if (
+    !player ||
+    !card ||
+    card.ownerId !== playerId ||
+    !isMemberCardData(card.data) ||
+    player.memberSlots.slots[options.fromSlot] !== options.hostCardId ||
+    player.memberSlots.slots[options.toSlot] !== null ||
+    !(player.memberSlots.memberBelow[options.fromSlot] ?? []).includes(options.cardId)
+  ) {
+    return null;
+  }
+
+  let gameState = updatePlayer(game, playerId, (currentPlayer) => {
+    const memberBelow = {
+      ...currentPlayer.memberSlots.memberBelow,
+      [options.fromSlot]: (currentPlayer.memberSlots.memberBelow[options.fromSlot] ?? []).filter(
+        (cardId) => cardId !== options.cardId
+      ),
+    };
+    const slots = {
+      ...currentPlayer.memberSlots.slots,
+      [options.toSlot]: options.cardId,
+    };
+    const cardStates = new Map(currentPlayer.memberSlots.cardStates);
+    cardStates.set(options.cardId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+
+    return {
+      ...currentPlayer,
+      memberSlots: {
+        ...currentPlayer.memberSlots,
+        slots,
+        memberBelow,
+        cardStates,
+      },
+    };
+  });
+  gameState = emitGameEvent(
+    gameState,
+    createEnterStageEvent(
+      options.cardId,
+      ZoneType.MEMBER_SLOT,
+      options.toSlot,
+      playerId,
+      playerId
+    )
+  );
+
+  return {
+    gameState,
+    playedMember: {
+      cardId: options.cardId,
+      fromSlot: options.fromSlot,
+      toSlot: options.toSlot,
+      hostCardId: options.hostCardId,
+      data: card.data,
+    },
   };
 }
 

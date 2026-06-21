@@ -92,6 +92,10 @@ import {
   HS_BP6_003_ON_ENTER_ACTIVATE_MIRACRA_MEMBER_RECOVER_LIVE_ABILITY_ID,
   HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID,
   HS_PB1_002_LIVE_START_MEMBER_BELOW_COUNT_COST_BLUE_HEART_ABILITY_ID,
+  BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
+  BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
+  N_PR_026_ON_ENTER_STACK_LOW_COST_NIJIGASAKI_MEMBER_FROM_WAITING_ABILITY_ID,
+  N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
   HS_PB1_028_LIVE_START_ACTIVATE_DOLLCHESTRA_MEMBER_LIVE_START_ABILITY_ID,
   HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
@@ -1994,6 +1998,61 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+  });
+
+  it('classifies special member memberBelow effects for Kotori and Rina', () => {
+    for (const cardCode of [
+      'PL!-bp6-003-P',
+      'PL!-bp6-003-P＋',
+      'PL!-bp6-003-R＋',
+      'PL!-bp6-003-SEC',
+    ]) {
+      const abilities = getCardAbilityDefinitions(cardCode);
+      expect(abilities).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            abilityId:
+              BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
+            category: CardAbilityCategory.LIVE_START,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            triggerCondition: TriggerCondition.ON_LIVE_START,
+            requiredSourceSlots: [SlotPosition.CENTER],
+            queued: true,
+            implemented: true,
+          }),
+          expect.objectContaining({
+            abilityId: BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
+            category: CardAbilityCategory.LIVE_SUCCESS,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+            queued: true,
+            implemented: true,
+          }),
+        ])
+      );
+    }
+
+    expect(getCardAbilityDefinitions('PL!N-PR-026-PR')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          abilityId: N_PR_026_ON_ENTER_STACK_LOW_COST_NIJIGASAKI_MEMBER_FROM_WAITING_ABILITY_ID,
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+        }),
+        expect.objectContaining({
+          abilityId:
+            N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
+          category: CardAbilityCategory.LIVE_SUCCESS,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+          queued: true,
+          implemented: true,
+        }),
+      ])
+    );
   });
 
   it('matches implemented abilities by base card code across rarities', () => {

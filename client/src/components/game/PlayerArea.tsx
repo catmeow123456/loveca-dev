@@ -32,6 +32,7 @@ import { GameCommandType } from '@game/application/game-commands';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import { getActivatedAbilityUiConfig } from '@game/application/card-effect-runner';
 import { Card } from '@/components/card/Card';
+import { CardModifierBadgeStack } from '@/components/card/CardModifierBadgeStack';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
 import { DraggableCard, DroppableZone } from './interaction';
 import {
@@ -555,6 +556,7 @@ export const PlayerArea = memo(function PlayerArea({
                 </CardDetailPressTarget>
               </DraggableCard>
             )}
+            {card && <CardModifierBadgeStack modifierDelta={card.modifierDelta} />}
             {card && canActivateAbility && activatedAbilityConfig && (
               <button
                 type="button"

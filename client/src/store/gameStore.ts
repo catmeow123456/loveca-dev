@@ -25,6 +25,7 @@ import {
   type ViewCommandHint,
   type ViewFrontCardInfo,
   type ViewHeartRequirement,
+  type ViewMemberModifierDelta,
   type ViewCardObject,
   type ViewZoneKey,
   type ViewZoneState,
@@ -121,6 +122,7 @@ export interface VisibleCardPresentation {
   readonly cardCode: string;
   readonly cardData: AnyCardData;
   readonly imagePath: string;
+  readonly modifierDelta?: ViewMemberModifierDelta;
 }
 
 export interface CommandDispatchResult {
@@ -1474,6 +1476,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         cardCode: frontInfo.cardCode,
         cardData,
         imagePath: get().getCardImagePath(frontInfo.cardCode),
+        ...(frontInfo.modifierDelta ? { modifierDelta: frontInfo.modifierDelta } : {}),
       };
     },
 

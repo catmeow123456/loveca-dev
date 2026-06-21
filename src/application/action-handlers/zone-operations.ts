@@ -11,6 +11,7 @@ import { recordPositionMove } from '../../domain/entities/player.js';
 import { createLeaveStageEvent, createMemberSlotMovedEvent } from '../../domain/events/game-events.js';
 import { ZoneType, SlotPosition } from '../../shared/types/enums.js';
 import {
+  type BaseZoneState,
   addCardToZone,
   removeCardFromZone,
   addCardToStatefulZone,
@@ -26,6 +27,7 @@ import {
   removeMemberBelowMember,
   findMemberBelowSlot,
   moveMemberBelowWithMember,
+  popMemberBelowMember,
 } from '../../domain/entities/zone.js';
 
 // ============================================
@@ -167,8 +169,7 @@ const MEMBER_SLOT_ACCESSOR: ZoneAccessor = {
     // 先查找成员卡槽位
     for (const slot of Object.values(SlotPosition)) {
       if (getCardInSlot(p.memberSlots, slot) === cardId) {
-        // 主成员离开成员区时，memberBelow 卡牌留在槽位
-        // （设计文档 3.3：不随主成员移走，玩家可手动拖走）
+        // 裸 remove 不知道目标区域；主成员去休息室时的 memberBelow 清理由 moveCardUniversal 处理。
         return {
           ...p,
           memberSlots: removeCardFromSlot(p.memberSlots, slot),
@@ -228,11 +229,18 @@ const MEMBER_SLOT_ACCESSOR: ZoneAccessor = {
     let updatedPlayer = p;
 
     if (existingCardId && existingCardId !== cardId) {
-      // 将原有成员卡移到休息室
+      // 将原有成员卡及其下方成员卡移到休息室
+      const [slotsWithoutMemberBelow, memberBelowIds] = popMemberBelowMember(
+        updatedPlayer.memberSlots,
+        options.targetSlot
+      );
       updatedPlayer = {
         ...updatedPlayer,
-        memberSlots: removeCardFromSlot(updatedPlayer.memberSlots, options.targetSlot),
-        waitingRoom: addCardToZone(updatedPlayer.waitingRoom, existingCardId),
+        memberSlots: removeCardFromSlot(slotsWithoutMemberBelow, options.targetSlot),
+        waitingRoom: addCardsToZone(
+          addCardToZone(updatedPlayer.waitingRoom, existingCardId),
+          memberBelowIds
+        ),
       };
     }
 
@@ -600,6 +608,8 @@ export function moveCardUniversal(
   }
 
   if (shouldEmitLeaveStage) {
+    state = moveMemberBelowToWaitingRoom(state, playerId, sourceSlot);
+
     state = emitGameEvent(
       state,
       createLeaveStageEvent(
@@ -613,4 +623,30 @@ export function moveCardUniversal(
   }
 
   return state;
+}
+
+function moveMemberBelowToWaitingRoom(
+  game: GameState,
+  playerId: string,
+  sourceSlot: SlotPosition | undefined
+): GameState {
+  if (!sourceSlot) {
+    return game;
+  }
+
+  return updatePlayer(game, playerId, (player) => {
+    const [memberSlots, memberBelowIds] = popMemberBelowMember(player.memberSlots, sourceSlot);
+    if (memberBelowIds.length === 0) {
+      return player;
+    }
+    return {
+      ...player,
+      memberSlots,
+      waitingRoom: addCardsToZone(player.waitingRoom, memberBelowIds),
+    };
+  });
+}
+
+function addCardsToZone(zone: BaseZoneState, cardIds: readonly string[]): BaseZoneState {
+  return cardIds.reduce((nextZone, cardId) => addCardToZone(nextZone, cardId), zone);
 }

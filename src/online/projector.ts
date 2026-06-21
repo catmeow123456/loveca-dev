@@ -31,6 +31,7 @@ import {
 import { isPlayerActive } from '../shared/phase-config/index.js';
 import {
   collectLiveModifiers,
+  getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
   getPlayerLiveScoreModifier,
   projectLiveModifierCompatibility,
@@ -47,6 +48,7 @@ import type {
   ViewCommandScope,
   ViewFrontCardInfo,
   ViewHeartRequirement,
+  ViewMemberModifierDelta,
   ViewWindowState,
   ViewZoneKey,
   ViewZoneState,
@@ -519,13 +521,16 @@ function addMemberSlotZones(
       const occupant = game.cardRegistry.get(occupantId);
       const state = zone.cardStates.get(occupantId);
       if (occupant) {
+        const effectiveHearts = isMemberCardData(occupant.data)
+          ? getMemberEffectiveHeartIcons(game, playerId, occupantId, liveModifiers)
+          : [];
+        const effectiveBlade = isMemberCardData(occupant.data)
+          ? getMemberEffectiveBladeCount(game, playerId, occupantId, liveModifiers)
+          : 0;
         upsertViewObject(objects, occupant, ownerSeat, 'FRONT', state?.orientation, state?.face, {
           enteredStageThisTurn: movedToStageThisTurn.includes(occupantId),
           frontInfo: isMemberCardData(occupant.data)
-            ? buildMemberFrontInfoWithHearts(
-                occupant,
-                getMemberEffectiveHeartIcons(game, playerId, occupantId, liveModifiers)
-              )
+            ? buildStageMemberFrontInfo(occupant, effectiveHearts, effectiveBlade)
             : undefined,
         });
       }
@@ -829,19 +834,66 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
   };
 }
 
-function buildMemberFrontInfoWithHearts(
+function buildStageMemberFrontInfo(
   card: CardInstance,
-  hearts: readonly { readonly color: HeartColor; readonly count: number }[]
+  hearts: readonly { readonly color: HeartColor; readonly count: number }[],
+  blade: number
 ): ViewFrontCardInfo {
   const frontInfo = buildFrontInfo(card);
   if (!isMemberCardData(card.data)) {
     return frontInfo;
   }
 
+  const modifierDelta = buildMemberModifierDelta(card.data.hearts, hearts, card.data.blade, blade);
+
   return {
     ...frontInfo,
     hearts: hearts.map((heart) => ({ color: heart.color, count: heart.count })),
+    ...(modifierDelta ? { modifierDelta } : {}),
   };
+}
+
+function buildMemberModifierDelta(
+  printedHearts: readonly { readonly color: HeartColor; readonly count: number }[],
+  effectiveHearts: readonly { readonly color: HeartColor; readonly count: number }[],
+  printedBlade: number,
+  effectiveBlade: number
+): ViewMemberModifierDelta | undefined {
+  const heartDeltas = buildPositiveHeartDeltas(printedHearts, effectiveHearts);
+  const bladeDelta = effectiveBlade - printedBlade;
+  if (bladeDelta <= 0 && heartDeltas.length === 0) {
+    return undefined;
+  }
+
+  return {
+    ...(bladeDelta > 0 ? { bladeDelta } : {}),
+    ...(heartDeltas.length > 0 ? { heartDeltas } : {}),
+  };
+}
+
+function buildPositiveHeartDeltas(
+  printedHearts: readonly { readonly color: HeartColor; readonly count: number }[],
+  effectiveHearts: readonly { readonly color: HeartColor; readonly count: number }[]
+): readonly { readonly color: HeartColor; readonly count: number }[] {
+  const printedCounts = countHeartsByColor(printedHearts);
+  const effectiveCounts = countHeartsByColor(effectiveHearts);
+  const colors = new Set<HeartColor>([...printedCounts.keys(), ...effectiveCounts.keys()]);
+  return [...colors]
+    .map((color) => ({
+      color,
+      count: (effectiveCounts.get(color) ?? 0) - (printedCounts.get(color) ?? 0),
+    }))
+    .filter((heart) => heart.count > 0);
+}
+
+function countHeartsByColor(
+  hearts: readonly { readonly color: HeartColor; readonly count: number }[]
+): ReadonlyMap<HeartColor, number> {
+  const counts = new Map<HeartColor, number>();
+  for (const heart of hearts) {
+    counts.set(heart.color, (counts.get(heart.color) ?? 0) + heart.count);
+  }
+  return counts;
 }
 
 function buildViewHeartRequirement(requirement: HeartRequirement): ViewHeartRequirement {

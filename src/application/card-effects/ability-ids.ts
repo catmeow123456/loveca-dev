@@ -69,6 +69,14 @@ export const HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID =
   'PL!HS-pb1-002:activated-reveal-sayaka-member-stack-below';
 export const HS_PB1_002_LIVE_START_MEMBER_BELOW_COUNT_COST_BLUE_HEART_ABILITY_ID =
   'PL!HS-pb1-002:live-start-member-below-count-cost-blue-heart';
+export const BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID =
+  'PL!-bp6-003:live-start-center-reveal-low-cost-muse-member-stack-gain-heart';
+export const BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID =
+  'PL!-bp6-003:live-success-play-member-below-low-cost-muse';
+export const N_PR_026_ON_ENTER_STACK_LOW_COST_NIJIGASAKI_MEMBER_FROM_WAITING_ABILITY_ID =
+  'PL!N-PR-026-PR:on-enter-stack-low-cost-nijigasaki-member-from-waiting';
+export const N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID =
+  'PL!N-PR-026-PR:live-success-delegate-member-below-live-success-abilities';
 export const SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp2-024:live-success-hand-advantage-this-live-score';
 export const HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID =

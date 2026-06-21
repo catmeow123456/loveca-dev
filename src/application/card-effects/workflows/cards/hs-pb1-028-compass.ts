@@ -9,18 +9,17 @@ import {
 } from '../../../../domain/entities/game.js';
 import { getMemberEffectiveCost } from '../../../../domain/rules/member-effective-cost.js';
 import { SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase, normalizeCardCode } from '../../../../shared/utils/card-code.js';
 import {
   CardAbilityCategory,
   CardAbilitySourceZone,
   type CardAbilityDefinition,
 } from '../../ability-definition-types.js';
 import { HS_PB1_028_LIVE_START_ACTIVATE_DOLLCHESTRA_MEMBER_LIVE_START_ABILITY_ID } from '../../ability-ids.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
 import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
+import { getDelegatableQueuedAbilityDefinitions } from '../../runtime/delegatable-definitions.js';
 import type { DelegatePendingAbility } from '../../runtime/starter-registry.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -347,36 +346,13 @@ function getDelegatableLiveStartDefinitions(
   card: CardInstance,
   slot: SlotPosition
 ): readonly CardAbilityDefinition[] {
-  return CARD_ABILITY_DEFINITIONS.filter((definition) => {
-    if (
-      !definition.implemented ||
-      !definition.queued ||
-      definition.category !== CardAbilityCategory.LIVE_START ||
-      definition.sourceZone !== CardAbilitySourceZone.STAGE_MEMBER ||
-      definition.triggerCondition !== TriggerCondition.ON_LIVE_START ||
-      !doesDefinitionMatchCardCode(definition, card.data.cardCode)
-    ) {
-      return false;
-    }
-    return (
-      definition.requiredSourceSlots === undefined ||
-      definition.requiredSourceSlots.length === 0 ||
-      definition.requiredSourceSlots.includes(slot)
-    );
+  return getDelegatableQueuedAbilityDefinitions({
+    cardCode: card.data.cardCode,
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    sourceSlot: slot,
   });
-}
-
-function doesDefinitionMatchCardCode(
-  definition: CardAbilityDefinition,
-  cardCode: string
-): boolean {
-  const normalizedCardCode = normalizeCardCode(cardCode);
-  return (
-    definition.cardCodes?.map(normalizeCardCode).includes(normalizedCardCode) === true ||
-    definition.baseCardCodes?.some((baseCardCode) =>
-      cardCodeMatchesBase(normalizedCardCode, baseCardCode)
-    ) === true
-  );
 }
 
 function getStringMetadata(effect: ActiveEffectState, key: string): string | null {
