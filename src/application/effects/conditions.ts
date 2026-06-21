@@ -8,6 +8,10 @@ export {
   sumSuccessfulLiveScore,
   successLiveScoreAtLeast,
 } from '../../domain/rules/success-live-score.js';
+export {
+  getPositionMovedStageMemberIdsMatching,
+  hasMemberPositionMovedThisTurn,
+} from '../../domain/rules/member-turn-state.js';
 import { ZoneType } from '../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
 import type { CardSelector } from './card-selectors.js';

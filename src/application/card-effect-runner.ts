@@ -18,9 +18,7 @@ import {
   updatePlayer,
 } from '../domain/entities/game.js';
 import { addLiveModifier } from '../domain/rules/live-modifiers.js';
-import {
-  getZoneSelectionConfig,
-} from './effects/zone-selection.js';
+import { getZoneSelectionConfig } from './effects/zone-selection.js';
 import {
   and,
   costGte,
@@ -52,24 +50,32 @@ import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step
 import { registerBp5003KotoriWorkflowHandlers } from './card-effects/workflows/cards/bp5-003-kotori.js';
 import { registerBp5007NozomiWorkflowHandlers } from './card-effects/workflows/cards/bp5-007-nozomi.js';
 import { registerBp5005RinWorkflowHandlers } from './card-effects/workflows/cards/bp5-005-rin.js';
-import {
-  registerBp6024SuccessReplacementWorkflowHandlers,
-} from './card-effects/workflows/cards/bp6-024-success-replacement.js';
+import { registerBp6024SuccessReplacementWorkflowHandlers } from './card-effects/workflows/cards/bp6-024-success-replacement.js';
 import { registerHsBp1002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-002-sayaka.js';
+import { registerHsBp1023DododoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-023-dododo.js';
+import { registerHsBp2014RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp2-014-rurino.js';
 import { registerHsBp6031FanfareWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-031-fanfare.js';
 import { registerHsBp6004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-004-ginko.js';
+import { registerHsBp6006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-006-hime.js';
+import { registerHsBp6003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-003-rurino.js';
 import { registerHsBp5003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-003-rurino.js';
+import { registerHsBp5006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-006-hime.js';
 import { registerHsBp5001KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-001-kaho.js';
 import { registerHsBp5008IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-008-izumi.js';
 import { registerHsPb1004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-004-ginko.js';
 import { registerHsPb1012GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-012-ginko.js';
 import { registerHsPb1009KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-009-kaho.js';
+import { registerHsPb1014HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-014-hime.js';
+import { registerHsPb1029ZenhouiKyunWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-029-zenhoui-kyun.js';
+import { registerHsPb1003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-003-rurino.js';
 import { registerHsPr019GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pr-019-ginko.js';
 import { registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers } from './card-effects/workflows/cards/keke-on-enter-place-waiting-energy.js';
 import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/maki-on-enter.js';
 import { registerKarinWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-004-karin.js';
 import { registerNozomiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/nozomi-on-enter.js';
 import { registerPb1015MakiWorkflowHandlers } from './card-effects/workflows/cards/pb1-015-maki.js';
+import { registerPlBp3026OhLovePeaceWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-026-oh-love-peace.js';
+import { registerPlPb1018NicoWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-018-nico.js';
 import { registerSd1008HanayoWorkflowHandlers } from './card-effects/workflows/cards/sd1-008-hanayo.js';
 import {
   isHsSd1001HighCostHasunosoraRelayReplacement,
@@ -79,8 +85,17 @@ import { registerHsSd1006HimeWorkflowHandlers } from './card-effects/workflows/c
 import { registerEmmaWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-008-emma.js';
 import { registerPlBp3014RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-014-rin.js';
 import { registerPr017NicoWorkflowHandlers } from './card-effects/workflows/cards/pr-017-nico.js';
+import { registerSpBp2009NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-009-natsumi.js';
+import { registerSpBp1024TinyStarsWorkflowHandlers } from './card-effects/workflows/cards/sp-bp1-024-tiny-stars.js';
+import { registerSpBp2024VitaminSummerWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-024-vitamin-summer.js';
+import { registerSpBp4001KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-001-kanon.js';
+import { registerSpBp4004SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-004-sumire.js';
+import { registerSpBp4024NonfictionWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-024-nonfiction.js';
 import { registerShikiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-008-shiki.js';
+import { registerSpBp5002KekeWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-002-keke.js';
 import { registerChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-003-chisato.js';
+import { registerSpSd2012KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-012-kanon.js';
+import { registerSpSd2025AspireWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-025-aspire.js';
 import { registerYoshikoPlayLowCostMembersWorkflowHandlers } from './card-effects/workflows/cards/yoshiko-play-low-cost-members.js';
 import { registerArrangeInspectedDeckTopWorkflowHandlers } from './card-effects/workflows/shared/arrange-inspected-deck-top.js';
 import { registerConditionalLiveModifierWorkflowHandlers } from './card-effects/workflows/shared/conditional-live-modifier.js';
@@ -93,8 +108,10 @@ import { registerLiveStartDiscardGainHeartWorkflowHandlers } from './card-effect
 import { registerNamedHandDiscardLiveStartWorkflowHandlers } from './card-effects/workflows/shared/named-hand-discard-live-start.js';
 import { registerOpponentWaitTargetWorkflowHandlers } from './card-effects/workflows/shared/opponent-wait-target.js';
 import { registerPayEnergyGainBladeWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-gain-blade.js';
+import { registerPayEnergyGainHeartWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-gain-heart.js';
 import { registerPayEnergyWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-waiting-room-to-hand.js';
 import { registerRevealedCheerSelectionWorkflowHandlers } from './card-effects/workflows/shared/revealed-cheer-selection.js';
+import { registerSelfPositionChangeWorkflowHandlers } from './card-effects/workflows/shared/self-position-change.js';
 import { registerSelfSacrificeWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/self-sacrifice-waiting-room-to-hand.js';
 import { registerWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/waiting-room-to-hand.js';
 import {
@@ -105,6 +122,7 @@ import {
 import type {
   CheerEvent,
   EnterStageEvent,
+  EnterWaitingRoomEvent,
   LeaveStageEvent,
   LiveStartEvent,
   LiveSuccessEvent,
@@ -176,6 +194,13 @@ interface OnEnterAbilitySource {
   readonly eventId: string;
   readonly replacedMemberCardId?: string;
   readonly replacedMemberEffectiveCost?: number;
+  readonly relayReplacements?: readonly RelayReplacementMetadata[];
+}
+
+interface RelayReplacementMetadata {
+  readonly cardId: string;
+  readonly slot: SlotPosition;
+  readonly effectiveCost: number;
 }
 
 interface OnEnterStageAutoSource {
@@ -211,9 +236,17 @@ interface MemberStateChangedAbilitySource {
   readonly event: MemberStateChangedEvent;
 }
 
+interface EnterWaitingRoomAbilitySource {
+  readonly sourceCardId: string;
+  readonly controllerId: string;
+  readonly sourceSlot: SlotPosition;
+  readonly event: EnterWaitingRoomEvent;
+}
+
 interface EnqueueTriggeredCardEffectsOptions {
   readonly onEnterSources?: readonly OnEnterAbilitySource[];
   readonly enterStageEvents?: readonly EnterStageEvent[];
+  readonly enterWaitingRoomEvents?: readonly EnterWaitingRoomEvent[];
   readonly onLeaveStageSources?: readonly OnLeaveStageAbilitySource[];
   readonly leaveStageEvents?: readonly LeaveStageEvent[];
   readonly liveStartEvents?: readonly LiveStartEvent[];
@@ -494,45 +527,66 @@ const ABILITY_ORDER_SELECTION_STEP_ID = 'SELECT_NEXT_PENDING_ABILITY';
 registerLookTopSelectToHandWorkflowHandlers();
 registerArrangeInspectedDeckTopWorkflowHandlers();
 registerConditionalLiveModifierWorkflowHandlers();
-registerDiscardLookTopSelectToHandWorkflowHandlers();
-registerBp5003KotoriWorkflowHandlers();
+registerDiscardLookTopSelectToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerBp5003KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp6024SuccessReplacementWorkflowHandlers();
-registerHsBp5008IzumiWorkflowHandlers();
+registerHsBp5008IzumiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp6031FanfareWorkflowHandlers();
-registerDrawThenDiscardWorkflowHandlers();
-registerGroupedRecoveryWorkflowHandlers();
-registerNamedHandDiscardLiveStartWorkflowHandlers();
-registerLiveStartDiscardGainHeartWorkflowHandlers();
-registerBp5007NozomiWorkflowHandlers();
-registerHsPb1009KahoWorkflowHandlers();
-registerHsBp6004GinkoWorkflowHandlers();
+registerDrawThenDiscardWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerGroupedRecoveryWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNamedHandDiscardLiveStartWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerLiveStartDiscardGainHeartWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerBp5007NozomiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsPb1009KahoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsPb1014HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsPb1029ZenhouiKyunWorkflowHandlers();
+registerHsBp6003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp6004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp6006HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsSd1001KahoWorkflowHandlers();
 registerHsSd1006HimeWorkflowHandlers();
 registerHsPb1012GinkoWorkflowHandlers();
 registerWaitingRoomToHandWorkflowHandlers();
 registerSelfSacrificeWaitingRoomToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPayEnergyGainBladeWorkflowHandlers();
+registerPayEnergyGainHeartWorkflowHandlers();
 registerOpponentWaitTargetWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPayEnergyWaitingRoomToHandWorkflowHandlers();
-registerDiscardCostWaitingRoomToHandWorkflowHandlers();
+registerDiscardCostWaitingRoomToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPr017NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp5005RinWorkflowHandlers();
 registerRevealedCheerSelectionWorkflowHandlers({ continuePendingCardEffects });
+registerSelfPositionChangeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp1002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp2014RurinoWorkflowHandlers();
 registerHsBp5001KahoWorkflowHandlers();
 registerHsPr019GinkoWorkflowHandlers();
-registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers();
+registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerKarinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNozomiOnEnterWorkflowHandlers();
 registerHsBp5003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
-registerHsPb1004GinkoWorkflowHandlers();
+registerHsBp5006HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp1023DododoWorkflowHandlers();
+registerHsPb1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsPb1003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerMakiOnEnterWorkflowHandlers();
 registerPb1015MakiWorkflowHandlers();
+registerPlBp3026OhLovePeaceWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlPb1018NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSd1008HanayoWorkflowHandlers();
-registerEmmaWorkflowHandlers();
+registerEmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp3014RinWorkflowHandlers();
+registerSpBp2009NatsumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp1024TinyStarsWorkflowHandlers();
+registerSpBp2024VitaminSummerWorkflowHandlers();
+registerSpBp4001KanonWorkflowHandlers();
+registerSpBp4004SumireWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp4024NonfictionWorkflowHandlers();
 registerShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
-registerChisatoWorkflowHandlers();
+registerSpBp5002KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerChisatoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpSd2012KanonWorkflowHandlers();
+registerSpSd2025AspireWorkflowHandlers();
 registerYoshikoPlayLowCostMembersWorkflowHandlers({ enqueueTriggeredCardEffects });
 
 interface CardEffectRunnerResult {
@@ -548,14 +602,12 @@ export function enqueueTriggeredCardEffects(
   let state = game;
 
   if (triggerConditions.includes(TriggerCondition.ON_ENTER_STAGE)) {
-    const enterStageEvents =
-      options.enterStageEvents ?? getLatestEnterStageEventsFromLog(state);
+    const enterStageEvents = options.enterStageEvents ?? getLatestEnterStageEventsFromLog(state);
     const eventSources =
       enterStageEvents.length > 0
         ? createOnEnterAbilitySourcesFromEvents(enterStageEvents)
         : undefined;
-    const onEnterSources =
-      options.onEnterSources ?? eventSources;
+    const onEnterSources = options.onEnterSources ?? eventSources;
     state = enqueueOnEnterCardEffects(state, onEnterSources);
     state = enqueueOnEnterStageAutoCardEffects(
       state,
@@ -573,10 +625,7 @@ export function enqueueTriggeredCardEffects(
       createOnLeaveStageAbilitySourcesFromEvents(
         options.leaveStageEvents ?? getLeaveStageEventsFromLog(state)
       );
-    state = enqueueOnLeaveStageCardEffects(
-      state,
-      onLeaveSources
-    );
+    state = enqueueOnLeaveStageCardEffects(state, onLeaveSources);
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_LIVE_START)) {
@@ -607,6 +656,10 @@ export function enqueueTriggeredCardEffects(
     );
   }
 
+  if (triggerConditions.includes(TriggerCondition.ON_ENTER_WAITING_ROOM)) {
+    state = enqueueEnterWaitingRoomCardEffects(state, options.enterWaitingRoomEvents ?? []);
+  }
+
   if (triggerConditions.includes(TriggerCondition.ON_MEMBER_SLOT_MOVED)) {
     state = enqueueMemberSlotMovedCardEffects(
       state,
@@ -635,7 +688,9 @@ function getMemberStateChangedEventsFromLog(game: GameState): readonly MemberSta
     );
 }
 
-function getLatestMemberStateChangedEventsFromLog(game: GameState): readonly MemberStateChangedEvent[] {
+function getLatestMemberStateChangedEventsFromLog(
+  game: GameState
+): readonly MemberStateChangedEvent[] {
   const events = getMemberStateChangedEventsFromLog(game);
   const latestEvent = events.at(-1);
   return latestEvent ? [latestEvent] : [];
@@ -645,8 +700,7 @@ function getEnterStageEventsFromLog(game: GameState): readonly EnterStageEvent[]
   return game.eventLog
     .map((entry) => entry.event)
     .filter(
-      (event): event is EnterStageEvent =>
-        event.eventType === TriggerCondition.ON_ENTER_STAGE
+      (event): event is EnterStageEvent => event.eventType === TriggerCondition.ON_ENTER_STAGE
     );
 }
 
@@ -660,18 +714,14 @@ function getLeaveStageEventsFromLog(game: GameState): readonly LeaveStageEvent[]
   return game.eventLog
     .map((entry) => entry.event)
     .filter(
-      (event): event is LeaveStageEvent =>
-        event.eventType === TriggerCondition.ON_LEAVE_STAGE
+      (event): event is LeaveStageEvent => event.eventType === TriggerCondition.ON_LEAVE_STAGE
     );
 }
 
 function getLiveStartEventsFromLog(game: GameState): readonly LiveStartEvent[] {
   return game.eventLog
     .map((entry) => entry.event)
-    .filter(
-      (event): event is LiveStartEvent =>
-        event.eventType === TriggerCondition.ON_LIVE_START
-    );
+    .filter((event): event is LiveStartEvent => event.eventType === TriggerCondition.ON_LIVE_START);
 }
 
 function getLatestLiveStartEventsFromLog(game: GameState): readonly LiveStartEvent[] {
@@ -684,8 +734,7 @@ function getLiveSuccessEventsFromLog(game: GameState): readonly LiveSuccessEvent
   return game.eventLog
     .map((entry) => entry.event)
     .filter(
-      (event): event is LiveSuccessEvent =>
-        event.eventType === TriggerCondition.ON_LIVE_SUCCESS
+      (event): event is LiveSuccessEvent => event.eventType === TriggerCondition.ON_LIVE_SUCCESS
     );
 }
 
@@ -712,8 +761,7 @@ function getNewLeaveStageEvents(before: GameState, after: GameState): readonly L
     .slice(before.eventLog.length)
     .map((entry) => entry.event)
     .filter(
-      (event): event is LeaveStageEvent =>
-        event.eventType === TriggerCondition.ON_LEAVE_STAGE
+      (event): event is LeaveStageEvent => event.eventType === TriggerCondition.ON_LEAVE_STAGE
     );
 }
 
@@ -728,6 +776,109 @@ function createMemberSlotMovedAbilitySourcesFromEvents(
     eventId: event.eventId,
     swappedCardInstanceId: event.swappedCardInstanceId,
   }));
+}
+
+function enqueueEnterWaitingRoomCardEffects(
+  game: GameState,
+  events: readonly EnterWaitingRoomEvent[]
+): GameState {
+  let state = game;
+  for (const event of events) {
+    if (event.fromZone !== ZoneType.HAND) {
+      continue;
+    }
+    const player = getPlayerById(state, event.controllerId);
+    if (!player) {
+      continue;
+    }
+    for (const sourceSlot of MEMBER_SLOT_ORDER) {
+      const sourceCardId = player.memberSlots.slots[sourceSlot];
+      if (!sourceCardId) {
+        continue;
+      }
+      state = enqueueSingleEnterWaitingRoomCardEffect(state, {
+        sourceCardId,
+        controllerId: player.id,
+        sourceSlot,
+        event,
+      });
+    }
+  }
+  return state;
+}
+
+function enqueueSingleEnterWaitingRoomCardEffect(
+  game: GameState,
+  source: EnterWaitingRoomAbilitySource
+): GameState {
+  const player = getPlayerById(game, source.controllerId);
+  const sourceCard = getCardById(game, source.sourceCardId);
+  if (
+    !player ||
+    !sourceCard ||
+    player.memberSlots.slots[source.sourceSlot] !== source.sourceCardId
+  ) {
+    return game;
+  }
+
+  const abilityDefinitions = getQueuedAbilityDefinitionsForCard(
+    sourceCard.data.cardCode,
+    CardAbilityCategory.AUTO,
+    CardAbilitySourceZone.STAGE_MEMBER,
+    source.sourceSlot
+  ).filter((ability) => ability.triggerCondition === TriggerCondition.ON_ENTER_WAITING_ROOM);
+  if (abilityDefinitions.length === 0) {
+    return game;
+  }
+
+  let state = game;
+  for (const abilityDefinition of abilityDefinitions) {
+    const abilityId = abilityDefinition.abilityId;
+    if (!canUseAbilityThisTurn(state, source.controllerId, abilityId, source.sourceCardId)) {
+      continue;
+    }
+
+    const pendingAbilityId = `${abilityId}:${source.sourceCardId}:${source.event.eventId}`;
+    if (hasAbilityInstance(state, pendingAbilityId)) {
+      continue;
+    }
+
+    const movedCardIds = source.event.cardInstanceIds ?? [source.event.cardInstanceId];
+    const pendingAbility: PendingAbilityState = {
+      id: pendingAbilityId,
+      abilityId,
+      sourceCardId: source.sourceCardId,
+      controllerId: source.controllerId,
+      mandatory: true,
+      timingId: TriggerCondition.ON_ENTER_WAITING_ROOM,
+      eventIds: [source.event.eventId],
+      sourceSlot: source.sourceSlot,
+      metadata: {
+        movedCardIds,
+        fromZone: source.event.fromZone,
+        toZone: source.event.toZone,
+      },
+    };
+
+    state = addAction(
+      {
+        ...state,
+        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+      },
+      'TRIGGER_ABILITY',
+      pendingAbility.controllerId,
+      {
+        pendingAbilityId,
+        abilityId: pendingAbility.abilityId,
+        sourceCardId: source.sourceCardId,
+        timingId: pendingAbility.timingId,
+        sourceSlot: source.sourceSlot,
+        movedCardIds,
+      }
+    );
+  }
+
+  return state;
 }
 
 function enqueueMemberStateChangedCardEffects(
@@ -843,7 +994,9 @@ function enqueueSingleMemberStateChangedCardEffect(
         causedBySourceCardId:
           source.event.cause?.kind === 'CARD_EFFECT' ? source.event.cause.sourceCardId : null,
         causedByAbilityId:
-          source.event.cause?.kind === 'CARD_EFFECT' ? source.event.cause.abilityId ?? null : null,
+          source.event.cause?.kind === 'CARD_EFFECT'
+            ? (source.event.cause.abilityId ?? null)
+            : null,
       },
     };
 
@@ -1192,7 +1345,10 @@ function getLatestPlayMemberOnEnterSources(game: GameState): readonly OnEnterAbi
       sourceSlot: toSlotPosition(action.payload.targetSlot),
       eventId: `action:${action.sequence}`,
       replacedMemberCardId:
-        typeof action.payload.replacedCardId === 'string' ? action.payload.replacedCardId : undefined,
+        typeof action.payload.replacedCardId === 'string'
+          ? action.payload.replacedCardId
+          : undefined,
+      relayReplacements: getRelayReplacementsFromPayload(action.payload.relayReplacements),
     },
   ];
 }
@@ -1211,6 +1367,7 @@ function createOnEnterAbilitySourcesFromEvents(
     eventId: event.eventId,
     replacedMemberCardId: event.replacedMemberCardId,
     replacedMemberEffectiveCost: event.replacedMemberEffectiveCost,
+    relayReplacements: event.relayReplacements,
   }));
 }
 
@@ -1282,6 +1439,7 @@ function createEnterStageEventsFromOnEnterSources(
         triggerPlayerId: source.controllerId,
         replacedMemberCardId: source.replacedMemberCardId,
         replacedMemberEffectiveCost: source.replacedMemberEffectiveCost,
+        relayReplacements: source.relayReplacements,
       },
     ];
   });
@@ -1331,10 +1489,13 @@ function enqueueSingleOnEnterCardEffect(game: GameState, source: OnEnterAbilityS
       eventIds: [source.eventId],
       sourceSlot: source.sourceSlot ?? undefined,
       metadata:
-        source.replacedMemberCardId || source.replacedMemberEffectiveCost !== undefined
+        source.replacedMemberCardId ||
+        source.replacedMemberEffectiveCost !== undefined ||
+        (source.relayReplacements && source.relayReplacements.length > 0)
           ? {
               replacedMemberCardId: source.replacedMemberCardId ?? null,
               replacedMemberEffectiveCost: source.replacedMemberEffectiveCost ?? null,
+              relayReplacements: source.relayReplacements ?? [],
             }
           : undefined,
     };
@@ -1354,11 +1515,37 @@ function enqueueSingleOnEnterCardEffect(game: GameState, source: OnEnterAbilityS
         sourceSlot: source.sourceSlot,
         replacedMemberCardId: source.replacedMemberCardId ?? null,
         replacedMemberEffectiveCost: source.replacedMemberEffectiveCost ?? null,
+        relayReplacements: source.relayReplacements ?? [],
       }
     );
   }
 
   return state;
+}
+
+function getRelayReplacementsFromPayload(
+  value: unknown
+): readonly RelayReplacementMetadata[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const replacements = value.flatMap((entry): RelayReplacementMetadata[] => {
+    if (!entry || typeof entry !== 'object') {
+      return [];
+    }
+    const candidate = entry as Record<string, unknown>;
+    const cardId = typeof candidate.cardId === 'string' ? candidate.cardId : null;
+    const slot = toSlotPosition(candidate.slot);
+    const effectiveCost =
+      typeof candidate.effectiveCost === 'number' ? candidate.effectiveCost : null;
+    if (!cardId || slot === null || effectiveCost === null) {
+      return [];
+    }
+    return [{ cardId, slot, effectiveCost }];
+  });
+
+  return replacements.length > 0 ? replacements : undefined;
 }
 
 function isBp5007NozomiLowerCostRelayOnEnter(
@@ -2023,12 +2210,9 @@ function startPendingAbilityEffect(
   ability: PendingAbilityState,
   options: StartPendingAbilityEffectOptions = {}
 ): GameState {
-  const registryResult = resolvePendingAbilityStarterWithRegistry(
-    game,
-    ability,
-    options,
-    { continuePendingCardEffects }
-  );
+  const registryResult = resolvePendingAbilityStarterWithRegistry(game, ability, options, {
+    continuePendingCardEffects,
+  });
   if (registryResult) {
     return registryResult;
   }

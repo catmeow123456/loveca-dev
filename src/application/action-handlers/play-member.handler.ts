@@ -8,8 +8,8 @@ import type { GameState } from '../../domain/entities/game.js';
 import type { PlayMemberAction } from '../actions.js';
 import type { ActionHandler, ActionHandlerContext } from './types.js';
 import { success, failure } from './types.js';
-import { TriggerCondition, ZoneType } from '../../shared/types/enums.js';
-import { isMemberCardData } from '../../domain/entities/card.js';
+import { SlotPosition, TriggerCondition, ZoneType } from '../../shared/types/enums.js';
+import { isMemberCardData, type MemberCardData } from '../../domain/entities/card.js';
 import { addAction, emitGameEvent, updatePlayer } from '../../domain/entities/game.js';
 import { createEnterStageEvent, createLeaveStageEvent } from '../../domain/events/game-events.js';
 import {
@@ -23,6 +23,14 @@ import {
 import { canMemberBeRelayedAway } from '../../domain/rules/cost-calculator.js';
 import { getMemberEffectiveCost } from '../effects/conditions.js';
 import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
+import { canUseDoubleRelay } from '../../shared/rules/double-relay.js';
+
+interface RelayReplacementExecution {
+  readonly cardId: string;
+  readonly slot: SlotPosition;
+  readonly ownerId: string;
+  readonly effectiveCost: number;
+}
 
 /**
  * 处理打出成员卡动作
@@ -58,16 +66,20 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   }
 
   const existingCardId = getCardInSlot(player.memberSlots, targetSlot);
-  let replacedCardId: string | null = null;
-  let replacedCardOwnerId: string | null = null;
-  let replacedMemberEffectiveCost: number | null = null;
-  if (existingCardId) {
+  const relayReplacements = collectRelayReplacements(game, action, ctx, card.data, existingCardId);
+  if (!relayReplacements.ok) {
+    return failure(game, relayReplacements.error);
+  }
+  const replacements = relayReplacements.replacements;
+  const firstReplacement = replacements[0] ?? null;
+
+  if (existingCardId && replacements.length === 0) {
     const existingCard = ctx.getCardById(game, existingCardId);
     if (!existingCard || !isMemberCardData(existingCard.data)) {
       return failure(game, '目标槽位上的卡牌不是成员卡');
     }
 
-    if (!canMemberBeRelayedAway(existingCard.data)) {
+    if (!canMemberBeRelayedAway(existingCard.data, card.data)) {
       return failure(game, '该成员无法因换手放置入休息室');
     }
 
@@ -90,30 +102,29 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
 
       return success(state);
     }
-
-    // 成员区已有成员时，本次登场按换手处理；不因该成员是否本回合新登场而被阻断。
-    replacedCardId = existingCardId;
-    replacedCardOwnerId = existingCard.ownerId;
-    replacedMemberEffectiveCost = getMemberEffectiveCost(game, playerId, existingCardId);
   }
 
   let state = game;
 
   // 执行：处理被替换的成员（换手）
-  if (replacedCardId) {
+  if (replacements.length > 0) {
     state = updatePlayer(state, playerId, (p) => {
-      const newSlots = removeCardFromSlot(p.memberSlots, targetSlot);
-      const newWaitingRoom = addCardToZone(p.waitingRoom, replacedCardId!);
+      let newSlots = p.memberSlots;
+      let newWaitingRoom = p.waitingRoom;
+      for (const replacement of replacements) {
+        newSlots = removeCardFromSlot(newSlots, replacement.slot);
+        newWaitingRoom = addCardToZone(newWaitingRoom, replacement.cardId);
+      }
       return { ...p, memberSlots: newSlots, waitingRoom: newWaitingRoom };
     });
-    if (replacedCardOwnerId) {
+    for (const replacement of replacements) {
       state = emitGameEvent(
         state,
         createLeaveStageEvent(
-          replacedCardId,
-          targetSlot,
+          replacement.cardId,
+          replacement.slot,
           ZoneType.WAITING_ROOM,
-          replacedCardOwnerId,
+          replacement.ownerId,
           playerId,
           cardId
         )
@@ -135,8 +146,13 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   state = emitGameEvent(
     state,
     createEnterStageEvent(cardId, ZoneType.HAND, targetSlot, card.ownerId, playerId, {
-      replacedMemberCardId: replacedCardId,
-      replacedMemberEffectiveCost,
+      replacedMemberCardId: firstReplacement?.cardId ?? null,
+      replacedMemberEffectiveCost: firstReplacement?.effectiveCost ?? null,
+      relayReplacements: replacements.map((replacement) => ({
+        cardId: replacement.cardId,
+        slot: replacement.slot,
+        effectiveCost: replacement.effectiveCost,
+      })),
     })
   );
 
@@ -144,13 +160,19 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   state = addAction(state, 'PLAY_MEMBER', playerId, {
     cardId,
     targetSlot,
-    isRelay: replacedCardId !== null,
-    replacedCardId,
+    isRelay: replacements.length > 0,
+    replacedCardId: firstReplacement?.cardId ?? null,
+    replacedMemberCardIds: replacements.map((replacement) => replacement.cardId),
+    relayReplacements: replacements.map((replacement) => ({
+      cardId: replacement.cardId,
+      slot: replacement.slot,
+      effectiveCost: replacement.effectiveCost,
+    })),
     energyPayment: 'MANUAL',
   });
 
   const triggeredEvents: TriggerCondition[] = [TriggerCondition.ON_ENTER_STAGE];
-  if (replacedCardId) {
+  if (replacements.length > 0) {
     triggeredEvents.unshift(TriggerCondition.ON_ENTER_WAITING_ROOM);
     triggeredEvents.unshift(TriggerCondition.ON_LEAVE_STAGE);
     triggeredEvents.push(TriggerCondition.ON_RELAY);
@@ -160,3 +182,93 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
     triggeredEvents,
   });
 };
+
+function collectRelayReplacements(
+  game: GameState,
+  action: PlayMemberAction,
+  ctx: ActionHandlerContext,
+  incomingMemberData: MemberCardData,
+  existingCardId: string | null
+):
+  | { readonly ok: true; readonly replacements: readonly RelayReplacementExecution[] }
+  | { readonly ok: false; readonly error: string } {
+  if (action.relayMode === 'DOUBLE') {
+    if (!canUseDoubleRelay(incomingMemberData)) {
+      return { ok: false, error: '只有 PL!SP-bp4-004 支持双换手' };
+    }
+    const selectedSlots = action.relayReplacementSlots ?? [];
+    const uniqueSlots = new Set(selectedSlots);
+    if (selectedSlots.length !== 2 || uniqueSlots.size !== 2) {
+      return { ok: false, error: '双换手必须选择正好2个不同成员槽位' };
+    }
+    if (!uniqueSlots.has(action.targetSlot)) {
+      return { ok: false, error: '双换手必须包含拖拽目标格成员' };
+    }
+    if (!existingCardId) {
+      return { ok: false, error: '双换手暂不支持拖拽到空成员区' };
+    }
+    return collectReplacementsFromSlots(
+      game,
+      action,
+      ctx,
+      incomingMemberData,
+      [action.targetSlot, ...selectedSlots.filter((slot) => slot !== action.targetSlot)]
+    );
+  }
+
+  if (!existingCardId) {
+    return { ok: true, replacements: [] };
+  }
+
+  const existingCard = ctx.getCardById(game, existingCardId);
+  if (
+    existingCard &&
+    isMemberCardData(existingCard.data) &&
+    isSpecialMemberCard(existingCard.data.cardCode)
+  ) {
+    return { ok: true, replacements: [] };
+  }
+
+  return collectReplacementsFromSlots(game, action, ctx, incomingMemberData, [action.targetSlot]);
+}
+
+function collectReplacementsFromSlots(
+  game: GameState,
+  action: PlayMemberAction,
+  ctx: ActionHandlerContext,
+  incomingMemberData: MemberCardData,
+  slots: readonly SlotPosition[]
+):
+  | { readonly ok: true; readonly replacements: readonly RelayReplacementExecution[] }
+  | { readonly ok: false; readonly error: string } {
+  const player = ctx.getPlayerById(game, action.playerId);
+  if (!player) {
+    return { ok: false, error: '玩家不存在' };
+  }
+
+  const replacements: RelayReplacementExecution[] = [];
+  for (const slot of slots) {
+    const cardId = getCardInSlot(player.memberSlots, slot);
+    if (!cardId) {
+      return { ok: false, error: '双换手选择的槽位必须都有己方成员' };
+    }
+    const replacementCard = ctx.getCardById(game, cardId);
+    if (!replacementCard || !isMemberCardData(replacementCard.data)) {
+      return { ok: false, error: '目标槽位上的卡牌不是成员卡' };
+    }
+    if (isSpecialMemberCard(replacementCard.data.cardCode)) {
+      return { ok: false, error: '特殊成员不能作为换手成员' };
+    }
+    if (!canMemberBeRelayedAway(replacementCard.data, incomingMemberData)) {
+      return { ok: false, error: '该成员无法因换手放置入休息室' };
+    }
+    replacements.push({
+      cardId,
+      slot,
+      ownerId: replacementCard.ownerId,
+      effectiveCost: getMemberEffectiveCost(game, action.playerId, cardId),
+    });
+  }
+
+  return { ok: true, replacements };
+}

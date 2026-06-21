@@ -11,6 +11,7 @@ import {
 } from '../../ability-ids.js';
 import { startConfirmOnlyPendingAbilityEffect } from '../../runtime/active-effect.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -30,7 +31,9 @@ const HS_PB1_009_LIVE_START_SELECT_DISCARD_STEP_ID = 'HS_PB1_009_LIVE_START_SELE
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerHsPb1009KahoWorkflowHandlers(): void {
+export function registerHsPb1009KahoWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerPendingAbilityStarterHandler(
     HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
     (game, ability, options, context) =>
@@ -59,7 +62,8 @@ export function registerHsPb1009KahoWorkflowHandlers(): void {
         game,
         input.selectedCardId ?? null,
         input.selectedCardIds,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
   );
 }

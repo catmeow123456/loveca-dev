@@ -1,22 +1,16 @@
-import {
-  addAction,
-  getPlayerById,
-  type GameState,
-} from '../../../../domain/entities/game.js';
+import { addAction, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import { HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID } from '../../ability-ids.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
-import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
+import {
+  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import {
-  and,
-  costGte,
-  groupAliasIs,
-  typeIs,
-} from '../../../effects/card-selectors.js';
+import { and, costGte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
   payImmediateEffectCosts,
   type EffectCostDefinition,
@@ -36,7 +30,9 @@ const DISCARD_LOOK_REVEAL_SELECTED_STEP_ID = 'DISCARD_LOOK_REVEAL_SELECTED';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerHsBp5008IzumiWorkflowHandlers(): void {
+export function registerHsBp5008IzumiWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerPendingAbilityStarterHandler(
     HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
     (game, ability, options) =>
@@ -47,7 +43,12 @@ export function registerHsBp5008IzumiWorkflowHandlers(): void {
     DISCARD_LOOK_SELECT_DISCARD_STEP_ID,
     (game, input, context) =>
       input.selectedCardId
-        ? startHsBp5IzumiOnEnterInspection(game, input.selectedCardId, context.continuePendingCardEffects)
+        ? startHsBp5IzumiOnEnterInspection(
+            game,
+            input.selectedCardId,
+            context.continuePendingCardEffects,
+            deps.enqueueTriggeredCardEffects
+          )
         : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
@@ -149,7 +150,8 @@ function startHsBp5IzumiOnEnterWaitDiscardLookTop(
 function startHsBp5IzumiOnEnterInspection(
   game: GameState,
   discardCardId: string,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (
@@ -170,13 +172,14 @@ function startHsBp5IzumiOnEnterInspection(
   if (!sourceWaitPayment) {
     return game;
   }
-  const discardResult = discardOneHandCardToWaitingRoomForPlayer(
+  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
     sourceWaitPayment.gameState,
     player.id,
     discardCardId,
     {
       candidateCardIds: effect.selectableCardIds ?? [],
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;
@@ -207,8 +210,10 @@ function startHsBp5IzumiOnEnterInspection(
       revealSelectedBeforeHand: true,
       selectStepId: DISCARD_LOOK_SELECT_TAKE_STEP_ID,
       revealStepId: DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
-      selectStepText: '请选择其中1张费用大于等于9的『莲之空』成员卡公开并加入手牌，其余放置入休息室。',
-      noTargetStepText: '没有可加入手牌的费用大于等于9的『莲之空』成员卡。确认后其余卡片放置入休息室。',
+      selectStepText:
+        '请选择其中1张费用大于等于9的『莲之空』成员卡公开并加入手牌，其余放置入休息室。',
+      noTargetStepText:
+        '没有可加入手牌的费用大于等于9的『莲之空』成员卡。确认后其余卡片放置入休息室。',
       selectionLabel: '请选择要公开并加入手牌的成员卡',
       confirmSelectionLabel: '公开并加入手牌',
       skipSelectionLabel: '不加入',

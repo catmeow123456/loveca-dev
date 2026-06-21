@@ -143,6 +143,22 @@ Current follow-up candidates after R-5U:
 - keep `target: 'PLAYER'` Heart type and `playerHeartBonuses` compatibility projection as a later domain cleanup candidate; no real application card effect currently writes PLAYER Heart.
 - EMMA 0-target coverage remains a non-blocking follow-up for an active-energy / EMMA window, not this runner decentralization slice.
 
+## N-sd1-010 Shioriko New Card Workflow Outcome 2026-06-19
+
+This new-card slice completed only `PL!N-sd1-010-SD` plus the same-text `PL!HS-PR-002-PR` / `PL!HS-PR-005-PR` PR expansion.
+
+Covered flow:
+
+- `PL!HS-PR-002` and `PL!HS-PR-005` now reuse `GENERIC_DISCARD_LOOK_TOP_ABILITY_ID` for the on-enter discard/look-top/take-one segment and `HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID` for the LIVE-start pay-two-energy gain-BLADE segment;
+- the PR discard-look-top workflow keeps the existing `PL!HS-PR-001` mandatory take-one semantics and extends only the base-code text / selection-required branch;
+- `PL!N-sd1-010` on-enter now reuses `MEMBER_ON_ENTER_DRAW_DISCARD_ABILITY_ID` / draw-then-discard shared workflow for draw 2 then discard 1;
+- `PL!N-sd1-010` LIVE start originally lived in a narrow single-card workflow, then the `PL!SP-bp4-012` slice extracted it into `src/application/card-effects/workflows/shared/pay-energy-gain-heart.ts`;
+- `PL!N-sd1-010` and `PL!SP-bp4-012` now both reuse the shared pay-energy-gain-Heart family;
+- the Shioriko configuration opens a pay/decline activeEffect, pays exactly two active energy with `payImmediateEffectCosts`, records `PAY_COST`, then writes a `SOURCE_MEMBER` green Heart modifier through `addHeartLiveModifierForMember`;
+- insufficient energy and decline paths do not pay cost, do not add Heart, clear `activeEffect`, and continue pending effects in order.
+
+No pay-energy-gain-BLADE generalization, trigger matcher integration, cost-calculator change, steps DSL, or PLAYER Heart write was added.
+
 ## R-5U BP5_007 Nozomi Relay Hand Adjust Draw Workflow Outcome 2026-06-19
 
 R-5U migrated only `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID` pending starter / discard step / draw resolver into the new single-card workflow file `src/application/card-effects/workflows/cards/bp5-007-nozomi.ts`.

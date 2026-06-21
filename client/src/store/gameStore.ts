@@ -129,6 +129,11 @@ export interface CommandDispatchResult {
   readonly pending?: boolean;
 }
 
+export interface PlayMemberToSlotOptions {
+  readonly relayMode?: 'SINGLE' | 'DOUBLE';
+  readonly relayReplacementSlots?: readonly SlotPosition[];
+}
+
 export interface UIState {
   /** 当前选中的卡牌 ID */
   selectedCardId: string | null;
@@ -220,7 +225,11 @@ export interface GameStore {
   /** 取消选择 */
   deselectCard: () => void;
   /** 通过命令层将手牌成员登场到成员槽位 */
-  playMemberToSlot: (cardId: string, slot: SlotPosition) => CommandDispatchResult;
+  playMemberToSlot: (
+    cardId: string,
+    slot: SlotPosition,
+    options?: PlayMemberToSlotOptions
+  ) => CommandDispatchResult;
   /** 发动舞台上卡牌的起动效果 */
   activateCardAbility: (cardId: string, abilityId: string) => CommandDispatchResult;
   /** 将公开区卡牌移入休息室 */
@@ -868,11 +877,13 @@ export const useGameStore = create<GameStore>((set, get) => {
       }));
     },
 
-    playMemberToSlot: (cardId, slot) => {
+    playMemberToSlot: (cardId, slot, options) => {
       return runViewerCommand(
         (playerId) =>
           createPlayMemberToSlotCommand(playerId, cardId, slot, {
             freePlay: get().freePlayEnabled,
+            relayMode: options?.relayMode,
+            relayReplacementSlots: options?.relayReplacementSlots,
           }),
         {
           failureMessage: '成员登场失败',

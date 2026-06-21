@@ -1,5 +1,6 @@
 import type {
   EnterStageEvent,
+  LeaveStageEvent,
   MemberStateChangedEvent,
   MemberSlotMovedEvent,
 } from '../../../domain/events/game-events.js';
@@ -16,6 +17,19 @@ export function getNewEnterStageEvents(
     .filter(
       (event): event is EnterStageEvent =>
         event.eventType === TriggerCondition.ON_ENTER_STAGE
+    );
+}
+
+export function getNewLeaveStageEvents(
+  before: GameState,
+  after: GameState
+): readonly LeaveStageEvent[] {
+  return after.eventLog
+    .slice(before.eventLog.length)
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is LeaveStageEvent =>
+        event.eventType === TriggerCondition.ON_LEAVE_STAGE
     );
 }
 

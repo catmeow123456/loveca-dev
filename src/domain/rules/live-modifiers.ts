@@ -10,6 +10,8 @@ import { getCardById } from '../entities/game.js';
 import { getAllMemberCardIds } from '../entities/zone.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
+import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/slot-perspective.js';
+import { hasMemberPositionMovedThisTurn } from './member-turn-state.js';
 import { successLiveScoreAtLeast } from './success-live-score.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
@@ -129,6 +131,22 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    baseCardCodes: ['PL!SP-bp5-012'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!hasLiellaLiveWithRequirementTotalAtLeast(game, playerId, 8)) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_BP5_012_CONTINUOUS_LIELLA_LIVE_REQUIREMENT_EIGHT_YELLOW_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
     baseCardCodes: ['PL!HS-bp1-003'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasThreeDifferentHasunosoraMembersOnStage(game, playerId)
@@ -142,6 +160,11 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
             },
           ]
         : [],
+  },
+  {
+    baseCardCodes: ['PL!HS-pb1-014'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      collectPb1014FrontHighCostHeartModifier(game, playerId, sourceCardId),
   },
   {
     baseCardCodes: ['PL!N-pb1-004'],
@@ -183,10 +206,14 @@ const BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID =
   'PL!-bp4-002:continuous-live-without-timing-purple-heart';
 const BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID =
   'PL!-bp5-003:continuous-three-different-names-yellow-heart';
+const SP_BP5_012_CONTINUOUS_LIELLA_LIVE_REQUIREMENT_EIGHT_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart';
 const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
   'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
 const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
   'PL!N-pb1-004:continuous-not-position-moved-gain-two-blade';
+const HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID =
+  'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart';
 
 function getScoreModifiers(
   playerId: string,
@@ -348,6 +375,27 @@ function hasLiveWithoutLiveStartOrSuccessAbility(game: GameState, playerId: stri
   });
 }
 
+function hasLiellaLiveWithRequirementTotalAtLeast(
+  game: GameState,
+  playerId: string,
+  minRequirementTotal: number
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return false;
+  }
+
+  return player.liveZone.cardIds.some((liveCardId) => {
+    const card = getCardById(game, liveCardId);
+    return (
+      card !== null &&
+      isLiveCardData(card.data) &&
+      cardBelongsToGroup(card.data, 'Liella!') &&
+      card.data.requirements.totalRequired >= minRequirementTotal
+    );
+  });
+}
+
 function liveHasLiveStartOrSuccessAbility(cardText: string | undefined): boolean {
   if (!cardText) {
     return false;
@@ -381,6 +429,48 @@ function hasThreeDifferentHasunosoraMembersOnStage(game: GameState, playerId: st
   return hasAtLeastDifferentNamedStageMembers(game, playerId, 3, isHasunosoraMemberCard);
 }
 
+function collectPb1014FrontHighCostHeartModifier(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly LiveModifierState[] {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  const opponent = game.players.find((candidate) => candidate.id !== playerId);
+  if (!player || !opponent) {
+    return [];
+  }
+
+  const sourceSlot = MEMBER_SLOT_ORDER.find(
+    (slot) => player.memberSlots.slots[slot] === sourceCardId
+  );
+  if (!sourceSlot) {
+    return [];
+  }
+
+  const sourceCard = getCardById(game, sourceCardId);
+  const opponentSlot = toPlayerLocalSlotForControllerPerspective(sourceSlot, playerId, opponent.id);
+  const opponentCardId = opponent.memberSlots.slots[opponentSlot];
+  const opponentCard = opponentCardId ? getCardById(game, opponentCardId) : null;
+  if (
+    !sourceCard ||
+    !opponentCard ||
+    !isMemberCardData(sourceCard.data) ||
+    !isMemberCardData(opponentCard.data) ||
+    opponentCard.data.cost <= sourceCard.data.cost
+  ) {
+    return [];
+  }
+
+  const modifier = createHeartLiveModifierForMember(game, {
+    playerId,
+    memberCardId: sourceCardId,
+    sourceCardId,
+    abilityId: HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID,
+    hearts: [{ color: HeartColor.PINK, count: 1 }],
+  });
+  return modifier ? [modifier] : [];
+}
+
 function hasAtLeastDifferentNamedStageMembers(
   game: GameState,
   playerId: string,
@@ -408,23 +498,11 @@ function isMemberCard(card: NonNullable<ReturnType<typeof getCardById>>): boolea
 }
 
 function isHasunosoraMemberCard(card: NonNullable<ReturnType<typeof getCardById>>): boolean {
-  return (
-    isMemberCardData(card.data) &&
-    cardBelongsToGroup(card.data, '蓮ノ空')
-  );
+  return isMemberCardData(card.data) && cardBelongsToGroup(card.data, '蓮ノ空');
 }
 
 function normalizeContinuousMemberName(name: string): string {
   return name.replace(/[\s　・･·]/g, '');
-}
-
-function hasMemberPositionMovedThisTurn(
-  game: GameState,
-  playerId: string,
-  sourceCardId: string
-): boolean {
-  const player = game.players.find((candidate) => candidate.id === playerId);
-  return player?.positionMovedThisTurn.includes(sourceCardId) === true;
 }
 
 export function addLiveModifier(game: GameState, modifier: LiveModifierState): GameState {

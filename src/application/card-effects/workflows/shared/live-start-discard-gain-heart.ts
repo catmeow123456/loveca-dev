@@ -16,7 +16,10 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import { discardOneHandCardToWaitingRoomForPlayer } from '../../runtime/actions.js';
+import {
+  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -65,10 +68,17 @@ const LIVE_START_DISCARD_GAIN_HEART_CONFIGS: readonly LiveStartDiscardGainHeartC
   },
 ];
 
-export function registerLiveStartDiscardGainHeartWorkflowHandlers(): void {
+export function registerLiveStartDiscardGainHeartWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   for (const config of LIVE_START_DISCARD_GAIN_HEART_CONFIGS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
-      startLiveStartDiscardGainHeartEffect(game, ability, options.orderedResolution === true, config)
+      startLiveStartDiscardGainHeartEffect(
+        game,
+        ability,
+        options.orderedResolution === true,
+        config
+      )
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -78,7 +88,8 @@ export function registerLiveStartDiscardGainHeartWorkflowHandlers(): void {
           ? startLiveStartDiscardGainHeartChoice(
               game,
               input.selectedCardId,
-              context.continuePendingCardEffects
+              context.continuePendingCardEffects,
+              deps.enqueueTriggeredCardEffects
             )
           : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
     );
@@ -134,7 +145,8 @@ function startLiveStartDiscardGainHeartEffect(
 function startLiveStartDiscardGainHeartChoice(
   game: GameState,
   discardCardId: string,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (!effect || !effect.selectableCardIds?.includes(discardCardId)) {
@@ -145,9 +157,15 @@ function startLiveStartDiscardGainHeartChoice(
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomForPlayer(game, player.id, discardCardId, {
-    candidateCardIds: effect.selectableCardIds ?? [],
-  });
+  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+    game,
+    player.id,
+    discardCardId,
+    {
+      candidateCardIds: effect.selectableCardIds ?? [],
+    },
+    enqueueTriggeredCardEffects
+  );
   if (!discardResult) {
     return game;
   }
@@ -249,7 +267,9 @@ function finishLiveStartDiscardGainHeartBonus(
   );
 }
 
-function getHeartColorOptionsForEffect(metadata: Readonly<Record<string, unknown>> | undefined): readonly HeartColor[] {
+function getHeartColorOptionsForEffect(
+  metadata: Readonly<Record<string, unknown>> | undefined
+): readonly HeartColor[] {
   if (Array.isArray(metadata?.heartColorOptions)) {
     const colors = metadata.heartColorOptions.filter((color): color is HeartColor =>
       Object.values(HeartColor).includes(color as HeartColor)

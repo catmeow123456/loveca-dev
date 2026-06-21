@@ -37,12 +37,14 @@ import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import { GameCommandType } from '@game/application/game-commands';
+import { canUseDoubleRelay } from '@game/shared/rules/double-relay';
 import {
   ChevronRight,
   Check,
   DoorOpen,
   EyeOff,
   Maximize2,
+  Repeat2,
   ScrollText,
   Swords,
   Undo2,
@@ -57,6 +59,12 @@ import type { Seat } from '@game/online';
 
 const INSPECTION_TARGET_PREFIX = 'inspection-target-';
 const RESOLUTION_TARGET_PREFIX = 'resolution-target-';
+const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
+const MEMBER_SLOT_LABELS: Record<SlotPosition, string> = {
+  [SlotPosition.LEFT]: '左侧',
+  [SlotPosition.CENTER]: '中心',
+  [SlotPosition.RIGHT]: '右侧',
+};
 
 type SpecialDragTarget =
   | { kind: 'inspection'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' }
@@ -121,7 +129,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const canConfirmCostPaymentCommand = useGameStore((s) =>
     s.canUseAction(GameCommandType.CONFIRM_COST_PAYMENT)
   );
+  const canPlayMemberToSlotCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.PLAY_MEMBER_TO_SLOT)
+  );
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
+  const selectedCardId = useGameStore((s) => s.ui.selectedCardId);
   const logCount = useGameStore((s) => s.ui.logs.length);
   const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
   const canShowDebugLog = capabilities.canShowDebugLog;
@@ -164,6 +176,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     findViewerCardZone,
     resolveCardDropTarget,
     getCardSlotPosition,
+    getSeatMemberSlotCardId,
   } = useGameStore(
     useShallow((s) => ({
       setLiveCard: s.setLiveCard,
@@ -195,6 +208,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       findViewerCardZone: s.findViewerCardZone,
       resolveCardDropTarget: s.resolveCardDropTarget,
       getCardSlotPosition: s.getCardSlotPosition,
+      getSeatMemberSlotCardId: s.getSeatMemberSlotCardId,
     }))
   );
 
@@ -211,6 +225,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
+  const [doubleRelaySelection, setDoubleRelaySelection] = useState<{
+    readonly cardId: string;
+    readonly selectedSlots: readonly SlotPosition[];
+  } | null>(null);
 
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
   const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
@@ -271,6 +289,37 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     !!pendingUndoRequest && !!viewerSeat && pendingUndoRequest.requesterSeat === viewerSeat;
   const pendingUndoCanRespond =
     !!pendingUndoRequest && !!viewerSeat && pendingUndoRequest.requesterSeat !== viewerSeat;
+  const selectedCardPresentation = selectedCardId
+    ? getVisibleCardPresentation(selectedCardId)
+    : null;
+  const selectedCardZone = selectedCardId ? findViewerCardZone(selectedCardId) : null;
+  const viewerOccupiedMemberSlots = viewerSeat
+    ? MEMBER_SLOT_ORDER.map((slot) => ({
+        slot,
+        cardId: getSeatMemberSlotCardId(viewerSeat, slot),
+      })).filter(
+        (entry): entry is { readonly slot: SlotPosition; readonly cardId: string } =>
+          entry.cardId !== null
+      )
+    : [];
+  const viewerOccupiedMemberSlotSignature = viewerOccupiedMemberSlots
+    .map((entry) => `${entry.slot}:${entry.cardId}`)
+    .join('|');
+  const canShowDoubleRelayEntry =
+    !isReadOnly &&
+    canPlayMemberToSlotCommand &&
+    !activeEffect &&
+    !pendingCostPayment &&
+    selectedCardZone === ZoneType.HAND &&
+    selectedCardPresentation?.cardData.cardType === CardType.MEMBER &&
+    canUseDoubleRelay(selectedCardPresentation) &&
+    viewerOccupiedMemberSlots.length >= 2;
+  const activeDoubleRelaySelection =
+    doubleRelaySelection && doubleRelaySelection.cardId === selectedCardId
+      ? doubleRelaySelection
+      : null;
+  const doubleRelaySelectedSlots = activeDoubleRelaySelection?.selectedSlots ?? [];
+  const canConfirmDoubleRelay = doubleRelaySelectedSlots.length === 2;
 
   useEffect(() => {
     setActiveEffectOrderedSelection([]);
@@ -284,6 +333,75 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   useEffect(() => {
     setActiveEffectCollapsed(false);
   }, [activeEffect?.id, activeEffect?.stepId]);
+
+  useEffect(() => {
+    if (!doubleRelaySelection) {
+      return;
+    }
+
+    const selectedSlotsStillOccupied = doubleRelaySelection.selectedSlots.every((slot) =>
+      viewerOccupiedMemberSlots.some((entry) => entry.slot === slot)
+    );
+    if (
+      doubleRelaySelection.cardId !== selectedCardId ||
+      !canShowDoubleRelayEntry ||
+      !selectedSlotsStillOccupied
+    ) {
+      setDoubleRelaySelection(null);
+    }
+  }, [
+    canShowDoubleRelayEntry,
+    doubleRelaySelection,
+    selectedCardId,
+    viewerOccupiedMemberSlotSignature,
+    viewerOccupiedMemberSlots,
+  ]);
+
+  const handleStartDoubleRelay = useCallback(() => {
+    if (!selectedCardId || !canShowDoubleRelayEntry) {
+      return;
+    }
+    setDoubleRelaySelection({ cardId: selectedCardId, selectedSlots: [] });
+  }, [canShowDoubleRelayEntry, selectedCardId]);
+
+  const handleSelectDoubleRelaySlot = useCallback(
+    (slot: SlotPosition) => {
+      setDoubleRelaySelection((current) => {
+        if (!current || current.cardId !== selectedCardId) {
+          return current;
+        }
+        if (!viewerOccupiedMemberSlots.some((entry) => entry.slot === slot)) {
+          return current;
+        }
+        if (current.selectedSlots.includes(slot) || current.selectedSlots.length >= 2) {
+          return current;
+        }
+        return { ...current, selectedSlots: [...current.selectedSlots, slot] };
+      });
+    },
+    [selectedCardId, viewerOccupiedMemberSlotSignature, viewerOccupiedMemberSlots]
+  );
+
+  const handleConfirmDoubleRelay = useCallback(() => {
+    if (!activeDoubleRelaySelection || activeDoubleRelaySelection.selectedSlots.length !== 2) {
+      return;
+    }
+
+    const [targetSlot, extraSlot] = activeDoubleRelaySelection.selectedSlots;
+    const result = playMemberToSlot(activeDoubleRelaySelection.cardId, targetSlot, {
+      relayMode: 'DOUBLE',
+      relayReplacementSlots: activeDoubleRelaySelection.selectedSlots,
+    });
+    if (result.success) {
+      addLog(
+        `双换手登场: ${MEMBER_SLOT_LABELS[targetSlot]} + ${MEMBER_SLOT_LABELS[extraSlot]}`,
+        'action'
+      );
+    }
+    if (result.success || result.pending) {
+      setDoubleRelaySelection(null);
+    }
+  }, [activeDoubleRelaySelection, addLog, playMemberToSlot]);
 
   const isJudgmentPanelRelevant =
     (currentPhase === GamePhase.PERFORMANCE_PHASE &&
@@ -1271,6 +1389,88 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           onOpenJudgment={handleOpenJudgmentPanel}
         />
 
+        {canShowDoubleRelayEntry && (
+          <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[82] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  双换手
+                </div>
+                <div className="mt-0.5 truncate text-sm font-semibold">
+                  {selectedCardPresentation?.cardData.name ?? '成员登场'}
+                </div>
+              </div>
+              {!activeDoubleRelaySelection ? (
+                <button
+                  type="button"
+                  onClick={handleStartDoubleRelay}
+                  className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+                  title="双换手"
+                >
+                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                  双换手
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDoubleRelaySelection(null)}
+                  className="button-secondary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+                  title="取消双换手"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  取消
+                </button>
+              )}
+            </div>
+            {activeDoubleRelaySelection && (
+              <>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {viewerOccupiedMemberSlots.map(({ slot }) => {
+                    const selectedOrderIndex = doubleRelaySelectedSlots.indexOf(slot);
+                    const isSelected = selectedOrderIndex >= 0;
+                    const isDisabled = isSelected || doubleRelaySelectedSlots.length >= 2;
+                    return (
+                      <button
+                        key={slot}
+                        type="button"
+                        disabled={isDisabled}
+                        onClick={() => handleSelectDoubleRelaySlot(slot)}
+                        className={cn(
+                          'button-secondary relative inline-flex min-h-10 items-center justify-center px-2 text-xs font-semibold',
+                          isSelected &&
+                            'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]',
+                          isDisabled && !isSelected && 'cursor-not-allowed opacity-50'
+                        )}
+                      >
+                        {MEMBER_SLOT_LABELS[slot]}
+                        {isSelected && (
+                          <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
+                            {selectedOrderIndex + 1}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    type="button"
+                    disabled={!canConfirmDoubleRelay}
+                    onClick={handleConfirmDoubleRelay}
+                    className={cn(
+                      'button-primary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold',
+                      !canConfirmDoubleRelay && 'cursor-not-allowed opacity-50'
+                    )}
+                  >
+                    <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                    确认
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {activeEffect && activeEffectCollapsed && (
           <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[95] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
             <div className="flex items-center gap-3">
@@ -1464,6 +1664,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                     : slot === SlotPosition.CENTER
                       ? '中央'
                       : '右侧';
+                const slotActionLabel =
+                  activeEffect.confirmSelectionLabel === '登场' ? '登场至' : '移动到';
                 return (
                   <button
                     key={slot}
@@ -1476,7 +1678,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                       canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
                     }`}
                   >
-                    移动到{slotLabel}
+                    {slotActionLabel}
+                    {slotLabel}
                   </button>
                 );
               })}

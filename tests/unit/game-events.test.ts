@@ -4,6 +4,7 @@ import {
   createCheerEvent,
   createDrawEvent,
   createEnterStageEvent,
+  createEnterWaitingRoomEvent,
   createLeaveStageEvent,
   createLiveStartEvent,
   createLiveSuccessEvent,
@@ -42,6 +43,16 @@ describe('game event log', () => {
     expect(nextGame.eventSequence).toBe(1);
   });
 
+  it('creates batched enter-waiting-room events with the first card as compatibility id', () => {
+    const event = createEnterWaitingRoomEvent(['card-1', 'card-2'], ZoneType.HAND, 'p1', 'p1');
+
+    expect(event.eventType).toBe(TriggerCondition.ON_ENTER_WAITING_ROOM);
+    expect(event.cardInstanceId).toBe('card-1');
+    expect(event.cardInstanceIds).toEqual(['card-1', 'card-2']);
+    expect(event.fromZone).toBe(ZoneType.HAND);
+    expect(event.toZone).toBe(ZoneType.WAITING_ROOM);
+  });
+
   it('keeps stable sequence order and optional action causality', () => {
     let game = createGameState('event-log-sequence', 'p1', 'P1', 'p2', 'P2');
     const drawEvent = createDrawEvent('p1', ['card-1'], 1);
@@ -61,10 +72,7 @@ describe('game event log', () => {
       drawEvent.eventId,
       enterStageEvent.eventId,
     ]);
-    expect(game.eventLog.map((entry) => entry.causedByActionId)).toEqual([
-      'action-1',
-      'action-2',
-    ]);
+    expect(game.eventLog.map((entry) => entry.causedByActionId)).toEqual(['action-1', 'action-2']);
     expect(game.eventSequence).toBe(2);
   });
 

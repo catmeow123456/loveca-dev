@@ -12,11 +12,12 @@ import {
   HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
+import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import {
-  discardHandCardsToWaitingRoomForPlayer,
-  discardOneHandCardToWaitingRoomForPlayer,
-  recoverCardsFromWaitingRoomToHandForPlayer,
-} from '../../runtime/actions.js';
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
+  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
 import {
   type GroupedSelectionRule,
   validateGroupedCardSelection,
@@ -33,10 +34,7 @@ import {
   typeIs,
   unitAliasIs,
 } from '../../../effects/card-selectors.js';
-import {
-  countCardsInZoneMatching,
-  getCardIdsInZoneMatching,
-} from '../../../effects/conditions.js';
+import { countCardsInZoneMatching, getCardIdsInZoneMatching } from '../../../effects/conditions.js';
 import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 
 const DECLINE_OPTION_LABEL = '不发动';
@@ -80,11 +78,13 @@ interface GroupedRecoveryWorkflowConfig {
     game: GameState,
     ability: PendingAbilityState,
     playerId: string
-  ) => { readonly ok: true; readonly metadata?: Readonly<Record<string, unknown>> } | {
-    readonly ok: false;
-    readonly step: string;
-    readonly payload?: Readonly<Record<string, unknown>>;
-  };
+  ) =>
+    | { readonly ok: true; readonly metadata?: Readonly<Record<string, unknown>> }
+    | {
+        readonly ok: false;
+        readonly step: string;
+        readonly payload?: Readonly<Record<string, unknown>>;
+      };
 }
 
 const liveGroup = typeIs(CardType.LIVE);
@@ -176,7 +176,8 @@ const GROUPED_RECOVERY_CONFIGS: readonly GroupedRecoveryWorkflowConfig[] = [
     startActionStep: 'START_SELECT_DISCARD_TWO',
     recoveryActionStep: 'RECOVER_YELLOW_HEART_MEMBER_AND_LIVE',
     discardActionType: 'PAY_COST',
-    recoveryStepText: '请选择休息室中至多1张持有黄Heart的成员，与至多1张必要Heart中含黄Heart的LIVE加入手牌。',
+    recoveryStepText:
+      '请选择休息室中至多1张持有黄Heart的成员，与至多1张必要Heart中含黄Heart的LIVE加入手牌。',
     selectionLabel: '选择要加入手牌的黄Heart成员 / 黄必要Heart LIVE',
     confirmSelectionLabel: '加入手牌',
     skipRecoveryLabel: '不加入',
@@ -207,7 +208,9 @@ const GROUPED_RECOVERY_CONFIGS: readonly GroupedRecoveryWorkflowConfig[] = [
   },
 ];
 
-export function registerGroupedRecoveryWorkflowHandlers(): void {
+export function registerGroupedRecoveryWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   for (const config of GROUPED_RECOVERY_CONFIGS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
       startGroupedRecoveryWorkflow(
@@ -218,24 +221,32 @@ export function registerGroupedRecoveryWorkflowHandlers(): void {
         context.continuePendingCardEffects
       )
     );
-    registerActiveEffectStepHandler(config.abilityId, config.discardStepId, (game, input, context) => {
-      const selectedCardIds = getDiscardSelectionInput(input, config);
-      return selectedCardIds.length > 0
-        ? startGroupedRecoveryAfterDiscard(
-            game,
-            selectedCardIds,
-            config,
-            context.continuePendingCardEffects
-          )
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects);
-    });
-    registerActiveEffectStepHandler(config.abilityId, config.recoveryStepId, (game, input, context) =>
-      finishGroupedRecoveryWorkflow(
-        game,
-        input.selectedCardIds ?? [],
-        config,
-        context.continuePendingCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.discardStepId,
+      (game, input, context) => {
+        const selectedCardIds = getDiscardSelectionInput(input, config);
+        return selectedCardIds.length > 0
+          ? startGroupedRecoveryAfterDiscard(
+              game,
+              selectedCardIds,
+              config,
+              context.continuePendingCardEffects,
+              deps.enqueueTriggeredCardEffects
+            )
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects);
+      }
+    );
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.recoveryStepId,
+      (game, input, context) =>
+        finishGroupedRecoveryWorkflow(
+          game,
+          input.selectedCardIds ?? [],
+          config,
+          context.continuePendingCardEffects
+        )
     );
   }
 }
@@ -328,7 +339,8 @@ function startGroupedRecoveryAfterDiscard(
   game: GameState,
   selectedCardIds: readonly string[],
   config: GroupedRecoveryWorkflowConfig,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.discardStepId) {
@@ -350,21 +362,31 @@ function startGroupedRecoveryAfterDiscard(
 
   const discardResult =
     config.discardCount === 1
-      ? discardOneHandCardToWaitingRoomForPlayer(game, player.id, uniqueSelectedCardIds[0]!, {
-          candidateCardIds: effect.selectableCardIds ?? [],
-        })
-      : discardHandCardsToWaitingRoomForPlayer(game, player.id, uniqueSelectedCardIds, {
-          count: 2,
-          candidateCardIds: effect.selectableCardIds ?? [],
-        });
+      ? discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+          game,
+          player.id,
+          uniqueSelectedCardIds[0]!,
+          {
+            candidateCardIds: effect.selectableCardIds ?? [],
+          },
+          enqueueTriggeredCardEffects
+        )
+      : discardHandCardsToWaitingRoomAndEnqueueTriggers(
+          game,
+          player.id,
+          uniqueSelectedCardIds,
+          {
+            count: 2,
+            candidateCardIds: effect.selectableCardIds ?? [],
+          },
+          enqueueTriggeredCardEffects
+        );
   if (!discardResult) {
     return game;
   }
 
-  const selectableCardIds = selectWaitingRoomCardIds(
-    discardResult.gameState,
-    player.id,
-    (card) => config.groups.some((group) => group.selector(card))
+  const selectableCardIds = selectWaitingRoomCardIds(discardResult.gameState, player.id, (card) =>
+    config.groups.some((group) => group.selector(card))
   );
   const requiredGroupKeys = config.groups
     .filter(
@@ -380,18 +402,13 @@ function startGroupedRecoveryAfterDiscard(
 
   if (selectableCardIds.length === 0 && config.noTargetActionStep) {
     return continuePendingCardEffects(
-      addAction(
-        { ...discardResult.gameState, activeEffect: null },
-        'RESOLVE_ABILITY',
-        player.id,
-        {
-          pendingAbilityId: effect.id,
-          abilityId: effect.abilityId,
-          sourceCardId: effect.sourceCardId,
-          step: config.noTargetActionStep,
-          discardedHandCardIds: discardResult.discardedCardIds,
-        }
-      ),
+      addAction({ ...discardResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: config.noTargetActionStep,
+        discardedHandCardIds: discardResult.discardedCardIds,
+      }),
       effect.metadata?.orderedResolution === true
     );
   }
@@ -474,12 +491,14 @@ function finishGroupedRecoveryWorkflow(
   const validation = validateGroupedCardSelection(
     game,
     uniqueSelectedCardIds,
-    config.groups.map((group): GroupedSelectionRule => ({
-      key: group.key,
-      selector: group.selector,
-      minCount: requiredGroupKeys.includes(group.key) ? 1 : 0,
-      maxCount: 1,
-    }))
+    config.groups.map(
+      (group): GroupedSelectionRule => ({
+        key: group.key,
+        selector: group.selector,
+        minCount: requiredGroupKeys.includes(group.key) ? 1 : 0,
+        maxCount: 1,
+      })
+    )
   );
   if (!validation) {
     return game;
@@ -561,5 +580,7 @@ function getDiscardSelectionLabel(config: GroupedRecoveryWorkflowConfig): string
 }
 
 function getStringArrayMetadata(value: unknown): readonly string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }

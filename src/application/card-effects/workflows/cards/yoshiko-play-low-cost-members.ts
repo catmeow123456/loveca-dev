@@ -261,8 +261,8 @@ function startYoshikoSelectStageSlot(
         ...effect,
         stepId: YOSHIKO_SELECT_STAGE_SLOT_STEP_ID,
         stepText: '请选择该成员要登场的空成员区。',
-        selectableCardIds: [nextCardId],
-        selectableCardMode: 'SINGLE',
+        selectableCardIds: undefined,
+        selectableCardMode: undefined,
         minSelectableCards: undefined,
         maxSelectableCards: undefined,
         selectableSlots: getEmptyMemberSlots(game, player.id),
@@ -360,7 +360,10 @@ function finishYoshikoSelectStageSlot(
     ...stateWithOnEnter,
     activeEffect: {
       ...effect,
-      selectableCardIds: [nextCardId],
+      selectableCardIds: undefined,
+      selectableCardMode: undefined,
+      minSelectableCards: undefined,
+      maxSelectableCards: undefined,
       selectableSlots: getEmptyMemberSlots(stateWithOnEnter, nextPlayer.id),
       metadata: {
         ...effect.metadata,

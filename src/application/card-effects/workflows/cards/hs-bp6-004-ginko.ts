@@ -13,10 +13,11 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
+import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import {
-  addBladeLiveModifierForSourceMember,
-  discardOneHandCardToWaitingRoomForPlayer,
-} from '../../runtime/actions.js';
+  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -27,7 +28,9 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 
 const ginkoMember = and(typeIs(CardType.MEMBER), cardNameIs('百生吟子'));
 
-export function registerHsBp6004GinkoWorkflowHandlers(): void {
+export function registerHsBp6004GinkoWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerPendingAbilityStarterHandler(
     HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID,
     (game, ability, options) =>
@@ -41,7 +44,8 @@ export function registerHsBp6004GinkoWorkflowHandlers(): void {
         ? finishHsBp6GinkoDiscardGainBlade(
             game,
             input.selectedCardId,
-            context.continuePendingCardEffects
+            context.continuePendingCardEffects,
+            deps.enqueueTriggeredCardEffects
           )
         : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
   );
@@ -85,7 +89,8 @@ function startHsBp6GinkoLiveStartDiscardGainBlade(
 function finishHsBp6GinkoDiscardGainBlade(
   game: GameState,
   discardCardId: string,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (
@@ -103,9 +108,15 @@ function finishHsBp6GinkoDiscardGainBlade(
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomForPlayer(game, player.id, discardCardId, {
-    candidateCardIds: effect.selectableCardIds ?? [],
-  });
+  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+    game,
+    player.id,
+    discardCardId,
+    {
+      candidateCardIds: effect.selectableCardIds ?? [],
+    },
+    enqueueTriggeredCardEffects
+  );
   if (!discardResult) {
     return game;
   }

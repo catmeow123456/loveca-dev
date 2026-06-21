@@ -82,6 +82,10 @@ export interface PlayMemberAction extends BaseGameAction {
   readonly isRelay?: boolean;
   /** 接力来源槽位（如果是接力） */
   readonly relayFromSlot?: SlotPosition;
+  /** 显式换手模式；未传时保持拖拽到已有成员格的单换手行为。 */
+  readonly relayMode?: 'SINGLE' | 'DOUBLE';
+  /** 显式选择的被换手成员槽位。双换手时必须正好 2 个。 */
+  readonly relayReplacementSlots?: readonly SlotPosition[];
 }
 
 /**
@@ -309,7 +313,12 @@ export function createPlayMemberAction(
   playerId: string,
   cardId: string,
   targetSlot: SlotPosition,
-  options?: { isRelay?: boolean; relayFromSlot?: SlotPosition }
+  options?: {
+    isRelay?: boolean;
+    relayFromSlot?: SlotPosition;
+    relayMode?: 'SINGLE' | 'DOUBLE';
+    relayReplacementSlots?: readonly SlotPosition[];
+  }
 ): PlayMemberAction {
   return {
     type: GameActionType.PLAY_MEMBER,
@@ -318,6 +327,8 @@ export function createPlayMemberAction(
     targetSlot,
     isRelay: options?.isRelay,
     relayFromSlot: options?.relayFromSlot,
+    relayMode: options?.relayMode,
+    relayReplacementSlots: options?.relayReplacementSlots,
     timestamp: Date.now(),
   };
 }

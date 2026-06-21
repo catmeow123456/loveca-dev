@@ -1,19 +1,17 @@
-import {
-  addAction,
-  getPlayerById,
-  type GameState,
-} from '../../../../domain/entities/game.js';
+import { addAction, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import type { SlotPosition } from '../../../../shared/types/enums.js';
 import {
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+  MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
   SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
 } from '../../ability-ids.js';
+import { drawCardsForPlayer } from '../../runtime/actions.js';
 import {
-  discardHandCardsToWaitingRoomForPlayer,
-  drawCardsForPlayer,
-} from '../../runtime/actions.js';
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -71,6 +69,12 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
     stepId: HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID,
   },
   {
+    abilityId: MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+    drawCount: 2,
+    discardCount: 2,
+    stepId: HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID,
+  },
+  {
     abilityId: N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
     drawCount: 1,
     discardCount: 1,
@@ -79,7 +83,9 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
   },
 ];
 
-export function registerDrawThenDiscardWorkflowHandlers(): void {
+export function registerDrawThenDiscardWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   for (const config of DRAW_THEN_DISCARD_WORKFLOWS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
       startDrawThenDiscardCardsWorkflow(game, {
@@ -97,7 +103,8 @@ export function registerDrawThenDiscardWorkflowHandlers(): void {
         game,
         input.selectedCardId ?? null,
         input.selectedCardIds,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
     );
   }
@@ -130,7 +137,8 @@ export function startDrawThenDiscardCardsWorkflow(
   }
 
   const selectableCardIds = [...playerAfterDraw.hand.cardIds];
-  const discardCountText = config.discardCount === 1 ? '1张' : `${config.discardCount}张`;
+  const requiredSelectableCount = Math.min(config.discardCount, selectableCardIds.length);
+  const discardCountText = requiredSelectableCount === 1 ? '1张' : `${requiredSelectableCount}张`;
   return addAction(
     {
       ...drawResult.gameState,
@@ -150,6 +158,9 @@ export function startDrawThenDiscardCardsWorkflow(
             : '没有可放置入休息室的手牌。确认后继续。',
         awaitingPlayerId: player.id,
         selectableCardIds,
+        selectableCardMode: config.discardCount > 1 ? 'ORDERED_MULTI' : undefined,
+        minSelectableCards: config.discardCount > 1 ? requiredSelectableCount : undefined,
+        maxSelectableCards: config.discardCount > 1 ? requiredSelectableCount : undefined,
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
         selectionLabel: '请选择要放置入休息室的手牌',
         canSkipSelection: selectableCardIds.length === 0,
@@ -183,7 +194,8 @@ export function finishDrawThenDiscardCardsWorkflow(
   game: GameState,
   selectedCardId: string | null,
   selectedCardIds: readonly string[] | undefined,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -198,7 +210,7 @@ export function finishDrawThenDiscardCardsWorkflow(
   const selectableCardIds = effect.selectableCardIds ?? [];
   const requiredDiscardCount =
     typeof effect.metadata?.discardCount === 'number' && effect.metadata.discardCount > 0
-      ? Math.floor(effect.metadata.discardCount)
+      ? Math.min(Math.floor(effect.metadata.discardCount), selectableCardIds.length)
       : 1;
   const selectedCardIdsList =
     selectedCardIds && selectedCardIds.length > 0
@@ -238,14 +250,15 @@ export function finishDrawThenDiscardCardsWorkflow(
     return game;
   }
 
-  const discardResult = discardHandCardsToWaitingRoomForPlayer(
+  const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
     uniqueSelectedCardIds,
     {
       count: requiredDiscardCount,
       candidateCardIds: selectableCardIds,
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;

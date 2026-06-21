@@ -17,12 +17,11 @@ import {
 } from '../../ability-ids.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { getNewMemberSlotMovedEvents } from '../../runtime/events.js';
+import { moveMemberBetweenSlotsAndEnqueueTriggers } from '../../runtime/member-slot-moved-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
-import { moveMemberBetweenSlots } from '../../../effects/member-state.js';
 
 export const SHIKI_RIGHT_ACTIVATE_ENERGY_STEP_ID = 'SHIKI_RIGHT_ACTIVATE_ENERGY';
 export const SHIKI_LIVE_START_POSITION_CHANGE_STEP_ID = 'SHIKI_LIVE_START_POSITION_CHANGE';
@@ -270,33 +269,39 @@ function finishShikiLiveStartPositionChange(
     return game;
   }
 
-  const moveResult = moveMemberBetweenSlots(game, player.id, effect.sourceCardId, selectedSlot);
+  const moveResult = moveMemberBetweenSlotsAndEnqueueTriggers(
+    game,
+    player.id,
+    effect.sourceCardId,
+    selectedSlot,
+    enqueueTriggeredCardEffects,
+    {
+      prepareGameStateBeforeEnqueue: (state, result) =>
+        addAction(
+          {
+            ...state,
+            activeEffect: null,
+          },
+          'RESOLVE_ABILITY',
+          player.id,
+          {
+            pendingAbilityId: effect.id,
+            abilityId: effect.abilityId,
+            sourceCardId: effect.sourceCardId,
+            step: 'POSITION_CHANGE',
+            fromSlot: result.fromSlot,
+            toSlot: result.toSlot,
+            swappedCardId: result.swappedCardId,
+          }
+        ),
+    }
+  );
   if (!moveResult) {
     return game;
   }
 
-  const state = {
-    ...moveResult.gameState,
-    activeEffect: null,
-  };
-  const stateWithMemberMoveTriggers = enqueueTriggeredCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'POSITION_CHANGE',
-      fromSlot: moveResult.fromSlot,
-      toSlot: moveResult.toSlot,
-      swappedCardId: moveResult.swappedCardId,
-    }),
-    [TriggerCondition.ON_MEMBER_SLOT_MOVED],
-    {
-      memberSlotMovedEvents: getNewMemberSlotMovedEvents(game, moveResult.gameState),
-    }
-  );
-
   return continuePendingCardEffects(
-    stateWithMemberMoveTriggers,
+    moveResult.gameState,
     effect.metadata?.orderedResolution === true
   );
 }

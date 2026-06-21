@@ -16,6 +16,8 @@ export const HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
 export const MEMBER_ON_ENTER_DRAW_DISCARD_ABILITY_ID = HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID;
 export const MEMBER_ON_ENTER_DRAW_DISCARD_ONE_ABILITY_ID =
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID;
+export const MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID =
+  'member:on-enter-draw-two-discard-two';
 export const HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID =
   'PL!HS-bp1-006-P:live-start-discard-gain-heart-if-other-member';
 export const HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID =
@@ -31,8 +33,28 @@ export const HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID =
   'PL!HS-bp5-019-L:live-start-reduce-green-requirement-by-live-zone';
 export const HS_BP2_022_LIVE_START_SCORE_ABILITY_ID =
   'PL!HS-bp2-022-L:live-start-score-plus-if-three-cerise-live';
+export const SP_BP2_009_LIVE_START_HAND_COUNT_GAIN_BLADE_ABILITY_ID =
+  'PL!SP-bp2-009:live-start-hand-count-gain-blade';
+export const SP_BP2_009_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
+  'PL!SP-bp2-009:live-success-draw-two-discard-one';
+export const SP_BP1_024_LIVE_START_KANON_KEKE_GAIN_HEART_BLADE_ABILITY_ID =
+  'PL!SP-bp1-024:live-start-kanon-keke-gain-heart-blade';
+export const SP_BP1_024_LIVE_SUCCESS_STAGE_KANON_KEKE_DRAW_ABILITY_ID =
+  'PL!SP-bp1-024:live-success-stage-kanon-keke-draw';
 export const BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID =
   'PL!-bp4-021-L:live-start-success-score-requirement-and-score';
+export const HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID =
+  'PL!HS-pb1-029-L:live-start-draw-reduce-requirement-by-extra-heart-miracra';
+export const HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!HS-bp1-023-L:live-success-higher-score-hasunosora-place-waiting-energy';
+export const SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-bp2-024:live-success-hand-advantage-this-live-score';
+export const HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID =
+  'PL!HS-bp2-014-N:on-enter-draw-cannot-live-until-live-end';
+export const HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID =
+  'PL!HS-pb1-003-R:on-enter-discard-miracra-members-draw-plus-one';
+export const HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID =
+  'PL!HS-pb1-003-R:auto-hand-to-waiting-gain-pink-heart-blade';
 export const HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID =
   'PL!HS-sd1-006-SD:on-enter-if-related-member-activate-energy-recover-live';
 export const HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
@@ -41,12 +63,30 @@ export const BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
   'PL!-bp4-010-N:live-start-pay-one-gain-two-blade';
 export const HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID =
   'PL!HS-PR-001:live-start-pay-two-gain-one-blade';
+export const S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!S-PR-013:live-start-pay-two-gain-two-blade';
+export const N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID =
+  'PL!N-sd1-010-SD:live-start-pay-two-gain-green-heart';
+export const SP_BP4_012_LIVE_START_PAY_ENERGY_GAIN_RED_HEART_ABILITY_ID =
+  'PL!SP-bp4-012-N:live-start-pay-one-gain-red-heart';
+export const SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-bp4-001:on-enter-liella-stage-seven-energy-place-waiting-energy';
+export const SP_BP4_004_ON_ENTER_DOUBLE_LIELLA_RELAY_DRAW_PLAY_LOW_COST_LIELLA_ABILITY_ID =
+  'PL!SP-bp4-004:on-enter-double-liella-relay-draw-play-low-cost-liella-member';
+export const SP_BP4_024_LIVE_START_CENTER_LIELLA_HIGHER_COST_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-bp4-024:live-start-center-liella-higher-cost-score';
+export const SP_BP4_024_LIVE_START_LEFT_LIELLA_RED_HEART_THREE_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!SP-bp4-024:live-start-left-liella-red-heart-three-gain-two-blade';
+export const SP_BP5_002_ACTIVATED_WAIT_DRAW_THREE_DISCARD_TWO_NO_BLADE_HEART_REWARD_ABILITY_ID =
+  'PL!SP-bp5-002:activated-wait-draw-three-discard-two-no-blade-heart-reward';
 export const HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID =
   'PL!HS-bp5-008-R:on-enter-wait-self-discard-look-five-take-high-cost-member';
 export const HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID =
   'PL!HS-pb1-004-R:on-enter-pay-energy-discard-mill-three-recover-cerise-live';
 export const HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID =
   'PL!HS-PR-019-PR:on-enter-mill-three-gain-green-heart-if-all-green-member';
+export const HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID =
+  'PL!HS-PR-021-PR:on-enter-mill-three-gain-pink-heart-if-all-pink-member';
 export const ELI_ACTIVATED_ABILITY_ID =
   'PL!-sd1-002-SD:activated-send-self-to-waiting-room-add-member';
 export const RIN_ACTIVATED_ABILITY_ID =
@@ -78,6 +118,14 @@ export const BP4_008_CONTINUOUS_SUCCESS_SCORE_STAGE_COST_ABILITY_ID =
   'PL!-bp4-008:continuous-success-score-stage-cost-plus-three';
 export const BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID =
   'PL!-bp5-008:continuous-success-score-yellow-heart';
+export const SP_BP5_012_CONTINUOUS_LIELLA_LIVE_REQUIREMENT_EIGHT_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart';
+export const SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_ABILITY_ID =
+  'PL!SP-sd2-012:auto-on-move-gain-red-heart';
+export const SP_SD2_025_LIVE_START_MOVED_LIELLA_MEMBERS_GAIN_BLADE_ABILITY_ID =
+  'PL!SP-sd2-025:live-start-moved-liella-members-gain-blade';
+export const PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID =
+  'PL!-bp5-013-N:on-enter-wait-opponent-cost-lte-four-member';
 export const SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID =
   'PL!SP-bp2-002-R:on-enter-look-top-take-high-cost-card';
 export const BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID =
@@ -96,6 +144,8 @@ export const SHIKI_ON_ENTER_RIGHT_ACTIVATE_ENERGY_ABILITY_ID =
   'PL!SP-bp4-008-P:on-enter-right-activate-two-energy';
 export const SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID =
   'PL!SP-bp4-008-P:live-start-position-change';
+export const GENERIC_ON_ENTER_SELF_POSITION_CHANGE_ABILITY_ID =
+  'member:on-enter-self-position-change';
 export const SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID =
   'PL!SP-bp4-011-P:auto-enter-or-move-wait-opponent-low-blade-member';
 export const HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID =
@@ -112,12 +162,22 @@ export const HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID =
   'PL!HS-pb1-009-R:auto-center-hasunosora-enter-gain-two-blade';
 export const HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID =
   'PL!HS-pb1-009-R:live-start-draw-two-discard-if-eight-blade';
+export const HS_PB1_014_ON_ENTER_MOVE_OPPONENT_FRONT_ABILITY_ID =
+  'PL!HS-pb1-014-R:on-enter-move-opponent-member-front-if-all-miracra';
+export const HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID =
+  'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart';
 export const HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID =
   'PL!HS-bp6-004-R:on-enter-wait-opponent-low-cost-member';
 export const HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID =
   'PL!HS-bp6-004-R:live-start-wait-opponent-low-cost-member';
 export const HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp6-004-R:live-start-discard-gain-blade';
+export const HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID =
+  'PL!HS-bp6-006:live-success-wait-skip-next-active';
+export const HS_BP6_003_ON_ENTER_ACTIVATE_MIRACRA_MEMBER_RECOVER_LIVE_ABILITY_ID =
+  'PL!HS-bp6-003-R:on-enter-activate-miracra-member-recover-miracra-live';
+export const HS_BP6_003_LIVE_START_DISCARD_GAIN_MIRACRA_HEART_ABILITY_ID =
+  'PL!HS-bp6-003-R:live-start-discard-gain-miracra-member-pink-heart';
 export const CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID =
   'PL!SP-bp5-003-AR:live-start-activate-liella-members-and-energy';
 export const EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID =
@@ -132,8 +192,16 @@ export const HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID =
   'PL!HS-bp5-003:auto-leave-stage-position-change-member';
 export const HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID =
   'PL!HS-bp5-003:live-start-discard-same-group-member-pink-heart';
+export const HS_BP5_006_LIVE_START_DISCARD_SAME_GROUP_CARDS_SOURCE_HEART_ABILITY_ID =
+  'PL!HS-bp5-006:live-start-discard-same-group-cards-gain-pink-heart';
 export const PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID =
   'PL!-bp3-014-N:on-enter-look-top-two-arrange-to-top';
+export const PL_BP3_026_LIVE_START_DISCARD_TWO_TARGET_MEMBER_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!-bp3-026-L:live-start-discard-two-target-member-gain-three-blade';
+export const PL_BP3_026_LIVE_SUCCESS_HIGHER_STAGE_HEART_TOTAL_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!-bp3-026-L:live-success-higher-stage-heart-total-this-live-score';
+export const PL_PB1_018_ON_ENTER_BOTH_PLAY_LOW_COST_MEMBERS_WAITING_ABILITY_ID =
+  'PL!-pb1-018:on-enter-both-play-low-cost-members-waiting';
 export const HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID =
   'PL!HS-bp1-003-SEC:activated-pay-one-recover-low-cost-hasunosora-member';
 export const HS_BP1_003_CONTINUOUS_THREE_DIFFERENT_HASUNOSORA_SCORE_ABILITY_ID =

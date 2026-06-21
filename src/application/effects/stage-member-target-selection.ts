@@ -1,4 +1,9 @@
-import type { ActiveEffectState, GameState, PendingAbilityState } from '../../domain/entities/game.js';
+import {
+  getPlayerById,
+  type ActiveEffectState,
+  type GameState,
+  type PendingAbilityState,
+} from '../../domain/entities/game.js';
 import type { OrientationState } from '../../shared/types/enums.js';
 import type { CardSelector } from './card-selectors.js';
 import {
@@ -30,10 +35,14 @@ export function createStageMemberOrientationTargetSelection(
   game: GameState,
   config: StageMemberOrientationTargetSelectionConfig
 ): StageMemberOrientationTargetSelectionStart {
+  const targetPlayer = getPlayerById(game, config.targetPlayerId);
   const selectableCardIds = getStageMemberCardIdsMatching(
     game,
     config.targetPlayerId,
     config.selector
+  ).filter(
+    (cardId) =>
+      targetPlayer?.memberSlots.cardStates.get(cardId)?.orientation !== config.targetOrientation
   );
 
   if (selectableCardIds.length === 0) {

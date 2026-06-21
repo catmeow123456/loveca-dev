@@ -13017,6 +13017,17 @@ describe('sample card effect runner', () => {
         OrientationState.ACTIVE
       );
     }
+    expect(
+      session
+        .state!.eventLog.map((entry) => entry.event)
+        .filter(
+          (event) =>
+            event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED &&
+            [liellaMemberCardId!, chisatoCardId!].includes(event.cardInstanceId) &&
+            event.previousOrientation === OrientationState.WAITING &&
+            event.nextOrientation === OrientationState.ACTIVE
+        )
+    ).toHaveLength(2);
   });
 
   it('executes PL!N-pb1-008-P+ on-enter effect activate one waiting stage member', () => {
@@ -13117,6 +13128,18 @@ describe('sample card effect runner', () => {
     expect(
       session.state?.players[0].memberSlots.cardStates.get(targetMemberCardId!)?.orientation
     ).toBe(OrientationState.ACTIVE);
+    expect(
+      session
+        .state!.eventLog.map((entry) => entry.event)
+        .filter(
+          (event) =>
+            event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED &&
+            event.cardInstanceId === targetMemberCardId &&
+            event.controllerId === PLAYER1 &&
+            event.previousOrientation === OrientationState.WAITING &&
+            event.nextOrientation === OrientationState.ACTIVE
+        )
+    ).toHaveLength(1);
   });
 
   it('executes PL!N-pb1-008-P+ on-enter effect activate two waiting energy', () => {
@@ -13209,6 +13232,11 @@ describe('sample card effect runner', () => {
         OrientationState.ACTIVE
       );
     }
+    expect(
+      session.state?.eventLog.filter(
+        (entry) => entry.event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED
+      )
+    ).toHaveLength(0);
   });
 
   it('resolves PL!N-pb1-008-P+ energy branch with one waiting energy', () => {
@@ -13311,6 +13339,11 @@ describe('sample card effect runner', () => {
           action.payload.nextOrientation === OrientationState.ACTIVE
       )
     ).toBe(true);
+    expect(
+      session.state?.eventLog.filter(
+        (entry) => entry.event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED
+      )
+    ).toHaveLength(0);
   });
 
   it('executes PL!S-bp2-006-P on-enter effect play from waiting room to empty slots', () => {
@@ -13464,7 +13497,11 @@ describe('sample card effect runner', () => {
 
     expect(selectMembersResult.success).toBe(true);
     expect(session.state?.activeEffect?.stepId).toBe('YOSHIKO_SELECT_STAGE_SLOT');
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([waitingMemberCardIds[0]]);
+    expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
+    expect(session.state?.activeEffect?.selectableSlots).toEqual([
+      SlotPosition.LEFT,
+      SlotPosition.RIGHT,
+    ]);
     expect(
       session.state?.eventLog
         .map((entry) => entry.event)
@@ -13485,7 +13522,8 @@ describe('sample card effect runner', () => {
     );
 
     expect(firstSlotResult.success).toBe(true);
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([waitingMemberCardIds[1]]);
+    expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
+    expect(session.state?.activeEffect?.selectableSlots).toEqual([SlotPosition.RIGHT]);
 
     const secondSlotResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -14589,12 +14627,16 @@ describe('sample card effect runner', () => {
     );
 
     expect(selectOpponentResult.success).toBe(true);
+    expect(session.state?.activeEffect?.selectableSlots).toEqual([
+      SlotPosition.LEFT,
+      SlotPosition.CENTER,
+    ]);
     const moveOpponentResult = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
         session.state!.activeEffect!.id,
         undefined,
-        SlotPosition.RIGHT
+        SlotPosition.LEFT
       )
     );
 

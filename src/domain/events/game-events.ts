@@ -111,6 +111,12 @@ export interface CardMoveEvent extends BaseGameEvent {
   readonly controllerId: string;
 }
 
+export interface RelayReplacementEventData {
+  readonly cardId: string;
+  readonly slot: SlotPosition;
+  readonly effectiveCost: number;
+}
+
 /**
  * 成员登场事件
  */
@@ -123,6 +129,8 @@ export interface EnterStageEvent extends CardMoveEvent {
   readonly replacedMemberCardId?: string;
   /** 换手登场时被替换成员的有效费用 */
   readonly replacedMemberEffectiveCost?: number;
+  /** 换手登场时被替换成员的完整列表。 */
+  readonly relayReplacements?: readonly RelayReplacementEventData[];
 }
 
 /**
@@ -151,6 +159,8 @@ export interface EnterHandEvent extends CardMoveEvent {
 export interface EnterWaitingRoomEvent extends CardMoveEvent {
   readonly eventType: TriggerCondition.ON_ENTER_WAITING_ROOM;
   readonly toZone: ZoneType.WAITING_ROOM;
+  /** 同一次规则移动中进入休息室的卡牌。cardInstanceId 保留首张以兼容单卡读取。 */
+  readonly cardInstanceIds?: readonly string[];
 }
 
 // ============================================
@@ -510,8 +520,11 @@ export function createEnterStageEvent(
   relay?: {
     readonly replacedMemberCardId?: string | null;
     readonly replacedMemberEffectiveCost?: number | null;
+    readonly relayReplacements?: readonly RelayReplacementEventData[];
   }
 ): EnterStageEvent {
+  const relayReplacements = relay?.relayReplacements ?? [];
+  const firstReplacement = relayReplacements[0];
   return {
     eventId: generateEventId(),
     eventType: TriggerCondition.ON_ENTER_STAGE,
@@ -523,8 +536,11 @@ export function createEnterStageEvent(
     ownerId,
     controllerId,
     triggerPlayerId: controllerId,
-    replacedMemberCardId: relay?.replacedMemberCardId ?? undefined,
-    replacedMemberEffectiveCost: relay?.replacedMemberEffectiveCost ?? undefined,
+    replacedMemberCardId:
+      relay?.replacedMemberCardId ?? firstReplacement?.cardId ?? undefined,
+    replacedMemberEffectiveCost:
+      relay?.replacedMemberEffectiveCost ?? firstReplacement?.effectiveCost ?? undefined,
+    relayReplacements: relayReplacements.length > 0 ? relayReplacements : undefined,
   };
 }
 
@@ -551,6 +567,37 @@ export function createLeaveStageEvent(
     controllerId,
     triggerPlayerId: controllerId,
     replacingCardId,
+  };
+}
+
+/**
+ * 创建卡牌进入休息室事件。
+ *
+ * 多张手牌同批放入休息室时使用 cardInstanceIds 表示同一事件组，避免“1张以上”
+ * 的自动能力按每张牌重复触发。
+ */
+export function createEnterWaitingRoomEvent(
+  cardInstanceIds: readonly string[],
+  fromZone: ZoneType,
+  ownerId: string,
+  controllerId: string
+): EnterWaitingRoomEvent {
+  const firstCardId = cardInstanceIds[0];
+  if (!firstCardId) {
+    throw new Error('createEnterWaitingRoomEvent requires at least one card instance id');
+  }
+
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_ENTER_WAITING_ROOM,
+    timestamp: Date.now(),
+    cardInstanceId: firstCardId,
+    cardInstanceIds: [...cardInstanceIds],
+    fromZone,
+    toZone: ZoneType.WAITING_ROOM,
+    ownerId,
+    controllerId,
+    triggerPlayerId: controllerId,
   };
 }
 

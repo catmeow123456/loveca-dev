@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { AnyCardData, EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
+import type {
+  AnyCardData,
+  EnergyCardData,
+  LiveCardData,
+  MemberCardData,
+} from '../../src/domain/entities/card';
 import {
   createCardInstance,
   createHeartIcon,
@@ -7,13 +12,10 @@ import {
 } from '../../src/domain/entities/card';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
-import {
-  createConfirmEffectStepCommand,
-} from '../../src/application/game-commands';
+import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
-import {
-  LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID,
-} from '../../src/application/card-effect-runner';
+import { LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID } from '../../src/application/card-effect-runner';
+import { HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -123,6 +125,11 @@ describe('named hand discard live-start workflow', () => {
       PLAYER1,
       'p1-ll-bp2-source'
     );
+    const pb1003Source = createCardInstance(
+      createMemberCard('PL!HS-pb1-003-R', '大沢瑠璃乃', 15),
+      PLAYER1,
+      'p1-named-discard-pb1-003'
+    );
     const matchingHandCard = createCardInstance(
       createMemberCard('PL!S-test-you', '渡边 曜', 4),
       PLAYER1,
@@ -140,6 +147,7 @@ describe('named hand discard live-start workflow', () => {
     );
     const state = registerCards(session.state!, [
       source,
+      pb1003Source,
       matchingHandCard,
       nonMatchingHandCard,
       liveCard,
@@ -163,8 +171,10 @@ describe('named hand discard live-start workflow', () => {
 
     removeFromPlayerZones(p1);
     p1.memberSlots.slots[SlotPosition.CENTER] = source.instanceId;
+    p1.memberSlots.slots[SlotPosition.RIGHT] = pb1003Source.instanceId;
     p1.memberSlots.cardStates = new Map([
       [source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      [pb1003Source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
     p1.hand.cardIds = [matchingHandCard.instanceId, nonMatchingHandCard.instanceId];
     p1.liveZone.cardIds = [liveCard.instanceId];
@@ -204,5 +214,15 @@ describe('named hand discard live-start workflow', () => {
       sourceCardId: source.instanceId,
       abilityId: LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID,
     });
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === pb1003Source.instanceId &&
+          action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
+      )
+    ).toHaveLength(1);
   });
 });

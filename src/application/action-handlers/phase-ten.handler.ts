@@ -45,6 +45,7 @@ import {
   addCardToPlayerZone,
   moveCardUniversal,
 } from './zone-operations.js';
+import { liveProhibitedPlayerLiveZoneToWaitingRoom } from '../../domain/rules/live-prohibitions.js';
 import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 import { phaseManager, type SubPhaseAutoAction } from '../phase-manager.js';
 import { isUserActionRequired } from '../../shared/phase-config/index.js';
@@ -226,6 +227,7 @@ function executeSubPhaseAutoAction(
       for (let i = 0; i < liveCardCount; i++) {
         state = ctx.drawCard(state, autoAction.playerId);
       }
+      state = liveProhibitedPlayerLiveZoneToWaitingRoom(state, autoAction.playerId);
       return state;
     }
 

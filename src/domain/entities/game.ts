@@ -106,6 +106,20 @@ export interface GameAction {
   readonly sequence: number;
 }
 
+export interface LiveProhibitionState {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly expiresAt: 'LIVE_END';
+}
+
+export interface MemberActivePhaseSkipState {
+  readonly playerId: string;
+  readonly memberCardId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+}
+
 /**
  * 权威规则事件日志条目。
  *
@@ -443,6 +457,12 @@ export interface PendingCostPaymentState {
   readonly relayDiscount: number;
   /** 目标槽位原成员 */
   readonly replacedMemberCardId: string | null;
+  /** 本次换手的完整成员列表；旧单换手长度为 1，双换手长度为 2。 */
+  readonly relayReplacements?: readonly {
+    readonly cardId: string;
+    readonly slot: SlotPosition;
+    readonly effectiveCost: number;
+  }[];
   /** 可用于支付的活跃能量 */
   readonly payableEnergyCardIds: readonly string[];
   /** 费用计算说明，给 UI 和调试使用 */
@@ -573,6 +593,16 @@ export interface GameState {
    * Live 结算状态
    */
   readonly liveResolution: LiveResolutionState;
+  /**
+   * 卡效造成的“不能 Live”临时限制。
+   *
+   * 当前仅承接“直到 Live 结束时为止”语义；由 LIVE 结束清理点统一移除。
+   */
+  readonly liveProhibitions: readonly LiveProhibitionState[];
+  /**
+   * 卡效造成的“下次自己的活跃阶段不变为活跃状态”临时标记。
+   */
+  readonly memberActivePhaseSkips: readonly MemberActivePhaseSkipState[];
 
   // ---- 游戏进程状态 ----
 
@@ -697,6 +727,8 @@ export function createGameState(
     inspectionZone: createEmptyInspectionZone(),
     inspectionContext: null,
     liveResolution: createEmptyLiveResolutionState(),
+    liveProhibitions: [],
+    memberActivePhaseSkips: [],
 
     isStarted: false,
     isEnded: false,

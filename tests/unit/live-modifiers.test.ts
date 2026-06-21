@@ -668,6 +668,88 @@ describe('live modifier helpers', () => {
     expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
   });
 
+  it('collects PL!HS-pb1-014 continuous SOURCE_MEMBER pink Heart only when front opponent cost is higher', () => {
+    const hime = createCardInstance(
+      {
+        cardCode: 'PL!HS-pb1-014-R',
+        name: '安養寺姫芽',
+        groupName: '莲之空',
+        unitName: 'みらくらぱーく！',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'hime-pb1-014'
+    );
+    const highCostOpponent = createCardInstance(
+      {
+        cardCode: 'OPP-HIGH',
+        name: 'High Cost Opponent',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p2',
+      'opponent-high'
+    );
+    const lowCostOpponent = createCardInstance(
+      {
+        cardCode: 'OPP-LOW',
+        name: 'Low Cost Opponent',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p2',
+      'opponent-low'
+    );
+
+    let game = createGameState('hs-pb1-014-front-high-cost', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hime, highCostOpponent, lowCostOpponent]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, hime.instanceId),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.RIGHT,
+        highCostOpponent.instanceId
+      ),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      sourceCardId: hime.instanceId,
+      abilityId: 'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart',
+    });
+
+    const lowCostGame = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.RIGHT,
+        lowCostOpponent.instanceId
+      ),
+    }));
+    expect(
+      collectLiveModifiers(lowCostGame).some(
+        (modifier) =>
+          modifier.kind === 'HEART' &&
+          modifier.abilityId === 'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart'
+      )
+    ).toBe(false);
+  });
+
   it('recomputes PL!-bp5-008 continuous Heart without leaving stale modifiers', () => {
     const hanayo = createCardInstance(
       {
@@ -781,6 +863,82 @@ describe('live modifier helpers', () => {
       createHeartIcon(HeartColor.YELLOW, 1),
     ]);
     expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+  });
+
+  it('collects PL!SP-bp5-012 as SOURCE_MEMBER yellow Heart when own Liella LIVE requirement total is exactly 8', () => {
+    const kanon = createSpBp5012Kanon('sp-bp5-012-kanon');
+    const liellaLive = createCardInstance(
+      createLiellaLiveData('PL!SP-TEST-LIVE-8', 'Liella Requirement 8', {
+        [HeartColor.RED]: 3,
+        [HeartColor.YELLOW]: 5,
+      }),
+      'p1',
+      'liella-live-8'
+    );
+
+    let game = createGameState('sp-bp5-012-requirement-eight', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kanon, liellaLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kanon.instanceId),
+      liveZone: addCardToStatefulZone(player.liveZone, liellaLive.instanceId),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      sourceCardId: kanon.instanceId,
+      abilityId: 'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart',
+    });
+    expect(getMemberEffectiveHeartIcons(game, 'p1', kanon.instanceId, modifiers)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.YELLOW, 1),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+    expect(game.liveResolution.playerHeartBonuses.has('p1')).toBe(false);
+  });
+
+  it('does not collect PL!SP-bp5-012 yellow Heart when own Liella LIVE requirement total is 7', () => {
+    const game = createSpBp5012ContinuousGame({
+      live: createLiellaLiveData('PL!SP-TEST-LIVE-7', 'Liella Requirement 7', {
+        [HeartColor.RED]: 3,
+        [HeartColor.YELLOW]: 4,
+      }),
+    });
+
+    expect(hasSpBp5012YellowHeartModifier(game)).toBe(false);
+  });
+
+  it('does not collect PL!SP-bp5-012 yellow Heart for non-Liella LIVE even when requirement total is at least 8', () => {
+    const game = createSpBp5012ContinuousGame({
+      live: {
+        ...createLiellaLiveData('PL!S-TEST-LIVE-8', 'Aqours Requirement 8', {
+          [HeartColor.RED]: 3,
+          [HeartColor.YELLOW]: 5,
+        }),
+        groupName: 'Aqours',
+      },
+    });
+
+    expect(hasSpBp5012YellowHeartModifier(game)).toBe(false);
+  });
+
+  it('does not collect PL!SP-bp5-012 yellow Heart when own LIVE zone is empty', () => {
+    const kanon = createSpBp5012Kanon('sp-bp5-012-empty-live-zone');
+    let game = createGameState('sp-bp5-012-empty-live-zone', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kanon]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kanon.instanceId),
+    }));
+
+    expect(hasSpBp5012YellowHeartModifier(game)).toBe(false);
+    expect(getMemberEffectiveHeartIcons(game, 'p1', kanon.instanceId)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+    ]);
   });
 
   it('does not collect PL!-bp5-003 yellow Heart with fewer than three stage member names', () => {
@@ -1368,6 +1526,16 @@ function hasBp5003YellowHeartModifier(game: ReturnType<typeof createGameState>):
   );
 }
 
+function hasSpBp5012YellowHeartModifier(game: ReturnType<typeof createGameState>): boolean {
+  return collectLiveModifiers(game).some(
+    (modifier) =>
+      modifier.kind === 'HEART' &&
+      modifier.target === 'SOURCE_MEMBER' &&
+      modifier.abilityId ===
+        'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart'
+  );
+}
+
 function hasBp4002PurpleHeartModifier(game: ReturnType<typeof createGameState>): boolean {
   return collectLiveModifiers(game).some(
     (modifier) =>
@@ -1398,6 +1566,52 @@ function createBp5003Kotori(instanceId: string) {
     'p1',
     instanceId
   );
+}
+
+function createSpBp5012Kanon(instanceId: string) {
+  return createCardInstance(
+    {
+      cardCode: 'PL!SP-bp5-012-N',
+      name: '澁谷かのん',
+      groupName: 'Liella!',
+      cardType: CardType.MEMBER,
+      cost: 2,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    },
+    'p1',
+    instanceId
+  );
+}
+
+function createLiellaLiveData(
+  cardCode: string,
+  name: string,
+  requirements: Record<string, number>
+) {
+  return {
+    cardCode,
+    name,
+    groupName: 'Liella!',
+    cardType: CardType.LIVE,
+    score: 4,
+    requirements: createHeartRequirement(requirements),
+  };
+}
+
+function createSpBp5012ContinuousGame(options: {
+  readonly live: ReturnType<typeof createLiellaLiveData>;
+}) {
+  const kanon = createSpBp5012Kanon('sp-bp5-012-kanon-negative');
+  const live = createCardInstance(options.live, 'p1', 'sp-bp5-012-live-negative');
+  let game = createGameState('sp-bp5-012-negative', 'p1', 'P1', 'p2', 'P2');
+  game = registerCards(game, [kanon, live]);
+  game = updatePlayer(game, 'p1', (player) => ({
+    ...player,
+    memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kanon.instanceId),
+    liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+  }));
+  return game;
 }
 
 function createDreaminGoGo(instanceId: string) {

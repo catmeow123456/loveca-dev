@@ -6,45 +6,61 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, ZoneType } from '../../../../shared/types/enums.js';
-import { HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID } from '../../ability-ids.js';
+import {
+  HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
+  HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
+} from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { memberHasHeartColor } from '../../../effects/card-selectors.js';
 import { allCardIdsMatchingSelector } from '../../../effects/conditions.js';
-import {
-  inspectTopCards,
-  moveInspectedCardsToWaitingRoom,
-} from '../../../effects/look-top.js';
+import { inspectTopCards, moveInspectedCardsToWaitingRoom } from '../../../effects/look-top.js';
 
-const HS_PR_019_REVEAL_TOP_THREE_STEP_ID = 'HS_PR_019_REVEAL_TOP_THREE';
-const GREEN_HEART_MEMBER_CARD = memberHasHeartColor(HeartColor.GREEN);
+interface TopThreeHeartConfig {
+  readonly abilityId: string;
+  readonly stepId: string;
+  readonly heartColor: HeartColor;
+  readonly heartLabel: string;
+  readonly finishStep: string;
+}
+
+const TOP_THREE_HEART_CONFIGS: readonly TopThreeHeartConfig[] = [
+  {
+    abilityId: HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
+    stepId: 'HS_PR_019_REVEAL_TOP_THREE',
+    heartColor: HeartColor.GREEN,
+    heartLabel: '绿色Heart',
+    finishStep: 'FINISH_MILL_TOP_THREE_CHECK_GREEN_HEART_MEMBERS',
+  },
+  {
+    abilityId: HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
+    stepId: 'HS_PR_021_REVEAL_TOP_THREE',
+    heartColor: HeartColor.PINK,
+    heartLabel: '桃Heart',
+    finishStep: 'FINISH_MILL_TOP_THREE_CHECK_PINK_HEART_MEMBERS',
+  },
+];
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export function registerHsPr019GinkoWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
-    HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
-    (game, ability, options) =>
-      startHsPr019GinkoMillGainGreenHeartInspection(
-        game,
-        ability,
-        options.orderedResolution === true
-      )
-  );
-  registerActiveEffectStepHandler(
-    HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
-    HS_PR_019_REVEAL_TOP_THREE_STEP_ID,
-    (game, _input, context) =>
-      finishHsPr019GinkoMillGainGreenHeart(game, context.continuePendingCardEffects)
-  );
+  for (const config of TOP_THREE_HEART_CONFIGS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
+      startHsPrTopThreeHeartInspection(game, ability, options.orderedResolution === true, config)
+    );
+    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, _input, context) =>
+      finishHsPrTopThreeHeart(game, context.continuePendingCardEffects, config)
+    );
+  }
 }
 
-function startHsPr019GinkoMillGainGreenHeartInspection(
+function startHsPrTopThreeHeartInspection(
   game: GameState,
   ability: PendingAbilityState,
-  orderedResolution: boolean
+  orderedResolution: boolean,
+  config: TopThreeHeartConfig
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
@@ -68,10 +84,9 @@ function startHsPr019GinkoMillGainGreenHeartInspection(
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
       controllerId: ability.controllerId,
-      effectText: getAbilityEffectText(HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID),
-      stepId: HS_PR_019_REVEAL_TOP_THREE_STEP_ID,
-      stepText:
-        '卡组顶3张已公开。确认后将这些牌放入休息室，并在均为持有绿色Heart的成员时获得绿色Heart。',
+      effectText: getAbilityEffectText(config.abilityId),
+      stepId: config.stepId,
+      stepText: `卡组顶3张已公开。确认后将这些牌放入休息室，并在均为持有${config.heartLabel}的成员时获得${config.heartLabel}。`,
       awaitingPlayerId: player.id,
       inspectionCardIds: inspectedCardIds,
       metadata: {
@@ -87,16 +102,13 @@ function startHsPr019GinkoMillGainGreenHeartInspection(
   });
 }
 
-function finishHsPr019GinkoMillGainGreenHeart(
+function finishHsPrTopThreeHeart(
   game: GameState,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  config: TopThreeHeartConfig
 ): GameState {
   const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID ||
-    effect.stepId !== HS_PR_019_REVEAL_TOP_THREE_STEP_ID
-  ) {
+  if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.stepId) {
     return game;
   }
 
@@ -108,7 +120,7 @@ function finishHsPr019GinkoMillGainGreenHeart(
   const inspectedCardIds = effect.inspectionCardIds ?? [];
   const conditionMet =
     inspectedCardIds.length === 3 &&
-    allCardIdsMatchingSelector(game, inspectedCardIds, GREEN_HEART_MEMBER_CARD);
+    allCardIdsMatchingSelector(game, inspectedCardIds, memberHasHeartColor(config.heartColor));
 
   const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
   if (!moveResult) {
@@ -130,7 +142,7 @@ function finishHsPr019GinkoMillGainGreenHeart(
       memberCardId: effect.sourceCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
-      hearts: [{ color: HeartColor.GREEN, count: 1 }],
+      hearts: [{ color: config.heartColor, count: 1 }],
     });
     if (!modifierResult) {
       return game;
@@ -143,10 +155,10 @@ function finishHsPr019GinkoMillGainGreenHeart(
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
-      step: 'FINISH_MILL_TOP_THREE_CHECK_GREEN_HEART_MEMBERS',
+      step: config.finishStep,
       milledCardIds: moveResult.movedCardIds,
       conditionMet,
-      heartBonus: conditionMet ? [{ color: HeartColor.GREEN, count: 1 }] : [],
+      heartBonus: conditionMet ? [{ color: config.heartColor, count: 1 }] : [],
     }),
     effect.metadata?.orderedResolution === true
   );

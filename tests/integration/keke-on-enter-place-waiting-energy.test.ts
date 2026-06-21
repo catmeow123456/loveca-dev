@@ -8,7 +8,10 @@ import {
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
-import { KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
+  KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   GamePhase,
@@ -156,5 +159,88 @@ describe('KEKE on-enter place waiting energy workflow', () => {
           action.payload.step === 'SKIP'
       )
     ).toBe(true);
+  });
+
+  it('triggers PB1-003 auto once after discarding a hand card for waiting energy', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('keke-discard-triggers-pb1-003', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const keke = createCardInstance(
+      createMemberCard('PL!SP-PR-004-PR', '唐可可', 4),
+      PLAYER1,
+      'p1-keke-positive-source'
+    );
+    const pb1003Source = createCardInstance(
+      createMemberCard('PL!HS-pb1-003-R', '大沢瑠璃乃', 15),
+      PLAYER1,
+      'p1-keke-pb1-003'
+    );
+    const discardCard = createCardInstance(
+      createMemberCard('PL!SP-test-discard', 'Discard', 1),
+      PLAYER1,
+      'p1-keke-discard'
+    );
+    const state = registerCards(session.state!, [keke, pb1003Source, discardCard]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      energyDeck: { cardIds: string[] };
+      energyZone: { cardIds: string[]; cardStates: Map<string, { orientation: OrientationState }> };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face?: unknown }>;
+      };
+    };
+    const energyDeckBefore = [...p1.energyDeck.cardIds];
+    removeFromPlayerZones(p1);
+    p1.hand.cardIds = [keke.instanceId, discardCard.instanceId];
+    p1.energyDeck.cardIds = energyDeckBefore;
+    p1.memberSlots.slots[SlotPosition.RIGHT] = pb1003Source.instanceId;
+    p1.memberSlots.cardStates = new Map([
+      [pb1003Source.instanceId, { orientation: OrientationState.ACTIVE }],
+    ]);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, keke.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID
+    );
+
+    const discardResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        discardCard.instanceId
+      )
+    );
+
+    expect(discardResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardCard.instanceId]);
+    expect(session.state?.players[0].energyZone.cardIds).toHaveLength(1);
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === pb1003Source.instanceId &&
+          action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
+      )
+    ).toHaveLength(1);
   });
 });

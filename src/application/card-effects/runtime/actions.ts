@@ -1,13 +1,18 @@
 import { isMemberCardData } from '../../../domain/entities/card.js';
 import {
+  emitGameEvent,
   getCardById,
   getPlayerById,
   updatePlayer,
   type GameState,
   type LiveModifierState,
 } from '../../../domain/entities/game.js';
+import {
+  createEnterWaitingRoomEvent,
+  type EnterWaitingRoomEvent,
+} from '../../../domain/events/game-events.js';
 import { addLiveModifier } from '../../../domain/rules/live-modifiers.js';
-import { OrientationState } from '../../../shared/types/enums.js';
+import { OrientationState, ZoneType } from '../../../shared/types/enums.js';
 import { paySelectedDiscardHandCost } from '../../effects/effect-costs.js';
 import { drawCardsFromMainDeckToHand, type DrawCardsResult } from '../../effects/draw.js';
 import { shuffleZone } from '../../../domain/entities/zone.js';
@@ -33,6 +38,7 @@ export interface DiscardOneHandCardToWaitingRoomOptions {
 export interface DiscardHandCardsToWaitingRoomResult {
   readonly gameState: GameState;
   readonly discardedCardIds: readonly string[];
+  readonly enterWaitingRoomEvent?: EnterWaitingRoomEvent;
 }
 
 export type RecoverCardsFromWaitingRoomToHandOptions =
@@ -113,6 +119,8 @@ export function drawCardsForEachPlayer(
   };
 }
 
+// Raw action helper: only moves hand cards to waiting room and records EnterWaitingRoomEvent.
+// Workflows must use discardHandCardsToWaitingRoomAndEnqueueTriggers; bare low-level calls need a comment explaining why trigger enqueue is skipped.
 export function discardHandCardsToWaitingRoomForPlayer(
   game: GameState,
   playerId: string,
@@ -129,8 +137,7 @@ export function discardHandCardsToWaitingRoomForPlayer(
   if (
     selectedCardIds.length !== exactCount ||
     uniqueSelectedCardIds.length !== selectedCardIds.length ||
-    (candidateCardIds &&
-      uniqueSelectedCardIds.some((cardId) => !candidateCardIds.includes(cardId)))
+    (candidateCardIds && uniqueSelectedCardIds.some((cardId) => !candidateCardIds.includes(cardId)))
   ) {
     return null;
   }
@@ -146,13 +153,22 @@ export function discardHandCardsToWaitingRoomForPlayer(
   if (!discardResult) {
     return null;
   }
+  const enterWaitingRoomEvent = createEnterWaitingRoomEvent(
+    discardResult.discardedHandCardIds,
+    ZoneType.HAND,
+    playerId,
+    playerId
+  );
 
   return {
-    gameState: discardResult.gameState,
+    gameState: emitGameEvent(discardResult.gameState, enterWaitingRoomEvent),
     discardedCardIds: discardResult.discardedHandCardIds,
+    enterWaitingRoomEvent,
   };
 }
 
+// Raw action helper: single-card convenience path, still only records EnterWaitingRoomEvent.
+// Workflows must use discardOneHandCardToWaitingRoomAndEnqueueTriggers; bare low-level calls need a comment explaining why trigger enqueue is skipped.
 export function discardOneHandCardToWaitingRoomForPlayer(
   game: GameState,
   playerId: string,
@@ -344,9 +360,7 @@ export function shuffleWaitingRoomCardsToDeckBottomForPlayer(
     ...currentPlayer,
     waitingRoom: {
       ...currentPlayer.waitingRoom,
-      cardIds: currentPlayer.waitingRoom.cardIds.filter(
-        (cardId) => !selectedCardIdSet.has(cardId)
-      ),
+      cardIds: currentPlayer.waitingRoom.cardIds.filter((cardId) => !selectedCardIdSet.has(cardId)),
     },
     mainDeck: {
       ...currentPlayer.mainDeck,

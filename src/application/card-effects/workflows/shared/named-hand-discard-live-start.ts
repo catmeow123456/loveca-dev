@@ -13,7 +13,10 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import { discardHandCardsToWaitingRoomForPlayer } from '../../runtime/actions.js';
+import {
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
+  type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+} from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -50,7 +53,9 @@ const NAMED_HAND_DISCARD_LIVE_START_CONFIGS: readonly NamedHandDiscardLiveStartC
   },
 ];
 
-export function registerNamedHandDiscardLiveStartWorkflowHandlers(): void {
+export function registerNamedHandDiscardLiveStartWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   for (const config of NAMED_HAND_DISCARD_LIVE_START_CONFIGS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
       startNamedHandDiscardLiveStartEffect(
@@ -68,7 +73,8 @@ export function registerNamedHandDiscardLiveStartWorkflowHandlers(): void {
           ? finishNamedHandDiscardLiveStartEffect(
               game,
               input.selectedCardIds,
-              context.continuePendingCardEffects
+              context.continuePendingCardEffects,
+              deps.enqueueTriggeredCardEffects
             )
           : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
     );
@@ -133,7 +139,8 @@ function startNamedHandDiscardLiveStartEffect(
 function finishNamedHandDiscardLiveStartEffect(
   game: GameState,
   selectedCardIds: readonly string[],
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
@@ -155,14 +162,15 @@ function finishNamedHandDiscardLiveStartEffect(
     return game;
   }
 
-  const discardResult = discardHandCardsToWaitingRoomForPlayer(
+  const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
     uniqueSelectedCardIds,
     {
       count: uniqueSelectedCardIds.length,
       candidateCardIds: effect.selectableCardIds ?? [],
-    }
+    },
+    enqueueTriggeredCardEffects
   );
   if (!discardResult) {
     return game;

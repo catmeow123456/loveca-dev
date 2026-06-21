@@ -10,7 +10,13 @@ import {
   getStageMemberOrientationTargetMetadata,
   resolveStageMemberOrientationTargetSelection,
 } from '../../src/application/effects/stage-member-target-selection';
-import { CardType, HeartColor, OrientationState, SlotPosition } from '../../src/shared/types/enums';
+import {
+  CardType,
+  FaceState,
+  HeartColor,
+  OrientationState,
+  SlotPosition,
+} from '../../src/shared/types/enums';
 
 function createMemberCard(cardCode: string, cost: number): MemberCardData {
   return {
@@ -71,6 +77,77 @@ describe('stage member target selection helpers', () => {
     expect(result.activeEffect?.metadata?.targetPlayerId).toBe('p2');
     expect(result.activeEffect?.metadata?.targetOrientation).toBe(OrientationState.WAITING);
     expect(result.activeEffect?.metadata?.orderedResolution).toBe(true);
+  });
+
+  it('excludes matching stage members already in the target orientation', () => {
+    const activeMember = createCardInstance(createMemberCard('ACTIVE-COST-4', 4), 'p2', 'active');
+    const waitingMember = createCardInstance(
+      createMemberCard('WAITING-COST-4', 4),
+      'p2',
+      'waiting'
+    );
+    let game = createGameState('stage-target-excludes-target-orientation', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [activeMember, waitingMember]);
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, activeMember.instanceId),
+        SlotPosition.RIGHT,
+        waitingMember.instanceId,
+        { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }
+      ),
+    }));
+
+    const result = createStageMemberOrientationTargetSelection(game, {
+      ability: createPendingAbility(),
+      effectText: '选择目标成员。',
+      stepId: 'SELECT_STAGE_MEMBER',
+      stepText: '请选择目标成员。',
+      awaitingPlayerId: 'p1',
+      targetPlayerId: 'p2',
+      selector: and(typeIs(CardType.MEMBER), costLte(4)),
+      targetOrientation: OrientationState.WAITING,
+      selectionLabel: '选择费用小于等于4的成员',
+      orderedResolution: false,
+    });
+
+    expect(result.selectableCardIds).toEqual([activeMember.instanceId]);
+    expect(result.activeEffect?.selectableCardIds).toEqual([activeMember.instanceId]);
+  });
+
+  it('returns an empty start result when all matching stage members already have the target orientation', () => {
+    const waitingMember = createCardInstance(
+      createMemberCard('WAITING-COST-4', 4),
+      'p2',
+      'waiting'
+    );
+    let game = createGameState('stage-target-all-already-waiting', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [waitingMember]);
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        waitingMember.instanceId,
+        { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }
+      ),
+    }));
+
+    const result = createStageMemberOrientationTargetSelection(game, {
+      ability: createPendingAbility(),
+      effectText: '选择目标成员。',
+      stepId: 'SELECT_STAGE_MEMBER',
+      stepText: '请选择目标成员。',
+      awaitingPlayerId: 'p1',
+      targetPlayerId: 'p2',
+      selector: and(typeIs(CardType.MEMBER), costLte(4)),
+      targetOrientation: OrientationState.WAITING,
+      selectionLabel: '选择费用小于等于4的成员',
+      orderedResolution: false,
+    });
+
+    expect(result.selectableCardIds).toEqual([]);
+    expect(result.activeEffect).toBeNull();
   });
 
   it('resolves the selected stage member orientation', () => {

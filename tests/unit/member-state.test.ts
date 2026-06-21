@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import type { MemberCardData, EnergyCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
-import { addEnergyBelowMember, placeCardInSlot } from '../../src/domain/entities/zone';
+import { recordMoveToStage, recordPositionMove } from '../../src/domain/entities/player';
+import {
+  addEnergyBelowMember,
+  placeCardInSlot,
+  removeCardFromSlot,
+} from '../../src/domain/entities/zone';
+import {
+  getPositionMovedStageMemberIdsMatching,
+  hasMemberPositionMovedThisTurn,
+} from '../../src/domain/rules/member-turn-state';
 import {
   moveMemberBetweenSlots,
   playMembersFromWaitingRoomToEmptySlots,
@@ -234,6 +243,10 @@ describe('member state effect helpers', () => {
       memberA.instanceId,
       memberB.instanceId,
     ]);
+    expect(getPositionMovedStageMemberIdsMatching(result!.gameState, 'p1', () => true)).toEqual([
+      memberB.instanceId,
+      memberA.instanceId,
+    ]);
     expect(result?.gameState.eventLog).toHaveLength(2);
     expect(result?.gameState.eventLog.map((entry) => entry.event)).toMatchObject([
       {
@@ -299,5 +312,86 @@ describe('member state effect helpers', () => {
     expect(setMemberOrientation(game, 'p1', member.instanceId, OrientationState.WAITING)).toBeNull();
     expect(moveMemberBetweenSlots(game, 'p1', member.instanceId, SlotPosition.RIGHT)).toBeNull();
     expect(game.eventLog).toEqual([]);
+  });
+
+  it('queries whether a member position-moved this turn from the turn record only', () => {
+    const member = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
+    let game = createGameState('member-turn-position-moved-query', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member]);
+
+    expect(hasMemberPositionMovedThisTurn(game, 'p1', member.instanceId)).toBe(false);
+    expect(hasMemberPositionMovedThisTurn(game, 'missing-player', member.instanceId)).toBe(false);
+
+    game = updatePlayer(game, 'p1', (player) => recordPositionMove(player, member.instanceId));
+
+    expect(hasMemberPositionMovedThisTurn(game, 'p1', member.instanceId)).toBe(true);
+  });
+
+  it('does not treat moved-to-stage records as member position moves', () => {
+    const member = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
+    let game = createGameState('member-turn-enter-stage-not-position-moved', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...recordMoveToStage(player, member.instanceId),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+    }));
+
+    expect(hasMemberPositionMovedThisTurn(game, 'p1', member.instanceId)).toBe(false);
+    expect(getPositionMovedStageMemberIdsMatching(game, 'p1', () => true)).toEqual([]);
+  });
+
+  it('queries current stage members that position-moved this turn and match the selector', () => {
+    const liellaMoved = createCardInstance(
+      { ...createMemberCard('MEM-A'), groupName: 'Liella!' },
+      'p1',
+      'liella-moved'
+    );
+    const museMoved = createCardInstance(
+      { ...createMemberCard('MEM-B'), groupName: "μ's" },
+      'p1',
+      'muse-moved'
+    );
+    const liellaNotMoved = createCardInstance(
+      { ...createMemberCard('MEM-C'), groupName: 'Liella!' },
+      'p1',
+      'liella-not-moved'
+    );
+    const liellaLeftStage = createCardInstance(
+      { ...createMemberCard('MEM-D'), groupName: 'Liella!' },
+      'p1',
+      'liella-left-stage'
+    );
+    let game = createGameState('member-turn-position-moved-stage-targets', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [liellaMoved, museMoved, liellaNotMoved, liellaLeftStage]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.LEFT,
+        liellaMoved.instanceId
+      );
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, museMoved.instanceId);
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.RIGHT, liellaNotMoved.instanceId);
+      let nextPlayer = recordPositionMove(player, liellaMoved.instanceId);
+      nextPlayer = recordPositionMove(nextPlayer, museMoved.instanceId);
+      nextPlayer = recordPositionMove(nextPlayer, liellaLeftStage.instanceId);
+      return { ...nextPlayer, memberSlots };
+    });
+
+    expect(
+      getPositionMovedStageMemberIdsMatching(game, 'p1', (card) => card.data.groupName === 'Liella!')
+    ).toEqual([liellaMoved.instanceId]);
+    expect(getPositionMovedStageMemberIdsMatching(game, 'p1', () => true)).toEqual([
+      liellaMoved.instanceId,
+      museMoved.instanceId,
+    ]);
+
+    const leftStageGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.LEFT),
+    }));
+
+    expect(getPositionMovedStageMemberIdsMatching(leftStageGame, 'p1', () => true)).toEqual([
+      museMoved.instanceId,
+    ]);
   });
 });

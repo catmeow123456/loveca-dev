@@ -22,6 +22,7 @@ export interface StartConfirmOnlyPendingAbilityEffectConfig {
   >;
   readonly effectText: string;
   readonly orderedResolution: boolean;
+  readonly stepText?: string;
 }
 
 export interface ContinueConfirmOnlyPendingAbilityOptions {
@@ -251,7 +252,7 @@ export function startConfirmOnlyPendingAbilityEffect(
       controllerId: config.ability.controllerId,
       effectText: config.effectText,
       stepId: CONFIRM_ONLY_PENDING_ABILITY_STEP_ID,
-      stepText: '确认后继续处理此效果。',
+      stepText: config.stepText ?? '确认后继续处理此效果。',
       awaitingPlayerId: config.ability.controllerId,
       metadata: {
         confirmOnlyPendingAbility: true,
