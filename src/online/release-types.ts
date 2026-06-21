@@ -29,6 +29,15 @@ export interface OnlineTurnOrderAgreementView {
   readonly respondedAt: number;
 }
 
+export interface OnlineRestartRequestView {
+  readonly requestId: string;
+  readonly requesterUserId: string;
+  readonly responderUserId: string;
+  readonly matchId: string;
+  readonly requestedAt: number;
+  readonly expiresAt: number;
+}
+
 export interface OnlineRoomView {
   readonly roomCode: string;
   readonly status: OnlineRoomStatus;
@@ -40,6 +49,7 @@ export interface OnlineRoomView {
   readonly members: readonly OnlineRoomMemberView[];
   readonly turnOrderProposal: OnlineTurnOrderProposalView | null;
   readonly turnOrderAgreement: OnlineTurnOrderAgreementView | null;
+  readonly restartRequest: OnlineRestartRequestView | null;
   readonly matchId: string | null;
   readonly updatedAt: number;
 }
@@ -88,6 +98,7 @@ export interface OnlineAdminRoomSummary {
   readonly members: readonly OnlineAdminRoomMemberSummary[];
   readonly turnOrderProposal: OnlineTurnOrderProposalView | null;
   readonly turnOrderAgreement: OnlineTurnOrderAgreementView | null;
+  readonly restartRequest: OnlineRestartRequestView | null;
   readonly matchId: string | null;
   readonly match: OnlineAdminMatchSummary | null;
   readonly updatedAt: number;

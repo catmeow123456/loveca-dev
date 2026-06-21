@@ -8,8 +8,10 @@ import {
   DoorOpen,
   Loader2,
   RefreshCw,
+  RotateCcw,
   Swords,
   Users,
+  X,
 } from 'lucide-react';
 import { DeckSelector, type DeckDisplayItem, PageHeader, ThemeToggle } from '@/components/common';
 import { GameBoard } from '@/components/game';
@@ -17,6 +19,8 @@ import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import {
+  acceptOnlineRoomRestart,
+  cancelOnlineRoomRestart,
   createOnlineRoom,
   fetchOnlineMatchSnapshot,
   fetchOnlineRoom,
@@ -24,6 +28,8 @@ import {
   leaveOnlineRoom,
   lockOnlineRoomDeck,
   proposeTurnOrder,
+  rejectOnlineRoomRestart,
+  requestOnlineRoomRestart,
   respondTurnOrder,
 } from '@/lib/onlineClient';
 import { isDeckRecordValidForCurrentCardPool } from '@/lib/deckRecordUtils';
@@ -220,6 +226,20 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const myMember = room?.members.find((member) => member.userId === room.currentUserId) ?? null;
   const opponentMember =
     room?.members.find((member) => member.userId !== room.currentUserId) ?? null;
+  const restartRequest = room?.restartRequest ?? null;
+  const isRestartRequester = Boolean(
+    restartRequest && restartRequest.requesterUserId === room?.currentUserId
+  );
+  const isRestartResponder = Boolean(
+    restartRequest && restartRequest.responderUserId === room?.currentUserId
+  );
+  const restartRequesterName = restartRequest
+    ? room?.members.find((member) => member.userId === restartRequest.requesterUserId)
+        ?.displayName ?? '对手'
+    : null;
+  const canRequestRestart = Boolean(
+    room?.status === 'IN_GAME' && !restartRequest && opponentMember?.presence === 'ACTIVE'
+  );
   const canLockDeck = Boolean(room && selectedDeck?.cloudDeck && room.status !== 'IN_GAME');
   const bothReady = Boolean(room && room.members.length === 2 && room.members.every((member) => member.ready));
   const isHost = room?.currentUserRole === 'HOST';
@@ -360,19 +380,163 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     }
   };
 
+  const handleRequestRestart = async () => {
+    if (!room) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const nextRoom = await requestOnlineRoomRestart(room.roomCode);
+      setRoom(nextRoom);
+    } catch (restartError) {
+      setError(restartError instanceof Error ? restartError.message : '请求重开失败');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAcceptRestart = async () => {
+    if (!room?.restartRequest) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const nextRoom = await acceptOnlineRoomRestart(
+        room.roomCode,
+        room.restartRequest.requestId
+      );
+      setRoom(nextRoom);
+    } catch (restartError) {
+      setError(restartError instanceof Error ? restartError.message : '同意重开失败');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRejectRestart = async () => {
+    if (!room?.restartRequest) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const nextRoom = await rejectOnlineRoomRestart(
+        room.roomCode,
+        room.restartRequest.requestId
+      );
+      setRoom(nextRoom);
+    } catch (restartError) {
+      setError(restartError instanceof Error ? restartError.message : '拒绝重开失败');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancelRestart = async () => {
+    if (!room?.restartRequest) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const nextRoom = await cancelOnlineRoomRestart(
+        room.roomCode,
+        room.restartRequest.requestId
+      );
+      setRoom(nextRoom);
+    } catch (restartError) {
+      setError(restartError instanceof Error ? restartError.message : '取消重开失败');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (room?.status === 'IN_GAME' && remoteSession?.matchId === room.matchId && matchView) {
     return (
       <div className="relative h-screen overflow-hidden">
-        <div className="absolute left-4 top-4 z-[120] flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleLeaveRoom}
-            disabled={isSubmitting}
-            className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
-          >
-            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <DoorOpen size={16} />}
-            离开房间
-          </button>
+        <div className="absolute left-4 top-4 z-[120] flex max-w-[calc(100vw-2rem)] flex-col items-start gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {!restartRequest && (
+              <button
+                type="button"
+                onClick={handleRequestRestart}
+                disabled={!canRequestRestart || isSubmitting}
+                className={`button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl ${
+                  !canRequestRestart || isSubmitting ? 'cursor-not-allowed opacity-60' : ''
+                }`}
+                title={canRequestRestart ? '请求双方同意后重新开始' : '对手在线时可以请求重开'}
+              >
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+                请求重开
+              </button>
+            )}
+            {restartRequest && isRestartRequester && (
+              <button
+                type="button"
+                onClick={handleCancelRestart}
+                disabled={isSubmitting}
+                className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
+              >
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+                取消重开
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleLeaveRoom}
+              disabled={isSubmitting}
+              className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
+            >
+              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <DoorOpen size={16} />}
+              离开房间
+            </button>
+          </div>
+          {restartRequest && (
+            <div className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-3 text-sm text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent-primary)]">
+                    重开请求
+                  </div>
+                  <div className="mt-1 font-semibold">
+                    {isRestartRequester ? '已发送重开请求' : `${restartRequesterName} 请求重开`}
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                    {isRestartRequester
+                      ? '等待对手同意；同意后会创建一局新对局。'
+                      : '同意后会封存当前对局，并在同一房间创建新对局。'}
+                  </div>
+                </div>
+                <RotateCcw size={18} className="mt-0.5 shrink-0 text-[var(--accent-primary)]" />
+              </div>
+              {isRestartResponder && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRejectRestart}
+                    disabled={isSubmitting}
+                    className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
+                  >
+                    拒绝
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAcceptRestart}
+                    disabled={isSubmitting}
+                    className="button-primary inline-flex min-h-10 items-center justify-center gap-2 px-3 text-sm"
+                  >
+                    同意重开
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <GameBoard />
         <PreMatchBriefingModal

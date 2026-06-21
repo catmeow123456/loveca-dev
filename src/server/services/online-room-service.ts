@@ -2,6 +2,7 @@ import type { DeckConfig as RuntimeDeckConfig } from '../../application/game-ser
 import { DeckLoader } from '../../domain/card-data/deck-loader.js';
 import type {
   OnlineAdminRoomSummary,
+  OnlineRestartRequestView,
   OnlineRoomMemberPresence,
   OnlineRoomMemberRole,
   OnlineRoomStatus,
@@ -25,6 +26,7 @@ import {
 
 const MEMBER_PRESENCE_STALE_MS = 15 * 1000;
 const ROOM_DESTROY_AFTER_ALL_ABSENT_MS = 60 * 1000;
+const RESTART_REQUEST_TTL_MS = 60 * 1000;
 
 interface OnlineRoomMemberState {
   readonly userId: string;
@@ -42,6 +44,8 @@ type OnlineRoomTurnOrderProposalState = OnlineTurnOrderProposalView;
 
 type OnlineRoomTurnOrderAgreementState = OnlineTurnOrderAgreementView;
 
+type OnlineRestartRequestState = OnlineRestartRequestView;
+
 interface OnlineRoomState {
   readonly roomCode: string;
   status: OnlineRoomStatus;
@@ -49,6 +53,7 @@ interface OnlineRoomState {
   readonly members: OnlineRoomMemberState[];
   turnOrderProposal: OnlineRoomTurnOrderProposalState | null;
   turnOrderAgreement: OnlineRoomTurnOrderAgreementState | null;
+  restartRequest: OnlineRestartRequestState | null;
   matchId: string | null;
   seatAssignments: Partial<Record<Seat, string>>;
   updatedAt: number;
@@ -138,6 +143,7 @@ export class OnlineRoomService {
       ],
       turnOrderProposal: null,
       turnOrderAgreement: null,
+      restartRequest: null,
       matchId: null,
       seatAssignments: {},
       updatedAt: now,
@@ -198,6 +204,7 @@ export class OnlineRoomService {
       activeInGameRoom.matchId &&
       this.matchService.getMatch(activeInGameRoom.matchId)
     ) {
+      this.expireRestartRequestIfNeeded(activeInGameRoom, this.now());
       await this.reactivateMember(activeInGameRoom, activeInGameMember);
       return this.buildRoomView(activeInGameRoom, activeInGameMember);
     }
@@ -238,6 +245,7 @@ export class OnlineRoomService {
 
     room.turnOrderProposal = null;
     room.turnOrderAgreement = null;
+    room.restartRequest = null;
     room.status = 'PREPARING';
     touchRoom(room, member.lastSeenAt);
 
@@ -346,7 +354,162 @@ export class OnlineRoomService {
       );
     }
     room.matchId = match.matchId;
+    room.restartRequest = null;
     room.status = 'IN_GAME';
+    touchRoom(room, now);
+
+    return this.buildRoomView(room, member);
+  }
+
+  async requestRestart(roomCodeInput: string, userId: string): Promise<OnlineRoomView> {
+    await this.cleanupExpiredState();
+
+    const room = this.getRoomState(roomCodeInput);
+    const member = this.requireMember(room, userId);
+    const now = this.now();
+    this.expireRestartRequestIfNeeded(room, now);
+    this.ensureCanRestart(room);
+
+    if (room.restartRequest) {
+      if (room.restartRequest.requesterUserId === userId) {
+        member.presence = 'ACTIVE';
+        member.lastSeenAt = now;
+        touchRoom(room, now);
+        return this.buildRoomView(room, member);
+      }
+
+      throw new OnlineRoomServiceError('ONLINE_RESTART_CONFLICT', '已有重开请求待处理', 409);
+    }
+
+    const responder = room.members.find((candidate) => candidate.userId !== userId);
+    if (!responder) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_RESTART_FORBIDDEN',
+        '需要双方都在房间中才能请求重开',
+        409
+      );
+    }
+    if (responder.presence !== 'ACTIVE') {
+      throw new OnlineRoomServiceError(
+        'ONLINE_RESTART_FORBIDDEN',
+        '对手当前不在线，不能请求重开',
+        409
+      );
+    }
+
+    room.restartRequest = {
+      requestId: `${room.roomCode}:restart:${now}`,
+      requesterUserId: userId,
+      responderUserId: responder.userId,
+      matchId: room.matchId!,
+      requestedAt: now,
+      expiresAt: now + RESTART_REQUEST_TTL_MS,
+    };
+    member.presence = 'ACTIVE';
+    member.lastSeenAt = now;
+    touchRoom(room, now);
+
+    return this.buildRoomView(room, member);
+  }
+
+  async acceptRestartRequest(
+    roomCodeInput: string,
+    userId: string,
+    requestId: string
+  ): Promise<OnlineRoomView> {
+    await this.cleanupExpiredState();
+
+    const room = this.getRoomState(roomCodeInput);
+    const member = this.requireMember(room, userId);
+    const now = this.now();
+    this.expireRestartRequestIfNeeded(room, now);
+    this.ensureCanRestart(room);
+    const request = this.requireRestartRequest(room, requestId);
+    if (request.responderUserId !== userId) {
+      throw new OnlineRoomServiceError('ONLINE_RESTART_FORBIDDEN', '只有对手可以同意重开请求', 403);
+    }
+
+    const previousMatchId = room.matchId!;
+    let nextMatch: Awaited<ReturnType<OnlineMatchService['createMatch']>>;
+    try {
+      nextMatch = await this.startMatch(room);
+    } catch (error) {
+      throw toMatchStartRoomError(error, '无法重开对局');
+    }
+
+    const previousDeleted = await this.matchService.deleteMatch(previousMatchId, {
+      reason: 'ROOM_RESTART_ACCEPTED',
+      now,
+    });
+    if (!previousDeleted) {
+      await this.matchService.deleteMatch(nextMatch.matchId, {
+        reason: 'ROOM_RESTART_ROLLBACK',
+        now,
+      });
+      throw new OnlineRoomServiceError(
+        'ONLINE_RESTART_SEAL_FAILED',
+        '无法重开对局：旧对局封存失败，请稍后重试',
+        503
+      );
+    }
+
+    room.matchId = nextMatch.matchId;
+    room.restartRequest = null;
+    room.status = 'IN_GAME';
+    member.presence = 'ACTIVE';
+    member.lastSeenAt = now;
+    touchRoom(room, now);
+
+    return this.buildRoomView(room, member);
+  }
+
+  async rejectRestartRequest(
+    roomCodeInput: string,
+    userId: string,
+    requestId: string
+  ): Promise<OnlineRoomView> {
+    await this.cleanupExpiredState();
+
+    const room = this.getRoomState(roomCodeInput);
+    const member = this.requireMember(room, userId);
+    const now = this.now();
+    this.expireRestartRequestIfNeeded(room, now);
+    const request = this.requireRestartRequest(room, requestId);
+    if (request.responderUserId !== userId) {
+      throw new OnlineRoomServiceError('ONLINE_RESTART_FORBIDDEN', '只有对手可以拒绝重开请求', 403);
+    }
+
+    room.restartRequest = null;
+    member.presence = 'ACTIVE';
+    member.lastSeenAt = now;
+    touchRoom(room, now);
+
+    return this.buildRoomView(room, member);
+  }
+
+  async cancelRestartRequest(
+    roomCodeInput: string,
+    userId: string,
+    requestId: string
+  ): Promise<OnlineRoomView> {
+    await this.cleanupExpiredState();
+
+    const room = this.getRoomState(roomCodeInput);
+    const member = this.requireMember(room, userId);
+    const now = this.now();
+    this.expireRestartRequestIfNeeded(room, now);
+    const request = this.requireRestartRequest(room, requestId);
+    if (request.requesterUserId !== userId) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_RESTART_FORBIDDEN',
+        '只有发起者可以取消重开请求',
+        403
+      );
+    }
+
+    room.restartRequest = null;
+    member.presence = 'ACTIVE';
+    member.lastSeenAt = now;
     touchRoom(room, now);
 
     return this.buildRoomView(room, member);
@@ -362,6 +525,12 @@ export class OnlineRoomService {
     if (room.status === 'IN_GAME') {
       member.presence = 'LEFT';
       member.lastSeenAt = now;
+      if (
+        room.restartRequest?.requesterUserId === userId ||
+        room.restartRequest?.responderUserId === userId
+      ) {
+        room.restartRequest = null;
+      }
       touchRoom(room, now);
 
       return {
@@ -388,6 +557,7 @@ export class OnlineRoomService {
 
     room.turnOrderProposal = null;
     room.turnOrderAgreement = null;
+    room.restartRequest = null;
     room.status = 'PREPARING';
     touchRoom(room, now);
 
@@ -501,6 +671,7 @@ export class OnlineRoomService {
       })),
       turnOrderProposal: room.turnOrderProposal,
       turnOrderAgreement: room.turnOrderAgreement,
+      restartRequest: room.restartRequest,
       matchId: room.matchId,
       updatedAt: room.updatedAt,
     };
@@ -532,6 +703,7 @@ export class OnlineRoomService {
       })),
       turnOrderProposal: room.turnOrderProposal,
       turnOrderAgreement: room.turnOrderAgreement,
+      restartRequest: room.restartRequest,
       matchId: room.matchId,
       match: room.matchId ? this.matchService.getAdminMatchSummary(room.matchId, now) : null,
       updatedAt: room.updatedAt,
@@ -586,6 +758,8 @@ export class OnlineRoomService {
 
     for (const [roomCode, room] of this.rooms) {
       this.refreshMemberPresence(room, now);
+      this.expireRestartRequestIfNeeded(room, now);
+      this.clearRestartRequestIfParticipantInactive(room);
 
       if (room.status === 'IN_GAME') {
         if (shouldDestroyRoom(room, now)) {
@@ -650,8 +824,71 @@ export class OnlineRoomService {
 
     room.turnOrderProposal = null;
     room.turnOrderAgreement = null;
+    room.restartRequest = null;
     room.status = 'PREPARING';
     touchRoom(room, now);
+  }
+
+  private ensureCanRestart(room: OnlineRoomState): void {
+    if (room.status !== 'IN_GAME' || !room.matchId) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_RESTART_FORBIDDEN',
+        '只有进行中的对局可以请求重开',
+        409
+      );
+    }
+    if (!this.matchService.getMatch(room.matchId)) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_MATCH_GONE',
+        '当前对局不存在或已失效，不能重开',
+        404
+      );
+    }
+    if (room.members.length !== 2) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_RESTART_FORBIDDEN',
+        '需要双方都在房间中才能请求重开',
+        409
+      );
+    }
+  }
+
+  private requireRestartRequest(
+    room: OnlineRoomState,
+    requestId: string
+  ): OnlineRestartRequestState {
+    const request = room.restartRequest;
+    if (!request || request.requestId !== requestId || request.matchId !== room.matchId) {
+      throw new OnlineRoomServiceError('ONLINE_RESTART_NOT_FOUND', '重开请求不存在或已失效', 404);
+    }
+    return request;
+  }
+
+  private expireRestartRequestIfNeeded(room: OnlineRoomState, now: number): void {
+    if (!room.restartRequest) {
+      return;
+    }
+    if (room.restartRequest.expiresAt > now && room.restartRequest.matchId === room.matchId) {
+      return;
+    }
+
+    room.restartRequest = null;
+    touchRoom(room, now);
+  }
+
+  private clearRestartRequestIfParticipantInactive(room: OnlineRoomState): void {
+    const request = room.restartRequest;
+    if (!request) {
+      return;
+    }
+    const requester = findMember(room, request.requesterUserId);
+    const responder = findMember(room, request.responderUserId);
+    if (requester?.presence === 'ACTIVE' && responder?.presence === 'ACTIVE') {
+      return;
+    }
+
+    room.restartRequest = null;
+    touchRoom(room, this.now());
   }
 }
 
@@ -722,6 +959,27 @@ function ensureBothDecksLocked(room: OnlineRoomState): void {
 
 function readErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function toMatchStartRoomError(error: unknown, prefix: string): OnlineRoomServiceError {
+  if (error instanceof OnlineRoomServiceError) {
+    return error;
+  }
+  if (error instanceof OnlineMatchServiceError) {
+    return new OnlineRoomServiceError(
+      error.code,
+      `${prefix}：历史对局记录服务暂时不可用，请稍后重试`,
+      error.code === 'ONLINE_MATCH_RECORD_BEGIN_FAILED' ||
+        error.code === 'ONLINE_MATCH_RECORD_CHECKPOINT_FAILED'
+        ? 503
+        : 500
+    );
+  }
+  return new OnlineRoomServiceError(
+    'ONLINE_MATCH_START_FAILED',
+    `${prefix}：${readErrorMessage(error)}`,
+    500
+  );
 }
 
 export async function loadUserProfileForOnlineMatch(userId: string): Promise<UserProfileSummary> {

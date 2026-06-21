@@ -21,6 +21,14 @@
 
 - `myk_20260611`
 
+## 本次 2026-06-21 正式联机请求重开
+
+- 正式联机房间新增请求式重开流程：进行中对局里玩家可发起“请求重开”，对手可同意/拒绝，发起者可取消，请求会超时或在参与者离开时失效。
+- 服务端在 `OnlineRoomService` 保存 `restartRequest` 房间状态；对手同意后先创建新 match，再封存旧 match 为 `ROOM_RESTART_ACCEPTED`，最后把房间指向新 `matchId`，避免原地抹除当前对局。
+- 前端 `OnlineRoomPage` 左上角房间操作区现在把“请求重开/取消重开”和“离开房间”放在同一组；有待处理请求时显示协商条，并通过现有房间轮询同步状态。
+- 文档同步：`docs/battle-mode-purpose-and-boundaries.md` 已补充正式联机重开边界，明确重开是双方协商的房间级操作，离开房间仍是单方退出；`docs/PROJECT_REQUIREMENTS.md` 与 `game_system_design.md` 已同步高层联机能力口径。
+- 验证：`pnpm exec vitest run tests/integration/online-room-service.test.ts tests/integration/online-route-error-handling.test.ts` passed；`pnpm exec tsc --noEmit` passed；`pnpm --dir client exec tsc -b` passed；`git diff --check` passed。
+
 ## 本次 2026-06-17 对墙打退出按钮点击命中修复
 
 - 修复对墙打桌面左上角“离开房间”偶发点击无反应：`DebugControl` 顶部透明 fixed 外层原本横跨近全屏且 z-index 高于离开按钮，会在按钮上方区域吃掉点击。

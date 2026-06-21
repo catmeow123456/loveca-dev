@@ -8,6 +8,10 @@ vi.mock('../../src/server/services/online-room-service.js', () => ({
   },
   onlineRoomService: {
     touchInGameMemberByMatch: vi.fn(),
+    requestRestart: vi.fn(),
+    acceptRestartRequest: vi.fn(),
+    rejectRestartRequest: vi.fn(),
+    cancelRestartRequest: vi.fn(),
   },
 }));
 
@@ -220,5 +224,53 @@ describe('onlineRouter error handling', () => {
       idempotencyKey: 'reject-key',
     });
     expect(onlineRoomService.touchInGameMemberByMatch).toHaveBeenCalledWith('m1', 'u1');
+  });
+
+  it('重开请求路由应透传房间号、当前用户与 requestId', async () => {
+    vi.mocked(onlineRoomService.requestRestart).mockResolvedValue({
+      roomCode: 'ROOM1',
+      restartRequest: { requestId: 'req-1' },
+    } as never);
+    vi.mocked(onlineRoomService.acceptRestartRequest).mockResolvedValue({
+      roomCode: 'ROOM1',
+      matchId: 'm2',
+      restartRequest: null,
+    } as never);
+    vi.mocked(onlineRoomService.rejectRestartRequest).mockResolvedValue({
+      roomCode: 'ROOM1',
+      restartRequest: null,
+    } as never);
+    vi.mocked(onlineRoomService.cancelRestartRequest).mockResolvedValue({
+      roomCode: 'ROOM1',
+      restartRequest: null,
+    } as never);
+
+    const requestResponse = await invokeRoute('/rooms/:roomCode/restart-request', 'post', {
+      params: { roomCode: 'ROOM1' },
+    });
+    const acceptResponse = await invokeRoute(
+      '/rooms/:roomCode/restart-request/:requestId/accept',
+      'post',
+      { params: { roomCode: 'ROOM1', requestId: 'req-1' } }
+    );
+    const rejectResponse = await invokeRoute(
+      '/rooms/:roomCode/restart-request/:requestId/reject',
+      'post',
+      { params: { roomCode: 'ROOM1', requestId: 'req-2' } }
+    );
+    const cancelResponse = await invokeRoute(
+      '/rooms/:roomCode/restart-request/:requestId/cancel',
+      'post',
+      { params: { roomCode: 'ROOM1', requestId: 'req-3' } }
+    );
+
+    expect(requestResponse.statusCode).toBe(200);
+    expect(acceptResponse.statusCode).toBe(200);
+    expect(rejectResponse.statusCode).toBe(200);
+    expect(cancelResponse.statusCode).toBe(200);
+    expect(onlineRoomService.requestRestart).toHaveBeenCalledWith('ROOM1', 'u1');
+    expect(onlineRoomService.acceptRestartRequest).toHaveBeenCalledWith('ROOM1', 'u1', 'req-1');
+    expect(onlineRoomService.rejectRestartRequest).toHaveBeenCalledWith('ROOM1', 'u1', 'req-2');
+    expect(onlineRoomService.cancelRestartRequest).toHaveBeenCalledWith('ROOM1', 'u1', 'req-3');
   });
 });

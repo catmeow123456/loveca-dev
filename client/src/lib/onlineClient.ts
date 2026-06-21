@@ -98,6 +98,61 @@ export async function leaveOnlineRoom(roomCode: string): Promise<{ room: OnlineR
   return response.data;
 }
 
+export async function requestOnlineRoomRestart(roomCode: string): Promise<OnlineRoomView> {
+  const response = await apiClient.post<OnlineRoomView>(
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/restart-request`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '请求重开失败');
+  }
+  return response.data;
+}
+
+export async function acceptOnlineRoomRestart(
+  roomCode: string,
+  requestId: string
+): Promise<OnlineRoomView> {
+  const response = await apiClient.post<OnlineRoomView>(
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/restart-request/${encodeURIComponent(
+      requestId
+    )}/accept`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '同意重开失败');
+  }
+  return response.data;
+}
+
+export async function rejectOnlineRoomRestart(
+  roomCode: string,
+  requestId: string
+): Promise<OnlineRoomView> {
+  const response = await apiClient.post<OnlineRoomView>(
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/restart-request/${encodeURIComponent(
+      requestId
+    )}/reject`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '拒绝重开失败');
+  }
+  return response.data;
+}
+
+export async function cancelOnlineRoomRestart(
+  roomCode: string,
+  requestId: string
+): Promise<OnlineRoomView> {
+  const response = await apiClient.post<OnlineRoomView>(
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/restart-request/${encodeURIComponent(
+      requestId
+    )}/cancel`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '取消重开失败');
+  }
+  return response.data;
+}
+
 export function leaveOnlineRoomOnUnload(roomCode: string): void {
   const apiBaseUrl = getApiBaseUrl();
   const accessToken = getAccessToken();

@@ -266,6 +266,68 @@ describe('OnlineRoomService', () => {
     expect(commandRoundTrip.snapshot?.playerViewState.match.viewerSeat).toBe('FIRST');
   });
 
+  it('重开请求应在对手同意后封存旧对局并创建新对局', async () => {
+    let now = 4_000_000;
+    const recorder = createTestRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({
+        userId,
+        displayName: userId === 'u1' ? 'Alpha' : 'Beta',
+      }),
+      loadOwnedDeck: async (userId, deckId) => ({
+        deckId,
+        deckName: `${userId}-${deckId}`,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('again1', 'u1');
+    await service.joinRoom('again1', 'u2');
+    await service.lockDeck('again1', 'u1', 'deck-a');
+    await service.lockDeck('again1', 'u2', 'deck-b');
+    await service.proposeTurnOrder('again1', 'u1', 'HOST_FIRST');
+    const started = await service.respondTurnOrder('again1', 'u2', true);
+    const previousMatchId = started.matchId!;
+
+    now += 1_000;
+    const requested = await service.requestRestart('again1', 'u1');
+    expect(requested.restartRequest).toMatchObject({
+      requesterUserId: 'u1',
+      responderUserId: 'u2',
+      matchId: previousMatchId,
+    });
+
+    now += 1_000;
+    const restarted = await service.acceptRestartRequest(
+      'again1',
+      'u2',
+      requested.restartRequest!.requestId
+    );
+
+    expect(restarted.status).toBe('IN_GAME');
+    expect(restarted.restartRequest).toBeNull();
+    expect(restarted.matchId).toBeTruthy();
+    expect(restarted.matchId).not.toBe(previousMatchId);
+    expect(restarted.currentUserSeat).toBe('SECOND');
+    expect(matchService.getMatch(previousMatchId)).toBeNull();
+    expect(matchService.getMatch(restarted.matchId!)).not.toBeNull();
+    expect(recorder.sealMatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matchId: previousMatchId,
+        status: 'INTERRUPTED',
+        completeness: 'PARTIAL',
+        endReason: 'ROOM_RESTART_ACCEPTED',
+      })
+    );
+
+    const snapshot = await matchService.getMatchSnapshot(restarted.matchId!, 'u2');
+    expect(snapshot?.matchId).toBe(restarted.matchId);
+    expect(snapshot?.seat).toBe('SECOND');
+  });
+
   it('recorder 启动失败时不应进入 IN_GAME 或创建运行中 match', async () => {
     const recorder = createTestRecorder({
       beginMatch: vi.fn(async () => {
