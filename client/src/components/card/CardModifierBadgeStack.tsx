@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { HeartColor } from '@game/shared/types/enums';
 import type { ViewMemberModifierDelta } from '@game/online';
 import bladeIcon from '@/assets/modifier-icons/blade.png';
+import heartAllIcon from '@/assets/modifier-icons/heart_all.png';
 import heartBlueIcon from '@/assets/modifier-icons/heart_blue.png';
 import heartGreenIcon from '@/assets/modifier-icons/heart_green.png';
 import heartPinkIcon from '@/assets/modifier-icons/heart_pink.png';
@@ -32,6 +33,7 @@ const HEART_ICON_BY_COLOR: Partial<Record<HeartColor, string>> = {
   [HeartColor.GREEN]: heartGreenIcon,
   [HeartColor.BLUE]: heartBlueIcon,
   [HeartColor.PURPLE]: heartPurpleIcon,
+  [HeartColor.RAINBOW]: heartAllIcon,
 };
 
 export const CardModifierBadgeStack = memo(function CardModifierBadgeStack({
