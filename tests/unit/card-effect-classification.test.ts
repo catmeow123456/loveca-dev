@@ -49,8 +49,10 @@ import {
   HS_BP1_003_CONTINUOUS_THREE_DIFFERENT_HASUNOSORA_SCORE_ABILITY_ID,
   HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
   HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+  HS_BP1_022_LIVE_SUCCESS_CHEER_HASUNOSORA_MEMBER_SCORE_ABILITY_ID,
   HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID,
   HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID,
+  HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID,
   HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID,
   SP_BP1_024_LIVE_START_KANON_KEKE_GAIN_HEART_BLADE_ABILITY_ID,
   SP_BP1_024_LIVE_SUCCESS_STAGE_KANON_KEKE_DRAW_ABILITY_ID,
@@ -77,6 +79,8 @@ import {
   HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
   HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
   HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+  HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID,
+  HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
   HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
   HS_BP5_006_LIVE_START_DISCARD_SAME_GROUP_CARDS_SOURCE_HEART_ABILITY_ID,
@@ -86,6 +90,9 @@ import {
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP6_003_LIVE_START_DISCARD_GAIN_MIRACRA_HEART_ABILITY_ID,
   HS_BP6_003_ON_ENTER_ACTIVATE_MIRACRA_MEMBER_RECOVER_LIVE_ABILITY_ID,
+  HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID,
+  HS_PB1_002_LIVE_START_MEMBER_BELOW_COUNT_COST_BLUE_HEART_ABILITY_ID,
+  HS_PB1_028_LIVE_START_ACTIVATE_DOLLCHESTRA_MEMBER_LIVE_START_ABILITY_ID,
   HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
   HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID,
@@ -96,6 +103,9 @@ import {
   HS_PB1_014_ON_ENTER_MOVE_OPPONENT_FRONT_ABILITY_ID,
   HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID,
   HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
+  HS_PR_016_LIVE_START_DISCARD_SAME_UNIT_GAIN_GREEN_HEART_BLADE_ABILITY_ID,
+  HS_PR_017_LIVE_START_DISCARD_SAME_UNIT_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
+  HS_PR_020_LIVE_START_PAY_ENERGY_STACK_WAITING_MEMBERS_TO_DECK_TOP_ABILITY_ID,
   N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
   SP_BP4_012_LIVE_START_PAY_ENERGY_GAIN_RED_HEART_ABILITY_ID,
   SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -912,6 +922,53 @@ describe('card effect classification registry', () => {
       });
     }
 
+    const pr016 = getCardAbilityDefinitions('PL!HS-PR-016-PR').find(
+      (ability) =>
+        ability.abilityId ===
+        HS_PR_016_LIVE_START_DISCARD_SAME_UNIT_GAIN_GREEN_HEART_BLADE_ABILITY_ID
+    );
+    expect(pr016).toMatchObject({
+      abilityId: HS_PR_016_LIVE_START_DISCARD_SAME_UNIT_GAIN_GREEN_HEART_BLADE_ABILITY_ID,
+      baseCardCodes: ['PL!HS-PR-016'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const pr017 = getCardAbilityDefinitions('PL!HS-PR-017-PR').find(
+      (ability) =>
+        ability.abilityId ===
+        HS_PR_017_LIVE_START_DISCARD_SAME_UNIT_GAIN_BLUE_HEART_BLADE_ABILITY_ID
+    );
+    expect(pr017).toMatchObject({
+      abilityId: HS_PR_017_LIVE_START_DISCARD_SAME_UNIT_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
+      baseCardCodes: ['PL!HS-PR-017'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    for (const cardCode of ['PL!HS-PR-020-PR', 'PL!HS-PR-023-PR']) {
+      const pr020Like = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          HS_PR_020_LIVE_START_PAY_ENERGY_STACK_WAITING_MEMBERS_TO_DECK_TOP_ABILITY_ID
+      );
+      expect(pr020Like).toMatchObject({
+        abilityId: HS_PR_020_LIVE_START_PAY_ENERGY_STACK_WAITING_MEMBERS_TO_DECK_TOP_ABILITY_ID,
+        baseCardCodes: ['PL!HS-PR-020', 'PL!HS-PR-023'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
+
     const bp6005Rin = getCardAbilityDefinitions('PL!-bp6-005-P').find(
       (ability) =>
         ability.abilityId === BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID
@@ -973,6 +1030,92 @@ describe('card effect classification registry', () => {
       queued: false,
       implemented: true,
       perTurnLimit: 1,
+    });
+
+    for (const cardCode of [
+      'PL!HS-bp5-002-P',
+      'PL!HS-bp5-002-R＋',
+      'PL!HS-bp5-002-AR',
+      'PL!HS-bp5-002-SEC',
+    ]) {
+      const sayakaContinuous = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID
+      );
+      expect(sayakaContinuous).toMatchObject({
+        baseCardCodes: ['PL!HS-bp5-002'],
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+      });
+
+      const sayakaActivated = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID
+      );
+      expect(sayakaActivated).toMatchObject({
+        baseCardCodes: ['PL!HS-bp5-002'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 1,
+      });
+      expect(sayakaActivated?.activatedUi).toMatchObject({
+        abilityId: HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID,
+      });
+      expect(sayakaActivated?.activatedUi?.text).toContain('[E][E]');
+      expect(sayakaActivated?.activatedUi?.text).toContain('费用<=2');
+    }
+
+    for (const cardCode of ['PL!HS-pb1-002-R', 'PL!HS-pb1-002-P＋']) {
+      const sayakaStackActivated = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID
+      );
+      expect(sayakaStackActivated).toMatchObject({
+        baseCardCodes: ['PL!HS-pb1-002'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 1,
+      });
+      expect(sayakaStackActivated?.activatedUi).toMatchObject({
+        abilityId: HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID,
+      });
+
+      const sayakaLiveStart = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          HS_PB1_002_LIVE_START_MEMBER_BELOW_COUNT_COST_BLUE_HEART_ABILITY_ID
+      );
+      expect(sayakaLiveStart).toMatchObject({
+        baseCardCodes: ['PL!HS-pb1-002'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    const compassLiveStart = getCardAbilityDefinitions('PL!HS-pb1-028-L').find(
+      (ability) =>
+        ability.abilityId ===
+        HS_PB1_028_LIVE_START_ACTIVATE_DOLLCHESTRA_MEMBER_LIVE_START_ABILITY_ID
+    );
+    expect(compassLiveStart).toMatchObject({
+      baseCardCodes: ['PL!HS-pb1-028'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
     });
 
     const hsBp1KosuzuActivated = getCardAbilityDefinitions('PL!HS-bp1-003-SEC').find(
@@ -1368,6 +1511,19 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    const awokeLiveSuccess = getCardAbilityDefinitions('PL!HS-bp1-022-L').find(
+      (ability) =>
+        ability.abilityId === HS_BP1_022_LIVE_SUCCESS_CHEER_HASUNOSORA_MEMBER_SCORE_ABILITY_ID
+    );
+    expect(awokeLiveSuccess).toMatchObject({
+      cardCodes: ['PL!HS-bp1-022-L'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+    });
+
     const dododoLiveSuccess = getCardAbilityDefinitions('PL!HS-bp1-023-L').find(
       (ability) =>
         ability.abilityId === HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID
@@ -1392,6 +1548,23 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+
+    for (const cardCode of ['PL!HS-pb1-005-R', 'PL!HS-pb1-005-P＋']) {
+      const kosuzuLiveStart = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID
+      );
+      expect(kosuzuLiveStart).toMatchObject({
+        abilityId: HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID,
+        baseCardCodes: ['PL!HS-pb1-005'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
 
     for (const cardCode of ['PL!SP-bp2-024-L', 'PL!SP-bp2-024-SECL']) {
       const vitaminSummerLiveSuccess = getCardAbilityDefinitions(cardCode).find(

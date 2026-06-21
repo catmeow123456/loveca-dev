@@ -298,6 +298,7 @@ export function projectPlayerViewState(
         ...activeEffectCardSelection,
         selectableSlots: game.activeEffect.selectableSlots,
         selectableOptions: game.activeEffect.selectableOptions,
+        numericInput: game.activeEffect.numericInput,
         canResolveInOrder: game.activeEffect.canResolveInOrder,
       }
     : null;

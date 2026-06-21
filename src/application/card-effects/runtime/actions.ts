@@ -20,6 +20,12 @@ import {
   setFirstEnergyCardsOrientation,
   type EnergyOrientationChange,
 } from '../../effects/energy.js';
+import {
+  addMemberBelowMember,
+  removeCardFromZone,
+} from '../../../domain/entities/zone.js';
+import { isSpecialMemberCard } from '../../../shared/utils/card-code.js';
+import type { SlotPosition } from '../../../shared/types/enums.js';
 
 export interface DrawCardsForEachPlayerResult {
   readonly gameState: GameState;
@@ -86,6 +92,22 @@ export interface ShuffleWaitingRoomCardsToDeckBottomForPlayerResult {
   readonly gameState: GameState;
   readonly movedCardIds: readonly string[];
   readonly originalCardIds: readonly string[];
+}
+
+export interface StackMemberCardBelowSpecialMemberOptions {
+  readonly playerId: string;
+  readonly sourceZone: ZoneType.HAND | ZoneType.WAITING_ROOM;
+  readonly movedCardId: string;
+  readonly hostCardId: string;
+  readonly targetSlot: SlotPosition;
+}
+
+export interface StackMemberCardBelowSpecialMemberResult {
+  readonly gameState: GameState;
+  readonly movedCardId: string;
+  readonly sourceZone: ZoneType.HAND | ZoneType.WAITING_ROOM;
+  readonly hostCardId: string;
+  readonly targetSlot: SlotPosition;
 }
 
 export function drawCardsForPlayer(
@@ -372,5 +394,64 @@ export function shuffleWaitingRoomCardsToDeckBottomForPlayer(
     gameState,
     movedCardIds: shuffledCardIds,
     originalCardIds: cardIds,
+  };
+}
+
+export function stackMemberCardBelowSpecialMember(
+  game: GameState,
+  options: StackMemberCardBelowSpecialMemberOptions
+): StackMemberCardBelowSpecialMemberResult | null {
+  const { playerId, sourceZone, movedCardId, hostCardId, targetSlot } = options;
+  const player = getPlayerById(game, playerId);
+  const movedCard = getCardById(game, movedCardId);
+  const hostCard = getCardById(game, hostCardId);
+  if (
+    !player ||
+    !movedCard ||
+    !hostCard ||
+    movedCard.ownerId !== playerId ||
+    hostCard.ownerId !== playerId ||
+    !isMemberCardData(movedCard.data) ||
+    !isMemberCardData(hostCard.data) ||
+    !isSpecialMemberCard(hostCard.data.cardCode) ||
+    player.memberSlots.slots[targetSlot] !== hostCardId
+  ) {
+    return null;
+  }
+
+  const sourceCardIds =
+    sourceZone === ZoneType.HAND ? player.hand.cardIds : player.waitingRoom.cardIds;
+  if (!sourceCardIds.includes(movedCardId)) {
+    return null;
+  }
+
+  const existingBelowIds = Object.values(player.memberSlots.memberBelow).flat();
+  if (existingBelowIds.includes(movedCardId)) {
+    return null;
+  }
+
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => {
+    const nextPlayer =
+      sourceZone === ZoneType.HAND
+        ? {
+            ...currentPlayer,
+            hand: removeCardFromZone(currentPlayer.hand, movedCardId),
+          }
+        : {
+            ...currentPlayer,
+            waitingRoom: removeCardFromZone(currentPlayer.waitingRoom, movedCardId),
+          };
+    return {
+      ...nextPlayer,
+      memberSlots: addMemberBelowMember(nextPlayer.memberSlots, targetSlot, movedCardId),
+    };
+  });
+
+  return {
+    gameState,
+    movedCardId,
+    sourceZone,
+    hostCardId,
+    targetSlot,
   };
 }

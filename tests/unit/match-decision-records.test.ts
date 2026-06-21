@@ -339,6 +339,7 @@ describe('match decision records P2', () => {
       playerId: 'p1',
       effectId: beforeEffect.id,
       selectedCardId: 'candidate-card',
+      selectedNumber: 3,
       timestamp: 2_000,
     };
 
@@ -359,6 +360,7 @@ describe('match decision records P2', () => {
       submittedCommandSeq: 7,
       submission: {
         selectedCardId: 'candidate-card',
+        selectedNumber: 3,
         skipped: false,
       },
       resultSummary: '进入效果步骤：confirm-reveal',

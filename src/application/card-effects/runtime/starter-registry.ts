@@ -5,6 +5,12 @@ import type {
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
+export type DelegatePendingAbility = (
+  game: GameState,
+  ability: PendingAbilityState,
+  options?: PendingAbilityStarterOptions
+) => GameState;
+
 export interface PendingAbilityStarterOptions {
   readonly orderedResolution?: boolean;
   readonly manualConfirmation?: boolean;
@@ -13,6 +19,7 @@ export interface PendingAbilityStarterOptions {
 
 export interface PendingAbilityStarterContext {
   readonly continuePendingCardEffects: ContinuePendingCardEffects;
+  readonly delegatePendingAbility: DelegatePendingAbility;
 }
 
 export type PendingAbilityStarterHandler = (

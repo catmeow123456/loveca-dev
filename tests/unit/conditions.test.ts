@@ -8,6 +8,7 @@ import {
 } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
+import { addMemberCostLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
 import {
   cardNameAliasIs,
   costGte,
@@ -405,5 +406,25 @@ describe('effect conditions', () => {
     }));
 
     expect(getMemberEffectiveCost(game, 'p1', hanayoR.instanceId)).toBe(7);
+  });
+
+  it('reads temporary member cost live modifiers through the application condition helper', () => {
+    const sayaka = memberCard('pb1-002-sayaka-cost-modifier', {
+      cardCode: 'PL!HS-pb1-002-R',
+      name: '村野さやか',
+      cost: 2,
+    });
+    let game = createGameState('conditions-member-cost-live-modifier', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [sayaka]);
+    const result = addMemberCostLiveModifierForMember(game, {
+      playerId: 'p1',
+      memberCardId: sayaka.instanceId,
+      sourceCardId: sayaka.instanceId,
+      abilityId: 'test-member-cost',
+      countDelta: 12,
+    });
+
+    expect(result).not.toBeNull();
+    expect(getMemberEffectiveCost(result!.gameState, 'p1', sayaka.instanceId)).toBe(14);
   });
 });

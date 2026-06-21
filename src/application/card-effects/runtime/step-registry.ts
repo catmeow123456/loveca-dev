@@ -1,5 +1,6 @@
 import type { GameState } from '../../../domain/entities/game.js';
 import type { SlotPosition } from '../../../shared/types/enums.js';
+import type { DelegatePendingAbility } from './starter-registry.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -9,10 +10,12 @@ export interface ActiveEffectStepHandlerInput {
   readonly resolveInOrder?: boolean;
   readonly selectedOptionId?: string | null;
   readonly selectedCardIds?: readonly string[];
+  readonly selectedNumber?: number | null;
 }
 
 export interface ActiveEffectStepHandlerContext {
   readonly continuePendingCardEffects: ContinuePendingCardEffects;
+  readonly delegatePendingAbility: DelegatePendingAbility;
 }
 
 export type ActiveEffectStepHandler = (

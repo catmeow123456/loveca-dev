@@ -12,11 +12,13 @@ import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
 import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/slot-perspective.js';
 import { hasMemberPositionMovedThisTurn } from './member-turn-state.js';
+import { getMemberEffectiveCost } from './member-effective-cost.js';
 import { successLiveScoreAtLeast } from './success-live-score.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
 type HeartModifierState = Extract<LiveModifierState, { readonly kind: 'HEART' }>;
 type BladeModifierState = Extract<LiveModifierState, { readonly kind: 'BLADE' }>;
+type MemberCostModifierState = Extract<LiveModifierState, { readonly kind: 'MEMBER_COST' }>;
 type RequirementModifierState = Extract<LiveModifierState, { readonly kind: 'REQUIREMENT' }>;
 
 type LiveModifierCompatibilityProjection = Pick<
@@ -65,6 +67,20 @@ export interface AddHeartLiveModifierForMemberResult {
   readonly gameState: GameState;
   readonly modifier: HeartModifierState;
   readonly heartBonus: readonly HeartIcon[];
+}
+
+export interface MemberCostLiveModifierForMemberOptions {
+  readonly playerId: string;
+  readonly memberCardId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly countDelta: number;
+}
+
+export interface AddMemberCostLiveModifierForMemberResult {
+  readonly gameState: GameState;
+  readonly modifier: MemberCostModifierState;
+  readonly costDelta: number;
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
@@ -162,6 +178,13 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    baseCardCodes: ['PL!HS-bp5-002'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasAtLeastDifferentEffectiveCostStageMembers(game, playerId, 3)
+        ? collectHsBp5002SayakaContinuousModifiers(game, playerId, sourceCardId)
+        : [],
+  },
+  {
     baseCardCodes: ['PL!HS-pb1-014'],
     collect: ({ game, playerId, sourceCardId }) =>
       collectPb1014FrontHighCostHeartModifier(game, playerId, sourceCardId),
@@ -214,6 +237,8 @@ const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
   'PL!N-pb1-004:continuous-not-position-moved-gain-two-blade';
 const HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID =
   'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart';
+const HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID =
+  'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
 
 function getScoreModifiers(
   playerId: string,
@@ -471,6 +496,35 @@ function collectPb1014FrontHighCostHeartModifier(
   return modifier ? [modifier] : [];
 }
 
+function collectHsBp5002SayakaContinuousModifiers(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly LiveModifierState[] {
+  const heartModifier = createHeartLiveModifierForMember(game, {
+    playerId,
+    memberCardId: sourceCardId,
+    sourceCardId,
+    abilityId: HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID,
+    hearts: [{ color: HeartColor.BLUE, count: 1 }],
+  });
+  if (!heartModifier) {
+    return [];
+  }
+
+  return [
+    heartModifier,
+    {
+      kind: 'BLADE',
+      playerId,
+      countDelta: 1,
+      sourceCardId,
+      abilityId:
+        HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID,
+    },
+  ];
+}
+
 function hasAtLeastDifferentNamedStageMembers(
   game: GameState,
   playerId: string,
@@ -491,6 +545,27 @@ function hasAtLeastDifferentNamedStageMembers(
     .map((card) => normalizeContinuousMemberName(card.data.name));
 
   return new Set(names).size >= minCount;
+}
+
+function hasAtLeastDifferentEffectiveCostStageMembers(
+  game: GameState,
+  playerId: string,
+  minCount: number
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return false;
+  }
+
+  const costs = MEMBER_SLOT_ORDER.map((slot) => player.memberSlots.slots[slot])
+    .map((cardId) => (cardId ? getCardById(game, cardId) : null))
+    .filter(
+      (card): card is NonNullable<ReturnType<typeof getCardById>> =>
+        card !== null && isMemberCard(card)
+    )
+    .map((card) => getMemberEffectiveCost(game, playerId, card.instanceId));
+
+  return new Set(costs).size >= minCount;
 }
 
 function isMemberCard(card: NonNullable<ReturnType<typeof getCardById>>): boolean {
@@ -557,6 +632,39 @@ export function addHeartLiveModifierForMember(
     gameState: addLiveModifier(game, modifier),
     modifier,
     heartBonus: options.hearts,
+  };
+}
+
+export function addMemberCostLiveModifierForMember(
+  game: GameState,
+  options: MemberCostLiveModifierForMemberOptions
+): AddMemberCostLiveModifierForMemberResult | null {
+  if (!Number.isInteger(options.countDelta) || options.countDelta === 0) {
+    return null;
+  }
+
+  const memberCard = getCardById(game, options.memberCardId);
+  if (
+    !memberCard ||
+    memberCard.ownerId !== options.playerId ||
+    !isMemberCardData(memberCard.data)
+  ) {
+    return null;
+  }
+
+  const modifier: MemberCostModifierState = {
+    kind: 'MEMBER_COST',
+    playerId: options.playerId,
+    memberCardId: options.memberCardId,
+    countDelta: options.countDelta,
+    sourceCardId: options.sourceCardId,
+    abilityId: options.abilityId,
+  };
+
+  return {
+    gameState: addLiveModifier(game, modifier),
+    modifier,
+    costDelta: options.countDelta,
   };
 }
 

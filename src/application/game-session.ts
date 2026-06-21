@@ -1631,6 +1631,20 @@ export class GameSession {
         ) {
           return '选择的选项不能用于当前效果';
         }
+        const numericInput = state.activeEffect.numericInput;
+        if (numericInput) {
+          if (typeof command.selectedNumber !== 'number' || !Number.isFinite(command.selectedNumber)) {
+            return '当前效果需要输入数字';
+          }
+          if (numericInput.integerOnly === true && !Number.isInteger(command.selectedNumber)) {
+            return '当前效果需要输入整数';
+          }
+          if (typeof numericInput.min === 'number' && command.selectedNumber < numericInput.min) {
+            return '输入数字低于当前效果允许范围';
+          }
+        } else if (command.selectedNumber !== undefined) {
+          return '当前效果不能输入数字';
+        }
         return null;
       }
       case GameCommandType.SELECT_SUCCESS_LIVE: {
@@ -3371,7 +3385,8 @@ export class GameSession {
       command.selectedSlot,
       command.resolveInOrder,
       command.selectedOptionId,
-      command.selectedCardIds
+      command.selectedCardIds,
+      command.selectedNumber
     );
     if (nextState === state) {
       return {
@@ -3393,6 +3408,7 @@ export class GameSession {
           payload: {
             effectId: command.effectId,
             selectedCardId: command.selectedCardId ?? null,
+            selectedNumber: command.selectedNumber ?? null,
           },
         },
       ],

@@ -53,6 +53,7 @@ import { registerBp5005RinWorkflowHandlers } from './card-effects/workflows/card
 import { registerBp6024SuccessReplacementWorkflowHandlers } from './card-effects/workflows/cards/bp6-024-success-replacement.js';
 import { registerHsBp1008KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-008-kosuzu.js';
 import { registerHsBp1002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-002-sayaka.js';
+import { registerHsBp1022AwokeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-022-awoke.js';
 import { registerHsBp1023DododoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-023-dododo.js';
 import { registerHsBp2014RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp2-014-rurino.js';
 import { registerHsBp6031FanfareWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-031-fanfare.js';
@@ -60,15 +61,19 @@ import { registerHsBp6004GinkoWorkflowHandlers } from './card-effects/workflows/
 import { registerHsBp6006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-006-hime.js';
 import { registerHsBp6003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-003-rurino.js';
 import { registerHsBp5003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-003-rurino.js';
+import { registerHsBp5002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-002-sayaka.js';
 import { registerHsBp5006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-006-hime.js';
 import { registerHsBp5001KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-001-kaho.js';
 import { registerHsBp5008IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-008-izumi.js';
 import { registerHsPb1004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-004-ginko.js';
+import { registerHsPb1002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-002-sayaka.js';
 import { registerHsPb1012GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-012-ginko.js';
 import { registerHsPb1009KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-009-kaho.js';
 import { registerHsPb1014HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-014-hime.js';
 import { registerHsPb1021KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-021-kosuzu.js';
+import { registerHsPb1005KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-005-kosuzu.js';
 import { registerHsPb1029ZenhouiKyunWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-029-zenhoui-kyun.js';
+import { registerHsPb1028CompassWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-028-compass.js';
 import { registerHsPb1003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-003-rurino.js';
 import { registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers } from './card-effects/workflows/cards/keke-on-enter-place-waiting-energy.js';
 import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/maki-on-enter.js';
@@ -106,6 +111,8 @@ import { registerDrawThenDiscardWorkflowHandlers } from './card-effects/workflow
 import { registerGroupedRecoveryWorkflowHandlers } from './card-effects/workflows/shared/grouped-recovery.js';
 import { registerLookTopSelectToHandWorkflowHandlers } from './card-effects/workflows/shared/look-top-select-to-hand.js';
 import { registerLiveStartDiscardGainHeartWorkflowHandlers } from './card-effects/workflows/shared/live-start-discard-gain-heart.js';
+import { registerLiveStartDiscardSameUnitGainHeartBladeWorkflowHandlers } from './card-effects/workflows/shared/live-start-discard-same-unit-gain-heart-blade.js';
+import { registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHandlers } from './card-effects/workflows/shared/live-start-pay-energy-stack-waiting-members-to-deck-top.js';
 import { registerMillTopGainLiveModifierWorkflowHandlers } from './card-effects/workflows/shared/mill-top-gain-live-modifier.js';
 import { registerNamedHandDiscardLiveStartWorkflowHandlers } from './card-effects/workflows/shared/named-hand-discard-live-start.js';
 import { registerOpponentWaitTargetWorkflowHandlers } from './card-effects/workflows/shared/opponent-wait-target.js';
@@ -538,10 +545,14 @@ registerDrawThenDiscardWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerGroupedRecoveryWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNamedHandDiscardLiveStartWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartDiscardGainHeartWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerLiveStartDiscardSameUnitGainHeartBladeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHandlers();
 registerBp5007NozomiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1009KahoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1014HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1021KosuzuWorkflowHandlers();
+registerHsPb1005KosuzuWorkflowHandlers();
+registerHsPb1028CompassWorkflowHandlers();
 registerHsPb1029ZenhouiKyunWorkflowHandlers();
 registerHsBp6003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp6004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -568,9 +579,12 @@ registerMillTopGainLiveModifierWorkflowHandlers();
 registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerKarinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNozomiOnEnterWorkflowHandlers();
+registerHsBp5002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5006HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp1022AwokeWorkflowHandlers();
 registerHsBp1023DododoWorkflowHandlers();
+registerHsPb1002SayakaWorkflowHandlers();
 registerHsPb1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerMakiOnEnterWorkflowHandlers();
@@ -1968,7 +1982,8 @@ export function confirmActiveEffectStep(
   selectedSlot?: SlotPosition | null,
   resolveInOrder?: boolean,
   selectedOptionId?: string | null,
-  selectedCardIds?: readonly string[]
+  selectedCardIds?: readonly string[],
+  selectedNumber?: number | null
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -1997,8 +2012,9 @@ export function confirmActiveEffectStep(
       resolveInOrder,
       selectedOptionId,
       selectedCardIds,
+      selectedNumber,
     },
-    { continuePendingCardEffects }
+    { continuePendingCardEffects, delegatePendingAbility }
   );
   if (registryResult) {
     return registryResult;
@@ -2216,12 +2232,31 @@ function startPendingAbilityEffect(
 ): GameState {
   const registryResult = resolvePendingAbilityStarterWithRegistry(game, ability, options, {
     continuePendingCardEffects,
+    delegatePendingAbility,
   });
   if (registryResult) {
     return registryResult;
   }
 
   return game;
+}
+
+function delegatePendingAbility(
+  game: GameState,
+  ability: PendingAbilityState,
+  options: StartPendingAbilityEffectOptions = {}
+): GameState {
+  if (game.activeEffect) {
+    return game;
+  }
+  if (game.pendingAbilities.some((candidate) => candidate.id === ability.id)) {
+    return game;
+  }
+  return startPendingAbilityEffect(game, ability, {
+    ...options,
+    manualConfirmation: false,
+    skipManualConfirmation: true,
+  });
 }
 
 function finishSelectCardsFromZoneToHandEffect(

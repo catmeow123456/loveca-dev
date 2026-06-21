@@ -189,6 +189,14 @@ export type LiveModifierState =
       readonly abilityId?: string;
     }
   | {
+      readonly kind: 'MEMBER_COST';
+      readonly playerId: string;
+      readonly memberCardId: string;
+      readonly countDelta: number;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+    }
+  | {
       readonly kind: 'REQUIREMENT';
       readonly liveCardId: string;
       readonly modifiers: readonly LiveRequirementModifierState[];
@@ -387,6 +395,14 @@ export interface PendingChoiceState {
 
 export type ActiveEffectSelectableCardVisibility = 'PUBLIC' | 'AWAITING_PLAYER_ONLY';
 
+export interface ActiveEffectNumericInputState {
+  readonly min?: number;
+  readonly integerOnly?: boolean;
+  readonly label?: string;
+  readonly placeholder?: string;
+  readonly confirmLabel?: string;
+}
+
 export interface ActiveEffectState {
   /** 当前处理中的效果实例 ID */
   readonly id: string;
@@ -422,6 +438,8 @@ export interface ActiveEffectState {
   readonly selectableSlots?: readonly SlotPosition[];
   /** 当前步骤可选择的通用选项 */
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
+  /** 当前步骤需要玩家输入的数字 */
+  readonly numericInput?: ActiveEffectNumericInputState;
   /** 当前可选卡牌区的标题文案 */
   readonly selectionLabel?: string;
   /** 当前选择确认按钮文案 */

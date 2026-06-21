@@ -99,6 +99,7 @@ export interface MatchDecisionSubmissionSummary {
   readonly selectedCardIds?: readonly string[];
   readonly selectedSlot?: string | null;
   readonly selectedOptionId?: string | null;
+  readonly selectedNumber?: number | null;
   readonly selectedPendingAbilityId?: string | null;
   readonly resolveInOrder?: boolean;
   readonly skipped?: boolean;

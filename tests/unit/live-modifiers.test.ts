@@ -9,6 +9,7 @@ import {
 import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   addHeartLiveModifierForMember,
+  addMemberCostLiveModifierForMember,
   addLiveModifier,
   collectLiveModifiers,
   createHeartLiveModifierForMember,
@@ -21,8 +22,12 @@ import {
   projectLiveModifierCompatibility,
   replaceLiveModifier,
 } from '../../src/domain/rules/live-modifiers';
+import { getMemberEffectiveCost } from '../../src/domain/rules/member-effective-cost';
 import { fromTransport, toTransport } from '../../src/online/serde';
 import { CardType, HeartColor, SlotPosition } from '../../src/shared/types/enums';
+
+const HS_BP5_002_CONTINUOUS_ABILITY_ID =
+  'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
 
 describe('live modifier helpers', () => {
   it('creates source-member Heart modifiers when the member is the source card', () => {
@@ -533,6 +538,312 @@ describe('live modifier helpers', () => {
     });
 
     expect(getMemberEffectiveBladeCount(game, 'p1', 'kaho')).toBe(6);
+  });
+
+  it('adds blue Heart and Blade to PL!HS-bp5-002 when three stage members have different effective costs', () => {
+    const sayaka = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp5-002-P',
+        name: '村野さやか',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'sayaka'
+    );
+    const hanayo = createCardInstance(
+      {
+        cardCode: 'PL!-bp4-008-R',
+        name: '小泉花陽',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      },
+      'p1',
+      'hanayo'
+    );
+    const otherCostFour = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-cost-four',
+        name: 'Cost Four',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'other-cost-four'
+    );
+    const successLive = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-success-live',
+        name: 'Success Live',
+        cardType: CardType.LIVE,
+        score: 6,
+        requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),
+      },
+      'p1',
+      'success-live'
+    );
+    let game = createGameState('hs-bp5-002-continuous-effective-cost', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [sayaka, hanayo, otherCostFour, successLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: addCardToZone(player.successZone, successLive.instanceId),
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, sayaka.instanceId),
+          SlotPosition.CENTER,
+          hanayo.instanceId
+        ),
+        SlotPosition.RIGHT,
+        otherCostFour.instanceId
+      ),
+    }));
+
+    const liveModifiers = collectLiveModifiers(game);
+
+    expect(liveModifiers).toEqual(
+      expect.arrayContaining([
+        {
+          kind: 'HEART',
+          target: 'SOURCE_MEMBER',
+          playerId: 'p1',
+          hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+          sourceCardId: sayaka.instanceId,
+          abilityId: HS_BP5_002_CONTINUOUS_ABILITY_ID,
+        },
+        {
+          kind: 'BLADE',
+          playerId: 'p1',
+          countDelta: 1,
+          sourceCardId: sayaka.instanceId,
+          abilityId: HS_BP5_002_CONTINUOUS_ABILITY_ID,
+        },
+      ])
+    );
+    expect(getMemberEffectiveHeartIcons(game, 'p1', sayaka.instanceId, liveModifiers)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.BLUE, 1),
+    ]);
+    expect(getMemberEffectiveBladeCount(game, 'p1', sayaka.instanceId, liveModifiers)).toBe(2);
+  });
+
+  it('adds stackable member cost live modifiers to member effective cost', () => {
+    const member = createCardInstance(
+      {
+        cardCode: 'PL!HS-pb1-002-R',
+        name: '村野さやか',
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'pb1-002-sayaka'
+    );
+    let game = createGameState('member-cost-live-modifier', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member]);
+
+    const first = addMemberCostLiveModifierForMember(game, {
+      playerId: 'p1',
+      memberCardId: member.instanceId,
+      sourceCardId: member.instanceId,
+      abilityId: 'test-cost-plus-four',
+      countDelta: 4,
+    });
+    expect(first).not.toBeNull();
+    const second = addMemberCostLiveModifierForMember(first!.gameState, {
+      playerId: 'p1',
+      memberCardId: member.instanceId,
+      sourceCardId: member.instanceId,
+      abilityId: 'test-cost-plus-eight',
+      countDelta: 8,
+    });
+
+    expect(second).not.toBeNull();
+    expect(second?.gameState.liveResolution.liveModifiers).toEqual([
+      first?.modifier,
+      second?.modifier,
+    ]);
+    expect(getMemberEffectiveCost(second!.gameState, 'p1', member.instanceId)).toBe(14);
+  });
+
+  it('lets PL!HS-bp5-002 continuous different-effective-cost check read temporary member cost modifiers', () => {
+    const sayaka = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp5-002-P',
+        name: '村野さやか',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'bp5-sayaka'
+    );
+    const firstCostFour = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-cost-four-a',
+        name: 'Cost Four A',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'cost-four-a'
+    );
+    const secondCostFour = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-cost-four-b',
+        name: 'Cost Four B',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'cost-four-b'
+    );
+    let game = createGameState('bp5-002-temp-member-cost', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [sayaka, firstCostFour, secondCostFour]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, sayaka.instanceId),
+          SlotPosition.CENTER,
+          firstCostFour.instanceId
+        ),
+        SlotPosition.RIGHT,
+        secondCostFour.instanceId
+      ),
+    }));
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) => modifier.abilityId === HS_BP5_002_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+
+    const costResult = addMemberCostLiveModifierForMember(game, {
+      playerId: 'p1',
+      memberCardId: firstCostFour.instanceId,
+      sourceCardId: sayaka.instanceId,
+      abilityId: 'test-temp-cost',
+      countDelta: 4,
+    });
+    expect(costResult).not.toBeNull();
+
+    expect(collectLiveModifiers(costResult!.gameState)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'HEART',
+          sourceCardId: sayaka.instanceId,
+          abilityId: HS_BP5_002_CONTINUOUS_ABILITY_ID,
+        }),
+        expect.objectContaining({
+          kind: 'BLADE',
+          sourceCardId: sayaka.instanceId,
+          abilityId: HS_BP5_002_CONTINUOUS_ABILITY_ID,
+        }),
+      ])
+    );
+  });
+
+  it('does not add PL!HS-bp5-002 modifiers when costs repeat, fewer than three members are on stage, or source is not on stage', () => {
+    const createSayaka = (id: string) =>
+      createCardInstance(
+        {
+          cardCode: 'PL!HS-bp5-002-P',
+          name: '村野さやか',
+          cardType: CardType.MEMBER,
+          cost: 15,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        },
+        'p1',
+        id
+      );
+    const createMember = (id: string, cost: number) =>
+      createCardInstance(
+        {
+          cardCode: `PL!HS-test-${id}`,
+          name: id,
+          cardType: CardType.MEMBER,
+          cost,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+        },
+        'p1',
+        id
+      );
+
+    let repeatCostGame = createGameState('hs-bp5-002-repeat-cost', 'p1', 'P1', 'p2', 'P2');
+    const repeatSayaka = createSayaka('repeat-sayaka');
+    const repeatOne = createMember('repeat-one', 4);
+    const repeatTwo = createMember('repeat-two', 4);
+    repeatCostGame = registerCards(repeatCostGame, [repeatSayaka, repeatOne, repeatTwo]);
+    repeatCostGame = updatePlayer(repeatCostGame, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, repeatSayaka.instanceId),
+          SlotPosition.CENTER,
+          repeatOne.instanceId
+        ),
+        SlotPosition.RIGHT,
+        repeatTwo.instanceId
+      ),
+    }));
+
+    let twoMemberGame = createGameState('hs-bp5-002-two-members', 'p1', 'P1', 'p2', 'P2');
+    const twoMemberSayaka = createSayaka('two-member-sayaka');
+    const twoMemberOther = createMember('two-member-other', 4);
+    twoMemberGame = registerCards(twoMemberGame, [twoMemberSayaka, twoMemberOther]);
+    twoMemberGame = updatePlayer(twoMemberGame, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, twoMemberSayaka.instanceId),
+        SlotPosition.CENTER,
+        twoMemberOther.instanceId
+      ),
+    }));
+
+    let notOnStageGame = createGameState('hs-bp5-002-source-off-stage', 'p1', 'P1', 'p2', 'P2');
+    const offStageSayaka = createSayaka('off-stage-sayaka');
+    const stageOne = createMember('stage-one', 1);
+    const stageTwo = createMember('stage-two', 2);
+    const stageThree = createMember('stage-three', 3);
+    notOnStageGame = registerCards(notOnStageGame, [
+      offStageSayaka,
+      stageOne,
+      stageTwo,
+      stageThree,
+    ]);
+    notOnStageGame = updatePlayer(notOnStageGame, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, stageOne.instanceId),
+          SlotPosition.CENTER,
+          stageTwo.instanceId
+        ),
+        SlotPosition.RIGHT,
+        stageThree.instanceId
+      ),
+    }));
+
+    for (const game of [repeatCostGame, twoMemberGame, notOnStageGame]) {
+      expect(
+        collectLiveModifiers(game).some(
+          (modifier) => modifier.abilityId === HS_BP5_002_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    }
   });
 
   it('collects PL!N-pb1-004 continuous blade when Karin has not position-moved this turn', () => {

@@ -649,6 +649,7 @@ function summarizeConfirmEffectStepSubmission(
     ...('selectedOptionId' in command
       ? { selectedOptionId: command.selectedOptionId ?? null }
       : {}),
+    ...('selectedNumber' in command ? { selectedNumber: command.selectedNumber ?? null } : {}),
     ...(command.resolveInOrder !== undefined ? { resolveInOrder: command.resolveInOrder } : {}),
     skipped: command.selectedCardId === null,
   };

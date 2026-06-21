@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
-import { createHeartIcon } from '../../src/domain/entities/card';
-import { emitGameEvent, type GameState } from '../../src/domain/entities/game';
+import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
+import {
+  createGameState,
+  emitGameEvent,
+  registerCards,
+  updatePlayer,
+  type GameState,
+} from '../../src/domain/entities/game';
 import { createDrawEvent, createMemberSlotMovedEvent } from '../../src/domain/events/game-events';
 import type { DeckConfig } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
@@ -14,6 +20,7 @@ import {
   drawCardsForPlayer,
   recoverCardsFromWaitingRoomToHandForPlayer,
   shuffleWaitingRoomCardsToDeckBottomForPlayer,
+  stackMemberCardBelowSpecialMember,
 } from '../../src/application/card-effects/runtime/actions';
 import {
   discardHandCardsToWaitingRoomAndEnqueueTriggers,
@@ -25,6 +32,7 @@ import {
   revealHandCardForActiveEffect,
 } from '../../src/application/card-effects/runtime/active-effect';
 import { getNewMemberSlotMovedEvents } from '../../src/application/card-effects/runtime/events';
+import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   CardType,
   FaceState,
@@ -55,6 +63,42 @@ function createEnergyCard(cardCode: string): EnergyCardData {
     name: cardCode,
     cardType: CardType.ENERGY,
   };
+}
+
+function createStackHelperState(options: {
+  readonly hostCardCode?: string;
+  readonly hostSlot?: SlotPosition;
+  readonly movedCardData?: AnyCardData;
+  readonly movedSourceZone?: ZoneType.HAND | ZoneType.WAITING_ROOM;
+}) {
+  const host = createCardInstance(
+    createMemberCard(options.hostCardCode ?? 'PL!HS-pb1-002-R'),
+    PLAYER1,
+    'special-host'
+  );
+  const moved = createCardInstance(
+    options.movedCardData ?? createMemberCard('PL!HS-test-moved-member'),
+    PLAYER1,
+    'moved-card'
+  );
+  const hostSlot = options.hostSlot ?? SlotPosition.CENTER;
+  const movedSourceZone = options.movedSourceZone ?? ZoneType.HAND;
+  let game = createGameState('stack-member-below-helper', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+  game = registerCards(game, [host, moved]);
+  game = updatePlayer(game, PLAYER1, (player) => ({
+    ...player,
+    memberSlots: placeCardInSlot(player.memberSlots, hostSlot, host.instanceId),
+    hand:
+      movedSourceZone === ZoneType.HAND
+        ? addCardToZone(player.hand, moved.instanceId)
+        : player.hand,
+    waitingRoom:
+      movedSourceZone === ZoneType.WAITING_ROOM
+        ? addCardToZone(player.waitingRoom, moved.instanceId)
+        : player.waitingRoom,
+  }));
+
+  return { game, host, moved, hostSlot, movedSourceZone };
 }
 
 function createDeck(): DeckConfig {
@@ -964,5 +1008,123 @@ describe('card effect runtime actions', () => {
       })
     ).toBeNull();
     expect(state.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it('moves a member card from hand below a special member without enqueueing triggers', () => {
+    const { game, host, moved, hostSlot } = createStackHelperState({});
+
+    const result = stackMemberCardBelowSpecialMember(game, {
+      playerId: PLAYER1,
+      sourceZone: ZoneType.HAND,
+      movedCardId: moved.instanceId,
+      hostCardId: host.instanceId,
+      targetSlot: hostSlot,
+    });
+
+    expect(result).toMatchObject({
+      movedCardId: moved.instanceId,
+      sourceZone: ZoneType.HAND,
+      hostCardId: host.instanceId,
+      targetSlot: hostSlot,
+    });
+    expect(result?.gameState.players[0].hand.cardIds).not.toContain(moved.instanceId);
+    expect(result?.gameState.players[0].memberSlots.memberBelow[hostSlot]).toEqual([
+      moved.instanceId,
+    ]);
+    expect(result?.gameState.players[0].memberSlots.slots[hostSlot]).toBe(host.instanceId);
+    expect(result?.gameState.eventLog).toEqual([]);
+    expect(result?.gameState.pendingAbilities).toEqual([]);
+  });
+
+  it('moves a member card from waiting room below a special member', () => {
+    const { game, host, moved, hostSlot } = createStackHelperState({
+      movedSourceZone: ZoneType.WAITING_ROOM,
+    });
+
+    const result = stackMemberCardBelowSpecialMember(game, {
+      playerId: PLAYER1,
+      sourceZone: ZoneType.WAITING_ROOM,
+      movedCardId: moved.instanceId,
+      hostCardId: host.instanceId,
+      targetSlot: hostSlot,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.gameState.players[0].waitingRoom.cardIds).not.toContain(moved.instanceId);
+    expect(result?.gameState.players[0].memberSlots.memberBelow[hostSlot]).toEqual([
+      moved.instanceId,
+    ]);
+  });
+
+  it('rejects non-special hosts, empty target slots, non-member cards, wrong source zones, and duplicates', () => {
+    const nonSpecialHostState = createStackHelperState({ hostCardCode: 'PL!HS-test-normal-host' });
+    expect(
+      stackMemberCardBelowSpecialMember(nonSpecialHostState.game, {
+        playerId: PLAYER1,
+        sourceZone: ZoneType.HAND,
+        movedCardId: nonSpecialHostState.moved.instanceId,
+        hostCardId: nonSpecialHostState.host.instanceId,
+        targetSlot: nonSpecialHostState.hostSlot,
+      })
+    ).toBeNull();
+
+    const emptySlotState = createStackHelperState({});
+    expect(
+      stackMemberCardBelowSpecialMember(emptySlotState.game, {
+        playerId: PLAYER1,
+        sourceZone: ZoneType.HAND,
+        movedCardId: emptySlotState.moved.instanceId,
+        hostCardId: emptySlotState.host.instanceId,
+        targetSlot: SlotPosition.RIGHT,
+      })
+    ).toBeNull();
+    expect(emptySlotState.game.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBeNull();
+    expect(emptySlotState.game.players[0].hand.cardIds).toContain(emptySlotState.moved.instanceId);
+
+    const nonMemberState = createStackHelperState({
+      movedCardData: createEnergyCard('PL!HS-test-energy'),
+    });
+    expect(
+      stackMemberCardBelowSpecialMember(nonMemberState.game, {
+        playerId: PLAYER1,
+        sourceZone: ZoneType.HAND,
+        movedCardId: nonMemberState.moved.instanceId,
+        hostCardId: nonMemberState.host.instanceId,
+        targetSlot: nonMemberState.hostSlot,
+      })
+    ).toBeNull();
+
+    const wrongSourceState = createStackHelperState({ movedSourceZone: ZoneType.HAND });
+    expect(
+      stackMemberCardBelowSpecialMember(wrongSourceState.game, {
+        playerId: PLAYER1,
+        sourceZone: ZoneType.WAITING_ROOM,
+        movedCardId: wrongSourceState.moved.instanceId,
+        hostCardId: wrongSourceState.host.instanceId,
+        targetSlot: wrongSourceState.hostSlot,
+      })
+    ).toBeNull();
+
+    const duplicateResult = stackMemberCardBelowSpecialMember(emptySlotState.game, {
+      playerId: PLAYER1,
+      sourceZone: ZoneType.HAND,
+      movedCardId: emptySlotState.moved.instanceId,
+      hostCardId: emptySlotState.host.instanceId,
+      targetSlot: emptySlotState.hostSlot,
+    });
+    expect(duplicateResult).not.toBeNull();
+    const invalidDuplicateState = updatePlayer(duplicateResult!.gameState, PLAYER1, (player) => ({
+      ...player,
+      hand: addCardToZone(player.hand, emptySlotState.moved.instanceId),
+    }));
+    expect(
+      stackMemberCardBelowSpecialMember(invalidDuplicateState, {
+        playerId: PLAYER1,
+        sourceZone: ZoneType.HAND,
+        movedCardId: emptySlotState.moved.instanceId,
+        hostCardId: emptySlotState.host.instanceId,
+        targetSlot: emptySlotState.hostSlot,
+      })
+    ).toBeNull();
   });
 });

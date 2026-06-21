@@ -222,6 +222,13 @@ export interface ActiveEffectViewState {
   readonly maxSelectableObjects?: number;
   readonly selectableSlots?: readonly string[];
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
+  readonly numericInput?: {
+    readonly min?: number;
+    readonly integerOnly?: boolean;
+    readonly label?: string;
+    readonly placeholder?: string;
+    readonly confirmLabel?: string;
+  };
   readonly selectionLabel?: string;
   readonly confirmSelectionLabel?: string;
   readonly canResolveInOrder?: boolean;

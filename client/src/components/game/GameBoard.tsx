@@ -224,6 +224,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
+  const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
   const [doubleRelaySelection, setDoubleRelaySelection] = useState<{
     readonly cardId: string;
@@ -263,6 +264,17 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     activeEffectOrderedSelection.every((cardId) => activeEffectSelectableCardIds.includes(cardId));
   const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
   const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
+  const activeEffectNumericInput = activeEffect?.numericInput ?? null;
+  const activeEffectSelectedNumber =
+    activeEffectNumberInput.trim().length > 0 ? Number(activeEffectNumberInput) : null;
+  const canConfirmActiveEffectNumber =
+    canConfirmActiveEffect &&
+    !!activeEffectNumericInput &&
+    activeEffectSelectedNumber !== null &&
+    Number.isFinite(activeEffectSelectedNumber) &&
+    (activeEffectNumericInput.integerOnly !== true || Number.isInteger(activeEffectSelectedNumber)) &&
+    (typeof activeEffectNumericInput.min !== 'number' ||
+      activeEffectSelectedNumber >= activeEffectNumericInput.min);
   const pendingCostSourceCardId = pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const pendingCostSource = pendingCostSourceCardId
     ? getVisibleCardPresentation(pendingCostSourceCardId)
@@ -331,6 +343,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   ]);
 
   useEffect(() => {
+    setActiveEffectNumberInput('');
     setActiveEffectCollapsed(false);
   }, [activeEffect?.id, activeEffect?.stepId]);
 
@@ -1698,6 +1711,44 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   {option.label}
                 </button>
               ))}
+              {activeEffectNumericInput && (
+                <div className="flex min-w-[180px] flex-col gap-1">
+                  <label className="text-xs font-semibold text-[var(--text-secondary)]">
+                    {activeEffectNumericInput.label ?? '数字'}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min={activeEffectNumericInput.min ?? undefined}
+                      step={activeEffectNumericInput.integerOnly === true ? 1 : undefined}
+                      value={activeEffectNumberInput}
+                      placeholder={activeEffectNumericInput.placeholder}
+                      onChange={(event) => setActiveEffectNumberInput(event.currentTarget.value)}
+                      className="min-h-10 w-28 rounded border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 text-sm font-semibold text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
+                    />
+                    <button
+                      type="button"
+                      disabled={!canConfirmActiveEffectNumber}
+                      onClick={() =>
+                        confirmEffectStep(
+                          activeEffect.id,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          activeEffectSelectedNumber
+                        )
+                      }
+                      className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                        canConfirmActiveEffectNumber ? '' : 'cursor-not-allowed opacity-50'
+                      }`}
+                    >
+                      {activeEffectNumericInput.confirmLabel ?? '确认'}
+                    </button>
+                  </div>
+                </div>
+              )}
               {activeEffectUsesOrderedMultiSelect && activeEffectSelectableCardIds.length > 0 && (
                 <button
                   type="button"
@@ -1749,6 +1800,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
               {activeEffectSelectableCardIds.length === 0 &&
                 activeEffectSelectableSlots.length === 0 &&
                 activeEffectSelectableOptions.length === 0 &&
+                !activeEffectNumericInput &&
                 !activeEffect.canSkipSelection &&
                 !activeEffect.canResolveInOrder && (
                   <button
@@ -1765,6 +1817,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
               {activeEffectSelectableCardIds.length === 0 &&
                 activeEffectSelectableSlots.length === 0 &&
                 activeEffectSelectableOptions.length === 0 &&
+                !activeEffectNumericInput &&
                 activeEffect.canSkipSelection && (
                   <button
                     type="button"
