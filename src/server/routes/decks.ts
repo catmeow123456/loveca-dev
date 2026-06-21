@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { validate } from '../middleware/validate.js';
-import { scrapeDecklog, extractDecklogId } from '../services/decklog-scraper.js';
+import { scrapeDecklog, extractDecklogInput } from '../services/decklog-scraper.js';
 import {
   DeckPayloadValidationError,
   prepareDeckPayloadForStorage,
@@ -85,6 +85,7 @@ decksRouter.get('/public', async (_req, res, next) => {
 
 const scrapeDecklogSchema = z.object({
   deck_id: z.string().min(1),
+  source: z.enum(['jp', 'en']).default('jp'),
 });
 
 decksRouter.post(
@@ -93,10 +94,10 @@ decksRouter.post(
   validate(scrapeDecklogSchema),
   async (req, res, next) => {
     try {
-      const { deck_id: rawInput } = req.body;
-      const deckId = extractDecklogId(rawInput);
+      const { deck_id: rawInput, source } = req.body;
+      const parsedInput = extractDecklogInput(rawInput);
 
-      if (!deckId) {
+      if (!parsedInput) {
         res.status(400).json({
           data: null,
           error: {
@@ -107,7 +108,18 @@ decksRouter.post(
         return;
       }
 
-      const result = await scrapeDecklog(deckId);
+      if (parsedInput.sourceHint && parsedInput.sourceHint !== source) {
+        res.status(400).json({
+          data: null,
+          error: {
+            code: 'SOURCE_MISMATCH',
+            message: 'DeckLog URL 与选择的来源不一致',
+          },
+        });
+        return;
+      }
+
+      const result = await scrapeDecklog(parsedInput.deckId, source);
 
       if (!result.success) {
         res.status(422).json({
@@ -124,6 +136,7 @@ decksRouter.post(
         data: {
           cards: result.cards,
           deckName: result.deckName,
+          source: result.source,
         },
         error: null,
       });

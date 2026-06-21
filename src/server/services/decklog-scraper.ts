@@ -2,13 +2,39 @@
  * DeckLog 卡组爬取服务
  *
  * 通过 DeckLog 内部 JSON API 获取卡组数据
- * API: POST https://decklog.bushiroad.com/system/app/api/view/{deckId}
+ * API:
+ * - 日版: POST https://decklog.bushiroad.com/system/app/api/view/{deckId}
+ * - 国际版 Japanese Edition: POST https://decklog-en.bushiroad.com/system/app-ja/api/view/{deckId}
  */
 
 import { normalizeCardCode } from '../../shared/utils/card-code.js';
 
-const DECKLOG_VIEW_URL = 'https://decklog.bushiroad.com/view/';
-const DECKLOG_API_URL = 'https://decklog.bushiroad.com/system/app/api/view/';
+export type DecklogSource = 'jp' | 'en';
+
+interface DecklogEndpoint {
+  source: DecklogSource;
+  label: string;
+  viewUrl: string;
+  apiUrl: string;
+  expectedGameTitleId: number;
+}
+
+const DECKLOG_ENDPOINTS: Record<DecklogSource, DecklogEndpoint> = {
+  jp: {
+    source: 'jp',
+    label: '日版 DeckLog',
+    viewUrl: 'https://decklog.bushiroad.com/view/',
+    apiUrl: 'https://decklog.bushiroad.com/system/app/api/view/',
+    expectedGameTitleId: 11,
+  },
+  en: {
+    source: 'en',
+    label: '国际版 DeckLog',
+    viewUrl: 'https://decklog-en.bushiroad.com/ja/view/',
+    apiUrl: 'https://decklog-en.bushiroad.com/system/app-ja/api/view/',
+    expectedGameTitleId: 109,
+  },
+};
 
 /** DeckLog API 返回的卡牌条目 */
 interface DeckLogCardRatio {
@@ -18,6 +44,9 @@ interface DeckLogCardRatio {
 
 /** DeckLog API 返回的卡组数据 */
 interface DeckLogDeck {
+  id?: number;
+  deck_id?: string;
+  game_title_id?: number;
   title: string;
   memo: string;
   list: DeckLogCardRatio[];
@@ -40,7 +69,14 @@ export interface DecklogScrapeResult {
   cards: ScrapedCard[];
   /** 卡组名称 */
   deckName: string;
+  /** DeckLog 来源 */
+  source?: DecklogSource;
   error?: string;
+}
+
+export interface ExtractedDecklogInput {
+  deckId: string;
+  sourceHint?: DecklogSource;
 }
 
 /**
@@ -48,28 +84,46 @@ export interface DecklogScrapeResult {
  * 支持格式：
  * - 纯 ID：2D6XL
  * - 完整 URL：https://decklog.bushiroad.com/view/2D6XL
+ * - 国际版 URL：https://decklog-en.bushiroad.com/ja/view/60G2Q
  */
-export function extractDecklogId(input: string): string | null {
+export function extractDecklogInput(input: string): ExtractedDecklogInput | null {
   const trimmed = input.trim();
 
   // 完整 URL
-  const urlMatch = trimmed.match(/decklog\.bushiroad\.com\/view\/([A-Za-z0-9]+)/);
-  if (urlMatch) return urlMatch[1];
+  const urlMatch = trimmed.match(
+    /^(?:https?:\/\/)?(?:www\.)?(decklog(?:-en)?\.bushiroad\.com)\/(?:ja\/)?view\/([A-Za-z0-9]+)/i
+  );
+  if (urlMatch) {
+    return {
+      deckId: urlMatch[2],
+      sourceHint: urlMatch[1].toLowerCase() === 'decklog-en.bushiroad.com' ? 'en' : 'jp',
+    };
+  }
 
   // 纯 ID（字母数字，通常 4-8 位）
-  if (/^[A-Za-z0-9]{4,12}$/.test(trimmed)) return trimmed;
+  if (/^[A-Za-z0-9]{4,12}$/.test(trimmed)) return { deckId: trimmed };
 
   return null;
+}
+
+export function extractDecklogId(input: string): string | null {
+  return extractDecklogInput(input)?.deckId ?? null;
 }
 
 /**
  * 通过 DeckLog JSON API 获取卡组数据
  * @param deckId 卡组 ID（如 "2D6XL"）
+ * @param source DeckLog 来源
  * @param timeout 超时时间（毫秒），默认 15 秒
  */
-export async function scrapeDecklog(deckId: string, timeout = 15000): Promise<DecklogScrapeResult> {
-  const apiUrl = DECKLOG_API_URL + deckId;
-  const referer = DECKLOG_VIEW_URL + deckId;
+export async function scrapeDecklog(
+  deckId: string,
+  source: DecklogSource = 'jp',
+  timeout = 15000
+): Promise<DecklogScrapeResult> {
+  const endpoint = DECKLOG_ENDPOINTS[source];
+  const apiUrl = endpoint.apiUrl + deckId;
+  const referer = endpoint.viewUrl + deckId;
 
   let response: Response;
   try {
@@ -90,7 +144,7 @@ export async function scrapeDecklog(deckId: string, timeout = 15000): Promise<De
       err instanceof DOMException && err.name === 'TimeoutError'
         ? '请求 DeckLog 超时'
         : `网络错误: ${err instanceof Error ? err.message : String(err)}`;
-    return { success: false, cards: [], deckName: '', error: msg };
+    return { success: false, cards: [], deckName: '', source, error: msg };
   }
 
   if (!response.ok) {
@@ -98,6 +152,7 @@ export async function scrapeDecklog(deckId: string, timeout = 15000): Promise<De
       success: false,
       cards: [],
       deckName: '',
+      source,
       error: `DeckLog API 返回 HTTP ${response.status}`,
     };
   }
@@ -109,6 +164,7 @@ export async function scrapeDecklog(deckId: string, timeout = 15000): Promise<De
       success: false,
       cards: [],
       deckName: '',
+      source,
       error: 'DeckLog API 返回了非 JSON 响应，可能该卡组不存在',
     };
   }
@@ -121,11 +177,22 @@ export async function scrapeDecklog(deckId: string, timeout = 15000): Promise<De
       success: false,
       cards: [],
       deckName: '',
+      source,
       error: 'DeckLog API 返回的 JSON 格式异常',
     };
   }
 
   const deckName = deck.title || `DeckLog ${deckId}`;
+
+  if (deck.game_title_id != null && deck.game_title_id !== endpoint.expectedGameTitleId) {
+    return {
+      success: false,
+      cards: [],
+      deckName,
+      source,
+      error: `所选${endpoint.label} 卡组不是 Loveca 卡组`,
+    };
+  }
 
   // 合并 list（主卡组）和 sub_list（副卡组）
   const allItems = [...(deck.list || []), ...(deck.sub_list || [])];
@@ -135,6 +202,7 @@ export async function scrapeDecklog(deckId: string, timeout = 15000): Promise<De
       success: false,
       cards: [],
       deckName,
+      source,
       error: '卡组数据为空',
     };
   }
@@ -157,9 +225,10 @@ export async function scrapeDecklog(deckId: string, timeout = 15000): Promise<De
       success: false,
       cards: [],
       deckName,
+      source,
       error: '未能标准化任何卡牌编号',
     };
   }
 
-  return { success: true, cards, deckName };
+  return { success: true, cards, deckName, source };
 }

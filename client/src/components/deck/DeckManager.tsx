@@ -60,6 +60,12 @@ import {
 } from '@/lib/deckRecordUtils';
 
 type ViewMode = 'list' | 'edit';
+type DecklogSource = 'jp' | 'en';
+
+const DECKLOG_SOURCE_LABELS: Record<DecklogSource, string> = {
+  jp: '日版 DeckLog',
+  en: '国际版 DeckLog',
+};
 
 interface DeckManagerProps {
   onBack: () => void;
@@ -123,6 +129,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   // DeckLog 导入
   const [showDecklogDialog, setShowDecklogDialog] = useState(false);
   const [decklogInput, setDecklogInput] = useState('');
+  const [decklogSource, setDecklogSource] = useState<DecklogSource>('jp');
   const [decklogLoading, setDecklogLoading] = useState(false);
   const [decklogError, setDecklogError] = useState<string | null>(null);
   const [decklogWarnings, setDecklogWarnings] = useState<string[]>([]);
@@ -442,7 +449,11 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       const result = await apiClient.post<{
         cards: { card_code: string; count: number; raw_code: string }[];
         deckName: string;
-      }>('/api/decks/scrape-decklog', { deck_id: decklogInput.trim() });
+        source: DecklogSource;
+      }>('/api/decks/scrape-decklog', {
+        deck_id: decklogInput.trim(),
+        source: decklogSource,
+      });
 
       if (!result.data) {
         setDecklogError(result.error?.message || '爬取失败');
@@ -481,7 +492,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
 
       const deck: DeckConfig = {
         player_name: scrapedName || 'DeckLog 导入',
-        description: `从 DeckLog 导入 (${decklogInput.trim()})`,
+        description: `从 ${DECKLOG_SOURCE_LABELS[decklogSource]} 导入 (${decklogInput.trim()})`,
         main_deck: { members, lives },
         energy_deck: energyDeck,
       };
@@ -577,6 +588,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                         return;
                       }
                       setShowDecklogDialog(true);
+                      setDecklogSource('jp');
                       setDecklogError(null);
                       setDecklogWarnings([]);
                     }}
@@ -1036,9 +1048,38 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
             </div>
 
             <div className="touch-scroll flex-1 overflow-y-auto px-5 pb-4 sm:px-6">
+              <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-frosted)] p-1">
+                {(['jp', 'en'] as const).map((source) => {
+                  const isSelected = decklogSource === source;
+                  return (
+                    <button
+                      key={source}
+                      type="button"
+                      aria-pressed={isSelected}
+                      disabled={decklogLoading}
+                      onClick={() => {
+                        setDecklogSource(source);
+                        setDecklogError(null);
+                      }}
+                      className={`min-h-10 rounded-lg px-3 py-2 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
+                        isSelected
+                          ? 'bg-amber-400 text-slate-950 shadow-sm'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      {DECKLOG_SOURCE_LABELS[source]}
+                    </button>
+                  );
+                })}
+              </div>
+
               <input
                 type="text"
-                placeholder="例如: 2D6XL 或 https://decklog.bushiroad.com/view/2D6XL"
+                placeholder={
+                  decklogSource === 'jp'
+                    ? '例如: 2D6XL 或 https://decklog.bushiroad.com/view/2D6XL'
+                    : '例如: 60G2Q 或 https://decklog-en.bushiroad.com/ja/view/60G2Q'
+                }
                 value={decklogInput}
                 onChange={(e) => {
                   setDecklogInput(e.target.value);
