@@ -25,6 +25,7 @@ import {
   EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID,
   HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
+  HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
   HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID,
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
@@ -49,6 +50,8 @@ import {
   HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
   HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID,
+  HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID,
+  HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID,
   SP_BP1_024_LIVE_START_KANON_KEKE_GAIN_HEART_BLADE_ABILITY_ID,
   SP_BP1_024_LIVE_SUCCESS_STAGE_KANON_KEKE_DRAW_ABILITY_ID,
   SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID,
@@ -59,6 +62,7 @@ import {
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+  HS_BP1_008_ON_ENTER_MILL_THREE_DRAW_IF_ALL_MEMBERS_ABILITY_ID,
   HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
@@ -66,13 +70,18 @@ import {
   PL_BP3_026_LIVE_SUCCESS_HIGHER_STAGE_HEART_TOTAL_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
   HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID,
+  HS_BP2_021_LIVE_START_RELAY_ENTERED_HASUNOSORA_GREEN_REQUIREMENT_ABILITY_ID,
   HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
+  HS_BP2_023_LIVE_START_RELAY_ENTERED_HASUNOSORA_BLUE_REQUIREMENT_ABILITY_ID,
+  HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABILITY_ID,
   HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
   HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
   HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
   HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
   HS_BP5_006_LIVE_START_DISCARD_SAME_GROUP_CARDS_SOURCE_HEART_ABILITY_ID,
+  HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID,
+  HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP6_003_LIVE_START_DISCARD_GAIN_MIRACRA_HEART_ABILITY_ID,
@@ -82,6 +91,7 @@ import {
   HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
+  HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
   HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID,
   HS_PB1_014_ON_ENTER_MOVE_OPPONENT_FRONT_ABILITY_ID,
   HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID,
@@ -245,6 +255,21 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+
+    for (const cardCode of ['PL!HS-bp1-008-R', 'PL!HS-bp1-008-P']) {
+      const hsBp1008 = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId === HS_BP1_008_ON_ENTER_MILL_THREE_DRAW_IF_ALL_MEMBERS_ABILITY_ID
+      );
+      expect(hsBp1008).toMatchObject({
+        baseCardCodes: ['PL!HS-bp1-008'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
 
     for (const cardCode of HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_CARD_CODES) {
       const hs006Like = getCardAbilityDefinitions(cardCode).find(
@@ -1100,6 +1125,61 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    for (const [cardCode, abilityId] of [
+      [
+        'PL!HS-bp2-021-L',
+        HS_BP2_021_LIVE_START_RELAY_ENTERED_HASUNOSORA_GREEN_REQUIREMENT_ABILITY_ID,
+      ],
+      [
+        'PL!HS-bp2-023-L',
+        HS_BP2_023_LIVE_START_RELAY_ENTERED_HASUNOSORA_BLUE_REQUIREMENT_ABILITY_ID,
+      ],
+      [
+        'PL!HS-bp2-025-L',
+        HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABILITY_ID,
+      ],
+    ] as const) {
+      const relayEnteredLive = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === abilityId
+      );
+      expect(relayEnteredLive).toMatchObject({
+        cardCodes: [cardCode],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    const birdcage = getCardAbilityDefinitions('PL!HS-bp5-020-L').find(
+      (ability) =>
+        ability.abilityId === HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID
+    );
+    expect(birdcage).toMatchObject({
+      cardCodes: ['PL!HS-bp5-020-L'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    for (const cardCode of ['PL!HS-bp2-024-L', 'PL!HS-bp2-024-L+']) {
+      const ladybug = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId === HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID
+      );
+      expect(ladybug).toMatchObject({
+        baseCardCodes: ['PL!HS-bp2-024'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
+
     const himeOnEnter = getCardAbilityDefinitions('PL!HS-sd1-006-SD').find(
       (ability) => ability.abilityId === HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID
     );
@@ -1180,6 +1260,30 @@ describe('card effect classification registry', () => {
         implemented: true,
       });
     }
+
+    const hsSd1013Kosuzu = getCardAbilityDefinitions('PL!HS-sd1-013-SD').find(
+      (ability) => ability.abilityId === HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID
+    );
+    expect(hsSd1013Kosuzu).toMatchObject({
+      cardCodes: ['PL!HS-sd1-013-SD'],
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp5013Kosuzu = getCardAbilityDefinitions('PL!HS-bp5-013-N').find(
+      (ability) => ability.abilityId === HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID
+    );
+    expect(hsBp5013Kosuzu).toMatchObject({
+      cardCodes: ['PL!HS-bp5-013-N'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
 
     for (const cardCode of ['PL!HS-bp6-003-P', 'PL!HS-bp6-003-R']) {
       const onEnter = getCardAbilityDefinitions(cardCode).find(
@@ -1271,6 +1375,19 @@ describe('card effect classification registry', () => {
     expect(dododoLiveSuccess).toMatchObject({
       category: CardAbilityCategory.LIVE_SUCCESS,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+    });
+
+    const kosuzuLiveSuccess = getCardAbilityDefinitions('PL!HS-pb1-021-N').find(
+      (ability) =>
+        ability.abilityId === HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID
+    );
+    expect(kosuzuLiveSuccess).toMatchObject({
+      cardCodes: ['PL!HS-pb1-021-N'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
       queued: true,
       implemented: true,
@@ -1533,6 +1650,17 @@ describe('card effect classification registry', () => {
       (ability) => ability.abilityId === HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID
     );
     expect(kosuzuAuto).toMatchObject({
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const tsuzuriAuto = getCardAbilityDefinitions('PL!HS-bp2-013-N').find(
+      (ability) => ability.abilityId === HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID
+    );
+    expect(tsuzuriAuto).toMatchObject({
       category: CardAbilityCategory.AUTO,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_LEAVE_STAGE,

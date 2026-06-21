@@ -1,6 +1,7 @@
 import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import {
   addAction,
+  getCardById,
   getPlayerById,
   type ActiveEffectState,
   type GameState,
@@ -13,9 +14,11 @@ import {
 } from '../../../../domain/rules/live-modifiers.js';
 import {
   and,
+  cardNameAliasIs,
   groupAliasIs,
   groupIs,
   typeIs,
+  type CardSelector,
   unitAliasIs,
 } from '../../../effects/card-selectors.js';
 import {
@@ -23,15 +26,22 @@ import {
   countOtherLiveZoneCardsMatching,
   countSuccessfulLiveCards,
   getCardIdsInZone,
+  getMemberEffectiveCost,
   hasAtLeastCardsMatchingSelector,
   successLiveScoreAtLeast,
   sumSuccessfulLiveScore,
 } from '../../../effects/conditions.js';
+import { getRelayEnteredStageMemberCardIdsThisTurn } from '../../../effects/relay-entered-members.js';
 import {
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
+  HS_BP2_021_LIVE_START_RELAY_ENTERED_HASUNOSORA_GREEN_REQUIREMENT_ABILITY_ID,
+  HS_BP2_023_LIVE_START_RELAY_ENTERED_HASUNOSORA_BLUE_REQUIREMENT_ABILITY_ID,
+  HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABILITY_ID,
+  HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID,
   HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
+  HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startConfirmOnlyActiveEffect } from '../../runtime/active-effect.js';
@@ -42,7 +52,15 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 const NICO_SCORE_BONUS_STEP_ID = 'NICO_SCORE_BONUS';
 const BOKUIMA_REQUIREMENT_REDUCTION_STEP_ID = 'BOKUIMA_REQUIREMENT_REDUCTION';
 const HS_BP5_019_REQUIREMENT_REDUCTION_STEP_ID = 'HS_BP5_019_REQUIREMENT_REDUCTION';
+const HS_BP2_021_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
+  'HS_BP2_021_RELAY_ENTERED_REQUIREMENT_REDUCTION';
 const HS_BP2_022_SCORE_BONUS_STEP_ID = 'HS_BP2_022_SCORE_BONUS';
+const HS_BP2_023_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
+  'HS_BP2_023_RELAY_ENTERED_REQUIREMENT_REDUCTION';
+const HS_BP5_020_SCORE_BONUS_STEP_ID = 'HS_BP5_020_SCORE_BONUS';
+const HS_BP2_024_REQUIREMENT_REDUCTION_STEP_ID = 'HS_BP2_024_REQUIREMENT_REDUCTION';
+const HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
+  'HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION';
 const BP4_021_SUCCESS_SCORE_MODIFIER_STEP_ID = 'BP4_021_SUCCESS_SCORE_MODIFIER';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -70,6 +88,13 @@ interface ConditionalLiveModifierWorkflowConfig {
     effect: ActiveEffectState,
     playerId: string
   ) => ConditionalLiveModifierFinishContext;
+}
+
+interface RelayEnteredHasunosoraRequirementReductionConfig {
+  readonly abilityId: string;
+  readonly stepId: string;
+  readonly color: HeartColor;
+  readonly colorLabel: string;
 }
 
 const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkflowConfig[] = [
@@ -133,6 +158,62 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
       };
     },
     finish: finishHsBp2AokuharukaLiveStartScoreBonus,
+  },
+  createRelayEnteredHasunosoraRequirementReductionWorkflow({
+    abilityId: HS_BP2_021_LIVE_START_RELAY_ENTERED_HASUNOSORA_GREEN_REQUIREMENT_ABILITY_ID,
+    stepId: HS_BP2_021_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID,
+    color: HeartColor.GREEN,
+    colorLabel: '绿Heart',
+  }),
+  createRelayEnteredHasunosoraRequirementReductionWorkflow({
+    abilityId: HS_BP2_023_LIVE_START_RELAY_ENTERED_HASUNOSORA_BLUE_REQUIREMENT_ABILITY_ID,
+    stepId: HS_BP2_023_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID,
+    color: HeartColor.BLUE,
+    colorLabel: '蓝Heart',
+  }),
+  createRelayEnteredHasunosoraRequirementReductionWorkflow({
+    abilityId: HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABILITY_ID,
+    stepId: HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID,
+    color: HeartColor.PINK,
+    colorLabel: '桃Heart',
+  }),
+  {
+    abilityId: HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
+    stepId: HS_BP5_020_SCORE_BONUS_STEP_ID,
+    getStartContext: (game, _ability, playerId) => {
+      const highCostHasunosoraMemberCount = countHighCostHasunosoraStageMembers(game, playerId);
+      const isConditionMet = highCostHasunosoraMemberCount >= 2;
+      return {
+        effectText: `${getAbilityEffectText(
+          HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID
+        )}（当前${highCostHasunosoraMemberCount}名，${
+          isConditionMet ? '满足条件' : '未满足条件'
+        }）`,
+        actionPayload: {
+          highCostHasunosoraMemberCount,
+          scoreBonus: isConditionMet ? 1 : 0,
+        },
+      };
+    },
+    finish: finishHsBp5BardCageLiveStartScoreBonus,
+  },
+  {
+    abilityId: HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID,
+    stepId: HS_BP2_024_REQUIREMENT_REDUCTION_STEP_ID,
+    getStartContext: (game, _ability, playerId) => {
+      const condition = getKosuzuSayakaHigherCostCondition(game, playerId);
+      return {
+        effectText: `${getAbilityEffectText(
+          HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID
+        )}（${condition.conditionMet ? '满足条件' : '未满足条件'}）`,
+        actionPayload: {
+          kosuzuMemberIds: condition.kosuzuMemberIds,
+          sayakaMemberIds: condition.sayakaMemberIds,
+          requirementReduction: condition.conditionMet ? 3 : 0,
+        },
+      };
+    },
+    finish: finishHsBp2LadybugLiveStartRequirementReduction,
   },
   {
     abilityId: BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
@@ -383,6 +464,78 @@ function finishHsBp2AokuharukaLiveStartScoreBonus(
   };
 }
 
+function finishHsBp5BardCageLiveStartScoreBonus(
+  game: GameState,
+  effect: ActiveEffectState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const highCostHasunosoraMemberCount = countHighCostHasunosoraStageMembers(game, playerId);
+  const isConditionMet = highCostHasunosoraMemberCount >= 2;
+  let state: GameState = {
+    ...game,
+    activeEffect: null,
+  };
+  if (isConditionMet) {
+    state = addLiveModifier(state, {
+      kind: 'SCORE',
+      playerId,
+      countDelta: 1,
+      liveCardId: effect.sourceCardId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    });
+  }
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_SCORE_BONUS',
+      effectText: getAbilityEffectText(
+        HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID
+      ),
+      conditionMet: isConditionMet,
+      highCostHasunosoraMemberCount,
+      scoreBonus: isConditionMet ? 1 : 0,
+    },
+  };
+}
+
+function finishHsBp2LadybugLiveStartRequirementReduction(
+  game: GameState,
+  effect: ActiveEffectState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const condition = getKosuzuSayakaHigherCostCondition(game, playerId);
+  const reduction = condition.conditionMet ? 3 : 0;
+  const state = replaceSourceRequirementModifier(
+    {
+      ...game,
+      activeEffect: null,
+    },
+    effect,
+    reduction > 0
+      ? {
+          kind: 'REQUIREMENT',
+          liveCardId: effect.sourceCardId,
+          modifiers: [{ color: HeartColor.RAINBOW, countDelta: -reduction }],
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_REQUIREMENT_REDUCTION',
+      conditionMet: condition.conditionMet,
+      kosuzuMemberIds: condition.kosuzuMemberIds,
+      sayakaMemberIds: condition.sayakaMemberIds,
+      requirementReduction: reduction,
+    },
+  };
+}
+
 function finishBp4021HeartbeatLiveStartSuccessScoreModifier(
   game: GameState,
   effect: ActiveEffectState,
@@ -441,12 +594,135 @@ function finishBp4021HeartbeatLiveStartSuccessScoreModifier(
   };
 }
 
+function createRelayEnteredHasunosoraRequirementReductionWorkflow(
+  relayConfig: RelayEnteredHasunosoraRequirementReductionConfig
+): ConditionalLiveModifierWorkflowConfig {
+  return {
+    abilityId: relayConfig.abilityId,
+    stepId: relayConfig.stepId,
+    getStartContext: (game, _ability, playerId) => {
+      const relayEnteredHasunosoraMemberIds = getRelayEnteredHasunosoraMemberIds(game, playerId);
+      const conditionMet = relayEnteredHasunosoraMemberIds.length >= 2;
+      return {
+        effectText: `${getAbilityEffectText(relayConfig.abilityId)}（当前${relayEnteredHasunosoraMemberIds.length}名，${
+          conditionMet ? '满足条件' : '未满足条件'
+        }）`,
+        actionPayload: {
+          relayEnteredHasunosoraMemberIds,
+          requirementReduction: conditionMet ? 1 : 0,
+        },
+      };
+    },
+    finish: (game, effect, playerId) =>
+      finishRelayEnteredHasunosoraRequirementReduction(game, effect, playerId, relayConfig),
+  };
+}
+
+function finishRelayEnteredHasunosoraRequirementReduction(
+  game: GameState,
+  effect: ActiveEffectState,
+  playerId: string,
+  config: RelayEnteredHasunosoraRequirementReductionConfig
+): ConditionalLiveModifierFinishContext {
+  const relayEnteredHasunosoraMemberIds = getRelayEnteredHasunosoraMemberIds(game, playerId);
+  const conditionMet = relayEnteredHasunosoraMemberIds.length >= 2;
+  const state = replaceSourceRequirementModifier(
+    {
+      ...game,
+      activeEffect: null,
+    },
+    effect,
+    conditionMet
+      ? {
+          kind: 'REQUIREMENT',
+          liveCardId: effect.sourceCardId,
+          modifiers: [{ color: config.color, countDelta: -1 }],
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_RELAY_ENTERED_REQUIREMENT_REDUCTION',
+      conditionMet,
+      relayEnteredHasunosoraMemberIds,
+      requirementReductionColor: config.color,
+      requirementReduction: conditionMet ? 1 : 0,
+    },
+  };
+}
+
 function countCeriseBouquetLiveInWaitingRoom(game: GameState, playerId: string): number {
   return countCardsMatchingSelector(
     game,
     getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM),
     and(typeIs(CardType.LIVE), unitAliasIs('Cerise Bouquet'))
   );
+}
+
+function getRelayEnteredHasunosoraMemberIds(
+  game: GameState,
+  playerId: string
+): readonly string[] {
+  return getRelayEnteredStageMemberCardIdsThisTurn(
+    game,
+    playerId,
+    and(typeIs(CardType.MEMBER), groupAliasIs('蓮ノ空'))
+  );
+}
+
+function countHighCostHasunosoraStageMembers(game: GameState, playerId: string): number {
+  return getStageMemberCardIdsMatching(
+    game,
+    playerId,
+    (card) => groupAliasIs('蓮ノ空')(card) && getMemberEffectiveCost(game, playerId, card.instanceId) >= 10
+  ).length;
+}
+
+function getKosuzuSayakaHigherCostCondition(
+  game: GameState,
+  playerId: string
+): {
+  readonly conditionMet: boolean;
+  readonly kosuzuMemberIds: readonly string[];
+  readonly sayakaMemberIds: readonly string[];
+} {
+  const kosuzuMemberIds = getStageMemberCardIdsMatching(game, playerId, cardNameAliasIs('徒町小鈴'));
+  const sayakaMemberIds = getStageMemberCardIdsMatching(game, playerId, cardNameAliasIs('村野さやか'));
+  const conditionMet = kosuzuMemberIds.some((kosuzuMemberId) => {
+    const kosuzuCost = getMemberEffectiveCost(game, playerId, kosuzuMemberId);
+    return sayakaMemberIds.some(
+      (sayakaMemberId) => getMemberEffectiveCost(game, playerId, sayakaMemberId) > kosuzuCost
+    );
+  });
+
+  return {
+    conditionMet,
+    kosuzuMemberIds,
+    sayakaMemberIds,
+  };
+}
+
+function getStageMemberCardIdsMatching(
+  game: GameState,
+  playerId: string,
+  selector: CardSelector
+): readonly string[] {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return [];
+  }
+
+  return Object.values(player.memberSlots.slots).filter((cardId): cardId is string => {
+    if (cardId === null) {
+      return false;
+    }
+    const card = getCardById(game, cardId);
+    return card !== null && selector(card);
+  });
 }
 
 function replaceSourceRequirementModifier(

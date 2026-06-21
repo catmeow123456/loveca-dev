@@ -11,6 +11,7 @@ import { CardType, ZoneType } from '../../../../shared/types/enums.js';
 import {
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
+  HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
   UMI_ON_ENTER_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -108,6 +109,8 @@ const BP6_002_REVEAL_SELECTED_STEP_ID =
   'BP6_002_REVEAL_SELECTED_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD';
 const HS_BP2_012_SELECT_MEMBER_STEP_ID = 'HS_BP2_012_SELECT_MEMBER_FROM_TOP_FIVE';
 const HS_BP2_012_REVEAL_SELECTED_STEP_ID = 'HS_BP2_012_REVEAL_SELECTED_MEMBER';
+const HS_BP2_013_SELECT_LIVE_STEP_ID = 'HS_BP2_013_SELECT_LIVE_FROM_TOP_FIVE';
+const HS_BP2_013_REVEAL_SELECTED_STEP_ID = 'HS_BP2_013_REVEAL_SELECTED_LIVE';
 
 const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandWorkflowConfig[] = [
   {
@@ -176,6 +179,22 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     skipSelectionLabel: '不加入',
     revealStepText: '选择的成员卡已公开。确认后加入手牌，其余卡片放置入休息室。',
     revealActionStep: 'REVEAL_SELECTED_MEMBER',
+  },
+  {
+    abilityId: HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
+    topCount: 5,
+    selector: typeIs(CardType.LIVE),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    selectStepId: HS_BP2_013_SELECT_LIVE_STEP_ID,
+    revealStepId: HS_BP2_013_REVEAL_SELECTED_STEP_ID,
+    selectStepText: '请选择至多1张LIVE卡公开并加入手牌。也可以不加入。',
+    noTargetStepText: '没有可加入手牌的LIVE卡。确认后其余卡片放置入休息室。',
+    selectionLabel: '选择要公开并加入手牌的LIVE卡',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '不加入',
+    revealStepText: '选择的LIVE卡已公开。确认后加入手牌，其余卡片放置入休息室。',
+    revealActionStep: 'REVEAL_SELECTED_LIVE',
   },
 ];
 

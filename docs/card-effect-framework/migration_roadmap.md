@@ -87,7 +87,7 @@ Current migrated workflow modules:
 - `workflows/cards/hs-bp6-004-ginko.ts`
 - `workflows/cards/hs-bp6-031-fanfare.ts`
 - `workflows/cards/hs-bp5-008-izumi.ts`
-- `workflows/cards/hs-pr-019-ginko.ts`
+- `workflows/shared/mill-top-gain-live-modifier.ts`
 - `workflows/cards/hs-pb1-009-kaho.ts`
 - `workflows/cards/hs-sd1-001-kaho.ts`
 - `workflows/cards/hs-sd1-006-hime.ts`
@@ -116,6 +116,7 @@ Recent helper modules added outside `actions.ts`:
 - `runtime/source-member.ts`: source member slot lookup helper.
 - `runtime/events.ts`: event-log delta queries for newly entered stage members, newly changed member orientation events, and newly moved member-slot events.
 - `runtime/grouped-selection.ts`: validates per-group min/max card selections for grouped recovery.
+- `effects/relay-entered-members.ts`: pure query helper for stage members that entered by relay this turn; it checks current stage presence, `movedToStageThisTurn`, matching `ON_ENTER_STAGE`, and non-empty `relayReplacements`.
 
 Runner line count after R-4Q-c CHISATO / EMMA single-card workflow migration was about 5285 lines, down from about 5667 after R-4Q-b. R-5B `HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE` migration brought the runner to about 5058 lines. R-5C `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART` migration brought the runner to about 4830 lines. R-5D `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT` migration brought the runner to about 4595 lines. R-5E `MAKI_ON_ENTER` migration brought the runner to about 4432 lines. R-5F `LL_BP1_001` / `LL_BP2_001` named hand discard Live-start migration brought the runner to about 4239 lines. After R-5U, complete card-effect fallback branches are empty; the runner still keeps matcher / relay / trigger condition glue until those framework boundaries are explicitly reopened.
 
@@ -374,7 +375,7 @@ Read-only scan found no real application card effect writing `target: PLAYER`. T
 Updated HEART users:
 
 - `workflows/shared/live-start-discard-gain-heart.ts`: Kotori and HS_BP1_006 source-member HEART now use `addHeartLiveModifierForMember`;
-- `workflows/cards/hs-pr-019-ginko.ts`: HS_PR_019 green source-member HEART now uses `addHeartLiveModifierForMember`;
+- `workflows/shared/mill-top-gain-live-modifier.ts`: HS_PR_019 green source-member HEART now uses `addHeartLiveModifierForMember`;
 - `workflows/cards/hs-bp5-003-rurino.ts`: Rurino same-group pink target-member HEART now uses `addHeartLiveModifierForMember` while preserving opponent-stage targets and actionHistory execution by the effect controller;
 - continuous HEART definitions for BP5_008, BP4_002, and BP5_003 now use `createHeartLiveModifierForMember` and filter nulls.
 
@@ -405,7 +406,7 @@ Existing sample coverage still locks KEKE success and source-only skip paths. R-
 
 ## R-5M HS_PR_019 On-Enter Mill Gain Green Heart Outcome 2026-06-19
 
-R-5M migrated only `HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID` into the new single-card workflow file `src/application/card-effects/workflows/cards/hs-pr-019-ginko.ts`.
+R-5M migrated only `HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID`; the flow now lives in `src/application/card-effects/workflows/shared/mill-top-gain-live-modifier.ts` after the later shared-workflow naming cleanup.
 
 Covered flow:
 
@@ -425,7 +426,7 @@ Covered flow:
 
 The workflow reuses existing helpers only: pending starter registry, activeEffect step registry, `startPendingActiveEffect`, `getAbilityEffectText`, `inspectTopCards`, `moveInspectedCardsToWaitingRoom`, `allCardIdsMatchingSelector`, `memberHasHeartColor`, and now the domain member HEART helper. No runtime helper, trigger matcher integration, cost-calculator change, or steps DSL was added. Runner line count after R-5M is about 3460 lines.
 
-Existing sample coverage still locks the three-green-Heart-member path and green Heart modifier. R-5M added `tests/integration/hs-pr-019-ginko.test.ts` to lock the false path: when one revealed card is not a green-Heart member, all 3 revealed cards move to waiting room, no HEART modifier is added, and the resolve payload writes `conditionMet: false` with `heartBonus: []`.
+Existing sample coverage still locks the three-green-Heart-member path and green Heart modifier. R-5M added focused coverage, now under `tests/integration/mill-top-gain-live-modifier.test.ts`, to lock the false path: when one revealed card is not a green-Heart member, all 3 revealed cards move to waiting room, no HEART modifier is added, and the resolve payload writes `conditionMet: false` with `heartBonus: []`.
 
 ## R-5L HS_BP5_001 On-Enter Mill Gain Blade Outcome 2026-06-19
 

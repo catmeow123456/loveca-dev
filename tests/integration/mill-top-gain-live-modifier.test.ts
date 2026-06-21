@@ -7,10 +7,13 @@ import {
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { GameService } from '../../src/application/game-service';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
+  HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
+  HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -19,6 +22,7 @@ import {
   OrientationState,
   SlotPosition,
   SubPhase,
+  TriggerCondition,
   TurnType,
 } from '../../src/shared/types/enums';
 
@@ -85,7 +89,7 @@ function removeFromPlayerZones(player: {
   player.liveZone.cardIds = [];
 }
 
-describe('HS-PR-019 Ginko workflow', () => {
+describe('mill-top gain live modifier workflow', () => {
   it('mills top three without adding green Heart when one revealed card is not a green-Heart member', () => {
     const session = createGameSession();
     const deck = createDeck();
@@ -276,4 +280,218 @@ describe('HS-PR-019 Ginko workflow', () => {
       )
     ).toBe(true);
   });
+
+  it('mills top three and adds blue Heart for PL!HS-sd1-013-SD when all revealed cards are blue-Heart members', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('hs-sd1-013-blue-heart', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const kosuzu = createCardInstance(
+      createMemberCard('PL!HS-sd1-013-SD', '徒町小鈴', HeartColor.BLUE),
+      PLAYER1,
+      'p1-hs-sd1-013-kosuzu'
+    );
+    const topCards = [0, 1, 2].map((index) =>
+      createCardInstance(
+        createMemberCard(`PL!HS-sd1-013-test-blue-${index}`, `Blue ${index}`, HeartColor.BLUE),
+        PLAYER1,
+        `p1-hs-sd1-013-top-${index}`
+      )
+    );
+    const state = registerCards(session.state!, [kosuzu, ...topCards]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const topCardIds = topCards.map((card) => card.instanceId);
+
+    removeFromPlayerZones(p1);
+    p1.hand.cardIds = [kosuzu.instanceId];
+    p1.mainDeck.cardIds = [...topCardIds];
+    p1.memberSlots.slots = {
+      [SlotPosition.LEFT]: null,
+      [SlotPosition.CENTER]: null,
+      [SlotPosition.RIGHT]: null,
+    };
+    p1.memberSlots.cardStates = new Map();
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, kosuzu.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.stepId).toBe('HS_SD1_013_REVEAL_TOP_THREE');
+    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      playerId: PLAYER1,
+      sourceCardId: kosuzu.instanceId,
+      abilityId: HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
+      target: 'SOURCE_MEMBER',
+      hearts: [{ color: HeartColor.BLUE, count: 1 }],
+    });
+  });
+
+  it('mills top three and adds BLADE +2 for PL!HS-bp5-013-N when all revealed cards are members', () => {
+    const session = createLiveStartSession('hs-bp5-013-blade', {
+      topCards: [0, 1, 2].map((index) =>
+        createCardInstance(
+          createMemberCard(`PL!HS-bp5-013-test-member-${index}`, `Member ${index}`),
+          PLAYER1,
+          `p1-hs-bp5-013-top-${index}`
+        )
+      ),
+    });
+
+    const timingResult = new GameService().executeCheckTiming(session.state!, [
+      TriggerCondition.ON_LIVE_START,
+    ]);
+
+    expect(timingResult.success).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState =
+      timingResult.gameState;
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.stepId).toBe('HS_BP5_013_REVEAL_TOP_THREE');
+    const topCardIds = session.state!.activeEffect!.inspectionCardIds!;
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      sourceCardId: 'p1-hs-bp5-013-kosuzu',
+      abilityId: HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID,
+      countDelta: 2,
+    });
+  });
+
+  it('does not add BLADE for PL!HS-bp5-013-N when fewer than three cards are revealed', () => {
+    const session = createLiveStartSession('hs-bp5-013-short-deck', {
+      topCards: [0, 1].map((index) =>
+        createCardInstance(
+          createMemberCard(`PL!HS-bp5-013-short-member-${index}`, `Member ${index}`),
+          PLAYER1,
+          `p1-hs-bp5-013-short-top-${index}`
+        )
+      ),
+    });
+
+    const timingResult = new GameService().executeCheckTiming(session.state!, [
+      TriggerCondition.ON_LIVE_START,
+    ]);
+
+    expect(timingResult.success).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState =
+      timingResult.gameState;
+    const topCardIds = session.state!.activeEffect!.inspectionCardIds!;
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId === HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID &&
+          action.payload.step === 'FINISH_MILL_TOP_THREE_CHECK_MEMBERS_GAIN_BLADE' &&
+          action.payload.conditionMet === false &&
+          action.payload.bladeBonus === 0
+      )
+    ).toBe(true);
+  });
 });
+
+function createLiveStartSession(
+  gameId: string,
+  options: { readonly topCards: readonly ReturnType<typeof createCardInstance>[] }
+): ReturnType<typeof createGameSession> {
+  const session = createGameSession();
+  const deck = createDeck();
+
+  session.createGame(gameId, PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+  session.initializeGame(deck, deck);
+
+  const kosuzu = createCardInstance(
+    createMemberCard('PL!HS-bp5-013-N', '徒町 小鈴'),
+    PLAYER1,
+    'p1-hs-bp5-013-kosuzu'
+  );
+  const state = registerCards(session.state!, [kosuzu, ...options.topCards]);
+  (session as unknown as { authorityState: GameState }).authorityState = state;
+
+  const p1 = state.players[0] as unknown as {
+    hand: { cardIds: string[] };
+    mainDeck: { cardIds: string[] };
+    waitingRoom: { cardIds: string[] };
+    successZone: { cardIds: string[] };
+    liveZone: { cardIds: string[] };
+    memberSlots: {
+      slots: Record<SlotPosition, string | null>;
+      cardStates: Map<string, { orientation: OrientationState }>;
+    };
+  };
+  const mutableState = state as unknown as {
+    currentPhase: GamePhase;
+    currentSubPhase: SubPhase;
+    currentTurnType: TurnType;
+    activePlayerIndex: number;
+  };
+
+  removeFromPlayerZones(p1);
+  p1.mainDeck.cardIds = options.topCards.map((card) => card.instanceId);
+  p1.memberSlots.slots = {
+    [SlotPosition.LEFT]: null,
+    [SlotPosition.CENTER]: kosuzu.instanceId,
+    [SlotPosition.RIGHT]: null,
+  };
+  p1.memberSlots.cardStates = new Map([
+    [kosuzu.instanceId, { orientation: OrientationState.ACTIVE }],
+  ]);
+  mutableState.currentPhase = GamePhase.PERFORMANCE;
+  mutableState.currentSubPhase = SubPhase.PERFORMANCE_LIVE_START_EFFECTS;
+  mutableState.currentTurnType = TurnType.NORMAL;
+  mutableState.activePlayerIndex = 0;
+
+  return session;
+}
