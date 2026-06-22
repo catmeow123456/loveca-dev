@@ -74,6 +74,9 @@ import {
   PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
   PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID,
   PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID,
+  PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
+  PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID,
+  PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID,
   PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
   PL_N_BP3_015_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
   PL_N_PB1_034_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
@@ -200,6 +203,12 @@ const GENERIC_DISCARD_LOOK_TOP_CARD_CODES = [
   'PL!N-pb1-035-N',
   'PL!S-PR-013-PR',
   'PL!S-PR-019-PR',
+  'PL!S-bp2-005-R+',
+  'PL!S-bp2-005-R＋',
+  'PL!S-bp2-005-P',
+  'PL!S-bp2-005-P+',
+  'PL!S-bp2-005-P＋',
+  'PL!S-bp2-005-SEC',
   'PL!S-bp3-004-P',
   'PL!S-bp3-004-R',
   'PL!SP-bp1-005-P',
@@ -375,8 +384,7 @@ describe('card effect classification registry', () => {
     for (const cardCode of ['PL!N-pb1-006-P+', 'PL!N-pb1-006-R']) {
       const kanataActivated = getCardAbilityDefinitions(cardCode).find(
         (ability) =>
-          ability.abilityId ===
-          PL_N_PB1_006_ACTIVATED_WAIT_SELF_ACTIVATE_ONE_ENERGY_ABILITY_ID
+          ability.abilityId === PL_N_PB1_006_ACTIVATED_WAIT_SELF_ACTIVATE_ONE_ENERGY_ABILITY_ID
       );
 
       expect(kanataActivated).toMatchObject({
@@ -400,8 +408,7 @@ describe('card effect classification registry', () => {
     ]) {
       const kasumiOnEnter = getCardAbilityDefinitions(cardCode).find(
         (ability) =>
-          ability.abilityId ===
-          PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID
+          ability.abilityId === PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID
       );
       const kasumiActivated = getCardAbilityDefinitions(cardCode).find(
         (ability) =>
@@ -441,8 +448,7 @@ describe('card effect classification registry', () => {
     ]) {
       const emmaActivated = getCardAbilityDefinitions(cardCode).find(
         (ability) =>
-          ability.abilityId ===
-          PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID
+          ability.abilityId === PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID
       );
       const emmaLiveStart = getCardAbilityDefinitions(cardCode).find(
         (ability) =>
@@ -466,6 +472,24 @@ describe('card effect classification registry', () => {
         abilityId:
           PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID,
         baseCardCodes: ['PL!N-bp3-008'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    for (const cardCode of ['PL!N-bp3-010-R', 'PL!N-bp3-010-P']) {
+      const shiorikoLiveStart = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID
+      );
+
+      expect(shiorikoLiveStart).toMatchObject({
+        abilityId: PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
+        baseCardCodes: ['PL!N-bp3-010'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -1540,8 +1564,7 @@ describe('card effect classification registry', () => {
     expect(
       ginkoSd1004Definitions.find(
         (ability) =>
-          ability.abilityId ===
-          HS_SD1_004_ON_ENTER_DISCARD_HASUNOSORA_RECOVER_MEMBER_ABILITY_ID
+          ability.abilityId === HS_SD1_004_ON_ENTER_DISCARD_HASUNOSORA_RECOVER_MEMBER_ABILITY_ID
       )
     ).toMatchObject({
       abilityId: HS_SD1_004_ON_ENTER_DISCARD_HASUNOSORA_RECOVER_MEMBER_ABILITY_ID,
@@ -1616,8 +1639,7 @@ describe('card effect classification registry', () => {
     expect(
       joshoKiryuDefinitions.find(
         (ability) =>
-          ability.abilityId ===
-          HS_BP5_021_LIVE_START_THREE_MIRACRA_STAGE_MEMBERS_SCORE_ABILITY_ID
+          ability.abilityId === HS_BP5_021_LIVE_START_THREE_MIRACRA_STAGE_MEMBERS_SCORE_ABILITY_ID
       )
     ).toMatchObject({
       abilityId: HS_BP5_021_LIVE_START_THREE_MIRACRA_STAGE_MEMBERS_SCORE_ABILITY_ID,
@@ -1834,6 +1856,34 @@ describe('card effect classification registry', () => {
         ability.abilityId === HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID
     );
     expect(dododoLiveSuccess).toMatchObject({
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+    });
+
+    const poppinUpLiveSuccess = getCardAbilityDefinitions('PL!N-bp1-026-L').find(
+      (ability) =>
+        ability.abilityId ===
+        PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID
+    );
+    expect(poppinUpLiveSuccess).toMatchObject({
+      cardCodes: ['PL!N-bp1-026-L'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+    });
+
+    const laBellaPatriaLiveSuccess = getCardAbilityDefinitions('PL!N-bp3-027-L').find(
+      (ability) =>
+        ability.abilityId ===
+        PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID
+    );
+    expect(laBellaPatriaLiveSuccess).toMatchObject({
+      cardCodes: ['PL!N-bp3-027-L'],
       category: CardAbilityCategory.LIVE_SUCCESS,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -2464,6 +2514,20 @@ describe('card effect classification registry', () => {
       getCardAbilityDefinitions('PL!HS-bp1-023-L').filter(
         (ability) =>
           ability.abilityId === HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID
+      )
+    ).toHaveLength(1);
+    expect(
+      getCardAbilityDefinitions('PL!N-bp1-026-L').filter(
+        (ability) =>
+          ability.abilityId ===
+          PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID
+      )
+    ).toHaveLength(1);
+    expect(
+      getCardAbilityDefinitions('PL!N-bp3-027-L').filter(
+        (ability) =>
+          ability.abilityId ===
+          PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID
       )
     ).toHaveLength(1);
     expect(

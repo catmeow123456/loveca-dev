@@ -600,6 +600,35 @@ describe('LiveResolver', () => {
       expect(judgments.map((judgment) => judgment.isSuccess)).toEqual([true, true]);
       expect(remainingPool.getTotalCount()).toBe(0);
     });
+
+    it('Live 成功后返回剩余 Heart plain data，RAINBOW 不计为指定绿色', () => {
+      const liveData = createMockLiveData(
+        2,
+        createHeartRequirement({
+          [HeartColor.GREEN]: 1,
+          [HeartColor.RAINBOW]: 1,
+        })
+      );
+      const activeMembers: MemberCardData[] = [
+        createMockMemberData([
+          { color: HeartColor.GREEN, count: 2 },
+          { color: HeartColor.RAINBOW, count: 1 },
+        ]),
+      ];
+
+      const result = resolver.performLive(
+        'p1',
+        activeMembers,
+        [{ cardId: 'live-1', data: liveData }],
+        []
+      );
+
+      expect(result.liveJudgments[0]?.isSuccess).toBe(true);
+      expect(result.remainingHearts).toEqual([{ color: HeartColor.RAINBOW, count: 1 }]);
+      expect(result.remainingHearts.filter((heart) => heart.color === HeartColor.GREEN)).toEqual(
+        []
+      );
+    });
   });
 
   describe('Live 胜负判定', () => {
@@ -617,6 +646,7 @@ describe('LiveResolver', () => {
         allFailed: false,
         totalScore: 20,
         bonusScore: 0,
+        remainingHearts: [],
       };
 
       const secondResult = {
@@ -632,6 +662,7 @@ describe('LiveResolver', () => {
         allFailed: false,
         totalScore: 15,
         bonusScore: 0,
+        remainingHearts: [],
       };
 
       const judgment = resolver.judgeLiveResult(firstResult, secondResult);
@@ -655,6 +686,7 @@ describe('LiveResolver', () => {
         allFailed: false,
         totalScore: 20,
         bonusScore: 0,
+        remainingHearts: [],
       };
 
       const secondResult = {
@@ -670,6 +702,7 @@ describe('LiveResolver', () => {
         allFailed: false,
         totalScore: 20,
         bonusScore: 0,
+        remainingHearts: [],
       };
 
       const judgment = resolver.judgeLiveResult(firstResult, secondResult);
@@ -693,6 +726,7 @@ describe('LiveResolver', () => {
         allFailed: true,
         totalScore: 0,
         bonusScore: 0,
+        remainingHearts: [],
       };
 
       const secondResult = {
@@ -708,6 +742,7 @@ describe('LiveResolver', () => {
         allFailed: true,
         totalScore: 0,
         bonusScore: 0,
+        remainingHearts: [],
       };
 
       const judgment = resolver.judgeLiveResult(firstResult, secondResult);
@@ -729,6 +764,7 @@ describe('LiveResolver', () => {
         allFailed: false,
         totalScore: 10,
         bonusScore: 0,
+        remainingHearts: [],
       };
 
       const secondResult = {
@@ -744,6 +780,7 @@ describe('LiveResolver', () => {
         allFailed: true,
         totalScore: 0,
         bonusScore: 0,
+        remainingHearts: [],
       };
 
       const judgment = resolver.judgeLiveResult(firstResult, secondResult);

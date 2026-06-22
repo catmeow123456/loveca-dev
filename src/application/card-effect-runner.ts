@@ -81,7 +81,10 @@ import { registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers } from './card-ef
 import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/maki-on-enter.js';
 import { registerKarinWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-004-karin.js';
 import { registerNBp1002KasumiWorkflowHandlers } from './card-effects/workflows/cards/n-bp1-002-kasumi.js';
+import { registerNBp1026PoppinUpWorkflowHandlers } from './card-effects/workflows/cards/n-bp1-026-poppin-up.js';
 import { registerNBp3008EmmaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-008-emma.js';
+import { registerNBp3010ShiorikoWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-010-shioriko.js';
+import { registerNBp3027LaBellaPatriaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-027-la-bella-patria.js';
 import { registerNPb1006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-006-kanata.js';
 import { registerNPr026RinaWorkflowHandlers } from './card-effects/workflows/cards/n-pr-026-rina.js';
 import { registerNozomiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/nozomi-on-enter.js';
@@ -263,7 +266,6 @@ interface EnqueueTriggeredCardEffectsOptions {
   readonly memberStateChangedEvents?: readonly MemberStateChangedEvent[];
   readonly memberSlotMovedEvents?: readonly MemberSlotMovedEvent[];
 }
-
 interface StartPendingAbilityEffectOptions {
   readonly orderedResolution?: boolean;
   readonly manualConfirmation?: boolean;
@@ -291,7 +293,6 @@ export function getCardAbilityDefinitions(
 ): readonly CardAbilityDefinition[] {
   return getCardAbilityDefinitionsForCardCode(cardCode);
 }
-
 export function doesAbilityDefinitionMatchCardCode(
   definition: CardAbilityDefinition,
   cardCode: string
@@ -571,7 +572,10 @@ registerHsPb1003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsSd1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsSd1005KosuzuWorkflowHandlers();
 registerNBp1002KasumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp1026PoppinUpWorkflowHandlers();
 registerNBp3008EmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp3010ShiorikoWorkflowHandlers();
+registerNBp3027LaBellaPatriaWorkflowHandlers();
 registerNPb1006KanataWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerMakiOnEnterWorkflowHandlers();
 registerPb1015MakiWorkflowHandlers();

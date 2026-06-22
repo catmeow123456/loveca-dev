@@ -82,6 +82,8 @@ export interface PerformanceResult {
   readonly totalScore: number;
   /** 应援带来的额外分数（[音符+1] 效果） */
   readonly bonusScore: number;
+  /** Live 判定后的余剰/剩余 Heart（plain data） */
+  readonly remainingHearts: readonly HeartIcon[];
 }
 
 /**
@@ -295,7 +297,7 @@ export class LiveResolver {
     const totalHeartPool = memberHeartPool.merge(cheerResult.bonusHearts);
 
     // 4. 判定 Live 卡
-    const { judgments } = this.judgeMultipleLives(liveCards, totalHeartPool);
+    const { judgments, remainingPool } = this.judgeMultipleLives(liveCards, totalHeartPool);
 
     // 5. 多张 Live 同时判定时，必须全部成功才算整轮 Live 成功
     const isOverallSuccess = judgments.length > 0 && judgments.every((j) => j.isSuccess);
@@ -314,6 +316,7 @@ export class LiveResolver {
     const totalScore = isOverallSuccess
       ? judgments.reduce((total, judgment) => total + judgment.liveCardData.score, 0) + bonusScore
       : 0;
+    const remainingHearts = isOverallSuccess ? remainingPool.toArray() : [];
 
     return {
       playerId,
@@ -323,6 +326,7 @@ export class LiveResolver {
       allFailed: !isOverallSuccess,
       totalScore,
       bonusScore,
+      remainingHearts,
     };
   }
 

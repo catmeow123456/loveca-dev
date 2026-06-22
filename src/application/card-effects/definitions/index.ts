@@ -29,6 +29,8 @@ import {
   PL_N_PB1_006_ACTIVATED_WAIT_SELF_ACTIVATE_ONE_ENERGY_ABILITY_ID,
   PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID,
   PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID,
+  PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
+  PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID,
   PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
   PL_N_BP3_015_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
   PL_N_PB1_034_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
@@ -53,6 +55,7 @@ import {
   HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID,
   HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID,
   HS_BP1_022_LIVE_SUCCESS_CHEER_HASUNOSORA_MEMBER_SCORE_ABILITY_ID,
+  PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID,
   HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID,
   HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID,
   HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID,
@@ -216,6 +219,10 @@ const PL_N_BP3_008_ACTIVATED_EFFECT_TEXT =
   '【起动】[1回合1次]将此成员以外的1名『虹咲』的成员变为待机状态：抽1张卡。';
 const PL_N_BP3_008_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将2张手牌放置入休息室：将1张存在于自己的舞台的此成员以外的待机状态的成员变为活跃状态。如此做的场合，LIVE结束时为止，因此变为活跃状态的成员与此成员，分别获得[緑ハート]。';
+const PL_N_BP3_010_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】选择自己或对方。自己将该玩家休息室至多2张成员卡按任意顺序放置于该玩家卡组底。';
+const PL_N_BP3_027_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】此回合中，自己的剩余HEART中存在大于等于1个[緑ハート]，并且自己的舞台存在『虹咲』的成员的场合，从自己的能量卡组中将1张能量卡以待机状态放置。';
 const PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT =
   '【LIVE开始时】选择[桃ハート]或[黄ハート]或[緑ハート]中的1种。LIVE结束时为止，此成员原本持有的HEART变为选择的HEART。';
 const PL_N_BP3_015_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT =
@@ -467,6 +474,8 @@ const HS_BP6_001_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】可以从因声援被公开的自己的卡片中，将1张放置到卡组顶。';
 const HS_CL1_009_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】从因声援被公开的自己的卡片中，将1张费用大于等于4小于等于9的成员卡加入手牌。';
+const PL_N_BP1_026_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】LIVE的合计分数比对方高的场合，从因声援被公开的自己的卡片中，将1张『虹咲』的卡片加入手牌。';
 const HS_BP6_027_ON_CHEER_EFFECT_TEXT =
   '【自动】【1回合1次】自己进行声援时，可以将至多3张因声援被公开的自己的不持有BLADE HEART的「莲之空」卡片放置入休息室。如此做的场合，额外进行等于因此放置入休息室的卡片张数的次数的声援。';
 const HS_BP6_031_LIVE_START_EFFECT_TEXT =
@@ -718,6 +727,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'PL!HS-PR-005',
       'PL!S-PR-013',
       'PL!S-PR-019',
+      'PL!S-bp2-005',
       'PL!N-pb1-028',
       'PL!N-pb1-035',
       'PL!SP-bp1-005',
@@ -1881,6 +1891,31 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'LIVE开始时可选弃2张手牌；弃牌后选择自己的舞台上此成员以外的 WAITING 成员变 ACTIVE，并给该成员与来源各1个 GREEN Heart。弃牌后无目标时费用保留并空结算。',
   },
   {
+    abilityId: PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp3-010'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP3_010_LIVE_START_EFFECT_TEXT,
+    notes:
+      'LIVE开始时选择自己或对方，再从该玩家休息室选择至多2张成员卡，按选择顺序置于该玩家卡组底。',
+  },
+  {
+    abilityId:
+      PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID,
+    cardCodes: ['PL!N-bp3-027-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP3_027_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      'LIVE成功时直接结算；读取本次 LIVE 判定后的 playerRemainingHearts，要求绿色剩余 Heart >=1 且舞台存在虹ヶ咲成员，满足时从能量卡组放置1张待机能量。剩余 Heart 条件不消费，RAINBOW/ALL 不算绿色。',
+  },
+  {
     abilityId: PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
     baseCardCodes: ['PL!N-bp3-014'],
     category: CardAbilityCategory.LIVE_START,
@@ -2393,6 +2428,19 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_CL1_009_LIVE_SUCCESS_EFFECT_TEXT,
     notes: '复用声援公开卡选择 helper，从仍在处理区的公开声援卡中筛选费用4-9成员加入手牌。',
+  },
+  {
+    abilityId:
+      PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID,
+    cardCodes: ['PL!N-bp1-026-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP1_026_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '单卡 workflow：先比较本次 LIVE 双方 playerScores（含对方无 LIVE 的 FAQ 特例），再从仍在处理区且公开的本次声援卡中选择1张虹ヶ咲卡加入手牌。',
   },
   {
     abilityId: HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,

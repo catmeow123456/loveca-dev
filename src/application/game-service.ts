@@ -1136,6 +1136,10 @@ export class GameService {
       : 0;
     const playerScores = new Map(stateAfterPerformance.liveResolution.playerScores);
     playerScores.set(playerId, scoreDraft);
+    const playerRemainingHearts = new Map(
+      stateAfterPerformance.liveResolution.playerRemainingHearts
+    );
+    playerRemainingHearts.set(playerId, hasSuccessfulLive ? performance.remainingHearts : []);
 
     const state = {
       ...stateAfterPerformance,
@@ -1143,6 +1147,7 @@ export class GameService {
         ...stateAfterPerformance.liveResolution,
         liveResults,
         playerScores,
+        playerRemainingHearts,
       },
     };
 
@@ -1646,6 +1651,7 @@ export class GameService {
         secondPlayerCheerCardIds: [],
         liveResults: new Map(),
         playerScores: new Map(),
+        playerRemainingHearts: new Map(),
         playerScoreBonuses: new Map(),
         playerHeartBonuses: new Map(),
         liveRequirementReductions: new Map(),
