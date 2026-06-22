@@ -6,7 +6,7 @@
 
 > 基于以下现状代码与文档整理：
 >
-> - `game_system_design.md`
+> - `docs/system-design.md`
 > - `client/src/components/game/GameBoard.tsx`
 > - `client/src/components/game/PlayerArea.tsx`
 > - `client/src/components/game/PhaseIndicator.tsx`
@@ -19,7 +19,7 @@
 
 ## 1. 设计目标与当前实现取向
 
-从 `game_system_design.md` 和当前实现看，桌面 UI 的核心目标不是严格“只暴露合法动作”，而是：
+从 `docs/system-design.md` 和当前实现看，桌面 UI 的核心目标不是严格“只暴露合法动作”，而是：
 
 - 让前端作为一个高可视化的对局操作台
 - 将规则判断尽量留给 `GameSession` / `GameService`

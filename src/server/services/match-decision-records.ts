@@ -7,7 +7,7 @@ import {
   type SelectSuccessLiveCommand,
   type SetLiveCardCommand,
 } from '../../application/game-commands.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../application/card-effects/definitions/index.js';
+import { findCardAbilityDefinitionById } from '../../application/card-effects/definitions/lookup.js';
 import type {
   ActiveEffectState,
   GameState,
@@ -172,9 +172,7 @@ function buildPendingAbilityOrderSubmittedRecord(input: {
   const selectedSourceCardId = selectedAbility?.sourceCardId ?? input.effect.sourceCardId;
   const selectedAbilityId = selectedAbility?.abilityId ?? input.effect.abilityId;
   const sourceSummary = summarizeSourceCard(input.state, selectedSourceCardId, selectedAbilityId);
-  const abilityDefinition = CARD_ABILITY_DEFINITIONS.find(
-    (definition) => definition.abilityId === selectedAbilityId
-  );
+  const abilityDefinition = findCardAbilityDefinitionById(selectedAbilityId);
   const candidates = summarizePendingAbilitySourceCards(input.state, pendingAbilityCandidates);
 
   return {
@@ -236,9 +234,7 @@ function buildActivateAbilityDecisionRecord(
   const sourceSummary = state
     ? summarizeSourceCard(state, command.cardId, command.abilityId)
     : emptySourceSummary(command.cardId, command.abilityId);
-  const abilityDefinition = CARD_ABILITY_DEFINITIONS.find(
-    (definition) => definition.abilityId === command.abilityId
-  );
+  const abilityDefinition = findCardAbilityDefinitionById(command.abilityId);
 
   return {
     ...sourceSummary,
@@ -392,9 +388,7 @@ function summarizeActiveEffect(
 > {
   const sourceCard = getCardById(state, effect.sourceCardId);
   const sourceLocation = findCardLocation(state, effect.sourceCardId);
-  const abilityDefinition = CARD_ABILITY_DEFINITIONS.find(
-    (definition) => definition.abilityId === effect.abilityId
-  );
+  const abilityDefinition = findCardAbilityDefinitionById(effect.abilityId);
   const pendingAbilityCandidates = getPendingAbilityOrderCandidates(state, effect);
   const candidates =
     pendingAbilityCandidates.length > 0

@@ -172,6 +172,11 @@ export interface AppendMatchRecordFrameInput {
   readonly visibilityScope?: ReplayVisibilityScope;
   readonly summary?: string;
   readonly authorityState?: GameState | null;
+  readonly stateSummary?: {
+    readonly turnCount: number;
+    readonly phase: string;
+    readonly subPhase: string;
+  } | null;
   readonly writeAuthorityCheckpoint?: boolean;
   readonly relatedPublicSeq?: number | null;
   readonly relatedPrivateSeq?: number | null;
@@ -559,6 +564,14 @@ export class MatchRecorderService {
         input.frameType !== 'COMMAND_REJECTED' &&
         input.writeAuthorityCheckpoint !== false;
       const checkpointSeq = shouldWriteCheckpoint ? cursor.lastCheckpointSeq + 1 : null;
+      const recordTurnCount = input.authorityState?.turnCount ?? input.stateSummary?.turnCount ?? null;
+      const timelineTurnCount = recordTurnCount ?? cursor.turnCount;
+      const phase = input.authorityState
+        ? String(input.authorityState.currentPhase)
+        : (input.stateSummary?.phase ?? 'UNKNOWN');
+      const subPhase = input.authorityState
+        ? String(input.authorityState.currentSubPhase)
+        : (input.stateSummary?.subPhase ?? 'UNKNOWN');
 
       await insertTimelineFrame(client, {
         matchId: input.matchId,
@@ -574,9 +587,9 @@ export class MatchRecorderService {
         relatedGameEventSeq,
         relatedDecisionId: decisionRecords.length === 1 ? decisionRecords[0].decisionId : null,
         dedupeKey,
-        turnCount: input.authorityState?.turnCount ?? cursor.turnCount,
-        phase: input.authorityState ? String(input.authorityState.currentPhase) : 'UNKNOWN',
-        subPhase: input.authorityState ? String(input.authorityState.currentSubPhase) : 'UNKNOWN',
+        turnCount: timelineTurnCount,
+        phase,
+        subPhase,
         summary: input.summary ?? defaultSummaryForFrame(input.frameType),
         createdAt,
       });
@@ -640,7 +653,7 @@ export class MatchRecorderService {
           relatedAuditSeq ?? cursor.lastAuditSeq,
           relatedCommandSeq ?? cursor.lastCommandSeq,
           relatedGameEventSeq ?? cursor.lastGameEventSeq,
-          input.authorityState?.turnCount ?? null,
+          recordTurnCount,
         ]
       );
 

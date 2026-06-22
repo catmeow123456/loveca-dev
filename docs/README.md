@@ -13,10 +13,11 @@
 1. [根目录 README](../README.md)：项目是什么、主要模块、运行与部署注意。
 2. [项目总体需求](PROJECT_REQUIREMENTS.md)：产品、规则和工程目标，不展开代码实现。
 3. [官方规则参考](../detail_rules.md)：综合规则中文参考资料；产品需求会提炼其中的项目范围。
-4. [系统设计](../game_system_design.md)：当前代码架构、模块职责、关键流程和代码路径。
-5. [当前实现限制](current-limitations.md)：跨模块的已知限制、部署差异和未落地能力。
-6. [开发规范](coding-standard/dev-standard.md)：共享引擎、服务端、联机边界和测试规范。
-7. [文档编写规范](doc_writing_guide.md)：文档分类、状态标注和维护规则。
+4. [系统设计](system-design.md)：当前代码架构、模块职责、关键流程和代码路径。
+5. [运行时数据结构与算法链路](runtime-data-flow-and-algorithm-chain.md)：权威状态、玩家视图、命令、卡效、LIVE、recorder/replay 与性能热路径之间如何串联。
+6. [当前实现限制](current-limitations.md)：跨模块的已知限制、部署差异和未落地能力。
+7. [开发规范](coding-standard/dev-standard.md)：共享引擎、服务端、联机边界和测试规范。
+8. [文档编写规范](doc_writing_guide.md)：文档分类、状态标注和维护规则。
 
 ## 当前权威文档
 
@@ -26,7 +27,8 @@
 | --- | --- | --- |
 | [README](../README.md) | 总览文档 | 项目入口、模块目录、运行与部署入口 |
 | [项目总体需求](PROJECT_REQUIREMENTS.md) | 需求文档 | 产品目标、规则需求和功能边界 |
-| [系统设计](../game_system_design.md) | 设计文档 | 当前架构、状态机、数据流和关键代码路径 |
+| [系统设计](system-design.md) | 设计文档 | 当前架构、状态机、数据流和关键代码路径 |
+| [运行时数据结构与算法链路](runtime-data-flow-and-algorithm-chain.md) | 设计文档 | 权威状态、玩家视图、命令、卡效、LIVE、recorder/replay 与性能热路径的横向链路；不维护系统全景和字段大全 |
 | [当前实现限制](current-limitations.md) | 专题说明 | 跨模块限制、部署差异、已知实现偏差 |
 
 ## 规则与运行入口

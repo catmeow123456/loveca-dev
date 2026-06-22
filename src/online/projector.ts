@@ -1140,6 +1140,13 @@ function buildInspectionCommandHints(
       }),
       buildCommandHint(GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE, {
         scope: inspectionScope,
+      }),
+      buildCommandHint(GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT, {
+        scope: inspectionScope,
+        params: {
+          sourceZone: game.inspectionContext?.sourceZone,
+          requiresAllRemainingInspectionCards: true,
+        },
       })
     );
   }

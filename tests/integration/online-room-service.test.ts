@@ -415,6 +415,50 @@ describe('OnlineRoomService', () => {
     );
   });
 
+  it('普通高频命令追加 recorder 时间线时应跳过逐帧 authority checkpoint', async () => {
+    let now = 5_600_000;
+    const recorder = createTestRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'APP02',
+      startedAt: now,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+    forceMainPhaseForFirst(match);
+
+    now += 1_000;
+    const commandResult = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored-client-player-id')
+    );
+
+    expect(commandResult?.success).toBe(true);
+    expect(recorder.getRecordCursor).toHaveBeenCalledWith(match.matchId);
+    expect(recorder.appendMatchRecordFrame).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matchId: match.matchId,
+        frameType: 'COMMAND_ACCEPTED',
+        authorityState: null,
+        writeAuthorityCheckpoint: false,
+        relatedCommandSeq: expect.any(Number),
+        stateSummary: expect.objectContaining({
+          phase: GamePhase.MAIN_PHASE,
+          subPhase: SubPhase.NONE,
+        }),
+      })
+    );
+  });
+
   it('正式联机撤销请求被对手接受后应回滚最近一步并清除 pending', async () => {
     let now = 5_800_000;
     const matchService = new OnlineMatchService({ now: () => now, recorder: null });

@@ -14,6 +14,7 @@ export enum GameCommandType {
   MOVE_INSPECTED_CARD_TO_ZONE = 'MOVE_INSPECTED_CARD_TO_ZONE',
   MOVE_CARD_TO_INSPECTION = 'MOVE_CARD_TO_INSPECTION',
   REORDER_INSPECTED_CARD = 'REORDER_INSPECTED_CARD',
+  FINISH_INSPECTION_WITH_ARRANGEMENT = 'FINISH_INSPECTION_WITH_ARRANGEMENT',
   MOVE_RESOLUTION_CARD_TO_ZONE = 'MOVE_RESOLUTION_CARD_TO_ZONE',
   MOVE_TABLE_CARD = 'MOVE_TABLE_CARD',
   MOVE_MEMBER_TO_SLOT = 'MOVE_MEMBER_TO_SLOT',
@@ -111,6 +112,18 @@ export interface ReorderInspectedCardCommand extends BaseGameCommand {
   readonly type: GameCommandType.REORDER_INSPECTED_CARD;
   readonly cardId: string;
   readonly toIndex: number;
+}
+
+export interface FinishInspectionWithArrangementCommand extends BaseGameCommand {
+  readonly type: GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT;
+  readonly cardIds: readonly string[];
+  readonly toZone:
+    | ZoneType.HAND
+    | ZoneType.WAITING_ROOM
+    | ZoneType.EXILE_ZONE
+    | ZoneType.MAIN_DECK
+    | ZoneType.ENERGY_DECK;
+  readonly position?: 'TOP' | 'BOTTOM';
 }
 
 export interface MoveResolutionCardToZoneCommand extends BaseGameCommand {
@@ -283,6 +296,7 @@ export type GameCommand =
   | MoveInspectedCardToZoneCommand
   | MoveCardToInspectionCommand
   | ReorderInspectedCardCommand
+  | FinishInspectionWithArrangementCommand
   | MoveResolutionCardToZoneCommand
   | MoveTableCardCommand
   | MoveMemberToSlotCommand
@@ -458,6 +472,22 @@ export function createReorderInspectedCardCommand(
     playerId,
     cardId,
     toIndex,
+    timestamp: Date.now(),
+  };
+}
+
+export function createFinishInspectionWithArrangementCommand(
+  playerId: string,
+  cardIds: readonly string[],
+  toZone: FinishInspectionWithArrangementCommand['toZone'],
+  position?: 'TOP' | 'BOTTOM'
+): FinishInspectionWithArrangementCommand {
+  return {
+    type: GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT,
+    playerId,
+    cardIds,
+    toZone,
+    position,
     timestamp: Date.now(),
   };
 }

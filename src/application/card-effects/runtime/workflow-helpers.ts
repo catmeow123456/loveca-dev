@@ -2,7 +2,7 @@ import {
   addAction,
   type GameState,
 } from '../../../domain/entities/game.js';
-import { CARD_ABILITY_DEFINITIONS } from '../definitions/index.js';
+import { findCardAbilityDefinitionById } from '../definitions/lookup.js';
 
 const ABILITY_USE_STEP = 'ABILITY_USE';
 
@@ -21,9 +21,7 @@ export interface PayCostActionPayload {
 }
 
 export function getAbilityEffectText(abilityId: string): string {
-  const effectText = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId
-  )?.effectText;
+  const effectText = findCardAbilityDefinitionById(abilityId)?.effectText;
   if (!effectText || effectText.trim().length === 0) {
     throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
   }

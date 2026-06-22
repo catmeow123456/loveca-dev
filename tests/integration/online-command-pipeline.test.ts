@@ -19,6 +19,7 @@ import { createHeartIcon, createHeartRequirement } from '../../src/domain/entiti
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import { createManualMoveCardAction } from '../../src/application/actions';
 import {
+  GameCommandType,
   createAttachEnergyToMemberCommand,
   createConfirmStepCommand,
   createConfirmPerformanceOutcomeCommand,
@@ -26,6 +27,7 @@ import {
   createDrawEnergyToZoneCommand,
   createEndPhaseCommand,
   createFinishInspectionCommand,
+  createFinishInspectionWithArrangementCommand,
   createMulliganCommand,
   createRevealInspectedCardCommand,
   createMoveInspectedCardToZoneCommand,
@@ -279,6 +281,123 @@ describe('GameSession command pipeline', () => {
           event.to?.index === 0
       )
     ).toBe(true);
+  });
+
+  it('可用批量整理命令一次性按当前顺序关闭检视区并放回来源卡组顶', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-inspection-batch-top', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const [firstTopCardId, secondTopCardId, thirdTopCardId] =
+      session.state?.players[0].mainDeck.cardIds.slice(0, 3) ?? [];
+    expect(firstTopCardId).toBeTruthy();
+    expect(secondTopCardId).toBeTruthy();
+    expect(thirdTopCardId).toBeTruthy();
+
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 3)
+    );
+    expect(openResult.success).toBe(true);
+
+    const firstView = session.getPlayerViewState(PLAYER1);
+    expect(
+      firstView?.permissions.availableCommands.some(
+        (hint) => hint.command === GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT
+      )
+    ).toBe(true);
+
+    const arrangedCardIds = [thirdTopCardId!, firstTopCardId!, secondTopCardId!];
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    const result = session.executeCommand(
+      createFinishInspectionWithArrangementCommand(
+        PLAYER1,
+        arrangedCardIds,
+        ZoneType.MAIN_DECK,
+        'TOP'
+      )
+    );
+
+    expect(result.success).toBe(true);
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
+    expect(session.state?.inspectionContext).toBeNull();
+    expect(session.state?.players[0].mainDeck.cardIds.slice(0, 3)).toEqual(arrangedCardIds);
+
+    const events = session.getPublicEventsSince(beforeSeq);
+    expect(
+      events.filter(
+        (event) =>
+          event.type === 'CardMovedPublic' && event.from?.zone === 'INSPECTION_ZONE'
+      )
+    ).toHaveLength(3);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'PlayerDeclared' &&
+          event.declarationType === 'INSPECTION_FINISHED'
+      )
+    ).toBe(true);
+  });
+
+  it('批量整理可以一次性将所有检视牌放入休息室并拒绝遗漏或非法卡牌', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-inspection-batch-waiting-room',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const inspectedCardIds = session.state?.players[0].mainDeck.cardIds.slice(0, 2) ?? [];
+    expect(inspectedCardIds).toHaveLength(2);
+    const outsiderCardId = session.state?.players[0].hand.cardIds[0];
+    expect(outsiderCardId).toBeTruthy();
+
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 2)
+    );
+    expect(openResult.success).toBe(true);
+
+    const missingCardResult = session.executeCommand(
+      createFinishInspectionWithArrangementCommand(
+        PLAYER1,
+        [inspectedCardIds[0]!],
+        ZoneType.WAITING_ROOM
+      )
+    );
+    expect(missingCardResult.success).toBe(false);
+    expect(missingCardResult.error).toContain('所有剩余卡牌');
+
+    const outsiderResult = session.executeCommand(
+      createFinishInspectionWithArrangementCommand(
+        PLAYER1,
+        [inspectedCardIds[0]!, outsiderCardId!],
+        ZoneType.WAITING_ROOM
+      )
+    );
+    expect(outsiderResult.success).toBe(false);
+    expect(outsiderResult.error).toContain('不属于当前检视流程');
+
+    const result = session.executeCommand(
+      createFinishInspectionWithArrangementCommand(
+        PLAYER1,
+        inspectedCardIds,
+        ZoneType.WAITING_ROOM
+      )
+    );
+
+    expect(result.success).toBe(true);
+    expect(session.state?.inspectionContext).toBeNull();
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds.slice(-2)).toEqual(inspectedCardIds);
   });
 
   it('成员卡从手牌进成员区时不能绕过专用登场命令', () => {

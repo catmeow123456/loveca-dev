@@ -40,6 +40,7 @@ export const INSPECTION_COMMAND_TYPES: readonly GameCommandType[] = [
   GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM,
   GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE,
   GameCommandType.REORDER_INSPECTED_CARD,
+  GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT,
   GameCommandType.FINISH_INSPECTION,
 ] as const;
 
