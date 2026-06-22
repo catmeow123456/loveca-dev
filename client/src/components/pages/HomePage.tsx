@@ -207,7 +207,7 @@ export function HomePage({
           ? {
               state: 'ready' as PrimaryActionState,
               title: '开始游戏',
-              description: '选择模式和卡组，进入本地测试、对墙打或联机流程。',
+              description: '选择模式和卡组，进入对墙打模拟、正式联机或本地调试流程。',
               cta: '开始游戏',
               icon: Gamepad2,
               onClick: onNavigateToGameSetup,
@@ -429,7 +429,7 @@ function SecondaryEntryPanel({ actions }: { actions: ActionTileProps[] }) {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-[var(--text-primary)]">对局入口</h3>
-          <p className="mt-0.5 text-xs text-[var(--text-muted)]">房间对战、卡组与调试入口</p>
+          <p className="mt-0.5 text-xs text-[var(--text-muted)]">正式联机、历史回放与调试入口</p>
         </div>
       </div>
       <div className="grid gap-2">

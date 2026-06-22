@@ -5,6 +5,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { GameBoard } from '@/components/game';
+import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { DeckManager } from '@/components/deck/DeckManager';
 import {
   HomePage,
@@ -135,9 +136,12 @@ function App() {
 
   // Game state
   const matchView = useGameStore((s) => s.getMatchView());
+  const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
   const loadCardData = useGameStore((s) => s.loadCardData);
   const leaveCurrentGame = useGameStore((s) => s.leaveCurrentGame);
   const initDeckStore = useDeckStore((s) => s.init);
+  const [gameBriefingAcknowledged, setGameBriefingAcknowledged] = useState(false);
+  const gameBriefingKeyRef = useRef<string | null>(null);
 
   // 初始化认证 - 使用 ref 确保只执行一次
   useEffect(() => {
@@ -208,6 +212,23 @@ function App() {
 
   // 计算实际显示的页面（游戏结束后自动回到首页）
   const effectivePage: AppPage = currentPage === 'game' && !matchView ? 'home' : currentPage;
+  const gameBriefingKey = matchView
+    ? `${capabilities.surface}:${matchView.matchId}`
+    : null;
+
+  useEffect(() => {
+    if (!gameBriefingKey) {
+      gameBriefingKeyRef.current = null;
+      return;
+    }
+
+    if (gameBriefingKeyRef.current === gameBriefingKey) {
+      return;
+    }
+
+    gameBriefingKeyRef.current = gameBriefingKey;
+    setGameBriefingAcknowledged(false);
+  }, [gameBriefingKey]);
 
   // 等待认证初始化
   if (!configInitialized || !authInitialized) {
@@ -335,6 +356,8 @@ function App() {
 
   // 游戏进行中
   if (effectivePage === 'game' && matchView) {
+    const gameBriefingMode = capabilities.surface === 'SOLITAIRE' ? 'solitaire' : null;
+
     return (
       <div className="h-screen overflow-hidden">
         <GameBoard
@@ -344,6 +367,13 @@ function App() {
             });
           }}
         />
+        {gameBriefingMode && (
+          <PreMatchBriefingModal
+            isOpen={!gameBriefingAcknowledged}
+            mode={gameBriefingMode}
+            onClose={() => setGameBriefingAcknowledged(true)}
+          />
+        )}
       </div>
     );
   }

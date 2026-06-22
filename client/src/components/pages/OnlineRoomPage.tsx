@@ -541,6 +541,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
         <GameBoard />
         <PreMatchBriefingModal
           isOpen={!briefingAcknowledged}
+          mode="online"
           onClose={() => setBriefingAcknowledged(true)}
         />
       </div>
@@ -631,6 +632,9 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                 <h2 className="text-xl font-bold text-[var(--text-primary)]">
                   {room ? getRoomStatusLabel(room.status) : '正式联机房间'}
                 </h2>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+                  创建或加入房间后，双方锁定云端卡组并确认先后手；进入桌面后会显示联机对局提示。
+                </p>
               </div>
 
               <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] p-2">

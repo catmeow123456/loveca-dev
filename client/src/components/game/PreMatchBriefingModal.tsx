@@ -1,17 +1,51 @@
-import { memo, useEffect } from 'react';
+import { memo, useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { BookOpen, Phone, Swords, X } from 'lucide-react';
+import {
+  BookOpen,
+  Hand,
+  MessageCircle,
+  MousePointer2,
+  RotateCcw,
+  type LucideIcon,
+  X,
+  Zap,
+} from 'lucide-react';
+
+export type PreMatchBriefingMode = 'online' | 'solitaire';
 
 interface PreMatchBriefingModalProps {
   isOpen: boolean;
+  mode: PreMatchBriefingMode;
   onClose: () => void;
+}
+
+interface BriefingSection {
+  title: string;
+  icon: LucideIcon;
+  items: readonly ReactNode[];
+}
+
+interface BriefingPage {
+  title: string;
+  summary: string;
+  sections: readonly BriefingSection[];
+}
+
+interface BriefingContent {
+  title: string;
+  subtitle: string;
+  pages: readonly BriefingPage[];
+  actionLabel: string;
 }
 
 export const PreMatchBriefingModal = memo(function PreMatchBriefingModal({
   isOpen,
+  mode,
   onClose,
 }: PreMatchBriefingModalProps) {
+  const [activePageIndex, setActivePageIndex] = useState(0);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -25,7 +59,27 @@ export const PreMatchBriefingModal = memo(function PreMatchBriefingModal({
     };
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    if (isOpen) {
+      setActivePageIndex(0);
+    }
+  }, [isOpen, mode]);
+
   if (!isOpen) return null;
+
+  const content = getBriefingContent(mode);
+  const lastPageIndex = content.pages.length - 1;
+  const currentPageIndex = Math.min(activePageIndex, lastPageIndex);
+  const currentPage = content.pages[currentPageIndex];
+  const nextPage = content.pages[currentPageIndex + 1];
+  const goToPreviousPage = () => setActivePageIndex((index) => Math.max(0, index - 1));
+  const goToNextPageOrClose = () => {
+    if (nextPage) {
+      setActivePageIndex((index) => Math.min(lastPageIndex, index + 1));
+      return;
+    }
+    onClose();
+  };
 
   const modalContent = (
     <>
@@ -33,7 +87,7 @@ export const PreMatchBriefingModal = memo(function PreMatchBriefingModal({
 
       <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
         <motion.div
-          className="modal-surface modal-accent-indigo flex w-[min(92vw,720px)] max-h-[88vh] flex-col overflow-hidden"
+          className="modal-surface modal-accent-indigo flex w-[min(94vw,760px)] max-h-[88vh] flex-col overflow-hidden"
           initial={{ opacity: 0, scale: 0.96, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
@@ -44,9 +98,11 @@ export const PreMatchBriefingModal = memo(function PreMatchBriefingModal({
                 <BookOpen size={18} />
               </div>
               <div>
-                <div className="text-base font-semibold text-[var(--text-primary)]">玩前须知</div>
+                <div className="text-base font-semibold text-[var(--text-primary)]">
+                  {content.title}
+                </div>
                 <div className="text-xs text-[var(--text-secondary)]">
-                  先过一眼基本操作和推荐玩法，再愉快开局
+                  {content.subtitle}
                 </div>
               </div>
             </div>
@@ -62,91 +118,81 @@ export const PreMatchBriefingModal = memo(function PreMatchBriefingModal({
           </div>
 
           <div className="cute-scrollbar flex-1 overflow-y-auto px-6 py-5 text-sm leading-relaxed text-[var(--text-primary)]">
-            <section>
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-                <Phone size={14} className="text-[var(--accent-primary)]" />
-                推荐玩法
-              </div>
-              <ul className="list-disc space-y-1.5 pl-5 text-[var(--text-secondary)]">
-                <li>
-                  推荐双方在游玩时开一个 QQ 或微信语音通话，部分效果需要口头告知对方才能顺畅进行
-                  （例如效果发动时机、是否选择接受、手动判定成功/失败等）。
-                </li>
-                <li>
-                  本系统沿用&ldquo;信任玩家&rdquo;原则：系统只负责规则处理，具体卡牌效果由玩家自己执行；
-                  遇到需要沟通的情况，语音协商优于反复点按。
-                </li>
-              </ul>
-            </section>
+            <div className="mb-4 grid grid-cols-3 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-1.5">
+              {content.pages.map((page, index) => {
+                const isActive = index === currentPageIndex;
+                return (
+                  <button
+                    key={page.title}
+                    type="button"
+                    onClick={() => setActivePageIndex(index)}
+                    className={`min-h-9 rounded-md px-2 text-xs font-semibold transition-colors ${
+                      isActive
+                        ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,var(--bg-surface))] text-[var(--text-primary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_38%,transparent)]'
+                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    {page.title}
+                  </button>
+                );
+              })}
+            </div>
 
-            <section className="mt-5">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-                <Swords size={14} className="text-[var(--accent-primary)]" />
-                基本操作
+            <div className="mb-2">
+              <div className="text-base font-bold text-[var(--text-primary)]">
+                {currentPage.title}
               </div>
-              <ul className="list-disc space-y-1.5 pl-5 text-[var(--text-secondary)]">
-                <li>
-                  <span className="font-medium text-[var(--text-primary)]">双击成员卡</span>
-                  ：在正常状态和待机状态之间切换；在主要阶段和表演阶段，即使不是自己的回合，
-                  也可以双击自己的成员卡让它进入待机状态。
-                </li>
-                <li>
-                  <span className="font-medium text-[var(--text-primary)]">查看休息区</span>
-                  ：可以点击自己和对方的休息区查看其中的卡牌详情，了解对手已经用过哪些卡。
-                </li>
-                <li>
-                  <span className="font-medium text-[var(--text-primary)]">休息区拖出</span>
-                  ：在主要阶段或效果发动阶段，可以直接把休息区里的卡拖到需要的区域，
-                  系统不会自动裁判——按你触发的卡牌文本判断是否合法即可。
-                </li>
-                <li>
-                  <span className="font-medium text-[var(--text-primary)]">卡牌 hover</span>
-                  ：把鼠标悬停在任意一张正面卡上可以看到放大详情、心数和分数；
-                  拖拽时会临时关闭悬浮以免遮挡。
-                </li>
-                <li>
-                  <span className="font-medium text-[var(--text-primary)]">阶段推进</span>
-                  ：右下角按钮会根据当前阶段切换成&ldquo;结束主要阶段&rdquo;、&ldquo;Live Start!&rdquo;、
-                  &ldquo;Live 判定&rdquo;等文案，点它进入下一步。
-                </li>
-                <li>
-                  <span className="font-medium text-[var(--text-primary)]">检视/置顶/置底</span>
-                  ：涉及检视卡组的效果会弹出检视面板，在面板里选择送往公开区/置顶/置底，完成后点确认提交。
-                </li>
-                <li>
-                  <span className="font-medium text-[var(--text-primary)]">Live 分数确认</span>
-                  ：Live 结算阶段两人都要在弹窗里确认自己的分数，才会进入下一回合。
-                </li>
-              </ul>
-            </section>
+              <div className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
+                {currentPage.summary}
+              </div>
+            </div>
 
-            <section className="mt-5">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-                <BookOpen size={14} className="text-[var(--accent-primary)]" />
-                小提示
-              </div>
-              <ul className="list-disc space-y-1.5 pl-5 text-[var(--text-secondary)]">
-                <li>
-                  遇到画面状态异常时，可以尝试刷新页面；房间会根据你的用户身份自动恢复到对局现场。
-                </li>
-                <li>
-                  如果对局出现争议，直接语音沟通确认后再继续操作；本系统不会强制阻断你对己方区域的合法操作。
-                </li>
-              </ul>
-            </section>
+            <div className="divide-y divide-[var(--border-subtle)]">
+              {currentPage.sections.map((section) => {
+                const Icon = section.icon;
+                return (
+                  <section key={section.title} className="py-4 first:pt-0 last:pb-0">
+                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                      <Icon size={14} className="text-[var(--accent-primary)]" />
+                      {section.title}
+                    </div>
+                    <ul className="list-disc space-y-1.5 pl-5 text-[var(--text-secondary)]">
+                      {section.items.map((item, index) => (
+                        <li key={index}>{item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--accent-primary)_6%,transparent)] px-6 py-4">
-            <div className="text-xs text-[var(--text-secondary)]">
-              提示：关闭后即可开始对局，本提示每次进入对局都会出现。
+          <div className="flex justify-end border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--accent-primary)_6%,transparent)] px-6 py-4">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="button-ghost inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[var(--border-default)] px-4 text-sm font-semibold sm:w-auto"
+              >
+                跳过提示
+              </button>
+              {currentPageIndex > 0 && (
+                <button
+                  type="button"
+                  onClick={goToPreviousPage}
+                  className="button-ghost inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[var(--border-default)] px-4 text-sm font-semibold sm:w-auto"
+                >
+                  上一页
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={goToNextPageOrClose}
+                className="button-primary inline-flex min-h-10 w-full items-center justify-center gap-2 px-5 text-sm font-semibold sm:w-auto sm:shrink-0"
+              >
+                {nextPage ? `下一页：${nextPage.title}` : content.actionLabel}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="button-primary inline-flex min-h-10 items-center justify-center gap-2 px-5 text-sm font-semibold"
-            >
-              我知道了，开始对局
-            </button>
           </div>
         </motion.div>
       </div>
@@ -161,3 +207,214 @@ export const PreMatchBriefingModal = memo(function PreMatchBriefingModal({
 });
 
 export default PreMatchBriefingModal;
+
+function RuleTerm({ children }: { readonly children: ReactNode }) {
+  return (
+    <span className="mx-0.5 inline-flex items-center rounded-[4px] border border-[color:color-mix(in_srgb,var(--accent-primary)_34%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_9%,var(--bg-surface))] px-1.5 py-[1px] align-baseline text-[0.82em] font-semibold leading-5 text-[var(--accent-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--bg-surface)_48%,transparent)]">
+      {children}
+    </span>
+  );
+}
+
+function PhaseTerm({ children }: { readonly children: ReactNode }) {
+  return (
+    <strong className="mx-0.5 inline-flex items-center rounded-[4px] bg-[color:color-mix(in_srgb,var(--semantic-warning)_18%,var(--bg-surface))] px-1.5 py-[1px] align-baseline font-extrabold leading-5 text-[var(--text-primary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--semantic-warning)_42%,transparent)]">
+      {children}
+    </strong>
+  );
+}
+
+const PHASE_PAGE: BriefingPage = {
+  title: '阶段重点',
+  summary: '活跃、能量、抽卡会自动推进；真正需要你判断和操作的是主要阶段与 LIVE 阶段。',
+  sections: [
+    {
+      title: '自动阶段',
+      icon: Zap,
+      items: [
+        '活跃、能量、抽卡这几步大多由系统自动处理；正常情况下确认当前手牌和能量状态即可。',
+      ],
+    },
+    {
+      title: '主要阶段',
+      icon: MousePointer2,
+      items: [
+        <>
+          <PhaseTerm>主要阶段</PhaseTerm>
+          是出成员、换手、发动起动效果、整理休息室回收和人工补齐卡效结果的主要窗口。
+        </>,
+        '拖拽和点按是主要操作。拖拽时出现的高亮只是提醒，不代表任何时候都一定能放过去。',
+        '双击成员可以在活跃状态和等待状态之间切换，方便处理支付费用、效果或手动调整。',
+      ],
+    },
+    {
+      title: 'LIVE 阶段',
+      icon: BookOpen,
+      items: [
+        <>
+          <PhaseTerm>LIVE 阶段</PhaseTerm>
+          会依次处理 LIVE 放置、LIVE 开始效果、声援 / 判定、成功与分数确认。
+        </>,
+        '同一时点有多个效果时，先确认发动顺序，再继续点下一步；联机时尤其要先和对手说清楚。',
+      ],
+    },
+  ],
+};
+
+const AREA_PAGE: BriefingPage = {
+  title: '区域操作',
+  summary: '这些区域最容易在手动处理和效果结算时用到，先记住点击与拖拽边界。',
+  sections: [
+    {
+      title: '公开与处理区',
+      icon: BookOpen,
+      items: [
+        <>
+          <RuleTerm>休息室</RuleTerm>
+          是公开区域，可以点开查看。需要从休息室回收或移动卡牌时，按当前卡文和阶段窗口处理。
+        </>,
+        <>
+          需要检视卡组时，点击
+          <RuleTerm>主卡组</RuleTerm>
+          图标打开
+          <RuleTerm>检视区</RuleTerm>
+          ；不要直接拖拽卡组顶的卡来代替检视。
+        </>,
+        <>
+          <RuleTerm>检视区</RuleTerm>
+          是正式处理区。公开、加入手牌、回卡组顶/底、其余进休息室，都以窗口确认后的结果为准。
+        </>,
+        <>
+          <RuleTerm>判定区</RuleTerm>
+          用来显示声援 / 判定过程中的卡。自动判定结果可以检查，必要时再按规则人工调整。
+        </>,
+      ],
+    },
+    {
+      title: '舞台和 LIVE',
+      icon: Hand,
+      items: [
+        <>
+          <RuleTerm>成员区</RuleTerm>
+          有左 / 中 / 右 3 个槽位，是成员登场、换手、移动位置和发动能力的主要区域。
+        </>,
+        <>
+          双击
+          <RuleTerm>成员区</RuleTerm>
+          的成员，可以在活跃和待机状态之间切换，常用于支付费用或手动处理卡文结果。
+        </>,
+        <>
+          某些卡牌已经实现效果自动化；点击这些成员时，会出现效果弹窗来处理登场效果、自动效果或起动效果。
+        </>,
+        <>
+          <RuleTerm>LIVE 区</RuleTerm>
+          放置当前要表演的 LIVE 卡；成功与否应走 LIVE 阶段的判定和确认流程，不要直接跳到成功区。
+        </>,
+        <>
+          <RuleTerm>成功 LIVE 区</RuleTerm>
+          记录已经成功的 LIVE。胜利条件和部分卡效会读取这里的张数。
+        </>,
+      ],
+    },
+    {
+      title: '能量',
+      icon: Zap,
+      items: [
+        <>
+          <RuleTerm>能量区</RuleTerm>
+          的能量有活跃和等待两种状态。点按一张能量，可以在两种状态之间切换。
+        </>,
+        <>
+          <RuleTerm>能量区</RuleTerm>
+          上方的“全活”“全待”可以一次处理全部能量，适合活跃阶段、支付费用后快速整理局面。
+        </>,
+        <>
+          需要模拟“跳费”或处理从
+          <RuleTerm>能量卡组</RuleTerm>
+          放置能量的效果时，可以把
+          <RuleTerm>能量卡组</RuleTerm>
+          最上方那张能量拖到
+          <RuleTerm>能量区</RuleTerm>。
+        </>,
+      ],
+    },
+  ],
+};
+
+const EFFECT_WINDOW_ITEMS: readonly ReactNode[] = [
+  '正在处理的效果会出现在中央窗口，先看来源卡和卡文，再选择目标、支付费用或确认继续。',
+  '部分卡还没有实现效果自动化；按卡文处理后，可以用自由移动、免费登场或区域操作把结果人工补齐。',
+];
+
+function createEffectPage(mode: PreMatchBriefingMode): BriefingPage {
+  const communicationSection: BriefingSection =
+    mode === 'online'
+      ? {
+          title: '双方怎么配合',
+          icon: MessageCircle,
+          items: [
+            '双方各自操作自己这一侧。公开领域会给双方看见，手牌、卡组顶等非公开信息只给该看的玩家看。',
+            '同一时点有多个效果时，先用语音或文字说清楚发动顺序、是否发动和选择结果，再继续操作。',
+            '页面卡住或刷新后，一般可以回到原来的房间和对局；如果状态有争议，先和对手确认再继续。',
+          ],
+        }
+      : {
+          title: '单人模拟',
+          icon: Hand,
+          items: [
+            '对手侧会自动处理一部分无输入流程；如果你要验证某段卡效，可以用手动区域操作把局面摆到需要的位置。',
+            '手动处理完一段卡文后，确认各区域和卡牌状态都符合文本，再继续推进下一步。',
+          ],
+        };
+
+  const sections: BriefingSection[] = [
+    {
+      title: '效果处理',
+      icon: BookOpen,
+      items: EFFECT_WINDOW_ITEMS,
+    },
+    communicationSection,
+  ];
+
+  if (mode === 'online') {
+    sections.push({
+      title: '异常与重开',
+      icon: RotateCcw,
+      items: [
+        '正式联机的撤销需要对手同意。已经看见的信息不会因为撤销而变成没看见。',
+        '进入对局后可在左上角请求重开或离开房间；重开需要对手同意后才会创建新对局。',
+      ],
+    });
+  }
+
+  return {
+    title: mode === 'online' ? '效果和协作' : '效果和模拟',
+    summary:
+      mode === 'online'
+        ? '自动化未覆盖的卡文先沟通，再用共享桌面把结果落实。'
+        : '自动化未覆盖的卡文按文本处理，再用桌面操作补齐局面。',
+    sections,
+  };
+}
+
+function getBriefingPages(mode: PreMatchBriefingMode): readonly BriefingPage[] {
+  return [PHASE_PAGE, AREA_PAGE, createEffectPage(mode)];
+}
+
+function getBriefingContent(mode: PreMatchBriefingMode): BriefingContent {
+  if (mode === 'solitaire') {
+    return {
+      title: '对墙打模拟提示',
+      subtitle: '开始前确认阶段重点、区域操作和卡牌效果处理方式',
+      pages: getBriefingPages(mode),
+      actionLabel: '我知道了，开始模拟',
+    };
+  }
+
+  return {
+    title: '联机对局提示',
+    subtitle: '正式对局前，先确认双方怎么操作、怎么沟通',
+    pages: getBriefingPages(mode),
+    actionLabel: '我知道了，进入对局',
+  };
+}

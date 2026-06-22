@@ -369,7 +369,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                       联机模式
                     </h3>
                     <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-                      创建或加入房间，使用云端卡组进行正式对战。
+                      创建或加入房间，锁定云端卡组并确认先后手，进入正式双人对战。
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)] sm:mt-4">
                       <Users size={12} />
@@ -421,14 +421,14 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                       对墙打模式
                     </h3>
                     <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-                      只选择己方卡组，快速开始单人测试。
+                      只选择己方卡组，由默认对手陪同模拟，适合测试展开、卡效窗口和完整回合节奏。
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)] sm:mt-4">
                       <UserRound size={12} />
-                      <span>1 人</span>
+                      <span>单人模拟</span>
                       <span>·</span>
                       <Layers3 size={12} />
-                      <span>选 1 副卡组</span>
+                      <span>{canUseRecordedSolitaire ? '保存记录' : '本地模拟'}</span>
                     </div>
                   </button>
                 </div>
@@ -588,7 +588,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                       <div className="surface-panel flex items-start gap-3 p-4">
                         <Bot size={22} className="mt-0.5 shrink-0 text-[var(--text-muted)]" />
                         <div className="min-w-0 text-sm text-[var(--text-secondary)]">
-                          <div>对手卡组已自动准备完成</div>
+                          <div>默认对手卡组已准备完成，进入桌面后会显示对墙打模拟提示。</div>
                           <div
                             className={`mt-1 text-xs ${
                               canUseRecordedSolitaire
@@ -598,7 +598,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                           >
                             {canUseRecordedSolitaire
                               ? '在线记录：本局会保存到历史并可复盘'
-                              : '本地模式：本局不会保存历史'}
+                              : '本地模拟：本局不会保存历史'}
                           </div>
                         </div>
                       </div>
