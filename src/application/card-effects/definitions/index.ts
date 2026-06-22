@@ -65,6 +65,7 @@ import {
   N_PR_026_ON_ENTER_STACK_LOW_COST_NIJIGASAKI_MEMBER_FROM_WAITING_ABILITY_ID,
   N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
   SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID,
+  S_BP2_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
   HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID,
   HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID,
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
@@ -332,6 +333,8 @@ const N_PR_026_LIVE_SUCCESS_DELEGATE_EFFECT_TEXT =
   '【常时】此成员获得其下方费用小于等于9的『虹ヶ咲』成员卡持有的全部【LIVE成功时】能力。';
 const SP_BP2_024_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己的手牌张数多于对方的场合，此卡的分数＋１。';
+const S_BP2_024_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】抽2张卡，将1张手牌放置入休息室。';
 const SP_BP4_004_ON_ENTER_EFFECT_TEXT =
   '【登场】【センター】从2名『Liella!』的成员换手登场的场合，抽2张卡，将1张存在于自己休息室的费用小于等于4的『Liella!』的成员卡登场至自己的舞台的不存在成员的区域。';
 const HS_BP2_014_ON_ENTER_EFFECT_TEXT = '【登场】抽1张卡。LIVE结束时为止，自己不能Live。';
@@ -910,6 +913,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: SP_BP2_024_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
       'LIVE 成功时直接结算；按效果结算时点双方手牌数量判断，满足时写入此 LIVE 卡 SCORE +1 并同步刷新当前 playerScores。',
+  },
+  {
+    abilityId: S_BP2_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp2-024'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_BP2_024_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      'LIVE 成功时复用 draw-then-discard shared workflow，抽2后弃1手。常时不能放置入成功LIVE卡区由 success-live-placement 纯规则 helper 处理，不进 pending。',
   },
   {
     abilityId: SP_BP2_009_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID,

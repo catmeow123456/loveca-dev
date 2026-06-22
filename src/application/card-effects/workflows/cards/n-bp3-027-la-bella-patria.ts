@@ -12,6 +12,7 @@ import {
   getRemainingHeartCount,
   getRemainingHeartTotalCount,
   hasRemainingHeartColor,
+  rebalanceRemainingHeartColorForPlayer,
 } from '../../../effects/remaining-hearts.js';
 import { PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -42,15 +43,34 @@ function resolveNBp3027LaBellaPatriaLiveSuccess(
     return game;
   }
 
-  const remainingGreenHeartCount = getRemainingHeartCount(game, player.id, HeartColor.GREEN);
-  const remainingHeartTotalCount = getRemainingHeartTotalCount(game, player.id);
-  const hasGreenRemainingHeart = hasRemainingHeartColor(game, player.id, HeartColor.GREEN, 1);
   const hasNijigasakiStageMember = hasStageMemberMatching(game, player.id, groupAliasIs('虹ヶ咲'));
+  const rebalanceResult = hasNijigasakiStageMember
+    ? rebalanceRemainingHeartColorForPlayer(game, player.id, HeartColor.GREEN, 1)
+    : {
+        gameState: game,
+        rebalancedCount: 0,
+        remainingColorCountBefore: getRemainingHeartCount(game, player.id, HeartColor.GREEN),
+        remainingColorCountAfter: getRemainingHeartCount(game, player.id, HeartColor.GREEN),
+        remainingRainbowCountBefore: getRemainingHeartCount(game, player.id, HeartColor.RAINBOW),
+      };
+  const stateAfterRebalance = rebalanceResult.gameState;
+  const remainingGreenHeartCount = getRemainingHeartCount(
+    stateAfterRebalance,
+    player.id,
+    HeartColor.GREEN
+  );
+  const remainingHeartTotalCount = getRemainingHeartTotalCount(stateAfterRebalance, player.id);
+  const hasGreenRemainingHeart = hasRemainingHeartColor(
+    stateAfterRebalance,
+    player.id,
+    HeartColor.GREEN,
+    1
+  );
   const conditionMet = hasGreenRemainingHeart && hasNijigasakiStageMember;
   const energyPlacement = conditionMet
-    ? placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.WAITING)
+    ? placeEnergyFromDeckToZone(stateAfterRebalance, player.id, 1, OrientationState.WAITING)
     : null;
-  const stateAfterPlacement = energyPlacement?.gameState ?? game;
+  const stateAfterPlacement = energyPlacement?.gameState ?? stateAfterRebalance;
   const state = {
     ...stateAfterPlacement,
     pendingAbilities: stateAfterPlacement.pendingAbilities.filter(
@@ -67,6 +87,9 @@ function resolveNBp3027LaBellaPatriaLiveSuccess(
       conditionMet,
       remainingGreenHeartCount,
       remainingHeartTotalCount,
+      rebalancedRemainingHeartCount: rebalanceResult.rebalancedCount,
+      remainingGreenHeartCountBeforeRebalance: rebalanceResult.remainingColorCountBefore,
+      remainingRainbowHeartCountBeforeRebalance: rebalanceResult.remainingRainbowCountBefore,
       hasNijigasakiStageMember,
       placedEnergyCardIds: energyPlacement?.placedEnergyCardIds ?? [],
     }),

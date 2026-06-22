@@ -462,6 +462,8 @@ export interface GameStore {
   confirmScore: (adjustedScore?: number) => CommandDispatchResult;
   /** 选择成功 Live 卡移到成功区 */
   selectSuccessCard: (cardId: string) => CommandDispatchResult;
+  /** 跳过当前成功 Live 入区，剩余 Live 在结算收尾进入休息室 */
+  skipSuccessLiveSelection: () => CommandDispatchResult;
   /** 通过命令层移动牌桌卡牌 */
   moveTableCard: (
     cardId: string,
@@ -665,7 +667,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     if (get().remoteSession) {
       return;
     }
-    if (subPhase !== SubPhase.RESULT_ANIMATION && subPhase !== SubPhase.RESULT_SETTLEMENT) {
+    if (subPhase !== SubPhase.RESULT_ANIMATION) {
       return;
     }
 
@@ -679,10 +681,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       return;
     }
 
-    const alreadyConfirmed =
-      subPhase === SubPhase.RESULT_ANIMATION
-        ? state.liveResolution.animationConfirmedBy
-        : state.liveResolution.settlementConfirmedBy;
+    const alreadyConfirmed = state.liveResolution.animationConfirmedBy;
 
     const pendingWinnerIds = winnerIds.filter((winnerId) => !alreadyConfirmed.includes(winnerId));
     if (pendingWinnerIds.length === 0) {
@@ -1765,6 +1764,20 @@ export const useGameStore = create<GameStore>((set, get) => {
         successMessage: '选择成功 Live 卡移到成功区',
         logError: true,
       });
+    },
+
+    skipSuccessLiveSelection: () => {
+      return runViewerCommand(
+        (playerId) =>
+          createConfirmStepCommand(playerId, SubPhase.RESULT_SETTLEMENT, {
+            skipSuccessLiveSelection: true,
+          }),
+        {
+          failureMessage: '跳过成功 Live 选择失败',
+          successMessage: '全部放置入休息室',
+          logError: true,
+        }
+      );
     },
 
     moveTableCard: (cardId, fromZone, toZone, options) => {

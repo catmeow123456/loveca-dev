@@ -624,6 +624,10 @@ describe('LiveResolver', () => {
       );
 
       expect(result.liveJudgments[0]?.isSuccess).toBe(true);
+      expect(result.liveJudgmentHearts).toEqual([
+        { color: HeartColor.GREEN, count: 2 },
+        { color: HeartColor.RAINBOW, count: 1 },
+      ]);
       expect(result.remainingHearts).toEqual([{ color: HeartColor.RAINBOW, count: 1 }]);
       expect(result.remainingHearts.filter((heart) => heart.color === HeartColor.GREEN)).toEqual(
         []

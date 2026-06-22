@@ -36,6 +36,13 @@ import {
   getPlayerLiveScoreModifier,
   projectLiveModifierCompatibility,
 } from '../domain/rules/live-modifiers.js';
+import {
+  canLiveCardEnterSuccessZone,
+  getCurrentSuccessLiveSettlementPlayerId,
+  getSuccessLiveSelectionCandidateIds,
+  hasPendingSuccessLiveSelection,
+  haveAllSuccessLiveSettlementsCompleted,
+} from '../domain/rules/success-live-placement.js';
 import type {
   LiveResultViewState,
   MatchViewState,
@@ -172,8 +179,7 @@ function buildWindowDescriptor(game: GameState): WindowDescriptor | null {
   if (
     game.currentPhase === GamePhase.MULLIGAN_PHASE ||
     game.currentPhase === GamePhase.LIVE_SET_PHASE ||
-    game.currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM ||
-    game.currentSubPhase === SubPhase.RESULT_SETTLEMENT
+    game.currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM
   ) {
     return {
       windowType: 'SIMULTANEOUS_COMMIT',
@@ -189,6 +195,30 @@ function buildWindowDescriptor(game: GameState): WindowDescriptor | null {
       waitingSeats: waitingSeat ? [waitingSeat] : [],
       context: {
         winnerSeats,
+      },
+    };
+  }
+
+  if (game.currentSubPhase === SubPhase.RESULT_SETTLEMENT) {
+    const currentSettlementPlayerId = getCurrentSuccessLiveSettlementPlayerId(game);
+    const currentSettlementSeat =
+      currentSettlementPlayerId !== null ? getSeatForPlayer(game, currentSettlementPlayerId) : null;
+    return {
+      windowType: currentSettlementSeat ? 'SERIAL_PRIORITY' : 'SIMULTANEOUS_COMMIT',
+      actingSeat: currentSettlementSeat ?? activeSeat,
+      waitingSeats: currentSettlementSeat ? [currentSettlementSeat] : winnerSeats,
+      context: {
+        winnerSeats,
+        successLiveSelection:
+          currentSettlementPlayerId !== null
+            ? {
+                waitingSeat: currentSettlementSeat,
+                candidateObjectIds: getSuccessLiveSelectionCandidateIds(
+                  game,
+                  currentSettlementPlayerId
+                ).map(createPublicObjectId),
+              }
+            : null,
       },
     };
   }
@@ -730,6 +760,18 @@ function upsertViewObject(
 function buildLiveResultView(game: GameState): LiveResultViewState {
   const firstPlayerId = game.players[0]?.id;
   const secondPlayerId = game.players[1]?.id;
+  const currentSuccessLiveSettlementPlayerId =
+    game.currentSubPhase === SubPhase.RESULT_SETTLEMENT
+      ? getCurrentSuccessLiveSettlementPlayerId(game)
+      : null;
+  const currentSuccessLiveSettlementSeat =
+    currentSuccessLiveSettlementPlayerId !== null
+      ? getSeatForPlayer(game, currentSuccessLiveSettlementPlayerId)
+      : null;
+  const successLiveSelectionCandidateIds =
+    currentSuccessLiveSettlementPlayerId !== null
+      ? getSuccessLiveSelectionCandidateIds(game, currentSuccessLiveSettlementPlayerId)
+      : [];
   const liveModifiers = collectLiveModifiers(game);
   const liveModifierProjection = projectLiveModifierCompatibility(liveModifiers);
   const liveRequirementReductions = new Map(game.liveResolution.liveRequirementReductions);
@@ -783,6 +825,14 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
     confirmedSeats: game.liveResolution.scoreConfirmedBy
       .map((playerId) => getSeatForPlayer(game, playerId))
       .filter((seat): seat is Seat => seat !== null),
+    successLiveSelection:
+      currentSuccessLiveSettlementPlayerId !== null
+        ? {
+            waitingSeat: currentSuccessLiveSettlementSeat,
+            candidateObjectIds: successLiveSelectionCandidateIds.map(createPublicObjectId),
+            canSkipToWaitingRoom: true,
+          }
+        : null,
   };
 }
 
@@ -917,11 +967,15 @@ function buildPermissionViewState(
 ): PermissionViewState {
   const availableActionTypes = inferAvailableActionTypes(game);
   const canUsePhaseCommands = canViewerUsePhaseCommands(game, viewerPlayerId, viewerSeat);
+  const allowSharedOwnDeskCommands =
+    game.currentSubPhase !== SubPhase.RESULT_ANIMATION &&
+    game.currentSubPhase !== SubPhase.RESULT_SETTLEMENT;
   const phaseHints = availableActionTypes
     .filter(
       (command) =>
         canUsePhaseCommands ||
-        (isOwnDeskFreeDragWindow(game.currentPhase, game.currentSubPhase) &&
+        (allowSharedOwnDeskCommands &&
+          isOwnDeskFreeDragWindow(game.currentPhase, game.currentSubPhase) &&
           isOwnDeskFreeDragCommand(command))
     )
     .map((command) => buildPhaseCommandHint(command, game, viewerPlayerId, viewerSeat))
@@ -1009,10 +1063,16 @@ function canViewerUsePhaseCommands(
   }
 
   if (
-    game.currentSubPhase === SubPhase.RESULT_ANIMATION ||
-    game.currentSubPhase === SubPhase.RESULT_SETTLEMENT
+    game.currentSubPhase === SubPhase.RESULT_ANIMATION
   ) {
     return game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
+  }
+
+  if (game.currentSubPhase === SubPhase.RESULT_SETTLEMENT) {
+    const currentSettlementPlayerId = getCurrentSuccessLiveSettlementPlayerId(game);
+    return currentSettlementPlayerId !== null
+      ? currentSettlementPlayerId === viewerPlayerId
+      : game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
   }
 
   const waitingForSeat =
@@ -1397,15 +1457,31 @@ function buildResultConfirmStepHint(
 
   if (game.currentSubPhase === SubPhase.RESULT_SETTLEMENT) {
     const isWinner = game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
-    const hasConfirmedSettlement =
-      game.liveResolution.settlementConfirmedBy.includes(viewerPlayerId);
+    const currentSettlementPlayerId = getCurrentSuccessLiveSettlementPlayerId(game);
+    const allSettlementsCompleted = haveAllSuccessLiveSettlementsCompleted(game);
+    const hasCandidates = hasPendingSuccessLiveSelection(game, viewerPlayerId);
+    const isCurrentSettlementPlayer = currentSettlementPlayerId === viewerPlayerId;
+    const hasConfirmedSettlement = game.liveResolution.settlementConfirmedBy.includes(
+      viewerPlayerId
+    );
+    const enabled =
+      isWinner &&
+      (allSettlementsCompleted ||
+        (isCurrentSettlementPlayer && !hasConfirmedSettlement && !hasCandidates));
+    const reason = !isWinner
+      ? '当前玩家不是本轮胜者'
+      : allSettlementsCompleted
+        ? undefined
+        : !isCurrentSettlementPlayer
+          ? '等待当前胜者完成成功 Live 选择'
+          : hasCandidates
+            ? '请先选择成功 Live，或使用全部放置入休息室'
+            : hasConfirmedSettlement
+              ? '已确认结算'
+              : undefined;
     return buildCommandHint(GameCommandType.CONFIRM_STEP, {
-      enabled: isWinner && !hasConfirmedSettlement,
-      reason: !isWinner
-        ? '当前玩家不是本轮胜者'
-        : hasConfirmedSettlement
-          ? '已确认结算'
-          : undefined,
+      enabled,
+      reason,
       params: {
         subPhase: game.currentSubPhase,
       },
@@ -1426,27 +1502,38 @@ function buildSettlementSelectionHint(
 ): ViewCommandHint {
   const isWinner = game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
   const hasMoved = game.liveResolution.successCardMovedBy.includes(viewerPlayerId);
+  const currentSettlementPlayerId = getCurrentSuccessLiveSettlementPlayerId(game);
   const isActivePerformer = game.players[game.activePlayerIndex]?.id === viewerPlayerId;
   const canSelectDuringPerformance =
     (game.currentPhase === GamePhase.PERFORMANCE_PHASE &&
       game.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) ||
     (game.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
       isResultSuccessEffectSubPhase(game.currentSubPhase));
-  const ownedLiveCardIds = getOwnedCardIds(
-    game.players.find((player) => player.id === viewerPlayerId)?.liveZone.cardIds ?? [],
-    game,
-    viewerPlayerId
-  );
-  const enabled = hasMoved ? false : canSelectDuringPerformance ? isActivePerformer : isWinner;
-  const reason = hasMoved
-    ? '已选择成功 Live 卡'
+  const ownedLiveCardIds =
+    game.currentSubPhase === SubPhase.RESULT_SETTLEMENT
+      ? getSuccessLiveSelectionCandidateIds(game, viewerPlayerId)
+      : getOwnedCardIds(
+          game.players.find((player) => player.id === viewerPlayerId)?.liveZone.cardIds ?? [],
+          game,
+          viewerPlayerId
+        ).filter((cardId) => canLiveCardEnterSuccessZone(game, viewerPlayerId, cardId));
+  const enabled = hasMoved
+    ? false
     : canSelectDuringPerformance
       ? isActivePerformer
-        ? undefined
-        : '当前不是你的表演阶段'
-      : !isWinner
-        ? '当前玩家不是本轮胜者'
-        : undefined;
+      : isWinner && currentSettlementPlayerId === viewerPlayerId && ownedLiveCardIds.length > 0;
+  let reason: string | undefined;
+  if (hasMoved) {
+    reason = '已选择成功 Live 卡';
+  } else if (canSelectDuringPerformance) {
+    reason = isActivePerformer ? undefined : '当前不是你的表演阶段';
+  } else if (!isWinner) {
+    reason = '当前玩家不是本轮胜者';
+  } else if (currentSettlementPlayerId !== viewerPlayerId) {
+    reason = '当前不是你的成功 Live 结算顺序';
+  } else if (ownedLiveCardIds.length === 0) {
+    reason = '没有可进入成功区的成功 Live';
+  }
 
   return buildCommandHint(GameCommandType.SELECT_SUCCESS_LIVE, {
     enabled,
@@ -1455,6 +1542,11 @@ function buildSettlementSelectionHint(
       zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'LIVE_ZONE')],
       cardIds: ownedLiveCardIds,
     }),
+    params: {
+      canSkipSuccessLiveSelection:
+        game.currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
+        currentSettlementPlayerId === viewerPlayerId,
+    },
   });
 }
 

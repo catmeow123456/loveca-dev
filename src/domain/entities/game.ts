@@ -227,6 +227,8 @@ export interface LiveResolutionState {
   readonly playerScores: ReadonlyMap<string, number>;
   /** 本次 Live 判定后各玩家的余剰/剩余 Heart（plain data，不保存 HeartPool 实例） */
   readonly playerRemainingHearts: ReadonlyMap<string, readonly HeartIcon[]>;
+  /** 本次 Live 判定时各玩家可用于判定的 Heart 总量（plain data，不保存 HeartPool 实例） */
+  readonly playerLiveJudgmentHearts: ReadonlyMap<string, readonly HeartIcon[]>;
   /** 兼容投影：本次 Live 中各玩家的临时分数修正；新增逻辑优先写 liveModifiers */
   readonly playerScoreBonuses: ReadonlyMap<string, number>;
   /** 兼容投影：本次 Live 中各玩家的临时 Heart 修正；新增逻辑优先写 liveModifiers */
@@ -265,6 +267,7 @@ export function createEmptyLiveResolutionState(): LiveResolutionState {
     liveResults: new Map(),
     playerScores: new Map(),
     playerRemainingHearts: new Map(),
+    playerLiveJudgmentHearts: new Map(),
     playerScoreBonuses: new Map(),
     playerHeartBonuses: new Map(),
     liveRequirementReductions: new Map(),

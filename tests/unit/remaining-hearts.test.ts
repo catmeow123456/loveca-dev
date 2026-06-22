@@ -6,6 +6,7 @@ import {
   hasNoRemainingHearts,
   hasRemainingHeartColor,
   hasRemainingHearts,
+  rebalanceRemainingHeartColorForPlayer,
 } from '../../src/application/effects/remaining-hearts';
 import { createGameState } from '../../src/domain/entities/game';
 import { HeartColor } from '../../src/shared/types/enums';
@@ -24,6 +25,15 @@ function createStateWithRemainingHearts() {
           PLAYER1,
           [
             { color: HeartColor.GREEN, count: 1 },
+            { color: HeartColor.RAINBOW, count: 2 },
+          ],
+        ],
+      ]),
+      playerLiveJudgmentHearts: new Map([
+        [
+          PLAYER1,
+          [
+            { color: HeartColor.GREEN, count: 2 },
             { color: HeartColor.RAINBOW, count: 2 },
           ],
         ],
@@ -72,6 +82,60 @@ describe('remaining hearts helpers', () => {
     expect(result.gameState.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual([]);
     expect(result.gameState.liveResolution.playerRemainingHearts.get(PLAYER2)).toEqual([
       { color: HeartColor.YELLOW, count: 2 },
+    ]);
+  });
+
+  it('rebalances remaining RAINBOW into an exact color only when that color was consumed', () => {
+    const game = {
+      ...createStateWithRemainingHearts(),
+      liveResolution: {
+        ...createStateWithRemainingHearts().liveResolution,
+        playerRemainingHearts: new Map([[PLAYER1, [{ color: HeartColor.RAINBOW, count: 1 }]]]),
+        playerLiveJudgmentHearts: new Map([
+          [
+            PLAYER1,
+            [
+              { color: HeartColor.GREEN, count: 2 },
+              { color: HeartColor.RAINBOW, count: 2 },
+            ],
+          ],
+        ]),
+      },
+    };
+
+    const result = rebalanceRemainingHeartColorForPlayer(game, PLAYER1, HeartColor.GREEN, 1);
+
+    expect(result.rebalancedCount).toBe(1);
+    expect(result.remainingColorCountBefore).toBe(0);
+    expect(result.remainingColorCountAfter).toBe(1);
+    expect(result.gameState.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual([
+      { color: HeartColor.GREEN, count: 1 },
+    ]);
+  });
+
+  it('does not rebalance RAINBOW into a color that was not available during judgment', () => {
+    const game = {
+      ...createStateWithRemainingHearts(),
+      liveResolution: {
+        ...createStateWithRemainingHearts().liveResolution,
+        playerRemainingHearts: new Map([[PLAYER1, [{ color: HeartColor.RAINBOW, count: 1 }]]]),
+        playerLiveJudgmentHearts: new Map([
+          [
+            PLAYER1,
+            [
+              { color: HeartColor.YELLOW, count: 2 },
+              { color: HeartColor.RAINBOW, count: 4 },
+            ],
+          ],
+        ]),
+      },
+    };
+
+    const result = rebalanceRemainingHeartColorForPlayer(game, PLAYER1, HeartColor.GREEN, 1);
+
+    expect(result.rebalancedCount).toBe(0);
+    expect(result.gameState.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual([
+      { color: HeartColor.RAINBOW, count: 1 },
     ]);
   });
 });

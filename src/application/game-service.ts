@@ -1140,6 +1140,10 @@ export class GameService {
       stateAfterPerformance.liveResolution.playerRemainingHearts
     );
     playerRemainingHearts.set(playerId, hasSuccessfulLive ? performance.remainingHearts : []);
+    const playerLiveJudgmentHearts = new Map(
+      stateAfterPerformance.liveResolution.playerLiveJudgmentHearts
+    );
+    playerLiveJudgmentHearts.set(playerId, performance.liveJudgmentHearts);
 
     const state = {
       ...stateAfterPerformance,
@@ -1148,6 +1152,7 @@ export class GameService {
         liveResults,
         playerScores,
         playerRemainingHearts,
+        playerLiveJudgmentHearts,
       },
     };
 
@@ -1652,6 +1657,7 @@ export class GameService {
         liveResults: new Map(),
         playerScores: new Map(),
         playerRemainingHearts: new Map(),
+        playerLiveJudgmentHearts: new Map(),
         playerScoreBonuses: new Map(),
         playerHeartBonuses: new Map(),
         liveRequirementReductions: new Map(),

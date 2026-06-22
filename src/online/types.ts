@@ -123,6 +123,11 @@ export interface LiveResultViewState {
   readonly liveCardScoreModifiers: Readonly<Record<string, number>>;
   readonly winnerSeats: readonly Seat[];
   readonly confirmedSeats: readonly Seat[];
+  readonly successLiveSelection?: {
+    readonly waitingSeat: Seat | null;
+    readonly candidateObjectIds: readonly string[];
+    readonly canSkipToWaitingRoom: boolean;
+  } | null;
 }
 
 export interface ViewZoneState {

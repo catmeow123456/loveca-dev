@@ -928,24 +928,33 @@ describe('PlayerViewState projector', () => {
   });
 
   it('RESULT_SETTLEMENT 期间仅胜者拥有成功 Live 选择与结算确认权限', () => {
-    const { state } = createProjectedState();
+    const { state, p1LiveCard } = createProjectedState();
     const mutableState = state as unknown as {
       currentPhase: GamePhase;
       currentSubPhase: SubPhase;
       waitingPlayerId: string | null;
-      liveResolution: { liveWinnerIds: string[] };
+      liveResolution: { liveWinnerIds: string[]; liveResults: Map<string, boolean> };
     };
     mutableState.currentPhase = GamePhase.LIVE_RESULT_PHASE;
     mutableState.currentSubPhase = SubPhase.RESULT_SETTLEMENT;
     mutableState.waitingPlayerId = null;
     mutableState.liveResolution.liveWinnerIds = [PLAYER1];
+    mutableState.liveResolution.liveResults = new Map([[p1LiveCard.instanceId, true]]);
 
     const player1View = projectPlayerViewState(state, PLAYER1);
     const player2View = projectPlayerViewState(state, PLAYER2);
 
     expect(hasEnabledCommand(player1View, GameCommandType.SELECT_SUCCESS_LIVE)).toBe(true);
-    expect(hasEnabledCommand(player1View, GameCommandType.CONFIRM_STEP)).toBe(true);
-    expect(getCommandHint(player1View, GameCommandType.CONFIRM_STEP)?.reason).toBeUndefined();
+    expect(getCommandHint(player1View, GameCommandType.SELECT_SUCCESS_LIVE)?.scope?.objectIds).toEqual([
+      createPublicObjectId(p1LiveCard.instanceId),
+    ]);
+    expect(hasEnabledCommand(player1View, GameCommandType.CONFIRM_STEP)).toBe(false);
+    expect(getCommandHint(player1View, GameCommandType.CONFIRM_STEP)?.reason).toContain(
+      '请先选择成功 Live'
+    );
+    expect(player1View.match.liveResult?.successLiveSelection?.candidateObjectIds).toEqual([
+      createPublicObjectId(p1LiveCard.instanceId),
+    ]);
     expect(hasEnabledCommand(player2View, GameCommandType.SELECT_SUCCESS_LIVE)).toBe(false);
     expect(getCommandHint(player2View, GameCommandType.SELECT_SUCCESS_LIVE)).toBeNull();
   });

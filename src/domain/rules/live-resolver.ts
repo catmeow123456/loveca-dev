@@ -84,6 +84,8 @@ export interface PerformanceResult {
   readonly bonusScore: number;
   /** Live 判定后的余剰/剩余 Heart（plain data） */
   readonly remainingHearts: readonly HeartIcon[];
+  /** Live 判定时用于判定的 Heart 总量（plain data） */
+  readonly liveJudgmentHearts: readonly HeartIcon[];
 }
 
 /**
@@ -317,6 +319,7 @@ export class LiveResolver {
       ? judgments.reduce((total, judgment) => total + judgment.liveCardData.score, 0) + bonusScore
       : 0;
     const remainingHearts = isOverallSuccess ? remainingPool.toArray() : [];
+    const liveJudgmentHearts = totalHeartPool.toArray();
 
     return {
       playerId,
@@ -327,6 +330,7 @@ export class LiveResolver {
       totalScore,
       bonusScore,
       remainingHearts,
+      liveJudgmentHearts,
     };
   }
 

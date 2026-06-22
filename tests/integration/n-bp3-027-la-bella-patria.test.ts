@@ -70,6 +70,7 @@ function createEnergy(index: number): EnergyCardData {
 
 function prepareScenario(options: {
   readonly remainingHearts: readonly HeartIcon[];
+  readonly liveJudgmentHearts?: readonly HeartIcon[];
   readonly hasNijigasakiStageMember?: boolean;
   readonly energyDeckCount?: number;
   readonly liveCount?: number;
@@ -116,6 +117,9 @@ function prepareScenario(options: {
       liveResults: new Map(liveCards.map((live) => [live.instanceId, true])),
       playerScores: new Map([[PLAYER1, 2]]),
       playerRemainingHearts: new Map([[PLAYER1, options.remainingHearts]]),
+      playerLiveJudgmentHearts: new Map([
+        [PLAYER1, options.liveJudgmentHearts ?? options.remainingHearts],
+      ]),
       performingPlayerId: PLAYER1,
     },
   };
@@ -136,6 +140,28 @@ function abilityActions(game: ReturnType<typeof resolveLiveSuccess>) {
       action.payload.abilityId ===
         PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID
   );
+}
+
+function resolveTwoCopies(game: ReturnType<typeof prepareScenario>['game']) {
+  const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
+  expect(result.success).toBe(true);
+  const session = createGameSession();
+  session.createGame('n-bp3-027-two-copies', PLAYER1, 'P1', PLAYER2, 'P2');
+  (session as unknown as { authorityState: typeof game }).authorityState = result.gameState;
+
+  expect(
+    session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        null,
+        true
+      )
+    ).success
+  ).toBe(true);
+
+  return session.state!;
 }
 
 describe('PL!N-bp3-027-L La Bella Patria', () => {
@@ -161,6 +187,35 @@ describe('PL!N-bp3-027-L La Bella Patria', () => {
     });
   });
 
+  it('rebalances remaining RAINBOW into green when real green was consumed for Live success', () => {
+    const { game, energies } = prepareScenario({
+      remainingHearts: [{ color: HeartColor.RAINBOW, count: 1 }],
+      liveJudgmentHearts: [
+        { color: HeartColor.YELLOW, count: 2 },
+        { color: HeartColor.GREEN, count: 2 },
+        { color: HeartColor.RAINBOW, count: 2 },
+      ],
+      hasNijigasakiStageMember: true,
+      energyDeckCount: 1,
+    });
+
+    const state = resolveLiveSuccess(game);
+
+    expect(state.players[0].energyZone.cardIds).toEqual([energies[0]!.instanceId]);
+    expect(state.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual([
+      { color: HeartColor.GREEN, count: 1 },
+    ]);
+    expect(abilityActions(state)[0]?.payload).toMatchObject({
+      conditionMet: true,
+      remainingGreenHeartCount: 1,
+      remainingHeartTotalCount: 1,
+      rebalancedRemainingHeartCount: 1,
+      remainingGreenHeartCountBeforeRebalance: 0,
+      remainingRainbowHeartCountBeforeRebalance: 1,
+      placedEnergyCardIds: [energies[0]!.instanceId],
+    });
+  });
+
   it('does not place energy without green remaining heart', () => {
     const { game } = prepareScenario({
       remainingHearts: [{ color: HeartColor.YELLOW, count: 2 }],
@@ -180,6 +235,10 @@ describe('PL!N-bp3-027-L La Bella Patria', () => {
   it('does not treat only RAINBOW remaining hearts as green remaining heart', () => {
     const { game } = prepareScenario({
       remainingHearts: [{ color: HeartColor.RAINBOW, count: 3 }],
+      liveJudgmentHearts: [
+        { color: HeartColor.YELLOW, count: 2 },
+        { color: HeartColor.RAINBOW, count: 4 },
+      ],
       hasNijigasakiStageMember: true,
     });
 
@@ -190,6 +249,7 @@ describe('PL!N-bp3-027-L La Bella Patria', () => {
       conditionMet: false,
       remainingGreenHeartCount: 0,
       remainingHeartTotalCount: 3,
+      rebalancedRemainingHeartCount: 0,
     });
   });
 
@@ -233,24 +293,7 @@ describe('PL!N-bp3-027-L La Bella Patria', () => {
       liveCount: 2,
     });
 
-    const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
-    expect(result.success).toBe(true);
-    const session = createGameSession();
-    session.createGame('n-bp3-027-two-copies', PLAYER1, 'P1', PLAYER2, 'P2');
-    (session as unknown as { authorityState: typeof game }).authorityState = result.gameState;
-
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(
-          PLAYER1,
-          session.state!.activeEffect!.id,
-          undefined,
-          null,
-          true
-        )
-      ).success
-    ).toBe(true);
-    const state = session.state!;
+    const state = resolveTwoCopies(game);
     const actions = abilityActions(state);
 
     expect(state.players[0].energyZone.cardIds).toEqual([
@@ -258,6 +301,35 @@ describe('PL!N-bp3-027-L La Bella Patria', () => {
       energies[1]!.instanceId,
     ]);
     expect(actions).toHaveLength(2);
+    expect(actions.map((action) => action.payload.remainingGreenHeartCount)).toEqual([1, 1]);
+    expect(actions.map((action) => action.payload.conditionMet)).toEqual([true, true]);
+  });
+
+  it('rebalances once and lets two copies use the same green remaining heart', () => {
+    const { game, energies } = prepareScenario({
+      remainingHearts: [{ color: HeartColor.RAINBOW, count: 1 }],
+      liveJudgmentHearts: [
+        { color: HeartColor.YELLOW, count: 2 },
+        { color: HeartColor.GREEN, count: 2 },
+        { color: HeartColor.RAINBOW, count: 2 },
+      ],
+      hasNijigasakiStageMember: true,
+      energyDeckCount: 2,
+      liveCount: 2,
+    });
+
+    const state = resolveTwoCopies(game);
+    const actions = abilityActions(state);
+
+    expect(state.players[0].energyZone.cardIds).toEqual([
+      energies[0]!.instanceId,
+      energies[1]!.instanceId,
+    ]);
+    expect(state.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual([
+      { color: HeartColor.GREEN, count: 1 },
+    ]);
+    expect(actions).toHaveLength(2);
+    expect(actions.map((action) => action.payload.rebalancedRemainingHeartCount)).toEqual([1, 0]);
     expect(actions.map((action) => action.payload.remainingGreenHeartCount)).toEqual([1, 1]);
     expect(actions.map((action) => action.payload.conditionMet)).toEqual([true, true]);
   });
@@ -272,5 +344,6 @@ describe('PL!N-bp3-027-L La Bella Patria', () => {
 
     expect(result.success).toBe(true);
     expect(result.gameState.liveResolution.playerRemainingHearts.size).toBe(0);
+    expect(result.gameState.liveResolution.playerLiveJudgmentHearts.size).toBe(0);
   });
 });

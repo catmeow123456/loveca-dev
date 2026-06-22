@@ -46,6 +46,12 @@ import {
   moveCardUniversal,
 } from './zone-operations.js';
 import { liveProhibitedPlayerLiveZoneToWaitingRoom } from '../../domain/rules/live-prohibitions.js';
+import {
+  canLiveCardEnterSuccessZone,
+  getCurrentSuccessLiveSettlementPlayerId,
+  getSuccessLiveSelectionCandidateIds,
+  haveAllSuccessLiveSettlementsCompleted,
+} from '../../domain/rules/success-live-placement.js';
 import { phaseManager, type SubPhaseAutoAction } from '../phase-manager.js';
 import { isUserActionRequired } from '../../shared/phase-config/index.js';
 import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
@@ -111,12 +117,25 @@ export const handleConfirmSubPhase: ActionHandler<ConfirmSubPhaseAction> = (
       return failure(game, '当前玩家不需要确认 Live 结算');
     }
 
+    const allSettlementsCompleted = haveAllSuccessLiveSettlementsCompleted(state);
+    const currentSettlementPlayerId = getCurrentSuccessLiveSettlementPlayerId(state);
+    if (!allSettlementsCompleted && currentSettlementPlayerId !== playerId) {
+      return failure(game, '当前不是你的成功 Live 结算顺序');
+    }
+
     const settlingPlayer = ctx.getPlayerById(state, playerId);
     if (!settlingPlayer) {
       return failure(game, '玩家不存在');
     }
 
-    const remainingLiveCardIds = [...settlingPlayer.liveZone.cardIds];
+    const legalCandidateIds = getSuccessLiveSelectionCandidateIds(state, playerId);
+    if (!allSettlementsCompleted && legalCandidateIds.length > 0 && action.skipSuccessLiveSelection !== true) {
+      return failure(game, '请先选择成功 Live，或使用全部放置入休息室');
+    }
+
+    const shouldClearCurrentLiveZone =
+      !allSettlementsCompleted && legalCandidateIds.length === 0;
+    const remainingLiveCardIds = shouldClearCurrentLiveZone ? [...settlingPlayer.liveZone.cardIds] : [];
     if (remainingLiveCardIds.length > 0) {
       state = updatePlayer(state, playerId, (player) => {
         let nextPlayer = player;
@@ -289,6 +308,20 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
   // 能量牌移动限制（规则 4.5.5、10.5.4）
   const isEnergyCard = card.data.cardType === CardType.ENERGY;
   const isMemberCard = card.data.cardType === CardType.MEMBER;
+  if (
+    game.currentSubPhase === SubPhase.RESULT_ANIMATION &&
+    fromZone === ZoneType.LIVE_ZONE &&
+    toZone !== ZoneType.LIVE_ZONE
+  ) {
+    return failure(game, '胜者演出阶段不能移动 Live 区卡牌');
+  }
+  if (
+    card.data.cardType === CardType.LIVE &&
+    toZone === ZoneType.SUCCESS_ZONE &&
+    !canLiveCardEnterSuccessZone(game, playerId, cardId)
+  ) {
+    return failure(game, '该 Live 不能放置入成功LIVE卡区');
+  }
   if (isEnergyCard) {
     if (toZone === ZoneType.HAND) {
       return failure(game, '能量牌不能移动到手牌');
@@ -508,6 +541,9 @@ export const handleSelectSuccessCard: ActionHandler<SelectSuccessCardAction> = (
   if (isResultSettlement && !game.liveResolution.liveWinnerIds.includes(playerId)) {
     return failure(game, '当前玩家不是本轮胜者');
   }
+  if (isResultSettlement && getCurrentSuccessLiveSettlementPlayerId(game) !== playerId) {
+    return failure(game, '当前不是你的成功 Live 结算顺序');
+  }
 
   if (isPerformanceSuccessWindow) {
     const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
@@ -526,8 +562,16 @@ export const handleSelectSuccessCard: ActionHandler<SelectSuccessCardAction> = (
     return failure(game, '卡牌不在 Live 区');
   }
 
-  // 信任玩家原则：不限制谁能将 Live 拖入成功区，
-  // 在所有可操作窗口中均允许。
+  if (!canLiveCardEnterSuccessZone(game, playerId, cardId)) {
+    return failure(game, '该 Live 不能放置入成功LIVE卡区');
+  }
+
+  if (
+    isResultSettlement &&
+    !getSuccessLiveSelectionCandidateIds(game, playerId).includes(cardId)
+  ) {
+    return failure(game, '该 Live 不是本轮可进入成功区的候选');
+  }
 
   // 验证玩家尚未移动过卡牌（防止重复移动）
   if (game.liveResolution.successCardMovedBy.includes(playerId)) {
@@ -548,9 +592,10 @@ export const handleSelectSuccessCard: ActionHandler<SelectSuccessCardAction> = (
       ...state.liveResolution,
       liveResults: new Map(game.liveResolution.liveResults).set(cardId, true),
       successCardMovedBy: [...state.liveResolution.successCardMovedBy, playerId],
-      settlementConfirmedBy: state.liveResolution.settlementConfirmedBy.filter(
-        (confirmedPlayerId) => confirmedPlayerId !== playerId
-      ),
+      settlementConfirmedBy:
+        isResultSettlement && !state.liveResolution.settlementConfirmedBy.includes(playerId)
+          ? [...state.liveResolution.settlementConfirmedBy, playerId]
+          : state.liveResolution.settlementConfirmedBy,
     },
   };
 

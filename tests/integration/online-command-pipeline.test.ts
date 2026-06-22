@@ -2205,7 +2205,7 @@ describe('GameSession command pipeline', () => {
     const mutableState = state as unknown as {
       currentSubPhase: SubPhase;
       activePlayerIndex: number;
-      liveResolution: { liveWinnerIds: string[] };
+      liveResolution: { liveWinnerIds: string[]; liveResults: Map<string, boolean> };
     };
     const liveCardId = [...state.cardRegistry.values()].find(
       (card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.LIVE
@@ -2218,6 +2218,7 @@ describe('GameSession command pipeline', () => {
     mutableState.currentSubPhase = SubPhase.RESULT_SETTLEMENT;
     mutableState.activePlayerIndex = 0;
     mutableState.liveResolution.liveWinnerIds = [PLAYER1];
+    mutableState.liveResolution.liveResults = new Map([[liveCardId!, true]]);
 
     const beforeSeq = session.getCurrentPublicEventSeq();
     const result = session.executeCommand(createSelectSuccessLiveCommand(PLAYER1, liveCardId!));

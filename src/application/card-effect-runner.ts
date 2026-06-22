@@ -102,6 +102,7 @@ import { registerHsSd1006HimeWorkflowHandlers } from './card-effects/workflows/c
 import { registerEmmaWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-008-emma.js';
 import { registerPlBp3014RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-014-rin.js';
 import { registerPr017NicoWorkflowHandlers } from './card-effects/workflows/cards/pr-017-nico.js';
+import { registerSBp2024KimikokoWorkflowHandlers } from './card-effects/workflows/cards/s-bp2-024-kimikoko.js';
 import { registerSpBp2009NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-009-natsumi.js';
 import { registerSpBp1024TinyStarsWorkflowHandlers } from './card-effects/workflows/cards/sp-bp1-024-tiny-stars.js';
 import { registerSpBp2024VitaminSummerWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-024-vitamin-summer.js';
@@ -519,6 +520,7 @@ registerBp5003KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp6024SuccessReplacementWorkflowHandlers();
 registerHsBp5008IzumiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp6031FanfareWorkflowHandlers();
+registerSBp2024KimikokoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerDrawThenDiscardWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerRelayEnterDrawDiscardWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerGroupedRecoveryWorkflowHandlers({ enqueueTriggeredCardEffects });

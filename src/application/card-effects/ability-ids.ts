@@ -117,6 +117,8 @@ export const N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_
   'PL!N-PR-026-PR:live-success-delegate-member-below-live-success-abilities';
 export const SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp2-024:live-success-hand-advantage-this-live-score';
+export const S_BP2_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
+  'PL!S-bp2-024:live-success-draw-two-discard-one';
 export const HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID =
   'PL!HS-bp2-014-N:on-enter-draw-cannot-live-until-live-end';
 export const HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID =

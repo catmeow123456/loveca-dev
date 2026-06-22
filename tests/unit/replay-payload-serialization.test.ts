@@ -76,6 +76,15 @@ describe('replay payload serialization', () => {
       liveResolution: {
         ...authoritySnapshot!.liveResolution,
         playerRemainingHearts: new Map([[PLAYER1, [{ color: HeartColor.GREEN, count: 1 }]]]),
+        playerLiveJudgmentHearts: new Map([
+          [
+            PLAYER1,
+            [
+              { color: HeartColor.GREEN, count: 2 },
+              { color: HeartColor.RAINBOW, count: 1 },
+            ],
+          ],
+        ]),
       },
     };
 
@@ -99,6 +108,11 @@ describe('replay payload serialization', () => {
     expect(rehydrated.liveResolution.playerRemainingHearts).toBeInstanceOf(Map);
     expect(rehydrated.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual([
       { color: HeartColor.GREEN, count: 1 },
+    ]);
+    expect(rehydrated.liveResolution.playerLiveJudgmentHearts).toBeInstanceOf(Map);
+    expect(rehydrated.liveResolution.playerLiveJudgmentHearts.get(PLAYER1)).toEqual([
+      { color: HeartColor.GREEN, count: 2 },
+      { color: HeartColor.RAINBOW, count: 1 },
     ]);
 
     const playerView = projectPlayerViewState(rehydrated, PLAYER1, {
