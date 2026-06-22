@@ -29,6 +29,10 @@ import {
   PL_N_PB1_006_ACTIVATED_WAIT_SELF_ACTIVATE_ONE_ENERGY_ABILITY_ID,
   PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID,
   PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID,
+  PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
+  PL_N_BP3_015_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
+  PL_N_PB1_034_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
+  PL_N_PB1_036_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
   KOTORI_LIVE_START_HEART_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
@@ -38,6 +42,8 @@ import {
   HS_BP2_023_LIVE_START_RELAY_ENTERED_HASUNOSORA_BLUE_REQUIREMENT_ABILITY_ID,
   HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABILITY_ID,
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
+  HS_BP5_021_LIVE_START_TARGET_HASUNOSORA_MEMBER_ORIGINAL_HEART_PINK_ABILITY_ID,
+  HS_BP5_021_LIVE_START_THREE_MIRACRA_STAGE_MEMBERS_SCORE_ABILITY_ID,
   HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID,
   SP_BP2_009_LIVE_START_HAND_COUNT_GAIN_BLADE_ABILITY_ID,
   SP_BP2_009_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
@@ -59,6 +65,10 @@ import {
   HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID,
   HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID,
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
+  HS_SD1_004_ON_ENTER_DISCARD_HASUNOSORA_RECOVER_MEMBER_ABILITY_ID,
+  HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GAIN_GREEN_HEART_ABILITY_ID,
+  HS_SD1_005_ON_ENTER_RELAY_FROM_OTHER_HASUNOSORA_RECOVER_LIVE_ABILITY_ID,
+  HS_SD1_005_CONTINUOUS_STAGE_SAYAKA_GINKO_HIME_GAIN_BLADE_ABILITY_ID,
   HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID,
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
@@ -206,6 +216,14 @@ const PL_N_BP3_008_ACTIVATED_EFFECT_TEXT =
   '【起动】[1回合1次]将此成员以外的1名『虹咲』的成员变为待机状态：抽1张卡。';
 const PL_N_BP3_008_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将2张手牌放置入休息室：将1张存在于自己的舞台的此成员以外的待机状态的成员变为活跃状态。如此做的场合，LIVE结束时为止，因此变为活跃状态的成员与此成员，分别获得[緑ハート]。';
+const PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT =
+  '【LIVE开始时】选择[桃ハート]或[黄ハート]或[緑ハート]中的1种。LIVE结束时为止，此成员原本持有的HEART变为选择的HEART。';
+const PL_N_BP3_015_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT =
+  '【LIVE开始时】选择[赤ハート]或[青ハート]或[紫ハート]中的1种。LIVE结束时为止，此成员原本持有的HEART变为选择的HEART。';
+const PL_N_PB1_034_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT =
+  '【LIVE开始时】选择[黄ハート]或[緑ハート]或[青ハート]中的1种。LIVE结束时为止，此成员原本持有的HEART变为选择的HEART。';
+const PL_N_PB1_036_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT =
+  '【LIVE开始时】选择[桃ハート]或[赤ハート]或[紫ハート]中的1种。LIVE结束时为止，此成员原本持有的HEART变为选择的HEART。';
 const KOTORI_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：选择[桃ハート]或[黄ハート]或[紫ハート]中的1种，LIVE结束时为止，获得1个选择了的Heart。';
 const MAKI_EFFECT_TEXT =
@@ -266,6 +284,10 @@ const HS_BP2_022_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的休息室存在大于等于3张『Cerise Bouquet』的LIVE卡的场合，此卡的分数＋１。';
 const HS_BP5_020_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的舞台中存在大于等于2名费用大于等于10的『莲之空』的成员的场合，此卡的分数＋１。';
+const HS_BP5_021_LIVE_START_TARGET_ORIGINAL_HEART_EFFECT_TEXT =
+  '【LIVE开始时】LIVE结束时为止，存在于自己舞台的1名『莲之空』的成员原本持有的HEART全部变为[桃ハート]。';
+const HS_BP5_021_LIVE_START_SCORE_EFFECT_TEXT =
+  '【LIVE开始时】自己的舞台中『Mira-Cra Park!』的成员大于等于3名的场合，此卡的分数＋１。';
 const PL_N_PB1_037_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】此回合中，因自己的『虹咲』的卡片的效果，将待机状态的自己的能量变为活跃状态的场合，此卡的分数＋１。并且，因自己的『虹咲』的卡片的效果，将存在于自己的舞台的待机状态的成员也变为活跃状态的场合，改为分数＋２。';
 const HS_BP2_024_LIVE_START_EFFECT_TEXT =
@@ -310,6 +332,14 @@ const HS_PB1_003_ON_ENTER_EFFECT_TEXT =
   '【登场】将任意张手牌的『みらくらぱーく！』成员卡放置入休息室。之后，抽放置张数+1张卡。';
 const HS_PB1_003_AUTO_EFFECT_TEXT =
   '【自动】【回合2次】每当自己的手牌有1张以上放置入休息室时，LIVE结束时为止，获得[桃ハート][BLADE]。';
+const HS_SD1_004_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将1张手牌的『莲之空』卡片放置入休息室：从自己的休息室将1张成员卡加入手牌。';
+const HS_SD1_004_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要自己的舞台中存在「日野下花帆」或「徒町小铃」或「安养寺姬芽」，获得[緑ハート]。';
+const HS_SD1_005_ON_ENTER_EFFECT_TEXT =
+  '【登场】从「徒町小铃」之外的『莲之空』的成员换手登场的场合，从自己的休息室将1张LIVE卡加入手牌。';
+const HS_SD1_005_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要自己的舞台中存在「村野沙耶香」或「百生吟子」或「安养寺姬芽」，获得[BLADE]。';
 const HS_SD1_006_ON_ENTER_EFFECT_TEXT =
   '【登场】自己的舞台中存在「大泽瑠璃乃」或「百生吟子」或「徒町小铃」的场合，将1张能量变为活跃状态，从自己的休息室将1张『莲之空』的LIVE卡加入手牌。';
 const HS_SD1_006_LIVE_START_EFFECT_TEXT =
@@ -1851,6 +1881,54 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'LIVE开始时可选弃2张手牌；弃牌后选择自己的舞台上此成员以外的 WAITING 成员变 ACTIVE，并给该成员与来源各1个 GREEN Heart。弃牌后无目标时费用保留并空结算。',
   },
   {
+    abilityId: PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp3-014'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT,
+    notes:
+      'LIVE开始时选择 PINK/YELLOW/GREEN；写入 MEMBER_ORIGINAL_HEART_REPLACEMENT，替换此成员印刷原本Heart，不追加玩家或成员Heart bonus。',
+  },
+  {
+    abilityId: PL_N_BP3_015_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp3-015'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP3_015_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT,
+    notes:
+      'LIVE开始时选择 RED/BLUE/PURPLE；写入 MEMBER_ORIGINAL_HEART_REPLACEMENT，替换此成员印刷原本Heart，不追加玩家或成员Heart bonus。',
+  },
+  {
+    abilityId: PL_N_PB1_034_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
+    baseCardCodes: ['PL!N-pb1-034'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_PB1_034_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT,
+    notes:
+      'LIVE开始时选择 YELLOW/GREEN/BLUE；写入 MEMBER_ORIGINAL_HEART_REPLACEMENT，替换此成员印刷原本Heart，不追加玩家或成员Heart bonus。',
+  },
+  {
+    abilityId: PL_N_PB1_036_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
+    baseCardCodes: ['PL!N-pb1-036'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_PB1_036_LIVE_START_REPLACE_ORIGINAL_HEART_EFFECT_TEXT,
+    notes:
+      'LIVE开始时选择 PINK/RED/PURPLE；写入 MEMBER_ORIGINAL_HEART_REPLACEMENT，替换此成员印刷原本Heart，不追加玩家或成员Heart bonus。',
+  },
+  {
     abilityId: BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
     cardCodes: ['PL!-sd1-022-SD'],
     category: CardAbilityCategory.LIVE_START,
@@ -1934,6 +2012,30 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     notes: 'LIVE开始时检查己方舞台费用>=10的「莲之空」成员数量，满足2名时写入此 LIVE 的 SCORE +1。',
   },
   {
+    abilityId: HS_BP5_021_LIVE_START_TARGET_HASUNOSORA_MEMBER_ORIGINAL_HEART_PINK_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp5-021'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP5_021_LIVE_START_TARGET_ORIGINAL_HEART_EFFECT_TEXT,
+    notes:
+      'LIVE开始时选择自己主舞台1名「莲之空」成员；写入 MEMBER_ORIGINAL_HEART_REPLACEMENT 将目标成员印刷原本Heart全部替换为 PINK，不写玩家Heart或普通Heart bonus。',
+  },
+  {
+    abilityId: HS_BP5_021_LIVE_START_THREE_MIRACRA_STAGE_MEMBERS_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp5-021'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP5_021_LIVE_START_SCORE_EFFECT_TEXT,
+    notes:
+      'LIVE开始时只统计自己主舞台槽位中的「Mira-Cra Park!」成员；大于等于3时通过 SCORE live modifier 给此 LIVE +1 分。',
+  },
+  {
     abilityId: PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
     baseCardCodes: ['PL!N-pb1-037'],
     category: CardAbilityCategory.LIVE_START,
@@ -1992,6 +2094,52 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HS_PB1_029_LIVE_START_EFFECT_TEXT,
     notes:
       'LIVE 开始时比较 Mira-Cra 舞台成员有效 Heart 数与印刷 Heart 数；满足1名抽1，满足2名以上以 liveModifiers 写入 REQUIREMENT 無Heart -2。',
+  },
+  {
+    abilityId: HS_SD1_004_ON_ENTER_DISCARD_HASUNOSORA_RECOVER_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!HS-sd1-004'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_004_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '登场时可选弃1张手牌中的「莲之空」卡作为费用；费用支付后从自己的休息室选择1张成员卡加入手牌。刚弃置的成员可成为回收目标；无目标时费用保留并空结算。',
+  },
+  {
+    abilityId: HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GAIN_GREEN_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!HS-sd1-004'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: HS_SD1_004_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      '常时由 live-modifiers continuous registry 收集；只检查主舞台成员槽位中是否存在「日野下花帆」/「徒町小铃」/「安养寺姬芽」，满足时来源成员获得 SOURCE_MEMBER GREEN Heart +1。',
+  },
+  {
+    abilityId: HS_SD1_005_ON_ENTER_RELAY_FROM_OTHER_HASUNOSORA_RECOVER_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-sd1-005'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_005_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '登场时读取本次 pending metadata 的 relayReplacements；被换下成员必须是「莲之空」成员且不是「徒町小铃」。满足后从自己的休息室选择1张 LIVE 加入手牌；无 LIVE 目标时消费 pending no-op。',
+  },
+  {
+    abilityId: HS_SD1_005_CONTINUOUS_STAGE_SAYAKA_GINKO_HIME_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-sd1-005'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: HS_SD1_005_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      '常时由 live-modifiers continuous registry 收集；只检查主舞台成员槽位中是否存在「村野沙耶香」/「百生吟子」/「安养寺姬芽」，满足时来源成员 BLADE +1。',
   },
   {
     abilityId: HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID,

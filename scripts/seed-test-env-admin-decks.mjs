@@ -21,6 +21,8 @@ const deckDescriptionFallback =
   process.env.TEST_ADMIN_DECK_DESCRIPTION ?? '莲之空绿莲 6 弹新人推荐卡组';
 const loginRetryCount = Number(process.env.TEST_ADMIN_LOGIN_RETRIES ?? '5');
 const loginRetryDelayMs = Number(process.env.TEST_ADMIN_LOGIN_RETRY_DELAY_MS ?? '1000');
+const requestRetryCount = Number(process.env.TEST_API_REQUEST_RETRIES ?? '5');
+const requestRetryDelayMs = Number(process.env.TEST_API_REQUEST_RETRY_DELAY_MS ?? '1000');
 
 function log(message) {
   console.log(`[test-env-seed] ${message}`);
@@ -32,6 +34,17 @@ function resolveFromRoot(inputPath) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetriableFetchError(error) {
+  const code = error?.cause?.code ?? error?.code;
+  return (
+    error instanceof TypeError ||
+    code === 'UND_ERR_SOCKET' ||
+    code === 'ECONNRESET' ||
+    code === 'ECONNREFUSED' ||
+    code === 'EPIPE'
+  );
 }
 
 function assertEntry(entry, sectionName) {
@@ -110,29 +123,46 @@ async function requestJson(endpoint, options = {}) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${apiBaseUrl}${endpoint}`, {
-    ...fetchOptions,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const text = await response.text();
-  let payload = null;
-  if (text) {
+  let lastError;
+  for (let attempt = 1; attempt <= requestRetryCount; attempt++) {
     try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = { raw: text };
+      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+        ...fetchOptions,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const text = await response.text();
+      let payload = null;
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = { raw: text };
+        }
+      }
+
+      if (!allowedStatuses.includes(response.status)) {
+        const message = payload?.error?.message ?? payload?.raw ?? text ?? response.statusText;
+        throw new Error(
+          `${fetchOptions.method ?? 'GET'} ${endpoint} failed: HTTP ${response.status} ${message}`
+        );
+      }
+
+      return { status: response.status, payload };
+    } catch (error) {
+      lastError = error;
+      if (!isRetriableFetchError(error) || attempt >= requestRetryCount) {
+        throw error;
+      }
+
+      log(
+        `${fetchOptions.method ?? 'GET'} ${endpoint} failed before response, retrying (${attempt}/${requestRetryCount})`
+      );
+      await sleep(requestRetryDelayMs);
     }
   }
 
-  if (!allowedStatuses.includes(response.status)) {
-    const message = payload?.error?.message ?? payload?.raw ?? text ?? response.statusText;
-    throw new Error(
-      `${fetchOptions.method ?? 'GET'} ${endpoint} failed: HTTP ${response.status} ${message}`
-    );
-  }
-
-  return { status: response.status, payload };
+  throw lastError;
 }
 
 async function registerAdminUser() {

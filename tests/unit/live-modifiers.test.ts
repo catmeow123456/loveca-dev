@@ -6,7 +6,12 @@ import {
   updatePlayer,
   type LiveModifierState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  addCardToZone,
+  addMemberBelowMember,
+  placeCardInSlot,
+} from '../../src/domain/entities/zone';
 import {
   addHeartLiveModifierForMember,
   addMemberCostLiveModifierForMember,
@@ -28,6 +33,10 @@ import { CardType, HeartColor, SlotPosition } from '../../src/shared/types/enums
 
 const HS_BP5_002_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
+const HS_SD1_004_CONTINUOUS_ABILITY_ID =
+  'PL!HS-sd1-004-SD:continuous-stage-kaho-kosuzu-hime-green-heart';
+const HS_SD1_005_CONTINUOUS_ABILITY_ID =
+  'PL!HS-sd1-005-SD:continuous-stage-sayaka-ginko-hime-blade';
 
 describe('live modifier helpers', () => {
   it('creates source-member Heart modifiers when the member is the source card', () => {
@@ -291,6 +300,126 @@ describe('live modifier helpers', () => {
     ]);
   });
 
+  it('replaces a member printed original Heart colors before appending Heart bonuses', () => {
+    const kasumi = createCardInstance(
+      {
+        cardCode: 'PL!N-bp3-014-N',
+        name: '中須かすみ',
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [
+          createHeartIcon(HeartColor.PINK, 1),
+          createHeartIcon(HeartColor.YELLOW, 1),
+        ],
+      },
+      'p1',
+      'kasumi'
+    );
+    let game = createGameState('original-heart-replacement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kasumi]);
+    game = addLiveModifier(game, {
+      kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+      playerId: 'p1',
+      memberCardId: kasumi.instanceId,
+      color: HeartColor.GREEN,
+      sourceCardId: kasumi.instanceId,
+      abilityId: 'replace-original-heart',
+    });
+    game = addLiveModifier(game, {
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      sourceCardId: kasumi.instanceId,
+      abilityId: 'bonus-heart',
+    });
+
+    expect(getMemberEffectiveHeartIcons(game, 'p1', kasumi.instanceId)).toEqual([
+      createHeartIcon(HeartColor.GREEN, 2),
+      createHeartIcon(HeartColor.BLUE, 1),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1')).toEqual([]);
+  });
+
+  it('uses the latest original Heart replacement modifier for the same member', () => {
+    const shioriko = createCardInstance(
+      {
+        cardCode: 'PL!N-pb1-034-N',
+        name: '三船栞子',
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      },
+      'p1',
+      'shioriko'
+    );
+    let game = createGameState('latest-original-heart-replacement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [shioriko]);
+    game = addLiveModifier(game, {
+      kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+      playerId: 'p1',
+      memberCardId: shioriko.instanceId,
+      color: HeartColor.GREEN,
+      sourceCardId: shioriko.instanceId,
+      abilityId: 'first-replacement',
+    });
+    game = addLiveModifier(game, {
+      kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+      playerId: 'p1',
+      memberCardId: shioriko.instanceId,
+      color: HeartColor.BLUE,
+      sourceCardId: shioriko.instanceId,
+      abilityId: 'second-replacement',
+    });
+
+    expect(getMemberEffectiveHeartIcons(game, 'p1', shioriko.instanceId)).toEqual([
+      createHeartIcon(HeartColor.BLUE, 1),
+    ]);
+  });
+
+  it('replaces existing original Heart replacement modifiers by source and ability', () => {
+    let game = createGameState('replace-original-heart-modifier', 'p1', 'P1', 'p2', 'P2');
+    game = addLiveModifier(game, {
+      kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+      playerId: 'p1',
+      memberCardId: 'kasumi',
+      color: HeartColor.PINK,
+      sourceCardId: 'kasumi',
+      abilityId: 'replace-original-heart',
+    });
+    game = replaceLiveModifier(
+      game,
+      {
+        kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+        playerId: 'p1',
+        sourceCardId: 'kasumi',
+        abilityId: 'replace-original-heart',
+      },
+      {
+        kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+        playerId: 'p1',
+        memberCardId: 'kasumi',
+        color: HeartColor.YELLOW,
+        sourceCardId: 'kasumi',
+        abilityId: 'replace-original-heart',
+      }
+    );
+
+    expect(game.liveResolution.liveModifiers).toEqual([
+      {
+        kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+        playerId: 'p1',
+        memberCardId: 'kasumi',
+        color: HeartColor.YELLOW,
+        sourceCardId: 'kasumi',
+        abilityId: 'replace-original-heart',
+      },
+    ]);
+    expect(projectLiveModifierCompatibility(game.liveResolution.liveModifiers).playerHeartBonuses.size).toBe(0);
+  });
+
   it('counts targeted member Heart modifiers without projecting them to player Heart bonuses', () => {
     const target = createCardInstance(
       {
@@ -331,6 +460,200 @@ describe('live modifier helpers', () => {
       createHeartIcon(HeartColor.PINK, 1),
       createHeartIcon(HeartColor.PINK, 1),
     ]);
+  });
+
+  it('collects PL!HS-sd1-004 source-member Green Heart while a named helper member is on the main stage', () => {
+    const ginko = createCardInstance(
+      {
+        cardCode: 'PL!HS-sd1-004-SD',
+        name: '百生吟子',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 3,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'ginko'
+    );
+    const kosuzu = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-kosuzu',
+        name: '徒町小铃',
+        groupName: '蓮ノ空女学院スクールアイドルクラブ',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'kosuzu'
+    );
+    let game = createGameState('hs-sd1-004-continuous-heart', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [ginko, kosuzu]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ginko.instanceId),
+        SlotPosition.LEFT,
+        kosuzu.instanceId
+      ),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      sourceCardId: ginko.instanceId,
+      abilityId: HS_SD1_004_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveHeartIcons(game, 'p1', ginko.instanceId, modifiers)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.GREEN, 1),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+  });
+
+  it('does not count memberBelow cards for PL!HS-sd1-004 continuous Heart', () => {
+    const ginko = createCardInstance(
+      {
+        cardCode: 'PL!HS-sd1-004-SD',
+        name: '百生吟子',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 3,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'ginko'
+    );
+    const kahoBelow = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-kaho',
+        name: '日野下花帆',
+        groupName: '蓮ノ空女学院スクールアイドルクラブ',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'kaho-below'
+    );
+    let game = createGameState('hs-sd1-004-member-below-not-stage', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [ginko, kahoBelow]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: addMemberBelowMember(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ginko.instanceId),
+        SlotPosition.CENTER,
+        kahoBelow.instanceId
+      ),
+    }));
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'HEART' && modifier.abilityId === HS_SD1_004_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('collects PL!HS-sd1-005 source-member BLADE while a named helper member is on stage', () => {
+    const kosuzu = createCardInstance(
+      {
+        cardCode: 'PL!HS-sd1-005-SD',
+        name: '徒町小鈴',
+        cardType: CardType.MEMBER,
+        cost: 13,
+        blade: 3,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'kosuzu'
+    );
+    const sayaka = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-sayaka',
+        name: '村野沙耶香',
+        groupName: '蓮ノ空女学院スクールアイドルクラブ',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'sayaka'
+    );
+    let game = createGameState('hs-sd1-005-continuous-blade', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kosuzu, sayaka]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kosuzu.instanceId),
+        SlotPosition.RIGHT,
+        sayaka.instanceId
+      ),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 1,
+      sourceCardId: kosuzu.instanceId,
+      abilityId: HS_SD1_005_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', kosuzu.instanceId, modifiers)).toBe(4);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+  });
+
+  it('does not collect PL!HS-sd1-005 BLADE without the named stage members', () => {
+    const kosuzu = createCardInstance(
+      {
+        cardCode: 'PL!HS-sd1-005-SD',
+        name: '徒町小鈴',
+        cardType: CardType.MEMBER,
+        cost: 13,
+        blade: 3,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'kosuzu'
+    );
+    const kaho = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-kaho',
+        name: '日野下花帆',
+        groupName: '蓮ノ空女学院スクールアイドルクラブ',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'kaho'
+    );
+    let game = createGameState('hs-sd1-005-no-continuous-blade', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kosuzu, kaho]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kosuzu.instanceId),
+        SlotPosition.LEFT,
+        kaho.instanceId
+      ),
+    }));
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'BLADE' && modifier.abilityId === HS_SD1_005_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
   });
 
   it('keeps legacy player Heart modifiers in player Heart compatibility projection', () => {

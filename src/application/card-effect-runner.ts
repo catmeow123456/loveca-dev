@@ -65,6 +65,7 @@ import { registerHsBp5003RurinoWorkflowHandlers } from './card-effects/workflows
 import { registerHsBp5002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-002-sayaka.js';
 import { registerHsBp5006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-006-hime.js';
 import { registerHsBp5001KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-001-kaho.js';
+import { registerHsBp5021JoshoKiryuWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-021-josho-kiryu.js';
 import { registerHsBp5008IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-008-izumi.js';
 import { registerHsPb1004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-004-ginko.js';
 import { registerHsPb1002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-002-sayaka.js';
@@ -92,6 +93,8 @@ import {
   isHsSd1001HighCostHasunosoraRelayReplacement,
   registerHsSd1001KahoWorkflowHandlers,
 } from './card-effects/workflows/cards/hs-sd1-001-kaho.js';
+import { registerHsSd1004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-004-ginko.js';
+import { registerHsSd1005KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-005-kosuzu.js';
 import { registerHsSd1006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-006-hime.js';
 import { registerEmmaWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-008-emma.js';
 import { registerPlBp3014RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-014-rin.js';
@@ -118,6 +121,7 @@ import { registerLookTopSelectToHandWorkflowHandlers } from './card-effects/work
 import { registerLiveStartDiscardGainHeartWorkflowHandlers } from './card-effects/workflows/shared/live-start-discard-gain-heart.js';
 import { registerLiveStartDiscardSameUnitGainHeartBladeWorkflowHandlers } from './card-effects/workflows/shared/live-start-discard-same-unit-gain-heart-blade.js';
 import { registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHandlers } from './card-effects/workflows/shared/live-start-pay-energy-stack-waiting-members-to-deck-top.js';
+import { registerLiveStartReplaceOriginalHeartColorWorkflowHandlers } from './card-effects/workflows/shared/live-start-replace-original-heart-color.js';
 import { registerMillTopGainLiveModifierWorkflowHandlers } from './card-effects/workflows/shared/mill-top-gain-live-modifier.js';
 import { registerNamedHandDiscardLiveStartWorkflowHandlers } from './card-effects/workflows/shared/named-hand-discard-live-start.js';
 import { registerOpponentWaitTargetWorkflowHandlers } from './card-effects/workflows/shared/opponent-wait-target.js';
@@ -173,7 +177,6 @@ const DECLINE_OPTION_LABEL = '不发动';
 const ABILITY_USE_STEP = 'ABILITY_USE';
 const ACTIVATED_ABILITY_USE_STEP = 'ACTIVATED_ABILITY_USE';
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
-
 interface RevealSelectedInspectionCardConfig {
   readonly stepId: string;
   readonly stepText: string;
@@ -228,7 +231,6 @@ interface OnLeaveStageAbilitySource {
   readonly toZone?: ZoneType;
   readonly replacingCardId?: string;
 }
-
 interface MemberSlotMovedAbilitySource {
   readonly cardId: string;
   readonly controllerId: string;
@@ -237,21 +239,18 @@ interface MemberSlotMovedAbilitySource {
   readonly eventId: string;
   readonly swappedCardInstanceId?: string;
 }
-
 interface MemberStateChangedAbilitySource {
   readonly sourceCardId: string;
   readonly controllerId: string;
   readonly sourceSlot: SlotPosition;
   readonly event: MemberStateChangedEvent;
 }
-
 interface EnterWaitingRoomAbilitySource {
   readonly sourceCardId: string;
   readonly controllerId: string;
   readonly sourceSlot: SlotPosition;
   readonly event: EnterWaitingRoomEvent;
 }
-
 interface EnqueueTriggeredCardEffectsOptions {
   readonly onEnterSources?: readonly OnEnterAbilitySource[];
   readonly enterStageEvents?: readonly EnterStageEvent[];
@@ -526,6 +525,7 @@ registerNamedHandDiscardLiveStartWorkflowHandlers({ enqueueTriggeredCardEffects 
 registerLiveStartDiscardGainHeartWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartDiscardSameUnitGainHeartBladeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHandlers();
+registerLiveStartReplaceOriginalHeartColorWorkflowHandlers();
 registerBp5007NozomiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp6003KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1009KahoWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -562,11 +562,14 @@ registerNozomiOnEnterWorkflowHandlers();
 registerHsBp5002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5006HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp5021JoshoKiryuWorkflowHandlers();
 registerHsBp1022AwokeWorkflowHandlers();
 registerHsBp1023DododoWorkflowHandlers();
 registerHsPb1002SayakaWorkflowHandlers();
 registerHsPb1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsSd1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsSd1005KosuzuWorkflowHandlers();
 registerNBp1002KasumiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3008EmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNPb1006KanataWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -594,14 +597,12 @@ interface CardEffectRunnerResult {
   readonly gameState: GameState;
   readonly resolvedAbilityIds: readonly string[];
 }
-
 export function enqueueTriggeredCardEffects(
   game: GameState,
   triggerConditions: readonly TriggerCondition[],
   options: EnqueueTriggeredCardEffectsOptions = {}
 ): GameState {
   let state = game;
-
   if (triggerConditions.includes(TriggerCondition.ON_ENTER_STAGE)) {
     const enterStageEvents = options.enterStageEvents ?? getLatestEnterStageEventsFromLog(state);
     const eventSources =

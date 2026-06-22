@@ -1900,6 +1900,114 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(5);
   });
 
+  it('成员来源 Blade modifier 只在来源成员活跃时提供翻应援数', () => {
+    const service = new GameService();
+    const createScenario = (orientation: OrientationState, suffix: string) => {
+      const member = createCardInstance(
+        {
+          cardCode: `SOURCE-MEMBER-BLADE-${suffix}`,
+          name: `Source Member Blade ${suffix}`,
+          cardType: CardType.MEMBER as const,
+          cost: 1,
+          blade: 0,
+          hearts: [],
+        },
+        'p1',
+        `p1-source-member-blade-${suffix}`
+      );
+      const live = createCardInstance(
+        {
+          cardCode: `SOURCE-MEMBER-BLADE-LIVE-${suffix}`,
+          name: `Source Member Blade Live ${suffix}`,
+          cardType: CardType.LIVE as const,
+          score: 5,
+          requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),
+        },
+        'p1',
+        `p1-source-member-blade-live-${suffix}`
+      );
+      const cheer = createCardInstance(
+        {
+          cardCode: `SOURCE-MEMBER-BLADE-CHEER-${suffix}`,
+          name: `Source Member Blade Cheer ${suffix}`,
+          cardType: CardType.MEMBER as const,
+          cost: 1,
+          blade: 0,
+          hearts: [],
+          bladeHearts: [{ effect: BladeHeartEffect.HEART, heartColor: HeartColor.BLUE }],
+        },
+        'p1',
+        `p1-source-member-blade-cheer-${suffix}`
+      );
+
+      let game = createGameState(`g-source-member-blade-${suffix}`, 'p1', 'P1', 'p2', 'P2');
+      game = registerCards(game, [member, live, cheer]);
+      game = updatePlayer(game, 'p1', (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId, {
+          orientation,
+          face: FaceState.FACE_UP,
+        }),
+        liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+        mainDeck: addCardToZone(player.mainDeck, cheer.instanceId),
+      }));
+      game = {
+        ...game,
+        currentPhase: GamePhase.PERFORMANCE_PHASE,
+        currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+        currentTurnType: TurnType.FIRST_PLAYER_TURN,
+        activePlayerIndex: 0,
+        liveResolution: {
+          ...game.liveResolution,
+          isInLive: true,
+          performingPlayerId: 'p1',
+          liveModifiers: [
+            {
+              kind: 'BLADE',
+              playerId: 'p1',
+              countDelta: 1,
+              sourceCardId: member.instanceId,
+            },
+          ],
+        },
+      };
+
+      return { game, live, cheer };
+    };
+
+    const activeScenario = createScenario(OrientationState.ACTIVE, 'active');
+    const activeResult = service.processAction(activeScenario.game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(activeResult.success).toBe(true);
+    expect(activeResult.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([
+      activeScenario.cheer.instanceId,
+    ]);
+    expect(activeResult.gameState.liveResolution.liveResults.get(activeScenario.live.instanceId)).toBe(
+      true
+    );
+    expect(activeResult.gameState.liveResolution.playerScores.get('p1')).toBe(5);
+
+    const waitingScenario = createScenario(OrientationState.WAITING, 'waiting');
+    const waitingResult = service.processAction(waitingScenario.game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(waitingResult.success).toBe(true);
+    expect(waitingResult.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([]);
+    expect(waitingResult.gameState.liveResolution.liveResults.get(waitingScenario.live.instanceId)).toBe(
+      false
+    );
+    expect(waitingResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
+  });
+
   it('统一 Live modifier 应能独立提供必要 Heart 修正', () => {
     const service = new GameService();
     const member = createCardInstance(

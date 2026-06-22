@@ -47,6 +47,14 @@ export const PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID =
   'PL!N-bp3-008:activated-wait-other-nijigasaki-draw-one';
 export const PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID =
   'PL!N-bp3-008:live-start-discard-two-activate-other-member-gain-green-heart';
+export const PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID =
+  'PL!N-bp3-014-N:live-start-replace-original-heart-color';
+export const PL_N_BP3_015_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID =
+  'PL!N-bp3-015-N:live-start-replace-original-heart-color';
+export const PL_N_PB1_034_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID =
+  'PL!N-pb1-034-N:live-start-replace-original-heart-color';
+export const PL_N_PB1_036_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID =
+  'PL!N-pb1-036-N:live-start-replace-original-heart-color';
 export const KOTORI_LIVE_START_HEART_ABILITY_ID = 'PL!-sd1-003-SD:live-start-discard-gain-heart';
 export const NICO_LIVE_START_SCORE_ABILITY_ID = 'PL!-sd1-009-SD:live-start-score-plus-if-25-muse';
 export const BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID =
@@ -63,6 +71,10 @@ export const HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABI
   'PL!HS-bp2-025-L:live-start-reduce-pink-requirement-if-two-relay-entered-hasunosora';
 export const HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID =
   'PL!HS-bp5-020-L:live-start-score-plus-if-two-high-cost-hasunosora-members';
+export const HS_BP5_021_LIVE_START_TARGET_HASUNOSORA_MEMBER_ORIGINAL_HEART_PINK_ABILITY_ID =
+  'PL!HS-bp5-021-L:live-start-target-hasunosora-member-original-heart-pink';
+export const HS_BP5_021_LIVE_START_THREE_MIRACRA_STAGE_MEMBERS_SCORE_ABILITY_ID =
+  'PL!HS-bp5-021-L:live-start-three-miracra-stage-members-score';
 export const HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID =
   'PL!HS-bp2-024:live-start-reduce-requirement-if-kosuzu-and-higher-cost-sayaka';
 export const SP_BP2_009_LIVE_START_HAND_COUNT_GAIN_BLADE_ABILITY_ID =
@@ -105,6 +117,14 @@ export const HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_I
   'PL!HS-pb1-003-R:on-enter-discard-miracra-members-draw-plus-one';
 export const HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID =
   'PL!HS-pb1-003-R:auto-hand-to-waiting-gain-pink-heart-blade';
+export const HS_SD1_004_ON_ENTER_DISCARD_HASUNOSORA_RECOVER_MEMBER_ABILITY_ID =
+  'PL!HS-sd1-004-SD:on-enter-discard-hasunosora-recover-member';
+export const HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GAIN_GREEN_HEART_ABILITY_ID =
+  'PL!HS-sd1-004-SD:continuous-stage-kaho-kosuzu-hime-green-heart';
+export const HS_SD1_005_ON_ENTER_RELAY_FROM_OTHER_HASUNOSORA_RECOVER_LIVE_ABILITY_ID =
+  'PL!HS-sd1-005-SD:on-enter-relay-from-other-hasunosora-recover-live';
+export const HS_SD1_005_CONTINUOUS_STAGE_SAYAKA_GINKO_HIME_GAIN_BLADE_ABILITY_ID =
+  'PL!HS-sd1-005-SD:continuous-stage-sayaka-ginko-hime-blade';
 export const HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID =
   'PL!HS-sd1-006-SD:on-enter-if-related-member-activate-energy-recover-live';
 export const HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =

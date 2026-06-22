@@ -182,6 +182,14 @@ export type LiveModifierState =
       readonly abilityId?: string;
     }
   | {
+      readonly kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT';
+      readonly playerId: string;
+      readonly memberCardId: string;
+      readonly color: HeartColor;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+    }
+  | {
       readonly kind: 'BLADE';
       readonly playerId: string;
       readonly countDelta: number;

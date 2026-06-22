@@ -135,7 +135,6 @@ import {
   getLiveCardRequirementModifiers,
   getLiveCardScoreModifier,
   getMemberEffectiveHeartIcons,
-  getPlayerLiveBladeModifier,
   getPlayerLiveHeartModifiers,
   getPlayerLiveScoreModifier,
 } from '../domain/rules/live-modifiers.js';
@@ -1166,10 +1165,30 @@ export class GameService {
     player: PlayerState,
     activeMemberCards: readonly MemberCardData[]
   ): number {
-    return (
-      liveResolver.calculateTotalBlade(activeMemberCards) +
-      getPlayerLiveBladeModifier(game.liveResolution, player.id, collectLiveModifiers(game))
+    const activeMemberCardIds = new Set(
+      getAllMemberCardIds(player.memberSlots).filter((cardId) => {
+        const state = player.memberSlots.cardStates.get(cardId);
+        return state === undefined || state.orientation === OrientationState.ACTIVE;
+      })
     );
+    const modifierBladeCount = collectLiveModifiers(game).reduce((total, modifier) => {
+      if (modifier.kind !== 'BLADE' || modifier.playerId !== player.id) {
+        return total;
+      }
+
+      if (modifier.sourceCardId === undefined) {
+        return total + modifier.countDelta;
+      }
+
+      const sourceCard = getCardById(game, modifier.sourceCardId);
+      if (!sourceCard || !isMemberCardData(sourceCard.data)) {
+        return total + modifier.countDelta;
+      }
+
+      return activeMemberCardIds.has(modifier.sourceCardId) ? total + modifier.countDelta : total;
+    }, 0);
+
+    return liveResolver.calculateTotalBlade(activeMemberCards) + modifierBladeCount;
   }
 
   private hasPerformanceCheerStarted(game: GameState, playerId: string): boolean {

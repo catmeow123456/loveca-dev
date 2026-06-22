@@ -17,6 +17,10 @@ import { successLiveScoreAtLeast } from './success-live-score.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
 type HeartModifierState = Extract<LiveModifierState, { readonly kind: 'HEART' }>;
+type MemberOriginalHeartReplacementModifierState = Extract<
+  LiveModifierState,
+  { readonly kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT' }
+>;
 type BladeModifierState = Extract<LiveModifierState, { readonly kind: 'BLADE' }>;
 type MemberCostModifierState = Extract<LiveModifierState, { readonly kind: 'MEMBER_COST' }>;
 type RequirementModifierState = Extract<LiveModifierState, { readonly kind: 'REQUIREMENT' }>;
@@ -185,6 +189,40 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    baseCardCodes: ['PL!HS-sd1-004'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasNamedStageMember(game, playerId, [
+        '日野下花帆',
+        '徒町小鈴',
+        '徒町小铃',
+        '安養寺姫芽',
+        '安养寺姬芽',
+      ])
+        ? collectHsSd1004GinkoGreenHeartModifier(game, playerId, sourceCardId)
+        : [],
+  },
+  {
+    baseCardCodes: ['PL!HS-sd1-005'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasNamedStageMember(game, playerId, [
+        '村野さやか',
+        '村野沙耶香',
+        '百生吟子',
+        '安養寺姫芽',
+        '安养寺姬芽',
+      ])
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 1,
+              sourceCardId,
+              abilityId: HS_SD1_005_CONTINUOUS_STAGE_SAYAKA_GINKO_HIME_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
     baseCardCodes: ['PL!HS-pb1-014'],
     collect: ({ game, playerId, sourceCardId }) =>
       collectPb1014FrontHighCostHeartModifier(game, playerId, sourceCardId),
@@ -239,6 +277,10 @@ const HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID =
   'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart';
 const HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID =
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
+const HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GREEN_HEART_ABILITY_ID =
+  'PL!HS-sd1-004-SD:continuous-stage-kaho-kosuzu-hime-green-heart';
+const HS_SD1_005_CONTINUOUS_STAGE_SAYAKA_GINKO_HIME_BLADE_ABILITY_ID =
+  'PL!HS-sd1-005-SD:continuous-stage-sayaka-ginko-hime-blade';
 
 function getScoreModifiers(
   playerId: string,
@@ -523,6 +565,42 @@ function collectHsBp5002SayakaContinuousModifiers(
         HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID,
     },
   ];
+}
+
+function collectHsSd1004GinkoGreenHeartModifier(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly LiveModifierState[] {
+  const modifier = createHeartLiveModifierForMember(game, {
+    playerId,
+    memberCardId: sourceCardId,
+    sourceCardId,
+    abilityId: HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GREEN_HEART_ABILITY_ID,
+    hearts: [{ color: HeartColor.GREEN, count: 1 }],
+  });
+  return modifier ? [modifier] : [];
+}
+
+function hasNamedStageMember(
+  game: GameState,
+  playerId: string,
+  names: readonly string[]
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return false;
+  }
+  const normalizedNames = names.map(normalizeContinuousMemberName);
+  return MEMBER_SLOT_ORDER.some((slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    const card = cardId ? getCardById(game, cardId) : null;
+    return (
+      card !== null &&
+      isMemberCardData(card.data) &&
+      normalizedNames.includes(normalizeContinuousMemberName(card.data.name))
+    );
+  });
 }
 
 function hasAtLeastDifferentNamedStageMembers(
@@ -863,6 +941,14 @@ export function getMemberEffectiveHeartIcons(
     return [];
   }
 
+  const replacement = getLatestMemberOriginalHeartReplacementModifier(
+    playerId,
+    sourceCardId,
+    liveModifiers
+  );
+  const baseHearts = replacement
+    ? replaceOriginalHeartColor(sourceCard.data.hearts, replacement.color)
+    : sourceCard.data.hearts;
   const modifierHearts = liveModifiers
     .filter(
       (modifier): modifier is HeartModifierState =>
@@ -875,7 +961,33 @@ export function getMemberEffectiveHeartIcons(
     )
     .flatMap((modifier) => modifier.hearts);
 
-  return [...sourceCard.data.hearts, ...modifierHearts];
+  return [...baseHearts, ...modifierHearts];
+}
+
+function getLatestMemberOriginalHeartReplacementModifier(
+  playerId: string,
+  memberCardId: string,
+  liveModifiers: readonly LiveModifierState[]
+): MemberOriginalHeartReplacementModifierState | null {
+  let latest: MemberOriginalHeartReplacementModifierState | null = null;
+  for (const modifier of liveModifiers) {
+    if (
+      modifier.kind === 'MEMBER_ORIGINAL_HEART_REPLACEMENT' &&
+      modifier.playerId === playerId &&
+      modifier.memberCardId === memberCardId
+    ) {
+      latest = modifier;
+    }
+  }
+  return latest;
+}
+
+function replaceOriginalHeartColor(
+  printedHearts: readonly HeartIcon[],
+  color: HeartColor
+): readonly HeartIcon[] {
+  const total = printedHearts.reduce((sum, heart) => sum + heart.count, 0);
+  return total > 0 ? [{ color, count: total }] : [];
 }
 
 function getHeartModifierTarget(modifier: HeartModifierState): HeartModifierState['target'] {
