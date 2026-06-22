@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-08T02:32:48.363Z",
+  "generatedAt": "2026-06-22T17:21:40.194Z",
   "sizes": [
     "thumb",
     "medium",
@@ -36988,6 +36988,2568 @@
       ]
     },
     {
+      "cardCode": "PL!SP-bp1-023-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp1-023-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp1-023-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp1-023-SRL.webp",
+          "remotePath": "medium/PL!SP-bp1-023-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp1-023-SRL.webp",
+          "remotePath": "large/PL!SP-bp1-023-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp1-024-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp1-024-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp1-024-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp1-024-SRL.webp",
+          "remotePath": "medium/PL!SP-bp1-024-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp1-024-SRL.webp",
+          "remotePath": "large/PL!SP-bp1-024-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp1-025-SECL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp1-025-SECL.webp",
+          "remotePath": "thumb/PL!SP-bp1-025-SECL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp1-025-SECL.webp",
+          "remotePath": "medium/PL!SP-bp1-025-SECL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp1-025-SECL.webp",
+          "remotePath": "large/PL!SP-bp1-025-SECL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp1-025-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp1-025-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp1-025-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp1-025-SRL.webp",
+          "remotePath": "medium/PL!SP-bp1-025-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp1-025-SRL.webp",
+          "remotePath": "large/PL!SP-bp1-025-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp1-026-SECL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp1-026-SECL.webp",
+          "remotePath": "thumb/PL!SP-bp1-026-SECL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp1-026-SECL.webp",
+          "remotePath": "medium/PL!SP-bp1-026-SECL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp1-026-SECL.webp",
+          "remotePath": "large/PL!SP-bp1-026-SECL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp1-026-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp1-026-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp1-026-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp1-026-SRL.webp",
+          "remotePath": "medium/PL!SP-bp1-026-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp1-026-SRL.webp",
+          "remotePath": "large/PL!SP-bp1-026-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp1-027-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp1-027-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp1-027-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp1-027-SRL.webp",
+          "remotePath": "medium/PL!SP-bp1-027-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp1-027-SRL.webp",
+          "remotePath": "large/PL!SP-bp1-027-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp2-023-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp2-023-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp2-023-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp2-023-SRL.webp",
+          "remotePath": "medium/PL!SP-bp2-023-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp2-023-SRL.webp",
+          "remotePath": "large/PL!SP-bp2-023-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp2-024-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp2-024-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp2-024-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp2-024-SRL.webp",
+          "remotePath": "medium/PL!SP-bp2-024-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp2-024-SRL.webp",
+          "remotePath": "large/PL!SP-bp2-024-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp2-025-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp2-025-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp2-025-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp2-025-SRL.webp",
+          "remotePath": "medium/PL!SP-bp2-025-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp2-025-SRL.webp",
+          "remotePath": "large/PL!SP-bp2-025-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp2-026-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp2-026-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp2-026-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp2-026-SRL.webp",
+          "remotePath": "medium/PL!SP-bp2-026-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp2-026-SRL.webp",
+          "remotePath": "large/PL!SP-bp2-026-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp2-027-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp2-027-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp2-027-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp2-027-SRL.webp",
+          "remotePath": "medium/PL!SP-bp2-027-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp2-027-SRL.webp",
+          "remotePath": "large/PL!SP-bp2-027-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp4-023-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp4-023-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp4-023-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp4-023-SRL.webp",
+          "remotePath": "medium/PL!SP-bp4-023-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp4-023-SRL.webp",
+          "remotePath": "large/PL!SP-bp4-023-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp4-024-SECL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp4-024-SECL.webp",
+          "remotePath": "thumb/PL!SP-bp4-024-SECL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp4-024-SECL.webp",
+          "remotePath": "medium/PL!SP-bp4-024-SECL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp4-024-SECL.webp",
+          "remotePath": "large/PL!SP-bp4-024-SECL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp4-024-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp4-024-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp4-024-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp4-024-SRL.webp",
+          "remotePath": "medium/PL!SP-bp4-024-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp4-024-SRL.webp",
+          "remotePath": "large/PL!SP-bp4-024-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp4-025-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp4-025-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp4-025-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp4-025-SRL.webp",
+          "remotePath": "medium/PL!SP-bp4-025-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp4-025-SRL.webp",
+          "remotePath": "large/PL!SP-bp4-025-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp4-026-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp4-026-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp4-026-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp4-026-SRL.webp",
+          "remotePath": "medium/PL!SP-bp4-026-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp4-026-SRL.webp",
+          "remotePath": "large/PL!SP-bp4-026-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp4-027-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp4-027-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp4-027-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp4-027-SRL.webp",
+          "remotePath": "medium/PL!SP-bp4-027-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp4-027-SRL.webp",
+          "remotePath": "large/PL!SP-bp4-027-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp4-028-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp4-028-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp4-028-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp4-028-SRL.webp",
+          "remotePath": "medium/PL!SP-bp4-028-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp4-028-SRL.webp",
+          "remotePath": "large/PL!SP-bp4-028-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp4-029-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp4-029-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp4-029-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp4-029-SRL.webp",
+          "remotePath": "medium/PL!SP-bp4-029-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp4-029-SRL.webp",
+          "remotePath": "large/PL!SP-bp4-029-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp4-030-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp4-030-SRL.webp",
+          "remotePath": "thumb/PL!SP-bp4-030-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp4-030-SRL.webp",
+          "remotePath": "medium/PL!SP-bp4-030-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp4-030-SRL.webp",
+          "remotePath": "large/PL!SP-bp4-030-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb1-023-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb1-023-SRL.webp",
+          "remotePath": "thumb/PL!SP-pb1-023-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb1-023-SRL.webp",
+          "remotePath": "medium/PL!SP-pb1-023-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb1-023-SRL.webp",
+          "remotePath": "large/PL!SP-pb1-023-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb1-024-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb1-024-SRL.webp",
+          "remotePath": "thumb/PL!SP-pb1-024-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb1-024-SRL.webp",
+          "remotePath": "medium/PL!SP-pb1-024-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb1-024-SRL.webp",
+          "remotePath": "large/PL!SP-pb1-024-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb1-025-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb1-025-SRL.webp",
+          "remotePath": "thumb/PL!SP-pb1-025-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb1-025-SRL.webp",
+          "remotePath": "medium/PL!SP-pb1-025-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb1-025-SRL.webp",
+          "remotePath": "large/PL!SP-pb1-025-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb1-026-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb1-026-SRL.webp",
+          "remotePath": "thumb/PL!SP-pb1-026-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb1-026-SRL.webp",
+          "remotePath": "medium/PL!SP-pb1-026-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb1-026-SRL.webp",
+          "remotePath": "large/PL!SP-pb1-026-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-000-DUO",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-000-DUO.webp",
+          "remotePath": "thumb/PL!SP-pb2-000-DUO.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-000-DUO.webp",
+          "remotePath": "medium/PL!SP-pb2-000-DUO.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-000-DUO.webp",
+          "remotePath": "large/PL!SP-pb2-000-DUO.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-000-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-000-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-000-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-000-R.webp",
+          "remotePath": "medium/PL!SP-pb2-000-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-000-R.webp",
+          "remotePath": "large/PL!SP-pb2-000-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-001-PP",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-001-PP.webp",
+          "remotePath": "thumb/PL!SP-pb2-001-PP.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-001-PP.webp",
+          "remotePath": "medium/PL!SP-pb2-001-PP.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-001-PP.webp",
+          "remotePath": "large/PL!SP-pb2-001-PP.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-001-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-001-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-001-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-001-R.webp",
+          "remotePath": "medium/PL!SP-pb2-001-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-001-R.webp",
+          "remotePath": "large/PL!SP-pb2-001-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-002-PP",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-002-PP.webp",
+          "remotePath": "thumb/PL!SP-pb2-002-PP.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-002-PP.webp",
+          "remotePath": "medium/PL!SP-pb2-002-PP.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-002-PP.webp",
+          "remotePath": "large/PL!SP-pb2-002-PP.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-002-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-002-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-002-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-002-R.webp",
+          "remotePath": "medium/PL!SP-pb2-002-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-002-R.webp",
+          "remotePath": "large/PL!SP-pb2-002-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-003-PP",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-003-PP.webp",
+          "remotePath": "thumb/PL!SP-pb2-003-PP.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-003-PP.webp",
+          "remotePath": "medium/PL!SP-pb2-003-PP.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-003-PP.webp",
+          "remotePath": "large/PL!SP-pb2-003-PP.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-003-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-003-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-003-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-003-R.webp",
+          "remotePath": "medium/PL!SP-pb2-003-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-003-R.webp",
+          "remotePath": "large/PL!SP-pb2-003-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-004-PP",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-004-PP.webp",
+          "remotePath": "thumb/PL!SP-pb2-004-PP.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-004-PP.webp",
+          "remotePath": "medium/PL!SP-pb2-004-PP.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-004-PP.webp",
+          "remotePath": "large/PL!SP-pb2-004-PP.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-004-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-004-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-004-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-004-R.webp",
+          "remotePath": "medium/PL!SP-pb2-004-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-004-R.webp",
+          "remotePath": "large/PL!SP-pb2-004-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-005-PP",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-005-PP.webp",
+          "remotePath": "thumb/PL!SP-pb2-005-PP.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-005-PP.webp",
+          "remotePath": "medium/PL!SP-pb2-005-PP.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-005-PP.webp",
+          "remotePath": "large/PL!SP-pb2-005-PP.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-005-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-005-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-005-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-005-R.webp",
+          "remotePath": "medium/PL!SP-pb2-005-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-005-R.webp",
+          "remotePath": "large/PL!SP-pb2-005-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-006-PP",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-006-PP.webp",
+          "remotePath": "thumb/PL!SP-pb2-006-PP.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-006-PP.webp",
+          "remotePath": "medium/PL!SP-pb2-006-PP.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-006-PP.webp",
+          "remotePath": "large/PL!SP-pb2-006-PP.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-006-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-006-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-006-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-006-R.webp",
+          "remotePath": "medium/PL!SP-pb2-006-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-006-R.webp",
+          "remotePath": "large/PL!SP-pb2-006-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-007-PP",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-007-PP.webp",
+          "remotePath": "thumb/PL!SP-pb2-007-PP.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-007-PP.webp",
+          "remotePath": "medium/PL!SP-pb2-007-PP.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-007-PP.webp",
+          "remotePath": "large/PL!SP-pb2-007-PP.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-007-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-007-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-007-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-007-R.webp",
+          "remotePath": "medium/PL!SP-pb2-007-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-007-R.webp",
+          "remotePath": "large/PL!SP-pb2-007-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-008-PP",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-008-PP.webp",
+          "remotePath": "thumb/PL!SP-pb2-008-PP.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-008-PP.webp",
+          "remotePath": "medium/PL!SP-pb2-008-PP.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-008-PP.webp",
+          "remotePath": "large/PL!SP-pb2-008-PP.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-008-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-008-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-008-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-008-R.webp",
+          "remotePath": "medium/PL!SP-pb2-008-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-008-R.webp",
+          "remotePath": "large/PL!SP-pb2-008-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-009-PP",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-009-PP.webp",
+          "remotePath": "thumb/PL!SP-pb2-009-PP.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-009-PP.webp",
+          "remotePath": "medium/PL!SP-pb2-009-PP.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-009-PP.webp",
+          "remotePath": "large/PL!SP-pb2-009-PP.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-009-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-009-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-009-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-009-R.webp",
+          "remotePath": "medium/PL!SP-pb2-009-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-009-R.webp",
+          "remotePath": "large/PL!SP-pb2-009-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-010-PP",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-010-PP.webp",
+          "remotePath": "thumb/PL!SP-pb2-010-PP.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-010-PP.webp",
+          "remotePath": "medium/PL!SP-pb2-010-PP.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-010-PP.webp",
+          "remotePath": "large/PL!SP-pb2-010-PP.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-010-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-010-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-010-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-010-R.webp",
+          "remotePath": "medium/PL!SP-pb2-010-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-010-R.webp",
+          "remotePath": "large/PL!SP-pb2-010-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-011-PP",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-011-PP.webp",
+          "remotePath": "thumb/PL!SP-pb2-011-PP.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-011-PP.webp",
+          "remotePath": "medium/PL!SP-pb2-011-PP.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-011-PP.webp",
+          "remotePath": "large/PL!SP-pb2-011-PP.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-011-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-011-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-011-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-011-R.webp",
+          "remotePath": "medium/PL!SP-pb2-011-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-011-R.webp",
+          "remotePath": "large/PL!SP-pb2-011-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-012-P2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-012-P2.webp",
+          "remotePath": "thumb/PL!SP-pb2-012-P2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-012-P2.webp",
+          "remotePath": "medium/PL!SP-pb2-012-P2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-012-P2.webp",
+          "remotePath": "large/PL!SP-pb2-012-P2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-012-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-012-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-012-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-012-R.webp",
+          "remotePath": "medium/PL!SP-pb2-012-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-012-R.webp",
+          "remotePath": "large/PL!SP-pb2-012-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-013-P2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-013-P2.webp",
+          "remotePath": "thumb/PL!SP-pb2-013-P2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-013-P2.webp",
+          "remotePath": "medium/PL!SP-pb2-013-P2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-013-P2.webp",
+          "remotePath": "large/PL!SP-pb2-013-P2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-013-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-013-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-013-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-013-R.webp",
+          "remotePath": "medium/PL!SP-pb2-013-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-013-R.webp",
+          "remotePath": "large/PL!SP-pb2-013-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-014-P2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-014-P2.webp",
+          "remotePath": "thumb/PL!SP-pb2-014-P2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-014-P2.webp",
+          "remotePath": "medium/PL!SP-pb2-014-P2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-014-P2.webp",
+          "remotePath": "large/PL!SP-pb2-014-P2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-014-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-014-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-014-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-014-R.webp",
+          "remotePath": "medium/PL!SP-pb2-014-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-014-R.webp",
+          "remotePath": "large/PL!SP-pb2-014-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-015-P2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-015-P2.webp",
+          "remotePath": "thumb/PL!SP-pb2-015-P2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-015-P2.webp",
+          "remotePath": "medium/PL!SP-pb2-015-P2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-015-P2.webp",
+          "remotePath": "large/PL!SP-pb2-015-P2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-015-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-015-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-015-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-015-R.webp",
+          "remotePath": "medium/PL!SP-pb2-015-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-015-R.webp",
+          "remotePath": "large/PL!SP-pb2-015-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-016-P2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-016-P2.webp",
+          "remotePath": "thumb/PL!SP-pb2-016-P2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-016-P2.webp",
+          "remotePath": "medium/PL!SP-pb2-016-P2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-016-P2.webp",
+          "remotePath": "large/PL!SP-pb2-016-P2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-016-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-016-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-016-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-016-R.webp",
+          "remotePath": "medium/PL!SP-pb2-016-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-016-R.webp",
+          "remotePath": "large/PL!SP-pb2-016-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-017-P2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-017-P2.webp",
+          "remotePath": "thumb/PL!SP-pb2-017-P2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-017-P2.webp",
+          "remotePath": "medium/PL!SP-pb2-017-P2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-017-P2.webp",
+          "remotePath": "large/PL!SP-pb2-017-P2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-017-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-017-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-017-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-017-R.webp",
+          "remotePath": "medium/PL!SP-pb2-017-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-017-R.webp",
+          "remotePath": "large/PL!SP-pb2-017-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-018-P2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-018-P2.webp",
+          "remotePath": "thumb/PL!SP-pb2-018-P2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-018-P2.webp",
+          "remotePath": "medium/PL!SP-pb2-018-P2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-018-P2.webp",
+          "remotePath": "large/PL!SP-pb2-018-P2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-018-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-018-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-018-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-018-R.webp",
+          "remotePath": "medium/PL!SP-pb2-018-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-018-R.webp",
+          "remotePath": "large/PL!SP-pb2-018-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-019-P2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-019-P2.webp",
+          "remotePath": "thumb/PL!SP-pb2-019-P2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-019-P2.webp",
+          "remotePath": "medium/PL!SP-pb2-019-P2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-019-P2.webp",
+          "remotePath": "large/PL!SP-pb2-019-P2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-019-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-019-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-019-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-019-R.webp",
+          "remotePath": "medium/PL!SP-pb2-019-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-019-R.webp",
+          "remotePath": "large/PL!SP-pb2-019-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-020-P2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-020-P2.webp",
+          "remotePath": "thumb/PL!SP-pb2-020-P2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-020-P2.webp",
+          "remotePath": "medium/PL!SP-pb2-020-P2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-020-P2.webp",
+          "remotePath": "large/PL!SP-pb2-020-P2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-020-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-020-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-020-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-020-R.webp",
+          "remotePath": "medium/PL!SP-pb2-020-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-020-R.webp",
+          "remotePath": "large/PL!SP-pb2-020-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-021-P2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-021-P2.webp",
+          "remotePath": "thumb/PL!SP-pb2-021-P2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-021-P2.webp",
+          "remotePath": "medium/PL!SP-pb2-021-P2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-021-P2.webp",
+          "remotePath": "large/PL!SP-pb2-021-P2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-021-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-021-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-021-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-021-R.webp",
+          "remotePath": "medium/PL!SP-pb2-021-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-021-R.webp",
+          "remotePath": "large/PL!SP-pb2-021-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-022-P2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-022-P2.webp",
+          "remotePath": "thumb/PL!SP-pb2-022-P2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-022-P2.webp",
+          "remotePath": "medium/PL!SP-pb2-022-P2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-022-P2.webp",
+          "remotePath": "large/PL!SP-pb2-022-P2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-022-R",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-022-R.webp",
+          "remotePath": "thumb/PL!SP-pb2-022-R.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-022-R.webp",
+          "remotePath": "medium/PL!SP-pb2-022-R.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-022-R.webp",
+          "remotePath": "large/PL!SP-pb2-022-R.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-023-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-023-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-023-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-023-N.webp",
+          "remotePath": "medium/PL!SP-pb2-023-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-023-N.webp",
+          "remotePath": "large/PL!SP-pb2-023-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-024-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-024-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-024-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-024-N.webp",
+          "remotePath": "medium/PL!SP-pb2-024-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-024-N.webp",
+          "remotePath": "large/PL!SP-pb2-024-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-025-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-025-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-025-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-025-N.webp",
+          "remotePath": "medium/PL!SP-pb2-025-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-025-N.webp",
+          "remotePath": "large/PL!SP-pb2-025-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-026-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-026-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-026-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-026-N.webp",
+          "remotePath": "medium/PL!SP-pb2-026-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-026-N.webp",
+          "remotePath": "large/PL!SP-pb2-026-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-027-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-027-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-027-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-027-N.webp",
+          "remotePath": "medium/PL!SP-pb2-027-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-027-N.webp",
+          "remotePath": "large/PL!SP-pb2-027-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-028-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-028-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-028-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-028-N.webp",
+          "remotePath": "medium/PL!SP-pb2-028-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-028-N.webp",
+          "remotePath": "large/PL!SP-pb2-028-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-029-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-029-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-029-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-029-N.webp",
+          "remotePath": "medium/PL!SP-pb2-029-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-029-N.webp",
+          "remotePath": "large/PL!SP-pb2-029-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-030-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-030-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-030-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-030-N.webp",
+          "remotePath": "medium/PL!SP-pb2-030-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-030-N.webp",
+          "remotePath": "large/PL!SP-pb2-030-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-031-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-031-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-031-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-031-N.webp",
+          "remotePath": "medium/PL!SP-pb2-031-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-031-N.webp",
+          "remotePath": "large/PL!SP-pb2-031-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-032-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-032-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-032-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-032-N.webp",
+          "remotePath": "medium/PL!SP-pb2-032-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-032-N.webp",
+          "remotePath": "large/PL!SP-pb2-032-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-033-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-033-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-033-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-033-N.webp",
+          "remotePath": "medium/PL!SP-pb2-033-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-033-N.webp",
+          "remotePath": "large/PL!SP-pb2-033-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-034-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-034-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-034-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-034-N.webp",
+          "remotePath": "medium/PL!SP-pb2-034-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-034-N.webp",
+          "remotePath": "large/PL!SP-pb2-034-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-035-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-035-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-035-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-035-N.webp",
+          "remotePath": "medium/PL!SP-pb2-035-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-035-N.webp",
+          "remotePath": "large/PL!SP-pb2-035-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-036-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-036-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-036-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-036-N.webp",
+          "remotePath": "medium/PL!SP-pb2-036-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-036-N.webp",
+          "remotePath": "large/PL!SP-pb2-036-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-037-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-037-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-037-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-037-N.webp",
+          "remotePath": "medium/PL!SP-pb2-037-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-037-N.webp",
+          "remotePath": "large/PL!SP-pb2-037-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-038-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-038-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-038-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-038-N.webp",
+          "remotePath": "medium/PL!SP-pb2-038-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-038-N.webp",
+          "remotePath": "large/PL!SP-pb2-038-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-039-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-039-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-039-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-039-N.webp",
+          "remotePath": "medium/PL!SP-pb2-039-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-039-N.webp",
+          "remotePath": "large/PL!SP-pb2-039-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-040-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-040-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-040-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-040-N.webp",
+          "remotePath": "medium/PL!SP-pb2-040-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-040-N.webp",
+          "remotePath": "large/PL!SP-pb2-040-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-041-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-041-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-041-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-041-N.webp",
+          "remotePath": "medium/PL!SP-pb2-041-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-041-N.webp",
+          "remotePath": "large/PL!SP-pb2-041-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-042-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-042-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-042-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-042-N.webp",
+          "remotePath": "medium/PL!SP-pb2-042-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-042-N.webp",
+          "remotePath": "large/PL!SP-pb2-042-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-043-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-043-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-043-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-043-N.webp",
+          "remotePath": "medium/PL!SP-pb2-043-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-043-N.webp",
+          "remotePath": "large/PL!SP-pb2-043-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-044-N",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-044-N.webp",
+          "remotePath": "thumb/PL!SP-pb2-044-N.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-044-N.webp",
+          "remotePath": "medium/PL!SP-pb2-044-N.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-044-N.webp",
+          "remotePath": "large/PL!SP-pb2-044-N.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-045-L",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-045-L.webp",
+          "remotePath": "thumb/PL!SP-pb2-045-L.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-045-L.webp",
+          "remotePath": "medium/PL!SP-pb2-045-L.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-045-L.webp",
+          "remotePath": "large/PL!SP-pb2-045-L.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-046-L",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-046-L.webp",
+          "remotePath": "thumb/PL!SP-pb2-046-L.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-046-L.webp",
+          "remotePath": "medium/PL!SP-pb2-046-L.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-046-L.webp",
+          "remotePath": "large/PL!SP-pb2-046-L.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-047-L",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-047-L.webp",
+          "remotePath": "thumb/PL!SP-pb2-047-L.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-047-L.webp",
+          "remotePath": "medium/PL!SP-pb2-047-L.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-047-L.webp",
+          "remotePath": "large/PL!SP-pb2-047-L.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-048-L",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-048-L.webp",
+          "remotePath": "thumb/PL!SP-pb2-048-L.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-048-L.webp",
+          "remotePath": "medium/PL!SP-pb2-048-L.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-048-L.webp",
+          "remotePath": "large/PL!SP-pb2-048-L.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-049-L",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-049-L.webp",
+          "remotePath": "thumb/PL!SP-pb2-049-L.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-049-L.webp",
+          "remotePath": "medium/PL!SP-pb2-049-L.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-049-L.webp",
+          "remotePath": "large/PL!SP-pb2-049-L.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-050-L",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-050-L.webp",
+          "remotePath": "thumb/PL!SP-pb2-050-L.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-050-L.webp",
+          "remotePath": "medium/PL!SP-pb2-050-L.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-050-L.webp",
+          "remotePath": "large/PL!SP-pb2-050-L.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E00-SECE",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E00-SECE.webp",
+          "remotePath": "thumb/PL!SP-pb2-E00-SECE.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E00-SECE.webp",
+          "remotePath": "medium/PL!SP-pb2-E00-SECE.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E00-SECE.webp",
+          "remotePath": "large/PL!SP-pb2-E00-SECE.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E00-SECS",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E00-SECS.webp",
+          "remotePath": "thumb/PL!SP-pb2-E00-SECS.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E00-SECS.webp",
+          "remotePath": "medium/PL!SP-pb2-E00-SECS.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E00-SECS.webp",
+          "remotePath": "large/PL!SP-pb2-E00-SECS.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E01-PE2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E01-PE2.webp",
+          "remotePath": "thumb/PL!SP-pb2-E01-PE2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E01-PE2.webp",
+          "remotePath": "medium/PL!SP-pb2-E01-PE2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E01-PE2.webp",
+          "remotePath": "large/PL!SP-pb2-E01-PE2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E02-PE2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E02-PE2.webp",
+          "remotePath": "thumb/PL!SP-pb2-E02-PE2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E02-PE2.webp",
+          "remotePath": "medium/PL!SP-pb2-E02-PE2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E02-PE2.webp",
+          "remotePath": "large/PL!SP-pb2-E02-PE2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E03-PE2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E03-PE2.webp",
+          "remotePath": "thumb/PL!SP-pb2-E03-PE2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E03-PE2.webp",
+          "remotePath": "medium/PL!SP-pb2-E03-PE2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E03-PE2.webp",
+          "remotePath": "large/PL!SP-pb2-E03-PE2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E04-PE2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E04-PE2.webp",
+          "remotePath": "thumb/PL!SP-pb2-E04-PE2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E04-PE2.webp",
+          "remotePath": "medium/PL!SP-pb2-E04-PE2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E04-PE2.webp",
+          "remotePath": "large/PL!SP-pb2-E04-PE2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E05-PE2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E05-PE2.webp",
+          "remotePath": "thumb/PL!SP-pb2-E05-PE2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E05-PE2.webp",
+          "remotePath": "medium/PL!SP-pb2-E05-PE2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E05-PE2.webp",
+          "remotePath": "large/PL!SP-pb2-E05-PE2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E06-PE2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E06-PE2.webp",
+          "remotePath": "thumb/PL!SP-pb2-E06-PE2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E06-PE2.webp",
+          "remotePath": "medium/PL!SP-pb2-E06-PE2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E06-PE2.webp",
+          "remotePath": "large/PL!SP-pb2-E06-PE2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E07-PE2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E07-PE2.webp",
+          "remotePath": "thumb/PL!SP-pb2-E07-PE2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E07-PE2.webp",
+          "remotePath": "medium/PL!SP-pb2-E07-PE2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E07-PE2.webp",
+          "remotePath": "large/PL!SP-pb2-E07-PE2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E08-PE2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E08-PE2.webp",
+          "remotePath": "thumb/PL!SP-pb2-E08-PE2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E08-PE2.webp",
+          "remotePath": "medium/PL!SP-pb2-E08-PE2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E08-PE2.webp",
+          "remotePath": "large/PL!SP-pb2-E08-PE2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E09-PE2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E09-PE2.webp",
+          "remotePath": "thumb/PL!SP-pb2-E09-PE2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E09-PE2.webp",
+          "remotePath": "medium/PL!SP-pb2-E09-PE2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E09-PE2.webp",
+          "remotePath": "large/PL!SP-pb2-E09-PE2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E10-PE2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E10-PE2.webp",
+          "remotePath": "thumb/PL!SP-pb2-E10-PE2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E10-PE2.webp",
+          "remotePath": "medium/PL!SP-pb2-E10-PE2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E10-PE2.webp",
+          "remotePath": "large/PL!SP-pb2-E10-PE2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E11-PE2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E11-PE2.webp",
+          "remotePath": "thumb/PL!SP-pb2-E11-PE2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E11-PE2.webp",
+          "remotePath": "medium/PL!SP-pb2-E11-PE2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E11-PE2.webp",
+          "remotePath": "large/PL!SP-pb2-E11-PE2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E12-LLE",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E12-LLE.webp",
+          "remotePath": "thumb/PL!SP-pb2-E12-LLE.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E12-LLE.webp",
+          "remotePath": "medium/PL!SP-pb2-E12-LLE.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E12-LLE.webp",
+          "remotePath": "large/PL!SP-pb2-E12-LLE.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E13-LLE",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E13-LLE.webp",
+          "remotePath": "thumb/PL!SP-pb2-E13-LLE.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E13-LLE.webp",
+          "remotePath": "medium/PL!SP-pb2-E13-LLE.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E13-LLE.webp",
+          "remotePath": "large/PL!SP-pb2-E13-LLE.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E14-LLE",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E14-LLE.webp",
+          "remotePath": "thumb/PL!SP-pb2-E14-LLE.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E14-LLE.webp",
+          "remotePath": "medium/PL!SP-pb2-E14-LLE.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E14-LLE.webp",
+          "remotePath": "large/PL!SP-pb2-E14-LLE.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E15-LLE",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E15-LLE.webp",
+          "remotePath": "thumb/PL!SP-pb2-E15-LLE.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E15-LLE.webp",
+          "remotePath": "medium/PL!SP-pb2-E15-LLE.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E15-LLE.webp",
+          "remotePath": "large/PL!SP-pb2-E15-LLE.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E16-LLE",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E16-LLE.webp",
+          "remotePath": "thumb/PL!SP-pb2-E16-LLE.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E16-LLE.webp",
+          "remotePath": "medium/PL!SP-pb2-E16-LLE.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E16-LLE.webp",
+          "remotePath": "large/PL!SP-pb2-E16-LLE.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb2-E17-LLE",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb2-E17-LLE.webp",
+          "remotePath": "thumb/PL!SP-pb2-E17-LLE.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb2-E17-LLE.webp",
+          "remotePath": "medium/PL!SP-pb2-E17-LLE.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb2-E17-LLE.webp",
+          "remotePath": "large/PL!SP-pb2-E17-LLE.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-sd1-023-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-sd1-023-SRL.webp",
+          "remotePath": "thumb/PL!SP-sd1-023-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-sd1-023-SRL.webp",
+          "remotePath": "medium/PL!SP-sd1-023-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-sd1-023-SRL.webp",
+          "remotePath": "large/PL!SP-sd1-023-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-sd1-024-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-sd1-024-SRL.webp",
+          "remotePath": "thumb/PL!SP-sd1-024-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-sd1-024-SRL.webp",
+          "remotePath": "medium/PL!SP-sd1-024-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-sd1-024-SRL.webp",
+          "remotePath": "large/PL!SP-sd1-024-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-sd1-025-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-sd1-025-SRL.webp",
+          "remotePath": "thumb/PL!SP-sd1-025-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-sd1-025-SRL.webp",
+          "remotePath": "medium/PL!SP-sd1-025-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-sd1-025-SRL.webp",
+          "remotePath": "large/PL!SP-sd1-025-SRL.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-sd1-026-SRL",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-sd1-026-SRL.webp",
+          "remotePath": "thumb/PL!SP-sd1-026-SRL.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-sd1-026-SRL.webp",
+          "remotePath": "medium/PL!SP-sd1-026-SRL.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-sd1-026-SRL.webp",
+          "remotePath": "large/PL!SP-sd1-026-SRL.webp"
+        }
+      ]
+    },
+    {
       "cardCode": "PL!N-bp4-032-L2",
       "type": "card",
       "paths": [
@@ -40999,6 +43561,48 @@
       ]
     },
     {
+      "cardCode": "PL!-PR-019-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!-PR-019-PR.webp",
+          "remotePath": "thumb/PL!-PR-019-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!-PR-019-PR.webp",
+          "remotePath": "medium/PL!-PR-019-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!-PR-019-PR.webp",
+          "remotePath": "large/PL!-PR-019-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!-PR-019-PR2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!-PR-019-PR2.webp",
+          "remotePath": "thumb/PL!-PR-019-PR2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!-PR-019-PR2.webp",
+          "remotePath": "medium/PL!-PR-019-PR2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!-PR-019-PR2.webp",
+          "remotePath": "large/PL!-PR-019-PR2.webp"
+        }
+      ]
+    },
+    {
       "cardCode": "PL!-bp3-012-PR",
       "type": "card",
       "paths": [
@@ -41037,6 +43641,69 @@
           "size": "large",
           "localPath": "assets/compressed/large/PL!-bp3-014-PR.webp",
           "remotePath": "large/PL!-bp3-014-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!-pb1-019-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!-pb1-019-PR.webp",
+          "remotePath": "thumb/PL!-pb1-019-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!-pb1-019-PR.webp",
+          "remotePath": "medium/PL!-pb1-019-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!-pb1-019-PR.webp",
+          "remotePath": "large/PL!-pb1-019-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!-pb1-021-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!-pb1-021-PR.webp",
+          "remotePath": "thumb/PL!-pb1-021-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!-pb1-021-PR.webp",
+          "remotePath": "medium/PL!-pb1-021-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!-pb1-021-PR.webp",
+          "remotePath": "large/PL!-pb1-021-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!-pb1-022-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!-pb1-022-PR.webp",
+          "remotePath": "thumb/PL!-pb1-022-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!-pb1-022-PR.webp",
+          "remotePath": "medium/PL!-pb1-022-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!-pb1-022-PR.webp",
+          "remotePath": "large/PL!-pb1-022-PR.webp"
         }
       ]
     },
@@ -41776,6 +44443,90 @@
       ]
     },
     {
+      "cardCode": "PL!HS-PR-034-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!HS-PR-034-PR.webp",
+          "remotePath": "thumb/PL!HS-PR-034-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!HS-PR-034-PR.webp",
+          "remotePath": "medium/PL!HS-PR-034-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!HS-PR-034-PR.webp",
+          "remotePath": "large/PL!HS-PR-034-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!HS-PR-034-PR2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!HS-PR-034-PR2.webp",
+          "remotePath": "thumb/PL!HS-PR-034-PR2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!HS-PR-034-PR2.webp",
+          "remotePath": "medium/PL!HS-PR-034-PR2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!HS-PR-034-PR2.webp",
+          "remotePath": "large/PL!HS-PR-034-PR2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!HS-bp1-005-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!HS-bp1-005-PR.webp",
+          "remotePath": "thumb/PL!HS-bp1-005-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!HS-bp1-005-PR.webp",
+          "remotePath": "medium/PL!HS-bp1-005-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!HS-bp1-005-PR.webp",
+          "remotePath": "large/PL!HS-bp1-005-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!HS-bp1-011-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!HS-bp1-011-PR.webp",
+          "remotePath": "thumb/PL!HS-bp1-011-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!HS-bp1-011-PR.webp",
+          "remotePath": "medium/PL!HS-bp1-011-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!HS-bp1-011-PR.webp",
+          "remotePath": "large/PL!HS-bp1-011-PR.webp"
+        }
+      ]
+    },
+    {
       "cardCode": "PL!HS-bp1-012-PR",
       "type": "card",
       "paths": [
@@ -41814,6 +44565,27 @@
           "size": "large",
           "localPath": "assets/compressed/large/PL!HS-bp1-016-PR.webp",
           "remotePath": "large/PL!HS-bp1-016-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!HS-bp2-010-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!HS-bp2-010-PR.webp",
+          "remotePath": "thumb/PL!HS-bp2-010-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!HS-bp2-010-PR.webp",
+          "remotePath": "medium/PL!HS-bp2-010-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!HS-bp2-010-PR.webp",
+          "remotePath": "large/PL!HS-bp2-010-PR.webp"
         }
       ]
     },
@@ -42427,6 +45199,48 @@
       ]
     },
     {
+      "cardCode": "PL!N-PR-030-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!N-PR-030-PR.webp",
+          "remotePath": "thumb/PL!N-PR-030-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!N-PR-030-PR.webp",
+          "remotePath": "medium/PL!N-PR-030-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!N-PR-030-PR.webp",
+          "remotePath": "large/PL!N-PR-030-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!N-PR-030-PR2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!N-PR-030-PR2.webp",
+          "remotePath": "thumb/PL!N-PR-030-PR2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!N-PR-030-PR2.webp",
+          "remotePath": "medium/PL!N-PR-030-PR2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!N-PR-030-PR2.webp",
+          "remotePath": "large/PL!N-PR-030-PR2.webp"
+        }
+      ]
+    },
+    {
       "cardCode": "PL!N-PR_003-PR",
       "type": "card",
       "paths": [
@@ -42679,6 +45493,48 @@
       ]
     },
     {
+      "cardCode": "PL!N-bp1-013-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!N-bp1-013-PR.webp",
+          "remotePath": "thumb/PL!N-bp1-013-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!N-bp1-013-PR.webp",
+          "remotePath": "medium/PL!N-bp1-013-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!N-bp1-013-PR.webp",
+          "remotePath": "large/PL!N-bp1-013-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!N-bp1-017-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!N-bp1-017-PR.webp",
+          "remotePath": "thumb/PL!N-bp1-017-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!N-bp1-017-PR.webp",
+          "remotePath": "medium/PL!N-bp1-017-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!N-bp1-017-PR.webp",
+          "remotePath": "large/PL!N-bp1-017-PR.webp"
+        }
+      ]
+    },
+    {
       "cardCode": "PL!N-bp1-019-PR",
       "type": "card",
       "paths": [
@@ -42717,6 +45573,48 @@
           "size": "large",
           "localPath": "assets/compressed/large/PL!N-bp1-019-PRprotein.webp",
           "remotePath": "large/PL!N-bp1-019-PRprotein.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!N-bp1-024-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!N-bp1-024-PR.webp",
+          "remotePath": "thumb/PL!N-bp1-024-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!N-bp1-024-PR.webp",
+          "remotePath": "medium/PL!N-bp1-024-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!N-bp1-024-PR.webp",
+          "remotePath": "large/PL!N-bp1-024-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!N-bp3-007-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!N-bp3-007-PR.webp",
+          "remotePath": "thumb/PL!N-bp3-007-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!N-bp3-007-PR.webp",
+          "remotePath": "medium/PL!N-bp3-007-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!N-bp3-007-PR.webp",
+          "remotePath": "large/PL!N-bp3-007-PR.webp"
         }
       ]
     },
@@ -43813,6 +46711,48 @@
       ]
     },
     {
+      "cardCode": "PL!S-PR-043-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!S-PR-043-PR.webp",
+          "remotePath": "thumb/PL!S-PR-043-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!S-PR-043-PR.webp",
+          "remotePath": "medium/PL!S-PR-043-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!S-PR-043-PR.webp",
+          "remotePath": "large/PL!S-PR-043-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!S-PR-043-PR2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!S-PR-043-PR2.webp",
+          "remotePath": "thumb/PL!S-PR-043-PR2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!S-PR-043-PR2.webp",
+          "remotePath": "medium/PL!S-PR-043-PR2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!S-PR-043-PR2.webp",
+          "remotePath": "large/PL!S-PR-043-PR2.webp"
+        }
+      ]
+    },
+    {
       "cardCode": "PL!S-PR2-011-PR2",
       "type": "card",
       "paths": [
@@ -43872,6 +46812,69 @@
           "size": "large",
           "localPath": "assets/compressed/large/PL!S-bp2-015-PR.webp",
           "remotePath": "large/PL!S-bp2-015-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!S-pb1-005-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!S-pb1-005-PR.webp",
+          "remotePath": "thumb/PL!S-pb1-005-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!S-pb1-005-PR.webp",
+          "remotePath": "medium/PL!S-pb1-005-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!S-pb1-005-PR.webp",
+          "remotePath": "large/PL!S-pb1-005-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!S-pb1-010-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!S-pb1-010-PR.webp",
+          "remotePath": "thumb/PL!S-pb1-010-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!S-pb1-010-PR.webp",
+          "remotePath": "medium/PL!S-pb1-010-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!S-pb1-010-PR.webp",
+          "remotePath": "large/PL!S-pb1-010-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!S-pb1-011-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!S-pb1-011-PR.webp",
+          "remotePath": "thumb/PL!S-pb1-011-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!S-pb1-011-PR.webp",
+          "remotePath": "medium/PL!S-pb1-011-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!S-pb1-011-PR.webp",
+          "remotePath": "large/PL!S-pb1-011-PR.webp"
         }
       ]
     },
@@ -44338,6 +47341,69 @@
       ]
     },
     {
+      "cardCode": "PL!SP-PR-023-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-PR-023-PR.webp",
+          "remotePath": "thumb/PL!SP-PR-023-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-PR-023-PR.webp",
+          "remotePath": "medium/PL!SP-PR-023-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-PR-023-PR.webp",
+          "remotePath": "large/PL!SP-PR-023-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-PR-023-PR2",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-PR-023-PR2.webp",
+          "remotePath": "thumb/PL!SP-PR-023-PR2.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-PR-023-PR2.webp",
+          "remotePath": "medium/PL!SP-PR-023-PR2.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-PR-023-PR2.webp",
+          "remotePath": "large/PL!SP-PR-023-PR2.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp1-004-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp1-004-PR.webp",
+          "remotePath": "thumb/PL!SP-bp1-004-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp1-004-PR.webp",
+          "remotePath": "medium/PL!SP-bp1-004-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp1-004-PR.webp",
+          "remotePath": "large/PL!SP-bp1-004-PR.webp"
+        }
+      ]
+    },
+    {
       "cardCode": "PL!SP-bp1-013-PR",
       "type": "card",
       "paths": [
@@ -44355,6 +47421,27 @@
           "size": "large",
           "localPath": "assets/compressed/large/PL!SP-bp1-013-PR.webp",
           "remotePath": "large/PL!SP-bp1-013-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-bp1-016-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-bp1-016-PR.webp",
+          "remotePath": "thumb/PL!SP-bp1-016-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-bp1-016-PR.webp",
+          "remotePath": "medium/PL!SP-bp1-016-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-bp1-016-PR.webp",
+          "remotePath": "large/PL!SP-bp1-016-PR.webp"
         }
       ]
     },
@@ -44397,6 +47484,69 @@
           "size": "large",
           "localPath": "assets/compressed/large/PL!SP-pb1-001-PR.webp",
           "remotePath": "large/PL!SP-pb1-001-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb1-012-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb1-012-PR.webp",
+          "remotePath": "thumb/PL!SP-pb1-012-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb1-012-PR.webp",
+          "remotePath": "medium/PL!SP-pb1-012-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb1-012-PR.webp",
+          "remotePath": "large/PL!SP-pb1-012-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb1-013-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb1-013-PR.webp",
+          "remotePath": "thumb/PL!SP-pb1-013-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb1-013-PR.webp",
+          "remotePath": "medium/PL!SP-pb1-013-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb1-013-PR.webp",
+          "remotePath": "large/PL!SP-pb1-013-PR.webp"
+        }
+      ]
+    },
+    {
+      "cardCode": "PL!SP-pb1-014-PR",
+      "type": "card",
+      "paths": [
+        {
+          "size": "thumb",
+          "localPath": "assets/compressed/thumb/PL!SP-pb1-014-PR.webp",
+          "remotePath": "thumb/PL!SP-pb1-014-PR.webp"
+        },
+        {
+          "size": "medium",
+          "localPath": "assets/compressed/medium/PL!SP-pb1-014-PR.webp",
+          "remotePath": "medium/PL!SP-pb1-014-PR.webp"
+        },
+        {
+          "size": "large",
+          "localPath": "assets/compressed/large/PL!SP-pb1-014-PR.webp",
+          "remotePath": "large/PL!SP-pb1-014-PR.webp"
         }
       ]
     },
