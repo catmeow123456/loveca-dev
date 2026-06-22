@@ -141,11 +141,6 @@ import type {
   MemberSlotMovedEvent,
 } from '../domain/events/game-events.js';
 import {
-  cardCodeMatchesBase,
-  getBaseCardCode,
-  normalizeCardCode,
-} from '../shared/utils/card-code.js';
-import {
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
   HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
@@ -158,7 +153,13 @@ import {
   type ActivatedAbilityUiConfig,
   type CardAbilityDefinition,
 } from './card-effects/ability-definition-types.js';
-import { CARD_ABILITY_DEFINITIONS } from './card-effects/definitions/index.js';
+import {
+  IMPLEMENTED_QUEUED_ABILITY_IDS,
+  doesCardAbilityDefinitionMatchCardCode,
+  findCardAbilityDefinitionById,
+  getCardAbilityDefinitionById as getIndexedCardAbilityDefinitionById,
+  getCardAbilityDefinitionsForCardCode,
+} from './card-effects/definitions/lookup.js';
 
 export * from './card-effects/ability-ids.js';
 export * from './card-effects/ability-definition-types.js';
@@ -282,44 +283,24 @@ function getCardAbilityEffectText(abilityId: string): string {
 }
 
 function getCardAbilityDefinitionById(abilityId: string): CardAbilityDefinition {
-  const definition = CARD_ABILITY_DEFINITIONS.find((ability) => ability.abilityId === abilityId);
-  if (!definition) {
-    throw new Error(`Missing card ability definition for abilityId: ${abilityId}`);
-  }
-  return definition;
+  return getIndexedCardAbilityDefinitionById(abilityId);
 }
 
 function getCardAbilityBaseCardCodes(abilityId: string): readonly string[] {
   return getCardAbilityDefinitionById(abilityId).baseCardCodes ?? [];
 }
 
-const IMPLEMENTED_QUEUED_ABILITY_IDS = new Set(
-  CARD_ABILITY_DEFINITIONS.filter((ability) => ability.implemented && ability.queued).map(
-    (ability) => ability.abilityId
-  )
-);
-
 export function getCardAbilityDefinitions(
   cardCode: string | undefined
 ): readonly CardAbilityDefinition[] {
-  if (!cardCode) {
-    return [];
-  }
-  return CARD_ABILITY_DEFINITIONS.filter((definition) =>
-    doesAbilityDefinitionMatchCardCode(definition, cardCode)
-  );
+  return getCardAbilityDefinitionsForCardCode(cardCode);
 }
 
 export function doesAbilityDefinitionMatchCardCode(
   definition: CardAbilityDefinition,
   cardCode: string
 ): boolean {
-  const normalizedCardCode = normalizeCardCode(cardCode);
-  const baseCardCode = getBaseCardCode(normalizedCardCode);
-  return (
-    definition.cardCodes?.map(normalizeCardCode).includes(normalizedCardCode) === true ||
-    definition.baseCardCodes?.map(normalizeCardCode).includes(baseCardCode) === true
-  );
+  return doesCardAbilityDefinitionMatchCardCode(definition, cardCode);
 }
 
 export function getActivatedAbilityUiConfig(
@@ -347,14 +328,10 @@ export function isSupportedActivatedAbilityForCard(
 }
 
 function getActivatedAbilityDefinition(abilityId: string): CardAbilityDefinition | null {
-  return (
-    CARD_ABILITY_DEFINITIONS.find(
-      (ability) =>
-        ability.abilityId === abilityId &&
-        ability.category === CardAbilityCategory.ACTIVATED &&
-        ability.implemented
-    ) ?? null
-  );
+  const definition = findCardAbilityDefinitionById(abilityId);
+  return definition?.category === CardAbilityCategory.ACTIVATED && definition.implemented
+    ? definition
+    : null;
 }
 
 export interface AbilityTurnLimitStatus {
@@ -373,9 +350,10 @@ export function getAbilityTurnLimitStatus(
   abilityId: string,
   sourceCardId: string
 ): AbilityTurnLimitStatus | null {
-  const definition = CARD_ABILITY_DEFINITIONS.find(
-    (ability) => ability.abilityId === abilityId && ability.implemented
-  );
+  const definition = findCardAbilityDefinitionById(abilityId);
+  if (definition?.implemented !== true) {
+    return null;
+  }
   const limit = definition?.perTurnLimit;
   if (limit === undefined) {
     return null;
@@ -2128,9 +2106,7 @@ function getAbilityOrderOptionLabel(
   index: number
 ): string {
   const sourceCard = getCardById(game, ability.sourceCardId);
-  const abilityDefinition = CARD_ABILITY_DEFINITIONS.find(
-    (definition) => definition.abilityId === ability.abilityId
-  );
+  const abilityDefinition = findCardAbilityDefinitionById(ability.abilityId);
   const cardName = sourceCard?.data.name ?? '未知卡牌';
   return `${index + 1}. ${cardName}：${abilityDefinition?.effectText ?? ability.abilityId}`;
 }

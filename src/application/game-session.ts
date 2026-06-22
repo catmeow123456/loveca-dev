@@ -110,6 +110,7 @@ import type {
   MoveInspectedCardToBottomCommand,
   MoveCardToInspectionCommand,
   ReorderInspectedCardCommand,
+  FinishInspectionWithArrangementCommand,
   MoveResolutionCardToZoneCommand,
   MoveTableCardCommand,
   MoveMemberToSlotCommand,
@@ -1002,13 +1003,16 @@ export class GameSession {
   /**
    * 获取指定玩家的联机视图快照
    */
-  getPlayerViewState(playerId: string): PlayerViewState | null {
+  getPlayerViewState(
+    playerId: string,
+    options: { readonly seqOverride?: number } = {}
+  ): PlayerViewState | null {
     if (!this.authorityState) {
       return null;
     }
 
     return projectPlayerViewState(this.authorityState, playerId, {
-      seq: this.publicEventSeq,
+      seq: options.seqOverride ?? this.publicEventSeq,
       gameMode: this._gameMode,
     });
   }
@@ -1307,6 +1311,9 @@ export class GameSession {
           return '目标检视位置非法';
         }
         return null;
+      }
+      case GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT: {
+        return this.validateFinishInspectionWithArrangementCommand(state, command);
       }
       case GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE: {
         const ownershipError = this.validateResolutionCardOwnership(
@@ -1919,6 +1926,8 @@ export class GameSession {
         return this.applyMoveCardToInspectionCommand(state, command);
       case GameCommandType.REORDER_INSPECTED_CARD:
         return this.applyReorderInspectedCardCommand(state, command);
+      case GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT:
+        return this.applyFinishInspectionWithArrangementCommand(state, command);
       case GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE:
         return this.applyMoveResolutionCardToZoneCommand(state, command);
       case GameCommandType.MOVE_TABLE_CARD:
@@ -2496,6 +2505,111 @@ export class GameSession {
           from: createInspectionZoneRef(actorSeat, fromIndex),
           to: createInspectionZoneRef(actorSeat, command.toIndex),
         }),
+      ],
+    };
+  }
+
+  private validateFinishInspectionWithArrangementCommand(
+    state: GameState,
+    command: FinishInspectionWithArrangementCommand
+  ): string | null {
+    const inspectionContext = state.inspectionContext;
+    if (!inspectionContext || inspectionContext.ownerPlayerId !== command.playerId) {
+      return '当前没有进行中的检视流程';
+    }
+
+    const isTargetDeck =
+      command.toZone === ZoneType.MAIN_DECK || command.toZone === ZoneType.ENERGY_DECK;
+    if (isTargetDeck) {
+      if (command.toZone !== inspectionContext.sourceZone) {
+        return '检视区卡牌只能放回本次检视的来源卡组';
+      }
+      if (command.position !== 'TOP' && command.position !== 'BOTTOM') {
+        return '放回卡组时必须声明顶部或底部';
+      }
+    } else if (command.position !== undefined) {
+      return '非卡组目标不能声明顶部或底部';
+    }
+
+    const ownedCardIds = getOwnedInspectionCardIds(state, command.playerId);
+    if (command.cardIds.length === 0) {
+      return '检视区整理列表不能为空';
+    }
+    if (command.cardIds.length !== ownedCardIds.length) {
+      return '检视区整理列表必须包含所有剩余卡牌';
+    }
+
+    const ownedSet = new Set(ownedCardIds);
+    const commandSet = new Set(command.cardIds);
+    if (commandSet.size !== command.cardIds.length) {
+      return '检视区整理列表包含重复卡牌';
+    }
+    for (const cardId of command.cardIds) {
+      if (!ownedSet.has(cardId)) {
+        return '检视区整理列表包含不属于当前检视流程的卡牌';
+      }
+    }
+
+    return null;
+  }
+
+  private applyFinishInspectionWithArrangementCommand(
+    state: GameState,
+    command: FinishInspectionWithArrangementCommand
+  ): CommandExecutionResult {
+    const actorSeat = getSeatForPlayer(state, command.playerId);
+    if (!actorSeat) {
+      return { success: false, gameState: state, error: '玩家不存在' };
+    }
+
+    const isTargetTopDeck =
+      (command.toZone === ZoneType.MAIN_DECK || command.toZone === ZoneType.ENERGY_DECK) &&
+      command.position === 'TOP';
+    const moveOrder = isTargetTopDeck ? [...command.cardIds].reverse() : [...command.cardIds];
+
+    let workingState = state;
+    const extraPublicEvents: PublicEventDraft[] = [];
+
+    for (const cardId of moveOrder) {
+      const previousState = workingState;
+      const inspectionIndex = previousState.inspectionZone.cardIds.indexOf(cardId);
+      workingState = removeCardFromInspectionZone(workingState, cardId);
+      workingState = addCardToPlayerZone(workingState, command.playerId, cardId, command.toZone, {
+        position: command.position,
+      });
+      extraPublicEvents.push(
+        buildCardMovedPublicEvent(previousState, workingState, actorSeat, cardId, {
+          from: createInspectionZoneRef(
+            actorSeat,
+            inspectionIndex >= 0 ? inspectionIndex : undefined
+          ),
+          to: buildZoneRefForMove(workingState, command.playerId, cardId, command.toZone, {
+            position: command.position,
+          }),
+        })
+      );
+    }
+
+    if (workingState.inspectionZone.cardIds.length === 0) {
+      workingState = withInspectionContext(workingState, null);
+    }
+
+    return {
+      success: true,
+      gameState: workingState,
+      declarationType: 'INSPECTION_FINISHED',
+      declarationPublicValue: 0,
+      extraPublicEvents,
+      sealedAuditRecords: [
+        {
+          type: 'INSPECTION_FINISHED',
+          actorSeat,
+          payload: {
+            arrangedCardIds: [...command.cardIds],
+            toZone: command.toZone,
+            position: command.position ?? null,
+          },
+        },
       ],
     };
   }
@@ -4703,6 +4817,7 @@ function isInspectionCommandType(commandType: GameCommandType): boolean {
     commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE ||
     commandType === GameCommandType.MOVE_CARD_TO_INSPECTION ||
     commandType === GameCommandType.REORDER_INSPECTED_CARD ||
+    commandType === GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT ||
     commandType === GameCommandType.FINISH_INSPECTION
   );
 }

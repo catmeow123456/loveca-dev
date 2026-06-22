@@ -9,10 +9,6 @@ import {
 } from '../../../../domain/entities/game.js';
 import { TriggerCondition } from '../../../../shared/types/enums.js';
 import {
-  getBaseCardCode,
-  normalizeCardCode,
-} from '../../../../shared/utils/card-code.js';
-import {
   and,
   costGte,
   costLte,
@@ -37,7 +33,7 @@ import {
   CardAbilitySourceZone,
   type CardAbilityDefinition,
 } from '../../ability-definition-types.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
+import { getCardAbilityDefinitionsForCardCode } from '../../definitions/lookup.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -533,22 +529,5 @@ function getQueuedAbilityDefinitionsForCard(
 }
 
 function getCardAbilityDefinitions(cardCode: string | undefined): readonly CardAbilityDefinition[] {
-  if (!cardCode) {
-    return [];
-  }
-  return CARD_ABILITY_DEFINITIONS.filter((definition) =>
-    doesAbilityDefinitionMatchCardCode(definition, cardCode)
-  );
-}
-
-function doesAbilityDefinitionMatchCardCode(
-  definition: CardAbilityDefinition,
-  cardCode: string
-): boolean {
-  const normalizedCardCode = normalizeCardCode(cardCode);
-  const baseCardCode = getBaseCardCode(normalizedCardCode);
-  return (
-    definition.cardCodes?.map(normalizeCardCode).includes(normalizedCardCode) === true ||
-    definition.baseCardCodes?.map(normalizeCardCode).includes(baseCardCode) === true
-  );
+  return getCardAbilityDefinitionsForCardCode(cardCode);
 }

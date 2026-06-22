@@ -46,6 +46,7 @@ import {
   createDrawEnergyToZoneCommand,
   createSetLiveCardCommand,
   createFinishInspectionCommand,
+  createFinishInspectionWithArrangementCommand,
   createAttachEnergyToMemberCommand,
   createActivateAbilityCommand,
   createMoveInspectedCardToBottomCommand,
@@ -100,6 +101,22 @@ import {
 } from './battleSurfaceCapabilities';
 
 const REMOTE_SNAPSHOT_PRELOAD_BUDGET_MS = 180;
+const REMOTE_SNAPSHOT_LATENCY_PROBE_STORAGE_KEY = 'loveca:remoteSnapshotLatencyProbe';
+
+interface RemoteSnapshotLatencyProbe {
+  readonly context: string;
+  readonly matchId: string;
+  readonly snapshotSeq: number;
+  readonly responseAt: number;
+  applyStartAt?: number;
+  applyEndAt?: number;
+  preloadStartAt?: number;
+  preloadEndAt?: number;
+  nextPaintAt?: number;
+  reported?: boolean;
+}
+
+const remoteSessionOperationQueues = new Map<string, Promise<void>>();
 
 // ============================================
 // Store 类型定义
@@ -480,6 +497,12 @@ export interface GameStore {
   ) => CommandDispatchResult;
   /** 调整检视区卡牌顺序 */
   reorderInspectedCard: (cardId: string, toIndex: number) => CommandDispatchResult;
+  /** 按声明顺序一次性整理剩余检视牌并结束检视 */
+  finishInspectionWithArrangement: (
+    cardIds: readonly string[],
+    toZone: ZoneType.HAND | ZoneType.WAITING_ROOM | ZoneType.EXILE_ZONE | ZoneType.MAIN_DECK | ZoneType.ENERGY_DECK,
+    options?: { position?: 'TOP' | 'BOTTOM' }
+  ) => CommandDispatchResult;
   /** 声明当前检视流程完成 */
   finishInspection: () => CommandDispatchResult;
   /** 翻开一张应援牌到解决区 */
@@ -1252,12 +1275,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (isReadonlyReplayMode()) {
         return;
       }
-      await preloadFrontTransitions(
-        get().playerViewState,
-        snapshot.playerViewState,
-        get().cardDataRegistry
-      );
-      applyRemoteSnapshot(snapshot, set);
+      applyRemoteSnapshotThenPreload(snapshot, set, 'store.applyRemoteSnapshot');
     },
 
     disconnectRemoteSession: () => {
@@ -1288,12 +1306,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      await preloadFrontTransitions(
-        get().playerViewState,
-        snapshot.playerViewState,
-        get().cardDataRegistry
-      );
-      applyRemoteSnapshot(snapshot, set);
+      applyRemoteSnapshotThenPreload(snapshot, set, 'syncRemoteState');
     },
 
     isRemoteMode: () => get().remoteSession !== null,
@@ -1852,6 +1865,23 @@ export const useGameStore = create<GameStore>((set, get) => {
       );
     },
 
+    finishInspectionWithArrangement: (cardIds, toZone, options) => {
+      return runViewerCommand(
+        (playerId) =>
+          createFinishInspectionWithArrangementCommand(
+            playerId,
+            cardIds,
+            toZone,
+            options?.position
+          ),
+        {
+          failureMessage: '检视区批量整理失败',
+          successMessage: '检视区批量整理完成',
+          logError: true,
+        }
+      );
+    },
+
     finishInspection: () => {
       return runViewerCommand((playerId) => createFinishInspectionCommand(playerId), {
         failureMessage: '检视流程结束失败',
@@ -2086,11 +2116,12 @@ function isZoneType(zone: string): zone is ZoneType {
 function applyRemoteSnapshot(
   snapshot: RemoteSnapshot,
   set: (partial: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void
-): void {
-  const normalizedPlayerViewState = normalizePlayerViewState(snapshot.playerViewState);
+): boolean {
+  const normalizedSnapshotViewState = normalizePlayerViewState(snapshot.playerViewState);
+  let applied = false;
   set((state) => {
     if (
-      normalizedPlayerViewState !== null &&
+      normalizedSnapshotViewState !== null &&
       shouldIgnoreRemoteSnapshotBySeq({
         currentMatchId: state.playerViewState?.match.matchId,
         currentPlayerId: state.viewingPlayerId,
@@ -2102,12 +2133,17 @@ function applyRemoteSnapshot(
         snapshotMatchId: snapshot.matchId,
         snapshotPlayerId: snapshot.playerId,
         snapshotSeat: snapshot.seat,
-        snapshotSeq: normalizedPlayerViewState.match.seq,
+        snapshotSeq: normalizedSnapshotViewState.match.seq,
       })
     ) {
       return state;
     }
 
+    applied = true;
+    const normalizedPlayerViewState = stabilizePlayerViewState(
+      state.playerViewState,
+      normalizedSnapshotViewState
+    );
     return {
       remoteSession: state.remoteSession
         ? state.remoteSession.playerId === snapshot.playerId &&
@@ -2127,6 +2163,32 @@ function applyRemoteSnapshot(
       },
     };
   });
+  return applied;
+}
+
+function applyRemoteSnapshotThenPreload(
+  snapshot: RemoteSnapshot,
+  set: (partial: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void,
+  context: string
+): void {
+  const previousViewState = useGameStore.getState().playerViewState;
+  const nextViewState = snapshot.playerViewState;
+  const cardDataRegistry = useGameStore.getState().cardDataRegistry;
+  const latencyProbe = createRemoteSnapshotLatencyProbe(context, snapshot);
+
+  markRemoteSnapshotLatencyProbe(latencyProbe, 'applyStartAt');
+  const applied = applyRemoteSnapshot(snapshot, set);
+  markRemoteSnapshotLatencyProbe(latencyProbe, 'applyEndAt');
+  scheduleRemoteSnapshotPaintProbe(latencyProbe);
+
+  if (!applied) {
+    markRemoteSnapshotLatencyProbe(latencyProbe, 'preloadStartAt');
+    markRemoteSnapshotLatencyProbe(latencyProbe, 'preloadEndAt');
+    maybeReportRemoteSnapshotLatencyProbe(latencyProbe);
+    return;
+  }
+
+  scheduleFrontTransitionPreload(previousViewState, nextViewState, cardDataRegistry, latencyProbe);
 }
 
 // 通用的卡图预加载:对比前后两个 PlayerViewState，预取新翻面卡的图片。
@@ -2140,6 +2202,40 @@ async function preloadFrontTransitions(
     return;
   }
 
+  const imageUrls = collectFrontTransitionImageUrls(
+    previousViewState,
+    nextViewState,
+    cardDataRegistry
+  );
+  await preloadImagesWithinBudget(imageUrls);
+}
+
+function scheduleFrontTransitionPreload(
+  previousViewState: PlayerViewState | null,
+  nextViewState: PlayerViewState | null,
+  cardDataRegistry: ReadonlyMap<string, AnyCardData>,
+  latencyProbe: RemoteSnapshotLatencyProbe | null
+): void {
+  markRemoteSnapshotLatencyProbe(latencyProbe, 'preloadStartAt');
+  void preloadFrontTransitions(previousViewState, nextViewState, cardDataRegistry)
+    .catch((error) => {
+      console.warn(
+        `[gameStore] 远程 snapshot 卡图后台预载失败: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    })
+    .finally(() => {
+      markRemoteSnapshotLatencyProbe(latencyProbe, 'preloadEndAt');
+      maybeReportRemoteSnapshotLatencyProbe(latencyProbe);
+    });
+}
+
+function collectFrontTransitionImageUrls(
+  previousViewState: PlayerViewState,
+  nextViewState: PlayerViewState,
+  cardDataRegistry: ReadonlyMap<string, AnyCardData>
+): string[] {
   const imageUrls = new Set<string>();
   for (const [objectId, nextObject] of Object.entries(nextViewState.objects)) {
     if (nextObject.surface !== 'FRONT' || !nextObject.frontInfo) {
@@ -2160,7 +2256,101 @@ async function preloadFrontTransitions(
     imageUrls.add(resolveCardImagePath(cardData, 'medium'));
   }
 
-  await preloadImagesWithinBudget([...imageUrls]);
+  return [...imageUrls];
+}
+
+function createRemoteSnapshotLatencyProbe(
+  context: string,
+  snapshot: RemoteSnapshot
+): RemoteSnapshotLatencyProbe | null {
+  if (!isRemoteSnapshotLatencyProbeEnabled()) {
+    return null;
+  }
+
+  return {
+    context,
+    matchId: snapshot.matchId,
+    snapshotSeq: snapshot.seq,
+    responseAt: performance.now(),
+  };
+}
+
+function markRemoteSnapshotLatencyProbe(
+  probe: RemoteSnapshotLatencyProbe | null,
+  field: 'applyStartAt' | 'applyEndAt' | 'preloadStartAt' | 'preloadEndAt'
+): void {
+  if (!probe) {
+    return;
+  }
+  probe[field] = performance.now();
+}
+
+function scheduleRemoteSnapshotPaintProbe(probe: RemoteSnapshotLatencyProbe | null): void {
+  if (!probe) {
+    return;
+  }
+
+  const recordPaint = () => {
+    probe.nextPaintAt = performance.now();
+    maybeReportRemoteSnapshotLatencyProbe(probe);
+  };
+
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(recordPaint);
+    return;
+  }
+  setTimeout(recordPaint, 0);
+}
+
+function maybeReportRemoteSnapshotLatencyProbe(probe: RemoteSnapshotLatencyProbe | null): void {
+  if (
+    !probe ||
+    probe.reported ||
+    probe.nextPaintAt === undefined ||
+    probe.preloadEndAt === undefined
+  ) {
+    return;
+  }
+
+  probe.reported = true;
+  const applyStartAt = probe.applyStartAt ?? probe.responseAt;
+  const applyEndAt = probe.applyEndAt ?? applyStartAt;
+  const preloadStartAt = probe.preloadStartAt ?? applyEndAt;
+  const preloadEndAt = probe.preloadEndAt ?? preloadStartAt;
+  console.table({
+    remoteSnapshotLatency: {
+      context: probe.context,
+      matchId: probe.matchId,
+      snapshotSeq: probe.snapshotSeq,
+      responseToApplyMs: formatLatencyMs(applyStartAt - probe.responseAt),
+      applyMs: formatLatencyMs(applyEndAt - applyStartAt),
+      responseToNextPaintMs: formatLatencyMs(probe.nextPaintAt - probe.responseAt),
+      preloadMs: formatLatencyMs(preloadEndAt - preloadStartAt),
+      preloadFinishedBeforeReport: probe.preloadEndAt !== undefined,
+    },
+  });
+}
+
+function isRemoteSnapshotLatencyProbeEnabled(): boolean {
+  const envValue = import.meta.env.VITE_REMOTE_SNAPSHOT_LATENCY_PROBE;
+  if (envValue === '1' || envValue === 'true' || envValue === 'on') {
+    return true;
+  }
+
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    const storageValue = window.localStorage.getItem(REMOTE_SNAPSHOT_LATENCY_PROBE_STORAGE_KEY);
+    return storageValue === '1' || storageValue === 'true' || storageValue === 'on';
+  } catch {
+    return false;
+  }
+}
+
+function formatLatencyMs(value: number): string {
+  return value.toFixed(2);
 }
 
 async function preloadImagesWithinBudget(imageUrls: string[]): Promise<void> {
@@ -2202,6 +2392,127 @@ function normalizePlayerViewState(playerViewState: PlayerViewState | null): Play
   };
 }
 
+function stabilizePlayerViewState(
+  previous: PlayerViewState | null,
+  next: PlayerViewState | null
+): PlayerViewState | null {
+  if (!previous || !next || previous.match.matchId !== next.match.matchId) {
+    return next;
+  }
+
+  const objects = stabilizeRecordValues(previous.objects, next.objects);
+  const zones = stabilizeRecordValues(previous.table.zones, next.table.zones);
+  const table = zones === previous.table.zones ? previous.table : { ...next.table, zones };
+  const match = areJsonLikeValuesEqual(previous.match, next.match) ? previous.match : next.match;
+  const permissions = areJsonLikeValuesEqual(previous.permissions, next.permissions)
+    ? previous.permissions
+    : next.permissions;
+  const activeEffect = areJsonLikeValuesEqual(previous.activeEffect, next.activeEffect)
+    ? previous.activeEffect
+    : next.activeEffect;
+  const pendingCostPayment = areJsonLikeValuesEqual(
+    previous.pendingCostPayment,
+    next.pendingCostPayment
+  )
+    ? previous.pendingCostPayment
+    : next.pendingCostPayment;
+  const uiHints = areJsonLikeValuesEqual(previous.uiHints, next.uiHints)
+    ? previous.uiHints
+    : next.uiHints;
+
+  if (
+    objects === previous.objects &&
+    table === previous.table &&
+    match === previous.match &&
+    permissions === previous.permissions &&
+    activeEffect === previous.activeEffect &&
+    pendingCostPayment === previous.pendingCostPayment &&
+    uiHints === previous.uiHints
+  ) {
+    return previous;
+  }
+
+  return {
+    ...next,
+    match,
+    table,
+    objects,
+    permissions,
+    activeEffect,
+    pendingCostPayment,
+    uiHints,
+  };
+}
+
+function stabilizeRecordValues<T extends Readonly<Record<string, unknown>>>(
+  previous: T,
+  next: T
+): T {
+  const previousKeys = Object.keys(previous);
+  const nextKeys = Object.keys(next);
+  let allValuesStable = previousKeys.length === nextKeys.length;
+  const stabilized: Record<string, unknown> = {};
+
+  for (const key of nextKeys) {
+    if (!Object.prototype.hasOwnProperty.call(previous, key)) {
+      allValuesStable = false;
+      stabilized[key] = next[key];
+      continue;
+    }
+
+    const previousValue = previous[key];
+    const nextValue = next[key];
+    if (areJsonLikeValuesEqual(previousValue, nextValue)) {
+      stabilized[key] = previousValue;
+    } else {
+      allValuesStable = false;
+      stabilized[key] = nextValue;
+    }
+  }
+
+  return allValuesStable ? previous : (stabilized as T);
+}
+
+function areJsonLikeValuesEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+  if (typeof left !== typeof right || left === null || right === null) {
+    return false;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+      return false;
+    }
+    for (let index = 0; index < left.length; index += 1) {
+      if (!areJsonLikeValuesEqual(left[index], right[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (typeof left !== 'object' || typeof right !== 'object') {
+    return false;
+  }
+
+  const leftRecord = left as Readonly<Record<string, unknown>>;
+  const rightRecord = right as Readonly<Record<string, unknown>>;
+  const leftKeys = Object.keys(leftRecord);
+  const rightKeys = Object.keys(rightRecord);
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+  for (const key of leftKeys) {
+    if (!Object.prototype.hasOwnProperty.call(rightRecord, key)) {
+      return false;
+    }
+    if (!areJsonLikeValuesEqual(leftRecord[key], rightRecord[key])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function normalizeReadonlyReplayViewState(playerViewState: PlayerViewState): PlayerViewState {
   const normalized = normalizePlayerViewState(playerViewState);
   if (!normalized) {
@@ -2240,6 +2551,57 @@ function warnReplayGuardBypass(context: string): void {
   );
 }
 
+function enqueueRemoteSessionOperation(
+  remoteSession: NonNullable<GameStore['remoteSession']>,
+  operation: () => Promise<void>
+): Promise<void> {
+  const queueKey = getRemoteSessionQueueKey(remoteSession);
+  const previous = remoteSessionOperationQueues.get(queueKey) ?? Promise.resolve();
+  const next = previous
+    .catch(() => undefined)
+    .then(async () => {
+      if (!isRemoteSessionStillCurrent(remoteSession)) {
+        return;
+      }
+      await operation();
+    })
+    .finally(() => {
+      if (remoteSessionOperationQueues.get(queueKey) === next) {
+        remoteSessionOperationQueues.delete(queueKey);
+      }
+    });
+  remoteSessionOperationQueues.set(queueKey, next);
+  return next;
+}
+
+function getRemoteSessionQueueKey(remoteSession: NonNullable<GameStore['remoteSession']>): string {
+  return `${remoteSession.source}:${remoteSession.matchId}:${remoteSession.seat}:${remoteSession.playerId ?? ''}`;
+}
+
+function isRemoteSessionStillCurrent(
+  remoteSession: NonNullable<GameStore['remoteSession']>
+): boolean {
+  const current = useGameStore.getState().remoteSession;
+  return (
+    current !== null &&
+    current.source === remoteSession.source &&
+    current.matchId === remoteSession.matchId &&
+    current.seat === remoteSession.seat &&
+    current.playerId === remoteSession.playerId
+  );
+}
+
+function ensureRemoteCommandIdempotencyKey(command: GameCommand): GameCommand {
+  if (command.idempotencyKey) {
+    return command;
+  }
+
+  return {
+    ...command,
+    idempotencyKey: createClientIdempotencyKey('cmd'),
+  };
+}
+
 function dispatchRemoteCommand(
   command: GameCommand,
   failureMessage: string,
@@ -2255,36 +2617,34 @@ function dispatchRemoteCommand(
     return false;
   }
 
-  void executeRemoteCommand(
-    remoteSession.source,
-    remoteSession.matchId,
-    command,
-    remoteSession.seat
-  )
-    .then(async (result) => {
-      if (!result.success || !result.snapshot) {
-        useGameStore
-          .getState()
-          .addLog(`${failureMessage}: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
-        return;
-      }
-
-      await preloadFrontTransitions(
-        useGameStore.getState().playerViewState,
-        result.snapshot.playerViewState,
-        useGameStore.getState().cardDataRegistry
-      );
-      applyRemoteSnapshot(result.snapshot, useGameStore.setState);
-      onSuccess?.();
-    })
-    .catch((error) => {
+  const queuedCommand = ensureRemoteCommandIdempotencyKey(command);
+  void enqueueRemoteSessionOperation(remoteSession, async () => {
+    const result = await executeRemoteCommand(
+      remoteSession.source,
+      remoteSession.matchId,
+      queuedCommand,
+      remoteSession.seat
+    );
+    if (!isRemoteSessionStillCurrent(remoteSession)) {
+      return;
+    }
+    if (!result.success || !result.snapshot) {
       useGameStore
         .getState()
-        .addLog(
-          `${failureMessage}: ${error instanceof Error ? error.message : '网络请求失败'}`,
-          'error'
-        );
-    });
+        .addLog(`${failureMessage}: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+      return;
+    }
+
+    applyRemoteSnapshotThenPreload(result.snapshot, useGameStore.setState, 'remoteCommand');
+    onSuccess?.();
+  }).catch((error) => {
+    useGameStore
+      .getState()
+      .addLog(
+        `${failureMessage}: ${error instanceof Error ? error.message : '网络请求失败'}`,
+        'error'
+      );
+  });
 
   return true;
 }
@@ -2300,37 +2660,38 @@ function dispatchRemoteAdvancePhase(): boolean {
     return false;
   }
 
-  void advanceRemotePhase(remoteSession.source, remoteSession.matchId, remoteSession.seat)
-    .then(async (result) => {
-      if (!result.success || !result.snapshot) {
-        useGameStore
-          .getState()
-          .addLog(`阶段推进失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
-        return;
-      }
-
-      await preloadFrontTransitions(
-        useGameStore.getState().playerViewState,
-        result.snapshot.playerViewState,
-        useGameStore.getState().cardDataRegistry
-      );
-      applyRemoteSnapshot(result.snapshot, useGameStore.setState);
-      const currentPhase = result.snapshot.playerViewState.match.phase as GamePhase | undefined;
-      if (currentPhase) {
-        const phaseName = getPhaseName(currentPhase);
-        useGameStore.getState().addLog(`进入 ${phaseName}`, 'phase');
-        useGameStore.getState().showPhaseBannerFn(phaseName);
-        setTimeout(() => useGameStore.getState().hidePhaseBanner(), 1500);
-      }
-    })
-    .catch((error) => {
+  void enqueueRemoteSessionOperation(remoteSession, async () => {
+    const result = await advanceRemotePhase(
+      remoteSession.source,
+      remoteSession.matchId,
+      remoteSession.seat
+    );
+    if (!isRemoteSessionStillCurrent(remoteSession)) {
+      return;
+    }
+    if (!result.success || !result.snapshot) {
       useGameStore
         .getState()
-        .addLog(
-          `阶段推进失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
-          'error'
-        );
-    });
+        .addLog(`阶段推进失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+      return;
+    }
+
+    applyRemoteSnapshotThenPreload(result.snapshot, useGameStore.setState, 'remoteAdvancePhase');
+    const currentPhase = result.snapshot.playerViewState.match.phase as GamePhase | undefined;
+    if (currentPhase) {
+      const phaseName = getPhaseName(currentPhase);
+      useGameStore.getState().addLog(`进入 ${phaseName}`, 'phase');
+      useGameStore.getState().showPhaseBannerFn(phaseName);
+      setTimeout(() => useGameStore.getState().hidePhaseBanner(), 1500);
+    }
+  }).catch((error) => {
+    useGameStore
+      .getState()
+      .addLog(
+        `阶段推进失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
+        'error'
+      );
+  });
 
   return true;
 }
@@ -2354,32 +2715,30 @@ function dispatchRemoteUndoLastStep(): CommandDispatchResult {
     };
   }
 
-  void undoRemoteMatch(remoteSession.source, remoteSession.matchId, {
+  const input = {
     expectedRevision: store.playerViewState?.match.seq ?? 0,
     undoEntryId: undoEntry.undoEntryId,
     idempotencyKey: createClientIdempotencyKey('undo'),
-  })
-    .then(async (result) => {
-      if (!result.success || !result.snapshot) {
-        useGameStore
-          .getState()
-          .addLog(`撤销失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
-        return;
-      }
-
-      await preloadFrontTransitions(
-        useGameStore.getState().playerViewState,
-        result.snapshot.playerViewState,
-        useGameStore.getState().cardDataRegistry
-      );
-      applyRemoteSnapshot(result.snapshot, useGameStore.setState);
-      useGameStore.getState().addLog('撤销上一步', 'action');
-    })
-    .catch((error) => {
+  };
+  void enqueueRemoteSessionOperation(remoteSession, async () => {
+    const result = await undoRemoteMatch(remoteSession.source, remoteSession.matchId, input);
+    if (!isRemoteSessionStillCurrent(remoteSession)) {
+      return;
+    }
+    if (!result.success || !result.snapshot) {
       useGameStore
         .getState()
-        .addLog(`撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`, 'error');
-    });
+        .addLog(`撤销失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+      return;
+    }
+
+    applyRemoteSnapshotThenPreload(result.snapshot, useGameStore.setState, 'remoteUndo');
+    useGameStore.getState().addLog('撤销上一步', 'action');
+  }).catch((error) => {
+    useGameStore
+      .getState()
+      .addLog(`撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`, 'error');
+  });
 
   return { success: false, pending: true };
 }
@@ -2403,35 +2762,33 @@ function dispatchRemoteUndoRequest(): CommandDispatchResult {
     };
   }
 
-  void createRemoteUndoRequest(remoteSession.source, remoteSession.matchId, {
+  const input = {
     expectedRevision: store.playerViewState?.match.seq ?? 0,
     undoEntryId: undoEntry.undoEntryId,
     idempotencyKey: createClientIdempotencyKey('undo-request'),
-  })
-    .then(async (result) => {
-      if (!result.success || !result.snapshot) {
-        useGameStore
-          .getState()
-          .addLog(`请求撤销失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
-        return;
-      }
-
-      await preloadFrontTransitions(
-        useGameStore.getState().playerViewState,
-        result.snapshot.playerViewState,
-        useGameStore.getState().cardDataRegistry
-      );
-      applyRemoteSnapshot(result.snapshot, useGameStore.setState);
-      useGameStore.getState().addLog('已发送撤销请求', 'action');
-    })
-    .catch((error) => {
+  };
+  void enqueueRemoteSessionOperation(remoteSession, async () => {
+    const result = await createRemoteUndoRequest(remoteSession.source, remoteSession.matchId, input);
+    if (!isRemoteSessionStillCurrent(remoteSession)) {
+      return;
+    }
+    if (!result.success || !result.snapshot) {
       useGameStore
         .getState()
-        .addLog(
-          `请求撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
-          'error'
-        );
-    });
+        .addLog(`请求撤销失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+      return;
+    }
+
+    applyRemoteSnapshotThenPreload(result.snapshot, useGameStore.setState, 'remoteUndoRequest');
+    useGameStore.getState().addLog('已发送撤销请求', 'action');
+  }).catch((error) => {
+    useGameStore
+      .getState()
+      .addLog(
+        `请求撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
+        'error'
+      );
+  });
 
   return { success: false, pending: true };
 }
@@ -2454,42 +2811,41 @@ function dispatchRemoteUndoRequestResponse(
     expectedRevision: store.playerViewState?.match.seq ?? 0,
     idempotencyKey: createClientIdempotencyKey(accepted ? 'undo-accept' : 'undo-reject'),
   };
-  const request = accepted
-    ? acceptRemoteUndoRequest(remoteSession.source, remoteSession.matchId, requestId, input)
-    : rejectRemoteUndoRequest(remoteSession.source, remoteSession.matchId, requestId, input);
-
-  void request
-    .then(async (result) => {
-      if (!result.success || !result.snapshot) {
-        useGameStore
-          .getState()
-          .addLog(
-            `${accepted ? '接受' : '拒绝'}撤销失败: ${
-              result.error ?? '服务端拒绝了该操作'
-            }`,
-            'error'
-          );
-        return;
-      }
-
-      await preloadFrontTransitions(
-        useGameStore.getState().playerViewState,
-        result.snapshot.playerViewState,
-        useGameStore.getState().cardDataRegistry
-      );
-      applyRemoteSnapshot(result.snapshot, useGameStore.setState);
-      useGameStore.getState().addLog(accepted ? '已接受撤销请求' : '已拒绝撤销请求', 'action');
-    })
-    .catch((error) => {
+  void enqueueRemoteSessionOperation(remoteSession, async () => {
+    const result = accepted
+      ? await acceptRemoteUndoRequest(remoteSession.source, remoteSession.matchId, requestId, input)
+      : await rejectRemoteUndoRequest(remoteSession.source, remoteSession.matchId, requestId, input);
+    if (!isRemoteSessionStillCurrent(remoteSession)) {
+      return;
+    }
+    if (!result.success || !result.snapshot) {
       useGameStore
         .getState()
         .addLog(
           `${accepted ? '接受' : '拒绝'}撤销失败: ${
-            error instanceof Error ? error.message : '网络请求失败'
+            result.error ?? '服务端拒绝了该操作'
           }`,
           'error'
         );
-    });
+      return;
+    }
+
+    applyRemoteSnapshotThenPreload(
+      result.snapshot,
+      useGameStore.setState,
+      accepted ? 'remoteUndoAccept' : 'remoteUndoReject'
+    );
+    useGameStore.getState().addLog(accepted ? '已接受撤销请求' : '已拒绝撤销请求', 'action');
+  }).catch((error) => {
+    useGameStore
+      .getState()
+      .addLog(
+        `${accepted ? '接受' : '拒绝'}撤销失败: ${
+          error instanceof Error ? error.message : '网络请求失败'
+        }`,
+        'error'
+      );
+  });
 
   return { success: false, pending: true };
 }

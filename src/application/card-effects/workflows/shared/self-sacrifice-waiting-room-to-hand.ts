@@ -14,7 +14,7 @@ import {
   PB1_019_ACTIVATED_ABILITY_ID,
   RIN_ACTIVATED_ABILITY_ID,
 } from '../../ability-ids.js';
-import { CARD_ABILITY_DEFINITIONS } from '../../definitions/index.js';
+import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -242,7 +242,7 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
 }
 
 function getCardAbilityBaseCardCodes(abilityId: string): readonly string[] {
-  const definition = CARD_ABILITY_DEFINITIONS.find((ability) => ability.abilityId === abilityId);
+  const definition = findCardAbilityDefinitionById(abilityId);
   if (!definition) {
     return [];
   }

@@ -1,10 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { createGameSession, type GameSession } from '../../application/game-session.js';
-import type { GameCommand } from '../../application/game-commands.js';
+import { GameCommandType, type GameCommand } from '../../application/game-commands.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
-import { projectPlayerViewState } from '../../online/projector.js';
 import type {
   MatchRecordCompleteness,
   MatchRecordStatus,
@@ -37,6 +36,7 @@ import {
 
 const MATCH_STALE_TTL_MS = 30 * 60 * 1000;
 const UNDO_REQUEST_TTL_MS = 60 * 1000;
+const DEFAULT_AUTHORITY_CHECKPOINT_INTERVAL_FRAMES = 5;
 
 export interface OnlineMatchParticipant {
   readonly userId: string;
@@ -389,13 +389,19 @@ export class OnlineMatchService {
       return null;
     }
 
-    const beforeState = match.session.getAuthoritySnapshotForRecord();
     const commandWithPlayer: GameCommand = {
       ...command,
       playerId: participant.playerId,
     };
+    const shouldBuildDecisionRecords = shouldBuildDecisionRecordsForCommand(commandWithPlayer);
+    const beforeState = shouldBuildDecisionRecords
+      ? match.session.getAuthoritySnapshotForRecord()
+      : null;
     const result = match.session.executeCommand(commandWithPlayer);
-    const afterState = match.session.getAuthoritySnapshotForRecord();
+    const afterState =
+      shouldBuildDecisionRecords && result.success
+        ? match.session.getAuthoritySnapshotForRecord()
+        : null;
     const submittedCommandSeq = latestSeq(
       match.session.getCommandLogSince(0),
       (record) => record.seq
@@ -418,6 +424,8 @@ export class OnlineMatchService {
       match,
       result.success ? 'COMMAND_ACCEPTED' : 'COMMAND_REJECTED',
       {
+        command: commandWithPlayer,
+        authorityState: afterState,
         decisionRecords,
       }
     );
@@ -1072,6 +1080,8 @@ export class OnlineMatchService {
       readonly summary?: string;
       readonly force?: boolean;
       readonly writeAuthorityCheckpoint?: boolean;
+      readonly command?: GameCommand;
+      readonly authorityState?: GameState | null;
       readonly decisionRecords?: readonly MatchDecisionRecordInput[];
       readonly dedupeKey?: string;
     } = {}
@@ -1117,14 +1127,25 @@ export class OnlineMatchService {
         return true;
       }
 
-      const authorityState = match.session.getAuthoritySnapshotForRecord();
+      const writeAuthorityCheckpoint =
+        options.writeAuthorityCheckpoint ??
+        shouldWriteAuthorityCheckpointForFrame(match, frameType, {
+          command: options.command,
+          cursorLastTimelineSeq: cursor.lastTimelineSeq,
+        });
+      const authorityState =
+        writeAuthorityCheckpoint && options.authorityState
+          ? options.authorityState
+          : writeAuthorityCheckpoint
+            ? match.session.getAuthoritySnapshotForRecord()
+            : null;
       await this.recorder.appendMatchRecordFrame({
         matchId: match.matchId,
         frameType,
         summary: options.summary,
         authorityState,
-        writeAuthorityCheckpoint:
-          options.writeAuthorityCheckpoint ?? frameType !== 'COMMAND_REJECTED',
+        stateSummary: buildRecordStateSummary(match.session.state),
+        writeAuthorityCheckpoint,
         relatedPublicSeq:
           latestSeq(publicEvents, (event) => event.seq) ?? match.session.getCurrentPublicEventSeq(),
         relatedPrivateSeq: maxNullable(
@@ -1212,14 +1233,12 @@ function buildSnapshot(
   match: OnlineMatchState,
   participant: OnlineMatchParticipant
 ): OnlineMatchSnapshot {
-  const authorityState = match.session.getAuthoritySnapshotForRecord();
-  if (!authorityState) {
+  const projectedViewState = match.session.getPlayerViewState(participant.playerId, {
+    seqOverride: match.remoteRevision,
+  });
+  if (!projectedViewState) {
     throw new Error('联机玩家视图不存在');
   }
-  const projectedViewState = projectPlayerViewState(authorityState, participant.playerId, {
-    seq: match.remoteRevision,
-    gameMode: match.session.gameMode,
-  });
   const playerViewState = {
     ...projectedViewState,
     match: {
@@ -1234,6 +1253,80 @@ function buildSnapshot(
     playerId: participant.playerId,
     seq: match.remoteRevision,
     playerViewState,
+  };
+}
+
+function shouldBuildDecisionRecordsForCommand(command: GameCommand): boolean {
+  switch (command.type) {
+    case GameCommandType.ACTIVATE_ABILITY:
+    case GameCommandType.CONFIRM_EFFECT_STEP:
+    case GameCommandType.MULLIGAN:
+    case GameCommandType.SELECT_SUCCESS_LIVE:
+    case GameCommandType.SET_LIVE_CARD:
+      return true;
+    default:
+      return false;
+  }
+}
+
+function shouldWriteAuthorityCheckpointForFrame(
+  match: OnlineMatchState,
+  frameType: AppendMatchRecordFrameInput['frameType'],
+  options: {
+    readonly command?: GameCommand;
+    readonly cursorLastTimelineSeq: number;
+  }
+): boolean {
+  if (frameType === 'COMMAND_REJECTED') {
+    return false;
+  }
+  if (frameType !== 'COMMAND_ACCEPTED') {
+    return true;
+  }
+
+  if (isCheckpointCriticalCommand(options.command)) {
+    return true;
+  }
+
+  if (match.session.state?.currentPhase === GamePhase.GAME_END) {
+    return true;
+  }
+
+  const nextTimelineSeq = options.cursorLastTimelineSeq + 1;
+  return nextTimelineSeq % DEFAULT_AUTHORITY_CHECKPOINT_INTERVAL_FRAMES === 0;
+}
+
+function isCheckpointCriticalCommand(command: GameCommand | undefined): boolean {
+  if (!command) {
+    return true;
+  }
+
+  switch (command.type) {
+    case GameCommandType.ACTIVATE_ABILITY:
+    case GameCommandType.CONFIRM_EFFECT_STEP:
+    case GameCommandType.CONFIRM_PERFORMANCE_OUTCOME:
+    case GameCommandType.CONFIRM_STEP:
+    case GameCommandType.END_PHASE:
+    case GameCommandType.MULLIGAN:
+    case GameCommandType.SELECT_SUCCESS_LIVE:
+    case GameCommandType.SET_LIVE_CARD:
+    case GameCommandType.SUBMIT_JUDGMENT:
+    case GameCommandType.SUBMIT_SCORE:
+      return true;
+    default:
+      return false;
+  }
+}
+
+function buildRecordStateSummary(state: GameState | null): AppendMatchRecordFrameInput['stateSummary'] {
+  if (!state) {
+    return null;
+  }
+
+  return {
+    turnCount: state.turnCount,
+    phase: String(state.currentPhase),
+    subPhase: String(state.currentSubPhase),
   };
 }
 

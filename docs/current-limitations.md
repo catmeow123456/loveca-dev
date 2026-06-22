@@ -61,7 +61,7 @@
 
 相关文档：
 
-- [系统设计](../game_system_design.md)
+- [系统设计](system-design.md)
 - [开发规范](coding-standard/dev-standard.md)
 - [联机模式准备文档](online-mode/preparation.md)
 - [卡效框架设计](card-effect-framework/card_effect_framework_design.md)

@@ -192,7 +192,6 @@ export const PlayerArea = memo(function PlayerArea({
   const canShowUndo = capabilities.undoPolicy !== 'NONE';
   const undoButtonLabel = capabilities.undoPolicy === 'REMOTE_REQUEST' ? '请求撤销' : '撤销';
   const isReadOnly = capabilities.isReadOnly;
-  const isRemoteDebugMode = useGameStore((s) => s.isRemoteDebugMode());
   const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
   const canOpenInspection = useGameStore((s) => s.canUseAction(GameCommandType.OPEN_INSPECTION));
   const canRevealInspectedCard = useGameStore((s) =>
@@ -209,6 +208,9 @@ export const PlayerArea = memo(function PlayerArea({
   );
   const canReorderInspectedCard = useGameStore((s) =>
     s.canUseAction(GameCommandType.REORDER_INSPECTED_CARD)
+  );
+  const canFinishInspectionWithArrangement = useGameStore((s) =>
+    s.canUseAction(GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT)
   );
   const canTapMember = useGameStore((s) => s.canUseAction(GameCommandType.TAP_MEMBER));
   const canActivateAbilityCommand = useGameStore((s) =>
@@ -242,8 +244,7 @@ export const PlayerArea = memo(function PlayerArea({
     getLiveResultForCard,
     openInspection,
     revealInspectedCard,
-    moveInspectedCardToZone,
-    moveInspectedCardToTop,
+    finishInspectionWithArrangement,
     finishInspection,
     isInspectionCardPubliclyRevealed,
     undoLastStep,
@@ -266,8 +267,7 @@ export const PlayerArea = memo(function PlayerArea({
       getLiveResultForCard: s.getLiveResultForCard,
       openInspection: s.openInspection,
       revealInspectedCard: s.revealInspectedCard,
-      moveInspectedCardToZone: s.moveInspectedCardToZone,
-      moveInspectedCardToTop: s.moveInspectedCardToTop,
+      finishInspectionWithArrangement: s.finishInspectionWithArrangement,
       finishInspection: s.finishInspection,
       isInspectionCardPubliclyRevealed: s.isInspectionCardPubliclyRevealed,
       undoLastStep: s.undoLastStep,
@@ -1476,11 +1476,13 @@ export const PlayerArea = memo(function PlayerArea({
     const isViewerInspectionZone = viewerSeat === playerSeat && hasOwnedInspectionContext;
     const canUseInspectionActions = !isReadOnly && isViewerInspectionZone;
     const hasVisibleInspectionCards = inspectionCardIds.length > 0;
+    const canBatchArrangeInspection =
+      canFinishInspectionWithArrangement && inspectionCardIds.length > 0;
     const canCloseInspection =
       canUseInspectionActions &&
       hasFinishInspectionCommand &&
       inspectionBatchAction === null &&
-      (!hasVisibleInspectionCards || canMoveInspectedToTop);
+      (!hasVisibleInspectionCards || canBatchArrangeInspection);
     const shouldRenderInspectionZone =
       !!inspectionZoneView && (inspectionZoneView.count > 0 || isViewerInspectionZone);
 
@@ -1511,23 +1513,22 @@ export const PlayerArea = memo(function PlayerArea({
 
       setInspectionBatchAction('waiting-room');
       try {
-        while (true) {
-          const latestInspectionCardIds = useGameStore
-            .getState()
-            .getSeatZoneCardIds(playerSeat, 'INSPECTION_ZONE');
-          const nextCardId = latestInspectionCardIds[0];
-          if (!nextCardId) {
-            break;
-          }
-          const result = moveInspectedCardToZone(nextCardId, ZoneType.WAITING_ROOM);
-          if (!result.success && !result.pending) {
-            break;
-          }
-          if (result.pending || isRemoteDebugMode) {
-            await waitForInspectionZoneChange(latestInspectionCardIds);
-          }
+        const latestInspectionCardIds = useGameStore
+          .getState()
+          .getSeatZoneCardIds(playerSeat, 'INSPECTION_ZONE');
+        if (latestInspectionCardIds.length === 0) {
+          return;
         }
-        setHoveredCard(null);
+        const result = finishInspectionWithArrangement(
+          latestInspectionCardIds,
+          ZoneType.WAITING_ROOM
+        );
+        if (result.success || result.pending) {
+          setHoveredCard(null);
+        }
+        if (result.pending) {
+          await waitForInspectionZoneChange(latestInspectionCardIds);
+        }
       } finally {
         setInspectionBatchAction(null);
       }
@@ -1540,24 +1541,35 @@ export const PlayerArea = memo(function PlayerArea({
 
       setInspectionBatchAction('close');
       try {
-        while (true) {
-          const latestInspectionCardIds = useGameStore
-            .getState()
-            .getSeatZoneCardIds(playerSeat, 'INSPECTION_ZONE');
-          const nextCardId = latestInspectionCardIds[latestInspectionCardIds.length - 1];
-          if (!nextCardId) {
-            break;
-          }
-          const result = moveInspectedCardToTop(nextCardId);
-          if (!result.success && !result.pending) {
+        const latestInspectionCardIds = useGameStore
+          .getState()
+          .getSeatZoneCardIds(playerSeat, 'INSPECTION_ZONE');
+        if (latestInspectionCardIds.length > 0) {
+          const sourceDeckZone =
+            inspectionSourceZone === ZoneType.ENERGY_DECK
+              ? ZoneType.ENERGY_DECK
+              : ZoneType.MAIN_DECK;
+          const arrangeResult = finishInspectionWithArrangement(
+            latestInspectionCardIds,
+            sourceDeckZone,
+            { position: 'TOP' }
+          );
+          if (!arrangeResult.success && !arrangeResult.pending) {
             return;
           }
-          if (result.pending || isRemoteDebugMode) {
+          if (arrangeResult.pending) {
+            await waitForInspectionZoneChange(latestInspectionCardIds);
+          }
+        } else {
+          const finishResult = finishInspection();
+          if (!finishResult.success && !finishResult.pending) {
+            return;
+          }
+          if (finishResult.pending) {
             await waitForInspectionZoneChange(latestInspectionCardIds);
           }
         }
         setHoveredCard(null);
-        finishInspection();
       } finally {
         setInspectionBatchAction(null);
       }
@@ -1593,7 +1605,7 @@ export const PlayerArea = memo(function PlayerArea({
                 <button
                   type="button"
                   disabled={
-                    !canMoveInspectedToZone ||
+                    !canBatchArrangeInspection ||
                     !canUseInspectionActions ||
                     inspectionCardIds.length === 0 ||
                     inspectionBatchAction !== null
@@ -1601,7 +1613,7 @@ export const PlayerArea = memo(function PlayerArea({
                   onClick={moveAllInspectionCardsToWaitingRoom}
                   className={cn(
                     'inline-flex min-h-8 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium text-white',
-                    canMoveInspectedToZone &&
+                    canBatchArrangeInspection &&
                       canUseInspectionActions &&
                       inspectionCardIds.length > 0 &&
                       inspectionBatchAction === null
