@@ -17,6 +17,7 @@ import {
   executeOnlineMatchCommand,
   fetchOnlineMatchSnapshot,
   rejectOnlineUndoRequest,
+  undoOnlineMatch,
 } from './onlineClient';
 import {
   advanceSolitaireMatchPhase,
@@ -97,6 +98,9 @@ export async function undoRemoteMatch(
   if (source === 'SOLITAIRE') {
     return undoSolitaireMatch(matchId, input);
   }
+  if (source === 'ONLINE') {
+    return undoOnlineMatch(matchId, input);
+  }
   throw new Error('当前远程对局暂不支持撤销');
 }
 
@@ -122,6 +126,7 @@ export async function acceptRemoteUndoRequest(
   input: {
     readonly expectedRevision: number;
     readonly idempotencyKey?: string;
+    readonly grantContinuous?: boolean;
   }
 ): Promise<RemoteCommandExecutionResult> {
   if (source === 'ONLINE') {

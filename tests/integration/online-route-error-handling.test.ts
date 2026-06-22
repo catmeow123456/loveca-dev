@@ -201,7 +201,7 @@ describe('onlineRouter error handling', () => {
       'post',
       {
         params: { matchId: 'm1', requestId: 'req-1' },
-        body: { expectedRevision: 13, idempotencyKey: 'accept-key' },
+        body: { expectedRevision: 13, idempotencyKey: 'accept-key', grantContinuous: true },
       }
     );
     const rejectResponse = await invokeRoute(
@@ -218,10 +218,36 @@ describe('onlineRouter error handling', () => {
     expect(onlineMatchService.acceptUndoRequest).toHaveBeenCalledWith('m1', 'u1', 'req-1', {
       expectedRevision: 13,
       idempotencyKey: 'accept-key',
+      grantContinuous: true,
     });
     expect(onlineMatchService.rejectUndoRequest).toHaveBeenCalledWith('m1', 'u1', 'req-2', {
       expectedRevision: 14,
       idempotencyKey: 'reject-key',
+    });
+    expect(onlineRoomService.touchInGameMemberByMatch).toHaveBeenCalledWith('m1', 'u1');
+  });
+
+  it('联机直接撤销路由应透传撤销目标和 revision', async () => {
+    vi.spyOn(onlineMatchService, 'getMatch').mockReturnValue({ matchId: 'm1' } as never);
+    vi.spyOn(onlineMatchService, 'undoLatest').mockResolvedValue({
+      success: true,
+      snapshot: { matchId: 'm1', seq: 16 },
+    } as never);
+
+    const response = await invokeRoute('/matches/:matchId/undo', 'post', {
+      params: { matchId: 'm1' },
+      body: {
+        expectedRevision: 15,
+        undoEntryId: 'undo-1',
+        idempotencyKey: 'direct-undo-key',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(onlineMatchService.undoLatest).toHaveBeenCalledWith('m1', 'u1', {
+      expectedRevision: 15,
+      undoEntryId: 'undo-1',
+      idempotencyKey: 'direct-undo-key',
     });
     expect(onlineRoomService.touchInGameMemberByMatch).toHaveBeenCalledWith('m1', 'u1');
   });

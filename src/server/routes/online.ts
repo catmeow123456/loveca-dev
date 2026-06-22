@@ -43,6 +43,7 @@ const undoRequestSchema = z.object({
 const undoRequestResponseSchema = z.object({
   expectedRevision: z.number().int().min(0),
   idempotencyKey: z.string().min(1).optional(),
+  grantContinuous: z.boolean().optional(),
 });
 
 onlineRouter.get('/admin/rooms', requireAuth, requireAdmin, async (_req, res) => {
@@ -462,6 +463,41 @@ onlineRouter.post('/matches/:matchId/advance', requireAuth, async (req, res) => 
       error: result.success
         ? null
         : { code: 'ADVANCE_REJECTED', message: result.error ?? '阶段推进失败' },
+    });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.post('/matches/:matchId/undo', requireAuth, async (req, res) => {
+  const parsed = undoRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '撤销参数非法' } });
+    return;
+  }
+
+  try {
+    const matchId = readPathParam(req.params.matchId);
+    const match = onlineMatchService.getMatch(matchId);
+    if (!match) {
+      respondMatchNotFound(res);
+      return;
+    }
+
+    const result = await onlineMatchService.undoLatest(match.matchId, req.user!.id, parsed.data);
+    if (!result) {
+      respondMatchForbidden(res);
+      return;
+    }
+
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
+    res.json({
+      data: result,
+      error: result.success
+        ? null
+        : { code: 'UNDO_REJECTED', message: result.error ?? '撤销失败' },
     });
   } catch (error) {
     respondOnlineError(res, error);

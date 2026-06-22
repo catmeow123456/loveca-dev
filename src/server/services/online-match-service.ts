@@ -18,6 +18,7 @@ import type {
   OnlineMatchSnapshotResponse,
   OnlineUndoView,
   Seat,
+  UndoEntrySummary,
   UndoPolicy,
   UndoRuntimeCaptureCursor,
 } from '../../online/index.js';
@@ -96,6 +97,7 @@ export interface OnlineMatchState {
   recordBranchId: string;
   recordCaptureCursor: UndoRuntimeCaptureCursor;
   pendingUndoRequest: OnlineUndoRequestState | null;
+  activeUndoGrant: OnlineUndoGrantState | null;
   readonly appliedUndoKeys: Set<string>;
   updatedAt: number;
   lastActivityAt: number;
@@ -121,11 +123,23 @@ interface OnlineUndoRequestState {
   readonly idempotencyKey: string | null;
 }
 
+interface OnlineUndoGrantState {
+  readonly grantId: string;
+  readonly requesterSeat: Seat;
+  readonly requesterUserId: string;
+  readonly grantorSeat: Seat;
+  readonly grantorUserId: string;
+  readonly boundaryKey: string;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+}
+
 export interface CreateUndoRequestInput extends RemoteUndoInput {}
 
 export interface RespondUndoRequestInput {
   readonly expectedRevision: number;
   readonly idempotencyKey?: string | null;
+  readonly grantContinuous?: boolean;
 }
 
 interface OnlineMatchServiceDeps {
@@ -228,6 +242,7 @@ export class OnlineMatchService {
         gameEventSeq: 0,
       },
       pendingUndoRequest: null,
+      activeUndoGrant: null,
       appliedUndoKeys: new Set<string>(),
       updatedAt: now,
       lastActivityAt: now,
@@ -361,6 +376,7 @@ export class OnlineMatchService {
     }
 
     await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expireActiveUndoGrantIfNeeded(match);
     touchMatch(match);
     const currentSeq = match.remoteRevision;
     if (options.sinceSeq !== undefined && options.sinceSeq >= currentSeq) {
@@ -439,6 +455,9 @@ export class OnlineMatchService {
     if (match.pendingUndoRequest) {
       await this.expirePendingUndoRequest(match, '新命令已执行，撤销请求失效');
     }
+    if (match.activeUndoGrant) {
+      await this.expireActiveUndoGrant(match, '新命令已执行，连续撤销授权失效');
+    }
 
     await this.sealCompletedMatchIfNeeded(match);
 
@@ -507,6 +526,9 @@ export class OnlineMatchService {
     if (match.pendingUndoRequest) {
       await this.expirePendingUndoRequest(match, '阶段已推进，撤销请求失效');
     }
+    if (match.activeUndoGrant) {
+      await this.expireActiveUndoGrant(match, '阶段已推进，连续撤销授权失效');
+    }
 
     await this.sealCompletedMatchIfNeeded(match);
 
@@ -552,6 +574,8 @@ export class OnlineMatchService {
       return null;
     }
 
+    await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expireActiveUndoGrantIfNeeded(match);
     const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
     const appliedUndoKey = idempotencyKey
       ? `${input.undoEntryId}:${idempotencyKey}`
@@ -588,6 +612,22 @@ export class OnlineMatchService {
         error: '撤销目标已变化，请刷新后重试',
       };
     }
+    if (policy === 'REMOTE_REQUEST') {
+      if (match.pendingUndoRequest) {
+        touchMatch(match);
+        return {
+          success: false,
+          error: '已有撤销请求待处理',
+        };
+      }
+      if (!getUsableUndoGrant(match, participant, availability.entry)) {
+        touchMatch(match);
+        return {
+          success: false,
+          error: '正式联机需要对手同意后才能撤销',
+        };
+      }
+    }
 
     const undoResult = match.session.undoLastStepForPlayer(
       participant.playerId,
@@ -616,6 +656,7 @@ export class OnlineMatchService {
     if (appliedUndoKey) {
       match.appliedUndoKeys.add(appliedUndoKey);
     }
+    await this.expireActiveUndoGrantIfNoLongerUsable(match);
 
     return {
       success: true,
@@ -639,6 +680,7 @@ export class OnlineMatchService {
     }
 
     await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expireActiveUndoGrantIfNeeded(match);
     const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
     if (
       idempotencyKey &&
@@ -688,6 +730,13 @@ export class OnlineMatchService {
       return {
         success: false,
         error: '撤销目标已变化，请刷新后重试',
+      };
+    }
+    if (getUsableUndoGrant(match, participant, availability.entry)) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '已有连续撤销授权，可直接撤销',
       };
     }
 
@@ -740,6 +789,7 @@ export class OnlineMatchService {
     }
 
     await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expireActiveUndoGrantIfNeeded(match);
     const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
     const acceptedUndoKey = idempotencyKey
       ? buildUndoRequestSettlementKey('accept', requestId, participant.userId, idempotencyKey)
@@ -798,12 +848,37 @@ export class OnlineMatchService {
     }
 
     match.pendingUndoRequest = null;
+    match.activeUndoGrant = null;
+    if (input.grantContinuous) {
+      const nextAvailability = match.session.getUndoAvailability(
+        requester.playerId,
+        'REMOTE_REQUEST'
+      );
+      if (
+        nextAvailability.canUndoNow &&
+        nextAvailability.entry?.boundaryKey === availability.entry.boundaryKey
+      ) {
+        const now = this.now();
+        match.activeUndoGrant = {
+          grantId: `${request.requestId}:continuous`,
+          requesterSeat: request.requesterSeat,
+          requesterUserId: request.requesterUserId,
+          grantorSeat: request.responderSeat,
+          grantorUserId: request.responderUserId,
+          boundaryKey: availability.entry.boundaryKey,
+          createdAt: now,
+          expiresAt: now + UNDO_REQUEST_TTL_MS,
+        };
+      }
+    }
     incrementRemoteRevision(match);
     touchMatch(match);
     // 接受请求这个记录事实仍属于原 recordBranch；权威状态已在上方回滚。
     // 本帧不写 checkpoint，下面的 UNDO_APPLIED 才开启回滚后的新记录分支。
     await this.appendSessionRecordFrame(match, 'UNDO_ACCEPTED', {
-      summary: `接受撤销请求：${request.summary}`,
+      summary: input.grantContinuous
+        ? `接受撤销请求并允许连续撤销：${request.summary}`
+        : `接受撤销请求：${request.summary}`,
       force: true,
       writeAuthorityCheckpoint: false,
       dedupeKey: `${match.recordBranchId}:UNDO_ACCEPTED:${request.requestId}:${match.remoteRevision}`,
@@ -847,6 +922,7 @@ export class OnlineMatchService {
     }
 
     await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expireActiveUndoGrantIfNeeded(match);
     const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
     const rejectedUndoKey = idempotencyKey
       ? buildUndoRequestSettlementKey('reject', requestId, participant.userId, idempotencyKey)
@@ -971,6 +1047,55 @@ export class OnlineMatchService {
       force: true,
       writeAuthorityCheckpoint: false,
       dedupeKey: `${match.recordBranchId}:UNDO_EXPIRED:${request.requestId}:${match.remoteRevision}`,
+    });
+  }
+
+  private async expireActiveUndoGrantIfNeeded(match: OnlineMatchState): Promise<void> {
+    const grant = match.activeUndoGrant;
+    if (!grant || grant.expiresAt > this.now()) {
+      return;
+    }
+    await this.expireActiveUndoGrant(match, '连续撤销授权已超时');
+  }
+
+  private async expireActiveUndoGrantIfNoLongerUsable(
+    match: OnlineMatchState
+  ): Promise<void> {
+    const grant = match.activeUndoGrant;
+    if (!grant) {
+      return;
+    }
+
+    const requester = match.participants[grant.requesterSeat];
+    const availability = match.session.getUndoAvailability(requester.playerId, 'REMOTE_REQUEST');
+    if (
+      availability.canUndoNow &&
+      availability.entry &&
+      getUsableUndoGrant(match, requester, availability.entry)
+    ) {
+      return;
+    }
+
+    await this.expireActiveUndoGrant(match, '连续撤销授权已无可撤销目标');
+  }
+
+  private async expireActiveUndoGrant(
+    match: OnlineMatchState,
+    summary: string
+  ): Promise<void> {
+    const grant = match.activeUndoGrant;
+    if (!grant) {
+      return;
+    }
+
+    match.activeUndoGrant = null;
+    incrementRemoteRevision(match);
+    touchMatch(match);
+    await this.appendSessionRecordFrame(match, 'UNDO_EXPIRED', {
+      summary,
+      force: true,
+      writeAuthorityCheckpoint: false,
+      dedupeKey: `${match.recordBranchId}:UNDO_GRANT_EXPIRED:${grant.grantId}:${match.remoteRevision}`,
     });
   }
 
@@ -1414,6 +1539,15 @@ function buildOnlineUndoView(
 ): OnlineUndoView {
   const policy = deriveRemoteUndoPolicy(match, participant);
   const base = match.session.getUndoAvailability(participant.playerId, policy);
+  const grant = match.activeUndoGrant
+    ? {
+        grantId: match.activeUndoGrant.grantId,
+        requesterSeat: match.activeUndoGrant.requesterSeat,
+        grantorSeat: match.activeUndoGrant.grantorSeat,
+        boundaryKey: match.activeUndoGrant.boundaryKey,
+        expiresAt: new Date(match.activeUndoGrant.expiresAt).toISOString(),
+      }
+    : null;
   const pendingRequest = match.pendingUndoRequest
     ? {
         requestId: match.pendingUndoRequest.requestId,
@@ -1426,7 +1560,10 @@ function buildOnlineUndoView(
     : null;
 
   if (!pendingRequest) {
-    return base;
+    return {
+      ...base,
+      grant,
+    };
   }
 
   return {
@@ -1434,7 +1571,26 @@ function buildOnlineUndoView(
     canUndoNow: false,
     disabledReason: '已有撤销请求待处理',
     pendingRequest,
+    grant,
   };
+}
+
+function getUsableUndoGrant(
+  match: OnlineMatchState,
+  participant: OnlineMatchParticipant,
+  entry: UndoEntrySummary | null
+): OnlineUndoGrantState | null {
+  const grant = match.activeUndoGrant;
+  if (!grant || !entry) {
+    return null;
+  }
+  if (grant.requesterSeat !== participant.seat || grant.requesterUserId !== participant.userId) {
+    return null;
+  }
+  if (grant.boundaryKey !== entry.boundaryKey) {
+    return null;
+  }
+  return grant;
 }
 
 function getOpponentSeat(seat: Seat): Seat {

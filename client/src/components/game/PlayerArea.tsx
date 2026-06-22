@@ -190,7 +190,18 @@ export const PlayerArea = memo(function PlayerArea({
   const isDragging = useGameStore((s) => s.ui.isDragging);
   const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
   const canShowUndo = capabilities.undoPolicy !== 'NONE';
-  const undoButtonLabel = capabilities.undoPolicy === 'REMOTE_REQUEST' ? '请求撤销' : '撤销';
+  const undoGrant = matchView?.undo?.grant ?? null;
+  const hasViewerUndoGrant =
+    !!undoGrant &&
+    !!viewerSeat &&
+    undoGrant.requesterSeat === viewerSeat &&
+    undoGrant.boundaryKey === matchView?.undo?.entry?.boundaryKey;
+  const undoButtonLabel =
+    capabilities.undoPolicy === 'REMOTE_REQUEST'
+      ? hasViewerUndoGrant
+        ? '继续撤销'
+        : '请求撤销'
+      : '撤销';
   const isReadOnly = capabilities.isReadOnly;
   const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
   const canOpenInspection = useGameStore((s) => s.canUseAction(GameCommandType.OPEN_INSPECTION));

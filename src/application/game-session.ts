@@ -687,9 +687,6 @@ export class GameSession {
     if (entry.actorPlayerId !== playerId) {
       return createUndoAvailability(policy, false, entry, '只能撤销自己最近一次操作');
     }
-    if (policy === 'REMOTE_REQUEST' && entry.hasHumanOpponentReveal) {
-      return createUndoAvailability(policy, false, entry, '该操作已公开隐藏信息，暂不支持远程撤销');
-    }
     if (policy === 'REMOTE_REQUEST' && entry.hasRandomOrShuffle) {
       return createUndoAvailability(
         policy,
@@ -4393,6 +4390,7 @@ function createUndoAvailability(
     disabledReason,
     entry,
     pendingRequest: null,
+    grant: null,
   };
 }
 

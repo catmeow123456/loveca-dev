@@ -233,12 +233,31 @@ export async function createOnlineUndoRequest(
   return response.data;
 }
 
+export async function undoOnlineMatch(
+  matchId: string,
+  input: {
+    readonly expectedRevision: number;
+    readonly undoEntryId: string;
+    readonly idempotencyKey?: string;
+  }
+): Promise<OnlineCommandResult> {
+  const response = await apiClient.post<OnlineCommandResult>(
+    `/api/online/matches/${encodeURIComponent(matchId)}/undo`,
+    input
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '联机撤销失败');
+  }
+  return response.data;
+}
+
 export async function acceptOnlineUndoRequest(
   matchId: string,
   requestId: string,
   input: {
     readonly expectedRevision: number;
     readonly idempotencyKey?: string;
+    readonly grantContinuous?: boolean;
   }
 ): Promise<OnlineCommandResult> {
   const response = await apiClient.post<OnlineCommandResult>(

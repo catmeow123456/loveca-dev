@@ -3,9 +3,10 @@
 > 文档类型：需求设计与实施文档
 > 适用范围：服务端可记录对墙打、正式联机、远程调试联机的撤销能力恢复
 > 当前状态：首版实施中（P0/P1/P2/P3/P4 已落地；P5 远程调试与体验收束未完成）
-> 最后更新：2026-06-20
+> 最后更新：2026-06-23
 
 > 2026-06-20 实施标记：已完成服务端可记录对墙打即时撤销首版，包括受控 undo entry、`remoteRevision`、`UNDO_APPLIED` recorder frame、事件明细 timeline 身份、`undoPolicy` 与 `/api/battle/solitaire-matches/:matchId/undo`。已完成正式联机请求式撤销首版，包括 undo request runtime state、`UNDO_REQUESTED/ACCEPTED/REJECTED/EXPIRED` frame、`/api/online/matches/:matchId/undo-requests` 系列接口、`pendingRequest` 投影、前端请求/响应弹窗、超时和新命令失效。远程调试撤销策略、回放时间线撤销节点增强展示仍未实现。
+> 2026-06-23 实施标记：正式联机请求式撤销补充“允许连续撤销”选项。对手接受请求时可授权发起方在同一撤销边界内继续直接撤销，不需要每一步重复确认；授权会在超时、阶段推进、新命令、撤销目标不再连续时失效。正式联机 direct undo 接口仍由服务端校验，未获得连续授权时不能绕过对手同意。
 
 ## 1. 背景
 
@@ -97,7 +98,7 @@
 - `UNDO_REQUESTED`：正式联机中玩家发起撤销请求。
 - `UNDO_ACCEPTED`：对手接受撤销请求。
 - `UNDO_REJECTED`：对手拒绝或服务端拒绝撤销请求。
-- `UNDO_EXPIRED`：撤销请求超时或被新命令失效。
+- `UNDO_EXPIRED`：撤销请求或连续撤销授权超时、被新命令失效，或已经没有可继续撤销的目标。
 - `UNDO_APPLIED`：撤销已应用并写入新的 authority checkpoint。
 
 服务端应用撤销后，`GameSession` 内部 public/command/audit seq 可能回退。此时不能再依赖 `session.getPublicEventsSince(cursor.lastPublicSeq)` 这类增量读取来生成撤销事实；撤销 frame 应由服务层/recorder 以显式输入追加。
@@ -158,8 +159,9 @@
 - 远程撤销：服务端 `GameSession` 接受撤销请求后回退权威状态，再广播或返回新投影。
 - 撤销单位：一次玩家命令及其服务端自动后续处理形成的操作组。例如登场和自动支付费用应作为一个单位撤销。
 - 撤销边界：当前本地实现以阶段、子阶段、活跃玩家、等待玩家等上下文区分操作窗口。边界变化后，旧撤销历史应失效。
-- 信息不可逆边界：已经向人类对手公开此前不知道的隐藏信息、产生对方后续决策，或进入无法解释的随机/洗切事实。第一版正式联机默认不允许普通撤销跨越这些边界。
+- 信息不可逆边界：已经产生对方后续决策，或进入无法解释的随机/洗切事实。已经向人类对手公开此前不知道的隐藏信息时，可以请求撤销，但只能回滚局面，不能消除对方已经看见的信息。
 - 撤销请求：正式联机中，玩家发起、对手接受或拒绝的远程撤销流程。
+- 连续撤销授权：正式联机中，对手接受一次撤销请求时额外给出的临时授权。授权只适用于同一撤销边界内、同一发起方的连续最新 undo entry；换阶段、有新命令、超时或目标变化后失效。
 - `remoteRevision`：运行中远程 snapshot 同步版本，独立于 public event seq。
 - `recordBranchId`：记录层用于区分撤销前旧事实链与撤销后新事实链的分支身份；它不是用户可见对局 ID。
 - runtime capture cursor：服务层用于从当前 `GameSession` 采集 public/private/audit/command/game event 增量的运行时游标。它可以在撤销后回退，不等同于持久记录表中的最大 seq 游标。
@@ -201,11 +203,12 @@
 要求：
 
 - 玩家点击按钮后创建撤销请求，而不是立即回滚。
-- 对手看到请求弹窗，内容至少包含发起方、拟撤销操作摘要和可接受/拒绝按钮。
+- 对手看到请求弹窗，内容至少包含发起方、拟撤销操作摘要，以及拒绝、接受一步、允许连续撤销按钮。
 - 对手接受后，服务端再次校验撤销请求仍指向当前最新 undo entry 和当前 revision；通过后执行撤销。
+- 对手选择允许连续撤销时，服务端在首次回滚后创建短期 grant。发起方之后可以在同一撤销边界内继续直接撤销自己的最新操作，不再逐步打扰对手。
 - 对手拒绝、超时或期间任一方继续提交改变状态的命令时，请求失效。
-- 正式联机第一版只允许撤销最新操作组，不支持连续回退多步。
-- 涉及已向人类对手公开隐藏信息的操作，首版默认不可请求撤销。
+- 连续撤销授权不等于整回合授权。它只覆盖当前操作窗口中连续、仍合法的 undo entry；阶段、子阶段、活跃玩家、等待玩家或新命令改变后失效。
+- 涉及已向人类对手公开隐藏信息的操作，可以请求撤销；对手接受后只回滚局面，不能消除对手已经看见的信息。
 
 ### 7.3 UI 需求
 
@@ -224,6 +227,7 @@ type UndoPolicy =
 - `LOCAL_IMMEDIATE`：按钮文案“撤销”，调用本地撤销。
 - `REMOTE_IMMEDIATE`：按钮文案“撤销”，调用服务端撤销接口。
 - `REMOTE_REQUEST`：按钮文案“请求撤销”，调用服务端请求接口。
+- `REMOTE_REQUEST` 且当前视角存在连续撤销授权时：按钮文案可以显示“继续撤销”，调用服务端 direct undo 接口；服务端仍必须校验 grant、revision、undo entry 和边界。
 - `NONE`：隐藏按钮。
 - 当策略允许但当前无可撤销内容时，按钮保留但禁用，tooltip 或日志展示原因。
 
@@ -270,14 +274,14 @@ type UndoPolicy =
 
 正式联机首版默认不允许撤销以下操作：
 
-- 已经向人类对手公开此前不知道的隐藏卡牌。
-- 已经让人类对手看到检视内容或手牌内容。
 - 已经进行洗牌、刷新、随机顺序变更，且没有明确的恢复和记录策略。
 - 已经产生对方后续命令。
 
-服务端可记录对墙打可放宽前两项，因为系统对手不是人类信息接收者。随机/洗切操作如果有完整 authority snapshot，可恢复运行中状态；但 recorder 必须写入新的 checkpoint，并在回放中把撤销作为新事实展示。
+已经向人类对手公开此前不知道的隐藏卡牌，或已经让人类对手看到检视内容、手牌内容时，可以请求撤销；对手接受后只回滚局面，不能消除对手已经看见的信息。
 
-如果未来要允许双方同意后撤销已公开隐藏信息的正式联机操作，需要在请求弹窗中明确提示“信息已经公开，撤销不能消除对方已知信息”，并单独做规则讨论。
+服务端可记录对墙打没有真实人类对手接收隐藏信息。随机/洗切操作如果有完整 authority snapshot，可恢复运行中状态；但 recorder 必须写入新的 checkpoint，并在回放中把撤销作为新事实展示。
+
+正式联机当前已允许双方同意后撤销已公开隐藏信息的操作。请求弹窗必须明确提示“信息已经公开，撤销不能消除对方已知信息”；随机/洗切操作仍默认不放开。
 
 ## 9. 架构设计
 
@@ -446,6 +450,14 @@ interface UndoRequestView {
   readonly summary: string;
   readonly expiresAt: string;
 }
+
+interface UndoGrantView {
+  readonly grantId: string;
+  readonly requesterSeat: Seat;
+  readonly grantorSeat: Seat;
+  readonly boundaryKey: string;
+  readonly expiresAt: string;
+}
 ```
 
 后续可把 `/api/online` 和 `/api/battle` 收敛到统一 service 层，路由可以先按现有入口保留。
@@ -461,6 +473,7 @@ interface OnlineUndoView {
   readonly disabledReason: string | null;
   readonly entry: UndoEntrySummary | null;
   readonly pendingRequest: UndoRequestView | null;
+  readonly grant: UndoGrantView | null;
 }
 
 interface MatchViewState {
@@ -562,22 +575,25 @@ interface MatchViewState {
 
 ### P4：正式联机请求式撤销
 
-状态：已完成（2026-06-20 首版）。
+状态：已完成（2026-06-20 首版；2026-06-23 补充连续撤销授权）。
 
 范围：
 
 - 新增 undo request runtime state。
 - 增加创建、接受、拒绝、超时失效接口。
+- 增加连续撤销授权与 `/api/online/matches/:matchId/undo` direct undo 校验；没有授权时 direct undo 仍会被拒绝。
 - 前端实现请求弹窗与状态刷新。
-- 对手接受后执行同一受控撤销入口。
+- 对手接受后执行同一受控撤销入口；若选择允许连续撤销，同一撤销边界内后续撤销不再重复弹请求。
 
 验收：
 
 - A 发起请求，B 拒绝后状态不变。
 - A 发起请求，B 接受后双方桌面同步回退。
+- A 发起请求，B 选择允许连续撤销后，A 可继续撤销同一操作窗口内的上一条最新 undo entry。
 - 请求期间如果出现新命令，旧请求失效。
 - 非参与者、错误 seat、旧 revision 请求均被拒绝。
-- 涉及人类对手已看到隐藏信息的操作默认不可请求。
+- 没有连续授权时，正式联机 direct undo 不能绕过对手同意。
+- 涉及人类对手已看到隐藏信息的操作可以请求撤销，但弹窗提示已知信息不会被消除。
 
 ### P5：远程调试与体验收束
 
@@ -632,8 +648,9 @@ interface MatchViewState {
 - 服务端可记录对墙打：登场、支付费用、移动成员、确认卡效后尝试撤销。
 - 服务端可记录对墙打：没有 undo entry、旧 revision、重复 idempotency key、非参与用户、系统对手均被正确处理。
 - 正式联机：两浏览器分别测试接受、拒绝、超时。
+- 正式联机：两浏览器测试“允许连续撤销”，确认同一操作窗口可连撤，换阶段或有新动作后授权失效。
 - 对手已操作后，旧撤销请求失效。
-- 涉及人类对手已看到隐藏信息的动作默认不可撤销。
+- 涉及人类对手已看到隐藏信息的动作可以请求撤销；撤销后只回滚局面，不消除已看到的信息。
 
 ## 12. 风险与注意事项
 
@@ -645,7 +662,7 @@ interface MatchViewState {
 - 不要让 public/private event 表只按 `match_id + event_seq` 去重，否则撤销后复用的 event seq 会被静默丢弃。
 - 不要删除历史记录行。撤销是新事实，不是抹掉旧事实。
 - 不要跨玩家后续命令撤销。正式联机必须保护对手基于局面的决策。
-- 不要默认撤销人类对手已看到的隐藏信息。看过的牌无法从玩家记忆中移除。
+- 不要把撤销描述成能抹掉人类对手已看到的隐藏信息。看过的牌无法从玩家记忆中移除。
 - 不要把系统对手当真实用户授权。服务端可记录对墙打只能由真实 FIRST 座位用户撤销。
 - 不要把 replay readonly 复用成撤销入口。回放只能读。
 - 不要让撤销请求长期挂起。需要超时和新命令失效机制。

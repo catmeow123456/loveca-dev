@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createDrawCardToHandCommand,
   createMulliganCommand,
+  createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import type { DeckConfig } from '../../src/application/game-service';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
@@ -11,6 +12,7 @@ import {
   GameEndReason,
   GamePhase,
   HeartColor,
+  SlotPosition,
   SubPhase,
 } from '../../src/shared/types/enums';
 import {
@@ -628,6 +630,213 @@ describe('OnlineRoomService', () => {
     expect(acceptedFrameObserved).toBe(true);
     expect(match.session.state?.players[0].hand.cardIds).toHaveLength(initialHandCount);
     expect(match.session.state?.players[0].mainDeck.cardIds).toHaveLength(initialDeckCount);
+  });
+
+  it('正式联机成员从手牌登场后应允许对手同意撤销', async () => {
+    let now = 5_875_000;
+    const matchService = new OnlineMatchService({ now: () => now, recorder: null });
+    const match = await matchService.createMatch({
+      roomCode: 'UNDO06',
+      startedAt: now,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+    forceMainPhaseForFirst(match);
+
+    const firstPlayer = match.session.state!.players[0];
+    const memberCardId = firstPlayer.hand.cardIds.find(
+      (cardId) => match.session.state!.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    expect(memberCardId).toBeTruthy();
+    expect(firstPlayer.memberSlots.slots[SlotPosition.CENTER]).toBeNull();
+    const initialHandCardIds = [...firstPlayer.hand.cardIds];
+
+    const commandResult = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createPlayMemberToSlotCommand(
+        'ignored-client-player-id',
+        memberCardId!,
+        SlotPosition.CENTER,
+        { freePlay: true }
+      )
+    );
+    expect(commandResult?.success).toBe(true);
+    expect(match.session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(
+      memberCardId
+    );
+    expect(match.session.state?.players[0].hand.cardIds).not.toContain(memberCardId);
+
+    const undoView = commandResult?.snapshot?.playerViewState.match.undo;
+    expect(undoView).toMatchObject({
+      policy: 'REMOTE_REQUEST',
+      canUndoNow: true,
+      disabledReason: null,
+    });
+    expect(undoView?.entry).toMatchObject({
+      label: 'PLAY_MEMBER_TO_SLOT',
+      hasHumanOpponentReveal: true,
+    });
+
+    now += 1_000;
+    const requestResult = await matchService.createUndoRequest(match.matchId, 'u1', {
+      expectedRevision: commandResult!.snapshot!.seq,
+      undoEntryId: undoView!.entry!.undoEntryId,
+      idempotencyKey: 'request-member-play',
+    });
+    expect(requestResult?.success).toBe(true);
+    const requestId = requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
+    expect(requestId).toBeTruthy();
+
+    now += 1_000;
+    const acceptResult = await matchService.acceptUndoRequest(match.matchId, 'u2', requestId!, {
+      expectedRevision: requestResult!.snapshot!.seq,
+      idempotencyKey: 'accept-member-play',
+    });
+
+    expect(acceptResult?.success).toBe(true);
+    expect(match.session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBeNull();
+    expect(match.session.state?.players[0].hand.cardIds).toEqual(initialHandCardIds);
+  });
+
+  it('正式联机没有连续授权时不允许直接撤销绕过对手', async () => {
+    let now = 5_890_000;
+    const matchService = new OnlineMatchService({ now: () => now, recorder: null });
+    const match = await matchService.createMatch({
+      roomCode: 'UNDO07',
+      startedAt: now,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+    forceMainPhaseForFirst(match);
+
+    const initialHandCount = match.session.state!.players[0].hand.cardIds.length;
+    const commandResult = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored-client-player-id')
+    );
+    expect(commandResult?.success).toBe(true);
+    const undoEntry = commandResult?.snapshot?.playerViewState.match.undo?.entry;
+    expect(undoEntry).toBeTruthy();
+
+    now += 1_000;
+    const directUndoResult = await matchService.undoLatest(match.matchId, 'u1', {
+      expectedRevision: commandResult!.snapshot!.seq,
+      undoEntryId: undoEntry!.undoEntryId,
+      idempotencyKey: 'direct-without-grant',
+    });
+
+    expect(directUndoResult).toMatchObject({
+      success: false,
+      error: '正式联机需要对手同意后才能撤销',
+    });
+    expect(match.session.state?.players[0].hand.cardIds).toHaveLength(initialHandCount + 1);
+  });
+
+  it('正式联机对手可授权同一操作窗口连续撤销', async () => {
+    let now = 5_895_000;
+    const matchService = new OnlineMatchService({ now: () => now, recorder: null });
+    const match = await matchService.createMatch({
+      roomCode: 'UNDO08',
+      startedAt: now,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+    forceMainPhaseForFirst(match);
+
+    const initialHandCount = match.session.state!.players[0].hand.cardIds.length;
+    const initialDeckCount = match.session.state!.players[0].mainDeck.cardIds.length;
+    const firstDraw = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored-client-player-id')
+    );
+    expect(firstDraw?.success).toBe(true);
+    const firstUndoEntry = firstDraw?.snapshot?.playerViewState.match.undo?.entry;
+    expect(firstUndoEntry).toBeTruthy();
+
+    now += 500;
+    const secondDraw = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createDrawCardToHandCommand('ignored-client-player-id')
+    );
+    expect(secondDraw?.success).toBe(true);
+    const secondUndoEntry = secondDraw?.snapshot?.playerViewState.match.undo?.entry;
+    expect(secondUndoEntry).toBeTruthy();
+    expect(secondUndoEntry?.boundaryKey).toBe(firstUndoEntry?.boundaryKey);
+    expect(match.session.state?.players[0].hand.cardIds).toHaveLength(initialHandCount + 2);
+    expect(match.session.state?.players[0].mainDeck.cardIds).toHaveLength(initialDeckCount - 2);
+
+    now += 500;
+    const requestResult = await matchService.createUndoRequest(match.matchId, 'u1', {
+      expectedRevision: secondDraw!.snapshot!.seq,
+      undoEntryId: secondUndoEntry!.undoEntryId,
+      idempotencyKey: 'request-continuous',
+    });
+    expect(requestResult?.success).toBe(true);
+    const requestId = requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
+    expect(requestId).toBeTruthy();
+
+    now += 500;
+    const acceptResult = await matchService.acceptUndoRequest(match.matchId, 'u2', requestId!, {
+      expectedRevision: requestResult!.snapshot!.seq,
+      idempotencyKey: 'accept-continuous',
+      grantContinuous: true,
+    });
+    expect(acceptResult?.success).toBe(true);
+    expect(match.session.state?.players[0].hand.cardIds).toHaveLength(initialHandCount + 1);
+    expect(match.session.state?.players[0].mainDeck.cardIds).toHaveLength(initialDeckCount - 1);
+
+    const requesterSnapshot = await matchService.getMatchSnapshot(match.matchId, 'u1');
+    const continuousUndoView = requesterSnapshot?.playerViewState.match.undo;
+    expect(continuousUndoView?.grant).toMatchObject({
+      requesterSeat: 'FIRST',
+      grantorSeat: 'SECOND',
+      boundaryKey: firstUndoEntry?.boundaryKey,
+    });
+    expect(continuousUndoView).toMatchObject({
+      canUndoNow: true,
+      disabledReason: null,
+    });
+    expect(continuousUndoView?.entry?.undoEntryId).toBe(firstUndoEntry?.undoEntryId);
+
+    now += 500;
+    const directUndoResult = await matchService.undoLatest(match.matchId, 'u1', {
+      expectedRevision: requesterSnapshot!.seq,
+      undoEntryId: continuousUndoView!.entry!.undoEntryId,
+      idempotencyKey: 'direct-with-continuous-grant',
+    });
+
+    expect(directUndoResult?.success).toBe(true);
+    expect(match.session.state?.players[0].hand.cardIds).toHaveLength(initialHandCount);
+    expect(match.session.state?.players[0].mainDeck.cardIds).toHaveLength(initialDeckCount);
+    expect(directUndoResult?.snapshot?.playerViewState.match.undo?.grant).toBeNull();
   });
 
   it('正式联机撤销请求被拒绝后应只清除 pending 并保留原动作', async () => {

@@ -51,12 +51,21 @@ export interface UndoRequestView {
   readonly expiresAt: string;
 }
 
+export interface UndoGrantView {
+  readonly grantId: string;
+  readonly requesterSeat: Seat;
+  readonly grantorSeat: Seat;
+  readonly boundaryKey: string;
+  readonly expiresAt: string;
+}
+
 export interface OnlineUndoView {
   readonly policy: UndoPolicy;
   readonly canUndoNow: boolean;
   readonly disabledReason: string | null;
   readonly entry: UndoEntrySummary | null;
   readonly pendingRequest: UndoRequestView | null;
+  readonly grant: UndoGrantView | null;
 }
 
 export type ViewerSurface = 'NONE' | 'BACK' | 'FRONT';

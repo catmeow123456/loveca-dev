@@ -139,8 +139,24 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const canShowDebugLog = capabilities.canShowDebugLog;
   const isReadOnly = capabilities.isReadOnly;
   const canShowUndo = capabilities.undoPolicy !== 'NONE';
-  const undoButtonLabel = capabilities.undoPolicy === 'REMOTE_REQUEST' ? '请求撤销' : '撤销';
-  const mobileUndoButtonLabel = capabilities.undoPolicy === 'REMOTE_REQUEST' ? '请求' : '撤销';
+  const undoGrant = matchView?.undo?.grant ?? null;
+  const hasViewerUndoGrant =
+    !!undoGrant &&
+    !!matchView?.viewerSeat &&
+    undoGrant.requesterSeat === matchView.viewerSeat &&
+    undoGrant.boundaryKey === matchView.undo?.entry?.boundaryKey;
+  const undoButtonLabel =
+    capabilities.undoPolicy === 'REMOTE_REQUEST'
+      ? hasViewerUndoGrant
+        ? '继续撤销'
+        : '请求撤销'
+      : '撤销';
+  const mobileUndoButtonLabel =
+    capabilities.undoPolicy === 'REMOTE_REQUEST'
+      ? hasViewerUndoGrant
+        ? '撤销'
+        : '请求'
+      : '撤销';
   const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
   const undoLastStep = useGameStore((s) => s.undoLastStep);
   const prevPhaseRef = useRef<GamePhase | null>(null);
@@ -1953,6 +1969,14 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
                     {pendingUndoRequest.summary}
                   </p>
+                  <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">
+                    如果这一步公开了隐藏信息，撤销只回滚局面，不能消除已经看到的信息。
+                  </p>
+                  {pendingUndoCanRespond && (
+                    <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
+                      也可以允许对手连续撤销这一串操作；换阶段或有新动作后会失效。
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1979,6 +2003,19 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   >
                     <Check className="h-4 w-4" aria-hidden="true" />
                     接受
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!pendingUndoCanRespond}
+                    onClick={() =>
+                      respondRemoteUndoRequest(pendingUndoRequest.requestId, true, {
+                        grantContinuous: true,
+                      })
+                    }
+                    className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
+                  >
+                    <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                    允许连续
                   </button>
                 </div>
               )}

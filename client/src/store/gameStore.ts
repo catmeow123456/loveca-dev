@@ -153,6 +153,10 @@ export interface PlayMemberToSlotOptions {
   readonly relayReplacementSlots?: readonly SlotPosition[];
 }
 
+export interface RemoteUndoResponseOptions {
+  readonly grantContinuous?: boolean;
+}
+
 export interface UIState {
   /** 当前选中的卡牌 ID */
   selectedCardId: string | null;
@@ -238,7 +242,11 @@ export interface GameStore {
   /** 撤销本地上一步 */
   undoLastStep: () => CommandDispatchResult;
   /** 处理正式联机撤销请求 */
-  respondRemoteUndoRequest: (requestId: string, accepted: boolean) => CommandDispatchResult;
+  respondRemoteUndoRequest: (
+    requestId: string,
+    accepted: boolean,
+    options?: RemoteUndoResponseOptions
+  ) => CommandDispatchResult;
   /** 选择卡牌 */
   selectCard: (cardId: string | null) => void;
   /** 取消选择 */
@@ -884,11 +892,11 @@ export const useGameStore = create<GameStore>((set, get) => {
       return { success: true };
     },
 
-    respondRemoteUndoRequest: (requestId, accepted) => {
+    respondRemoteUndoRequest: (requestId, accepted, options) => {
       if (isReadonlyReplayMode()) {
         return rejectReadonlyReplayCommand();
       }
-      return dispatchRemoteUndoRequestResponse(requestId, accepted);
+      return dispatchRemoteUndoRequestResponse(requestId, accepted, options);
     },
 
     selectCard: (cardId) => {
@@ -2761,6 +2769,13 @@ function dispatchRemoteUndoRequest(): CommandDispatchResult {
       error: undoView?.disabledReason ?? '没有可请求撤销的步骤',
     };
   }
+  if (
+    undoView.grant &&
+    undoView.grant.requesterSeat === store.playerViewState?.match.viewerSeat &&
+    undoView.grant.boundaryKey === undoEntry.boundaryKey
+  ) {
+    return dispatchRemoteUndoLastStep();
+  }
 
   const input = {
     expectedRevision: store.playerViewState?.match.seq ?? 0,
@@ -2795,7 +2810,8 @@ function dispatchRemoteUndoRequest(): CommandDispatchResult {
 
 function dispatchRemoteUndoRequestResponse(
   requestId: string,
-  accepted: boolean
+  accepted: boolean,
+  options: RemoteUndoResponseOptions = {}
 ): CommandDispatchResult {
   const store = useGameStore.getState();
   if (store.replaySession) {
@@ -2810,6 +2826,7 @@ function dispatchRemoteUndoRequestResponse(
   const input = {
     expectedRevision: store.playerViewState?.match.seq ?? 0,
     idempotencyKey: createClientIdempotencyKey(accepted ? 'undo-accept' : 'undo-reject'),
+    ...(accepted && options.grantContinuous ? { grantContinuous: true } : {}),
   };
   void enqueueRemoteSessionOperation(remoteSession, async () => {
     const result = accepted
