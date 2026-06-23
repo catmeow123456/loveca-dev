@@ -290,6 +290,7 @@ export const Card = memo(function Card({
       whileTap={interactive ? { scale: 0.98 } : undefined}
       layout={enableLayoutAnimation}
       data-card-id={instanceId}
+      data-object-id={instanceId ? `obj_${instanceId}` : undefined}
     >
       <AnimatePresence mode="wait">
         {faceUp ? (

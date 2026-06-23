@@ -13,6 +13,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragStartEvent,
+  type DragOverEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -28,6 +29,8 @@ import { CardDetailOverlay } from './CardDetailOverlay';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
 import { JudgmentPanel } from './JudgmentPanel';
 import { ScoreConfirmModal } from './ScoreConfirmModal';
+import { BattleAnimationLayer } from './BattleAnimationLayer';
+import { BattleActionFeedbackLayer } from './BattleActionFeedbackLayer';
 import { Card } from '@/components/card/Card';
 import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
@@ -55,10 +58,11 @@ import {
 import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType } from '@game/shared/types/enums';
 import { getPhaseConfig, getSubPhaseConfig } from '@game/shared/phase-config';
 import type { AnyCardData } from '@game/domain/entities/card';
-import type { Seat } from '@game/online';
+import type { PlayerViewState, Seat, ViewZoneKey } from '@game/online';
 
 const INSPECTION_TARGET_PREFIX = 'inspection-target-';
 const RESOLUTION_TARGET_PREFIX = 'resolution-target-';
+const ENTER_EFFECT_UI_SUSPEND_MS = 1160;
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 const MEMBER_SLOT_LABELS: Record<SlotPosition, string> = {
   [SlotPosition.LEFT]: '左侧',
@@ -66,11 +70,157 @@ const MEMBER_SLOT_LABELS: Record<SlotPosition, string> = {
   [SlotPosition.RIGHT]: '右侧',
 };
 
+interface DragActionDescriptor {
+  readonly label: string;
+  readonly detail?: string;
+  readonly blocked?: boolean;
+}
+
 type SpecialDragTarget =
   | { kind: 'inspection'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' }
   | { kind: 'resolution'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' };
 
 type MobileBattlePanel = 'opponent' | 'log';
+
+interface CardViewLocation {
+  readonly zoneType: string;
+  readonly key: string;
+}
+
+function getSpecialTargetActionLabel(target: SpecialDragTarget): DragActionDescriptor {
+  if (target.kind === 'inspection') {
+    switch (target.action) {
+      case 'HAND':
+        return { label: '加入手牌' };
+      case 'WAITING_ROOM':
+        return { label: '放入休息室' };
+      case 'MAIN_DECK_BOTTOM':
+        return { label: '放回卡组底' };
+      case 'MAIN_DECK_TOP':
+      default:
+        return { label: '放回卡组顶' };
+    }
+  }
+
+  switch (target.action) {
+    case 'HAND':
+      return { label: '回到手牌' };
+    case 'WAITING_ROOM':
+      return { label: '放入休息室' };
+    case 'MAIN_DECK_TOP':
+    default:
+      return { label: '放回卡组顶' };
+  }
+}
+
+function getDragActionDescriptor({
+  fromZone,
+  toZone,
+  targetSlot,
+  targetOccupied,
+  cardType,
+  currentPhase,
+  specialTarget,
+}: {
+  readonly fromZone: ZoneType;
+  readonly toZone?: ZoneType;
+  readonly targetSlot?: SlotPosition;
+  readonly targetOccupied: boolean;
+  readonly cardType: CardType | null;
+  readonly currentPhase: GamePhase | null;
+  readonly specialTarget?: SpecialDragTarget | null;
+}): DragActionDescriptor | null {
+  if (specialTarget) {
+    return getSpecialTargetActionLabel(specialTarget);
+  }
+
+  if (!toZone) {
+    return null;
+  }
+
+  if (cardType === CardType.ENERGY) {
+    if (toZone === ZoneType.HAND) return { label: '不能移入手牌', blocked: true };
+    if (toZone === ZoneType.LIVE_ZONE) return { label: '不能放入 Live 区', blocked: true };
+    if (toZone === ZoneType.SUCCESS_ZONE) return { label: '不能放入成功区', blocked: true };
+    if (toZone === ZoneType.WAITING_ROOM) return { label: '请回能量卡组', blocked: true };
+  }
+
+  if (cardType === CardType.LIVE) {
+    if (toZone === ZoneType.MEMBER_SLOT) return { label: '不能登场', blocked: true };
+    if (toZone === ZoneType.ENERGY_ZONE || toZone === ZoneType.ENERGY_DECK) {
+      return { label: '不能放入能量区', blocked: true };
+    }
+  }
+
+  if (cardType === CardType.MEMBER) {
+    if (
+      currentPhase === GamePhase.MAIN_PHASE &&
+      fromZone === ZoneType.HAND &&
+      toZone === ZoneType.LIVE_ZONE
+    ) {
+      return { label: '不能放入 Live 区', blocked: true };
+    }
+    if (toZone === ZoneType.ENERGY_ZONE || toZone === ZoneType.ENERGY_DECK) {
+      return { label: '不能放入能量区', blocked: true };
+    }
+  }
+
+  if (toZone === ZoneType.SUCCESS_ZONE && cardType !== CardType.LIVE) {
+    return { label: '仅 LIVE 可进成功区', blocked: true };
+  }
+
+  if (
+    toZone === ZoneType.LIVE_ZONE &&
+    cardType !== CardType.LIVE &&
+    !(currentPhase === GamePhase.LIVE_SET_PHASE && fromZone === ZoneType.HAND)
+  ) {
+    return { label: '仅 LIVE 可自由放置', blocked: true };
+  }
+
+  switch (toZone) {
+    case ZoneType.MEMBER_SLOT:
+      if (cardType === CardType.ENERGY) {
+        return { label: '附着能量', detail: targetSlot ? MEMBER_SLOT_LABELS[targetSlot] : undefined };
+      }
+      if (fromZone === ZoneType.MEMBER_SLOT) {
+        return { label: '成员换位', detail: targetSlot ? MEMBER_SLOT_LABELS[targetSlot] : undefined };
+      }
+      if (cardType === CardType.MEMBER) {
+        return {
+          label: targetOccupied ? '换手登场' : '登场',
+          detail: targetSlot ? MEMBER_SLOT_LABELS[targetSlot] : undefined,
+        };
+      }
+      return { label: '移入成员区' };
+    case ZoneType.HAND:
+      return { label: fromZone === ZoneType.HAND ? '整理手牌' : '加入手牌' };
+    case ZoneType.WAITING_ROOM:
+      return { label: '放入休息室' };
+    case ZoneType.MAIN_DECK:
+      return { label: '放回卡组顶' };
+    case ZoneType.ENERGY_DECK:
+      return { label: '回能量卡组' };
+    case ZoneType.ENERGY_ZONE:
+      return { label: fromZone === ZoneType.ENERGY_DECK ? '放置能量' : '移入能量区' };
+    case ZoneType.LIVE_ZONE:
+      return {
+        label:
+          currentPhase === GamePhase.LIVE_SET_PHASE && fromZone === ZoneType.HAND
+            ? 'Live 设置'
+            : '放入 Live 区',
+      };
+    case ZoneType.SUCCESS_ZONE:
+      return { label: '成功 Live' };
+    case ZoneType.INSPECTION_ZONE:
+      return { label: '移入检视区' };
+    case ZoneType.RESOLUTION_ZONE:
+      return { label: '移入解决区' };
+    case ZoneType.EXILE_ZONE:
+      return { label: '移入除外区' };
+    default:
+      return null;
+  }
+}
 
 const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
   const dragData = args.active.data.current as { fromZone?: ZoneType } | undefined;
@@ -92,6 +242,74 @@ const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
   return rectIntersection(args);
 };
 
+function didObjectMoveIntoMemberSlot(
+  previousViewState: PlayerViewState | null,
+  nextViewState: PlayerViewState,
+  objectId: string
+): boolean {
+  const previousLocation = findObjectViewLocation(previousViewState, objectId);
+  const nextLocation = findObjectViewLocation(nextViewState, objectId);
+  return (
+    previousLocation !== null &&
+    nextLocation !== null &&
+    previousLocation.key !== nextLocation.key &&
+    nextLocation.zoneType === ZoneType.MEMBER_SLOT
+  );
+}
+
+function findObjectViewLocation(
+  viewState: PlayerViewState | null,
+  objectId: string
+): CardViewLocation | null {
+  if (!viewState) {
+    return null;
+  }
+
+  for (const [zoneKey, zone] of Object.entries(viewState.table.zones) as [
+    ViewZoneKey,
+    PlayerViewState['table']['zones'][ViewZoneKey],
+  ][]) {
+    const objectIndex = zone.objectIds?.indexOf(objectId) ?? -1;
+    if (objectIndex >= 0) {
+      return {
+        zoneType: zone.zone,
+        key: `${zoneKey}:list:${objectIndex}:${objectId}`,
+      };
+    }
+
+    for (const [slot, occupantId] of Object.entries(zone.slotMap ?? {})) {
+      if (occupantId === objectId) {
+        return {
+          zoneType: zone.zone,
+          key: `${zoneKey}:slot:${slot}`,
+        };
+      }
+    }
+
+    for (const [slot, overlayIds] of Object.entries(zone.overlays ?? {})) {
+      const overlayIndex = overlayIds.indexOf(objectId);
+      if (overlayIndex >= 0) {
+        return {
+          zoneType: zone.zone,
+          key: `${zoneKey}:overlay:${slot}:${overlayIndex}`,
+        };
+      }
+    }
+
+    for (const [slot, memberBelowIds] of Object.entries(zone.memberBelow ?? {})) {
+      const memberBelowIndex = memberBelowIds.indexOf(objectId);
+      if (memberBelowIndex >= 0) {
+        return {
+          zoneType: zone.zone,
+          key: `${zoneKey}:below:${slot}:${memberBelowIndex}`,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 interface GameBoardProps {
   onLeaveLocalGame?: () => void;
 }
@@ -108,6 +326,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
   // 状态选择器
   const matchView = useGameStore((s) => s.getMatchView());
+  const playerViewState = useGameStore((s) => s.playerViewState);
   const currentTurnCount = useGameStore((s) => s.getTurnCountView());
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
@@ -115,6 +334,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const viewerSeat = useGameStore((s) => s.getViewerSeat());
   const activeEffect = useGameStore((s) => s.playerViewState?.activeEffect ?? null);
   const pendingCostPayment = useGameStore((s) => s.playerViewState?.pendingCostPayment ?? null);
+  const battleAnimationOcclusions = useGameStore((s) => s.ui.battleAnimationOcclusions);
   const viewerLiveScore = useGameStore((s) => s.getViewerLiveScore());
   const opponentLiveScore = useGameStore((s) => s.getOpponentLiveScore());
   const viewerLiveWinner = useGameStore((s) => s.isViewerLiveWinner());
@@ -160,6 +380,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
   const undoLastStep = useGameStore((s) => s.undoLastStep);
   const prevPhaseRef = useRef<GamePhase | null>(null);
+  const previousViewStateRef = useRef<PlayerViewState | null>(null);
+  const lastNonActiveEffectViewStateRef = useRef<PlayerViewState | null>(null);
+  const entryEffectSuspendedIdsRef = useRef(new Set<string>());
 
   // 方法选择器（使用 useShallow 保持引用稳定）
   const {
@@ -186,6 +409,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     moveResolutionCardToZone,
     drawEnergyToZone,
     setDragHints,
+    setBattleDragActionHint,
+    pushBattleFeedback,
     setHoveredCard,
     setFreePlayEnabled,
     respondRemoteUndoRequest,
@@ -219,6 +444,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       moveResolutionCardToZone: s.moveResolutionCardToZone,
       drawEnergyToZone: s.drawEnergyToZone,
       setDragHints: s.setDragHints,
+      setBattleDragActionHint: s.setBattleDragActionHint,
+      pushBattleFeedback: s.pushBattleFeedback,
       setHoveredCard: s.setHoveredCard,
       setFreePlayEnabled: s.setFreePlayEnabled,
       respondRemoteUndoRequest: s.respondRemoteUndoRequest,
@@ -245,6 +472,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
   const [successLiveSelectionCollapsed, setSuccessLiveSelectionCollapsed] = useState(false);
+  const [activeEffectSuspension, setActiveEffectSuspension] = useState<{
+    readonly effectId: string;
+    readonly until: number;
+  } | null>(null);
   const [doubleRelaySelection, setDoubleRelaySelection] = useState<{
     readonly cardId: string;
     readonly selectedSlots: readonly SlotPosition[];
@@ -365,6 +596,68 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       : null;
   const doubleRelaySelectedSlots = activeDoubleRelaySelection?.selectedSlots ?? [];
   const canConfirmDoubleRelay = doubleRelaySelectedSlots.length === 2;
+  const isActiveEffectLocallySuspended =
+    !!activeEffect &&
+    activeEffectSuspension?.effectId === activeEffect.id &&
+    activeEffectSuspension.until > Date.now();
+  const isActiveEffectUiSuspended =
+    !!activeEffect &&
+    (isActiveEffectLocallySuspended ||
+      battleAnimationOcclusions.some(
+        (occlusion) => occlusion.objectId === activeEffect.sourceObjectId
+      ));
+
+  useEffect(() => {
+    if (!playerViewState) {
+      previousViewStateRef.current = null;
+      setActiveEffectSuspension(null);
+      return;
+    }
+
+    const shouldSuspend =
+      !!activeEffect &&
+      !entryEffectSuspendedIdsRef.current.has(activeEffect.id) &&
+      didObjectMoveIntoMemberSlot(
+        lastNonActiveEffectViewStateRef.current ?? previousViewStateRef.current,
+        playerViewState,
+        activeEffect.sourceObjectId
+      );
+
+    if (activeEffect && shouldSuspend) {
+      entryEffectSuspendedIdsRef.current.add(activeEffect.id);
+      setActiveEffectSuspension({
+        effectId: activeEffect.id,
+        until: Date.now() + ENTER_EFFECT_UI_SUSPEND_MS,
+      });
+    } else if (!activeEffect) {
+      setActiveEffectSuspension(null);
+      entryEffectSuspendedIdsRef.current.clear();
+    }
+
+    if (!activeEffect) {
+      lastNonActiveEffectViewStateRef.current = playerViewState;
+    }
+    previousViewStateRef.current = playerViewState;
+  }, [activeEffect?.id, activeEffect?.sourceObjectId, playerViewState]);
+
+  useEffect(() => {
+    if (!activeEffectSuspension) {
+      return;
+    }
+
+    const timeout = window.setTimeout(
+      () =>
+        setActiveEffectSuspension((current) =>
+          current?.effectId === activeEffectSuspension.effectId &&
+          current.until === activeEffectSuspension.until
+            ? null
+            : current
+        ),
+      Math.max(0, activeEffectSuspension.until - Date.now())
+    );
+
+    return () => window.clearTimeout(timeout);
+  }, [activeEffectSuspension]);
 
   useEffect(() => {
     setActiveEffectOrderedSelection([]);
@@ -572,6 +865,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       }
 
       setDragHints(true, suggested);
+      setBattleDragActionHint(null);
     },
     [
       currentPhase,
@@ -579,7 +873,74 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       isReadOnly,
       matchView?.window?.windowType,
       setDragHints,
+      setBattleDragActionHint,
       getKnownCardType,
+    ]
+  );
+
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      if (isReadOnly || !event.over) {
+        setBattleDragActionHint(null);
+        return;
+      }
+
+      const cardId = event.active.id as string;
+      const targetId = event.over.id as string;
+      const dragData = event.active.data.current as
+        | {
+            cardId: string;
+            cardCode?: string;
+            fromZone?: ZoneType;
+          }
+        | undefined;
+      const specialTarget = resolveSpecialDragTarget(targetId);
+      const parsedTarget =
+        (!specialTarget ? parseZoneId(targetId) : null) ?? resolveCardDropTarget(targetId);
+      const fromZone = dragData?.fromZone || findViewerCardZone(cardId);
+
+      if (!fromZone) {
+        setBattleDragActionHint(null);
+        return;
+      }
+
+      const targetSlot = parsedTarget?.slotPosition;
+      const targetOccupied =
+        !!viewerSeat &&
+        parsedTarget?.zoneType === ZoneType.MEMBER_SLOT &&
+        !!targetSlot &&
+        getSeatMemberSlotCardId(viewerSeat, targetSlot) !== null;
+      const descriptor = getDragActionDescriptor({
+        fromZone,
+        toZone: parsedTarget?.zoneType,
+        targetSlot,
+        targetOccupied,
+        cardType: getKnownCardType(cardId),
+        currentPhase,
+        specialTarget,
+      });
+
+      if (!descriptor) {
+        setBattleDragActionHint(null);
+        return;
+      }
+
+      setBattleDragActionHint({
+        label: descriptor.label,
+        detail: descriptor.detail,
+        tone: descriptor.blocked ? 'blocked' : 'attempt',
+        anchor: { targetId },
+      });
+    },
+    [
+      currentPhase,
+      findViewerCardZone,
+      getKnownCardType,
+      getSeatMemberSlotCardId,
+      isReadOnly,
+      resolveCardDropTarget,
+      setBattleDragActionHint,
+      viewerSeat,
     ]
   );
 
@@ -589,12 +950,27 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       const { active, over } = event;
       setActiveCardId(null);
       setDragHints(false);
+      setBattleDragActionHint(null);
 
       if (isReadOnly) return;
       if (!over) return;
 
       const cardId = active.id as string;
       const targetId = over.id as string;
+      const pushDropError = (label: string, detail?: string) => {
+        addLog(detail ? `${label}: ${detail}` : label, 'error');
+        pushBattleFeedback({
+          tone: 'error',
+          label,
+          detail,
+          anchor: { targetId, cardId },
+        });
+      };
+      const reportDropResult = (
+        result: { readonly success: boolean; readonly error?: string; readonly pending?: boolean }
+      ): boolean => {
+        return result.success;
+      };
 
       // 获取拖拽数据中的来源区域信息
       const dragData = active.data.current as
@@ -618,7 +994,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       // 获取来源区域（优先从拖拽数据获取，否则查找）
       const fromZone = dragData?.fromZone || findViewerCardZone(cardId);
       if (!fromZone) {
-        addLog('无法确定卡牌来源区域', 'error');
+        pushDropError('无法确定卡牌来源区域');
         return;
       }
 
@@ -728,19 +1104,19 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       // 能量牌移动限制（规则 4.5.5、10.5.4）
       if (cardType === CardType.ENERGY) {
         if (toZone === ZoneType.HAND) {
-          addLog('能量牌不能移动到手牌', 'error');
+          pushDropError('能量牌不能移动到手牌');
           return;
         }
         if (toZone === ZoneType.LIVE_ZONE) {
-          addLog('能量牌不能移动到LIVE区', 'error');
+          pushDropError('能量牌不能移动到 LIVE 区');
           return;
         }
         if (toZone === ZoneType.SUCCESS_ZONE) {
-          addLog('能量牌不能移动到成功LIVE卡区', 'error');
+          pushDropError('能量牌不能移动到成功 LIVE 卡区');
           return;
         }
         if (toZone === ZoneType.WAITING_ROOM) {
-          addLog('能量牌不能移动到休息室（请移动到能量卡组）', 'error');
+          pushDropError('能量牌不能移动到休息室', '请移动到能量卡组');
           return;
         }
       }
@@ -748,26 +1124,26 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       // LIVE卡移动限制：不能放入成员区和能量区和能量卡组
       if (cardType === CardType.LIVE) {
         if (toZone === ZoneType.MEMBER_SLOT) {
-          addLog('LIVE卡不能放入成员区', 'error');
+          pushDropError('LIVE 卡不能放入成员区');
           return;
         }
         if (toZone === ZoneType.ENERGY_ZONE) {
-          addLog('LIVE卡不能放入能量区', 'error');
+          pushDropError('LIVE 卡不能放入能量区');
           return;
         }
         if (toZone === ZoneType.ENERGY_DECK) {
-          addLog('LIVE卡不能放入能量卡组', 'error');
+          pushDropError('LIVE 卡不能放入能量卡组');
           return;
         }
       }
 
       if (toZone === ZoneType.SUCCESS_ZONE && cardType !== CardType.LIVE) {
-        addLog('只有 LIVE 卡可以放入成功 Live 卡区', 'error');
+        pushDropError('只有 LIVE 卡可以放入成功 Live 卡区');
         return;
       }
 
       if (toZone === ZoneType.LIVE_ZONE && cardType !== CardType.LIVE && !isLiveSetHandPlacement) {
-        addLog('只有 LIVE 卡可以自由拖入 Live 区', 'error');
+        pushDropError('只有 LIVE 卡可以自由拖入 Live 区');
         return;
       }
 
@@ -778,15 +1154,15 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           fromZone === ZoneType.HAND &&
           toZone === ZoneType.LIVE_ZONE
         ) {
-          addLog('主要阶段不能把成员卡从手牌拖到 Live 区', 'error');
+          pushDropError('主要阶段不能把成员卡从手牌拖到 Live 区');
           return;
         }
         if (toZone === ZoneType.ENERGY_ZONE) {
-          addLog('成员卡不能放入能量区', 'error');
+          pushDropError('成员卡不能放入能量区');
           return;
         }
         if (toZone === ZoneType.ENERGY_DECK) {
-          addLog('成员卡不能放入能量卡组', 'error');
+          pushDropError('成员卡不能放入能量卡组');
           return;
         }
       }
@@ -865,7 +1241,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           targetSlot,
           sourceSlot
         );
-        if (result.success) {
+        if (reportDropResult(result)) {
           addLog(`附着能量到成员槽位: ${targetSlot}`, 'action');
         }
         return;
@@ -878,7 +1254,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         targetSlot
       ) {
         const result = moveMemberToSlot(cardId, sourceSlot, targetSlot);
-        if (result.success) {
+        if (reportDropResult(result)) {
           addLog(`成员换位: ${sourceSlot} → ${targetSlot}`, 'action');
         }
         return;
@@ -891,7 +1267,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         getZoneCardIds(`${viewerSeat}_ENERGY_DECK`)[0] === cardId
       ) {
         const result = drawEnergyToZone(cardId);
-        if (result.success) {
+        if (reportDropResult(result)) {
           addLog('放置能量: 能量卡组顶 → 能量区', 'action');
         }
         return;
@@ -913,7 +1289,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           toZone !== ZoneType.WAITING_ROOM &&
           toZone !== ZoneType.EXILE_ZONE
         ) {
-          addLog('当前落点不支持己方私有区拖拽', 'error');
+          pushDropError('当前落点不支持己方私有区拖拽');
           return;
         }
 
@@ -922,7 +1298,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           position:
             toZone === ZoneType.MAIN_DECK || toZone === ZoneType.ENERGY_DECK ? 'TOP' : undefined,
         });
-        if (result.success) {
+        if (reportDropResult(result)) {
           addLog(
             fromZone === ZoneType.HAND && toZone === ZoneType.LIVE_ZONE
               ? '自由放置 Live 卡: 手牌 → Live 区（正面）'
@@ -945,7 +1321,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           fromZone,
           fromZone === ZoneType.MEMBER_SLOT ? sourceSlot : undefined
         );
-        if (result.success) {
+        if (reportDropResult(result)) {
           addLog(`公开区卡牌回手: ${fromZone}`, 'action');
         }
         return;
@@ -953,7 +1329,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
       if (fromZone === ZoneType.ENERGY_ZONE && toZone === ZoneType.ENERGY_DECK) {
         const result = movePublicCardToEnergyDeck(cardId, ZoneType.ENERGY_ZONE);
-        if (result.success) {
+        if (reportDropResult(result)) {
           addLog('公开能量回到能量卡组: ENERGY_ZONE → ENERGY_DECK', 'action');
         }
         return;
@@ -970,7 +1346,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           fromZone,
           fromZone === ZoneType.MEMBER_SLOT ? sourceSlot : undefined
         );
-        if (result.success) {
+        if (reportDropResult(result)) {
           addLog(`公开区卡牌进入休息室: ${fromZone}`, 'action');
         }
         return;
@@ -987,7 +1363,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           targetSlot,
           sourceSlot,
         });
-        if (result.success) {
+        if (reportDropResult(result)) {
           addLog(`休息室成员卡移动: ${fromZone} → ${toZone}`, 'action');
         }
         return;
@@ -1000,7 +1376,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         position: 'TOP', // 默认放到顶部（卡组时）
       });
 
-      if (result.success) {
+      if (reportDropResult(result)) {
         const fromName = zoneNames[fromZone] || fromZone;
         const toName = zoneNames[toZone] || toZone;
         addLog(`移动卡牌: ${fromName} → ${toName}`, 'action');
@@ -1025,8 +1401,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       drawEnergyToZone,
       setLiveCard,
       addLog,
+      pushBattleFeedback,
       viewerSeat,
       setDragHints,
+      setBattleDragActionHint,
       getZoneCardIds,
       currentPhase,
       currentSubPhase,
@@ -1085,10 +1463,12 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       sensors={sensors}
       collisionDetection={inspectionFirstCollisionDetection}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDragCancel={() => {
         setActiveCardId(null);
         setDragHints(false);
+        setBattleDragActionHint(null);
       }}
     >
       <div
@@ -1109,6 +1489,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           className="pointer-events-none absolute inset-0"
           style={{ background: 'var(--gradient-stage-glow)' }}
         />
+        <BattleAnimationLayer />
+        <BattleActionFeedbackLayer />
 
         {isReadOnly && replaySession && (
           <div className="pointer-events-none fixed left-4 top-4 z-[130] max-w-[calc(100vw-2rem)] rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
@@ -1206,6 +1588,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                     playerSeat={selfSeat}
                     isOpponent={false}
                     isActive={resolvedActiveSeat === selfSeat}
+                    suppressActiveEffectVisuals={isActiveEffectUiSuspended}
                   />
                 </div>
               </div>
@@ -1335,6 +1718,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                             playerSeat={opponentSeat}
                             isOpponent={true}
                             isActive={resolvedActiveSeat === opponentSeat}
+                            suppressActiveEffectVisuals={isActiveEffectUiSuspended}
                           />
                         </div>
                       </div>
@@ -1380,6 +1764,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 playerSeat={opponentSeat}
                 isOpponent={true}
                 isActive={resolvedActiveSeat === opponentSeat}
+                suppressActiveEffectVisuals={isActiveEffectUiSuspended}
               />
             </div>
 
@@ -1414,6 +1799,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 playerSeat={selfSeat}
                 isOpponent={false}
                 isActive={resolvedActiveSeat === selfSeat}
+                suppressActiveEffectVisuals={isActiveEffectUiSuspended}
               />
             </div>
           </>
@@ -1619,7 +2005,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           </div>
         )}
 
-        {activeEffect && activeEffectCollapsed && (
+        {!isActiveEffectUiSuspended && activeEffect && activeEffectCollapsed && (
           <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[95] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
@@ -1645,8 +2031,15 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           </div>
         )}
 
-        {activeEffect && !activeEffectCollapsed && (
-          <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[95] w-[min(94vw,900px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+        {!isActiveEffectUiSuspended && activeEffect && !activeEffectCollapsed && (
+          <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[95] w-[min(94vw,900px)] -translate-x-1/2 -translate-y-1/2">
+            <motion.div
+              className="rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+              initial={{ opacity: 0, y: 12, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 6, scale: 0.99 }}
+              transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+            >
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
@@ -1721,8 +2114,16 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
             )}
             {activeEffectSelectableCardIds.length > 0 && (
               <div className="mt-4">
-                <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
-                  {activeEffect.selectionLabel ?? '请选择要处理的卡牌'}
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+                  <span>{activeEffect.selectionLabel ?? '请选择要处理的卡牌'}</span>
+                  <span className="rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
+                    {activeEffectUsesOrderedMultiSelect
+                      ? `已选 ${activeEffectOrderedSelection.length} / ${activeEffectMaxSelectableCards}`
+                      : `候选 ${activeEffectSelectableCardIds.length} 张`}
+                    {activeEffectMinSelectableCards > 0
+                      ? `｜至少 ${activeEffectMinSelectableCards}`
+                      : ''}
+                  </span>
                 </div>
                 <div className="grid max-h-[46vh] grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
                   {activeEffectSelectableCardIds.map((cardId) => {
@@ -1966,6 +2367,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   </button>
                 )}
             </div>
+            </motion.div>
           </div>
         )}
 

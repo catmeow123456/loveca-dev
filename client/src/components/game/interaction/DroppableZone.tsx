@@ -34,6 +34,10 @@ export interface DroppableZoneProps {
   dropTargetClassName?: string;
   /** 拖拽时变暗其他区域（有推荐目标时才启用） */
   dimOthersClassName?: string;
+  /** 浏览器 tooltip */
+  title?: string;
+  /** 无障碍标签 */
+  ariaLabel?: string;
 }
 
 export function DroppableZone({
@@ -49,6 +53,8 @@ export function DroppableZone({
   activeClassName = 'outline outline-2 outline-rose-500 bg-rose-500/20',
   dropTargetClassName = 'outline outline-2 outline-dashed outline-amber-400/70 bg-amber-500/10',
   dimOthersClassName = 'opacity-35 saturate-50',
+  title,
+  ariaLabel,
 }: DroppableZoneProps) {
   const { isOver, setNodeRef } = useDroppable({
     id,
@@ -75,6 +81,8 @@ export function DroppableZone({
       ref={setNodeRef}
       id={domId ?? id}
       data-zone-id={zoneId ?? domId ?? id}
+      title={title}
+      aria-label={ariaLabel}
       className={cn(
         // During drag, avoid transitions (they stack with frequent hover updates and can feel "laggy").
         isDragging ? 'transition-none' : 'transition-[opacity,outline-color,background-color] duration-150',

@@ -82,6 +82,13 @@ import {
 } from '@game/shared/types/enums';
 import { getPhaseName } from '@game/shared/phase-config';
 import { preloadImage, resolveCardImagePath } from '@/lib/imageService';
+import {
+  createBattleFeedbackEvent,
+  isBattleFeedbackEventExpired,
+  type BattleDragActionHint,
+  type BattleFeedbackEvent,
+  type BattleFeedbackInput,
+} from '@/lib/battleActionFeedback';
 import { type ParsedZoneId } from '@/lib/zoneUtils';
 import {
   advanceRemotePhase,
@@ -157,6 +164,11 @@ export interface RemoteUndoResponseOptions {
   readonly grantContinuous?: boolean;
 }
 
+export interface BattleAnimationOcclusion {
+  readonly eventId: string;
+  readonly objectId: string;
+}
+
 export interface UIState {
   /** 当前选中的卡牌 ID */
   selectedCardId: string | null;
@@ -166,6 +178,12 @@ export interface UIState {
   isDragging: boolean;
   /** 高亮的区域 */
   highlightedZones: string[];
+  /** 当前拖拽落点语义提示 */
+  dragActionHint: BattleDragActionHint | null;
+  /** 对局动作短回执 */
+  battleFeedbackEvents: BattleFeedbackEvent[];
+  /** 正在由动画层接管显示的卡牌对象 */
+  battleAnimationOcclusions: BattleAnimationOcclusion[];
   /** 是否显示阶段提示 */
   showPhaseBanner: boolean;
   /** 当前阶段提示文本 */
@@ -335,6 +353,16 @@ export interface GameStore {
   syncState: () => void;
   /** 设置拖拽提示状态（高亮推荐区域/变暗其他区域） */
   setDragHints: (isDragging: boolean, highlightedZones?: string[]) => void;
+  /** 设置当前拖拽动作语义提示 */
+  setBattleDragActionHint: (hint: BattleDragActionHint | null) => void;
+  /** 推入一条对局动作短回执 */
+  pushBattleFeedback: (feedback: BattleFeedbackInput) => string;
+  /** 移除一条对局动作短回执 */
+  dismissBattleFeedback: (feedbackId: string) => void;
+  /** 登记一批由动画层临时接管显示的卡牌对象 */
+  addBattleAnimationOcclusions: (occlusions: readonly BattleAnimationOcclusion[]) => void;
+  /** 移除一条动画遮挡登记 */
+  removeBattleAnimationOcclusion: (eventId: string) => void;
   /** 设置游戏模式（支持游戏内切换） */
   setGameMode: (mode: GameMode) => void;
   /** 设置免费登场兜底 */
@@ -608,6 +636,11 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (options.logError) {
         get().addLog(`${options.failureMessage}: ${result.error}`, 'error');
       }
+      get().pushBattleFeedback({
+        tone: 'error',
+        label: options.failureMessage,
+        detail: result.error,
+      });
       return { success: false, error: result.error };
     }
 
@@ -675,6 +708,9 @@ export const useGameStore = create<GameStore>((set, get) => {
       hoveredCardId: null,
       isDragging: false,
       highlightedZones: [],
+      dragActionHint: null,
+      battleFeedbackEvents: [],
+      battleAnimationOcclusions: [],
       showPhaseBanner: false,
       phaseBannerText: '',
       waitingForInput: false,
@@ -740,6 +776,9 @@ export const useGameStore = create<GameStore>((set, get) => {
           hoveredCardId: null,
           isDragging: false,
           highlightedZones: [],
+          dragActionHint: null,
+          battleFeedbackEvents: [],
+          battleAnimationOcclusions: [],
           showPhaseBanner: false,
           phaseBannerText: '',
           waitingForInput: false,
@@ -845,6 +884,8 @@ export const useGameStore = create<GameStore>((set, get) => {
           hoveredCardId: null,
           isDragging: false,
           highlightedZones: [],
+          dragActionHint: null,
+          battleAnimationOcclusions: [],
         },
       }));
       get().addLog('撤销上一步', 'action');
@@ -1125,6 +1166,83 @@ export const useGameStore = create<GameStore>((set, get) => {
           ...state.ui,
           isDragging,
           highlightedZones: highlightedZones ?? (isDragging ? state.ui.highlightedZones : []),
+          dragActionHint: isDragging ? state.ui.dragActionHint : null,
+        },
+      }));
+    },
+
+    setBattleDragActionHint: (hint) => {
+      set((state) => ({
+        ui: {
+          ...state.ui,
+          dragActionHint: hint,
+        },
+      }));
+    },
+
+    pushBattleFeedback: (feedback) => {
+      const event = createBattleFeedbackEvent(feedback);
+      const now = Date.now();
+      set((state) => ({
+        ui: {
+          ...state.ui,
+          battleFeedbackEvents: [
+            ...state.ui.battleFeedbackEvents
+              .filter((current) => !isBattleFeedbackEventExpired(current, now))
+              .slice(-5),
+            event,
+          ],
+        },
+      }));
+      return event.id;
+    },
+
+    dismissBattleFeedback: (feedbackId) => {
+      set((state) => ({
+        ui: {
+          ...state.ui,
+          battleFeedbackEvents: state.ui.battleFeedbackEvents.filter(
+            (event) => event.id !== feedbackId
+          ),
+        },
+      }));
+    },
+
+    addBattleAnimationOcclusions: (occlusions) => {
+      if (occlusions.length === 0) {
+        return;
+      }
+
+      set((state) => {
+        const existingEventIds = new Set(
+          state.ui.battleAnimationOcclusions.map((occlusion) => occlusion.eventId)
+        );
+        const nextOcclusions = occlusions.filter(
+          (occlusion) => !existingEventIds.has(occlusion.eventId)
+        );
+        if (nextOcclusions.length === 0) {
+          return state;
+        }
+
+        return {
+          ui: {
+            ...state.ui,
+            battleAnimationOcclusions: [
+              ...state.ui.battleAnimationOcclusions.slice(-16),
+              ...nextOcclusions,
+            ],
+          },
+        };
+      });
+    },
+
+    removeBattleAnimationOcclusion: (eventId) => {
+      set((state) => ({
+        ui: {
+          ...state.ui,
+          battleAnimationOcclusions: state.ui.battleAnimationOcclusions.filter(
+            (occlusion) => occlusion.eventId !== eventId
+          ),
         },
       }));
     },
@@ -1199,6 +1317,9 @@ export const useGameStore = create<GameStore>((set, get) => {
           hoveredCardId: null,
           isDragging: false,
           highlightedZones: [],
+          dragActionHint: null,
+          battleFeedbackEvents: [],
+          battleAnimationOcclusions: [],
           waitingForInput: false,
           inputRequestType: null,
         },
@@ -1217,6 +1338,9 @@ export const useGameStore = create<GameStore>((set, get) => {
           hoveredCardId: null,
           isDragging: false,
           highlightedZones: [],
+          dragActionHint: null,
+          battleFeedbackEvents: [],
+          battleAnimationOcclusions: [],
           waitingForInput: false,
           inputRequestType: null,
         },
@@ -2612,6 +2736,11 @@ function dispatchRemoteCommand(
       useGameStore
         .getState()
         .addLog(`${failureMessage}: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+      useGameStore.getState().pushBattleFeedback({
+        tone: 'error',
+        label: failureMessage,
+        detail: result.error ?? '服务端拒绝了该操作',
+      });
       return;
     }
 
@@ -2624,6 +2753,11 @@ function dispatchRemoteCommand(
         `${failureMessage}: ${error instanceof Error ? error.message : '网络请求失败'}`,
         'error'
       );
+    useGameStore.getState().pushBattleFeedback({
+      tone: 'error',
+      label: failureMessage,
+      detail: error instanceof Error ? error.message : '网络请求失败',
+    });
   });
 
   return true;

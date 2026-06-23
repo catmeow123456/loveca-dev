@@ -9,6 +9,8 @@
 > - `docs/system-design.md`
 > - `client/src/components/game/GameBoard.tsx`
 > - `client/src/components/game/PlayerArea.tsx`
+> - `client/src/components/game/BattleActionFeedbackLayer.tsx`
+> - `client/src/components/game/BattleAnimationLayer.tsx`
 > - `client/src/components/game/PhaseIndicator.tsx`
 > - `client/src/components/game/JudgmentPanel.tsx`
 > - `client/src/components/game/ScoreConfirmModal.tsx`
@@ -47,6 +49,8 @@
 - 右下角固定阶段指示器
 - 右侧中部固定卡牌详情浮窗
 - 中央根据阶段弹出换牌框、分数确认框、阶段横幅、拖拽覆盖层等
+- 全屏对局动作反馈层，用于展示拖拽语义、命令失败和局部成功反馈
+- 全屏对局动画层，用 `PlayerViewState` 前后差异展示卡牌移动、翻面、方向变化或区域脉冲
 
 这意味着当前桌面不是“单一棋盘式平面布局”，而是“游戏桌 + 多个固定悬浮控制层”的复合界面。
 
@@ -403,12 +407,13 @@ Live 区固定 3 槽，与成员槽横向对齐。
 
 - PointerSensor 需要移动 5px 才启动，避免误触双击
 - 拖拽时显示 `DragOverlay`
+- 拖拽悬停时会显示当前落点语义，例如“登场”“换手登场”“加入手牌”“放回卡组顶”
 - `DroppableZone` 支持三种视觉状态：
   - 推荐目标高亮
   - 当前悬停高亮
   - 其他区域轻度变暗
 
-当前推荐目标只做提示，不做强限制。
+当前推荐目标和拖拽语义只做提示，不做强限制。命令是否成立仍由本地 `GameSession` 或远程服务端权威校验决定；命令失败时，桌面会在目标附近显示短回执，同时保留日志记录。
 
 当前应视为已承诺的典型拖拽行为：
 
@@ -433,7 +438,22 @@ Live 区固定 3 槽，与成员槽横向对齐。
 - `能量卡组顶牌 -> 能量区` 虽然由拖拽触发，但命令层应走专用”放置能量”命令，而不是通用 `MOVE_TABLE_CARD`。
 - `能量区 -> 能量卡组` 虽然由拖拽触发，但命令层应走公开区进入隐藏区的专用回收命令；它只在当前命令窗口允许时成立，不视为撤销。
 
-### 6.3 点击交互
+### 6.3 对局反馈与状态变化动画
+
+`GameBoard` 当前挂载两层只读展示增强：
+
+- `BattleActionFeedbackLayer`：消费 `gameStore.ui.dragActionHint` 与 `battleFeedbackEvents`，显示拖拽意图、命令失败和少量局部回执。
+- `BattleAnimationLayer`：比较前后 `PlayerViewState`，根据 DOM 中的 `data-object-id` / `data-animation-zone-id` 锚点生成卡牌移动、翻面、方向变化和区域脉冲动画。
+
+边界：
+
+- 动画和反馈都不改变权威状态，不生成命令，不写入对局历史。
+- 卡牌移动动画期间，`battleAnimationOcclusions` 会临时隐藏已经由 React 渲染到新位置的真实卡牌，避免飞牌和真实卡牌重叠。
+- 大量移动超过单卡动画上限时，动画层降级为区域脉冲。
+- 只读回放、观战或其它只读桌面不会生成状态 diff 飞牌动画。
+- 登场触发 active effect 时，效果窗口会短暂延后显示，让来源卡移动动画先完成；延后状态只属于本地 UI。
+
+### 6.4 点击交互
 
 主要点击行为包括：
 
@@ -445,14 +465,14 @@ Live 区固定 3 槽，与成员槽横向对齐。
 - 点击阶段指示器按钮：推进流程
 - 点击中央模态按钮：换牌/确认分数
 
-### 6.4 双击交互
+### 6.5 双击交互
 
 当前明确存在的双击交互：
 
 - 双击成员卡：切换活跃/等待状态
 - 联机语义补充：在`主要阶段`和`表演阶段`，不区分当前是不是自己的回合，玩家都可以双击自己的成员卡让它进入待机状态；当前实现仍保留活跃/等待互切，因此再次双击会切回活跃
 
-### 6.5 Hover 交互
+### 6.6 Hover 交互
 
 hover 在当前桌面中占比很高：
 

@@ -64,6 +64,7 @@ interface PlayerAreaProps {
   playerSeat: Seat;
   isOpponent: boolean;
   isActive: boolean;
+  suppressActiveEffectVisuals?: boolean;
 }
 
 const INSPECTION_TARGET_IDS = {
@@ -77,6 +78,8 @@ const INSPECTION_TARGET_IDS = {
 const SortableInspectionCard = memo(function SortableInspectionCard({
   cardId,
   imagePath,
+  className,
+  containerClassName,
   disabled = false,
   showActions = false,
   canReveal = false,
@@ -87,6 +90,8 @@ const SortableInspectionCard = memo(function SortableInspectionCard({
 }: {
   cardId: string;
   imagePath: string;
+  className?: string;
+  containerClassName?: string;
   disabled?: boolean;
   showActions?: boolean;
   canReveal?: boolean;
@@ -114,17 +119,23 @@ const SortableInspectionCard = memo(function SortableInspectionCard({
     <div
       ref={setNodeRef}
       style={style}
-      className="group relative flex shrink-0 flex-col items-center gap-1"
+      className={cn(
+        'group relative flex shrink-0 flex-col items-center gap-1',
+        containerClassName
+      )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
       <div
         {...attributes}
         {...listeners}
+        data-card-id={cardId}
+        data-object-id={`obj_${cardId}`}
         className={cn(
-          'h-[84px] w-[60px] touch-none select-none overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] shadow-[var(--shadow-md)]',
+          'h-[84px] w-[60px] touch-none select-none overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] shadow-[var(--shadow-md)] sm:h-[96px] sm:w-[68px]',
           disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing',
-          isDragging && 'ring-2 ring-amber-400 shadow-[var(--shadow-lg)]'
+          isDragging && 'ring-2 ring-amber-400 shadow-[var(--shadow-lg)]',
+          className
         )}
       >
         <img src={imagePath} alt="" className="h-full w-full object-cover" draggable={false} />
@@ -174,6 +185,7 @@ export const PlayerArea = memo(function PlayerArea({
   playerSeat,
   isOpponent,
   isActive,
+  suppressActiveEffectVisuals = false,
 }: PlayerAreaProps) {
   const playerIdentity = useGameStore((s) => s.getPlayerIdentityForSeat(playerSeat));
   const viewerSeat = useGameStore((s) => s.getViewerSeat());
@@ -183,6 +195,7 @@ export const PlayerArea = memo(function PlayerArea({
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
   const isMobileBoard = useMediaQuery('(max-width: 767px)');
   const activeEffect = useGameStore((s) => s.playerViewState?.activeEffect ?? null);
+  const battleAnimationOcclusions = useGameStore((s) => s.ui.battleAnimationOcclusions);
 
   // UI 状态选择器（使用 useShallow 合并多个属性）
   const { selectedCardId } = useGameStore(
@@ -350,7 +363,25 @@ export const PlayerArea = memo(function PlayerArea({
       canMoveInspectedToTop ||
       canMoveInspectedToBottom ||
       canReorderInspectedCard);
-  const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
+  const visibleActiveEffect = suppressActiveEffectVisuals ? null : activeEffect;
+  const activeEffectSourceCardId =
+    visibleActiveEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
+  const activeEffectSelectableCardIdSet = new Set(
+    visibleActiveEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ??
+      []
+  );
+  const activeEffectSelectableSlotSet = new Set(visibleActiveEffect?.selectableSlots ?? []);
+  const battleAnimationOccludedObjectIds = new Set(
+    battleAnimationOcclusions.map((occlusion) => occlusion.objectId)
+  );
+  const getBattleAnimationOcclusionClass = (cardId: string): string =>
+    battleAnimationOccludedObjectIds.has(`obj_${cardId}`) ? 'invisible pointer-events-none' : '';
+  const getActiveEffectTaskCardClass = (cardId: string): string =>
+    cn(
+      activeEffectSelectableCardIdSet.has(cardId) &&
+        'ring-2 ring-emerald-300 ring-offset-2 ring-offset-slate-950 shadow-[0_0_18px_rgba(52,211,153,0.72)]',
+      getBattleAnimationOcclusionClass(cardId)
+    );
   const getEffectVisualState = (
     card: { readonly cardCode: string; readonly instanceId: string },
     options: {
@@ -410,6 +441,8 @@ export const PlayerArea = memo(function PlayerArea({
       !isOpponent &&
       viewerSeat === playerSeat &&
       canActivateAbilityCommand;
+    const isActiveEffectSlotTarget =
+      !isOpponent && viewerSeat === playerSeat && activeEffectSelectableSlotSet.has(position);
 
     return (
       // 外层容器：包含成员卡和重叠的能量卡
@@ -540,6 +573,8 @@ export const PlayerArea = memo(function PlayerArea({
                 : 'bg-slate-800/50',
               // 有卡且可换手时显示特殊边框
               canDropMember && cardId && 'border-amber-500/30 hover:border-amber-500/50',
+              isActiveEffectSlotTarget &&
+                'border-emerald-300 bg-emerald-500/15 shadow-[0_0_18px_rgba(52,211,153,0.34)]',
               // 确保成员卡在能量卡上方
               'relative z-10'
             )}
@@ -568,10 +603,16 @@ export const PlayerArea = memo(function PlayerArea({
                     effectVisualState={getEffectVisualState(card, {
                       isActionableNow: canActivateAbility,
                     })}
+                    className={getActiveEffectTaskCardClass(card.instanceId)}
                     onClick={() => allowGeneralOwnZoneInteraction && selectCard(card.instanceId)}
                   />
                 </CardDetailPressTarget>
               </DraggableCard>
+            )}
+            {isActiveEffectSlotTarget && (
+              <span className="pointer-events-none absolute right-1 top-1 z-20 rounded bg-[var(--semantic-success)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--bg-surface)] shadow">
+                可选
+              </span>
             )}
             {card && <CardModifierBadgeStack modifierDelta={card.modifierDelta} />}
             {card && canActivateAbility && activatedAbilityConfig && (
@@ -717,12 +758,15 @@ export const PlayerArea = memo(function PlayerArea({
                 >
                   <CardDetailPressTarget cardId={card?.instanceId ?? null} disabled={!card}>
                     <div
+                      data-card-id={card?.instanceId}
+                      data-object-id={card ? `obj_${card.instanceId}` : undefined}
                       className={cn(
                         'h-7 w-5 rounded overflow-hidden shadow-sm cursor-pointer',
                         isDragging
                           ? 'transition-none'
                           : 'transition-[transform,filter] duration-150 hover:scale-110 hover:z-10',
-                        !isActive && 'rotate-90 opacity-55 grayscale'
+                        !isActive && 'rotate-90 opacity-55 grayscale',
+                        card && getActiveEffectTaskCardClass(card.instanceId)
                       )}
                       onClick={() => {
                         if (allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging) {
@@ -762,6 +806,8 @@ export const PlayerArea = memo(function PlayerArea({
   const renderDeck = (count: number, label: string, deckType: 'main' | 'energy') => {
     const zoneId = deckType === 'main' ? 'main-deck' : 'energy-deck';
     const isMainDeck = deckType === 'main';
+    const deckZoneType = isMainDeck ? ZoneType.MAIN_DECK : ZoneType.ENERGY_DECK;
+    const deckDroppableId = getDroppableId(deckZoneType);
     // 获取能量卡组顶层卡牌（用于拖拽）
     const topCardId = !isMainDeck && count > 0 ? energyDeckCardIds[0] : null;
 
@@ -790,7 +836,7 @@ export const PlayerArea = memo(function PlayerArea({
 
     return (
       <DroppableZone
-        id={getDroppableId(isMainDeck ? ZoneType.MAIN_DECK : ZoneType.ENERGY_DECK)}
+        id={deckDroppableId}
         zoneId={zoneId}
         disabled={!allowGeneralOwnZoneInteraction && !(isMainDeck && canReceiveInspectionDrop)}
         className="flex flex-col items-center gap-0.5"
@@ -798,6 +844,7 @@ export const PlayerArea = memo(function PlayerArea({
       >
         <span className="text-[10px] font-medium text-[var(--text-muted)]">{label}</span>
         <div
+          data-animation-zone-id={deckDroppableId}
           className={cn(
             'relative w-[40px] h-[56px]',
             isMainDeck &&
@@ -837,10 +884,11 @@ export const PlayerArea = memo(function PlayerArea({
   // 渲染休息室 - 卡片公开显示，叠放在一起，点击展开浮窗
   const renderWaitingRoom = () => {
     const count = waitingRoomZoneView?.count ?? waitingRoomCardIds.length;
+    const waitingRoomDroppableId = getDroppableId(ZoneType.WAITING_ROOM);
 
     return (
       <DroppableZone
-        id={getDroppableId(ZoneType.WAITING_ROOM)}
+        id={waitingRoomDroppableId}
         zoneId={createZoneId(ZoneType.WAITING_ROOM)}
         disabled={!allowGeneralOwnZoneInteraction && !canReceiveInspectionDrop}
         className="flex flex-col items-center gap-1 relative"
@@ -850,13 +898,17 @@ export const PlayerArea = memo(function PlayerArea({
 
         {count === 0 ? (
           // 空休息室占位
-          <div className="flex h-[63px] w-[45px] items-center justify-center rounded border border-dashed border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_40%,transparent)]">
+          <div
+            data-animation-zone-id={waitingRoomDroppableId}
+            className="flex h-[63px] w-[45px] items-center justify-center rounded border border-dashed border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_40%,transparent)]"
+          >
             <span className="text-[10px] text-[var(--text-muted)]">0</span>
           </div>
         ) : (
           // 卡片叠放显示，点击展开
           <>
             <div
+              data-animation-zone-id={waitingRoomDroppableId}
               className="relative h-[63px] w-[45px] cursor-pointer transition-transform duration-200 hover:-translate-y-0.5"
               onClick={() => setWaitingRoomExpanded(true)}
             >
@@ -984,6 +1036,7 @@ export const PlayerArea = memo(function PlayerArea({
                                           selectCard(card.instanceId)
                                         }
                                         showHover={true}
+                                        className={getActiveEffectTaskCardClass(card.instanceId)}
                                       />
                                     </CardDetailPressTarget>
                                   </DraggableCard>
@@ -1081,7 +1134,7 @@ export const PlayerArea = memo(function PlayerArea({
                           effectVisualState={getEffectVisualState(card)}
                           interactive={!isReadOnly && !isOpponent}
                           showHover={false}
-                          className="w-[80px] h-[112px]"
+                          className={cn('w-[80px] h-[112px]', getActiveEffectTaskCardClass(card.instanceId))}
                         />
                       </div>
                     </CardDetailPressTarget>
@@ -1165,7 +1218,7 @@ export const PlayerArea = memo(function PlayerArea({
                           faceUp={true}
                           interactive={!isReadOnly && !isOpponent}
                           showHover={false}
-                          className="h-[72px] w-[52px]"
+                          className={cn('h-[72px] w-[52px]', getActiveEffectTaskCardClass(card.instanceId))}
                         />
                       </div>
                     </CardDetailPressTarget>
@@ -1323,12 +1376,15 @@ export const PlayerArea = memo(function PlayerArea({
                 >
                   <CardDetailPressTarget cardId={card?.instanceId ?? null} disabled={!card}>
                     <div
+                      data-card-id={card?.instanceId}
+                      data-object-id={card ? `obj_${card.instanceId}` : undefined}
                       className={cn(
                         'h-[22px] w-4 overflow-hidden rounded-[3px] shadow-sm transition-transform',
                         allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging
                           ? 'cursor-pointer active:scale-95'
                           : 'cursor-default',
-                        !isActive && 'rotate-90 opacity-45 grayscale'
+                        !isActive && 'rotate-90 opacity-45 grayscale',
+                        card && getActiveEffectTaskCardClass(card.instanceId)
                       )}
                       onClick={() => {
                         if (allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging) {
@@ -1410,7 +1466,10 @@ export const PlayerArea = memo(function PlayerArea({
                 effectVisualState={getEffectVisualState(card, { faceUp: shouldShowFront })}
                 interactive={!isReadOnly && !isOpponent}
                 showHover={false}
-                className="h-[80px] w-[57px] md:h-[112px] md:w-[80px]"
+                className={cn(
+                  'h-[80px] w-[57px] md:h-[112px] md:w-[80px]',
+                  getActiveEffectTaskCardClass(card.instanceId)
+                )}
               />
             ) : (
               <div className="h-[80px] w-[57px] overflow-hidden rounded-lg shadow-md md:h-[112px] md:w-[80px]">
@@ -1648,7 +1707,7 @@ export const PlayerArea = memo(function PlayerArea({
           isOpponent ? 'bottom-[88px]' : 'top-[88px]'
         )}
       >
-        <div className="flex max-w-[min(76vw,720px)] flex-col gap-3 rounded-2xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-4 py-3 shadow-[var(--shadow-lg)] backdrop-blur-xl">
+        <div className="flex w-[min(92vw,780px)] flex-col gap-2.5 overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--accent-primary)_30%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl sm:w-[min(82vw,780px)]">
           <DroppableZone
             id={`${INSPECTION_TARGET_IDS.blocker}-header`}
             className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
@@ -1706,93 +1765,109 @@ export const PlayerArea = memo(function PlayerArea({
             ) : null}
           </DroppableZone>
 
-          {canUseInspectionActions && hasVisibleInspectionCards ? (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <DroppableZone
-                id={INSPECTION_TARGET_IDS.hand}
-                disabled={!canMoveInspectedToZone}
-                className="flex min-h-10 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-2 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
-                activeClassName="outline outline-2 outline-cyan-400 bg-cyan-500/15"
-              >
-                <span className="whitespace-nowrap">加入手牌</span>
-              </DroppableZone>
-              <DroppableZone
-                id={INSPECTION_TARGET_IDS.waitingRoom}
-                disabled={!canMoveInspectedToZone}
-                className="flex min-h-10 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-2 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
-                activeClassName="outline outline-2 outline-slate-300 bg-slate-500/15"
-              >
-                <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                  <Trash2 size={12} />
-                  放休息室
-                </span>
-              </DroppableZone>
-              <DroppableZone
-                id={INSPECTION_TARGET_IDS.mainDeckTop}
-                disabled={!canMoveInspectedToTop}
-                className="flex min-h-10 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-2 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
-                activeClassName="outline outline-2 outline-amber-400 bg-amber-500/15"
-              >
-                <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                  <ArrowUpToLine size={12} />
-                  回卡组顶
-                </span>
-              </DroppableZone>
-              <DroppableZone
-                id={INSPECTION_TARGET_IDS.mainDeckBottom}
-                disabled={!canMoveInspectedToBottom}
-                className="flex min-h-10 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-2 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
-                activeClassName="outline outline-2 outline-orange-500 bg-orange-500/15"
-              >
-                <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                  <ArrowDownToLine size={12} />
-                  放卡组底
-                </span>
-              </DroppableZone>
-            </div>
-          ) : null}
-
           {hasVisibleInspectionCards ? (
-            <SortableContext items={inspectionCardIds} strategy={horizontalListSortingStrategy}>
-              <DroppableZone
-                id={getDroppableId(ZoneType.INSPECTION_ZONE)}
-                zoneId={createZoneId(ZoneType.INSPECTION_ZONE)}
-                disabled={!canUseInspectionActions}
-                className="overflow-x-auto rounded-lg border border-dashed border-[color:color-mix(in_srgb,var(--accent-primary)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_22%,transparent)] px-2 py-2"
-                activeClassName="outline outline-2 outline-purple-400 bg-purple-500/15"
-                dropTargetClassName="outline outline-2 outline-dashed outline-purple-400/80 bg-purple-500/10"
-              >
-                <div className="flex w-max min-w-full items-start gap-3">
-                  {inspectionCardIds.map((cardId) => {
-                    const viewObject = getCardViewObject(cardId);
-                    const card = getVisibleCardPresentation(cardId);
-                    const showFront = viewObject?.surface === 'FRONT' && !!card;
-                    const imagePath = showFront && card ? card.imagePath : '/back.jpg';
+            <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,1fr)_2.75rem]">
+              <SortableContext items={inspectionCardIds} strategy={horizontalListSortingStrategy}>
+                <DroppableZone
+                  id={getDroppableId(ZoneType.INSPECTION_ZONE)}
+                  zoneId={createZoneId(ZoneType.INSPECTION_ZONE)}
+                  disabled={!canUseInspectionActions}
+                  className="relative min-h-[112px] min-w-0 overflow-x-auto rounded-xl border border-dashed border-[color:color-mix(in_srgb,var(--accent-primary)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_22%,transparent)] px-2 py-2 sm:min-h-[124px]"
+                  activeClassName="outline outline-2 outline-purple-400 bg-purple-500/15"
+                  dropTargetClassName="outline outline-2 outline-dashed outline-purple-400/80 bg-purple-500/10"
+                >
+                  <div
+                    data-animation-zone-id={getDroppableId(ZoneType.INSPECTION_ZONE)}
+                    className="pointer-events-none absolute left-2 top-2 h-[84px] w-[60px] rounded-lg opacity-0 sm:h-[96px] sm:w-[68px]"
+                  />
+                  <div className="flex w-max min-w-full items-start gap-3">
+                    {inspectionCardIds.map((cardId) => {
+                      const viewObject = getCardViewObject(cardId);
+                      const card = getVisibleCardPresentation(cardId);
+                      const showFront = viewObject?.surface === 'FRONT' && !!card;
+                      const imagePath = showFront && card ? card.imagePath : '/back.jpg';
 
-                    return (
-                      <CardDetailPressTarget
-                        key={cardId}
-                        cardId={showFront && card ? card.instanceId : null}
-                        disabled={!showFront || !card}
-                        className="shrink-0"
-                      >
-                        <SortableInspectionCard
-                          cardId={cardId}
-                          imagePath={imagePath}
-                          disabled={!canUseInspectionActions || !canDragInspectionCard}
-                          showActions={canUseInspectionActions}
-                          canReveal={canUseInspectionActions && canRevealInspectedCard}
-                          isRevealed={isInspectionCardPubliclyRevealed(cardId)}
-                          onReveal={(targetCardId) => {
-                            revealInspectedCard(targetCardId);
-                          }}
-                        />
-                      </CardDetailPressTarget>
-                    );
-                  })}
+                      return (
+                        <CardDetailPressTarget
+                          key={cardId}
+                          cardId={showFront && card ? card.instanceId : null}
+                          disabled={!showFront || !card}
+                          className="shrink-0"
+                        >
+                          <SortableInspectionCard
+                            cardId={cardId}
+                            imagePath={imagePath}
+                            containerClassName={getBattleAnimationOcclusionClass(cardId)}
+                            className={getActiveEffectTaskCardClass(cardId)}
+                            disabled={!canUseInspectionActions || !canDragInspectionCard}
+                            showActions={canUseInspectionActions}
+                            canReveal={canUseInspectionActions && canRevealInspectedCard}
+                            isRevealed={isInspectionCardPubliclyRevealed(cardId)}
+                            onReveal={(targetCardId) => {
+                              revealInspectedCard(targetCardId);
+                            }}
+                          />
+                        </CardDetailPressTarget>
+                      );
+                    })}
+                  </div>
+                </DroppableZone>
+              </SortableContext>
+
+              {canUseInspectionActions ? (
+                <div
+                  className={cn(
+                    'grid grid-cols-4 gap-1 md:grid-cols-1',
+                    isDragging ? 'opacity-100' : 'opacity-70'
+                  )}
+                >
+                  <DroppableZone
+                    id={INSPECTION_TARGET_IDS.hand}
+                    disabled={!canMoveInspectedToZone}
+                    title="加入手牌"
+                    ariaLabel="加入手牌"
+                    className="flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-0"
+                    activeClassName="outline outline-2 outline-cyan-400 bg-cyan-500/15 text-cyan-50"
+                  >
+                    <Layers3 size={13} className="shrink-0" />
+                    <span className="md:sr-only">手牌</span>
+                  </DroppableZone>
+                  <DroppableZone
+                    id={INSPECTION_TARGET_IDS.waitingRoom}
+                    disabled={!canMoveInspectedToZone}
+                    title="放入休息室"
+                    ariaLabel="放入休息室"
+                    className="flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-0"
+                    activeClassName="outline outline-2 outline-[color:color-mix(in_srgb,var(--text-secondary)_70%,white)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_58%,transparent)] text-[var(--text-primary)]"
+                  >
+                    <Trash2 size={13} className="shrink-0" />
+                    <span className="md:sr-only">休息</span>
+                  </DroppableZone>
+                  <DroppableZone
+                    id={INSPECTION_TARGET_IDS.mainDeckTop}
+                    disabled={!canMoveInspectedToTop}
+                    title="回卡组顶"
+                    ariaLabel="回卡组顶"
+                    className="flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-0"
+                    activeClassName="outline outline-2 outline-amber-400 bg-amber-500/15 text-amber-50"
+                  >
+                    <ArrowUpToLine size={13} className="shrink-0" />
+                    <span className="md:sr-only">顶</span>
+                  </DroppableZone>
+                  <DroppableZone
+                    id={INSPECTION_TARGET_IDS.mainDeckBottom}
+                    disabled={!canMoveInspectedToBottom}
+                    title="放卡组底"
+                    ariaLabel="放卡组底"
+                    className="flex min-h-9 items-center justify-center gap-1 rounded-md border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_38%,transparent)] px-1 text-[10px] font-semibold text-[var(--text-secondary)] md:h-9 md:px-0"
+                    activeClassName="outline outline-2 outline-[var(--accent-gold)] bg-[color:color-mix(in_srgb,var(--accent-gold)_16%,transparent)] text-[var(--accent-gold-light)]"
+                  >
+                    <ArrowDownToLine size={13} className="shrink-0" />
+                    <span className="md:sr-only">底</span>
+                  </DroppableZone>
                 </div>
-              </DroppableZone>
-            </SortableContext>
+              ) : null}
+            </div>
           ) : (
             <DroppableZone
               id={getDroppableId(ZoneType.INSPECTION_ZONE)}
@@ -1913,7 +1988,12 @@ export const PlayerArea = memo(function PlayerArea({
           return (
             <div
               key={cardId}
-              className="absolute bottom-3"
+              className={cn(
+                'absolute bottom-3',
+                isDragging
+                  ? 'transition-none'
+                  : 'transition-[left,transform] duration-300 ease-out'
+              )}
               style={{
                 left: `calc(50% + ${(idx - (handCount - 1) / 2) * handStep}px)`,
                 transform: `translateX(-50%) rotate(${(idx - (handCount - 1) / 2) * handRotationStep}deg) scale(${handScale})`,
@@ -1941,6 +2021,7 @@ export const PlayerArea = memo(function PlayerArea({
                       faceUp={true}
                       selected={selectedCardId === card.instanceId}
                       effectVisualState={getEffectVisualState(card)}
+                      className={getActiveEffectTaskCardClass(card.instanceId)}
                       onClick={() => allowGeneralOwnZoneInteraction && selectCard(card.instanceId)}
                       showHover={false}
                     />
