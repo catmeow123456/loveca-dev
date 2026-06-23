@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
@@ -33,19 +34,42 @@ function getFallbackPosition(): FeedbackPosition {
   };
 }
 
+function getFixedViewportOffset(): Pick<FeedbackPosition, 'left' | 'top'> {
+  if (typeof document === 'undefined') {
+    return { left: 0, top: 0 };
+  }
+
+  const rect = document.documentElement.getBoundingClientRect();
+  return { left: rect.left, top: rect.top };
+}
+
 export function BattleActionFeedbackLayer() {
   const reduceMotion = useReducedMotion();
-  const { dragActionHint, feedbackEvents, dismissBattleFeedback } = useGameStore(
+  const {
+    dragActionHint,
+    feedbackEvents,
+    isDragging,
+    dismissBattleFeedback,
+    setBattleDragActionHint,
+  } = useGameStore(
     useShallow((s) => ({
       dragActionHint: s.ui.dragActionHint,
       feedbackEvents: s.ui.battleFeedbackEvents,
+      isDragging: s.ui.isDragging,
       dismissBattleFeedback: s.dismissBattleFeedback,
+      setBattleDragActionHint: s.setBattleDragActionHint,
     }))
   );
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const delay = getNextBattleFeedbackExpiryDelay(feedbackEvents, now);
+    if (!isDragging && dragActionHint) {
+      setBattleDragActionHint(null);
+    }
+  }, [dragActionHint, isDragging, setBattleDragActionHint]);
+
+  useEffect(() => {
+    const delay = getNextBattleFeedbackExpiryDelay(feedbackEvents, Date.now());
     if (delay === null) {
       return;
     }
@@ -65,18 +89,19 @@ export function BattleActionFeedbackLayer() {
   const visibleEvents: BattleFeedbackEvent[] = feedbackEvents
     .filter((event) => !isBattleFeedbackEventExpired(event, now))
     .slice(-4);
+  const visibleDragActionHint = isDragging ? dragActionHint : null;
 
-  return (
+  const layer = (
     <div className="pointer-events-none fixed inset-0 z-[90]">
       <AnimatePresence>
-        {dragActionHint && (
+        {visibleDragActionHint && (
           <AnchoredBadge
             key="drag-action-hint"
-            label={dragActionHint.label}
-            detail={dragActionHint.detail}
-            tone={dragActionHint.tone === 'blocked' ? 'error' : 'intent'}
-            anchor={dragActionHint.anchor}
-            dragHint={dragActionHint}
+            label={visibleDragActionHint.label}
+            detail={visibleDragActionHint.detail}
+            tone={visibleDragActionHint.tone === 'blocked' ? 'error' : 'intent'}
+            anchor={visibleDragActionHint.anchor}
+            dragHint={visibleDragActionHint}
             reduceMotion={reduceMotion}
           />
         )}
@@ -93,6 +118,8 @@ export function BattleActionFeedbackLayer() {
       </AnimatePresence>
     </div>
   );
+
+  return typeof document === 'undefined' ? layer : createPortal(layer, document.body);
 }
 
 function AnchoredBadge({
@@ -136,24 +163,36 @@ function AnchoredBadge({
   const showText = dragHint === undefined;
   const frameWidth = Math.max(position.width, 36);
   const frameHeight = Math.max(position.height, 28);
+  const fixedViewportOffset = getFixedViewportOffset();
+  const frameClassName = cn(
+    'fixed rounded-md border',
+    isError &&
+      'border-[color:color-mix(in_srgb,var(--semantic-error)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_14%,transparent)] shadow-[0_0_14px_color-mix(in_srgb,var(--semantic-error)_32%,transparent)]',
+    isSuccess &&
+      'border-[color:color-mix(in_srgb,var(--semantic-success)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] shadow-[0_0_13px_color-mix(in_srgb,var(--semantic-success)_28%,transparent)]',
+    isIntent &&
+      'border-[color:color-mix(in_srgb,var(--semantic-info)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,transparent)] shadow-[0_0_13px_color-mix(in_srgb,var(--semantic-info)_26%,transparent)]'
+  );
+  const frameStyle = {
+    left: position.left - frameWidth / 2 - fixedViewportOffset.left,
+    top: position.top - frameHeight / 2 - fixedViewportOffset.top,
+    width: frameWidth,
+    height: frameHeight,
+  };
 
   return (
     <>
-      {showFrame && (
+      {showFrame && dragHint !== undefined ? (
+        <div
+          data-battle-feedback-frame="drag"
+          className={frameClassName}
+          style={frameStyle}
+        />
+      ) : showFrame ? (
         <motion.div
-          className={cn(
-            'fixed rounded-lg border',
-            isError && 'border-rose-300/90 bg-rose-500/10 shadow-[0_0_18px_rgba(244,63,94,0.42)]',
-            isSuccess &&
-              'border-emerald-300/80 bg-emerald-500/10 shadow-[0_0_16px_rgba(16,185,129,0.32)]',
-            isIntent && 'border-amber-300/80 bg-amber-500/10 shadow-[0_0_14px_rgba(245,158,11,0.32)]'
-          )}
-          style={{
-            left: position.left - frameWidth / 2,
-            top: position.top - frameHeight / 2,
-            width: frameWidth,
-            height: frameHeight,
-          }}
+          data-battle-feedback-frame={tone}
+          className={frameClassName}
+          style={frameStyle}
           initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
           animate={
             reduceMotion
@@ -165,25 +204,25 @@ function AnchoredBadge({
           exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
           transition={{ duration: reduceMotion ? 0.08 : isError ? 0.26 : 0.18 }}
         />
-      )}
+      ) : null}
       {showText && (
         <div
-          className="fixed max-w-[min(240px,calc(100vw-2rem))]"
+          className="fixed max-w-[min(260px,calc(100vw-2rem))]"
           style={{
-            left: position.left,
-            top: Math.max(12, position.top - position.height / 2 - 8),
+            left: position.left - fixedViewportOffset.left,
+            top: Math.max(12, position.top - position.height / 2 - 8) - fixedViewportOffset.top,
             transform: 'translate(-50%, -100%)',
           }}
         >
           <motion.div
             className={cn(
-              'rounded border px-2 py-1 text-left shadow-[var(--shadow-md)] backdrop-blur-xl',
+              'rounded-md border px-2.5 py-1.5 text-left shadow-[0_8px_20px_rgba(0,0,0,0.22)] backdrop-blur-md',
               isError &&
-                'border-rose-300/70 bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,rgb(244,63,94)_8%)] text-rose-100',
+                'border-[color:color-mix(in_srgb,var(--semantic-error)_52%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,var(--bg-surface))] text-[var(--semantic-error)]',
               isSuccess &&
-                'border-emerald-300/70 bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,rgb(16,185,129)_8%)] text-emerald-100',
+                'border-[color:color-mix(in_srgb,var(--semantic-success)_48%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,var(--bg-surface))] text-[var(--semantic-success)]',
               isIntent &&
-                'border-amber-300/70 bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,rgb(245,158,11)_8%)] text-amber-100',
+                'border-[color:color-mix(in_srgb,var(--semantic-info)_48%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,var(--bg-surface))] text-[var(--semantic-info)]',
               tone === 'info' &&
                 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] text-[var(--text-primary)]'
             )}
@@ -192,9 +231,9 @@ function AnchoredBadge({
             exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -2, scale: 0.98 }}
             transition={{ duration: reduceMotion ? 0.08 : 0.14 }}
           >
-            <div className="text-[10px] font-semibold leading-tight">{label}</div>
+            <div className="text-[11px] font-semibold leading-tight">{label}</div>
             {detail && (
-              <div className="mt-0.5 line-clamp-2 text-[9px] leading-tight opacity-80">
+              <div className="mt-0.5 line-clamp-2 text-[10px] leading-snug opacity-90">
                 {detail}
               </div>
             )}

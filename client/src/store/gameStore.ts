@@ -538,7 +538,12 @@ export interface GameStore {
   /** 按声明顺序一次性整理剩余检视牌并结束检视 */
   finishInspectionWithArrangement: (
     cardIds: readonly string[],
-    toZone: ZoneType.HAND | ZoneType.WAITING_ROOM | ZoneType.EXILE_ZONE | ZoneType.MAIN_DECK | ZoneType.ENERGY_DECK,
+    toZone:
+      | ZoneType.HAND
+      | ZoneType.WAITING_ROOM
+      | ZoneType.EXILE_ZONE
+      | ZoneType.MAIN_DECK
+      | ZoneType.ENERGY_DECK,
     options?: { position?: 'TOP' | 'BOTTOM' }
   ) => CommandDispatchResult;
   /** 声明当前检视流程完成 */
@@ -948,6 +953,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         {
           failureMessage: '公开区卡牌移动失败',
           clearHoveredCardId: cardId,
+          deselectCard: true,
         }
       );
     },
@@ -958,6 +964,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         {
           failureMessage: '公开区卡牌回手失败',
           clearHoveredCardId: cardId,
+          deselectCard: true,
         }
       );
     },
@@ -968,6 +975,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         {
           failureMessage: '公开能量回到能量卡组失败',
           clearHoveredCardId: cardId,
+          deselectCard: true,
         }
       );
     },
@@ -978,6 +986,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         {
           failureMessage: '己方卡牌移动失败',
           clearHoveredCardId: cardId,
+          deselectCard: true,
         }
       );
     },
@@ -1015,6 +1024,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         {
           failureMessage: '卡牌效果处理失败',
           successMessage: '继续处理卡牌效果',
+          deselectCard: true,
           logError: true,
         }
       );
@@ -1869,6 +1879,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         {
           failureMessage: '移动卡牌失败',
           clearHoveredCardId: cardId,
+          deselectCard: true,
         }
       );
     },
@@ -1879,6 +1890,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         {
           failureMessage: '成员换位失败',
           clearHoveredCardId: cardId,
+          deselectCard: true,
         }
       );
     },
@@ -1890,6 +1902,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         {
           failureMessage: '附着能量失败',
           clearHoveredCardId: cardId,
+          deselectCard: true,
         }
       );
     },
@@ -1910,6 +1923,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         failureMessage: '检视牌放回顶部失败',
         successMessage: '检视牌放回顶部',
         clearHoveredCardId: cardId,
+        deselectCard: true,
         logError: true,
       });
     },
@@ -1929,6 +1943,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           failureMessage: '检视牌放回底部失败',
           successMessage: '检视牌放回底部',
           clearHoveredCardId: cardId,
+          deselectCard: true,
           logError: true,
         }
       );
@@ -1941,6 +1956,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           failureMessage: '检视牌移动失败',
           successMessage: `检视牌移动到 ${toZone}`,
           clearHoveredCardId: cardId,
+          deselectCard: true,
           logError: true,
         }
       );
@@ -1953,6 +1969,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           failureMessage: '卡牌移入检视区失败',
           successMessage: '卡牌移入检视区',
           clearHoveredCardId: cardId,
+          deselectCard: true,
           logError: true,
         }
       );
@@ -2010,6 +2027,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           failureMessage: '解决区卡牌移动失败',
           successMessage: `解决区卡牌移动到 ${toZone}`,
           clearHoveredCardId: cardId,
+          deselectCard: true,
           logError: true,
         }
       );
@@ -2801,10 +2819,7 @@ function dispatchRemoteAdvancePhase(): boolean {
   }).catch((error) => {
     useGameStore
       .getState()
-      .addLog(
-        `阶段推进失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
-        'error'
-      );
+      .addLog(`阶段推进失败: ${error instanceof Error ? error.message : '网络请求失败'}`, 'error');
   });
 
   return true;
@@ -2840,9 +2855,7 @@ function dispatchRemoteUndoLastStep(): CommandDispatchResult {
       return;
     }
     if (!result.success || !result.snapshot) {
-      useGameStore
-        .getState()
-        .addLog(`撤销失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+      useGameStore.getState().addLog(`撤销失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
       return;
     }
 
@@ -2889,7 +2902,11 @@ function dispatchRemoteUndoRequest(): CommandDispatchResult {
     idempotencyKey: createClientIdempotencyKey('undo-request'),
   };
   void enqueueRemoteSessionOperation(remoteSession, async () => {
-    const result = await createRemoteUndoRequest(remoteSession.source, remoteSession.matchId, input);
+    const result = await createRemoteUndoRequest(
+      remoteSession.source,
+      remoteSession.matchId,
+      input
+    );
     if (!isRemoteSessionStillCurrent(remoteSession)) {
       return;
     }
@@ -2905,10 +2922,7 @@ function dispatchRemoteUndoRequest(): CommandDispatchResult {
   }).catch((error) => {
     useGameStore
       .getState()
-      .addLog(
-        `请求撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
-        'error'
-      );
+      .addLog(`请求撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`, 'error');
   });
 
   return { success: false, pending: true };
@@ -2937,7 +2951,12 @@ function dispatchRemoteUndoRequestResponse(
   void enqueueRemoteSessionOperation(remoteSession, async () => {
     const result = accepted
       ? await acceptRemoteUndoRequest(remoteSession.source, remoteSession.matchId, requestId, input)
-      : await rejectRemoteUndoRequest(remoteSession.source, remoteSession.matchId, requestId, input);
+      : await rejectRemoteUndoRequest(
+          remoteSession.source,
+          remoteSession.matchId,
+          requestId,
+          input
+        );
     if (!isRemoteSessionStillCurrent(remoteSession)) {
       return;
     }
@@ -2945,9 +2964,7 @@ function dispatchRemoteUndoRequestResponse(
       useGameStore
         .getState()
         .addLog(
-          `${accepted ? '接受' : '拒绝'}撤销失败: ${
-            result.error ?? '服务端拒绝了该操作'
-          }`,
+          `${accepted ? '接受' : '拒绝'}撤销失败: ${result.error ?? '服务端拒绝了该操作'}`,
           'error'
         );
       return;

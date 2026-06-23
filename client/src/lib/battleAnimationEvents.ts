@@ -167,6 +167,7 @@ export function createBattleAnimationEventsFromViewDiff({
   const nextLocations = collectBattleObjectLocations(nextViewState);
   const moveCandidates: BattleAnimationEvent[] = [];
   const otherEvents: BattleAnimationEvent[] = [];
+  const pulseKeys = new Set<string>();
 
   for (const [objectId, previousLocation] of previousLocations) {
     const nextLocation = nextLocations.get(objectId);
@@ -181,6 +182,42 @@ export function createBattleAnimationEventsFromViewDiff({
     }
 
     if (previousLocation.key !== nextLocation.key) {
+      if (shouldSkipLongDistanceInspectionMove(previousLocation, nextLocation)) {
+        continue;
+      }
+
+      if (shouldSkipSameZoneListReflow(previousLocation, nextLocation)) {
+        continue;
+      }
+
+      if (shouldPulseInspectionCleanupMove(previousLocation, nextLocation)) {
+        const rect = resolveAnimationRect(nextAnchors, objectId, nextLocation, {
+          preferZoneAnchor: true,
+        });
+        addZonePulseEvent({
+          events: otherEvents,
+          pulseKeys,
+          nextViewState,
+          pulseKey: `inspection-cleanup:${nextLocation.zoneAnchorKey}`,
+          rect,
+        });
+        continue;
+      }
+
+      if (shouldPulseStackedCardMove(previousLocation, nextLocation)) {
+        const rect = resolveAnimationRect(nextAnchors, objectId, nextLocation, {
+          preferZoneAnchor: true,
+        });
+        addZonePulseEvent({
+          events: otherEvents,
+          pulseKeys,
+          nextViewState,
+          pulseKey: `stack:${nextLocation.zoneAnchorKey}`,
+          rect,
+        });
+        continue;
+      }
+
       const fromRect = resolveAnimationRect(previousAnchors, objectId, previousLocation);
       const toRect = resolveAnimationRect(nextAnchors, objectId, nextLocation, {
         preferZoneAnchor: nextLocation.zoneType === ZoneType.WAITING_ROOM,
@@ -303,6 +340,79 @@ export function collectBattleObjectLocations(
   return result;
 }
 
+function shouldPulseStackedCardMove(
+  previousLocation: BattleObjectLocation,
+  nextLocation: BattleObjectLocation
+): boolean {
+  return isStackedMemberLocation(previousLocation) || isStackedMemberLocation(nextLocation);
+}
+
+function isStackedMemberLocation(location: BattleObjectLocation): boolean {
+  return location.key.includes(':overlay:') || location.key.includes(':below:');
+}
+
+function shouldSkipSameZoneListReflow(
+  previousLocation: BattleObjectLocation,
+  nextLocation: BattleObjectLocation
+): boolean {
+  return (
+    previousLocation.zoneKey === nextLocation.zoneKey &&
+    previousLocation.zoneType === nextLocation.zoneType &&
+    isListLocation(previousLocation) &&
+    isListLocation(nextLocation)
+  );
+}
+
+function isListLocation(location: BattleObjectLocation): boolean {
+  return location.key.includes(':list:');
+}
+
+function shouldPulseInspectionCleanupMove(
+  previousLocation: BattleObjectLocation,
+  nextLocation: BattleObjectLocation
+): boolean {
+  return (
+    previousLocation.zoneType === ZoneType.INSPECTION_ZONE &&
+    (nextLocation.zoneType === ZoneType.MAIN_DECK ||
+      nextLocation.zoneType === ZoneType.WAITING_ROOM)
+  );
+}
+
+function shouldSkipLongDistanceInspectionMove(
+  previousLocation: BattleObjectLocation,
+  nextLocation: BattleObjectLocation
+): boolean {
+  return (
+    previousLocation.zoneType === ZoneType.MAIN_DECK &&
+    nextLocation.zoneType === ZoneType.INSPECTION_ZONE
+  );
+}
+
+function addZonePulseEvent({
+  events,
+  pulseKeys,
+  nextViewState,
+  pulseKey,
+  rect,
+}: {
+  readonly events: BattleAnimationEvent[];
+  readonly pulseKeys: Set<string>;
+  readonly nextViewState: PlayerViewState;
+  readonly pulseKey: string;
+  readonly rect: BattleAnimationRect | null;
+}): void {
+  if (!rect || pulseKeys.has(pulseKey)) {
+    return;
+  }
+
+  pulseKeys.add(pulseKey);
+  events.push({
+    id: `pulse:${nextViewState.match.seq}:${pulseKey}`,
+    kind: 'ZONE_PULSE',
+    rect,
+  });
+}
+
 export function findBattleObjectLocation(
   viewState: PlayerViewState | null,
   objectId: string
@@ -371,10 +481,7 @@ function resolveAnimationRect(
     return zoneRect ?? anchors.cards.get(objectId) ?? null;
   }
 
-  return (
-    anchors.cards.get(objectId) ??
-    zoneRect
-  );
+  return anchors.cards.get(objectId) ?? zoneRect;
 }
 
 function createZonePulseEventsForLargeDiff(

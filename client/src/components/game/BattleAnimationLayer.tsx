@@ -11,20 +11,18 @@ import {
   type BattleAnimationEvent,
   type BattleAnimationRect,
 } from '@/lib/battleAnimationEvents';
+import {
+  BATTLE_CARD_MOVE_DURATION_MS,
+  BATTLE_CARD_MOVE_SETTLE_BUFFER_MS,
+  BATTLE_PULSE_DURATION_MS,
+  createSequencedBattleAnimationEvents,
+  type ScheduledBattleAnimationEvent,
+} from '@/lib/battleAnimationSequencing';
 import { useGameStore } from '@/store/gameStore';
 import type { PlayerViewState } from '@game/online';
-import { ZoneType } from '@game/shared/types/enums';
 
-const MOVE_DURATION_MS = 520;
-const PULSE_DURATION_MS = 360;
-const FOLLOW_UP_MOVE_DELAY_MS = MOVE_DURATION_MS + 80;
 const MAX_RENDERED_EVENT_IDS = 200;
 const RETAINED_RENDERED_EVENT_IDS = 150;
-
-interface ScheduledBattleAnimationEvent {
-  readonly event: BattleAnimationEvent;
-  readonly delayMs: number;
-}
 
 export function BattleAnimationLayer() {
   const reduceMotion = useReducedMotion();
@@ -124,11 +122,14 @@ export function BattleAnimationLayer() {
           activeOcclusionEventIdsRef.current.add(occlusion.eventId);
         }
         for (const occlusion of moveOcclusions) {
-          const timeout = window.setTimeout(() => {
-            scheduledEventTimeoutsRef.current.delete(timeout);
-            activeOcclusionEventIdsRef.current.delete(occlusion.eventId);
-            removeBattleAnimationOcclusion(occlusion.eventId);
-          }, occlusion.delayMs + MOVE_DURATION_MS + 180);
+          const timeout = window.setTimeout(
+            () => {
+              scheduledEventTimeoutsRef.current.delete(timeout);
+              activeOcclusionEventIdsRef.current.delete(occlusion.eventId);
+              removeBattleAnimationOcclusion(occlusion.eventId);
+            },
+            occlusion.delayMs + BATTLE_CARD_MOVE_DURATION_MS + BATTLE_CARD_MOVE_SETTLE_BUFFER_MS
+          );
           scheduledEventTimeoutsRef.current.add(timeout);
         }
 
@@ -167,7 +168,7 @@ export function BattleAnimationLayer() {
   };
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[85]">
+    <div className="pointer-events-none fixed inset-0 z-[72]">
       <AnimatePresence>
         {events.map((event) => {
           if (event.kind === 'CARD_MOVE') {
@@ -233,35 +234,6 @@ function clearPendingBattleAnimations({
   activeOcclusionEventIds.clear();
 }
 
-function createSequencedBattleAnimationEvents(
-  events: readonly BattleAnimationEvent[]
-): ScheduledBattleAnimationEvent[] {
-  const hasStageEntryMove = events.some(
-    (event) =>
-      event.kind === 'CARD_MOVE' &&
-      event.toZoneType === ZoneType.MEMBER_SLOT &&
-      event.fromZoneType !== ZoneType.MEMBER_SLOT
-  );
-
-  if (!hasStageEntryMove) {
-    return events.map((event) => ({ event, delayMs: 0 }));
-  }
-
-  return events.map((event) => ({
-    event,
-    delayMs:
-      event.kind === 'CARD_MOVE' && !isStageTransitionMove(event)
-        ? FOLLOW_UP_MOVE_DELAY_MS
-        : 0,
-  }));
-}
-
-function isStageTransitionMove(
-  event: Extract<BattleAnimationEvent, { kind: 'CARD_MOVE' }>
-): boolean {
-  return event.fromZoneType === ZoneType.MEMBER_SLOT || event.toZoneType === ZoneType.MEMBER_SLOT;
-}
-
 function groupDelayedEventsByDelay(
   scheduledEvents: readonly ScheduledBattleAnimationEvent[]
 ): Map<number, BattleAnimationEvent[]> {
@@ -301,6 +273,8 @@ function MovingCard({
   const startTop = fromCenter.y - startHeight / 2;
   const endLeft = toCenter.x - endWidth / 2;
   const endTop = toCenter.y - endHeight / 2;
+  const deltaX = endLeft - startLeft;
+  const deltaY = endTop - startTop;
 
   if (reduceMotion) {
     return (
@@ -314,26 +288,28 @@ function MovingCard({
 
   return (
     <motion.div
-      className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_70%,white)] bg-[var(--bg-overlay)] shadow-[0_14px_38px_rgba(0,0,0,0.42)]"
+      className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[var(--bg-overlay)] shadow-[0_10px_28px_rgba(0,0,0,0.34),0_1px_0_rgba(255,255,255,0.08)_inset]"
       style={{
         width: startWidth,
         height: startHeight,
         left: startLeft,
         top: startTop,
-        willChange: 'left, top, width, height, opacity',
+        transformOrigin: 'center center',
+        willChange: 'transform, opacity',
       }}
-      initial={{ opacity: 0.98 }}
+      initial={{ opacity: 0.92, x: 0, y: 0, scale: 0.985 }}
       animate={{
-        left: endLeft,
-        top: endTop,
+        x: deltaX,
+        y: deltaY,
         width: endWidth,
         height: endHeight,
-        opacity: 0.98,
+        opacity: 1,
+        scale: 1,
       }}
-      exit={{ opacity: 0, transition: { duration: 0.04 } }}
+      exit={{ opacity: 0, scale: 0.995, transition: { duration: 0.05 } }}
       transition={{
-        duration: MOVE_DURATION_MS / 1000,
-        ease: [0.2, 0.68, 0.18, 1],
+        duration: BATTLE_CARD_MOVE_DURATION_MS / 1000,
+        ease: [0.22, 1, 0.36, 1],
       }}
       onAnimationComplete={onDone}
     >
@@ -378,9 +354,11 @@ function PulseFrame({
         willChange: 'transform, opacity',
       }}
       initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}
-      animate={reduceMotion ? { opacity: 0.8 } : { opacity: [0.15, 0.9, 0], scale: [0.96, 1.06, 1] }}
+      animate={
+        reduceMotion ? { opacity: 0.8 } : { opacity: [0.15, 0.9, 0], scale: [0.96, 1.06, 1] }
+      }
       exit={{ opacity: 0 }}
-      transition={{ duration: (reduceMotion ? 120 : PULSE_DURATION_MS) / 1000 }}
+      transition={{ duration: (reduceMotion ? 120 : BATTLE_PULSE_DURATION_MS) / 1000 }}
       onAnimationComplete={onDone}
     />
   );
