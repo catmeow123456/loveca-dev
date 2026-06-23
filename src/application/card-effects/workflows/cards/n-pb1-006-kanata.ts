@@ -12,7 +12,6 @@ import { setMemberOrientation } from '../../../effects/member-state.js';
 import { PL_N_PB1_006_ACTIVATED_WAIT_SELF_ACTIVATE_ONE_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
-import { getNewMemberStateChangedEvents } from '../../runtime/events.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
@@ -71,13 +70,12 @@ export function startKanataWaitSelfActivateEnergy(
     return game;
   }
 
-  const memberStateChangedEvents = getNewMemberStateChangedEvents(game, waitResult.gameState);
   const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
     game,
     waitResult,
     deps.enqueueTriggeredCardEffects,
     {
-      prepareGameStateBeforeEnqueue: (stateAfterWait, result) =>
+      prepareGameStateBeforeEnqueue: (stateAfterWait, result, memberStateChangedEvents) =>
         addAction(stateAfterWait, 'PAY_COST', player.id, {
           abilityId: PL_N_PB1_006_ACTIVATED_WAIT_SELF_ACTIVATE_ONE_ENERGY_ABILITY_ID,
           sourceCardId: cardId,

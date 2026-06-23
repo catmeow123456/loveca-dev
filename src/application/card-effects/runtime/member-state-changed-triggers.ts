@@ -20,7 +20,8 @@ export interface EnqueueMemberStateChangedTriggersOptions<
 > {
   readonly prepareGameStateBeforeEnqueue?: (
     game: GameState,
-    orientationResult: TOrientationResult
+    orientationResult: TOrientationResult,
+    memberStateChangedEvents: readonly MemberStateChangedEvent[]
   ) => GameState;
 }
 
@@ -43,7 +44,11 @@ export function enqueueMemberStateChangedTriggersFromOrientationResult<
     orientationResult.gameState
   );
   const gameStateBeforeEnqueue = options.prepareGameStateBeforeEnqueue
-    ? options.prepareGameStateBeforeEnqueue(orientationResult.gameState, orientationResult)
+    ? options.prepareGameStateBeforeEnqueue(
+        orientationResult.gameState,
+        orientationResult,
+        memberStateChangedEvents
+      )
     : orientationResult.gameState;
 
   if (memberStateChangedEvents.length === 0) {

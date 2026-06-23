@@ -472,7 +472,17 @@ export class GameService {
         }
         case GameEventType.RUN_CHECK_TIMING: {
           const triggerConditions = events.filter(isTriggerCondition);
-          const checkResult = this.executeCheckTiming(state, triggerConditions);
+          let checkState = state;
+          if (
+            triggerConditions.includes(TriggerCondition.ON_LIVE_SUCCESS) &&
+            isSuccessEffectSubPhase(checkState.currentSubPhase)
+          ) {
+            checkState = this.emitLiveSuccessEventForResultSubPhase(
+              checkState,
+              checkState.currentSubPhase
+            );
+          }
+          const checkResult = this.executeCheckTiming(checkState, triggerConditions);
           state = checkResult.gameState;
           processedEvents.push(event);
           break;

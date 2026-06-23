@@ -31,7 +31,6 @@ import {
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { discardHandCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
-import { getNewMemberStateChangedEvents } from '../../runtime/events.js';
 import { enqueueMemberStateChangedTriggersFromOrientationResult } from '../../runtime/member-state-changed-triggers.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -205,13 +204,12 @@ function finishActivatedWaitOtherNijigasakiDrawOne(
     return game;
   }
 
-  const memberStateChangedEvents = getNewMemberStateChangedEvents(game, waitResult.gameState);
   const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
     game,
     waitResult,
     enqueueTriggeredCardEffects,
     {
-      prepareGameStateBeforeEnqueue: (stateAfterWait, result) =>
+      prepareGameStateBeforeEnqueue: (stateAfterWait, result, memberStateChangedEvents) =>
         addAction(stateAfterWait, 'PAY_COST', player.id, {
           abilityId: effect.abilityId,
           sourceCardId: effect.sourceCardId,
@@ -424,13 +422,12 @@ function finishLiveStartActivateTarget(
     return game;
   }
 
-  const memberStateChangedEvents = getNewMemberStateChangedEvents(game, activateResult.gameState);
   const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
     game,
     activateResult,
     enqueueTriggeredCardEffects,
     {
-      prepareGameStateBeforeEnqueue: (stateAfterActivate, result) =>
+      prepareGameStateBeforeEnqueue: (stateAfterActivate, result, memberStateChangedEvents) =>
         addAction(stateAfterActivate, 'RESOLVE_ABILITY', player.id, {
           pendingAbilityId: effect.id,
           abilityId: effect.abilityId,

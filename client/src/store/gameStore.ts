@@ -80,6 +80,11 @@ import {
   CardType,
   GameMode,
 } from '@game/shared/types/enums';
+import {
+  getCurrentSuccessLiveSettlementPlayerId,
+  getSuccessLiveSelectionCandidateIds,
+  haveAllSuccessLiveSettlementsCompleted,
+} from '@game/domain/rules/success-live-placement';
 import { getPhaseName } from '@game/shared/phase-config';
 import { preloadImage, resolveCardImagePath } from '@/lib/imageService';
 import { type ParsedZoneId } from '@/lib/zoneUtils';
@@ -667,7 +672,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     if (get().remoteSession) {
       return;
     }
-    if (subPhase !== SubPhase.RESULT_ANIMATION) {
+    if (subPhase !== SubPhase.RESULT_ANIMATION && subPhase !== SubPhase.RESULT_SETTLEMENT) {
       return;
     }
 
@@ -677,6 +682,53 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
 
     const winnerIds = state.liveResolution.liveWinnerIds;
+    if (subPhase === SubPhase.RESULT_SETTLEMENT) {
+      let confirmedAny = false;
+
+      while (true) {
+        const latestState = get().gameSession.state;
+        if (
+          !latestState ||
+          latestState.currentSubPhase !== SubPhase.RESULT_SETTLEMENT ||
+          haveAllSuccessLiveSettlementsCompleted(latestState)
+        ) {
+          break;
+        }
+
+        const currentSettlementPlayerId = getCurrentSuccessLiveSettlementPlayerId(latestState);
+        if (
+          currentSettlementPlayerId === null ||
+          !latestState.liveResolution.liveWinnerIds.includes(currentSettlementPlayerId)
+        ) {
+          break;
+        }
+
+        const legalCandidateIds = getSuccessLiveSelectionCandidateIds(
+          latestState,
+          currentSettlementPlayerId
+        );
+        if (legalCandidateIds.length > 0) {
+          break;
+        }
+
+        const result = get().gameSession.executeCommand(
+          createConfirmStepCommand(currentSettlementPlayerId, SubPhase.RESULT_SETTLEMENT)
+        );
+        if (!result.success) {
+          get().addLog(`自动确认无候选成功 Live 结算失败: ${result.error}`, 'error');
+          return;
+        }
+
+        confirmedAny = true;
+        get().syncState();
+      }
+
+      if (confirmedAny) {
+        get().addLog('无候选成功 Live 结算已自动补齐确认', 'info');
+      }
+      return;
+    }
+
     if (winnerIds.length < 2) {
       return;
     }
@@ -1686,6 +1738,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       });
       if (result.success) {
         autoConfirmOtherLocalWinners(subPhase);
+        autoConfirmOtherLocalWinners(SubPhase.RESULT_SETTLEMENT);
       }
       return result;
     },
@@ -1759,15 +1812,22 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     selectSuccessCard: (cardId) => {
-      return runViewerCommand((playerId) => createSelectSuccessLiveCommand(playerId, cardId), {
-        failureMessage: '选择成功卡失败',
-        successMessage: '选择成功 Live 卡移到成功区',
-        logError: true,
-      });
+      const result = runViewerCommand(
+        (playerId) => createSelectSuccessLiveCommand(playerId, cardId),
+        {
+          failureMessage: '选择成功卡失败',
+          successMessage: '选择成功 Live 卡移到成功区',
+          logError: true,
+        }
+      );
+      if (result.success) {
+        autoConfirmOtherLocalWinners(SubPhase.RESULT_SETTLEMENT);
+      }
+      return result;
     },
 
     skipSuccessLiveSelection: () => {
-      return runViewerCommand(
+      const result = runViewerCommand(
         (playerId) =>
           createConfirmStepCommand(playerId, SubPhase.RESULT_SETTLEMENT, {
             skipSuccessLiveSelection: true,
@@ -1778,6 +1838,10 @@ export const useGameStore = create<GameStore>((set, get) => {
           logError: true,
         }
       );
+      if (result.success) {
+        autoConfirmOtherLocalWinners(SubPhase.RESULT_SETTLEMENT);
+      }
+      return result;
     },
 
     moveTableCard: (cardId, fromZone, toZone, options) => {
