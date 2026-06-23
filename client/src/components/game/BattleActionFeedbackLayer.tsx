@@ -3,6 +3,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import {
+  escapeCssAttributeValue,
+  getNextBattleFeedbackExpiryDelay,
   isBattleFeedbackEventExpired,
   type BattleDragActionHint,
   type BattleFeedbackAnchor,
@@ -43,13 +45,14 @@ export function BattleActionFeedbackLayer() {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (feedbackEvents.length === 0) {
+    const delay = getNextBattleFeedbackExpiryDelay(feedbackEvents, now);
+    if (delay === null) {
       return;
     }
 
-    const timer = window.setInterval(() => setNow(Date.now()), 150);
-    return () => window.clearInterval(timer);
-  }, [feedbackEvents.length]);
+    const timer = window.setTimeout(() => setNow(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [feedbackEvents, now]);
 
   useEffect(() => {
     for (const event of feedbackEvents) {
@@ -252,6 +255,6 @@ function findAnchorElement(anchor?: BattleFeedbackAnchor): Element | null {
 }
 
 function queryDataAttribute(attribute: string, value: string): Element | null {
-  const escapedValue = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const escapedValue = escapeCssAttributeValue(value);
   return document.querySelector(`[${attribute}="${escapedValue}"]`);
 }

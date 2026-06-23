@@ -58,3 +58,34 @@ export function isBattleFeedbackEventExpired(
 ): boolean {
   return now - event.createdAt >= event.durationMs;
 }
+
+export function getNextBattleFeedbackExpiryDelay(
+  events: readonly BattleFeedbackEvent[],
+  now: number = Date.now()
+): number | null {
+  if (events.length === 0) {
+    return null;
+  }
+
+  let nextDelay: number | null = null;
+  for (const event of events) {
+    const delay = event.createdAt + event.durationMs - now;
+    nextDelay = nextDelay === null ? delay : Math.min(nextDelay, delay);
+  }
+
+  return Math.max(0, nextDelay ?? 0);
+}
+
+export function escapeCssAttributeValue(value: string): string {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(value);
+  }
+
+  return value
+    .replace(/\0/g, '\uFFFD')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\a ')
+    .replace(/\r/g, '\\d ')
+    .replace(/\f/g, '\\c ');
+}

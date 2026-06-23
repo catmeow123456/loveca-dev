@@ -18,6 +18,8 @@ import { ZoneType } from '@game/shared/types/enums';
 const MOVE_DURATION_MS = 520;
 const PULSE_DURATION_MS = 360;
 const FOLLOW_UP_MOVE_DELAY_MS = MOVE_DURATION_MS + 80;
+const MAX_RENDERED_EVENT_IDS = 200;
+const RETAINED_RENDERED_EVENT_IDS = 150;
 
 interface ScheduledBattleAnimationEvent {
   readonly event: BattleAnimationEvent;
@@ -51,20 +53,27 @@ export function BattleAnimationLayer() {
     const activeOcclusionEventIds = activeOcclusionEventIdsRef.current;
 
     return () => {
-      for (const timeout of scheduledEventTimeouts) {
-        window.clearTimeout(timeout);
-      }
-      scheduledEventTimeouts.clear();
-      for (const eventId of activeOcclusionEventIds) {
-        removeBattleAnimationOcclusion(eventId);
-      }
-      activeOcclusionEventIds.clear();
+      clearPendingBattleAnimations({
+        scheduledEventTimeouts,
+        activeOcclusionEventIds,
+        removeBattleAnimationOcclusion,
+      });
     };
   }, [removeBattleAnimationOcclusion]);
 
   useLayoutEffect(() => {
     const previousViewState = previousViewRef.current;
     const previousAnchors = previousAnchorsRef.current;
+    if (previousViewState?.match.matchId !== playerViewState?.match.matchId) {
+      renderedEventIdsRef.current.clear();
+      setEvents([]);
+      clearPendingBattleAnimations({
+        scheduledEventTimeouts: scheduledEventTimeoutsRef.current,
+        activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
+        removeBattleAnimationOcclusion,
+      });
+    }
+
     if (playerViewState && previousViewState && !isReadOnly) {
       prepareBattleAnimationLayoutForViewDiff({
         previousViewState,
@@ -84,7 +93,7 @@ export function BattleAnimationLayer() {
 
       if (nextEvents.length > 0) {
         for (const event of nextEvents) {
-          renderedEventIdsRef.current.add(event.id);
+          rememberRenderedEventId(renderedEventIdsRef.current, event.id);
         }
         const scheduledEvents = reduceMotion
           ? nextEvents.map((event) => ({ event, delayMs: 0 }))
@@ -190,6 +199,38 @@ export function BattleAnimationLayer() {
       </AnimatePresence>
     </div>
   );
+}
+
+function rememberRenderedEventId(renderedEventIds: Set<string>, eventId: string): void {
+  renderedEventIds.add(eventId);
+  if (renderedEventIds.size <= MAX_RENDERED_EVENT_IDS) {
+    return;
+  }
+
+  const retainedEventIds = Array.from(renderedEventIds).slice(-RETAINED_RENDERED_EVENT_IDS);
+  renderedEventIds.clear();
+  for (const retainedEventId of retainedEventIds) {
+    renderedEventIds.add(retainedEventId);
+  }
+}
+
+function clearPendingBattleAnimations({
+  scheduledEventTimeouts,
+  activeOcclusionEventIds,
+  removeBattleAnimationOcclusion,
+}: {
+  readonly scheduledEventTimeouts: Set<number>;
+  readonly activeOcclusionEventIds: Set<string>;
+  readonly removeBattleAnimationOcclusion: (eventId: string) => void;
+}): void {
+  for (const timeout of scheduledEventTimeouts) {
+    window.clearTimeout(timeout);
+  }
+  scheduledEventTimeouts.clear();
+  for (const eventId of activeOcclusionEventIds) {
+    removeBattleAnimationOcclusion(eventId);
+  }
+  activeOcclusionEventIds.clear();
 }
 
 function createSequencedBattleAnimationEvents(

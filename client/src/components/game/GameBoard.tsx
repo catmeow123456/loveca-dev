@@ -36,6 +36,8 @@ import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
 import { getDeckBackUrl } from '@/lib/imageService';
 import { parseZoneId } from '@/lib/zoneUtils';
+import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
+import { findBattleObjectLocation } from '@/lib/battleAnimationEvents';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
@@ -58,7 +60,7 @@ import {
 import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType } from '@game/shared/types/enums';
 import { getPhaseConfig, getSubPhaseConfig } from '@game/shared/phase-config';
 import type { AnyCardData } from '@game/domain/entities/card';
-import type { PlayerViewState, Seat, ViewZoneKey } from '@game/online';
+import type { PlayerViewState, Seat } from '@game/online';
 
 const INSPECTION_TARGET_PREFIX = 'inspection-target-';
 const RESOLUTION_TARGET_PREFIX = 'resolution-target-';
@@ -70,157 +72,7 @@ const MEMBER_SLOT_LABELS: Record<SlotPosition, string> = {
   [SlotPosition.RIGHT]: '右侧',
 };
 
-interface DragActionDescriptor {
-  readonly label: string;
-  readonly detail?: string;
-  readonly blocked?: boolean;
-}
-
-type SpecialDragTarget =
-  | { kind: 'inspection'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' }
-  | { kind: 'resolution'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' };
-
 type MobileBattlePanel = 'opponent' | 'log';
-
-interface CardViewLocation {
-  readonly zoneType: string;
-  readonly key: string;
-}
-
-function getSpecialTargetActionLabel(target: SpecialDragTarget): DragActionDescriptor {
-  if (target.kind === 'inspection') {
-    switch (target.action) {
-      case 'HAND':
-        return { label: '加入手牌' };
-      case 'WAITING_ROOM':
-        return { label: '放入休息室' };
-      case 'MAIN_DECK_BOTTOM':
-        return { label: '放回卡组底' };
-      case 'MAIN_DECK_TOP':
-      default:
-        return { label: '放回卡组顶' };
-    }
-  }
-
-  switch (target.action) {
-    case 'HAND':
-      return { label: '回到手牌' };
-    case 'WAITING_ROOM':
-      return { label: '放入休息室' };
-    case 'MAIN_DECK_TOP':
-    default:
-      return { label: '放回卡组顶' };
-  }
-}
-
-function getDragActionDescriptor({
-  fromZone,
-  toZone,
-  targetSlot,
-  targetOccupied,
-  cardType,
-  currentPhase,
-  specialTarget,
-}: {
-  readonly fromZone: ZoneType;
-  readonly toZone?: ZoneType;
-  readonly targetSlot?: SlotPosition;
-  readonly targetOccupied: boolean;
-  readonly cardType: CardType | null;
-  readonly currentPhase: GamePhase | null;
-  readonly specialTarget?: SpecialDragTarget | null;
-}): DragActionDescriptor | null {
-  if (specialTarget) {
-    return getSpecialTargetActionLabel(specialTarget);
-  }
-
-  if (!toZone) {
-    return null;
-  }
-
-  if (cardType === CardType.ENERGY) {
-    if (toZone === ZoneType.HAND) return { label: '不能移入手牌', blocked: true };
-    if (toZone === ZoneType.LIVE_ZONE) return { label: '不能放入 Live 区', blocked: true };
-    if (toZone === ZoneType.SUCCESS_ZONE) return { label: '不能放入成功区', blocked: true };
-    if (toZone === ZoneType.WAITING_ROOM) return { label: '请回能量卡组', blocked: true };
-  }
-
-  if (cardType === CardType.LIVE) {
-    if (toZone === ZoneType.MEMBER_SLOT) return { label: '不能登场', blocked: true };
-    if (toZone === ZoneType.ENERGY_ZONE || toZone === ZoneType.ENERGY_DECK) {
-      return { label: '不能放入能量区', blocked: true };
-    }
-  }
-
-  if (cardType === CardType.MEMBER) {
-    if (
-      currentPhase === GamePhase.MAIN_PHASE &&
-      fromZone === ZoneType.HAND &&
-      toZone === ZoneType.LIVE_ZONE
-    ) {
-      return { label: '不能放入 Live 区', blocked: true };
-    }
-    if (toZone === ZoneType.ENERGY_ZONE || toZone === ZoneType.ENERGY_DECK) {
-      return { label: '不能放入能量区', blocked: true };
-    }
-  }
-
-  if (toZone === ZoneType.SUCCESS_ZONE && cardType !== CardType.LIVE) {
-    return { label: '仅 LIVE 可进成功区', blocked: true };
-  }
-
-  if (
-    toZone === ZoneType.LIVE_ZONE &&
-    cardType !== CardType.LIVE &&
-    !(currentPhase === GamePhase.LIVE_SET_PHASE && fromZone === ZoneType.HAND)
-  ) {
-    return { label: '仅 LIVE 可自由放置', blocked: true };
-  }
-
-  switch (toZone) {
-    case ZoneType.MEMBER_SLOT:
-      if (cardType === CardType.ENERGY) {
-        return { label: '附着能量', detail: targetSlot ? MEMBER_SLOT_LABELS[targetSlot] : undefined };
-      }
-      if (fromZone === ZoneType.MEMBER_SLOT) {
-        return { label: '成员换位', detail: targetSlot ? MEMBER_SLOT_LABELS[targetSlot] : undefined };
-      }
-      if (cardType === CardType.MEMBER) {
-        return {
-          label: targetOccupied ? '换手登场' : '登场',
-          detail: targetSlot ? MEMBER_SLOT_LABELS[targetSlot] : undefined,
-        };
-      }
-      return { label: '移入成员区' };
-    case ZoneType.HAND:
-      return { label: fromZone === ZoneType.HAND ? '整理手牌' : '加入手牌' };
-    case ZoneType.WAITING_ROOM:
-      return { label: '放入休息室' };
-    case ZoneType.MAIN_DECK:
-      return { label: '放回卡组顶' };
-    case ZoneType.ENERGY_DECK:
-      return { label: '回能量卡组' };
-    case ZoneType.ENERGY_ZONE:
-      return { label: fromZone === ZoneType.ENERGY_DECK ? '放置能量' : '移入能量区' };
-    case ZoneType.LIVE_ZONE:
-      return {
-        label:
-          currentPhase === GamePhase.LIVE_SET_PHASE && fromZone === ZoneType.HAND
-            ? 'Live 设置'
-            : '放入 Live 区',
-      };
-    case ZoneType.SUCCESS_ZONE:
-      return { label: '成功 Live' };
-    case ZoneType.INSPECTION_ZONE:
-      return { label: '移入检视区' };
-    case ZoneType.RESOLUTION_ZONE:
-      return { label: '移入解决区' };
-    case ZoneType.EXILE_ZONE:
-      return { label: '移入除外区' };
-    default:
-      return null;
-  }
-}
 
 const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
   const dragData = args.active.data.current as { fromZone?: ZoneType } | undefined;
@@ -247,67 +99,14 @@ function didObjectMoveIntoMemberSlot(
   nextViewState: PlayerViewState,
   objectId: string
 ): boolean {
-  const previousLocation = findObjectViewLocation(previousViewState, objectId);
-  const nextLocation = findObjectViewLocation(nextViewState, objectId);
+  const previousLocation = findBattleObjectLocation(previousViewState, objectId);
+  const nextLocation = findBattleObjectLocation(nextViewState, objectId);
   return (
     previousLocation !== null &&
     nextLocation !== null &&
     previousLocation.key !== nextLocation.key &&
     nextLocation.zoneType === ZoneType.MEMBER_SLOT
   );
-}
-
-function findObjectViewLocation(
-  viewState: PlayerViewState | null,
-  objectId: string
-): CardViewLocation | null {
-  if (!viewState) {
-    return null;
-  }
-
-  for (const [zoneKey, zone] of Object.entries(viewState.table.zones) as [
-    ViewZoneKey,
-    PlayerViewState['table']['zones'][ViewZoneKey],
-  ][]) {
-    const objectIndex = zone.objectIds?.indexOf(objectId) ?? -1;
-    if (objectIndex >= 0) {
-      return {
-        zoneType: zone.zone,
-        key: `${zoneKey}:list:${objectIndex}:${objectId}`,
-      };
-    }
-
-    for (const [slot, occupantId] of Object.entries(zone.slotMap ?? {})) {
-      if (occupantId === objectId) {
-        return {
-          zoneType: zone.zone,
-          key: `${zoneKey}:slot:${slot}`,
-        };
-      }
-    }
-
-    for (const [slot, overlayIds] of Object.entries(zone.overlays ?? {})) {
-      const overlayIndex = overlayIds.indexOf(objectId);
-      if (overlayIndex >= 0) {
-        return {
-          zoneType: zone.zone,
-          key: `${zoneKey}:overlay:${slot}:${overlayIndex}`,
-        };
-      }
-    }
-
-    for (const [slot, memberBelowIds] of Object.entries(zone.memberBelow ?? {})) {
-      const memberBelowIndex = memberBelowIds.indexOf(objectId);
-      if (memberBelowIndex >= 0) {
-        return {
-          zoneType: zone.zone,
-          key: `${zoneKey}:below:${slot}:${memberBelowIndex}`,
-        };
-      }
-    }
-  }
-
-  return null;
 }
 
 interface GameBoardProps {
@@ -966,11 +765,6 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           anchor: { targetId, cardId },
         });
       };
-      const reportDropResult = (
-        result: { readonly success: boolean; readonly error?: string; readonly pending?: boolean }
-      ): boolean => {
-        return result.success;
-      };
 
       // 获取拖拽数据中的来源区域信息
       const dragData = active.data.current as
@@ -1241,7 +1035,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           targetSlot,
           sourceSlot
         );
-        if (reportDropResult(result)) {
+        if (result.success) {
           addLog(`附着能量到成员槽位: ${targetSlot}`, 'action');
         }
         return;
@@ -1254,7 +1048,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         targetSlot
       ) {
         const result = moveMemberToSlot(cardId, sourceSlot, targetSlot);
-        if (reportDropResult(result)) {
+        if (result.success) {
           addLog(`成员换位: ${sourceSlot} → ${targetSlot}`, 'action');
         }
         return;
@@ -1267,7 +1061,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         getZoneCardIds(`${viewerSeat}_ENERGY_DECK`)[0] === cardId
       ) {
         const result = drawEnergyToZone(cardId);
-        if (reportDropResult(result)) {
+        if (result.success) {
           addLog('放置能量: 能量卡组顶 → 能量区', 'action');
         }
         return;
@@ -1298,7 +1092,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           position:
             toZone === ZoneType.MAIN_DECK || toZone === ZoneType.ENERGY_DECK ? 'TOP' : undefined,
         });
-        if (reportDropResult(result)) {
+        if (result.success) {
           addLog(
             fromZone === ZoneType.HAND && toZone === ZoneType.LIVE_ZONE
               ? '自由放置 Live 卡: 手牌 → Live 区（正面）'
@@ -1321,7 +1115,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           fromZone,
           fromZone === ZoneType.MEMBER_SLOT ? sourceSlot : undefined
         );
-        if (reportDropResult(result)) {
+        if (result.success) {
           addLog(`公开区卡牌回手: ${fromZone}`, 'action');
         }
         return;
@@ -1329,7 +1123,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
       if (fromZone === ZoneType.ENERGY_ZONE && toZone === ZoneType.ENERGY_DECK) {
         const result = movePublicCardToEnergyDeck(cardId, ZoneType.ENERGY_ZONE);
-        if (reportDropResult(result)) {
+        if (result.success) {
           addLog('公开能量回到能量卡组: ENERGY_ZONE → ENERGY_DECK', 'action');
         }
         return;
@@ -1346,7 +1140,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           fromZone,
           fromZone === ZoneType.MEMBER_SLOT ? sourceSlot : undefined
         );
-        if (reportDropResult(result)) {
+        if (result.success) {
           addLog(`公开区卡牌进入休息室: ${fromZone}`, 'action');
         }
         return;
@@ -1363,7 +1157,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           targetSlot,
           sourceSlot,
         });
-        if (reportDropResult(result)) {
+        if (result.success) {
           addLog(`休息室成员卡移动: ${fromZone} → ${toZone}`, 'action');
         }
         return;
@@ -1376,7 +1170,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         position: 'TOP', // 默认放到顶部（卡组时）
       });
 
-      if (reportDropResult(result)) {
+      if (result.success) {
         const fromName = zoneNames[fromZone] || fromZone;
         const toName = zoneNames[toZone] || toZone;
         addLog(`移动卡牌: ${fromName} → ${toName}`, 'action');
@@ -1435,7 +1229,17 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const opponentSeat: Seat = selfSeat === 'FIRST' ? 'SECOND' : 'FIRST';
   const resolvedActiveSeat = activeSeat ?? selfSeat;
   const isSolitaire = capabilities.isSolitairePresentation;
-  const showLeaveLocalGameButton = isSolitaire && Boolean(onLeaveLocalGame);
+  const canShowBattleLeaveButton =
+    capabilities.surface === 'LOCAL_DEBUG' ||
+    capabilities.surface === 'SOLITAIRE' ||
+    capabilities.surface === 'REMOTE_DEBUG';
+  const showLeaveLocalGameButton = canShowBattleLeaveButton && Boolean(onLeaveLocalGame);
+  const leaveLocalGameButtonTitle =
+    capabilities.surface === 'REMOTE_DEBUG'
+      ? '退出联机调试房间'
+      : isSolitaire
+        ? '退出对墙打房间'
+        : '退出调试房间';
   const selfIdentity = getPlayerIdentityForSeat(selfSeat);
   const opponentIdentity = getPlayerIdentityForSeat(opponentSeat);
   const phaseInfo = getPhaseConfig(currentPhase)?.display;
@@ -1514,7 +1318,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                       type="button"
                       onClick={onLeaveLocalGame}
                       className="button-ghost inline-flex h-10 shrink-0 items-center justify-center gap-1.5 px-2.5 text-xs"
-                      title="退出对墙打房间"
+                      title={leaveLocalGameButtonTitle}
                     >
                       <DoorOpen size={15} />
                       离开
@@ -1746,7 +1550,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   type="button"
                   onClick={onLeaveLocalGame}
                   className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
-                  title="退出对墙打房间"
+                  title={leaveLocalGameButtonTitle}
                 >
                   <DoorOpen size={16} />
                   离开房间

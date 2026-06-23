@@ -60,7 +60,7 @@ export interface BattleAnimationAnchorMaps {
   readonly zones: ReadonlyMap<string, BattleAnimationRect>;
 }
 
-interface ObjectLocation {
+export interface BattleObjectLocation {
   readonly zoneKey: ViewZoneKey;
   readonly zoneType: string;
   readonly key: string;
@@ -163,8 +163,8 @@ export function createBattleAnimationEventsFromViewDiff({
     return [];
   }
 
-  const previousLocations = collectObjectLocations(previousViewState);
-  const nextLocations = collectObjectLocations(nextViewState);
+  const previousLocations = collectBattleObjectLocations(previousViewState);
+  const nextLocations = collectBattleObjectLocations(nextViewState);
   const moveCandidates: BattleAnimationEvent[] = [];
   const otherEvents: BattleAnimationEvent[] = [];
 
@@ -245,8 +245,10 @@ export function createBattleAnimationEventsFromViewDiff({
   return [...moveCandidates, ...otherEvents].slice(0, 16);
 }
 
-function collectObjectLocations(viewState: PlayerViewState): Map<string, ObjectLocation> {
-  const result = new Map<string, ObjectLocation>();
+export function collectBattleObjectLocations(
+  viewState: PlayerViewState
+): Map<string, BattleObjectLocation> {
+  const result = new Map<string, BattleObjectLocation>();
 
   for (const [zoneKey, zone] of Object.entries(viewState.table.zones) as [
     ViewZoneKey,
@@ -301,6 +303,17 @@ function collectObjectLocations(viewState: PlayerViewState): Map<string, ObjectL
   return result;
 }
 
+export function findBattleObjectLocation(
+  viewState: PlayerViewState | null,
+  objectId: string
+): BattleObjectLocation | null {
+  if (!viewState) {
+    return null;
+  }
+
+  return collectBattleObjectLocations(viewState).get(objectId) ?? null;
+}
+
 function didZoneGainObjects(
   previousObjectIds: readonly string[],
   nextObjectIds: readonly string[]
@@ -346,7 +359,7 @@ function createCardRender({
 function resolveAnimationRect(
   anchors: BattleAnimationAnchorMaps,
   objectId: string,
-  location: ObjectLocation,
+  location: BattleObjectLocation,
   options: { readonly preferZoneAnchor?: boolean } = {}
 ): BattleAnimationRect | null {
   const zoneRect =
