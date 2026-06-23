@@ -29,10 +29,16 @@ import {
 } from '../../src/domain/rules/live-modifiers';
 import { getMemberEffectiveCost } from '../../src/domain/rules/member-effective-cost';
 import { fromTransport, toTransport } from '../../src/online/serde';
-import { CardType, HeartColor, SlotPosition } from '../../src/shared/types/enums';
+import { CardType, HeartColor, OrientationState, SlotPosition } from '../../src/shared/types/enums';
 
 const HS_BP5_002_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
+const HS_BP5_007_CONTINUOUS_ABILITY_ID =
+  'PL!HS-bp5-007:continuous-other-edelnote-member-blade';
+const HS_BP5_016_CONTINUOUS_ABILITY_ID =
+  'PL!HS-bp5-016-N:continuous-opponent-two-waiting-purple-heart';
+const HS_PB1_007_CONTINUOUS_ABILITY_ID =
+  'PL!HS-pb1-007:continuous-exact-two-own-opponent-three-purple-heart';
 const HS_SD1_004_CONTINUOUS_ABILITY_ID =
   'PL!HS-sd1-004-SD:continuous-stage-kaho-kosuzu-hime-green-heart';
 const HS_SD1_005_CONTINUOUS_ABILITY_ID =
@@ -1167,6 +1173,576 @@ describe('live modifier helpers', () => {
         )
       ).toBe(false);
     }
+  });
+
+  it('adds BLADE +2 to PL!HS-bp5-007 when another own EdelNote member is on stage', () => {
+    const seras = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp5-007-R',
+        name: 'セラス 柳田 リリエンフェルト',
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 13,
+        blade: 3,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'seras'
+    );
+    const otherEdelNote = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-edelnote',
+        name: 'Other EdelNote',
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'other-edelnote'
+    );
+    let game = createGameState('hs-bp5-007-continuous-blade', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [seras, otherEdelNote]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, seras.instanceId),
+        SlotPosition.LEFT,
+        otherEdelNote.instanceId
+      ),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: seras.instanceId,
+      abilityId: HS_BP5_007_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', seras.instanceId, modifiers)).toBe(5);
+  });
+
+  it('does not add PL!HS-bp5-007 BLADE when only itself is on stage', () => {
+    const seras = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp5-007-P',
+        name: 'セラス 柳田 リリエンフェルト',
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 13,
+        blade: 3,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'seras-self-only'
+    );
+    let game = createGameState('hs-bp5-007-self-only', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [seras]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, seras.instanceId),
+    }));
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) => modifier.abilityId === HS_BP5_007_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(getMemberEffectiveBladeCount(game, 'p1', seras.instanceId)).toBe(3);
+  });
+
+  it('does not satisfy PL!HS-bp5-007 with opponent EdelNote, EdelNote LIVE, or non-EdelNote member', () => {
+    const seras = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp5-007-AR',
+        name: 'セラス 柳田 リリエンフェルト',
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 13,
+        blade: 3,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'seras-negative'
+    );
+    const nonEdelNote = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-non-edelnote',
+        name: 'Non EdelNote',
+        unitName: 'スリーズブーケ',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'non-edelnote'
+    );
+    const ownEdelNoteLive = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-edelnote-live',
+        name: 'EdelNote Live',
+        unitName: 'EdelNote',
+        cardType: CardType.LIVE,
+        score: 1,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'own-edelnote-live'
+    );
+    const opponentEdelNote = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-opponent-edelnote',
+        name: 'Opponent EdelNote',
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p2',
+      'opponent-edelnote'
+    );
+    let game = createGameState('hs-bp5-007-negative-sources', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [seras, nonEdelNote, ownEdelNoteLive, opponentEdelNote]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToZone(player.liveZone, ownEdelNoteLive.instanceId),
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, seras.instanceId),
+        SlotPosition.RIGHT,
+        nonEdelNote.instanceId
+      ),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        opponentEdelNote.instanceId
+      ),
+    }));
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) => modifier.abilityId === HS_BP5_007_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('adds purple Heart to PL!HS-pb1-007 when own stage has exactly two members and opponent has three', () => {
+    const seras = createCardInstance(
+      {
+        cardCode: 'PL!HS-pb1-007-R',
+        name: 'セラス 柳田 リリエンフェルト',
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 4,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'pb1-007-seras'
+    );
+    const ownOther = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-own-other',
+        name: 'Own Other',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'own-other'
+    );
+    const opponentMembers = [0, 1, 2].map((index) =>
+      createCardInstance(
+        {
+          cardCode: `PL!HS-test-opponent-${index}`,
+          name: `Opponent ${index}`,
+          cardType: CardType.MEMBER,
+          cost: 4,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+        },
+        'p2',
+        `opponent-${index}`
+      )
+    );
+    let game = createGameState('hs-pb1-007-continuous-heart', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [seras, ownOther, ...opponentMembers]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, seras.instanceId),
+        SlotPosition.LEFT,
+        ownOther.instanceId
+      ),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, opponentMembers[0]!.instanceId),
+          SlotPosition.CENTER,
+          opponentMembers[1]!.instanceId
+        ),
+        SlotPosition.RIGHT,
+        opponentMembers[2]!.instanceId
+      ),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+      sourceCardId: seras.instanceId,
+      abilityId: HS_PB1_007_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveHeartIcons(game, 'p1', seras.instanceId, modifiers)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.PURPLE, 1),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+  });
+
+  it('does not add PL!HS-pb1-007 purple Heart when own stage has one or three members', () => {
+    const createSeras = (id: string) =>
+      createCardInstance(
+        {
+          cardCode: 'PL!HS-pb1-007-P＋',
+          name: 'セラス 柳田 リリエンフェルト',
+          unitName: 'EdelNote',
+          cardType: CardType.MEMBER,
+          cost: 11,
+          blade: 4,
+          hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        },
+        'p1',
+        id
+      );
+    const createMember = (id: string, ownerId: string) =>
+      createCardInstance(
+        {
+          cardCode: `PL!HS-test-${id}`,
+          name: id,
+          cardType: CardType.MEMBER,
+          cost: 4,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+        },
+        ownerId,
+        id
+      );
+    const buildOpponentThree = (game: ReturnType<typeof createGameState>) =>
+      updatePlayer(game, 'p2', (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(
+          placeCardInSlot(
+            placeCardInSlot(player.memberSlots, SlotPosition.LEFT, 'opp-a'),
+            SlotPosition.CENTER,
+            'opp-b'
+          ),
+          SlotPosition.RIGHT,
+          'opp-c'
+        ),
+      }));
+
+    const oneSeras = createSeras('one-seras');
+    const threeSeras = createSeras('three-seras');
+    const ownA = createMember('own-a', 'p1');
+    const ownB = createMember('own-b', 'p1');
+    const opponents = ['opp-a', 'opp-b', 'opp-c'].map((id) => createMember(id, 'p2'));
+
+    let oneMemberGame = createGameState('hs-pb1-007-own-one', 'p1', 'P1', 'p2', 'P2');
+    oneMemberGame = registerCards(oneMemberGame, [oneSeras, ...opponents]);
+    oneMemberGame = updatePlayer(oneMemberGame, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, oneSeras.instanceId),
+    }));
+    oneMemberGame = buildOpponentThree(oneMemberGame);
+
+    let threeMemberGame = createGameState('hs-pb1-007-own-three', 'p1', 'P1', 'p2', 'P2');
+    threeMemberGame = registerCards(threeMemberGame, [threeSeras, ownA, ownB, ...opponents]);
+    threeMemberGame = updatePlayer(threeMemberGame, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, ownA.instanceId),
+          SlotPosition.CENTER,
+          threeSeras.instanceId
+        ),
+        SlotPosition.RIGHT,
+        ownB.instanceId
+      ),
+    }));
+    threeMemberGame = buildOpponentThree(threeMemberGame);
+
+    for (const game of [oneMemberGame, threeMemberGame]) {
+      expect(
+        collectLiveModifiers(game).some(
+          (modifier) => modifier.abilityId === HS_PB1_007_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+
+  it('does not add PL!HS-pb1-007 purple Heart when opponent has fewer than three members', () => {
+    const seras = createCardInstance(
+      {
+        cardCode: 'PL!HS-pb1-007-R',
+        name: 'セラス 柳田 リリエンフェルト',
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 4,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'pb1-007-low-opponent-seras'
+    );
+    const ownOther = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-own-other-low-opponent',
+        name: 'Own Other',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'own-other-low-opponent'
+    );
+    const opponent = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-low-opponent',
+        name: 'Low Opponent',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p2',
+      'low-opponent'
+    );
+    let game = createGameState('hs-pb1-007-opponent-low', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [seras, ownOther, opponent]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, seras.instanceId),
+        SlotPosition.LEFT,
+        ownOther.instanceId
+      ),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, opponent.instanceId),
+    }));
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) => modifier.abilityId === HS_PB1_007_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('adds purple Heart to PL!HS-bp5-016 when opponent has at least two WAITING members', () => {
+    const izumi = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp5-016-N',
+        name: '桂城 泉',
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 2,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'bp5-016-izumi'
+    );
+    const opponentMembers = [0, 1].map((index) =>
+      createCardInstance(
+        {
+          cardCode: `PL!HS-test-waiting-opponent-${index}`,
+          name: `Waiting Opponent ${index}`,
+          cardType: CardType.MEMBER,
+          cost: 4,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+        },
+        'p2',
+        `waiting-opponent-${index}`
+      )
+    );
+    let game = createGameState('hs-bp5-016-continuous-heart', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [izumi, ...opponentMembers]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, izumi.instanceId),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          player.memberSlots,
+          SlotPosition.LEFT,
+          opponentMembers[0]!.instanceId,
+          { orientation: OrientationState.WAITING }
+        ),
+        SlotPosition.CENTER,
+        opponentMembers[1]!.instanceId,
+        { orientation: OrientationState.WAITING }
+      ),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+      sourceCardId: izumi.instanceId,
+      abilityId: HS_BP5_016_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveHeartIcons(game, 'p1', izumi.instanceId, modifiers)).toEqual([
+      createHeartIcon(HeartColor.GREEN, 1),
+      createHeartIcon(HeartColor.PURPLE, 1),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+  });
+
+  it('does not add PL!HS-bp5-016 purple Heart with fewer than two opponent WAITING members', () => {
+    const izumi = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp5-016-N',
+        name: '桂城 泉',
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 2,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'bp5-016-one-waiting'
+    );
+    const waitingOpponent = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-one-waiting-opponent',
+        name: 'One Waiting Opponent',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p2',
+      'one-waiting-opponent'
+    );
+    const activeOpponent = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-active-opponent',
+        name: 'Active Opponent',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p2',
+      'active-opponent'
+    );
+    let game = createGameState('hs-bp5-016-opponent-one-waiting', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [izumi, waitingOpponent, activeOpponent]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, izumi.instanceId),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, waitingOpponent.instanceId, {
+          orientation: OrientationState.WAITING,
+        }),
+        SlotPosition.CENTER,
+        activeOpponent.instanceId
+      ),
+    }));
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) => modifier.abilityId === HS_BP5_016_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('does not count own WAITING members for PL!HS-bp5-016', () => {
+    const izumi = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp5-016-N',
+        name: '桂城 泉',
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 2,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'bp5-016-own-waiting'
+    );
+    const ownWaiting = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-own-waiting',
+        name: 'Own Waiting',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'own-waiting'
+    );
+    const opponentWaiting = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-single-opponent-waiting',
+        name: 'Single Opponent Waiting',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p2',
+      'single-opponent-waiting'
+    );
+    let game = createGameState('hs-bp5-016-own-waiting-does-not-count', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [izumi, ownWaiting, opponentWaiting]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, izumi.instanceId),
+        SlotPosition.LEFT,
+        ownWaiting.instanceId,
+        { orientation: OrientationState.WAITING }
+      ),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, opponentWaiting.instanceId, {
+        orientation: OrientationState.WAITING,
+      }),
+    }));
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) => modifier.abilityId === HS_BP5_016_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
   });
 
   it('collects PL!N-pb1-004 continuous blade when Karin has not position-moved this turn', () => {

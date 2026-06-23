@@ -245,6 +245,50 @@ describe('PlayerViewState projector', () => {
     });
   });
 
+  it('projects original Heart replacement as signed modifier deltas', () => {
+    let { state } = createProjectedState();
+    const member = createCardInstance(
+      {
+        ...createTestMember('PL!N-bp3-014-R', '中须霞'),
+        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+      },
+      PLAYER1,
+      'p1-original-heart-replacement'
+    );
+    state = registerCards(state, [member]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.CENTER]: member.instanceId,
+        },
+        cardStates: new Map([[member.instanceId, createDefaultCardState()]]),
+      },
+    }));
+    state = addLiveModifier(state, {
+      kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+      playerId: PLAYER1,
+      memberCardId: member.instanceId,
+      color: HeartColor.GREEN,
+      sourceCardId: member.instanceId,
+      abilityId: 'PL!N-bp3-014:live-start-replace-original-heart-color',
+    });
+
+    const view = projectPlayerViewState(state, PLAYER1);
+    const memberObject = view.objects[createPublicObjectId(member.instanceId)];
+
+    expect(memberObject?.frontInfo?.hearts).toEqual([{ color: HeartColor.GREEN, count: 1 }]);
+    expect(memberObject?.frontInfo?.modifierDelta?.heartDeltas).toHaveLength(2);
+    expect(memberObject?.frontInfo?.modifierDelta?.heartDeltas).toEqual(
+      expect.arrayContaining([
+        { color: HeartColor.GREEN, count: 1 },
+        { color: HeartColor.YELLOW, count: -1 },
+      ])
+    );
+  });
+
   it('projects BLADE modifier delta without changing printed card data', () => {
     let { state } = createProjectedState();
     const sourceMember = createCardInstance(

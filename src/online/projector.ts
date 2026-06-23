@@ -909,7 +909,7 @@ function buildMemberModifierDelta(
   printedBlade: number,
   effectiveBlade: number
 ): ViewMemberModifierDelta | undefined {
-  const heartDeltas = buildPositiveHeartDeltas(printedHearts, effectiveHearts);
+  const heartDeltas = buildHeartDeltas(printedHearts, effectiveHearts);
   const bladeDelta = effectiveBlade - printedBlade;
   if (bladeDelta <= 0 && heartDeltas.length === 0) {
     return undefined;
@@ -921,7 +921,7 @@ function buildMemberModifierDelta(
   };
 }
 
-function buildPositiveHeartDeltas(
+function buildHeartDeltas(
   printedHearts: readonly { readonly color: HeartColor; readonly count: number }[],
   effectiveHearts: readonly { readonly color: HeartColor; readonly count: number }[]
 ): readonly { readonly color: HeartColor; readonly count: number }[] {
@@ -933,7 +933,7 @@ function buildPositiveHeartDeltas(
       color,
       count: (effectiveCounts.get(color) ?? 0) - (printedCounts.get(color) ?? 0),
     }))
-    .filter((heart) => heart.count > 0);
+    .filter((heart) => heart.count !== 0);
 }
 
 function countHeartsByColor(

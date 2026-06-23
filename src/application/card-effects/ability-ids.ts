@@ -119,6 +119,8 @@ export const SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp2-024:live-success-hand-advantage-this-live-score';
 export const S_BP2_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
   'PL!S-bp2-024:live-success-draw-two-discard-one';
+export const S_BP5_020_LIVE_SUCCESS_LOSE_REMAINING_HEARTS_SCORE_ABILITY_ID =
+  'PL!S-bp5-020-L:live-success-lose-remaining-hearts-score';
 export const HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID =
   'PL!HS-bp2-014-N:on-enter-draw-cannot-live-until-live-end';
 export const HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID =
@@ -175,6 +177,10 @@ export const HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID =
   'PL!HS-sd1-013-SD:on-enter-mill-three-gain-blue-heart-if-all-blue-member';
 export const HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp5-013-N:live-start-mill-three-gain-two-blade-if-all-member';
+export const HS_BP5_016_ON_ENTER_DISCARD_WAIT_OPPONENT_LOW_COST_MEMBERS_ABILITY_ID =
+  'PL!HS-bp5-016-N:on-enter-discard-wait-opponent-low-cost-members';
+export const HS_BP5_016_CONTINUOUS_OPPONENT_TWO_WAITING_PURPLE_HEART_ABILITY_ID =
+  'PL!HS-bp5-016-N:continuous-opponent-two-waiting-purple-heart';
 export const ELI_ACTIVATED_ABILITY_ID =
   'PL!-sd1-002-SD:activated-send-self-to-waiting-room-add-member';
 export const RIN_ACTIVATED_ABILITY_ID =
@@ -248,6 +254,10 @@ export const HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID =
   'PL!HS-sd1-001-SD:auto-relay-replaced-by-high-cost-hasunosora-activate-energy';
 export const HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID =
   'PL!HS-pb1-020-N:on-enter-if-three-live-discard-two-recover-cerise-member-and-hasunosora-live';
+export const HS_PB1_007_ON_ENTER_PAY_TWO_ENERGY_DISCARD_RECOVER_HASUNOSORA_CARD_ABILITY_ID =
+  'PL!HS-pb1-007:on-enter-pay-two-energy-discard-recover-hasunosora-card';
+export const HS_PB1_007_CONTINUOUS_EXACT_TWO_OWN_OPPONENT_THREE_PURPLE_HEART_ABILITY_ID =
+  'PL!HS-pb1-007:continuous-exact-two-own-opponent-three-purple-heart';
 export const HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID =
   'PL!HS-pb1-009-R:auto-center-hasunosora-enter-gain-two-blade';
 export const HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID =
@@ -282,6 +292,10 @@ export const HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
 export const HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID =
   'PL!HS-bp5-002:activated-pay-two-energy-play-low-cost-member';
+export const HS_BP5_007_ON_ENTER_DISCARD_TWO_RECOVER_EDELNOTE_LIVE_ABILITY_ID =
+  'PL!HS-bp5-007:on-enter-discard-two-recover-edelnote-live';
+export const HS_BP5_007_CONTINUOUS_OTHER_EDELNOTE_MEMBER_BLADE_ABILITY_ID =
+  'PL!HS-bp5-007:continuous-other-edelnote-member-blade';
 export const HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID =
   'PL!HS-bp5-003:auto-leave-stage-position-change-member';
 export const HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID =
@@ -306,8 +320,12 @@ export const HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID =
   'PL!HS-bp6-001-R+:on-enter-look-stage-member-count-plus-two-top-one';
 export const HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID =
   'PL!HS-bp6-001-R+:live-success-move-revealed-cheer-to-top';
+export const HS_BP6_032_LIVE_SUCCESS_LOW_COST_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID =
+  'PL!HS-bp6-032-L:live-success-recover-revealed-cheer-low-cost-member';
 export const HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID =
   'PL!HS-cl1-009-CL:live-success-recover-revealed-cheer-low-cost-member';
+export const HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID =
+  'PL!HS-cl1-008-CL:activated-send-self-to-waiting-room-add-hasunosora-card';
 export const HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID =
   'PL!HS-bp6-027-L:on-cheer-send-non-blade-hasunosora-additional-cheer';
 export const HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID =

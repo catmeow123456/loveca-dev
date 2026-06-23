@@ -44,7 +44,7 @@ export const CardModifierBadgeStack = memo(function CardModifierBadgeStack({
   const heartDeltaByColor = new Map<HeartColor, number>();
 
   for (const heartDelta of modifierDelta?.heartDeltas ?? []) {
-    if (heartDelta.count > 0) {
+    if (heartDelta.count !== 0) {
       heartDeltaByColor.set(
         heartDelta.color,
         (heartDeltaByColor.get(heartDelta.color) ?? 0) + heartDelta.count
@@ -55,7 +55,7 @@ export const CardModifierBadgeStack = memo(function CardModifierBadgeStack({
   const heartRows = HEART_COLOR_ORDER.map((color) => ({
     color,
     count: heartDeltaByColor.get(color) ?? 0,
-  })).filter((row) => row.count > 0);
+  })).filter((row) => row.count !== 0);
 
   if (bladeDelta <= 0 && heartRows.length === 0) {
     return null;
@@ -88,7 +88,11 @@ interface ModifierBadgeProps {
   readonly fallback?: 'rainbow';
 }
 
-const ModifierBadge = memo(function ModifierBadge({ iconSrc, value, fallback }: ModifierBadgeProps) {
+const ModifierBadge = memo(function ModifierBadge({
+  iconSrc,
+  value,
+  fallback,
+}: ModifierBadgeProps) {
   return (
     <div
       className={cn(
@@ -110,7 +114,7 @@ const ModifierBadge = memo(function ModifierBadge({ iconSrc, value, fallback }: 
         </span>
       )}
       <span className="text-[10px] font-bold leading-none text-white drop-shadow md:text-[11px]">
-        +{value}
+        {value > 0 ? `+${value}` : `${value}`}
       </span>
     </div>
   );

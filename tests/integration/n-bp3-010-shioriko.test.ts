@@ -187,8 +187,10 @@ describe('PL!N-bp3-010 三船栞子', () => {
       selectableCardVisibility: 'PUBLIC',
       minSelectableCards: 0,
       maxSelectableCards: 2,
+      skipSelectionLabel: '不放置',
       selectableCardIds: [ids.ownA, ids.ownB, ids.ownC],
     });
+    expect(session.state?.activeEffect?.selectableOptions).toBeUndefined();
 
     moveSelectedCards(session, [ids.ownB, ids.ownA]);
 

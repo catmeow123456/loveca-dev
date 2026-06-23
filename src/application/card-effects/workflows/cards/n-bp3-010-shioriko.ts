@@ -124,9 +124,11 @@ function startSelectWaitingMembers(game: GameState, selectedOptionId: string | n
       selectableCardIds: candidateCardIds,
       selectableCardVisibility: 'PUBLIC',
       selectableCardMode: 'ORDERED_MULTI',
+      selectableOptions: undefined,
       minSelectableCards: 0,
       maxSelectableCards: MAX_WAITING_MEMBERS,
       canSkipSelection: true,
+      skipSelectionLabel: '不放置',
       metadata: {
         ...effect.metadata,
         targetPlayerId: targetPlayer.id,
