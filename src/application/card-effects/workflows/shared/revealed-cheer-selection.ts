@@ -24,6 +24,7 @@ import {
   type RevealedCheerCardDestination,
 } from '../../../effects/cheer-selection.js';
 import {
+  HS_BP6_032_LIVE_SUCCESS_LOW_COST_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
   HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
   HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
@@ -44,6 +45,8 @@ export const HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID =
   'HS_BP6_001_SELECT_REVEALED_CHEER_TO_TOP';
 export const HS_CL1_009_SELECT_CHEER_MEMBER_TO_HAND_STEP_ID =
   'HS_CL1_009_SELECT_REVEALED_CHEER_MEMBER_TO_HAND';
+export const HS_BP6_032_SELECT_LOW_COST_CHEER_MEMBER_TO_HAND_STEP_ID =
+  'HS_BP6_032_SELECT_REVEALED_CHEER_LOW_COST_MEMBER_TO_HAND';
 export const HS_BP6_027_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID =
   'HS_BP6_027_SELECT_REVEALED_CHEER_TO_WAITING_ROOM';
 
@@ -100,6 +103,15 @@ const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflo
     stepText: '请选择1张因声援被公开的费用4-9成员卡加入手牌。',
     selectionLabel: '选择要加入手牌的声援公开成员',
     predicate: (card) => isMemberCardData(card.data) && costGte(4)(card) && costLte(9)(card),
+    destination: 'HAND',
+    optional: false,
+  },
+  {
+    abilityId: HS_BP6_032_LIVE_SUCCESS_LOW_COST_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+    stepId: HS_BP6_032_SELECT_LOW_COST_CHEER_MEMBER_TO_HAND_STEP_ID,
+    stepText: '请选择1张因声援被公开的费用4以下成员卡加入手牌。',
+    selectionLabel: '选择要加入手牌的声援公开低费成员',
+    predicate: (card) => isMemberCardData(card.data) && costLte(4)(card),
     destination: 'HAND',
     optional: false,
   },

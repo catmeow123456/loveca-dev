@@ -18,6 +18,7 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { getCardIdsInZoneMatching } from '../../../effects/conditions.js';
 import { startSuccessZoneReplacementEffect } from './bp6-024-success-replacement.js';
+import { canLiveCardEnterSuccessZone } from '../../../../domain/rules/success-live-placement.js';
 
 export const MAKI_SELECT_HAND_LIVE_STEP_ID = 'MAKI_SELECT_HAND_LIVE';
 export const MAKI_SELECT_SUCCESS_LIVE_STEP_ID = 'MAKI_SELECT_SUCCESS_LIVE';
@@ -72,7 +73,7 @@ function startMakiOnEnterSelection(
     player.id,
     ZoneType.HAND,
     typeIs(CardType.LIVE)
-  );
+  ).filter((cardId) => canLiveCardEnterSuccessZone(game, player.id, cardId));
 
   return startPendingActiveEffect(game, {
     ability,

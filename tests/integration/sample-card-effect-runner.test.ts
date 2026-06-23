@@ -12133,6 +12133,137 @@ describe('sample card effect runner', () => {
     expect(advanceResult.gameState.players[1].mainDeck.cardIds).toEqual([topCardIds[3]]);
   });
 
+  it('triggers the second player live-success window after resolving the first player window when both succeeded', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'sample-live-success-both-players',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    const p2 = state.players[1] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    const ownedP1CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1)
+      .map((card) => card.instanceId);
+    const ownedP2CardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER2)
+      .map((card) => card.instanceId);
+    const p1LiveCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const p2LiveCardId = ownedP2CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const p1TopCardIds = ownedP1CardIds
+      .filter((cardId) => cardId !== p1LiveCardId)
+      .filter((cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER)
+      .slice(0, 4);
+    const p2TopCardIds = ownedP2CardIds
+      .filter((cardId) => cardId !== p2LiveCardId)
+      .filter((cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER)
+      .slice(0, 4);
+
+    expect(p1LiveCardId).toBeTruthy();
+    expect(p2LiveCardId).toBeTruthy();
+    expect(p1TopCardIds).toHaveLength(4);
+    expect(p2TopCardIds).toHaveLength(4);
+
+    const p1LiveCard = state.cardRegistry.get(p1LiveCardId!) as unknown as { data: LiveCardData };
+    const p2LiveCard = state.cardRegistry.get(p2LiveCardId!) as unknown as { data: LiveCardData };
+    p1LiveCard.data = createLiveCard('PL!-sd1-019-SD', 'START:DASH!!');
+    p2LiveCard.data = createLiveCard('PL!-sd1-019-SD', 'START:DASH!!');
+
+    removeFromPlayerZones(p1);
+    removeFromPlayerZones(p2);
+    p1.liveZone.cardIds = [p1LiveCardId!];
+    p1.mainDeck.cardIds = p1TopCardIds;
+    p2.liveZone.cardIds = [p2LiveCardId!];
+    p2.mainDeck.cardIds = p2TopCardIds;
+
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      currentTurnType: TurnType;
+      firstPlayerIndex: number;
+      activePlayerIndex: number;
+      liveResolution: GameState['liveResolution'];
+    };
+    mutableState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    mutableState.currentSubPhase = SubPhase.NONE;
+    mutableState.currentTurnType = TurnType.SECOND_PLAYER_TURN;
+    mutableState.firstPlayerIndex = 0;
+    mutableState.activePlayerIndex = 1;
+    mutableState.liveResolution = {
+      ...state.liveResolution,
+      liveResults: new Map([
+        [p1LiveCardId!, true],
+        [p2LiveCardId!, true],
+      ]),
+    };
+
+    const service = new GameService();
+    const advanceResult = service.advancePhase(state);
+    expect(advanceResult.success).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
+
+    expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_FIRST_SUCCESS_EFFECTS);
+    expect(session.state?.activeEffect?.abilityId).toBe(START_DASH_LIVE_SUCCESS_ABILITY_ID);
+    expect(session.state?.activeEffect?.awaitingPlayerId).toBe(PLAYER1);
+    expect(session.state?.activeEffect?.sourceCardId).toBe(p1LiveCardId);
+
+    const firstConfirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        []
+      )
+    );
+    expect(firstConfirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+
+    const advanceSecondWindowResult = session.executeCommand(
+      createConfirmStepCommand(PLAYER1, SubPhase.RESULT_FIRST_SUCCESS_EFFECTS)
+    );
+    expect(advanceSecondWindowResult.success).toBe(true);
+
+    expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SECOND_SUCCESS_EFFECTS);
+    expect(session.state?.activeEffect?.abilityId).toBe(START_DASH_LIVE_SUCCESS_ABILITY_ID);
+    expect(session.state?.activeEffect?.awaitingPlayerId).toBe(PLAYER2);
+    expect(session.state?.activeEffect?.sourceCardId).toBe(p2LiveCardId);
+    const latestLiveSuccessEvent = session.state?.eventLog
+      .map((entry) => entry.event)
+      .filter((event) => event.eventType === TriggerCondition.ON_LIVE_SUCCESS)
+      .at(-1);
+    expect(latestLiveSuccessEvent).toMatchObject({
+      eventType: TriggerCondition.ON_LIVE_SUCCESS,
+      playerId: PLAYER2,
+      successfulLiveCardIds: [p2LiveCardId],
+    });
+  });
+
   it('queues live-success abilities from LiveSuccessEvent without relying on liveResults fallback', () => {
     const session = createGameSession();
     const deck = createDeck();

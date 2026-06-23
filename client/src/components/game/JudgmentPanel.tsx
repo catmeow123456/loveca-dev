@@ -994,7 +994,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
               ) : isResultSettlement ? (
                 <>
                   <div>💡 当前为成功 Live 结算阶段</div>
-                  <div>💡 胜者需要将 1 张 Live 拖入成功 Live 区后确认结算</div>
+                  <div>💡 胜者请在弹窗中选择成功 Live</div>
                 </>
               ) : isLiveSuccessWindow ? (
                 <>

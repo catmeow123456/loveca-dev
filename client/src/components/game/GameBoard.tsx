@@ -173,6 +173,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     confirmEffectStep,
     confirmCostPayment,
     selectSuccessCard,
+    skipSuccessLiveSelection,
     movePublicCardToWaitingRoom,
     movePublicCardToHand,
     movePublicCardToEnergyDeck,
@@ -205,6 +206,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       confirmEffectStep: s.confirmEffectStep,
       confirmCostPayment: s.confirmCostPayment,
       selectSuccessCard: s.selectSuccessCard,
+      skipSuccessLiveSelection: s.skipSuccessLiveSelection,
       movePublicCardToWaitingRoom: s.movePublicCardToWaitingRoom,
       movePublicCardToHand: s.movePublicCardToHand,
       movePublicCardToEnergyDeck: s.movePublicCardToEnergyDeck,
@@ -242,6 +244,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
   const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
+  const [successLiveSelectionCollapsed, setSuccessLiveSelectionCollapsed] = useState(false);
   const [doubleRelaySelection, setDoubleRelaySelection] = useState<{
     readonly cardId: string;
     readonly selectedSlots: readonly SlotPosition[];
@@ -259,6 +262,20 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     : '卡牌效果';
   const activeEffectSelectableCardIds =
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
+  const successLiveSelection = matchView?.liveResult?.successLiveSelection ?? null;
+  const successLiveSelectionCardIds =
+    successLiveSelection?.candidateObjectIds.map((objectId) => objectId.replace(/^obj_/, '')) ??
+    [];
+  const showSuccessLiveSelectionModal =
+    currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
+    !activeEffect &&
+    successLiveSelection?.waitingSeat === viewerSeat &&
+    successLiveSelectionCardIds.length > 0;
+  useEffect(() => {
+    if (!showSuccessLiveSelectionModal) {
+      setSuccessLiveSelectionCollapsed(false);
+    }
+  }, [showSuccessLiveSelectionModal]);
   const activeEffectSelectableCardSignature = activeEffectSelectableCardIds.join('|');
   const activeEffectRevealedCardIds =
     activeEffect?.revealedObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
@@ -546,15 +563,6 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         getKnownCardType(cardId) === CardType.LIVE
       ) {
         suggested.push('live-zone');
-      }
-      // 结算：推荐 Live 区 -> 成功区 / 休息室
-      if (
-        currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-        currentSubPhase === SubPhase.RESULT_SETTLEMENT
-      ) {
-        if (fromZone === ZoneType.LIVE_ZONE) {
-          suggested.push('success-zone');
-        }
       }
       if (
         matchView?.window?.windowType === 'INSPECTION' &&
@@ -1497,6 +1505,117 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {showSuccessLiveSelectionModal && successLiveSelectionCollapsed && (
+          <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[94] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  成功 Live
+                </div>
+                <div className="mt-0.5 truncate text-sm font-semibold">
+                  选择放置入成功 LIVE 卡区的 Live
+                </div>
+                <div className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
+                  {successLiveSelectionCardIds.length} 张候选
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSuccessLiveSelectionCollapsed(false)}
+                className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+              >
+                <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                展开
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showSuccessLiveSelectionModal && !successLiveSelectionCollapsed && (
+          <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(94vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  成功 Live
+                </div>
+                <div className="mt-1 text-sm font-semibold">选择放置入成功 LIVE 卡区的 Live</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSuccessLiveSelectionCollapsed(true)}
+                className="button-secondary inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 px-2 text-xs font-semibold"
+              >
+                <EyeOff className="h-4 w-4" aria-hidden="true" />
+                隐藏
+              </button>
+            </div>
+            <div className="grid max-h-[52vh] grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
+              {successLiveSelectionCardIds.map((cardId) => {
+                const presentation = getVisibleCardPresentation(cardId);
+                const cardData = presentation?.cardData;
+                const label = cardData
+                  ? cardData.cardType === CardType.LIVE && 'score' in cardData
+                    ? `${cardData.score}分 ${cardData.name}`
+                    : cardData.name
+                  : '选择此卡';
+                return (
+                  <button
+                    key={cardId}
+                    type="button"
+                    disabled={!presentation}
+                    onClick={() => {
+                      setHoveredCard(null);
+                      selectSuccessCard(cardId);
+                    }}
+                    className={cn(
+                      'group flex min-w-0 flex-col items-center gap-1 rounded-lg border border-transparent p-1.5 transition-colors',
+                      presentation
+                        ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
+                        : 'cursor-not-allowed opacity-50'
+                    )}
+                    title={label}
+                  >
+                    {presentation ? (
+                      <CardDetailPressTarget
+                        cardId={presentation.instanceId}
+                        title={label}
+                        className="flex justify-center"
+                      >
+                        <Card
+                          cardData={presentation.cardData as AnyCardData}
+                          instanceId={presentation.instanceId}
+                          imagePath={presentation.imagePath}
+                          size="sm"
+                          faceUp={true}
+                          showHover={false}
+                          className="shadow-sm transition-transform group-hover:scale-[1.02]"
+                        />
+                      </CardDetailPressTarget>
+                    ) : (
+                      <div className="flex aspect-[2/3] w-full items-center justify-center rounded-md border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-tertiary)]">
+                        不可见
+                      </div>
+                    )}
+                    <span className="line-clamp-2 min-h-8 text-center text-[11px] leading-4 text-[var(--text-secondary)]">
+                      {label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => skipSuccessLiveSelection()}
+                className="button-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+              >
+                <DoorOpen className="h-4 w-4" aria-hidden="true" />
+                全部放置入休息室
+              </button>
+            </div>
           </div>
         )}
 

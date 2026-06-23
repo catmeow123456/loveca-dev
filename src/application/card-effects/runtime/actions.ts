@@ -1,8 +1,9 @@
-import { isMemberCardData } from '../../../domain/entities/card.js';
+import { isMemberCardData, type HeartIcon } from '../../../domain/entities/card.js';
 import {
   emitGameEvent,
   getCardById,
   getPlayerById,
+  updateLiveResolution,
   updatePlayer,
   type GameState,
   type LiveModifierState,
@@ -75,6 +76,12 @@ export interface ActivateWaitingEnergyCardsForPlayerResult {
   readonly nextOrientation: OrientationState;
 }
 
+export interface ClearRemainingHeartsForPlayerResult {
+  readonly gameState: GameState;
+  readonly lostHearts: readonly HeartIcon[];
+  readonly lostTotalCount: number;
+}
+
 export interface AddBladeLiveModifierForSourceMemberOptions {
   readonly playerId: string;
   readonly sourceCardId: string;
@@ -92,6 +99,19 @@ export interface ShuffleWaitingRoomCardsToDeckBottomForPlayerResult {
   readonly gameState: GameState;
   readonly movedCardIds: readonly string[];
   readonly originalCardIds: readonly string[];
+}
+
+export interface MoveWaitingRoomCardsToDeckBottomForPlayerOptions {
+  readonly candidateCardIds: readonly string[];
+  readonly minCount: number;
+  readonly maxCount: number;
+}
+
+export interface MoveWaitingRoomCardsToDeckBottomForPlayerResult {
+  readonly gameState: GameState;
+  readonly movedCardIds: readonly string[];
+  readonly selectedCardIds: readonly string[];
+  readonly remainingCandidateIds: readonly string[];
 }
 
 export interface StackMemberCardBelowSpecialMemberOptions {
@@ -138,6 +158,24 @@ export function drawCardsForEachPlayer(
   return {
     gameState: state,
     drawnCardIdsByPlayer,
+  };
+}
+
+export function clearRemainingHeartsForPlayer(
+  game: GameState,
+  playerId: string
+): ClearRemainingHeartsForPlayerResult {
+  const lostHearts = game.liveResolution.playerRemainingHearts.get(playerId) ?? [];
+  const playerRemainingHearts = new Map(game.liveResolution.playerRemainingHearts);
+  playerRemainingHearts.set(playerId, []);
+
+  return {
+    gameState: updateLiveResolution(game, (liveResolution) => ({
+      ...liveResolution,
+      playerRemainingHearts,
+    })),
+    lostHearts,
+    lostTotalCount: lostHearts.reduce((total, heart) => total + heart.count, 0),
   };
 }
 
@@ -394,6 +432,72 @@ export function shuffleWaitingRoomCardsToDeckBottomForPlayer(
     gameState,
     movedCardIds: shuffledCardIds,
     originalCardIds: cardIds,
+  };
+}
+
+export function moveWaitingRoomCardsToDeckBottomForPlayer(
+  game: GameState,
+  playerId: string,
+  selectedCardIds: readonly string[],
+  options: MoveWaitingRoomCardsToDeckBottomForPlayerOptions
+): MoveWaitingRoomCardsToDeckBottomForPlayerResult | null {
+  const player = getPlayerById(game, playerId);
+  const minCount = Math.floor(options.minCount);
+  const maxCount = Math.floor(options.maxCount);
+  const uniqueSelectedCardIds = new Set(selectedCardIds);
+  const candidateCardIdSet = new Set(options.candidateCardIds);
+
+  if (
+    !player ||
+    !Number.isInteger(options.minCount) ||
+    !Number.isInteger(options.maxCount) ||
+    minCount < 0 ||
+    maxCount < minCount ||
+    uniqueSelectedCardIds.size !== selectedCardIds.length ||
+    selectedCardIds.length < minCount ||
+    selectedCardIds.length > maxCount
+  ) {
+    return null;
+  }
+
+  if (
+    selectedCardIds.some(
+      (cardId) => !candidateCardIdSet.has(cardId) || !player.waitingRoom.cardIds.includes(cardId)
+    )
+  ) {
+    return null;
+  }
+
+  if (selectedCardIds.length === 0) {
+    return {
+      gameState: game,
+      movedCardIds: [],
+      selectedCardIds: [],
+      remainingCandidateIds: options.candidateCardIds,
+    };
+  }
+
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    waitingRoom: {
+      ...currentPlayer.waitingRoom,
+      cardIds: currentPlayer.waitingRoom.cardIds.filter(
+        (cardId) => !uniqueSelectedCardIds.has(cardId)
+      ),
+    },
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: [...currentPlayer.mainDeck.cardIds, ...selectedCardIds],
+    },
+  }));
+
+  return {
+    gameState,
+    movedCardIds: selectedCardIds,
+    selectedCardIds,
+    remainingCandidateIds: options.candidateCardIds.filter(
+      (cardId) => !uniqueSelectedCardIds.has(cardId)
+    ),
   };
 }
 

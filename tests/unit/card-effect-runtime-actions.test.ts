@@ -18,6 +18,7 @@ import {
   discardOneHandCardToWaitingRoomForPlayer,
   drawCardsForEachPlayer,
   drawCardsForPlayer,
+  moveWaitingRoomCardsToDeckBottomForPlayer,
   recoverCardsFromWaitingRoomToHandForPlayer,
   shuffleWaitingRoomCardsToDeckBottomForPlayer,
   stackMemberCardBelowSpecialMember,
@@ -856,6 +857,103 @@ describe('card effect runtime actions', () => {
       shuffleWaitingRoomCardsToDeckBottomForPlayer(state, 'missing-player', [cardIds[0]])
     ).toBeNull();
     expect(state.players[0].waitingRoom.cardIds).toEqual([cardIds[0], cardIds[1]]);
+    expect(state.players[0].mainDeck.cardIds).toEqual([]);
+  });
+
+  it('moves selected waiting-room cards to deck bottom in caller order', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 5);
+    setPlayerZones(state, 0, {
+      mainDeckCardIds: [cardIds[0], cardIds[1]],
+      waitingRoomCardIds: [cardIds[2], cardIds[3], cardIds[4]],
+    });
+
+    const result = moveWaitingRoomCardsToDeckBottomForPlayer(
+      state,
+      PLAYER1,
+      [cardIds[3], cardIds[2]],
+      {
+        candidateCardIds: [cardIds[2], cardIds[3], cardIds[4]],
+        minCount: 0,
+        maxCount: 2,
+      }
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.movedCardIds).toEqual([cardIds[3], cardIds[2]]);
+    expect(result?.selectedCardIds).toEqual([cardIds[3], cardIds[2]]);
+    expect(result?.remainingCandidateIds).toEqual([cardIds[4]]);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual([cardIds[4]]);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([
+      cardIds[0],
+      cardIds[1],
+      cardIds[3],
+      cardIds[2],
+    ]);
+    expect(state.players[0].waitingRoom.cardIds).toEqual([cardIds[2], cardIds[3], cardIds[4]]);
+    expect(state.players[0].mainDeck.cardIds).toEqual([cardIds[0], cardIds[1]]);
+  });
+
+  it('allows zero-card ordered waiting-room move to deck bottom without changing state', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 2);
+    setPlayerZones(state, 0, {
+      mainDeckCardIds: [cardIds[0]],
+      waitingRoomCardIds: [cardIds[1]],
+    });
+
+    const result = moveWaitingRoomCardsToDeckBottomForPlayer(state, PLAYER1, [], {
+      candidateCardIds: [cardIds[1]],
+      minCount: 0,
+      maxCount: 2,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.gameState).toBe(state);
+    expect(result?.movedCardIds).toEqual([]);
+    expect(result?.selectedCardIds).toEqual([]);
+    expect(result?.remainingCandidateIds).toEqual([cardIds[1]]);
+  });
+
+  it('rejects invalid ordered waiting-room moves to deck bottom', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 5);
+    setPlayerZones(state, 0, {
+      handCardIds: [cardIds[4]],
+      mainDeckCardIds: [],
+      waitingRoomCardIds: [cardIds[0], cardIds[1], cardIds[2], cardIds[3]],
+    });
+    const options = {
+      candidateCardIds: [cardIds[0], cardIds[1], cardIds[2]],
+      minCount: 0,
+      maxCount: 2,
+    };
+
+    expect(
+      moveWaitingRoomCardsToDeckBottomForPlayer(state, PLAYER1, [cardIds[0], cardIds[0]], options)
+    ).toBeNull();
+    expect(
+      moveWaitingRoomCardsToDeckBottomForPlayer(state, PLAYER1, [cardIds[4]], {
+        ...options,
+        candidateCardIds: [cardIds[4]],
+      })
+    ).toBeNull();
+    expect(moveWaitingRoomCardsToDeckBottomForPlayer(state, PLAYER1, [cardIds[3]], options)).toBeNull();
+    expect(
+      moveWaitingRoomCardsToDeckBottomForPlayer(
+        state,
+        PLAYER1,
+        [cardIds[0], cardIds[1], cardIds[2]],
+        options
+      )
+    ).toBeNull();
+    expect(moveWaitingRoomCardsToDeckBottomForPlayer(state, 'missing-player', [cardIds[0]], options)).toBeNull();
+    expect(state.players[0].waitingRoom.cardIds).toEqual([
+      cardIds[0],
+      cardIds[1],
+      cardIds[2],
+      cardIds[3],
+    ]);
     expect(state.players[0].mainDeck.cardIds).toEqual([]);
   });
 

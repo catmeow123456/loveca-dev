@@ -245,6 +245,50 @@ describe('PlayerViewState projector', () => {
     });
   });
 
+  it('projects original Heart replacement as signed modifier deltas', () => {
+    let { state } = createProjectedState();
+    const member = createCardInstance(
+      {
+        ...createTestMember('PL!N-bp3-014-R', '中须霞'),
+        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+      },
+      PLAYER1,
+      'p1-original-heart-replacement'
+    );
+    state = registerCards(state, [member]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.CENTER]: member.instanceId,
+        },
+        cardStates: new Map([[member.instanceId, createDefaultCardState()]]),
+      },
+    }));
+    state = addLiveModifier(state, {
+      kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
+      playerId: PLAYER1,
+      memberCardId: member.instanceId,
+      color: HeartColor.GREEN,
+      sourceCardId: member.instanceId,
+      abilityId: 'PL!N-bp3-014:live-start-replace-original-heart-color',
+    });
+
+    const view = projectPlayerViewState(state, PLAYER1);
+    const memberObject = view.objects[createPublicObjectId(member.instanceId)];
+
+    expect(memberObject?.frontInfo?.hearts).toEqual([{ color: HeartColor.GREEN, count: 1 }]);
+    expect(memberObject?.frontInfo?.modifierDelta?.heartDeltas).toHaveLength(2);
+    expect(memberObject?.frontInfo?.modifierDelta?.heartDeltas).toEqual(
+      expect.arrayContaining([
+        { color: HeartColor.GREEN, count: 1 },
+        { color: HeartColor.YELLOW, count: -1 },
+      ])
+    );
+  });
+
   it('projects BLADE modifier delta without changing printed card data', () => {
     let { state } = createProjectedState();
     const sourceMember = createCardInstance(
@@ -710,6 +754,7 @@ describe('PlayerViewState projector', () => {
       'FIRST_MEMBER_LEFT',
       'FIRST_MEMBER_CENTER',
       'FIRST_MEMBER_RIGHT',
+      'FIRST_WAITING_ROOM',
     ]);
     expect(hasEnabledCommand(mainView, GameCommandType.TAP_ENERGY)).toBe(true);
     expect(getCommandHint(mainView, GameCommandType.TAP_ENERGY)?.scope?.zoneKeys).toEqual([
@@ -927,24 +972,33 @@ describe('PlayerViewState projector', () => {
   });
 
   it('RESULT_SETTLEMENT 期间仅胜者拥有成功 Live 选择与结算确认权限', () => {
-    const { state } = createProjectedState();
+    const { state, p1LiveCard } = createProjectedState();
     const mutableState = state as unknown as {
       currentPhase: GamePhase;
       currentSubPhase: SubPhase;
       waitingPlayerId: string | null;
-      liveResolution: { liveWinnerIds: string[] };
+      liveResolution: { liveWinnerIds: string[]; liveResults: Map<string, boolean> };
     };
     mutableState.currentPhase = GamePhase.LIVE_RESULT_PHASE;
     mutableState.currentSubPhase = SubPhase.RESULT_SETTLEMENT;
     mutableState.waitingPlayerId = null;
     mutableState.liveResolution.liveWinnerIds = [PLAYER1];
+    mutableState.liveResolution.liveResults = new Map([[p1LiveCard.instanceId, true]]);
 
     const player1View = projectPlayerViewState(state, PLAYER1);
     const player2View = projectPlayerViewState(state, PLAYER2);
 
     expect(hasEnabledCommand(player1View, GameCommandType.SELECT_SUCCESS_LIVE)).toBe(true);
-    expect(hasEnabledCommand(player1View, GameCommandType.CONFIRM_STEP)).toBe(true);
-    expect(getCommandHint(player1View, GameCommandType.CONFIRM_STEP)?.reason).toBeUndefined();
+    expect(getCommandHint(player1View, GameCommandType.SELECT_SUCCESS_LIVE)?.scope?.objectIds).toEqual([
+      createPublicObjectId(p1LiveCard.instanceId),
+    ]);
+    expect(hasEnabledCommand(player1View, GameCommandType.CONFIRM_STEP)).toBe(false);
+    expect(getCommandHint(player1View, GameCommandType.CONFIRM_STEP)?.reason).toContain(
+      '请先选择成功 Live'
+    );
+    expect(player1View.match.liveResult?.successLiveSelection?.candidateObjectIds).toEqual([
+      createPublicObjectId(p1LiveCard.instanceId),
+    ]);
     expect(hasEnabledCommand(player2View, GameCommandType.SELECT_SUCCESS_LIVE)).toBe(false);
     expect(getCommandHint(player2View, GameCommandType.SELECT_SUCCESS_LIVE)).toBeNull();
   });

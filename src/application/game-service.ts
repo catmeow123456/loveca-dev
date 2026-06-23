@@ -135,7 +135,6 @@ import {
   getLiveCardRequirementModifiers,
   getLiveCardScoreModifier,
   getMemberEffectiveHeartIcons,
-  getPlayerLiveBladeModifier,
   getPlayerLiveHeartModifiers,
   getPlayerLiveScoreModifier,
 } from '../domain/rules/live-modifiers.js';
@@ -473,7 +472,17 @@ export class GameService {
         }
         case GameEventType.RUN_CHECK_TIMING: {
           const triggerConditions = events.filter(isTriggerCondition);
-          const checkResult = this.executeCheckTiming(state, triggerConditions);
+          let checkState = state;
+          if (
+            triggerConditions.includes(TriggerCondition.ON_LIVE_SUCCESS) &&
+            isSuccessEffectSubPhase(checkState.currentSubPhase)
+          ) {
+            checkState = this.emitLiveSuccessEventForResultSubPhase(
+              checkState,
+              checkState.currentSubPhase
+            );
+          }
+          const checkResult = this.executeCheckTiming(checkState, triggerConditions);
           state = checkResult.gameState;
           processedEvents.push(event);
           break;
@@ -1137,6 +1146,14 @@ export class GameService {
       : 0;
     const playerScores = new Map(stateAfterPerformance.liveResolution.playerScores);
     playerScores.set(playerId, scoreDraft);
+    const playerRemainingHearts = new Map(
+      stateAfterPerformance.liveResolution.playerRemainingHearts
+    );
+    playerRemainingHearts.set(playerId, hasSuccessfulLive ? performance.remainingHearts : []);
+    const playerLiveJudgmentHearts = new Map(
+      stateAfterPerformance.liveResolution.playerLiveJudgmentHearts
+    );
+    playerLiveJudgmentHearts.set(playerId, performance.liveJudgmentHearts);
 
     const state = {
       ...stateAfterPerformance,
@@ -1144,6 +1161,8 @@ export class GameService {
         ...stateAfterPerformance.liveResolution,
         liveResults,
         playerScores,
+        playerRemainingHearts,
+        playerLiveJudgmentHearts,
       },
     };
 
@@ -1166,10 +1185,30 @@ export class GameService {
     player: PlayerState,
     activeMemberCards: readonly MemberCardData[]
   ): number {
-    return (
-      liveResolver.calculateTotalBlade(activeMemberCards) +
-      getPlayerLiveBladeModifier(game.liveResolution, player.id, collectLiveModifiers(game))
+    const activeMemberCardIds = new Set(
+      getAllMemberCardIds(player.memberSlots).filter((cardId) => {
+        const state = player.memberSlots.cardStates.get(cardId);
+        return state === undefined || state.orientation === OrientationState.ACTIVE;
+      })
     );
+    const modifierBladeCount = collectLiveModifiers(game).reduce((total, modifier) => {
+      if (modifier.kind !== 'BLADE' || modifier.playerId !== player.id) {
+        return total;
+      }
+
+      if (modifier.sourceCardId === undefined) {
+        return total + modifier.countDelta;
+      }
+
+      const sourceCard = getCardById(game, modifier.sourceCardId);
+      if (!sourceCard || !isMemberCardData(sourceCard.data)) {
+        return total + modifier.countDelta;
+      }
+
+      return activeMemberCardIds.has(modifier.sourceCardId) ? total + modifier.countDelta : total;
+    }, 0);
+
+    return liveResolver.calculateTotalBlade(activeMemberCards) + modifierBladeCount;
   }
 
   private hasPerformanceCheerStarted(game: GameState, playerId: string): boolean {
@@ -1627,6 +1666,8 @@ export class GameService {
         secondPlayerCheerCardIds: [],
         liveResults: new Map(),
         playerScores: new Map(),
+        playerRemainingHearts: new Map(),
+        playerLiveJudgmentHearts: new Map(),
         playerScoreBonuses: new Map(),
         playerHeartBonuses: new Map(),
         liveRequirementReductions: new Map(),

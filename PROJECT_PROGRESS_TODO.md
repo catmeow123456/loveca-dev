@@ -1,17 +1,17 @@
 # Loveca 项目进度及待办
 
-日期：2026-06-12
+更新时间：2026-06-23
 
 ## 接续方式
 
 新窗口建议先读：
 
 1. `AGENTS.md`
-2. 本文件 `PROJECT_PROGRESS_TODO_20260612.md`
+2. 本文件 `PROJECT_PROGRESS_TODO.md`
 
-当前主要提交：
+当前分支基线：
 
-- `c89b66c Implement live automation effect foundations`
+- `effect_new_card` @ `4aabb3b feat(effect): 修正效果显示并更新en卡组卡效-1`
 
 当前本地测试页面：
 
@@ -19,7 +19,32 @@
 
 当前分支：
 
-- `myk_20260611`
+- `effect_new_card`
+
+## 本次 2026-06-23 第四批新卡/补全卡效
+
+- 已完成 `PL!HS-cl1-010-CL` 分数 3「AWOKE」：LIVE 开始时选择自己舞台有效费用 10 以上的『莲之空』成员，LIVE 结束时为止获得 BLADE +2。
+- 候选读取 `getMemberEffectiveCost`，可吃 `MEMBER_COST` live modifier；非莲之空、对方成员、有效费用不足成员不进候选。BLADE modifier 以被选择目标成员作为 `sourceCardId`。
+- Focused 验证：`tests/unit/card-effect-classification.test.ts`、`tests/integration/hs-cl1-010-awoke.test.ts`。
+
+## 本次 2026-06-23 第三批新卡/补全卡效
+
+- 已完成 `PL!HS-bp5-022-L` 分数 4「Retrofuture」：LIVE 开始可支付 2 活跃能量；支付后重新扫描己方舞台有效费用 9 以上 EdelNote 条件，满足时选择低费 EdelNote 从休息室登场，或使此 LIVE 紫色必要 Heart -1。
+- 登场分支会从等待室选择费用 4 以下 EdelNote 成员并选择空成员区，随后入队本次 `ON_ENTER_STAGE`；无高费 EdelNote 时费用保留并 no-effect，低费候选或空位不足时只提供 requirement 模式。
+- Focused 验证：`tests/unit/card-effect-classification.test.ts`、`tests/integration/hs-bp5-022-retrofuture.test.ts`。
+
+## 本次 2026-06-23 第二批新卡/补全卡效
+
+- 已完成 `PL!HS-pb1-030-L` 分数 7「Edelied」：LIVE 开始时先选择己方舞台 1 名 EdelNote 成员获得 BLADE +2，再选择 1 名与其卡名不同的 EdelNote 成员获得紫 Heart +2。
+- 第一段无 EdelNote 目标时 no-target 结算；第二段无不同卡名目标时保留第一段 BLADE，并 no-target 继续结算。第二段目标在确认时重新扫描，同名 EdelNote 不可作为目标。
+- Focused 验证：`tests/unit/card-effect-classification.test.ts`、`tests/integration/hs-pb1-030-edelied.test.ts`。
+
+## 本次 2026-06-23 第一批新卡/补全卡效
+
+- 已完成 `PL!HS-bp6-007-P / R` 费用 15「セラス 柳田 リリエンフェルト」：自动 / 1 回合 1 次，己方 EdelNote 成员登场时，对方自己选择自身舞台 1 名 active 成员变 WAITING；自身登场也触发。非 EdelNote 登场只 no-op，不消耗 turn1。
+- 已补全 `PL!-pb1-015-P＋ / R` 费用 11「西木野真姫」一效果：中心位登场 / LIVE 开始时，可将己方 BiBi 成员变 WAITING；费用成功后，对方自己选择自身 active 成员变 WAITING。保留并验证既有二效果：该等待低费对方成员时抽 1。
+- 新增窄 helper `workflows/shared/target-player-wait-own-active-member.ts`，只负责“指定玩家选择自己 active 成员变 WAITING”；BiBi 费用、EdelNote 触发检查、turn1 判断仍留在单卡 workflow。
+- Focused 验证：`tests/unit/card-effect-classification.test.ts`、`tests/integration/hs-bp6-007-seras.test.ts`、`tests/integration/pb1-015-maki.test.ts`。
 
 ## 本次 2026-06-21 正式联机请求重开
 
@@ -846,5 +871,5 @@ git diff --check
 ## 已知注意点
 
 - 子模块 `llocg_db` 里可能有本地未跟踪 `.DS_Store`，不要提交。
-- 旧进度文档 `PROJECT_PROGRESS_TODO_20260611.md` 是历史施工日志；新窗口应以本文件为当前事实。
+- 旧日期进度文档只作为 git 历史中的施工日志保留；新窗口应以本文件为当前事实。
 - 本地测试端口目前按 `5173` 使用；如果页面没热更新，先确认实际 Vite 端口。

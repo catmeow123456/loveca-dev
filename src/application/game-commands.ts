@@ -246,6 +246,7 @@ export interface ConfirmEffectStepCommand extends BaseGameCommand {
 export interface ConfirmStepCommand extends BaseGameCommand {
   readonly type: GameCommandType.CONFIRM_STEP;
   readonly subPhase: SubPhase;
+  readonly skipSuccessLiveSelection?: boolean;
 }
 
 export interface ConfirmPerformanceOutcomeCommand extends BaseGameCommand {
@@ -722,11 +723,16 @@ export function createConfirmEffectStepCommand(
   };
 }
 
-export function createConfirmStepCommand(playerId: string, subPhase: SubPhase): ConfirmStepCommand {
+export function createConfirmStepCommand(
+  playerId: string,
+  subPhase: SubPhase,
+  options?: { readonly skipSuccessLiveSelection?: boolean }
+): ConfirmStepCommand {
   return {
     type: GameCommandType.CONFIRM_STEP,
     playerId,
     subPhase,
+    skipSuccessLiveSelection: options?.skipSuccessLiveSelection,
     timestamp: Date.now(),
   };
 }

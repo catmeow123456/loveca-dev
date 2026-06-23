@@ -106,6 +106,7 @@ Current migrated workflow modules:
 - `workflows/cards/pb1-015-maki.ts`
 - `workflows/cards/pl-bp3-014-rin.ts`
 - `workflows/cards/sp-bp4-008-shiki.ts`
+- `workflows/cards/s-bp2-024-kimikoko.ts`
 - `workflows/cards/sp-bp5-003-chisato.ts`
 - `workflows/cards/yoshiko-play-low-cost-members.ts`
 
@@ -122,7 +123,7 @@ Recent helper modules added outside `actions.ts`:
 
 Runner line count after R-4Q-c CHISATO / EMMA single-card workflow migration was about 5285 lines, down from about 5667 after R-4Q-b. R-5B `HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE` migration brought the runner to about 5058 lines. R-5C `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART` migration brought the runner to about 4830 lines. R-5D `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT` migration brought the runner to about 4595 lines. R-5E `MAKI_ON_ENTER` migration brought the runner to about 4432 lines. R-5F `LL_BP1_001` / `LL_BP2_001` named hand discard Live-start migration brought the runner to about 4239 lines. After R-5U, complete card-effect fallback branches are empty; the runner still keeps matcher / relay / trigger condition glue until those framework boundaries are explicitly reopened.
 
-`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。`HS_SD1_001`、`SHIKI`、`CHISATO`、`EMMA`、`HS_BP5_003` 两段效果、`BP6_024` 成功区替代 hook、`MAKI` 登场交换与 LL named hand discard Live-start family 已迁到 workflow wrapper / hook。Remaining near-term R-4/R-5 candidates include complex workflows and helper cleanup only when another stable repeated axis appears.
+`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。`HS_SD1_001`、`SHIKI`、`CHISATO`、`EMMA`、`HS_BP5_003` 两段效果、`BP6_024` 成功区替代 hook、`MAKI` 登场交换、`PL!S-bp2-024` LIVE 成功抽弃 wrapper 与 LL named hand discard Live-start family 已迁到 workflow wrapper / hook。`PL!S-bp2-024` 不能放置入成功 LIVE 卡区只新增 `success-live-placement` 纯规则 helper，覆盖当前真实入区/替代/交换/手动移动入口；这不是完整 replacement DSL。Remaining near-term R-4/R-5 candidates include complex workflows and helper cleanup only when another stable repeated axis appears.
 
 ## R-4O Conditional Live Modifier Outcome 2026-06-18
 

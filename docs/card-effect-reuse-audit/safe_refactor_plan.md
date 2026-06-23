@@ -155,7 +155,7 @@ For frontend-visible flows, start `5173` and ask the user to test one named card
 Update these together:
 
 - `AGENTS.md`
-- `PROJECT_PROGRESS_TODO_20260612.md`
+- `PROJECT_PROGRESS_TODO.md`
 - `docs/card-effect-framework/card_effect_framework_design.md`
 - `docs/card-effect-framework/card_effect_fragment_coverage_matrix.md`
 - `docs/card-effect-reuse-audit/existing_module_map.md`

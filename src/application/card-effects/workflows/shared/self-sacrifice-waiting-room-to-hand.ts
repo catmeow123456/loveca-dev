@@ -11,6 +11,7 @@ import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   BP4_003_ACTIVATED_ABILITY_ID,
   ELI_ACTIVATED_ABILITY_ID,
+  HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
   PB1_019_ACTIVATED_ABILITY_ID,
   RIN_ACTIVATED_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -26,7 +27,7 @@ import {
   paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
   type EnqueueTriggeredCardEffectsForLeaveStage,
 } from '../../runtime/leave-stage-triggers.js';
-import { typeIs } from '../../../effects/card-selectors.js';
+import { groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -38,6 +39,8 @@ const ELI_SELECT_WAITING_ROOM_MEMBER_STEP_ID = 'ELI_SELECT_WAITING_ROOM_MEMBER';
 const RIN_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'RIN_SELECT_WAITING_ROOM_LIVE';
 const BP4_003_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'BP4_003_SELECT_WAITING_ROOM_LIVE';
 const PB1_019_SELECT_WAITING_ROOM_MEMBER_STEP_ID = 'PB1_019_SELECT_WAITING_ROOM_MEMBER';
+const HS_CL1_008_SELECT_WAITING_ROOM_HASUNOSORA_CARD_STEP_ID =
+  'HS_CL1_008_SELECT_WAITING_ROOM_HASUNOSORA_CARD';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForLeaveStage;
@@ -79,6 +82,15 @@ const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaiti
       expectedBaseCardCodes: ['PL!-bp4-003'],
       stepId: BP4_003_SELECT_WAITING_ROOM_LIVE_STEP_ID,
       selectablePredicate: typeIs(CardType.LIVE),
+    },
+    {
+      abilityId: HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
+      expectedBaseCardCodes: getCardAbilityBaseCardCodes(
+        HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID
+      ),
+      stepId: HS_CL1_008_SELECT_WAITING_ROOM_HASUNOSORA_CARD_STEP_ID,
+      selectablePredicate: groupAliasIs('蓮ノ空'),
+      selectionRequiredWhenHasTargets: true,
     },
   ];
 

@@ -201,6 +201,7 @@ export interface ConfirmSubPhaseAction extends BaseGameAction {
   readonly type: GameActionType.CONFIRM_SUB_PHASE;
   /** 确认完成的子阶段 */
   readonly subPhase: SubPhase;
+  readonly skipSuccessLiveSelection?: boolean;
 }
 
 /**
@@ -492,12 +493,14 @@ export function createTapEnergyAction(playerId: string, cardId: string): TapEner
  */
 export function createConfirmSubPhaseAction(
   playerId: string,
-  subPhase: SubPhase
+  subPhase: SubPhase,
+  options?: { readonly skipSuccessLiveSelection?: boolean }
 ): ConfirmSubPhaseAction {
   return {
     type: GameActionType.CONFIRM_SUB_PHASE,
     playerId,
     subPhase,
+    skipSuccessLiveSelection: options?.skipSuccessLiveSelection,
     timestamp: Date.now(),
   };
 }

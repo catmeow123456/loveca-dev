@@ -1,6 +1,6 @@
 # Loveca Battle Agent Guide
 
-本文件给后续接手本项目的 AI / Codex 使用。开始任何开发前，先读本文件，再读最新的 `PROJECT_PROGRESS_TODO_*.md`。
+本文件给后续接手本项目的 AI / Codex 使用。开始任何开发前，先读本文件，再读最新的 `PROJECT_PROGRESS_TODO.md`。
 
 ## 项目定位
 
@@ -29,7 +29,7 @@
 
 - `docs/card-effect-reuse-audit/existing_module_map.md`：主登记册，每张卡/每个效果段落地后更新。
 - focused tests：对应能力登记、关键结算路径、同编号罕度同步或真实数据形态必须覆盖。
-- `PROJECT_PROGRESS_TODO_20260612.md`：每个工作窗口只写短记录，列出本窗口完成卡牌、关键 bugfix、验证命令与下一步；不做长篇设计重写。
+- `PROJECT_PROGRESS_TODO.md`：每个工作窗口只写短记录，列出本窗口完成卡牌、关键 bugfix、验证命令与下一步；不做长篇设计重写。
 
 默认暂不随每张卡更新，只有在“批末收束”或确有新边界时才更新：
 

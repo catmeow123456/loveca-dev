@@ -40,7 +40,8 @@ function createMemberCard(
   cardCode: string,
   name = cardCode,
   cost = 1,
-  unitName?: string
+  unitName?: string,
+  hearts: readonly ReturnType<typeof createHeartIcon>[] = [createHeartIcon(HeartColor.PINK, 1)]
 ): MemberCardData {
   return {
     cardCode,
@@ -50,7 +51,7 @@ function createMemberCard(
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
-    hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    hearts,
   };
 }
 
@@ -836,6 +837,314 @@ describe('discard look top select to hand shared workflow', () => {
       topCards[3]!.instanceId,
     ]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[4]!.instanceId]);
+  });
+
+  it('lets PL!S-bp2-005 discard one, inspect top seven, and reveal up to three red green blue Heart members', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('discard-look-top-seven-yohane', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp2-005-R+', '渡辺 曜', 13, 'CYaRon！', [
+        createHeartIcon(HeartColor.RED, 2),
+        createHeartIcon(HeartColor.GREEN, 2),
+        createHeartIcon(HeartColor.BLUE, 2),
+      ]),
+      PLAYER1,
+      'p1-s-bp2-005-source'
+    );
+    const discardCard = createCardInstance(
+      createMemberCard('PL!S-bp2-005-discard', 'Discard target'),
+      PLAYER1,
+      'p1-s-bp2-005-discard'
+    );
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!S-red-member', 'Red member', 1, undefined, [
+          createHeartIcon(HeartColor.RED, 1),
+        ]),
+        PLAYER1,
+        's-bp2-005-top-red'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-green-member', 'Green member', 1, undefined, [
+          createHeartIcon(HeartColor.GREEN, 1),
+        ]),
+        PLAYER1,
+        's-bp2-005-top-green'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-blue-member', 'Blue member', 1, undefined, [
+          createHeartIcon(HeartColor.BLUE, 1),
+        ]),
+        PLAYER1,
+        's-bp2-005-top-blue'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-yellow-member', 'Yellow member', 1, undefined, [
+          createHeartIcon(HeartColor.YELLOW, 1),
+        ]),
+        PLAYER1,
+        's-bp2-005-top-yellow'
+      ),
+      createCardInstance(createLiveCard('PL!S-red-live', 'Red live'), PLAYER1, 's-bp2-005-top-live'),
+      createCardInstance(createEnergyCard('PL!S-energy'), PLAYER1, 's-bp2-005-top-energy'),
+      createCardInstance(
+        createMemberCard('PL!S-purple-member', 'Purple member', 1, undefined, [
+          createHeartIcon(HeartColor.PURPLE, 1),
+        ]),
+        PLAYER1,
+        's-bp2-005-top-purple'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-extra-red-member', 'Extra red member', 1, undefined, [
+          createHeartIcon(HeartColor.RED, 1),
+        ]),
+        PLAYER1,
+        's-bp2-005-top-extra'
+      ),
+    ];
+
+    let state = registerCards(session.state!, [source, discardCard, ...topCards]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    clearPlayerZones(p1);
+    p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
+    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      abilityId: GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
+      effectText:
+        '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的7张卡。可以将至多3张其中的持有[赤ハート]或[緑ハート]或[青ハート]的成员卡公开并加入手牌。其余的卡片放置入休息室。',
+      selectableCardIds: [discardCard.instanceId],
+      canSkipSelection: true,
+    });
+
+    const discardResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        discardCard.instanceId
+      )
+    );
+
+    expect(discardResult.success).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      inspectionCardIds: topCards.slice(0, 7).map((card) => card.instanceId),
+      selectableCardIds: [
+        topCards[0]!.instanceId,
+        topCards[1]!.instanceId,
+        topCards[2]!.instanceId,
+      ],
+      selectableCardMode: 'ORDERED_MULTI',
+      minSelectableCards: 0,
+      maxSelectableCards: 3,
+      canSkipSelection: true,
+    });
+
+    const selectedCardIds = [
+      topCards[2]!.instanceId,
+      topCards[0]!.instanceId,
+      topCards[1]!.instanceId,
+    ];
+    const selectResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        selectedCardIds
+      )
+    );
+
+    expect(selectResult.success).toBe(true);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual(selectedCardIds);
+
+    const revealConfirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(revealConfirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual(selectedCardIds);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
+      discardCard.instanceId,
+      topCards[3]!.instanceId,
+      topCards[4]!.instanceId,
+      topCards[5]!.instanceId,
+      topCards[6]!.instanceId,
+    ]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[7]!.instanceId]);
+  });
+
+  it('moves all inspected PL!S-bp2-005 cards to waiting room when no red green blue Heart member is found', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('discard-look-top-seven-yohane-no-target', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp2-005-P', '渡辺 曜', 13),
+      PLAYER1,
+      'p1-s-bp2-005-no-target-source'
+    );
+    const discardCard = createCardInstance(
+      createMemberCard('PL!S-bp2-005-no-target-discard', 'Discard target'),
+      PLAYER1,
+      'p1-s-bp2-005-no-target-discard'
+    );
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!S-yellow-member', 'Yellow member', 1, undefined, [
+          createHeartIcon(HeartColor.YELLOW, 1),
+        ]),
+        PLAYER1,
+        's-bp2-005-no-target-yellow'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-purple-member', 'Purple member', 1, undefined, [
+          createHeartIcon(HeartColor.PURPLE, 1),
+        ]),
+        PLAYER1,
+        's-bp2-005-no-target-purple'
+      ),
+      createCardInstance(createLiveCard('PL!S-live-no-target'), PLAYER1, 's-bp2-005-no-target-live'),
+      createCardInstance(createEnergyCard('PL!S-energy-no-target'), PLAYER1, 's-bp2-005-no-target-energy'),
+    ];
+
+    let state = registerCards(session.state!, [source, discardCard, ...topCards]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    clearPlayerZones(p1);
+    p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
+    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+
+    expect(
+      session.executeCommand(
+        createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+          freePlay: true,
+        })
+      ).success
+    ).toBe(true);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
+
+    expect(session.state?.activeEffect).toMatchObject({
+      selectableCardIds: [],
+      canSkipSelection: true,
+      skipSelectionLabel: '确认',
+    });
+
+    const confirmNoTargetResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(confirmNoTargetResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
+      discardCard.instanceId,
+      ...topCards.map((card) => card.instanceId),
+    ]);
+  });
+
+  it('does not inspect the deck when PL!S-bp2-005 optional discard is declined', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('discard-look-top-seven-yohane-decline', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp2-005-SEC', '渡辺 曜', 13),
+      PLAYER1,
+      'p1-s-bp2-005-decline-source'
+    );
+    const discardCard = createCardInstance(
+      createMemberCard('PL!S-bp2-005-decline-discard', 'Discard target'),
+      PLAYER1,
+      'p1-s-bp2-005-decline-discard'
+    );
+    const topCards = [0, 1, 2, 3, 4, 5, 6].map((index) =>
+      createCardInstance(
+        createMemberCard(`PL!S-decline-red-${index}`, `Red member ${index}`, 1, undefined, [
+          createHeartIcon(HeartColor.RED, 1),
+        ]),
+        PLAYER1,
+        `s-bp2-005-decline-top-${index}`
+      )
+    );
+
+    let state = registerCards(session.state!, [source, discardCard, ...topCards]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    clearPlayerZones(p1);
+    p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
+    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+
+    expect(
+      session.executeCommand(
+        createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+          freePlay: true,
+        })
+      ).success
+    ).toBe(true);
+
+    const declineResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(declineResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.players[0].hand.cardIds).toEqual([discardCard.instanceId]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual(
+      topCards.map((card) => card.instanceId)
+    );
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
   });
 
   it('does not inspect the deck when a top five LIVE optional discard is declined', () => {

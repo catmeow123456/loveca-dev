@@ -1,9 +1,16 @@
-import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
+import {
+  CardType,
+  GamePhase,
+  HeartColor,
+  OrientationState,
+  ZoneType,
+} from '../../../../shared/types/enums.js';
 import {
   addAction,
   getCardById,
   getPlayerById,
   type ActiveEffectState,
+  type GameAction,
   type GameState,
   type LiveModifierState,
   type PendingAbilityState,
@@ -43,6 +50,7 @@ import {
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
+  PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startConfirmOnlyActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -58,6 +66,7 @@ const HS_BP2_022_SCORE_BONUS_STEP_ID = 'HS_BP2_022_SCORE_BONUS';
 const HS_BP2_023_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
   'HS_BP2_023_RELAY_ENTERED_REQUIREMENT_REDUCTION';
 const HS_BP5_020_SCORE_BONUS_STEP_ID = 'HS_BP5_020_SCORE_BONUS';
+const PL_N_PB1_037_SCORE_BONUS_STEP_ID = 'PL_N_PB1_037_SCORE_BONUS';
 const HS_BP2_024_REQUIREMENT_REDUCTION_STEP_ID = 'HS_BP2_024_REQUIREMENT_REDUCTION';
 const HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
   'HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION';
@@ -196,6 +205,26 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
       };
     },
     finish: finishHsBp5BardCageLiveStartScoreBonus,
+  },
+  {
+    abilityId: PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
+    stepId: PL_N_PB1_037_SCORE_BONUS_STEP_ID,
+    getStartContext: (game, _ability, playerId) => {
+      const history = getNijigasakiActivationHistoryThisTurn(game, playerId);
+      return {
+        effectText: `${getAbilityEffectText(
+          PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID
+        )}（能量${history.activatedEnergy ? '已满足' : '未满足'}，成员${
+          history.activatedMember ? '已满足' : '未满足'
+        }，分数+${history.scoreBonus}）`,
+        actionPayload: {
+          activatedEnergyByNijigasakiEffect: history.activatedEnergy,
+          activatedMemberByNijigasakiEffect: history.activatedMember,
+          scoreBonus: history.scoreBonus,
+        },
+      };
+    },
+    finish: finishPlNPb1037CaraTesoroScoreBonus,
   },
   {
     abilityId: HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID,
@@ -500,6 +529,46 @@ function finishHsBp5BardCageLiveStartScoreBonus(
   };
 }
 
+function finishPlNPb1037CaraTesoroScoreBonus(
+  game: GameState,
+  effect: ActiveEffectState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const history = getNijigasakiActivationHistoryThisTurn(game, playerId);
+  const state = replaceLiveModifier(
+    {
+      ...game,
+      activeEffect: null,
+    },
+    {
+      kind: 'SCORE',
+      liveCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+    },
+    history.scoreBonus > 0
+      ? {
+          kind: 'SCORE',
+          playerId,
+          countDelta: history.scoreBonus,
+          liveCardId: effect.sourceCardId,
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_BONUS',
+      activatedEnergyByNijigasakiEffect: history.activatedEnergy,
+      activatedMemberByNijigasakiEffect: history.activatedMember,
+      scoreBonus: history.scoreBonus,
+    },
+  };
+}
+
 function finishHsBp2LadybugLiveStartRequirementReduction(
   game: GameState,
   effect: ActiveEffectState,
@@ -680,6 +749,139 @@ function countHighCostHasunosoraStageMembers(game: GameState, playerId: string):
     playerId,
     (card) => groupAliasIs('蓮ノ空')(card) && getMemberEffectiveCost(game, playerId, card.instanceId) >= 10
   ).length;
+}
+
+function getNijigasakiActivationHistoryThisTurn(
+  game: GameState,
+  playerId: string
+): {
+  readonly activatedEnergy: boolean;
+  readonly activatedMember: boolean;
+  readonly scoreBonus: number;
+} {
+  const ownNijigasakiEffectActions = getActionsSinceLatestOverallTurnStart(game).filter((action) =>
+    isOwnNijigasakiResolveAbilityAction(game, action, playerId)
+  );
+  const activatedEnergy = ownNijigasakiEffectActions.some(hasActivatedWaitingEnergyPayload);
+  const activatedMember = ownNijigasakiEffectActions.some((action) =>
+    hasActivatedWaitingStageMemberPayload(game, action, playerId)
+  );
+
+  return {
+    activatedEnergy,
+    activatedMember,
+    scoreBonus: activatedEnergy ? (activatedMember ? 2 : 1) : 0,
+  };
+}
+
+function getActionsSinceLatestOverallTurnStart(game: GameState): readonly GameAction[] {
+  for (let index = game.actionHistory.length - 1; index >= 0; index -= 1) {
+    const action = game.actionHistory[index];
+    if (
+      action?.type === 'PHASE_CHANGE' &&
+      action.payload.from === GamePhase.LIVE_RESULT_PHASE &&
+      action.payload.to === GamePhase.ACTIVE_PHASE
+    ) {
+      return game.actionHistory.slice(index + 1);
+    }
+  }
+  return game.actionHistory;
+}
+
+function isOwnNijigasakiResolveAbilityAction(
+  game: GameState,
+  action: GameAction,
+  playerId: string
+): boolean {
+  if (action.type !== 'RESOLVE_ABILITY' || action.playerId !== playerId) {
+    return false;
+  }
+  const sourceCardId = getPayloadString(action.payload.sourceCardId);
+  if (!sourceCardId) {
+    return false;
+  }
+  const sourceCard = getCardById(game, sourceCardId);
+  return sourceCard !== null && sourceCard.ownerId === playerId && groupAliasIs('虹ヶ咲')(sourceCard);
+}
+
+function hasActivatedWaitingEnergyPayload(action: GameAction): boolean {
+  const activatedEnergyCardIds = getPayloadStringArray(action.payload.activatedEnergyCardIds);
+  if (activatedEnergyCardIds.length === 0) {
+    return false;
+  }
+  return (
+    action.payload.nextOrientation === undefined ||
+    action.payload.nextOrientation === OrientationState.ACTIVE
+  );
+}
+
+function hasActivatedWaitingStageMemberPayload(
+  game: GameState,
+  action: GameAction,
+  playerId: string
+): boolean {
+  const targetMemberCardId = getPayloadString(action.payload.targetMemberCardId);
+  if (
+    targetMemberCardId &&
+    action.payload.previousOrientation === OrientationState.WAITING &&
+    action.payload.nextOrientation === OrientationState.ACTIVE &&
+    isOwnedMemberCard(game, targetMemberCardId, playerId)
+  ) {
+    return true;
+  }
+
+  const activatedMemberCardIds = getPayloadStringArray(action.payload.activatedMemberCardIds);
+  if (
+    activatedMemberCardIds.length === 0 ||
+    !(
+      action.payload.nextOrientation === undefined ||
+      action.payload.nextOrientation === OrientationState.ACTIVE
+    )
+  ) {
+    return false;
+  }
+
+  const previousOrientations = [
+    ...getPayloadOrientationChanges(action.payload.previousOrientations),
+    ...getPayloadOrientationChanges(action.payload.previousMemberOrientations),
+  ];
+  return activatedMemberCardIds.some(
+    (cardId) =>
+      isOwnedMemberCard(game, cardId, playerId) &&
+      previousOrientations.some(
+        (previous) => previous.cardId === cardId && previous.orientation === OrientationState.WAITING
+      )
+  );
+}
+
+function isOwnedMemberCard(game: GameState, cardId: string, playerId: string): boolean {
+  const card = getCardById(game, cardId);
+  return card !== null && card.ownerId === playerId && card.data.cardType === CardType.MEMBER;
+}
+
+function getPayloadString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function getPayloadStringArray(value: unknown): readonly string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string') ? value : [];
+}
+
+function getPayloadOrientationChanges(
+  value: unknown
+): readonly { readonly cardId: string; readonly orientation: OrientationState }[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(
+    (entry): entry is { readonly cardId: string; readonly orientation: OrientationState } =>
+      typeof entry === 'object' &&
+      entry !== null &&
+      typeof (entry as { readonly cardId?: unknown }).cardId === 'string' &&
+      Object.values(OrientationState).includes(
+        (entry as { readonly orientation?: OrientationState }).orientation as OrientationState
+      )
+  );
 }
 
 function getKosuzuSayakaHigherCostCondition(

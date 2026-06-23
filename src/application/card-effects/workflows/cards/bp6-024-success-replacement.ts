@@ -13,6 +13,7 @@ import {
 } from '../../../../domain/entities/zone.js';
 import { CardType, ZoneType } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
+import { canLiveCardEnterSuccessZone } from '../../../../domain/rules/success-live-placement.js';
 import { BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID } from '../../ability-ids.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { and, groupIs, typeIs } from '../../../effects/card-selectors.js';
@@ -59,7 +60,7 @@ function getBp6024ReplacementCandidateIds(game: GameState, playerId: string): re
     playerId,
     ZoneType.WAITING_ROOM,
     and(typeIs(CardType.LIVE), groupIs("μ's"))
-  );
+  ).filter((cardId) => canLiveCardEnterSuccessZone(game, playerId, cardId));
 }
 
 export function startSuccessZoneReplacementEffect(
@@ -126,15 +127,16 @@ function markLiveSuccessCardMoved(
   const successCardMovedBy = game.liveResolution.successCardMovedBy.includes(playerId)
     ? game.liveResolution.successCardMovedBy
     : [...game.liveResolution.successCardMovedBy, playerId];
+  const settlementConfirmedBy = game.liveResolution.settlementConfirmedBy.includes(playerId)
+    ? game.liveResolution.settlementConfirmedBy
+    : [...game.liveResolution.settlementConfirmedBy, playerId];
   return {
     ...game,
     liveResolution: {
       ...game.liveResolution,
       liveResults: new Map(game.liveResolution.liveResults).set(liveCardId, true),
       successCardMovedBy,
-      settlementConfirmedBy: game.liveResolution.settlementConfirmedBy.filter(
-        (confirmedPlayerId) => confirmedPlayerId !== playerId
-      ),
+      settlementConfirmedBy,
     },
   };
 }

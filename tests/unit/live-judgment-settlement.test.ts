@@ -10,6 +10,7 @@ import {
   SlotPosition,
   SubPhase,
   TurnType,
+  ZoneType,
 } from '../../src/shared/types/enums';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { createCardInstance, createHeartRequirement } from '../../src/domain/entities/card';
@@ -30,6 +31,12 @@ import {
   createConfirmSubPhaseAction,
   createPerformCheerAction,
 } from '../../src/application/actions';
+import {
+  createConfirmStepCommand,
+  createMovePublicCardToWaitingRoomCommand,
+  createSelectSuccessLiveCommand,
+} from '../../src/application/game-commands';
+import { createGameSession } from '../../src/application/game-session';
 import {
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
   confirmActiveEffectStep,
@@ -1900,6 +1907,114 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(5);
   });
 
+  it('成员来源 Blade modifier 只在来源成员活跃时提供翻应援数', () => {
+    const service = new GameService();
+    const createScenario = (orientation: OrientationState, suffix: string) => {
+      const member = createCardInstance(
+        {
+          cardCode: `SOURCE-MEMBER-BLADE-${suffix}`,
+          name: `Source Member Blade ${suffix}`,
+          cardType: CardType.MEMBER as const,
+          cost: 1,
+          blade: 0,
+          hearts: [],
+        },
+        'p1',
+        `p1-source-member-blade-${suffix}`
+      );
+      const live = createCardInstance(
+        {
+          cardCode: `SOURCE-MEMBER-BLADE-LIVE-${suffix}`,
+          name: `Source Member Blade Live ${suffix}`,
+          cardType: CardType.LIVE as const,
+          score: 5,
+          requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),
+        },
+        'p1',
+        `p1-source-member-blade-live-${suffix}`
+      );
+      const cheer = createCardInstance(
+        {
+          cardCode: `SOURCE-MEMBER-BLADE-CHEER-${suffix}`,
+          name: `Source Member Blade Cheer ${suffix}`,
+          cardType: CardType.MEMBER as const,
+          cost: 1,
+          blade: 0,
+          hearts: [],
+          bladeHearts: [{ effect: BladeHeartEffect.HEART, heartColor: HeartColor.BLUE }],
+        },
+        'p1',
+        `p1-source-member-blade-cheer-${suffix}`
+      );
+
+      let game = createGameState(`g-source-member-blade-${suffix}`, 'p1', 'P1', 'p2', 'P2');
+      game = registerCards(game, [member, live, cheer]);
+      game = updatePlayer(game, 'p1', (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId, {
+          orientation,
+          face: FaceState.FACE_UP,
+        }),
+        liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+        mainDeck: addCardToZone(player.mainDeck, cheer.instanceId),
+      }));
+      game = {
+        ...game,
+        currentPhase: GamePhase.PERFORMANCE_PHASE,
+        currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+        currentTurnType: TurnType.FIRST_PLAYER_TURN,
+        activePlayerIndex: 0,
+        liveResolution: {
+          ...game.liveResolution,
+          isInLive: true,
+          performingPlayerId: 'p1',
+          liveModifiers: [
+            {
+              kind: 'BLADE',
+              playerId: 'p1',
+              countDelta: 1,
+              sourceCardId: member.instanceId,
+            },
+          ],
+        },
+      };
+
+      return { game, live, cheer };
+    };
+
+    const activeScenario = createScenario(OrientationState.ACTIVE, 'active');
+    const activeResult = service.processAction(activeScenario.game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(activeResult.success).toBe(true);
+    expect(activeResult.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([
+      activeScenario.cheer.instanceId,
+    ]);
+    expect(activeResult.gameState.liveResolution.liveResults.get(activeScenario.live.instanceId)).toBe(
+      true
+    );
+    expect(activeResult.gameState.liveResolution.playerScores.get('p1')).toBe(5);
+
+    const waitingScenario = createScenario(OrientationState.WAITING, 'waiting');
+    const waitingResult = service.processAction(waitingScenario.game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(waitingResult.success).toBe(true);
+    expect(waitingResult.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([]);
+    expect(waitingResult.gameState.liveResolution.liveResults.get(waitingScenario.live.instanceId)).toBe(
+      false
+    );
+    expect(waitingResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
+  });
+
   it('统一 Live modifier 应能独立提供必要 Heart 修正', () => {
     const service = new GameService();
     const member = createCardInstance(
@@ -2601,5 +2716,245 @@ describe('Live 判定与结算', () => {
     const result = service.resolveLiveWinner(game);
     expect(result.success).toBe(true);
     expect(result.gameState.liveResolution.liveWinnerIds).toEqual(['p1', 'p2']);
+  });
+
+  it('RESULT_ANIMATION 中不能将 LIVE_ZONE 的 Live 手动移出', () => {
+    const live = createCardInstance(
+      {
+        cardCode: 'ANIMATION-LOCK-LIVE',
+        name: '动画锁定 Live',
+        cardType: CardType.LIVE as const,
+        score: 2,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'animation-lock-live'
+    );
+    let game = createGameState('g-animation-live-lock', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_ANIMATION,
+      liveResolution: {
+        ...game.liveResolution,
+        liveWinnerIds: ['p1'],
+      },
+    };
+    const session = createGameSession();
+    session.createGame('g-animation-live-lock', 'p1', 'P1', 'p2', 'P2');
+    (session as unknown as { authorityState: typeof game }).authorityState = game;
+
+    const toWaitingRoom = session.executeCommand(
+      createMovePublicCardToWaitingRoomCommand('p1', live.instanceId, ZoneType.LIVE_ZONE)
+    );
+    expect(toWaitingRoom.success).toBe(false);
+    expect(toWaitingRoom.error).toContain('胜者演出阶段不能移动');
+  });
+
+  it('RESULT_SETTLEMENT 有合法候选时，普通确认不能绕过成功 Live 选择', () => {
+    const live = createCardInstance(
+      {
+        cardCode: 'SETTLEMENT-GATED-LIVE',
+        name: '结算候选 Live',
+        cardType: CardType.LIVE as const,
+        score: 2,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'settlement-gated-live'
+    );
+    let game = createGameState('g-settlement-gated-confirm', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_SETTLEMENT,
+      liveResolution: {
+        ...game.liveResolution,
+        liveResults: new Map([[live.instanceId, true]]),
+        liveWinnerIds: ['p1'],
+      },
+    };
+    const session = createGameSession();
+    session.createGame('g-settlement-gated-confirm', 'p1', 'P1', 'p2', 'P2');
+    (session as unknown as { authorityState: typeof game }).authorityState = game;
+
+    const result = session.executeCommand(createConfirmStepCommand('p1', SubPhase.RESULT_SETTLEMENT));
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('请先选择成功 Live');
+  });
+
+  it('RESULT_SETTLEMENT 选择合法候选后进入成功区，0 分成功 Live 也可作为候选', () => {
+    const live = createCardInstance(
+      {
+        cardCode: 'ZERO-SUCCESS-CANDIDATE',
+        name: '0分成功候选',
+        cardType: CardType.LIVE as const,
+        score: 0,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'zero-success-candidate'
+    );
+    let game = createGameState('g-zero-success-candidate', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_SETTLEMENT,
+      liveResolution: {
+        ...game.liveResolution,
+        liveResults: new Map([[live.instanceId, true]]),
+        playerScores: new Map([['p1', 0]]),
+        liveWinnerIds: ['p1'],
+      },
+    };
+    const session = createGameSession();
+    session.createGame('g-zero-success-candidate', 'p1', 'P1', 'p2', 'P2');
+    (session as unknown as { authorityState: typeof game }).authorityState = game;
+
+    const result = session.executeCommand(createSelectSuccessLiveCommand('p1', live.instanceId));
+    expect(result.success).toBe(true);
+    expect(result.gameState.players[0].successZone.cardIds).toContain(live.instanceId);
+    expect(result.gameState.liveResolution.settlementConfirmedBy).toContain('p1');
+  });
+
+  it('PL!S-bp2-024 不可作为成功 Live 候选，只有它成功时可确认后进入休息室', () => {
+    const live = createCardInstance(
+      {
+        cardCode: 'PL!S-bp2-024-L',
+        name: '君のこころは輝いてるかい？',
+        cardType: CardType.LIVE as const,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      's-bp2-024-live'
+    );
+    let game = createGameState('g-s-bp2-024-no-success-zone', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_SETTLEMENT,
+      liveResolution: {
+        ...game.liveResolution,
+        liveResults: new Map([[live.instanceId, true]]),
+        liveWinnerIds: ['p1'],
+      },
+    };
+    const session = createGameSession();
+    session.createGame('g-s-bp2-024-no-success-zone', 'p1', 'P1', 'p2', 'P2');
+    (session as unknown as { authorityState: typeof game }).authorityState = game;
+
+    const selectResult = session.executeCommand(
+      createSelectSuccessLiveCommand('p1', live.instanceId)
+    );
+    expect(selectResult.success).toBe(false);
+    expect(selectResult.error).toContain('不能放置入成功LIVE卡区');
+
+    const confirmResult = handleConfirmSubPhase(
+      game,
+      {
+        type: 'CONFIRM_SUB_PHASE',
+        playerId: 'p1',
+        subPhase: SubPhase.RESULT_SETTLEMENT,
+        timestamp: Date.now(),
+      },
+      {
+        getPlayerById: (state: typeof game, playerId: string) =>
+          state.players.find((player) => player.id === playerId),
+      }
+    );
+    expect(confirmResult.success).toBe(true);
+    expect(confirmResult.gameState.players[0].successZone.cardIds).not.toContain(live.instanceId);
+    expect(confirmResult.gameState.players[0].waitingRoom.cardIds).toContain(live.instanceId);
+  });
+
+  it('双胜者 RESULT_SETTLEMENT 必须按 liveWinnerIds 顺序处理，先攻 skip 后才允许后攻选择', () => {
+    const p1Live = createCardInstance(
+      {
+        cardCode: 'SERIAL-P1-LIVE',
+        name: '先攻 Live',
+        cardType: CardType.LIVE as const,
+        score: 2,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'serial-p1-live'
+    );
+    const p2Live = createCardInstance(
+      {
+        cardCode: 'SERIAL-P2-LIVE',
+        name: '后攻 Live',
+        cardType: CardType.LIVE as const,
+        score: 2,
+        requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),
+      },
+      'p2',
+      'serial-p2-live'
+    );
+    let game = createGameState('g-serial-settlement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [p1Live, p2Live]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, p1Live.instanceId),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, p2Live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_SETTLEMENT,
+      liveResolution: {
+        ...game.liveResolution,
+        liveResults: new Map([
+          [p1Live.instanceId, true],
+          [p2Live.instanceId, true],
+        ]),
+        liveWinnerIds: ['p1', 'p2'],
+      },
+    };
+    const session = createGameSession();
+    session.createGame('g-serial-settlement', 'p1', 'P1', 'p2', 'P2');
+    (session as unknown as { authorityState: typeof game }).authorityState = game;
+
+    const prematureP2 = session.executeCommand(
+      createSelectSuccessLiveCommand('p2', p2Live.instanceId)
+    );
+    expect(prematureP2.success).toBe(false);
+    expect(prematureP2.error).toContain('当前不是你的成功 Live 结算顺序');
+
+    const skipP1 = session.executeCommand(
+      createConfirmStepCommand('p1', SubPhase.RESULT_SETTLEMENT, {
+        skipSuccessLiveSelection: true,
+      })
+    );
+    expect(skipP1.success).toBe(true);
+    expect(skipP1.gameState.liveResolution.settlementConfirmedBy).toContain('p1');
+    expect(skipP1.gameState.players[0].successZone.cardIds).not.toContain(p1Live.instanceId);
+
+    const selectP2 = session.executeCommand(createSelectSuccessLiveCommand('p2', p2Live.instanceId));
+    expect(selectP2.success).toBe(true);
+    expect(selectP2.gameState.players[1].successZone.cardIds).toContain(p2Live.instanceId);
   });
 });

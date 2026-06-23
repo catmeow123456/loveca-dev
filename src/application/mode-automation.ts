@@ -1,6 +1,10 @@
 import type { GameState } from '../domain/entities/game.js';
 import { GameMode, GamePhase, SubPhase } from '../shared/types/enums.js';
 import { isPlayerActive } from '../shared/phase-config/index.js';
+import {
+  getCurrentSuccessLiveSettlementPlayerId,
+  getSuccessLiveSelectionCandidateIds,
+} from '../domain/rules/success-live-placement.js';
 import type { GameAction } from './actions.js';
 import {
   createConfirmScoreAction,
@@ -118,17 +122,21 @@ const solitaireAutomationPolicy: ModeAutomationPolicy = {
       state.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
       state.currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
       state.liveResolution.liveWinnerIds.includes(opponentId) &&
-      !state.liveResolution.successCardMovedBy.includes(opponentId)
+      getCurrentSuccessLiveSettlementPlayerId(state) === opponentId
     ) {
-      const opponent = state.players.find((player) => player.id === opponentId);
-      const firstLiveCardId = opponent?.liveZone.cardIds[0];
-      if (!firstLiveCardId) {
-        return null;
+      const candidateIds = getSuccessLiveSelectionCandidateIds(state, opponentId);
+      if (candidateIds.length > 0) {
+        return {
+          kind: 'ACTION',
+          actorPlayerId: opponentId,
+          action: createSelectSuccessCardAction(opponentId, candidateIds[0]!),
+        };
       }
+
       return {
         kind: 'ACTION',
         actorPlayerId: opponentId,
-        action: createSelectSuccessCardAction(opponentId, firstLiveCardId),
+        action: createConfirmSubPhaseAction(opponentId, SubPhase.RESULT_SETTLEMENT),
       };
     }
 

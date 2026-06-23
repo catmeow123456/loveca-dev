@@ -138,9 +138,14 @@ import {
   confirmActiveEffectStep,
   enqueueTriggeredCardEffects,
   getActivatedAbilityLimitStatus,
+  getCardAbilityDefinitions,
   isSupportedActivatedAbilityForCard,
   resolvePendingCardEffects,
 } from './card-effect-runner.js';
+import {
+  CardAbilityCategory,
+  CardAbilitySourceZone,
+} from './card-effects/ability-definition-types.js';
 import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/bp6-024-success-replacement.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { getMemberEffectiveCost } from './effects/conditions.js';
@@ -151,6 +156,13 @@ import {
   type CostPaymentPlan,
   type StageMemberInfo,
 } from '../domain/rules/cost-calculator.js';
+import {
+  canLiveCardEnterSuccessZone,
+  getCurrentSuccessLiveSettlementPlayerId,
+  getSuccessLiveSelectionCandidateIds,
+  hasPendingSuccessLiveSelection,
+  haveAllSuccessLiveSettlementsCompleted,
+} from '../domain/rules/success-live-placement.js';
 import { GameCommandType } from './game-commands.js';
 import {
   addCardToInspectionZone,
@@ -1423,7 +1435,18 @@ export class GameSession {
         ) {
           return '该卡牌没有这个起动效果';
         }
-        if (!Object.values(player.memberSlots.slots).includes(command.cardId)) {
+        const sourceZone =
+          getCardAbilityDefinitions(card.data.cardCode).find(
+            (ability) =>
+              ability.category === CardAbilityCategory.ACTIVATED &&
+              ability.implemented &&
+              ability.abilityId === command.abilityId
+          )?.sourceZone ?? CardAbilitySourceZone.STAGE_MEMBER;
+        if (sourceZone === CardAbilitySourceZone.WAITING_ROOM) {
+          if (!player.waitingRoom.cardIds.includes(command.cardId)) {
+            return '起动效果来源卡当前不在自己的休息室';
+          }
+        } else if (!Object.values(player.memberSlots.slots).includes(command.cardId)) {
           return '起动效果来源成员当前不在舞台';
         }
         const limitStatus = getActivatedAbilityLimitStatus(
@@ -1459,9 +1482,15 @@ export class GameSession {
         ) {
           return '卡牌当前不在声明的公开区域';
         }
-        return command.type === GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK
-          ? validateCardMoveTarget(state, command.cardId, ZoneType.ENERGY_DECK)
-          : null;
+        const targetZone =
+          command.type === GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK
+            ? ZoneType.ENERGY_DECK
+            : command.type === GameCommandType.MOVE_PUBLIC_CARD_TO_HAND
+              ? ZoneType.HAND
+              : ZoneType.WAITING_ROOM;
+        return validateCardMoveTarget(state, command.cardId, targetZone, {
+          fromZone: command.fromZone,
+        });
       }
       case GameCommandType.MOVE_OWNED_CARD_TO_ZONE: {
         if (!isCardInOwnedZone(state, command.playerId, command.fromZone, command.cardId)) {
@@ -1507,6 +1536,25 @@ export class GameSession {
       case GameCommandType.CONFIRM_STEP: {
         if (state.currentSubPhase !== command.subPhase) {
           return `当前子阶段不是 ${command.subPhase}`;
+        }
+        if (command.subPhase === SubPhase.RESULT_SETTLEMENT) {
+          const currentSettlementPlayerId = getCurrentSuccessLiveSettlementPlayerId(state);
+          const allSettlementsCompleted = haveAllSuccessLiveSettlementsCompleted(state);
+          if (allSettlementsCompleted) {
+            return state.liveResolution.liveWinnerIds.includes(command.playerId)
+              ? null
+              : '当前玩家不是本轮胜者';
+          }
+          if (currentSettlementPlayerId !== command.playerId) {
+            return '当前不是你的成功 Live 结算顺序';
+          }
+          const hasCandidates = getSuccessLiveSelectionCandidateIds(
+            state,
+            command.playerId
+          ).length > 0;
+          if (hasCandidates && command.skipSuccessLiveSelection !== true) {
+            return '请先选择成功 Live，或使用全部放置入休息室';
+          }
         }
         return null;
       }
@@ -1655,6 +1703,19 @@ export class GameSession {
       case GameCommandType.SELECT_SUCCESS_LIVE: {
         if (!isCardInOwnedZone(state, command.playerId, ZoneType.LIVE_ZONE, command.cardId)) {
           return '卡牌当前不在己方 Live 区';
+        }
+        if (!canLiveCardEnterSuccessZone(state, command.playerId, command.cardId)) {
+          return '该 Live 不能放置入成功LIVE卡区';
+        }
+        if (state.currentSubPhase === SubPhase.RESULT_SETTLEMENT) {
+          if (getCurrentSuccessLiveSettlementPlayerId(state) !== command.playerId) {
+            return '当前不是你的成功 Live 结算顺序';
+          }
+          if (
+            !getSuccessLiveSelectionCandidateIds(state, command.playerId).includes(command.cardId)
+          ) {
+            return '该 Live 不是本轮可进入成功区的候选';
+          }
         }
         return null;
       }
@@ -3629,7 +3690,9 @@ export class GameSession {
   ): CommandExecutionResult {
     const result = this.gameService.processAction(
       state,
-      createConfirmSubPhaseAction(command.playerId, command.subPhase)
+      createConfirmSubPhaseAction(command.playerId, command.subPhase, {
+        skipSuccessLiveSelection: command.skipSuccessLiveSelection,
+      })
     );
     if (!result.success) {
       return { success: false, gameState: state, error: result.error };
@@ -4994,6 +5057,14 @@ function validateCardMoveTarget(
     return '卡牌不存在';
   }
 
+  if (
+    state.currentSubPhase === SubPhase.RESULT_ANIMATION &&
+    options?.fromZone === ZoneType.LIVE_ZONE &&
+    toZone !== ZoneType.LIVE_ZONE
+  ) {
+    return '胜者演出阶段不能移动 Live 区卡牌';
+  }
+
   switch (card.data.cardType) {
     case CardType.ENERGY:
       if (toZone === ZoneType.HAND) {
@@ -5010,6 +5081,12 @@ function validateCardMoveTarget(
       }
       return null;
     case CardType.LIVE:
+      if (
+        toZone === ZoneType.SUCCESS_ZONE &&
+        !canLiveCardEnterSuccessZone(state, card.ownerId, cardId)
+      ) {
+        return '该 Live 不能放置入成功LIVE卡区';
+      }
       if (toZone === ZoneType.MEMBER_SLOT) {
         return 'LIVE卡不能放入成员区';
       }
