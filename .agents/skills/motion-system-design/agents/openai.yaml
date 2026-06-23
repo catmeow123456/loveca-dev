@@ -1,0 +1,4 @@
+interface:
+  display_name: "Motion System Design"
+  short_description: "Loveca battle motion standards"
+  default_prompt: "Use -system-design to design Loveca battle motion for a new interaction."
