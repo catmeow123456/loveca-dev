@@ -79,6 +79,8 @@ export const HS_BP5_021_LIVE_START_TARGET_HASUNOSORA_MEMBER_ORIGINAL_HEART_PINK_
   'PL!HS-bp5-021-L:live-start-target-hasunosora-member-original-heart-pink';
 export const HS_BP5_021_LIVE_START_THREE_MIRACRA_STAGE_MEMBERS_SCORE_ABILITY_ID =
   'PL!HS-bp5-021-L:live-start-three-miracra-stage-members-score';
+export const HS_BP5_022_LIVE_START_PAY_TWO_ENERGY_HIGH_COST_EDELNOTE_PLAY_LOW_COST_OR_REDUCE_PURPLE_REQUIREMENT_ABILITY_ID =
+  'PL!HS-bp5-022-L:live-start-pay-two-energy-high-cost-edelnote-play-low-cost-or-reduce-purple-requirement';
 export const HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID =
   'PL!HS-bp2-024:live-start-reduce-requirement-if-kosuzu-and-higher-cost-sayaka';
 export const SP_BP2_009_LIVE_START_HAND_COUNT_GAIN_BLADE_ABILITY_ID =
@@ -93,6 +95,8 @@ export const BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID =
   'PL!-bp4-021-L:live-start-success-score-requirement-and-score';
 export const HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID =
   'PL!HS-pb1-029-L:live-start-draw-reduce-requirement-by-extra-heart-miracra';
+export const HS_PB1_030_LIVE_START_EDELNOTE_MEMBER_BLADE_DIFFERENT_NAME_PURPLE_HEART_ABILITY_ID =
+  'PL!HS-pb1-030-L:live-start-edelnote-member-blade-different-name-purple-heart';
 export const HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!HS-bp1-023-L:live-success-higher-score-hasunosora-place-waiting-energy';
 export const HS_BP1_022_LIVE_SUCCESS_CHEER_HASUNOSORA_MEMBER_SCORE_ABILITY_ID =
@@ -272,6 +276,8 @@ export const HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID =
   'PL!HS-bp6-004-R:live-start-wait-opponent-low-cost-member';
 export const HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp6-004-R:live-start-discard-gain-blade';
+export const HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID =
+  'PL!HS-bp6-007:auto-turn-once-edelnote-enter-opponent-wait-active-member';
 export const HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID =
   'PL!HS-bp6-006:live-success-wait-skip-next-active';
 export const HS_BP6_003_ON_ENTER_ACTIVATE_MIRACRA_MEMBER_RECOVER_LIVE_ABILITY_ID =
@@ -324,6 +330,8 @@ export const HS_BP6_032_LIVE_SUCCESS_LOW_COST_MEMBER_REVEALED_CHEER_TO_HAND_ABIL
   'PL!HS-bp6-032-L:live-success-recover-revealed-cheer-low-cost-member';
 export const HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID =
   'PL!HS-cl1-009-CL:live-success-recover-revealed-cheer-low-cost-member';
+export const HS_CL1_010_LIVE_START_HIGH_COST_HASUNOSORA_MEMBER_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!HS-cl1-010-CL:live-start-high-cost-hasunosora-member-gain-two-blade';
 export const HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID =
   'PL!HS-cl1-008-CL:activated-send-self-to-waiting-room-add-hasunosora-card';
 export const HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID =
@@ -338,3 +346,7 @@ export const N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID =
   'PL!N-bp4-018-N:main-phase-active-to-waiting-draw-one-discard-one';
 export const PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID =
   'PL!-pb1-015:own-effect-wait-opponent-low-cost-draw-one';
+export const PB1_015_ON_ENTER_CENTER_WAIT_BIBI_MEMBER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID =
+  'PL!-pb1-015:on-enter-center-wait-bibi-member-opponent-wait-active-member';
+export const PB1_015_LIVE_START_CENTER_WAIT_BIBI_MEMBER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID =
+  'PL!-pb1-015:live-start-center-wait-bibi-member-opponent-wait-active-member';

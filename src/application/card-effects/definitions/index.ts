@@ -46,6 +46,7 @@ import {
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   HS_BP5_021_LIVE_START_TARGET_HASUNOSORA_MEMBER_ORIGINAL_HEART_PINK_ABILITY_ID,
   HS_BP5_021_LIVE_START_THREE_MIRACRA_STAGE_MEMBERS_SCORE_ABILITY_ID,
+  HS_BP5_022_LIVE_START_PAY_TWO_ENERGY_HIGH_COST_EDELNOTE_PLAY_LOW_COST_OR_REDUCE_PURPLE_REQUIREMENT_ABILITY_ID,
   HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID,
   SP_BP2_009_LIVE_START_HAND_COUNT_GAIN_BLADE_ABILITY_ID,
   SP_BP2_009_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
@@ -53,6 +54,7 @@ import {
   SP_BP1_024_LIVE_SUCCESS_STAGE_KANON_KEKE_DRAW_ABILITY_ID,
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
   HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID,
+  HS_PB1_030_LIVE_START_EDELNOTE_MEMBER_BLADE_DIFFERENT_NAME_PURPLE_HEART_ABILITY_ID,
   HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID,
   HS_BP1_022_LIVE_SUCCESS_CHEER_HASUNOSORA_MEMBER_SCORE_ABILITY_ID,
   PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID,
@@ -142,6 +144,7 @@ import {
   HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID,
+  HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID,
   HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID,
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
   HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
@@ -170,11 +173,14 @@ import {
   HS_BP6_032_LIVE_SUCCESS_LOW_COST_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
   HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+  HS_CL1_010_LIVE_START_HIGH_COST_HASUNOSORA_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
   HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
   HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
   HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
   HS_PB1_028_LIVE_START_ACTIVATE_DOLLCHESTRA_MEMBER_LIVE_START_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
+  PB1_015_LIVE_START_CENTER_WAIT_BIBI_MEMBER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID,
+  PB1_015_ON_ENTER_CENTER_WAIT_BIBI_MEMBER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID,
   PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID,
   HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
 } from '../ability-ids.js';
@@ -223,8 +229,7 @@ const HS_BP1_004_ACTIVATED_EFFECT_TEXT =
   '【起动】[1回合1次][E][E][E]：从自己的休息室将1张『莲之空』的LIVE卡加入手牌。';
 const HS_BP1_004_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以支付[E]：LIVE结束时为止，每存在1张自己的LIVE中的卡片，获得[BLADE]。';
-const PL_N_PB1_006_ACTIVATED_EFFECT_TEXT =
-  '【起动】将此成员变为待机状态：将1张能量变为活跃状态。';
+const PL_N_PB1_006_ACTIVATED_EFFECT_TEXT = '【起动】将此成员变为待机状态：将1张能量变为活跃状态。';
 const PL_N_BP3_008_ACTIVATED_EFFECT_TEXT =
   '【起动】[1回合1次]将此成员以外的1名『虹咲』的成员变为待机状态：抽1张卡。';
 const PL_N_BP3_008_LIVE_START_EFFECT_TEXT =
@@ -271,6 +276,8 @@ const HS_BP6_003_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，自己舞台上的1名[みらくらぱーく！]的成员获得[桃ハート]。';
 const HS_BP6_004_WAIT_OPPONENT_LOW_COST_MEMBER_EFFECT_TEXT =
   '【登场】/【LIVE开始时】将存在于对方舞台的1名费用小于等于9的成员变为待机状态。';
+const HS_BP6_007_AUTO_EDELNOTE_ENTER_EFFECT_TEXT =
+  '【自动】[1回合1次]自己的舞台有『EdelNote』成员登场时，对方将自身舞台上1名活跃状态成员变为待机状态。';
 const SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_EFFECT_TEXT =
   '【自动】此成员登场或移动区域时，将1名存在于对方的舞台的原本持有的[BLADE]数量小于等于3个的成员变为待机状态。';
 const SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_EFFECT_TEXT =
@@ -305,6 +312,8 @@ const HS_BP5_021_LIVE_START_TARGET_ORIGINAL_HEART_EFFECT_TEXT =
   '【LIVE开始时】LIVE结束时为止，存在于自己舞台的1名『莲之空』的成员原本持有的HEART全部变为[桃ハート]。';
 const HS_BP5_021_LIVE_START_SCORE_EFFECT_TEXT =
   '【LIVE开始时】自己的舞台中『Mira-Cra Park!』的成员大于等于3名的场合，此卡的分数＋１。';
+const HS_BP5_022_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以支付[E][E]：自己的舞台中存在费用9以上的『EdelNote』成员的场合，选择1项：从自己的休息室将1张费用4以下的『EdelNote』成员卡登场到空成员区；或使此卡的必要紫Heart减少1。';
 const PL_N_PB1_037_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】此回合中，因自己的『虹咲』的卡片的效果，将待机状态的自己的能量变为活跃状态的场合，此卡的分数＋１。并且，因自己的『虹咲』的卡片的效果，将存在于自己的舞台的待机状态的成员也变为活跃状态的场合，改为分数＋２。';
 const HS_BP2_024_LIVE_START_EFFECT_TEXT =
@@ -320,6 +329,8 @@ const BP4_021_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】存在于自己的成功LIVE卡区的卡片的分数合计大于等于6的场合，使此卡成功的必要[無ハート]减少1；分数合计大于等于9的场合，此卡的分数再＋1。';
 const HS_PB1_029_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的舞台上存在1名以上持有比原本持有Heart数更多Heart的『みらくらぱーく！』成员的场合，抽1张卡。存在2名以上的场合，此外此LIVE的必要Heart减少[無ハート][無ハート]。';
+const HS_PB1_030_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】LIVE结束时为止，自己舞台上的1名『EdelNote』成员获得[BLADE][BLADE]，与该成员卡名不同的1名『EdelNote』成员获得[紫ハート][紫ハート]。';
 const HS_BP1_023_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】LIVE合计分数高于对方，且自己的舞台存在『莲之空』成员的场合，从自己的能量卡组将1张能量卡以待机状态放置。';
 const HS_BP1_022_LIVE_SUCCESS_EFFECT_TEXT =
@@ -342,8 +353,7 @@ const N_PR_026_LIVE_SUCCESS_DELEGATE_EFFECT_TEXT =
   '【常时】此成员获得其下方费用小于等于9的『虹ヶ咲』成员卡持有的全部【LIVE成功时】能力。';
 const SP_BP2_024_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己的手牌张数多于对方的场合，此卡的分数＋１。';
-const S_BP2_024_LIVE_SUCCESS_EFFECT_TEXT =
-  '【LIVE成功时】抽2张卡，将1张手牌放置入休息室。';
+const S_BP2_024_LIVE_SUCCESS_EFFECT_TEXT = '【LIVE成功时】抽2张卡，将1张手牌放置入休息室。';
 const S_BP5_020_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己余剩 HEART 合计 3 个以上的场合，失去全部余剩 HEART，此 LIVE 分数 +1。';
 const SP_BP4_004_ON_ENTER_EFFECT_TEXT =
@@ -504,6 +514,8 @@ const HS_CL1_008_ACTIVATED_EFFECT_TEXT =
   '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『莲之空』的卡片加入手牌。';
 const HS_CL1_009_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】从因声援被公开的自己的卡片中，将1张费用大于等于4小于等于9的成员卡加入手牌。';
+const HS_CL1_010_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】LIVE结束时为止，自己舞台上1名费用10以上的『莲之空』成员获得[BLADE][BLADE]。';
 const PL_N_BP1_026_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】LIVE的合计分数比对方高的场合，从因声援被公开的自己的卡片中，将1张『虹咲』的卡片加入手牌。';
 const HS_BP6_027_ON_CHEER_EFFECT_TEXT =
@@ -516,6 +528,8 @@ const N_BP4_018_ACTIVE_TO_WAITING_EFFECT_TEXT =
   '【自动】自己主要阶段中，此成员从活跃状态变为待机状态时，抽1张卡，将1张手牌放置入休息室。';
 const PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_EFFECT_TEXT =
   '【自动】[1回合1次]因自己的卡片效果，使对方舞台活跃状态且费用小于等于4的成员变为待机状态时，抽1张卡。';
+const PB1_015_CENTER_WAIT_BIBI_MEMBER_EFFECT_TEXT =
+  '【登场】/【LIVE开始时】【中央】可以将1名『BiBi』成员变为待机状态：对方将自身舞台上1名活跃状态成员变为待机状态。';
 
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   {
@@ -1356,8 +1370,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     effectText: HS_BP5_016_CONTINUOUS_EFFECT_TEXT,
-    notes:
-      '持续修正不进队列；对方舞台待机成员>=2时，通过 liveModifiers 给来源成员紫 Heart +1。',
+    notes: '持续修正不进队列；对方舞台待机成员>=2时，通过 liveModifiers 给来源成员紫 Heart +1。',
   },
   {
     abilityId: HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
@@ -1537,6 +1550,19 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_EFFECT_TEXT,
     notes:
       '复用可选弃手费用与 BLADE live modifier；弃置的成员姓名归一化为「百生吟子」时额外获得1个 BLADE。',
+  },
+  {
+    abilityId: HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp6-007'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP6_007_AUTO_EDELNOTE_ENTER_EFFECT_TEXT,
+    perTurnLimit: 1,
+    notes:
+      '消费 ON_ENTER_STAGE eventIds；本次登场卡为己方 EdelNote 成员时才记录 ability use。对方自己选择自身 active 成员变 WAITING。',
   },
   {
     abilityId: HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID,
@@ -1829,8 +1855,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '登场检视顶3；任意0-3张按选择顺序回到主卡组顶，未选牌放置入休息室。复用 arrange-inspected-deck-top shared workflow。',
   },
   {
-    abilityId:
-      PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
+    abilityId: PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
     baseCardCodes: ['PL!N-bp1-002'],
     category: CardAbilityCategory.ACTIVATED,
     sourceZone: CardAbilitySourceZone.WAITING_ROOM,
@@ -1838,8 +1863,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP1_002_ACTIVATED_EFFECT_TEXT,
     activatedUi: {
-      abilityId:
-        PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
+      abilityId: PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
       text: PL_N_BP1_002_ACTIVATED_EFFECT_TEXT,
       title: '支付2能量并弃1张手牌，将此卡从休息室登场',
     },
@@ -2187,6 +2211,19 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'LIVE开始时只统计自己主舞台槽位中的「Mira-Cra Park!」成员；大于等于3时通过 SCORE live modifier 给此 LIVE +1 分。',
   },
   {
+    abilityId:
+      HS_BP5_022_LIVE_START_PAY_TWO_ENERGY_HIGH_COST_EDELNOTE_PLAY_LOW_COST_OR_REDUCE_PURPLE_REQUIREMENT_ABILITY_ID,
+    cardCodes: ['PL!HS-bp5-022-L'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP5_022_LIVE_START_EFFECT_TEXT,
+    notes:
+      'LIVE开始时可支付2活跃能量；支付后重新扫描己方舞台有效费用>=9的 EdelNote 成员。满足时二选一：休息室费用<=4 EdelNote 成员登场并入队 ON_ENTER_STAGE，或写入此 LIVE 的紫 REQUIREMENT -1。',
+  },
+  {
     abilityId: PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
     baseCardCodes: ['PL!N-pb1-037'],
     category: CardAbilityCategory.LIVE_START,
@@ -2245,6 +2282,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HS_PB1_029_LIVE_START_EFFECT_TEXT,
     notes:
       'LIVE 开始时比较 Mira-Cra 舞台成员有效 Heart 数与印刷 Heart 数；满足1名抽1，满足2名以上以 liveModifiers 写入 REQUIREMENT 無Heart -2。',
+  },
+  {
+    abilityId: HS_PB1_030_LIVE_START_EDELNOTE_MEMBER_BLADE_DIFFERENT_NAME_PURPLE_HEART_ABILITY_ID,
+    cardCodes: ['PL!HS-pb1-030-L'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_PB1_030_LIVE_START_EFFECT_TEXT,
+    notes:
+      'LIVE 开始时两段选择 EdelNote 成员；第一段目标成员写 BLADE +2，第二段重新扫描并选择不同卡名成员写 TARGET_MEMBER 紫 Heart +2。',
   },
   {
     abilityId: HS_SD1_004_ON_ENTER_DISCARD_HASUNOSORA_RECOVER_MEMBER_ABILITY_ID,
@@ -2544,8 +2593,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: HS_BP6_032_LIVE_SUCCESS_EFFECT_TEXT,
-    notes:
-      '复用声援公开卡选择 helper，从仍在处理区的公开声援卡中筛选费用<=4成员加入手牌。',
+    notes: '复用声援公开卡选择 helper，从仍在处理区的公开声援卡中筛选费用<=4成员加入手牌。',
   },
   {
     abilityId: HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
@@ -2559,8 +2607,19 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     notes: '复用声援公开卡选择 helper，从仍在处理区的公开声援卡中筛选费用4-9成员加入手牌。',
   },
   {
-    abilityId:
-      PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID,
+    abilityId: HS_CL1_010_LIVE_START_HIGH_COST_HASUNOSORA_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+    cardCodes: ['PL!HS-cl1-010-CL'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_CL1_010_LIVE_START_EFFECT_TEXT,
+    notes:
+      'LIVE开始时选择己方舞台有效费用>=10的「莲之空」成员；以目标成员作为 BLADE modifier sourceCardId 写入 BLADE +2。',
+  },
+  {
+    abilityId: PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID,
     cardCodes: ['PL!N-bp1-026-L'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
@@ -2620,6 +2679,32 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: N_BP4_018_ACTIVE_TO_WAITING_EFFECT_TEXT,
     notes:
       '消费 ON_MEMBER_STATE_CHANGED；仅自己主要阶段中此成员自身从 ACTIVE -> WAITING 时入队，效果复用抽1弃1 helper。',
+  },
+  {
+    abilityId: PB1_015_ON_ENTER_CENTER_WAIT_BIBI_MEMBER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-015'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    requiredSourceSlots: [SlotPosition.CENTER],
+    effectText: PB1_015_CENTER_WAIT_BIBI_MEMBER_EFFECT_TEXT,
+    notes:
+      '中心位登场时，可将己方舞台1名非 WAITING BiBi 成员变 WAITING 作为费用；费用成功后对方自己选择自身 active 成员变 WAITING。',
+  },
+  {
+    abilityId: PB1_015_LIVE_START_CENTER_WAIT_BIBI_MEMBER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-015'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    requiredSourceSlots: [SlotPosition.CENTER],
+    effectText: PB1_015_CENTER_WAIT_BIBI_MEMBER_EFFECT_TEXT,
+    notes:
+      '中心位 LIVE 开始时，可将己方舞台1名非 WAITING BiBi 成员变 WAITING 作为费用；费用成功后对方自己选择自身 active 成员变 WAITING。',
   },
   {
     abilityId: PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID,

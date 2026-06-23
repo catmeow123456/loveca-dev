@@ -4,7 +4,7 @@
 > 适用范围：卡效底层重构审查窗口的延续、边界回顾与后续窗口启动
 > 当前状态：历史交接参考；不作为当前实现事实的权威来源，当前实现以代码、`card_effect_implementation_guide.md` 与 reuse audit 文档为准
 
-本文档用于新窗口继承当前窗口的“卡效底层审查/把关”职能。它不是替代 `PROJECT_PROGRESS_TODO_20260612.md`、`existing_module_map.md` 或框架设计文档，而是记录当前重构的判断框架、阶段边界、已知坑点和审查清单。
+本文档用于新窗口继承当前窗口的“卡效底层审查/把关”职能。它不是替代 `PROJECT_PROGRESS_TODO.md`、`existing_module_map.md` 或框架设计文档，而是记录当前重构的判断框架、阶段边界、已知坑点和审查清单。
 
 ## 当前工作流
 

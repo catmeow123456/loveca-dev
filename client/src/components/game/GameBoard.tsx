@@ -244,6 +244,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
   const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
+  const [successLiveSelectionCollapsed, setSuccessLiveSelectionCollapsed] = useState(false);
   const [doubleRelaySelection, setDoubleRelaySelection] = useState<{
     readonly cardId: string;
     readonly selectedSlots: readonly SlotPosition[];
@@ -270,6 +271,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     !activeEffect &&
     successLiveSelection?.waitingSeat === viewerSeat &&
     successLiveSelectionCardIds.length > 0;
+  useEffect(() => {
+    if (!showSuccessLiveSelectionModal) {
+      setSuccessLiveSelectionCollapsed(false);
+    }
+  }, [showSuccessLiveSelectionModal]);
   const activeEffectSelectableCardSignature = activeEffectSelectableCardIds.join('|');
   const activeEffectRevealedCardIds =
     activeEffect?.revealedObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
@@ -1502,13 +1508,49 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           </div>
         )}
 
-        {showSuccessLiveSelectionModal && (
-          <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(94vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
-            <div className="mb-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
-                成功 Live
+        {showSuccessLiveSelectionModal && successLiveSelectionCollapsed && (
+          <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[94] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  成功 Live
+                </div>
+                <div className="mt-0.5 truncate text-sm font-semibold">
+                  选择放置入成功 LIVE 卡区的 Live
+                </div>
+                <div className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
+                  {successLiveSelectionCardIds.length} 张候选
+                </div>
               </div>
-              <div className="mt-1 text-sm font-semibold">选择放置入成功 LIVE 卡区的 Live</div>
+              <button
+                type="button"
+                onClick={() => setSuccessLiveSelectionCollapsed(false)}
+                className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+              >
+                <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                展开
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showSuccessLiveSelectionModal && !successLiveSelectionCollapsed && (
+          <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(94vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  成功 Live
+                </div>
+                <div className="mt-1 text-sm font-semibold">选择放置入成功 LIVE 卡区的 Live</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSuccessLiveSelectionCollapsed(true)}
+                className="button-secondary inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 px-2 text-xs font-semibold"
+              >
+                <EyeOff className="h-4 w-4" aria-hidden="true" />
+                隐藏
+              </button>
             </div>
             <div className="grid max-h-[52vh] grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
               {successLiveSelectionCardIds.map((cardId) => {

@@ -536,7 +536,7 @@ git diff --check
 
 - 跑前端 typecheck 与 focused tests。
 - 用真实历史记录手工验证 network 无 command 请求。
-- 更新 `PROJECT_PROGRESS_TODO_20260612.md` 短记录。
+- 更新 `PROJECT_PROGRESS_TODO.md` 短记录。
 - 如实现中新增新的 replay UI 边界，再同步 `docs/current-limitations.md`。
 
 ## 12. 风险与处理
