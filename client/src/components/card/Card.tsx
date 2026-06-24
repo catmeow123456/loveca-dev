@@ -263,7 +263,7 @@ export const Card = memo(function Card({
     <motion.div
       className={cn(
         'relative isolate rounded-lg cursor-pointer',
-        'shadow-lg transition-shadow duration-200',
+        'shadow-lg transition-[rotate,scale,translate,transform,box-shadow,filter] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-75',
         sizeClasses[size],
         selected &&
           effectVisualState !== 'actionable' &&

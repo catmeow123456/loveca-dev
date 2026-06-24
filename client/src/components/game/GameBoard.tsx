@@ -26,7 +26,7 @@ import {
 } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
-import { useGameStore } from '@/store/gameStore';
+import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
 import { PlayerArea } from './PlayerArea';
 import { GameLog, GameLogContent } from './GameLog';
 import { PhaseIndicator } from './PhaseIndicator';
@@ -333,6 +333,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
   // 拖拽状态
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [activeDragFromZone, setActiveDragFromZone] = useState<ZoneType | null>(null);
   const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
   const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
@@ -902,6 +903,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     (event: DragStartEvent) => {
       if (isReadOnly) {
         setActiveCardId(null);
+        setActiveDragFromZone(null);
         setDragHints(false);
         dragBattleActionIntentCacheRef.current = null;
         return;
@@ -914,6 +916,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       const dragData = event.active.data.current as { fromZone?: ZoneType } | undefined;
       const fromZone = dragData?.fromZone;
       const resolvedFromZone = fromZone || findViewerCardZone(cardId);
+      setActiveDragFromZone(resolvedFromZone ?? null);
       if (resolvedFromZone) {
         getDragBattleActionIntents(cardId, resolvedFromZone);
       } else {
@@ -1050,6 +1053,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     (event: DragEndEvent) => {
       const { active, over } = event;
       setActiveCardId(null);
+      setActiveDragFromZone(null);
       setDragHints(false);
       setBattleDragActionHint(null);
 
@@ -1532,6 +1536,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       onDragEnd={handleDragEnd}
       onDragCancel={() => {
         setActiveCardId(null);
+        setActiveDragFromZone(null);
         setDragHints(false);
         setBattleDragActionHint(null);
       }}
@@ -2613,14 +2618,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         {/* 拖拽覆盖层 - 显示正在拖拽的卡牌 */}
         <DragOverlay>
           {activeCard ? (
-            <Card
-              cardData={activeCard.cardData as AnyCardData}
-              instanceId={activeCard.instanceId}
-              imagePath={activeCard.imagePath}
-              size="sm"
-              faceUp={true}
-              showHover={false}
-            />
+            <DragOverlayCard card={activeCard} fromZone={activeDragFromZone} />
           ) : activeCardId ? (
             <div className="h-[112px] w-[80px] overflow-hidden rounded-lg shadow-lg">
               <img src="/back.jpg" alt="Card Back" className="h-full w-full object-cover" />
@@ -2664,6 +2662,39 @@ function resolveSpecialDragTarget(targetId: string): SpecialDragTarget | null {
   }
 
   return null;
+}
+
+function DragOverlayCard({
+  card,
+  fromZone,
+}: {
+  readonly card: VisibleCardPresentation;
+  readonly fromZone: ZoneType | null;
+}) {
+  const cardContent = (
+    <Card
+      cardData={card.cardData as AnyCardData}
+      instanceId={card.instanceId}
+      imagePath={card.imagePath}
+      size="sm"
+      faceUp={true}
+      showHover={false}
+    />
+  );
+
+  if (!isHorizontalDragPreviewZone(fromZone)) {
+    return cardContent;
+  }
+
+  return (
+    <div className="flex h-[80px] w-[112px] items-center justify-center">
+      <div className="-rotate-90 origin-center">{cardContent}</div>
+    </div>
+  );
+}
+
+function isHorizontalDragPreviewZone(zone: ZoneType | null): boolean {
+  return zone === ZoneType.LIVE_ZONE || zone === ZoneType.SUCCESS_ZONE;
 }
 
 export default GameBoard;

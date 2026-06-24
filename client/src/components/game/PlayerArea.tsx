@@ -684,7 +684,7 @@ export const PlayerArea = memo(function PlayerArea({
 
     return (
       // 外层容器：包含成员卡和重叠的能量卡
-      <div key={position} className="flex flex-col items-center">
+      <div key={position} className="relative flex flex-col items-center">
         {/* 卡牌堆叠容器 - 使用 relative 定位实现重叠效果 */}
         <div className="relative aspect-[5/7] w-[clamp(58px,17.5vw,82px)] md:w-[clamp(80px,10vw,140px)]">
           {/* 能量卡层 - 在成员卡下方（Z-index 较低） */}
@@ -899,20 +899,11 @@ export const PlayerArea = memo(function PlayerArea({
           </DroppableZone>
         </div>
 
-        {/* 能量卡数量指示器 */}
-        {energyBelowIds.length > 0 && (
-          <div className="mt-1 px-2 py-0.5 bg-indigo-500/20 rounded-full">
-            <span className="text-[10px] text-indigo-400 font-medium">
-              附加能量 ×{energyBelowIds.length}
-            </span>
-          </div>
-        )}
-
         {/* 堆叠成员卡数量指示器 */}
         {memberBelowIds.length > 0 && (
-          <div className="mt-1 px-2 py-0.5 bg-amber-500/20 rounded-full">
+          <div className="pointer-events-none absolute right-1 top-full z-30 -mt-1 rounded-full border border-amber-300/45 bg-amber-950/85 px-1.5 py-0.5 shadow-sm backdrop-blur">
             <span className="text-[10px] text-amber-400 font-medium">
-              堆叠成员 ×{memberBelowIds.length}
+              M×{memberBelowIds.length}
             </span>
           </div>
         )}
@@ -1007,6 +998,7 @@ export const PlayerArea = memo(function PlayerArea({
                 key={cardId}
                 className={cn(
                   'relative flex h-8 items-center justify-center',
+                  'transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-75',
                   isActive ? 'w-5' : 'w-7'
                 )}
               >
@@ -1027,7 +1019,7 @@ export const PlayerArea = memo(function PlayerArea({
                         'h-7 w-5 rounded overflow-hidden shadow-sm cursor-pointer',
                         isDragging
                           ? 'transition-none'
-                          : 'transition-[transform,filter] duration-150 hover:scale-110 hover:z-10',
+                          : 'transition-[rotate,scale,transform,filter,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-110 hover:z-10 motion-reduce:duration-75',
                         !isActive && 'rotate-90 opacity-55 grayscale',
                         card && getActiveEffectTaskCardClass(card.instanceId)
                       )}
@@ -1659,7 +1651,7 @@ export const PlayerArea = memo(function PlayerArea({
                       data-card-id={card?.instanceId}
                       data-object-id={card ? `obj_${card.instanceId}` : undefined}
                       className={cn(
-                        'h-[22px] w-4 overflow-hidden rounded-[3px] shadow-sm transition-transform',
+                        'h-[22px] w-4 overflow-hidden rounded-[3px] shadow-sm transition-[rotate,scale,transform,filter,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-75',
                         allowGeneralOwnZoneInteraction && canTapEnergy && !isDragging
                           ? 'cursor-pointer active:scale-95'
                           : 'cursor-default',

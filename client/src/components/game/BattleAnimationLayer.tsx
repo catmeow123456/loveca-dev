@@ -295,8 +295,10 @@ function MovingCard({
 }) {
   const fromCenter = getRectCenter(event.fromRect);
   const toCenter = getRectCenter(event.toRect);
-  const fromRect = normalizeCardMoveRect(event, event.fromRect);
-  const toRect = normalizeCardMoveRect(event, event.toRect);
+  const fromRect = normalizeCardMoveRect(event, event.fromRect, 'from');
+  const toRect = normalizeCardMoveRect(event, event.toRect, 'to');
+  const startRotate = getCardMoveRotation(event.fromZoneType);
+  const endRotate = getCardMoveRotation(event.toZoneType);
   const startWidth = clamp(fromRect.width || toRect.width, 12, 140);
   const startHeight = clamp(fromRect.height || toRect.height, 16, 196);
   const endWidth = clamp(toRect.width || fromRect.width, 12, 140);
@@ -329,10 +331,11 @@ function MovingCard({
         transformOrigin: 'center center',
         willChange: 'transform, opacity',
       }}
-      initial={{ opacity: 0.92, x: 0, y: 0, scale: 0.985 }}
+      initial={{ opacity: 0.92, x: 0, y: 0, rotate: startRotate, scale: 0.985 }}
       animate={{
         x: deltaX,
         y: deltaY,
+        rotate: endRotate,
         width: endWidth,
         height: endHeight,
         opacity: 1,
@@ -409,17 +412,31 @@ function clamp(value: number, min: number, max: number): number {
 
 function normalizeCardMoveRect(
   event: Extract<BattleAnimationEvent, { kind: 'CARD_MOVE' }>,
-  rect: BattleAnimationRect
+  rect: BattleAnimationRect,
+  side: 'from' | 'to'
 ): BattleAnimationRect {
+  if (rect.width <= 0 || rect.height <= 0) {
+    return rect;
+  }
+
+  const zoneType = side === 'from' ? event.fromZoneType : event.toZoneType;
+  if (isHorizontalCardZone(zoneType)) {
+    return normalizeHorizontalCardRect(rect);
+  }
+
   const isDeckHandMove =
     (event.fromZoneType === ZoneType.MAIN_DECK && event.toZoneType === ZoneType.HAND) ||
     (event.fromZoneType === ZoneType.ENERGY_DECK && event.toZoneType === ZoneType.HAND) ||
     (event.fromZoneType === ZoneType.HAND && event.toZoneType === ZoneType.MAIN_DECK) ||
     (event.fromZoneType === ZoneType.HAND && event.toZoneType === ZoneType.ENERGY_DECK);
-  if (!isDeckHandMove || rect.width <= 0 || rect.height <= 0) {
+  if (!isDeckHandMove) {
     return rect;
   }
 
+  return normalizePortraitCardRect(rect);
+}
+
+function normalizePortraitCardRect(rect: BattleAnimationRect): BattleAnimationRect {
   const center = getRectCenter(rect);
   const cardAspect = 5 / 7;
   let width = rect.width;
@@ -435,4 +452,29 @@ function normalizeCardMoveRect(
     width,
     height,
   };
+}
+
+function normalizeHorizontalCardRect(rect: BattleAnimationRect): BattleAnimationRect {
+  const center = getRectCenter(rect);
+  const portraitRect = normalizePortraitCardRect({
+    left: center.x - rect.height / 2,
+    top: center.y - rect.width / 2,
+    width: rect.height,
+    height: rect.width,
+  });
+
+  return {
+    left: center.x - portraitRect.width / 2,
+    top: center.y - portraitRect.height / 2,
+    width: portraitRect.width,
+    height: portraitRect.height,
+  };
+}
+
+function getCardMoveRotation(zoneType: string): number {
+  return isHorizontalCardZone(zoneType) ? -90 : 0;
+}
+
+function isHorizontalCardZone(zoneType: string): boolean {
+  return zoneType === ZoneType.LIVE_ZONE || zoneType === ZoneType.SUCCESS_ZONE;
 }
