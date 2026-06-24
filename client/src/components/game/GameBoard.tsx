@@ -50,6 +50,7 @@ import {
   buildBattleActionIntents,
   findEnabledBattleActionTargetByTargetId,
   findEnabledBattleActionTargetForZoneDrop,
+  type BattleActionIntent,
 } from '@/lib/battleActionIntent';
 import { executeBattleActionPayload as executeBattleActionPayloadWithHandlers } from '@/lib/battleActionExecutor';
 import { findBattleObjectLocation } from '@/lib/battleAnimationEvents';
@@ -94,6 +95,13 @@ const MEMBER_SLOT_LABELS: Record<SlotPosition, string> = {
 };
 
 type MobileBattlePanel = 'opponent' | 'log';
+
+interface DragBattleActionIntentCache {
+  readonly key: string;
+  readonly cardId: string;
+  readonly fromZone: ZoneType;
+  readonly intents: readonly BattleActionIntent[];
+}
 
 const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
   const dragData = args.active.data.current as { fromZone?: ZoneType } | undefined;
@@ -238,6 +246,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const previousViewStateRef = useRef<PlayerViewState | null>(null);
   const lastNonActiveEffectViewStateRef = useRef<PlayerViewState | null>(null);
   const entryEffectSuspendedIdsRef = useRef(new Set<string>());
+  const dragBattleActionIntentCacheRef = useRef<DragBattleActionIntentCache | null>(null);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
   const {
@@ -810,6 +819,52 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     ]
   );
 
+  const buildDragBattleActionIntentCacheKey = useCallback(
+    (cardId: string, fromZone: ZoneType): string =>
+      [
+        cardId,
+        fromZone,
+        playerViewState?.match.matchId ?? 'no-match',
+        playerViewState?.match.seq ?? -1,
+        activeEffect?.id ?? 'no-effect',
+        currentPhase ?? 'no-phase',
+        currentSubPhase,
+        viewerSeat ?? 'no-viewer',
+        capabilities.surface,
+        isReadOnly ? 'readonly' : 'interactive',
+      ].join('|'),
+    [
+      activeEffect?.id,
+      capabilities.surface,
+      currentPhase,
+      currentSubPhase,
+      isReadOnly,
+      playerViewState?.match.matchId,
+      playerViewState?.match.seq,
+      viewerSeat,
+    ]
+  );
+
+  const getDragBattleActionIntents = useCallback(
+    (cardId: string, fromZone: ZoneType) => {
+      const key = buildDragBattleActionIntentCacheKey(cardId, fromZone);
+      const cached = dragBattleActionIntentCacheRef.current;
+      if (cached?.key === key && cached.cardId === cardId && cached.fromZone === fromZone) {
+        return cached.intents;
+      }
+
+      const intents = buildDragBattleActionIntents(cardId, fromZone);
+      dragBattleActionIntentCacheRef.current = {
+        key,
+        cardId,
+        fromZone,
+        intents,
+      };
+      return intents;
+    },
+    [buildDragBattleActionIntentCacheKey, buildDragBattleActionIntents]
+  );
+
   const executeBattleActionPayload = useCallback(
     (payload: Parameters<typeof executeBattleActionPayloadWithHandlers>[0]): boolean =>
       executeBattleActionPayloadWithHandlers(payload, {
@@ -848,6 +903,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       if (isReadOnly) {
         setActiveCardId(null);
         setDragHints(false);
+        dragBattleActionIntentCacheRef.current = null;
         return;
       }
 
@@ -857,6 +913,12 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       // 计算"推荐目标"高亮（只提示，不限制放置）
       const dragData = event.active.data.current as { fromZone?: ZoneType } | undefined;
       const fromZone = dragData?.fromZone;
+      const resolvedFromZone = fromZone || findViewerCardZone(cardId);
+      if (resolvedFromZone) {
+        getDragBattleActionIntents(cardId, resolvedFromZone);
+      } else {
+        dragBattleActionIntentCacheRef.current = null;
+      }
 
       const suggested: string[] = [];
       // Live 设置：推荐手牌 -> Live 区
@@ -898,6 +960,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       setDragHints,
       setBattleDragActionHint,
       getKnownCardType,
+      findViewerCardZone,
+      getDragBattleActionIntents,
     ]
   );
 
@@ -933,7 +997,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         parsedTarget?.zoneType === ZoneType.MEMBER_SLOT &&
         !!targetSlot &&
         getSeatMemberSlotCardId(viewerSeat, targetSlot) !== null;
-      const dragIntents = buildDragBattleActionIntents(cardId, fromZone);
+      const dragIntents = getDragBattleActionIntents(cardId, fromZone);
       const intentTarget = parsedTarget
         ? findEnabledBattleActionTargetForZoneDrop(dragIntents, parsedTarget.zoneType, targetSlot)
         : findEnabledBattleActionTargetByTargetId(dragIntents, targetId);
@@ -970,8 +1034,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     },
     [
       currentPhase,
-      buildDragBattleActionIntents,
       findViewerCardZone,
+      getDragBattleActionIntents,
       getKnownCardType,
       getSeatMemberSlotCardId,
       isReadOnly,
@@ -1030,7 +1094,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         return;
       }
 
-      const dragIntents = buildDragBattleActionIntents(cardId, fromZone);
+      const dragIntents = getDragBattleActionIntents(cardId, fromZone);
       const intentTarget = parsedTarget
         ? findEnabledBattleActionTargetForZoneDrop(
             dragIntents,
@@ -1395,9 +1459,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       getZoneCardIds,
       currentPhase,
       currentSubPhase,
-      buildDragBattleActionIntents,
       executeBattleActionPayload,
       findViewerCardZone,
+      getDragBattleActionIntents,
       getKnownCardType,
       resolveCardDropTarget,
       getCardSlotPosition,

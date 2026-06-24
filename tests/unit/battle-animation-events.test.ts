@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  collectBattleAnimationAnchors,
   collectBattleObjectLocations,
   createBattleAnimationEventsFromViewDiff,
   findBattleObjectLocation,
@@ -15,6 +16,7 @@ import type {
   ViewZoneKey,
   ViewZoneState,
 } from '../../src/online';
+import { createPublicObjectId } from '../../src/online/projector';
 import {
   CardType,
   GamePhase,
@@ -92,6 +94,46 @@ function anchors(entries: readonly [string, BattleAnimationRect][]): BattleAnima
   };
 }
 
+function fakeAnchorElement({
+  objectId,
+  left,
+  top,
+  imageSrc,
+}: {
+  readonly objectId: string;
+  readonly left: number;
+  readonly top: number;
+  readonly imageSrc?: string;
+}): HTMLElement {
+  return {
+    dataset: { objectId },
+    id: '',
+    getBoundingClientRect: () => ({ left, top, width: 50, height: 70 }),
+    matches: () => false,
+    querySelector: () => (imageSrc ? { currentSrc: imageSrc, src: imageSrc } : null),
+  } as unknown as HTMLElement;
+}
+
+function withFakeDocument<T>(documentValue: Pick<Document, 'querySelectorAll'>, run: () => T): T {
+  const originalDocument = globalThis.document;
+  Object.defineProperty(globalThis, 'document', {
+    value: documentValue,
+    configurable: true,
+  });
+  try {
+    return run();
+  } finally {
+    if (originalDocument === undefined) {
+      delete (globalThis as { document?: Document }).document;
+    } else {
+      Object.defineProperty(globalThis, 'document', {
+        value: originalDocument,
+        configurable: true,
+      });
+    }
+  }
+}
+
 function moveEvent(
   objectId: string,
   fromZoneType: ZoneType,
@@ -115,6 +157,41 @@ function moveEvent(
 }
 
 describe('battle animation events', () => {
+  it('aligns DOM data object ids with projected public object ids', () => {
+    const objectId = createPublicObjectId('card-1');
+    const element = fakeAnchorElement({
+      objectId,
+      left: 12,
+      top: 34,
+      imageSrc: '/cards/card-1.webp',
+    });
+    const state = viewState({
+      zones: {
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: [objectId] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: {
+        [objectId]: cardObject(objectId),
+      },
+    });
+
+    const collectedAnchors = withFakeDocument(
+      {
+        querySelectorAll: (selector: string) =>
+          selector === '[data-object-id]' ? ([element] as unknown as NodeListOf<HTMLElement>) : [],
+      },
+      () => collectBattleAnimationAnchors()
+    );
+
+    expect(collectedAnchors.cards.get(objectId)).toMatchObject({
+      left: 12,
+      top: 34,
+      width: 50,
+      height: 70,
+      imageSrc: '/cards/card-1.webp',
+    });
+    expect(findBattleObjectLocation(state, objectId)?.key).toBe(`FIRST_HAND:list:0:${objectId}`);
+  });
+
   it('collects object locations across lists, slots, overlays, and memberBelow', () => {
     const state = viewState({
       zones: {

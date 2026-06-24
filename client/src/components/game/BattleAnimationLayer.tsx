@@ -19,6 +19,7 @@ import {
   type ScheduledBattleAnimationEvent,
 } from '@/lib/battleAnimationSequencing';
 import { useGameStore } from '@/store/gameStore';
+import { ZoneType } from '@game/shared/types/enums';
 import type { PlayerViewState } from '@game/online';
 
 const MAX_RENDERED_EVENT_IDS = 200;
@@ -45,6 +46,7 @@ export function BattleAnimationLayer() {
   const renderedEventIdsRef = useRef(new Set<string>());
   const scheduledEventTimeoutsRef = useRef(new Set<number>());
   const activeOcclusionEventIdsRef = useRef(new Set<string>());
+  const viewDiffGenerationRef = useRef(0);
 
   useEffect(() => {
     const scheduledEventTimeouts = scheduledEventTimeoutsRef.current;
@@ -60,6 +62,8 @@ export function BattleAnimationLayer() {
   }, [removeBattleAnimationOcclusion]);
 
   useLayoutEffect(() => {
+    const viewDiffGeneration = viewDiffGenerationRef.current + 1;
+    viewDiffGenerationRef.current = viewDiffGeneration;
     const previousViewState = previousViewRef.current;
     const previousAnchors = previousAnchorsRef.current;
     if (previousViewState?.match.matchId !== playerViewState?.match.matchId) {
@@ -144,6 +148,14 @@ export function BattleAnimationLayer() {
         for (const [delayMs, delayedEvents] of delayedEventGroups) {
           const timeout = window.setTimeout(() => {
             scheduledEventTimeoutsRef.current.delete(timeout);
+            if (viewDiffGenerationRef.current !== viewDiffGeneration) {
+              removeOcclusionsForAnimationEvents({
+                events: delayedEvents,
+                activeOcclusionEventIds: activeOcclusionEventIdsRef.current,
+                removeBattleAnimationOcclusion,
+              });
+              return;
+            }
             setEvents((current) => [...current.slice(-12), ...delayedEvents]);
           }, delayMs);
           scheduledEventTimeoutsRef.current.add(timeout);
@@ -252,6 +264,24 @@ function groupDelayedEventsByDelay(
   return groups;
 }
 
+function removeOcclusionsForAnimationEvents({
+  events,
+  activeOcclusionEventIds,
+  removeBattleAnimationOcclusion,
+}: {
+  readonly events: readonly BattleAnimationEvent[];
+  readonly activeOcclusionEventIds: Set<string>;
+  readonly removeBattleAnimationOcclusion: (eventId: string) => void;
+}): void {
+  for (const event of events) {
+    if (event.kind !== 'CARD_MOVE' || !activeOcclusionEventIds.has(event.id)) {
+      continue;
+    }
+    activeOcclusionEventIds.delete(event.id);
+    removeBattleAnimationOcclusion(event.id);
+  }
+}
+
 function MovingCard({
   event,
   imagePath,
@@ -265,10 +295,12 @@ function MovingCard({
 }) {
   const fromCenter = getRectCenter(event.fromRect);
   const toCenter = getRectCenter(event.toRect);
-  const startWidth = clamp(event.fromRect.width || event.toRect.width, 12, 140);
-  const startHeight = clamp(event.fromRect.height || event.toRect.height, 16, 196);
-  const endWidth = clamp(event.toRect.width || event.fromRect.width, 12, 140);
-  const endHeight = clamp(event.toRect.height || event.fromRect.height, 16, 196);
+  const fromRect = normalizeCardMoveRect(event, event.fromRect);
+  const toRect = normalizeCardMoveRect(event, event.toRect);
+  const startWidth = clamp(fromRect.width || toRect.width, 12, 140);
+  const startHeight = clamp(fromRect.height || toRect.height, 16, 196);
+  const endWidth = clamp(toRect.width || fromRect.width, 12, 140);
+  const endHeight = clamp(toRect.height || fromRect.height, 16, 196);
   const startLeft = fromCenter.x - startWidth / 2;
   const startTop = fromCenter.y - startHeight / 2;
   const endLeft = toCenter.x - endWidth / 2;
@@ -373,4 +405,34 @@ function getRectCenter(rect: BattleAnimationRect): { readonly x: number; readonl
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function normalizeCardMoveRect(
+  event: Extract<BattleAnimationEvent, { kind: 'CARD_MOVE' }>,
+  rect: BattleAnimationRect
+): BattleAnimationRect {
+  const isDeckHandMove =
+    (event.fromZoneType === ZoneType.MAIN_DECK && event.toZoneType === ZoneType.HAND) ||
+    (event.fromZoneType === ZoneType.ENERGY_DECK && event.toZoneType === ZoneType.HAND) ||
+    (event.fromZoneType === ZoneType.HAND && event.toZoneType === ZoneType.MAIN_DECK) ||
+    (event.fromZoneType === ZoneType.HAND && event.toZoneType === ZoneType.ENERGY_DECK);
+  if (!isDeckHandMove || rect.width <= 0 || rect.height <= 0) {
+    return rect;
+  }
+
+  const center = getRectCenter(rect);
+  const cardAspect = 5 / 7;
+  let width = rect.width;
+  let height = width / cardAspect;
+  if (height > rect.height) {
+    height = rect.height;
+    width = height * cardAspect;
+  }
+
+  return {
+    left: center.x - width / 2,
+    top: center.y - height / 2,
+    width,
+    height,
+  };
 }

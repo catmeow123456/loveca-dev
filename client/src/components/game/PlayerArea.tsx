@@ -14,7 +14,7 @@
  * - 资源区和成功Live区在画布上呈现镜像对称
  */
 
-import { memo, useState, type MouseEvent } from 'react';
+import { memo, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { motion, useReducedMotion } from 'framer-motion';
 import { createPortal } from 'react-dom';
@@ -82,6 +82,7 @@ const INSPECTION_TARGET_IDS = {
   mainDeckBottom: 'inspection-target-main-deck-bottom',
   blocker: 'inspection-target-blocker',
 } as const;
+const DISABLE_ORDINARY_DROP_FROM_INSPECTION = [ZoneType.INSPECTION_ZONE] as const;
 
 const SortableInspectionCard = memo(function SortableInspectionCard({
   cardId,
@@ -385,6 +386,9 @@ export const PlayerArea = memo(function PlayerArea({
   const [inspectionBatchAction, setInspectionBatchAction] = useState<
     'waiting-room' | 'close' | null
   >(null);
+  const [isReturningHandCardToTop, setIsReturningHandCardToTop] = useState(false);
+  const returningHandCardToTopRef = useRef(false);
+  const returningHandCardToTopTimeoutRef = useRef<number | null>(null);
 
   const handZoneView = getSeatZone(playerSeat, 'HAND');
   const mainDeckZoneView = getSeatZone(playerSeat, 'MAIN_DECK');
@@ -401,6 +405,26 @@ export const PlayerArea = memo(function PlayerArea({
   const waitingRoomCardIds = getSeatZoneCardIds(playerSeat, 'WAITING_ROOM');
   const successCardIds = getSeatZoneCardIds(playerSeat, 'SUCCESS_ZONE');
   const inspectionCardIds = getSeatZoneCardIds(playerSeat, 'INSPECTION_ZONE');
+  const handCardSignature = handCardIds.join('|');
+
+  useEffect(() => {
+    returningHandCardToTopRef.current = false;
+    setIsReturningHandCardToTop(false);
+    if (returningHandCardToTopTimeoutRef.current !== null) {
+      window.clearTimeout(returningHandCardToTopTimeoutRef.current);
+      returningHandCardToTopTimeoutRef.current = null;
+    }
+  }, [handCardSignature, matchView?.seq]);
+
+  useEffect(
+    () => () => {
+      if (returningHandCardToTopTimeoutRef.current !== null) {
+        window.clearTimeout(returningHandCardToTopTimeoutRef.current);
+      }
+    },
+    []
+  );
+
   if (!playerIdentity) {
     return null;
   }
@@ -930,6 +954,7 @@ export const PlayerArea = memo(function PlayerArea({
         id={getDroppableId(ZoneType.ENERGY_ZONE)}
         zoneId={createZoneId(ZoneType.ENERGY_ZONE)}
         disabled={!allowGeneralOwnZoneInteraction}
+        disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="flex flex-col items-start gap-0.5"
         activeClassName="ring-2 ring-indigo-500 bg-indigo-500/20"
       >
@@ -1077,6 +1102,7 @@ export const PlayerArea = memo(function PlayerArea({
         id={deckDroppableId}
         zoneId={zoneId}
         disabled={!allowGeneralOwnZoneInteraction && !(isMainDeck && canReceiveInspectionDrop)}
+        disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="flex flex-col items-center gap-0.5"
         activeClassName="ring-2 ring-amber-500 bg-amber-500/20"
       >
@@ -1129,6 +1155,7 @@ export const PlayerArea = memo(function PlayerArea({
         id={waitingRoomDroppableId}
         zoneId={createZoneId(ZoneType.WAITING_ROOM)}
         disabled={!allowGeneralOwnZoneInteraction && !canReceiveInspectionDrop}
+        disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="flex flex-col items-center gap-1 relative"
         activeClassName="ring-2 ring-slate-500 bg-slate-500/20"
       >
@@ -1334,6 +1361,7 @@ export const PlayerArea = memo(function PlayerArea({
         id={getDroppableId(ZoneType.SUCCESS_ZONE)}
         zoneId={createZoneId(ZoneType.SUCCESS_ZONE)}
         disabled={isReadOnly || isOpponent}
+        disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="flex flex-col items-center gap-1 relative"
         activeClassName="ring-2 ring-green-500 bg-green-500/20"
       >
@@ -1426,6 +1454,7 @@ export const PlayerArea = memo(function PlayerArea({
         id={getDroppableId(ZoneType.SUCCESS_ZONE)}
         zoneId={createZoneId(ZoneType.SUCCESS_ZONE)}
         disabled={isReadOnly || isOpponent}
+        disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="flex h-[104px] w-full flex-col items-center justify-start gap-1 overflow-hidden"
         activeClassName="ring-2 ring-green-500 bg-green-500/20"
       >
@@ -1555,6 +1584,7 @@ export const PlayerArea = memo(function PlayerArea({
         id={getDroppableId(ZoneType.ENERGY_ZONE)}
         zoneId={createZoneId(ZoneType.ENERGY_ZONE)}
         disabled={!allowGeneralOwnZoneInteraction}
+        disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="flex h-[124px] w-full min-w-0 flex-col items-stretch gap-1 overflow-hidden rounded-lg border border-indigo-300/20 bg-indigo-500/[0.055] px-1 py-1"
         activeClassName="ring-2 ring-indigo-500 bg-indigo-500/20"
       >
@@ -1821,8 +1851,9 @@ export const PlayerArea = memo(function PlayerArea({
           id={getDroppableId(ZoneType.LIVE_ZONE)}
           zoneId={createZoneId(ZoneType.LIVE_ZONE)}
           disabled={!canDropToLiveZone || liveZoneIsFull}
+          disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
           className={cn(
-            'rounded-lg px-1 py-2',
+            'relative rounded-lg px-1 py-2',
             'border',
             isMobileBoard
               ? 'bg-[color:color-mix(in_srgb,var(--bg-frosted)_8%,transparent)]'
@@ -1842,7 +1873,7 @@ export const PlayerArea = memo(function PlayerArea({
         >
           {content}
           {liveZoneAction && (
-            <span className="mt-1 rounded bg-cyan-300 px-1.5 py-0.5 text-[9px] font-bold text-slate-950 shadow">
+            <span className="pointer-events-none absolute right-1 top-1 rounded bg-cyan-300 px-1.5 py-0.5 text-[9px] font-bold leading-none text-slate-950 shadow">
               {liveZoneAction.target.label}
             </span>
           )}
@@ -1997,7 +2028,7 @@ export const PlayerArea = memo(function PlayerArea({
         aria-hidden={suppressInspectionSurface ? true : undefined}
         data-effect-surface-suppressed={suppressInspectionSurface ? 'true' : undefined}
         className={cn(
-          'absolute left-1/2 z-30 -translate-x-1/2 transition-opacity duration-150',
+          'absolute left-1/2 z-[60] -translate-x-1/2 transition-opacity duration-150',
           suppressInspectionSurface && 'pointer-events-none opacity-0',
           isOpponent ? 'bottom-[88px]' : 'top-[88px]'
         )}
@@ -2302,6 +2333,7 @@ export const PlayerArea = memo(function PlayerArea({
         id={getDroppableId(ZoneType.HAND)}
         zoneId={createZoneId(ZoneType.HAND)}
         disabled={!allowGeneralOwnZoneInteraction && !canReceiveInspectionDrop}
+        disabledForDragFromZones={DISABLE_ORDINARY_DROP_FROM_INSPECTION}
         className="relative h-[118px] w-full overflow-visible px-3 py-2 md:h-[138px] md:px-4 md:pr-72"
         activeClassName="ring-2 ring-cyan-500 bg-cyan-500/20"
       >
@@ -2390,13 +2422,41 @@ export const PlayerArea = memo(function PlayerArea({
           <button
             type="button"
             onClick={() => {
-              if (!allowGeneralOwnZoneInteraction || !canReturnHandCardToTop) return;
-              const rightmostHandCardId = handCardIds[handCardIds.length - 1];
+              if (
+                returningHandCardToTopRef.current ||
+                isReturningHandCardToTop ||
+                !allowGeneralOwnZoneInteraction ||
+                !canReturnHandCardToTop
+              ) {
+                return;
+              }
+              const latestHandCardIds = useGameStore
+                .getState()
+                .getSeatZoneCardIds(playerSeat, 'HAND');
+              const rightmostHandCardId = latestHandCardIds[latestHandCardIds.length - 1];
               if (!rightmostHandCardId) return;
-              returnHandCardToTop(rightmostHandCardId);
+              returningHandCardToTopRef.current = true;
+              setIsReturningHandCardToTop(true);
+              const result = returnHandCardToTop(rightmostHandCardId);
+              returningHandCardToTopTimeoutRef.current = window.setTimeout(() => {
+                returningHandCardToTopRef.current = false;
+                setIsReturningHandCardToTop(false);
+                returningHandCardToTopTimeoutRef.current = null;
+              }, 2000);
+              if (!result.success && !result.pending) {
+                returningHandCardToTopRef.current = false;
+                setIsReturningHandCardToTop(false);
+                if (returningHandCardToTopTimeoutRef.current !== null) {
+                  window.clearTimeout(returningHandCardToTopTimeoutRef.current);
+                  returningHandCardToTopTimeoutRef.current = null;
+                }
+              }
             }}
             disabled={
-              handCardIds.length === 0 || !allowGeneralOwnZoneInteraction || !canReturnHandCardToTop
+              handCardIds.length === 0 ||
+              isReturningHandCardToTop ||
+              !allowGeneralOwnZoneInteraction ||
+              !canReturnHandCardToTop
             }
             className={cn(
               'w-7 h-7 rounded text-xs font-bold',
