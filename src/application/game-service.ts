@@ -1560,13 +1560,26 @@ export class GameService {
       }
     }
 
+    const firstHasSuccessfulLive = [
+      ...firstPlayer.liveZone.cardIds,
+      ...firstPlayer.successZone.cardIds,
+    ].some((cardId) => liveResults.get(cardId) === true);
+    const secondHasSuccessfulLive = [
+      ...secondPlayer.liveZone.cardIds,
+      ...secondPlayer.successZone.cardIds,
+    ].some((cardId) => liveResults.get(cardId) === true);
+
     // 8.4.2 计算双方基础分数（玩家可在 UI 中调整）
     const firstScore =
-      game.liveResolution.playerScores.get(firstPlayer.id) ??
-      this.calculateLiveScore(game, firstPlayer.id, liveResults);
+      firstHasSuccessfulLive
+        ? (game.liveResolution.playerScores.get(firstPlayer.id) ??
+          this.calculateLiveScore(game, firstPlayer.id, liveResults))
+        : 0;
     const secondScore =
-      game.liveResolution.playerScores.get(secondPlayer.id) ??
-      this.calculateLiveScore(game, secondPlayer.id, liveResults);
+      secondHasSuccessfulLive
+        ? (game.liveResolution.playerScores.get(secondPlayer.id) ??
+          this.calculateLiveScore(game, secondPlayer.id, liveResults))
+        : 0;
 
     let state = game;
 

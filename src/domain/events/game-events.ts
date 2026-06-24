@@ -319,6 +319,8 @@ export interface MemberSlotMovedEvent extends BaseGameEvent {
   readonly toSlot: SlotPosition;
   /** 同一次站位变换中被交换的成员卡实例 ID */
   readonly swappedCardInstanceId?: string;
+  /** 区域移动来源（玩家操作、规则处理、卡片效果等） */
+  readonly cause?: MemberStateChangeCause;
 }
 
 /**
@@ -749,7 +751,8 @@ export function createMemberSlotMovedEvent(
   controllerId: string,
   fromSlot: SlotPosition,
   toSlot: SlotPosition,
-  swappedCardInstanceId?: string
+  swappedCardInstanceId?: string,
+  cause?: MemberStateChangeCause
 ): MemberSlotMovedEvent {
   return {
     eventId: generateEventId(),
@@ -760,6 +763,7 @@ export function createMemberSlotMovedEvent(
     fromSlot,
     toSlot,
     swappedCardInstanceId,
+    cause,
     triggerPlayerId: controllerId,
   };
 }

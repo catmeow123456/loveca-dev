@@ -8,6 +8,7 @@ import {
   createLeaveStageEvent,
   createLiveStartEvent,
   createLiveSuccessEvent,
+  createMemberSlotMovedEvent,
   createMemberStateChangedEvent,
 } from '../../src/domain/events/game-events';
 import {
@@ -149,6 +150,40 @@ describe('game event log', () => {
       previousOrientation: OrientationState.ACTIVE,
       nextOrientation: OrientationState.WAITING,
       triggerPlayerId: 'p2',
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: 'p1',
+        sourceCardId: 'source-member',
+        abilityId: 'ability-1',
+        pendingAbilityId: 'pending-1',
+      },
+    });
+  });
+
+  it('records member slot moved event facts and optional cause context', () => {
+    const event = createMemberSlotMovedEvent(
+      'member-1',
+      'p1',
+      SlotPosition.LEFT,
+      SlotPosition.RIGHT,
+      'member-2',
+      {
+        kind: 'CARD_EFFECT',
+        playerId: 'p1',
+        sourceCardId: 'source-member',
+        abilityId: 'ability-1',
+        pendingAbilityId: 'pending-1',
+      }
+    );
+
+    expect(event).toMatchObject({
+      eventType: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+      cardInstanceId: 'member-1',
+      controllerId: 'p1',
+      fromSlot: SlotPosition.LEFT,
+      toSlot: SlotPosition.RIGHT,
+      swappedCardInstanceId: 'member-2',
+      triggerPlayerId: 'p1',
       cause: {
         kind: 'CARD_EFFECT',
         playerId: 'p1',

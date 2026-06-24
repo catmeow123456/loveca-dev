@@ -644,6 +644,12 @@ function summarizeConfirmEffectStepSubmission(
       ? { selectedOptionId: command.selectedOptionId ?? null }
       : {}),
     ...('selectedNumber' in command ? { selectedNumber: command.selectedNumber ?? null } : {}),
+    ...(command.stageFormationMoveHistory
+      ? { stageFormationMoveHistory: [...command.stageFormationMoveHistory] }
+      : {}),
+    ...(command.stageFormationPlacements
+      ? { stageFormationPlacements: [...command.stageFormationPlacements] }
+      : {}),
     ...(command.resolveInOrder !== undefined ? { resolveInOrder: command.resolveInOrder } : {}),
     skipped: command.selectedCardId === null,
   };

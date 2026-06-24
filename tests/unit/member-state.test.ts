@@ -16,6 +16,8 @@ import {
 import {
   moveMemberBetweenSlots,
   playMembersFromWaitingRoomToEmptySlots,
+  rearrangeStageMembers,
+  rearrangeStageMembersByMoveHistory,
   setMemberOrientation,
   setMembersOrientation,
 } from '../../src/application/effects/member-state';
@@ -293,6 +295,303 @@ describe('member state effect helpers', () => {
       },
     ]);
     expect(moveMemberBetweenSlots(game, 'p1', memberA.instanceId, SlotPosition.LEFT)).toBeNull();
+  });
+
+  it('rearranges all stage members atomically without swap metadata', () => {
+    const memberA = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
+    const memberB = createCardInstance(createMemberCard('MEM-B'), 'p1', 'member-b');
+    const memberC = createCardInstance(createMemberCard('MEM-C'), 'p1', 'member-c');
+    let game = createGameState('member-state-formation-cycle', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [memberA, memberB, memberC]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId),
+          SlotPosition.CENTER,
+          memberB.instanceId
+        ),
+        SlotPosition.RIGHT,
+        memberC.instanceId
+      ),
+    }));
+
+    const result = rearrangeStageMembers(
+      game,
+      'p1',
+      [
+        { cardId: memberA.instanceId, toSlot: SlotPosition.CENTER },
+        { cardId: memberB.instanceId, toSlot: SlotPosition.RIGHT },
+        { cardId: memberC.instanceId, toSlot: SlotPosition.LEFT },
+      ],
+      {
+        cause: {
+          kind: 'CARD_EFFECT',
+          playerId: 'p1',
+          sourceCardId: 'source-card',
+          abilityId: 'formation-ability',
+          pendingAbilityId: 'pending-formation',
+        },
+      }
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.gameState.players[0].memberSlots.slots).toMatchObject({
+      [SlotPosition.LEFT]: memberC.instanceId,
+      [SlotPosition.CENTER]: memberA.instanceId,
+      [SlotPosition.RIGHT]: memberB.instanceId,
+    });
+    expect(result?.rearrangedMembers).toEqual([
+      { cardId: memberA.instanceId, fromSlot: SlotPosition.LEFT, toSlot: SlotPosition.CENTER },
+      { cardId: memberB.instanceId, fromSlot: SlotPosition.CENTER, toSlot: SlotPosition.RIGHT },
+      { cardId: memberC.instanceId, fromSlot: SlotPosition.RIGHT, toSlot: SlotPosition.LEFT },
+    ]);
+    expect(result?.gameState.eventLog.map((entry) => entry.event)).toMatchObject([
+      {
+        cardInstanceId: memberA.instanceId,
+        fromSlot: SlotPosition.LEFT,
+        toSlot: SlotPosition.CENTER,
+        swappedCardInstanceId: undefined,
+      },
+      {
+        cardInstanceId: memberB.instanceId,
+        fromSlot: SlotPosition.CENTER,
+        toSlot: SlotPosition.RIGHT,
+        swappedCardInstanceId: undefined,
+      },
+      {
+        cardInstanceId: memberC.instanceId,
+        fromSlot: SlotPosition.RIGHT,
+        toSlot: SlotPosition.LEFT,
+        swappedCardInstanceId: undefined,
+      },
+    ]);
+    expect(result?.gameState.eventLog.map((entry) => entry.event.cause)).toEqual([
+      {
+        kind: 'CARD_EFFECT',
+        playerId: 'p1',
+        sourceCardId: 'source-card',
+        abilityId: 'formation-ability',
+        pendingAbilityId: 'pending-formation',
+      },
+      {
+        kind: 'CARD_EFFECT',
+        playerId: 'p1',
+        sourceCardId: 'source-card',
+        abilityId: 'formation-ability',
+        pendingAbilityId: 'pending-formation',
+      },
+      {
+        kind: 'CARD_EFFECT',
+        playerId: 'p1',
+        sourceCardId: 'source-card',
+        abilityId: 'formation-ability',
+        pendingAbilityId: 'pending-formation',
+      },
+    ]);
+  });
+
+  it('replays formation move history so a member returning to its original slot still counts as moved', () => {
+    const memberA = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
+    const memberB = createCardInstance(createMemberCard('MEM-B'), 'p1', 'member-b');
+    const memberC = createCardInstance(createMemberCard('MEM-C'), 'p1', 'member-c');
+    let game = createGameState('member-state-formation-history', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [memberA, memberB, memberC]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId),
+          SlotPosition.CENTER,
+          memberB.instanceId
+        ),
+        SlotPosition.RIGHT,
+        memberC.instanceId
+      ),
+    }));
+
+    const result = rearrangeStageMembersByMoveHistory(game, 'p1', [
+      { cardId: memberB.instanceId, toSlot: SlotPosition.LEFT },
+      { cardId: memberC.instanceId, toSlot: SlotPosition.LEFT },
+      { cardId: memberB.instanceId, toSlot: SlotPosition.CENTER },
+    ]);
+
+    expect(result).not.toBeNull();
+    expect(result?.gameState.players[0].memberSlots.slots).toMatchObject({
+      [SlotPosition.LEFT]: memberC.instanceId,
+      [SlotPosition.CENTER]: memberB.instanceId,
+      [SlotPosition.RIGHT]: memberA.instanceId,
+    });
+    expect(result?.rearrangedMembers.map((member) => member.cardId)).toEqual([
+      memberA.instanceId,
+      memberB.instanceId,
+      memberC.instanceId,
+    ]);
+    expect(
+      result?.rearrangedMembers.find((member) => member.cardId === memberB.instanceId)
+    ).toMatchObject({
+      fromSlot: SlotPosition.CENTER,
+      toSlot: SlotPosition.CENTER,
+      eventFromSlot: SlotPosition.CENTER,
+      eventToSlot: SlotPosition.LEFT,
+    });
+    expect(result?.gameState.players[0].positionMovedThisTurn).toEqual([
+      memberA.instanceId,
+      memberB.instanceId,
+      memberC.instanceId,
+    ]);
+    expect(result?.gameState.eventLog.map((entry) => entry.event.cardInstanceId)).toEqual([
+      memberA.instanceId,
+      memberB.instanceId,
+      memberC.instanceId,
+    ]);
+  });
+
+  it('ignores same-slot formation move history entries', () => {
+    const memberA = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
+    let game = createGameState('member-state-formation-same-slot', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [memberA]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId),
+    }));
+
+    const result = rearrangeStageMembersByMoveHistory(game, 'p1', [
+      { cardId: memberA.instanceId, toSlot: SlotPosition.LEFT },
+    ]);
+
+    expect(result).not.toBeNull();
+    expect(result?.gameState.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(
+      memberA.instanceId
+    );
+    expect(result?.rearrangedMembers).toEqual([]);
+    expect(result?.gameState.players[0].positionMovedThisTurn).toEqual([]);
+    expect(result?.gameState.eventLog).toEqual([]);
+  });
+
+  it('replays formation move history by exact cardId even when member names match', () => {
+    const memberA = createCardInstance(createMemberCard('MEM-SAME'), 'p1', 'member-a');
+    const memberB = createCardInstance(createMemberCard('MEM-SAME'), 'p1', 'member-b');
+    let game = createGameState('member-state-formation-same-name', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [memberA, memberB]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId),
+        SlotPosition.CENTER,
+        memberB.instanceId
+      ),
+    }));
+
+    const result = rearrangeStageMembersByMoveHistory(game, 'p1', [
+      { cardId: memberB.instanceId, toSlot: SlotPosition.RIGHT },
+    ]);
+
+    expect(result).not.toBeNull();
+    expect(result?.gameState.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(
+      memberA.instanceId
+    );
+    expect(result?.gameState.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBe(
+      memberB.instanceId
+    );
+    expect(result?.rearrangedMembers).toEqual([
+      {
+        cardId: memberB.instanceId,
+        fromSlot: SlotPosition.CENTER,
+        toSlot: SlotPosition.RIGHT,
+        eventFromSlot: SlotPosition.CENTER,
+        eventToSlot: SlotPosition.RIGHT,
+        swappedCardId: undefined,
+      },
+    ]);
+  });
+
+  it('rearranges stage members to a layout with an empty slot and keeps attached cards with hosts', () => {
+    const memberA = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
+    const memberB = createCardInstance(createMemberCard('MEM-B'), 'p1', 'member-b');
+    const energyA = createCardInstance(createEnergyCard('ENE-A'), 'p1', 'energy-a');
+    const belowMemberB = createCardInstance(createMemberCard('MEM-BELOW'), 'p1', 'member-below');
+    let game = createGameState('member-state-formation-empty-slot', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [memberA, memberB, energyA, belowMemberB]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId);
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, memberB.instanceId);
+      memberSlots = addEnergyBelowMember(memberSlots, SlotPosition.LEFT, energyA.instanceId);
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.CENTER, belowMemberB.instanceId);
+      return { ...player, memberSlots };
+    });
+
+    const result = rearrangeStageMembers(game, 'p1', [
+      { cardId: memberA.instanceId, toSlot: SlotPosition.RIGHT },
+      { cardId: memberB.instanceId, toSlot: SlotPosition.LEFT },
+    ]);
+
+    expect(result).not.toBeNull();
+    expect(result?.gameState.players[0].memberSlots.slots).toMatchObject({
+      [SlotPosition.LEFT]: memberB.instanceId,
+      [SlotPosition.CENTER]: null,
+      [SlotPosition.RIGHT]: memberA.instanceId,
+    });
+    expect(result?.gameState.players[0].memberSlots.energyBelow[SlotPosition.RIGHT]).toEqual([
+      energyA.instanceId,
+    ]);
+    expect(result?.gameState.players[0].memberSlots.memberBelow[SlotPosition.LEFT]).toEqual([
+      belowMemberB.instanceId,
+    ]);
+    expect(result?.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(result?.gameState.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
+  });
+
+  it('rejects invalid atomic stage rearrangements', () => {
+    const ownMember = createCardInstance(createMemberCard('MEM-A'), 'p1', 'own-member');
+    const ownWaitingMember = createCardInstance(createMemberCard('MEM-B'), 'p1', 'waiting-member');
+    const opponentMember = createCardInstance(createMemberCard('MEM-C'), 'p2', 'opponent-member');
+    let game = createGameState('member-state-formation-invalid', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [ownMember, ownWaitingMember, opponentMember]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, ownMember.instanceId),
+      waitingRoom: { ...player.waitingRoom, cardIds: [ownWaitingMember.instanceId] },
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, opponentMember.instanceId),
+    }));
+
+    expect(
+      rearrangeStageMembers(game, 'p1', [
+        { cardId: ownMember.instanceId, toSlot: SlotPosition.CENTER },
+        { cardId: ownMember.instanceId, toSlot: SlotPosition.RIGHT },
+      ])
+    ).toBeNull();
+    expect(
+      rearrangeStageMembers(game, 'p1', [
+        { cardId: ownMember.instanceId, toSlot: SlotPosition.CENTER },
+        { cardId: ownWaitingMember.instanceId, toSlot: SlotPosition.RIGHT },
+      ])
+    ).toBeNull();
+    expect(
+      rearrangeStageMembers(game, 'p1', [
+        { cardId: ownMember.instanceId, toSlot: SlotPosition.CENTER },
+        { cardId: opponentMember.instanceId, toSlot: SlotPosition.RIGHT },
+      ])
+    ).toBeNull();
+    expect(
+      rearrangeStageMembersByMoveHistory(game, 'p1', [
+        { cardId: ownWaitingMember.instanceId, toSlot: SlotPosition.CENTER },
+      ])
+    ).toBeNull();
+    expect(
+      rearrangeStageMembersByMoveHistory(game, 'p1', [
+        { cardId: opponentMember.instanceId, toSlot: SlotPosition.CENTER },
+      ])
+    ).toBeNull();
+    expect(
+      rearrangeStageMembersByMoveHistory(game, 'p1', [
+        { cardId: ownMember.instanceId, toSlot: 'INVALID_SLOT' as SlotPosition },
+      ])
+    ).toBeNull();
+    expect(game.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(ownMember.instanceId);
   });
 
   it('plays members from waiting room to empty slots without using normal entry payment', () => {

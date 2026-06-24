@@ -9,6 +9,8 @@ import {
   PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES,
   isResultSuccessEffectSubPhase,
 } from '../application/command-availability.js';
+import { getActivatedAbilityUiConfig } from '../application/card-effect-runner.js';
+import { CardAbilitySourceZone } from '../application/card-effects/ability-definition-types.js';
 import type { ActiveEffectState, GameState, LiveModifierState } from '../domain/entities/game.js';
 import type { PlayerState } from '../domain/entities/player.js';
 import type {
@@ -330,6 +332,7 @@ export function projectPlayerViewState(
         ...activeEffectCardSelection,
         selectableSlots: game.activeEffect.selectableSlots,
         selectableOptions: game.activeEffect.selectableOptions,
+        stageFormation: projectActiveEffectStageFormation(game),
         numericInput: game.activeEffect.numericInput,
         canResolveInOrder: game.activeEffect.canResolveInOrder,
       }
@@ -385,6 +388,24 @@ function projectActiveEffectRevealedCards(
       publiclyRevealed: true,
     });
   }
+}
+
+function projectActiveEffectStageFormation(game: GameState) {
+  const formation = game.activeEffect?.stageFormation;
+  if (!formation) {
+    return undefined;
+  }
+  return {
+    playerSeat: getSeatForPlayer(game, formation.playerId),
+    slots: formation.slots.map((slot) => ({
+      slot: slot.slot,
+      cardId: slot.cardId,
+      objectId: slot.cardId ? createPublicObjectId(slot.cardId) : null,
+      originalSlot: slot.originalSlot,
+      energyBelowCount: slot.energyBelowCount,
+      memberBelowCount: slot.memberBelowCount,
+    })),
+  };
 }
 
 function projectActiveEffectCardSelection(
@@ -562,6 +583,17 @@ function addMemberSlotZones(
           frontInfo: isMemberCardData(occupant.data)
             ? buildStageMemberFrontInfo(occupant, effectiveHearts, effectiveBlade)
             : undefined,
+          activatedAbilityUiConfig: isMemberCardData(occupant.data)
+            ? getActivatedAbilityUiConfig(
+                occupant.data.cardCode,
+                CardAbilitySourceZone.STAGE_MEMBER,
+                {
+                  game,
+                  playerId,
+                  sourceCardId: occupantId,
+                }
+              ) ?? undefined
+            : undefined,
         });
       }
     }
@@ -736,7 +768,11 @@ function upsertViewObject(
   faceState?: ViewCardObject['faceState'],
   metadata?: Pick<
     ViewCardObject,
-    'publiclyRevealed' | 'judgmentResult' | 'enteredStageThisTurn' | 'frontInfo'
+    | 'publiclyRevealed'
+    | 'judgmentResult'
+    | 'enteredStageThisTurn'
+    | 'frontInfo'
+    | 'activatedAbilityUiConfig'
   > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
@@ -754,6 +790,8 @@ function upsertViewObject(
     judgmentResult: metadata?.judgmentResult,
     enteredStageThisTurn: metadata?.enteredStageThisTurn,
     frontInfo: surface === 'FRONT' ? (metadata?.frontInfo ?? buildFrontInfo(card)) : undefined,
+    activatedAbilityUiConfig:
+      surface === 'FRONT' ? metadata?.activatedAbilityUiConfig : undefined,
   };
 }
 

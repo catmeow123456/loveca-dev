@@ -252,7 +252,12 @@ export function cardCodeMatchesBase(cardCode: string, baseCardCode: string): boo
 // ============================================
 
 /** 支持成员卡下方堆叠的特殊成员卡 cardCode 模式 */
-const SPECIAL_MEMBER_PATTERNS = [/^PL!-bp6-003-/, /^PL!HS-pb1-002-/, /^PL!N-PR-026-/];
+const SPECIAL_MEMBER_PATTERNS = [
+  /^PL!-bp6-003-/,
+  /^PL!HS-pb1-002-/,
+  /^PL!N-PR-026-/,
+  /^PL!SP-pb2-005-/,
+];
 
 /**
  * 判断 cardCode 是否属于可以在其下方堆叠成员卡的特殊成员卡。

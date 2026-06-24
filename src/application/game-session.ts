@@ -146,6 +146,7 @@ import {
   CardAbilityCategory,
   CardAbilitySourceZone,
 } from './card-effects/ability-definition-types.js';
+import { getRenGrantedActivatedAbilityDefinition } from './card-effects/runtime/granted-activated-abilities.js';
 import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/bp6-024-success-replacement.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { getMemberEffectiveCost } from './effects/conditions.js';
@@ -1431,17 +1432,32 @@ export class GameSession {
         }
         if (
           card.data.cardType !== CardType.MEMBER ||
-          !isSupportedActivatedAbilityForCard(command.abilityId, card.data.cardCode)
+          !isSupportedActivatedAbilityForCard(command.abilityId, card.data.cardCode, {
+            game: state,
+            playerId: command.playerId,
+            sourceCardId: command.cardId,
+          })
         ) {
           return '该卡牌没有这个起动效果';
         }
-        const sourceZone =
-          getCardAbilityDefinitions(card.data.cardCode).find(
+        const directDefinition = getCardAbilityDefinitions(card.data.cardCode).find(
             (ability) =>
               ability.category === CardAbilityCategory.ACTIVATED &&
               ability.implemented &&
               ability.abilityId === command.abilityId
-          )?.sourceZone ?? CardAbilitySourceZone.STAGE_MEMBER;
+          );
+        const grantedDefinition = directDefinition
+          ? null
+          : getRenGrantedActivatedAbilityDefinition(
+              state,
+              command.playerId,
+              command.cardId,
+              command.abilityId
+            )?.definition ?? null;
+        const sourceZone =
+          directDefinition?.sourceZone ??
+          grantedDefinition?.sourceZone ??
+          CardAbilitySourceZone.STAGE_MEMBER;
         if (sourceZone === CardAbilitySourceZone.WAITING_ROOM) {
           if (!player.waitingRoom.cardIds.includes(command.cardId)) {
             return '起动效果来源卡当前不在自己的休息室';
@@ -1683,6 +1699,18 @@ export class GameSession {
           )
         ) {
           return '选择的选项不能用于当前效果';
+        }
+        if (command.stageFormationMoveHistory || command.stageFormationPlacements) {
+          if (!state.activeEffect.stageFormation) {
+            return '当前效果不能进行站位变换';
+          }
+          const validSlots = new Set(Object.values(SlotPosition));
+          if (
+            command.stageFormationMoveHistory?.some((entry) => !validSlots.has(entry.toSlot)) ||
+            command.stageFormationPlacements?.some((entry) => !validSlots.has(entry.toSlot))
+          ) {
+            return '站位变换包含非法成员区';
+          }
         }
         const numericInput = state.activeEffect.numericInput;
         if (numericInput) {
@@ -3655,7 +3683,9 @@ export class GameSession {
       command.resolveInOrder,
       command.selectedOptionId,
       command.selectedCardIds,
-      command.selectedNumber
+      command.selectedNumber,
+      command.stageFormationMoveHistory,
+      command.stageFormationPlacements
     );
     if (nextState === state) {
       return {
@@ -3678,6 +3708,8 @@ export class GameSession {
             effectId: command.effectId,
             selectedCardId: command.selectedCardId ?? null,
             selectedNumber: command.selectedNumber ?? null,
+            stageFormationMoveHistory: command.stageFormationMoveHistory,
+            stageFormationPlacements: command.stageFormationPlacements,
           },
         },
       ],
@@ -3724,6 +3756,8 @@ export class GameSession {
     const extraPublicEvents: PublicEventDraft[] = [];
 
     if (!command.success) {
+      workingState = clearFailedPerformanceDraftForPlayer(workingState, command.playerId);
+
       const ownedResolutionCardIds = getOwnedResolutionCardIds(workingState, command.playerId);
       for (const cardId of ownedResolutionCardIds) {
         const resolutionIndex = getResolutionIndex(workingState, cardId);
@@ -5345,6 +5379,25 @@ function buildLegacyActionAuditRecords(
 function getPlayerHandCardIds(state: GameState, playerId: string): readonly string[] {
   const player = state.players.find((candidate) => candidate.id === playerId);
   return player?.hand.cardIds ?? [];
+}
+
+function clearFailedPerformanceDraftForPlayer(state: GameState, playerId: string): GameState {
+  const playerScores = new Map(state.liveResolution.playerScores);
+  playerScores.set(playerId, 0);
+  const playerRemainingHearts = new Map(state.liveResolution.playerRemainingHearts);
+  playerRemainingHearts.set(playerId, []);
+  const playerLiveJudgmentHearts = new Map(state.liveResolution.playerLiveJudgmentHearts);
+  playerLiveJudgmentHearts.set(playerId, []);
+
+  return {
+    ...state,
+    liveResolution: {
+      ...state.liveResolution,
+      playerScores,
+      playerRemainingHearts,
+      playerLiveJudgmentHearts,
+    },
+  };
 }
 
 function cloneGameState(state: GameState): GameState {

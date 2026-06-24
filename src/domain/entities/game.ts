@@ -417,6 +417,19 @@ export interface ActiveEffectNumericInputState {
   readonly confirmLabel?: string;
 }
 
+export interface ActiveEffectStageFormationSlotState {
+  readonly slot: SlotPosition;
+  readonly cardId: string | null;
+  readonly originalSlot: SlotPosition;
+  readonly energyBelowCount: number;
+  readonly memberBelowCount: number;
+}
+
+export interface ActiveEffectStageFormationState {
+  readonly playerId: string;
+  readonly slots: readonly ActiveEffectStageFormationSlotState[];
+}
+
 export interface ActiveEffectState {
   /** 当前处理中的效果实例 ID */
   readonly id: string;
@@ -452,6 +465,8 @@ export interface ActiveEffectState {
   readonly selectableSlots?: readonly SlotPosition[];
   /** 当前步骤可选择的通用选项 */
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
+  /** 当前步骤的站位变换交互状态 */
+  readonly stageFormation?: ActiveEffectStageFormationState;
   /** 当前步骤需要玩家输入的数字 */
   readonly numericInput?: ActiveEffectNumericInputState;
   /** 当前可选卡牌区的标题文案 */

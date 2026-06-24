@@ -16,11 +16,11 @@ import {
   SlotPosition,
   TriggerCondition,
 } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { SP_BP5_002_ACTIVATED_WAIT_DRAW_THREE_DISCARD_TWO_NO_BLADE_HEART_REWARD_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { drawCardsForPlayer, addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { discardHandCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
@@ -91,7 +91,13 @@ function startSpBp5002KekeActivatedEffect(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!SP-bp5-002') ||
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      SP_BP5_002_ACTIVATED_WAIT_DRAW_THREE_DISCARD_TWO_NO_BLADE_HEART_REWARD_ABILITY_ID,
+      ['PL!SP-bp5-002']
+    ) ||
     !isMemberCardData(sourceCard.data) ||
     sourceSlot !== SlotPosition.LEFT ||
     sourceState?.orientation === OrientationState.WAITING ||

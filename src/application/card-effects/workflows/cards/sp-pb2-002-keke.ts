@@ -17,13 +17,13 @@ import {
   OrientationState,
   SlotPosition,
 } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID } from '../../ability-ids.js';
 import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
@@ -105,7 +105,13 @@ function startSpPb2002KekeActivatedEffect(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!SP-pb2-002') ||
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+      ['PL!SP-pb2-002']
+    ) ||
     !isMemberCardData(sourceCard.data) ||
     !isSourceOnStage(game, playerId, cardId)
   ) {
@@ -359,13 +365,13 @@ function resolveSelectedOption(
     activeEffect: {
       ...effect,
       stepId: SELECT_HEART_TARGET_STEP_ID,
-      stepText: '请选择自己舞台上此成员以外的1名『Liella!』成员，获得 heart06 heart06。',
+      stepText: '请选择自己舞台上此成员以外的1名『Liella!』成员，获得紫 Heart +2。',
       awaitingPlayerId: player.id,
       selectableOptions: undefined,
       selectableCardIds: targetMemberCardIds,
       selectableCardMode: 'SINGLE',
       selectableCardVisibility: undefined,
-      selectionLabel: '选择获得 heart06 heart06 的『Liella!』成员',
+      selectionLabel: '选择获得紫 Heart +2 的『Liella!』成员',
       confirmSelectionLabel: '给予Heart',
       canSkipSelection: false,
       metadata: {
@@ -517,9 +523,9 @@ function getOptionLabel(optionId: string): string {
     return '从能量卡组放置1张待机能量';
   }
   if (optionId === HEART_OPTION_ID) {
-    return '使此成员以外的1名『Liella!』成员获得heart06 heart06';
+    return '使此成员以外的1名『Liella!』成员获得紫 Heart +2';
   }
-  return '放置待机能量，并给予1名成员heart06 heart06';
+  return '放置待机能量，并使1名成员获得紫 Heart +2';
 }
 
 function getMetadataStringArray(value: unknown): readonly string[] {

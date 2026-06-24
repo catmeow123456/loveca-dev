@@ -23,7 +23,6 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const LIVE_START_DECISION_STEP_ID = 'SP_PB2_010_LIVE_START_DECISION';
 const LIVE_START_SELECT_DISCARD_STEP_ID = 'SP_PB2_010_SELECT_DISCARD';
-const LIVE_START_SELECT_RETURN_ENERGY_STEP_ID = 'SP_PB2_010_SELECT_RETURN_ENERGY';
 const LIVE_SUCCESS_SELECT_OPTION_STEP_ID = 'SP_PB2_010_LIVE_SUCCESS_SELECT_OPTION';
 
 const DISCARD_OPTION_ID = 'discard';
@@ -67,16 +66,6 @@ export function registerSpPb2010MargareteWorkflowHandlers(deps: {
         deps.enqueueTriggeredCardEffects
       )
   );
-  registerActiveEffectStepHandler(
-    SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
-    LIVE_START_SELECT_RETURN_ENERGY_STEP_ID,
-    (game, input, context) =>
-      finishLiveStartReturnEnergy(
-        game,
-        input.selectedCardId ?? null,
-        context.continuePendingCardEffects
-      )
-  );
 
   registerPendingAbilityStarterHandler(
     SP_PB2_010_LIVE_SUCCESS_DRAW_TWO_OR_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -112,7 +101,7 @@ function startLiveStartDiscardOrReturnEnergy(
   }
 
   if (player.hand.cardIds.length === 0) {
-    return startReturnEnergySelectionOrFinishNoop(
+    return finishLiveStartReturnEnergyOrNoop(
       game,
       ability,
       orderedResolution,
@@ -182,7 +171,7 @@ function finishLiveStartDecision(
   }
 
   if (selectedOptionId === DECLINE_DISCARD_OPTION_ID) {
-    return startReturnEnergySelectionOrFinishNoop(
+    return finishLiveStartReturnEnergyOrNoop(
       game,
       effectToPendingAbility(effect),
       effect.metadata?.orderedResolution === true,
@@ -242,7 +231,7 @@ function finishLiveStartDiscard(
   );
 }
 
-function startReturnEnergySelectionOrFinishNoop(
+function finishLiveStartReturnEnergyOrNoop(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
@@ -254,8 +243,8 @@ function startReturnEnergySelectionOrFinishNoop(
   if (!player) {
     return game;
   }
-  const selectableCardIds = player.energyZone.cardIds;
-  if (selectableCardIds.length === 0) {
+  const energyCardId = player.energyZone.cardIds[0] ?? null;
+  if (!energyCardId) {
     return finishPendingAbility(
       game,
       player.id,
@@ -273,65 +262,22 @@ function startReturnEnergySelectionOrFinishNoop(
     );
   }
 
-  return {
-    ...game,
-    activeEffect: {
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: player.id,
-      effectText: getAbilityEffectText(ability.abilityId),
-      stepId: LIVE_START_SELECT_RETURN_ENERGY_STEP_ID,
-      stepText: '请选择自己的1张能量放回能量卡组。',
-      awaitingPlayerId: player.id,
-      selectableCardIds,
-      selectableCardMode: 'SINGLE',
-      selectionLabel: '选择要放回能量卡组的能量',
-      confirmSelectionLabel: '放回能量卡组',
-      canSkipSelection: false,
-      metadata: {
-        orderedResolution,
-        sourceSlot: ability.sourceSlot,
-        noHand,
-        declinedDiscard,
-      },
-    },
-  };
-}
-
-function finishLiveStartReturnEnergy(
-  game: GameState,
-  selectedCardId: string | null,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const effect = game.activeEffect;
-  const player = effect ? getPlayerById(game, effect.controllerId) : null;
-  if (
-    !effect ||
-    effect.abilityId !== SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID ||
-    effect.stepId !== LIVE_START_SELECT_RETURN_ENERGY_STEP_ID ||
-    !player ||
-    !selectedCardId ||
-    effect.selectableCardIds?.includes(selectedCardId) !== true
-  ) {
-    return game;
-  }
-
-  const returnResult = returnEnergyFromZoneToDeck(game, player.id, selectedCardId);
+  const returnResult = returnEnergyFromZoneToDeck(game, player.id, energyCardId);
   if (!returnResult) {
     return game;
   }
 
-  return finishPendingEffect(
+  return finishPendingAbility(
     returnResult.gameState,
     player.id,
-    effect,
+    ability,
+    orderedResolution,
     {
       step: 'RETURN_ENERGY_TO_DECK',
       discardedCardId: null,
       returnedEnergyCardId: returnResult.returnedEnergyCardId,
-      declinedDiscard: effect.metadata?.declinedDiscard === true,
-      noHand: effect.metadata?.noHand === true,
+      declinedDiscard,
+      noHand,
     },
     continuePendingCardEffects
   );

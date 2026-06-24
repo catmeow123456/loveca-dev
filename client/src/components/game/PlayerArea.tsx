@@ -622,9 +622,8 @@ export const PlayerArea = memo(function PlayerArea({
     const slotId = getDroppableId(ZoneType.MEMBER_SLOT, position);
 
     // 获取卡牌的方向状态
-    const orientation = cardId
-      ? (getCardViewObject(cardId)?.orientation ?? OrientationState.ACTIVE)
-      : OrientationState.ACTIVE;
+    const cardViewObject = cardId ? getCardViewObject(cardId) : null;
+    const orientation = cardViewObject?.orientation ?? OrientationState.ACTIVE;
 
     // 规则 9.6.2.1.2.1 由后端校验（Trust the Player）；此处不在 UI 层阻断 drop，
     // 否则会连同合法的能量附加一起拦截，且无高亮反馈。
@@ -648,10 +647,9 @@ export const PlayerArea = memo(function PlayerArea({
 
     // 堆叠成员卡偏移量：向右下方偏移
     const memberBelowOffsetPercent = 8;
-    const activatedAbilityConfig = getActivatedAbilityUiConfig(
-      card?.cardCode,
-      CardAbilitySourceZone.STAGE_MEMBER
-    );
+    const activatedAbilityConfig =
+      cardViewObject?.activatedAbilityUiConfig ??
+      getActivatedAbilityUiConfig(card?.cardCode, CardAbilitySourceZone.STAGE_MEMBER);
     const canActivateAbility =
       card !== null &&
       activatedAbilityConfig !== null &&

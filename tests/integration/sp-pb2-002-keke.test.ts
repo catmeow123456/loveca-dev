@@ -267,7 +267,7 @@ describe('PL!SP-pb2-002 Keke activated workflow', () => {
     );
     expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
       { id: 'energy', label: '从能量卡组放置1张待机能量' },
-      { id: 'heart', label: '使此成员以外的1名『Liella!』成员获得heart06 heart06' },
+      { id: 'heart', label: '使此成员以外的1名『Liella!』成员获得紫 Heart +2' },
     ]);
 
     selectOption(scenario, 'energy');
@@ -303,8 +303,8 @@ describe('PL!SP-pb2-002 Keke activated workflow', () => {
 
     expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
       { id: 'energy', label: '从能量卡组放置1张待机能量' },
-      { id: 'heart', label: '使此成员以外的1名『Liella!』成员获得heart06 heart06' },
-      { id: 'energy-and-heart', label: '放置待机能量，并给予1名成员heart06 heart06' },
+      { id: 'heart', label: '使此成员以外的1名『Liella!』成员获得紫 Heart +2' },
+      { id: 'energy-and-heart', label: '放置待机能量，并使1名成员获得紫 Heart +2' },
     ]);
 
     selectOption(scenario, 'energy-and-heart');

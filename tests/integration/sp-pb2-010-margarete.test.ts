@@ -316,7 +316,7 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
     ).toBe(true);
   });
 
-  it('returns one chosen energy to the energy deck when discard is declined', () => {
+  it('automatically returns the first energy to the energy deck when discard is declined', () => {
     const scenario = setupMargareteScenario({ handCount: 1, energyZoneCount: 2 });
     startPending(
       scenario.session,
@@ -328,12 +328,7 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
     );
 
     confirmOption(scenario.session, 'decline-discard');
-    expect(scenario.session.state?.activeEffect).toMatchObject({
-      selectableCardIds: scenario.energyZoneCardIds,
-      selectableCardMode: 'SINGLE',
-    });
-
-    confirmCard(scenario.session, scenario.energyZoneCardIds[0]!);
+    expect(scenario.session.state?.activeEffect).toBeNull();
 
     expect(scenario.session.state?.players[0].energyZone.cardIds).not.toContain(
       scenario.energyZoneCardIds[0]
@@ -354,7 +349,7 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
     ).toBe(true);
   });
 
-  it('forces energy return at LIVE start when there is no hand', () => {
+  it('automatically returns the first energy at LIVE start when there is no hand', () => {
     const scenario = setupMargareteScenario({ handCount: 0, energyZoneCount: 1 });
     startPending(
       scenario.session,
@@ -365,12 +360,7 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
       )
     );
 
-    expect(scenario.session.state?.activeEffect).toMatchObject({
-      selectableCardIds: scenario.energyZoneCardIds,
-      selectableCardMode: 'SINGLE',
-    });
-
-    confirmCard(scenario.session, scenario.energyZoneCardIds[0]!);
+    expect(scenario.session.state?.activeEffect).toBeNull();
 
     expect(scenario.session.state?.players[0].energyDeck.cardIds).toContain(
       scenario.energyZoneCardIds[0]
@@ -408,6 +398,34 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
           action.payload.step === 'NO_OP_NO_ENERGY' &&
           action.payload.noHand === true &&
           action.payload.reason === 'NO_HAND_NO_ENERGY'
+      )
+    ).toBe(true);
+  });
+
+  it('keeps no-op semantics when discard is declined but there is no energy', () => {
+    const scenario = setupMargareteScenario({ handCount: 1, energyZoneCount: 0 });
+    startPending(
+      scenario.session,
+      pendingAbility(
+        SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
+        scenario.sourceId,
+        TriggerCondition.ON_LIVE_START
+      )
+    );
+
+    confirmOption(scenario.session, 'decline-discard');
+
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.pendingAbilities).toEqual([]);
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID &&
+          action.payload.step === 'NO_OP_NO_ENERGY' &&
+          action.payload.noHand === false &&
+          action.payload.declinedDiscard === true &&
+          action.payload.reason === 'DECLINED_DISCARD_NO_ENERGY'
       )
     ).toBe(true);
   });

@@ -1130,6 +1130,9 @@ function formatDecisionSubmission(decision: MatchRecordDecisionView): string | n
     submission.selectedSlot ? `slot=${submission.selectedSlot}` : null,
     submission.selectedOptionId ? `option=${submission.selectedOptionId}` : null,
     submission.selectedNumber !== undefined ? `number=${submission.selectedNumber ?? 'none'}` : null,
+    submission.stageFormationMoveHistory
+      ? `formationMoves=${submission.stageFormationMoveHistory.length}`
+      : null,
     submission.selectedPendingAbilityId ? `pending=${submission.selectedPendingAbilityId}` : null,
     submission.faceDown !== undefined ? `faceDown=${String(submission.faceDown)}` : null,
     submission.resolveInOrder ? 'resolveInOrder' : null,

@@ -20,6 +20,10 @@ import {
 import { addLiveModifier } from '../domain/rules/live-modifiers.js';
 import { getZoneSelectionConfig } from './effects/zone-selection.js';
 import {
+  getRenGrantedActivatedAbilityUiConfig,
+  isRenGrantedActivatedAbility,
+} from './card-effects/runtime/granted-activated-abilities.js';
+import {
   and,
   costGte,
   costLte,
@@ -45,6 +49,7 @@ import {
   startConfirmOnlyPendingAbilityEffect,
 } from './card-effects/runtime/active-effect.js';
 import { resolveActivatedAbilityWithRegistry } from './card-effects/runtime/activated-registry.js';
+import { isLiveStartAbilitySuppressed } from './card-effects/runtime/live-start-suppression-gates.js';
 import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime/starter-registry.js';
 import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step-registry.js';
 import { registerBp5003KotoriWorkflowHandlers } from './card-effects/workflows/cards/bp5-003-kotori.js';
@@ -121,7 +126,15 @@ import { registerShikiWorkflowHandlers } from './card-effects/workflows/cards/sp
 import { registerSpBp5002KekeWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-002-keke.js';
 import { registerSpPb2010MargareteWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-010-margarete.js';
 import { registerSpPb2002KekeWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-002-keke.js';
+import { registerSpPb2003ChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-003-chisato.js';
+import { registerSpPb2005RenWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-005-ren.js';
+import { registerSpPb2007MeiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-007-mei.js';
+import { registerSpPb2000ChisatoNatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-000-chisato-natsumi.js';
 import { registerSpPb2045ZettaiLoverWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-045-zettai-lover.js';
+import { registerSpPb2046ButterflyWingWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-046-butterfly-wing.js';
+import { registerSpPb2047WelcomeToBokuraNoSekaiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-047-welcome-to-bokura-no-sekai.js';
+import { registerSpPb2048DistortionWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-048-distortion.js';
+import { registerSpPb2049NeutralWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-049-neutral.js';
 import { registerChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-003-chisato.js';
 import { registerSpSd2012KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-012-kanon.js';
 import { registerSpSd2025AspireWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-025-aspire.js';
@@ -147,6 +160,7 @@ import { registerRelayEnterDrawDiscardWorkflowHandlers } from './card-effects/wo
 import { registerRevealedCheerSelectionWorkflowHandlers } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { registerSelfPositionChangeWorkflowHandlers } from './card-effects/workflows/shared/self-position-change.js';
 import { registerSelfSacrificeWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/self-sacrifice-waiting-room-to-hand.js';
+import { registerStageFormationChangeWorkflowHandlers } from './card-effects/workflows/shared/stage-formation-change.js';
 import { registerWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/waiting-room-to-hand.js';
 import {
   createStageMemberOrientationTargetSelection,
@@ -314,7 +328,12 @@ export function doesAbilityDefinitionMatchCardCode(
 
 export function getActivatedAbilityUiConfig(
   cardCode: string | undefined,
-  sourceZone: CardAbilitySourceZone = CardAbilitySourceZone.STAGE_MEMBER
+  sourceZone: CardAbilitySourceZone = CardAbilitySourceZone.STAGE_MEMBER,
+  options: {
+    readonly game?: GameState;
+    readonly playerId?: string;
+    readonly sourceCardId?: string;
+  } = {}
 ): ActivatedAbilityUiConfig | null {
   const definition = getCardAbilityDefinitions(cardCode).find(
     (ability) =>
@@ -323,18 +342,47 @@ export function getActivatedAbilityUiConfig(
       ability.sourceZone === sourceZone &&
       ability.activatedUi
   );
-  return definition?.activatedUi ?? null;
+  if (definition?.activatedUi) {
+    return definition.activatedUi;
+  }
+  if (
+    sourceZone === CardAbilitySourceZone.STAGE_MEMBER &&
+    options.game &&
+    options.playerId &&
+    options.sourceCardId
+  ) {
+    return getRenGrantedActivatedAbilityUiConfig(
+      options.game,
+      options.playerId,
+      options.sourceCardId
+    );
+  }
+  return null;
 }
 
 export function isSupportedActivatedAbilityForCard(
   abilityId: string,
-  cardCode: string | undefined
+  cardCode: string | undefined,
+  options: {
+    readonly game?: GameState;
+    readonly playerId?: string;
+    readonly sourceCardId?: string;
+  } = {}
 ): boolean {
-  return getCardAbilityDefinitions(cardCode).some(
+  const directlySupported = getCardAbilityDefinitions(cardCode).some(
     (ability) =>
       ability.category === CardAbilityCategory.ACTIVATED &&
       ability.implemented &&
       ability.abilityId === abilityId
+  );
+  if (directlySupported) {
+    return true;
+  }
+  return !!(
+    options.game &&
+    options.playerId &&
+    options.sourceCardId &&
+    isRenGrantedActivatedAbility(options.game, options.playerId, options.sourceCardId, abilityId)
   );
 }
 
@@ -570,6 +618,7 @@ registerPr017NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp5005RinWorkflowHandlers();
 registerRevealedCheerSelectionWorkflowHandlers({ continuePendingCardEffects });
 registerSelfPositionChangeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerStageFormationChangeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp1002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp2014RurinoWorkflowHandlers();
 registerHsBp5001KahoWorkflowHandlers();
@@ -619,7 +668,15 @@ registerShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5002KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb2010MargareteWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb2002KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpPb2003ChisatoWorkflowHandlers();
+registerSpPb2005RenWorkflowHandlers();
+registerSpPb2007MeiWorkflowHandlers();
+registerSpPb2000ChisatoNatsumiWorkflowHandlers();
 registerSpPb2045ZettaiLoverWorkflowHandlers();
+registerSpPb2046ButterflyWingWorkflowHandlers();
+registerSpPb2047WelcomeToBokuraNoSekaiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpPb2048DistortionWorkflowHandlers();
+registerSpPb2049NeutralWorkflowHandlers();
 registerChisatoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpSd2012KanonWorkflowHandlers();
 registerSpSd2025AspireWorkflowHandlers();
@@ -1718,6 +1775,19 @@ function enqueueLiveStartCardEffects(
 
     for (const abilityDefinition of abilityDefinitions) {
       const abilityId = abilityDefinition.abilityId;
+      if (
+        isLiveStartAbilitySuppressed({
+          game: state,
+          performingPlayerId: player.id,
+          liveCardIds,
+          sourceCardId,
+          sourceZone: sourceEntry.sourceZone,
+          sourceSlot: sourceEntry.sourceSlot,
+          abilityDefinition,
+        })
+      ) {
+        continue;
+      }
       const pendingAbilityId = `${abilityId}:${sourceCardId}:turn-${state.turnCount}:live-${performingPlayerId}`;
       if (hasAbilityInstance(state, pendingAbilityId)) {
         continue;
@@ -1998,7 +2068,15 @@ export function confirmActiveEffectStep(
   resolveInOrder?: boolean,
   selectedOptionId?: string | null,
   selectedCardIds?: readonly string[],
-  selectedNumber?: number | null
+  selectedNumber?: number | null,
+  stageFormationMoveHistory?: readonly {
+    readonly cardId: string;
+    readonly toSlot: SlotPosition;
+  }[],
+  stageFormationPlacements?: readonly {
+    readonly cardId: string;
+    readonly toSlot: SlotPosition;
+  }[]
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -2028,6 +2106,8 @@ export function confirmActiveEffectStep(
       selectedOptionId,
       selectedCardIds,
       selectedNumber,
+      stageFormationMoveHistory,
+      stageFormationPlacements,
     },
     { continuePendingCardEffects, delegatePendingAbility }
   );
