@@ -91,6 +91,10 @@ import {
   SP_BP4_024_LIVE_START_CENTER_LIELLA_HIGHER_COST_THIS_LIVE_SCORE_ABILITY_ID,
   SP_BP4_024_LIVE_START_LEFT_LIELLA_RED_HEART_THREE_GAIN_TWO_BLADE_ABILITY_ID,
   SP_BP5_002_ACTIVATED_WAIT_DRAW_THREE_DISCARD_TWO_NO_BLADE_HEART_REWARD_ABILITY_ID,
+  SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+  SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
+  SP_PB2_010_LIVE_SUCCESS_DRAW_TWO_OR_PLACE_WAITING_ENERGY_ABILITY_ID,
+  SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
@@ -401,6 +405,14 @@ const SP_BP4_024_LIVE_START_BLADE_EFFECT_TEXT =
   '【LIVE开始时】存在于自己的舞台的左侧区域的『Liella!』的成员持有大于等于3个[赤ハート]的场合，LIVE结束时为止，该成员获得[BLADE][BLADE]。';
 const SP_BP5_002_ACTIVATED_EFFECT_TEXT =
   '【起动】【左サイド】[1回合1次]将此成员变为待机状态：抽3张卡，将2张手牌放置入休息室。因此放置入休息室的卡片中存在大于等于1张不持有BLADE HEART的成员卡的场合，将此成员变为活跃状态。存在2张的场合，LIVE结束时为止，再获得[BLADE][BLADE]。';
+const SP_PB2_002_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】将1张手牌中的『Liella!』卡放置入休息室：从以下选择1项。若因此放置入休息室的卡是不持有BLADE HEART的成员卡，改为选择1项以上：从能量卡组将1张能量卡以待机状态放置；或直到LIVE结束时为止，使自己舞台上此成员以外的1名『Liella!』成员获得[heart06][heart06]。';
+const SP_PB2_010_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】除非将1张手牌放置入休息室，否则将自己的1张能量放置入能量卡组。';
+const SP_PB2_010_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】从以下选择1项：抽2张卡；或从自己的能量卡组将1张能量卡以待机状态放置。';
+const SP_PB2_045_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己舞台上每有1名拥有4个以上Heart的『Liella!』成员，此卡的分数+1。';
 const HS_BP5_008_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将此成员变为待机状态，将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以从其中将1张费用大于等于9的『莲之空』的成员卡公开并加入手牌。其余的卡片放置入休息室。';
 const HS_PB1_004_ON_ENTER_EFFECT_TEXT =
@@ -1702,6 +1714,59 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     },
     notes:
       '左侧起动 workflow；支付自身待机后抽3并强制弃2，弃置的无 BLADE HEART 成员>=1时活跃自身，>=2时写入来源成员 BLADE +2。',
+  },
+  {
+    abilityId: SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!SP-pb2-002'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: SP_PB2_002_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+      title: '弃1张Liella!手牌，选择放置横置能量或给予成员heart06x2',
+      text: SP_PB2_002_ACTIVATED_EFFECT_TEXT,
+    },
+    notes:
+      '单卡 activated workflow；弃手费用限定手牌 Liella! 卡并入队 ON_ENTER_WAITING_ROOM。弃置无 BLADE HEART 成员时可选择两个结算选项，否则只能选择一个；能量分支复用 placeEnergyFromDeckToZone(WAITING)，Heart 分支写 TARGET_MEMBER 的 heart06 x2。',
+  },
+  {
+    abilityId: SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!SP-pb2-010'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: SP_PB2_010_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；有手牌时先选择弃1手或不弃，弃手走 discardOneHandCardToWaitingRoomAndEnqueueTriggers；不弃或无手牌时若有能量则必须选择1张自己的能量返回能量卡组。',
+  },
+  {
+    abilityId: SP_PB2_010_LIVE_SUCCESS_DRAW_TWO_OR_PLACE_WAITING_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!SP-pb2-010'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: SP_PB2_010_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_SUCCESS workflow；选择抽2或从能量卡组放置1张 WAITING 能量。能量卡组为空时不开放放置能量选项，抽牌分支复用 drawCardsForPlayer。',
+  },
+  {
+    abilityId: SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-pb2-045'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: SP_PB2_045_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；统计自己舞台上有效 Heart 合计 >=4 的 Liella! 成员数，写入此 LIVE SCORE +N 并刷新 playerScores 草案。',
   },
   {
     abilityId: SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,

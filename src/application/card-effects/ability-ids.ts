@@ -169,6 +169,14 @@ export const SP_BP4_024_LIVE_START_LEFT_LIELLA_RED_HEART_THREE_GAIN_TWO_BLADE_AB
   'PL!SP-bp4-024:live-start-left-liella-red-heart-three-gain-two-blade';
 export const SP_BP5_002_ACTIVATED_WAIT_DRAW_THREE_DISCARD_TWO_NO_BLADE_HEART_REWARD_ABILITY_ID =
   'PL!SP-bp5-002:activated-wait-draw-three-discard-two-no-blade-heart-reward';
+export const SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID =
+  'PL!SP-pb2-002:activated-discard-liella-option-energy-or-heart';
+export const SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID =
+  'PL!SP-pb2-010:live-start-discard-or-return-energy';
+export const SP_PB2_010_LIVE_SUCCESS_DRAW_TWO_OR_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-pb2-010:live-success-draw-two-or-place-waiting-energy';
+export const SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-pb2-045:live-start-liella-heart-four-count-this-live-score';
 export const HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID =
   'PL!HS-bp5-008-R:on-enter-wait-self-discard-look-five-take-high-cost-member';
 export const HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID =

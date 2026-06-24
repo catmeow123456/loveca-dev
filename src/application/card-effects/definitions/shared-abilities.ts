@@ -15,6 +15,8 @@ export const RIN_LIKE_SELF_SACRIFICE_MEMBER_BASE_CARD_CODES = [
   'PL!S-sd1-015',
   'PL!SP-bp1-011',
   'PL!SP-pb1-018',
+  'PL!SP-pb2-012',
+  'PL!SP-pb2-016',
   'PL!SP-sd1-006',
   'PL!SP-sd2-010',
 ] as const;
@@ -36,5 +38,7 @@ export const PB1_019_LIKE_SELF_SACRIFICE_MEMBER_BASE_CARD_CODES = [
   'PL!SP-bp4-015',
   'PL!SP-bp4-019',
   'PL!SP-pb1-021',
+  'PL!SP-pb2-031',
+  'PL!SP-pb2-033',
   'PL!SP-sd2-014',
 ] as const;

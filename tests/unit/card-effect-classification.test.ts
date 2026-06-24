@@ -152,6 +152,10 @@ import {
   SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_BP4_004_ON_ENTER_DOUBLE_LIELLA_RELAY_DRAW_PLAY_LOW_COST_LIELLA_ABILITY_ID,
   SP_BP5_002_ACTIVATED_WAIT_DRAW_THREE_DISCARD_TWO_NO_BLADE_HEART_REWARD_ABILITY_ID,
+  SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+  SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
+  SP_PB2_010_LIVE_SUCCESS_DRAW_TWO_OR_PLACE_WAITING_ENERGY_ABILITY_ID,
+  SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID,
   PL_PB1_018_ON_ENTER_BOTH_PLAY_LOW_COST_MEMBERS_WAITING_ABILITY_ID,
   S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
@@ -197,6 +201,8 @@ const PB1_019_LIKE_MEMBER_ACTIVATION_CARD_CODES = [
   'PL!SP-bp4-015-N',
   'PL!SP-bp4-019-N',
   'PL!SP-pb1-021-N',
+  'PL!SP-pb2-031-N',
+  'PL!SP-pb2-033-N',
   'PL!SP-sd2-014-SD2',
 ] as const;
 
@@ -793,6 +799,73 @@ describe('card effect classification registry', () => {
       expect(spBp5002Activated?.activatedUi?.text).toContain('存在2张');
       expect(spBp5002Activated?.activatedUi?.text).toContain('[BLADE][BLADE]');
     }
+
+    for (const cardCode of ['PL!SP-pb2-002-R', 'PL!SP-pb2-002-PP']) {
+      const spPb2002Activated = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID
+      );
+      expect(spPb2002Activated).toMatchObject({
+        abilityId: SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+        baseCardCodes: ['PL!SP-pb2-002'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 1,
+      });
+      expect(spPb2002Activated?.activatedUi).toMatchObject({
+        abilityId: SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+      });
+      expect(spPb2002Activated?.activatedUi?.text).toContain('『Liella!』卡');
+      expect(spPb2002Activated?.activatedUi?.text).toContain('能量卡以待机状态放置');
+      expect(spPb2002Activated?.activatedUi?.text).toContain('[heart06][heart06]');
+    }
+
+    for (const cardCode of ['PL!SP-pb2-010-R', 'PL!SP-pb2-010-PP']) {
+      const spPb2010LiveStart = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID
+      );
+      expect(spPb2010LiveStart).toMatchObject({
+        abilityId: SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
+        baseCardCodes: ['PL!SP-pb2-010'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+
+      const spPb2010LiveSuccess = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId === SP_PB2_010_LIVE_SUCCESS_DRAW_TWO_OR_PLACE_WAITING_ENERGY_ABILITY_ID
+      );
+      expect(spPb2010LiveSuccess).toMatchObject({
+        abilityId: SP_PB2_010_LIVE_SUCCESS_DRAW_TWO_OR_PLACE_WAITING_ENERGY_ABILITY_ID,
+        baseCardCodes: ['PL!SP-pb2-010'],
+        category: CardAbilityCategory.LIVE_SUCCESS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    const spPb2045LiveStart = getCardAbilityDefinitions('PL!SP-pb2-045-L').find(
+      (ability) =>
+        ability.abilityId ===
+        SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID
+    );
+    expect(spPb2045LiveStart).toMatchObject({
+      abilityId: SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID,
+      baseCardCodes: ['PL!SP-pb2-045'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
 
     for (const cardCode of ['PL!-pb1-018-R', 'PL!-pb1-018-P+']) {
       const plPb1018OnEnter = getCardAbilityDefinitions(cardCode).find(
@@ -3028,6 +3101,10 @@ describe('card effect classification registry', () => {
       'PL!SP-bp1-011-R',
       'PL!SP-bp1-011-P',
       'PL!SP-pb1-018-N',
+      'PL!SP-pb2-012-R',
+      'PL!SP-pb2-012-P＋',
+      'PL!SP-pb2-016-R',
+      'PL!SP-pb2-016-P＋',
       'PL!SP-sd1-006-SD',
       'PL!SP-sd2-010-SD2',
     ]) {
@@ -3041,6 +3118,17 @@ describe('card effect classification registry', () => {
     for (const cardCode of ['PL!S-PR-025-RM', 'PL!S-PR-027-RM']) {
       expect(isSupportedActivatedAbilityForCard(PB1_019_ACTIVATED_ABILITY_ID, cardCode)).toBe(true);
       expect(getActivatedAbilityUiConfig(cardCode)?.abilityId).toBe(PB1_019_ACTIVATED_ABILITY_ID);
+    }
+    for (const cardCode of ['PL!SP-pb2-002-R', 'PL!SP-pb2-002-PP']) {
+      expect(
+        isSupportedActivatedAbilityForCard(
+          SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+          cardCode
+        )
+      ).toBe(true);
+      expect(getActivatedAbilityUiConfig(cardCode)?.abilityId).toBe(
+        SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID
+      );
     }
     expect(isSupportedActivatedAbilityForCard(RIN_ACTIVATED_ABILITY_ID, 'PL!HS-bp2-002-P')).toBe(
       false
