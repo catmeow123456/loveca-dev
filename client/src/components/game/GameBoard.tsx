@@ -1133,10 +1133,12 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           return;
         }
 
+        pushDropError('当前检视区拖拽未匹配可执行目标');
         return;
       }
 
       if (fromZone === ZoneType.RESOLUTION_ZONE) {
+        pushDropError('当前解决区拖拽未匹配可执行目标');
         return;
       }
 

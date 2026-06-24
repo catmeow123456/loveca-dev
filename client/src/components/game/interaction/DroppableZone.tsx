@@ -45,12 +45,42 @@ export interface DroppableZoneProps {
 }
 
 export function DroppableZone({
+  disabledForDragFromZones = [],
+  ...props
+}: DroppableZoneProps) {
+  if (disabledForDragFromZones.length === 0) {
+    return <DroppableZoneBase {...props} />;
+  }
+
+  return (
+    <DroppableZoneWithDragSourceFilter
+      {...props}
+      disabledForDragFromZones={disabledForDragFromZones}
+    />
+  );
+}
+
+function DroppableZoneWithDragSourceFilter({
+  disabledForDragFromZones,
+  disabled = false,
+  ...props
+}: DroppableZoneProps & { readonly disabledForDragFromZones: readonly string[] }) {
+  const { active } = useDndContext();
+  const activeDragData = active?.data.current as { fromZone?: unknown } | undefined;
+  const activeFromZone =
+    activeDragData?.fromZone === undefined ? null : String(activeDragData.fromZone);
+  const isDisabledForActiveDrag =
+    activeFromZone !== null && disabledForDragFromZones.includes(activeFromZone);
+
+  return <DroppableZoneBase {...props} disabled={disabled || isDisabledForActiveDrag} />;
+}
+
+function DroppableZoneBase({
   id,
   domId,
   zoneId,
   data,
   disabled = false,
-  disabledForDragFromZones = [],
   children,
   className,
   // Prefer `outline` over `ring` here: Tailwind `ring` is box-shadow based and can be
@@ -61,18 +91,11 @@ export function DroppableZone({
   title,
   ariaLabel,
   onClick,
-}: DroppableZoneProps) {
-  const { active } = useDndContext();
-  const activeDragData = active?.data.current as { fromZone?: unknown } | undefined;
-  const activeFromZone =
-    activeDragData?.fromZone === undefined ? null : String(activeDragData.fromZone);
-  const isDisabledForActiveDrag =
-    activeFromZone !== null && disabledForDragFromZones.includes(activeFromZone);
-  const effectiveDisabled = disabled || isDisabledForActiveDrag;
+}: Omit<DroppableZoneProps, 'disabledForDragFromZones'>) {
   const { isOver, setNodeRef } = useDroppable({
     id,
     data,
-    disabled: effectiveDisabled,
+    disabled,
   });
 
   const isDragging = useGameStore((s) => s.ui.isDragging);
@@ -83,12 +106,12 @@ export function DroppableZone({
   const isSuggested = hasSuggestedTargets && highlightedZones.includes(highlightKey);
 
   // 判断是否应该显示 “推荐目标” 高亮
-  const showDropTarget = isDragging && !effectiveDisabled && !isOver && isSuggested;
+  const showDropTarget = isDragging && !disabled && !isOver && isSuggested;
   // 判断是否应该显示 "悬停" 高亮
-  const showActive = isOver && !effectiveDisabled;
+  const showActive = isOver && !disabled;
   // 拖拽时有推荐目标，其他区域变暗（仍可放置）
   const showDimOthers =
-    isDragging && hasSuggestedTargets && !isSuggested && !isOver && !effectiveDisabled;
+    isDragging && hasSuggestedTargets && !isSuggested && !isOver && !disabled;
 
   return (
     <div

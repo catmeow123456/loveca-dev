@@ -4,6 +4,7 @@ import {
   collectBattleObjectLocations,
   createBattleAnimationEventsFromViewDiff,
   findBattleObjectLocation,
+  prepareBattleAnimationLayoutForViewDiff,
   type BattleAnimationEvent,
   type BattleAnimationAnchorMaps,
   type BattleAnimationRect,
@@ -114,7 +115,10 @@ function fakeAnchorElement({
   } as unknown as HTMLElement;
 }
 
-function withFakeDocument<T>(documentValue: Pick<Document, 'querySelectorAll'>, run: () => T): T {
+function withFakeDocument<T>(
+  documentValue: Pick<Document, 'querySelectorAll'> & Partial<Pick<Document, 'getElementById'>>,
+  run: () => T
+): T {
   const originalDocument = globalThis.document;
   Object.defineProperty(globalThis, 'document', {
     value: documentValue,
@@ -157,6 +161,18 @@ function moveEvent(
 }
 
 describe('battle animation events', () => {
+  it('returns empty anchor maps when DOM anchors are absent', () => {
+    const collectedAnchors = withFakeDocument(
+      {
+        querySelectorAll: () => [] as unknown as NodeListOf<HTMLElement>,
+      },
+      () => collectBattleAnimationAnchors()
+    );
+
+    expect(collectedAnchors.cards.size).toBe(0);
+    expect(collectedAnchors.zones.size).toBe(0);
+  });
+
   it('aligns DOM data object ids with projected public object ids', () => {
     const objectId = createPublicObjectId('card-1');
     const element = fakeAnchorElement({
@@ -279,6 +295,85 @@ describe('battle animation events', () => {
         nextAnchors: anchors([['obj_a', rect(100, 100)]]),
       })
     ).toEqual([]);
+  });
+
+  it('scrolls inspection zone to newly added cards before collecting next anchors', () => {
+    const previous = viewState({
+      zones: {
+        FIRST_INSPECTION_ZONE: zone(ZoneType.INSPECTION_ZONE, { objectIds: ['obj_old'] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: { obj_old: cardObject('obj_old') },
+    });
+    const next = viewState({
+      seq: 2,
+      zones: {
+        FIRST_INSPECTION_ZONE: zone(ZoneType.INSPECTION_ZONE, {
+          objectIds: ['obj_old', 'obj_new'],
+        }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: {
+        obj_old: cardObject('obj_old'),
+        obj_new: cardObject('obj_new'),
+      },
+    });
+    const inspectionElement = {
+      scrollWidth: 320,
+      clientWidth: 120,
+      scrollLeft: 0,
+    } as HTMLElement;
+
+    withFakeDocument(
+      {
+        querySelectorAll: () => [] as unknown as NodeListOf<HTMLElement>,
+        getElementById: (id: string) =>
+          id === 'seat-FIRST::inspection-zone' ? inspectionElement : null,
+      },
+      () =>
+        prepareBattleAnimationLayoutForViewDiff({
+          previousViewState: previous,
+          nextViewState: next,
+        })
+    );
+
+    expect(inspectionElement.scrollLeft).toBe(200);
+  });
+
+  it('does not scroll inspection zone across match changes', () => {
+    const previous = viewState({
+      matchId: 'old',
+      zones: {
+        FIRST_INSPECTION_ZONE: zone(ZoneType.INSPECTION_ZONE, { objectIds: [] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: {},
+    });
+    const next = viewState({
+      matchId: 'new',
+      seq: 2,
+      zones: {
+        FIRST_INSPECTION_ZONE: zone(ZoneType.INSPECTION_ZONE, { objectIds: ['obj_new'] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: { obj_new: cardObject('obj_new') },
+    });
+    const inspectionElement = {
+      scrollWidth: 320,
+      clientWidth: 120,
+      scrollLeft: 0,
+    } as HTMLElement;
+
+    withFakeDocument(
+      {
+        querySelectorAll: () => [] as unknown as NodeListOf<HTMLElement>,
+        getElementById: (id: string) =>
+          id === 'seat-FIRST::inspection-zone' ? inspectionElement : null,
+      },
+      () =>
+        prepareBattleAnimationLayoutForViewDiff({
+          previousViewState: previous,
+          nextViewState: next,
+        })
+    );
+
+    expect(inspectionElement.scrollLeft).toBe(0);
   });
 
   it('falls back to zone pulses when too many cards move at once', () => {

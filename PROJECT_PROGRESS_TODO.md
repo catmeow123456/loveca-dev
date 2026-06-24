@@ -1,6 +1,6 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-06-23
+更新时间：2026-06-24
 
 ## 接续方式
 
@@ -20,6 +20,18 @@
 当前分支：
 
 - `effect_new_card`
+
+## 本次 2026-06-24 PR review feedback 处理
+
+- 修复 LIVE 放置阶段选中手牌时，Live 区 “里侧放置” 标签作为普通 flex 子元素把 Live 区容器拉高、影响下方布局的问题；该标签现改为 Live 区右上角绝对定位角标，不参与布局高度计算。
+- 修复检视区打开时，手牌右侧抽牌/回顶快捷箭头层级高于检视面板的问题；检视区面板提升到 `z-[60]`，高于桌面普通快捷控件，仍低于动画/反馈/全屏弹窗层。
+- 修复连续快速点击手牌右侧“放回顶部”箭头时，组件闭包重复使用旧最右手牌 id，导致第二次命令报“卡牌当前不在手牌”的问题；点击时改为读取 store 最新手牌，并进入 pending 到手牌列表 / match seq 变化后解除，带超时兜底，防止本地重渲染窗口或远程响应延迟期间重复提交。
+- 修正卡组与手牌之间的飞行动画尺寸：动画层对 `MAIN_DECK / ENERGY_DECK <-> HAND` 移动使用标准竖卡比例代理 rect，避免手牌扇形旋转/缩放后的 DOM bounding box 让飞行卡片看起来被拉宽或压扁。
+- 已处理 `PR_REVIEW_FEEDBACK_DRAFT.md` 中两项建议优先修复问题：`GameBoard` 拖拽开始时预计算并缓存 battle action intents，hover/drop 复用同一批 intents，状态 key 失效时兜底重算；`BattleAnimationLayer` delayed animation timeout 增加 view diff generation 防护，过期 delayed event 不再插入当前动画队列，并清理其尚未播放的移动遮挡。
+- 后续补强：`PlayerArea` 普通 droppable 统一禁用检视区来源 hover/drop 高亮，检视区内部排序与右侧目标按钮保持可用；`tests/unit/battle-animation-events.test.ts` 补 DOM `data-object-id` 与投影 public object id 对齐测试。
+- PR review 后续修复：检视区 / 解决区拖拽 intent 未命中时补明确错误反馈，避免静默失败；检视区因入场动画暂时隐藏时显示轻量等待提示；`DroppableZone` 仅在需要按拖拽来源禁用时订阅 dnd context，降低普通 drop zone 拖拽重渲染面；动画事件测试补充无 DOM 锚点、检视区新增卡自动滚动与跨 match 不滚动覆盖。
+- 非代码确认项保留：仓库本地 skills 是否进入 `skills-lock.json`、联机调试离开房间是否需要服务端离开语义、active effect 初始挂载/重连 fallback、`suppressActiveEffectVisuals` 全局 suppression 设计、`LiveResultAnimation` 文案仍需维护者/产品确认；当前未强行改变这些语义。组件级 React smoke tests 暂因现有 Vitest node 环境无 React DOM 测试栈，记录为后续测试基建事项。
+- 验证：`pnpm --dir client exec tsc -b` passed；`pnpm exec vitest run tests/unit/battle-action-executor.test.ts tests/unit/battle-action-feedback.test.ts tests/unit/battle-action-intent.test.ts tests/unit/battle-animation-events.test.ts tests/unit/battle-drag-action.test.ts tests/unit/battle-animation-sequencing.test.ts` passed（当前匹配 5 个测试文件，32 tests）；`git diff --check` passed；`pnpm --dir client build` passed（保留既有 chunk size / browserslist 提示）。
 
 ## 本次 2026-06-23 第四批新卡/补全卡效
 

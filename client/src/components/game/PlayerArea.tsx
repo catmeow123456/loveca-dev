@@ -2023,17 +2023,30 @@ export const PlayerArea = memo(function PlayerArea({
       executeBattleActionTarget(target.target);
     };
 
+    const inspectionSurfacePositionClass = isOpponent ? 'bottom-[88px]' : 'top-[88px]';
+
     return (
-      <div
-        aria-hidden={suppressInspectionSurface ? true : undefined}
-        data-effect-surface-suppressed={suppressInspectionSurface ? 'true' : undefined}
-        className={cn(
-          'absolute left-1/2 z-[60] -translate-x-1/2 transition-opacity duration-150',
-          suppressInspectionSurface && 'pointer-events-none opacity-0',
-          isOpponent ? 'bottom-[88px]' : 'top-[88px]'
-        )}
-      >
-        <div className="flex w-[min(92vw,780px)] flex-col gap-2.5 overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--accent-primary)_30%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl sm:w-[min(82vw,780px)]">
+      <>
+        {suppressInspectionSurface ? (
+          <div
+            className={cn(
+              'pointer-events-none absolute left-1/2 z-[60] -translate-x-1/2 rounded-full border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl',
+              inspectionSurfacePositionClass
+            )}
+          >
+            检视区等待动画完成
+          </div>
+        ) : null}
+        <div
+          aria-hidden={suppressInspectionSurface ? true : undefined}
+          data-effect-surface-suppressed={suppressInspectionSurface ? 'true' : undefined}
+          className={cn(
+            'absolute left-1/2 z-[60] -translate-x-1/2 transition-opacity duration-150',
+            suppressInspectionSurface && 'pointer-events-none opacity-0',
+            inspectionSurfacePositionClass
+          )}
+        >
+          <div className="flex w-[min(92vw,780px)] flex-col gap-2.5 overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--accent-primary)_30%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl sm:w-[min(82vw,780px)]">
           <DroppableZone
             id={`${INSPECTION_TARGET_IDS.blocker}-header`}
             className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
@@ -2245,8 +2258,9 @@ export const PlayerArea = memo(function PlayerArea({
                 : '当前检视区暂无可见卡牌。'}
             </DroppableZone>
           )}
+          </div>
         </div>
-      </div>
+      </>
     );
   };
 
