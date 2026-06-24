@@ -16,6 +16,10 @@ import {
   BATTLE_CARD_MOVE_SETTLE_BUFFER_MS,
   BATTLE_PULSE_DURATION_MS,
   createSequencedBattleAnimationEvents,
+  getBattleAnimationEventDurationMs,
+  WAITING_ROOM_REVEAL_DURATION_MS,
+  WAITING_ROOM_REVEAL_HOLD_DURATION_MS,
+  WAITING_ROOM_REVEAL_MOVE_DURATION_MS,
   type ScheduledBattleAnimationEvent,
 } from '@/lib/battleAnimationSequencing';
 import { useGameStore } from '@/store/gameStore';
@@ -115,6 +119,7 @@ export function BattleAnimationLayer() {
                 eventId: scheduledEvent.event.id,
                 objectId: scheduledEvent.event.render.objectId,
                 delayMs: scheduledEvent.delayMs,
+                durationMs: getBattleAnimationEventDurationMs(scheduledEvent.event),
               }));
         addBattleAnimationOcclusions(
           moveOcclusions.map((occlusion) => ({
@@ -132,7 +137,7 @@ export function BattleAnimationLayer() {
               activeOcclusionEventIdsRef.current.delete(occlusion.eventId);
               removeBattleAnimationOcclusion(occlusion.eventId);
             },
-            occlusion.delayMs + BATTLE_CARD_MOVE_DURATION_MS + BATTLE_CARD_MOVE_SETTLE_BUFFER_MS
+            occlusion.delayMs + occlusion.durationMs + BATTLE_CARD_MOVE_SETTLE_BUFFER_MS
           );
           scheduledEventTimeoutsRef.current.add(timeout);
         }
@@ -185,15 +190,29 @@ export function BattleAnimationLayer() {
         {events.map((event) => {
           if (event.kind === 'CARD_MOVE') {
             const imagePath =
-              event.render.imageSrc ??
+              (event.render.surface === 'FRONT' ? event.render.imageSrc : undefined) ??
               (event.render.surface === 'FRONT' && event.render.cardCode
                 ? getCardImagePath(event.render.cardCode)
                 : getDeckBackUrl());
+            const imageAlt = event.render.surface === 'FRONT' ? (event.render.name ?? '') : '';
+            if (event.presentation === 'WAITING_ROOM_REVEAL') {
+              return (
+                <WaitingRoomRevealMovingCard
+                  key={event.id}
+                  event={event}
+                  imagePath={imagePath}
+                  imageAlt={imageAlt}
+                  reduceMotion={reduceMotion}
+                  onDone={() => removeEvent(event.id)}
+                />
+              );
+            }
             return (
               <MovingCard
                 key={event.id}
                 event={event}
                 imagePath={imagePath}
+                imageAlt={imageAlt}
                 reduceMotion={reduceMotion}
                 onDone={() => removeEvent(event.id)}
               />
@@ -285,11 +304,13 @@ function removeOcclusionsForAnimationEvents({
 function MovingCard({
   event,
   imagePath,
+  imageAlt,
   reduceMotion,
   onDone,
 }: {
   readonly event: Extract<BattleAnimationEvent, { kind: 'CARD_MOVE' }>;
   readonly imagePath: string;
+  readonly imageAlt: string;
   readonly reduceMotion: boolean | null;
   readonly onDone: () => void;
 }) {
@@ -350,7 +371,98 @@ function MovingCard({
     >
       <img
         src={imagePath}
-        alt={event.render.name ?? ''}
+        alt={imageAlt}
+        className="h-full w-full object-cover"
+        draggable={false}
+      />
+    </motion.div>
+  );
+}
+
+function WaitingRoomRevealMovingCard({
+  event,
+  imagePath,
+  imageAlt,
+  reduceMotion,
+  onDone,
+}: {
+  readonly event: Extract<BattleAnimationEvent, { kind: 'CARD_MOVE' }>;
+  readonly imagePath: string;
+  readonly imageAlt: string;
+  readonly reduceMotion: boolean | null;
+  readonly onDone: () => void;
+}) {
+  const fromCenter = getRectCenter(event.fromRect);
+  const toCenter = getRectCenter(event.toRect);
+  const fromRect = normalizeCardMoveRect(event, event.fromRect, 'from');
+  const toRect = normalizeCardMoveRect(event, event.toRect, 'to');
+  const revealRect = getWaitingRoomRevealRect({
+    fromRect,
+    toRect,
+    toSeat: event.toSeat,
+  });
+  const startWidth = clamp(fromRect.width || toRect.width, 12, 140);
+  const startHeight = clamp(fromRect.height || toRect.height, 16, 196);
+  const endWidth = clamp(toRect.width || fromRect.width, 12, 140);
+  const endHeight = clamp(toRect.height || fromRect.height, 16, 196);
+  const startLeft = fromCenter.x - startWidth / 2;
+  const startTop = fromCenter.y - startHeight / 2;
+  const revealLeft = revealRect.left;
+  const revealTop = revealRect.top;
+  const endLeft = toCenter.x - endWidth / 2;
+  const endTop = toCenter.y - endHeight / 2;
+  const firstKeyframeTime = WAITING_ROOM_REVEAL_MOVE_DURATION_MS / WAITING_ROOM_REVEAL_DURATION_MS;
+  const secondKeyframeTime =
+    (WAITING_ROOM_REVEAL_MOVE_DURATION_MS + WAITING_ROOM_REVEAL_HOLD_DURATION_MS) /
+    WAITING_ROOM_REVEAL_DURATION_MS;
+
+  if (reduceMotion) {
+    return (
+      <PulseFrame
+        event={{ id: event.id, kind: 'ZONE_PULSE', rect: event.toRect }}
+        reduceMotion={reduceMotion}
+        onDone={onDone}
+      />
+    );
+  }
+
+  return (
+    <motion.div
+      className="fixed overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_82%,white)] bg-[var(--bg-overlay)] shadow-[0_16px_36px_rgba(0,0,0,0.42),0_1px_0_rgba(255,255,255,0.08)_inset]"
+      style={{
+        width: startWidth,
+        height: startHeight,
+        left: startLeft,
+        top: startTop,
+        transformOrigin: 'center center',
+        willChange: 'transform, width, height, opacity',
+      }}
+      initial={{ opacity: 0.94, x: 0, y: 0, rotate: getCardMoveRotation(event.fromZoneType) }}
+      animate={{
+        x: [0, revealLeft - startLeft, revealLeft - startLeft, endLeft - startLeft],
+        y: [0, revealTop - startTop, revealTop - startTop, endTop - startTop],
+        rotate: [
+          getCardMoveRotation(event.fromZoneType),
+          0,
+          0,
+          getCardMoveRotation(event.toZoneType),
+        ],
+        width: [startWidth, revealRect.width, revealRect.width, endWidth],
+        height: [startHeight, revealRect.height, revealRect.height, endHeight],
+        opacity: [0.94, 1, 1, 1],
+        scale: [0.985, 1, 1, 1],
+      }}
+      exit={{ opacity: 0, scale: 0.995, transition: { duration: 0.05 } }}
+      transition={{
+        duration: WAITING_ROOM_REVEAL_DURATION_MS / 1000,
+        times: [0, firstKeyframeTime, secondKeyframeTime, 1],
+        ease: ['easeOut', 'linear', 'easeInOut'],
+      }}
+      onAnimationComplete={onDone}
+    >
+      <img
+        src={imagePath}
+        alt={imageAlt}
         className="h-full w-full object-cover"
         draggable={false}
       />
@@ -408,6 +520,43 @@ function getRectCenter(rect: BattleAnimationRect): { readonly x: number; readonl
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function getWaitingRoomRevealRect({
+  fromRect,
+  toRect,
+  toSeat,
+}: {
+  readonly fromRect: BattleAnimationRect;
+  readonly toRect: BattleAnimationRect;
+  readonly toSeat?: 'FIRST' | 'SECOND';
+}): BattleAnimationRect {
+  const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth;
+  const viewportHeight = typeof window === 'undefined' ? 720 : window.innerHeight;
+  const isNarrow = viewportWidth < 640;
+  const maxWidth = Math.max(56, Math.min(isNarrow ? 82 : 96, viewportWidth * 0.24));
+  let width = clamp(Math.max(fromRect.width, isNarrow ? 70 : 88), 56, maxWidth);
+  let height = width * (7 / 5);
+  const maxHeight = Math.max(82, viewportHeight * 0.34);
+  if (height > maxHeight) {
+    height = maxHeight;
+    width = height * (5 / 7);
+  }
+
+  const toCenter = getRectCenter(toRect);
+  const verticalGap = isNarrow ? 10 : 18;
+  const revealTop =
+    toSeat === 'SECOND'
+      ? toRect.top + toRect.height + verticalGap
+      : toRect.top - height - verticalGap;
+  const revealLeft = toCenter.x - width / 2;
+
+  return {
+    left: clamp(revealLeft, 8, Math.max(8, viewportWidth - width - 8)),
+    top: clamp(revealTop, 8, Math.max(8, viewportHeight - height - 8)),
+    width,
+    height,
+  };
 }
 
 function normalizeCardMoveRect(

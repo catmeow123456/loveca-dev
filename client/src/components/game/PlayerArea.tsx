@@ -2276,7 +2276,10 @@ export const PlayerArea = memo(function PlayerArea({
       const backRotationStep =
         visibleBackCount <= 1 ? 0 : Math.min(3, maxBackRotation / ((visibleBackCount - 1) / 2));
       return (
-        <div className="relative h-[88px] w-full overflow-visible py-1 md:h-[104px]">
+        <div
+          data-animation-zone-id={getDroppableId(ZoneType.HAND)}
+          className="relative h-[88px] w-full overflow-visible py-1 md:h-[104px]"
+        >
           {Array.from({ length: visibleBackCount }, (_, idx) => (
             <div
               key={`opponent-hand-back-${idx}`}

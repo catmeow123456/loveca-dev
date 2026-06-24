@@ -33,6 +33,13 @@
 - 非代码确认项保留：仓库本地 skills 是否进入 `skills-lock.json`、联机调试离开房间是否需要服务端离开语义、active effect 初始挂载/重连 fallback、`suppressActiveEffectVisuals` 全局 suppression 设计、`LiveResultAnimation` 文案仍需维护者/产品确认；当前未强行改变这些语义。组件级 React smoke tests 暂因现有 Vitest node 环境无 React DOM 测试栈，记录为后续测试基建事项。
 - 验证：`pnpm --dir client exec tsc -b` passed；`pnpm exec vitest run tests/unit/battle-action-executor.test.ts tests/unit/battle-action-feedback.test.ts tests/unit/battle-action-intent.test.ts tests/unit/battle-animation-events.test.ts tests/unit/battle-drag-action.test.ts tests/unit/battle-animation-sequencing.test.ts` passed（当前匹配 5 个测试文件，32 tests）；`git diff --check` passed；`pnpm --dir client build` passed（保留既有 chunk size / browserslist 提示）。
 
+## 本次 2026-06-24 休息室入场动画初版
+
+- 按 `BATTLE_WAITING_ROOM_ENTRY_ANIMATION_DRAFT.md` 初版硬约束实现单张正面 `HAND -> WAITING_ROOM` 专用 `WAITING_ROOM_REVEAL`：事件层只从 `PlayerViewState` diff 判定，不进入规则/卡效 workflow；检视区清理、堆叠/下方卡移动和多张同 diff 仍保留默认移动或既有 `ZONE_PULSE`。
+- `BattleAnimationLayer` 新增三段休息室 reveal 动画：飞到休息室上方可读展示点、停留、再缩入小叠牌；遮挡生命周期改为使用 per-event duration，避免 reveal 期间终点休息室提前露出同一对象。reduced-motion 下仍降级为短 pulse。
+- 隐藏信息边界同步收口：移动代理只在当前投影 `surface === FRONT` 时携带/使用 `cardCode`、卡名与正面图片；背面对象进入休息室不生成 reveal，也不在动画 alt/imageSrc 泄露正面信息。对手手牌背面区域补 scoped animation anchor，用于对方弃手时提供区域起点，不暴露具体手牌对象。
+- 验证：`pnpm exec vitest run tests/unit/battle-animation-events.test.ts` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。Playwright 已登录 5173 测试环境并进入对墙打桌面：桌面普通动效拖 1 张手牌进休息室，截图覆盖 during/after，最终显示己方休息室从 0 到 1；reduced-motion 下同路径最终状态正确；390x844 窄屏可进入主要阶段并截图确认桌面加载。
+
 ## 本次 2026-06-23 第四批新卡/补全卡效
 
 - 已完成 `PL!HS-cl1-010-CL` 分数 3「AWOKE」：LIVE 开始时选择自己舞台有效费用 10 以上的『莲之空』成员，LIVE 结束时为止获得 BLADE +2。

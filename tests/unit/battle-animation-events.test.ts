@@ -9,7 +9,12 @@ import {
   type BattleAnimationAnchorMaps,
   type BattleAnimationRect,
 } from '../../client/src/lib/battleAnimationEvents';
-import { createSequencedBattleAnimationEvents } from '../../client/src/lib/battleAnimationSequencing';
+import {
+  BATTLE_CARD_MOVE_DURATION_MS,
+  createSequencedBattleAnimationEvents,
+  getBattleAnimationEventDurationMs,
+  WAITING_ROOM_REVEAL_DURATION_MS,
+} from '../../client/src/lib/battleAnimationSequencing';
 import type {
   PlayerViewState,
   Seat,
@@ -43,6 +48,17 @@ function cardObject(objectId: string, ownerSeat: Seat = 'FIRST'): ViewCardObject
       name: objectId,
       cardType: CardType.MEMBER,
     },
+  };
+}
+
+function backCardObject(objectId: string, ownerSeat: Seat = 'FIRST'): ViewCardObject {
+  return {
+    publicObjectId: objectId,
+    ownerSeat,
+    controllerSeat: ownerSeat,
+    cardType: CardType.MEMBER,
+    surface: 'BACK',
+    orientation: OrientationState.ACTIVE,
   };
 }
 
@@ -411,6 +427,92 @@ describe('battle animation events', () => {
     expect(events.every((event) => event.kind === 'ZONE_PULSE')).toBe(true);
   });
 
+  it('marks a single visible hand card entering waiting room for reveal presentation', () => {
+    const previous = viewState({
+      seq: 3,
+      zones: {
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: ['obj_a'] }),
+        FIRST_WAITING_ROOM: zone(ZoneType.WAITING_ROOM, { objectIds: [] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: { obj_a: cardObject('obj_a') },
+    });
+    const next = viewState({
+      seq: 4,
+      zones: {
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: [] }),
+        FIRST_WAITING_ROOM: zone(ZoneType.WAITING_ROOM, { objectIds: ['obj_a'] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: { obj_a: cardObject('obj_a') },
+    });
+
+    const events = createBattleAnimationEventsFromViewDiff({
+      previousViewState: previous,
+      nextViewState: next,
+      previousAnchors: anchors([['obj_a', rect(0, 0)]]),
+      nextAnchors: {
+        cards: new Map([['obj_a', rect(400, 80)]]),
+        zones: new Map([['seat-FIRST::waiting-room', rect(400, 80)]]),
+      },
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: 'CARD_MOVE',
+      presentation: 'WAITING_ROOM_REVEAL',
+      toSeat: 'FIRST',
+      toZoneKey: 'FIRST_WAITING_ROOM',
+      render: {
+        surface: 'FRONT',
+        cardCode: 'CARD-obj_a',
+        name: 'obj_a',
+      },
+    });
+  });
+
+  it('does not reveal hidden card metadata when a back object moves to waiting room', () => {
+    const previous = viewState({
+      seq: 3,
+      zones: {
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: ['obj_hidden'] }),
+        FIRST_WAITING_ROOM: zone(ZoneType.WAITING_ROOM, { objectIds: [] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: { obj_hidden: backCardObject('obj_hidden') },
+    });
+    const next = viewState({
+      seq: 4,
+      zones: {
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: [] }),
+        FIRST_WAITING_ROOM: zone(ZoneType.WAITING_ROOM, { objectIds: ['obj_hidden'] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: { obj_hidden: backCardObject('obj_hidden') },
+    });
+
+    const events = createBattleAnimationEventsFromViewDiff({
+      previousViewState: previous,
+      nextViewState: next,
+      previousAnchors: {
+        cards: new Map([['obj_hidden', { ...rect(0, 0), imageSrc: '/cards/secret.webp' }]]),
+        zones: new Map(),
+      },
+      nextAnchors: {
+        cards: new Map([['obj_hidden', { ...rect(400, 80), imageSrc: '/cards/secret.webp' }]]),
+        zones: new Map([['seat-FIRST::waiting-room', rect(400, 80)]]),
+      },
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: 'CARD_MOVE',
+      render: {
+        surface: 'BACK',
+        cardCode: undefined,
+        name: undefined,
+        imageSrc: undefined,
+      },
+    });
+    expect(events[0]).not.toMatchObject({ presentation: 'WAITING_ROOM_REVEAL' });
+  });
+
   it('does not create long-distance card move events for main deck inspection', () => {
     const previous = viewState({
       seq: 4,
@@ -583,5 +685,22 @@ describe('battle animation events', () => {
       (scheduled) => scheduled.event.id === waitingRoomMove.id
     )?.delayMs;
     expect(waitingRoomDelay).toBeGreaterThan(0);
+  });
+
+  it('uses longer duration for waiting room reveal moves', () => {
+    const defaultMove = moveEvent('obj_default', ZoneType.HAND, ZoneType.WAITING_ROOM);
+    const revealMove: Extract<BattleAnimationEvent, { kind: 'CARD_MOVE' }> = {
+      ...defaultMove,
+      id: 'move:reveal',
+      presentation: 'WAITING_ROOM_REVEAL',
+      toSeat: 'FIRST',
+      toZoneKey: 'FIRST_WAITING_ROOM',
+    };
+
+    expect(getBattleAnimationEventDurationMs(defaultMove)).toBe(BATTLE_CARD_MOVE_DURATION_MS);
+    expect(getBattleAnimationEventDurationMs(revealMove)).toBe(WAITING_ROOM_REVEAL_DURATION_MS);
+    expect(getBattleAnimationEventDurationMs(revealMove)).toBeGreaterThan(
+      getBattleAnimationEventDurationMs(defaultMove)
+    );
   });
 });

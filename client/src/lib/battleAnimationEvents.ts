@@ -25,6 +25,9 @@ export interface BattleAnimationCardRender {
   readonly imageSrc?: string;
 }
 
+export type BattleAnimationPresentation = 'DEFAULT' | 'WAITING_ROOM_REVEAL';
+export type BattleAnimationSeat = 'FIRST' | 'SECOND';
+
 export type BattleAnimationEvent =
   | {
       readonly id: string;
@@ -32,6 +35,9 @@ export type BattleAnimationEvent =
       readonly render: BattleAnimationCardRender;
       readonly fromZoneType: string;
       readonly toZoneType: string;
+      readonly presentation?: BattleAnimationPresentation;
+      readonly toSeat?: BattleAnimationSeat;
+      readonly toZoneKey?: ViewZoneKey;
       readonly fromRect: BattleAnimationRect;
       readonly toRect: BattleAnimationRect;
     }
@@ -223,18 +229,28 @@ export function createBattleAnimationEventsFromViewDiff({
         preferZoneAnchor: nextLocation.zoneType === ZoneType.WAITING_ROOM,
       });
       if (fromRect && toRect && !sameRect(fromRect, toRect)) {
+        const render = createCardRender({
+          objectId,
+          previousObject,
+          nextObject,
+          previousAnchors,
+          nextAnchors,
+        });
         moveCandidates.push({
           id: `move:${nextViewState.match.seq}:${objectId}:${previousLocation.key}->${nextLocation.key}`,
           kind: 'CARD_MOVE',
-          render: createCardRender({
-            objectId,
-            previousObject,
-            nextObject,
-            previousAnchors,
-            nextAnchors,
-          }),
+          render,
           fromZoneType: previousLocation.zoneType,
           toZoneType: nextLocation.zoneType,
+          presentation: shouldUseWaitingRoomRevealPresentation({
+            previousLocation,
+            nextLocation,
+            render,
+          })
+            ? 'WAITING_ROOM_REVEAL'
+            : undefined,
+          toSeat: getSeatFromZoneKey(nextLocation.zoneKey) ?? undefined,
+          toZoneKey: nextLocation.zoneKey,
           fromRect,
           toRect,
         });
@@ -279,7 +295,7 @@ export function createBattleAnimationEventsFromViewDiff({
     return createZonePulseEventsForLargeDiff(nextViewState, nextAnchors, moveCandidates);
   }
 
-  return [...moveCandidates, ...otherEvents].slice(0, 16);
+  return [...normalizeWaitingRoomRevealCandidates(moveCandidates), ...otherEvents].slice(0, 16);
 }
 
 export function collectBattleObjectLocations(
@@ -449,11 +465,14 @@ function createCardRender({
   readonly previousAnchors: BattleAnimationAnchorMaps;
   readonly nextAnchors: BattleAnimationAnchorMaps;
 }): BattleAnimationCardRender {
-  const frontInfo = nextObject.frontInfo ?? previousObject.frontInfo;
   const fromSurface = previousObject.surface === 'FRONT' ? 'FRONT' : 'BACK';
   const toSurface = nextObject.surface === 'FRONT' ? 'FRONT' : 'BACK';
+  const frontInfo =
+    toSurface === 'FRONT' ? (nextObject.frontInfo ?? previousObject.frontInfo) : null;
   const imageSrc =
-    nextAnchors.cards.get(objectId)?.imageSrc ?? previousAnchors.cards.get(objectId)?.imageSrc;
+    toSurface === 'FRONT'
+      ? (nextAnchors.cards.get(objectId)?.imageSrc ?? previousAnchors.cards.get(objectId)?.imageSrc)
+      : undefined;
   return {
     objectId,
     cardId: objectId.startsWith('obj_') ? objectId.slice(4) : objectId,
@@ -464,6 +483,43 @@ function createCardRender({
     name: frontInfo?.name,
     imageSrc,
   };
+}
+
+function shouldUseWaitingRoomRevealPresentation({
+  previousLocation,
+  nextLocation,
+  render,
+}: {
+  readonly previousLocation: BattleObjectLocation;
+  readonly nextLocation: BattleObjectLocation;
+  readonly render: BattleAnimationCardRender;
+}): boolean {
+  return (
+    previousLocation.zoneType === ZoneType.HAND &&
+    nextLocation.zoneType === ZoneType.WAITING_ROOM &&
+    getSeatFromZoneKey(nextLocation.zoneKey) !== null &&
+    render.surface === 'FRONT' &&
+    !!render.cardCode
+  );
+}
+
+function normalizeWaitingRoomRevealCandidates(
+  moveCandidates: readonly BattleAnimationEvent[]
+): BattleAnimationEvent[] {
+  const revealCandidates = moveCandidates.filter(
+    (event) => event.kind === 'CARD_MOVE' && event.presentation === 'WAITING_ROOM_REVEAL'
+  );
+  if (revealCandidates.length <= 1) {
+    return [...moveCandidates];
+  }
+
+  return moveCandidates.map((event) => {
+    if (event.kind !== 'CARD_MOVE' || event.presentation !== 'WAITING_ROOM_REVEAL') {
+      return event;
+    }
+    const { presentation: _presentation, ...defaultMoveEvent } = event;
+    return defaultMoveEvent;
+  });
 }
 
 function resolveAnimationRect(

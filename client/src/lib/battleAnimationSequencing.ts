@@ -4,6 +4,13 @@ import type { BattleAnimationEvent } from './battleAnimationEvents';
 export const BATTLE_CARD_MOVE_DURATION_MS = 360;
 export const BATTLE_CARD_MOVE_SETTLE_BUFFER_MS = 120;
 export const BATTLE_PULSE_DURATION_MS = 260;
+export const WAITING_ROOM_REVEAL_MOVE_DURATION_MS = 300;
+export const WAITING_ROOM_REVEAL_HOLD_DURATION_MS = 520;
+export const WAITING_ROOM_REVEAL_COLLECT_DURATION_MS = 160;
+export const WAITING_ROOM_REVEAL_DURATION_MS =
+  WAITING_ROOM_REVEAL_MOVE_DURATION_MS +
+  WAITING_ROOM_REVEAL_HOLD_DURATION_MS +
+  WAITING_ROOM_REVEAL_COLLECT_DURATION_MS;
 export const ENTER_EFFECT_SURFACE_SUSPEND_MS =
   BATTLE_CARD_MOVE_DURATION_MS + BATTLE_CARD_MOVE_SETTLE_BUFFER_MS;
 
@@ -33,6 +40,18 @@ export function createSequencedBattleAnimationEvents(
     event,
     delayMs: getStageEntrySequencedDelay(event),
   }));
+}
+
+export function getBattleAnimationEventDurationMs(event: BattleAnimationEvent): number {
+  if (event.kind === 'CARD_MOVE' && event.presentation === 'WAITING_ROOM_REVEAL') {
+    return WAITING_ROOM_REVEAL_DURATION_MS;
+  }
+
+  if (event.kind === 'ZONE_PULSE') {
+    return BATTLE_PULSE_DURATION_MS;
+  }
+
+  return BATTLE_CARD_MOVE_DURATION_MS;
 }
 
 function getStageEntrySequencedDelay(event: BattleAnimationEvent): number {
