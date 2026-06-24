@@ -7,7 +7,7 @@ import { z } from 'zod';
  */
 export function validate(schema: z.ZodType) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const result = schema.safeParse(req.body);
+    const result = schema.safeParse(req.body === undefined ? {} : req.body);
     if (!result.success) {
       const message = result.error.issues
         .map((i) => `${i.path.join('.')}: ${i.message}`)
