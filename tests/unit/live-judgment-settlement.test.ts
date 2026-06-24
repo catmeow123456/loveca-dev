@@ -2718,6 +2718,36 @@ describe('Live 判定与结算', () => {
     expect(result.gameState.liveResolution.liveWinnerIds).toEqual(['p1', 'p2']);
   });
 
+  it('双胜者 RESULT_ANIMATION 必须由双方分别确认，不能由本地调试自动补齐', () => {
+    const game = {
+      ...createGameState('g-two-winner-animation-manual', 'p1', 'P1', 'p2', 'P2'),
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_ANIMATION,
+      liveResolution: {
+        ...createGameState('g-two-winner-animation-manual', 'p1', 'P1', 'p2', 'P2').liveResolution,
+        liveWinnerIds: ['p1', 'p2'],
+        animationConfirmedBy: [],
+      },
+    };
+    const session = createGameSession();
+    session.createGame('g-two-winner-animation-manual', 'p1', 'P1', 'p2', 'P2');
+    (session as unknown as { authorityState: typeof game }).authorityState = game;
+
+    const confirmP1 = session.executeCommand(
+      createConfirmStepCommand('p1', SubPhase.RESULT_ANIMATION)
+    );
+    expect(confirmP1.success).toBe(true);
+    expect(confirmP1.gameState.currentSubPhase).toBe(SubPhase.RESULT_ANIMATION);
+    expect(confirmP1.gameState.liveResolution.animationConfirmedBy).toEqual(['p1']);
+
+    const confirmP2 = session.executeCommand(
+      createConfirmStepCommand('p2', SubPhase.RESULT_ANIMATION)
+    );
+    expect(confirmP2.success).toBe(true);
+    expect(confirmP2.gameState.liveResolution.animationConfirmedBy).toEqual(['p1', 'p2']);
+    expect(confirmP2.gameState.currentSubPhase).toBe(SubPhase.RESULT_SETTLEMENT);
+  });
+
   it('RESULT_ANIMATION 中不能将 LIVE_ZONE 的 Live 手动移出', () => {
     const live = createCardInstance(
       {

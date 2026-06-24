@@ -80,11 +80,6 @@ import {
   CardType,
   GameMode,
 } from '@game/shared/types/enums';
-import {
-  getCurrentSuccessLiveSettlementPlayerId,
-  getSuccessLiveSelectionCandidateIds,
-  haveAllSuccessLiveSettlementsCompleted,
-} from '@game/domain/rules/success-live-placement';
 import { getPhaseName } from '@game/shared/phase-config';
 import { preloadImage, resolveCardImagePath } from '@/lib/imageService';
 import { type ParsedZoneId } from '@/lib/zoneUtils';
@@ -663,93 +658,6 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     dispatchAt(0);
     return true;
-  };
-
-  const autoConfirmOtherLocalWinners = (subPhase: SubPhase): void => {
-    if (isReadonlyReplayMode()) {
-      return;
-    }
-    if (get().remoteSession) {
-      return;
-    }
-    if (subPhase !== SubPhase.RESULT_ANIMATION && subPhase !== SubPhase.RESULT_SETTLEMENT) {
-      return;
-    }
-
-    const state = get().gameSession.state;
-    if (!state || state.currentSubPhase !== subPhase) {
-      return;
-    }
-
-    const winnerIds = state.liveResolution.liveWinnerIds;
-    if (subPhase === SubPhase.RESULT_SETTLEMENT) {
-      let confirmedAny = false;
-
-      while (true) {
-        const latestState = get().gameSession.state;
-        if (
-          !latestState ||
-          latestState.currentSubPhase !== SubPhase.RESULT_SETTLEMENT ||
-          haveAllSuccessLiveSettlementsCompleted(latestState)
-        ) {
-          break;
-        }
-
-        const currentSettlementPlayerId = getCurrentSuccessLiveSettlementPlayerId(latestState);
-        if (
-          currentSettlementPlayerId === null ||
-          !latestState.liveResolution.liveWinnerIds.includes(currentSettlementPlayerId)
-        ) {
-          break;
-        }
-
-        const legalCandidateIds = getSuccessLiveSelectionCandidateIds(
-          latestState,
-          currentSettlementPlayerId
-        );
-        if (legalCandidateIds.length > 0) {
-          break;
-        }
-
-        const result = get().gameSession.executeCommand(
-          createConfirmStepCommand(currentSettlementPlayerId, SubPhase.RESULT_SETTLEMENT)
-        );
-        if (!result.success) {
-          get().addLog(`自动确认无候选成功 Live 结算失败: ${result.error}`, 'error');
-          return;
-        }
-
-        confirmedAny = true;
-        get().syncState();
-      }
-
-      if (confirmedAny) {
-        get().addLog('无候选成功 Live 结算已自动补齐确认', 'info');
-      }
-      return;
-    }
-
-    if (winnerIds.length < 2) {
-      return;
-    }
-
-    const alreadyConfirmed = state.liveResolution.animationConfirmedBy;
-
-    const pendingWinnerIds = winnerIds.filter((winnerId) => !alreadyConfirmed.includes(winnerId));
-    if (pendingWinnerIds.length === 0) {
-      return;
-    }
-
-    for (const winnerId of pendingWinnerIds) {
-      const result = get().gameSession.executeCommand(createConfirmStepCommand(winnerId, subPhase));
-      if (!result.success) {
-        get().addLog(`自动确认双赢子阶段失败: ${result.error}`, 'error');
-        return;
-      }
-    }
-
-    get().syncState();
-    get().addLog(`双赢子阶段已自动补齐确认: ${subPhase}`, 'info');
   };
 
   return {
@@ -1731,16 +1639,11 @@ export const useGameStore = create<GameStore>((set, get) => {
     // ============ 阶段十新增动作实现 ============
 
     confirmSubPhase: (subPhase) => {
-      const result = runViewerCommand((playerId) => createConfirmStepCommand(playerId, subPhase), {
+      return runViewerCommand((playerId) => createConfirmStepCommand(playerId, subPhase), {
         failureMessage: '确认子阶段失败',
         successMessage: `确认子阶段完成: ${subPhase}`,
         logError: true,
       });
-      if (result.success) {
-        autoConfirmOtherLocalWinners(subPhase);
-        autoConfirmOtherLocalWinners(SubPhase.RESULT_SETTLEMENT);
-      }
-      return result;
     },
 
     acceptAutomaticJudgment: () => {
@@ -1812,7 +1715,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     selectSuccessCard: (cardId) => {
-      const result = runViewerCommand(
+      return runViewerCommand(
         (playerId) => createSelectSuccessLiveCommand(playerId, cardId),
         {
           failureMessage: '选择成功卡失败',
@@ -1820,14 +1723,10 @@ export const useGameStore = create<GameStore>((set, get) => {
           logError: true,
         }
       );
-      if (result.success) {
-        autoConfirmOtherLocalWinners(SubPhase.RESULT_SETTLEMENT);
-      }
-      return result;
     },
 
     skipSuccessLiveSelection: () => {
-      const result = runViewerCommand(
+      return runViewerCommand(
         (playerId) =>
           createConfirmStepCommand(playerId, SubPhase.RESULT_SETTLEMENT, {
             skipSuccessLiveSelection: true,
@@ -1838,10 +1737,6 @@ export const useGameStore = create<GameStore>((set, get) => {
           logError: true,
         }
       );
-      if (result.success) {
-        autoConfirmOtherLocalWinners(SubPhase.RESULT_SETTLEMENT);
-      }
-      return result;
     },
 
     moveTableCard: (cardId, fromZone, toZone, options) => {
