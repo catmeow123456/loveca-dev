@@ -2,7 +2,15 @@
  * 游戏主界面布局
  */
 
-import { memo, useState, useCallback, useEffect, useRef } from 'react';
+import {
+  memo,
+  useState,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type MouseEvent,
+} from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -13,11 +21,12 @@ import {
   useSensors,
   type CollisionDetection,
   type DragStartEvent,
+  type DragOverEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
-import { useGameStore } from '@/store/gameStore';
+import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
 import { PlayerArea } from './PlayerArea';
 import { GameLog, GameLogContent } from './GameLog';
 import { PhaseIndicator } from './PhaseIndicator';
@@ -28,11 +37,23 @@ import { CardDetailOverlay } from './CardDetailOverlay';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
 import { JudgmentPanel } from './JudgmentPanel';
 import { ScoreConfirmModal } from './ScoreConfirmModal';
+import { BattleAnimationLayer } from './BattleAnimationLayer';
+import { BattleActionFeedbackLayer } from './BattleActionFeedbackLayer';
 import { Card } from '@/components/card/Card';
 import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
 import { getDeckBackUrl } from '@/lib/imageService';
 import { parseZoneId } from '@/lib/zoneUtils';
+import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
+import { ENTER_EFFECT_SURFACE_SUSPEND_MS } from '@/lib/battleAnimationSequencing';
+import {
+  buildBattleActionIntents,
+  findEnabledBattleActionTargetByTargetId,
+  findEnabledBattleActionTargetForZoneDrop,
+  type BattleActionIntent,
+} from '@/lib/battleActionIntent';
+import { executeBattleActionPayload as executeBattleActionPayloadWithHandlers } from '@/lib/battleActionExecutor';
+import { findBattleObjectLocation } from '@/lib/battleAnimationEvents';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
@@ -55,9 +76,16 @@ import {
 import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType } from '@game/shared/types/enums';
 import { getPhaseConfig, getSubPhaseConfig } from '@game/shared/phase-config';
 import type { AnyCardData } from '@game/domain/entities/card';
-import type { Seat } from '@game/online';
+import type { PlayerViewState, Seat } from '@game/online';
 
 const INSPECTION_TARGET_PREFIX = 'inspection-target-';
+const INSPECTION_TARGET_IDS = [
+  `${INSPECTION_TARGET_PREFIX}hand`,
+  `${INSPECTION_TARGET_PREFIX}waiting-room`,
+  `${INSPECTION_TARGET_PREFIX}main-deck-top`,
+  `${INSPECTION_TARGET_PREFIX}main-deck-bottom`,
+] as const;
+const INSPECTION_TARGET_ID_SET = new Set<string>(INSPECTION_TARGET_IDS);
 const RESOLUTION_TARGET_PREFIX = 'resolution-target-';
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 const MEMBER_SLOT_LABELS: Record<SlotPosition, string> = {
@@ -66,14 +94,28 @@ const MEMBER_SLOT_LABELS: Record<SlotPosition, string> = {
   [SlotPosition.RIGHT]: '右侧',
 };
 
-type SpecialDragTarget =
-  | { kind: 'inspection'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' }
-  | { kind: 'resolution'; action: 'HAND' | 'WAITING_ROOM' | 'MAIN_DECK_TOP' };
-
 type MobileBattlePanel = 'opponent' | 'log';
+
+interface DragBattleActionIntentCache {
+  readonly key: string;
+  readonly cardId: string;
+  readonly fromZone: ZoneType;
+  readonly intents: readonly BattleActionIntent[];
+}
 
 const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
   const dragData = args.active.data.current as { fromZone?: ZoneType } | undefined;
+  if (dragData?.fromZone === ZoneType.INSPECTION_ZONE) {
+    const pointerCollisions = pointerWithin(args);
+    const inspectionTargetCollision = pointerCollisions.find((collision) =>
+      INSPECTION_TARGET_ID_SET.has(String(collision.id))
+    );
+
+    if (inspectionTargetCollision) {
+      return [inspectionTargetCollision];
+    }
+  }
+
   const shouldPrioritizeInspection =
     dragData?.fromZone === ZoneType.HAND || dragData?.fromZone === ZoneType.WAITING_ROOM;
 
@@ -92,6 +134,21 @@ const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
   return rectIntersection(args);
 };
 
+function didObjectMoveIntoMemberSlot(
+  previousViewState: PlayerViewState | null,
+  nextViewState: PlayerViewState,
+  objectId: string
+): boolean {
+  const previousLocation = findBattleObjectLocation(previousViewState, objectId);
+  const nextLocation = findBattleObjectLocation(nextViewState, objectId);
+  return (
+    previousLocation !== null &&
+    nextLocation !== null &&
+    previousLocation.key !== nextLocation.key &&
+    nextLocation.zoneType === ZoneType.MEMBER_SLOT
+  );
+}
+
 interface GameBoardProps {
   onLeaveLocalGame?: () => void;
 }
@@ -108,6 +165,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
   // 状态选择器
   const matchView = useGameStore((s) => s.getMatchView());
+  const playerViewState = useGameStore((s) => s.playerViewState);
   const currentTurnCount = useGameStore((s) => s.getTurnCountView());
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
@@ -115,6 +173,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const viewerSeat = useGameStore((s) => s.getViewerSeat());
   const activeEffect = useGameStore((s) => s.playerViewState?.activeEffect ?? null);
   const pendingCostPayment = useGameStore((s) => s.playerViewState?.pendingCostPayment ?? null);
+  const battleAnimationOcclusions = useGameStore((s) => s.ui.battleAnimationOcclusions);
   const viewerLiveScore = useGameStore((s) => s.getViewerLiveScore());
   const opponentLiveScore = useGameStore((s) => s.getOpponentLiveScore());
   const viewerLiveWinner = useGameStore((s) => s.isViewerLiveWinner());
@@ -131,6 +190,34 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   );
   const canPlayMemberToSlotCommand = useGameStore((s) =>
     s.canUseAction(GameCommandType.PLAY_MEMBER_TO_SLOT)
+  );
+  const canSetLiveCardCommand = useGameStore((s) => s.canUseAction(GameCommandType.SET_LIVE_CARD));
+  const canMoveMemberToSlotCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.MOVE_MEMBER_TO_SLOT)
+  );
+  const canAttachEnergyToMemberCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.ATTACH_ENERGY_TO_MEMBER)
+  );
+  const canMovePublicCardToHandCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.MOVE_PUBLIC_CARD_TO_HAND)
+  );
+  const canMovePublicCardToWaitingRoomCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM)
+  );
+  const canMovePublicCardToEnergyDeckCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK)
+  );
+  const canMoveInspectedCardToZoneCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE)
+  );
+  const canMoveInspectedCardToTopCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.MOVE_INSPECTED_CARD_TO_TOP)
+  );
+  const canMoveInspectedCardToBottomCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM)
+  );
+  const canMoveResolutionCardToZoneCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE)
   );
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
   const selectedCardId = useGameStore((s) => s.ui.selectedCardId);
@@ -152,14 +239,14 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         : '请求撤销'
       : '撤销';
   const mobileUndoButtonLabel =
-    capabilities.undoPolicy === 'REMOTE_REQUEST'
-      ? hasViewerUndoGrant
-        ? '撤销'
-        : '请求'
-      : '撤销';
+    capabilities.undoPolicy === 'REMOTE_REQUEST' ? (hasViewerUndoGrant ? '撤销' : '请求') : '撤销';
   const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
   const undoLastStep = useGameStore((s) => s.undoLastStep);
   const prevPhaseRef = useRef<GamePhase | null>(null);
+  const previousViewStateRef = useRef<PlayerViewState | null>(null);
+  const lastNonActiveEffectViewStateRef = useRef<PlayerViewState | null>(null);
+  const entryEffectSuspendedIdsRef = useRef(new Set<string>());
+  const dragBattleActionIntentCacheRef = useRef<DragBattleActionIntentCache | null>(null);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
   const {
@@ -184,8 +271,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     moveCardToInspection,
     reorderInspectedCard,
     moveResolutionCardToZone,
+    deselectCard,
     drawEnergyToZone,
     setDragHints,
+    setBattleDragActionHint,
+    pushBattleFeedback,
     setHoveredCard,
     setFreePlayEnabled,
     respondRemoteUndoRequest,
@@ -217,8 +307,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       moveCardToInspection: s.moveCardToInspection,
       reorderInspectedCard: s.reorderInspectedCard,
       moveResolutionCardToZone: s.moveResolutionCardToZone,
+      deselectCard: s.deselectCard,
       drawEnergyToZone: s.drawEnergyToZone,
       setDragHints: s.setDragHints,
+      setBattleDragActionHint: s.setBattleDragActionHint,
+      pushBattleFeedback: s.pushBattleFeedback,
       setHoveredCard: s.setHoveredCard,
       setFreePlayEnabled: s.setFreePlayEnabled,
       respondRemoteUndoRequest: s.respondRemoteUndoRequest,
@@ -240,11 +333,16 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
   // 拖拽状态
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [activeDragFromZone, setActiveDragFromZone] = useState<ZoneType | null>(null);
   const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
   const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
   const [successLiveSelectionCollapsed, setSuccessLiveSelectionCollapsed] = useState(false);
+  const [activeEffectSuspension, setActiveEffectSuspension] = useState<{
+    readonly effectId: string;
+    readonly until: number;
+  } | null>(null);
   const [doubleRelaySelection, setDoubleRelaySelection] = useState<{
     readonly cardId: string;
     readonly selectedSlots: readonly SlotPosition[];
@@ -305,7 +403,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     !!activeEffectNumericInput &&
     activeEffectSelectedNumber !== null &&
     Number.isFinite(activeEffectSelectedNumber) &&
-    (activeEffectNumericInput.integerOnly !== true || Number.isInteger(activeEffectSelectedNumber)) &&
+    (activeEffectNumericInput.integerOnly !== true ||
+      Number.isInteger(activeEffectSelectedNumber)) &&
     (typeof activeEffectNumericInput.min !== 'number' ||
       activeEffectSelectedNumber >= activeEffectNumericInput.min);
   const pendingCostSourceCardId = pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
@@ -327,8 +426,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     : [];
   const pendingUndoRequest = matchView?.undo?.pendingRequest ?? null;
   const pendingUndoRequesterName = pendingUndoRequest
-    ? getPlayerIdentityForSeat(pendingUndoRequest.requesterSeat)?.name ??
-      (pendingUndoRequest.requesterSeat === 'FIRST' ? '先攻玩家' : '后攻玩家')
+    ? (getPlayerIdentityForSeat(pendingUndoRequest.requesterSeat)?.name ??
+      (pendingUndoRequest.requesterSeat === 'FIRST' ? '先攻玩家' : '后攻玩家'))
     : '';
   const pendingUndoIsRequester =
     !!pendingUndoRequest && !!viewerSeat && pendingUndoRequest.requesterSeat === viewerSeat;
@@ -365,6 +464,74 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       : null;
   const doubleRelaySelectedSlots = activeDoubleRelaySelection?.selectedSlots ?? [];
   const canConfirmDoubleRelay = doubleRelaySelectedSlots.length === 2;
+  const isActiveEffectLocallySuspended =
+    !!activeEffect &&
+    activeEffectSuspension?.effectId === activeEffect.id &&
+    activeEffectSuspension.until > Date.now();
+  const shouldSuspendActiveEffectForEntryRender =
+    !!activeEffect &&
+    !!playerViewState &&
+    !entryEffectSuspendedIdsRef.current.has(activeEffect.id) &&
+    didObjectMoveIntoMemberSlot(
+      lastNonActiveEffectViewStateRef.current ?? previousViewStateRef.current,
+      playerViewState,
+      activeEffect.sourceObjectId
+    );
+  const isActiveEffectUiSuspended =
+    !!activeEffect &&
+    (shouldSuspendActiveEffectForEntryRender ||
+      isActiveEffectLocallySuspended ||
+      battleAnimationOcclusions.some(
+        (occlusion) => occlusion.objectId === activeEffect.sourceObjectId
+      ));
+
+  useLayoutEffect(() => {
+    if (!playerViewState) {
+      previousViewStateRef.current = null;
+      setActiveEffectSuspension(null);
+      return;
+    }
+
+    if (activeEffect && shouldSuspendActiveEffectForEntryRender) {
+      entryEffectSuspendedIdsRef.current.add(activeEffect.id);
+      setActiveEffectSuspension({
+        effectId: activeEffect.id,
+        until: Date.now() + ENTER_EFFECT_SURFACE_SUSPEND_MS,
+      });
+    } else if (!activeEffect) {
+      setActiveEffectSuspension(null);
+      entryEffectSuspendedIdsRef.current.clear();
+    }
+
+    if (!activeEffect) {
+      lastNonActiveEffectViewStateRef.current = playerViewState;
+    }
+    previousViewStateRef.current = playerViewState;
+  }, [
+    activeEffect?.id,
+    activeEffect?.sourceObjectId,
+    playerViewState,
+    shouldSuspendActiveEffectForEntryRender,
+  ]);
+
+  useEffect(() => {
+    if (!activeEffectSuspension) {
+      return;
+    }
+
+    const timeout = window.setTimeout(
+      () =>
+        setActiveEffectSuspension((current) =>
+          current?.effectId === activeEffectSuspension.effectId &&
+          current.until === activeEffectSuspension.until
+            ? null
+            : current
+        ),
+      Math.max(0, activeEffectSuspension.until - Date.now())
+    );
+
+    return () => window.clearTimeout(timeout);
+  }, [activeEffectSuspension]);
 
   useEffect(() => {
     setActiveEffectOrderedSelection([]);
@@ -529,12 +696,216 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     confirmSubPhase(SubPhase.RESULT_ANIMATION);
   }, [confirmSubPhase, currentSubPhase, isReadOnly]);
 
+  const handleBattlefieldBackgroundClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (!selectedCardId) {
+        return;
+      }
+
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (
+        target?.closest(
+          '[data-card-id], [data-zone-id], button, input, textarea, select, a, [role="button"]'
+        )
+      ) {
+        return;
+      }
+
+      deselectCard();
+    },
+    [deselectCard, selectedCardId]
+  );
+
+  useEffect(() => {
+    if (!selectedCardId) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        deselectCard();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deselectCard, selectedCardId]);
+
+  const getBattleActionCommandTypes = useCallback((): readonly GameCommandType[] => {
+    const commandTypes: GameCommandType[] = [];
+    if (canPlayMemberToSlotCommand) commandTypes.push(GameCommandType.PLAY_MEMBER_TO_SLOT);
+    if (canMoveMemberToSlotCommand) commandTypes.push(GameCommandType.MOVE_MEMBER_TO_SLOT);
+    if (canAttachEnergyToMemberCommand) commandTypes.push(GameCommandType.ATTACH_ENERGY_TO_MEMBER);
+    if (canSetLiveCardCommand) commandTypes.push(GameCommandType.SET_LIVE_CARD);
+    if (canMovePublicCardToHandCommand) commandTypes.push(GameCommandType.MOVE_PUBLIC_CARD_TO_HAND);
+    if (canMovePublicCardToWaitingRoomCommand) {
+      commandTypes.push(GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM);
+    }
+    if (canMovePublicCardToEnergyDeckCommand) {
+      commandTypes.push(GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK);
+    }
+    if (canMoveInspectedCardToZoneCommand) {
+      commandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE);
+    }
+    if (canMoveInspectedCardToTopCommand) {
+      commandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_TOP);
+    }
+    if (canMoveInspectedCardToBottomCommand) {
+      commandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM);
+    }
+    if (canMoveResolutionCardToZoneCommand) {
+      commandTypes.push(GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE);
+    }
+    if (canConfirmEffectCommand) commandTypes.push(GameCommandType.CONFIRM_EFFECT_STEP);
+    return commandTypes;
+  }, [
+    canAttachEnergyToMemberCommand,
+    canConfirmEffectCommand,
+    canMoveInspectedCardToBottomCommand,
+    canMoveInspectedCardToTopCommand,
+    canMoveInspectedCardToZoneCommand,
+    canMoveMemberToSlotCommand,
+    canMovePublicCardToEnergyDeckCommand,
+    canMovePublicCardToHandCommand,
+    canMovePublicCardToWaitingRoomCommand,
+    canMoveResolutionCardToZoneCommand,
+    canPlayMemberToSlotCommand,
+    canSetLiveCardCommand,
+  ]);
+
+  const buildDragBattleActionIntents = useCallback(
+    (cardId: string, fromZone: ZoneType) => {
+      const memberSlots = viewerSeat
+        ? MEMBER_SLOT_ORDER.map((slot) => ({
+            seat: viewerSeat,
+            slot,
+            cardId: getSeatMemberSlotCardId(viewerSeat, slot),
+          }))
+        : [];
+
+      const liveZoneCount = viewerSeat ? getZoneCardIds(`${viewerSeat}_LIVE_ZONE`).length : 0;
+
+      return buildBattleActionIntents({
+        sourceCardId: cardId,
+        sourceZone: fromZone,
+        sourceCardType: getKnownCardType(cardId),
+        sourceSlot: getCardSlotPosition(cardId),
+        currentPhase,
+        currentSubPhase,
+        actorSeat: viewerSeat,
+        viewerSeat,
+        sourceSeat: viewerSeat,
+        surface: capabilities.surface,
+        isReadOnly,
+        availableCommandTypes: getBattleActionCommandTypes(),
+        memberSlots,
+        liveZoneCount,
+        activeEffect,
+        activeEffectCanConfirm: canConfirmActiveEffect,
+      });
+    },
+    [
+      activeEffect,
+      canConfirmActiveEffect,
+      capabilities.surface,
+      currentPhase,
+      currentSubPhase,
+      getBattleActionCommandTypes,
+      getCardSlotPosition,
+      getKnownCardType,
+      getSeatMemberSlotCardId,
+      getZoneCardIds,
+      isReadOnly,
+      viewerSeat,
+    ]
+  );
+
+  const buildDragBattleActionIntentCacheKey = useCallback(
+    (cardId: string, fromZone: ZoneType): string =>
+      [
+        cardId,
+        fromZone,
+        playerViewState?.match.matchId ?? 'no-match',
+        playerViewState?.match.seq ?? -1,
+        activeEffect?.id ?? 'no-effect',
+        currentPhase ?? 'no-phase',
+        currentSubPhase,
+        viewerSeat ?? 'no-viewer',
+        capabilities.surface,
+        isReadOnly ? 'readonly' : 'interactive',
+      ].join('|'),
+    [
+      activeEffect?.id,
+      capabilities.surface,
+      currentPhase,
+      currentSubPhase,
+      isReadOnly,
+      playerViewState?.match.matchId,
+      playerViewState?.match.seq,
+      viewerSeat,
+    ]
+  );
+
+  const getDragBattleActionIntents = useCallback(
+    (cardId: string, fromZone: ZoneType) => {
+      const key = buildDragBattleActionIntentCacheKey(cardId, fromZone);
+      const cached = dragBattleActionIntentCacheRef.current;
+      if (cached?.key === key && cached.cardId === cardId && cached.fromZone === fromZone) {
+        return cached.intents;
+      }
+
+      const intents = buildDragBattleActionIntents(cardId, fromZone);
+      dragBattleActionIntentCacheRef.current = {
+        key,
+        cardId,
+        fromZone,
+        intents,
+      };
+      return intents;
+    },
+    [buildDragBattleActionIntentCacheKey, buildDragBattleActionIntents]
+  );
+
+  const executeBattleActionPayload = useCallback(
+    (payload: Parameters<typeof executeBattleActionPayloadWithHandlers>[0]): boolean =>
+      executeBattleActionPayloadWithHandlers(payload, {
+        playMemberToSlot,
+        moveMemberToSlot,
+        attachEnergyToMember,
+        setLiveCard,
+        movePublicCardToHand,
+        movePublicCardToWaitingRoom,
+        movePublicCardToEnergyDeck,
+        moveInspectedCardToZone,
+        moveInspectedCardToTop,
+        moveInspectedCardToBottom,
+        moveResolutionCardToZone,
+        confirmEffectStep,
+      }),
+    [
+      attachEnergyToMember,
+      confirmEffectStep,
+      moveInspectedCardToBottom,
+      moveInspectedCardToTop,
+      moveInspectedCardToZone,
+      moveMemberToSlot,
+      movePublicCardToEnergyDeck,
+      movePublicCardToHand,
+      movePublicCardToWaitingRoom,
+      moveResolutionCardToZone,
+      playMemberToSlot,
+      setLiveCard,
+    ]
+  );
+
   // 拖拽开始处理
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       if (isReadOnly) {
         setActiveCardId(null);
+        setActiveDragFromZone(null);
         setDragHints(false);
+        dragBattleActionIntentCacheRef.current = null;
         return;
       }
 
@@ -544,6 +915,13 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       // 计算"推荐目标"高亮（只提示，不限制放置）
       const dragData = event.active.data.current as { fromZone?: ZoneType } | undefined;
       const fromZone = dragData?.fromZone;
+      const resolvedFromZone = fromZone || findViewerCardZone(cardId);
+      setActiveDragFromZone(resolvedFromZone ?? null);
+      if (resolvedFromZone) {
+        getDragBattleActionIntents(cardId, resolvedFromZone);
+      } else {
+        dragBattleActionIntentCacheRef.current = null;
+      }
 
       const suggested: string[] = [];
       // Live 设置：推荐手牌 -> Live 区
@@ -570,8 +948,12 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       ) {
         suggested.push('inspection-zone');
       }
+      if (fromZone === ZoneType.INSPECTION_ZONE) {
+        suggested.push(...INSPECTION_TARGET_IDS);
+      }
 
       setDragHints(true, suggested);
+      setBattleDragActionHint(null);
     },
     [
       currentPhase,
@@ -579,7 +961,90 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       isReadOnly,
       matchView?.window?.windowType,
       setDragHints,
+      setBattleDragActionHint,
       getKnownCardType,
+      findViewerCardZone,
+      getDragBattleActionIntents,
+    ]
+  );
+
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      if (isReadOnly || !event.over) {
+        setBattleDragActionHint(null);
+        return;
+      }
+
+      const cardId = event.active.id as string;
+      const targetId = event.over.id as string;
+      const dragData = event.active.data.current as
+        | {
+            cardId: string;
+            cardCode?: string;
+            fromZone?: ZoneType;
+          }
+        | undefined;
+      const specialTarget = resolveSpecialDragTarget(targetId);
+      const parsedTarget =
+        (!specialTarget ? parseZoneId(targetId) : null) ?? resolveCardDropTarget(targetId);
+      const fromZone = dragData?.fromZone || findViewerCardZone(cardId);
+
+      if (!fromZone) {
+        setBattleDragActionHint(null);
+        return;
+      }
+
+      const targetSlot = parsedTarget?.slotPosition;
+      const targetOccupied =
+        !!viewerSeat &&
+        parsedTarget?.zoneType === ZoneType.MEMBER_SLOT &&
+        !!targetSlot &&
+        getSeatMemberSlotCardId(viewerSeat, targetSlot) !== null;
+      const dragIntents = getDragBattleActionIntents(cardId, fromZone);
+      const intentTarget = parsedTarget
+        ? findEnabledBattleActionTargetForZoneDrop(dragIntents, parsedTarget.zoneType, targetSlot)
+        : findEnabledBattleActionTargetByTargetId(dragIntents, targetId);
+      if (intentTarget) {
+        setBattleDragActionHint({
+          label: intentTarget.target.label,
+          detail: intentTarget.target.detail,
+          tone: 'attempt',
+          anchor: { targetId },
+        });
+        return;
+      }
+      const descriptor = getDragActionDescriptor({
+        fromZone,
+        toZone: parsedTarget?.zoneType,
+        targetSlot,
+        targetOccupied,
+        cardType: getKnownCardType(cardId),
+        currentPhase,
+        specialTarget,
+      });
+
+      if (!descriptor) {
+        setBattleDragActionHint(null);
+        return;
+      }
+
+      setBattleDragActionHint({
+        label: descriptor.label,
+        detail: descriptor.detail,
+        tone: descriptor.blocked ? 'blocked' : 'attempt',
+        anchor: { targetId },
+      });
+    },
+    [
+      currentPhase,
+      findViewerCardZone,
+      getDragBattleActionIntents,
+      getKnownCardType,
+      getSeatMemberSlotCardId,
+      isReadOnly,
+      resolveCardDropTarget,
+      setBattleDragActionHint,
+      viewerSeat,
     ]
   );
 
@@ -588,13 +1053,24 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     (event: DragEndEvent) => {
       const { active, over } = event;
       setActiveCardId(null);
+      setActiveDragFromZone(null);
       setDragHints(false);
+      setBattleDragActionHint(null);
 
       if (isReadOnly) return;
       if (!over) return;
 
       const cardId = active.id as string;
       const targetId = over.id as string;
+      const pushDropError = (label: string, detail?: string) => {
+        addLog(detail ? `${label}: ${detail}` : label, 'error');
+        pushBattleFeedback({
+          tone: 'error',
+          label,
+          detail,
+          anchor: { targetId, cardId },
+        });
+      };
 
       // 获取拖拽数据中的来源区域信息
       const dragData = active.data.current as
@@ -618,7 +1094,20 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       // 获取来源区域（优先从拖拽数据获取，否则查找）
       const fromZone = dragData?.fromZone || findViewerCardZone(cardId);
       if (!fromZone) {
-        addLog('无法确定卡牌来源区域', 'error');
+        pushDropError('无法确定卡牌来源区域');
+        return;
+      }
+
+      const dragIntents = getDragBattleActionIntents(cardId, fromZone);
+      const intentTarget = parsedTarget
+        ? findEnabledBattleActionTargetForZoneDrop(
+            dragIntents,
+            parsedTarget.zoneType,
+            parsedTarget.slotPosition
+          )
+        : findEnabledBattleActionTargetByTargetId(dragIntents, targetId);
+      const payload = intentTarget?.target.commandPayload;
+      if (payload && executeBattleActionPayload(payload)) {
         return;
       }
 
@@ -634,21 +1123,6 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       }
 
       if (fromZone === ZoneType.INSPECTION_ZONE) {
-        if (specialTarget?.kind === 'inspection') {
-          const result =
-            specialTarget.action === 'HAND'
-              ? moveInspectedCardToZone(cardId, ZoneType.HAND)
-              : specialTarget.action === 'WAITING_ROOM'
-                ? moveInspectedCardToZone(cardId, ZoneType.WAITING_ROOM)
-                : specialTarget.action === 'MAIN_DECK_BOTTOM'
-                  ? moveInspectedCardToBottom(cardId)
-                  : moveInspectedCardToTop(cardId);
-          if (result.success) {
-            addLog(`检视区拖拽完成: ${specialTarget.action}`, 'action');
-          }
-          return;
-        }
-
         if (parsedTarget?.zoneType === ZoneType.INSPECTION_ZONE) {
           const inspectionCardIds = viewerSeat
             ? getZoneCardIds(`${viewerSeat}_INSPECTION_ZONE`)
@@ -663,53 +1137,12 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           return;
         }
 
-        if (parsedTarget?.zoneType === ZoneType.HAND) {
-          const result = moveInspectedCardToZone(cardId, ZoneType.HAND);
-          if (result.success) {
-            addLog('检视牌拖入手牌', 'action');
-          }
-          return;
-        }
-
-        if (parsedTarget?.zoneType === ZoneType.WAITING_ROOM) {
-          const result = moveInspectedCardToZone(cardId, ZoneType.WAITING_ROOM);
-          if (result.success) {
-            addLog('检视牌拖入休息室', 'action');
-          }
-          return;
-        }
-
-        if (parsedTarget?.zoneType === ZoneType.MAIN_DECK) {
-          const result = moveInspectedCardToTop(cardId);
-          if (result.success) {
-            addLog('检视牌拖回主卡组顶', 'action');
-          }
-          return;
-        }
+        pushDropError('当前检视区拖拽未匹配可执行目标');
+        return;
       }
 
       if (fromZone === ZoneType.RESOLUTION_ZONE) {
-        const toZone =
-          specialTarget?.kind === 'resolution'
-            ? specialTarget.action === 'HAND'
-              ? ZoneType.HAND
-              : specialTarget.action === 'WAITING_ROOM'
-                ? ZoneType.WAITING_ROOM
-                : ZoneType.MAIN_DECK
-            : parsedTarget?.zoneType;
-
-        if (
-          toZone === ZoneType.HAND ||
-          toZone === ZoneType.WAITING_ROOM ||
-          toZone === ZoneType.MAIN_DECK
-        ) {
-          const result = moveResolutionCardToZone(cardId, toZone, {
-            position: toZone === ZoneType.MAIN_DECK ? 'TOP' : undefined,
-          });
-          if (result.success) {
-            addLog(`解决区拖拽完成: ${toZone}`, 'action');
-          }
-        }
+        pushDropError('当前解决区拖拽未匹配可执行目标');
         return;
       }
 
@@ -728,19 +1161,19 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       // 能量牌移动限制（规则 4.5.5、10.5.4）
       if (cardType === CardType.ENERGY) {
         if (toZone === ZoneType.HAND) {
-          addLog('能量牌不能移动到手牌', 'error');
+          pushDropError('能量牌不能移动到手牌');
           return;
         }
         if (toZone === ZoneType.LIVE_ZONE) {
-          addLog('能量牌不能移动到LIVE区', 'error');
+          pushDropError('能量牌不能移动到 LIVE 区');
           return;
         }
         if (toZone === ZoneType.SUCCESS_ZONE) {
-          addLog('能量牌不能移动到成功LIVE卡区', 'error');
+          pushDropError('能量牌不能移动到成功 LIVE 卡区');
           return;
         }
         if (toZone === ZoneType.WAITING_ROOM) {
-          addLog('能量牌不能移动到休息室（请移动到能量卡组）', 'error');
+          pushDropError('能量牌不能移动到休息室', '请移动到能量卡组');
           return;
         }
       }
@@ -748,26 +1181,26 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       // LIVE卡移动限制：不能放入成员区和能量区和能量卡组
       if (cardType === CardType.LIVE) {
         if (toZone === ZoneType.MEMBER_SLOT) {
-          addLog('LIVE卡不能放入成员区', 'error');
+          pushDropError('LIVE 卡不能放入成员区');
           return;
         }
         if (toZone === ZoneType.ENERGY_ZONE) {
-          addLog('LIVE卡不能放入能量区', 'error');
+          pushDropError('LIVE 卡不能放入能量区');
           return;
         }
         if (toZone === ZoneType.ENERGY_DECK) {
-          addLog('LIVE卡不能放入能量卡组', 'error');
+          pushDropError('LIVE 卡不能放入能量卡组');
           return;
         }
       }
 
       if (toZone === ZoneType.SUCCESS_ZONE && cardType !== CardType.LIVE) {
-        addLog('只有 LIVE 卡可以放入成功 Live 卡区', 'error');
+        pushDropError('只有 LIVE 卡可以放入成功 Live 卡区');
         return;
       }
 
       if (toZone === ZoneType.LIVE_ZONE && cardType !== CardType.LIVE && !isLiveSetHandPlacement) {
-        addLog('只有 LIVE 卡可以自由拖入 Live 区', 'error');
+        pushDropError('只有 LIVE 卡可以自由拖入 Live 区');
         return;
       }
 
@@ -778,15 +1211,15 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           fromZone === ZoneType.HAND &&
           toZone === ZoneType.LIVE_ZONE
         ) {
-          addLog('主要阶段不能把成员卡从手牌拖到 Live 区', 'error');
+          pushDropError('主要阶段不能把成员卡从手牌拖到 Live 区');
           return;
         }
         if (toZone === ZoneType.ENERGY_ZONE) {
-          addLog('成员卡不能放入能量区', 'error');
+          pushDropError('成员卡不能放入能量区');
           return;
         }
         if (toZone === ZoneType.ENERGY_DECK) {
-          addLog('成员卡不能放入能量卡组', 'error');
+          pushDropError('成员卡不能放入能量卡组');
           return;
         }
       }
@@ -913,7 +1346,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           toZone !== ZoneType.WAITING_ROOM &&
           toZone !== ZoneType.EXILE_ZONE
         ) {
-          addLog('当前落点不支持己方私有区拖拽', 'error');
+          pushDropError('当前落点不支持己方私有区拖拽');
           return;
         }
 
@@ -1025,12 +1458,16 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       drawEnergyToZone,
       setLiveCard,
       addLog,
+      pushBattleFeedback,
       viewerSeat,
       setDragHints,
+      setBattleDragActionHint,
       getZoneCardIds,
       currentPhase,
       currentSubPhase,
+      executeBattleActionPayload,
       findViewerCardZone,
+      getDragBattleActionIntents,
       getKnownCardType,
       resolveCardDropTarget,
       getCardSlotPosition,
@@ -1057,7 +1494,17 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const opponentSeat: Seat = selfSeat === 'FIRST' ? 'SECOND' : 'FIRST';
   const resolvedActiveSeat = activeSeat ?? selfSeat;
   const isSolitaire = capabilities.isSolitairePresentation;
-  const showLeaveLocalGameButton = isSolitaire && Boolean(onLeaveLocalGame);
+  const canShowBattleLeaveButton =
+    capabilities.surface === 'LOCAL_DEBUG' ||
+    capabilities.surface === 'SOLITAIRE' ||
+    capabilities.surface === 'REMOTE_DEBUG';
+  const showLeaveLocalGameButton = canShowBattleLeaveButton && Boolean(onLeaveLocalGame);
+  const leaveLocalGameButtonTitle =
+    capabilities.surface === 'REMOTE_DEBUG'
+      ? '退出联机调试房间'
+      : isSolitaire
+        ? '退出对墙打房间'
+        : '退出调试房间';
   const selfIdentity = getPlayerIdentityForSeat(selfSeat);
   const opponentIdentity = getPlayerIdentityForSeat(opponentSeat);
   const phaseInfo = getPhaseConfig(currentPhase)?.display;
@@ -1085,14 +1532,18 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       sensors={sensors}
       collisionDetection={inspectionFirstCollisionDetection}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDragCancel={() => {
         setActiveCardId(null);
+        setActiveDragFromZone(null);
         setDragHints(false);
+        setBattleDragActionHint(null);
       }}
     >
       <div
         className="h-full flex flex-col relative overflow-hidden"
+        onClick={handleBattlefieldBackgroundClick}
         style={{
           backgroundImage: `url(${getDeckBackUrl()})`,
           backgroundSize: 'cover',
@@ -1109,6 +1560,8 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           className="pointer-events-none absolute inset-0"
           style={{ background: 'var(--gradient-stage-glow)' }}
         />
+        <BattleAnimationLayer />
+        <BattleActionFeedbackLayer />
 
         {isReadOnly && replaySession && (
           <div className="pointer-events-none fixed left-4 top-4 z-[130] max-w-[calc(100vw-2rem)] rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
@@ -1132,7 +1585,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                       type="button"
                       onClick={onLeaveLocalGame}
                       className="button-ghost inline-flex h-10 shrink-0 items-center justify-center gap-1.5 px-2.5 text-xs"
-                      title="退出对墙打房间"
+                      title={leaveLocalGameButtonTitle}
                     >
                       <DoorOpen size={15} />
                       离开
@@ -1206,6 +1659,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                     playerSeat={selfSeat}
                     isOpponent={false}
                     isActive={resolvedActiveSeat === selfSeat}
+                    suppressActiveEffectVisuals={isActiveEffectUiSuspended}
                   />
                 </div>
               </div>
@@ -1335,6 +1789,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                             playerSeat={opponentSeat}
                             isOpponent={true}
                             isActive={resolvedActiveSeat === opponentSeat}
+                            suppressActiveEffectVisuals={isActiveEffectUiSuspended}
                           />
                         </div>
                       </div>
@@ -1362,7 +1817,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   type="button"
                   onClick={onLeaveLocalGame}
                   className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
-                  title="退出对墙打房间"
+                  title={leaveLocalGameButtonTitle}
                 >
                   <DoorOpen size={16} />
                   离开房间
@@ -1380,6 +1835,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 playerSeat={opponentSeat}
                 isOpponent={true}
                 isActive={resolvedActiveSeat === opponentSeat}
+                suppressActiveEffectVisuals={isActiveEffectUiSuspended}
               />
             </div>
 
@@ -1414,6 +1870,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 playerSeat={selfSeat}
                 isOpponent={false}
                 isActive={resolvedActiveSeat === selfSeat}
+                suppressActiveEffectVisuals={isActiveEffectUiSuspended}
               />
             </div>
           </>
@@ -1619,7 +2076,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           </div>
         )}
 
-        {activeEffect && activeEffectCollapsed && (
+        {!isActiveEffectUiSuspended && activeEffect && activeEffectCollapsed && (
           <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[95] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
@@ -1645,142 +2102,65 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
           </div>
         )}
 
-        {activeEffect && !activeEffectCollapsed && (
-          <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[95] w-[min(94vw,900px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
-                  处理中的效果
+        {!isActiveEffectUiSuspended && activeEffect && !activeEffectCollapsed && (
+          <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[95] w-[min(94vw,900px)] -translate-x-1/2 -translate-y-1/2">
+            <motion.div
+              className="rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+              initial={{ opacity: 0, y: 12, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 6, scale: 0.99 }}
+              transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+            >
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                    处理中的效果
+                  </div>
+                  <div className="mt-1 text-sm font-semibold">{activeEffectSourceLabel}</div>
                 </div>
-                <div className="mt-1 text-sm font-semibold">{activeEffectSourceLabel}</div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
+                    {activeEffect.inspectionObjectIds?.length ?? 0} 张
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveEffectCollapsed(true)}
+                    className="button-secondary inline-flex min-h-8 items-center justify-center gap-1.5 px-2 text-xs font-semibold"
+                  >
+                    <EyeOff className="h-4 w-4" aria-hidden="true" />
+                    隐藏
+                  </button>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
-                  {activeEffect.inspectionObjectIds?.length ?? 0} 张
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveEffectCollapsed(true)}
-                  className="button-secondary inline-flex min-h-8 items-center justify-center gap-1.5 px-2 text-xs font-semibold"
-                >
-                  <EyeOff className="h-4 w-4" aria-hidden="true" />
-                  隐藏
-                </button>
+              <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-3">
+                <p className="text-sm leading-relaxed">{activeEffect.effectText}</p>
               </div>
-            </div>
-            <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-3">
-              <p className="text-sm leading-relaxed">{activeEffect.effectText}</p>
-            </div>
-            {activeEffectRevealedCardIds.length > 0 && (
-              <div className="mt-4">
-                <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
-                  已公开的卡牌
-                </div>
-                <div className="grid max-h-[32vh] grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
-                  {activeEffectRevealedCardIds.map((cardId) => {
-                    const presentation = getVisibleCardPresentation(cardId);
-                    const cardData = presentation?.cardData;
-                    const label = cardData
-                      ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
-                        ? `${cardData.cost} ${cardData.name}`
-                        : cardData.cardType === CardType.LIVE && 'score' in cardData
-                          ? `${cardData.score}分 ${cardData.name}`
-                          : cardData.name
-                      : '已公开卡牌';
+              {activeEffectRevealedCardIds.length > 0 && (
+                <div className="mt-4">
+                  <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
+                    已公开的卡牌
+                  </div>
+                  <div className="grid max-h-[32vh] grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
+                    {activeEffectRevealedCardIds.map((cardId) => {
+                      const presentation = getVisibleCardPresentation(cardId);
+                      const cardData = presentation?.cardData;
+                      const label = cardData
+                        ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
+                          ? `${cardData.cost} ${cardData.name}`
+                          : cardData.cardType === CardType.LIVE && 'score' in cardData
+                            ? `${cardData.score}分 ${cardData.name}`
+                            : cardData.name
+                        : '已公开卡牌';
 
-                    return (
-                      <CardDetailPressTarget
-                        key={cardId}
-                        cardId={presentation?.instanceId ?? null}
-                        disabled={!presentation}
-                        title={label}
-                        className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] p-1.5"
-                      >
-                        {presentation ? (
-                          <Card
-                            cardData={presentation.cardData as AnyCardData}
-                            instanceId={presentation.instanceId}
-                            imagePath={presentation.imagePath}
-                            size="sm"
-                            faceUp={true}
-                            showHover={false}
-                          />
-                        ) : (
-                          <div className="flex h-[84px] w-[60px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
-                            ?
-                          </div>
-                        )}
-                        <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
-                          {label}
-                        </span>
-                      </CardDetailPressTarget>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {activeEffectSelectableCardIds.length > 0 && (
-              <div className="mt-4">
-                <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
-                  {activeEffect.selectionLabel ?? '请选择要处理的卡牌'}
-                </div>
-                <div className="grid max-h-[46vh] grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
-                  {activeEffectSelectableCardIds.map((cardId) => {
-                    const presentation = getVisibleCardPresentation(cardId);
-                    const cardData = presentation?.cardData;
-                    const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
-                    const isOrderedSelected = selectedOrderIndex >= 0;
-                    const label = cardData
-                      ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
-                        ? `${cardData.cost} ${cardData.name}`
-                        : cardData.cardType === CardType.LIVE && 'score' in cardData
-                          ? `${cardData.score}分 ${cardData.name}`
-                          : cardData.name
-                      : '选择此卡';
-                    return (
-                      <button
-                        key={cardId}
-                        type="button"
-                        disabled={!canConfirmActiveEffect || !presentation}
-                        onClick={() => {
-                          setHoveredCard(null);
-                          if (activeEffectUsesOrderedMultiSelect) {
-                            setActiveEffectOrderedSelection((current) => {
-                              const currentSelectable = current.filter((selectedId) =>
-                                activeEffectSelectableCardIds.includes(selectedId)
-                              );
-                              if (currentSelectable.includes(cardId)) {
-                                return currentSelectable.filter(
-                                  (selectedId) => selectedId !== cardId
-                                );
-                              }
-                              if (currentSelectable.length >= activeEffectMaxSelectableCards) {
-                                return currentSelectable;
-                              }
-                              return [...currentSelectable, cardId];
-                            });
-                            return;
-                          }
-                          confirmEffectStep(activeEffect.id, cardId);
-                        }}
-                        className={`group relative flex min-w-0 flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors ${
-                          isOrderedSelected
-                            ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
-                            : 'border-transparent'
-                        } ${
-                          canConfirmActiveEffect && presentation
-                            ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
-                            : 'cursor-not-allowed opacity-50'
-                        }`}
-                        title={label}
-                      >
-                        {isOrderedSelected && (
-                          <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
-                            {selectedOrderIndex + 1}
-                          </span>
-                        )}
-                        {presentation ? (
-                          <CardDetailPressTarget cardId={presentation.instanceId} title={label}>
+                      return (
+                        <CardDetailPressTarget
+                          key={cardId}
+                          cardId={presentation?.instanceId ?? null}
+                          disabled={!presentation}
+                          title={label}
+                          className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] p-1.5"
+                        >
+                          {presentation ? (
                             <Card
                               cardData={presentation.cardData as AnyCardData}
                               instanceId={presentation.instanceId}
@@ -1789,183 +2169,276 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                               faceUp={true}
                               showHover={false}
                             />
-                          </CardDetailPressTarget>
-                        ) : (
-                          <div className="flex h-[84px] w-[60px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
-                            ?
-                          </div>
-                        )}
-                        <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-                          {label}
-                        </span>
-                      </button>
-                    );
-                  })}
+                          ) : (
+                            <div className="flex h-[84px] w-[60px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
+                              ?
+                            </div>
+                          )}
+                          <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
+                            {label}
+                          </span>
+                        </CardDetailPressTarget>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              {activeEffectSelectableSlots.map((slot) => {
-                const slotLabel =
-                  slot === SlotPosition.LEFT
-                    ? '左侧'
-                    : slot === SlotPosition.CENTER
-                      ? '中央'
-                      : '右侧';
-                const slotActionLabel =
-                  activeEffect.confirmSelectionLabel === '登场' ? '登场至' : '移动到';
-                return (
+              )}
+              {activeEffectSelectableCardIds.length > 0 && (
+                <div className="mt-4">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+                    <span>{activeEffect.selectionLabel ?? '请选择要处理的卡牌'}</span>
+                    <span className="rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
+                      {activeEffectUsesOrderedMultiSelect
+                        ? `已选 ${activeEffectOrderedSelection.length} / ${activeEffectMaxSelectableCards}`
+                        : `候选 ${activeEffectSelectableCardIds.length} 张`}
+                      {activeEffectMinSelectableCards > 0
+                        ? `｜至少 ${activeEffectMinSelectableCards}`
+                        : ''}
+                    </span>
+                  </div>
+                  <div className="grid max-h-[46vh] grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
+                    {activeEffectSelectableCardIds.map((cardId) => {
+                      const presentation = getVisibleCardPresentation(cardId);
+                      const cardData = presentation?.cardData;
+                      const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
+                      const isOrderedSelected = selectedOrderIndex >= 0;
+                      const label = cardData
+                        ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
+                          ? `${cardData.cost} ${cardData.name}`
+                          : cardData.cardType === CardType.LIVE && 'score' in cardData
+                            ? `${cardData.score}分 ${cardData.name}`
+                            : cardData.name
+                        : '选择此卡';
+                      return (
+                        <button
+                          key={cardId}
+                          type="button"
+                          disabled={!canConfirmActiveEffect || !presentation}
+                          onClick={() => {
+                            setHoveredCard(null);
+                            if (activeEffectUsesOrderedMultiSelect) {
+                              setActiveEffectOrderedSelection((current) => {
+                                const currentSelectable = current.filter((selectedId) =>
+                                  activeEffectSelectableCardIds.includes(selectedId)
+                                );
+                                if (currentSelectable.includes(cardId)) {
+                                  return currentSelectable.filter(
+                                    (selectedId) => selectedId !== cardId
+                                  );
+                                }
+                                if (currentSelectable.length >= activeEffectMaxSelectableCards) {
+                                  return currentSelectable;
+                                }
+                                return [...currentSelectable, cardId];
+                              });
+                              return;
+                            }
+                            confirmEffectStep(activeEffect.id, cardId);
+                          }}
+                          className={`group relative flex min-w-0 flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors ${
+                            isOrderedSelected
+                              ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
+                              : 'border-transparent'
+                          } ${
+                            canConfirmActiveEffect && presentation
+                              ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
+                              : 'cursor-not-allowed opacity-50'
+                          }`}
+                          title={label}
+                        >
+                          {isOrderedSelected && (
+                            <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
+                              {selectedOrderIndex + 1}
+                            </span>
+                          )}
+                          {presentation ? (
+                            <CardDetailPressTarget cardId={presentation.instanceId} title={label}>
+                              <Card
+                                cardData={presentation.cardData as AnyCardData}
+                                instanceId={presentation.instanceId}
+                                imagePath={presentation.imagePath}
+                                size="sm"
+                                faceUp={true}
+                                showHover={false}
+                              />
+                            </CardDetailPressTarget>
+                          ) : (
+                            <div className="flex h-[84px] w-[60px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
+                              ?
+                            </div>
+                          )}
+                          <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                            {label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                {activeEffectSelectableSlots.map((slot) => {
+                  const slotLabel =
+                    slot === SlotPosition.LEFT
+                      ? '左侧'
+                      : slot === SlotPosition.CENTER
+                        ? '中央'
+                        : '右侧';
+                  const slotActionLabel =
+                    activeEffect.confirmSelectionLabel === '登场' ? '登场至' : '移动到';
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      disabled={!canConfirmActiveEffect}
+                      onClick={() =>
+                        confirmEffectStep(activeEffect.id, undefined, slot as SlotPosition)
+                      }
+                      className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                        canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                      }`}
+                    >
+                      {slotActionLabel}
+                      {slotLabel}
+                    </button>
+                  );
+                })}
+                {activeEffectSelectableOptions.map((option) => (
                   <button
-                    key={slot}
+                    key={option.id}
                     type="button"
                     disabled={!canConfirmActiveEffect}
                     onClick={() =>
-                      confirmEffectStep(activeEffect.id, undefined, slot as SlotPosition)
+                      confirmEffectStep(activeEffect.id, undefined, undefined, undefined, option.id)
                     }
                     className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
                       canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
                     }`}
                   >
-                    {slotActionLabel}
-                    {slotLabel}
+                    {option.label}
                   </button>
-                );
-              })}
-              {activeEffectSelectableOptions.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  disabled={!canConfirmActiveEffect}
-                  onClick={() =>
-                    confirmEffectStep(activeEffect.id, undefined, undefined, undefined, option.id)
-                  }
-                  className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
-                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-              {activeEffectNumericInput && (
-                <div className="flex min-w-[180px] flex-col gap-1">
-                  <label className="text-xs font-semibold text-[var(--text-secondary)]">
-                    {activeEffectNumericInput.label ?? '数字'}
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      min={activeEffectNumericInput.min ?? undefined}
-                      step={activeEffectNumericInput.integerOnly === true ? 1 : undefined}
-                      value={activeEffectNumberInput}
-                      placeholder={activeEffectNumericInput.placeholder}
-                      onChange={(event) => setActiveEffectNumberInput(event.currentTarget.value)}
-                      className="min-h-10 w-28 rounded border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 text-sm font-semibold text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
-                    />
-                    <button
-                      type="button"
-                      disabled={!canConfirmActiveEffectNumber}
-                      onClick={() =>
-                        confirmEffectStep(
-                          activeEffect.id,
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          activeEffectSelectedNumber
-                        )
-                      }
-                      className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
-                        canConfirmActiveEffectNumber ? '' : 'cursor-not-allowed opacity-50'
-                      }`}
-                    >
-                      {activeEffectNumericInput.confirmLabel ?? '确认'}
-                    </button>
+                ))}
+                {activeEffectNumericInput && (
+                  <div className="flex min-w-[180px] flex-col gap-1">
+                    <label className="text-xs font-semibold text-[var(--text-secondary)]">
+                      {activeEffectNumericInput.label ?? '数字'}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min={activeEffectNumericInput.min ?? undefined}
+                        step={activeEffectNumericInput.integerOnly === true ? 1 : undefined}
+                        value={activeEffectNumberInput}
+                        placeholder={activeEffectNumericInput.placeholder}
+                        onChange={(event) => setActiveEffectNumberInput(event.currentTarget.value)}
+                        className="min-h-10 w-28 rounded border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 text-sm font-semibold text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
+                      />
+                      <button
+                        type="button"
+                        disabled={!canConfirmActiveEffectNumber}
+                        onClick={() =>
+                          confirmEffectStep(
+                            activeEffect.id,
+                            undefined,
+                            undefined,
+                            undefined,
+                            undefined,
+                            undefined,
+                            activeEffectSelectedNumber
+                          )
+                        }
+                        className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                          canConfirmActiveEffectNumber ? '' : 'cursor-not-allowed opacity-50'
+                        }`}
+                      >
+                        {activeEffectNumericInput.confirmLabel ?? '确认'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-              {activeEffectUsesOrderedMultiSelect && activeEffectSelectableCardIds.length > 0 && (
-                <button
-                  type="button"
-                  disabled={!canConfirmOrderedEffectSelection}
-                  onClick={() =>
-                    confirmEffectStep(
-                      activeEffect.id,
-                      undefined,
-                      undefined,
-                      undefined,
-                      undefined,
-                      activeEffectOrderedSelection
-                    )
-                  }
-                  className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
-                    canConfirmOrderedEffectSelection ? '' : 'cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  {activeEffect.confirmSelectionLabel ?? '确认选择'}
-                  {activeEffectOrderedSelection.length > 0
-                    ? ` (${activeEffectOrderedSelection.length} 张)`
-                    : ''}
-                </button>
-              )}
-              {activeEffect.canResolveInOrder && (
-                <button
-                  type="button"
-                  disabled={!canConfirmActiveEffect}
-                  onClick={() => confirmEffectStep(activeEffect.id, undefined, null, true)}
-                  className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
-                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  顺序发动
-                </button>
-              )}
-              {activeEffect.canSkipSelection && (
-                <button
-                  type="button"
-                  disabled={!canConfirmActiveEffect}
-                  onClick={() => confirmEffectStep(activeEffect.id, null)}
-                  className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
-                    canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  {activeEffect.skipSelectionLabel ?? '不加入'}
-                </button>
-              )}
-              {activeEffectSelectableCardIds.length === 0 &&
-                activeEffectSelectableSlots.length === 0 &&
-                activeEffectSelectableOptions.length === 0 &&
-                !activeEffectNumericInput &&
-                !activeEffect.canSkipSelection &&
-                !activeEffect.canResolveInOrder && (
+                )}
+                {activeEffectUsesOrderedMultiSelect && activeEffectSelectableCardIds.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={!canConfirmOrderedEffectSelection}
+                    onClick={() =>
+                      confirmEffectStep(
+                        activeEffect.id,
+                        undefined,
+                        undefined,
+                        undefined,
+                        undefined,
+                        activeEffectOrderedSelection
+                      )
+                    }
+                    className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                      canConfirmOrderedEffectSelection ? '' : 'cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    {activeEffect.confirmSelectionLabel ?? '确认选择'}
+                    {activeEffectOrderedSelection.length > 0
+                      ? ` (${activeEffectOrderedSelection.length} 张)`
+                      : ''}
+                  </button>
+                )}
+                {activeEffect.canResolveInOrder && (
                   <button
                     type="button"
                     disabled={!canConfirmActiveEffect}
-                    onClick={() => confirmEffectStep(activeEffect.id)}
+                    onClick={() => confirmEffectStep(activeEffect.id, undefined, null, true)}
                     className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
                       canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
                     }`}
                   >
-                    继续处理
+                    顺序发动
                   </button>
                 )}
-              {activeEffectSelectableCardIds.length === 0 &&
-                activeEffectSelectableSlots.length === 0 &&
-                activeEffectSelectableOptions.length === 0 &&
-                !activeEffectNumericInput &&
-                activeEffect.canSkipSelection && (
+                {activeEffect.canSkipSelection && (
                   <button
                     type="button"
                     disabled={!canConfirmActiveEffect}
                     onClick={() => confirmEffectStep(activeEffect.id, null)}
-                    className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                    className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
                       canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
                     }`}
                   >
-                    继续处理
+                    {activeEffect.skipSelectionLabel ?? '不加入'}
                   </button>
                 )}
-            </div>
+                {activeEffectSelectableCardIds.length === 0 &&
+                  activeEffectSelectableSlots.length === 0 &&
+                  activeEffectSelectableOptions.length === 0 &&
+                  !activeEffectNumericInput &&
+                  !activeEffect.canSkipSelection &&
+                  !activeEffect.canResolveInOrder && (
+                    <button
+                      type="button"
+                      disabled={!canConfirmActiveEffect}
+                      onClick={() => confirmEffectStep(activeEffect.id)}
+                      className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                        canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                      }`}
+                    >
+                      继续处理
+                    </button>
+                  )}
+                {activeEffectSelectableCardIds.length === 0 &&
+                  activeEffectSelectableSlots.length === 0 &&
+                  activeEffectSelectableOptions.length === 0 &&
+                  !activeEffectNumericInput &&
+                  activeEffect.canSkipSelection && (
+                    <button
+                      type="button"
+                      disabled={!canConfirmActiveEffect}
+                      onClick={() => confirmEffectStep(activeEffect.id, null)}
+                      className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                        canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                      }`}
+                    >
+                      继续处理
+                    </button>
+                  )}
+              </div>
+            </motion.div>
           </div>
         )}
 
@@ -2145,14 +2618,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         {/* 拖拽覆盖层 - 显示正在拖拽的卡牌 */}
         <DragOverlay>
           {activeCard ? (
-            <Card
-              cardData={activeCard.cardData as AnyCardData}
-              instanceId={activeCard.instanceId}
-              imagePath={activeCard.imagePath}
-              size="sm"
-              faceUp={true}
-              showHover={false}
-            />
+            <DragOverlayCard card={activeCard} fromZone={activeDragFromZone} />
           ) : activeCardId ? (
             <div className="h-[112px] w-[80px] overflow-hidden rounded-lg shadow-lg">
               <img src="/back.jpg" alt="Card Back" className="h-full w-full object-cover" />
@@ -2196,6 +2662,39 @@ function resolveSpecialDragTarget(targetId: string): SpecialDragTarget | null {
   }
 
   return null;
+}
+
+function DragOverlayCard({
+  card,
+  fromZone,
+}: {
+  readonly card: VisibleCardPresentation;
+  readonly fromZone: ZoneType | null;
+}) {
+  const cardContent = (
+    <Card
+      cardData={card.cardData as AnyCardData}
+      instanceId={card.instanceId}
+      imagePath={card.imagePath}
+      size="sm"
+      faceUp={true}
+      showHover={false}
+    />
+  );
+
+  if (!isHorizontalDragPreviewZone(fromZone)) {
+    return cardContent;
+  }
+
+  return (
+    <div className="flex h-[80px] w-[112px] items-center justify-center">
+      <div className="-rotate-90 origin-center">{cardContent}</div>
+    </div>
+  );
+}
+
+function isHorizontalDragPreviewZone(zone: ZoneType | null): boolean {
+  return zone === ZoneType.LIVE_ZONE || zone === ZoneType.SUCCESS_ZONE;
 }
 
 export default GameBoard;

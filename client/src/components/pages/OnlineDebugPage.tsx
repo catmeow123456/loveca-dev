@@ -202,6 +202,14 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
     }
   };
 
+  const handleLeaveDebugRoom = () => {
+    disconnectRemoteDebugSession();
+    setStatus(null);
+    setSelectedDeck(null);
+    setError(null);
+    setPollingPaused(true);
+  };
+
   if (!mySeat) {
     return (
       <div className="app-shell flex min-h-screen flex-col">
@@ -231,7 +239,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
   if (isMatchStarted && matchView) {
     return (
       <div className="h-screen overflow-hidden">
-        <GameBoard />
+        <GameBoard onLeaveLocalGame={handleLeaveDebugRoom} />
       </div>
     );
   }

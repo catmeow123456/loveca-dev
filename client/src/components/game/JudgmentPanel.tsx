@@ -17,6 +17,11 @@ import { GameCommandType } from '@game/application/game-commands';
 import { applyHeartRequirementModifiers } from '@game/domain/rules/live-requirement-modifiers';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
+import {
+  buildBattleActionIntents,
+  findEnabledBattleActionTargetByTargetId,
+} from '@/lib/battleActionIntent';
+import { executeBattleActionPayload } from '@/lib/battleActionExecutor';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
@@ -25,6 +30,7 @@ import {
   ZoneType,
   BladeHeartEffect,
   SlotPosition,
+  CardType,
 } from '@game/shared/types/enums';
 import { isSuccessEffectSubPhase } from '@game/shared/phase-config';
 import { useGameStore } from '@/store/gameStore';
@@ -246,10 +252,14 @@ const SortableCheerCard = memo(function SortableCheerCard({
   cardId,
   imagePath,
   disabled = false,
+  selected = false,
+  onClick,
 }: {
   cardId: string;
   imagePath: string;
   disabled?: boolean;
+  selected?: boolean;
+  onClick?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
     id: cardId,
@@ -271,9 +281,11 @@ const SortableCheerCard = memo(function SortableCheerCard({
       style={style}
       {...attributes}
       {...listeners}
+      onClick={onClick}
       className={cn(
         'w-[72px] h-[100px] rounded-lg overflow-hidden shadow-md cursor-grab',
-        isDragging && 'shadow-xl ring-2 ring-amber-400'
+        isDragging && 'shadow-xl ring-2 ring-amber-400',
+        selected && 'ring-2 ring-cyan-300 ring-offset-2 ring-offset-slate-950'
       )}
     >
       <img src={imagePath} alt="" className="w-full h-full object-cover" draggable={false} />
@@ -346,6 +358,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   const getSeatZone = useGameStore((s) => s.getSeatZone);
   const getSeatZoneCardIds = useGameStore((s) => s.getSeatZoneCardIds);
   const getSeatMemberSlotCardId = useGameStore((s) => s.getSeatMemberSlotCardId);
+  const selectedCardId = useGameStore((s) => s.ui.selectedCardId);
+  const battleSurface = useGameStore((s) => s.getBattleSurfaceCapabilities().surface);
   const liveHeartBonuses = useGameStore((s) => {
     const active = s.getActiveSeatView();
     return active ? (s.playerViewState?.match.liveResult?.heartBonuses[active] ?? []) : [];
@@ -369,6 +383,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     getCardImagePath,
     moveResolutionCardToZone,
     revealCheerCard,
+    selectCard,
     setHoveredCard,
   } = useGameStore(
     useShallow((s) => ({
@@ -377,6 +392,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       getCardImagePath: s.getCardImagePath,
       moveResolutionCardToZone: s.moveResolutionCardToZone,
       revealCheerCard: s.revealCheerCard,
+      selectCard: s.selectCard,
       setHoveredCard: s.setHoveredCard,
     }))
   );
@@ -394,6 +410,34 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       return s.getResolutionCardIdsForSeat(activeSeat);
     })
   );
+  const selectedResolutionCardId =
+    selectedCardId && cheerCardIds.includes(selectedCardId) ? selectedCardId : null;
+  const selectedResolutionCardFrontInfo = selectedResolutionCardId
+    ? (getCardFrontInfo(selectedResolutionCardId) ?? null)
+    : null;
+  const resolutionActionIntents = selectedResolutionCardId
+    ? buildBattleActionIntents({
+        sourceCardId: selectedResolutionCardId,
+        sourceZone: ZoneType.RESOLUTION_ZONE,
+        sourceCardType: selectedResolutionCardFrontInfo?.cardType ?? CardType.MEMBER,
+        currentPhase: null,
+        currentSubPhase,
+        actorSeat: activeSeat,
+        viewerSeat: activeSeat,
+        sourceSeat: activeSeat,
+        surface: battleSurface,
+        isReadOnly: false,
+        availableCommandTypes: canMoveResolutionCardToZone
+          ? [GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE]
+          : [],
+        memberSlots: [],
+      })
+    : [];
+  const resolutionTargetById = (targetId: string) =>
+    findEnabledBattleActionTargetByTargetId(resolutionActionIntents, targetId);
+  const resolutionHandTarget = resolutionTargetById('resolution-target-hand');
+  const resolutionWaitingRoomTarget = resolutionTargetById('resolution-target-waiting-room');
+  const resolutionMainDeckTopTarget = resolutionTargetById('resolution-target-main-deck-top');
 
   const closeAfterRemoteAdvanceRef = useRef(false);
 
@@ -451,6 +495,24 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       }
     },
     [canMoveResolutionCardToZone, moveResolutionCardToZone, setHoveredCard]
+  );
+
+  const toggleSelectedResolutionCard = useCallback(
+    (cardId: string) => {
+      selectCard(selectedCardId === cardId ? null : cardId);
+    },
+    [selectCard, selectedCardId]
+  );
+
+  const executeResolutionTarget = useCallback(
+    (target: ReturnType<typeof findEnabledBattleActionTargetByTargetId>) => {
+      const payload = target?.target.commandPayload;
+      if (!payload) {
+        return;
+      }
+      executeBattleActionPayload(payload, { moveResolutionCardToZone });
+    },
+    [moveResolutionCardToZone]
   );
 
   // 应援卡牌实例 — cheerCardIds 已通过 store selector 响应式更新，
@@ -765,26 +827,48 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             <DroppableZone
               id="resolution-target-hand"
               disabled={!canMoveResolutionCardToZone}
-              className="rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
+              title={resolutionHandTarget?.target.label ?? '加入手牌'}
+              onClick={() => executeResolutionTarget(resolutionHandTarget)}
+              className={cn(
+                'rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]',
+                resolutionHandTarget &&
+                  'cursor-pointer border-cyan-300 bg-cyan-500/15 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.24)]'
+              )}
               activeClassName="outline outline-2 outline-cyan-400 bg-cyan-500/15"
             >
-              拖到这里回手
+              {resolutionHandTarget ? resolutionHandTarget.target.label : '拖到这里回手'}
             </DroppableZone>
             <DroppableZone
               id="resolution-target-waiting-room"
               disabled={!canMoveResolutionCardToZone}
-              className="rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
+              title={resolutionWaitingRoomTarget?.target.label ?? '放入休息室'}
+              onClick={() => executeResolutionTarget(resolutionWaitingRoomTarget)}
+              className={cn(
+                'rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]',
+                resolutionWaitingRoomTarget &&
+                  'cursor-pointer border-slate-200 bg-slate-500/15 text-slate-50 shadow-[0_0_14px_rgba(226,232,240,0.18)]'
+              )}
               activeClassName="outline outline-2 outline-slate-300 bg-slate-500/15"
             >
-              拖到这里弃置
+              {resolutionWaitingRoomTarget
+                ? resolutionWaitingRoomTarget.target.label
+                : '拖到这里弃置'}
             </DroppableZone>
             <DroppableZone
               id="resolution-target-main-deck-top"
               disabled={!canMoveResolutionCardToZone}
-              className="rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]"
+              title={resolutionMainDeckTopTarget?.target.label ?? '回卡组顶'}
+              onClick={() => executeResolutionTarget(resolutionMainDeckTopTarget)}
+              className={cn(
+                'rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]',
+                resolutionMainDeckTopTarget &&
+                  'cursor-pointer border-amber-300 bg-amber-500/15 text-amber-50 shadow-[0_0_14px_rgba(251,191,36,0.22)]'
+              )}
               activeClassName="outline outline-2 outline-amber-400 bg-amber-500/15"
             >
-              拖到这里回卡组顶
+              {resolutionMainDeckTopTarget
+                ? resolutionMainDeckTopTarget.target.label
+                : '拖到这里回卡组顶'}
             </DroppableZone>
           </div>
 
@@ -818,6 +902,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                             cardId={id}
                             imagePath={getCardImagePath(frontInfo.cardCode)}
                             disabled={!canMoveResolutionCardToZone}
+                            selected={selectedCardId === id}
+                            onClick={() => toggleSelectedResolutionCard(id)}
                           />
                         ) : (
                           <div className="h-[100px] w-[72px] overflow-hidden rounded-lg shadow-md">

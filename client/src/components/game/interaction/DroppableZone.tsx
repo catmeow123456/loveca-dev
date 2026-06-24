@@ -8,9 +8,9 @@
  * 3. 悬停时：当前悬停区域显示 "悬停" 高亮（activeClassName）
  */
 
-import { useDroppable } from '@dnd-kit/core';
+import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
-import type { ReactNode } from 'react';
+import type { MouseEventHandler, ReactNode } from 'react';
 import { useGameStore } from '@/store/gameStore';
 
 export interface DroppableZoneProps {
@@ -24,6 +24,8 @@ export interface DroppableZoneProps {
   data?: Record<string, unknown>;
   /** 是否禁用放置 */
   disabled?: boolean;
+  /** 当当前拖拽来源来自这些区域时，临时禁用放置 */
+  disabledForDragFromZones?: readonly string[];
   /** 子元素 */
   children: ReactNode;
   /** 基础类名 */
@@ -34,9 +36,46 @@ export interface DroppableZoneProps {
   dropTargetClassName?: string;
   /** 拖拽时变暗其他区域（有推荐目标时才启用） */
   dimOthersClassName?: string;
+  /** 浏览器 tooltip */
+  title?: string;
+  /** 无障碍标签 */
+  ariaLabel?: string;
+  /** 点击当前放置目标 */
+  onClick?: MouseEventHandler<HTMLDivElement>;
 }
 
 export function DroppableZone({
+  disabledForDragFromZones = [],
+  ...props
+}: DroppableZoneProps) {
+  if (disabledForDragFromZones.length === 0) {
+    return <DroppableZoneBase {...props} />;
+  }
+
+  return (
+    <DroppableZoneWithDragSourceFilter
+      {...props}
+      disabledForDragFromZones={disabledForDragFromZones}
+    />
+  );
+}
+
+function DroppableZoneWithDragSourceFilter({
+  disabledForDragFromZones,
+  disabled = false,
+  ...props
+}: DroppableZoneProps & { readonly disabledForDragFromZones: readonly string[] }) {
+  const { active } = useDndContext();
+  const activeDragData = active?.data.current as { fromZone?: unknown } | undefined;
+  const activeFromZone =
+    activeDragData?.fromZone === undefined ? null : String(activeDragData.fromZone);
+  const isDisabledForActiveDrag =
+    activeFromZone !== null && disabledForDragFromZones.includes(activeFromZone);
+
+  return <DroppableZoneBase {...props} disabled={disabled || isDisabledForActiveDrag} />;
+}
+
+function DroppableZoneBase({
   id,
   domId,
   zoneId,
@@ -49,7 +88,10 @@ export function DroppableZone({
   activeClassName = 'outline outline-2 outline-rose-500 bg-rose-500/20',
   dropTargetClassName = 'outline outline-2 outline-dashed outline-amber-400/70 bg-amber-500/10',
   dimOthersClassName = 'opacity-35 saturate-50',
-}: DroppableZoneProps) {
+  title,
+  ariaLabel,
+  onClick,
+}: Omit<DroppableZoneProps, 'disabledForDragFromZones'>) {
   const { isOver, setNodeRef } = useDroppable({
     id,
     data,
@@ -68,16 +110,22 @@ export function DroppableZone({
   // 判断是否应该显示 "悬停" 高亮
   const showActive = isOver && !disabled;
   // 拖拽时有推荐目标，其他区域变暗（仍可放置）
-  const showDimOthers = isDragging && hasSuggestedTargets && !isSuggested && !isOver && !disabled;
+  const showDimOthers =
+    isDragging && hasSuggestedTargets && !isSuggested && !isOver && !disabled;
 
   return (
     <div
       ref={setNodeRef}
       id={domId ?? id}
       data-zone-id={zoneId ?? domId ?? id}
+      title={title}
+      aria-label={ariaLabel}
+      onClick={onClick}
       className={cn(
         // During drag, avoid transitions (they stack with frequent hover updates and can feel "laggy").
-        isDragging ? 'transition-none' : 'transition-[opacity,outline-color,background-color] duration-150',
+        isDragging
+          ? 'transition-none'
+          : 'transition-[opacity,outline-color,background-color] duration-150',
         className,
         showDropTarget && dropTargetClassName,
         showDimOthers && dimOthersClassName,

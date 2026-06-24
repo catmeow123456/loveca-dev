@@ -1,0 +1,4 @@
+interface:
+  display_name: "Animation Verification"
+  short_description: "Loveca animation QA workflow"
+  default_prompt: "Use -verification to verify Loveca battle animations and interactions."

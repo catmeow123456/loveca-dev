@@ -1,0 +1,4 @@
+interface:
+  display_name: "Battle Interaction Design"
+  short_description: "Loveca battle interaction rules"
+  default_prompt: "Use -interaction-design to design a Loveca battle interaction flow."
