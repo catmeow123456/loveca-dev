@@ -229,7 +229,7 @@ describe('member-slot-moved trigger wrapper', () => {
     ]);
   });
 
-  it('replays formation move history before enqueueing one moved trigger per moved member', () => {
+  it('replays formation move history but enqueues moved triggers only for final slot changes', () => {
     const memberA = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
     const memberB = createCardInstance(createMemberCard('MEM-B'), 'p1', 'member-b');
     const memberC = createCardInstance(createMemberCard('MEM-C'), 'p1', 'member-c');
@@ -287,13 +287,11 @@ describe('member-slot-moved trigger wrapper', () => {
     });
     expect(result?.memberSlotMovedEvents.map((event) => event.cardInstanceId)).toEqual([
       memberA.instanceId,
-      memberB.instanceId,
       memberC.instanceId,
     ]);
-    expect(result?.memberSlotMovedEvents.find((event) => event.cardInstanceId === memberB.instanceId)).toMatchObject({
-      fromSlot: SlotPosition.CENTER,
-      toSlot: SlotPosition.LEFT,
-    });
+    expect(result?.memberSlotMovedEvents).not.toContainEqual(
+      expect.objectContaining({ cardInstanceId: memberB.instanceId })
+    );
     expect(enqueueTriggeredCardEffects).toHaveBeenCalledTimes(1);
     const [stateBeforeEnqueue, triggerConditions, options] =
       enqueueTriggeredCardEffects.mock.calls[0];

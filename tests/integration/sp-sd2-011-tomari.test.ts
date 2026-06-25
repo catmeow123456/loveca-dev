@@ -10,7 +10,7 @@ import {
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { moveMemberBetweenSlots } from '../../src/application/effects/member-state';
 import { GameService } from '../../src/application/game-service';
-import { SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -23,15 +23,15 @@ import {
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 
-function createKanon(): MemberCardData {
+function createTomari(): MemberCardData {
   return {
-    cardCode: 'PL!SP-sd2-012-SD2',
-    name: '澁谷かのん',
+    cardCode: 'PL!SP-sd2-011-SD2',
+    name: '鬼塚冬毬',
     groupName: 'Liella!',
     cardType: CardType.MEMBER,
-    cost: 2,
+    cost: 4,
     blade: 1,
-    hearts: [createHeartIcon(HeartColor.RED, 1)],
+    hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
   };
 }
 
@@ -52,9 +52,9 @@ function setupState(): {
   readonly source: ReturnType<typeof createCardInstance>;
   readonly other: ReturnType<typeof createCardInstance>;
 } {
-  const source = createCardInstance(createKanon(), PLAYER1, 'kanon-source');
+  const source = createCardInstance(createTomari(), PLAYER1, 'tomari-source');
   const other = createCardInstance(createMember('PL!SP-test-member'), PLAYER1, 'other-member');
-  let game = createGameState('sp-sd2-012-kanon', PLAYER1, 'P1', PLAYER2, 'P2');
+  let game = createGameState('sp-sd2-011-tomari', PLAYER1, 'P1', PLAYER2, 'P2');
   game = registerCards(game, [source, other]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
@@ -114,16 +114,16 @@ function resolveMove(options: {
   return result.gameState;
 }
 
-function redHeartModifiers(game: GameState) {
+function tomariBladeModifiers(game: GameState) {
   return game.liveResolution.liveModifiers.filter(
     (modifier) =>
-      modifier.kind === 'HEART' &&
-      modifier.abilityId === SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_ABILITY_ID
+      modifier.kind === 'BLADE' &&
+      modifier.abilityId === SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID
   );
 }
 
-describe('PL!SP-sd2-012 Kanon on-move red Heart workflow', () => {
-  it('gains red Heart for the source member after this member moves', () => {
+describe('PL!SP-sd2-011 Tomari on-move BLADE workflow', () => {
+  it('gains BLADE +1 for the source member after this member moves', () => {
     const { game, source } = setupState();
     const state = resolveMove({
       game,
@@ -132,20 +132,18 @@ describe('PL!SP-sd2-012 Kanon on-move red Heart workflow', () => {
     });
 
     expect(state.pendingAbilities).toEqual([]);
-    expect(redHeartModifiers(state)).toEqual([
+    expect(tomariBladeModifiers(state)).toEqual([
       {
-        kind: 'HEART',
-        target: 'SOURCE_MEMBER',
+        kind: 'BLADE',
         playerId: PLAYER1,
         sourceCardId: source.instanceId,
-        abilityId: SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_ABILITY_ID,
-        hearts: [{ color: HeartColor.RED, count: 1 }],
+        abilityId: SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
+        countDelta: 1,
       },
     ]);
-    expect(state.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
   });
 
-  it('does not gain red Heart twice in the same turn', () => {
+  it('does not gain BLADE twice in the same turn', () => {
     const { game, source } = setupState();
     const firstState = resolveMove({
       game,
@@ -158,12 +156,12 @@ describe('PL!SP-sd2-012 Kanon on-move red Heart workflow', () => {
       toSlot: SlotPosition.LEFT,
     });
 
-    expect(redHeartModifiers(secondState)).toHaveLength(1);
+    expect(tomariBladeModifiers(secondState)).toHaveLength(1);
     expect(
       secondState.actionHistory.filter(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId === SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_ABILITY_ID &&
+          action.payload.abilityId === SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID &&
           action.payload.step === 'ABILITY_USE'
       )
     ).toHaveLength(1);
@@ -178,13 +176,12 @@ describe('PL!SP-sd2-012 Kanon on-move red Heart workflow', () => {
       triggerPlayerId: PLAYER2,
     });
 
-    expect(redHeartModifiers(state)).toHaveLength(1);
-    expect(redHeartModifiers(state)[0]).toMatchObject({
-      target: 'SOURCE_MEMBER',
-      playerId: PLAYER1,
-      sourceCardId: source.instanceId,
-      hearts: [{ color: HeartColor.RED, count: 1 }],
-    });
+    expect(tomariBladeModifiers(state)).toEqual([
+      expect.objectContaining({
+        sourceCardId: source.instanceId,
+        countDelta: 1,
+      }),
+    ]);
   });
 
   it('does not trigger when another member moves', () => {
@@ -195,38 +192,12 @@ describe('PL!SP-sd2-012 Kanon on-move red Heart workflow', () => {
       toSlot: SlotPosition.CENTER,
     });
 
-    expect(redHeartModifiers(state)).toEqual([]);
+    expect(tomariBladeModifiers(state)).toEqual([]);
     expect(
       state.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId === SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_ABILITY_ID
-      )
-    ).toBe(false);
-  });
-
-  it('writes only member/source Heart modifiers and never playerHeartBonuses', () => {
-    const { game, source } = setupState();
-    const state = resolveMove({
-      game,
-      cardId: source.instanceId,
-      toSlot: SlotPosition.CENTER,
-    });
-
-    expect(state.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
-    expect(redHeartModifiers(state)).toEqual([
-      expect.objectContaining({
-        kind: 'HEART',
-        target: 'SOURCE_MEMBER',
-        sourceCardId: source.instanceId,
-      }),
-    ]);
-    expect(
-      state.liveResolution.liveModifiers.some(
-        (modifier) =>
-          modifier.kind === 'HEART' &&
-          modifier.abilityId === SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_ABILITY_ID &&
-          modifier.target === 'PLAYER'
+          action.payload.abilityId === SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID
       )
     ).toBe(false);
   });

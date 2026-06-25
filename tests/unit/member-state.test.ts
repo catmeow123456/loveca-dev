@@ -391,7 +391,7 @@ describe('member state effect helpers', () => {
     ]);
   });
 
-  it('replays formation move history so a member returning to its original slot still counts as moved', () => {
+  it('replays formation move history but only final slot changes count as moved', () => {
     const memberA = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
     const memberB = createCardInstance(createMemberCard('MEM-B'), 'p1', 'member-b');
     const memberC = createCardInstance(createMemberCard('MEM-C'), 'p1', 'member-c');
@@ -424,25 +424,17 @@ describe('member state effect helpers', () => {
     });
     expect(result?.rearrangedMembers.map((member) => member.cardId)).toEqual([
       memberA.instanceId,
-      memberB.instanceId,
       memberC.instanceId,
     ]);
-    expect(
-      result?.rearrangedMembers.find((member) => member.cardId === memberB.instanceId)
-    ).toMatchObject({
-      fromSlot: SlotPosition.CENTER,
-      toSlot: SlotPosition.CENTER,
-      eventFromSlot: SlotPosition.CENTER,
-      eventToSlot: SlotPosition.LEFT,
-    });
+    expect(result?.rearrangedMembers).not.toContainEqual(
+      expect.objectContaining({ cardId: memberB.instanceId })
+    );
     expect(result?.gameState.players[0].positionMovedThisTurn).toEqual([
       memberA.instanceId,
-      memberB.instanceId,
       memberC.instanceId,
     ]);
     expect(result?.gameState.eventLog.map((entry) => entry.event.cardInstanceId)).toEqual([
       memberA.instanceId,
-      memberB.instanceId,
       memberC.instanceId,
     ]);
   });
@@ -499,9 +491,6 @@ describe('member state effect helpers', () => {
         cardId: memberB.instanceId,
         fromSlot: SlotPosition.CENTER,
         toSlot: SlotPosition.RIGHT,
-        eventFromSlot: SlotPosition.CENTER,
-        eventToSlot: SlotPosition.RIGHT,
-        swappedCardId: undefined,
       },
     ]);
   });
@@ -590,6 +579,16 @@ describe('member state effect helpers', () => {
       rearrangeStageMembersByMoveHistory(game, 'p1', [
         { cardId: ownMember.instanceId, toSlot: 'INVALID_SLOT' as SlotPosition },
       ])
+    ).toBeNull();
+    expect(
+      rearrangeStageMembersByMoveHistory(
+        game,
+        'p1',
+        [{ cardId: ownMember.instanceId, toSlot: SlotPosition.CENTER }],
+        {
+          expectedPlacements: [{ cardId: ownMember.instanceId, toSlot: SlotPosition.RIGHT }],
+        }
+      )
     ).toBeNull();
     expect(game.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(ownMember.instanceId);
   });

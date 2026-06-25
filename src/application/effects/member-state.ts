@@ -51,9 +51,6 @@ export interface RearrangedStageMember {
   readonly cardId: string;
   readonly fromSlot: SlotPosition;
   readonly toSlot: SlotPosition;
-  readonly eventFromSlot?: SlotPosition;
-  readonly eventToSlot?: SlotPosition;
-  readonly swappedCardId?: string;
 }
 
 export interface RearrangeStageMembersResult {
@@ -447,14 +444,6 @@ export function rearrangeStageMembersByMoveHistory(
     [SlotPosition.CENTER]: player.memberSlots.slots[SlotPosition.CENTER],
     [SlotPosition.RIGHT]: player.memberSlots.slots[SlotPosition.RIGHT],
   };
-  const firstMovementEvents = new Map<
-    string,
-    {
-      readonly eventFromSlot: SlotPosition;
-      readonly eventToSlot: SlotPosition;
-      readonly swappedCardId?: string;
-    }
-  >();
 
   for (const entry of moveHistory) {
     if (!validSlots.has(entry.toSlot)) {
@@ -478,21 +467,6 @@ export function rearrangeStageMembersByMoveHistory(
     const swappedCardId = currentSlots[entry.toSlot];
     currentSlots[fromSlot] = swappedCardId;
     currentSlots[entry.toSlot] = entry.cardId;
-
-    if (!firstMovementEvents.has(entry.cardId)) {
-      firstMovementEvents.set(entry.cardId, {
-        eventFromSlot: fromSlot,
-        eventToSlot: entry.toSlot,
-        swappedCardId: swappedCardId ?? undefined,
-      });
-    }
-    if (swappedCardId && !firstMovementEvents.has(swappedCardId)) {
-      firstMovementEvents.set(swappedCardId, {
-        eventFromSlot: entry.toSlot,
-        eventToSlot: fromSlot,
-        swappedCardId: entry.cardId,
-      });
-    }
   }
 
   const placementCandidates = initialStageEntries.map((entry) => {
@@ -522,17 +496,13 @@ export function rearrangeStageMembersByMoveHistory(
   const rearrangedMembers: RearrangedStageMember[] = [];
   for (const placement of placements) {
     const fromSlot = initialCardSlots.get(placement.cardId);
-    const movement = firstMovementEvents.get(placement.cardId);
-    if (!fromSlot || !movement) {
+    if (!fromSlot || fromSlot === placement.toSlot) {
       continue;
     }
     rearrangedMembers.push({
       cardId: placement.cardId,
       fromSlot,
       toSlot: placement.toSlot,
-      eventFromSlot: movement.eventFromSlot,
-      eventToSlot: movement.eventToSlot,
-      swappedCardId: movement.swappedCardId,
     });
   }
 
@@ -572,17 +542,15 @@ export function rearrangeStageMembersByMoveHistory(
     return nextPlayer;
   });
 
-  // A formation replay can move the same member more than once. Emit one event per
-  // actually moved member using its first real move; the full sequence remains in action payloads.
   for (const member of rearrangedMembers) {
     gameState = emitGameEvent(
       gameState,
       createMemberSlotMovedEvent(
         member.cardId,
         playerId,
-        member.eventFromSlot ?? member.fromSlot,
-        member.eventToSlot ?? member.toSlot,
-        member.swappedCardId,
+        member.fromSlot,
+        member.toSlot,
+        undefined,
         options.cause
       )
     );

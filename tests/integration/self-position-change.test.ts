@@ -115,7 +115,12 @@ function stageMember(
   });
 }
 
-function setupSelfPositionChangeSession(extraCards: ReturnType<typeof createCardInstance>[] = []): {
+function setupSelfPositionChangeSession(
+  extraCards: ReturnType<typeof createCardInstance>[] = [],
+  sourceCardCode = 'PL!SP-bp4-013-N',
+  sourceName = '唐 可可',
+  sourceCost = 2
+): {
   readonly session: ReturnType<typeof createGameSession>;
   readonly source: ReturnType<typeof createCardInstance>;
   readonly state: GameState;
@@ -128,9 +133,9 @@ function setupSelfPositionChangeSession(extraCards: ReturnType<typeof createCard
   forceMainPhaseForPlayer(session);
 
   const source = createCardInstance(
-    createMemberCard('PL!SP-bp4-013-N', '唐 可可', 2),
+    createMemberCard(sourceCardCode, sourceName, sourceCost),
     PLAYER1,
-    'p1-sp-bp4-013-source'
+    'p1-self-position-source'
   );
   const state = registerCards(session.state!, [source, ...extraCards]);
   (session as unknown as { authorityState: GameState }).authorityState = state;
@@ -155,6 +160,28 @@ function setupSelfPositionChangeSession(extraCards: ReturnType<typeof createCard
 }
 
 describe('self position-change shared workflow', () => {
+  it.each([
+    ['PL!SP-sd2-005-SD2', '葉月 恋', 5],
+    ['PL!SP-sd2-007-SD2', '米女メイ', 4],
+    ['PL!SP-sd2-016-SD2', '葉月 恋', 2],
+  ] as const)('opens the shared position-change window for %s', (cardCode, name, cost) => {
+    const { session, source } = setupSelfPositionChangeSession([], cardCode, name, cost);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      abilityId: GENERIC_ON_ENTER_SELF_POSITION_CHANGE_ABILITY_ID,
+      sourceCardId: source.instanceId,
+      selectableSlots: [SlotPosition.LEFT, SlotPosition.RIGHT],
+      canSkipSelection: true,
+    });
+  });
+
   it('opens an optional PL!SP-bp4-013 position-change window excluding the current slot', () => {
     const { session, source } = setupSelfPositionChangeSession();
 

@@ -134,6 +134,28 @@ export function countStageMembers(game: GameState, playerId: string): number {
   return Object.values(player.memberSlots.slots).filter((cardId) => cardId !== null).length;
 }
 
+export function sumStageMemberEffectiveCostMatching(
+  game: GameState,
+  playerId: string,
+  selector?: CardSelector
+): number {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return 0;
+  }
+
+  return Object.values(player.memberSlots.slots).reduce((total, cardId) => {
+    if (cardId === null) {
+      return total;
+    }
+    const card = getCardById(game, cardId);
+    if (!card || !isMemberCardData(card.data) || (selector && !selector(card))) {
+      return total;
+    }
+    return total + getMemberEffectiveCost(game, playerId, cardId);
+  }, 0);
+}
+
 export function hasStageMemberMatching(
   game: GameState,
   playerId: string,
