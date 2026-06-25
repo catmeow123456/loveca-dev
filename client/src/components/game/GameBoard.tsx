@@ -349,6 +349,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [activeDragFromZone, setActiveDragFromZone] = useState<ZoneType | null>(null);
   const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
+  const [activeEffectSingleSelection, setActiveEffectSingleSelection] = useState<string | null>(
+    null
+  );
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
   const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
@@ -385,8 +388,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const successLiveSelection = matchView?.liveResult?.successLiveSelection ?? null;
   const successLiveSelectionCardIds =
-    successLiveSelection?.candidateObjectIds.map((objectId) => objectId.replace(/^obj_/, '')) ??
-    [];
+    successLiveSelection?.candidateObjectIds.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const showSuccessLiveSelectionModal =
     currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
     !activeEffect &&
@@ -438,6 +440,15 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       Number.isInteger(activeEffectSelectedNumber)) &&
     (typeof activeEffectNumericInput.min !== 'number' ||
       activeEffectSelectedNumber >= activeEffectNumericInput.min);
+  const activeEffectUsesCardOptionSelection =
+    !activeEffectUsesOrderedMultiSelect &&
+    activeEffectSelectableCardIds.length > 0 &&
+    activeEffectSelectableOptions.length > 0;
+  const activeEffectSelectedCardId =
+    activeEffectSingleSelection &&
+    activeEffectSelectableCardIds.includes(activeEffectSingleSelection)
+      ? activeEffectSingleSelection
+      : null;
   const pendingCostSourceCardId = pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const pendingCostSource = pendingCostSourceCardId
     ? getVisibleCardPresentation(pendingCostSourceCardId)
@@ -566,11 +577,13 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
   useEffect(() => {
     setActiveEffectOrderedSelection([]);
+    setActiveEffectSingleSelection(null);
   }, [
     activeEffect?.id,
     activeEffect?.stepId,
     activeEffect?.selectableObjectMode,
     activeEffectSelectableCardSignature,
+    activeEffectSelectableOptions.length,
   ]);
 
   useEffect(() => {
@@ -675,8 +688,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     }
 
     const placements = stageFormationDraftSlots
-      .filter((entry): entry is StageFormationDraftSlot & { readonly cardId: string } =>
-        entry.cardId !== null
+      .filter(
+        (entry): entry is StageFormationDraftSlot & { readonly cardId: string } =>
+          entry.cardId !== null
       )
       .map((entry) => ({ cardId: entry.cardId, toSlot: entry.slot }));
 
@@ -2425,7 +2439,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                     <span className="rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
                       {activeEffectUsesOrderedMultiSelect
                         ? `已选 ${activeEffectOrderedSelection.length} / ${activeEffectMaxSelectableCards}`
-                        : `候选 ${activeEffectSelectableCardIds.length} 张`}
+                        : activeEffectUsesCardOptionSelection
+                          ? `已选 ${activeEffectSelectedCardId ? 1 : 0} / 1`
+                          : `候选 ${activeEffectSelectableCardIds.length} 张`}
                       {activeEffectMinSelectableCards > 0
                         ? `｜至少 ${activeEffectMinSelectableCards}`
                         : ''}
@@ -2437,6 +2453,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                       const cardData = presentation?.cardData;
                       const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
                       const isOrderedSelected = selectedOrderIndex >= 0;
+                      const isSingleSelected = activeEffectSelectedCardId === cardId;
                       const label = cardData
                         ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
                           ? `${cardData.cost} ${cardData.name}`
@@ -2468,10 +2485,16 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                               });
                               return;
                             }
+                            if (activeEffectUsesCardOptionSelection) {
+                              setActiveEffectSingleSelection((current) =>
+                                current === cardId ? null : cardId
+                              );
+                              return;
+                            }
                             confirmEffectStep(activeEffect.id, cardId);
                           }}
                           className={`group relative flex min-w-0 flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors ${
-                            isOrderedSelected
+                            isOrderedSelected || isSingleSelected
                               ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
                               : 'border-transparent'
                           } ${
@@ -2484,6 +2507,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                           {isOrderedSelected && (
                             <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
                               {selectedOrderIndex + 1}
+                            </span>
+                          )}
+                          {isSingleSelected && (
+                            <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-white shadow">
+                              <Check className="h-3.5 w-3.5" aria-hidden="true" />
                             </span>
                           )}
                           {presentation ? (
@@ -2555,12 +2583,26 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   <button
                     key={option.id}
                     type="button"
-                    disabled={!canConfirmActiveEffect}
+                    disabled={
+                      !canConfirmActiveEffect ||
+                      (activeEffectUsesCardOptionSelection && !activeEffectSelectedCardId)
+                    }
                     onClick={() =>
-                      confirmEffectStep(activeEffect.id, undefined, undefined, undefined, option.id)
+                      confirmEffectStep(
+                        activeEffect.id,
+                        activeEffectUsesCardOptionSelection
+                          ? activeEffectSelectedCardId
+                          : undefined,
+                        undefined,
+                        undefined,
+                        option.id
+                      )
                     }
                     className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
-                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                      canConfirmActiveEffect &&
+                      (!activeEffectUsesCardOptionSelection || activeEffectSelectedCardId)
+                        ? ''
+                        : 'cursor-not-allowed opacity-50'
                     }`}
                   >
                     {option.label}
@@ -2682,17 +2724,17 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   !activeEffectStageFormation &&
                   !activeEffectNumericInput &&
                   activeEffect.canSkipSelection && (
-                  <button
-                    type="button"
-                    disabled={!canConfirmActiveEffect}
-                    onClick={() => confirmEffectStep(activeEffect.id, null)}
-                    className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
-                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                    }`}
-                  >
-                    继续处理
-                  </button>
-                )}
+                    <button
+                      type="button"
+                      disabled={!canConfirmActiveEffect}
+                      onClick={() => confirmEffectStep(activeEffect.id, null)}
+                      className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                        canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                      }`}
+                    >
+                      继续处理
+                    </button>
+                  )}
               </div>
             </motion.div>
           </div>
