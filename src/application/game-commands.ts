@@ -241,6 +241,14 @@ export interface ConfirmEffectStepCommand extends BaseGameCommand {
   readonly resolveInOrder?: boolean;
   readonly selectedOptionId?: string | null;
   readonly selectedNumber?: number | null;
+  readonly stageFormationMoveHistory?: readonly {
+    readonly cardId: string;
+    readonly toSlot: SlotPosition;
+  }[];
+  readonly stageFormationPlacements?: readonly {
+    readonly cardId: string;
+    readonly toSlot: SlotPosition;
+  }[];
 }
 
 export interface ConfirmStepCommand extends BaseGameCommand {
@@ -707,7 +715,15 @@ export function createConfirmEffectStepCommand(
   resolveInOrder?: boolean,
   selectedOptionId?: string | null,
   selectedCardIds?: readonly string[],
-  selectedNumber?: number | null
+  selectedNumber?: number | null,
+  stageFormationMoveHistory?: readonly {
+    readonly cardId: string;
+    readonly toSlot: SlotPosition;
+  }[],
+  stageFormationPlacements?: readonly {
+    readonly cardId: string;
+    readonly toSlot: SlotPosition;
+  }[]
 ): ConfirmEffectStepCommand {
   return {
     type: GameCommandType.CONFIRM_EFFECT_STEP,
@@ -719,6 +735,8 @@ export function createConfirmEffectStepCommand(
     resolveInOrder,
     selectedOptionId,
     selectedNumber,
+    stageFormationMoveHistory,
+    stageFormationPlacements,
     timestamp: Date.now(),
   };
 }

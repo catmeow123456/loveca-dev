@@ -1,6 +1,6 @@
 import { cardCodeMatchesBase } from '../utils/card-code.js';
 
-export const DOUBLE_RELAY_MEMBER_BASE_CODES = ['PL!SP-bp4-004'] as const;
+export const DOUBLE_RELAY_MEMBER_BASE_CODES = ['PL!SP-bp4-004', 'PL!SP-pb2-000'] as const;
 
 export interface DoubleRelayCardLike {
   readonly cardCode?: string;

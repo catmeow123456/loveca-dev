@@ -103,6 +103,20 @@ interface DragBattleActionIntentCache {
   readonly intents: readonly BattleActionIntent[];
 }
 
+type StageFormationDraftSlot = {
+  readonly slot: SlotPosition;
+  readonly cardId: string | null;
+  readonly objectId: string | null;
+  readonly originalSlot: SlotPosition;
+  readonly energyBelowCount: number;
+  readonly memberBelowCount: number;
+};
+
+type StageFormationMoveHistoryEntry = {
+  readonly cardId: string;
+  readonly toSlot: SlotPosition;
+};
+
 const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
   const dragData = args.active.data.current as { fromZone?: ZoneType } | undefined;
   if (dragData?.fromZone === ZoneType.INSPECTION_ZONE) {
@@ -335,9 +349,21 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [activeDragFromZone, setActiveDragFromZone] = useState<ZoneType | null>(null);
   const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
+  const [activeEffectSingleSelection, setActiveEffectSingleSelection] = useState<string | null>(
+    null
+  );
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
   const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
+  const [stageFormationDraftSlots, setStageFormationDraftSlots] = useState<
+    StageFormationDraftSlot[]
+  >([]);
+  const [stageFormationMoveHistory, setStageFormationMoveHistory] = useState<
+    StageFormationMoveHistoryEntry[]
+  >([]);
+  const [selectedStageFormationCardId, setSelectedStageFormationCardId] = useState<string | null>(
+    null
+  );
   const [successLiveSelectionCollapsed, setSuccessLiveSelectionCollapsed] = useState(false);
   const [activeEffectSuspension, setActiveEffectSuspension] = useState<{
     readonly effectId: string;
@@ -362,8 +388,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const successLiveSelection = matchView?.liveResult?.successLiveSelection ?? null;
   const successLiveSelectionCardIds =
-    successLiveSelection?.candidateObjectIds.map((objectId) => objectId.replace(/^obj_/, '')) ??
-    [];
+    successLiveSelection?.candidateObjectIds.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const showSuccessLiveSelectionModal =
     currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
     !activeEffect &&
@@ -396,6 +421,14 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
   const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
   const activeEffectNumericInput = activeEffect?.numericInput ?? null;
+  const activeEffectStageFormation = activeEffect?.stageFormation ?? null;
+  const activeEffectStageFormationSignature =
+    activeEffectStageFormation?.slots
+      .map(
+        (slot) =>
+          `${slot.slot}:${slot.cardId ?? 'empty'}:${slot.energyBelowCount}:${slot.memberBelowCount}`
+      )
+      .join('|') ?? '';
   const activeEffectSelectedNumber =
     activeEffectNumberInput.trim().length > 0 ? Number(activeEffectNumberInput) : null;
   const canConfirmActiveEffectNumber =
@@ -407,6 +440,15 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       Number.isInteger(activeEffectSelectedNumber)) &&
     (typeof activeEffectNumericInput.min !== 'number' ||
       activeEffectSelectedNumber >= activeEffectNumericInput.min);
+  const activeEffectUsesCardOptionSelection =
+    !activeEffectUsesOrderedMultiSelect &&
+    activeEffectSelectableCardIds.length > 0 &&
+    activeEffectSelectableOptions.length > 0;
+  const activeEffectSelectedCardId =
+    activeEffectSingleSelection &&
+    activeEffectSelectableCardIds.includes(activeEffectSingleSelection)
+      ? activeEffectSingleSelection
+      : null;
   const pendingCostSourceCardId = pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const pendingCostSource = pendingCostSourceCardId
     ? getVisibleCardPresentation(pendingCostSourceCardId)
@@ -535,17 +577,141 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
   useEffect(() => {
     setActiveEffectOrderedSelection([]);
+    setActiveEffectSingleSelection(null);
   }, [
     activeEffect?.id,
     activeEffect?.stepId,
     activeEffect?.selectableObjectMode,
     activeEffectSelectableCardSignature,
+    activeEffectSelectableOptions.length,
   ]);
 
   useEffect(() => {
     setActiveEffectNumberInput('');
     setActiveEffectCollapsed(false);
   }, [activeEffect?.id, activeEffect?.stepId]);
+
+  useEffect(() => {
+    if (!activeEffectStageFormation) {
+      setStageFormationDraftSlots([]);
+      setStageFormationMoveHistory([]);
+      setSelectedStageFormationCardId(null);
+      return;
+    }
+
+    setStageFormationDraftSlots(
+      activeEffectStageFormation.slots.map((slot) => ({
+        slot: slot.slot as SlotPosition,
+        cardId: slot.cardId,
+        objectId: slot.objectId,
+        originalSlot: slot.originalSlot as SlotPosition,
+        energyBelowCount: slot.energyBelowCount,
+        memberBelowCount: slot.memberBelowCount,
+      }))
+    );
+    setStageFormationMoveHistory([]);
+    setSelectedStageFormationCardId(null);
+  }, [activeEffect?.id, activeEffect?.stepId, activeEffectStageFormationSignature]);
+
+  const handleStageFormationSlotClick = useCallback(
+    (targetSlot: SlotPosition) => {
+      if (!canConfirmActiveEffect || !activeEffectStageFormation) {
+        return;
+      }
+
+      const targetEntry = stageFormationDraftSlots.find((entry) => entry.slot === targetSlot);
+      if (!targetEntry) {
+        return;
+      }
+
+      if (!selectedStageFormationCardId) {
+        if (targetEntry.cardId) {
+          setSelectedStageFormationCardId(targetEntry.cardId);
+        }
+        return;
+      }
+
+      const sourceEntry = stageFormationDraftSlots.find(
+        (entry) => entry.cardId === selectedStageFormationCardId
+      );
+      if (!sourceEntry) {
+        setSelectedStageFormationCardId(null);
+        return;
+      }
+      if (sourceEntry.slot === targetSlot) {
+        setSelectedStageFormationCardId(null);
+        return;
+      }
+
+      setStageFormationDraftSlots((current) =>
+        current.map((entry) => {
+          if (entry.slot === targetSlot) {
+            return {
+              ...entry,
+              cardId: sourceEntry.cardId,
+              objectId: sourceEntry.objectId,
+              originalSlot: sourceEntry.originalSlot,
+              energyBelowCount: sourceEntry.energyBelowCount,
+              memberBelowCount: sourceEntry.memberBelowCount,
+            };
+          }
+          if (entry.slot === sourceEntry.slot) {
+            return {
+              ...entry,
+              cardId: targetEntry.cardId,
+              objectId: targetEntry.objectId,
+              originalSlot: targetEntry.cardId ? targetEntry.originalSlot : entry.slot,
+              energyBelowCount: targetEntry.cardId ? targetEntry.energyBelowCount : 0,
+              memberBelowCount: targetEntry.cardId ? targetEntry.memberBelowCount : 0,
+            };
+          }
+          return entry;
+        })
+      );
+      setStageFormationMoveHistory((current) => [
+        ...current,
+        { cardId: selectedStageFormationCardId, toSlot: targetSlot },
+      ]);
+      setSelectedStageFormationCardId(null);
+    },
+    [
+      activeEffectStageFormation,
+      canConfirmActiveEffect,
+      selectedStageFormationCardId,
+      stageFormationDraftSlots,
+    ]
+  );
+
+  const handleConfirmStageFormation = useCallback(() => {
+    if (!activeEffect || !activeEffectStageFormation) {
+      return;
+    }
+
+    const placements = stageFormationDraftSlots
+      .filter(
+        (entry): entry is StageFormationDraftSlot & { readonly cardId: string } =>
+          entry.cardId !== null
+      )
+      .map((entry) => ({ cardId: entry.cardId, toSlot: entry.slot }));
+
+    confirmEffectStep(
+      activeEffect.id,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      stageFormationMoveHistory,
+      placements
+    );
+  }, [
+    activeEffect,
+    activeEffectStageFormation,
+    confirmEffectStep,
+    stageFormationDraftSlots,
+    stageFormationMoveHistory,
+  ]);
 
   useEffect(() => {
     if (!doubleRelaySelection) {
@@ -2135,6 +2301,89 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
               <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-3">
                 <p className="text-sm leading-relaxed">{activeEffect.effectText}</p>
               </div>
+              {activeEffectStageFormation && (
+                <div className="mt-4">
+                  <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
+                    站位变换
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3 sm:grid-cols-3">
+                    {MEMBER_SLOT_ORDER.map((slot) => {
+                      const entry = stageFormationDraftSlots.find(
+                        (candidate) => candidate.slot === slot
+                      );
+                      const cardId = entry?.cardId ?? null;
+                      const presentation = cardId ? getVisibleCardPresentation(cardId) : null;
+                      const cardData = presentation?.cardData;
+                      const isSelected = cardId !== null && cardId === selectedStageFormationCardId;
+                      const label = cardData
+                        ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
+                          ? `${cardData.cost} ${cardData.name}`
+                          : cardData.name
+                        : '空位';
+                      return (
+                        <button
+                          key={slot}
+                          type="button"
+                          disabled={!canConfirmActiveEffect}
+                          aria-pressed={isSelected}
+                          onClick={() => handleStageFormationSlotClick(slot)}
+                          className={cn(
+                            'flex min-h-[188px] min-w-0 flex-col items-center justify-between gap-2 rounded-lg border p-2 text-left transition-colors',
+                            isSelected
+                              ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
+                              : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)]',
+                            canConfirmActiveEffect
+                              ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)]'
+                              : 'cursor-not-allowed opacity-50'
+                          )}
+                          title={`${MEMBER_SLOT_LABELS[slot]}: ${label}`}
+                        >
+                          <div className="flex w-full items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-[var(--text-primary)]">
+                              {MEMBER_SLOT_LABELS[slot]}
+                            </span>
+                            {entry?.originalSlot && cardId && (
+                              <span className="rounded border border-[var(--border-default)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                                原{MEMBER_SLOT_LABELS[entry.originalSlot].replace('侧', '')}
+                              </span>
+                            )}
+                          </div>
+                          {presentation ? (
+                            <CardDetailPressTarget
+                              cardId={presentation.instanceId}
+                              title={label}
+                              className="flex justify-center"
+                            >
+                              <Card
+                                cardData={presentation.cardData as AnyCardData}
+                                instanceId={presentation.instanceId}
+                                imagePath={presentation.imagePath}
+                                size="sm"
+                                faceUp={true}
+                                showHover={false}
+                                className="shadow-sm"
+                              />
+                            </CardDetailPressTarget>
+                          ) : (
+                            <div className="flex h-[112px] w-[80px] items-center justify-center rounded-md border border-dashed border-[var(--border-default)] text-xs font-semibold text-[var(--text-tertiary)]">
+                              空
+                            </div>
+                          )}
+                          <div className="w-full min-w-0">
+                            <div className="line-clamp-2 min-h-8 text-center text-[11px] font-semibold leading-4 text-[var(--text-primary)]">
+                              {label}
+                            </div>
+                            <div className="mt-1 flex justify-center gap-1 text-[10px] text-[var(--text-secondary)]">
+                              <span>能量 {entry?.energyBelowCount ?? 0}</span>
+                              <span>下方 {entry?.memberBelowCount ?? 0}</span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {activeEffectRevealedCardIds.length > 0 && (
                 <div className="mt-4">
                   <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
@@ -2190,7 +2439,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                     <span className="rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
                       {activeEffectUsesOrderedMultiSelect
                         ? `已选 ${activeEffectOrderedSelection.length} / ${activeEffectMaxSelectableCards}`
-                        : `候选 ${activeEffectSelectableCardIds.length} 张`}
+                        : activeEffectUsesCardOptionSelection
+                          ? `已选 ${activeEffectSelectedCardId ? 1 : 0} / 1`
+                          : `候选 ${activeEffectSelectableCardIds.length} 张`}
                       {activeEffectMinSelectableCards > 0
                         ? `｜至少 ${activeEffectMinSelectableCards}`
                         : ''}
@@ -2202,6 +2453,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                       const cardData = presentation?.cardData;
                       const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
                       const isOrderedSelected = selectedOrderIndex >= 0;
+                      const isSingleSelected = activeEffectSelectedCardId === cardId;
                       const label = cardData
                         ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
                           ? `${cardData.cost} ${cardData.name}`
@@ -2233,10 +2485,16 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                               });
                               return;
                             }
+                            if (activeEffectUsesCardOptionSelection) {
+                              setActiveEffectSingleSelection((current) =>
+                                current === cardId ? null : cardId
+                              );
+                              return;
+                            }
                             confirmEffectStep(activeEffect.id, cardId);
                           }}
                           className={`group relative flex min-w-0 flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors ${
-                            isOrderedSelected
+                            isOrderedSelected || isSingleSelected
                               ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
                               : 'border-transparent'
                           } ${
@@ -2249,6 +2507,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                           {isOrderedSelected && (
                             <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
                               {selectedOrderIndex + 1}
+                            </span>
+                          )}
+                          {isSingleSelected && (
+                            <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-white shadow">
+                              <Check className="h-3.5 w-3.5" aria-hidden="true" />
                             </span>
                           )}
                           {presentation ? (
@@ -2277,6 +2540,19 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 </div>
               )}
               <div className="mt-4 flex flex-wrap justify-end gap-2">
+                {activeEffectStageFormation && (
+                  <button
+                    type="button"
+                    disabled={!canConfirmActiveEffect}
+                    onClick={handleConfirmStageFormation}
+                    className={`button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold ${
+                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    <Check className="h-4 w-4" aria-hidden="true" />
+                    确认站位
+                  </button>
+                )}
                 {activeEffectSelectableSlots.map((slot) => {
                   const slotLabel =
                     slot === SlotPosition.LEFT
@@ -2307,12 +2583,26 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   <button
                     key={option.id}
                     type="button"
-                    disabled={!canConfirmActiveEffect}
+                    disabled={
+                      !canConfirmActiveEffect ||
+                      (activeEffectUsesCardOptionSelection && !activeEffectSelectedCardId)
+                    }
                     onClick={() =>
-                      confirmEffectStep(activeEffect.id, undefined, undefined, undefined, option.id)
+                      confirmEffectStep(
+                        activeEffect.id,
+                        activeEffectUsesCardOptionSelection
+                          ? activeEffectSelectedCardId
+                          : undefined,
+                        undefined,
+                        undefined,
+                        option.id
+                      )
                     }
                     className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
-                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                      canConfirmActiveEffect &&
+                      (!activeEffectUsesCardOptionSelection || activeEffectSelectedCardId)
+                        ? ''
+                        : 'cursor-not-allowed opacity-50'
                     }`}
                   >
                     {option.label}
@@ -2392,21 +2682,28 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                     顺序发动
                   </button>
                 )}
-                {activeEffect.canSkipSelection && (
-                  <button
-                    type="button"
-                    disabled={!canConfirmActiveEffect}
-                    onClick={() => confirmEffectStep(activeEffect.id, null)}
-                    className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
-                      canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                    }`}
-                  >
-                    {activeEffect.skipSelectionLabel ?? '不加入'}
-                  </button>
-                )}
+                {activeEffect.canSkipSelection &&
+                  (activeEffectSelectableCardIds.length > 0 ||
+                    activeEffectSelectableSlots.length > 0 ||
+                    activeEffectSelectableOptions.length > 0 ||
+                    !!activeEffectStageFormation ||
+                    !!activeEffectNumericInput ||
+                    activeEffect.canResolveInOrder) && (
+                    <button
+                      type="button"
+                      disabled={!canConfirmActiveEffect}
+                      onClick={() => confirmEffectStep(activeEffect.id, null)}
+                      className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                        canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
+                      }`}
+                    >
+                      {activeEffect.skipSelectionLabel ?? '不加入'}
+                    </button>
+                  )}
                 {activeEffectSelectableCardIds.length === 0 &&
                   activeEffectSelectableSlots.length === 0 &&
                   activeEffectSelectableOptions.length === 0 &&
+                  !activeEffectStageFormation &&
                   !activeEffectNumericInput &&
                   !activeEffect.canSkipSelection &&
                   !activeEffect.canResolveInOrder && (
@@ -2424,13 +2721,14 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 {activeEffectSelectableCardIds.length === 0 &&
                   activeEffectSelectableSlots.length === 0 &&
                   activeEffectSelectableOptions.length === 0 &&
+                  !activeEffectStageFormation &&
                   !activeEffectNumericInput &&
                   activeEffect.canSkipSelection && (
                     <button
                       type="button"
                       disabled={!canConfirmActiveEffect}
                       onClick={() => confirmEffectStep(activeEffect.id, null)}
-                      className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                      className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
                         canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
                       }`}
                     >

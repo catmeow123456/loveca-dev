@@ -314,6 +314,13 @@ function finishHsBp5003RurinoPositionChange(
     targetLocalSlot,
     enqueueTriggeredCardEffects,
     {
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
       prepareGameStateBeforeEnqueue: (state, result) =>
         addAction(
           {

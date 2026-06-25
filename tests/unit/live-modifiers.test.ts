@@ -35,6 +35,8 @@ const HS_BP5_002_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
 const HS_BP5_007_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-007:continuous-other-edelnote-member-blade';
+const HS_BP2_006_CONTINUOUS_ABILITY_ID =
+  'PL!HS-bp2-006:continuous-other-miracra-stage-member-blade';
 const HS_BP5_016_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-016-N:continuous-opponent-two-waiting-purple-heart';
 const HS_PB1_007_CONTINUOUS_ABILITY_ID =
@@ -1331,6 +1333,136 @@ describe('live modifier helpers', () => {
         (modifier) => modifier.abilityId === HS_BP5_007_CONTINUOUS_ABILITY_ID
       )
     ).toBe(false);
+  });
+
+  it('adds BLADE to PL!HS-bp2-006 for each other own Miracra Park stage member', () => {
+    const megu = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp2-006-R',
+        name: '藤島 慈',
+        unitName: 'みらくらぱーく!',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 4,
+        hearts: [createHeartIcon(HeartColor.PINK, 4)],
+      },
+      'p1',
+      'megu'
+    );
+    const rurino = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-rurino',
+        name: '大沢瑠璃乃',
+        unitName: 'みらくらぱーく！',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'rurino'
+    );
+    const hime = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-hime',
+        name: '安養寺姫芽',
+        unitName: 'Mira-Cra Park!',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'hime'
+    );
+    let game = createGameState('hs-bp2-006-continuous-blade', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [megu, rurino, hime]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, megu.instanceId),
+          SlotPosition.LEFT,
+          rurino.instanceId
+        ),
+        SlotPosition.RIGHT,
+        hime.instanceId
+      ),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: megu.instanceId,
+      abilityId: HS_BP2_006_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', megu.instanceId, modifiers)).toBe(6);
+  });
+
+  it('does not count PL!HS-bp2-006 itself, non-Miracra members, or opponent Miracra members', () => {
+    const megu = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp2-006-P',
+        name: '藤島 慈',
+        unitName: 'みらくらぱーく!',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 4,
+        hearts: [createHeartIcon(HeartColor.PINK, 4)],
+      },
+      'p1',
+      'megu-negative'
+    );
+    const nonMiracra = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-cerise',
+        name: '日野下花帆',
+        unitName: 'スリーズブーケ',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'non-miracra'
+    );
+    const opponentMiracra = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-opponent-miracra',
+        name: '大沢瑠璃乃',
+        unitName: 'みらくらぱーく！',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p2',
+      'opponent-miracra'
+    );
+    let game = createGameState('hs-bp2-006-continuous-negative', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [megu, nonMiracra, opponentMiracra]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, megu.instanceId),
+        SlotPosition.LEFT,
+        nonMiracra.instanceId
+      ),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, opponentMiracra.instanceId),
+    }));
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) => modifier.abilityId === HS_BP2_006_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(getMemberEffectiveBladeCount(game, 'p1', megu.instanceId)).toBe(4);
   });
 
   it('adds purple Heart to PL!HS-pb1-007 when own stage has exactly two members and opponent has three', () => {

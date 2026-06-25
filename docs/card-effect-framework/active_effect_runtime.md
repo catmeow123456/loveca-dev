@@ -48,6 +48,15 @@ Benefits:
 - workflow 拥有自己的 step handler。
 - 新卡不需要修改 runner 的大型分发函数。
 
+## Granted Activated Abilities
+
+少数常时能力会让舞台上的 host 获得下方成员的起动能力。当前只落地 `PL!SP-pb2-005` 的窄入口：
+
+- `granted-activated-abilities.ts` 只在 Ren host 位于舞台时，读取同槽 `memberBelow` 中自己的『Liella!』成员。
+- 只枚举已实现的 `ACTIVATED / STAGE_MEMBER` definition，并按 host 当前槽位检查 `requiredSourceSlots`。
+- UI 查询、GameSession `ACTIVATE_ABILITY` 校验与已接入的 activated workflow handler 都以 host `sourceCardId` 记录发动与回合次数。
+- 该入口不是通用 DSL；新增同类 host 或新增 handler 接入时，需要逐卡审查 source/limit/cost 语义。
+
 ## ActiveEffect Fields
 
 Important fields:

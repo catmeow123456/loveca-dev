@@ -37,6 +37,33 @@ export interface MoveMemberBetweenSlotsResult {
   readonly swappedCardId: string | null;
 }
 
+export interface RearrangeStageMemberPlacement {
+  readonly cardId: string;
+  readonly toSlot: SlotPosition;
+}
+
+export interface StageFormationMoveHistoryEntry {
+  readonly cardId: string;
+  readonly toSlot: SlotPosition;
+}
+
+export interface RearrangedStageMember {
+  readonly cardId: string;
+  readonly fromSlot: SlotPosition;
+  readonly toSlot: SlotPosition;
+}
+
+export interface RearrangeStageMembersResult {
+  readonly gameState: GameState;
+  readonly rearrangedMembers: readonly RearrangedStageMember[];
+  readonly finalSlots: Readonly<Record<SlotPosition, string | null>>;
+}
+
+export interface RearrangeStageMembersByMoveHistoryResult extends RearrangeStageMembersResult {
+  readonly moveHistory: readonly StageFormationMoveHistoryEntry[];
+  readonly placements: readonly RearrangeStageMemberPlacement[];
+}
+
 export interface PlayMembersFromWaitingRoomResult {
   readonly gameState: GameState;
   readonly playedMembers: readonly {
@@ -198,7 +225,8 @@ export function moveMemberBetweenSlots(
   game: GameState,
   playerId: string,
   cardId: string,
-  toSlot: SlotPosition
+  toSlot: SlotPosition,
+  options: { readonly cause?: MemberStateChangeCause } = {}
 ): MoveMemberBetweenSlotsResult | null {
   const player = getPlayerById(game, playerId);
   if (!player) {
@@ -243,12 +271,19 @@ export function moveMemberBetweenSlots(
   });
   gameState = emitGameEvent(
     gameState,
-    createMemberSlotMovedEvent(cardId, playerId, fromSlot, toSlot, swappedCardId ?? undefined)
+    createMemberSlotMovedEvent(
+      cardId,
+      playerId,
+      fromSlot,
+      toSlot,
+      swappedCardId ?? undefined,
+      options.cause
+    )
   );
   if (swappedCardId) {
     gameState = emitGameEvent(
       gameState,
-      createMemberSlotMovedEvent(swappedCardId, playerId, toSlot, fromSlot, cardId)
+      createMemberSlotMovedEvent(swappedCardId, playerId, toSlot, fromSlot, cardId, options.cause)
     );
   }
 
@@ -258,6 +293,275 @@ export function moveMemberBetweenSlots(
     fromSlot,
     toSlot,
     swappedCardId,
+  };
+}
+
+export function rearrangeStageMembers(
+  game: GameState,
+  playerId: string,
+  placements: readonly RearrangeStageMemberPlacement[],
+  options: { readonly cause?: MemberStateChangeCause } = {}
+): RearrangeStageMembersResult | null {
+  const player = getPlayerById(game, playerId);
+  const validSlots = new Set(Object.values(SlotPosition));
+  const currentStageEntries = player
+    ? Object.values(SlotPosition)
+        .map((slot) => ({ slot, cardId: player.memberSlots.slots[slot] }))
+        .filter((entry): entry is { readonly slot: SlotPosition; readonly cardId: string } =>
+          entry.cardId !== null
+        )
+    : [];
+  const currentStageCardIds = currentStageEntries.map((entry) => entry.cardId);
+  const uniquePlacementCardIds = new Set(placements.map((placement) => placement.cardId));
+  const uniqueTargetSlots = new Set(placements.map((placement) => placement.toSlot));
+
+  if (
+    !player ||
+    placements.length !== currentStageCardIds.length ||
+    uniquePlacementCardIds.size !== placements.length ||
+    uniqueTargetSlots.size !== placements.length ||
+    placements.some((placement) => !validSlots.has(placement.toSlot))
+  ) {
+    return null;
+  }
+
+  for (const cardId of currentStageCardIds) {
+    if (!uniquePlacementCardIds.has(cardId)) {
+      return null;
+    }
+  }
+
+  const cardFromSlots = new Map(currentStageEntries.map((entry) => [entry.cardId, entry.slot]));
+  for (const placement of placements) {
+    const card = game.cardRegistry.get(placement.cardId);
+    if (
+      !card ||
+      card.ownerId !== playerId ||
+      !isMemberCardData(card.data) ||
+      !cardFromSlots.has(placement.cardId)
+    ) {
+      return null;
+    }
+  }
+
+  const finalSlots: Record<SlotPosition, string | null> = {
+    [SlotPosition.LEFT]: null,
+    [SlotPosition.CENTER]: null,
+    [SlotPosition.RIGHT]: null,
+  };
+  for (const placement of placements) {
+    finalSlots[placement.toSlot] = placement.cardId;
+  }
+
+  const rearrangedMembers = placements
+    .map((placement) => ({
+      cardId: placement.cardId,
+      fromSlot: cardFromSlots.get(placement.cardId)!,
+      toSlot: placement.toSlot,
+    }))
+    .filter((member) => member.fromSlot !== member.toSlot);
+
+  let gameState = updatePlayer(game, playerId, (currentPlayer) => {
+    const energyBelow: Record<SlotPosition, readonly string[]> = {
+      [SlotPosition.LEFT]: [],
+      [SlotPosition.CENTER]: [],
+      [SlotPosition.RIGHT]: [],
+    };
+    const memberBelow: Record<SlotPosition, readonly string[]> = {
+      [SlotPosition.LEFT]: [],
+      [SlotPosition.CENTER]: [],
+      [SlotPosition.RIGHT]: [],
+    };
+
+    for (const placement of placements) {
+      const fromSlot = cardFromSlots.get(placement.cardId);
+      if (!fromSlot) {
+        continue;
+      }
+      energyBelow[placement.toSlot] = [...(currentPlayer.memberSlots.energyBelow[fromSlot] ?? [])];
+      memberBelow[placement.toSlot] = [...(currentPlayer.memberSlots.memberBelow[fromSlot] ?? [])];
+    }
+
+    let nextPlayer = {
+      ...currentPlayer,
+      memberSlots: {
+        ...currentPlayer.memberSlots,
+        slots: finalSlots,
+        energyBelow,
+        memberBelow,
+      },
+    };
+    for (const member of rearrangedMembers) {
+      nextPlayer = recordPositionMove(nextPlayer, member.cardId);
+    }
+    return nextPlayer;
+  });
+
+  for (const member of rearrangedMembers) {
+    gameState = emitGameEvent(
+      gameState,
+      createMemberSlotMovedEvent(
+        member.cardId,
+        playerId,
+        member.fromSlot,
+        member.toSlot,
+        undefined,
+        options.cause
+      )
+    );
+  }
+
+  return {
+    gameState,
+    rearrangedMembers,
+    finalSlots,
+  };
+}
+
+export function rearrangeStageMembersByMoveHistory(
+  game: GameState,
+  playerId: string,
+  moveHistory: readonly StageFormationMoveHistoryEntry[],
+  options: {
+    readonly cause?: MemberStateChangeCause;
+    readonly expectedPlacements?: readonly RearrangeStageMemberPlacement[];
+  } = {}
+): RearrangeStageMembersByMoveHistoryResult | null {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return null;
+  }
+
+  const validSlots = new Set(Object.values(SlotPosition));
+  const initialStageEntries = Object.values(SlotPosition)
+    .map((slot) => ({ slot, cardId: player.memberSlots.slots[slot] }))
+    .filter((entry): entry is { readonly slot: SlotPosition; readonly cardId: string } =>
+      entry.cardId !== null
+    );
+  const initialCardSlots = new Map(initialStageEntries.map((entry) => [entry.cardId, entry.slot]));
+  const currentSlots: Record<SlotPosition, string | null> = {
+    [SlotPosition.LEFT]: player.memberSlots.slots[SlotPosition.LEFT],
+    [SlotPosition.CENTER]: player.memberSlots.slots[SlotPosition.CENTER],
+    [SlotPosition.RIGHT]: player.memberSlots.slots[SlotPosition.RIGHT],
+  };
+
+  for (const entry of moveHistory) {
+    if (!validSlots.has(entry.toSlot)) {
+      return null;
+    }
+    const card = game.cardRegistry.get(entry.cardId);
+    if (!card || card.ownerId !== playerId || !isMemberCardData(card.data)) {
+      return null;
+    }
+
+    const fromSlot = Object.values(SlotPosition).find(
+      (slot) => currentSlots[slot] === entry.cardId
+    );
+    if (!fromSlot) {
+      return null;
+    }
+    if (fromSlot === entry.toSlot) {
+      continue;
+    }
+
+    const swappedCardId = currentSlots[entry.toSlot];
+    currentSlots[fromSlot] = swappedCardId;
+    currentSlots[entry.toSlot] = entry.cardId;
+  }
+
+  const placementCandidates = initialStageEntries.map((entry) => {
+    const toSlot = Object.values(SlotPosition).find((slot) => currentSlots[slot] === entry.cardId);
+    if (!toSlot) {
+      return null;
+    }
+    return { cardId: entry.cardId, toSlot };
+  });
+  if (placementCandidates.some((placement): placement is null => placement === null)) {
+    return null;
+  }
+  const placements = placementCandidates as RearrangeStageMemberPlacement[];
+
+  if (options.expectedPlacements) {
+    const expectedByCardId = new Map(
+      options.expectedPlacements.map((placement) => [placement.cardId, placement.toSlot])
+    );
+    if (
+      expectedByCardId.size !== placements.length ||
+      placements.some((placement) => expectedByCardId.get(placement.cardId) !== placement.toSlot)
+    ) {
+      return null;
+    }
+  }
+
+  const rearrangedMembers: RearrangedStageMember[] = [];
+  for (const placement of placements) {
+    const fromSlot = initialCardSlots.get(placement.cardId);
+    if (!fromSlot || fromSlot === placement.toSlot) {
+      continue;
+    }
+    rearrangedMembers.push({
+      cardId: placement.cardId,
+      fromSlot,
+      toSlot: placement.toSlot,
+    });
+  }
+
+  let gameState = updatePlayer(game, playerId, (currentPlayer) => {
+    const energyBelow: Record<SlotPosition, readonly string[]> = {
+      [SlotPosition.LEFT]: [],
+      [SlotPosition.CENTER]: [],
+      [SlotPosition.RIGHT]: [],
+    };
+    const memberBelow: Record<SlotPosition, readonly string[]> = {
+      [SlotPosition.LEFT]: [],
+      [SlotPosition.CENTER]: [],
+      [SlotPosition.RIGHT]: [],
+    };
+
+    for (const placement of placements) {
+      const fromSlot = initialCardSlots.get(placement.cardId);
+      if (!fromSlot) {
+        continue;
+      }
+      energyBelow[placement.toSlot] = [...(currentPlayer.memberSlots.energyBelow[fromSlot] ?? [])];
+      memberBelow[placement.toSlot] = [...(currentPlayer.memberSlots.memberBelow[fromSlot] ?? [])];
+    }
+
+    let nextPlayer = {
+      ...currentPlayer,
+      memberSlots: {
+        ...currentPlayer.memberSlots,
+        slots: currentSlots,
+        energyBelow,
+        memberBelow,
+      },
+    };
+    for (const member of rearrangedMembers) {
+      nextPlayer = recordPositionMove(nextPlayer, member.cardId);
+    }
+    return nextPlayer;
+  });
+
+  for (const member of rearrangedMembers) {
+    gameState = emitGameEvent(
+      gameState,
+      createMemberSlotMovedEvent(
+        member.cardId,
+        playerId,
+        member.fromSlot,
+        member.toSlot,
+        undefined,
+        options.cause
+      )
+    );
+  }
+
+  return {
+    gameState,
+    rearrangedMembers,
+    finalSlots: currentSlots,
+    moveHistory,
+    placements,
   };
 }
 

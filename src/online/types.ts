@@ -8,6 +8,7 @@ import {
 } from '../shared/types/enums.js';
 import type { GameState } from '../domain/entities/game.js';
 import type { HeartIcon } from '../domain/entities/card.js';
+import type { ActivatedAbilityUiConfig } from '../application/card-effects/ability-definition-types.js';
 
 export type Seat = 'FIRST' | 'SECOND';
 
@@ -148,6 +149,7 @@ export interface ViewHeartIcon {
 }
 
 export interface ViewMemberModifierDelta {
+  readonly costDelta?: number;
   readonly bladeDelta?: number;
   readonly heartDeltas?: readonly ViewHeartIcon[];
 }
@@ -191,6 +193,7 @@ export interface ViewCardObject {
   readonly judgmentResult?: boolean;
   readonly enteredStageThisTurn?: boolean;
   readonly frontInfo?: ViewFrontCardInfo;
+  readonly activatedAbilityUiConfig?: ActivatedAbilityUiConfig;
 }
 
 export interface ViewCommandScope {
@@ -242,6 +245,17 @@ export interface ActiveEffectViewState {
   readonly maxSelectableObjects?: number;
   readonly selectableSlots?: readonly string[];
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
+  readonly stageFormation?: {
+    readonly playerSeat: Seat | null;
+    readonly slots: readonly {
+      readonly slot: string;
+      readonly cardId: string | null;
+      readonly objectId: string | null;
+      readonly originalSlot: string;
+      readonly energyBelowCount: number;
+      readonly memberBelowCount: number;
+    }[];
+  };
   readonly numericInput?: {
     readonly min?: number;
     readonly integerOnly?: boolean;

@@ -4,19 +4,18 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
-import { HeartColor } from '../../../../shared/types/enums.js';
-import { SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_ABILITY_ID } from '../../ability-ids.js';
+import { SP_PB1_006_AUTO_ENTER_OR_MOVE_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
+import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerSpSd2012KanonWorkflowHandlers(): void {
+export function registerSpPb1006KinakoWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
-    SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_ABILITY_ID,
+    SP_PB1_006_AUTO_ENTER_OR_MOVE_GAIN_TWO_BLADE_ABILITY_ID,
     (game, ability, options, context) =>
-      resolveSpSd2012KanonOnMoveGainRedHeart(
+      resolveSpPb1006KinakoEnterOrMoveGainBlade(
         game,
         ability,
         options.orderedResolution === true,
@@ -25,7 +24,7 @@ export function registerSpSd2012KanonWorkflowHandlers(): void {
   );
 }
 
-function resolveSpSd2012KanonOnMoveGainRedHeart(
+function resolveSpPb1006KinakoEnterOrMoveGainBlade(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
@@ -44,28 +43,31 @@ function resolveSpSd2012KanonOnMoveGainRedHeart(
     abilityId: ability.abilityId,
     sourceCardId: ability.sourceCardId,
   });
-  const heartResult = addHeartLiveModifierForMember(stateAfterUseRecord, {
+  const bladeResult = addBladeLiveModifierForSourceMember(stateAfterUseRecord, {
     playerId: player.id,
-    memberCardId: ability.sourceCardId,
     sourceCardId: ability.sourceCardId,
     abilityId: ability.abilityId,
-    hearts: [{ color: HeartColor.RED, count: 1 }],
+    amount: 2,
   });
-  if (!heartResult) {
+  if (!bladeResult) {
     return game;
   }
 
   return continuePendingCardEffects(
-    addAction(heartResult.gameState, 'RESOLVE_ABILITY', player.id, {
+    addAction(bladeResult.gameState, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
-      step: 'ON_MOVE_GAIN_RED_HEART',
+      step:
+        ability.timingId === 'ON_ENTER_STAGE'
+          ? 'ENTER_GAIN_TWO_BLADE'
+          : 'ON_MOVE_GAIN_TWO_BLADE',
+      timingId: ability.timingId,
       sourceSlot: ability.sourceSlot,
       fromSlot: ability.metadata?.fromSlot,
       toSlot: ability.metadata?.toSlot,
       swappedCardInstanceId: ability.metadata?.swappedCardInstanceId,
-      heartBonus: heartResult.heartBonus,
+      bladeBonus: bladeResult.bladeBonus,
     }),
     orderedResolution
   );

@@ -9,6 +9,8 @@ import {
   PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES,
   isResultSuccessEffectSubPhase,
 } from '../application/command-availability.js';
+import { getActivatedAbilityUiConfig } from '../application/card-effect-runner.js';
+import { CardAbilitySourceZone } from '../application/card-effects/ability-definition-types.js';
 import type { ActiveEffectState, GameState, LiveModifierState } from '../domain/entities/game.js';
 import type { PlayerState } from '../domain/entities/player.js';
 import type {
@@ -36,6 +38,7 @@ import {
   getPlayerLiveScoreModifier,
   projectLiveModifierCompatibility,
 } from '../domain/rules/live-modifiers.js';
+import { getMemberEffectiveCost } from '../domain/rules/member-effective-cost.js';
 import {
   canLiveCardEnterSuccessZone,
   getCurrentSuccessLiveSettlementPlayerId,
@@ -330,6 +333,7 @@ export function projectPlayerViewState(
         ...activeEffectCardSelection,
         selectableSlots: game.activeEffect.selectableSlots,
         selectableOptions: game.activeEffect.selectableOptions,
+        stageFormation: projectActiveEffectStageFormation(game),
         numericInput: game.activeEffect.numericInput,
         canResolveInOrder: game.activeEffect.canResolveInOrder,
       }
@@ -385,6 +389,24 @@ function projectActiveEffectRevealedCards(
       publiclyRevealed: true,
     });
   }
+}
+
+function projectActiveEffectStageFormation(game: GameState) {
+  const formation = game.activeEffect?.stageFormation;
+  if (!formation) {
+    return undefined;
+  }
+  return {
+    playerSeat: getSeatForPlayer(game, formation.playerId),
+    slots: formation.slots.map((slot) => ({
+      slot: slot.slot,
+      cardId: slot.cardId,
+      objectId: slot.cardId ? createPublicObjectId(slot.cardId) : null,
+      originalSlot: slot.originalSlot,
+      energyBelowCount: slot.energyBelowCount,
+      memberBelowCount: slot.memberBelowCount,
+    })),
+  };
 }
 
 function projectActiveEffectCardSelection(
@@ -557,10 +579,24 @@ function addMemberSlotZones(
         const effectiveBlade = isMemberCardData(occupant.data)
           ? getMemberEffectiveBladeCount(game, playerId, occupantId, liveModifiers)
           : 0;
+        const effectiveCost = isMemberCardData(occupant.data)
+          ? getMemberEffectiveCost(game, playerId, occupantId)
+          : 0;
         upsertViewObject(objects, occupant, ownerSeat, 'FRONT', state?.orientation, state?.face, {
           enteredStageThisTurn: movedToStageThisTurn.includes(occupantId),
           frontInfo: isMemberCardData(occupant.data)
-            ? buildStageMemberFrontInfo(occupant, effectiveHearts, effectiveBlade)
+            ? buildStageMemberFrontInfo(occupant, effectiveHearts, effectiveBlade, effectiveCost)
+            : undefined,
+          activatedAbilityUiConfig: isMemberCardData(occupant.data)
+            ? getActivatedAbilityUiConfig(
+                occupant.data.cardCode,
+                CardAbilitySourceZone.STAGE_MEMBER,
+                {
+                  game,
+                  playerId,
+                  sourceCardId: occupantId,
+                }
+              ) ?? undefined
             : undefined,
         });
       }
@@ -736,7 +772,11 @@ function upsertViewObject(
   faceState?: ViewCardObject['faceState'],
   metadata?: Pick<
     ViewCardObject,
-    'publiclyRevealed' | 'judgmentResult' | 'enteredStageThisTurn' | 'frontInfo'
+    | 'publiclyRevealed'
+    | 'judgmentResult'
+    | 'enteredStageThisTurn'
+    | 'frontInfo'
+    | 'activatedAbilityUiConfig'
   > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
@@ -754,6 +794,8 @@ function upsertViewObject(
     judgmentResult: metadata?.judgmentResult,
     enteredStageThisTurn: metadata?.enteredStageThisTurn,
     frontInfo: surface === 'FRONT' ? (metadata?.frontInfo ?? buildFrontInfo(card)) : undefined,
+    activatedAbilityUiConfig:
+      surface === 'FRONT' ? metadata?.activatedAbilityUiConfig : undefined,
   };
 }
 
@@ -887,14 +929,22 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
 function buildStageMemberFrontInfo(
   card: CardInstance,
   hearts: readonly { readonly color: HeartColor; readonly count: number }[],
-  blade: number
+  blade: number,
+  cost: number
 ): ViewFrontCardInfo {
   const frontInfo = buildFrontInfo(card);
   if (!isMemberCardData(card.data)) {
     return frontInfo;
   }
 
-  const modifierDelta = buildMemberModifierDelta(card.data.hearts, hearts, card.data.blade, blade);
+  const modifierDelta = buildMemberModifierDelta(
+    card.data.hearts,
+    hearts,
+    card.data.blade,
+    blade,
+    card.data.cost,
+    cost
+  );
 
   return {
     ...frontInfo,
@@ -907,15 +957,19 @@ function buildMemberModifierDelta(
   printedHearts: readonly { readonly color: HeartColor; readonly count: number }[],
   effectiveHearts: readonly { readonly color: HeartColor; readonly count: number }[],
   printedBlade: number,
-  effectiveBlade: number
+  effectiveBlade: number,
+  printedCost: number,
+  effectiveCost: number
 ): ViewMemberModifierDelta | undefined {
   const heartDeltas = buildHeartDeltas(printedHearts, effectiveHearts);
   const bladeDelta = effectiveBlade - printedBlade;
-  if (bladeDelta <= 0 && heartDeltas.length === 0) {
+  const costDelta = effectiveCost - printedCost;
+  if (costDelta === 0 && bladeDelta <= 0 && heartDeltas.length === 0) {
     return undefined;
   }
 
   return {
+    ...(costDelta !== 0 ? { costDelta } : {}),
     ...(bladeDelta > 0 ? { bladeDelta } : {}),
     ...(heartDeltas.length > 0 ? { heartDeltas } : {}),
   };

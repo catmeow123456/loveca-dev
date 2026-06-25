@@ -340,6 +340,15 @@ describe('match decision records P2', () => {
       effectId: beforeEffect.id,
       selectedCardId: 'candidate-card',
       selectedNumber: 3,
+      stageFormationMoveHistory: [
+        { cardId: 'member-b', toSlot: SlotPosition.LEFT },
+        { cardId: 'member-c', toSlot: SlotPosition.LEFT },
+      ],
+      stageFormationPlacements: [
+        { cardId: 'member-a', toSlot: SlotPosition.RIGHT },
+        { cardId: 'member-b', toSlot: SlotPosition.CENTER },
+        { cardId: 'member-c', toSlot: SlotPosition.LEFT },
+      ],
       timestamp: 2_000,
     };
 
@@ -361,6 +370,15 @@ describe('match decision records P2', () => {
       submission: {
         selectedCardId: 'candidate-card',
         selectedNumber: 3,
+        stageFormationMoveHistory: [
+          { cardId: 'member-b', toSlot: SlotPosition.LEFT },
+          { cardId: 'member-c', toSlot: SlotPosition.LEFT },
+        ],
+        stageFormationPlacements: [
+          { cardId: 'member-a', toSlot: SlotPosition.RIGHT },
+          { cardId: 'member-b', toSlot: SlotPosition.CENTER },
+          { cardId: 'member-c', toSlot: SlotPosition.LEFT },
+        ],
         skipped: false,
       },
       resultSummary: '进入效果步骤：confirm-reveal',

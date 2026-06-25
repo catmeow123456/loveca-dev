@@ -7,11 +7,12 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { addCardToZone } from '../../../../domain/entities/zone.js';
-import { CardType, ZoneType } from '../../../../shared/types/enums.js';
+import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import {
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
   HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
+  S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
   UMI_ON_ENTER_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -24,6 +25,7 @@ import {
   groupAliasIs,
   groupIs,
   hasNoAbilityOrContinuousAbility,
+  memberHasHeartColor,
   typeIs,
 } from '../../../effects/card-selectors.js';
 import {
@@ -111,6 +113,10 @@ const HS_BP2_012_SELECT_MEMBER_STEP_ID = 'HS_BP2_012_SELECT_MEMBER_FROM_TOP_FIVE
 const HS_BP2_012_REVEAL_SELECTED_STEP_ID = 'HS_BP2_012_REVEAL_SELECTED_MEMBER';
 const HS_BP2_013_SELECT_LIVE_STEP_ID = 'HS_BP2_013_SELECT_LIVE_FROM_TOP_FIVE';
 const HS_BP2_013_REVEAL_SELECTED_STEP_ID = 'HS_BP2_013_REVEAL_SELECTED_LIVE';
+const S_BP6_005_SELECT_THREE_COLOR_MEMBER_STEP_ID =
+  'S_BP6_005_SELECT_THREE_COLOR_MEMBER_FROM_TOP_TWO';
+const S_BP6_005_REVEAL_THREE_COLOR_MEMBER_STEP_ID =
+  'S_BP6_005_REVEAL_SELECTED_THREE_COLOR_MEMBER';
 
 const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandWorkflowConfig[] = [
   {
@@ -195,6 +201,29 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     skipSelectionLabel: '不加入',
     revealStepText: '选择的LIVE卡已公开。确认后加入手牌，其余卡片放置入休息室。',
     revealActionStep: 'REVEAL_SELECTED_LIVE',
+  },
+  {
+    abilityId: S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
+    topCount: 2,
+    selector: and(
+      typeIs(CardType.MEMBER),
+      memberHasHeartColor(HeartColor.RED),
+      memberHasHeartColor(HeartColor.GREEN),
+      memberHasHeartColor(HeartColor.BLUE)
+    ),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    selectStepId: S_BP6_005_SELECT_THREE_COLOR_MEMBER_STEP_ID,
+    revealStepId: S_BP6_005_REVEAL_THREE_COLOR_MEMBER_STEP_ID,
+    selectStepText:
+      '请选择至多1张同时持有红Heart、绿Heart、蓝Heart的成员卡公开并加入手牌。也可以不加入。',
+    noTargetStepText:
+      '没有可加入手牌的同时持有红Heart、绿Heart、蓝Heart的成员卡。确认后其余卡片放置入休息室。',
+    selectionLabel: '选择要公开并加入手牌的三色Heart成员',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '不加入',
+    revealStepText: getAbilityEffectText(S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID),
+    revealActionStep: 'REVEAL_SELECTED_THREE_COLOR_MEMBER',
   },
 ];
 

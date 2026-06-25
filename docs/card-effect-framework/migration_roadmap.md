@@ -86,13 +86,13 @@ Current migrated workflow modules:
 - `workflows/cards/bp5-005-rin.ts`
 - `workflows/cards/hs-bp6-004-ginko.ts`
 - `workflows/cards/hs-bp6-031-fanfare.ts`
-- `workflows/cards/hs-bp5-008-izumi.ts`
+- `workflows/shared/wait-discard-look-top-select-to-hand.ts`
 - `workflows/shared/mill-top-gain-live-modifier.ts`
 - `workflows/cards/hs-pb1-009-kaho.ts`
 - `workflows/cards/hs-sd1-001-kaho.ts`
 - `workflows/cards/hs-sd1-006-hime.ts`
 - `workflows/cards/pr-017-nico.ts`
-- `workflows/cards/hs-bp1-002-sayaka.ts`
+- `workflows/shared/play-waiting-room-member-to-source-slot.ts`
 - `workflows/cards/hs-bp5-001-kaho.ts`
 - `workflows/cards/hs-bp5-003-rurino.ts`
 - `workflows/cards/hs-pb1-004-ginko.ts`
@@ -354,7 +354,7 @@ The helper deliberately does not remove pending abilities, write action history,
 
 - `workflows/cards/bp5-003-kotori.ts`;
 - `workflows/cards/hs-pb1-004-ginko.ts`;
-- `workflows/cards/hs-bp5-008-izumi.ts`;
+- `workflows/shared/wait-discard-look-top-select-to-hand.ts`;
 - `workflows/shared/grouped-recovery.ts`;
 - `workflows/shared/discard-cost-waiting-room-to-hand.ts`.
 

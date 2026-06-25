@@ -7,7 +7,6 @@ import {
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { CardType, GamePhase } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   BP4_003_ACTIVATED_ABILITY_ID,
   ELI_ACTIVATED_ABILITY_ID,
@@ -18,6 +17,7 @@ import {
 import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
@@ -132,8 +132,12 @@ function startSelfSacrificeWaitingRoomToHandWorkflow(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !config.expectedBaseCardCodes.some((baseCardCode) =>
-      cardCodeMatchesBase(sourceCard.data.cardCode, baseCardCode)
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      config.abilityId,
+      config.expectedBaseCardCodes
     ) ||
     !isMemberCardData(sourceCard.data)
   ) {

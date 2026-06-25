@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { HeartColor } from '@game/shared/types/enums';
 import type { ViewMemberModifierDelta } from '@game/online';
 import bladeIcon from '@/assets/modifier-icons/blade.png';
+import costIcon from '@/assets/modifier-icons/cost.png';
 import heartAllIcon from '@/assets/modifier-icons/heart_all.png';
 import heartBlueIcon from '@/assets/modifier-icons/heart_blue.png';
 import heartGreenIcon from '@/assets/modifier-icons/heart_green.png';
@@ -40,6 +41,7 @@ export const CardModifierBadgeStack = memo(function CardModifierBadgeStack({
   modifierDelta,
   className,
 }: CardModifierBadgeStackProps) {
+  const costDelta = modifierDelta?.costDelta ?? 0;
   const bladeDelta = modifierDelta?.bladeDelta ?? 0;
   const heartDeltaByColor = new Map<HeartColor, number>();
 
@@ -57,7 +59,7 @@ export const CardModifierBadgeStack = memo(function CardModifierBadgeStack({
     count: heartDeltaByColor.get(color) ?? 0,
   })).filter((row) => row.count !== 0);
 
-  if (bladeDelta <= 0 && heartRows.length === 0) {
+  if (costDelta === 0 && bladeDelta <= 0 && heartRows.length === 0) {
     return null;
   }
 
@@ -69,6 +71,7 @@ export const CardModifierBadgeStack = memo(function CardModifierBadgeStack({
       )}
       aria-hidden="true"
     >
+      {costDelta !== 0 ? <ModifierBadge iconSrc={costIcon} value={costDelta} /> : null}
       {bladeDelta > 0 ? <ModifierBadge iconSrc={bladeIcon} value={bladeDelta} /> : null}
       {heartRows.map((heart) => (
         <ModifierBadge

@@ -13,6 +13,7 @@ import {
   cardNameAliasIs,
   costGte,
   costLte,
+  groupAliasIs,
   typeIs,
   unitAliasIs,
 } from '../../src/application/effects/card-selectors';
@@ -36,6 +37,7 @@ import {
   hasOtherStageMember,
   hasStageMemberMatching,
   sourceHasBladeAtLeast,
+  sumStageMemberEffectiveCostMatching,
   successLiveScoreAtLeast,
   sumSuccessfulLiveScore,
 } from '../../src/application/effects/conditions';
@@ -426,5 +428,49 @@ describe('effect conditions', () => {
 
     expect(result).not.toBeNull();
     expect(getMemberEffectiveCost(result!.gameState, 'p1', sayaka.instanceId)).toBe(14);
+  });
+
+  it('sums effective cost for stage members that match a selector', () => {
+    const hasunosora = memberCard('stage-hasunosora-cost', {
+      groupName: '蓮ノ空女学院スクールアイドルクラブ',
+      cost: 10,
+    });
+    const hasunosoraWithModifier = memberCard('stage-hasunosora-modified-cost', {
+      groupName: '蓮ノ空女学院スクールアイドルクラブ',
+      cost: 8,
+    });
+    const liella = memberCard('stage-liella-cost', {
+      groupName: 'ラブライブ！スーパースター!!',
+      cost: 7,
+    });
+
+    let game = createGameState('conditions-stage-effective-cost-sum', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hasunosora, hasunosoraWithModifier, liella]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, hasunosora.instanceId),
+          SlotPosition.CENTER,
+          hasunosoraWithModifier.instanceId
+        ),
+        SlotPosition.RIGHT,
+        liella.instanceId
+      ),
+    }));
+    const result = addMemberCostLiveModifierForMember(game, {
+      playerId: 'p1',
+      memberCardId: hasunosoraWithModifier.instanceId,
+      sourceCardId: hasunosoraWithModifier.instanceId,
+      abilityId: 'test-member-cost-sum',
+      countDelta: 6,
+    });
+
+    expect(result).not.toBeNull();
+    expect(sumStageMemberEffectiveCostMatching(result!.gameState, 'p1')).toBe(31);
+    expect(
+      sumStageMemberEffectiveCostMatching(result!.gameState, 'p1', groupAliasIs('蓮ノ空'))
+    ).toBe(24);
+    expect(sumStageMemberEffectiveCostMatching(result!.gameState, 'unknown-player')).toBe(0);
   });
 });

@@ -323,7 +323,60 @@ describe('PlayerViewState projector', () => {
     expect(sourceObject?.frontInfo?.hearts).toEqual([{ color: HeartColor.PINK, count: 1 }]);
   });
 
-  it('omits member modifier delta when staged member has no non-card modifier', () => {
+  it('projects signed COST modifier deltas on staged member frontInfo', () => {
+    let { state } = createProjectedState();
+    const increasedCostMember = createCardInstance(
+      createTestMember('MEM-COST-INCREASE', '费用上升成员'),
+      PLAYER1,
+      'p1-cost-increase'
+    );
+    const reducedCostMember = createCardInstance(
+      createTestMember('MEM-COST-REDUCE', '费用下降成员'),
+      PLAYER1,
+      'p1-cost-reduce'
+    );
+    state = registerCards(state, [increasedCostMember, reducedCostMember]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.LEFT]: increasedCostMember.instanceId,
+          [SlotPosition.CENTER]: reducedCostMember.instanceId,
+        },
+        cardStates: new Map([
+          [increasedCostMember.instanceId, createDefaultCardState()],
+          [reducedCostMember.instanceId, createDefaultCardState()],
+        ]),
+      },
+    }));
+    state = addLiveModifier(state, {
+      kind: 'MEMBER_COST',
+      playerId: PLAYER1,
+      memberCardId: increasedCostMember.instanceId,
+      countDelta: 3,
+      sourceCardId: increasedCostMember.instanceId,
+      abilityId: 'test-member-cost-increase',
+    });
+    state = addLiveModifier(state, {
+      kind: 'MEMBER_COST',
+      playerId: PLAYER1,
+      memberCardId: reducedCostMember.instanceId,
+      countDelta: -1,
+      sourceCardId: reducedCostMember.instanceId,
+      abilityId: 'test-member-cost-reduce',
+    });
+
+    const view = projectPlayerViewState(state, PLAYER1);
+    const increasedCostObject = view.objects[createPublicObjectId(increasedCostMember.instanceId)];
+    const reducedCostObject = view.objects[createPublicObjectId(reducedCostMember.instanceId)];
+
+    expect(increasedCostObject?.frontInfo?.modifierDelta).toEqual({ costDelta: 3 });
+    expect(reducedCostObject?.frontInfo?.modifierDelta).toEqual({ costDelta: -1 });
+  });
+
+  it('omits member modifier delta when staged member has no cost, BLADE, or Heart delta', () => {
     let { state } = createProjectedState();
     const member = createCardInstance(
       createTestMember('MEM-NO-MODIFIER', '无修正成员'),

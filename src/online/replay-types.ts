@@ -100,6 +100,14 @@ export interface MatchDecisionSubmissionSummary {
   readonly selectedSlot?: string | null;
   readonly selectedOptionId?: string | null;
   readonly selectedNumber?: number | null;
+  readonly stageFormationMoveHistory?: readonly {
+    readonly cardId: string;
+    readonly toSlot: string;
+  }[];
+  readonly stageFormationPlacements?: readonly {
+    readonly cardId: string;
+    readonly toSlot: string;
+  }[];
   readonly selectedPendingAbilityId?: string | null;
   readonly resolveInOrder?: boolean;
   readonly skipped?: boolean;

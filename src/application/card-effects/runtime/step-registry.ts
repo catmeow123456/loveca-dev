@@ -11,6 +11,14 @@ export interface ActiveEffectStepHandlerInput {
   readonly selectedOptionId?: string | null;
   readonly selectedCardIds?: readonly string[];
   readonly selectedNumber?: number | null;
+  readonly stageFormationMoveHistory?: readonly {
+    readonly cardId: string;
+    readonly toSlot: SlotPosition;
+  }[];
+  readonly stageFormationPlacements?: readonly {
+    readonly cardId: string;
+    readonly toSlot: SlotPosition;
+  }[];
 }
 
 export interface ActiveEffectStepHandlerContext {

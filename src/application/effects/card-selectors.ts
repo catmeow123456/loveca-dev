@@ -165,6 +165,12 @@ export function hasBladeHeart(): CardSelector {
     (((card.data as { readonly bladeHearts?: readonly unknown[] }).bladeHearts?.length ?? 0) > 0);
 }
 
+export function hasScoreBladeHeart(): CardSelector {
+  return (card) =>
+    ((card.data as { readonly bladeHearts?: readonly { readonly effect?: unknown }[] }).bladeHearts
+      ?.some((bladeHeart) => bladeHeart.effect === 'SCORE') ?? false);
+}
+
 export function hasNoAbilityOrContinuousAbility(): CardSelector {
   return (card) => {
     const cardText = card.data.cardText?.trim() ?? '';

@@ -8,7 +8,10 @@ import {
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { CardType, GamePhase } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID } from '../../ability-ids.js';
+import {
+  BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
+  S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
+} from '../../ability-ids.js';
 import {
   discardHandCardsToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
@@ -19,7 +22,7 @@ import {
   getAbilityEffectText,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
-import { and, groupIs, typeIs } from '../../../effects/card-selectors.js';
+import { and, groupAliasIs, groupIs, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors.js';
 import { successLiveScoreAtLeast } from '../../../effects/conditions.js';
 import { type EffectCostDefinition } from '../../../effects/effect-costs.js';
 import {
@@ -32,6 +35,9 @@ import { finishWaitingRoomToHandWorkflow } from './waiting-room-to-hand.js';
 const SELECT_WAITING_ROOM_CARD_STEP_ID = 'SELECT_WAITING_ROOM_CARD';
 const BP4_002_SELECT_DISCARD_STEP_ID = 'BP4_002_SELECT_TWO_HAND_CARDS_TO_DISCARD';
 const BP4_002_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID = 'BP4_002_SELECT_WAITING_ROOM_MUSE_LIVE';
+const S_SD1_007_SELECT_DISCARD_STEP_ID = 'S_SD1_007_SELECT_TWO_HAND_CARDS_TO_DISCARD';
+const S_SD1_007_SELECT_WAITING_ROOM_SCORE_AQOURS_LIVE_STEP_ID =
+  'S_SD1_007_SELECT_WAITING_ROOM_SCORE_AQOURS_LIVE';
 
 interface DiscardCostWaitingRoomToHandWorkflowConfig {
   readonly abilityId: string;
@@ -57,43 +63,47 @@ const BP4_002_DISCARD_RECOVER_WORKFLOW: DiscardCostWaitingRoomToHandWorkflowConf
   recoverySelectionRequiredWhenHasTargets: true,
 };
 
+const DISCARD_COST_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly DiscardCostWaitingRoomToHandWorkflowConfig[] = [
+  BP4_002_DISCARD_RECOVER_WORKFLOW,
+  {
+    abilityId: S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
+    expectedBaseCardCodes: ['PL!S-sd1-007'],
+    discardStepId: S_SD1_007_SELECT_DISCARD_STEP_ID,
+    recoveryStepId: S_SD1_007_SELECT_WAITING_ROOM_SCORE_AQOURS_LIVE_STEP_ID,
+    discardCount: 2,
+    recoverySelector: and(typeIs(CardType.LIVE), groupAliasIs('Aqours'), hasScoreBladeHeart()),
+    recoveryStepText:
+      '请选择自己的休息室中1张持有 SCORE 图标的『Aqours』LIVE卡加入手牌。',
+    recoverySelectionRequiredWhenHasTargets: true,
+  },
+];
+
 export function registerDiscardCostWaitingRoomToHandWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  registerActivatedAbilityHandler(
-    BP4_002_DISCARD_RECOVER_WORKFLOW.abilityId,
-    (game, playerId, cardId) =>
-      startDiscardCostWaitingRoomToHandWorkflow(
-        game,
-        playerId,
-        cardId,
-        BP4_002_DISCARD_RECOVER_WORKFLOW
-      )
-  );
-  registerActiveEffectStepHandler(
-    BP4_002_DISCARD_RECOVER_WORKFLOW.abilityId,
-    BP4_002_SELECT_DISCARD_STEP_ID,
-    (game, input) =>
+  for (const config of DISCARD_COST_WAITING_ROOM_TO_HAND_WORKFLOWS) {
+    registerActivatedAbilityHandler(config.abilityId, (game, playerId, cardId) =>
+      startDiscardCostWaitingRoomToHandWorkflow(game, playerId, cardId, config)
+    );
+    registerActiveEffectStepHandler(config.abilityId, config.discardStepId, (game, input) =>
       input.selectedCardIds
         ? startDiscardCostWaitingRoomRecoveryAfterDiscard(
             game,
             input.selectedCardIds,
-            BP4_002_DISCARD_RECOVER_WORKFLOW,
+            config,
             deps.enqueueTriggeredCardEffects
           )
         : game
-  );
-  registerActiveEffectStepHandler(
-    BP4_002_DISCARD_RECOVER_WORKFLOW.abilityId,
-    BP4_002_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID,
-    (game, input, context) =>
+    );
+    registerActiveEffectStepHandler(config.abilityId, config.recoveryStepId, (game, input, context) =>
       finishWaitingRoomToHandWorkflow(
         game,
         input.selectedCardId ?? null,
         input.selectedCardIds,
         context.continuePendingCardEffects
       )
-  );
+    );
+  }
 }
 
 function startDiscardCostWaitingRoomToHandWorkflow(
