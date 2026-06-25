@@ -119,6 +119,7 @@ import {
   SP_SD2_002_AUTO_ON_MOVE_GAIN_PURPLE_HEART_ABILITY_ID,
   SP_BP4_027_LIVE_SUCCESS_LIELLA_STAGE_FORMATION_CHANGE_ABILITY_ID,
   HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+  S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
@@ -190,6 +191,15 @@ import {
   CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID,
   EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID,
   YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID,
+  S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
+  S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID,
+  S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
+  S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
+  S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+  S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID,
+  S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID,
+  S_BP6_004_LIVE_START_RETURN_NO_LIVE_START_AQOURS_LIVE_GAIN_RED_GREEN_HEART_ABILITY_ID,
+  S_BP6_019_LIVE_START_ALL_AQOURS_SCORE_DRAW_HAND_TOP_BOTTOM_ABILITY_ID,
   HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
   HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
   HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID,
@@ -512,6 +522,8 @@ const SP_BP4_027_LIVE_SUCCESS_FORMATION_CHANGE_EFFECT_TEXT =
   "【LIVE成功时】自己舞台成员均为『Liella!』时，可以将自己舞台成员站位变换。";
 const HS_BP5_008_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将此成员变为待机状态，将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以从其中将1张费用大于等于9的『莲之空』的成员卡公开并加入手牌。其余的卡片放置入休息室。';
+const S_BP5_006_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将此成员变为待机状态，将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以从其中将1张费用大于等于9的『Aqours』成员卡公开并加入手牌。其余的卡片放置入休息室。';
 const HS_PB1_004_ON_ENTER_EFFECT_TEXT =
   '【登场】[E]可以将1张手牌放置入休息室：将自己卡组顶的3张卡放置入休息室。之后，从自己的休息室将1张『Cerise Bouquet』的LIVE卡加入手牌。';
 const HS_PB1_007_ON_ENTER_EFFECT_TEXT =
@@ -595,6 +607,24 @@ const EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_EFFECT_TEXT =
   '【登场】将1名存在于自己的舞台的成员或2张能量变为活跃状态。';
 const YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_EFFECT_TEXT =
   '【登场】可以支付[E][E][E][E]：从自己的休息室选择至多2张费用合计小于等于4的成员卡登场到舞台。';
+const S_BP6_005_ON_ENTER_EFFECT_TEXT =
+  '【登场】检视自己卡组顶的2张卡。可以从其中将1张同时持有红Heart、绿Heart、蓝Heart的成员卡公开并加入手牌。其余的卡片放置入休息室。';
+const S_DRAW_ONE_PLACE_HAND_BOTTOM_EFFECT_TEXT =
+  '【登场】抽1张卡，将1张手牌放置到卡组底。';
+const S_BP6_010_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的LIVE中的LIVE卡的必要Heart中红Heart合计大于等于4的场合，LIVE结束时为止，获得红Heart。';
+const S_SD1_007_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张持有 SCORE 图标的『Aqours』LIVE卡加入手牌。';
+const S_BP6_008_ACTIVATED_EFFECT_TEXT =
+  '【起动】[E][E]将此成员从舞台放置入休息室：从自己的休息室将1张费用小于等于17的『Aqours』成员卡，登场至此成员曾存在的区域。';
+const S_SD1_009_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以公开1张手牌中的『Aqours』卡：将因此公开的卡放置到卡组顶或卡组底，LIVE结束时为止，获得[BLADE]。';
+const S_BP3_025_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】选择自己舞台上1名『Aqours』成员。该成员持有的 BLADE 大于等于6个的场合，此卡的分数+1。';
+const S_BP6_004_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的LIVE区有2张以上卡的场合，可以从其中选择1张不持有 LIVE 开始能力的『Aqours』LIVE卡放置到卡组顶。如此做的场合，LIVE结束时为止，获得红Heart与绿Heart。';
+const S_BP6_019_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己舞台上的成员全部为『Aqours』的场合，此卡的分数+1，抽1张卡，将1张手牌放置到卡组顶或卡组底。';
 const HS_BP5_001_ON_ENTER_EFFECT_TEXT =
   '【登场】将自己卡组顶的4张卡放置入休息室。那些卡片中存在LIVE卡的场合，LIVE结束时为止，获得[BLADE][BLADE]。';
 const HS_BP5_001_ACTIVATED_EFFECT_TEXT =
@@ -2367,6 +2397,124 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '先支付4能量，再从休息室选择至多2张费用合计<=4的成员，逐张选择空槽登场；不走普通登场费用/换手。',
   },
   {
+    abilityId: S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp6-005'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_005_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '复用 look-top-select-to-hand；检视2张，selector 为成员且同时持有红/绿/蓝 Heart，公开后入手，其余进休息室。',
+  },
+  {
+    abilityId: S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp5-014', 'PL!S-sd1-017', 'PL!S-sd1-018'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_DRAW_ONE_PLACE_HAND_BOTTOM_EFFECT_TEXT,
+    notes:
+      'shared workflow：抽1后私有选择1张手牌放置到卡组底；不进入休息室，不触发 enter-waiting-room。',
+  },
+  {
+    abilityId: S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp6-010'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_010_LIVE_START_EFFECT_TEXT,
+    notes:
+      'LIVE 开始时确认自己 liveZone 中 LIVE 卡红 Heart 必要数合计 >=4；满足时写 SOURCE_MEMBER 红 Heart +1，不写 player Heart。',
+  },
+  {
+    abilityId: S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!S-sd1-007'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: S_SD1_007_ACTIVATED_EFFECT_TEXT,
+    perTurnLimit: 1,
+    notes:
+      '复用 discard-cost-waiting-room-to-hand；弃2手牌成本走 enter-waiting-room trigger wrapper，之后回收持有 SCORE blade-heart 的 Aqours LIVE。',
+    activatedUi: {
+      abilityId: S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
+      text: '起动：[1回合1次]将2张手牌放置入休息室：从自己的休息室将1张持有 SCORE 图标的『Aqours』LIVE卡加入手牌。',
+      title: '弃2张手牌，回收1张持有 SCORE 图标的 Aqours LIVE',
+    },
+  },
+  {
+    abilityId: S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp6-008'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: S_BP6_008_ACTIVATED_EFFECT_TEXT,
+    notes:
+      '复用自送休息室后原区域登场 workflow；支付2能量并将来源成员从舞台放置入休息室，再从休息室选择费用<=17的 Aqours 成员登场到来源原区域。',
+    activatedUi: {
+      abilityId: S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+      text: '起动：[E][E]并将此成员从舞台放置入休息室：从自己的休息室将1张费用小于等于17的『Aqours』成员登场至原区域。',
+      title: '支付2能量并自送，从休息室登场1张 Aqours 成员到原区域',
+    },
+  },
+  {
+    abilityId: S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-sd1-009'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_SD1_009_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；可选公开1张 Aqours 手牌后放置到卡组顶或底，成功移动后来源成员获得 BLADE +1。手牌公开复用 revealHandCardForActiveEffect。',
+  },
+  {
+    abilityId: S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp3-025'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP3_025_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；选择己方舞台 Aqours 成员，使用 getMemberEffectiveBladeCount 读取目标成员有效 BLADE，>=6 时写此 LIVE SCORE +1 并刷新 playerScores 草案。',
+  },
+  {
+    abilityId:
+      S_BP6_004_LIVE_START_RETURN_NO_LIVE_START_AQOURS_LIVE_GAIN_RED_GREEN_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp6-004'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_004_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；liveZone >=2 时可选1张不持有 LIVE_START ability 的 Aqours LIVE 回卡组顶，成功后来源成员获得红Heart与绿Heart；LIVE_START 判断按 definitions 精确分类。',
+  },
+  {
+    abilityId: S_BP6_019_LIVE_START_ALL_AQOURS_SCORE_DRAW_HAND_TOP_BOTTOM_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp6-019'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_019_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；己方舞台至少1名成员且全部为 Aqours 时写此 LIVE SCORE +1、抽1，再私有选择1张手牌放置到卡组顶或底。',
+  },
+  {
     abilityId: HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
     baseCardCodes: ['PL!HS-bp1-006', 'PL!N-sd1-010'],
     category: CardAbilityCategory.ON_ENTER,
@@ -3320,6 +3468,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HS_BP5_008_ON_ENTER_EFFECT_TEXT,
     notes:
       '登场时可将来源成员变为待机状态并弃1手牌；看顶5张，用 costGte(9)+「莲之空」成员 selector 公开加入手牌，其余放置入休息室。',
+  },
+  {
+    abilityId: S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp5-006'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP5_006_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '复用 wait-discard-look-top 参数化 workflow；登场时可将来源成员变为待机状态并弃1手牌，之后看顶5张，用 costGte(9)+Aqours 成员 selector 公开加入手牌，其余放置入休息室。',
   },
   {
     abilityId: HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,

@@ -181,6 +181,16 @@ import {
   SP_SD2_002_AUTO_ON_MOVE_GAIN_PURPLE_HEART_ABILITY_ID,
   SP_BP4_027_LIVE_SUCCESS_LIELLA_STAGE_FORMATION_CHANGE_ABILITY_ID,
   PL_PB1_018_ON_ENTER_BOTH_PLAY_LOW_COST_MEMBERS_WAITING_ABILITY_ID,
+  S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+  S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
+  S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+  S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
+  S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID,
+  S_BP6_004_LIVE_START_RETURN_NO_LIVE_START_AQOURS_LIVE_GAIN_RED_GREEN_HEART_ABILITY_ID,
+  S_BP6_019_LIVE_START_ALL_AQOURS_SCORE_DRAW_HAND_TOP_BOTTOM_ABILITY_ID,
+  S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID,
+  S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
+  S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID,
   S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID,
@@ -2638,6 +2648,158 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+
+    const sBp6005OnEnter = getCardAbilityDefinitions('PL!S-bp6-005-P').find(
+      (ability) => ability.abilityId === S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID
+    );
+    expect(sBp6005OnEnter).toMatchObject({
+      baseCardCodes: ['PL!S-bp6-005'],
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+    expect(sBp6005OnEnter?.effectText).toContain('红Heart、绿Heart、蓝Heart');
+    expect(sBp6005OnEnter?.effectText).not.toMatch(/heart0[1-6]/i);
+
+    const sBp5006OnEnter = getCardAbilityDefinitions('PL!S-bp5-006-R').find(
+      (ability) => ability.abilityId === S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID
+    );
+    expect(sBp5006OnEnter).toMatchObject({
+      baseCardCodes: ['PL!S-bp5-006'],
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    for (const cardCode of ['PL!S-bp5-014-N', 'PL!S-sd1-017-SD', 'PL!S-sd1-018-SD']) {
+      const drawBottom = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID
+      );
+      expect(drawBottom).toMatchObject({
+        baseCardCodes: ['PL!S-bp5-014', 'PL!S-sd1-017', 'PL!S-sd1-018'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    const sBp6010LiveStart = getCardAbilityDefinitions('PL!S-bp6-010-N').find(
+      (ability) =>
+        ability.abilityId === S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID
+    );
+    expect(sBp6010LiveStart).toMatchObject({
+      baseCardCodes: ['PL!S-bp6-010'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+    expect(sBp6010LiveStart?.effectText).toContain('红Heart');
+    expect(sBp6010LiveStart?.effectText).not.toMatch(/heart0[1-6]/i);
+
+    const sSd1007Activated = getCardAbilityDefinitions('PL!S-sd1-007-SD').find(
+      (ability) =>
+        ability.abilityId ===
+        S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID
+    );
+    expect(sSd1007Activated).toMatchObject({
+      baseCardCodes: ['PL!S-sd1-007'],
+      category: CardAbilityCategory.ACTIVATED,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      queued: false,
+      implemented: true,
+      perTurnLimit: 1,
+    });
+    expect(getActivatedAbilityUiConfig('PL!S-sd1-007-SD')?.abilityId).toBe(
+      S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID
+    );
+
+    const sBp6008Activated = getCardAbilityDefinitions('PL!S-bp6-008-P').find(
+      (ability) =>
+        ability.abilityId === S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID
+    );
+    expect(sBp6008Activated).toMatchObject({
+      baseCardCodes: ['PL!S-bp6-008'],
+      category: CardAbilityCategory.ACTIVATED,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      queued: false,
+      implemented: true,
+    });
+    expect(getActivatedAbilityUiConfig('PL!S-bp6-008-P')?.abilityId).toBe(
+      S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID
+    );
+
+    const sSd1009LiveStart = getCardAbilityDefinitions('PL!S-sd1-009-SD').find(
+      (ability) =>
+        ability.abilityId ===
+        S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID
+    );
+    expect(sSd1009LiveStart).toMatchObject({
+      baseCardCodes: ['PL!S-sd1-009'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const sBp3025LiveStart = getCardAbilityDefinitions('PL!S-bp3-025-L').find(
+      (ability) =>
+        ability.abilityId === S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID
+    );
+    expect(sBp3025LiveStart).toMatchObject({
+      baseCardCodes: ['PL!S-bp3-025'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const sBp6004LiveStart = getCardAbilityDefinitions('PL!S-bp6-004-P').find(
+      (ability) =>
+        ability.abilityId ===
+        S_BP6_004_LIVE_START_RETURN_NO_LIVE_START_AQOURS_LIVE_GAIN_RED_GREEN_HEART_ABILITY_ID
+    );
+    expect(sBp6004LiveStart).toMatchObject({
+      baseCardCodes: ['PL!S-bp6-004'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+    expect(sBp6004LiveStart?.effectText).toContain('红Heart与绿Heart');
+    expect(sBp6004LiveStart?.effectText).not.toMatch(/heart0[1-6]/i);
+
+    const sBp6019LiveStart = getCardAbilityDefinitions('PL!S-bp6-019-L').find(
+      (ability) =>
+        ability.abilityId ===
+        S_BP6_019_LIVE_START_ALL_AQOURS_SCORE_DRAW_HAND_TOP_BOTTOM_ABILITY_ID
+    );
+    expect(sBp6019LiveStart).toMatchObject({
+      baseCardCodes: ['PL!S-bp6-019'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+    expect(
+      [
+        sSd1009LiveStart?.effectText,
+        sBp3025LiveStart?.effectText,
+        sBp6004LiveStart?.effectText,
+        sBp6019LiveStart?.effectText,
+      ].join('\n')
+    ).not.toMatch(/heart0[1-6]/i);
 
     const emmaOnEnter = getCardAbilityDefinitions('PL!N-pb1-008-P+').find(
       (ability) => ability.abilityId === EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID

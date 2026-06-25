@@ -38,6 +38,7 @@ import {
   getPlayerLiveScoreModifier,
   projectLiveModifierCompatibility,
 } from '../domain/rules/live-modifiers.js';
+import { getMemberEffectiveCost } from '../domain/rules/member-effective-cost.js';
 import {
   canLiveCardEnterSuccessZone,
   getCurrentSuccessLiveSettlementPlayerId,
@@ -578,10 +579,13 @@ function addMemberSlotZones(
         const effectiveBlade = isMemberCardData(occupant.data)
           ? getMemberEffectiveBladeCount(game, playerId, occupantId, liveModifiers)
           : 0;
+        const effectiveCost = isMemberCardData(occupant.data)
+          ? getMemberEffectiveCost(game, playerId, occupantId)
+          : 0;
         upsertViewObject(objects, occupant, ownerSeat, 'FRONT', state?.orientation, state?.face, {
           enteredStageThisTurn: movedToStageThisTurn.includes(occupantId),
           frontInfo: isMemberCardData(occupant.data)
-            ? buildStageMemberFrontInfo(occupant, effectiveHearts, effectiveBlade)
+            ? buildStageMemberFrontInfo(occupant, effectiveHearts, effectiveBlade, effectiveCost)
             : undefined,
           activatedAbilityUiConfig: isMemberCardData(occupant.data)
             ? getActivatedAbilityUiConfig(
@@ -925,14 +929,22 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
 function buildStageMemberFrontInfo(
   card: CardInstance,
   hearts: readonly { readonly color: HeartColor; readonly count: number }[],
-  blade: number
+  blade: number,
+  cost: number
 ): ViewFrontCardInfo {
   const frontInfo = buildFrontInfo(card);
   if (!isMemberCardData(card.data)) {
     return frontInfo;
   }
 
-  const modifierDelta = buildMemberModifierDelta(card.data.hearts, hearts, card.data.blade, blade);
+  const modifierDelta = buildMemberModifierDelta(
+    card.data.hearts,
+    hearts,
+    card.data.blade,
+    blade,
+    card.data.cost,
+    cost
+  );
 
   return {
     ...frontInfo,
@@ -945,15 +957,19 @@ function buildMemberModifierDelta(
   printedHearts: readonly { readonly color: HeartColor; readonly count: number }[],
   effectiveHearts: readonly { readonly color: HeartColor; readonly count: number }[],
   printedBlade: number,
-  effectiveBlade: number
+  effectiveBlade: number,
+  printedCost: number,
+  effectiveCost: number
 ): ViewMemberModifierDelta | undefined {
   const heartDeltas = buildHeartDeltas(printedHearts, effectiveHearts);
   const bladeDelta = effectiveBlade - printedBlade;
-  if (bladeDelta <= 0 && heartDeltas.length === 0) {
+  const costDelta = effectiveCost - printedCost;
+  if (costDelta === 0 && bladeDelta <= 0 && heartDeltas.length === 0) {
     return undefined;
   }
 
   return {
+    ...(costDelta !== 0 ? { costDelta } : {}),
     ...(bladeDelta > 0 ? { bladeDelta } : {}),
     ...(heartDeltas.length > 0 ? { heartDeltas } : {}),
   };

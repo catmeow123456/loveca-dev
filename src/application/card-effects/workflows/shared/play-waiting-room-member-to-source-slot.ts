@@ -14,7 +14,10 @@ import {
   ZoneType,
 } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID } from '../../ability-ids.js';
+import {
+  HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+  S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+} from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { getNewEnterStageEvents } from '../../runtime/events.js';
 import { paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../runtime/leave-stage-triggers.js';
@@ -32,6 +35,8 @@ import { playMembersFromWaitingRoomToEmptySlots } from '../../../effects/member-
 
 const HS_BP1_002_SELECT_WAITING_ROOM_MEMBER_STEP_ID =
   'HS_BP1_002_SELECT_WAITING_ROOM_MEMBER_TO_PLAY';
+const S_BP6_008_SELECT_WAITING_ROOM_MEMBER_STEP_ID =
+  'S_BP6_008_SELECT_WAITING_ROOM_MEMBER_TO_PLAY';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -44,40 +49,66 @@ type EnqueueTriggeredCardEffects = (
   }
 ) => GameState;
 
-export interface HsBp1002SayakaWorkflowDependencies {
+export interface PlayWaitingRoomMemberToSourceSlotWorkflowDependencies {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
 }
 
-export function registerHsBp1002SayakaWorkflowHandlers(
-  dependencies: HsBp1002SayakaWorkflowDependencies
+interface PlayWaitingRoomMemberToSourceSlotConfig {
+  readonly abilityId: string;
+  readonly expectedBaseCardCodes: readonly string[];
+  readonly selectStepId: string;
+  readonly energyCost: number;
+  readonly targetGroupAlias: string;
+  readonly targetGroupLabel: string;
+  readonly targetCostLte: number;
+}
+
+const PLAY_WAITING_ROOM_MEMBER_TO_SOURCE_SLOT_WORKFLOWS: readonly PlayWaitingRoomMemberToSourceSlotConfig[] = [
+  {
+    abilityId: HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+    expectedBaseCardCodes: ['PL!HS-bp1-002'],
+    selectStepId: HS_BP1_002_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
+    energyCost: 2,
+    targetGroupAlias: '蓮ノ空',
+    targetGroupLabel: '莲之空',
+    targetCostLte: 15,
+  },
+  {
+    abilityId: S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+    expectedBaseCardCodes: ['PL!S-bp6-008'],
+    selectStepId: S_BP6_008_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
+    energyCost: 2,
+    targetGroupAlias: 'Aqours',
+    targetGroupLabel: 'Aqours',
+    targetCostLte: 17,
+  },
+];
+
+export function registerPlayWaitingRoomMemberToSourceSlotWorkflowHandlers(
+  dependencies: PlayWaitingRoomMemberToSourceSlotWorkflowDependencies
 ): void {
-  registerActivatedAbilityHandler(
-    HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
-    (game, playerId, cardId) => startHsBp1SayakaActivatedPlayMemberToSourceSlot(
-      game,
-      playerId,
-      cardId,
-      dependencies
-    )
-  );
-  registerActiveEffectStepHandler(
-    HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
-    HS_BP1_002_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
-    (game, input, context) =>
-      finishHsBp1SayakaPlayMemberToSourceSlot(
+  for (const config of PLAY_WAITING_ROOM_MEMBER_TO_SOURCE_SLOT_WORKFLOWS) {
+    registerActivatedAbilityHandler(config.abilityId, (game, playerId, cardId) =>
+      startActivatedPlayMemberToSourceSlot(game, playerId, cardId, config, dependencies)
+    );
+    registerActiveEffectStepHandler(config.abilityId, config.selectStepId, (game, input, context) =>
+      finishPlayMemberToSourceSlot(
         game,
         input.selectedCardId ?? null,
+        config,
         context.continuePendingCardEffects,
         dependencies
       )
-  );
+    );
+  }
 }
 
-function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
+function startActivatedPlayMemberToSourceSlot(
   game: GameState,
   playerId: string,
   cardId: string,
-  dependencies: HsBp1002SayakaWorkflowDependencies
+  config: PlayWaitingRoomMemberToSourceSlotConfig,
+  dependencies: PlayWaitingRoomMemberToSourceSlotWorkflowDependencies
 ): GameState {
   if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
     return game;
@@ -91,7 +122,9 @@ function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!HS-bp1-002') ||
+    !config.expectedBaseCardCodes.some((baseCardCode) =>
+      cardCodeMatchesBase(sourceCard.data.cardCode, baseCardCode)
+    ) ||
     !isMemberCardData(sourceCard.data) ||
     sourceSlot === null
   ) {
@@ -105,7 +138,7 @@ function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
     dependencies.enqueueTriggeredCardEffects,
     {
       additionalCostsBeforeSourceMemberToWaitingRoom: [
-        { kind: 'TAP_ACTIVE_ENERGY', count: 2 },
+        { kind: 'TAP_ACTIVE_ENERGY', count: config.energyCost },
       ],
     }
   );
@@ -113,7 +146,11 @@ function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
     return game;
   }
 
-  const selector = and(typeIs(CardType.MEMBER), costLte(15), groupAliasIs('蓮ノ空'));
+  const selector = and(
+    typeIs(CardType.MEMBER),
+    costLte(config.targetCostLte),
+    groupAliasIs(config.targetGroupAlias)
+  );
   const selectableCardIds = getCardIdsInZoneMatching(
     costPayment.gameState,
     player.id,
@@ -125,7 +162,7 @@ function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
   }
 
   let state = addAction(costPayment.gameState, 'PAY_COST', player.id, {
-    abilityId: HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+    abilityId: config.abilityId,
     sourceCardId: cardId,
     energyCardIds: costPayment.paidEnergyCardIds,
     amount: costPayment.paidEnergyCardIds.length,
@@ -136,14 +173,14 @@ function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
   state = {
     ...state,
     activeEffect: {
-      id: `${HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID}:${cardId}:turn-${state.turnCount}:action-${state.actionHistory.length}`,
-      abilityId: HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+      id: `${config.abilityId}:${cardId}:turn-${state.turnCount}:action-${state.actionHistory.length}`,
+      abilityId: config.abilityId,
       sourceCardId: cardId,
       controllerId: player.id,
-      effectText: getAbilityEffectText(HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID),
-      stepId: HS_BP1_002_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
+      effectText: getAbilityEffectText(config.abilityId),
+      stepId: config.selectStepId,
       stepText:
-        '请选择自己的休息室中1张费用小于等于15的『莲之空』成员卡登场至此成员原本所在的区域。',
+        `请选择自己的休息室中1张费用小于等于${config.targetCostLte}的『${config.targetGroupLabel}』成员卡登场至此成员原本所在的区域。`,
       awaitingPlayerId: player.id,
       selectableCardIds,
       canSkipSelection: false,
@@ -158,7 +195,7 @@ function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
   };
 
   return addAction(state, 'RESOLVE_ABILITY', player.id, {
-    abilityId: HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+    abilityId: config.abilityId,
     sourceCardId: cardId,
     step: 'PAY_COST_SELECT_WAITING_ROOM_MEMBER_TO_PLAY',
     paidEnergyCardIds: costPayment.paidEnergyCardIds,
@@ -168,16 +205,17 @@ function startHsBp1SayakaActivatedPlayMemberToSourceSlot(
   });
 }
 
-function finishHsBp1SayakaPlayMemberToSourceSlot(
+function finishPlayMemberToSourceSlot(
   game: GameState,
   selectedCardId: string | null,
+  config: PlayWaitingRoomMemberToSourceSlotConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
-  dependencies: HsBp1002SayakaWorkflowDependencies
+  dependencies: PlayWaitingRoomMemberToSourceSlotWorkflowDependencies
 ): GameState {
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !== HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID ||
+    effect.abilityId !== config.abilityId ||
     selectedCardId === null ||
     effect.selectableCardIds?.includes(selectedCardId) !== true
   ) {

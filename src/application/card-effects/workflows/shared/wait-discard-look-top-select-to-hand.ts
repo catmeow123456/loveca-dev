@@ -1,6 +1,9 @@
 import { addAction, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
-import { HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID } from '../../ability-ids.js';
+import {
+  HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+  S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+} from '../../ability-ids.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
 import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
@@ -30,46 +33,64 @@ const DISCARD_LOOK_REVEAL_SELECTED_STEP_ID = 'DISCARD_LOOK_REVEAL_SELECTED';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerHsBp5008IzumiWorkflowHandlers(deps: {
+interface WaitDiscardLookTopSelectToHandConfig {
+  readonly abilityId: string;
+  readonly groupAlias: string;
+  readonly groupLabel: string;
+  readonly topCount: number;
+  readonly costGte: number;
+}
+
+const WAIT_DISCARD_LOOK_TOP_WORKFLOWS: readonly WaitDiscardLookTopSelectToHandConfig[] = [
+  {
+    abilityId: HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+    groupAlias: '蓮ノ空',
+    groupLabel: '莲之空',
+    topCount: 5,
+    costGte: 9,
+  },
+  {
+    abilityId: S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+    groupAlias: 'Aqours',
+    groupLabel: 'Aqours',
+    topCount: 5,
+    costGte: 9,
+  },
+];
+
+export function registerWaitDiscardLookTopSelectToHandWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  registerPendingAbilityStarterHandler(
-    HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
-    (game, ability, options) =>
-      startHsBp5IzumiOnEnterWaitDiscardLookTop(game, ability, options.orderedResolution === true)
-  );
-  registerActiveEffectStepHandler(
-    HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
-    DISCARD_LOOK_SELECT_DISCARD_STEP_ID,
-    (game, input, context) =>
+  for (const config of WAIT_DISCARD_LOOK_TOP_WORKFLOWS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
+      startWaitDiscardLookTopSelectToHand(game, ability, config, options.orderedResolution === true)
+    );
+    registerActiveEffectStepHandler(config.abilityId, DISCARD_LOOK_SELECT_DISCARD_STEP_ID, (game, input, context) =>
       input.selectedCardId
-        ? startHsBp5IzumiOnEnterInspection(
+        ? startInspectionAfterWaitDiscardCost(
             game,
             input.selectedCardId,
+            config,
             context.continuePendingCardEffects,
             deps.enqueueTriggeredCardEffects
           )
         : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
-  );
-  registerActiveEffectStepHandler(
-    HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
-    DISCARD_LOOK_SELECT_TAKE_STEP_ID,
-    (game, input, context) =>
+    );
+    registerActiveEffectStepHandler(config.abilityId, DISCARD_LOOK_SELECT_TAKE_STEP_ID, (game, input, context) =>
       resolveLookTopSelectToHandSelection(
         game,
         input.selectedCardId ?? null,
         input.selectedCardIds,
         context
       )
-  );
-  registerActiveEffectStepHandler(
-    HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
-    DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
-    (game, _input, context) => finishRevealedLookTopSelectToHandWorkflow(game, context)
-  );
+    );
+    registerActiveEffectStepHandler(config.abilityId, DISCARD_LOOK_REVEAL_SELECTED_STEP_ID, (game, _input, context) =>
+      finishRevealedLookTopSelectToHandWorkflow(game, context)
+    );
+  }
 }
 
-function startHsBp5IzumiOnEnterWaitDiscardLookTop(
+function startWaitDiscardLookTopSelectToHand(
   game: GameState,
   ability: {
     readonly id: string;
@@ -77,6 +98,7 @@ function startHsBp5IzumiOnEnterWaitDiscardLookTop(
     readonly sourceCardId: string;
     readonly controllerId: string;
   },
+  config: WaitDiscardLookTopSelectToHandConfig,
   orderedResolution: boolean
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
@@ -109,7 +131,7 @@ function startHsBp5IzumiOnEnterWaitDiscardLookTop(
         abilityId: ability.abilityId,
         sourceCardId: ability.sourceCardId,
         controllerId: ability.controllerId,
-        effectText: getAbilityEffectText(HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID),
+        effectText: getAbilityEffectText(config.abilityId),
         stepId: DISCARD_LOOK_SELECT_DISCARD_STEP_ID,
         stepText: DISCARD_HAND_TO_ACTIVATE_STEP_TEXT,
         awaitingPlayerId: player.id,
@@ -120,7 +142,7 @@ function startHsBp5IzumiOnEnterWaitDiscardLookTop(
         skipSelectionLabel: DECLINE_OPTION_LABEL,
         metadata: {
           orderedResolution,
-          topCount: 5,
+          topCount: config.topCount,
           memberOnly: true,
           selectionRequired: false,
           revealSelectedBeforeHand: true,
@@ -147,16 +169,17 @@ function startHsBp5IzumiOnEnterWaitDiscardLookTop(
   );
 }
 
-function startHsBp5IzumiOnEnterInspection(
+function startInspectionAfterWaitDiscardCost(
   game: GameState,
   discardCardId: string,
+  config: WaitDiscardLookTopSelectToHandConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !== HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID ||
+    effect.abilityId !== config.abilityId ||
     !effect.selectableCardIds?.includes(discardCardId)
   ) {
     return game;
@@ -203,21 +226,21 @@ function startHsBp5IzumiOnEnterInspection(
       controllerId: effect.controllerId,
     },
     {
-      effectText: getAbilityEffectText(HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID),
-      topCount: 5,
-      selector: and(typeIs(CardType.MEMBER), costGte(9), groupAliasIs('蓮ノ空')),
+      effectText: getAbilityEffectText(config.abilityId),
+      topCount: config.topCount,
+      selector: and(typeIs(CardType.MEMBER), costGte(config.costGte), groupAliasIs(config.groupAlias)),
       countRule: { minCount: 0, maxCount: 1 },
       revealSelectedBeforeHand: true,
       selectStepId: DISCARD_LOOK_SELECT_TAKE_STEP_ID,
       revealStepId: DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
       selectStepText:
-        '请选择其中1张费用大于等于9的『莲之空』成员卡公开并加入手牌，其余放置入休息室。',
+        `请选择其中1张费用大于等于${config.costGte}的『${config.groupLabel}』成员卡公开并加入手牌，其余放置入休息室。`,
       noTargetStepText:
-        '没有可加入手牌的费用大于等于9的『莲之空』成员卡。确认后其余卡片放置入休息室。',
+        `没有可加入手牌的费用大于等于${config.costGte}的『${config.groupLabel}』成员卡。确认后其余卡片放置入休息室。`,
       selectionLabel: '请选择要公开并加入手牌的成员卡',
       confirmSelectionLabel: '公开并加入手牌',
       skipSelectionLabel: '不加入',
-      revealStepText: getAbilityEffectText(HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID),
+      revealStepText: getAbilityEffectText(config.abilityId),
       revealActionStep: 'REVEAL_SELECTED',
       startActionPayload: { discardCardId },
     },

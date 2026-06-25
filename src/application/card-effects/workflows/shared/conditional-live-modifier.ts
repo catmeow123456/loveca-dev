@@ -5,6 +5,7 @@ import {
   OrientationState,
   ZoneType,
 } from '../../../../shared/types/enums.js';
+import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
@@ -51,6 +52,7 @@ import {
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
   PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
+  S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startConfirmOnlyActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -71,6 +73,8 @@ const HS_BP2_024_REQUIREMENT_REDUCTION_STEP_ID = 'HS_BP2_024_REQUIREMENT_REDUCTI
 const HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
   'HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION';
 const BP4_021_SUCCESS_SCORE_MODIFIER_STEP_ID = 'BP4_021_SUCCESS_SCORE_MODIFIER';
+const S_BP6_010_RED_REQUIREMENT_GAIN_HEART_STEP_ID =
+  'S_BP6_010_RED_REQUIREMENT_GAIN_HEART';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -266,6 +270,23 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
     },
     finish: finishBp4021HeartbeatLiveStartSuccessScoreModifier,
   },
+  {
+    abilityId: S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
+    stepId: S_BP6_010_RED_REQUIREMENT_GAIN_HEART_STEP_ID,
+    getStartContext: (game, _ability, playerId) => {
+      const redRequirementTotal = sumOwnLiveZoneRequirement(game, playerId, HeartColor.RED);
+      return {
+        effectText: `${getAbilityEffectText(
+          S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID
+        )}（当前红Heart必要数合计 ${redRequirementTotal}）`,
+        actionPayload: {
+          redRequirementTotal,
+          heartBonus: redRequirementTotal >= 4 ? 1 : 0,
+        },
+      };
+    },
+    finish: finishSBp6010LiveStartRedRequirementGainHeart,
+  },
 ];
 
 export function registerConditionalLiveModifierWorkflowHandlers(): void {
@@ -384,6 +405,56 @@ function getNicoStartContext(game: GameState, _ability: PendingAbilityState, pla
     )}（当前${museWaitingRoomCount}张）`,
     actionPayload: {},
   };
+}
+
+function finishSBp6010LiveStartRedRequirementGainHeart(
+  game: GameState,
+  effect: ActiveEffectState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const redRequirementTotal = sumOwnLiveZoneRequirement(game, playerId, HeartColor.RED);
+  let state: GameState = {
+    ...game,
+    activeEffect: null,
+  };
+  if (redRequirementTotal >= 4) {
+    state = addLiveModifier(state, {
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId,
+      hearts: [{ color: HeartColor.RED, count: 1 }],
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    });
+  }
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_SOURCE_MEMBER_RED_HEART',
+      redRequirementTotal,
+      heartBonus: redRequirementTotal >= 4 ? 1 : 0,
+    },
+  };
+}
+
+function sumOwnLiveZoneRequirement(
+  game: GameState,
+  playerId: string,
+  color: HeartColor
+): number {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return 0;
+  }
+
+  return player.liveZone.cardIds.reduce((total, cardId) => {
+    const card = getCardById(game, cardId);
+    if (!card || !isLiveCardData(card.data)) {
+      return total;
+    }
+    return total + (card.data.requirements.colorRequirements.get(color) ?? 0);
+  }, 0);
 }
 
 function finishBokuimaLiveStartRequirementReduction(

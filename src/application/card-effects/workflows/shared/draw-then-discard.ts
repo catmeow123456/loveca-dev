@@ -18,6 +18,7 @@ import {
   getAbilityEffectText,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
+import { registerDrawOnePlaceHandBottomWorkflowHandlers } from './draw-one-place-hand-bottom.js';
 
 const SHIKI_LEFT_SELECT_DISCARD_STEP_ID = 'SHIKI_LEFT_SELECT_DISCARD_AFTER_DRAW';
 const HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID = 'HS_BP1_006_ON_ENTER_SELECT_DISCARD';
@@ -86,6 +87,8 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
 export function registerDrawThenDiscardWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
+  registerDrawOnePlaceHandBottomWorkflowHandlers();
+
   for (const config of DRAW_THEN_DISCARD_WORKFLOWS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
       startDrawThenDiscardCardsWorkflow(game, {

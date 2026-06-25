@@ -223,6 +223,8 @@ export const SP_BP4_027_LIVE_SUCCESS_LIELLA_STAGE_FORMATION_CHANGE_ABILITY_ID =
   'PL!SP-bp4-027:live-success-liella-stage-formation-change';
 export const HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID =
   'PL!HS-bp5-008-R:on-enter-wait-self-discard-look-five-take-high-cost-member';
+export const S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID =
+  'PL!S-bp5-006:on-enter-wait-self-discard-look-five-take-high-cost-aqours-member';
 export const HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID =
   'PL!HS-pb1-004-R:on-enter-pay-energy-discard-mill-three-recover-cerise-live';
 export const HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID =
@@ -362,6 +364,24 @@ export const EMMA_ON_ENTER_ACTIVATE_MEMBER_OR_ENERGY_ABILITY_ID =
   'PL!N-pb1-008-P+:on-enter-activate-member-or-energy';
 export const YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID =
   'PL!S-bp2-006-P:on-enter-pay-four-play-up-to-two-low-cost-members';
+export const S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID =
+  'PL!S-bp6-005:on-enter-look-top-two-take-red-green-blue-member';
+export const S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID =
+  'PL!S:member-on-enter-draw-one-place-hand-bottom';
+export const S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID =
+  'PL!S-bp6-010:live-start-red-requirement-four-gain-red-heart';
+export const S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID =
+  'PL!S-sd1-007:activated-discard-two-recover-score-aqours-live';
+export const S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID =
+  'PL!S-bp6-008:activated-pay-two-send-self-play-aqours-member';
+export const S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID =
+  'PL!S-sd1-009:live-start-reveal-aqours-hand-top-bottom-gain-blade';
+export const S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!S-bp3-025-L:live-start-aqours-blade-six-this-live-score';
+export const S_BP6_004_LIVE_START_RETURN_NO_LIVE_START_AQOURS_LIVE_GAIN_RED_GREEN_HEART_ABILITY_ID =
+  'PL!S-bp6-004:live-start-return-no-live-start-aqours-live-gain-red-green-heart';
+export const S_BP6_019_LIVE_START_ALL_AQOURS_SCORE_DRAW_HAND_TOP_BOTTOM_ABILITY_ID =
+  'PL!S-bp6-019-L:live-start-all-aqours-score-draw-hand-top-bottom';
 export const HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp5-001-SEC:on-enter-mill-four-gain-blade-if-live';
 export const HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID =

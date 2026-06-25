@@ -13,6 +13,7 @@ import {
   groupIs,
   hasBladeHeart,
   hasNoAbilityOrContinuousAbility,
+  hasScoreBladeHeart,
   liveRequiresHeartColor,
   memberHasHeartColor,
   memberPrintedBladeLte,
@@ -307,6 +308,26 @@ describe('card selectors', () => {
     expect(hasPrintedBladeHeart(bladeHeartMember)).toBe(true);
     expect(hasPrintedBladeHeart(noBladeHeartMember)).toBe(false);
     expect(not(hasPrintedBladeHeart)(noBladeHeartMember)).toBe(true);
+  });
+
+  it('matches cards that have printed SCORE BLADE HEART items', () => {
+    const scoreLive = liveCard('score-live', {
+      bladeHearts: [{ effect: BladeHeartEffect.SCORE }],
+    });
+    const drawLive = liveCard('draw-live', {
+      bladeHearts: [{ effect: BladeHeartEffect.DRAW }],
+    });
+    const scoreMember = memberCard('score-member', {
+      bladeHearts: [{ effect: BladeHeartEffect.SCORE }],
+    });
+    const noBladeHeartLive = liveCard('no-blade-heart-live', { bladeHearts: [] });
+
+    const hasScore = hasScoreBladeHeart();
+
+    expect(hasScore(scoreLive)).toBe(true);
+    expect(hasScore(scoreMember)).toBe(true);
+    expect(hasScore(drawLive)).toBe(false);
+    expect(hasScore(noBladeHeartLive)).toBe(false);
   });
 
   it('matches cards with no ability text or a continuous ability', () => {

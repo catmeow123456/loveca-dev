@@ -149,6 +149,7 @@ export interface ViewHeartIcon {
 }
 
 export interface ViewMemberModifierDelta {
+  readonly costDelta?: number;
   readonly bladeDelta?: number;
   readonly heartDeltas?: readonly ViewHeartIcon[];
 }
