@@ -1,6 +1,6 @@
 /**
  * GameSetupPage - 游戏准备页面
- * Step 0: 选择游戏模式（调试模式 / 对墙打模式）
+ * Step 0: 选择游戏模式（联机模式 / 对墙打模式 / 调试模式）
  * Step 1: 选择卡组（调试模式选 2 副，对墙打模式选 1 副）
  * Step 2: 确认并开始游戏
  */
@@ -51,6 +51,7 @@ import { isApiConfigured } from '@/lib/apiClient';
 import { createSolitaireMatch } from '@/lib/solitaireMatchClient';
 
 type SetupStep = 0 | 1 | 2 | 3;
+type SetupMode = 'ONLINE' | GameMode.DEBUG | GameMode.SOLITAIRE;
 
 interface GameSetupPageProps {
   onBack: () => void;
@@ -60,13 +61,15 @@ interface GameSetupPageProps {
 
 export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: GameSetupPageProps) {
   const [currentStep, setCurrentStep] = useState<SetupStep>(0);
-  const [gameMode, setLocalGameMode] = useState<GameMode>(GameMode.DEBUG);
+  const [setupMode, setSetupMode] = useState<SetupMode>(GameMode.SOLITAIRE);
   const [selectedP1Deck, setSelectedP1Deck] = useState<DeckDisplayItem | null>(null);
   const [selectedP2Deck, setSelectedP2Deck] = useState<DeckDisplayItem | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isOnlineMode = setupMode === 'ONLINE';
+  const gameMode = setupMode === GameMode.DEBUG ? GameMode.DEBUG : GameMode.SOLITAIRE;
   const isDebugMode = gameMode === GameMode.DEBUG;
-  const maxStep: SetupStep = isDebugMode ? 3 : 2;
+  const maxStep: SetupStep = isOnlineMode ? 1 : isDebugMode ? 3 : 2;
   const offlineMode = useAuthStore((s) => s.offlineMode);
   const authenticatedUser = useAuthStore((s) => s.user);
   const canUseOnlineRoom = !offlineMode && isApiConfigured;
@@ -110,16 +113,23 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
   };
 
   // 选择模式
-  const handleSelectMode = (mode: GameMode) => {
-    setLocalGameMode(mode);
+  const handleSelectMode = (mode: SetupMode) => {
+    setSetupMode(mode);
     // 切换模式时重置卡组选择
     setSelectedP1Deck(null);
     setSelectedP2Deck(null);
+    setError(null);
   };
 
   // 下一步
   const handleNext = () => {
     if (currentStep === 0) {
+      if (isOnlineMode) {
+        if (canUseOnlineRoom) {
+          onNavigateToOnlineRoom();
+        }
+        return;
+      }
       setCurrentStep(1);
     } else if (currentStep === 1) {
       if (gameMode === GameMode.DEBUG && selectedP1Deck) {
@@ -145,7 +155,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
 
   // 是否可以进入下一步
   const canProceed = () => {
-    if (currentStep === 0) return gameMode !== undefined;
+    if (currentStep === 0) return isOnlineMode ? canUseOnlineRoom : gameMode !== undefined;
     if (currentStep === 1) return selectedP1Deck !== null;
     if (currentStep === 2 && gameMode === GameMode.DEBUG) return selectedP2Deck !== null;
     return false;
@@ -246,9 +256,16 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
 
   // 步骤指示器
   const renderStepIndicator = () => {
-    const steps = gameMode === GameMode.SOLITAIRE ? [0, 1, 2] : [0, 1, 2, 3];
-    const labels =
-      gameMode === GameMode.SOLITAIRE ? ['模式', '卡组', '确认'] : ['模式', 'P1', 'P2', '确认'];
+    const steps = isOnlineMode
+      ? [0, 1]
+      : gameMode === GameMode.SOLITAIRE
+        ? [0, 1, 2]
+        : [0, 1, 2, 3];
+    const labels = isOnlineMode
+      ? ['模式', '房间']
+      : gameMode === GameMode.SOLITAIRE
+        ? ['模式', '卡组', '确认']
+        : ['模式', 'P1', 'P2', '确认'];
     return (
       <div className="mx-auto mb-4 w-full max-w-2xl sm:mb-5">
         <ol
@@ -310,6 +327,53 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
     }
   };
 
+  const selectedModeSummary =
+    setupMode === 'ONLINE'
+      ? {
+          label: '联机模式',
+          description: canUseOnlineRoom
+            ? '下一步进入联机房间页，创建或加入房间后锁定云端卡组。'
+            : offlineMode
+              ? '当前处于离线模式，登录并连接服务后才能进入联机房间。'
+              : '当前 API 服务未配置，服务可用后才能进入联机房间。',
+          icon: Globe2,
+          iconClass: canUseOnlineRoom ? 'text-[var(--semantic-info)]' : 'text-[var(--text-muted)]',
+          summaryClass:
+            'border-[color:color-mix(in_srgb,var(--semantic-info)_34%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-info)_8%,var(--bg-surface))]',
+        }
+      : gameMode === GameMode.SOLITAIRE
+        ? {
+            label: '对墙打模式',
+            description: canUseRecordedSolitaire
+              ? '下一步选择己方卡组，对手使用默认卡组，本局会保存历史记录。'
+              : '下一步选择己方卡组，对手使用默认卡组，本局以本地模拟方式开始。',
+            icon: Target,
+            iconClass: 'text-[var(--heart-green)]',
+            summaryClass:
+              'border-[color:color-mix(in_srgb,var(--heart-green)_35%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--heart-green)_9%,var(--bg-surface))]',
+          }
+        : {
+            label: '调试模式',
+            description: '下一步依次选择 Player 1 与 Player 2 的卡组，进入完整双人调试桌面。',
+            icon: Bug,
+            iconClass: 'text-[var(--accent-primary)]',
+            summaryClass:
+              'border-[color:color-mix(in_srgb,var(--accent-primary)_36%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_9%,var(--bg-surface))]',
+          };
+  const SelectedModeIcon = selectedModeSummary.icon;
+
+  const getNextButtonLabel = () => {
+    if (currentStep === 0) {
+      if (isOnlineMode) return canUseOnlineRoom ? '进入联机房间' : '联机暂不可用';
+      if (gameMode === GameMode.SOLITAIRE) return '下一步：选择己方卡组';
+      return '下一步：选择 P1 卡组';
+    }
+    if (currentStep === 1 && gameMode === GameMode.DEBUG) return '下一步：选择 P2 卡组';
+    if (currentStep === 1 && gameMode === GameMode.SOLITAIRE) return '下一步：确认对局';
+    if (currentStep === 2 && gameMode === GameMode.DEBUG) return '下一步：确认对局';
+    return '下一步';
+  };
+
   return (
     <div className="app-shell flex min-h-screen flex-col">
       <PageHeader
@@ -350,87 +414,187 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="absolute inset-0 flex items-start justify-center overflow-y-auto pb-24 sm:items-center sm:pb-0"
+                className="absolute inset-0 flex items-start justify-center overflow-y-auto pb-36 pt-1 sm:items-start sm:pb-8 sm:pt-6"
               >
-                <div className="grid w-full max-w-4xl gap-4 md:grid-cols-3 md:gap-5">
-                  <button
-                    onClick={canUseOnlineRoom ? onNavigateToOnlineRoom : undefined}
-                    disabled={!canUseOnlineRoom}
-                    className={`surface-panel group p-4 text-left transition-all duration-300 sm:p-6 ${
-                      canUseOnlineRoom
-                        ? 'hover:border-[color:color-mix(in_srgb,var(--semantic-info)_38%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--semantic-info)_8%,var(--bg-surface))]'
-                        : 'cursor-not-allowed opacity-55'
-                    }`}
-                  >
-                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--semantic-info)] sm:mb-4 sm:h-14 sm:w-14 sm:rounded-2xl">
-                      <Globe2 size={22} />
+                <div className="w-full max-w-5xl">
+                  <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold tracking-[0.12em] text-[var(--text-muted)]">
+                        模式入口
+                      </p>
+                      <p className="mt-1 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
+                        先选择一种对战入口，再用下方按钮继续。
+                      </p>
                     </div>
-                    <h3 className="mb-1.5 text-lg font-bold text-[var(--text-primary)] sm:mb-2 sm:text-xl">
-                      联机模式
-                    </h3>
-                    <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-                      创建或加入房间，锁定云端卡组并确认先后手，进入正式双人对战。
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)] sm:mt-4">
-                      <Users size={12} />
-                      <span>房间对战</span>
-                      <span>·</span>
-                      <Globe2 size={12} />
-                      <span>{canUseOnlineRoom ? '进入联机' : '连接后可用'}</span>
+                    <div
+                      className={`inline-flex w-fit items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-[var(--shadow-sm)] ${selectedModeSummary.summaryClass}`}
+                      aria-live="polite"
+                    >
+                      <SelectedModeIcon size={16} className={selectedModeSummary.iconClass} />
+                      <span>当前选择：{selectedModeSummary.label}</span>
                     </div>
-                  </button>
+                  </div>
 
-                  <button
-                    onClick={() => handleSelectMode(GameMode.DEBUG)}
-                    className={`surface-panel group p-4 text-left transition-all duration-300 sm:p-6 ${
-                      gameMode === GameMode.DEBUG
-                        ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))] shadow-[var(--shadow-glow)]'
-                        : 'hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]'
-                    }`}
-                  >
-                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--accent-primary)] sm:mb-4 sm:h-14 sm:w-14 sm:rounded-2xl">
-                      <Bug size={22} />
-                    </div>
-                    <h3 className="mb-1.5 text-lg font-bold text-[var(--text-primary)] sm:mb-2 sm:text-xl">
-                      调试模式
-                    </h3>
-                    <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-                      为双方分别选择卡组，进入双人对战。
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)] sm:mt-4">
-                      <Users size={12} />
-                      <span>2 人</span>
-                      <span>·</span>
-                      <Layers3 size={12} />
-                      <span>选 2 副卡组</span>
-                    </div>
-                  </button>
+                  <div className="grid gap-4 md:grid-cols-3 md:gap-5">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectMode('ONLINE')}
+                      aria-pressed={setupMode === 'ONLINE'}
+                      className={`surface-panel group relative min-h-[216px] overflow-hidden p-4 text-left outline-none transition-all duration-300 focus-visible:ring-2 focus-visible:ring-[var(--semantic-info)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-deep)] sm:min-h-[238px] sm:p-5 ${
+                        setupMode === 'ONLINE'
+                          ? 'border-[color:color-mix(in_srgb,var(--semantic-info)_58%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,var(--bg-surface))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--semantic-info)_28%,transparent),0_16px_34px_rgba(74,134,190,0.16)]'
+                          : 'hover:-translate-y-0.5 hover:border-[color:color-mix(in_srgb,var(--semantic-info)_32%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--semantic-info)_6%,var(--bg-surface))] hover:shadow-[var(--shadow-md)]'
+                      }`}
+                    >
+                      <span
+                        className={`absolute inset-x-0 top-0 h-1 ${
+                          setupMode === 'ONLINE'
+                            ? 'bg-[var(--semantic-info)]'
+                            : 'bg-[color:color-mix(in_srgb,var(--semantic-info)_38%,transparent)]'
+                        }`}
+                      />
+                      <span
+                        className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${
+                          setupMode === 'ONLINE'
+                            ? 'border-[color:color-mix(in_srgb,var(--semantic-info)_44%,var(--border-default))] bg-[var(--semantic-info)] text-white'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+                        }`}
+                      >
+                        {setupMode === 'ONLINE' && <Check size={12} />}
+                        {setupMode === 'ONLINE' ? '已选择' : canUseOnlineRoom ? '可选择' : '需连接'}
+                      </span>
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-info)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-info)_10%,var(--bg-overlay))] text-[var(--semantic-info)]">
+                        <Globe2 size={23} />
+                      </div>
+                      <h3 className="mb-2 text-lg font-bold text-[var(--text-primary)] sm:text-xl">
+                        联机模式
+                      </h3>
+                      <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+                        创建或加入房间，锁定云端卡组并确认先后手，进入正式双人对战。
+                      </p>
+                      <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[var(--bg-overlay)] px-2 py-1">
+                          <Users size={12} />
+                          房间对战
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[var(--bg-overlay)] px-2 py-1">
+                          <Globe2 size={12} />
+                          {canUseOnlineRoom ? '云端同步' : '连接后可用'}
+                        </span>
+                      </div>
+                    </button>
 
-                  <button
-                    onClick={() => handleSelectMode(GameMode.SOLITAIRE)}
-                    className={`surface-panel group p-4 text-left transition-all duration-300 sm:p-6 ${
-                      gameMode === GameMode.SOLITAIRE
-                        ? 'border-[color:color-mix(in_srgb,var(--heart-green)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--heart-green)_10%,var(--bg-surface))] shadow-[0_0_18px_rgba(52,211,153,0.18)]'
-                        : 'hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]'
-                    }`}
+                    <button
+                      type="button"
+                      onClick={() => handleSelectMode(GameMode.SOLITAIRE)}
+                      aria-pressed={setupMode === GameMode.SOLITAIRE}
+                      className={`surface-panel group relative min-h-[216px] overflow-hidden p-4 text-left outline-none transition-all duration-300 focus-visible:ring-2 focus-visible:ring-[var(--heart-green)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-deep)] sm:min-h-[238px] sm:p-5 ${
+                        setupMode === GameMode.SOLITAIRE
+                          ? 'border-[color:color-mix(in_srgb,var(--heart-green)_58%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--heart-green)_12%,var(--bg-surface))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--heart-green)_28%,transparent),0_16px_34px_rgba(16,185,129,0.18)]'
+                          : 'hover:-translate-y-0.5 hover:border-[color:color-mix(in_srgb,var(--heart-green)_32%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--heart-green)_6%,var(--bg-surface))] hover:shadow-[var(--shadow-md)]'
+                      }`}
+                    >
+                      <span
+                        className={`absolute inset-x-0 top-0 h-1 ${
+                          setupMode === GameMode.SOLITAIRE
+                            ? 'bg-[var(--heart-green)]'
+                            : 'bg-[color:color-mix(in_srgb,var(--heart-green)_38%,transparent)]'
+                        }`}
+                      />
+                      <span
+                        className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${
+                          setupMode === GameMode.SOLITAIRE
+                            ? 'border-[color:color-mix(in_srgb,var(--heart-green)_44%,var(--border-default))] bg-[var(--heart-green)] text-white'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+                        }`}
+                      >
+                        {setupMode === GameMode.SOLITAIRE && <Check size={12} />}
+                        {setupMode === GameMode.SOLITAIRE ? '已选择' : '可选择'}
+                      </span>
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--heart-green)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--heart-green)_10%,var(--bg-overlay))] text-[var(--heart-green)]">
+                        <Target size={23} />
+                      </div>
+                      <h3 className="mb-2 text-lg font-bold text-[var(--text-primary)] sm:text-xl">
+                        对墙打模式
+                      </h3>
+                      <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+                        只选择己方卡组，由默认对手陪同模拟，适合测试展开、卡效窗口和完整回合节奏。
+                      </p>
+                      <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[var(--bg-overlay)] px-2 py-1">
+                          <UserRound size={12} />
+                          单人模拟
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[var(--bg-overlay)] px-2 py-1">
+                          <Layers3 size={12} />
+                          {canUseRecordedSolitaire ? '保存记录' : '本地模拟'}
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectMode(GameMode.DEBUG)}
+                      aria-pressed={setupMode === GameMode.DEBUG}
+                      className={`surface-panel group relative min-h-[216px] overflow-hidden p-4 text-left outline-none transition-all duration-300 focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-deep)] sm:min-h-[238px] sm:p-5 ${
+                        setupMode === GameMode.DEBUG
+                          ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_58%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_28%,transparent),var(--shadow-glow)]'
+                          : 'hover:-translate-y-0.5 hover:border-[color:color-mix(in_srgb,var(--accent-primary)_32%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_6%,var(--bg-surface))] hover:shadow-[var(--shadow-md)]'
+                      }`}
+                    >
+                      <span
+                        className={`absolute inset-x-0 top-0 h-1 ${
+                          setupMode === GameMode.DEBUG
+                            ? 'bg-[var(--accent-primary)]'
+                            : 'bg-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)]'
+                        }`}
+                      />
+                      <span
+                        className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${
+                          setupMode === GameMode.DEBUG
+                            ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_44%,var(--border-default))] bg-[var(--accent-primary)] text-white'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+                        }`}
+                      >
+                        {setupMode === GameMode.DEBUG && <Check size={12} />}
+                        {setupMode === GameMode.DEBUG ? '已选择' : '可选择'}
+                      </span>
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-overlay))] text-[var(--accent-primary)]">
+                        <Bug size={23} />
+                      </div>
+                      <h3 className="mb-2 text-lg font-bold text-[var(--text-primary)] sm:text-xl">
+                        调试模式
+                      </h3>
+                      <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+                        为双方分别选择卡组，进入双人对战，用于本地规则验证和完整流程调试。
+                      </p>
+                      <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[var(--bg-overlay)] px-2 py-1">
+                          <Users size={12} />2 人
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[var(--bg-overlay)] px-2 py-1">
+                          <Layers3 size={12} />选 2 副卡组
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div
+                    className={`mt-4 flex items-start gap-3 rounded-lg border p-3 shadow-[var(--shadow-sm)] sm:mt-5 sm:p-4 ${selectedModeSummary.summaryClass}`}
+                    aria-live="polite"
                   >
-                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--heart-green)] sm:mb-4 sm:h-14 sm:w-14 sm:rounded-2xl">
-                      <Target size={22} />
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-surface)] shadow-[var(--shadow-sm)]">
+                      <SelectedModeIcon size={17} className={selectedModeSummary.iconClass} />
                     </div>
-                    <h3 className="mb-1.5 text-lg font-bold text-[var(--text-primary)] sm:mb-2 sm:text-xl">
-                      对墙打模式
-                    </h3>
-                    <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-                      只选择己方卡组，由默认对手陪同模拟，适合测试展开、卡效窗口和完整回合节奏。
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)] sm:mt-4">
-                      <UserRound size={12} />
-                      <span>单人模拟</span>
-                      <span>·</span>
-                      <Layers3 size={12} />
-                      <span>{canUseRecordedSolitaire ? '保存记录' : '本地模拟'}</span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-[var(--text-primary)]">
+                        已选择 {selectedModeSummary.label}
+                      </div>
+                      <p className="mt-1 text-sm leading-relaxed text-[var(--text-secondary)]">
+                        {selectedModeSummary.description}
+                      </p>
                     </div>
-                  </button>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -444,7 +608,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                 exit={{ opacity: 0, x: 20 }}
                 className="absolute inset-0 flex justify-center"
               >
-                <div className="w-full max-w-2xl h-full">
+                <div className="h-full w-full max-w-3xl">
                   <DeckSelector
                     cloudDecks={validDecks}
                     selectedId={selectedP1Deck?.id}
@@ -453,6 +617,12 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                     error={cloudError}
                     onRefresh={fetchCloudDecks}
                     title={gameMode === GameMode.SOLITAIRE ? '己方卡组' : 'Player 1 卡组'}
+                    subtitle={
+                      gameMode === GameMode.SOLITAIRE
+                        ? '选择这局由你操作的卡组；对手会使用默认卡组。'
+                        : '选择 Player 1 使用的卡组；下一步会选择 Player 2。'
+                    }
+                    selectionLabel={gameMode === GameMode.SOLITAIRE ? '己方卡组' : 'Player 1'}
                     emptyText="没有可用的卡组，请先创建一个完整的卡组"
                   />
                 </div>
@@ -468,7 +638,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                 exit={{ opacity: 0, x: 20 }}
                 className="absolute inset-0 flex justify-center"
               >
-                <div className="w-full max-w-2xl h-full">
+                <div className="h-full w-full max-w-3xl">
                   <DeckSelector
                     cloudDecks={validDecks}
                     selectedId={selectedP2Deck?.id}
@@ -477,6 +647,8 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                     error={cloudError}
                     onRefresh={fetchCloudDecks}
                     title="Player 2 卡组"
+                    subtitle="选择 Player 2 使用的卡组；确认后会进入本地双人调试桌面。"
+                    selectionLabel="Player 2"
                     emptyText="没有可用的卡组，请先创建一个完整的卡组"
                   />
                 </div>
@@ -660,7 +832,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                 disabled={!canProceed()}
                 className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-6 py-2 font-medium ${!canProceed() ? 'cursor-not-allowed opacity-50' : ''}`}
               >
-                下一步
+                {getNextButtonLabel()}
                 <ChevronRight size={16} />
               </button>
             )}
