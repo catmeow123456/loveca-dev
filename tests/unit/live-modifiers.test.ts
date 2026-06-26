@@ -29,7 +29,7 @@ import {
 } from '../../src/domain/rules/live-modifiers';
 import { getMemberEffectiveCost } from '../../src/domain/rules/member-effective-cost';
 import { fromTransport, toTransport } from '../../src/online/serde';
-import { CardType, HeartColor, OrientationState, SlotPosition } from '../../src/shared/types/enums';
+import { CardType, FaceState, HeartColor, OrientationState, SlotPosition } from '../../src/shared/types/enums';
 
 const HS_BP5_002_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
@@ -45,6 +45,20 @@ const HS_SD1_004_CONTINUOUS_ABILITY_ID =
   'PL!HS-sd1-004-SD:continuous-stage-kaho-kosuzu-hime-green-heart';
 const HS_SD1_005_CONTINUOUS_ABILITY_ID =
   'PL!HS-sd1-005-SD:continuous-stage-sayaka-ginko-hime-blade';
+const S_BP6_009_CONTINUOUS_ABILITY_ID =
+  'PL!S-bp6-009:continuous-success-live-difference-gain-blade';
+const SP_PB2_023_CONTINUOUS_ABILITY_ID =
+  'PL!SP-pb2-023:continuous-energy-six-eight-gain-red-heart';
+const SP_PB2_026_CONTINUOUS_ABILITY_ID =
+  'PL!SP-pb2-026:continuous-active-energy-gain-two-red-heart';
+const SP_PB2_027_CONTINUOUS_ABILITY_ID =
+  'PL!SP-pb2-027:continuous-energy-six-eight-gain-yellow-heart';
+const SP_PB2_032_CONTINUOUS_ABILITY_ID =
+  'PL!SP-pb2-032:continuous-energy-six-eight-gain-purple-heart';
+const SP_PB2_035_CONTINUOUS_ABILITY_ID =
+  'PL!SP-pb2-035:continuous-left-side-gain-two-blade';
+const SP_PB2_041_CONTINUOUS_ABILITY_ID =
+  'PL!SP-pb2-041:continuous-right-side-gain-two-blade';
 
 describe('live modifier helpers', () => {
   it('creates source-member Heart modifiers when the member is the source card', () => {
@@ -524,6 +538,72 @@ describe('live modifier helpers', () => {
     expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
   });
 
+  it('collects PL!S-bp6-009 BLADE equal to opponent success Live difference only when behind', () => {
+    const ruby = createCardInstance(
+      {
+        cardCode: 'PL!S-bp6-009-P',
+        name: '黒澤ルビィ',
+        groupName: 'Aqours',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 2,
+        hearts: [createHeartIcon(HeartColor.RED, 1)],
+      },
+      'p1',
+      'ruby'
+    );
+    const ownSuccess = createCardInstance(
+      createAqoursLiveData('PL!S-own-success', 'Own Success'),
+      'p1',
+      'own-success'
+    );
+    const opponentSuccessCards = [1, 2, 3].map((index) =>
+      createCardInstance(
+        createAqoursLiveData(`PL!S-opponent-success-${index}`, `Opponent Success ${index}`),
+        'p2',
+        `opponent-success-${index}`
+      )
+    );
+    let game = createGameState('s-bp6-009-continuous', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [ruby, ownSuccess, ...opponentSuccessCards]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ruby.instanceId),
+      successZone: addCardToZone(player.successZone, ownSuccess.instanceId),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      successZone: opponentSuccessCards.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.successZone
+      ),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: ruby.instanceId,
+      abilityId: S_BP6_009_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', ruby.instanceId, modifiers)).toBe(4);
+
+    const tiedGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: opponentSuccessCards.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.successZone
+      ),
+    }));
+    expect(
+      collectLiveModifiers(tiedGame).some(
+        (modifier) => modifier.abilityId === S_BP6_009_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
   it('does not count memberBelow cards for PL!HS-sd1-004 continuous Heart', () => {
     const ginko = createCardInstance(
       {
@@ -660,6 +740,263 @@ describe('live modifier helpers', () => {
       collectLiveModifiers(game).some(
         (modifier) =>
           modifier.kind === 'BLADE' && modifier.abilityId === HS_SD1_005_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('collects PL!SP-pb2-023 red Heart by total energy thresholds', () => {
+    const atFive = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-023-N',
+      energyOrientations: Array(5).fill(OrientationState.ACTIVE),
+    });
+    expect(
+      collectLiveModifiers(atFive.game).some(
+        (modifier) => modifier.abilityId === SP_PB2_023_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+
+    const atSix = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-023-N',
+      energyOrientations: Array(6).fill(OrientationState.WAITING),
+    });
+    expect(collectLiveModifiers(atSix.game)).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.RED, 1)],
+      sourceCardId: atSix.sourceId,
+      abilityId: SP_PB2_023_CONTINUOUS_ABILITY_ID,
+    });
+
+    const atEight = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-023-N',
+      energyOrientations: Array(8).fill(OrientationState.WAITING),
+    });
+    const modifiers = collectLiveModifiers(atEight.game);
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.RED, 2)],
+      sourceCardId: atEight.sourceId,
+      abilityId: SP_PB2_023_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveHeartIcons(atEight.game, 'p1', atEight.sourceId, modifiers)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.RED, 2),
+    ]);
+    expect(getPlayerLiveHeartModifiers(atEight.game.liveResolution, 'p1', modifiers)).toEqual([]);
+  });
+
+  it('collects PL!SP-pb2-027 yellow Heart by total energy thresholds', () => {
+    const atSix = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-027-N',
+      energyOrientations: Array(6).fill(OrientationState.ACTIVE),
+    });
+    expect(collectLiveModifiers(atSix.game)).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      sourceCardId: atSix.sourceId,
+      abilityId: SP_PB2_027_CONTINUOUS_ABILITY_ID,
+    });
+
+    const atEight = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-027-N',
+      energyOrientations: Array(8).fill(OrientationState.ACTIVE),
+    });
+    expect(collectLiveModifiers(atEight.game)).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 2)],
+      sourceCardId: atEight.sourceId,
+      abilityId: SP_PB2_027_CONTINUOUS_ABILITY_ID,
+    });
+  });
+
+  it('collects PL!SP-pb2-032 purple Heart by total energy thresholds', () => {
+    const atSix = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-032-N',
+      energyOrientations: Array(6).fill(OrientationState.WAITING),
+    });
+    expect(collectLiveModifiers(atSix.game)).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+      sourceCardId: atSix.sourceId,
+      abilityId: SP_PB2_032_CONTINUOUS_ABILITY_ID,
+    });
+
+    const atEight = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-032-N',
+      energyOrientations: Array(8).fill(OrientationState.WAITING),
+    });
+    expect(collectLiveModifiers(atEight.game)).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.PURPLE, 2)],
+      sourceCardId: atEight.sourceId,
+      abilityId: SP_PB2_032_CONTINUOUS_ABILITY_ID,
+    });
+  });
+
+  it('collects PL!SP-pb2-026 red Heart only with non-waiting energy', () => {
+    const activeEnergy = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-026-N',
+      energyOrientations: [OrientationState.WAITING, OrientationState.ACTIVE],
+    });
+    expect(collectLiveModifiers(activeEnergy.game)).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.RED, 2)],
+      sourceCardId: activeEnergy.sourceId,
+      abilityId: SP_PB2_026_CONTINUOUS_ABILITY_ID,
+    });
+
+    const waitingOnly = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-026-N',
+      energyOrientations: [OrientationState.WAITING, OrientationState.WAITING],
+    });
+    expect(
+      collectLiveModifiers(waitingOnly.game).some(
+        (modifier) => modifier.abilityId === SP_PB2_026_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+
+    const noEnergy = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-026-N',
+      energyOrientations: [],
+    });
+    expect(
+      collectLiveModifiers(noEnergy.game).some(
+        (modifier) => modifier.abilityId === SP_PB2_026_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('does not collect SP-pb2 energy Heart modifiers when the source is not a main stage member', () => {
+    const offStage = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-023-N',
+      energyOrientations: Array(8).fill(OrientationState.ACTIVE),
+      sourcePlacement: 'OFF_STAGE',
+    });
+    expect(
+      collectLiveModifiers(offStage.game).some(
+        (modifier) => modifier.abilityId === SP_PB2_023_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+
+    const memberBelow = createSpPb2EnergyHeartState({
+      cardCode: 'PL!SP-pb2-026-N',
+      energyOrientations: [OrientationState.ACTIVE],
+      sourcePlacement: 'MEMBER_BELOW',
+    });
+    expect(
+      collectLiveModifiers(memberBelow.game).some(
+        (modifier) => modifier.abilityId === SP_PB2_026_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('collects PL!SP-pb2-035 BLADE +2 only while the source is on the left side', () => {
+    const keke = createCardInstance(
+      {
+        cardCode: 'PL!SP-pb2-035-N',
+        name: '唐 可可',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 2,
+        hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      },
+      'p1',
+      'keke'
+    );
+    let game = createGameState('sp-pb2-035-left-side-blade', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [keke]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, keke.instanceId),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: keke.instanceId,
+      abilityId: SP_PB2_035_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', keke.instanceId, modifiers)).toBe(4);
+
+    const movedGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.LEFT]: null,
+          [SlotPosition.CENTER]: keke.instanceId,
+        },
+      },
+    }));
+    expect(
+      collectLiveModifiers(movedGame).some(
+        (modifier) => modifier.abilityId === SP_PB2_035_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('collects PL!SP-pb2-041 BLADE +2 only while the source is on the right side', () => {
+    const shiki = createCardInstance(
+      {
+        cardCode: 'PL!SP-pb2-041-N',
+        name: '若菜四季',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 2,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'shiki'
+    );
+    let game = createGameState('sp-pb2-041-right-side-blade', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [shiki]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, shiki.instanceId),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: shiki.instanceId,
+      abilityId: SP_PB2_041_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', shiki.instanceId, modifiers)).toBe(4);
+
+    const movedGame = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.LEFT]: shiki.instanceId,
+          [SlotPosition.RIGHT]: null,
+        },
+      },
+    }));
+    expect(
+      collectLiveModifiers(movedGame).some(
+        (modifier) => modifier.abilityId === SP_PB2_041_CONTINUOUS_ABILITY_ID
       )
     ).toBe(false);
   });
@@ -2926,6 +3263,82 @@ function createSpBp5012Kanon(instanceId: string) {
   );
 }
 
+function createSpPb2EnergyHeartState(options: {
+  readonly cardCode: string;
+  readonly energyOrientations: readonly OrientationState[];
+  readonly sourcePlacement?: 'MAIN_STAGE' | 'OFF_STAGE' | 'MEMBER_BELOW';
+}) {
+  const source = createCardInstance(
+    {
+      cardCode: options.cardCode,
+      name: options.cardCode,
+      groupName: 'Liella!',
+      cardType: CardType.MEMBER,
+      cost: 4,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    },
+    'p1',
+    `${options.cardCode}-source`
+  );
+  const host = createCardInstance(
+    {
+      cardCode: 'PL!SP-test-host',
+      name: 'Host',
+      groupName: 'Liella!',
+      cardType: CardType.MEMBER,
+      cost: 4,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    },
+    'p1',
+    `${options.cardCode}-host`
+  );
+  const energyCards = options.energyOrientations.map((_, index) =>
+    createCardInstance(
+      {
+        cardCode: `PL!SP-test-energy-${index + 1}`,
+        name: `Energy ${index + 1}`,
+        cardType: CardType.ENERGY,
+      },
+      'p1',
+      `${options.cardCode}-energy-${index + 1}`
+    )
+  );
+  let game = createGameState(`${options.cardCode}-continuous-heart`, 'p1', 'P1', 'p2', 'P2');
+  game = registerCards(game, [source, host, ...energyCards]);
+  game = updatePlayer(game, 'p1', (player) => {
+    let memberSlots = player.memberSlots;
+    if (options.sourcePlacement === 'MEMBER_BELOW') {
+      memberSlots = addMemberBelowMember(
+        placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+        SlotPosition.CENTER,
+        source.instanceId
+      );
+    } else if (options.sourcePlacement !== 'OFF_STAGE') {
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, source.instanceId);
+    }
+
+    return {
+      ...player,
+      memberSlots,
+      energyZone: energyCards.reduce(
+        (zone, card, index) =>
+          addCardToStatefulZone(zone, card.instanceId, {
+            orientation: options.energyOrientations[index],
+            face: FaceState.FACE_UP,
+          }),
+        player.energyZone
+      ),
+    };
+  });
+
+  return {
+    game,
+    sourceId: source.instanceId,
+  };
+}
+
 function createLiellaLiveData(
   cardCode: string,
   name: string,
@@ -2984,6 +3397,17 @@ function createMuseLiveData(cardCode: string, name: string, score: number) {
     score,
     requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 3 }),
     groupName: "μ's",
+  };
+}
+
+function createAqoursLiveData(cardCode: string, name: string, score = 1) {
+  return {
+    cardCode,
+    name,
+    cardType: CardType.LIVE,
+    score,
+    requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
+    groupName: 'Aqours',
   };
 }
 

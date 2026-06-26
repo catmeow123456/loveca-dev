@@ -11,6 +11,7 @@ import {
   PL_N_BP3_015_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
   PL_N_PB1_034_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
   PL_N_PB1_036_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
+  SP_PB2_030_LIVE_START_CHOOSE_ORIGINAL_HEART_REPLACEMENT_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -50,6 +51,10 @@ const REPLACE_ORIGINAL_HEART_COLOR_CONFIGS: readonly ReplaceOriginalHeartColorCo
   {
     abilityId: PL_N_PB1_036_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
     heartColorOptions: [HeartColor.PINK, HeartColor.RED, HeartColor.PURPLE],
+  },
+  {
+    abilityId: SP_PB2_030_LIVE_START_CHOOSE_ORIGINAL_HEART_REPLACEMENT_ABILITY_ID,
+    heartColorOptions: [HeartColor.RED, HeartColor.YELLOW, HeartColor.PURPLE],
   },
 ];
 

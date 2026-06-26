@@ -1,4 +1,4 @@
-import type { SlotPosition, TriggerCondition } from '../../shared/types/enums.js';
+import type { SlotPosition, TriggerCondition, ZoneType } from '../../shared/types/enums.js';
 
 export enum CardAbilityCategory {
   CONTINUOUS = 'CONTINUOUS',
@@ -34,6 +34,8 @@ export interface CardAbilityDefinition {
   readonly implemented: boolean;
   readonly effectText: string;
   readonly requiredSourceSlots?: readonly SlotPosition[];
+  readonly triggerFromZones?: readonly ZoneType[];
+  readonly triggerToZones?: readonly ZoneType[];
   readonly perTurnLimit?: number;
   readonly activatedUi?: ActivatedAbilityUiConfig;
   readonly notes?: string;

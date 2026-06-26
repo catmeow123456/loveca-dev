@@ -31,6 +31,7 @@ import {
 import {
   addAction,
   emitGameEvent,
+  hasPendingAbilityOrChoice,
   updatePlayer,
   getFirstPlayer,
 } from '../../domain/entities/game.js';
@@ -148,6 +149,10 @@ export const handleConfirmSubPhase: ActionHandler<ConfirmSubPhaseAction> = (
         }
         return nextPlayer;
       });
+      state = ctx.resolveLiveZoneToWaitingRoomTriggers(state, remainingLiveCardIds);
+      if (hasPendingAbilityOrChoice(state)) {
+        return success(state);
+      }
     }
 
     const settlementConfirmedBy = state.liveResolution.settlementConfirmedBy.includes(playerId)
@@ -475,6 +480,9 @@ export const handleConfirmScore: ActionHandler<ConfirmScoreAction> = (
 
   if (game.currentSubPhase !== SubPhase.RESULT_SCORE_CONFIRM) {
     return failure(game, '当前不是分数最终确认子阶段');
+  }
+  if (hasPendingAbilityOrChoice(game)) {
+    return failure(game, '请先处理待处理的卡牌效果或费用');
   }
 
   const player = ctx.getPlayerById(game, playerId);

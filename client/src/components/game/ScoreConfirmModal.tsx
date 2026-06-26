@@ -8,6 +8,7 @@ import { GamePhase, SubPhase } from '@game/shared/types/enums';
 export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView());
+  const activeEffect = useGameStore((s) => s.playerViewState?.activeEffect ?? null);
   const canSubmitScore = useGameStore((s) => s.canUseAction(GameCommandType.SUBMIT_SCORE));
   const selfPlayer = useGameStore((s) => s.getViewingPlayerIdentity());
   const opponentPlayer = useGameStore((s) => s.getOpponentPlayerIdentity());
@@ -25,9 +26,10 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
     return (
       currentPhase === GamePhase.LIVE_RESULT_PHASE &&
       currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM &&
+      !activeEffect &&
       confirmedScoreCount < 2
     );
-  }, [confirmedScoreCount, currentPhase, currentSubPhase]);
+  }, [activeEffect, confirmedScoreCount, currentPhase, currentSubPhase]);
 
   const [adjustedScore, setAdjustedScore] = useState(0);
 

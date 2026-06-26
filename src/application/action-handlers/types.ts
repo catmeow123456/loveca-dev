@@ -56,6 +56,12 @@ export interface ActionHandlerContext {
     cardId: string | null;
     ruleActions: readonly RuleActionResult[];
   };
+
+  /** 触发本批 LIVE_ZONE -> WAITING_ROOM 的进入休息室能力 */
+  resolveLiveZoneToWaitingRoomTriggers: (
+    game: GameState,
+    movedCardIds: readonly string[]
+  ) => GameState;
 }
 
 // ============================================

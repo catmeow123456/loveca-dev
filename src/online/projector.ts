@@ -11,7 +11,12 @@ import {
 } from '../application/command-availability.js';
 import { getActivatedAbilityUiConfig } from '../application/card-effect-runner.js';
 import { CardAbilitySourceZone } from '../application/card-effects/ability-definition-types.js';
-import type { ActiveEffectState, GameState, LiveModifierState } from '../domain/entities/game.js';
+import {
+  hasPendingAbilityOrChoice,
+  type ActiveEffectState,
+  type GameState,
+  type LiveModifierState,
+} from '../domain/entities/game.js';
 import type { PlayerState } from '../domain/entities/player.js';
 import type {
   BaseZoneState,
@@ -1149,6 +1154,7 @@ function mergeCommandHints(
 }
 
 function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] {
+  const hasUnresolvedAbilityOrCost = hasPendingAbilityOrChoice(game);
   switch (game.currentPhase) {
     case GamePhase.MULLIGAN_PHASE:
       return [GameCommandType.MULLIGAN];
@@ -1180,7 +1186,10 @@ function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] 
         return RESULT_SUCCESS_EFFECT_COMMAND_TYPES;
       }
       if (game.currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM) {
-        return [...OWN_DESK_FREE_DRAG_COMMAND_TYPES, GameCommandType.SUBMIT_SCORE];
+        return [
+          ...OWN_DESK_FREE_DRAG_COMMAND_TYPES,
+          ...(hasUnresolvedAbilityOrCost ? [] : [GameCommandType.SUBMIT_SCORE]),
+        ];
       }
       if (game.currentSubPhase === SubPhase.RESULT_ANIMATION) {
         return [...OWN_DESK_FREE_DRAG_COMMAND_TYPES, GameCommandType.CONFIRM_STEP];
