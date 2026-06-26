@@ -15,6 +15,7 @@ import {
   groupAliasIs,
   hasBladeHeart,
   not,
+  typeIs,
   unitAliasIs,
 } from '../../../effects/card-selectors.js';
 import { revealCheerCardsFromMainDeck } from '../../../effects/cheer.js';
@@ -30,6 +31,7 @@ import {
   HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
   HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
   HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+  S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   CardAbilityCategory,
@@ -41,7 +43,9 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
+  recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
+import { CardType } from '../../../../shared/types/enums.js';
 
 export const HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID =
   'HS_BP6_001_SELECT_REVEALED_CHEER_TO_TOP';
@@ -53,6 +57,8 @@ export const HS_BP6_005_SELECT_DOLLCHESTRA_CHEER_MEMBER_TO_HAND_STEP_ID =
   'HS_BP6_005_SELECT_REVEALED_CHEER_DOLLCHESTRA_MEMBER_TO_HAND';
 export const HS_BP6_027_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID =
   'HS_BP6_027_SELECT_REVEALED_CHEER_TO_WAITING_ROOM';
+export const S_BP6_021_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID =
+  'S_BP6_021_SELECT_REVEALED_CHEER_TO_WAITING_ROOM';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -69,6 +75,11 @@ interface RevealedCheerSelectionWorkflowConfig {
   readonly selectMin?: number;
   readonly selectMax?: number;
   readonly additionalCheerEqualToMoved?: boolean;
+  readonly additionalCheerCountFromMovedCards?: (
+    game: GameState,
+    movedCardIds: readonly string[]
+  ) => number;
+  readonly recordAbilityUseWhenMoved?: boolean;
   readonly skipSelectionLabel?: string;
 }
 
@@ -140,6 +151,22 @@ const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflo
     selectMin: 0,
     selectMax: 3,
     additionalCheerEqualToMoved: true,
+    recordAbilityUseWhenMoved: true,
+    skipSelectionLabel: '不放置',
+  },
+  {
+    abilityId: S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID,
+    stepId: S_BP6_021_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID,
+    stepText:
+      '请选择至多1张因声援被公开的自己的不持有 BLADE HEART 的『Aqours』成员卡放置入休息室。之后按该成员费用每5点追加1次声援，最多4次。',
+    selectionLabel: '选择要放置入休息室的声援公开成员',
+    predicate: selectSBp6021CheerCard,
+    destination: 'WAITING_ROOM',
+    optional: true,
+    selectMin: 0,
+    selectMax: 1,
+    additionalCheerCountFromMovedCards: countSBp6021AdditionalCheer,
+    recordAbilityUseWhenMoved: true,
     skipSelectionLabel: '不放置',
   },
 ];
@@ -159,7 +186,7 @@ export function registerRevealedCheerSelectionWorkflowHandlers(
       finishRevealedCheerSelectionWorkflow(
         game,
         config,
-        config.stepId === HS_BP6_027_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID
+        isMultiSelectRevealedCheerConfig(config)
           ? (input.selectedCardIds ?? [])
           : (input.selectedCardId ?? null),
         dependencies.continuePendingCardEffects
@@ -402,15 +429,21 @@ function finishRevealedCheerSelectionWorkflow(
     ...moveResult.gameState,
     activeEffect: null,
   };
+  if (config.recordAbilityUseWhenMoved === true && moveResult.movedCardIds.length > 0) {
+    state = recordAbilityUseForContext(state, player.id, {
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+    });
+  }
+  const additionalCheerCount =
+    config.additionalCheerCountFromMovedCards?.(state, moveResult.movedCardIds) ??
+    (effect.metadata?.additionalCheerEqualToMoved === true ? moveResult.movedCardIds.length : 0);
   let additionalCheerCardIds: readonly string[] = [];
-  if (
-    effect.metadata?.additionalCheerEqualToMoved === true &&
-    moveResult.movedCardIds.length > 0
-  ) {
+  if (additionalCheerCount > 0) {
     const cheerResult = revealCheerCardsFromMainDeck(
       state,
       player.id,
-      moveResult.movedCardIds.length,
+      additionalCheerCount,
       {
         automated: true,
         additional: true,
@@ -428,6 +461,7 @@ function finishRevealedCheerSelectionWorkflow(
       step: 'MOVE_REVEALED_CHEER_CARD',
       movedCardIds: moveResult.movedCardIds,
       additionalCheerCardIds,
+      additionalCheerCount,
       destination,
     }),
     effect.metadata?.orderedResolution === true
@@ -507,6 +541,30 @@ function selectHsBp6027CheerCardIds(game: GameState, playerId: string): readonly
 
 function selectHsBp6027CheerCard(card: Parameters<CheerCardPredicate>[0]): boolean {
   return and(groupAliasIs('蓮ノ空'), not(hasBladeHeart()))(card);
+}
+
+function selectSBp6021CheerCard(card: Parameters<CheerCardPredicate>[0]): boolean {
+  return and(typeIs(CardType.MEMBER), groupAliasIs('Aqours'), not(hasBladeHeart()))(card);
+}
+
+function countSBp6021AdditionalCheer(
+  game: GameState,
+  movedCardIds: readonly string[]
+): number {
+  const cheerCount = movedCardIds.reduce((total, cardId) => {
+    const card = getCardById(game, cardId);
+    if (!card || !isMemberCardData(card.data)) {
+      return total;
+    }
+    return total + Math.floor(card.data.cost / 5);
+  }, 0);
+  return Math.min(4, cheerCount);
+}
+
+function isMultiSelectRevealedCheerConfig(
+  config: RevealedCheerSelectionWorkflowConfig
+): boolean {
+  return config.selectMin !== undefined || config.selectMax !== undefined;
 }
 
 function getEffectDestination(effect: ActiveEffectState): RevealedCheerCardDestination | null {

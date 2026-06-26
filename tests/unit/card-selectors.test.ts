@@ -131,6 +131,11 @@ describe('card selectors', () => {
     const nijigasakiFallback = memberCard('PL!N-fallback');
     const aqoursText = memberCard('OTHER-S-TEXT', { groupName: 'Aqours' });
     const aqoursFallback = memberCard('PL!S-fallback');
+    const aqoursMixedSeries = memberCard('LL-bp2-001-R+', {
+      name: '渡辺 曜&鬼塚夏美&大沢瑠璃乃',
+      groupName:
+        'ラブライブ！サンシャイン!!\nラブライブ！スーパースター!!\n蓮ノ空女学院スクールアイドルクラブ',
+    });
     const other = memberCard('OTHER-identity', { groupName: "μ's" });
 
     const hasunosora = groupAliasIs('蓮ノ空');
@@ -157,6 +162,7 @@ describe('card selectors', () => {
     expect(nijigasaki(nijigasakiFallback)).toBe(true);
     expect(aqours(aqoursText)).toBe(true);
     expect(aqours(aqoursFallback)).toBe(true);
+    expect(aqours(aqoursMixedSeries)).toBe(true);
     expect(hasunosora(other)).toBe(false);
   });
 

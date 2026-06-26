@@ -23,7 +23,11 @@ const GROUP_IDENTITY_GROUPS: readonly {
     cardCodePrefixes: ['PL!SP-'],
   },
   { canonicalName: '虹ヶ咲', aliases: ['虹咲', '虹ヶ咲', 'Nijigasaki'], cardCodePrefixes: ['PL!N-'] },
-  { canonicalName: 'Aqours', aliases: ['Aqours'], cardCodePrefixes: ['PL!S-'] },
+  {
+    canonicalName: 'Aqours',
+    aliases: ['Aqours', 'ラブライブ！サンシャイン!!'],
+    cardCodePrefixes: ['PL!S-'],
+  },
 ];
 
 export function cardBelongsToGroup(

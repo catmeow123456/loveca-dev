@@ -10,6 +10,7 @@ import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { SlotPosition } from '../../../../shared/types/enums.js';
 import {
   HS_BP2_006_ON_ENTER_STAGE_FORMATION_CHANGE_ABILITY_ID,
+  SP_PB2_014_ON_ENTER_FIVEYNCRISE_STAGE_FORMATION_CHANGE_ABILITY_ID,
   SP_BP4_027_LIVE_SUCCESS_LIELLA_STAGE_FORMATION_CHANGE_ABILITY_ID,
   SP_PB2_050_LIVE_START_FIVEYNCRISE_STAGE_FORMATION_CHANGE_ABILITY_ID,
   SP_SD2_001_LIVE_START_DRAW_STAGE_FORMATION_CHANGE_ABILITY_ID,
@@ -45,6 +46,11 @@ interface StageMemberEntry {
 }
 
 const STAGE_FORMATION_CHANGE_CONFIGS: readonly StageFormationChangeConfig[] = [
+  {
+    abilityId: SP_PB2_014_ON_ENTER_FIVEYNCRISE_STAGE_FORMATION_CHANGE_ABILITY_ID,
+    condition: hasOnlyFiveyncriseStageMembers,
+    conditionLabel: 'ONLY_FIVEYNCRISE_STAGE_MEMBERS',
+  },
   {
     abilityId: SP_PB2_050_LIVE_START_FIVEYNCRISE_STAGE_FORMATION_CHANGE_ABILITY_ID,
     condition: hasAtLeastTwoFiveyncriseStageMembers,
@@ -322,6 +328,14 @@ function hasAtLeastTwoFiveyncriseStageMembers(game: GameState, playerId: string)
     getStageMembers(game, playerId).filter((member) =>
       normalizeUnitName(member.card.data.unitName).includes('5yncri5e')
     ).length >= 2
+  );
+}
+
+function hasOnlyFiveyncriseStageMembers(game: GameState, playerId: string): boolean {
+  const members = getStageMembers(game, playerId);
+  return (
+    members.length > 0 &&
+    members.every((member) => normalizeUnitName(member.card.data.unitName).includes('5yncri5e'))
   );
 }
 

@@ -70,6 +70,8 @@ import { registerHsBp6007SerasWorkflowHandlers } from './card-effects/workflows/
 import { registerHsBp6029ProofWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-029-proof.js';
 import { registerHsBp6003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-003-rurino.js';
 import { registerSFutureWaterBatch2LiveStartWorkflowHandlers } from './card-effects/workflows/cards/s-future-water-batch2-live-start.js';
+import { registerSFutureWaterBatch3WorkflowHandlers } from './card-effects/workflows/cards/s-future-water-batch3.js';
+import { registerSFutureWaterFinalWorkflowHandlers } from './card-effects/workflows/cards/s-future-water-final.js';
 import { registerHsBp5003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-003-rurino.js';
 import { registerHsBp5002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-002-sayaka.js';
 import { registerHsBp5006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-006-hime.js';
@@ -133,10 +135,17 @@ import { registerSpPb1006KinakoWorkflowHandlers } from './card-effects/workflows
 import { registerSpPb1008ShikiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb1-008-shiki.js';
 import { registerSpPb1020NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb1-020-natsumi.js';
 import { registerSpPb2010MargareteWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-010-margarete.js';
+import { registerSpPb2013KekeWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-013-keke.js';
+import { registerSpPb2018MeiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-018-mei.js';
+import { registerSpPb2020NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-020-natsumi.js';
+import { registerSpPb2022TomariWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-022-tomari.js';
+import { registerSpPb2028KinakoWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-028-kinako.js';
 import { registerSpPb2002KekeWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-002-keke.js';
 import { registerSpPb2003ChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-003-chisato.js';
+import { registerSpPb2004SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-004-sumire.js';
 import { registerSpPb2005RenWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-005-ren.js';
 import { registerSpPb2007MeiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-007-mei.js';
+import { registerSpPb2008ShikiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-008-shiki.js';
 import { registerSpPb2000ChisatoNatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-000-chisato-natsumi.js';
 import { registerSpPb2045ZettaiLoverWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-045-zettai-lover.js';
 import { registerSpPb2046ButterflyWingWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-046-butterfly-wing.js';
@@ -165,6 +174,7 @@ import { registerMillTopGainLiveModifierWorkflowHandlers } from './card-effects/
 import { registerNamedHandDiscardLiveStartWorkflowHandlers } from './card-effects/workflows/shared/named-hand-discard-live-start.js';
 import { registerOnMoveGainHeartWorkflowHandlers } from './card-effects/workflows/shared/on-move-gain-heart.js';
 import { registerOpponentWaitTargetWorkflowHandlers } from './card-effects/workflows/shared/opponent-wait-target.js';
+import { registerOnEnterDiscardRecoverUnitCardWorkflowHandlers } from './card-effects/workflows/shared/on-enter-discard-recover-unit-card.js';
 import { registerPayEnergyGainBladeWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-gain-blade.js';
 import { registerPayEnergyGainHeartWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-gain-heart.js';
 import { registerPayEnergyWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-waiting-room-to-hand.js';
@@ -195,6 +205,8 @@ import {
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
   PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID,
+  SP_PB2_020_AUTO_ON_CHEER_DISCARD_LIELLA_LIVE_ADDITIONAL_CHEER_ABILITY_ID,
+  SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID,
 } from './card-effects/ability-ids.js';
 import {
   CardAbilityCategory,
@@ -587,6 +599,8 @@ registerLookTopSelectToHandWorkflowHandlers();
 registerArrangeInspectedDeckTopWorkflowHandlers();
 registerConditionalLiveModifierWorkflowHandlers();
 registerSFutureWaterBatch2LiveStartWorkflowHandlers();
+registerSFutureWaterBatch3WorkflowHandlers();
+registerSFutureWaterFinalWorkflowHandlers();
 registerDiscardLookTopSelectToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp5003KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp6024SuccessReplacementWorkflowHandlers();
@@ -687,16 +701,24 @@ registerSpPb1006KinakoWorkflowHandlers();
 registerSpPb1008ShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb1020NatsumiWorkflowHandlers();
 registerSpPb2010MargareteWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpPb2013KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpPb2018MeiWorkflowHandlers();
+registerSpPb2020NatsumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpPb2022TomariWorkflowHandlers();
+registerSpPb2028KinakoWorkflowHandlers();
 registerSpPb2002KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb2003ChisatoWorkflowHandlers();
+registerSpPb2004SumireWorkflowHandlers();
 registerSpPb2005RenWorkflowHandlers();
 registerSpPb2007MeiWorkflowHandlers();
+registerSpPb2008ShikiWorkflowHandlers();
 registerSpPb2000ChisatoNatsumiWorkflowHandlers();
 registerSpPb2045ZettaiLoverWorkflowHandlers();
 registerSpPb2046ButterflyWingWorkflowHandlers();
 registerSpPb2047WelcomeToBokuraNoSekaiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb2048DistortionWorkflowHandlers();
 registerSpPb2049NeutralWorkflowHandlers();
+registerOnEnterDiscardRecoverUnitCardWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerChisatoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerActivatedPayEnergySelfPositionChangeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerOnMoveGainHeartWorkflowHandlers();
@@ -898,7 +920,7 @@ function enqueueEnterWaitingRoomCardEffects(
 ): GameState {
   let state = game;
   for (const event of events) {
-    if (event.fromZone !== ZoneType.HAND) {
+    if (!isSupportedEnterWaitingRoomTriggerZone(event)) {
       continue;
     }
     const player = getPlayerById(state, event.controllerId);
@@ -921,6 +943,13 @@ function enqueueEnterWaitingRoomCardEffects(
   return state;
 }
 
+function isSupportedEnterWaitingRoomTriggerZone(event: EnterWaitingRoomEvent): boolean {
+  return (
+    event.toZone === ZoneType.WAITING_ROOM &&
+    (event.fromZone === ZoneType.HAND || event.fromZone === ZoneType.LIVE_ZONE)
+  );
+}
+
 function enqueueSingleEnterWaitingRoomCardEffect(
   game: GameState,
   source: EnterWaitingRoomAbilitySource
@@ -940,7 +969,11 @@ function enqueueSingleEnterWaitingRoomCardEffect(
     CardAbilityCategory.AUTO,
     CardAbilitySourceZone.STAGE_MEMBER,
     source.sourceSlot
-  ).filter((ability) => ability.triggerCondition === TriggerCondition.ON_ENTER_WAITING_ROOM);
+  ).filter(
+    (ability) =>
+      ability.triggerCondition === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+      doesEnterWaitingRoomEventSatisfyAbilityDefinition(ability, source.event)
+  );
   if (abilityDefinitions.length === 0) {
     return game;
   }
@@ -993,6 +1026,15 @@ function enqueueSingleEnterWaitingRoomCardEffect(
   }
 
   return state;
+}
+
+function doesEnterWaitingRoomEventSatisfyAbilityDefinition(
+  ability: CardAbilityDefinition,
+  event: EnterWaitingRoomEvent
+): boolean {
+  const triggerFromZones = ability.triggerFromZones ?? [ZoneType.HAND];
+  const triggerToZones = ability.triggerToZones ?? [ZoneType.WAITING_ROOM];
+  return triggerFromZones.includes(event.fromZone) && triggerToZones.includes(event.toZone);
 }
 
 function enqueueMemberStateChangedCardEffects(
@@ -1182,7 +1224,7 @@ function enqueueMemberSlotMovedCardEffects(
   for (const source of createMemberSlotMovedAbilitySourcesFromEvents(events)) {
     state = enqueueSingleMemberSlotMovedCardEffect(state, source);
   }
-  return state;
+  return enqueueSpPb2022MemberSlotMovedObserverCardEffects(state, events);
 }
 
 function enqueueSingleMemberSlotMovedCardEffect(
@@ -1250,6 +1292,91 @@ function enqueueSingleMemberSlotMovedCardEffect(
         swappedCardInstanceId: source.swappedCardInstanceId ?? null,
       }
     );
+  }
+
+  return state;
+}
+
+function enqueueSpPb2022MemberSlotMovedObserverCardEffects(
+  game: GameState,
+  events: readonly MemberSlotMovedEvent[]
+): GameState {
+  let state = game;
+  for (const event of events) {
+    const player = getPlayerById(state, event.controllerId);
+    if (!player) {
+      continue;
+    }
+
+    for (const sourceSlot of MEMBER_SLOT_ORDER) {
+      const sourceCardId = player.memberSlots.slots[sourceSlot];
+      const sourceCard = sourceCardId ? getCardById(state, sourceCardId) : null;
+      if (!sourceCardId || !sourceCard) {
+        continue;
+      }
+
+      const hasTomariObserverAbility = getQueuedAbilityDefinitionsForCard(
+        sourceCard.data.cardCode,
+        CardAbilityCategory.AUTO,
+        CardAbilitySourceZone.STAGE_MEMBER,
+        sourceSlot
+      ).some(
+        (ability) =>
+          ability.abilityId ===
+            SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID &&
+          ability.triggerCondition === TriggerCondition.ON_MEMBER_SLOT_MOVED
+      );
+      if (!hasTomariObserverAbility) {
+        continue;
+      }
+
+      const abilityId =
+        SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID;
+      if (!canUseAbilityThisTurn(state, player.id, abilityId, sourceCardId)) {
+        continue;
+      }
+
+      const pendingAbilityId = `${abilityId}:${sourceCardId}:${event.eventId}`;
+      if (hasAbilityInstance(state, pendingAbilityId)) {
+        continue;
+      }
+
+      const pendingAbility: PendingAbilityState = {
+        id: pendingAbilityId,
+        abilityId,
+        sourceCardId,
+        controllerId: player.id,
+        mandatory: true,
+        timingId: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+        eventIds: [event.eventId],
+        sourceSlot,
+        metadata: {
+          movedCardId: event.cardInstanceId,
+          fromSlot: event.fromSlot,
+          toSlot: event.toSlot,
+          swappedCardInstanceId: event.swappedCardInstanceId ?? null,
+        },
+      };
+
+      state = addAction(
+        {
+          ...state,
+          pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        },
+        'TRIGGER_ABILITY',
+        player.id,
+        {
+          pendingAbilityId,
+          abilityId,
+          sourceCardId,
+          timingId: pendingAbility.timingId,
+          movedCardId: event.cardInstanceId,
+          fromSlot: event.fromSlot,
+          toSlot: event.toSlot,
+          sourceSlot,
+        }
+      );
+    }
   }
 
   return state;
@@ -1882,6 +2009,9 @@ function enqueueCheerCardEffects(
 
     for (const abilityDefinition of abilityDefinitions) {
       const abilityId = abilityDefinition.abilityId;
+      if (!canUseAbilityThisTurn(state, sourceCard.ownerId, abilityId, sourceCardId)) {
+        continue;
+      }
       const pendingAbilityId = `${abilityId}:${sourceCardId}:${cheerEventId}`;
       if (hasAbilityInstance(state, pendingAbilityId)) {
         continue;
@@ -1924,6 +2054,93 @@ function enqueueCheerCardEffects(
         }
       );
     }
+  }
+
+  return enqueueSpPb2020StageMemberCheerCardEffects(state, player.id, cheerEventId, cheerEvent);
+}
+
+function enqueueSpPb2020StageMemberCheerCardEffects(
+  game: GameState,
+  playerId: string,
+  cheerEventId: string,
+  cheerEvent: CheerEvent | undefined
+): GameState {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return game;
+  }
+
+  let state = game;
+  for (const sourceSlot of MEMBER_SLOT_ORDER) {
+    const sourceCardId = player.memberSlots.slots[sourceSlot];
+    const sourceCard = sourceCardId ? getCardById(state, sourceCardId) : null;
+    if (!sourceCardId || !sourceCard) {
+      continue;
+    }
+
+    const hasNatsumiCheerAbility = getQueuedAbilityDefinitionsForCard(
+      sourceCard.data.cardCode,
+      CardAbilityCategory.AUTO,
+      CardAbilitySourceZone.STAGE_MEMBER,
+      sourceSlot
+    ).some(
+      (ability) =>
+        ability.abilityId ===
+          SP_PB2_020_AUTO_ON_CHEER_DISCARD_LIELLA_LIVE_ADDITIONAL_CHEER_ABILITY_ID &&
+        ability.triggerCondition === TriggerCondition.ON_CHEER
+    );
+    if (!hasNatsumiCheerAbility) {
+      continue;
+    }
+
+    const abilityId = SP_PB2_020_AUTO_ON_CHEER_DISCARD_LIELLA_LIVE_ADDITIONAL_CHEER_ABILITY_ID;
+    if (!canUseAbilityThisTurn(state, sourceCard.ownerId, abilityId, sourceCardId)) {
+      continue;
+    }
+
+    const pendingAbilityId = `${abilityId}:${sourceCardId}:${cheerEventId}`;
+    if (hasAbilityInstance(state, pendingAbilityId)) {
+      continue;
+    }
+
+    const pendingAbility: PendingAbilityState = {
+      id: pendingAbilityId,
+      abilityId,
+      sourceCardId,
+      controllerId: sourceCard.ownerId,
+      mandatory: true,
+      timingId: TriggerCondition.ON_CHEER,
+      eventIds: [cheerEventId],
+      sourceSlot,
+      metadata: cheerEvent
+        ? {
+            revealedCardIds: cheerEvent.revealedCardIds,
+            totalBlade: cheerEvent.totalBlade,
+            automated: cheerEvent.automated === true,
+            additional: cheerEvent.additional ?? false,
+          }
+        : undefined,
+    };
+
+    state = addAction(
+      {
+        ...state,
+        pendingAbilities: [...state.pendingAbilities, pendingAbility],
+      },
+      'TRIGGER_ABILITY',
+      pendingAbility.controllerId,
+      {
+        pendingAbilityId,
+        abilityId: pendingAbility.abilityId,
+        sourceCardId,
+        timingId: pendingAbility.timingId,
+        sourceSlot,
+        revealedCardIds: cheerEvent?.revealedCardIds,
+        totalBlade: cheerEvent?.totalBlade,
+        automated: cheerEvent?.automated,
+        additional: cheerEvent?.additional,
+      }
+    );
   }
 
   return state;

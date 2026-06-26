@@ -34,6 +34,20 @@ describe('card identity helpers', () => {
     expect(cardBelongsToGroup({ cardCode: 'PL!S-bp1-001' }, 'Aqours')).toBe(true);
   });
 
+  it('matches LL-bp2-001 mixed series as each represented group', () => {
+    const mixedSeriesCard: CardIdentityLike = {
+      cardCode: 'LL-bp2-001-R+',
+      groupName:
+        'ラブライブ！サンシャイン!!\nラブライブ！スーパースター!!\n蓮ノ空女学院スクールアイドルクラブ',
+    };
+
+    expect(cardBelongsToGroup(mixedSeriesCard, 'Aqours')).toBe(true);
+    expect(cardBelongsToGroup(mixedSeriesCard, 'Liella!')).toBe(true);
+    expect(cardBelongsToGroup(mixedSeriesCard, '蓮ノ空')).toBe(true);
+    expect(cardBelongsToGroup(mixedSeriesCard, "μ's")).toBe(false);
+    expect(cardBelongsToGroup(mixedSeriesCard, '虹ヶ咲')).toBe(false);
+  });
+
   it('normalizes known group identity from card data without groupName', () => {
     expect(getKnownCardGroupIdentityName({ cardCode: 'PL!-bp6-022-L' })).toBe("μ's");
     expect(getKnownCardGroupIdentityName({ cardCode: 'PL!HS-bp5-003-AR' })).toBe('蓮ノ空');

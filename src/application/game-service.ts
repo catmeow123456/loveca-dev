@@ -50,6 +50,7 @@ import {
   getSecondPlayer,
   GAME_CONFIG,
   addMulliganCompletedPlayer,
+  hasPendingAbilityOrChoice,
   isAllMulliganCompleted,
   markMulliganCompleted,
   setSubPhase,
@@ -139,6 +140,7 @@ import {
   getPlayerLiveScoreModifier,
 } from '../domain/rules/live-modifiers.js';
 import { revealCheerCardsFromMainDeck } from './effects/cheer.js';
+import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { clearLiveProhibitionsUntilLiveEnd } from '../domain/rules/live-prohibitions.js';
 import { consumeMemberActivePhaseSkipsForPlayer } from '../domain/rules/member-active-skips.js';
 
@@ -359,6 +361,13 @@ export class GameService {
 
       if (result.success) {
         let preparedState = this.prepareAutomaticSubPhaseState(result.gameState);
+        if (hasPendingAbilityOrChoice(preparedState)) {
+          return {
+            success: true,
+            gameState: preparedState,
+            triggeredEvents: result.triggeredEvents,
+          };
+        }
         if (
           action.type === GameActionType.CONFIRM_JUDGMENT &&
           action.judgmentResults.size === 0 &&
@@ -431,6 +440,9 @@ export class GameService {
               state = finalizeResult.gameState;
             }
             processedEvents.push(GameEventType.FINALIZE_LIVE_RESULT);
+            if (hasPendingAbilityOrChoice(state)) {
+              break;
+            }
 
             const advanceResult = this.advancePhase(state);
             if (advanceResult.success) {
@@ -462,6 +474,9 @@ export class GameService {
           break;
         }
         case GameEventType.ADVANCE_PHASE: {
+          if (hasPendingAbilityOrChoice(state)) {
+            break;
+          }
           const advanceResult = this.advancePhase(state);
           if (advanceResult.success) {
             state = advanceResult.gameState;
@@ -501,6 +516,22 @@ export class GameService {
     };
   }
 
+  resolveReadyScoreConfirm(game: GameState): GameOperationResult {
+    if (
+      game.currentPhase !== GamePhase.LIVE_RESULT_PHASE ||
+      game.currentSubPhase !== SubPhase.RESULT_SCORE_CONFIRM ||
+      hasPendingAbilityOrChoice(game) ||
+      !this.haveAllPlayersConfirmedScores(game)
+    ) {
+      return {
+        success: true,
+        gameState: game,
+      };
+    }
+
+    return this.dispatchEvents(game, [GameEventType.RESOLVE_LIVE_WINNER]);
+  }
+
   /**
    * 创建动作处理器上下文
    * 将 GameService 的辅助方法包装为上下文对象
@@ -514,6 +545,7 @@ export class GameService {
       drawCard: (game, playerId) => this.drawCard(game, playerId),
       drawEnergy: (game, playerId) => this.drawEnergy(game, playerId),
       drawTopMainDeckCard: (game, playerId) => this.drawTopMainDeckCard(game, playerId),
+      resolveLiveZoneToWaitingRoomTriggers,
     });
   }
 
@@ -1642,9 +1674,28 @@ export class GameService {
     const secondPlayer = getSecondPlayer(game);
 
     let state = game;
+    const pendingCleanupSubPhase =
+      state.currentPhase === GamePhase.LIVE_RESULT_PHASE &&
+      (state.currentSubPhase === SubPhase.RESULT_SETTLEMENT ||
+        state.currentSubPhase === SubPhase.NONE)
+        ? SubPhase.RESULT_SETTLEMENT
+        : state.currentSubPhase;
 
     // 先统一执行结算清理，避免跨回合残留应援牌/失败 Live 卡
     state = this.performSettlementCleanup(state);
+    if (hasPendingAbilityOrChoice(state)) {
+      if (state.currentPhase === GamePhase.LIVE_RESULT_PHASE) {
+        state = {
+          ...state,
+          currentSubPhase: pendingCleanupSubPhase,
+          effectWindowType: this.phaseManager.getEffectWindowType(pendingCleanupSubPhase),
+        };
+      }
+      return {
+        success: true,
+        gameState: state,
+      };
+    }
 
     // 若尚未完成胜者判定，则在 finalize 前补判一次（兜底）
     if (state.liveResolution.liveWinnerIds.length === 0) {
@@ -1913,6 +1964,7 @@ export class GameService {
     // 清理 LIVE_ZONE 中剩余的 Live。
     // 胜者已选择进入 SUCCESS_ZONE 的卡牌此前已经从 LIVE_ZONE 移除，
     // 因此这里将剩余卡牌全部移入休息室即可。
+    const movedLiveCardIds: string[] = [];
     for (const player of state.players) {
       const remainingLiveCardIds = [...player.liveZone.cardIds];
       for (const cardId of remainingLiveCardIds) {
@@ -1921,10 +1973,12 @@ export class GameService {
           liveZone: removeCardFromStatefulZone(p.liveZone, cardId),
           waitingRoom: addCardToZone(p.waitingRoom, cardId),
         }));
+        movedLiveCardIds.push(cardId);
       }
     }
 
-    return clearLiveProhibitionsUntilLiveEnd(state);
+    state = clearLiveProhibitionsUntilLiveEnd(state);
+    return resolveLiveZoneToWaitingRoomTriggers(state, movedLiveCardIds);
   }
 }
 

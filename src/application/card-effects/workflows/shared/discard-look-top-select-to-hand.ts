@@ -60,10 +60,24 @@ const DISCARD_LOOK_TOP_FIVE_LIVE_BASE_CARD_CODES = [
   'PL!HS-bp1-011',
   'PL!HS-bp6-022',
 ] as const;
-const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS = [
+const SP_PB2_017_BASE_CARD_CODE = 'PL!SP-pb2-017';
+const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
+  readonly baseCardCode: string;
+  readonly alias: string;
+  readonly selectorKind: DiscardLookTopAliasSelectorKind;
+  readonly topCount: number;
+  readonly memberOnly?: boolean;
+}[] = [
   { baseCardCode: 'PL!HS-bp1-009', alias: 'みらくらぱーく！', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!HS-pb1-018', alias: 'DOLLCHESTRA', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!SP-bp1-005', alias: 'Liella!', selectorKind: 'GROUP', topCount: 5 },
+  {
+    baseCardCode: SP_PB2_017_BASE_CARD_CODE,
+    alias: 'Liella!',
+    selectorKind: 'GROUP',
+    topCount: 5,
+    memberOnly: true,
+  },
   { baseCardCode: 'PL!SP-pb1-015', alias: 'CatChu!', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!SP-pb1-016', alias: 'KALEIDOSCORE', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!SP-pb1-017', alias: '5yncri5e!', selectorKind: 'UNIT', topCount: 5 },
@@ -152,7 +166,7 @@ function startDiscardLookTopSelectToHandWorkflow(
   const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
   const metadata: DiscardLookTopMetadata = {
     topCount: getDiscardLookTopCount(cardCode),
-    memberOnly: selectableCardType === 'MEMBER',
+    memberOnly: selectableCardType === 'MEMBER' || aliasCardConfig?.memberOnly === true,
     liveOnly: selectableCardType === 'LIVE',
     cardSelectorAlias: aliasCardConfig?.alias,
     cardSelectorKind: aliasCardConfig?.selectorKind,
@@ -270,7 +284,9 @@ function createLookTopConfig(
         ? '请选择其中1张LIVE卡加入手牌，其余放置入休息室。'
         : metadata.memberOnly
           ? '请选择其中1张成员卡加入手牌，其余放置入休息室。'
-          : metadata.cardSelectorAlias
+          : metadata.cardSelectorAlias && metadata.memberOnly
+            ? `请选择其中1张${metadata.cardSelectorAlias}的成员卡加入手牌，其余放置入休息室。`
+            : metadata.cardSelectorAlias
             ? `请选择其中1张${metadata.cardSelectorAlias}的卡加入手牌，其余放置入休息室。`
             : '请选择其中1张卡加入手牌，其余放置入休息室。',
     noTargetStepText: metadata.redGreenBlueHeartMemberOnly
@@ -286,9 +302,11 @@ function createLookTopConfig(
       ? '请选择要加入手牌的卡牌'
       : metadata.redGreenBlueHeartMemberOnly
         ? '请选择要公开并加入手牌的赤/绿/蓝 HEART 成员卡'
-        : metadata.liveOnly
-          ? '请选择要加入手牌的LIVE卡'
-          : metadata.memberOnly
+      : metadata.liveOnly
+        ? '请选择要加入手牌的LIVE卡'
+        : metadata.cardSelectorAlias && metadata.memberOnly
+          ? `请选择要加入手牌的${metadata.cardSelectorAlias}成员卡`
+        : metadata.memberOnly
             ? '请选择要加入手牌的成员卡'
             : '请选择要加入手牌的卡牌',
     confirmSelectionLabel: '加入手牌',
@@ -314,14 +332,18 @@ function createDiscardLookTopSelector(
       )
     );
   }
-  if (metadata.memberOnly) {
-    return (card) => isMemberCardData(card.data);
-  }
   if (metadata.cardSelectorAlias && metadata.cardSelectorKind === 'GROUP') {
-    return groupAliasIs(metadata.cardSelectorAlias);
+    return metadata.memberOnly
+      ? and(typeIs(CardType.MEMBER), groupAliasIs(metadata.cardSelectorAlias))
+      : groupAliasIs(metadata.cardSelectorAlias);
   }
   if (metadata.cardSelectorAlias && metadata.cardSelectorKind === 'UNIT') {
-    return unitAliasIs(metadata.cardSelectorAlias);
+    return metadata.memberOnly
+      ? and(typeIs(CardType.MEMBER), unitAliasIs(metadata.cardSelectorAlias))
+      : unitAliasIs(metadata.cardSelectorAlias);
+  }
+  if (metadata.memberOnly) {
+    return (card) => isMemberCardData(card.data);
   }
   return () => true;
 }
@@ -465,6 +487,9 @@ function getDiscardLookTopEffectText(cardCode: string | undefined): string {
   const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
   if (aliasCardConfig) {
     const topCount = getDiscardLookTopCount(cardCode);
+    if (isSpPb2017LiellaMemberCard(cardCode)) {
+      return `【登场】可以将1张手牌放置入休息室：检视自己卡组顶的${topCount}张卡。可以将1张其中的『Liella!』成员卡公开并加入手牌。其余的卡片放置入休息室。`;
+    }
     return `【登场】可以将1张手牌放置入休息室：检视自己卡组顶的${topCount}张卡。可以将1张其中的${aliasCardConfig.alias}的卡公开并加入手牌。其余的卡片放置入休息室。`;
   }
   return getAbilityEffectText(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
@@ -517,4 +542,8 @@ function getDiscardLookTopAliasCardConfig(
   return DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS.find(({ baseCardCode }) =>
     cardCodeMatchesBase(cardCode, baseCardCode)
   );
+}
+
+function isSpPb2017LiellaMemberCard(cardCode: string | undefined): boolean {
+  return cardCode !== undefined && cardCodeMatchesBase(cardCode, SP_PB2_017_BASE_CARD_CODE);
 }

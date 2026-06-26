@@ -1,4 +1,4 @@
-import type { GameState } from '../domain/entities/game.js';
+import { hasPendingAbilityOrChoice, type GameState } from '../domain/entities/game.js';
 import { GameMode, GamePhase, SubPhase } from '../shared/types/enums.js';
 import { isPlayerActive } from '../shared/phase-config/index.js';
 import {
@@ -39,6 +39,9 @@ const solitaireAutomationPolicy: ModeAutomationPolicy = {
   getNextAutomation(state, triggerPlayerId) {
     const opponentId = getOpponentId(state, triggerPlayerId);
     if (!opponentId) {
+      return null;
+    }
+    if (hasPendingAbilityOrChoice(state)) {
       return null;
     }
 

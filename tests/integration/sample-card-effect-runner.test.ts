@@ -12741,6 +12741,22 @@ describe('sample card effect runner', () => {
     ]);
     expect(recursiveCheckResult.success).toBe(true);
     expect(recursiveCheckResult.gameState.pendingAbilities).toEqual([]);
+
+    const nextNormalCheerEvent = createCheerEvent(
+      PLAYER1,
+      [additionalCheerCardIds[0]!],
+      1,
+      {
+        automated: true,
+      }
+    );
+    const turnOnceCheckResult = service.executeCheckTiming(
+      emitGameEvent(session.state!, nextNormalCheerEvent),
+      [TriggerCondition.ON_CHEER]
+    );
+    expect(turnOnceCheckResult.success).toBe(true);
+    expect(turnOnceCheckResult.gameState.activeEffect).toBeNull();
+    expect(turnOnceCheckResult.gameState.pendingAbilities).toEqual([]);
   });
 
   it('opens PL!HS-bp6-027-L manual cheer adjustment selection after revealing a cheer card', () => {
@@ -12805,6 +12821,27 @@ describe('sample card effect runner', () => {
       step: 'SKIP_REVEALED_CHEER_CARD_SELECTION',
       destination: 'WAITING_ROOM',
     });
+
+    const service = new GameService();
+    const nextNormalCheerEvent = createCheerEvent(
+      PLAYER1,
+      ['p1-tsukiyomi-manual-cheer-target-0'],
+      1,
+      {
+        automated: true,
+      }
+    );
+    const nextCheckResult = service.executeCheckTiming(
+      emitGameEvent(session.state!, nextNormalCheerEvent),
+      [TriggerCondition.ON_CHEER]
+    );
+    expect(nextCheckResult.success).toBe(true);
+    expect(nextCheckResult.gameState.activeEffect?.abilityId).toBe(
+      HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID
+    );
+    expect(nextCheckResult.gameState.activeEffect?.selectableCardIds).toEqual([
+      'p1-tsukiyomi-manual-cheer-target-0',
+    ]);
   });
 
   it('does not offer PL!HS-bp6-027-L cards that were not revealed by the current cheer', () => {

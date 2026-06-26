@@ -145,6 +145,10 @@ export function createHandlerContext(options: {
     cardId: string | null;
     ruleActions: readonly import('../../domain/rules/rule-actions.js').RuleActionResult[];
   };
+  resolveLiveZoneToWaitingRoomTriggers: (
+    game: GameState,
+    movedCardIds: readonly string[]
+  ) => GameState;
 }): ActionHandlerContext {
   return options;
 }

@@ -148,6 +148,7 @@ import {
 } from './card-effects/ability-definition-types.js';
 import { getRenGrantedActivatedAbilityDefinition } from './card-effects/runtime/granted-activated-abilities.js';
 import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/bp6-024-success-replacement.js';
+import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { getMemberEffectiveCost } from './effects/conditions.js';
 import { isMemberCardData } from '../domain/entities/card.js';
@@ -933,8 +934,25 @@ export class GameSession {
       return;
     }
 
+    this.resolveReadyScoreConfirm();
     this.autoAdvance(this.authorityState);
     this.runModeAutomationLoop(triggerPlayerId);
+  }
+
+  private resolveReadyScoreConfirm(): void {
+    if (!this.authorityState) {
+      return;
+    }
+
+    const result = this.gameService.resolveReadyScoreConfirm(this.authorityState);
+    if (!result.success) {
+      console.warn('[GameSession] 分数确认恢复失败:', result.error);
+      return;
+    }
+
+    if (result.gameState !== this.authorityState) {
+      this.setAuthorityState(result.gameState, { source: 'SYSTEM' });
+    }
   }
 
   private runModeAutomationLoop(triggerPlayerId: string): void {
@@ -1005,6 +1023,7 @@ export class GameSession {
       action,
       playerId: actorPlayerId,
     });
+    this.resolveReadyScoreConfirm();
     this.autoAdvance(this.authorityState);
 
     return true;
@@ -1813,6 +1832,9 @@ export class GameSession {
           ? null
           : '当前不是 Live 判定子阶段';
       case GameCommandType.SUBMIT_SCORE:
+        if (hasPendingAbilityOrChoice(state)) {
+          return '请先处理待处理的卡牌效果或费用';
+        }
         return state.currentSubPhase === SubPhase.RESULT_SCORE_CONFIRM
           ? null
           : '当前不是分数确认阶段';
@@ -2824,6 +2846,10 @@ export class GameSession {
     if (!result.success) {
       return { success: false, gameState: state, error: result.error };
     }
+    const gameState =
+      command.fromZone === ZoneType.LIVE_ZONE && command.toZone === ZoneType.WAITING_ROOM
+        ? resolveLiveZoneToWaitingRoomTriggers(result.gameState, [command.cardId])
+        : result.gameState;
 
     const extraPublicEvents: PublicEventDraft[] = [];
     if (isZonePubliclyObservable(command.fromZone) || isZonePubliclyObservable(command.toZone)) {
@@ -2881,7 +2907,7 @@ export class GameSession {
 
     return {
       success: true,
-      gameState: result.gameState,
+      gameState,
       declarationType: 'TABLE_CARD_MOVED',
       declarationPublicValue: `${command.fromZone}->${command.toZone}`,
       extraPublicEvents,
@@ -3437,6 +3463,10 @@ export class GameSession {
     if (!result.success) {
       return { success: false, gameState: state, error: result.error };
     }
+    const gameState =
+      command.fromZone === ZoneType.LIVE_ZONE
+        ? resolveLiveZoneToWaitingRoomTriggers(result.gameState, [command.cardId])
+        : result.gameState;
 
     const extraPublicEvents: PublicEventDraft[] = [
       buildCardMovedPublicEvent(state, result.gameState, actorSeat, command.cardId, {
@@ -3487,7 +3517,7 @@ export class GameSession {
 
     return {
       success: true,
-      gameState: result.gameState,
+      gameState,
       declarationType: 'MOVE_PUBLIC_CARD_TO_WAITING_ROOM',
       declarationPublicValue: command.fromZone,
       extraPublicEvents,
@@ -3754,6 +3784,7 @@ export class GameSession {
 
     let workingState = initialState;
     const extraPublicEvents: PublicEventDraft[] = [];
+    const failedLiveCardIds: string[] = [];
 
     if (!command.success) {
       workingState = clearFailedPerformanceDraftForPlayer(workingState, command.playerId);
@@ -3803,6 +3834,7 @@ export class GameSession {
           return { success: false, gameState: workingState, error: moveResult.error };
         }
         workingState = moveResult.gameState;
+        failedLiveCardIds.push(cardId);
         extraPublicEvents.push(
           buildCardMovedPublicEvent(workingState, moveResult.gameState, actorSeat, cardId, {
             from: createOwnedZoneRef(
@@ -3842,10 +3874,14 @@ export class GameSession {
     if (!confirmResult.success) {
       return { success: false, gameState: workingState, error: confirmResult.error };
     }
+    workingState = confirmResult.gameState;
+    if (!command.success && failedLiveCardIds.length > 0) {
+      workingState = resolveLiveZoneToWaitingRoomTriggers(workingState, failedLiveCardIds);
+    }
 
     return {
       success: true,
-      gameState: confirmResult.gameState,
+      gameState: workingState,
       declarationType: command.success ? 'PERFORMANCE_SUCCEEDED' : 'PERFORMANCE_FAILED',
       declarationPublicValue: judgmentResults.size,
       extraPublicEvents,
