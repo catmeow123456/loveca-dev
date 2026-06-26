@@ -26,6 +26,7 @@ import {
   fetchMatchRecordTimeline,
 } from '@/lib/onlineClient';
 import { useGameStore } from '@/store/gameStore';
+import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import type {
   MatchRecordDetailView,
   MatchRecordDecisionView,
@@ -869,9 +870,17 @@ function FrontCardList({ cards }: { cards: readonly FrontCardSummary[] }) {
         <div className="grid min-w-0 divide-y divide-[var(--border-subtle)]">
           {cards.map((card) => (
             <div key={card.objectId} className="min-w-0 px-3 py-2">
-              <div className="truncate text-sm font-medium text-[var(--text-primary)]">
-                {card.name}
+              <div
+                className="truncate text-sm font-medium text-[var(--text-primary)]"
+                title={card.title}
+              >
+                {card.nameCn}
               </div>
+              {card.nameJp && (
+                <div className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
+                  {card.nameJp}
+                </div>
+              )}
               <div className="mt-0.5 flex min-w-0 flex-wrap gap-2 text-xs text-[var(--text-muted)]">
                 <span>{card.cardType}</span>
                 <span className="min-w-0 max-w-full truncate">{card.cardCode}</span>
@@ -1009,7 +1018,9 @@ interface ZoneSummary {
 interface FrontCardSummary {
   readonly objectId: string;
   readonly cardCode: string;
-  readonly name: string;
+  readonly nameCn: string;
+  readonly nameJp?: string;
+  readonly title: string;
   readonly cardType: string;
   readonly ownerSeat: Seat;
 }
@@ -1031,13 +1042,19 @@ function summarizeFrontCards(
   return Object.values(objects)
     .filter((object) => object.surface === 'FRONT' && object.frontInfo)
     .slice(0, 8)
-    .map((object) => ({
-      objectId: object.publicObjectId,
-      cardCode: object.frontInfo?.cardCode ?? '-',
-      name: object.frontInfo?.name ?? '未知卡牌',
-      cardType: object.frontInfo?.cardType ?? object.cardType ?? '-',
-      ownerSeat: object.ownerSeat,
-    }));
+    .map((object) => {
+      const localizedName = object.frontInfo ? getCardLocalizedInfo(object.frontInfo) : null;
+
+      return {
+        objectId: object.publicObjectId,
+        cardCode: object.frontInfo?.cardCode ?? '-',
+        nameCn: localizedName?.displayNameCn ?? '未知卡牌',
+        nameJp: localizedName?.nameJp ?? undefined,
+        title: localizedName?.title ?? '未知卡牌',
+        cardType: object.frontInfo?.cardType ?? object.cardType ?? '-',
+        ownerSeat: object.ownerSeat,
+      };
+    });
 }
 
 function zoneLabel(key: string, zone: ViewZoneState): string {
@@ -1129,7 +1146,9 @@ function formatDecisionSubmission(decision: MatchRecordDecisionView): string | n
     submission.selectedCardIds ? `cards=${submission.selectedCardIds.join(',')}` : null,
     submission.selectedSlot ? `slot=${submission.selectedSlot}` : null,
     submission.selectedOptionId ? `option=${submission.selectedOptionId}` : null,
-    submission.selectedNumber !== undefined ? `number=${submission.selectedNumber ?? 'none'}` : null,
+    submission.selectedNumber !== undefined
+      ? `number=${submission.selectedNumber ?? 'none'}`
+      : null,
     submission.stageFormationMoveHistory
       ? `formationMoves=${submission.stageFormationMoveHistory.length}`
       : null,

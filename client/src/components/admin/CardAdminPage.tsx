@@ -7,15 +7,33 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import {
-  ArrowLeft, Plus, Download, Search, RefreshCw, Loader2,
-  AlertTriangle, Lock, Pencil, ArrowUp, ArrowDown,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  ListFilter, X,
+  ArrowLeft,
+  Plus,
+  Download,
+  Search,
+  RefreshCw,
+  Loader2,
+  AlertTriangle,
+  Lock,
+  Pencil,
+  ArrowUp,
+  ArrowDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ListFilter,
+  X,
 } from 'lucide-react';
 import { PageHeader, ThemeToggle } from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
 import { cardService, type CardUpdateInput, type CardCreateInput } from '@/lib/cardService';
-import { resolveCardImagePath, preloadCardImages, getRecommendedImageSize } from '@/lib/imageService';
+import { cleanLocalizedText, getCardLocalizedInfo } from '@/lib/cardLocalization';
+import {
+  resolveCardImagePath,
+  preloadCardImages,
+  getRecommendedImageSize,
+} from '@/lib/imageService';
 import { Card } from '@/components/card/Card';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { CardType } from '@game/shared/types/enums';
@@ -27,9 +45,7 @@ interface CardAdminPageProps {
 }
 
 export function CardAdminPage({ onBack }: CardAdminPageProps) {
-  const { offlineMode } = useAuthStore(
-    useShallow((s) => ({ offlineMode: s.offlineMode }))
-  );
+  const { offlineMode } = useAuthStore(useShallow((s) => ({ offlineMode: s.offlineMode })));
 
   const [cards, setCards] = useState<AnyCardData[]>([]);
   const [cardStatusMap, setCardStatusMap] = useState<Map<string, 'DRAFT' | 'PUBLISHED'>>(new Map());
@@ -114,11 +130,17 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
 
   const filteredCards = useMemo(() => {
     let result = cards;
-    if (selectedType !== 'ALL') result = result.filter(c => c.cardType === selectedType);
-    if (selectedStatus !== 'ALL') result = result.filter(c => cardStatusMap.get(c.cardCode) === selectedStatus);
+    if (selectedType !== 'ALL') result = result.filter((c) => c.cardType === selectedType);
+    if (selectedStatus !== 'ALL')
+      result = result.filter((c) => cardStatusMap.get(c.cardCode) === selectedStatus);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(c => c.name.toLowerCase().includes(q) || c.cardCode.toLowerCase().includes(q));
+      result = result.filter(
+        (c) =>
+          c.cardCode.toLowerCase().includes(q) ||
+          cleanLocalizedText(c.nameCn)?.toLowerCase().includes(q) ||
+          cleanLocalizedText(c.nameJp)?.toLowerCase().includes(q)
+      );
     }
     return result.sort((a, b) => a.cardCode.localeCompare(b.cardCode));
   }, [cards, selectedType, selectedStatus, searchQuery, cardStatusMap]);
@@ -131,7 +153,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
 
   useEffect(() => {
     if (paginatedCards.length > 0 && !loading) {
-      const imageBaseNames = paginatedCards.map(card =>
+      const imageBaseNames = paginatedCards.map((card) =>
         card.imageFilename
           ? card.imageFilename.replace(/^.*\//, '').replace(/\.(jpg|jpeg|png|webp)$/i, '')
           : card.cardCode
@@ -177,7 +199,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
   };
 
   const handleBatchStatus = async (targetStatus: 'PUBLISHED' | 'DRAFT') => {
-    const targets = filteredCards.filter(c => cardStatusMap.get(c.cardCode) !== targetStatus);
+    const targets = filteredCards.filter((c) => cardStatusMap.get(c.cardCode) !== targetStatus);
     if (targets.length === 0) return;
     const action = targetStatus === 'PUBLISHED' ? '上线' : '转为草稿';
     if (!confirm(`确定要将筛选结果中的 ${targets.length} 张卡牌全部${action}吗？`)) return;
@@ -185,10 +207,11 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
     setBatchWorking(true);
     setError(null);
     try {
-      const fn = targetStatus === 'PUBLISHED'
-        ? (code: string) => cardService.publishCard(code)
-        : (code: string) => cardService.unpublishCard(code);
-      await Promise.all(targets.map(c => fn(c.cardCode)));
+      const fn =
+        targetStatus === 'PUBLISHED'
+          ? (code: string) => cardService.publishCard(code)
+          : (code: string) => cardService.unpublishCard(code);
+      await Promise.all(targets.map((c) => fn(c.cardCode)));
       await loadCards();
     } catch (err) {
       setError(err instanceof Error ? err.message : `批量${action}失败`);
@@ -197,10 +220,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
     }
   };
 
-  const handleCardStatusChange = async (
-    cardCode: string,
-    targetStatus: 'PUBLISHED' | 'DRAFT'
-  ) => {
+  const handleCardStatusChange = async (cardCode: string, targetStatus: 'PUBLISHED' | 'DRAFT') => {
     try {
       if (targetStatus === 'PUBLISHED') {
         await cardService.publishCard(cardCode);
@@ -209,7 +229,9 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
       }
       await loadCards();
     } catch (err) {
-      setError(err instanceof Error ? err.message : targetStatus === 'PUBLISHED' ? '上线失败' : '下线失败');
+      setError(
+        err instanceof Error ? err.message : targetStatus === 'PUBLISHED' ? '上线失败' : '下线失败'
+      );
     }
   };
 
@@ -220,7 +242,9 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
           <Lock size={40} className="mx-auto mb-4 text-[var(--text-muted)]" />
           <h2 className="mb-2 text-xl text-[var(--text-primary)]">离线模式</h2>
           <p className="mb-4 text-[var(--text-secondary)]">卡牌管理需要登录后使用</p>
-          <button onClick={onBack} className="button-primary px-4 py-2">返回</button>
+          <button onClick={onBack} className="button-primary px-4 py-2">
+            返回
+          </button>
         </div>
       </div>
     );
@@ -230,12 +254,15 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
     <div className="app-shell flex h-screen flex-col">
       <PageHeader
         title="卡牌数据管理"
-        left={(
-          <button onClick={onBack} className="button-ghost inline-flex h-10 items-center justify-center gap-2 px-2.5 py-2 sm:min-h-11 sm:px-3">
+        left={
+          <button
+            onClick={onBack}
+            className="button-ghost inline-flex h-10 items-center justify-center gap-2 px-2.5 py-2 sm:min-h-11 sm:px-3"
+          >
             <ArrowLeft size={16} />
             <span className="hidden sm:inline">返回</span>
           </button>
-        )}
+        }
         right={<ThemeToggle />}
       />
 
@@ -254,7 +281,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
               {exporting ? '导出中...' : '导出 JSON'}
             </button>
             <button
-              onClick={() => { setIsCreating(true); setSelectedCard(null); }}
+              onClick={() => {
+                setIsCreating(true);
+                setSelectedCard(null);
+              }}
               className="button-primary inline-flex min-h-10 items-center gap-1.5 px-3 py-2 text-sm font-medium"
             >
               <Plus size={14} /> 新建卡牌
@@ -266,7 +296,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
           <div className="mb-4 flex flex-col gap-3 border-b border-[var(--border-subtle)] pb-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="relative w-full lg:max-w-md lg:flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                <Search
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+                />
                 <input
                   type="text"
                   value={searchQuery}
@@ -378,7 +411,9 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="text-sm font-semibold text-[var(--text-primary)]">筛选与批量操作</div>
+                        <div className="text-sm font-semibold text-[var(--text-primary)]">
+                          筛选与批量操作
+                        </div>
                         <div className="mt-0.5 text-xs text-[var(--text-muted)]">
                           当前筛选 {filteredCards.length} / {cards.length} 张
                         </div>
@@ -495,7 +530,9 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
             <div className="mb-4 flex items-center gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
               <AlertTriangle size={14} />
               {error}
-              <button onClick={loadCards} className="ml-2 underline">重试</button>
+              <button onClick={loadCards} className="ml-2 underline">
+                重试
+              </button>
             </div>
           )}
 
@@ -506,59 +543,76 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
           ) : (
             <>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
-                {paginatedCards.map((card) => (
-                  <div
-                    key={card.cardCode}
-                    className="group cursor-pointer"
-                    onClick={() => { setSelectedCard(card); setIsCreating(false); }}
-                  >
-                    <div className="w-full relative" style={{ aspectRatio: '63/88' }}>
-                      <Card
-                        cardData={card}
-                        imagePath={resolveCardImagePath(card)}
-                        size="responsive"
-                        interactive={false}
-                        showHover={false}
-                        className="rounded-lg transition-[filter] duration-200 group-hover:brightness-110"
-                      />
-                      {cardStatusMap.get(card.cardCode) === 'DRAFT' && (
-                        <div className="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-500/80 text-yellow-950 rounded">
-                          草稿
+                {paginatedCards.map((card) => {
+                  const localizedName = getCardLocalizedInfo(card);
+
+                  return (
+                    <div
+                      key={card.cardCode}
+                      className="group cursor-pointer"
+                      onClick={() => {
+                        setSelectedCard(card);
+                        setIsCreating(false);
+                      }}
+                    >
+                      <div className="w-full relative" style={{ aspectRatio: '63/88' }}>
+                        <Card
+                          cardData={card}
+                          imagePath={resolveCardImagePath(card)}
+                          size="responsive"
+                          interactive={false}
+                          showHover={false}
+                          className="rounded-lg transition-[filter] duration-200 group-hover:brightness-110"
+                        />
+                        {cardStatusMap.get(card.cardCode) === 'DRAFT' && (
+                          <div className="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-500/80 text-yellow-950 rounded">
+                            草稿
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-1.5 text-center">
+                        <div className="truncate text-xs text-[var(--text-secondary)]">
+                          {card.cardCode}
                         </div>
-                      )}
-                    </div>
-                    <div className="mt-1.5 text-center">
-                      <div className="truncate text-xs text-[var(--text-secondary)]">{card.cardCode}</div>
-                      <div className="truncate text-xs text-[var(--text-muted)]">{card.name}</div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap justify-center gap-1">
-                      <span className="flex min-h-8 items-center gap-1 rounded-lg bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] px-2 py-1 text-xs text-[var(--accent-primary)] opacity-100 transition-opacity md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100">
-                        <Pencil size={10} /> 编辑
-                      </span>
-                      {cardStatusMap.get(card.cardCode) === 'DRAFT' ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleCardStatusChange(card.cardCode, 'PUBLISHED');
-                          }}
-                          className="flex min-h-8 items-center gap-0.5 rounded-lg bg-green-500/15 px-2 py-1 text-xs text-green-300/90 opacity-100 transition-opacity hover:bg-green-500/30 md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100"
+                        <div
+                          className="truncate text-xs text-[var(--text-muted)]"
+                          title={localizedName.title}
                         >
-                          <ArrowUp size={10} /> 上线
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleCardStatusChange(card.cardCode, 'DRAFT');
-                          }}
-                          className="flex min-h-8 items-center gap-0.5 rounded-lg bg-yellow-500/15 px-2 py-1 text-xs text-yellow-300/90 opacity-100 transition-opacity hover:bg-yellow-500/30 md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100"
-                        >
-                          <ArrowDown size={10} /> 下线
-                        </button>
-                      )}
+                          {localizedName.displayNameCn}
+                        </div>
+                        <div className="truncate text-[11px] text-[var(--text-muted)]">
+                          {localizedName.nameJp ?? '未收录日文名'}
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap justify-center gap-1">
+                        <span className="flex min-h-8 items-center gap-1 rounded-lg bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] px-2 py-1 text-xs text-[var(--accent-primary)] opacity-100 transition-opacity md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100">
+                          <Pencil size={10} /> 编辑
+                        </span>
+                        {cardStatusMap.get(card.cardCode) === 'DRAFT' ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleCardStatusChange(card.cardCode, 'PUBLISHED');
+                            }}
+                            className="flex min-h-8 items-center gap-0.5 rounded-lg bg-green-500/15 px-2 py-1 text-xs text-green-300/90 opacity-100 transition-opacity hover:bg-green-500/30 md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100"
+                          >
+                            <ArrowUp size={10} /> 上线
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleCardStatusChange(card.cardCode, 'DRAFT');
+                            }}
+                            className="flex min-h-8 items-center gap-0.5 rounded-lg bg-yellow-500/15 px-2 py-1 text-xs text-yellow-300/90 opacity-100 transition-opacity hover:bg-yellow-500/30 md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100"
+                          >
+                            <ArrowDown size={10} /> 下线
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* 分页 */}
@@ -587,10 +641,18 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                   </div>
 
                   <div className="hidden items-center justify-center gap-1.5 sm:flex">
-                    <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="button-ghost p-2 disabled:opacity-30">
+                    <button
+                      onClick={() => goToPage(1)}
+                      disabled={currentPage === 1}
+                      className="button-ghost p-2 disabled:opacity-30"
+                    >
                       <ChevronsLeft size={16} />
                     </button>
-                    <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="button-ghost p-2 disabled:opacity-30">
+                    <button
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="button-ghost p-2 disabled:opacity-30"
+                    >
                       <ChevronLeft size={16} />
                     </button>
 
@@ -617,12 +679,22 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                       })}
                     </div>
 
-                    <span className="px-2 text-xs text-[var(--text-muted)]">{currentPage}/{totalPages}</span>
+                    <span className="px-2 text-xs text-[var(--text-muted)]">
+                      {currentPage}/{totalPages}
+                    </span>
 
-                    <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="button-ghost p-2 disabled:opacity-30">
+                    <button
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="button-ghost p-2 disabled:opacity-30"
+                    >
                       <ChevronRight size={16} />
                     </button>
-                    <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="button-ghost p-2 disabled:opacity-30">
+                    <button
+                      onClick={() => goToPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="button-ghost p-2 disabled:opacity-30"
+                    >
                       <ChevronsRight size={16} />
                     </button>
                   </div>
@@ -648,7 +720,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
           <CardEditModal
             card={selectedCard}
             isOpen={true}
-            onClose={() => { setSelectedCard(null); setIsCreating(false); }}
+            onClose={() => {
+              setSelectedCard(null);
+              setIsCreating(false);
+            }}
             onSave={handleSave}
             onCreate={handleCreate}
             onDelete={handleDelete}

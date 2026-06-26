@@ -17,6 +17,7 @@ import { GameCommandType } from '@game/application/game-commands';
 import { applyHeartRequirementModifiers } from '@game/domain/rules/live-requirement-modifiers';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
+import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import {
   buildBattleActionIntents,
   findEnabledBattleActionTargetByTargetId,
@@ -634,7 +635,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
 
       return {
         cardId,
-        cardName: frontInfo.name,
+        cardName: getCardLocalizedInfo(frontInfo).title,
         score: Math.max(0, (frontInfo.score ?? 0) + scoreModifier),
         success: false,
         requiredHearts,

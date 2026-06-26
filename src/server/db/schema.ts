@@ -56,6 +56,13 @@ export type BladeHeart = {
   value?: number;
 };
 
+export type CardSourceFlags = {
+  excelOnly?: boolean;
+  oldSourceOnly?: boolean;
+  fieldConflict?: boolean;
+  derivedFromBase?: boolean;
+};
+
 export const users = pgTable(
   'users',
   {
@@ -201,9 +208,12 @@ export const cards = pgTable(
       .primaryKey(),
     cardCode: text('card_code').notNull().unique(),
     cardType: text('card_type').$type<CardType>().notNull(),
-    name: text('name').notNull(),
-    groupName: text('group_name'),
+    nameJp: text('name_jp'),
+    nameCn: text('name_cn'),
+    workNames: jsonb('work_names').$type<string[] | null>(),
+    groupNames: jsonb('group_names').$type<string[] | null>(),
     unitName: text('unit_name'),
+    unitNameRaw: text('unit_name_raw'),
     cost: integer('cost'),
     blade: integer('blade'),
     hearts: jsonb('hearts')
@@ -216,10 +226,15 @@ export const cards = pgTable(
     requirements: jsonb('requirements')
       .$type<HeartRequirement[]>()
       .default(sql`'[]'::jsonb`),
-    cardText: text('card_text'),
+    cardTextJp: text('card_text_jp'),
+    cardTextCn: text('card_text_cn'),
     imageFilename: text('image_filename'),
+    imageSourceUri: text('image_source_uri'),
     rare: text('rare'),
     product: text('product'),
+    productCode: text('product_code'),
+    sourceExternalId: text('source_external_id'),
+    sourceFlags: jsonb('source_flags').$type<CardSourceFlags | null>(),
     status: text('status').$type<CardStatus>().notNull().default('DRAFT'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -228,11 +243,13 @@ export const cards = pgTable(
   (table) => [
     index('idx_cards_card_code').on(table.cardCode),
     index('idx_cards_card_type').on(table.cardType),
-    index('idx_cards_group_name').on(table.groupName),
-    index('idx_cards_name').on(table.name),
     index('idx_cards_rare').on(table.rare),
     index('idx_cards_status').on(table.status),
     check('cards_card_type_check', sql`${table.cardType} IN ('MEMBER', 'LIVE', 'ENERGY')`),
+    check(
+      'cards_name_language_check',
+      sql`(${table.nameJp} IS NOT NULL AND btrim(${table.nameJp}) <> '') OR (${table.nameCn} IS NOT NULL AND btrim(${table.nameCn}) <> '')`
+    ),
     check('cards_status_check', sql`${table.status} IN ('DRAFT', 'PUBLISHED')`),
   ]
 );

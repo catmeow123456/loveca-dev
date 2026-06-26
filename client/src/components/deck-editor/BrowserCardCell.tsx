@@ -9,6 +9,7 @@
 import { memo } from 'react';
 import { Plus, Minus } from 'lucide-react';
 import { Card } from '@/components/card/Card';
+import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import type { AnyCardData } from '@game/domain/entities/card';
 
 interface BrowserCardCellProps {
@@ -22,8 +23,16 @@ interface BrowserCardCellProps {
 }
 
 export const BrowserCardCell = memo(function BrowserCardCell({
-  card, imagePath, baseCount, exactCount, onAdd, onRemove, onViewDetail,
+  card,
+  imagePath,
+  baseCount,
+  exactCount,
+  onAdd,
+  onRemove,
+  onViewDetail,
 }: BrowserCardCellProps) {
+  const localizedName = getCardLocalizedInfo(card);
+
   return (
     <div className="flex flex-col items-center group/card">
       <div
@@ -78,10 +87,13 @@ export const BrowserCardCell = memo(function BrowserCardCell({
       </div>
 
       <span
-        className="mt-1.5 line-clamp-2 max-w-full text-center text-[11px] leading-snug text-[var(--text-muted)] sm:truncate sm:text-xs"
-        title={card.cardCode}
+        className="mt-1.5 max-w-full text-center text-[11px] leading-snug text-[var(--text-muted)] sm:text-xs"
+        title={`${localizedName.title} ${card.cardCode}`}
       >
-        {card.name}
+        <span className="block truncate">{localizedName.displayNameCn}</span>
+        {localizedName.nameJp && (
+          <span className="block truncate text-[10px] sm:text-[11px]">{localizedName.nameJp}</span>
+        )}
       </span>
     </div>
   );

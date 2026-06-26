@@ -3,7 +3,7 @@
  *
  * 从 llocg_db git submodule 读取完整卡牌数据并同步到 PostgreSQL cards 表
  * 包含游戏数据字段（cost, hearts, requirements 等）
- * 中文数据优先：有中文时 name/card_text 使用中文，否则 fallback 日文
+ * 中日字段分列：name_cn/name_jp、card_text_cn/card_text_jp 分别保存来源文本
  *
  * 同步策略:
  * - 新卡: INSERT (status=PUBLISHED)
@@ -81,8 +81,10 @@ interface LlocgCnCard {
 interface CardUpsertRecord {
   card_code: string;
   card_type: 'MEMBER' | 'LIVE' | 'ENERGY';
-  name: string;
-  card_text: string | null;
+  name_jp: string | null;
+  name_cn: string | null;
+  card_text_jp: string | null;
+  card_text_cn: string | null;
   image_filename: string | null;
   cost: number | null;
   blade: number | null;
@@ -91,7 +93,7 @@ interface CardUpsertRecord {
   score: number | null;
   requirements: { color: string; count: number }[] | null;
   unit_name: string | null;
-  group_name: string | null;
+  work_names: string[] | null;
   rare: string | null;
   product: string | null;
   status: 'PUBLISHED';
@@ -107,8 +109,10 @@ interface ChangedCardSummary {
 interface ExistingCardRow {
   card_code: string;
   card_type: 'MEMBER' | 'LIVE' | 'ENERGY';
-  name: string;
-  card_text: string | null;
+  name_jp: string | null;
+  name_cn: string | null;
+  card_text_jp: string | null;
+  card_text_cn: string | null;
   image_filename: string | null;
   cost: number | null;
   blade: number | null;
@@ -117,7 +121,7 @@ interface ExistingCardRow {
   score: number | null;
   requirements: { color: string; count: number }[] | null;
   unit_name: string | null;
-  group_name: string | null;
+  work_names: string[] | null;
   rare: string | null;
   product: string | null;
   status: 'DRAFT' | 'PUBLISHED';
@@ -234,8 +238,10 @@ function getChangedFields(existing: ExistingCardRow, next: CardUpsertRecord): st
   const changedFields: string[] = [];
 
   if (existing.card_type !== next.card_type) changedFields.push('card_type');
-  if (existing.name !== next.name) changedFields.push('name');
-  if (existing.card_text !== next.card_text) changedFields.push('card_text');
+  if (existing.name_jp !== next.name_jp) changedFields.push('name_jp');
+  if (existing.name_cn !== next.name_cn) changedFields.push('name_cn');
+  if (existing.card_text_jp !== next.card_text_jp) changedFields.push('card_text_jp');
+  if (existing.card_text_cn !== next.card_text_cn) changedFields.push('card_text_cn');
   if (existing.image_filename !== next.image_filename) changedFields.push('image_filename');
   if (existing.cost !== next.cost) changedFields.push('cost');
   if (existing.blade !== next.blade) changedFields.push('blade');
@@ -248,12 +254,25 @@ function getChangedFields(existing: ExistingCardRow, next: CardUpsertRecord): st
     changedFields.push('requirements');
   }
   if (existing.unit_name !== next.unit_name) changedFields.push('unit_name');
-  if (existing.group_name !== next.group_name) changedFields.push('group_name');
+  if (stableJson(existing.work_names) !== stableJson(next.work_names))
+    changedFields.push('work_names');
   if (existing.rare !== next.rare) changedFields.push('rare');
   if (existing.product !== next.product) changedFields.push('product');
   if (existing.status !== next.status) changedFields.push('status');
 
   return changedFields;
+}
+
+function displayName(card: Pick<CardUpsertRecord, 'card_code' | 'name_cn' | 'name_jp'>): string {
+  return card.name_cn?.trim() || card.name_jp?.trim() || card.card_code;
+}
+
+function splitLines(value: string | null | undefined): string[] | null {
+  const items = value
+    ?.split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return items && items.length > 0 ? items : null;
 }
 
 /** 从 JP 卡 + CN 数据构建入库记录 */
@@ -265,16 +284,12 @@ function transformJpCard(jp: LlocgJpCard, cn: LlocgCnCard | undefined): CardUpse
 
   const cnDetail = cn?.detail;
 
-  // 中文优先，但对于能量卡需要特殊处理
   // CN 数据中能量卡的 card_name_cn 可能是"能量"（类型名）而非实际卡名
-  let name: string;
   const cnName = cnDetail?.card_name_cn || cn?.card_name_cn;
-  if (cnName && cnName !== '能量' && cnName !== 'エネルギー') {
-    name = cnName;
-  } else {
-    name = jp.name; // fallback 到 JP 名称
-  }
-  const cardText = cnDetail?.ability || jp.ability || null;
+  const nameCn = cnName && cnName !== '能量' && cnName !== 'エネルギー' ? cnName : null;
+  const nameJp = jp.name || (!nameCn && cnName ? cnName : null) || jp.card_no;
+  const cardTextJp = jp.ability || null;
+  const cardTextCn = cnDetail?.ability || null;
 
   // Hearts
   let hearts: { color: string; count: number }[] | null = null;
@@ -313,8 +328,10 @@ function transformJpCard(jp: LlocgJpCard, cn: LlocgCnCard | undefined): CardUpse
   return {
     card_code: normalizeCardCode(jp.card_no),
     card_type: cardType,
-    name,
-    card_text: cardText,
+    name_jp: nameJp,
+    name_cn: nameCn,
+    card_text_jp: cardTextJp,
+    card_text_cn: cardTextCn,
     image_filename: imageFilename,
     cost: jp.cost ?? null,
     blade: jp.blade ?? null,
@@ -323,7 +340,7 @@ function transformJpCard(jp: LlocgJpCard, cn: LlocgCnCard | undefined): CardUpse
     score: jp.score ?? null,
     requirements: requirements && requirements.length > 0 ? requirements : null,
     unit_name: normalizedUnitName,
-    group_name: jp.series || null,
+    work_names: splitLines(jp.series),
     rare: jp.rare || null,
     product: jp.product || null,
     status: 'PUBLISHED',
@@ -345,14 +362,15 @@ function transformCnOnlyCard(cardNo: string, cn: LlocgCnCard): CardUpsertRecord 
     cnDetail?.card_name_org ||
     cn.card_name_org ||
     cardNo;
-  const cardText = cnDetail?.ability || null;
   const imageFilename = cn._img ? cn._img.replace(/^.*\//, '') : null;
 
   return {
     card_code: normalizeCardCode(cardNo),
     card_type: cardType,
-    name,
-    card_text: cardText,
+    name_jp: cnDetail?.card_name_org || cn.card_name_org || null,
+    name_cn: name,
+    card_text_jp: null,
+    card_text_cn: cnDetail?.ability || null,
     image_filename: imageFilename,
     cost: cnDetail?.cost ?? null,
     blade: cnDetail?.trigger_count ?? null,
@@ -361,7 +379,7 @@ function transformCnOnlyCard(cardNo: string, cn: LlocgCnCard): CardUpsertRecord 
     score: null,
     requirements: null,
     unit_name: null,
-    group_name: null,
+    work_names: null,
     rare: cnDetail?.rarity || null,
     product: null,
     status: 'PUBLISHED',
@@ -467,9 +485,11 @@ async function main() {
       if (card.score != null) extras.push(`score=${card.score}`);
       if (card.hearts) extras.push(`hearts=${card.hearts.length}`);
       if (card.requirements) extras.push(`req=${card.requirements.length}`);
-      if (card.group_name) extras.push(`group=${card.group_name}`);
+      if (card.work_names) extras.push(`works=${card.work_names.join('/')}`);
       if (card.product) extras.push(`product=${card.product}`);
-      console.log(`  ${card.card_code} [${card.card_type}] ${card.name} ${extras.join(' ')}`);
+      console.log(
+        `  ${card.card_code} [${card.card_type}] ${displayName(card)} ${extras.join(' ')}`
+      );
     }
     if (allCards.length > 20) {
       console.log(`  ... and ${allCards.length - 20} more`);
@@ -477,18 +497,18 @@ async function main() {
 
     // 专门显示能量卡的 group/product 统计
     const energyCards = allCards.filter((c) => c.card_type === 'ENERGY');
-    const energyWithGroup = energyCards.filter((c) => c.group_name);
+    const energyWithGroup = energyCards.filter((c) => c.work_names && c.work_names.length > 0);
     const energyWithProduct = energyCards.filter((c) => c.product);
     console.log(`\nEnergy cards analysis:`);
     console.log(`  Total ENERGY cards: ${energyCards.length}`);
-    console.log(`  With group_name: ${energyWithGroup.length}`);
+    console.log(`  With work_names: ${energyWithGroup.length}`);
     console.log(`  With product: ${energyWithProduct.length}`);
 
     // 显示几个能量卡样本
     console.log('\nSample ENERGY cards:');
     for (const card of energyCards.slice(0, 5)) {
       console.log(
-        `  ${card.card_code}: name=${card.name}, unit=${card.unit_name || 'NULL'}, group=${card.group_name || 'NULL'}, product=${card.product || 'NULL'}`
+        `  ${card.card_code}: name=${displayName(card)}, unit=${card.unit_name || 'NULL'}, works=${card.work_names?.join('/') || 'NULL'}, product=${card.product || 'NULL'}`
       );
     }
 
@@ -504,9 +524,9 @@ async function main() {
   try {
     const { rows: existingRows } = await pool.query<ExistingCardRow>(`
       SELECT
-        card_code, card_type, name, card_text, image_filename,
+        card_code, card_type, name_jp, name_cn, card_text_jp, card_text_cn, image_filename,
         cost, blade, hearts, blade_hearts, score, requirements,
-        unit_name, group_name, rare, product, status
+        unit_name, work_names, rare, product, status
       FROM cards
     `);
 
@@ -581,16 +601,18 @@ async function main() {
           for (const card of batch) {
             await pool.query(
               `
-              INSERT INTO cards (card_code, card_type, name, card_text, image_filename,
+              INSERT INTO cards (card_code, card_type, name_jp, name_cn, card_text_jp, card_text_cn, image_filename,
                 cost, blade, hearts, blade_hearts, score, requirements,
-                unit_name, group_name, rare, product, status)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                unit_name, work_names, rare, product, status)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
             `,
               [
                 card.card_code,
                 card.card_type,
-                card.name,
-                card.card_text,
+                card.name_jp,
+                card.name_cn,
+                card.card_text_jp,
+                card.card_text_cn,
                 card.image_filename,
                 card.cost,
                 card.blade,
@@ -599,7 +621,7 @@ async function main() {
                 card.score,
                 JSON.stringify(card.requirements),
                 card.unit_name,
-                card.group_name,
+                card.work_names == null ? null : JSON.stringify(card.work_names),
                 card.rare,
                 card.product,
                 card.status,
@@ -611,7 +633,7 @@ async function main() {
           changedCards.push(
             ...batch.map((card) => ({
               card_code: card.card_code,
-              name: card.name,
+              name: displayName(card),
               action: 'INSERT' as const,
             }))
           );
@@ -635,17 +657,20 @@ async function main() {
             await pool.query(
               `
               UPDATE cards SET
-                card_type = $2, name = $3, card_text = $4, image_filename = $5,
-                cost = $6, blade = $7, hearts = $8, blade_hearts = $9, score = $10,
-                requirements = $11, unit_name = $12, group_name = $13, rare = $14,
-                product = $15, status = $16, updated_at = now()
+                card_type = $2, name_jp = $3, name_cn = $4, card_text_jp = $5,
+                card_text_cn = $6, image_filename = $7, cost = $8, blade = $9,
+                hearts = $10, blade_hearts = $11, score = $12, requirements = $13,
+                unit_name = $14, work_names = $15, rare = $16, product = $17,
+                status = $18, updated_at = now()
               WHERE card_code = $1
             `,
               [
                 card.card_code,
                 card.card_type,
-                card.name,
-                card.card_text,
+                card.name_jp,
+                card.name_cn,
+                card.card_text_jp,
+                card.card_text_cn,
                 card.image_filename,
                 card.cost,
                 card.blade,
@@ -654,7 +679,7 @@ async function main() {
                 card.score,
                 JSON.stringify(card.requirements),
                 card.unit_name,
-                card.group_name,
+                card.work_names == null ? null : JSON.stringify(card.work_names),
                 card.rare,
                 card.product,
                 card.status,
@@ -666,7 +691,7 @@ async function main() {
           changedCards.push(
             ...batch.map(({ card, changedFields }) => ({
               card_code: card.card_code,
-              name: card.name,
+              name: displayName(card),
               action: 'UPDATE' as const,
               changedFields,
             }))
@@ -735,7 +760,7 @@ function printPendingUpdateCodes(updateCards: PendingUpdate[]) {
 
 function printUpdateDiff(update: PendingUpdate, index: number, total: number) {
   console.log(
-    `\n[${index}/${total}] ${update.card.card_code} ${update.card.name} fields=${update.changedFields.join(',')}`
+    `\n[${index}/${total}] ${update.card.card_code} ${displayName(update.card)} fields=${update.changedFields.join(',')}`
   );
 
   for (const field of update.changedFields) {

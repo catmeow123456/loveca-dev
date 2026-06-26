@@ -1,12 +1,13 @@
 /**
  * 卡牌组件
- * 
+ *
  * 显示成员卡、Live 卡、能量卡的通用组件
  */
 
 import { memo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { HeartColor, OrientationState } from '@game/shared/types/enums';
 import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData, isEnergyCardData } from '@game/domain/entities/card';
@@ -61,12 +62,12 @@ export interface CardProps {
 // ============================================
 
 /** Heart 图标组件 */
-const HeartIcon = memo(function HeartIcon({ 
-  color, 
+const HeartIcon = memo(function HeartIcon({
+  color,
   count = 1,
-  size = 'md'
-}: { 
-  color: HeartColor; 
+  size = 'md',
+}: {
+  color: HeartColor;
   count?: number;
   size?: 'sm' | 'md' | 'lg';
 }) {
@@ -95,10 +96,10 @@ const HeartIcon = memo(function HeartIcon({
 });
 
 /** 成员卡信息覆盖层 */
-const MemberCardOverlay = memo(function MemberCardOverlay({ 
+const MemberCardOverlay = memo(function MemberCardOverlay({
   data,
-  size = 'md'
-}: { 
+  size = 'md',
+}: {
   data: MemberCardData;
   size?: 'sm' | 'md' | 'lg';
 }) {
@@ -111,9 +112,9 @@ const MemberCardOverlay = memo(function MemberCardOverlay({
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
           <div className="flex flex-wrap gap-0.5 justify-center">
             {data.hearts.map((heart, idx) => (
-              <HeartIcon 
-                key={idx} 
-                color={heart.color} 
+              <HeartIcon
+                key={idx}
+                color={heart.color}
                 count={heart.count}
                 size={size === 'lg' ? 'md' : 'sm'}
               />
@@ -126,10 +127,10 @@ const MemberCardOverlay = memo(function MemberCardOverlay({
 });
 
 /** Live 卡信息覆盖层 */
-const LiveCardOverlay = memo(function LiveCardOverlay({ 
+const LiveCardOverlay = memo(function LiveCardOverlay({
   data,
-  size = 'md'
-}: { 
+  size = 'md',
+}: {
   data: LiveCardData;
   size?: 'sm' | 'md' | 'lg';
 }) {
@@ -142,9 +143,9 @@ const LiveCardOverlay = memo(function LiveCardOverlay({
         <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-1.5">
           <div className="flex flex-wrap gap-0.5 justify-center">
             {Object.entries(data.requirements.colorRequirements).map(([color, count]) => (
-              <HeartIcon 
-                key={color} 
-                color={color as HeartColor} 
+              <HeartIcon
+                key={color}
+                color={color as HeartColor}
                 count={count as number}
                 size={size === 'lg' ? 'md' : 'sm'}
               />
@@ -160,19 +161,21 @@ const LiveCardOverlay = memo(function LiveCardOverlay({
 });
 
 /** 能量卡覆盖层 */
-const EnergyCardOverlay = memo(function EnergyCardOverlay({ 
-  size = 'md'
-}: { 
+const EnergyCardOverlay = memo(function EnergyCardOverlay({
+  size = 'md',
+}: {
   size?: 'sm' | 'md' | 'lg';
 }) {
   return (
     <>
       {/* 能量标识 */}
-      <div className={cn(
-        'absolute top-1 right-1 rounded-full bg-emerald-500 text-white font-bold',
-        'flex items-center justify-center shadow-md',
-        size === 'sm' ? 'w-4 h-4 text-[10px]' : 'w-6 h-6 text-xs'
-      )}>
+      <div
+        className={cn(
+          'absolute top-1 right-1 rounded-full bg-emerald-500 text-white font-bold',
+          'flex items-center justify-center shadow-md',
+          size === 'sm' ? 'w-4 h-4 text-[10px]' : 'w-6 h-6 text-xs'
+        )}
+      >
         ⚡
       </div>
     </>
@@ -201,16 +204,20 @@ const CardBack = memo(function CardBack({ size = 'md' }: { size?: 'sm' | 'md' | 
 
   // 降级：显示渐变色占位符
   return (
-    <div className={cn(
-      'w-full h-full rounded-lg',
-      'bg-gradient-to-br from-indigo-600 to-purple-700',
-      'flex items-center justify-center',
-      'border-2 border-purple-400/50'
-    )}>
-      <span className={cn(
-        'text-white/50',
-        size === 'sm' ? 'text-xl' : size === 'lg' ? 'text-4xl' : 'text-2xl'
-      )}>
+    <div
+      className={cn(
+        'w-full h-full rounded-lg',
+        'bg-gradient-to-br from-indigo-600 to-purple-700',
+        'flex items-center justify-center',
+        'border-2 border-purple-400/50'
+      )}
+    >
+      <span
+        className={cn(
+          'text-white/50',
+          size === 'sm' ? 'text-xl' : size === 'lg' ? 'text-4xl' : 'text-2xl'
+        )}
+      >
         ♪
       </span>
     </div>
@@ -243,6 +250,7 @@ export const Card = memo(function Card({
 }: CardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const cardNameDisplay = getCardLocalizedInfo(cardData);
 
   // 尺寸映射
   // responsive: 填满父容器，保持卡牌比例
@@ -282,11 +290,15 @@ export const Card = memo(function Card({
         setIsHovered(false);
         onMouseLeave?.();
       }}
-      whileHover={showHover && interactive ? { 
-        y: -8, 
-        scale: 1.05,
-        zIndex: 100,
-      } : undefined}
+      whileHover={
+        showHover && interactive
+          ? {
+              y: -8,
+              scale: 1.05,
+              zIndex: 100,
+            }
+          : undefined
+      }
       whileTap={interactive ? { scale: 0.98 } : undefined}
       layout={enableLayoutAnimation}
       data-card-id={instanceId}
@@ -306,18 +318,29 @@ export const Card = memo(function Card({
             {imagePath && !imageError ? (
               <img
                 src={imagePath}
-                alt={cardData.name}
+                alt={cardNameDisplay.title}
                 className="w-full h-full object-cover"
                 onError={() => setImageError(true)}
                 loading="lazy"
               />
             ) : (
-              <div className={cn(
-                'w-full h-full flex items-center justify-center',
-                'bg-linear-to-br from-slate-700 to-slate-800',
-                'text-slate-400 text-xs text-center p-2'
-              )}>
-                {cardData.name}
+              <div
+                className={cn(
+                  'w-full h-full flex items-center justify-center',
+                  'bg-linear-to-br from-slate-700 to-slate-800',
+                  'text-slate-400 text-xs text-center p-2'
+                )}
+              >
+                <div className="space-y-1">
+                  <div className="line-clamp-3 break-words font-medium text-slate-300">
+                    {cardNameDisplay.displayNameCn}
+                  </div>
+                  {cardNameDisplay.nameJp && (
+                    <div className="line-clamp-2 break-words text-[10px] text-slate-500">
+                      {cardNameDisplay.nameJp}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -385,8 +408,11 @@ export const Card = memo(function Card({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
         >
-          <div className="bg-slate-900/95 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-            {cardData.name}
+          <div className="max-w-[220px] rounded bg-slate-900/95 px-2 py-1 text-center text-xs text-white shadow-lg">
+            <div className="truncate font-medium">{cardNameDisplay.displayNameCn}</div>
+            {cardNameDisplay.nameJp && (
+              <div className="truncate text-[11px] text-white/70">{cardNameDisplay.nameJp}</div>
+            )}
           </div>
         </motion.div>
       )}

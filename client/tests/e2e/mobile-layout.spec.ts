@@ -6,19 +6,27 @@ type CardDbRecord = {
   id: string;
   card_code: string;
   card_type: 'MEMBER' | 'LIVE' | 'ENERGY';
-  name: string;
-  group_name: string | null;
+  name_jp: string | null;
+  name_cn: string | null;
+  work_names: string[] | null;
+  group_names: string[] | null;
   unit_name: string | null;
+  unit_name_raw: string | null;
   cost: number | null;
   blade: number | null;
   hearts: Array<{ color: string; count: number }>;
   blade_hearts: Array<{ effect: string; heartColor?: string }> | null;
   score: number | null;
   requirements: Array<{ color: string; count: number }>;
-  card_text: string | null;
+  card_text_jp: string | null;
+  card_text_cn: string | null;
   image_filename: string | null;
+  image_source_uri: string | null;
   rare: string | null;
   product: string | null;
+  product_code: string | null;
+  source_external_id: string | null;
+  source_flags: Record<string, unknown> | null;
   status: 'DRAFT' | 'PUBLISHED';
   created_at: string;
   updated_at: string;
@@ -56,19 +64,27 @@ function makeBaseCard(overrides: Partial<CardDbRecord>): CardDbRecord {
     id: overrides.card_code ?? 'card',
     card_code: overrides.card_code ?? 'CARD-001',
     card_type: overrides.card_type ?? 'MEMBER',
-    name: overrides.name ?? '测试卡牌',
-    group_name: '测试组合',
+    name_jp: null,
+    name_cn: overrides.name_cn ?? '测试卡牌',
+    work_names: ['测试作品'],
+    group_names: ['测试组合'],
     unit_name: null,
+    unit_name_raw: null,
     cost: null,
     blade: null,
     hearts: [],
     blade_hearts: null,
     score: null,
     requirements: [],
-    card_text: '用于移动端布局验收的测试卡牌。',
+    card_text_jp: null,
+    card_text_cn: '用于移动端布局验收的测试卡牌。',
     image_filename: null,
+    image_source_uri: null,
     rare: 'N',
     product: 'E2E',
+    product_code: null,
+    source_external_id: null,
+    source_flags: null,
     status: 'PUBLISHED',
     created_at: NOW,
     updated_at: NOW,
@@ -83,7 +99,7 @@ function memberCard(index: number): CardDbRecord {
     id: `member-${suffix}`,
     card_code: `ME-e2e-${suffix}`,
     card_type: 'MEMBER',
-    name: `移动验收成员 ${suffix}`,
+    name_cn: `移动验收成员 ${suffix}`,
     cost: index % 3,
     blade: 1,
     hearts: [{ color: 'PINK', count: 1 }],
@@ -96,7 +112,7 @@ function liveCard(index: number): CardDbRecord {
     id: `live-${suffix}`,
     card_code: `LV-e2e-${suffix}`,
     card_type: 'LIVE',
-    name: `移动验收 Live ${suffix}`,
+    name_cn: `移动验收 Live ${suffix}`,
     score: 1,
     requirements: [{ color: 'PINK', count: 1 }],
   });
@@ -106,7 +122,7 @@ const ENERGY_CARD = makeBaseCard({
   id: 'energy-001',
   card_code: 'EN-e2e-001',
   card_type: 'ENERGY',
-  name: '移动验收能量',
+  name_cn: '移动验收能量',
 });
 
 const MEMBER_CARDS = Array.from({ length: 12 }, (_, index) => memberCard(index + 1));
@@ -181,12 +197,7 @@ async function installApiMocks(page: Page, authenticated: boolean) {
 
     if (url.pathname === '/api/auth/refresh') {
       if (!authenticated) {
-        await fulfillApi(
-          route,
-          null,
-          401,
-          { code: 'UNAUTHORIZED', message: '未登录或登录已过期' }
-        );
+        await fulfillApi(route, null, 401, { code: 'UNAUTHORIZED', message: '未登录或登录已过期' });
         return;
       }
 
@@ -227,12 +238,15 @@ async function installApiMocks(page: Page, authenticated: boolean) {
 
     if (url.pathname === '/api/cards' && method === 'POST') {
       const input = request.postDataJSON() as Partial<CardDbRecord>;
-      await fulfillApi(route, makeBaseCard({
-        id: input.card_code ?? 'created-card',
-        card_code: input.card_code ?? 'CREATED-001',
-        card_type: input.card_type ?? 'MEMBER',
-        name: input.name ?? '新建卡牌',
-      }));
+      await fulfillApi(
+        route,
+        makeBaseCard({
+          id: input.card_code ?? 'created-card',
+          card_code: input.card_code ?? 'CREATED-001',
+          card_type: input.card_type ?? 'MEMBER',
+          name: input.name ?? '新建卡牌',
+        })
+      );
       return;
     }
 

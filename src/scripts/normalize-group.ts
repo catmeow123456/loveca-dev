@@ -1,7 +1,7 @@
 /**
- * 数据库 group_name 标准化迁移脚本
+ * 数据库 work_names 标准化迁移脚本
  *
- * 将数据库中所有 group_name 从"小组名"转换为"作品名"：
+ * 将数据库中所有 work_names 内误写成团体名的值转换为作品名：
  *   μ's → ラブライブ！
  *   Aqours → ラブライブ！サンシャイン!!
  *   虹ヶ咲学園スクールアイドル同好会 → ラブライブ！虹ヶ咲学園スクールアイドル同好会
@@ -28,7 +28,7 @@ const DRY_RUN = process.argv.includes('--dry-run');
 /**
  * 小组名 → 作品名映射
  *
- * group_name 字段语义变更：从"小组名"改为"作品名"
+ * work_names 只保存作品名数组；真实团体另存 group_names。
  */
 const GROUP_TO_SERIES_MAP: Record<string, string> = {
   "μ's": 'ラブライブ！',
@@ -56,8 +56,9 @@ const VALID_SERIES_NAMES = [
 interface CardRow {
   id: string;
   card_code: string;
-  name: string;
-  group_name: string | null;
+  name_jp: string | null;
+  name_cn: string | null;
+  work_names: string[] | null;
   status: string;
 }
 
@@ -67,7 +68,7 @@ interface MigrationReport {
     needNormalize: number;
     updated: number;
     skipped: number;
-    unknown: { card_code: string; name: string; group_name: string }[];
+    unknown: { card_code: string; name: string; work_names: string[] }[];
   };
 }
 
@@ -76,7 +77,7 @@ interface MigrationReport {
 // ============================================
 
 async function main() {
-  console.log(`🔧 group_name 标准化迁移${DRY_RUN ? ' (DRY RUN - 不修改数据库)' : ''}\n`);
+  console.log(`🔧 work_names 标准化迁移${DRY_RUN ? ' (DRY RUN - 不修改数据库)' : ''}\n`);
 
   if (!DATABASE_URL) {
     console.error('Error: DATABASE_URL is required');
@@ -122,61 +123,50 @@ async function main() {
 // ============================================
 
 /**
- * 标准化单个 group_name 值
+ * 标准化 work_names 数组
  *
- * @param groupName 原始 group_name（可能是小组名或作品名）
+ * @param workNames 原始 work_names（可能包含小组名）
  * @returns 标准化后的作品名，如果无需转换则返回原值，如果无法识别返回 null
  */
-function normalizeGroupName(groupName: string | null): {
-  normalized: string | null;
+function normalizeWorkNames(workNames: readonly string[] | null): {
+  normalized: string[] | null;
   changed: boolean;
   unknown: boolean;
 } {
-  if (groupName === null) {
+  if (workNames === null || workNames.length === 0) {
     return { normalized: null, changed: false, unknown: false };
   }
 
-  // 已经是有效的作品名
-  if (VALID_SERIES_NAMES.includes(groupName)) {
-    return { normalized: groupName, changed: false, unknown: false };
-  }
+  const normalizedParts: string[] = [];
+  let anyChanged = false;
+  let anyUnknown = false;
 
-  // 统一分隔符：将逗号(,)和顿号(、)替换为换行符
-  let normalizedInput = groupName;
-  let separatorChanged = false;
-
-  if (normalizedInput.includes(',') || normalizedInput.includes('、')) {
-    normalizedInput = normalizedInput.replace(/[,、]/g, '\n');
-    separatorChanged = true;
-  }
-
-  // 检查是否是多系列（用 \n 分隔）
-  if (normalizedInput.includes('\n')) {
-    const parts = normalizedInput.split('\n');
-    const normalizedParts: string[] = [];
-    let anyChanged = separatorChanged; // 分隔符变化也算 changed
-    let anyUnknown = false;
-
+  for (const item of workNames) {
+    const parts = item
+      .replace(/[,、]/g, '\n')
+      .split('\n')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length !== 1 || parts[0] !== item) {
+      anyChanged = true;
+    }
     for (const part of parts) {
-      const result = normalizeSingleGroup(part.trim());
+      const result = normalizeSingleGroup(part);
       if (result.unknown) {
         anyUnknown = true;
-        normalizedParts.push(part.trim()); // 保留原值
+        normalizedParts.push(part);
       } else {
         if (result.changed) anyChanged = true;
         normalizedParts.push(result.normalized!);
       }
     }
-
-    return {
-      normalized: normalizedParts.join('\n'),
-      changed: anyChanged,
-      unknown: anyUnknown,
-    };
   }
 
-  // 单个值
-  return normalizeSingleGroup(groupName);
+  return {
+    normalized: [...new Set(normalizedParts)],
+    changed: anyChanged,
+    unknown: anyUnknown,
+  };
 }
 
 /**
@@ -202,6 +192,10 @@ function normalizeSingleGroup(value: string): {
   return { normalized: value, changed: false, unknown: true };
 }
 
+function displayName(card: Pick<CardRow, 'card_code' | 'name_cn' | 'name_jp'>): string {
+  return card.name_cn?.trim() || card.name_jp?.trim() || card.card_code;
+}
+
 // ============================================
 // 预览模式
 // ============================================
@@ -210,23 +204,23 @@ async function previewChanges(pool: Pool, report: MigrationReport) {
   console.log('📋 Step 1: 分析 cards 表...');
 
   const { rows: cards } = await pool.query<CardRow>(
-    'SELECT id, card_code, name, group_name, status FROM cards ORDER BY card_code'
+    'SELECT id, card_code, name_jp, name_cn, work_names, status FROM cards ORDER BY card_code'
   );
   report.cards.total = cards.length;
 
   const needNormalize: CardRow[] = [];
-  const unknown: { card_code: string; name: string; group_name: string }[] = [];
+  const unknown: { card_code: string; name: string; work_names: string[] }[] = [];
 
   for (const card of cards) {
-    const result = normalizeGroupName(card.group_name);
+    const result = normalizeWorkNames(card.work_names);
     if (result.changed) {
       needNormalize.push(card);
     }
     if (result.unknown) {
       unknown.push({
         card_code: card.card_code,
-        name: card.name,
-        group_name: card.group_name || '',
+        name: displayName(card),
+        work_names: card.work_names ?? [],
       });
     }
   }
@@ -236,11 +230,11 @@ async function previewChanges(pool: Pool, report: MigrationReport) {
   report.cards.skipped = cards.length - needNormalize.length;
 
   if (needNormalize.length > 0) {
-    console.log(`  发现 ${needNormalize.length} 条需要标准化的 group_name:`);
+    console.log(`  发现 ${needNormalize.length} 条需要标准化的 work_names:`);
     for (const c of needNormalize) {
-      const result = normalizeGroupName(c.group_name);
+      const result = normalizeWorkNames(c.work_names);
       console.log(
-        `    ${c.card_code} "${c.name}": "${c.group_name}" → "${result.normalized}" (status=${c.status})`
+        `    ${c.card_code} "${displayName(c)}": ${JSON.stringify(c.work_names)} → ${JSON.stringify(result.normalized)} (status=${c.status})`
       );
     }
   } else {
@@ -248,9 +242,9 @@ async function previewChanges(pool: Pool, report: MigrationReport) {
   }
 
   if (unknown.length > 0) {
-    console.log(`\n  ⚠️  发现 ${unknown.length} 条未知的 group_name 值（不会被修改）:`);
+    console.log(`\n  ⚠️  发现 ${unknown.length} 条未知的 work_names 值（不会被修改）:`);
     for (const u of unknown) {
-      console.log(`    ${u.card_code} "${u.name}": "${u.group_name}"`);
+      console.log(`    ${u.card_code} "${u.name}": ${JSON.stringify(u.work_names)}`);
     }
   }
 }
@@ -263,23 +257,23 @@ async function migrateCards(client: PoolClient, report: MigrationReport) {
   console.log('📋 Step 1: 标准化 cards 表...');
 
   const { rows: cards } = await client.query<CardRow>(
-    'SELECT id, card_code, name, group_name, status FROM cards ORDER BY card_code'
+    'SELECT id, card_code, name_jp, name_cn, work_names, status FROM cards ORDER BY card_code'
   );
   report.cards.total = cards.length;
 
-  const needNormalize: { card: CardRow; normalized: string | null }[] = [];
-  const unknown: { card_code: string; name: string; group_name: string }[] = [];
+  const needNormalize: { card: CardRow; normalized: string[] | null }[] = [];
+  const unknown: { card_code: string; name: string; work_names: string[] }[] = [];
 
   for (const card of cards) {
-    const result = normalizeGroupName(card.group_name);
+    const result = normalizeWorkNames(card.work_names);
     if (result.changed && result.normalized !== null) {
       needNormalize.push({ card, normalized: result.normalized });
     }
     if (result.unknown) {
       unknown.push({
         card_code: card.card_code,
-        name: card.name,
-        group_name: card.group_name || '',
+        name: displayName(card),
+        work_names: card.work_names ?? [],
       });
     }
   }
@@ -290,12 +284,14 @@ async function migrateCards(client: PoolClient, report: MigrationReport) {
 
   // 执行更新
   for (const { card, normalized } of needNormalize) {
-    await client.query('UPDATE cards SET group_name = $1, updated_at = now() WHERE id = $2', [
-      normalized,
+    await client.query('UPDATE cards SET work_names = $1, updated_at = now() WHERE id = $2', [
+      normalized == null ? null : JSON.stringify(normalized),
       card.id,
     ]);
     report.cards.updated++;
-    console.log(`  更新: ${card.card_code} "${card.name}": "${card.group_name}" → "${normalized}"`);
+    console.log(
+      `  更新: ${card.card_code} "${displayName(card)}": ${JSON.stringify(card.work_names)} → ${JSON.stringify(normalized)}`
+    );
   }
 
   if (report.cards.updated === 0) {
@@ -303,9 +299,9 @@ async function migrateCards(client: PoolClient, report: MigrationReport) {
   }
 
   if (unknown.length > 0) {
-    console.log(`\n  ⚠️  跳过 ${unknown.length} 条未知的 group_name 值:`);
+    console.log(`\n  ⚠️  跳过 ${unknown.length} 条未知的 work_names 值:`);
     for (const u of unknown.slice(0, 10)) {
-      console.log(`    ${u.card_code} "${u.name}": "${u.group_name}"`);
+      console.log(`    ${u.card_code} "${u.name}": ${JSON.stringify(u.work_names)}`);
     }
     if (unknown.length > 10) {
       console.log(`    ... 还有 ${unknown.length - 10} 条`);

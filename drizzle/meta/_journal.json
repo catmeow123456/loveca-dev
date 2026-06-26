@@ -36,6 +36,13 @@
       "when": 1781906400000,
       "tag": "0004_remote_undo_event_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782459685957,
+      "tag": "0005_add_card_multilingual_excel_fields",
+      "breakpoints": true
     }
   ]
 }

@@ -588,7 +588,7 @@ function addMemberSlotZones(
             ? buildStageMemberFrontInfo(occupant, effectiveHearts, effectiveBlade, effectiveCost)
             : undefined,
           activatedAbilityUiConfig: isMemberCardData(occupant.data)
-            ? getActivatedAbilityUiConfig(
+            ? (getActivatedAbilityUiConfig(
                 occupant.data.cardCode,
                 CardAbilitySourceZone.STAGE_MEMBER,
                 {
@@ -596,7 +596,7 @@ function addMemberSlotZones(
                   playerId,
                   sourceCardId: occupantId,
                 }
-              ) ?? undefined
+              ) ?? undefined)
             : undefined,
         });
       }
@@ -794,8 +794,7 @@ function upsertViewObject(
     judgmentResult: metadata?.judgmentResult,
     enteredStageThisTurn: metadata?.enteredStageThisTurn,
     frontInfo: surface === 'FRONT' ? (metadata?.frontInfo ?? buildFrontInfo(card)) : undefined,
-    activatedAbilityUiConfig:
-      surface === 'FRONT' ? metadata?.activatedAbilityUiConfig : undefined,
+    activatedAbilityUiConfig: surface === 'FRONT' ? metadata?.activatedAbilityUiConfig : undefined,
   };
 }
 
@@ -844,9 +843,7 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
     },
     heartBonuses: {
       FIRST: firstPlayerId ? (playerHeartBonuses.get(firstPlayerId) ?? []) : [],
-      SECOND: secondPlayerId
-        ? (playerHeartBonuses.get(secondPlayerId) ?? [])
-        : [],
+      SECOND: secondPlayerId ? (playerHeartBonuses.get(secondPlayerId) ?? []) : [],
     },
     requirementReductions: Object.fromEntries(
       [...liveRequirementReductions.entries()].map(([cardId, reduction]) => [
@@ -878,10 +875,9 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
   };
 }
 
-function buildLiveCardScoreModifierView(liveModifiers: readonly LiveModifierState[]): Record<
-  string,
-  number
-> {
+function buildLiveCardScoreModifierView(
+  liveModifiers: readonly LiveModifierState[]
+): Record<string, number> {
   const modifiers: Record<string, number> = {};
   for (const modifier of liveModifiers) {
     if (modifier.kind !== 'SCORE' || !modifier.liveCardId) {
@@ -897,32 +893,38 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
   if (isMemberCardData(card.data)) {
     return {
       cardCode: card.data.cardCode,
-      name: card.data.name,
+      nameJp: card.data.nameJp,
+      nameCn: card.data.nameCn,
       cardType: card.data.cardType,
       cost: card.data.cost,
       hearts: card.data.hearts.map((heart) => ({ color: heart.color, count: heart.count })),
       bladeHearts: card.data.bladeHearts?.map((item) => ({ ...item })),
-      text: card.data.cardText,
+      cardTextJp: card.data.cardTextJp,
+      cardTextCn: card.data.cardTextCn,
     };
   }
 
   if (isLiveCardData(card.data)) {
     return {
       cardCode: card.data.cardCode,
-      name: card.data.name,
+      nameJp: card.data.nameJp,
+      nameCn: card.data.nameCn,
       cardType: card.data.cardType,
       score: card.data.score,
       requiredHearts: buildViewHeartRequirement(card.data.requirements),
       bladeHearts: card.data.bladeHearts?.map((item) => ({ ...item })),
-      text: card.data.cardText,
+      cardTextJp: card.data.cardTextJp,
+      cardTextCn: card.data.cardTextCn,
     };
   }
 
   return {
     cardCode: card.data.cardCode,
-    name: card.data.name,
+    nameJp: card.data.nameJp,
+    nameCn: card.data.nameCn,
     cardType: card.data.cardType,
-    text: card.data.cardText,
+    cardTextJp: card.data.cardTextJp,
+    cardTextCn: card.data.cardTextCn,
   };
 }
 
@@ -1116,9 +1118,7 @@ function canViewerUsePhaseCommands(
     return true;
   }
 
-  if (
-    game.currentSubPhase === SubPhase.RESULT_ANIMATION
-  ) {
+  if (game.currentSubPhase === SubPhase.RESULT_ANIMATION) {
     return game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
   }
 
@@ -1515,9 +1515,8 @@ function buildResultConfirmStepHint(
     const allSettlementsCompleted = haveAllSuccessLiveSettlementsCompleted(game);
     const hasCandidates = hasPendingSuccessLiveSelection(game, viewerPlayerId);
     const isCurrentSettlementPlayer = currentSettlementPlayerId === viewerPlayerId;
-    const hasConfirmedSettlement = game.liveResolution.settlementConfirmedBy.includes(
-      viewerPlayerId
-    );
+    const hasConfirmedSettlement =
+      game.liveResolution.settlementConfirmedBy.includes(viewerPlayerId);
     const enabled =
       isWinner &&
       (allSettlementsCompleted ||

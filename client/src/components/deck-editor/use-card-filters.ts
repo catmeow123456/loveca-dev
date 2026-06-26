@@ -4,16 +4,29 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useGameStore } from '@/store/gameStore';
+import { cleanLocalizedText } from '@/lib/cardLocalization';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
 import { CardType, HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
 import {
   RARITY_OPTIONS,
   GROUP_UNIT_MAP,
-  COST_MIN, COST_MAX,
-  SCORE_MIN, SCORE_MAX,
+  COST_MIN,
+  COST_MAX,
+  SCORE_MIN,
+  SCORE_MAX,
   PRODUCT_OPTIONS,
 } from './filter-constants';
+
+function normalizeGroupFilterText(value?: string | null): string {
+  return (
+    cleanLocalizedText(value)
+      ?.normalize('NFKC')
+      .replace(/[『』「」'’\s　]/g, '')
+      .replace(/！/g, '!')
+      .toLowerCase() ?? ''
+  );
+}
 
 export interface UseCardFiltersReturn {
   searchQuery: string;
@@ -65,7 +78,7 @@ export function useCardFilters(): UseCardFiltersReturn {
   const [scoreMax, setScoreMax] = useState(SCORE_MAX);
 
   const toggleAdvancedFilter = useCallback(() => {
-    setShowAdvancedFilter(prev => !prev);
+    setShowAdvancedFilter((prev) => !prev);
   }, []);
 
   const getRarityFromCode = useCallback((cardCode: string): string | null => {
@@ -95,11 +108,11 @@ export function useCardFilters(): UseCardFiltersReturn {
     setSelectedGroup(g);
     if (g) {
       const newGroupUnits = GROUP_UNIT_MAP[g] || [];
-      setSelectedUnit(prev => (prev && !newGroupUnits.includes(prev)) ? null : prev);
+      setSelectedUnit((prev) => (prev && !newGroupUnits.includes(prev) ? null : prev));
     }
   }, []);
 
-  // 能量卡支持的筛选：稀有度、作品名、收录商品
+  // 能量卡支持的筛选：稀有度、真实团体、收录商品
   const hasActiveFilters =
     selectedRarity !== null ||
     selectedGroup !== null ||
@@ -112,30 +125,35 @@ export function useCardFilters(): UseCardFiltersReturn {
 
   const sortedCards = useMemo(() => {
     const allCards = Array.from(cardDataRegistry.values());
-    let filtered = allCards.filter(card => card.cardType === selectedCardType);
+    let filtered = allCards.filter((card) => card.cardType === selectedCardType);
 
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase();
-      filtered = filtered.filter(card =>
-        card.name.toLowerCase().includes(lowerQuery) ||
-        card.cardCode.toLowerCase().includes(lowerQuery)
+      filtered = filtered.filter(
+        (card) =>
+          cleanLocalizedText(card.nameCn)?.toLowerCase().includes(lowerQuery) ||
+          cleanLocalizedText(card.nameJp)?.toLowerCase().includes(lowerQuery) ||
+          card.cardCode.toLowerCase().includes(lowerQuery)
       );
     }
 
-    // 稀有度、作品名、收录商品筛选适用于所有卡牌类型（包括能量卡）
+    // 稀有度、真实团体、收录商品筛选适用于所有卡牌类型（包括能量卡）
     if (selectedRarity) {
-      filtered = filtered.filter(card => getRarityFromCode(card.cardCode) === selectedRarity);
+      filtered = filtered.filter((card) => getRarityFromCode(card.cardCode) === selectedRarity);
     }
 
     if (selectedGroup) {
-      // 使用包含匹配，支持联动卡牌（多个作品名用换行分隔）
-      filtered = filtered.filter(card => card.groupName?.includes(selectedGroup));
+      // 规范化后包含匹配，支持联动卡牌（多个真实团体用换行分隔）和 μ’s/μ's 等写法差异。
+      const normalizedSelectedGroup = normalizeGroupFilterText(selectedGroup);
+      filtered = filtered.filter((card) =>
+        normalizeGroupFilterText(card.groupName).includes(normalizedSelectedGroup)
+      );
     }
 
     if (selectedProduct) {
       // 去除所有空格后进行匹配（支持全角/半角空格差异）
       const normalizedSelected = selectedProduct.replace(/\s/g, '');
-      filtered = filtered.filter(card => {
+      filtered = filtered.filter((card) => {
         const normalizedCardProduct = (card.product || '').replace(/\s/g, '');
         return normalizedCardProduct === normalizedSelected;
       });
@@ -144,11 +162,11 @@ export function useCardFilters(): UseCardFiltersReturn {
     // 以下筛选仅适用于非能量卡
     if (selectedCardType !== CardType.ENERGY) {
       if (selectedCardType === CardType.MEMBER && selectedUnit) {
-        filtered = filtered.filter(card => card.unitName === selectedUnit);
+        filtered = filtered.filter((card) => card.unitName === selectedUnit);
       }
 
       if (selectedCardType === CardType.MEMBER && (costMin !== COST_MIN || costMax !== COST_MAX)) {
-        filtered = filtered.filter(card => {
+        filtered = filtered.filter((card) => {
           if (isMemberCardData(card)) {
             return card.cost >= costMin && card.cost <= costMax;
           }
@@ -157,9 +175,9 @@ export function useCardFilters(): UseCardFiltersReturn {
       }
 
       if (selectedHeartColor) {
-        filtered = filtered.filter(card => {
+        filtered = filtered.filter((card) => {
           if (isMemberCardData(card)) {
-            return card.hearts.some(h => h.color === selectedHeartColor);
+            return card.hearts.some((h) => h.color === selectedHeartColor);
           }
           if (isLiveCardData(card)) {
             return card.requirements.colorRequirements.has(selectedHeartColor);
@@ -169,25 +187,31 @@ export function useCardFilters(): UseCardFiltersReturn {
       }
 
       if (selectedBladeHeart) {
-        filtered = filtered.filter(card => {
-          const bladeHearts = (isMemberCardData(card) || isLiveCardData(card)) ? card.bladeHearts : undefined;
+        filtered = filtered.filter((card) => {
+          const bladeHearts =
+            isMemberCardData(card) || isLiveCardData(card) ? card.bladeHearts : undefined;
           if (!bladeHearts || bladeHearts.length === 0) return false;
           if (selectedBladeHeart === 'SCORE') {
-            return bladeHearts.some(bh => bh.effect === BladeHeartEffect.SCORE);
+            return bladeHearts.some((bh) => bh.effect === BladeHeartEffect.SCORE);
           }
           if (selectedBladeHeart === 'DRAW') {
-            return bladeHearts.some(bh => bh.effect === BladeHeartEffect.DRAW);
+            return bladeHearts.some((bh) => bh.effect === BladeHeartEffect.DRAW);
           }
           if (selectedBladeHeart.startsWith('HEART:')) {
             const color = selectedBladeHeart.slice(6) as HeartColor;
-            return bladeHearts.some(bh => bh.effect === BladeHeartEffect.HEART && bh.heartColor === color);
+            return bladeHearts.some(
+              (bh) => bh.effect === BladeHeartEffect.HEART && bh.heartColor === color
+            );
           }
           return false;
         });
       }
 
-      if (selectedCardType === CardType.LIVE && (scoreMin !== SCORE_MIN || scoreMax !== SCORE_MAX)) {
-        filtered = filtered.filter(card => {
+      if (
+        selectedCardType === CardType.LIVE &&
+        (scoreMin !== SCORE_MIN || scoreMax !== SCORE_MAX)
+      ) {
+        filtered = filtered.filter((card) => {
           if (isLiveCardData(card)) {
             return card.score >= scoreMin && card.score <= scoreMax;
           }
@@ -200,19 +224,52 @@ export function useCardFilters(): UseCardFiltersReturn {
       if (a.cardType !== b.cardType) return a.cardType.localeCompare(b.cardType);
       return a.cardCode.localeCompare(b.cardCode);
     });
-  }, [cardDataRegistry, searchQuery, selectedRarity, selectedGroup, selectedUnit, selectedProduct, costMin, costMax, getRarityFromCode, selectedCardType, selectedHeartColor, selectedBladeHeart, scoreMin, scoreMax]);
+  }, [
+    cardDataRegistry,
+    searchQuery,
+    selectedRarity,
+    selectedGroup,
+    selectedUnit,
+    selectedProduct,
+    costMin,
+    costMax,
+    getRarityFromCode,
+    selectedCardType,
+    selectedHeartColor,
+    selectedBladeHeart,
+    scoreMin,
+    scoreMax,
+  ]);
 
   return {
-    searchQuery, selectedCardType, showAdvancedFilter,
-    selectedRarity, selectedGroup, selectedUnit, selectedProduct,
-    costMin, costMax, scoreMin, scoreMax,
-    selectedHeartColor, selectedBladeHeart,
-    hasActiveFilters, sortedCards,
-    setSearchQuery, setSelectedCardType, toggleAdvancedFilter,
-    setSelectedRarity, setSelectedGroup: handleSetSelectedGroup,
-    setSelectedUnit, setSelectedProduct, setCostMin, setCostMax,
-    setScoreMin, setScoreMax,
-    setSelectedHeartColor, setSelectedBladeHeart,
+    searchQuery,
+    selectedCardType,
+    showAdvancedFilter,
+    selectedRarity,
+    selectedGroup,
+    selectedUnit,
+    selectedProduct,
+    costMin,
+    costMax,
+    scoreMin,
+    scoreMax,
+    selectedHeartColor,
+    selectedBladeHeart,
+    hasActiveFilters,
+    sortedCards,
+    setSearchQuery,
+    setSelectedCardType,
+    toggleAdvancedFilter,
+    setSelectedRarity,
+    setSelectedGroup: handleSetSelectedGroup,
+    setSelectedUnit,
+    setSelectedProduct,
+    setCostMin,
+    setCostMax,
+    setScoreMin,
+    setScoreMax,
+    setSelectedHeartColor,
+    setSelectedBladeHeart,
     clearFilters,
   };
 }

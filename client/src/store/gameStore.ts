@@ -1861,14 +1861,11 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     selectSuccessCard: (cardId) => {
-      return runViewerCommand(
-        (playerId) => createSelectSuccessLiveCommand(playerId, cardId),
-        {
-          failureMessage: '选择成功卡失败',
-          successMessage: '选择成功 Live 卡移到成功区',
-          logError: true,
-        }
-      );
+      return runViewerCommand((playerId) => createSelectSuccessLiveCommand(playerId, cardId), {
+        failureMessage: '选择成功卡失败',
+        successMessage: '选择成功 Live 卡移到成功区',
+        logError: true,
+      });
     },
 
     skipSuccessLiveSelection: () => {
@@ -2134,11 +2131,16 @@ function resolveHoveredCardId(
 }
 
 function buildFallbackCardData(frontInfo: ViewFrontCardInfo): AnyCardData {
+  const name = frontInfo.nameCn?.trim() || frontInfo.nameJp?.trim() || frontInfo.cardCode;
+  const cardText = frontInfo.cardTextCn?.trim() || frontInfo.cardTextJp?.trim() || undefined;
+
   switch (frontInfo.cardType) {
     case CardType.MEMBER:
       return {
         cardCode: frontInfo.cardCode,
-        name: frontInfo.name,
+        name,
+        nameJp: frontInfo.nameJp,
+        nameCn: frontInfo.nameCn,
         cardType: CardType.MEMBER,
         cost: frontInfo.cost ?? 0,
         blade: 0,
@@ -2146,27 +2148,37 @@ function buildFallbackCardData(frontInfo: ViewFrontCardInfo): AnyCardData {
           ? (frontInfo.hearts as MemberCardData['hearts'])
           : [],
         bladeHearts: frontInfo.bladeHearts as MemberCardData['bladeHearts'],
-        cardText: frontInfo.text,
+        cardText,
+        cardTextJp: frontInfo.cardTextJp,
+        cardTextCn: frontInfo.cardTextCn,
       };
 
     case CardType.LIVE:
       return {
         cardCode: frontInfo.cardCode,
-        name: frontInfo.name,
+        name,
+        nameJp: frontInfo.nameJp,
+        nameCn: frontInfo.nameCn,
         cardType: CardType.LIVE,
         score: frontInfo.score ?? 0,
         requirements: buildFallbackHeartRequirement(frontInfo.requiredHearts),
         bladeHearts: frontInfo.bladeHearts as LiveCardData['bladeHearts'],
-        cardText: frontInfo.text,
+        cardText,
+        cardTextJp: frontInfo.cardTextJp,
+        cardTextCn: frontInfo.cardTextCn,
       };
 
     case CardType.ENERGY:
     default:
       return {
         cardCode: frontInfo.cardCode,
-        name: frontInfo.name,
+        name,
+        nameJp: frontInfo.nameJp,
+        nameCn: frontInfo.nameCn,
         cardType: CardType.ENERGY,
-        cardText: frontInfo.text,
+        cardText,
+        cardTextJp: frontInfo.cardTextJp,
+        cardTextCn: frontInfo.cardTextCn,
       };
   }
 }

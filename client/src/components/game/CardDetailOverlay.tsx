@@ -1,6 +1,6 @@
 /**
  * 卡牌详情浮窗组件
- * 
+ *
  * 桌面端悬停显示右侧详情，紧凑视口显示带遮罩的底部详情抽屉
  */
 
@@ -11,7 +11,9 @@ import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
+import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { Card } from '@/components/card/Card';
+import { CardLocalizedEffect, CardLocalizedName } from '@/components/card/CardLocalizedInfo';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
@@ -51,7 +53,11 @@ function getHeartColorClass(color: HeartColor): string {
 }
 
 /** 成员卡详情 */
-export const MemberCardDetails = memo(function MemberCardDetails({ data }: { data: MemberCardData }) {
+export const MemberCardDetails = memo(function MemberCardDetails({
+  data,
+}: {
+  data: MemberCardData;
+}) {
   return (
     <div className="space-y-3">
       {/* 基础信息 */}
@@ -80,10 +86,10 @@ export const MemberCardDetails = memo(function MemberCardDetails({ data }: { dat
         </div>
       )}
 
-      {/* 组合/小组 */}
+      {/* 真实团体/小组 */}
       {(data.groupName || data.unitName) && (
         <div className="text-xs text-[var(--text-muted)]">
-          {data.groupName && <span className="mr-2">组合: {data.groupName}</span>}
+          {data.groupName && <span className="mr-2">真实团体: {data.groupName}</span>}
           {data.unitName && <span>小组: {data.unitName}</span>}
         </div>
       )}
@@ -113,7 +119,9 @@ export const LiveCardDetails = memo(function LiveCardDetails({ data }: { data: L
               <span className={cn('text-lg', getHeartColorClass(color as HeartColor))}>
                 {'♥'.repeat(count as number)}
               </span>
-              <span className="text-xs text-[var(--text-muted)]">({getHeartColorName(color as HeartColor)})</span>
+              <span className="text-xs text-[var(--text-muted)]">
+                ({getHeartColorName(color as HeartColor)})
+              </span>
             </div>
           ))}
         </div>
@@ -162,20 +170,16 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
 
   const content = (
     <AnimatePresence>
-      {card && (
-        shouldUseCompactDrawer ? (
+      {card &&
+        (shouldUseCompactDrawer ? (
           <MobileCardDetailDrawer
             key={`mobile-card-detail-${card.instanceId}`}
             card={card}
             onClose={closeDetail}
           />
         ) : (
-          <DesktopCardDetailPanel
-            key={`desktop-card-detail-${card.instanceId}`}
-            card={card}
-          />
-        )
-      )}
+          <DesktopCardDetailPanel key={`desktop-card-detail-${card.instanceId}`} card={card} />
+        ))}
     </AnimatePresence>
   );
 
@@ -187,10 +191,12 @@ export const CardDetailOverlay = memo(function CardDetailOverlay() {
 });
 
 function DesktopCardDetailPanel({ card }: { card: VisibleCardPresentation }) {
+  const localizedName = getCardLocalizedInfo(card.cardData);
+
   return (
     <aside
       className="pointer-events-none fixed bottom-3 right-3 top-3 z-[200]"
-      aria-label={`${card.cardData.name} 卡牌详情`}
+      aria-label={`${localizedName.title} 卡牌详情`}
     >
       <motion.div
         initial={{ opacity: 0, x: 20 }}
@@ -216,6 +222,8 @@ function MobileCardDetailDrawer({
   card: VisibleCardPresentation;
   onClose: () => void;
 }) {
+  const localizedName = getCardLocalizedInfo(card.cardData);
+
   return (
     <>
       <motion.div
@@ -230,7 +238,7 @@ function MobileCardDetailDrawer({
       <motion.section
         role="dialog"
         aria-modal="true"
-        aria-label={`${card.cardData.name} 卡牌详情`}
+        aria-label={`${localizedName.title} 卡牌详情`}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -245,11 +253,9 @@ function MobileCardDetailDrawer({
           </div>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="truncate text-sm font-bold text-[var(--text-primary)]">
-                卡牌详情
-              </h2>
+              <h2 className="truncate text-sm font-bold text-[var(--text-primary)]">卡牌详情</h2>
               <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
-                {card.cardData.name}
+                {localizedName.title}
               </p>
             </div>
             <button
@@ -307,19 +313,14 @@ function CardDetailContent({
       </div>
 
       {/* 卡牌名称 */}
-      <h3
-        className={cn(
-          'break-words text-center font-bold text-[var(--text-primary)]',
-          isMobile ? 'text-lg' : 'text-base leading-tight'
-        )}
-      >
-        {card.cardData.name}
-      </h3>
+      <CardLocalizedName
+        card={card.cardData}
+        align="center"
+        className={cn(isMobile ? 'text-lg' : 'text-base')}
+      />
 
       {/* 卡牌编号 */}
-      <div className="break-all text-center text-xs text-[var(--text-muted)]">
-        {card.cardCode}
-      </div>
+      <div className="break-all text-center text-xs text-[var(--text-muted)]">{card.cardCode}</div>
 
       <div className="flex justify-center">
         <span className="chip-badge px-2.5 py-1 text-sm">
@@ -329,27 +330,26 @@ function CardDetailContent({
       </div>
 
       {/* 类型特定详情 */}
-      {isMemberCardData(card.cardData) && (
-        <MemberCardDetails data={card.cardData} />
-      )}
-      {isLiveCardData(card.cardData) && (
-        <LiveCardDetails data={card.cardData} />
-      )}
+      {isMemberCardData(card.cardData) && <MemberCardDetails data={card.cardData} />}
+      {isLiveCardData(card.cardData) && <LiveCardDetails data={card.cardData} />}
 
       {/* 卡牌效果文本 */}
-      {card.cardData.cardText && (
-        <div className={cn('min-h-0 border-t border-[var(--border-subtle)] pt-2', !isMobile && 'flex flex-1 flex-col')}>
+      {(card.cardData.cardTextCn || card.cardData.cardTextJp) && (
+        <div
+          className={cn(
+            'min-h-0 border-t border-[var(--border-subtle)] pt-2',
+            !isMobile && 'flex flex-1 flex-col'
+          )}
+        >
           <span className="text-xs text-[var(--text-muted)]">效果</span>
-          <p
+          <CardLocalizedEffect
+            card={card.cardData}
             className={cn(
-              'mt-1 whitespace-pre-wrap break-words text-[var(--text-secondary)]',
-              isMobile
-                ? 'text-sm leading-relaxed'
-                : 'cute-scrollbar min-h-0 flex-1 overflow-y-auto text-[12px] leading-[1.42]'
+              'mt-1',
+              !isMobile && 'cute-scrollbar min-h-0 flex-1 overflow-y-auto pr-1'
             )}
-          >
-            {card.cardData.cardText}
-          </p>
+            textClassName={isMobile ? 'text-sm' : 'text-[12px] leading-[1.42]'}
+          />
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 /**
- * group_name 验证脚本
+ * work_names 验证脚本
  *
- * 检查数据库和/或 llocg_db 数据源中所有 group_name/series 字段是否符合规范。
+ * 检查数据库和/或 llocg_db 数据源中所有 work_names/series 字段是否符合规范。
  *
  * 使用方法:
  *   # 验证数据库中的 cards 表
@@ -69,7 +69,7 @@ function parseArgs(): { source: Source; errorsOnly: boolean } {
 interface ValidationEntry {
   cardCode: string;
   name: string;
-  groupName: string | null;
+  workNames: string[] | null;
   origin: string;
   valid: boolean;
   errors: string[];
@@ -81,83 +81,44 @@ interface ValidationEntry {
 // ============================================
 
 /**
- * 验证单个 group_name 值
+ * 验证单个 work_names 值
  */
-function validateGroupName(groupName: string | null): {
+function validateWorkNames(workNames: readonly string[] | null): {
   valid: boolean;
   errors: string[];
   suggestion?: string;
 } {
-  if (groupName === null) {
+  if (workNames === null || workNames.length === 0) {
     return { valid: true, errors: [] }; // null 是允许的
   }
 
-  // 已经是有效的作品名
-  if (VALID_SERIES_NAMES.includes(groupName)) {
+  const invalidParts: string[] = [];
+  const suggestions: string[] = [];
+  for (const part of workNames) {
+    const trimmed = part.trim();
+    if (VALID_SERIES_NAMES.includes(trimmed)) {
+      continue;
+    }
+    const mapped = GROUP_TO_SERIES_MAP[trimmed];
+    if (mapped) {
+      suggestions.push(`${trimmed} → ${mapped}`);
+    } else {
+      invalidParts.push(trimmed);
+    }
+  }
+
+  if (invalidParts.length === 0 && suggestions.length === 0) {
     return { valid: true, errors: [] };
   }
 
-  // 统一分隔符：将逗号(,)和顿号(、)替换为换行符进行检查
-  let normalizedInput = groupName;
-  let hasNonStandardSeparator = false;
-
-  if (normalizedInput.includes(',') || normalizedInput.includes('、')) {
-    normalizedInput = normalizedInput.replace(/[,、]/g, '\n');
-    hasNonStandardSeparator = true;
+  const errors: string[] = [];
+  if (invalidParts.length > 0) {
+    errors.push(`包含无效作品名: ${invalidParts.join(', ')}`);
   }
-
-  // 检查是否是多系列（用 \n 分隔）
-  if (normalizedInput.includes('\n')) {
-    const parts = normalizedInput.split('\n');
-    const invalidParts: string[] = [];
-    const suggestions: string[] = [];
-
-    for (const part of parts) {
-      const trimmed = part.trim();
-      if (!VALID_SERIES_NAMES.includes(trimmed)) {
-        // 检查是否是可映射的小组名
-        const mapped = GROUP_TO_SERIES_MAP[trimmed];
-        if (mapped) {
-          suggestions.push(`${trimmed} → ${mapped}`);
-        } else {
-          invalidParts.push(trimmed);
-        }
-      }
-    }
-
-    if (invalidParts.length === 0 && suggestions.length === 0 && !hasNonStandardSeparator) {
-      return { valid: true, errors: [] };
-    }
-
-    const errors: string[] = [];
-    if (hasNonStandardSeparator) {
-      errors.push(`多系列应使用换行符分隔，而非逗号或顿号`);
-    }
-    if (invalidParts.length > 0) {
-      errors.push(`多系列中包含无效值: ${invalidParts.join(', ')}`);
-    }
-    if (suggestions.length > 0) {
-      errors.push(`多系列中包含小组名（需标准化）: ${suggestions.join('; ')}`);
-    }
-
-    return { valid: false, errors };
+  if (suggestions.length > 0) {
+    errors.push(`包含团体名（需标准化为作品名）: ${suggestions.join('; ')}`);
   }
-
-  // 检查是否是可映射的小组名
-  const mapped = GROUP_TO_SERIES_MAP[groupName];
-  if (mapped) {
-    return {
-      valid: false,
-      errors: [`小组名 "${groupName}" 需标准化为作品名`],
-      suggestion: mapped,
-    };
-  }
-
-  // 未知的值
-  return {
-    valid: false,
-    errors: [`未知的 group_name 值: "${groupName}"`],
-  };
+  return { valid: false, errors };
 }
 
 /**
@@ -187,11 +148,11 @@ function printReport(entries: ValidationEntry[], errorsOnly: boolean, sectionTit
   console.log(`  总计: ${entries.length} | 合规: ${valid.length} | 不合规: ${invalid.length}`);
 
   if (invalid.length > 0) {
-    console.log(`\n  ❌ 不合规的 group_name:`);
+    console.log(`\n  ❌ 不合规的 work_names:`);
     for (const entry of invalid) {
       console.log(`    ${entry.cardCode} "${entry.name}"`);
       console.log(`      来源: ${entry.origin}`);
-      console.log(`      当前值: "${entry.groupName}"`);
+      console.log(`      当前值: ${JSON.stringify(entry.workNames)}`);
       for (const err of entry.errors) {
         console.log(`      - ${err}`);
       }
@@ -202,14 +163,22 @@ function printReport(entries: ValidationEntry[], errorsOnly: boolean, sectionTit
   }
 
   if (!errorsOnly && valid.length > 0 && valid.length <= 20) {
-    console.log(`\n  ✅ 合规的 group_name (${valid.length}):`);
+    console.log(`\n  ✅ 合规的 work_names (${valid.length}):`);
     for (const entry of valid) {
-      const value = entry.groupName ?? 'null';
+      const value = entry.workNames ? JSON.stringify(entry.workNames) : 'null';
       console.log(`    ${entry.cardCode} "${entry.name}": ${value}`);
     }
   } else if (!errorsOnly && valid.length > 20) {
-    console.log(`\n  ✅ 合规的 group_name: ${valid.length} 条（省略详情）`);
+    console.log(`\n  ✅ 合规的 work_names: ${valid.length} 条（省略详情）`);
   }
+}
+
+function displayName(row: {
+  name_cn: string | null;
+  name_jp: string | null;
+  card_code: string;
+}): string {
+  return row.name_cn?.trim() || row.name_jp?.trim() || row.card_code;
 }
 
 // ============================================
@@ -230,17 +199,18 @@ async function validateDb(errorsOnly: boolean): Promise<void> {
 
     const { rows: cardRows } = await pool.query<{
       card_code: string;
-      name: string;
-      group_name: string | null;
+      name_jp: string | null;
+      name_cn: string | null;
+      work_names: string[] | null;
       status: string;
-    }>('SELECT card_code, name, group_name, status FROM cards ORDER BY card_code');
+    }>('SELECT card_code, name_jp, name_cn, work_names, status FROM cards ORDER BY card_code');
 
     const entries: ValidationEntry[] = cardRows.map((row) => {
-      const result = validateGroupName(row.group_name);
+      const result = validateWorkNames(row.work_names);
       return {
         cardCode: row.card_code,
-        name: row.name,
-        groupName: row.group_name,
+        name: displayName(row),
+        workNames: row.work_names,
         origin: `cards 表 (status=${row.status})`,
         valid: result.valid,
         errors: result.errors,
@@ -248,14 +218,14 @@ async function validateDb(errorsOnly: boolean): Promise<void> {
       };
     });
 
-    // 统计 group_name 值分布
+    // 统计 work_names 值分布
     const valueCounts = new Map<string, number>();
     for (const row of cardRows) {
-      const key = row.group_name ?? '(null)';
+      const key = row.work_names ? JSON.stringify(row.work_names) : '(null)';
       valueCounts.set(key, (valueCounts.get(key) ?? 0) + 1);
     }
 
-    console.log('\n  group_name 值分布:');
+    console.log('\n  work_names 值分布:');
     const sortedValues = [...valueCounts.entries()].sort((a, b) => b[1] - a[1]);
     for (const [value, count] of sortedValues) {
       const isValid = isSeriesValid(value);
@@ -263,7 +233,7 @@ async function validateDb(errorsOnly: boolean): Promise<void> {
       console.log(`    ${marker} "${value}": ${count}`);
     }
 
-    printReport(entries, errorsOnly, 'Cards 表 group_name 验证');
+    printReport(entries, errorsOnly, 'Cards 表 work_names 验证');
   } finally {
     await pool.end();
   }
@@ -289,11 +259,17 @@ function validateLlocg(errorsOnly: boolean): void {
 
     const entries: ValidationEntry[] = [];
     for (const [cardCode, card] of Object.entries(jpData)) {
-      const result = validateGroupName(card.series || null);
+      const workNames = card.series
+        ? card.series
+            .split('\n')
+            .map((item) => item.trim())
+            .filter(Boolean)
+        : null;
+      const result = validateWorkNames(workNames);
       entries.push({
         cardCode,
         name: card.name || cardCode,
-        groupName: card.series || null,
+        workNames,
         origin: 'llocg JP (cards.json)',
         valid: result.valid,
         errors: result.errors,
@@ -304,7 +280,7 @@ function validateLlocg(errorsOnly: boolean): void {
     // 统计 series 值分布
     const valueCounts = new Map<string, number>();
     for (const entry of entries) {
-      const key = entry.groupName ?? '(null)';
+      const key = entry.workNames ? JSON.stringify(entry.workNames) : '(null)';
       valueCounts.set(key, (valueCounts.get(key) ?? 0) + 1);
     }
 
@@ -342,7 +318,7 @@ function validateLlocg(errorsOnly: boolean): void {
 async function main() {
   const { source, errorsOnly } = parseArgs();
 
-  console.log('🔍 group_name 验证工具');
+  console.log('🔍 work_names 验证工具');
   console.log(`   数据源: ${source} | 模式: ${errorsOnly ? '仅错误' : '全部'}\n`);
 
   console.log('有效的作品名:');

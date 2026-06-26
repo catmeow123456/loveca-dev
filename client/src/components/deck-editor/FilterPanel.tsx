@@ -14,8 +14,10 @@ import {
   GROUP_OPTIONS,
   GROUP_UNIT_MAP,
   ALL_UNIT_OPTIONS,
-  COST_MIN, COST_MAX,
-  SCORE_MIN, SCORE_MAX,
+  COST_MIN,
+  COST_MAX,
+  SCORE_MIN,
+  SCORE_MAX,
   HEART_COLOR_OPTIONS,
   BLADE_HEART_OPTIONS,
   PRODUCT_OPTIONS,
@@ -24,7 +26,15 @@ import {
 } from './filter-constants';
 import type { UseCardFiltersReturn } from './use-card-filters';
 
-type FilterCategory = 'rarity' | 'group' | 'unit' | 'cost' | 'heart' | 'blade' | 'score' | 'product';
+type FilterCategory =
+  | 'rarity'
+  | 'group'
+  | 'unit'
+  | 'cost'
+  | 'heart'
+  | 'blade'
+  | 'score'
+  | 'product';
 
 interface FilterPanelProps {
   filters: UseCardFiltersReturn;
@@ -44,21 +54,46 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
 
   const categories: CategoryPill[] = [
     { key: 'rarity', label: '稀有度', isActive: filters.selectedRarity !== null },
-    { key: 'group', label: '作品名', isActive: filters.selectedGroup !== null },
+    { key: 'group', label: '真实团体', isActive: filters.selectedGroup !== null },
     { key: 'product', label: '收录商品', isActive: filters.selectedProduct !== null },
-    { key: 'unit', label: '小组', isActive: filters.selectedUnit !== null, showFor: [CardType.MEMBER] },
-    { key: 'cost', label: '费用', isActive: filters.costMin !== COST_MIN || filters.costMax !== COST_MAX, showFor: [CardType.MEMBER] },
-    { key: 'heart', label: filters.selectedCardType === CardType.LIVE ? '需求心' : '持有心', isActive: filters.selectedHeartColor !== null, showFor: [CardType.MEMBER, CardType.LIVE] },
-    { key: 'blade', label: '判心', isActive: filters.selectedBladeHeart !== null, showFor: [CardType.MEMBER, CardType.LIVE] },
-    { key: 'score', label: '分数', isActive: filters.scoreMin !== SCORE_MIN || filters.scoreMax !== SCORE_MAX, showFor: [CardType.LIVE] },
+    {
+      key: 'unit',
+      label: '小组',
+      isActive: filters.selectedUnit !== null,
+      showFor: [CardType.MEMBER],
+    },
+    {
+      key: 'cost',
+      label: '费用',
+      isActive: filters.costMin !== COST_MIN || filters.costMax !== COST_MAX,
+      showFor: [CardType.MEMBER],
+    },
+    {
+      key: 'heart',
+      label: filters.selectedCardType === CardType.LIVE ? '需求心' : '持有心',
+      isActive: filters.selectedHeartColor !== null,
+      showFor: [CardType.MEMBER, CardType.LIVE],
+    },
+    {
+      key: 'blade',
+      label: '判心',
+      isActive: filters.selectedBladeHeart !== null,
+      showFor: [CardType.MEMBER, CardType.LIVE],
+    },
+    {
+      key: 'score',
+      label: '分数',
+      isActive: filters.scoreMin !== SCORE_MIN || filters.scoreMax !== SCORE_MAX,
+      showFor: [CardType.LIVE],
+    },
   ];
 
   const visibleCategories = categories.filter(
-    c => !c.showFor || c.showFor.includes(filters.selectedCardType)
+    (c) => !c.showFor || c.showFor.includes(filters.selectedCardType)
   );
 
   const toggleCategory = (key: FilterCategory) => {
-    setExpandedCategory(prev => prev === key ? null : key);
+    setExpandedCategory((prev) => (prev === key ? null : key));
   };
 
   const renderCategoryContent = (key: FilterCategory) => {
@@ -66,7 +101,7 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
       case 'rarity':
         return (
           <FilterChipGroup
-            options={RARITY_OPTIONS.map(r => ({ value: r, label: r }))}
+            options={RARITY_OPTIONS.map((r) => ({ value: r, label: r }))}
             selected={filters.selectedRarity}
             onSelect={filters.setSelectedRarity}
           />
@@ -75,7 +110,7 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
       case 'group':
         return (
           <FilterChipGroup
-            options={GROUP_OPTIONS.map(g => ({ value: g, label: getGroupDisplayName(g) }))}
+            options={GROUP_OPTIONS.map((g) => ({ value: g, label: getGroupDisplayName(g) }))}
             selected={filters.selectedGroup}
             onSelect={filters.setSelectedGroup}
           />
@@ -86,11 +121,11 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
           ? GROUP_UNIT_MAP[filters.selectedGroup] || []
           : ALL_UNIT_OPTIONS;
         if (unitOptions.length === 0) {
-          return <span className="text-xs text-[var(--text-muted)]">该作品暂无小组</span>;
+          return <span className="text-xs text-[var(--text-muted)]">该团体暂无小组</span>;
         }
         return (
           <FilterChipGroup
-            options={unitOptions.map(u => ({ value: u, label: u }))}
+            options={unitOptions.map((u) => ({ value: u, label: u }))}
             selected={filters.selectedUnit}
             onSelect={filters.setSelectedUnit}
           />
@@ -112,7 +147,7 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
       case 'heart':
         return (
           <FilterChipGroup
-            options={HEART_COLOR_OPTIONS.map(opt => ({
+            options={HEART_COLOR_OPTIONS.map((opt) => ({
               value: opt.value,
               label: opt.label,
               colorClass: opt.colorClass,
@@ -125,7 +160,7 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
       case 'blade':
         return (
           <FilterChipGroup
-            options={BLADE_HEART_OPTIONS.map(opt => ({
+            options={BLADE_HEART_OPTIONS.map((opt) => ({
               value: opt.value,
               label: opt.label,
               colorClass: opt.colorClass,
@@ -151,7 +186,7 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
       case 'product':
         return (
           <FilterChipGroup
-            options={PRODUCT_OPTIONS.map(p => ({ value: p, label: getProductDisplayName(p) }))}
+            options={PRODUCT_OPTIONS.map((p) => ({ value: p, label: getProductDisplayName(p) }))}
             selected={filters.selectedProduct}
             onSelect={filters.setSelectedProduct}
           />
@@ -202,7 +237,9 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className={`rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] ${compact ? 'p-3' : 'p-2.5'}`}>
+            <div
+              className={`rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] ${compact ? 'p-3' : 'p-2.5'}`}
+            >
               {renderCategoryContent(expandedCategory)}
             </div>
           </motion.div>

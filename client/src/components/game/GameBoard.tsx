@@ -43,6 +43,7 @@ import { Card } from '@/components/card/Card';
 import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
 import { getDeckBackUrl } from '@/lib/imageService';
+import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { parseZoneId } from '@/lib/zoneUtils';
 import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
 import { ENTER_EFFECT_SURFACE_SUSPEND_MS } from '@/lib/battleAnimationSequencing';
@@ -93,6 +94,17 @@ const MEMBER_SLOT_LABELS: Record<SlotPosition, string> = {
   [SlotPosition.CENTER]: '中心',
   [SlotPosition.RIGHT]: '右侧',
 };
+
+function formatCardCompactLabel(cardData: AnyCardData): string {
+  const localizedName = getCardLocalizedInfo(cardData);
+  if (cardData.cardType === CardType.MEMBER && 'cost' in cardData) {
+    return `${cardData.cost} ${localizedName.title}`;
+  }
+  if (cardData.cardType === CardType.LIVE && 'score' in cardData) {
+    return `${cardData.score}分 ${localizedName.title}`;
+  }
+  return localizedName.title;
+}
 
 type MobileBattlePanel = 'opponent' | 'log';
 
@@ -380,10 +392,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     ? getVisibleCardPresentation(activeEffectSourceCardId)
     : null;
   const activeEffectSourceLabel = activeEffectSource
-    ? 'cost' in activeEffectSource.cardData
-      ? `${activeEffectSource.cardData.cost} ${activeEffectSource.cardData.name}`
-      : activeEffectSource.cardData.name
+    ? formatCardCompactLabel(activeEffectSource.cardData as AnyCardData)
     : '卡牌效果';
+  const activeEffectLocalizedInfo = activeEffectSource
+    ? getCardLocalizedInfo(activeEffectSource.cardData as AnyCardData)
+    : null;
   const activeEffectSelectableCardIds =
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const successLiveSelection = matchView?.liveResult?.successLiveSelection ?? null;
@@ -2057,7 +2070,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   双换手
                 </div>
                 <div className="mt-0.5 truncate text-sm font-semibold">
-                  {selectedCardPresentation?.cardData.name ?? '成员登场'}
+                  {selectedCardPresentation
+                    ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
+                    : '成员登场'}
                 </div>
               </div>
               {!activeDoubleRelaySelection ? (
@@ -2180,9 +2195,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 const presentation = getVisibleCardPresentation(cardId);
                 const cardData = presentation?.cardData;
                 const label = cardData
-                  ? cardData.cardType === CardType.LIVE && 'score' in cardData
-                    ? `${cardData.score}分 ${cardData.name}`
-                    : cardData.name
+                  ? formatCardCompactLabel(cardData as AnyCardData)
                   : '选择此卡';
                 return (
                   <button
@@ -2299,7 +2312,33 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 </div>
               </div>
               <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-3">
-                <p className="text-sm leading-relaxed">{activeEffect.effectText}</p>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                  {activeEffect.effectText}
+                </p>
+                {activeEffectLocalizedInfo?.hasEffect &&
+                  activeEffectLocalizedInfo.effectJp &&
+                  activeEffectLocalizedInfo.effectJp !== activeEffect.effectText && (
+                    <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
+                      <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
+                        日文
+                      </div>
+                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--text-secondary)]">
+                        {activeEffectLocalizedInfo.effectJp}
+                      </p>
+                    </div>
+                  )}
+                {activeEffectLocalizedInfo?.hasEffect &&
+                  activeEffectLocalizedInfo.effectCn &&
+                  activeEffectLocalizedInfo.effectCn !== activeEffect.effectText && (
+                    <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
+                      <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
+                        中文
+                      </div>
+                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--text-secondary)]">
+                        {activeEffectLocalizedInfo.effectCn}
+                      </p>
+                    </div>
+                  )}
               </div>
               {activeEffectStageFormation && (
                 <div className="mt-4">
@@ -2316,9 +2355,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                       const cardData = presentation?.cardData;
                       const isSelected = cardId !== null && cardId === selectedStageFormationCardId;
                       const label = cardData
-                        ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
-                          ? `${cardData.cost} ${cardData.name}`
-                          : cardData.name
+                        ? formatCardCompactLabel(cardData as AnyCardData)
                         : '空位';
                       return (
                         <button
@@ -2394,11 +2431,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                       const presentation = getVisibleCardPresentation(cardId);
                       const cardData = presentation?.cardData;
                       const label = cardData
-                        ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
-                          ? `${cardData.cost} ${cardData.name}`
-                          : cardData.cardType === CardType.LIVE && 'score' in cardData
-                            ? `${cardData.score}分 ${cardData.name}`
-                            : cardData.name
+                        ? formatCardCompactLabel(cardData as AnyCardData)
                         : '已公开卡牌';
 
                       return (
@@ -2455,11 +2488,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                       const isOrderedSelected = selectedOrderIndex >= 0;
                       const isSingleSelected = activeEffectSelectedCardId === cardId;
                       const label = cardData
-                        ? cardData.cardType === CardType.MEMBER && 'cost' in cardData
-                          ? `${cardData.cost} ${cardData.name}`
-                          : cardData.cardType === CardType.LIVE && 'score' in cardData
-                            ? `${cardData.score}分 ${cardData.name}`
-                            : cardData.name
+                        ? formatCardCompactLabel(cardData as AnyCardData)
                         : '选择此卡';
                       return (
                         <button
@@ -2749,9 +2778,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 </div>
                 <div className="mt-1 text-sm font-semibold">
                   {pendingCostSource
-                    ? 'cost' in pendingCostSource.cardData
-                      ? `${pendingCostSource.cardData.cost} ${pendingCostSource.cardData.name}`
-                      : pendingCostSource.cardData.name
+                    ? formatCardCompactLabel(pendingCostSource.cardData as AnyCardData)
                     : '成员登场'}
                 </div>
               </div>

@@ -170,7 +170,8 @@ export interface TableViewState {
 
 export interface ViewFrontCardInfo {
   readonly cardCode: string;
-  readonly name: string;
+  readonly nameJp?: string;
+  readonly nameCn?: string;
   readonly cardType: CardType;
   readonly cost?: number;
   readonly score?: number;
@@ -178,7 +179,8 @@ export interface ViewFrontCardInfo {
   readonly hearts?: readonly ViewHeartIcon[];
   readonly modifierDelta?: ViewMemberModifierDelta;
   readonly bladeHearts?: readonly ViewBladeHeartItem[];
-  readonly text?: string;
+  readonly cardTextJp?: string;
+  readonly cardTextCn?: string;
 }
 
 export interface ViewCardObject {

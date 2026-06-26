@@ -2,7 +2,7 @@
 
 > 版本: 1.4.0
 > 创建日期: 2026-03-03
-> 更新日期: 2026-06-12
+> 更新日期: 2026-06-26
 > 文档类型: 设计文档
 > 适用范围: 卡牌数据模型、管理端、前端服务、同步脚本与图片能力
 > 当前状态: 主体已实现；跨模块已知限制见 [当前实现限制](../current-limitations.md)
@@ -72,7 +72,9 @@ flowchart TB
 | LIVE | Live 成功判定与分数展示 | score、requirements、bladeHearts、groupName、unitName |
 | ENERGY | 能量牌组与能量区展示 | groupName、unitName、product |
 
-通用字段包括名称、效果文本、图片文件名、稀有度、收录商品和发布状态。`rare` 与 `product` 用于管理、展示和筛选，不参与对局规则计算。
+通用字段包括中日名称、中日效果文本、作品名、真实团体、图片文件名、稀有度、收录商品和发布状态。`rare` 与 `product` 用于管理、展示和筛选，不参与对局规则计算。
+
+领域对象仍保留 `name`、`cardText`、`groupName` 作为运行时展示和规则兼容字段。这些字段由读取转换层按 `name_cn/name_jp`、`card_text_cn/card_text_jp` 与 `group_names` 派生，数据库不再持久化重复的 `name`、`card_text`、`group_name` 单列。
 
 特殊点数不属于卡牌表字段，也不进入通用卡牌实体；点数规则由构筑规则模块维护，避免把构筑限制写入基础卡牌资料。
 
@@ -91,8 +93,8 @@ flowchart TB
 
 系统在数据库记录、前端输入和领域模型之间保持明确转换边界：
 
-- 数据库存储使用后端 schema 定义的持久化字段。
-- 前端服务负责把持久化记录转换为 `AnyCardData` 领域对象。
+- 数据库存储使用后端 schema 定义的持久化字段，卡名、效果文本、作品名与真实团体按多语言和数组字段分列保存。
+- 前端服务负责把持久化记录转换为 `AnyCardData` 领域对象，并派生旧运行时展示字段。
 - 管理端表单/YAML 编辑器负责把人工输入约束到可提交形态；服务端写入接口当前主要校验权限、基础字段和状态枚举。
 - `hearts`、`blade_hearts`、`requirements` 等 JSON 结构字段当前仍以管理端转换、领域 schema、同步脚本和后续读取转换作为主要约束，API 写入层尚未形成完整结构强校验。
 - 读取、导出和同步边界会对同类型、同基础编号卡牌缺失的 `blade_hearts` 做派生补全；该补全属于业务读取视图，不改变数据库持久字段和写入接口的显式值语义。
@@ -129,7 +131,10 @@ flowchart LR
 
 ## 8. 同步与外部数据
 
-`llocg_db` 同步脚本是当前维护中的批量导入通道。它负责读取外部 JSON、标准化卡号、合并中文补充数据、转换结构化字段，并在写入前对已有卡牌差异进行人工审核。
+当前维护两条批量同步通道：
+
+- `src/scripts/sync-cards-llocg.ts` 负责读取 `llocg_db` JP/CN JSON、标准化卡号、合并中文补充数据、转换结构化规则字段，并在写入前对已有卡牌差异进行人工审核。
+- `src/scripts/sync-cards-loveca-excel.ts` 负责读取 Loveca Excel 的中日名称、中日效果文本、真实团体、真实小队、商品和来源字段；不读取 Excel 官方 `作品名` / `参加ユニット`，也不覆盖费用、Heart、分数等对局规则字段。
 
 同步脚本会影响卡牌基础资料和发布状态，因此属于高风险维护入口。具体字段映射与运行边界见 [卡牌数据同步需求](../card-data-sync/requirements.md) 和 [卡牌数据同步管线](../card-data-sync/design.md)。
 
@@ -165,7 +170,8 @@ flowchart LR
 | `src/server/db/schema.ts` | 持久化 schema |
 | `src/server/routes/cards.ts` | 卡牌 API 路由 |
 | `src/server/services/card-registry-service.ts` | 后端从数据库加载并缓存 PUBLISHED 卡牌注册表 |
-| `src/scripts/sync-cards-llocg.ts` | 当前卡牌同步脚本 |
+| `src/scripts/sync-cards-llocg.ts` | `llocg_db` 卡牌同步脚本 |
+| `src/scripts/sync-cards-loveca-excel.ts` | Loveca Excel 中日文本与来源字段同步脚本 |
 
 ## 12. 相关文档
 

@@ -9,27 +9,31 @@ import { VALID_RARITIES } from '@game/shared/utils/card-code';
 /** 稀有度选项 - 与后端 VALID_RARITIES 同步 */
 export const RARITY_OPTIONS = VALID_RARITIES;
 
-/** 作品名选项（原组合名已迁移为作品名） */
+/** 真实团体选项（使用修正后的 Excel `真实团体`，不使用官方 `作品名`） */
 export const GROUP_OPTIONS = [
-  'ラブライブ！',
-  'ラブライブ！サンシャイン!!',
-  'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
-  'ラブライブ！スーパースター!!',
-  '蓮ノ空女学院スクールアイドルクラブ',
-  '其他'
+  'μ’s',
+  'Aqours',
+  '虹ヶ咲',
+  'Liella!',
+  '蓮ノ空',
+  'Saint Snow',
+  'Sunny Passion',
+  'A-RISE',
 ] as const;
 
-/** 作品名 -> 小组名映射 */
+/** 真实团体 -> 小队名映射 */
 export const GROUP_UNIT_MAP: Record<string, readonly string[]> = {
-  'ラブライブ！': ['「Printemps」', '「BiBi」', '「lilywhite」'],
-  'ラブライブ！サンシャイン!!': ['「CYaRon！」', '「AZALEA」', '「GuiltyKiss」'],
-  'ラブライブ！虹ヶ咲学園スクールアイドル同好会': ['「A・ZU・NA」', '「QU4RTZ」', '「DiverDiva」', '「R3BIRTH」'],
-  'ラブライブ！スーパースター!!': ['「CatChu!」', '「KALEIDOSCORE」', '「5yncri5e!」'],
-  '蓮ノ空女学院スクールアイドルクラブ': ['「スリーズブーケ」', '「DOLLCHESTRA」', '「みらくらぱーく！」', '「EdelNote」'],
-  '其他': ['「AiScReam」', '「SaintSnow」', '「SunnyPassion」', '「A-RISE」']
+  'μ’s': ['「Printemps」', '「BiBi」', '「lilywhite」'],
+  Aqours: ['「CYaRon！」', '「AZALEA」', '「GuiltyKiss」'],
+  虹ヶ咲: ['「A・ZU・NA」', '「QU4RTZ」', '「DiverDiva」', '「R3BIRTH」'],
+  'Liella!': ['「CatChu!」', '「KALEIDOSCORE」', '「5yncri5e!」'],
+  蓮ノ空: ['「スリーズブーケ」', '「DOLLCHESTRA」', '「みらくらぱーく！」', '「EdelNote」'],
+  'Saint Snow': ['「SaintSnow」'],
+  'Sunny Passion': ['「SunnyPassion」'],
+  'A-RISE': ['「A-RISE」'],
 };
 
-/** 所有小组名选项（用于无组合筛选时） */
+/** 所有小组名选项（用于无真实团体筛选时） */
 export const ALL_UNIT_OPTIONS = Object.values(GROUP_UNIT_MAP).flat();
 
 /** 收录商品选项 */
@@ -52,7 +56,7 @@ export const PRODUCT_OPTIONS = [
   'ブースターパック　vol.1',
   'プレミアムブースターラブライブ！虹ヶ咲学園スクールアイドル同好会',
   'スタートデッキラブライブ！スーパースター!!',
-  'PRカード'
+  'PRカード',
 ] as const;
 
 /** 商品显示名（缩短长名称） */
@@ -68,13 +72,8 @@ export const COST_MAX = 22;
 export const SCORE_MIN = 0;
 export const SCORE_MAX = 9;
 
-/** 作品显示名（缩短长名称） */
+/** 团体显示名 */
 export function getGroupDisplayName(group: string): string {
-  if (group === 'ラブライブ！') return "ラブライブ！(μ's)";
-  if (group === 'ラブライブ！サンシャイン!!') return 'サンシャイン!!';
-  if (group === 'ラブライブ！虹ヶ咲学園スクールアイドル同好会') return '虹ヶ咲';
-  if (group === 'ラブライブ！スーパースター!!') return 'スーパースター!!';
-  if (group === '蓮ノ空女学院スクールアイドルクラブ') return '蓮ノ空';
   return group;
 }
 
@@ -102,7 +101,7 @@ export const HEART_COLOR_OPTIONS = [
 
 /** 判心效果筛选选项（bladeHeart） */
 export const BLADE_HEART_OPTIONS = [
-  ...HEART_COLOR_OPTIONS.map(opt => ({
+  ...HEART_COLOR_OPTIONS.map((opt) => ({
     value: `HEART:${opt.value}` as const,
     label: opt.value === HeartColor.RAINBOW ? 'All' : opt.label,
     colorClass: opt.value === HeartColor.RAINBOW ? 'bg-pink-400' : opt.colorClass,

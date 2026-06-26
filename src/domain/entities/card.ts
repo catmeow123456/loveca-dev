@@ -87,10 +87,30 @@ export interface BaseCardData {
   readonly name: string;
 
   /**
+   * 日文卡牌名称（展示/审计用，不参与游戏逻辑）
+   */
+  readonly nameJp?: string;
+
+  /**
+   * 中文卡牌名称（展示/审计用，不参与游戏逻辑）
+   */
+  readonly nameCn?: string;
+
+  /**
    * 组合名称（偶像组合）
    * 参考规则 2.4
    */
   readonly groupName?: string;
+
+  /**
+   * 作品名数组，保留 Excel 原始结构化来源
+   */
+  readonly workNames?: readonly string[];
+
+  /**
+   * 真实团体数组，保留 Excel 原始结构化来源
+   */
+  readonly groupNames?: readonly string[];
 
   /**
    * 小组名称
@@ -99,10 +119,25 @@ export interface BaseCardData {
   readonly unitName?: string;
 
   /**
+   * 小队原始文本，展示/审计用
+   */
+  readonly unitNameRaw?: string;
+
+  /**
    * 卡牌文本（能力描述）
    * 参考规则 2.12
    */
   readonly cardText?: string;
+
+  /**
+   * 日文效果文本（展示/审计用，不参与规则判断）
+   */
+  readonly cardTextJp?: string;
+
+  /**
+   * 中文效果文本（展示/审计用，不参与规则判断）
+   */
+  readonly cardTextCn?: string;
 
   /**
    * 卡牌类型
@@ -116,6 +151,11 @@ export interface BaseCardData {
   readonly imageFilename?: string;
 
   /**
+   * 原始图片来源 URI，展示/审计用
+   */
+  readonly imageSourceUri?: string;
+
+  /**
    * 稀有度（管理/展示用，不参与游戏逻辑）
    */
   readonly rare?: string;
@@ -124,6 +164,26 @@ export interface BaseCardData {
    * 收录商品（管理/展示用，不参与游戏逻辑）
    */
   readonly product?: string;
+
+  /**
+   * 收录商品短代码，展示/审计用
+   */
+  readonly productCode?: string;
+
+  /**
+   * 外部来源唯一标识，展示/审计用
+   */
+  readonly sourceExternalId?: string;
+
+  /**
+   * 多源同步标记，展示/审计用
+   */
+  readonly sourceFlags?: {
+    readonly excelOnly?: boolean;
+    readonly oldSourceOnly?: boolean;
+    readonly fieldConflict?: boolean;
+    readonly derivedFromBase?: boolean;
+  };
 }
 
 /**

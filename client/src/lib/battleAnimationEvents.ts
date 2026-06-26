@@ -25,6 +25,15 @@ export interface BattleAnimationCardRender {
   readonly imageSrc?: string;
 }
 
+function getFrontInfoDisplayName(
+  frontInfo: ViewCardObject['frontInfo'] | null
+): string | undefined {
+  if (!frontInfo) {
+    return undefined;
+  }
+  return frontInfo.nameCn?.trim() || frontInfo.nameJp?.trim() || frontInfo.cardCode;
+}
+
 export type BattleAnimationPresentation = 'DEFAULT' | 'WAITING_ROOM_REVEAL';
 export type BattleAnimationSeat = 'FIRST' | 'SECOND';
 
@@ -480,7 +489,7 @@ function createCardRender({
     toSurface,
     surface: toSurface,
     cardCode: frontInfo?.cardCode,
-    name: frontInfo?.name,
+    name: getFrontInfoDisplayName(frontInfo),
     imageSrc,
   };
 }

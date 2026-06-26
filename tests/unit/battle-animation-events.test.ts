@@ -45,7 +45,8 @@ function cardObject(objectId: string, ownerSeat: Seat = 'FIRST'): ViewCardObject
     orientation: OrientationState.ACTIVE,
     frontInfo: {
       cardCode: `CARD-${objectId}`,
-      name: objectId,
+      nameCn: objectId,
+      nameJp: `${objectId}-jp`,
       cardType: CardType.MEMBER,
     },
   };

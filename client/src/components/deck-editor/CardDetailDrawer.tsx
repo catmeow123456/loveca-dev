@@ -10,6 +10,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
 import { Card } from '@/components/card/Card';
+import { CardLocalizedEffect, CardLocalizedName } from '@/components/card/CardLocalizedInfo';
 import { MemberCardDetails, LiveCardDetails } from '@/components/game/CardDetailOverlay';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
@@ -66,19 +67,18 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
             initial={isMobile ? { y: '100%' } : { x: '100%' }}
             animate={isMobile ? { y: 0 } : { x: 0 }}
             exit={isMobile ? { y: '100%' } : { x: '100%' }}
-            transition={isMobile
-              ? { type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }
-              : { type: 'tween', duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            transition={
+              isMobile
+                ? { type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }
+                : { type: 'tween', duration: 0.2, ease: [0.22, 1, 0.36, 1] }
+            }
             className="workspace-sidebar safe-bottom fixed inset-x-0 bottom-0 top-auto z-50 flex max-h-[88dvh] transform-gpu flex-col rounded-t-[28px] border-t border-[var(--border-default)] shadow-[var(--shadow-lg)] will-change-transform md:inset-y-0 md:left-auto md:right-0 md:top-0 md:max-h-none md:w-[min(92vw,760px)] md:rounded-none md:border-l md:border-t-0"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
             <div className="workspace-toolbar flex items-center justify-between px-4 py-3 sm:px-5">
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">卡牌详情</h3>
-              <button
-                onClick={onClose}
-                className="button-icon h-7 w-7"
-              >
+              <button onClick={onClose} className="button-icon h-7 w-7">
                 <X size={16} />
               </button>
             </div>
@@ -113,12 +113,8 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
                     </div>
 
                     <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
-                      <div className="mb-1 text-lg font-bold text-[var(--text-primary)]">
-                        {card.name}
-                      </div>
-                      <div className="mb-3 text-xs text-[var(--text-muted)]">
-                        {card.cardCode}
-                      </div>
+                      <CardLocalizedName card={card} align="left" className="mb-2 text-lg" />
+                      <div className="mb-3 text-xs text-[var(--text-muted)]">{card.cardCode}</div>
                       <div className="flex flex-wrap gap-2">
                         <span className="chip-badge px-2.5 py-1 text-xs">
                           <Tag size={12} />
@@ -144,7 +140,7 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
                       基本信息
                     </div>
                     <div>
-                      {card.groupName && <MetaRow label="作品" value={card.groupName} />}
+                      {card.groupName && <MetaRow label="真实团体" value={card.groupName} />}
                       {card.unitName && <MetaRow label="小组" value={card.unitName} />}
                       {card.product && <MetaRow label="商品" value={card.product} />}
                       {!card.groupName && !card.unitName && !card.product && (
@@ -160,15 +156,7 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
                       <Sparkles size={15} className="text-[var(--accent-primary)]" />
                       效果描述
                     </div>
-                    {card.cardText ? (
-                      <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-                        {card.cardText}
-                      </p>
-                    ) : (
-                      <p className="text-sm leading-relaxed text-[var(--text-muted)]">
-                        该卡牌没有效果描述。
-                      </p>
-                    )}
+                    <CardLocalizedEffect card={card} textClassName="text-sm" />
                   </div>
 
                   <div className="surface-panel h-full rounded-2xl p-4">
@@ -180,7 +168,9 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
                       {isMemberCardData(card) && <MemberCardDetails data={card} />}
                       {isLiveCardData(card) && <LiveCardDetails data={card} />}
                       {!isMemberCardData(card) && !isLiveCardData(card) && (
-                        <div className="text-sm text-[var(--text-muted)]">该卡牌没有额外判定属性</div>
+                        <div className="text-sm text-[var(--text-muted)]">
+                          该卡牌没有额外判定属性
+                        </div>
                       )}
                     </div>
                   </div>

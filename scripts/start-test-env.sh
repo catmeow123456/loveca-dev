@@ -503,11 +503,45 @@ seed_test_admin_decks() {
 }
 
 initialize_card_data() {
+  local card_count
+  card_count="$(
+    DATABASE_URL="$DATABASE_URL" node <<'NODE'
+const { Pool } = require('pg');
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+(async () => {
+  try {
+    const result = await pool.query("SELECT to_regclass('public.cards') AS table_name");
+    if (!result.rows[0]?.table_name) {
+      console.log('0');
+      return;
+    }
+    const count = await pool.query('SELECT count(*)::int AS count FROM cards');
+    console.log(String(count.rows[0]?.count ?? 0));
+  } finally {
+    await pool.end();
+  }
+})().catch((error) => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+});
+NODE
+  )"
+
+  if [[ "$RESET_DATA" == "0" && "$card_count" != "0" ]]; then
+    log "reusing existing card data (${card_count} cards)"
+    log "syncing Loveca Excel multilingual card data"
+    pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --yes
+    return
+  fi
+
   log "syncing card data from llocg_db"
   pnpm exec tsx src/scripts/sync-cards-llocg.ts
 
   log "normalizing card codes"
   pnpm exec tsx src/scripts/normalize-card-codes.ts
+
+  log "syncing Loveca Excel multilingual card data"
+  pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --yes
 
   log "normalizing group names"
   pnpm exec tsx src/scripts/normalize-group.ts

@@ -56,6 +56,9 @@ pnpm-debug.log*
 *.temp
 .cache/
 
+# Private card data source files
+docs/card-data-sync/sources/
+
 # Lock files (keep pnpm-lock.yaml)
 package-lock.json
 yarn.lock

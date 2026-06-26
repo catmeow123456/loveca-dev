@@ -13,19 +13,27 @@ import { BladeHeartEffect, CardType, HeartColor } from '../../shared/types/enums
 interface CardDbRecord {
   readonly card_code: string;
   readonly card_type: 'MEMBER' | 'LIVE' | 'ENERGY';
-  readonly name: string;
-  readonly group_name: string | null;
+  readonly name_jp: string | null;
+  readonly name_cn: string | null;
+  readonly work_names: string[] | null;
+  readonly group_names: string[] | null;
   readonly unit_name: string | null;
+  readonly unit_name_raw: string | null;
   readonly cost: number | null;
   readonly blade: number | null;
   readonly hearts: Array<{ color: string; count: number }> | null;
   readonly blade_hearts: Array<{ effect: string; heartColor?: string; value?: number }> | null;
   readonly score: number | null;
   readonly requirements: Array<{ color: string; count: number }> | null;
-  readonly card_text: string | null;
+  readonly card_text_jp: string | null;
+  readonly card_text_cn: string | null;
   readonly image_filename: string | null;
+  readonly image_source_uri: string | null;
   readonly rare: string | null;
   readonly product: string | null;
+  readonly product_code: string | null;
+  readonly source_external_id: string | null;
+  readonly source_flags: Record<string, unknown> | null;
 }
 
 const CARD_REGISTRY_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -52,15 +60,30 @@ export async function getPublishedCardRegistry(forceRefresh = false): Promise<Ca
 }
 
 function mapCardRecordToCardData(record: CardDbRecord): AnyCardData {
+  const name = record.name_cn?.trim() || record.name_jp?.trim() || record.card_code;
+  const cardText = record.card_text_cn?.trim() || record.card_text_jp?.trim() || undefined;
+  const groupName = record.group_names?.length ? record.group_names.join('\n') : undefined;
+
   const baseData = {
     cardCode: record.card_code,
-    name: record.name,
-    groupName: record.group_name ?? undefined,
+    name,
+    nameJp: record.name_jp ?? undefined,
+    nameCn: record.name_cn ?? undefined,
+    groupName,
+    workNames: record.work_names ?? undefined,
+    groupNames: record.group_names ?? undefined,
     unitName: record.unit_name ?? undefined,
-    cardText: record.card_text ?? undefined,
+    unitNameRaw: record.unit_name_raw ?? undefined,
+    cardText,
+    cardTextJp: record.card_text_jp ?? undefined,
+    cardTextCn: record.card_text_cn ?? undefined,
     imageFilename: record.image_filename ?? undefined,
+    imageSourceUri: record.image_source_uri ?? undefined,
     rare: record.rare ?? undefined,
     product: record.product ?? undefined,
+    productCode: record.product_code ?? undefined,
+    sourceExternalId: record.source_external_id ?? undefined,
+    sourceFlags: record.source_flags ?? undefined,
   };
 
   const convertBladeHearts = (
