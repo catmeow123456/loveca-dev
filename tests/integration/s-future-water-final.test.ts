@@ -790,6 +790,94 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(session.state?.players[0].successZone.cardIds).toEqual([successLive.instanceId]);
   });
 
+  it('PL!S-bp6-002 AUTO resumes settlement cleanup after resolving the cleanup trigger', () => {
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp6-002-P', { cost: 17 }),
+      PLAYER1,
+      'riko-settlement-resume'
+    );
+    const successLive = createCardInstance(
+      createLiveCard('PL!S-settlement-resume-success'),
+      PLAYER1,
+      'settlement-resume-success'
+    );
+    const remainingLive = createCardInstance(
+      createLiveCard('PL!S-settlement-resume-remaining'),
+      PLAYER1,
+      'settlement-resume-remaining'
+    );
+    const deckCard = createCardInstance(
+      createMemberCard('PL!S-settlement-resume-deck'),
+      PLAYER1,
+      'settlement-resume-deck'
+    );
+    let game = registerCards(createGameState('bp6-002-settlement-resume', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      source,
+      successLive,
+      remainingLive,
+      deckCard,
+    ]);
+    game = placeCenterMember(game, source.instanceId);
+    game = placeLiveZone(game, [successLive.instanceId, remainingLive.instanceId]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: [deckCard.instanceId] },
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_SETTLEMENT,
+      liveResolution: {
+        ...game.liveResolution,
+        liveWinnerIds: [PLAYER1],
+        liveResults: new Map([
+          [successLive.instanceId, true],
+          [remainingLive.instanceId, true],
+        ]),
+        scoreConfirmedBy: [PLAYER1, PLAYER2],
+      },
+    };
+    const session = createSessionFromGame(game, 'bp6-002-settlement-resume');
+
+    const selectSuccess = session.executeCommand(
+      createSelectSuccessLiveCommand(PLAYER1, successLive.instanceId)
+    );
+    expect(selectSuccess.success, selectSuccess.error).toBe(true);
+    const confirmSettlement = session.executeCommand(
+      createConfirmStepCommand(PLAYER1, SubPhase.RESULT_SETTLEMENT)
+    );
+    expect(confirmSettlement.success, confirmSettlement.error).toBe(true);
+    expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SETTLEMENT);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID
+    );
+
+    const finishEffect = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        'top'
+      )
+    );
+    expect(finishEffect.success, finishEffect.error).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SETTLEMENT);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds[0]).toBe(remainingLive.instanceId);
+
+    const confirmAfterEffect = session.executeCommand(
+      createConfirmStepCommand(PLAYER1, SubPhase.RESULT_SETTLEMENT)
+    );
+    expect(confirmAfterEffect.success, confirmAfterEffect.error).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].liveZone.cardIds).toEqual([]);
+    expect(session.state?.players[0].successZone.cardIds).toEqual([successLive.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(remainingLive.instanceId);
+  });
+
   it('PL!S-bp6-002 AUTO opens from the manual LIVE_ZONE to waiting room path', () => {
     const source = createCardInstance(
       createMemberCard('PL!S-bp6-002-P', { cost: 17 }),

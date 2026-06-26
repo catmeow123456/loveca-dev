@@ -920,6 +920,9 @@ function enqueueEnterWaitingRoomCardEffects(
 ): GameState {
   let state = game;
   for (const event of events) {
+    if (!isSupportedEnterWaitingRoomTriggerZone(event)) {
+      continue;
+    }
     const player = getPlayerById(state, event.controllerId);
     if (!player) {
       continue;
@@ -938,6 +941,13 @@ function enqueueEnterWaitingRoomCardEffects(
     }
   }
   return state;
+}
+
+function isSupportedEnterWaitingRoomTriggerZone(event: EnterWaitingRoomEvent): boolean {
+  return (
+    event.toZone === ZoneType.WAITING_ROOM &&
+    (event.fromZone === ZoneType.HAND || event.fromZone === ZoneType.LIVE_ZONE)
+  );
 }
 
 function enqueueSingleEnterWaitingRoomCardEffect(
