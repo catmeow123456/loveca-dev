@@ -37,6 +37,7 @@ import {
   createSelectSuccessLiveCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { resolveLiveZoneToWaitingRoomTriggers } from '../../src/application/effects/live-zone-waiting-room-triggers';
 import {
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
   confirmActiveEffectStep,
@@ -2473,6 +2474,7 @@ describe('Live 判定与结算', () => {
     const ctx = {
       getPlayerById: (state: typeof game, playerId: string) =>
         state.players.find((player) => player.id === playerId),
+      resolveLiveZoneToWaitingRoomTriggers,
     };
 
     const result = handleConfirmSubPhase(
@@ -2911,6 +2913,7 @@ describe('Live 判定与结算', () => {
       {
         getPlayerById: (state: typeof game, playerId: string) =>
           state.players.find((player) => player.id === playerId),
+        resolveLiveZoneToWaitingRoomTriggers,
       }
     );
     expect(confirmResult.success).toBe(true);
