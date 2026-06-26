@@ -155,6 +155,18 @@ const BLOCKED_DURING_INSPECTION_COMMAND_TYPES: readonly GameCommandType[] = [
   GameCommandType.SELECT_SUCCESS_LIVE,
 ];
 
+const ACTIVE_EFFECT_INSPECTION_COMMAND_TYPES = new Set<GameCommandType>([
+  GameCommandType.OPEN_INSPECTION,
+  GameCommandType.REVEAL_INSPECTED_CARD,
+  GameCommandType.MOVE_INSPECTED_CARD_TO_TOP,
+  GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM,
+  GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE,
+  GameCommandType.MOVE_CARD_TO_INSPECTION,
+  GameCommandType.REORDER_INSPECTED_CARD,
+  GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT,
+  GameCommandType.FINISH_INSPECTION,
+]);
+
 function buildWindowDescriptor(game: GameState): WindowDescriptor | null {
   const waitingSeat =
     game.waitingPlayerId !== null ? getSeatForPlayer(game, game.waitingPlayerId) : null;
@@ -1064,10 +1076,19 @@ function buildPermissionViewState(
     };
   }
 
+  const activeEffectControlsInspection = isActiveEffectControlledInspection(game, viewerPlayerId);
+  const inspectionPhaseHints = activeEffectControlsInspection
+    ? phaseHints.filter(
+        (hint) => !ACTIVE_EFFECT_INSPECTION_COMMAND_TYPES.has(hint.command as GameCommandType)
+      )
+    : phaseHints;
+
   return {
     availableCommands: mergeCommandHints(
-      phaseHints,
-      buildInspectionCommandHints(game, viewerPlayerId, viewerSeat),
+      inspectionPhaseHints,
+      activeEffectControlsInspection
+        ? []
+        : buildInspectionCommandHints(game, viewerPlayerId, viewerSeat),
       buildActiveEffectCommandHints(game, viewerPlayerId),
       buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
     ),
@@ -1308,6 +1329,34 @@ function buildInspectionCommandHints(
   }
 
   return hints;
+}
+
+function isActiveEffectControlledInspection(game: GameState, viewerPlayerId: string): boolean {
+  const effect = game.activeEffect;
+  const inspectionContext = game.inspectionContext;
+  if (
+    !effect ||
+    !inspectionContext ||
+    inspectionContext.ownerPlayerId !== viewerPlayerId ||
+    effect.awaitingPlayerId !== viewerPlayerId
+  ) {
+    return false;
+  }
+
+  const effectInspectionCardIds = effect.inspectionCardIds ?? [];
+  const effectSelectableCardIds = effect.selectableCardIds ?? [];
+  if (effectInspectionCardIds.length === 0 && effectSelectableCardIds.length === 0) {
+    return false;
+  }
+
+  const ownedInspectionCardIds = getOwnedCardIds(
+    game.inspectionZone.cardIds,
+    game,
+    viewerPlayerId
+  );
+  return [...effectInspectionCardIds, ...effectSelectableCardIds].some((cardId) =>
+    ownedInspectionCardIds.includes(cardId)
+  );
 }
 
 function buildPhaseCommandHint(

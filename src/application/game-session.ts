@@ -1876,6 +1876,17 @@ export class GameSession {
 
   private validateInspectionCommandContext(state: GameState, command: GameCommand): string | null {
     const inspectionContext = state.inspectionContext;
+    const activeEffectControlsInspection = isActiveEffectControlledInspection(
+      state,
+      command.playerId
+    );
+
+    if (
+      activeEffectControlsInspection &&
+      isActiveEffectBlockedInspectionCommandType(command.type)
+    ) {
+      return '当前检视由卡牌效果处理，请通过效果窗口确认';
+    }
 
     if (!inspectionContext) {
       if (isInspectionCommandType(command.type)) {
@@ -4950,6 +4961,44 @@ function isInspectionCommandType(commandType: GameCommandType): boolean {
     commandType === GameCommandType.REORDER_INSPECTED_CARD ||
     commandType === GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT ||
     commandType === GameCommandType.FINISH_INSPECTION
+  );
+}
+
+function isActiveEffectBlockedInspectionCommandType(commandType: GameCommandType): boolean {
+  return (
+    commandType === GameCommandType.OPEN_INSPECTION ||
+    commandType === GameCommandType.REVEAL_INSPECTED_CARD ||
+    commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_TOP ||
+    commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM ||
+    commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE ||
+    commandType === GameCommandType.MOVE_CARD_TO_INSPECTION ||
+    commandType === GameCommandType.REORDER_INSPECTED_CARD ||
+    commandType === GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT ||
+    commandType === GameCommandType.FINISH_INSPECTION
+  );
+}
+
+function isActiveEffectControlledInspection(state: GameState, playerId: string): boolean {
+  const effect = state.activeEffect;
+  const inspectionContext = state.inspectionContext;
+  if (
+    !effect ||
+    !inspectionContext ||
+    inspectionContext.ownerPlayerId !== playerId ||
+    effect.awaitingPlayerId !== playerId
+  ) {
+    return false;
+  }
+
+  const effectInspectionCardIds = effect.inspectionCardIds ?? [];
+  const effectSelectableCardIds = effect.selectableCardIds ?? [];
+  if (effectInspectionCardIds.length === 0 && effectSelectableCardIds.length === 0) {
+    return false;
+  }
+
+  const ownedInspectionCardIds = getOwnedInspectionCardIds(state, playerId);
+  return [...effectInspectionCardIds, ...effectSelectableCardIds].some((cardId) =>
+    ownedInspectionCardIds.includes(cardId)
   );
 }
 

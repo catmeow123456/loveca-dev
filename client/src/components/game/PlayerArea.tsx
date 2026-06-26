@@ -451,20 +451,26 @@ export const PlayerArea = memo(function PlayerArea({
     matchView?.window?.windowType === 'INSPECTION'
       ? ((matchView.window.context?.sourceZone as ZoneType | undefined) ?? null)
       : null;
+  const isActiveEffectInspectionWindow =
+    matchView?.window?.windowType === 'INSPECTION' &&
+    typeof matchView.window.context?.activeEffectId === 'string';
   const canClickMainDeck =
     !isReadOnly &&
     !isOpponent &&
     canOpenInspection &&
+    !isActiveEffectInspectionWindow &&
     (!hasOwnedInspectionContext || inspectionSourceZone === ZoneType.MAIN_DECK);
 
   const canDropToLiveZone = allowGeneralOwnZoneInteraction || allowLiveZoneDeskInteraction;
-  const canReceiveInspectionDrop = !isReadOnly && !isOpponent && hasOwnedInspectionContext;
+  const canReceiveInspectionDrop =
+    !isReadOnly && !isOpponent && hasOwnedInspectionContext && !isActiveEffectInspectionWindow;
   // 检查 Live 区是否已达上限（最多3张）
   const liveZoneIsFull = (liveZoneView?.count ?? liveCardIds.length) >= 3;
 
   const canDropMember = allowGeneralOwnZoneInteraction;
   const canDragInspectionCard =
     !isReadOnly &&
+    !isActiveEffectInspectionWindow &&
     (canMoveInspectedToZone ||
       canMoveInspectedToTop ||
       canMoveInspectedToBottom ||
@@ -530,13 +536,13 @@ export const PlayerArea = memo(function PlayerArea({
   if (canMovePublicCardToEnergyDeck) {
     availableBattleActionCommandTypes.push(GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK);
   }
-  if (canMoveInspectedCardToZone) {
+  if (canMoveInspectedCardToZone && !isActiveEffectInspectionWindow) {
     availableBattleActionCommandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE);
   }
-  if (canMoveInspectedCardToTop) {
+  if (canMoveInspectedCardToTop && !isActiveEffectInspectionWindow) {
     availableBattleActionCommandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_TOP);
   }
-  if (canMoveInspectedCardToBottom) {
+  if (canMoveInspectedCardToBottom && !isActiveEffectInspectionWindow) {
     availableBattleActionCommandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM);
   }
   if (canConfirmEffectCommand) {
@@ -1889,7 +1895,8 @@ export const PlayerArea = memo(function PlayerArea({
 
   const renderInspectionZone = () => {
     const isViewerInspectionZone = viewerSeat === playerSeat && hasOwnedInspectionContext;
-    const canUseInspectionActions = !isReadOnly && isViewerInspectionZone;
+    const canUseInspectionActions =
+      !isReadOnly && isViewerInspectionZone && !isActiveEffectInspectionWindow;
     const hasVisibleInspectionCards = inspectionCardIds.length > 0;
     const canBatchArrangeInspection =
       canFinishInspectionWithArrangement && inspectionCardIds.length > 0;
@@ -1900,8 +1907,9 @@ export const PlayerArea = memo(function PlayerArea({
       (!hasVisibleInspectionCards || canBatchArrangeInspection);
     const shouldRenderInspectionZone =
       !!inspectionZoneView && (inspectionZoneView.count > 0 || isViewerInspectionZone);
-    const suppressInspectionSurface =
+    const suppressInspectionForEffectEntry =
       suppressActiveEffectVisuals && matchView?.window?.windowType === 'INSPECTION';
+    const suppressInspectionSurface = suppressInspectionForEffectEntry;
 
     const waitForInspectionZoneChange = (previousCardIds: readonly string[]) =>
       new Promise<void>((resolve) => {
@@ -2017,7 +2025,7 @@ export const PlayerArea = memo(function PlayerArea({
 
     return (
       <>
-        {suppressInspectionSurface ? (
+        {suppressInspectionForEffectEntry ? (
           <div
             className={cn(
               'pointer-events-none absolute left-1/2 z-[60] -translate-x-1/2 rounded-full border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl',

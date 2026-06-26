@@ -399,6 +399,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     : null;
   const activeEffectSelectableCardIds =
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
+  const isActiveEffectInspectionWindow =
+    matchView?.window?.windowType === 'INSPECTION' &&
+    typeof matchView.window.context?.activeEffectId === 'string';
+  const activeEffectInspectionCount = activeEffect?.inspectionObjectIds?.length ?? 0;
   const successLiveSelection = matchView?.liveResult?.successLiveSelection ?? null;
   const successLiveSelectionCardIds =
     successLiveSelection?.candidateObjectIds.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
@@ -923,13 +927,13 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     if (canMovePublicCardToEnergyDeckCommand) {
       commandTypes.push(GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK);
     }
-    if (canMoveInspectedCardToZoneCommand) {
+    if (canMoveInspectedCardToZoneCommand && !isActiveEffectInspectionWindow) {
       commandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE);
     }
-    if (canMoveInspectedCardToTopCommand) {
+    if (canMoveInspectedCardToTopCommand && !isActiveEffectInspectionWindow) {
       commandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_TOP);
     }
-    if (canMoveInspectedCardToBottomCommand) {
+    if (canMoveInspectedCardToBottomCommand && !isActiveEffectInspectionWindow) {
       commandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM);
     }
     if (canMoveResolutionCardToZoneCommand) {
@@ -950,6 +954,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     canMoveResolutionCardToZoneCommand,
     canPlayMemberToSlotCommand,
     canSetLiveCardCommand,
+    isActiveEffectInspectionWindow,
   ]);
 
   const buildDragBattleActionIntents = useCallback(
@@ -1123,11 +1128,12 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       }
       if (
         matchView?.window?.windowType === 'INSPECTION' &&
+        !isActiveEffectInspectionWindow &&
         (fromZone === ZoneType.HAND || fromZone === ZoneType.WAITING_ROOM)
       ) {
         suggested.push('inspection-zone');
       }
-      if (fromZone === ZoneType.INSPECTION_ZONE) {
+      if (fromZone === ZoneType.INSPECTION_ZONE && !isActiveEffectInspectionWindow) {
         suggested.push(...INSPECTION_TARGET_IDS);
       }
 
@@ -1137,6 +1143,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     [
       currentPhase,
       currentSubPhase,
+      isActiveEffectInspectionWindow,
       isReadOnly,
       matchView?.window?.windowType,
       setDragHints,
@@ -1292,6 +1299,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
       if (
         parsedTarget?.zoneType === ZoneType.INSPECTION_ZONE &&
+        !isActiveEffectInspectionWindow &&
         (fromZone === ZoneType.HAND || fromZone === ZoneType.WAITING_ROOM)
       ) {
         const result = moveCardToInspection(cardId, fromZone);
@@ -1302,6 +1310,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       }
 
       if (fromZone === ZoneType.INSPECTION_ZONE) {
+        if (isActiveEffectInspectionWindow) {
+          pushDropError('当前检视由卡牌效果处理，请通过效果窗口确认');
+          return;
+        }
         if (parsedTarget?.zoneType === ZoneType.INSPECTION_ZONE) {
           const inspectionCardIds = viewerSeat
             ? getZoneCardIds(`${viewerSeat}_INSPECTION_ZONE`)
@@ -1650,6 +1662,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       getKnownCardType,
       resolveCardDropTarget,
       getCardSlotPosition,
+      isActiveEffectInspectionWindow,
       isReadOnly,
     ]
   );
@@ -2266,7 +2279,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   {activeEffectSourceLabel}
                 </div>
                 <div className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
-                  {activeEffect.stepText}
+                  {activeEffectInspectionCount > 0
+                    ? `检视区 ${activeEffectInspectionCount} 张 / ${activeEffect.stepText}`
+                    : activeEffect.stepText}
                 </div>
               </div>
               <button
@@ -2275,7 +2290,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
               >
                 <Maximize2 className="h-4 w-4" aria-hidden="true" />
-                展开
+                展开效果
               </button>
             </div>
           </div>
