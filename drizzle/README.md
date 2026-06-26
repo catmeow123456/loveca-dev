@@ -6,6 +6,8 @@
 
 本目录保存 Drizzle Kit 生成的迁移 SQL 与 schema 快照。`src/server/db/schema.ts` 是结构变更的代码侧来源；`drizzle/meta/` 记录 Drizzle 用于计算后续 diff 的快照，不应手工改动。
 
+`migration-notes/` 保存人工发布迁移说明，用来记录特定版本升级时的生产执行顺序、数据同步注意事项、验证 SQL 和回滚边界。这里的文档不是 Drizzle 可执行迁移，不会被 `pnpm db:migrate` 自动读取。
+
 ## 当前基线
 
 - `0000_baseline_current_schema.sql` 是 no-op 基线，只用于让 Drizzle 在现有数据库上登记“当前 schema 已存在”。

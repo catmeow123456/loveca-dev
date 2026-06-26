@@ -1,6 +1,6 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-06-24
+更新时间：2026-06-27
 
 ## 接续方式
 
@@ -20,6 +20,31 @@
 当前分支：
 
 - `effect_new_card`
+
+## 本次 2026-06-27 3.4.3 发布准备
+
+- 已将产品版本同步到 `3.4.3`：`VERSION`、根 `package.json`、`client/package.json` 三处一致；`client/dist/version.json` 构建产物显示 `version: 3.4.3`。
+- 发布差异基准为 `v3.4.2..HEAD`，主要包含星团 / Aqours / 莲之空新卡效批次、卡牌多语言字段与 Loveca Excel 同步、卡效站位变换 UI、LIVE 结算/触发边界修复；`assets/card` 与 `assets/images` 无 diff。
+- 新增 `drizzle/migration-notes/3.4.2-to-3.4.3.md` 记录本次生产迁移注意事项：先备份并执行 `pnpm db:migrate`，再按 `sync-cards-llocg.ts` -> `sync-cards-loveca-excel.ts` 顺序同步卡牌数据，并列出验证 SQL、人工 smoke 和回滚边界；`drizzle/README.md` 已补充迁移说明目录职责。
+- 更新 `.agents/skills/prepare-for-release/SKILL.md`：后续发版流程必须检查/编写 migration note，并且无论是否发现 bug 都要产出 release description / release message。
+- 验证：`pnpm install --frozen-lockfile` passed；`pnpm --dir client install --frozen-lockfile` passed；`pnpm version:check` passed；`pnpm typecheck:all` passed；`pnpm test:run` passed（189 files / 1562 tests，3 performance tests skipped）；`pnpm build:server` passed；`pnpm --dir client build` passed（保留 chunk size / browserslist 提示）；`git diff --check` passed。
+- 风险/待办：本次包含 `drizzle/0005_add_card_multilingual_excel_fields.sql` 数据库迁移，发布时须按 `docs/production-release-runbook.md` 先备份并执行 `pnpm db:migrate`，前后端需同版部署；本次未构建 Android TWA 包、未打/推 `v3.4.3` tag。
+
+## 本次 2026-06-27 卡牌同步文档职责边界整理
+
+- 新增 `docs/card-data-sync/README.md` 作为专题索引，明确 `design.md` 是两个同步脚本职责边界、字段覆盖范围和运行顺序的主文档。
+- 更新 `docs/card-data-sync/design.md`：补充 `sync-cards-llocg.ts` 与 `sync-cards-loveca-excel.ts` 的上游来源、核心职责、不负责字段，以及推荐先 llocg 后 Excel 的运行顺序。
+- 同步收口 `docs/card-data-sync/requirements.md`、`docs/card-data-sync/llocg-db-requirements.md` 与 `docs/README.md` 的入口和旧字段口径；`sync-cards-loveca-excel.ts` 明确只补强已有卡牌展示/来源字段，不插入 Excel-only 卡，也不覆盖规则字段。
+- 验证：`git diff --check docs/card-data-sync docs/README.md PROJECT_PROGRESS_TODO.md` passed。
+
+## 本次 2026-06-26 Loveca Excel 多语言卡牌字段同步
+
+- `cards` 表改为无重复多语言结构：旧 `name` -> `name_cn`、旧 `card_text` -> `card_text_cn`，新增 `name_jp` / `card_text_jp`、`work_names`、`group_names`、`unit_name_raw`、`product_code`、`source_external_id`、`image_source_uri`、`source_flags`；迁移会把旧 `group_name` 拆入 `work_names` 后删除旧列，并释放旧 `name` 带来的 `name_cn NOT NULL`，改由 `name_jp` / `name_cn` 至少一个非空的 check 约束表达。
+- 新增迁移 `drizzle/0005_add_card_multilingual_excel_fields.sql` 与 Drizzle snapshot；同步更新 `src/server/db/schema.ts`、卡牌 API create/update/import/export、服务端 card registry、前端 `cardService`、管理页表单/YAML 模式与 E2E mock。运行时仍派生 `card.data.name` / `card.data.cardText` / `card.data.groupName` 供 UI 和规则读取，但 DB 不再存重复列。
+- 新增 `src/scripts/sync-cards-loveca-excel.ts`：解析 `docs/card-data-sync/sources/loveca_20260626015115.xlsx`，用 Loveca Excel 优先更新 `name_jp` / `name_cn`、`card_text_jp` / `card_text_cn`、`group_names`、`unit_name_raw` / `unit_name`、收录商品和来源字段；不读取 Excel 官方 `作品名` / `参加ユニット`，归属信息只使用修正后的 `真实团体` / `真实小队`；不覆盖费用、Heart、分数等规则字段；重复标准化卡号跳过并 warning；无 `DATABASE_URL` 时支持 parse-only dry-run。
+- 同步调整 `src/scripts/sync-cards-llocg.ts`、`validate-group.ts`、`normalize-group.ts` 以读写新字段结构；文档同步：`docs/card-data-sync/design.md`、`docs/card-data-sync/requirements.md`、`docs/card-data-sync/llocg-vs-xlsx-format-audit-20260626.md` 与卡牌管理字段文档已更新为无重复 schema 口径。
+- 前端卡牌信息展示补齐双语：对战卡牌详情浮窗、卡组编辑详情抽屉、卡牌图片 fallback/hover、卡组浏览/侧栏、管理页列表、判定面板与对局记录可见卡摘要均显示或使用中文/日文名称；详情效果区显示中文与日文效果。`ViewFrontCardInfo` 投影直接携带 `nameJp/nameCn/cardTextJp/cardTextCn`，不再暴露单一 `name/text` 字段；前端展示/搜索链路直接读取新字段，不使用旧派生字段做兼容；运行时 `groupName` 与团体筛选改由 `group_names` 派生。
+- 验证：`pnpm exec tsc --noEmit` passed；`pnpm exec tsc -p tsconfig.server.json --noEmit` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec vitest run tests/unit/battle-animation-events.test.ts tests/integration/online-command-pipeline.test.ts` passed（79 tests）；`pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --dry-run` passed（parse-only，2274 行，3 组重复卡号，2268 个可用卡号）；`pnpm exec tsx src/scripts/sync-cards-llocg.ts --dry-run` passed（2285 张转换记录）；`git diff --check` passed。
 
 ## 本次 2026-06-24 PR review feedback 处理
 
