@@ -88,6 +88,8 @@ const INSPECTION_TARGET_IDS = [
 ] as const;
 const INSPECTION_TARGET_ID_SET = new Set<string>(INSPECTION_TARGET_IDS);
 const RESOLUTION_TARGET_PREFIX = 'resolution-target-';
+// Mirrors src/application/card-effect-runner.ts order-selection ability id for UI-only labeling.
+const ABILITY_ORDER_SELECTION_ID = 'system:select-pending-card-effect';
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 const MEMBER_SLOT_LABELS: Record<SlotPosition, string> = {
   [SlotPosition.LEFT]: '左侧',
@@ -367,6 +369,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
   const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
+  const [activeEffectOriginalTextExpanded, setActiveEffectOriginalTextExpanded] = useState(false);
   const [stageFormationDraftSlots, setStageFormationDraftSlots] = useState<
     StageFormationDraftSlot[]
   >([]);
@@ -397,8 +400,34 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const activeEffectLocalizedInfo = activeEffectSource
     ? getCardLocalizedInfo(activeEffectSource.cardData as AnyCardData)
     : null;
+  const activeEffectOriginalTextCn =
+    activeEffectLocalizedInfo?.hasEffect &&
+    activeEffectLocalizedInfo.effectCn &&
+    activeEffectLocalizedInfo.effectCn !== activeEffect?.effectText
+      ? activeEffectLocalizedInfo.effectCn
+      : null;
+  const activeEffectOriginalTextJp =
+    activeEffectLocalizedInfo?.hasEffect &&
+    activeEffectLocalizedInfo.effectJp &&
+    activeEffectLocalizedInfo.effectJp !== activeEffect?.effectText
+      ? activeEffectLocalizedInfo.effectJp
+      : null;
+  const hasActiveEffectOriginalText = !!activeEffectOriginalTextCn || !!activeEffectOriginalTextJp;
   const activeEffectSelectableCardIds =
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
+  const isActiveEffectOrderSelectionWindow = activeEffect?.abilityId === ABILITY_ORDER_SELECTION_ID;
+  const activeEffectTitle = isActiveEffectOrderSelectionWindow
+    ? '选择效果发动顺序'
+    : activeEffectSourceLabel;
+  const activeEffectDescription = isActiveEffectOrderSelectionWindow
+    ? '选择下一个要处理的效果，或按当前队列顺序依次处理。'
+    : (activeEffect?.effectText ?? '');
+  const activeEffectBadgeLabel = isActiveEffectOrderSelectionWindow
+    ? `队列 ${activeEffectSelectableCardIds.length} 个`
+    : `${activeEffect?.inspectionObjectIds?.length ?? 0} 张`;
+  const activeEffectSelectionLabel = isActiveEffectOrderSelectionWindow
+    ? '请选择下一个要处理的效果'
+    : (activeEffect?.selectionLabel ?? '请选择要处理的卡牌');
   const isActiveEffectInspectionWindow =
     matchView?.window?.windowType === 'INSPECTION' &&
     typeof matchView.window.context?.activeEffectId === 'string';
@@ -466,6 +495,15 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     activeEffectSelectableCardIds.includes(activeEffectSingleSelection)
       ? activeEffectSingleSelection
       : null;
+  const activeEffectSelectableBadgeLabel = isActiveEffectOrderSelectionWindow
+    ? `队列 ${activeEffectSelectableCardIds.length} 个`
+    : `${
+        activeEffectUsesOrderedMultiSelect
+          ? `已选 ${activeEffectOrderedSelection.length} / ${activeEffectMaxSelectableCards}`
+          : activeEffectUsesCardOptionSelection
+            ? `已选 ${activeEffectSelectedCardId ? 1 : 0} / 1`
+            : `候选 ${activeEffectSelectableCardIds.length} 张`
+      }${activeEffectMinSelectableCards > 0 ? `｜至少 ${activeEffectMinSelectableCards}` : ''}`;
   const pendingCostSourceCardId = pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const pendingCostSource = pendingCostSourceCardId
     ? getVisibleCardPresentation(pendingCostSourceCardId)
@@ -606,6 +644,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   useEffect(() => {
     setActiveEffectNumberInput('');
     setActiveEffectCollapsed(false);
+    setActiveEffectOriginalTextExpanded(false);
   }, [activeEffect?.id, activeEffect?.stepId]);
 
   useEffect(() => {
@@ -2275,13 +2314,13 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
                   处理中
                 </div>
-                <div className="mt-0.5 truncate text-sm font-semibold">
-                  {activeEffectSourceLabel}
-                </div>
+                <div className="mt-0.5 truncate text-sm font-semibold">{activeEffectTitle}</div>
                 <div className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
-                  {activeEffectInspectionCount > 0
-                    ? `检视区 ${activeEffectInspectionCount} 张 / ${activeEffect.stepText}`
-                    : activeEffect.stepText}
+                  {isActiveEffectOrderSelectionWindow
+                    ? activeEffectDescription
+                    : activeEffectInspectionCount > 0
+                      ? `检视区 ${activeEffectInspectionCount} 张 / ${activeEffect.stepText}`
+                      : activeEffect.stepText}
                 </div>
               </div>
               <button
@@ -2297,24 +2336,24 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         )}
 
         {!isActiveEffectUiSuspended && activeEffect && !activeEffectCollapsed && (
-          <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[95] w-[min(94vw,900px)] -translate-x-1/2 -translate-y-1/2">
+          <div className="pointer-events-auto fixed inset-x-2 bottom-[max(0.75rem,env(safe-area-inset-bottom))] top-[max(0.75rem,env(safe-area-inset-top))] z-[95] flex items-end justify-center sm:inset-x-4 md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(94vw,900px)] md:-translate-x-1/2 md:-translate-y-1/2">
             <motion.div
-              className="rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+              className="flex max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4"
               initial={{ opacity: 0, y: 12, scale: 0.985 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 6, scale: 0.99 }}
               transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
             >
-              <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] p-3 md:mb-3 md:border-b-0 md:p-0">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
                     处理中的效果
                   </div>
-                  <div className="mt-1 text-sm font-semibold">{activeEffectSourceLabel}</div>
+                  <div className="mt-1 text-sm font-semibold">{activeEffectTitle}</div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <div className="rounded border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
-                    {activeEffect.inspectionObjectIds?.length ?? 0} 张
+                    {activeEffectBadgeLabel}
                   </div>
                   <button
                     type="button"
@@ -2326,264 +2365,276 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   </button>
                 </div>
               </div>
-              <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-3">
-                <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {activeEffect.effectText}
-                </p>
-                {activeEffectLocalizedInfo?.hasEffect &&
-                  activeEffectLocalizedInfo.effectJp &&
-                  activeEffectLocalizedInfo.effectJp !== activeEffect.effectText && (
-                    <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
-                      <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
-                        日文
-                      </div>
-                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--text-secondary)]">
-                        {activeEffectLocalizedInfo.effectJp}
-                      </p>
-                    </div>
-                  )}
-                {activeEffectLocalizedInfo?.hasEffect &&
-                  activeEffectLocalizedInfo.effectCn &&
-                  activeEffectLocalizedInfo.effectCn !== activeEffect.effectText && (
-                    <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
-                      <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
-                        中文
-                      </div>
-                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--text-secondary)]">
-                        {activeEffectLocalizedInfo.effectCn}
-                      </p>
-                    </div>
-                  )}
-              </div>
-              {activeEffectStageFormation && (
-                <div className="mt-4">
-                  <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
-                    站位变换
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3 sm:grid-cols-3">
-                    {MEMBER_SLOT_ORDER.map((slot) => {
-                      const entry = stageFormationDraftSlots.find(
-                        (candidate) => candidate.slot === slot
-                      );
-                      const cardId = entry?.cardId ?? null;
-                      const presentation = cardId ? getVisibleCardPresentation(cardId) : null;
-                      const cardData = presentation?.cardData;
-                      const isSelected = cardId !== null && cardId === selectedStageFormationCardId;
-                      const label = cardData
-                        ? formatCardCompactLabel(cardData as AnyCardData)
-                        : '空位';
-                      return (
-                        <button
-                          key={slot}
-                          type="button"
-                          disabled={!canConfirmActiveEffect}
-                          aria-pressed={isSelected}
-                          onClick={() => handleStageFormationSlotClick(slot)}
-                          className={cn(
-                            'flex min-h-[188px] min-w-0 flex-col items-center justify-between gap-2 rounded-lg border p-2 text-left transition-colors',
-                            isSelected
-                              ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
-                              : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)]',
-                            canConfirmActiveEffect
-                              ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)]'
-                              : 'cursor-not-allowed opacity-50'
+              <div className="touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-0 md:py-0">
+                <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-2.5 md:p-3">
+                  <p className="whitespace-pre-wrap text-[13px] leading-relaxed md:text-sm">
+                    {activeEffectDescription}
+                  </p>
+                  {!isActiveEffectOrderSelectionWindow && hasActiveEffectOriginalText && (
+                    <div className="mt-3 border-t border-[var(--border-subtle)] pt-2.5 md:pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setActiveEffectOriginalTextExpanded((expanded) => !expanded)}
+                        className="button-secondary inline-flex min-h-8 items-center justify-center px-2.5 text-xs font-semibold"
+                      >
+                        {activeEffectOriginalTextExpanded ? '收起原卡文' : '查看原卡文'}
+                      </button>
+                      {activeEffectOriginalTextExpanded && (
+                        <div className="mt-3 space-y-3">
+                          <div className="text-[10px] font-semibold text-[var(--text-muted)]">
+                            原卡文
+                          </div>
+                          {activeEffectOriginalTextCn && (
+                            <div>
+                              <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
+                                中文
+                              </div>
+                              <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--text-secondary)]">
+                                {activeEffectOriginalTextCn}
+                              </p>
+                            </div>
                           )}
-                          title={`${MEMBER_SLOT_LABELS[slot]}: ${label}`}
-                        >
-                          <div className="flex w-full items-center justify-between gap-2">
-                            <span className="text-xs font-bold text-[var(--text-primary)]">
-                              {MEMBER_SLOT_LABELS[slot]}
+                          {activeEffectOriginalTextJp && (
+                            <div>
+                              <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
+                                日文
+                              </div>
+                              <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--text-secondary)]">
+                                {activeEffectOriginalTextJp}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {activeEffectStageFormation && (
+                  <div className="mt-3 md:mt-4">
+                    <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
+                      站位变换
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:grid-cols-3 md:gap-3 md:p-3">
+                      {MEMBER_SLOT_ORDER.map((slot) => {
+                        const entry = stageFormationDraftSlots.find(
+                          (candidate) => candidate.slot === slot
+                        );
+                        const cardId = entry?.cardId ?? null;
+                        const presentation = cardId ? getVisibleCardPresentation(cardId) : null;
+                        const cardData = presentation?.cardData;
+                        const isSelected =
+                          cardId !== null && cardId === selectedStageFormationCardId;
+                        const label = cardData
+                          ? formatCardCompactLabel(cardData as AnyCardData)
+                          : '空位';
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            disabled={!canConfirmActiveEffect}
+                            aria-pressed={isSelected}
+                            onClick={() => handleStageFormationSlotClick(slot)}
+                            className={cn(
+                              'grid min-h-[76px] min-w-0 grid-cols-[52px_minmax(0,1fr)] items-center gap-x-2 rounded-lg border p-2 text-left transition-colors md:flex md:min-h-[188px] md:flex-col md:items-center md:justify-between md:gap-2',
+                              isSelected
+                                ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
+                                : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)]',
+                              canConfirmActiveEffect
+                                ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)]'
+                                : 'cursor-not-allowed opacity-50'
+                            )}
+                            title={`${MEMBER_SLOT_LABELS[slot]}: ${label}`}
+                          >
+                            <div className="order-2 flex w-full min-w-0 items-center justify-between gap-2 md:order-none">
+                              <span className="text-xs font-bold text-[var(--text-primary)]">
+                                {MEMBER_SLOT_LABELS[slot]}
+                              </span>
+                              {entry?.originalSlot && cardId && (
+                                <span className="rounded border border-[var(--border-default)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                                  原{MEMBER_SLOT_LABELS[entry.originalSlot].replace('侧', '')}
+                                </span>
+                              )}
+                            </div>
+                            {presentation ? (
+                              <CardDetailPressTarget
+                                cardId={presentation.instanceId}
+                                title={label}
+                                className="order-1 row-span-2 flex justify-center md:order-none md:row-span-1"
+                              >
+                                <Card
+                                  cardData={presentation.cardData as AnyCardData}
+                                  instanceId={presentation.instanceId}
+                                  imagePath={presentation.imagePath}
+                                  size="sm"
+                                  faceUp={true}
+                                  showHover={false}
+                                  className="h-[73px] w-[52px] shadow-sm md:h-[105px] md:w-[75px]"
+                                />
+                              </CardDetailPressTarget>
+                            ) : (
+                              <div className="order-1 row-span-2 flex h-[73px] w-[52px] items-center justify-center rounded-md border border-dashed border-[var(--border-default)] text-xs font-semibold text-[var(--text-tertiary)] md:order-none md:row-span-1 md:h-[112px] md:w-[80px]">
+                                空
+                              </div>
+                            )}
+                            <div className="order-3 w-full min-w-0 md:order-none">
+                              <div className="line-clamp-1 text-left text-[11px] font-semibold leading-4 text-[var(--text-primary)] md:line-clamp-2 md:min-h-8 md:text-center">
+                                {label}
+                              </div>
+                              <div className="mt-1 flex justify-start gap-1 text-[10px] text-[var(--text-secondary)] md:justify-center">
+                                <span>能量 {entry?.energyBelowCount ?? 0}</span>
+                                <span>下方 {entry?.memberBelowCount ?? 0}</span>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {activeEffectRevealedCardIds.length > 0 && (
+                  <div className="mt-3 md:mt-4">
+                    <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
+                      已公开的卡牌
+                    </div>
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[32vh] md:grid-cols-[repeat(auto-fill,minmax(76px,1fr))] md:gap-3 md:overflow-y-auto md:p-3">
+                      {activeEffectRevealedCardIds.map((cardId) => {
+                        const presentation = getVisibleCardPresentation(cardId);
+                        const cardData = presentation?.cardData;
+                        const label = cardData
+                          ? formatCardCompactLabel(cardData as AnyCardData)
+                          : '已公开卡牌';
+
+                        return (
+                          <CardDetailPressTarget
+                            key={cardId}
+                            cardId={presentation?.instanceId ?? null}
+                            disabled={!presentation}
+                            title={label}
+                            className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] p-1.5"
+                          >
+                            {presentation ? (
+                              <Card
+                                cardData={presentation.cardData as AnyCardData}
+                                instanceId={presentation.instanceId}
+                                imagePath={presentation.imagePath}
+                                size="sm"
+                                faceUp={true}
+                                showHover={false}
+                                className="h-[90px] w-[64px] md:h-[105px] md:w-[75px]"
+                              />
+                            ) : (
+                              <div className="flex h-[90px] w-[64px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
+                                ?
+                              </div>
+                            )}
+                            <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
+                              {label}
                             </span>
-                            {entry?.originalSlot && cardId && (
-                              <span className="rounded border border-[var(--border-default)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
-                                原{MEMBER_SLOT_LABELS[entry.originalSlot].replace('侧', '')}
+                          </CardDetailPressTarget>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {activeEffectSelectableCardIds.length > 0 && (
+                  <div className="mt-3 md:mt-4">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+                      <span>{activeEffectSelectionLabel}</span>
+                      <span className="rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
+                        {activeEffectSelectableBadgeLabel}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[46vh] md:grid-cols-[repeat(auto-fill,minmax(76px,1fr))] md:gap-3 md:overflow-y-auto md:p-3">
+                      {activeEffectSelectableCardIds.map((cardId) => {
+                        const presentation = getVisibleCardPresentation(cardId);
+                        const cardData = presentation?.cardData;
+                        const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
+                        const isOrderedSelected = selectedOrderIndex >= 0;
+                        const isSingleSelected = activeEffectSelectedCardId === cardId;
+                        const label = cardData
+                          ? formatCardCompactLabel(cardData as AnyCardData)
+                          : '选择此卡';
+                        return (
+                          <button
+                            key={cardId}
+                            type="button"
+                            disabled={!canConfirmActiveEffect || !presentation}
+                            onClick={() => {
+                              setHoveredCard(null);
+                              if (activeEffectUsesOrderedMultiSelect) {
+                                setActiveEffectOrderedSelection((current) => {
+                                  const currentSelectable = current.filter((selectedId) =>
+                                    activeEffectSelectableCardIds.includes(selectedId)
+                                  );
+                                  if (currentSelectable.includes(cardId)) {
+                                    return currentSelectable.filter(
+                                      (selectedId) => selectedId !== cardId
+                                    );
+                                  }
+                                  if (currentSelectable.length >= activeEffectMaxSelectableCards) {
+                                    return currentSelectable;
+                                  }
+                                  return [...currentSelectable, cardId];
+                                });
+                                return;
+                              }
+                              if (activeEffectUsesCardOptionSelection) {
+                                setActiveEffectSingleSelection((current) =>
+                                  current === cardId ? null : cardId
+                                );
+                                return;
+                              }
+                              confirmEffectStep(activeEffect.id, cardId);
+                            }}
+                            className={`group relative flex min-w-0 flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors ${
+                              isOrderedSelected || isSingleSelected
+                                ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
+                                : 'border-transparent'
+                            } ${
+                              canConfirmActiveEffect && presentation
+                                ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
+                                : 'cursor-not-allowed opacity-50'
+                            }`}
+                            title={label}
+                          >
+                            {isOrderedSelected && (
+                              <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
+                                {selectedOrderIndex + 1}
                               </span>
                             )}
-                          </div>
-                          {presentation ? (
-                            <CardDetailPressTarget
-                              cardId={presentation.instanceId}
-                              title={label}
-                              className="flex justify-center"
-                            >
-                              <Card
-                                cardData={presentation.cardData as AnyCardData}
-                                instanceId={presentation.instanceId}
-                                imagePath={presentation.imagePath}
-                                size="sm"
-                                faceUp={true}
-                                showHover={false}
-                                className="shadow-sm"
-                              />
-                            </CardDetailPressTarget>
-                          ) : (
-                            <div className="flex h-[112px] w-[80px] items-center justify-center rounded-md border border-dashed border-[var(--border-default)] text-xs font-semibold text-[var(--text-tertiary)]">
-                              空
-                            </div>
-                          )}
-                          <div className="w-full min-w-0">
-                            <div className="line-clamp-2 min-h-8 text-center text-[11px] font-semibold leading-4 text-[var(--text-primary)]">
+                            {isSingleSelected && (
+                              <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-white shadow">
+                                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                              </span>
+                            )}
+                            {presentation ? (
+                              <CardDetailPressTarget cardId={presentation.instanceId} title={label}>
+                                <Card
+                                  cardData={presentation.cardData as AnyCardData}
+                                  instanceId={presentation.instanceId}
+                                  imagePath={presentation.imagePath}
+                                  size="sm"
+                                  faceUp={true}
+                                  showHover={false}
+                                  className="h-[90px] w-[64px] md:h-[105px] md:w-[75px]"
+                                />
+                              </CardDetailPressTarget>
+                            ) : (
+                              <div className="flex h-[90px] w-[64px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
+                                ?
+                              </div>
+                            )}
+                            <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
                               {label}
-                            </div>
-                            <div className="mt-1 flex justify-center gap-1 text-[10px] text-[var(--text-secondary)]">
-                              <span>能量 {entry?.energyBelowCount ?? 0}</span>
-                              <span>下方 {entry?.memberBelowCount ?? 0}</span>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {activeEffectRevealedCardIds.length > 0 && (
-                <div className="mt-4">
-                  <div className="mb-2 text-xs font-semibold text-[var(--text-secondary)]">
-                    已公开的卡牌
-                  </div>
-                  <div className="grid max-h-[32vh] grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
-                    {activeEffectRevealedCardIds.map((cardId) => {
-                      const presentation = getVisibleCardPresentation(cardId);
-                      const cardData = presentation?.cardData;
-                      const label = cardData
-                        ? formatCardCompactLabel(cardData as AnyCardData)
-                        : '已公开卡牌';
-
-                      return (
-                        <CardDetailPressTarget
-                          key={cardId}
-                          cardId={presentation?.instanceId ?? null}
-                          disabled={!presentation}
-                          title={label}
-                          className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] p-1.5"
-                        >
-                          {presentation ? (
-                            <Card
-                              cardData={presentation.cardData as AnyCardData}
-                              instanceId={presentation.instanceId}
-                              imagePath={presentation.imagePath}
-                              size="sm"
-                              faceUp={true}
-                              showHover={false}
-                            />
-                          ) : (
-                            <div className="flex h-[84px] w-[60px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
-                              ?
-                            </div>
-                          )}
-                          <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
-                            {label}
-                          </span>
-                        </CardDetailPressTarget>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {activeEffectSelectableCardIds.length > 0 && (
-                <div className="mt-4">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
-                    <span>{activeEffect.selectionLabel ?? '请选择要处理的卡牌'}</span>
-                    <span className="rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
-                      {activeEffectUsesOrderedMultiSelect
-                        ? `已选 ${activeEffectOrderedSelection.length} / ${activeEffectMaxSelectableCards}`
-                        : activeEffectUsesCardOptionSelection
-                          ? `已选 ${activeEffectSelectedCardId ? 1 : 0} / 1`
-                          : `候选 ${activeEffectSelectableCardIds.length} 张`}
-                      {activeEffectMinSelectableCards > 0
-                        ? `｜至少 ${activeEffectMinSelectableCards}`
-                        : ''}
-                    </span>
-                  </div>
-                  <div className="grid max-h-[46vh] grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
-                    {activeEffectSelectableCardIds.map((cardId) => {
-                      const presentation = getVisibleCardPresentation(cardId);
-                      const cardData = presentation?.cardData;
-                      const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
-                      const isOrderedSelected = selectedOrderIndex >= 0;
-                      const isSingleSelected = activeEffectSelectedCardId === cardId;
-                      const label = cardData
-                        ? formatCardCompactLabel(cardData as AnyCardData)
-                        : '选择此卡';
-                      return (
-                        <button
-                          key={cardId}
-                          type="button"
-                          disabled={!canConfirmActiveEffect || !presentation}
-                          onClick={() => {
-                            setHoveredCard(null);
-                            if (activeEffectUsesOrderedMultiSelect) {
-                              setActiveEffectOrderedSelection((current) => {
-                                const currentSelectable = current.filter((selectedId) =>
-                                  activeEffectSelectableCardIds.includes(selectedId)
-                                );
-                                if (currentSelectable.includes(cardId)) {
-                                  return currentSelectable.filter(
-                                    (selectedId) => selectedId !== cardId
-                                  );
-                                }
-                                if (currentSelectable.length >= activeEffectMaxSelectableCards) {
-                                  return currentSelectable;
-                                }
-                                return [...currentSelectable, cardId];
-                              });
-                              return;
-                            }
-                            if (activeEffectUsesCardOptionSelection) {
-                              setActiveEffectSingleSelection((current) =>
-                                current === cardId ? null : cardId
-                              );
-                              return;
-                            }
-                            confirmEffectStep(activeEffect.id, cardId);
-                          }}
-                          className={`group relative flex min-w-0 flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors ${
-                            isOrderedSelected || isSingleSelected
-                              ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
-                              : 'border-transparent'
-                          } ${
-                            canConfirmActiveEffect && presentation
-                              ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
-                              : 'cursor-not-allowed opacity-50'
-                          }`}
-                          title={label}
-                        >
-                          {isOrderedSelected && (
-                            <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
-                              {selectedOrderIndex + 1}
                             </span>
-                          )}
-                          {isSingleSelected && (
-                            <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-white shadow">
-                              <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                            </span>
-                          )}
-                          {presentation ? (
-                            <CardDetailPressTarget cardId={presentation.instanceId} title={label}>
-                              <Card
-                                cardData={presentation.cardData as AnyCardData}
-                                instanceId={presentation.instanceId}
-                                imagePath={presentation.imagePath}
-                                size="sm"
-                                faceUp={true}
-                                showHover={false}
-                              />
-                            </CardDetailPressTarget>
-                          ) : (
-                            <div className="flex h-[84px] w-[60px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)]">
-                              ?
-                            </div>
-                          )}
-                          <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-                            {label}
-                          </span>
-                        </button>
-                      );
-                    })}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
-              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                )}
+              </div>
+              <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 md:mt-4 md:border-t-0 md:bg-transparent md:p-0">
                 {activeEffectStageFormation && (
                   <button
                     type="button"
@@ -2690,30 +2741,32 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                     </div>
                   </div>
                 )}
-                {activeEffectUsesOrderedMultiSelect && activeEffectSelectableCardIds.length > 0 && (
-                  <button
-                    type="button"
-                    disabled={!canConfirmOrderedEffectSelection}
-                    onClick={() =>
-                      confirmEffectStep(
-                        activeEffect.id,
-                        undefined,
-                        undefined,
-                        undefined,
-                        undefined,
-                        activeEffectOrderedSelection
-                      )
-                    }
-                    className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
-                      canConfirmOrderedEffectSelection ? '' : 'cursor-not-allowed opacity-50'
-                    }`}
-                  >
-                    {activeEffect.confirmSelectionLabel ?? '确认选择'}
-                    {activeEffectOrderedSelection.length > 0
-                      ? ` (${activeEffectOrderedSelection.length} 张)`
-                      : ''}
-                  </button>
-                )}
+                {activeEffectUsesOrderedMultiSelect &&
+                  (activeEffectSelectableCardIds.length > 0 ||
+                    activeEffectMinSelectableCards === 0) && (
+                    <button
+                      type="button"
+                      disabled={!canConfirmOrderedEffectSelection}
+                      onClick={() =>
+                        confirmEffectStep(
+                          activeEffect.id,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          activeEffectOrderedSelection
+                        )
+                      }
+                      className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                        canConfirmOrderedEffectSelection ? '' : 'cursor-not-allowed opacity-50'
+                      }`}
+                    >
+                      {activeEffect.confirmSelectionLabel ?? '确认选择'}
+                      {activeEffectOrderedSelection.length > 0
+                        ? ` (${activeEffectOrderedSelection.length} 张)`
+                        : ''}
+                    </button>
+                  )}
                 {activeEffect.canResolveInOrder && (
                   <button
                     type="button"

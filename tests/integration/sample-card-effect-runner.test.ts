@@ -5720,8 +5720,9 @@ describe('sample card effect runner', () => {
       LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID
     );
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([youCardId, copyCardId]);
-    expect(session.state?.activeEffect?.minSelectableCards).toBe(1);
+    expect(session.state?.activeEffect?.minSelectableCards).toBe(0);
     expect(session.state?.activeEffect?.maxSelectableCards).toBe(2);
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBeUndefined();
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(

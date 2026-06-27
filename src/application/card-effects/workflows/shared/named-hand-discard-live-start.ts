@@ -48,7 +48,7 @@ const NAMED_HAND_DISCARD_LIVE_START_CONFIGS: readonly NamedHandDiscardLiveStartC
   {
     abilityId: LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID,
     names: ['渡辺曜', '鬼塚夏美', '大沢瑠璃乃'],
-    minCount: 1,
+    minCount: 0,
     rewardKind: 'BLADE_PER_DISCARDED',
   },
 ];
@@ -192,14 +192,17 @@ function finishNamedHandDiscardLiveStartEffect(
         ? effect.metadata.namedHandDiscardRewardAmount
         : 0
       : discardResult.discardedCardIds.length;
-  const stateAfterModifier = addLiveModifier(discardResult.gameState, {
-    kind: rewardKind === 'SCORE' ? 'SCORE' : 'BLADE',
-    playerId: player.id,
-    countDelta: rewardAmount,
-    sourceCardId: effect.sourceCardId,
-    abilityId: effect.abilityId,
-  });
-  const state = { ...stateAfterModifier, activeEffect: null };
+  const stateAfterReward =
+    rewardAmount === 0
+      ? discardResult.gameState
+      : addLiveModifier(discardResult.gameState, {
+          kind: rewardKind === 'SCORE' ? 'SCORE' : 'BLADE',
+          playerId: player.id,
+          countDelta: rewardAmount,
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        });
+  const state = { ...stateAfterReward, activeEffect: null };
 
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
