@@ -11,6 +11,7 @@ import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID,
   HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
+  PL_N_BP1_012_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -18,12 +19,7 @@ import {
   getAbilityEffectText,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
-import {
-  and,
-  costLte,
-  groupAliasIs,
-  typeIs,
-} from '../../../effects/card-selectors.js';
+import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import {
   createWaitingRoomToHandEffectState,
@@ -75,6 +71,21 @@ const PAY_ENERGY_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly PayEnergyWaitingRoomTo
       stepText: '请选择自己的休息室中1张『莲之空』的LIVE卡加入手牌。',
       selector: and(typeIs(CardType.LIVE), groupAliasIs('蓮ノ空')),
       zoneSelection: createWaitingRoomToHandSelectionConfig(),
+      actionStep: 'PAY_COST_SELECT_WAITING_ROOM_LIVE',
+    },
+    {
+      abilityId: PL_N_BP1_012_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!N-bp1-012'],
+      energyCost: 3,
+      stepId: 'PL_N_BP1_012_SELECT_WAITING_ROOM_LIVE',
+      stepText: '请选择自己的休息室中1张LIVE卡加入手牌。',
+      selector: typeIs(CardType.LIVE),
+      zoneSelection: createWaitingRoomToHandSelectionConfig({
+        minCount: 1,
+        maxCount: 1,
+        optional: false,
+      }),
+      canSkipSelection: false,
       actionStep: 'PAY_COST_SELECT_WAITING_ROOM_LIVE',
     },
   ];

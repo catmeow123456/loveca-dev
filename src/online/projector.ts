@@ -317,7 +317,7 @@ export function projectPlayerViewState(
     prioritySeat:
       game.waitingPlayerId !== null ? getSeatForPlayer(game, game.waitingPlayerId) : activeSeat,
     window: buildViewWindowState(game),
-    liveResult: buildLiveResultView(game),
+    liveResult: buildLiveResultView(game, viewerSeat),
     seq: options.seq ?? 0,
   };
 
@@ -505,6 +505,51 @@ function projectPlayerZones(
   }
 }
 
+function collectLiveModifiersForViewer(
+  game: GameState,
+  viewerSeat: Seat
+): readonly LiveModifierState[] {
+  return collectLiveModifiers(game).filter((modifier) =>
+    isLiveModifierVisibleToViewer(game, viewerSeat, modifier)
+  );
+}
+
+function isLiveModifierVisibleToViewer(
+  game: GameState,
+  viewerSeat: Seat,
+  modifier: LiveModifierState
+): boolean {
+  const dependency = modifier.visibilityDependency;
+  if (!dependency) {
+    return true;
+  }
+
+  switch (dependency.kind) {
+    case 'PLAYER_LIVE_ZONE_CONTENTS':
+      return arePlayerLiveZoneContentsVisibleToViewer(game, dependency.playerId, viewerSeat);
+  }
+}
+
+function arePlayerLiveZoneContentsVisibleToViewer(
+  game: GameState,
+  playerId: string,
+  viewerSeat: Seat
+): boolean {
+  const ownerSeat = getSeatForPlayer(game, playerId);
+  if (ownerSeat === null || ownerSeat === viewerSeat) {
+    return true;
+  }
+
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return true;
+  }
+
+  return player.liveZone.cardIds.every(
+    (cardId) => player.liveZone.cardStates.get(cardId)?.face !== FaceState.FACE_DOWN
+  );
+}
+
 function projectBaseZone(
   game: GameState,
   zone: BaseZoneState,
@@ -563,7 +608,7 @@ function addMemberSlotZones(
   objects: Record<string, ViewCardObject>,
   zones: Partial<Record<ViewZoneKey, ViewZoneState>>
 ): void {
-  const liveModifiers = collectLiveModifiers(game);
+  const liveModifiers = collectLiveModifiersForViewer(game, viewerSeat);
 
   for (const slot of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT]) {
     const occupantId = zone.slots[slot];
@@ -816,7 +861,7 @@ function upsertViewObject(
   };
 }
 
-function buildLiveResultView(game: GameState): LiveResultViewState {
+function buildLiveResultView(game: GameState, viewerSeat: Seat): LiveResultViewState {
   const firstPlayerId = game.players[0]?.id;
   const secondPlayerId = game.players[1]?.id;
   const currentSuccessLiveSettlementPlayerId =
@@ -831,7 +876,7 @@ function buildLiveResultView(game: GameState): LiveResultViewState {
     currentSuccessLiveSettlementPlayerId !== null
       ? getSuccessLiveSelectionCandidateIds(game, currentSuccessLiveSettlementPlayerId)
       : [];
-  const liveModifiers = collectLiveModifiers(game);
+  const liveModifiers = collectLiveModifiersForViewer(game, viewerSeat);
   const liveModifierProjection = projectLiveModifierCompatibility(liveModifiers);
   const liveRequirementReductions = new Map(game.liveResolution.liveRequirementReductions);
   for (const [cardId, reduction] of liveModifierProjection.liveRequirementReductions.entries()) {

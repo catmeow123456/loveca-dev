@@ -70,10 +70,11 @@ const BP6_012_CONTINUOUS_ABILITY_ID =
 const BP6_014_CONTINUOUS_ABILITY_ID =
   'PL!-bp6-014:continuous-success-zone-lilywhite-card-pink-heart';
 const BP6_015_CONTINUOUS_ABILITY_ID = 'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
-const BP4_018_CONTINUOUS_ABILITY_ID =
-  'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
+const BP4_018_CONTINUOUS_ABILITY_ID = 'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
 const N_PR_024_CONTINUOUS_ABILITY_ID =
   'PL!N-PR-024-PR:continuous-success-live-total-four-gain-two-blade';
+const PL_N_BP1_012_CONTINUOUS_ABILITY_ID =
+  'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
 
 describe('live modifier helpers', () => {
   it('creates source-member Heart modifiers when the member is the source card', () => {
@@ -2496,8 +2497,7 @@ describe('live modifier helpers', () => {
       expect(
         modifiers.some(
           (modifier) =>
-            modifier.kind === 'BLADE' &&
-            modifier.abilityId === BP4_018_CONTINUOUS_ABILITY_ID
+            modifier.kind === 'BLADE' && modifier.abilityId === BP4_018_CONTINUOUS_ABILITY_ID
         )
       ).toBe(false);
       expect(getMemberEffectiveBladeCount(state, 'p1', nico.instanceId, modifiers)).toBe(1);
@@ -2760,6 +2760,137 @@ describe('live modifier helpers', () => {
       )
     ).toBe(false);
   });
+
+  function setupLanzhuBp1012ContinuousGame(options: {
+    readonly liveGroups: readonly string[];
+    readonly sourceOnStage?: boolean;
+  }): {
+    readonly game: ReturnType<typeof createGameState>;
+    readonly sourceId: string;
+  } {
+    const source = createCardInstance(
+      {
+        cardCode: 'PL!N-bp1-012-SEC',
+        name: '鐘 嵐珠',
+        groupName: '虹ヶ咲学園スクールアイドル同好会',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'n-bp1-012-lanzhu'
+    );
+    const liveCards = options.liveGroups.map((groupName, index) =>
+      createCardInstance(
+        {
+          cardCode: `${getTestLiveCardCodePrefix(groupName)}-bp1-012-test-live-${index}`,
+          name: `Live ${index}`,
+          groupName,
+          cardType: CardType.LIVE,
+          score: 1,
+          requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+        },
+        'p1',
+        `n-bp1-012-test-live-${index}`
+      )
+    );
+
+    let game = createGameState('n-bp1-012-continuous', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source, ...liveCards]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots:
+        options.sourceOnStage === false
+          ? player.memberSlots
+          : placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+      liveZone: liveCards.reduce(
+        (zone, live) => addCardToStatefulZone(zone, live.instanceId),
+        player.liveZone
+      ),
+    }));
+
+    return { game, sourceId: source.instanceId };
+  }
+
+  it('collects PL!N-bp1-012 ALL Heart x2 and BLADE +2 with three live cards including Nijigasaki LIVE', () => {
+    const { game, sourceId } = setupLanzhuBp1012ContinuousGame({
+      liveGroups: ['虹ヶ咲学園スクールアイドル同好会', 'Aqours', 'Liella!'],
+    });
+
+    const modifiers = collectLiveModifiers(game);
+    const visibilityDependency = {
+      kind: 'PLAYER_LIVE_ZONE_CONTENTS',
+      playerId: 'p1',
+    };
+
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.RAINBOW, 2)],
+      sourceCardId: sourceId,
+      abilityId: PL_N_BP1_012_CONTINUOUS_ABILITY_ID,
+      visibilityDependency,
+    });
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: sourceId,
+      abilityId: PL_N_BP1_012_CONTINUOUS_ABILITY_ID,
+      visibilityDependency,
+    });
+    expect(getMemberEffectiveHeartIcons(game, 'p1', sourceId, modifiers)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.RAINBOW, 2),
+    ]);
+    expect(getMemberEffectiveBladeCount(game, 'p1', sourceId, modifiers)).toBe(3);
+  });
+
+  it('does not collect PL!N-bp1-012 modifiers with fewer than three live cards', () => {
+    const { game, sourceId } = setupLanzhuBp1012ContinuousGame({
+      liveGroups: ['虹ヶ咲学園スクールアイドル同好会', 'Aqours'],
+    });
+
+    expect(collectLiveModifiers(game).some((modifier) => modifier.sourceCardId === sourceId)).toBe(
+      false
+    );
+  });
+
+  it('does not collect PL!N-bp1-012 modifiers when three live cards include no Nijigasaki LIVE', () => {
+    const { game, sourceId } = setupLanzhuBp1012ContinuousGame({
+      liveGroups: ['Aqours', 'Liella!', '蓮ノ空'],
+    });
+
+    expect(collectLiveModifiers(game).some((modifier) => modifier.sourceCardId === sourceId)).toBe(
+      false
+    );
+  });
+
+  it('does not collect PL!N-bp1-012 modifiers when source is not on stage', () => {
+    const { game, sourceId } = setupLanzhuBp1012ContinuousGame({
+      liveGroups: ['虹ヶ咲学園スクールアイドル同好会', 'Aqours', 'Liella!'],
+      sourceOnStage: false,
+    });
+
+    expect(collectLiveModifiers(game).some((modifier) => modifier.sourceCardId === sourceId)).toBe(
+      false
+    );
+  });
+
+  function getTestLiveCardCodePrefix(groupName: string): string {
+    if (groupName.includes('虹')) {
+      return 'PL!N';
+    }
+    if (groupName.includes('Aqours')) {
+      return 'PL!S';
+    }
+    if (groupName.includes('Liella')) {
+      return 'PL!SP';
+    }
+    return 'PL!HS';
+  }
 
   it('collects bp6 success-zone unit continuous Hearts as SOURCE_MEMBER Hearts', () => {
     const cases = [

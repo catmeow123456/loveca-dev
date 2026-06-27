@@ -107,7 +107,11 @@ import { registerNBp1026PoppinUpWorkflowHandlers } from './card-effects/workflow
 import { registerNBp3008EmmaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-008-emma.js';
 import { registerNBp3010ShiorikoWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-010-shioriko.js';
 import { registerNBp3027LaBellaPatriaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-027-la-bella-patria.js';
+import { registerNBp4004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-004-karin.js';
+import { registerNBp4029RiseUpHighWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-029-rise-up-high.js';
 import { registerNDiscardRecoverAndBladeWorkflowHandlers } from './card-effects/workflows/cards/n-discard-recover-and-blade.js';
+import { registerNBp5003ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-bp5-003-shizuku.js';
+import { registerNBp5021RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp5-021-rina.js';
 import { registerNPb1006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-006-kanata.js';
 import { registerNPr021LanzhuWorkflowHandlers } from './card-effects/workflows/cards/n-pr-021-lanzhu.js';
 import { registerNPr026RinaWorkflowHandlers } from './card-effects/workflows/cards/n-pr-026-rina.js';
@@ -186,6 +190,7 @@ import { registerMillTopGainLiveModifierWorkflowHandlers } from './card-effects/
 import { registerNamedHandDiscardLiveStartWorkflowHandlers } from './card-effects/workflows/shared/named-hand-discard-live-start.js';
 import { registerOnMoveGainHeartWorkflowHandlers } from './card-effects/workflows/shared/on-move-gain-heart.js';
 import { registerOpponentWaitTargetWorkflowHandlers } from './card-effects/workflows/shared/opponent-wait-target.js';
+import { registerOnEnterActivateWaitingEnergyWorkflowHandlers } from './card-effects/workflows/shared/on-enter-activate-waiting-energy.js';
 import { registerOnEnterDiscardRecoverUnitCardWorkflowHandlers } from './card-effects/workflows/shared/on-enter-discard-recover-unit-card.js';
 import { registerPayEnergyGainBladeWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-gain-blade.js';
 import { registerPayEnergyGainHeartWorkflowHandlers } from './card-effects/workflows/shared/pay-energy-gain-heart.js';
@@ -698,6 +703,11 @@ registerNBp1026PoppinUpWorkflowHandlers();
 registerNBp3008EmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3010ShiorikoWorkflowHandlers();
 registerNBp3027LaBellaPatriaWorkflowHandlers();
+registerNBp4004KarinWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp4029RiseUpHighWorkflowHandlers();
+registerNBp5003ShizukuWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp5021RinaWorkflowHandlers();
+registerOnEnterActivateWaitingEnergyWorkflowHandlers();
 registerNDiscardRecoverAndBladeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNPb1006KanataWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp6011RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1357,8 +1367,7 @@ function enqueueSpPb2022MemberSlotMovedObserverCardEffects(
         continue;
       }
 
-      const abilityId =
-        SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID;
+      const abilityId = SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID;
       if (!canUseAbilityThisTurn(state, player.id, abilityId, sourceCardId)) {
         continue;
       }

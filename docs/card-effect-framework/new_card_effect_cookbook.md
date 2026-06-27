@@ -33,6 +33,21 @@
 | 可选/skip/confirm-only activeEffect      | `runtime/active-effect.ts` 的 `startPendingActiveEffect`、`startConfirmOnlyActiveEffect`、`finishSkippedActiveEffect`；step registry 用 `runtime/step-registry.ts`。                                                                                 | helper 只能封装 pending 移除、activeEffect 拼装、START_CONFIRM/skip 这类通用胶水；若需要卡文条件、费用、区域移动或 modifier 策略，留在 workflow。                 | 正常确认、skip、无目标、activeEffect 不匹配、pending continuation、payload 字段、orderedResolution。                                     | 新增/扩展 activeEffect helper 时同步 `active_effect_runtime.md`。                                                            |
 | 特殊复杂卡                               | 放入 `workflows/cards/<card>.ts`，只在稳定片段处调用 shared workflow/helper。                                                                                                                                                                        | 默认路径。只有至少三张以上同型效果，且差异轴稳定，才晋升 shared family。                                                                                          | 卡文全部分支、费用失败、费用已支付后目标消失、无目标、取消/skip、事件 enqueue、modifier/zone cleanup、重复触发限制。                     | `existing_module_map.md`；若迁出 runner，同步 `migration_roadmap.md`；若形成 family，再同步 `workflow_module_guide.md`。     |
 
+## Hidden Information Modifier Visibility
+
+如果 modifier 本身已经生效，但前端展示会让非拥有者推断未公开内容，不要改 workflow 结算，也不要在前端组件里按卡名硬隐藏图标。应在产生 modifier 时加 `visibilityDependency`，让 `projectPlayerViewState` 按视角过滤投影用的 modifier。
+
+当前可用依赖：
+
+- `PLAYER_LIVE_ZONE_CONTENTS`：modifier 是否成立依赖某玩家 LIVE 区卡牌内容。拥有者始终可见；非拥有者在该玩家 LIVE 区仍有 `FACE_DOWN` 卡时看不到该 modifier；全部公开后恢复显示。
+
+使用规则：
+
+- 只标记真正依赖隐藏内容的 modifier。登场、起动或其他公开流程已经给出的 HEART / BLADE / SCORE modifier 不应因为处于 LIVE 放置阶段而被隐藏。
+- 同一个效果产出的多个 modifier 要逐个加依赖。例如 `PL!N-bp1-012「鐘 嵐珠」` 同时给 `SOURCE_MEMBER` ALL Heart x2 与 BLADE +2，两条都带 `PLAYER_LIVE_ZONE_CONTENTS`。
+- 规则计算仍使用完整 `collectLiveModifiers(game)`；只在玩家视角投影中调用过滤后的 modifier 列表，避免改动真实结算。
+- 新增类似卡时补 `tests/unit/player-view-state.test.ts`：拥有者可见、对手盖牌时不可见、公开后可见；如果同成员还有公开来源 modifier，要确认公开 modifier 仍显示。
+
 ## Card Workflow Template
 
 单卡 workflow 文件应尽量保持这个形状：

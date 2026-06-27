@@ -146,6 +146,11 @@ export interface LiveRequirementModifierState {
   readonly countDelta: number;
 }
 
+export interface LiveModifierVisibilityDependency {
+  readonly kind: 'PLAYER_LIVE_ZONE_CONTENTS';
+  readonly playerId: string;
+}
+
 export type LiveModifierState =
   | {
       readonly kind: 'SCORE';
@@ -155,6 +160,7 @@ export type LiveModifierState =
       readonly liveCardId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
       readonly kind: 'HEART';
@@ -163,6 +169,7 @@ export type LiveModifierState =
       readonly hearts: readonly HeartIcon[];
       readonly sourceCardId: string;
       readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
       readonly kind: 'HEART';
@@ -171,6 +178,7 @@ export type LiveModifierState =
       readonly hearts: readonly HeartIcon[];
       readonly sourceCardId?: string;
       readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
       readonly kind: 'HEART';
@@ -180,6 +188,7 @@ export type LiveModifierState =
       readonly hearts: readonly HeartIcon[];
       readonly sourceCardId?: string;
       readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
       readonly kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT';
@@ -188,6 +197,7 @@ export type LiveModifierState =
       readonly color: HeartColor;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
       readonly kind: 'BLADE';
@@ -195,6 +205,7 @@ export type LiveModifierState =
       readonly countDelta: number;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
       readonly kind: 'MEMBER_COST';
@@ -203,6 +214,7 @@ export type LiveModifierState =
       readonly countDelta: number;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
       readonly kind: 'REQUIREMENT';
@@ -210,6 +222,7 @@ export type LiveModifierState =
       readonly modifiers: readonly LiveRequirementModifierState[];
       readonly sourceCardId?: string;
       readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
     };
 
 export interface LiveResolutionState {

@@ -38,6 +38,10 @@ export const HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID =
   'PL!HS-bp1-004-P:activated-pay-three-recover-hasunosora-live';
 export const HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp1-004-P:live-start-pay-one-gain-blade-by-live-zone';
+export const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
+  'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
+export const PL_N_BP1_012_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID =
+  'PL!N-bp1-012:activated-pay-three-energy-recover-live';
 export const KARIN_LIVE_START_ABILITY_ID = 'PL!N-pb1-004-P+:live-start-reveal-top-member';
 export const PL_N_PB1_006_ACTIVATED_WAIT_SELF_ACTIVATE_ONE_ENERGY_ABILITY_ID =
   'PL!N-pb1-006:activated-wait-self-activate-one-energy';
@@ -113,10 +117,22 @@ export const PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCO
   'PL!N-bp1-027-L:live-start-nijigasaki-stage-heart-colors-this-live-score';
 export const PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!N-bp1-029-L:live-start-live-zone-three-this-live-score';
+export const PL_N_BP4_029_LIVE_START_TURN_ONE_SCORE_TARGET_NIJIGASAKI_BLADE_ABILITY_ID =
+  'PL!N-bp4-029-L:live-start-turn-one-score-target-nijigasaki-blade';
+export const PL_N_BP4_004_LIVE_START_DRAW_WAIT_LOW_COST_OPPONENT_MEMBER_ABILITY_ID =
+  'PL!N-bp4-004:live-start-draw-wait-low-cost-opponent-member';
+export const PL_N_BP4_004_LIVE_START_STACK_NIJIGASAKI_MEMBERS_BY_OPPONENT_WAIT_COUNT_ABILITY_ID =
+  'PL!N-bp4-004:live-start-stack-nijigasaki-members-by-opponent-wait-count';
 export const N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID =
   'PL!N-bp5-001:auto-on-cheer-blade-heart-types-gain-pink-heart-score';
 export const N_BP5_015_LIVE_START_ALL_SIX_STAGE_HEARTS_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!N-bp5-015-N:live-start-all-six-stage-hearts-gain-two-blade';
+export const PL_N_BP5_003_ACTIVATED_DISCARD_PAY_SCORE_RECOVER_LIVE_ABILITY_ID =
+  'PL!N-bp5-003:activated-discard-pay-score-recover-live';
+export const PL_N_BP5_021_ON_ENTER_MILL_TWO_OPTIONAL_INSERT_LIVE_FOURTH_FROM_TOP_ABILITY_ID =
+  'PL!N-bp5-021-N:on-enter-mill-two-insert-live-fourth-from-top';
+export const MEMBER_ON_ENTER_ACTIVATE_TWO_WAITING_ENERGY_ABILITY_ID =
+  'member:on-enter-activate-two-waiting-energy';
 export const HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID =
   'PL!HS-pb1-021-N:live-success-draw-if-dollchestra-live-zone';
 export const HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID =

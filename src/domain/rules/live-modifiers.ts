@@ -3,6 +3,7 @@ import { isLiveCardData, isMemberCardData, type HeartIcon } from '../entities/ca
 import type {
   GameState,
   LiveModifierState,
+  LiveModifierVisibilityDependency,
   LiveRequirementModifierState,
   LiveResolutionState,
 } from '../entities/game.js';
@@ -105,6 +106,8 @@ const BP6_015_CONTINUOUS_SUCCESS_ZONE_BIBI_CARD_PURPLE_HEART_ABILITY_ID =
   'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
 const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
+const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
+  'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
 
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
@@ -210,6 +213,38 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         hearts: [{ color: HeartColor.YELLOW, count: 1 }],
       });
       return modifier ? [modifier] : [];
+    },
+  },
+  {
+    baseCardCodes: ['PL!N-bp1-012'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!hasLiveZoneThreeIncludingNijigasakiLive(game, playerId)) {
+        return [];
+      }
+      const visibilityDependency = playerLiveZoneContentsVisibilityDependency(playerId);
+      const heartModifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId:
+          PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID,
+        hearts: [{ color: HeartColor.RAINBOW, count: 2 }],
+      });
+      if (!heartModifier) {
+        return [];
+      }
+      return [
+        { ...heartModifier, visibilityDependency },
+        {
+          kind: 'BLADE',
+          playerId,
+          countDelta: 2,
+          sourceCardId,
+          abilityId:
+            PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID,
+          visibilityDependency,
+        },
+      ];
     },
   },
   {
@@ -609,6 +644,12 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
   return modifiers;
 }
 
+function playerLiveZoneContentsVisibilityDependency(
+  playerId: string
+): LiveModifierVisibilityDependency {
+  return { kind: 'PLAYER_LIVE_ZONE_CONTENTS', playerId };
+}
+
 function collectDreaminGoGoRequirementModifiers(
   game: GameState,
   playerId: string,
@@ -690,6 +731,18 @@ function hasLiellaLiveWithRequirementTotalAtLeast(
       cardBelongsToGroup(card.data, 'Liella!') &&
       card.data.requirements.totalRequired >= minRequirementTotal
     );
+  });
+}
+
+function hasLiveZoneThreeIncludingNijigasakiLive(game: GameState, playerId: string): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player || player.liveZone.cardIds.length < 3) {
+    return false;
+  }
+
+  return player.liveZone.cardIds.some((liveCardId) => {
+    const card = getCardById(game, liveCardId);
+    return card !== null && isLiveCardData(card.data) && cardBelongsToGroup(card.data, '虹ヶ咲');
   });
 }
 
