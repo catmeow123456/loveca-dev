@@ -186,6 +186,12 @@ export function startDrawThenDiscardCardsWorkflow(
       : stateWithAction;
   }
 
+  if (config.requiresLeaveStageToWaitingRoom && !('toZone' in (config.ability.metadata ?? {}))) {
+    throw new Error(
+      `DrawThenDiscard leave-stage workflow requires metadata.toZone for ${config.ability.abilityId}`
+    );
+  }
+
   if (
     config.requiresLeaveStageToWaitingRoom &&
     config.ability.metadata?.toZone !== ZoneType.WAITING_ROOM

@@ -10,6 +10,7 @@ import {
   ABILITY_ORDER_SELECTION_ID,
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
 } from '../../src/application/card-effect-runner';
+import { startDrawThenDiscardCardsWorkflow } from '../../src/application/card-effects/workflows/shared/draw-then-discard';
 import {
   HS_BP2_015_LEAVE_STAGE_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
   HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
@@ -413,5 +414,30 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(
       entering.instanceId
     );
+  });
+
+  it('throws instead of consuming pending when leave-stage metadata is missing toZone', () => {
+    const { session, sourceId } = createPreparedSession('PL!HS-bp6-019-N', '大沢瑠璃乃', {
+      drawCount: 2,
+    });
+
+    expect(() =>
+      startDrawThenDiscardCardsWorkflow(session.state!, {
+        ability: {
+          id: 'missing-to-zone',
+          abilityId: HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+          sourceCardId: sourceId,
+          controllerId: PLAYER1,
+          sourceSlot: SlotPosition.CENTER,
+          metadata: {},
+        },
+        effectText: 'draw then discard',
+        drawCount: 2,
+        discardCount: 2,
+        stepId: 'TEST_SELECT_DISCARD',
+        orderedResolution: false,
+        requiresLeaveStageToWaitingRoom: true,
+      })
+    ).toThrow(/metadata\.toZone/);
   });
 });

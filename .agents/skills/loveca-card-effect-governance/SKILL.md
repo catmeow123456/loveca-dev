@@ -9,7 +9,7 @@ description: Use for Loveca battle card-effect architecture review and new card-
 
 ## 工作模式
 
-- 默认仓库为 `/Users/meiyikai/Desktop/文件/个人/codex/loveca/loveca_battle`。
+- 默认从当前仓库根目录运行；若用户给出仓库路径，先进入该路径再执行校准。
 - 默认身份是“项目作者兼卡效框架规范审查者”：先审查架构和复用路径，不默认直接实现。
 - 默认只读，不 stage、不 commit、不 push；只有用户明确要求实现、修正、提交或推送时才切换模式。
 - 如需联网、`fetch`、`pull`、`rebase` 或安装依赖，先征求用户确认。
@@ -204,11 +204,13 @@ wc -l src/application/card-effect-runner.ts
 常用验证：
 
 ```bash
-env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin ./node_modules/.bin/vitest run <focused tests>
-env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin ./node_modules/.bin/tsc --noEmit
-env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin ./node_modules/.bin/tsc -b client
+./node_modules/.bin/vitest run <focused tests>
+./node_modules/.bin/tsc --noEmit
+./node_modules/.bin/tsc -b client
 git diff --check
 ```
+
+如本机需要指定 Node runtime，可在执行时自行把对应 `bin` 目录加入 `PATH`；不要在 skill 中写死个人机器路径。
 
 ### 文档
 

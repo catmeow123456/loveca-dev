@@ -51,6 +51,7 @@ import {
   hasPendingSuccessLiveSelection,
   haveAllSuccessLiveSettlementsCompleted,
 } from '../domain/rules/success-live-placement.js';
+import { isActiveEffectControlledInspection } from '../domain/rules/inspection-control.js';
 import type {
   LiveResultViewState,
   MatchViewState,
@@ -1329,34 +1330,6 @@ function buildInspectionCommandHints(
   }
 
   return hints;
-}
-
-function isActiveEffectControlledInspection(game: GameState, viewerPlayerId: string): boolean {
-  const effect = game.activeEffect;
-  const inspectionContext = game.inspectionContext;
-  if (
-    !effect ||
-    !inspectionContext ||
-    inspectionContext.ownerPlayerId !== viewerPlayerId ||
-    effect.awaitingPlayerId !== viewerPlayerId
-  ) {
-    return false;
-  }
-
-  const effectInspectionCardIds = effect.inspectionCardIds ?? [];
-  const effectSelectableCardIds = effect.selectableCardIds ?? [];
-  if (effectInspectionCardIds.length === 0 && effectSelectableCardIds.length === 0) {
-    return false;
-  }
-
-  const ownedInspectionCardIds = getOwnedCardIds(
-    game.inspectionZone.cardIds,
-    game,
-    viewerPlayerId
-  );
-  return [...effectInspectionCardIds, ...effectSelectableCardIds].some((cardId) =>
-    ownedInspectionCardIds.includes(cardId)
-  );
 }
 
 function buildPhaseCommandHint(
