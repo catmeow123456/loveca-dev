@@ -1,6 +1,6 @@
 ---
 name: loveca-card-effect-governance
-description: Use for Loveca battle card-effect architecture review and new card-effect development governance. 适用于 Loveca 卡效总审查、新卡效开发规范、runner 回流检查、helper/workflow/query 复用与晋升审查、只读审查窗口、focused validation、文档诚实性检查。
+description: Use for Loveca battle card-effect architecture review and new card-effect development governance. 适用于 Loveca 卡效总审查、新卡效候选审查、执行窗口提示词、卡效开发规范、runner 回流检查、helper/workflow/query 复用与晋升审查、只读审查窗口、focused validation、文档诚实性检查。
 ---
 
 # Loveca Card Effect Governance
@@ -74,6 +74,37 @@ wc -l src/application/card-effect-runner.ts
 4. 只有没有稳定 family 时，才写 `src/application/card-effects/workflows/cards/<card>.ts` 单卡 workflow。
 5. 单卡 workflow 可以存在，但要复用稳定底层动作，不复制裸事件入队、抽弃、activeEffect 构造、成员移动、状态变化等胶水。
 6. 新增 helper/shared workflow 必须说明真实卡样本、稳定参数轴、不纳入的差异和测试覆盖。
+
+## 新卡审查窗口协议
+
+用户给候选卡、要求筛选下一批、或要求写执行窗口提示词时，保持只读审查，除非用户明确要求实现。必须先完成启动校准，再按真实卡文和当前实现状态判断。
+
+单张或小批候选卡审查必须输出：
+
+1. 基线确认结果：分支、最新提交、runner 行数、工作树状态。
+2. 候选卡真实文本确认：从 `llocg_db/json/cards.json` 核对，列卡号、费用/分数、卡名、原文。
+3. 是否已有实现：查 `definitions/index.ts`、workflow、tests、`existing_module_map.md`；已覆盖则跳过并说明来源。
+4. 游戏语言：用中文概括每段效果。
+5. 代码语言：建议 abilityId、definition、workflow/helper，是扩 `baseCardCodes` 还是新增 abilityId/workflow。
+6. 可复用 helper/workflow：明确复用项，也明确不复用或不扩展项及原因。
+7. 风险点：pending 顺序、费用支付、skip/decline、公开/手牌隐私、HEART/BLADE modifier、事件消费、测试覆盖。
+8. 测试建议：classification 锁什么，focused integration 放哪里，是否需要 sample 大测试。
+9. 文档同步建议：必须考虑 `existing_module_map.md`；runtime/cookbook/migration roadmap 按是否新增 helper 或边界判断。
+10. 判断是否适合直接开执行窗口。
+11. 如用户要求，最后给完整执行窗口提示词；未要求时先停在审查和批次建议。
+
+如果卡文与用户描述不一致，先报告差异，不继续产出实现提示词。如果已有实现覆盖，报告覆盖来源，不建议重复注册。如果单卡 workflow 预计超过 250 行，解释为什么不抽 helper/shared family/steps-lite。需要新增 shared family 时，说明真实配置轴来自哪些卡。
+
+## 候选批次筛选协议
+
+用户一次给多张卡时，先筛掉已实现卡，再按真实效果形状分组和排序。优先推荐同一批内能共享 workflow/helper、测试夹具、触发时点或目标选择形状的卡；不要为了凑批次把语义相近但 pending/费用/事件时机不同的卡混成一个 family。
+
+批次建议默认输出表格，每行一张卡，列为：
+
+| 序号 | 卡牌 | 效果 | 是否计划增加卡牌维度 ts | 计划复用 helper / workflow | 当前 helper 不足从而必须单写的部分 |
+| --- | --- | --- | --- | --- | --- |
+
+表格之后给出建议第一批开发卡牌和理由。若用户确认批次，再输出执行窗口提示词；不要提前要求执行窗口实现未确认的卡。
 
 ## Reuse And Promotion Pass
 
@@ -206,6 +237,12 @@ git diff --check
    - 无审查对象则给符合当前规范的新卡开发提示词。
 
 ## 启动提示词示例
+
+新卡候选审查窗口：
+
+```text
+请先阅读 .agents/skills/loveca-card-effect-governance/SKILL.md，作为 Loveca 新卡卡效审查窗口。默认只读，不改代码、不 stage、不 commit、不 push。请先执行基线校准，核对 llocg_db/json/cards.json 真实卡文，检查 existing_module_map.md、ability-ids.ts、definitions/index.ts、相关 workflow/helper/tests 是否已有实现，再按 skill 的“新卡审查窗口协议”审查以下候选卡并给出批次建议；暂时不要写执行窗口提示词，等我确认批次后再写：<卡号列表>
+```
 
 总审查：
 

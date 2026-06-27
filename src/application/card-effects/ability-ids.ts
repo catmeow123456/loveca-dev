@@ -370,6 +370,10 @@ export const HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID =
   'PL!HS-bp2-012-N:auto-leave-stage-look-five-take-member';
 export const HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID =
   'PL!HS-bp2-013-N:auto-leave-stage-look-five-take-live';
+export const HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID =
+  'PL!HS-bp6-019-N:auto-leave-stage-draw-two-discard-two';
+export const HS_BP2_015_LEAVE_STAGE_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
+  'PL!HS-bp2-015-N:auto-leave-stage-draw-two-discard-one';
 export const HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID =
   'PL!HS-bp6-017-N:auto-leave-stage-discard-recover-live-and-member';
 export const HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID =
@@ -388,6 +392,12 @@ export const HS_PB1_014_ON_ENTER_MOVE_OPPONENT_FRONT_ABILITY_ID =
   'PL!HS-pb1-014-R:on-enter-move-opponent-member-front-if-all-miracra';
 export const HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID =
   'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart';
+export const HS_PB1_006_LIVE_START_POSITION_CHANGE_TO_OTHER_MIRACRA_GAIN_HEART_BLADE_ABILITY_ID =
+  'PL!HS-pb1-006:live-start-position-change-to-other-miracra-gain-heart-blade';
+export const HS_BP2_005_ON_ENTER_DISCARD_RECOVER_MIRACRA_CARD_ABILITY_ID =
+  'PL!HS-bp2-005:on-enter-discard-recover-miracra-card';
+export const HS_BP2_005_LIVE_START_PAY_ENERGY_FULL_STAGE_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!HS-bp2-005:live-start-pay-energy-full-stage-gain-two-blade';
 export const HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID =
   'PL!HS-bp6-004-R:on-enter-wait-opponent-low-cost-member';
 export const HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID =
@@ -492,6 +502,8 @@ export const HS_BP6_029_LIVE_START_HASUNOSORA_COST_LOOK_TOP_TWO_HAND_REDUCE_REQU
   'PL!HS-bp6-029-L:live-start-hasunosora-cost-look-top-two-hand-reduce-requirement';
 export const HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp6-031-L:live-start-recycle-miracra-members-gain-blade';
+export const HS_BP6_011_ACTIVATED_WAIT_SELF_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
+  'PL!HS-bp6-011-R:activated-wait-self-draw-one-discard-one';
 export const HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID =
   'PL!HS-pb1-012-R:on-enter-recycle-members-recover-live-gain-blade';
 export const HS_PB1_028_LIVE_START_ACTIVATE_DOLLCHESTRA_MEMBER_LIVE_START_ABILITY_ID =

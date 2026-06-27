@@ -189,13 +189,18 @@ import {
   HS_BP2_006_CONTINUOUS_OTHER_MIRACRA_STAGE_MEMBER_BLADE_ABILITY_ID,
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
   HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
+  HS_BP2_015_LEAVE_STAGE_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+  HS_BP2_005_ON_ENTER_DISCARD_RECOVER_MIRACRA_CARD_ABILITY_ID,
+  HS_BP2_005_LIVE_START_PAY_ENERGY_FULL_STAGE_GAIN_TWO_BLADE_ABILITY_ID,
   HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID,
+  HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
   HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID,
   HS_PB1_007_CONTINUOUS_EXACT_TWO_OWN_OPPONENT_THREE_PURPLE_HEART_ABILITY_ID,
   HS_PB1_007_ON_ENTER_PAY_TWO_ENERGY_DISCARD_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
   HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
   HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID,
+  HS_PB1_006_LIVE_START_POSITION_CHANGE_TO_OTHER_MIRACRA_GAIN_HEART_BLADE_ABILITY_ID,
   HS_PB1_014_ON_ENTER_MOVE_OPPONENT_FRONT_ABILITY_ID,
   HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID,
   HS_BP6_003_ON_ENTER_ACTIVATE_MIRACRA_MEMBER_RECOVER_LIVE_ABILITY_ID,
@@ -253,6 +258,7 @@ import {
   HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
   HS_BP6_029_LIVE_START_HASUNOSORA_COST_LOOK_TOP_TWO_HAND_REDUCE_REQUIREMENT_ABILITY_ID,
   HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  HS_BP6_011_ACTIVATED_WAIT_SELF_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
   HS_PB1_028_LIVE_START_ACTIVATE_DOLLCHESTRA_MEMBER_LIVE_START_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
@@ -337,6 +343,10 @@ const HS_BP2_012_LEAVE_STAGE_EFFECT_TEXT =
   '【自动】此成员从舞台被放置入休息室时，检视自己卡组顶的5张卡。可以将1张其中的成员卡公开并加入手牌。其余的卡片放置入休息室。';
 const HS_BP2_013_LEAVE_STAGE_EFFECT_TEXT =
   '【自动】此成员从舞台被放置入休息室时，检视自己卡组顶的5张卡。可以将1张其中的LIVE卡公开并加入手牌。其余的卡片放置入休息室。';
+const HS_BP6_019_LEAVE_STAGE_EFFECT_TEXT =
+  '【自动】此成员从舞台被放置入休息室时，抽2张卡，将2张手牌放置入休息室。';
+const HS_BP2_015_LEAVE_STAGE_EFFECT_TEXT =
+  '【自动】此成员从舞台被放置入休息室时，抽2张卡，将1张手牌放置入休息室。';
 const HS_BP6_017_LEAVE_STAGE_EFFECT_TEXT =
   '【自动】将此成员从舞台放置入休息室时，可以将1张手牌放置入休息室。如此做的场合，从休息室将LIVE卡和成员卡至多各1张加入手牌。';
 const HS_SD1_001_RELAY_REPLACED_EFFECT_TEXT =
@@ -347,6 +357,8 @@ const HS_PB1_009_ON_HASUNOSORA_ENTER_EFFECT_TEXT =
   '【自动】【中央】[1回合2次]每当「莲之空」的成员登场至自己的舞台，LIVE结束时为止，获得[BLADE][BLADE]。';
 const HS_PB1_009_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】此成员持有的[BLADE]的数量大于等于8个的场合，抽2张卡，将1张手牌放置入休息室。';
+const HS_PB1_006_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以移动到自己舞台上其他『みらくらぱーく！』成员所在区域。如此做时，LIVE结束时为止，获得[桃ハート][BLADE]。';
 const HS_PB1_014_ON_ENTER_EFFECT_TEXT =
   '【登场】存在于自己的舞台的成员均为『Mira-Cra Park!』的成员的场合，使1名存在于对方舞台的成员站位变换至此成员正面的区域。';
 const HS_PB1_014_CONTINUOUS_EFFECT_TEXT =
@@ -355,6 +367,10 @@ const HS_BP6_003_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将存在于自己的舞台的1名待机状态的[みらくらぱーく！]的成员变为活跃状态。如此做的场合，从自己的休息室将1张[みらくらぱーく！]的LIVE卡加入手牌。';
 const HS_BP6_003_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，自己舞台上的1名[みらくらぱーく！]的成员获得[桃ハート]。';
+const HS_BP2_005_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将1张手牌放置入休息室：自己的舞台有其他成员的场合，从自己的休息室将1张『みらくらぱーく！』卡加入手牌。';
+const HS_BP2_005_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以支付[E]：自己的舞台所有区域都有成员登场的场合，LIVE结束时为止，获得[BLADE][BLADE]。';
 const HS_BP6_004_WAIT_OPPONENT_LOW_COST_MEMBER_EFFECT_TEXT =
   '【登场】/【LIVE开始时】将存在于对方舞台的1名费用小于等于9的成员变为待机状态。';
 const HS_BP6_007_AUTO_EDELNOTE_ENTER_EFFECT_TEXT =
@@ -751,6 +767,8 @@ const HS_BP6_029_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己舞台的『莲之空』成员费用合计大于等于20的场合，检视卡组顶至多2张，将其中1张加入手牌，其余按原顺序放回卡组顶。大于等于30的场合，进一步减少此LIVE必要无色Heart 2个。';
 const HS_BP6_031_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将自己休息室所有成员卡洗牌后放到卡组底。若因此将15张以上『みらくらぱーく！』成员卡放到卡组底，LIVE结束时为止，自己舞台1名「安养寺姬芽」获得BLADE +3。';
+const HS_BP6_011_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】将此成员变为待机状态：抽1张卡，将1张手牌放置入休息室。';
 const HS_PB1_012_ON_ENTER_EFFECT_TEXT =
   '【登场】自己和对方分别将存在于自身休息室的所有成员卡洗牌，放置入自身的卡组底。合计大于等于20张自己与对方的卡片因此被放置入卡组底的场合，从自己的休息室将1张LIVE卡加入手牌，LIVE结束时为止，获得[BLADE][BLADE]。';
 const N_BP4_018_ACTIVE_TO_WAITING_EFFECT_TEXT =
@@ -1665,6 +1683,30 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     notes: '由舞台到休息室事件入队，复用 look-top inspection 选择 LIVE 公开入手、其余进休息室。',
   },
   {
+    abilityId: HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+    cardCodes: ['PL!HS-bp6-019-N'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP6_019_LEAVE_STAGE_EFFECT_TEXT,
+    notes:
+      '由舞台到休息室事件入队，复用 draw-then-discard shared workflow；抽2后弃2手，弃手走 ON_ENTER_WAITING_ROOM wrapper。',
+  },
+  {
+    abilityId: HS_BP2_015_LEAVE_STAGE_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+    cardCodes: ['PL!HS-bp2-015-N'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP2_015_LEAVE_STAGE_EFFECT_TEXT,
+    notes:
+      '由舞台到休息室事件入队，复用 draw-then-discard shared workflow；抽2后弃1手，弃手走 ON_ENTER_WAITING_ROOM wrapper。',
+  },
+  {
     abilityId: HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID,
     cardCodes: ['PL!HS-bp6-017-N'],
     category: CardAbilityCategory.AUTO,
@@ -1725,6 +1767,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'LIVE 开始时用成员有效 BLADE helper 判断印刷 BLADE + 来源归属 BLADE modifier 是否大于等于 8；满足时复用 F02 抽 2 弃 1。',
   },
   {
+    abilityId: HS_PB1_006_LIVE_START_POSITION_CHANGE_TO_OTHER_MIRACRA_GAIN_HEART_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-pb1-006'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_PB1_006_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；只能选择非来源且当前有其他 Mira-Cra 成员的己方舞台区域，移动通过 member-slot-moved wrapper 入队，移动成功后写来源成员桃 Heart +1 与 BLADE +1。',
+  },
+  {
     abilityId: HS_PB1_014_ON_ENTER_MOVE_OPPONENT_FRONT_ABILITY_ID,
     baseCardCodes: ['PL!HS-pb1-014'],
     category: CardAbilityCategory.ON_ENTER,
@@ -1769,6 +1823,30 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HS_BP6_003_LIVE_START_EFFECT_TEXT,
     notes:
       'LIVE 开始时可选弃1手；弃置后选择己方舞台 Mira-Cra 成员并通过 liveModifiers 写入成员 Heart +1。',
+  },
+  {
+    abilityId: HS_BP2_005_ON_ENTER_DISCARD_RECOVER_MIRACRA_CARD_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp2-005'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP2_005_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡登场 workflow；可选弃1手，弃手走 enter-waiting-room trigger wrapper；弃后重新检查其他舞台成员与休息室 Mira-Cra 卡，刚弃置的 Mira-Cra 卡可回收。',
+  },
+  {
+    abilityId: HS_BP2_005_LIVE_START_PAY_ENERGY_FULL_STAGE_GAIN_TWO_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-bp2-005'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_BP2_005_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；可选支付1张活跃能量，支付后重新检查己方三舞台区域均有成员，满足时写来源成员 BLADE +2；条件不满足时费用保留并消费 pending。',
   },
   {
     abilityId: HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
@@ -3849,6 +3927,23 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HS_BP6_031_LIVE_START_EFFECT_TEXT,
     notes:
       'LIVE 开始时可将自己休息室全部成员洗回主卡组底；若其中みらくらぱーく！成员>=15，则选择舞台安养寺姬芽写入 BLADE live modifier。',
+  },
+  {
+    abilityId: HS_BP6_011_ACTIVATED_WAIT_SELF_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+    cardCodes: ['PL!HS-bp6-011-R'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: HS_BP6_011_ACTIVATED_EFFECT_TEXT,
+    perTurnLimit: 1,
+    activatedUi: {
+      abilityId: HS_BP6_011_ACTIVATED_WAIT_SELF_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+      text: HS_BP6_011_ACTIVATED_EFFECT_TEXT,
+      title: '将此成员变为待机状态，抽1张后弃1张手牌',
+    },
+    notes:
+      '起动费用为来源成员 ACTIVE -> WAITING，费用支付后复用 draw-then-discard shared workflow 抽1弃1；成员状态变化与弃手分别保留对应 trigger wrapper 入队。',
   },
   {
     abilityId: HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
