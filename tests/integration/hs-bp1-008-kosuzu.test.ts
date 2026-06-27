@@ -103,6 +103,7 @@ function forceMainPhaseForPlayer(session: ReturnType<typeof createGameSession>):
 function setupOnEnter(options: {
   readonly sourceCardCode: string;
   readonly deckCards: readonly ReturnType<typeof createCardInstance>[];
+  readonly waitingRoomCards?: readonly ReturnType<typeof createCardInstance>[];
 }): ReturnType<typeof createGameSession> {
   const session = createGameSession();
   const deck = createDeck();
@@ -116,7 +117,8 @@ function setupOnEnter(options: {
     PLAYER1,
     'p1-hs-bp1-008-source'
   );
-  let state = registerCards(session.state!, [source, ...options.deckCards]);
+  const waitingRoomCards = options.waitingRoomCards ?? [];
+  let state = registerCards(session.state!, [source, ...options.deckCards, ...waitingRoomCards]);
   state = updatePlayer(state, PLAYER1, (player) => ({
     ...player,
     hand: { ...player.hand, cardIds: [source.instanceId] },
@@ -124,7 +126,10 @@ function setupOnEnter(options: {
       ...player.mainDeck,
       cardIds: options.deckCards.map((card) => card.instanceId),
     },
-    waitingRoom: { ...player.waitingRoom, cardIds: [] },
+    waitingRoom: {
+      ...player.waitingRoom,
+      cardIds: waitingRoomCards.map((card) => card.instanceId),
+    },
     successZone: { ...player.successZone, cardIds: [] },
     liveZone: { ...player.liveZone, cardIds: [], cardStates: new Map() },
     memberSlots: {
@@ -172,9 +177,17 @@ describe('PL!HS-bp1-008 Kosuzu workflow', () => {
       deckCards: topCards,
     });
 
-    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual(
       topCards.slice(0, 3).map((card) => card.instanceId)
     );
+    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(
+      topCards.slice(0, 3).map((card) => card.instanceId)
+    );
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+      topCards.slice(0, 3).map((card) => card.instanceId)
+    );
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[3]!.instanceId]);
 
     confirmActiveEffect(session);
 
@@ -228,30 +241,61 @@ describe('PL!HS-bp1-008 Kosuzu workflow', () => {
     ).toBe(true);
   });
 
-  it('mills the actual cards but does not draw when fewer than three cards are revealed', () => {
+  it('refreshes mid-effect and still draws when three milled cards are members', () => {
     const topCards = [
       createCardInstance(createMemberCard('PL!HS-test-member-0'), PLAYER1, 'top-0'),
       createCardInstance(createMemberCard('PL!HS-test-member-1'), PLAYER1, 'top-1'),
     ];
+    const waitingRoomCard = createCardInstance(
+      createMemberCard('PL!HS-test-member-refresh'),
+      PLAYER1,
+      'refresh-member'
+    );
     const session = setupOnEnter({
       sourceCardCode: 'PL!HS-bp1-008-R',
       deckCards: topCards,
+      waitingRoomCards: [waitingRoomCard],
     });
+
+    const activeEffect = session.state?.activeEffect;
+    const milledCardIds = activeEffect?.metadata?.milledCardIds;
+
+    expect(milledCardIds).toEqual(expect.any(Array));
+    expect(milledCardIds).toHaveLength(3);
+    expect((milledCardIds as readonly string[]).slice(0, 2)).toEqual(
+      topCards.map((card) => card.instanceId)
+    );
+    expect(
+      [waitingRoomCard.instanceId, ...topCards.map((card) => card.instanceId)].includes(
+        (milledCardIds as readonly string[])[2]!
+      )
+    ).toBe(true);
+    expect(activeEffect?.metadata?.conditionMet).toBe(true);
+    expect(activeEffect?.metadata?.refreshCount).toBe(1);
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.movedCount === 3
+      )
+    ).toBe(true);
 
     confirmActiveEffect(session);
 
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
-      topCards.map((card) => card.instanceId)
-    );
-    expect(session.state?.players[0].hand.cardIds).toEqual([]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
+    expect(session.state?.players[0].hand.cardIds).toHaveLength(1);
+    expect(session.state?.players[0].mainDeck.cardIds).toHaveLength(1);
     expect(
       session.state?.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.abilityId ===
             HS_BP1_008_ON_ENTER_MILL_THREE_DRAW_IF_ALL_MEMBERS_ABILITY_ID &&
-          action.payload.conditionMet === false
+          action.payload.conditionMet === true &&
+          action.payload.refreshCount === 1 &&
+          Array.isArray(action.payload.drawnCardIds) &&
+          action.payload.drawnCardIds.length === 1
       )
     ).toBe(true);
   });

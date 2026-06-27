@@ -99,11 +99,15 @@ import { registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers } from './card-ef
 import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/maki-on-enter.js';
 import { registerKarinWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-004-karin.js';
 import { registerNBp1002KasumiWorkflowHandlers } from './card-effects/workflows/cards/n-bp1-002-kasumi.js';
+import { registerNLiveStartScoreBonusesWorkflowHandlers } from './card-effects/workflows/cards/n-live-start-score-bonuses.js';
+import { registerNLiveSuccessCheerAllBladeScoreWorkflowHandlers } from './card-effects/workflows/cards/n-live-success-cheer-all-blade-score.js';
 import { registerNBp5001AyumuWorkflowHandlers } from './card-effects/workflows/cards/n-bp5-001-ayumu.js';
+import { registerNBp5015ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-bp5-015-shizuku.js';
 import { registerNBp1026PoppinUpWorkflowHandlers } from './card-effects/workflows/cards/n-bp1-026-poppin-up.js';
 import { registerNBp3008EmmaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-008-emma.js';
 import { registerNBp3010ShiorikoWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-010-shioriko.js';
 import { registerNBp3027LaBellaPatriaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-027-la-bella-patria.js';
+import { registerNDiscardRecoverAndBladeWorkflowHandlers } from './card-effects/workflows/cards/n-discard-recover-and-blade.js';
 import { registerNPb1006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-006-kanata.js';
 import { registerNPr021LanzhuWorkflowHandlers } from './card-effects/workflows/cards/n-pr-021-lanzhu.js';
 import { registerNPr026RinaWorkflowHandlers } from './card-effects/workflows/cards/n-pr-026-rina.js';
@@ -192,6 +196,7 @@ import { registerSelfPositionChangeWorkflowHandlers } from './card-effects/workf
 import { registerSelfSacrificeWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/self-sacrifice-waiting-room-to-hand.js';
 import { registerStageFormationChangeWorkflowHandlers } from './card-effects/workflows/shared/stage-formation-change.js';
 import { registerWaitingRoomToHandWorkflowHandlers } from './card-effects/workflows/shared/waiting-room-to-hand.js';
+import { registerActivatedRevealHandNoLiveLookTopLiveWorkflowHandlers } from './card-effects/workflows/shared/activated-reveal-hand-no-live-look-top-live.js';
 import {
   createStageMemberOrientationTargetSelection,
   getStageMemberOrientationTargetMetadata,
@@ -605,6 +610,7 @@ function revealSelectedInspectionCard(
 }
 const ABILITY_ORDER_SELECTION_STEP_ID = 'SELECT_NEXT_PENDING_ABILITY';
 registerLookTopSelectToHandWorkflowHandlers();
+registerActivatedRevealHandNoLiveLookTopLiveWorkflowHandlers();
 registerArrangeInspectedDeckTopWorkflowHandlers();
 registerConditionalLiveModifierWorkflowHandlers();
 registerSFutureWaterBatch2LiveStartWorkflowHandlers();
@@ -684,11 +690,15 @@ registerHsPb1003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsSd1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsSd1005KosuzuWorkflowHandlers();
 registerNBp1002KasumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNLiveStartScoreBonusesWorkflowHandlers();
+registerNLiveSuccessCheerAllBladeScoreWorkflowHandlers();
 registerNBp5001AyumuWorkflowHandlers();
+registerNBp5015ShizukuWorkflowHandlers();
 registerNBp1026PoppinUpWorkflowHandlers();
 registerNBp3008EmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3010ShiorikoWorkflowHandlers();
 registerNBp3027LaBellaPatriaWorkflowHandlers();
+registerNDiscardRecoverAndBladeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNPb1006KanataWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp6011RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp2005RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });

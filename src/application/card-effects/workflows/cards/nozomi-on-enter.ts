@@ -13,20 +13,15 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { hasCardIdsMatchingSelector } from '../../../effects/conditions.js';
-import {
-  inspectTopCards,
-  moveInspectedCardsToWaitingRoom,
-} from '../../../effects/look-top.js';
+import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 
 const NOZOMI_REVEAL_STEP_ID = 'NOZOMI_REVEAL_TOP_FIVE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export function registerNozomiOnEnterWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
-    NOZOMI_ON_ENTER_ABILITY_ID,
-    (game, ability, options) =>
-      startNozomiOnEnterInspection(game, ability, options.orderedResolution === true)
+  registerPendingAbilityStarterHandler(NOZOMI_ON_ENTER_ABILITY_ID, (game, ability, options) =>
+    startNozomiOnEnterInspection(game, ability, options.orderedResolution === true)
   );
   registerActiveEffectStepHandler(
     NOZOMI_ON_ENTER_ABILITY_ID,
@@ -45,16 +40,23 @@ function startNozomiOnEnterInspection(
     return game;
   }
 
-  const inspection = inspectTopCards(game, player.id, {
-    count: 5,
-    reveal: true,
-  });
-  if (!inspection) {
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(game, player.id, 5);
+  if (!millResult) {
     return game;
   }
 
-  const { gameState, inspectedCardIds } = inspection;
-  return startPendingActiveEffect(gameState, {
+  const milledCardIds = millResult.movedCardIds;
+  const hasMilledLiveCard = hasCardIdsMatchingSelector(
+    millResult.gameState,
+    milledCardIds,
+    typeIs(CardType.LIVE)
+  );
+  const refreshText = millResult.refreshCount > 0 ? '期间发生卡组更新。' : '';
+  const rewardText = hasMilledLiveCard
+    ? '其中有LIVE卡。确认后抽1张。'
+    : '其中没有LIVE卡。确认后不抽牌。';
+
+  return startPendingActiveEffect(millResult.gameState, {
     ability,
     playerId: player.id,
     activeEffect: {
@@ -64,18 +66,23 @@ function startNozomiOnEnterInspection(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(NOZOMI_ON_ENTER_ABILITY_ID),
       stepId: NOZOMI_REVEAL_STEP_ID,
-      stepText: '卡组顶5张已公开。确认后将这些牌放入休息室，并在其中有LIVE卡时抽1张。',
+      stepText: `已将卡组顶合计${milledCardIds.length}张放置入休息室。${refreshText}${rewardText}`,
       awaitingPlayerId: player.id,
-      inspectionCardIds: inspectedCardIds,
+      revealedCardIds: [...new Set(milledCardIds)],
       metadata: {
         sourceZone: ZoneType.MAIN_DECK,
         orderedResolution,
+        milledCardIds,
+        hasMilledLiveCard,
+        refreshCount: millResult.refreshCount,
       },
     },
     actionPayload: {
       sourceCardId: ability.sourceCardId,
-      step: 'START_INSPECTION',
-      inspectedCardIds,
+      step: 'MILL_TOP_CARDS',
+      milledCardIds,
+      hasMilledLiveCard,
+      refreshCount: millResult.refreshCount,
     },
   });
 }
@@ -98,18 +105,10 @@ function finishNozomiOnEnter(
     return game;
   }
 
-  const inspectedCardIds = effect.inspectionCardIds ?? [];
-  const hasMilledLiveCard = hasCardIdsMatchingSelector(
-    game,
-    inspectedCardIds,
-    typeIs(CardType.LIVE)
-  );
-  const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
-  if (!moveResult) {
-    return game;
-  }
+  const milledCardIds = getStringArrayMetadata(effect.metadata?.milledCardIds);
+  const hasMilledLiveCard = effect.metadata?.hasMilledLiveCard === true;
 
-  let state = moveResult.gameState;
+  let state = game;
   let drawnCardId: string | null = null;
   if (hasMilledLiveCard) {
     const drawResult = drawCardsForPlayer(state, player.id, 1);
@@ -122,7 +121,6 @@ function finishNozomiOnEnter(
 
   state = {
     ...state,
-    inspectionContext: state.inspectionZone.cardIds.length > 0 ? state.inspectionContext : null,
     activeEffect: null,
   };
 
@@ -132,10 +130,18 @@ function finishNozomiOnEnter(
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: 'FINISH',
-      milledCardIds: moveResult.movedCardIds,
+      milledCardIds,
       hasMilledLiveCard,
       drawnCardId,
+      refreshCount:
+        typeof effect.metadata?.refreshCount === 'number' ? effect.metadata.refreshCount : 0,
     }),
     effect.metadata?.orderedResolution === true
   );
+}
+
+function getStringArrayMetadata(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }

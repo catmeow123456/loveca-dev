@@ -72,6 +72,8 @@ const BP6_014_CONTINUOUS_ABILITY_ID =
 const BP6_015_CONTINUOUS_ABILITY_ID = 'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
 const BP4_018_CONTINUOUS_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
+const N_PR_024_CONTINUOUS_ABILITY_ID =
+  'PL!N-PR-024-PR:continuous-success-live-total-four-gain-two-blade';
 
 describe('live modifier helpers', () => {
   it('creates source-member Heart modifiers when the member is the source card', () => {
@@ -2573,6 +2575,190 @@ describe('live modifier helpers', () => {
       )
     ).toBe(false);
     expect(getMemberEffectiveBladeCount(game, 'p1', nico.instanceId, modifiers)).toBe(1);
+  });
+
+  function setupNPr024ContinuousGame(
+    ownSuccessCount: number,
+    opponentSuccessCount: number,
+    sourceOnStage = true,
+    sourceCardCode = 'PL!N-PR-024-PR',
+    sourceName = '桜坂しずく',
+    sourceId = 'n-pr-024-shizuku'
+  ): {
+    readonly game: ReturnType<typeof createGameState>;
+    readonly sourceId: string;
+  } {
+    const source = createCardInstance(
+      {
+        cardCode: sourceCardCode,
+        name: sourceName,
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      sourceId
+    );
+    const ownLives = Array.from({ length: ownSuccessCount }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `PL!N-success-live-${index}`,
+          name: `Own Success Live ${index}`,
+          cardType: CardType.LIVE,
+          score: 1,
+          requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+        },
+        'p1',
+        `own-success-live-${index}`
+      )
+    );
+    const opponentLives = Array.from({ length: opponentSuccessCount }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `PL!N-opponent-success-live-${index}`,
+          name: `Opponent Success Live ${index}`,
+          cardType: CardType.LIVE,
+          score: 1,
+          requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+        },
+        'p2',
+        `opponent-success-live-${index}`
+      )
+    );
+    let game = createGameState('n-pr-024-continuous', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source, ...ownLives, ...opponentLives]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: sourceOnStage
+        ? placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId)
+        : player.memberSlots,
+      successZone: ownLives.reduce(
+        (zone, live) => addCardToZone(zone, live.instanceId),
+        player.successZone
+      ),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      successZone: opponentLives.reduce(
+        (zone, live) => addCardToZone(zone, live.instanceId),
+        player.successZone
+      ),
+    }));
+    return { game, sourceId: source.instanceId };
+  }
+
+  it('collects PL!N-PR-024 BLADE +2 when both success LIVE zones total four cards', () => {
+    const { game, sourceId } = setupNPr024ContinuousGame(2, 2);
+
+    const modifiers = collectLiveModifiers(game);
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: sourceId,
+      abilityId: N_PR_024_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', sourceId, modifiers)).toBe(3);
+  });
+
+  it('does not collect PL!N-PR-024 BLADE when both success LIVE zones total three cards', () => {
+    const { game, sourceId } = setupNPr024ContinuousGame(2, 1);
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.sourceCardId === sourceId &&
+          modifier.abilityId === N_PR_024_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('collects PL!N-PR-024 BLADE +2 when the total four success LIVE cards are all own cards', () => {
+    const { game, sourceId } = setupNPr024ContinuousGame(4, 0);
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: sourceId,
+      abilityId: N_PR_024_CONTINUOUS_ABILITY_ID,
+    });
+  });
+
+  it('does not collect PL!N-PR-024 BLADE when the source is not on stage', () => {
+    const { game, sourceId } = setupNPr024ContinuousGame(2, 2, false);
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.sourceCardId === sourceId &&
+          modifier.abilityId === N_PR_024_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('collects PL!S-PR-039 BLADE +2 when both success LIVE zones total four cards', () => {
+    const { game, sourceId } = setupNPr024ContinuousGame(
+      1,
+      3,
+      true,
+      'PL!S-PR-039-PR',
+      '渡辺 曜',
+      's-pr-039-you'
+    );
+
+    const modifiers = collectLiveModifiers(game);
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: sourceId,
+      abilityId: N_PR_024_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', sourceId, modifiers)).toBe(3);
+  });
+
+  it('does not collect PL!S-PR-039 BLADE when both success LIVE zones total three cards', () => {
+    const { game, sourceId } = setupNPr024ContinuousGame(
+      1,
+      2,
+      true,
+      'PL!S-PR-039-PR',
+      '渡辺 曜',
+      's-pr-039-you-three'
+    );
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.sourceCardId === sourceId &&
+          modifier.abilityId === N_PR_024_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('does not collect PL!S-PR-039 BLADE when the source is not on stage', () => {
+    const { game, sourceId } = setupNPr024ContinuousGame(
+      2,
+      2,
+      false,
+      'PL!S-PR-039-PR',
+      '渡辺 曜',
+      's-pr-039-you-offstage'
+    );
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.sourceCardId === sourceId &&
+          modifier.abilityId === N_PR_024_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
   });
 
   it('collects bp6 success-zone unit continuous Hearts as SOURCE_MEMBER Hearts', () => {

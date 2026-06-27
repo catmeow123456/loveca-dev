@@ -19,7 +19,7 @@ import {
   payImmediateEffectCosts,
   type EffectCostDefinition,
 } from '../../../effects/effect-costs.js';
-import { moveTopDeckCardsToWaitingRoom } from '../../../effects/look-top.js';
+import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -189,7 +189,7 @@ function finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
     discardedHandCardIds: discardResult.discardedCardIds,
   });
 
-  const millResult = moveTopDeckCardsToWaitingRoom(stateAfterCost, player.id, 3);
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(stateAfterCost, player.id, 3);
   if (!millResult) {
     return game;
   }
@@ -200,6 +200,7 @@ function finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
     sourceCardId: effect.sourceCardId,
     step: 'MILL_TOP_THREE',
     milledCardIds: millResult.movedCardIds,
+    refreshCount: millResult.refreshCount,
   });
   const selectableCardIds = selectWaitingRoomCardIds(
     state,
@@ -215,6 +216,7 @@ function finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
         sourceCardId: effect.sourceCardId,
         step: 'NO_CERISE_LIVE_TARGET',
         milledCardIds: millResult.movedCardIds,
+        refreshCount: millResult.refreshCount,
       }),
       game.activeEffect?.metadata?.orderedResolution === true
     );
@@ -246,6 +248,7 @@ function finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
         paidEnergyCardIds: energyPayment.paidEnergyCardIds,
         discardCardId,
         milledCardIds: millResult.movedCardIds,
+        refreshCount: millResult.refreshCount,
       },
       zoneSelection,
     }),

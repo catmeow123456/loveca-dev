@@ -31,6 +31,7 @@ import {
   PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID,
   PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
   PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID,
+  PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID,
   BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_ABILITY_ID,
   BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
   PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
@@ -60,7 +61,10 @@ import {
   HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID,
   HS_BP1_022_LIVE_SUCCESS_CHEER_HASUNOSORA_MEMBER_SCORE_ABILITY_ID,
   PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID,
+  PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
   N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID,
+  N_BP5_015_LIVE_START_ALL_SIX_STAGE_HEARTS_GAIN_TWO_BLADE_ABILITY_ID,
   HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID,
   HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID,
   HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID,
@@ -68,6 +72,11 @@ import {
   BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
   BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
   N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
+  N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID,
+  N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID,
+  N_BP1_005_LIVE_START_DISCARD_GAIN_ONE_BLADE_ABILITY_ID,
+  N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+  N_PR_024_CONTINUOUS_SUCCESS_LIVE_TOTAL_FOUR_GAIN_TWO_BLADE_ABILITY_ID,
   N_PR_026_ON_ENTER_STACK_LOW_COST_NIJIGASAKI_MEMBER_FROM_WAITING_ABILITY_ID,
   N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
   SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID,
@@ -331,8 +340,12 @@ const PL_N_BP3_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】选择自己或对方。自己将该玩家休息室至多2张成员卡按任意顺序放置于该玩家卡组底。';
 const PL_N_BP3_027_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】此回合中，自己的剩余HEART中存在大于等于1个[緑ハート]，并且自己的舞台存在『虹咲』的成员的场合，从自己的能量卡组中将1张能量卡以待机状态放置。';
+const PL_N_BP3_030_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】因声援公开的自己的卡中存在持有 ALL BLADE 的卡时，此 LIVE 的分数+1。';
 const N_BP5_001_AUTO_ON_CHEER_EFFECT_TEXT =
   '【自动】【1回合1次】自己进行声援时，因声援公开的自己的卡所持有的 BLADE HEART 中，普通六色与 ALL Heart 合计存在3种以上的场合，LIVE结束时为止，获得[桃ハート]。存在6种以上的场合，进一步获得「【常时】LIVE的合计分数+1」。';
+const N_BP5_015_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的舞台成员持有的Heart中包含桃、红、黄、绿、蓝、紫全部6种的场合，LIVE结束时为止获得[BLADE][BLADE]。';
 const BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，自己的成功LIVE卡区每有1张卡片，获得[BLADE][BLADE]。';
 const BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_EFFECT_TEXT =
@@ -461,6 +474,10 @@ const HS_BP5_022_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以支付[E][E]：自己的舞台中存在费用9以上的『EdelNote』成员的场合，选择1项：从自己的休息室将1张费用4以下的『EdelNote』成员卡登场到空成员区；或使此卡的必要紫Heart减少1。';
 const PL_N_PB1_037_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】此回合中，因自己的『虹咲』的卡片的效果，将待机状态的自己的能量变为活跃状态的场合，此卡的分数＋１。并且，因自己的『虹咲』的卡片的效果，将存在于自己的舞台的待机状态的成员也变为活跃状态的场合，改为分数＋２。';
+const PL_N_BP1_027_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的舞台上『虹ヶ咲』成员持有的 heart01、heart04、heart05、heart02、heart03、heart06 中，每有1种颜色，此卡的分数+1。';
+const PL_N_BP1_029_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的LIVE中的卡为3张以上的场合，此卡的分数+2。';
 const HS_BP2_024_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的舞台上有「徒町小铃」登场，且有费用大于「徒町小铃」的「村野沙耶香」登场的场合，使此卡成功的必要HEART减少[無ハート][無ハート][無ハート]。';
 const SP_BP2_009_LIVE_START_EFFECT_TEXT =
@@ -498,6 +515,16 @@ const N_PR_026_LIVE_SUCCESS_DELEGATE_EFFECT_TEXT =
   '【常时】此成员获得其下方费用小于等于9的『虹ヶ咲』成员卡持有的全部【LIVE成功时】能力。';
 const N_PR_021_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】可以将1张手牌放置入休息室：从因声援公开的自己的卡片中，将1张费用2以下的成员卡或分数2以下的LIVE卡加入手牌。';
+const N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_EFFECT_TEXT =
+  '【起动】【1回合1次】公开全部手牌：自己的舞台存在其他成员，且因此公开的手牌中没有LIVE卡的场合，检视卡组顶5张。可以公开其中1张LIVE卡加入手牌，其余放置入休息室。';
+const N_SD1_004_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[BLADE][BLADE]。';
+const N_BP1_005_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[BLADE]。';
+const N_BP5_022_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将1张手牌放置入休息室：从自己的休息室将1张『虹ヶ咲』的LIVE卡加入手牌。';
+const N_PR_024_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要自己与对方的成功LIVE卡区中的卡合计4张以上，获得[BLADE][BLADE]。';
 const SP_BP2_024_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己的手牌张数多于对方的场合，此卡的分数＋１。';
 const S_BP2_024_LIVE_SUCCESS_EFFECT_TEXT = '【LIVE成功时】抽2张卡，将1张手牌放置入休息室。';
@@ -1221,6 +1248,59 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: N_PR_021_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
       '窄单卡 workflow；先开可选弃1手窗口，弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室。弃手后从当前自己的声援公开卡中选择费用<=2成员或分数<=2 LIVE 入手；无候选时费用保留并正常 RESOLVE。',
+  },
+  {
+    abilityId: N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!N-PR-003', 'PL!N-PR-008', 'PL!N-PR-010'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_EFFECT_TEXT,
+    perTurnLimit: 1,
+    notes:
+      '三张孤独雨 PR 同文共用窄 shared activated workflow；先公开全部手牌，公开手牌无 LIVE 且有其他舞台成员时才私密检视顶5，可公开1张 LIVE 入手，其余入休息室。',
+    activatedUi: {
+      abilityId: N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID,
+      text: '起动：[1回合1次]公开全部手牌；若舞台有其他成员且公开手牌无LIVE，检视顶5，可公开1张LIVE加入手牌，其余入休息室。',
+      title: '公开手牌，无LIVE时检视顶5并可加入1张LIVE',
+    },
+  },
+  {
+    abilityId: N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!N-sd1-004'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: N_SD1_004_LIVE_START_EFFECT_TEXT,
+    notes:
+      '孤独雨第二批窄 card workflow；LIVE开始时开可选弃1手窗口，弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室并入队触发，支付成功后用 addBladeLiveModifierForSourceMember 写入 BLADE +2。',
+  },
+  {
+    abilityId: N_BP1_005_LIVE_START_DISCARD_GAIN_ONE_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp1-005'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: N_BP1_005_LIVE_START_EFFECT_TEXT,
+    notes:
+      '提交前相似卡补充批；与 PL!N-sd1-004 同骨架但 BLADE 数量不同，复用 n-discard-recover-and-blade workflow 的窄配置轴，支付成功后写入 BLADE +1。',
+  },
+  {
+    abilityId: N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp5-019', 'PL!N-bp5-022'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: N_BP5_022_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '孤独雨第二批/提交前相似卡补充批同文 workflow；登场后开可选弃1手窗口，弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室并入队触发，支付成功后重新扫描自己的休息室虹ヶ咲 LIVE 候选，刚作为费用弃置的合格 LIVE 可被选回。',
   },
   {
     abilityId: N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
@@ -3628,6 +3708,30 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'LIVE开始时检查本回合自己的「虹ヶ咲」卡效是否活跃过待机能量；满足时此 LIVE SCORE +1，且也活跃过自己舞台待机成员时改为 +2。仅成员活跃不加分。',
   },
   {
+    abilityId: PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp1-027'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP1_027_LIVE_START_EFFECT_TEXT,
+    notes:
+      '孤独雨第五批窄 LIVE_START workflow；统计自己舞台「虹ヶ咲」成员有效 Heart 的普通六色去重数量，每色最多此 LIVE SCORE +1，并刷新 playerScores。括号 DRAW 由 cheer/LIVE 核心处理。',
+  },
+  {
+    abilityId: PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp1-029'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP1_029_LIVE_START_EFFECT_TEXT,
+    notes:
+      '孤独雨第五批窄 LIVE_START workflow；自己的 liveZone 当前卡数含此 LIVE 自身，3 张以上时此 LIVE SCORE +2，并刷新 playerScores。括号 DRAW 由 cheer/LIVE 核心处理。',
+  },
+  {
     abilityId: HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID,
     baseCardCodes: ['PL!HS-bp2-024'],
     category: CardAbilityCategory.LIVE_START,
@@ -4023,6 +4127,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 workflow：先比较本次 LIVE 双方 playerScores（含对方无 LIVE 的 FAQ 特例），再从仍在处理区且公开的本次声援卡中选择1张虹ヶ咲卡加入手牌。',
   },
   {
+    abilityId: PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp3-030'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP3_030_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '孤独雨第六批窄 LIVE_SUCCESS workflow；只读取本次 liveResolution 中自己的声援公开卡，且要求仍在 resolutionZone 并 revealed。ALL BLADE 用 BladeHeartEffect.HEART + HeartColor.RAINBOW 判定，满足时写此 LIVE SCORE +1 并刷新 playerScores。',
+  },
+  {
     abilityId: N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID,
     baseCardCodes: ['PL!N-bp5-001'],
     category: CardAbilityCategory.AUTO,
@@ -4034,6 +4150,29 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: N_BP5_001_AUTO_ON_CHEER_EFFECT_TEXT,
     notes:
       '窄单卡 ON_CHEER workflow；只响应 pending eventIds 对应的自己非 additional 声援事件，以该 CheerEvent.revealedCardIds 作为本次公开卡来源。只统计这些自己卡上的 BladeHeartEffect.HEART heartColor 类型，3种以上写 SOURCE_MEMBER 桃 Heart，6种以上额外写 SCORE +1 并刷新 liveResolution.playerScores；0-2种也记录 turn1 使用并消费 pending。',
+  },
+  {
+    abilityId: N_BP5_015_LIVE_START_ALL_SIX_STAGE_HEARTS_GAIN_TWO_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp5-015'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: N_BP5_015_LIVE_START_EFFECT_TEXT,
+    notes:
+      '窄 LIVE_START workflow；结算时用 getMemberEffectiveHeartIcons 汇总自己当前舞台成员有效 Heart，包含本次 live 已写入的成员 Heart modifier。普通六色齐全时给来源成员写 BLADE +2；条件不满足或来源离场时正常消费 pending。',
+  },
+  {
+    abilityId: N_PR_024_CONTINUOUS_SUCCESS_LIVE_TOTAL_FOUR_GAIN_TWO_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!N-PR-024', 'PL!S-PR-039'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: N_PR_024_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      'continuous live modifier；PL!N-PR-024 与 PL!S-PR-039 同文共用，只读双方 successZone.cardIds.length 合计，>=4 时来源成员获得 BLADE +2。来源不在舞台时 continuous registry 不收集。',
   },
   {
     abilityId: HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,

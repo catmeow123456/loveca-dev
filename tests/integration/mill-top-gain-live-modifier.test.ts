@@ -157,9 +157,11 @@ describe('mill-top gain live modifier workflow', () => {
       HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID
     );
     expect(session.state?.activeEffect?.stepId).toBe('HS_PR_019_REVEAL_TOP_THREE');
-    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
-    expect(session.state?.inspectionZone.cardIds).toEqual(topCardIds);
-    expect(session.state?.inspectionZone.revealedCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -252,7 +254,8 @@ describe('mill-top gain live modifier workflow', () => {
       HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID
     );
     expect(session.state?.activeEffect?.stepId).toBe('HS_PR_021_REVEAL_TOP_THREE');
-    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -338,7 +341,8 @@ describe('mill-top gain live modifier workflow', () => {
       HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID
     );
     expect(session.state?.activeEffect?.stepId).toBe('HS_SD1_013_REVEAL_TOP_THREE');
-    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -373,13 +377,13 @@ describe('mill-top gain live modifier workflow', () => {
     ]);
 
     expect(timingResult.success).toBe(true);
-    (session as unknown as { authorityState: GameState }).authorityState =
-      timingResult.gameState;
+    (session as unknown as { authorityState: GameState }).authorityState = timingResult.gameState;
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID
     );
     expect(session.state?.activeEffect?.stepId).toBe('HS_BP5_013_REVEAL_TOP_THREE');
-    const topCardIds = session.state!.activeEffect!.inspectionCardIds!;
+    const topCardIds = session.state!.activeEffect!.metadata!.milledCardIds as readonly string[];
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -396,15 +400,9 @@ describe('mill-top gain live modifier workflow', () => {
     });
   });
 
-  it('does not add BLADE for PL!HS-bp5-013-N when fewer than three cards are revealed', () => {
+  it('does not add BLADE for PL!HS-bp5-013-N when no cards can be milled', () => {
     const session = createLiveStartSession('hs-bp5-013-short-deck', {
-      topCards: [0, 1].map((index) =>
-        createCardInstance(
-          createMemberCard(`PL!HS-bp5-013-short-member-${index}`, `Member ${index}`),
-          PLAYER1,
-          `p1-hs-bp5-013-short-top-${index}`
-        )
-      ),
+      topCards: [],
     });
 
     const timingResult = new GameService().executeCheckTiming(session.state!, [
@@ -412,9 +410,10 @@ describe('mill-top gain live modifier workflow', () => {
     ]);
 
     expect(timingResult.success).toBe(true);
-    (session as unknown as { authorityState: GameState }).authorityState =
-      timingResult.gameState;
-    const topCardIds = session.state!.activeEffect!.inspectionCardIds!;
+    (session as unknown as { authorityState: GameState }).authorityState = timingResult.gameState;
+    const topCardIds = session.state!.activeEffect!.metadata!.milledCardIds as readonly string[];
+    expect(topCardIds).toHaveLength(0);
+    expect(session.state?.activeEffect?.metadata?.refreshCount).toBe(0);
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -439,6 +438,98 @@ describe('mill-top gain live modifier workflow', () => {
           action.payload.bladeBonus === 0
       )
     ).toBe(true);
+  });
+
+  it('refreshes mid-effect and still checks three milled cards for PL!HS-sd1-013-SD', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('hs-sd1-013-short-deck-refresh', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const kosuzu = createCardInstance(
+      createMemberCard('PL!HS-sd1-013-SD', '徒町小鈴', HeartColor.BLUE),
+      PLAYER1,
+      'p1-hs-sd1-013-refresh-kosuzu'
+    );
+    const topCards = [0, 1].map((index) =>
+      createCardInstance(
+        createMemberCard(
+          `PL!HS-sd1-013-refresh-top-${index}`,
+          `Blue Top ${index}`,
+          HeartColor.BLUE
+        ),
+        PLAYER1,
+        `p1-hs-sd1-013-refresh-top-${index}`
+      )
+    );
+    const refreshCard = createCardInstance(
+      createMemberCard('PL!HS-sd1-013-refresh-waiting', 'Blue Refresh', HeartColor.BLUE),
+      PLAYER1,
+      'p1-hs-sd1-013-refresh-waiting'
+    );
+    const state = registerCards(session.state!, [kosuzu, ...topCards, refreshCard]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+
+    removeFromPlayerZones(p1);
+    p1.hand.cardIds = [kosuzu.instanceId];
+    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+    p1.waitingRoom.cardIds = [refreshCard.instanceId];
+    p1.memberSlots.slots = {
+      [SlotPosition.LEFT]: null,
+      [SlotPosition.CENTER]: null,
+      [SlotPosition.RIGHT]: null,
+    };
+    p1.memberSlots.cardStates = new Map();
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, kosuzu.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    expect(playResult.success).toBe(true);
+    const milledCardIds = session.state!.activeEffect!.metadata!.milledCardIds as readonly string[];
+    expect(milledCardIds).toHaveLength(3);
+    expect(milledCardIds.slice(0, 2)).toEqual(topCards.map((card) => card.instanceId));
+    expect(session.state?.activeEffect?.metadata?.conditionMet).toBe(true);
+    expect(session.state?.activeEffect?.metadata?.refreshCount).toBe(1);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.affectedPlayerId === PLAYER1 &&
+          action.payload.movedCount === 3
+      )
+    ).toBe(true);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      playerId: PLAYER1,
+      sourceCardId: kosuzu.instanceId,
+      abilityId: HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
+      target: 'SOURCE_MEMBER',
+      hearts: [{ color: HeartColor.BLUE, count: 1 }],
+    });
   });
 });
 

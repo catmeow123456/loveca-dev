@@ -51,6 +51,8 @@ export const PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILIT
   'PL!N-bp3-010:live-start-select-player-bottom-waiting-members';
 export const PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!N-bp3-027-L:live-success-green-surplus-nijigasaki-member-place-waiting-energy';
+export const PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!N-bp3-030-L:live-success-cheer-all-blade-this-live-score';
 export const BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_ABILITY_ID =
   'PL!-bp3-006:live-start-discard-gain-blade-by-success-count';
 export const BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID =
@@ -107,8 +109,14 @@ export const HS_BP1_022_LIVE_SUCCESS_CHEER_HASUNOSORA_MEMBER_SCORE_ABILITY_ID =
   'PL!HS-bp1-022-L:live-success-score-plus-if-ten-cheer-hasunosora-members';
 export const PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID =
   'PL!N-bp1-026-L:live-success-higher-score-revealed-cheer-nijigasaki-to-hand';
+export const PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!N-bp1-027-L:live-start-nijigasaki-stage-heart-colors-this-live-score';
+export const PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!N-bp1-029-L:live-start-live-zone-three-this-live-score';
 export const N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID =
   'PL!N-bp5-001:auto-on-cheer-blade-heart-types-gain-pink-heart-score';
+export const N_BP5_015_LIVE_START_ALL_SIX_STAGE_HEARTS_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!N-bp5-015-N:live-start-all-six-stage-hearts-gain-two-blade';
 export const HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID =
   'PL!HS-pb1-021-N:live-success-draw-if-dollchestra-live-zone';
 export const HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID =
@@ -127,6 +135,16 @@ export const N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_
   'PL!N-PR-026-PR:live-success-delegate-member-below-live-success-abilities';
 export const N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID =
   'PL!N-PR-021-PR:live-success-discard-recover-low-cost-or-score-revealed-cheer';
+export const N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID =
+  'PL!N-PR:activated-turn-once-reveal-hand-no-live-look-top-five-take-live';
+export const N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!N-sd1-004-SD:live-start-discard-gain-two-blade';
+export const N_BP1_005_LIVE_START_DISCARD_GAIN_ONE_BLADE_ABILITY_ID =
+  'PL!N-bp1-005:live-start-discard-gain-one-blade';
+export const N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID =
+  'PL!N-bp5-022-N:on-enter-discard-recover-nijigasaki-live';
+export const N_PR_024_CONTINUOUS_SUCCESS_LIVE_TOTAL_FOUR_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!N-PR-024-PR:continuous-success-live-total-four-gain-two-blade';
 export const SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp2-024:live-success-hand-advantage-this-live-score';
 export const S_BP2_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID =

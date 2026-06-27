@@ -1408,16 +1408,17 @@ describe('sample card effect runner', () => {
     expect(result.success).toBe(true);
     const activeEffect = session.state?.activeEffect;
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(nozomiCardId);
-    expect(session.state?.inspectionZone.cardIds).toEqual(milledCardIds);
-    expect(session.state?.inspectionZone.revealedCardIds).toEqual(milledCardIds);
-    expect(session.state?.inspectionContext?.ownerPlayerId).toBe(PLAYER1);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
+    expect(session.state?.inspectionContext).toBeNull();
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(milledCardIds);
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([drawnCardId]);
     expect(session.state?.pendingAbilities).toEqual([]);
     expect(activeEffect?.abilityId).toBe(NOZOMI_ON_ENTER_ABILITY_ID);
     expect(activeEffect?.awaitingPlayerId).toBe(PLAYER1);
-    expect(activeEffect?.inspectionCardIds).toEqual(milledCardIds);
+    expect(activeEffect?.revealedCardIds).toEqual(milledCardIds);
+    expect(activeEffect?.metadata?.milledCardIds).toEqual(milledCardIds);
     expect(
       session.state?.actionHistory.some(
         (action) =>
@@ -1504,12 +1505,14 @@ describe('sample card effect runner', () => {
 
     expect(result.success).toBe(true);
     const activeEffect = session.state?.activeEffect;
-    expect(session.state?.inspectionZone.cardIds).toEqual(milledCardIds);
-    expect(session.state?.inspectionZone.revealedCardIds).toEqual(milledCardIds);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(milledCardIds);
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([remainingDeckCardId]);
     expect(activeEffect?.abilityId).toBe(NOZOMI_ON_ENTER_ABILITY_ID);
+    expect(activeEffect?.revealedCardIds).toEqual(milledCardIds);
+    expect(activeEffect?.metadata?.milledCardIds).toEqual(milledCardIds);
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, activeEffect!.id)
@@ -5402,17 +5405,18 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual(
       greenMembers.map((card) => card.instanceId)
     );
-    expect(session.state?.inspectionZone.cardIds).toEqual(
+    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(
       greenMembers.map((card) => card.instanceId)
     );
-    expect(session.state?.inspectionZone.revealedCardIds).toEqual(
-      greenMembers.map((card) => card.instanceId)
-    );
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([deckFiller.instanceId]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+      greenMembers.map((card) => card.instanceId)
+    );
     expect(session.state?.liveResolution.liveModifiers).not.toContainEqual({
       kind: 'HEART',
       target: 'SOURCE_MEMBER',
@@ -7523,10 +7527,11 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
-    expect(session.state?.inspectionZone.cardIds).toEqual(topCardIds);
-    expect(session.state?.inspectionZone.revealedCardIds).toEqual(topCardIds);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
 
     const finishResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)

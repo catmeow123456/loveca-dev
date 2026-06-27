@@ -7,7 +7,7 @@ import {
 import { CardType, ZoneType } from '../../../../shared/types/enums.js';
 import { allCardIdsMatchingSelector } from '../../../effects/conditions.js';
 import { typeIs } from '../../../effects/card-selectors.js';
-import { inspectTopCards, moveInspectedCardsToWaitingRoom } from '../../../effects/look-top.js';
+import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 import { HS_BP1_008_ON_ENTER_MILL_THREE_DRAW_IF_ALL_MEMBERS_ABILITY_ID } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
@@ -29,8 +29,7 @@ export function registerHsBp1008KosuzuWorkflowHandlers(): void {
   registerActiveEffectStepHandler(
     HS_BP1_008_ON_ENTER_MILL_THREE_DRAW_IF_ALL_MEMBERS_ABILITY_ID,
     HS_BP1_008_REVEAL_TOP_THREE_STEP_ID,
-    (game, _input, context) =>
-      finishHsBp1008Kosuzu(game, context.continuePendingCardEffects)
+    (game, _input, context) => finishHsBp1008Kosuzu(game, context.continuePendingCardEffects)
   );
 }
 
@@ -44,16 +43,21 @@ function startHsBp1008KosuzuInspection(
     return game;
   }
 
-  const inspection = inspectTopCards(game, player.id, {
-    count: TOP_COUNT,
-    reveal: true,
-  });
-  if (!inspection) {
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(game, player.id, TOP_COUNT);
+  if (!millResult) {
     return game;
   }
 
-  const { gameState, inspectedCardIds } = inspection;
-  return startPendingActiveEffect(gameState, {
+  const milledCardIds = millResult.movedCardIds;
+  const conditionMet =
+    milledCardIds.length === TOP_COUNT &&
+    allCardIdsMatchingSelector(millResult.gameState, milledCardIds, typeIs(CardType.MEMBER));
+  const refreshText = millResult.refreshCount > 0 ? '期间发生卡组更新。' : '';
+  const rewardText = conditionMet
+    ? '这些卡均为成员卡。确认后抽1张。'
+    : '这些卡不满足均为成员卡。确认后不抽牌。';
+
+  return startPendingActiveEffect(millResult.gameState, {
     ability,
     playerId: player.id,
     activeEffect: {
@@ -63,18 +67,23 @@ function startHsBp1008KosuzuInspection(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: HS_BP1_008_REVEAL_TOP_THREE_STEP_ID,
-      stepText: '卡组顶3张已公开。确认后将这些牌放入休息室，并在实际公开满3张且均为成员卡时抽1张。',
+      stepText: `已将卡组顶合计${milledCardIds.length}张放置入休息室。${refreshText}${rewardText}`,
       awaitingPlayerId: player.id,
-      inspectionCardIds: inspectedCardIds,
+      revealedCardIds: [...new Set(milledCardIds)],
       metadata: {
         sourceZone: ZoneType.MAIN_DECK,
         orderedResolution,
+        milledCardIds,
+        conditionMet,
+        refreshCount: millResult.refreshCount,
       },
     },
     actionPayload: {
       sourceCardId: ability.sourceCardId,
-      step: 'START_INSPECTION',
-      inspectedCardIds,
+      step: 'MILL_TOP_CARDS',
+      milledCardIds,
+      conditionMet,
+      refreshCount: millResult.refreshCount,
     },
   });
 }
@@ -97,23 +106,12 @@ function finishHsBp1008Kosuzu(
     return game;
   }
 
-  const inspectedCardIds = effect.inspectionCardIds ?? [];
-  const conditionMet =
-    inspectedCardIds.length === TOP_COUNT &&
-    allCardIdsMatchingSelector(game, inspectedCardIds, typeIs(CardType.MEMBER));
-  const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
-  if (!moveResult) {
-    return game;
-  }
-
   let state: GameState = {
-    ...moveResult.gameState,
-    inspectionContext:
-      moveResult.gameState.inspectionZone.cardIds.length > 0
-        ? moveResult.gameState.inspectionContext
-        : null,
+    ...game,
     activeEffect: null,
   };
+  const milledCardIds = getStringArrayMetadata(effect.metadata?.milledCardIds);
+  const conditionMet = effect.metadata?.conditionMet === true;
   const drawResult = conditionMet ? drawCardsForPlayer(state, player.id, 1) : null;
   if (conditionMet && !drawResult) {
     return game;
@@ -126,10 +124,18 @@ function finishHsBp1008Kosuzu(
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: 'FINISH_MILL_TOP_THREE_DRAW_IF_ALL_MEMBERS',
-      milledCardIds: moveResult.movedCardIds,
+      milledCardIds,
       conditionMet,
       drawnCardIds: drawResult?.drawnCardIds ?? [],
+      refreshCount:
+        typeof effect.metadata?.refreshCount === 'number' ? effect.metadata.refreshCount : 0,
     }),
     effect.metadata?.orderedResolution === true
   );
+}
+
+function getStringArrayMetadata(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }

@@ -11,6 +11,7 @@ import {
   costLte,
   groupAliasIs,
   groupIs,
+  hasAllBladeHeart,
   hasBladeHeart,
   hasNoAbilityOrContinuousAbility,
   hasScoreBladeHeart,
@@ -334,6 +335,30 @@ describe('card selectors', () => {
     expect(hasScore(scoreMember)).toBe(true);
     expect(hasScore(drawLive)).toBe(false);
     expect(hasScore(noBladeHeartLive)).toBe(false);
+  });
+
+  it('matches cards that have printed ALL BLADE HEART items', () => {
+    const allHeartLive = liveCard('all-heart-live', {
+      bladeHearts: [{ effect: BladeHeartEffect.HEART, heartColor: HeartColor.RAINBOW }],
+    });
+    const normalHeartLive = liveCard('normal-heart-live', {
+      bladeHearts: [{ effect: BladeHeartEffect.HEART, heartColor: HeartColor.PINK }],
+    });
+    const drawLive = liveCard('draw-live', {
+      bladeHearts: [{ effect: BladeHeartEffect.DRAW }],
+    });
+    const scoreMember = memberCard('score-member', {
+      bladeHearts: [{ effect: BladeHeartEffect.SCORE }],
+    });
+    const noBladeHeartLive = liveCard('no-blade-heart-live', { bladeHearts: [] });
+
+    const hasAll = hasAllBladeHeart();
+
+    expect(hasAll(allHeartLive)).toBe(true);
+    expect(hasAll(normalHeartLive)).toBe(false);
+    expect(hasAll(drawLive)).toBe(false);
+    expect(hasAll(scoreMember)).toBe(false);
+    expect(hasAll(noBladeHeartLive)).toBe(false);
   });
 
   it('matches cards with no ability text or a continuous ability', () => {

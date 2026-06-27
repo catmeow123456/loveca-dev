@@ -1,6 +1,7 @@
 import type { CardInstance } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
-import { getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
+import { addAction, getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
+import { applyRuleActionResult, ruleActionProcessor } from '../../domain/rules/rule-actions.js';
 import { addCardToZone } from '../../domain/entities/zone.js';
 import { ZoneType } from '../../shared/types/enums.js';
 
@@ -27,6 +28,10 @@ export interface MoveInspectedSelectionResult {
 export interface MoveCardsToWaitingRoomResult {
   readonly gameState: GameState;
   readonly movedCardIds: readonly string[];
+}
+
+export interface MoveTopDeckCardsToWaitingRoomWithRefreshResult extends MoveCardsToWaitingRoomResult {
+  readonly refreshCount: number;
 }
 
 export function inspectTopCards(
@@ -162,6 +167,71 @@ export function moveTopDeckCardsToWaitingRoom(
   return {
     gameState: state,
     movedCardIds,
+  };
+}
+
+export function moveTopDeckCardsToWaitingRoomWithRefresh(
+  game: GameState,
+  playerId: string,
+  count: number
+): MoveTopDeckCardsToWaitingRoomWithRefreshResult | null {
+  if (count <= 0) {
+    return { gameState: game, movedCardIds: [], refreshCount: 0 };
+  }
+
+  let state = game;
+  const movedCardIds: string[] = [];
+  let refreshCount = 0;
+
+  while (movedCardIds.length < count) {
+    const player = getPlayerById(state, playerId);
+    if (!player) {
+      return null;
+    }
+
+    if (player.mainDeck.cardIds.length === 0) {
+      if (player.waitingRoom.cardIds.length === 0) {
+        break;
+      }
+
+      const refreshAction = ruleActionProcessor.executeRefresh(playerId);
+      const movedCount = player.waitingRoom.cardIds.length;
+      const refreshedState = applyRuleActionResult(state, refreshAction, (cardId) => {
+        const card = getCardById(state, cardId);
+        return card?.data.cardType ?? null;
+      });
+      const playerAfterRefresh = getPlayerById(refreshedState, playerId);
+      state = addAction(refreshedState, 'RULE_ACTION', null, {
+        type: refreshAction.type,
+        description: refreshAction.description,
+        affectedPlayerId: refreshAction.affectedPlayerId,
+        movedCount,
+        mainDeckCountAfter: playerAfterRefresh?.mainDeck.cardIds.length ?? 0,
+      });
+      refreshCount += 1;
+      continue;
+    }
+
+    const remainingCount = count - movedCardIds.length;
+    const cardIdsToMove = player.mainDeck.cardIds.slice(0, remainingCount);
+    state = updatePlayer(state, player.id, (currentPlayer) => ({
+      ...currentPlayer,
+      mainDeck: {
+        ...currentPlayer.mainDeck,
+        cardIds: currentPlayer.mainDeck.cardIds.slice(cardIdsToMove.length),
+      },
+      waitingRoom: {
+        ...currentPlayer.waitingRoom,
+        cardIds: [...currentPlayer.waitingRoom.cardIds, ...cardIdsToMove],
+      },
+    }));
+    movedCardIds.push(...cardIdsToMove);
+  }
+
+  return {
+    gameState: state,
+    movedCardIds,
+    refreshCount,
   };
 }
 

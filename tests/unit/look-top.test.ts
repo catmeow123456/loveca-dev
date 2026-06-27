@@ -10,6 +10,7 @@ import {
   moveInspectedCardsToWaitingRoom,
   moveInspectedSelectionToHandRestToWaitingRoom,
   moveTopDeckCardsToWaitingRoom,
+  moveTopDeckCardsToWaitingRoomWithRefresh,
 } from '../../src/application/effects/look-top';
 import { CardType, HeartColor, ZoneType } from '../../src/shared/types/enums';
 
@@ -173,11 +174,7 @@ describe('look-top helpers', () => {
 
     expect(inspection).not.toBeNull();
 
-    const result = moveInspectedCardsToWaitingRoom(
-      inspection!.gameState,
-      PLAYER1,
-      topCardIds
-    );
+    const result = moveInspectedCardsToWaitingRoom(inspection!.gameState, PLAYER1, topCardIds);
 
     expect(result).not.toBeNull();
     expect(result?.movedCardIds).toEqual(topCardIds);
@@ -200,6 +197,37 @@ describe('look-top helpers', () => {
     expect(result?.movedCardIds).toEqual(topCardIds.slice(0, 3));
     expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([topCardIds[3]]);
     expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual(topCardIds.slice(0, 3));
+  });
+
+  it('refreshes and continues when effect milling needs more cards than the main deck has', () => {
+    const state = createMutableState();
+    const topCardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.MEMBER)
+      .slice(0, 3)
+      .map((card) => card.instanceId);
+    setMainDeckForPlayer(state, topCardIds.slice(0, 2));
+    const p1 = state.players[0] as unknown as {
+      waitingRoom: { cardIds: string[] };
+    };
+    p1.waitingRoom.cardIds = [topCardIds[2]!];
+
+    const result = moveTopDeckCardsToWaitingRoomWithRefresh(state, PLAYER1, 3);
+
+    expect(result).not.toBeNull();
+    expect(result?.movedCardIds).toHaveLength(3);
+    expect(result?.movedCardIds.slice(0, 2)).toEqual(topCardIds.slice(0, 2));
+    expect(topCardIds).toContain(result?.movedCardIds[2]);
+    expect(result?.refreshCount).toBe(1);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toHaveLength(2);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toHaveLength(1);
+    expect(
+      result?.gameState.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.movedCount === 3
+      )
+    ).toBe(true);
   });
 
   it('preserves inspection context while other inspected cards remain', () => {

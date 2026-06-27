@@ -374,6 +374,21 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
             },
           ],
   },
+  {
+    baseCardCodes: ['PL!N-PR-024', 'PL!S-PR-039'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      countTotalSuccessLiveCards(game, playerId) >= 4
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 2,
+              sourceCardId,
+              abilityId: N_PR_024_CONTINUOUS_SUCCESS_LIVE_TOTAL_FOUR_GAIN_TWO_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
   ...createSideSlotBladeContinuousDefinitions([
     {
       baseCardCode: 'PL!SP-pb2-035',
@@ -462,6 +477,8 @@ const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
   'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
 const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
   'PL!N-pb1-004:continuous-not-position-moved-gain-two-blade';
+const N_PR_024_CONTINUOUS_SUCCESS_LIVE_TOTAL_FOUR_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!N-PR-024-PR:continuous-success-live-total-four-gain-two-blade';
 const HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID =
   'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart';
 const S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID =
@@ -647,6 +664,12 @@ function hasSuccessfulLiveScoreLead(game: GameState, playerId: string): boolean 
     return false;
   }
   return sumSuccessfulLiveScore(game, playerId) > sumSuccessfulLiveScore(game, opponent.id);
+}
+
+function countTotalSuccessLiveCards(game: GameState, playerId: string): number {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  const opponent = game.players.find((candidate) => candidate.id !== playerId);
+  return (player?.successZone.cardIds.length ?? 0) + (opponent?.successZone.cardIds.length ?? 0);
 }
 
 function hasLiellaLiveWithRequirementTotalAtLeast(

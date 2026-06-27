@@ -14,12 +14,11 @@ import {
   recordPayCostAction,
 } from '../../runtime/workflow-helpers.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
-import { moveTopDeckCardsToWaitingRoom } from '../../../effects/look-top.js';
+import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 
 export function registerSd1008HanayoWorkflowHandlers(): void {
-  registerActivatedAbilityHandler(
-    HANAYO_ACTIVATED_ABILITY_ID,
-    (game, playerId, cardId) => startHanayoActivatedEffect(game, playerId, cardId)
+  registerActivatedAbilityHandler(HANAYO_ACTIVATED_ABILITY_ID, (game, playerId, cardId) =>
+    startHanayoActivatedEffect(game, playerId, cardId)
   );
 }
 
@@ -50,7 +49,7 @@ function startHanayoActivatedEffect(game: GameState, playerId: string, cardId: s
   if (!costPayment) {
     return game;
   }
-  const moveResult = moveTopDeckCardsToWaitingRoom(costPayment.gameState, player.id, 10);
+  const moveResult = moveTopDeckCardsToWaitingRoomWithRefresh(costPayment.gameState, player.id, 10);
   if (!moveResult) {
     return game;
   }
@@ -66,6 +65,7 @@ function startHanayoActivatedEffect(game: GameState, playerId: string, cardId: s
     effectText: getAbilityEffectText(HANAYO_ACTIVATED_ABILITY_ID),
     step: 'MILL_TOP_TEN',
     milledCardIds: moveResult.movedCardIds,
+    refreshCount: moveResult.refreshCount,
   });
   return state;
 }
