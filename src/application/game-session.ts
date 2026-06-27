@@ -165,6 +165,10 @@ import {
   hasPendingSuccessLiveSelection,
   haveAllSuccessLiveSettlementsCompleted,
 } from '../domain/rules/success-live-placement.js';
+import {
+  getOwnedInspectionCardIds,
+  isActiveEffectControlledInspection,
+} from '../domain/rules/inspection-control.js';
 import { GameCommandType } from './game-commands.js';
 import {
   addCardToInspectionZone,
@@ -1876,6 +1880,17 @@ export class GameSession {
 
   private validateInspectionCommandContext(state: GameState, command: GameCommand): string | null {
     const inspectionContext = state.inspectionContext;
+    const activeEffectControlsInspection = isActiveEffectControlledInspection(
+      state,
+      command.playerId
+    );
+
+    if (
+      activeEffectControlsInspection &&
+      isActiveEffectBlockedInspectionCommandType(command.type)
+    ) {
+      return '当前检视由卡牌效果处理，请通过效果窗口确认';
+    }
 
     if (!inspectionContext) {
       if (isInspectionCommandType(command.type)) {
@@ -4953,6 +4968,20 @@ function isInspectionCommandType(commandType: GameCommandType): boolean {
   );
 }
 
+function isActiveEffectBlockedInspectionCommandType(commandType: GameCommandType): boolean {
+  return (
+    commandType === GameCommandType.OPEN_INSPECTION ||
+    commandType === GameCommandType.REVEAL_INSPECTED_CARD ||
+    commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_TOP ||
+    commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM ||
+    commandType === GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE ||
+    commandType === GameCommandType.MOVE_CARD_TO_INSPECTION ||
+    commandType === GameCommandType.REORDER_INSPECTED_CARD ||
+    commandType === GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT ||
+    commandType === GameCommandType.FINISH_INSPECTION
+  );
+}
+
 function isBlockedDuringInspection(commandType: GameCommandType): boolean {
   return (
     commandType === GameCommandType.END_PHASE ||
@@ -4991,12 +5020,6 @@ function getInspectionSourceZone(
   }
 
   return state.inspectionContext.sourceZone;
-}
-
-function getOwnedInspectionCardIds(state: GameState, playerId: string): readonly string[] {
-  return state.inspectionZone.cardIds.filter(
-    (cardId) => state.cardRegistry.get(cardId)?.ownerId === playerId
-  );
 }
 
 function getOwnedResolutionCardIds(state: GameState, playerId: string): readonly string[] {

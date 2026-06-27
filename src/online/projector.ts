@@ -51,6 +51,7 @@ import {
   hasPendingSuccessLiveSelection,
   haveAllSuccessLiveSettlementsCompleted,
 } from '../domain/rules/success-live-placement.js';
+import { isActiveEffectControlledInspection } from '../domain/rules/inspection-control.js';
 import type {
   LiveResultViewState,
   MatchViewState,
@@ -154,6 +155,18 @@ const BLOCKED_DURING_INSPECTION_COMMAND_TYPES: readonly GameCommandType[] = [
   GameCommandType.SUBMIT_SCORE,
   GameCommandType.SELECT_SUCCESS_LIVE,
 ];
+
+const ACTIVE_EFFECT_INSPECTION_COMMAND_TYPES = new Set<GameCommandType>([
+  GameCommandType.OPEN_INSPECTION,
+  GameCommandType.REVEAL_INSPECTED_CARD,
+  GameCommandType.MOVE_INSPECTED_CARD_TO_TOP,
+  GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM,
+  GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE,
+  GameCommandType.MOVE_CARD_TO_INSPECTION,
+  GameCommandType.REORDER_INSPECTED_CARD,
+  GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT,
+  GameCommandType.FINISH_INSPECTION,
+]);
 
 function buildWindowDescriptor(game: GameState): WindowDescriptor | null {
   const waitingSeat =
@@ -1064,10 +1077,19 @@ function buildPermissionViewState(
     };
   }
 
+  const activeEffectControlsInspection = isActiveEffectControlledInspection(game, viewerPlayerId);
+  const inspectionPhaseHints = activeEffectControlsInspection
+    ? phaseHints.filter(
+        (hint) => !ACTIVE_EFFECT_INSPECTION_COMMAND_TYPES.has(hint.command as GameCommandType)
+      )
+    : phaseHints;
+
   return {
     availableCommands: mergeCommandHints(
-      phaseHints,
-      buildInspectionCommandHints(game, viewerPlayerId, viewerSeat),
+      inspectionPhaseHints,
+      activeEffectControlsInspection
+        ? []
+        : buildInspectionCommandHints(game, viewerPlayerId, viewerSeat),
       buildActiveEffectCommandHints(game, viewerPlayerId),
       buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
     ),

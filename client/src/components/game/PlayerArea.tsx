@@ -451,20 +451,26 @@ export const PlayerArea = memo(function PlayerArea({
     matchView?.window?.windowType === 'INSPECTION'
       ? ((matchView.window.context?.sourceZone as ZoneType | undefined) ?? null)
       : null;
+  const isActiveEffectInspectionWindow =
+    matchView?.window?.windowType === 'INSPECTION' &&
+    typeof matchView.window.context?.activeEffectId === 'string';
   const canClickMainDeck =
     !isReadOnly &&
     !isOpponent &&
     canOpenInspection &&
+    !isActiveEffectInspectionWindow &&
     (!hasOwnedInspectionContext || inspectionSourceZone === ZoneType.MAIN_DECK);
 
   const canDropToLiveZone = allowGeneralOwnZoneInteraction || allowLiveZoneDeskInteraction;
-  const canReceiveInspectionDrop = !isReadOnly && !isOpponent && hasOwnedInspectionContext;
+  const canReceiveInspectionDrop =
+    !isReadOnly && !isOpponent && hasOwnedInspectionContext && !isActiveEffectInspectionWindow;
   // 检查 Live 区是否已达上限（最多3张）
   const liveZoneIsFull = (liveZoneView?.count ?? liveCardIds.length) >= 3;
 
   const canDropMember = allowGeneralOwnZoneInteraction;
   const canDragInspectionCard =
     !isReadOnly &&
+    !isActiveEffectInspectionWindow &&
     (canMoveInspectedToZone ||
       canMoveInspectedToTop ||
       canMoveInspectedToBottom ||
@@ -530,13 +536,13 @@ export const PlayerArea = memo(function PlayerArea({
   if (canMovePublicCardToEnergyDeck) {
     availableBattleActionCommandTypes.push(GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK);
   }
-  if (canMoveInspectedCardToZone) {
+  if (canMoveInspectedCardToZone && !isActiveEffectInspectionWindow) {
     availableBattleActionCommandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE);
   }
-  if (canMoveInspectedCardToTop) {
+  if (canMoveInspectedCardToTop && !isActiveEffectInspectionWindow) {
     availableBattleActionCommandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_TOP);
   }
-  if (canMoveInspectedCardToBottom) {
+  if (canMoveInspectedCardToBottom && !isActiveEffectInspectionWindow) {
     availableBattleActionCommandTypes.push(GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM);
   }
   if (canConfirmEffectCommand) {
@@ -1208,14 +1214,14 @@ export const PlayerArea = memo(function PlayerArea({
                       onClick={() => setWaitingRoomExpanded(false)}
                     />
 
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="fixed inset-0 z-[100] flex items-end justify-center p-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-4 md:items-center">
                       <motion.div
-                        className="modal-surface modal-accent-amber w-[min(92vw,720px)] max-h-[82vh] overflow-hidden"
+                        className="modal-surface modal-accent-amber flex max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden md:max-h-[82vh] md:w-[min(92vw,720px)]"
                         initial={{ opacity: 0, scale: 0.94 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.94 }}
                       >
-                        <div className="modal-header flex items-center justify-between px-5 py-4">
+                        <div className="modal-header flex shrink-0 items-center justify-between px-4 py-3 md:px-5 md:py-4">
                           <div className="flex items-center gap-3">
                             <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_84%,transparent)] text-[var(--accent-secondary)]">
                               <Layers3 size={16} />
@@ -1239,8 +1245,8 @@ export const PlayerArea = memo(function PlayerArea({
                           </button>
                         </div>
 
-                        <div className="cute-scrollbar max-h-[calc(82vh-76px)] overflow-y-auto p-5">
-                          <div className="grid grid-cols-4 gap-3 sm:grid-cols-5 md:grid-cols-6">
+                        <div className="touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
+                          <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 sm:grid-cols-5 md:grid-cols-6 md:gap-3">
                             {waitingRoomCardIds.map((cardId: string) => {
                               const card = getVisibleCardPresentation(cardId);
                               if (!card) return null;
@@ -1295,7 +1301,10 @@ export const PlayerArea = memo(function PlayerArea({
                                           }
                                         }}
                                         showHover={true}
-                                        className={getActiveEffectTaskCardClass(card.instanceId)}
+                                        className={cn(
+                                          'h-[90px] w-[64px] md:h-[105px] md:w-[75px]',
+                                          getActiveEffectTaskCardClass(card.instanceId)
+                                        )}
                                       />
                                     </CardDetailPressTarget>
                                   </DraggableCard>
@@ -1889,7 +1898,8 @@ export const PlayerArea = memo(function PlayerArea({
 
   const renderInspectionZone = () => {
     const isViewerInspectionZone = viewerSeat === playerSeat && hasOwnedInspectionContext;
-    const canUseInspectionActions = !isReadOnly && isViewerInspectionZone;
+    const canUseInspectionActions =
+      !isReadOnly && isViewerInspectionZone && !isActiveEffectInspectionWindow;
     const hasVisibleInspectionCards = inspectionCardIds.length > 0;
     const canBatchArrangeInspection =
       canFinishInspectionWithArrangement && inspectionCardIds.length > 0;
@@ -1900,8 +1910,9 @@ export const PlayerArea = memo(function PlayerArea({
       (!hasVisibleInspectionCards || canBatchArrangeInspection);
     const shouldRenderInspectionZone =
       !!inspectionZoneView && (inspectionZoneView.count > 0 || isViewerInspectionZone);
-    const suppressInspectionSurface =
+    const suppressInspectionForEffectEntry =
       suppressActiveEffectVisuals && matchView?.window?.windowType === 'INSPECTION';
+    const suppressInspectionSurface = suppressInspectionForEffectEntry;
 
     const waitForInspectionZoneChange = (previousCardIds: readonly string[]) =>
       new Promise<void>((resolve) => {
@@ -2017,7 +2028,7 @@ export const PlayerArea = memo(function PlayerArea({
 
     return (
       <>
-        {suppressInspectionSurface ? (
+        {suppressInspectionForEffectEntry ? (
           <div
             className={cn(
               'pointer-events-none absolute left-1/2 z-[60] -translate-x-1/2 rounded-full border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl',

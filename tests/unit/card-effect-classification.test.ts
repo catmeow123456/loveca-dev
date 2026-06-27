@@ -26,6 +26,9 @@ import {
   HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
   HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
+  HS_BP2_015_LEAVE_STAGE_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+  HS_BP2_005_ON_ENTER_DISCARD_RECOVER_MIRACRA_CARD_ABILITY_ID,
+  HS_BP2_005_LIVE_START_PAY_ENERGY_FULL_STAGE_GAIN_TWO_BLADE_ABILITY_ID,
   HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID,
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
@@ -34,11 +37,14 @@ import {
   HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID,
   HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID,
   HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID,
+  HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
   HS_BP6_029_LIVE_START_HASUNOSORA_COST_LOOK_TOP_TWO_HAND_REDUCE_REQUIREMENT_ABILITY_ID,
   HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  HS_BP6_011_ACTIVATED_WAIT_SELF_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_PB1_012_ON_ENTER_RECYCLE_MEMBERS_RECOVER_LIVE_GAIN_BLADE_ABILITY_ID,
   HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID,
+  HS_PB1_006_LIVE_START_POSITION_CHANGE_TO_OTHER_MIRACRA_GAIN_HEART_BLADE_ABILITY_ID,
   HS_PB1_009_LIVE_START_DRAW_DISCARD_ABILITY_ID,
   HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
@@ -3388,6 +3394,28 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    const rurinoAuto = getCardAbilityDefinitions('PL!HS-bp6-019-N').find(
+      (ability) => ability.abilityId === HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID
+    );
+    expect(rurinoAuto).toMatchObject({
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const megumiAuto = getCardAbilityDefinitions('PL!HS-bp2-015-N').find(
+      (ability) => ability.abilityId === HS_BP2_015_LEAVE_STAGE_DRAW_TWO_DISCARD_ONE_ABILITY_ID
+    );
+    expect(megumiAuto).toMatchObject({
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
     const kahoAuto = getCardAbilityDefinitions('PL!HS-bp6-017-N').find(
       (ability) => ability.abilityId === HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID
     );
@@ -3664,6 +3692,60 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    const hsPb1006LiveStart = getCardAbilityDefinitions('PL!HS-pb1-006-R').find(
+      (ability) =>
+        ability.abilityId ===
+        HS_PB1_006_LIVE_START_POSITION_CHANGE_TO_OTHER_MIRACRA_GAIN_HEART_BLADE_ABILITY_ID
+    );
+    expect(hsPb1006LiveStart).toMatchObject({
+      baseCardCodes: ['PL!HS-pb1-006'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp2005Abilities = getCardAbilityDefinitions('PL!HS-bp2-005-P');
+    expect(hsBp2005Abilities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          abilityId: HS_BP2_005_ON_ENTER_DISCARD_RECOVER_MIRACRA_CARD_ABILITY_ID,
+          baseCardCodes: ['PL!HS-bp2-005'],
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+        }),
+        expect.objectContaining({
+          abilityId: HS_BP2_005_LIVE_START_PAY_ENERGY_FULL_STAGE_GAIN_TWO_BLADE_ABILITY_ID,
+          baseCardCodes: ['PL!HS-bp2-005'],
+          category: CardAbilityCategory.LIVE_START,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          triggerCondition: TriggerCondition.ON_LIVE_START,
+          queued: true,
+          implemented: true,
+        }),
+      ])
+    );
+
+    const hsBp6011Activated = getCardAbilityDefinitions('PL!HS-bp6-011-R').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_011_ACTIVATED_WAIT_SELF_DRAW_ONE_DISCARD_ONE_ABILITY_ID
+    );
+    expect(hsBp6011Activated).toMatchObject({
+      cardCodes: ['PL!HS-bp6-011-R'],
+      category: CardAbilityCategory.ACTIVATED,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      queued: false,
+      implemented: true,
+      perTurnLimit: 1,
+    });
+    expect(getActivatedAbilityUiConfig('PL!HS-bp6-011-R')).toMatchObject({
+      abilityId: HS_BP6_011_ACTIVATED_WAIT_SELF_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+    });
+
     const hsBp6029Proof = getCardAbilityDefinitions('PL!HS-bp6-029-L').find(
       (ability) =>
         ability.abilityId ===
@@ -3890,6 +3972,30 @@ describe('card effect classification registry', () => {
           [
             HS_PB1_014_ON_ENTER_MOVE_OPPONENT_FRONT_ABILITY_ID,
             HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID,
+          ].includes(ability.abilityId)
+        )
+      ).toHaveLength(2);
+    }
+    for (const cardCode of ['PL!HS-pb1-006-R', 'PL!HS-pb1-006-P＋']) {
+      expect(
+        getCardAbilityDefinitions(cardCode).filter(
+          (ability) =>
+            ability.abilityId ===
+            HS_PB1_006_LIVE_START_POSITION_CHANGE_TO_OTHER_MIRACRA_GAIN_HEART_BLADE_ABILITY_ID
+        )
+      ).toHaveLength(1);
+    }
+    for (const cardCode of [
+      'PL!HS-bp2-005-P',
+      'PL!HS-bp2-005-R＋',
+      'PL!HS-bp2-005-P＋',
+      'PL!HS-bp2-005-SEC',
+    ]) {
+      expect(
+        getCardAbilityDefinitions(cardCode).filter((ability) =>
+          [
+            HS_BP2_005_ON_ENTER_DISCARD_RECOVER_MIRACRA_CARD_ABILITY_ID,
+            HS_BP2_005_LIVE_START_PAY_ENERGY_FULL_STAGE_GAIN_TWO_BLADE_ABILITY_ID,
           ].includes(ability.abilityId)
         )
       ).toHaveLength(2);

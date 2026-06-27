@@ -188,8 +188,9 @@ describe('named hand discard live-start workflow', () => {
       LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID
     );
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([matchingHandCard.instanceId]);
-    expect(session.state?.activeEffect?.minSelectableCards).toBe(1);
+    expect(session.state?.activeEffect?.minSelectableCards).toBe(0);
     expect(session.state?.activeEffect?.maxSelectableCards).toBe(1);
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBeUndefined();
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -224,5 +225,117 @@ describe('named hand discard live-start workflow', () => {
           action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
       )
     ).toHaveLength(1);
+  });
+
+  it('allows LL-bp2-001-R+ to resolve with zero discarded cards', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'named-hand-discard-live-start-ll-bp2-zero-card',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+
+    const source = createCardInstance(
+      createMemberCard('LL-bp2-001-R+', '渡辺曜&鬼塚夏美&大沢瑠璃乃', 20),
+      PLAYER1,
+      'p1-ll-bp2-zero-source'
+    );
+    const matchingHandCard = createCardInstance(
+      createMemberCard('PL!S-test-you', '渡边 曜', 4),
+      PLAYER1,
+      'p1-ll-bp2-zero-you'
+    );
+    const nonMatchingHandCard = createCardInstance(
+      createMemberCard('PL!N-test-karin', '朝香果林', 4),
+      PLAYER1,
+      'p1-ll-bp2-zero-karin'
+    );
+    const liveCard = createCardInstance(
+      createLiveCard('PL!-test-live', 'Live Start'),
+      PLAYER1,
+      'p1-ll-bp2-zero-live'
+    );
+    const state = registerCards(session.state!, [
+      source,
+      matchingHandCard,
+      nonMatchingHandCard,
+      liveCard,
+    ]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+
+    removeFromPlayerZones(p1);
+    p1.memberSlots.slots[SlotPosition.CENTER] = source.instanceId;
+    p1.memberSlots.cardStates = new Map([
+      [source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p1.hand.cardIds = [matchingHandCard.instanceId, nonMatchingHandCard.instanceId];
+    p1.liveZone.cardIds = [liveCard.instanceId];
+    p1.liveZone.cardStates = new Map([
+      [liveCard.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
+    ]);
+
+    advanceToLiveStartEffects(session);
+
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([matchingHandCard.instanceId]);
+    expect(session.state?.activeEffect?.minSelectableCards).toBe(0);
+    expect(session.state?.activeEffect?.maxSelectableCards).toBe(1);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        null,
+        undefined,
+        null,
+        []
+      )
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([
+      matchingHandCard.instanceId,
+      nonMatchingHandCard.instanceId,
+    ]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) => modifier.abilityId === LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID &&
+          Array.isArray(action.payload.discardedCardIds) &&
+          action.payload.discardedCardIds.length === 0 &&
+          action.payload.rewardAmount === 0
+      )
+    ).toBe(true);
   });
 });

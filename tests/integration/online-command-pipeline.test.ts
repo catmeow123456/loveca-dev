@@ -342,6 +342,89 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
+  it('卡效控制检视区时不投影通用检视整理命令', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-active-effect-inspection-hints',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const inspectedCardIds = session.state?.players[0].mainDeck.cardIds.slice(0, 2) ?? [];
+    const sourceCardId = session.state?.players[0].hand.cardIds[0];
+    expect(inspectedCardIds).toHaveLength(2);
+    expect(sourceCardId).toBeTruthy();
+
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 2)
+    );
+    expect(openResult.success).toBe(true);
+
+    const state = session.state as unknown as {
+      activeEffect: {
+        id: string;
+        abilityId: string;
+        sourceCardId: string;
+        controllerId: string;
+        effectText: string;
+        stepId: string;
+        stepText: string;
+        awaitingPlayerId: string | null;
+        inspectionCardIds?: readonly string[];
+        selectableCardIds?: readonly string[];
+        selectableCardMode?: 'SINGLE' | 'ORDERED_MULTI';
+        minSelectableCards?: number;
+        maxSelectableCards?: number;
+      } | null;
+    };
+    state.activeEffect = {
+      id: 'effect-active-inspection',
+      abilityId: 'test:active-effect-inspection',
+      sourceCardId: sourceCardId!,
+      controllerId: PLAYER1,
+      effectText: '测试卡效检视',
+      stepId: 'SELECT_INSPECTED_CARD',
+      stepText: '选择 1 张检视区卡牌',
+      awaitingPlayerId: PLAYER1,
+      inspectionCardIds: inspectedCardIds,
+      selectableCardIds: inspectedCardIds,
+      selectableCardMode: 'ORDERED_MULTI',
+      minSelectableCards: 1,
+      maxSelectableCards: 1,
+    };
+
+    const view = session.getPlayerViewState(PLAYER1);
+    const commands = view?.permissions.availableCommands.map((hint) => hint.command) ?? [];
+    const blockedCommands = [
+      GameCommandType.OPEN_INSPECTION,
+      GameCommandType.REVEAL_INSPECTED_CARD,
+      GameCommandType.MOVE_INSPECTED_CARD_TO_TOP,
+      GameCommandType.MOVE_INSPECTED_CARD_TO_BOTTOM,
+      GameCommandType.MOVE_INSPECTED_CARD_TO_ZONE,
+      GameCommandType.MOVE_CARD_TO_INSPECTION,
+      GameCommandType.REORDER_INSPECTED_CARD,
+      GameCommandType.FINISH_INSPECTION_WITH_ARRANGEMENT,
+      GameCommandType.FINISH_INSPECTION,
+    ];
+
+    expect(view?.match.window?.windowType).toBe('INSPECTION');
+    expect(view?.match.window?.context?.activeEffectId).toBe('effect-active-inspection');
+    for (const command of blockedCommands) {
+      expect(commands).not.toContain(command);
+    }
+    expect(
+      view?.permissions.availableCommands.some(
+        (hint) => hint.command === GameCommandType.CONFIRM_EFFECT_STEP && hint.enabled
+      )
+    ).toBe(true);
+  });
+
   it('批量整理可以一次性将所有检视牌放入休息室并拒绝遗漏或非法卡牌', () => {
     const session = createGameSession();
     const deck = createTestDeck();

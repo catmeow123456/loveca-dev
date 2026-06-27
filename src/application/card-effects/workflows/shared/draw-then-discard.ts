@@ -1,9 +1,11 @@
 import { addAction, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { SlotPosition } from '../../../../shared/types/enums.js';
+import { SlotPosition, ZoneType } from '../../../../shared/types/enums.js';
 import {
+  HS_BP2_015_LEAVE_STAGE_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+  HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
   SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
@@ -39,6 +41,7 @@ export interface DrawThenDiscardCardsWorkflowConfig {
   readonly continuePendingCardEffects?: ContinuePendingCardEffects;
   readonly recordAbilityUseOnStart?: boolean;
   readonly requiredSourceSlot?: SlotPosition;
+  readonly requiresLeaveStageToWaitingRoom?: boolean;
 }
 
 export interface DrawThenDiscardAbilityContext {
@@ -47,6 +50,7 @@ export interface DrawThenDiscardAbilityContext {
   readonly sourceCardId: string;
   readonly controllerId: string;
   readonly sourceSlot?: SlotPosition;
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
 const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
@@ -56,6 +60,7 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
   readonly stepId: string;
   readonly recordAbilityUseOnStart?: boolean;
   readonly requiredSourceSlot?: SlotPosition;
+  readonly requiresLeaveStageToWaitingRoom?: boolean;
 }[] = [
   {
     abilityId: SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
@@ -96,6 +101,20 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
     requiredSourceSlot: SlotPosition.LEFT,
   },
   {
+    abilityId: HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+    drawCount: 2,
+    discardCount: 2,
+    stepId: HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID,
+    requiresLeaveStageToWaitingRoom: true,
+  },
+  {
+    abilityId: HS_BP2_015_LEAVE_STAGE_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+    drawCount: 2,
+    discardCount: 1,
+    stepId: HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID,
+    requiresLeaveStageToWaitingRoom: true,
+  },
+  {
     abilityId: N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
     drawCount: 1,
     discardCount: 1,
@@ -121,6 +140,7 @@ export function registerDrawThenDiscardWorkflowHandlers(deps: {
         continuePendingCardEffects: context.continuePendingCardEffects,
         recordAbilityUseOnStart: config.recordAbilityUseOnStart,
         requiredSourceSlot: config.requiredSourceSlot,
+        requiresLeaveStageToWaitingRoom: config.requiresLeaveStageToWaitingRoom,
       })
     );
     registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
@@ -160,6 +180,35 @@ export function startDrawThenDiscardCardsWorkflow(
       step: 'DRAW_DISCARD_SOURCE_SLOT_CONDITION_NOT_MET',
       sourceSlot,
       requiredSourceSlot: config.requiredSourceSlot,
+    });
+    return config.continuePendingCardEffects
+      ? config.continuePendingCardEffects(stateWithAction, config.orderedResolution)
+      : stateWithAction;
+  }
+
+  if (config.requiresLeaveStageToWaitingRoom && !('toZone' in (config.ability.metadata ?? {}))) {
+    throw new Error(
+      `DrawThenDiscard leave-stage workflow requires metadata.toZone for ${config.ability.abilityId}`
+    );
+  }
+
+  if (
+    config.requiresLeaveStageToWaitingRoom &&
+    config.ability.metadata?.toZone !== ZoneType.WAITING_ROOM
+  ) {
+    const state = {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter(
+        (candidate) => candidate.id !== config.ability.id
+      ),
+    };
+    const stateWithAction = addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: config.ability.id,
+      abilityId: config.ability.abilityId,
+      sourceCardId: config.ability.sourceCardId,
+      step: 'LEAVE_STAGE_NOT_TO_WAITING_ROOM',
+      sourceSlot,
+      toZone: config.ability.metadata?.toZone ?? null,
     });
     return config.continuePendingCardEffects
       ? config.continuePendingCardEffects(stateWithAction, config.orderedResolution)

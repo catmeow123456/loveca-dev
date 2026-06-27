@@ -41,6 +41,7 @@ import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
   createConfirmStepCommand,
+  createFinishInspectionWithArrangementCommand,
   createMoveMemberToSlotCommand,
   createMoveResolutionCardToZoneCommand,
   createMovePublicCardToWaitingRoomCommand,
@@ -5719,8 +5720,9 @@ describe('sample card effect runner', () => {
       LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID
     );
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([youCardId, copyCardId]);
-    expect(session.state?.activeEffect?.minSelectableCards).toBe(1);
+    expect(session.state?.activeEffect?.minSelectableCards).toBe(0);
     expect(session.state?.activeEffect?.maxSelectableCards).toBe(2);
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBeUndefined();
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -7652,6 +7654,25 @@ describe('sample card effect runner', () => {
     );
 
     expect(missingSelectionResult.success).toBe(false);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID
+    );
+    expect(session.state?.inspectionZone.cardIds).toEqual(topCardIds);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([restCardId]);
+
+    const activeEffectId = session.state!.activeEffect!.id;
+    const blockedFinishResult = session.executeCommand(
+      createFinishInspectionWithArrangementCommand(
+        PLAYER1,
+        topCardIds as string[],
+        ZoneType.MAIN_DECK,
+        'TOP'
+      )
+    );
+
+    expect(blockedFinishResult.success).toBe(false);
+    expect(blockedFinishResult.error).toContain('当前检视由卡牌效果处理');
+    expect(session.state?.activeEffect?.id).toBe(activeEffectId);
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID
     );
