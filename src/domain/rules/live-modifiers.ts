@@ -13,7 +13,7 @@ import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
 import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/slot-perspective.js';
 import { hasMemberPositionMovedThisTurn } from './member-turn-state.js';
 import { getMemberEffectiveCost } from './member-effective-cost.js';
-import { successLiveScoreAtLeast } from './success-live-score.js';
+import { sumSuccessfulLiveScore, successLiveScoreAtLeast } from './success-live-score.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
 type HeartModifierState = Extract<LiveModifierState, { readonly kind: 'HEART' }>;
@@ -74,6 +74,13 @@ interface ActiveEnergyHeartContinuousDefinition {
   readonly abilityId: string;
 }
 
+interface SuccessZoneUnitHeartContinuousDefinition {
+  readonly baseCardCode: string;
+  readonly unitName: string;
+  readonly heartColor: HeartColor;
+  readonly abilityId: string;
+}
+
 interface SuccessZoneContinuousLiveModifierDefinition extends ContinuousLiveModifierDefinition {
   readonly nonStackingAbilityId?: string;
 }
@@ -90,6 +97,14 @@ const SP_PB2_035_CONTINUOUS_LEFT_SIDE_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!SP-pb2-035:continuous-left-side-gain-two-blade';
 const SP_PB2_041_CONTINUOUS_RIGHT_SIDE_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!SP-pb2-041:continuous-right-side-gain-two-blade';
+const BP6_012_CONTINUOUS_SUCCESS_ZONE_PRINTEMPS_CARD_YELLOW_HEART_ABILITY_ID =
+  'PL!-bp6-012:continuous-success-zone-printemps-card-yellow-heart';
+const BP6_014_CONTINUOUS_SUCCESS_ZONE_LILYWHITE_CARD_PINK_HEART_ABILITY_ID =
+  'PL!-bp6-014:continuous-success-zone-lilywhite-card-pink-heart';
+const BP6_015_CONTINUOUS_SUCCESS_ZONE_BIBI_CARD_PURPLE_HEART_ABILITY_ID =
+  'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
+const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
 
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
@@ -165,6 +180,21 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       });
       return modifier ? [modifier] : [];
     },
+  },
+  {
+    baseCardCodes: ['PL!-bp4-018'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasSuccessfulLiveScoreLead(game, playerId)
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 2,
+              sourceCardId,
+              abilityId: BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
   },
   {
     baseCardCodes: ['PL!-bp5-003'],
@@ -381,6 +411,26 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       abilityId: SP_PB2_026_CONTINUOUS_ACTIVE_ENERGY_GAIN_TWO_RED_HEART_ABILITY_ID,
     },
   ]),
+  ...createSuccessZoneUnitHeartContinuousDefinitions([
+    {
+      baseCardCode: 'PL!-bp6-012',
+      unitName: 'Printemps',
+      heartColor: HeartColor.YELLOW,
+      abilityId: BP6_012_CONTINUOUS_SUCCESS_ZONE_PRINTEMPS_CARD_YELLOW_HEART_ABILITY_ID,
+    },
+    {
+      baseCardCode: 'PL!-bp6-014',
+      unitName: 'lilywhite',
+      heartColor: HeartColor.PINK,
+      abilityId: BP6_014_CONTINUOUS_SUCCESS_ZONE_LILYWHITE_CARD_PINK_HEART_ABILITY_ID,
+    },
+    {
+      baseCardCode: 'PL!-bp6-015',
+      unitName: 'BiBi',
+      heartColor: HeartColor.PURPLE,
+      abilityId: BP6_015_CONTINUOUS_SUCCESS_ZONE_BIBI_CARD_PURPLE_HEART_ABILITY_ID,
+    },
+  ]),
 ];
 
 const SUCCESS_ZONE_CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly SuccessZoneContinuousLiveModifierDefinition[] =
@@ -591,6 +641,14 @@ function hasLiveWithoutLiveStartOrSuccessAbility(game: GameState, playerId: stri
   });
 }
 
+function hasSuccessfulLiveScoreLead(game: GameState, playerId: string): boolean {
+  const opponent = game.players.find((candidate) => candidate.id !== playerId);
+  if (!opponent) {
+    return false;
+  }
+  return sumSuccessfulLiveScore(game, playerId) > sumSuccessfulLiveScore(game, opponent.id);
+}
+
 function hasLiellaLiveWithRequirementTotalAtLeast(
   game: GameState,
   playerId: string,
@@ -714,6 +772,28 @@ function createActiveEnergyHeartContinuousDefinitions(
   }));
 }
 
+function createSuccessZoneUnitHeartContinuousDefinitions(
+  definitions: readonly SuccessZoneUnitHeartContinuousDefinition[]
+): readonly ContinuousLiveModifierDefinition[] {
+  return definitions.map((definition) => ({
+    baseCardCodes: [definition.baseCardCode],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!successZoneHasUnitCard(game, playerId, definition.unitName)) {
+        return [];
+      }
+
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: definition.abilityId,
+        hearts: [{ color: definition.heartColor, count: 1 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  }));
+}
+
 function isSourceStageMemberInSlot(
   game: GameState,
   playerId: string,
@@ -741,6 +821,29 @@ function hasNonWaitingEnergy(game: GameState, playerId: string): boolean {
       const cardState = player.energyZone.cardStates.get(cardId);
       return cardState !== undefined && cardState.orientation !== OrientationState.WAITING;
     }) === true
+  );
+}
+
+function successZoneHasUnitCard(game: GameState, playerId: string, unitName: string): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return false;
+  }
+
+  const normalizedUnitName = normalizeContinuousUnitName(unitName);
+  return player.successZone.cardIds.some((cardId) => {
+    const card = getCardById(game, cardId);
+    return card !== null && cardMatchesNormalizedUnit(card.data, normalizedUnitName);
+  });
+}
+
+function cardMatchesNormalizedUnit(
+  card: { readonly unitName?: string; readonly cardText?: string },
+  normalizedUnitName: string
+): boolean {
+  return (
+    normalizeContinuousUnitName(card.unitName).includes(normalizedUnitName) ||
+    normalizeContinuousUnitName(card.cardText).includes(normalizedUnitName)
   );
 }
 
@@ -849,11 +952,7 @@ function collectHsSd1004GinkoGreenHeartModifier(
   return modifier ? [modifier] : [];
 }
 
-function hasNamedStageMember(
-  game: GameState,
-  playerId: string,
-  names: readonly string[]
-): boolean {
+function hasNamedStageMember(game: GameState, playerId: string, names: readonly string[]): boolean {
   const player = game.players.find((candidate) => candidate.id === playerId);
   if (!player) {
     return false;
@@ -920,10 +1019,7 @@ function hasExactOwnTwoOpponentThreeStageMembers(game: GameState, playerId: stri
     return false;
   }
 
-  return (
-    countStageMembers(game, player.id) === 2 &&
-    countStageMembers(game, opponent.id) >= 3
-  );
+  return countStageMembers(game, player.id) === 2 && countStageMembers(game, opponent.id) >= 3;
 }
 
 function countStageMembers(game: GameState, playerId: string): number {
@@ -945,7 +1041,9 @@ function hasOpponentWaitingStageMembers(
   minCount: number
 ): boolean {
   const opponent = game.players.find((candidate) => candidate.id !== playerId);
-  return opponent ? countStageMembersByOrientation(game, opponent.id, OrientationState.WAITING) >= minCount : false;
+  return opponent
+    ? countStageMembersByOrientation(game, opponent.id, OrientationState.WAITING) >= minCount
+    : false;
 }
 
 function countStageMembersByOrientation(
@@ -1053,7 +1151,12 @@ function normalizeContinuousMemberName(name: string): string {
 }
 
 function normalizeContinuousUnitName(unitName: string | undefined): string {
-  return unitName?.replace(/[『』「」'’\s　・･·]/g, '').replace(/！/g, '!').toLowerCase() ?? '';
+  return (
+    unitName
+      ?.replace(/[『』「」'’\s　・･·]/g, '')
+      .replace(/！/g, '!')
+      .toLowerCase() ?? ''
+  );
 }
 
 export function addLiveModifier(game: GameState, modifier: LiveModifierState): GameState {
@@ -1389,9 +1492,7 @@ function replaceOriginalHeartColor(
 }
 
 function getHeartModifierTarget(modifier: HeartModifierState): HeartModifierState['target'] {
-  return (
-    (modifier as { readonly target?: HeartModifierState['target'] }).target ?? 'PLAYER'
-  );
+  return (modifier as { readonly target?: HeartModifierState['target'] }).target ?? 'PLAYER';
 }
 
 function getHeartModifierTargetMemberCardId(modifier: HeartModifierState): string | undefined {

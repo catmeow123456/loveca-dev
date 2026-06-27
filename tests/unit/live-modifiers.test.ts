@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
 import {
   createGameState,
   registerCards,
@@ -29,12 +33,17 @@ import {
 } from '../../src/domain/rules/live-modifiers';
 import { getMemberEffectiveCost } from '../../src/domain/rules/member-effective-cost';
 import { fromTransport, toTransport } from '../../src/online/serde';
-import { CardType, FaceState, HeartColor, OrientationState, SlotPosition } from '../../src/shared/types/enums';
+import {
+  CardType,
+  FaceState,
+  HeartColor,
+  OrientationState,
+  SlotPosition,
+} from '../../src/shared/types/enums';
 
 const HS_BP5_002_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
-const HS_BP5_007_CONTINUOUS_ABILITY_ID =
-  'PL!HS-bp5-007:continuous-other-edelnote-member-blade';
+const HS_BP5_007_CONTINUOUS_ABILITY_ID = 'PL!HS-bp5-007:continuous-other-edelnote-member-blade';
 const HS_BP2_006_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp2-006:continuous-other-miracra-stage-member-blade';
 const HS_BP5_016_CONTINUOUS_ABILITY_ID =
@@ -47,18 +56,22 @@ const HS_SD1_005_CONTINUOUS_ABILITY_ID =
   'PL!HS-sd1-005-SD:continuous-stage-sayaka-ginko-hime-blade';
 const S_BP6_009_CONTINUOUS_ABILITY_ID =
   'PL!S-bp6-009:continuous-success-live-difference-gain-blade';
-const SP_PB2_023_CONTINUOUS_ABILITY_ID =
-  'PL!SP-pb2-023:continuous-energy-six-eight-gain-red-heart';
+const SP_PB2_023_CONTINUOUS_ABILITY_ID = 'PL!SP-pb2-023:continuous-energy-six-eight-gain-red-heart';
 const SP_PB2_026_CONTINUOUS_ABILITY_ID =
   'PL!SP-pb2-026:continuous-active-energy-gain-two-red-heart';
 const SP_PB2_027_CONTINUOUS_ABILITY_ID =
   'PL!SP-pb2-027:continuous-energy-six-eight-gain-yellow-heart';
 const SP_PB2_032_CONTINUOUS_ABILITY_ID =
   'PL!SP-pb2-032:continuous-energy-six-eight-gain-purple-heart';
-const SP_PB2_035_CONTINUOUS_ABILITY_ID =
-  'PL!SP-pb2-035:continuous-left-side-gain-two-blade';
-const SP_PB2_041_CONTINUOUS_ABILITY_ID =
-  'PL!SP-pb2-041:continuous-right-side-gain-two-blade';
+const SP_PB2_035_CONTINUOUS_ABILITY_ID = 'PL!SP-pb2-035:continuous-left-side-gain-two-blade';
+const SP_PB2_041_CONTINUOUS_ABILITY_ID = 'PL!SP-pb2-041:continuous-right-side-gain-two-blade';
+const BP6_012_CONTINUOUS_ABILITY_ID =
+  'PL!-bp6-012:continuous-success-zone-printemps-card-yellow-heart';
+const BP6_014_CONTINUOUS_ABILITY_ID =
+  'PL!-bp6-014:continuous-success-zone-lilywhite-card-pink-heart';
+const BP6_015_CONTINUOUS_ABILITY_ID = 'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
+const BP4_018_CONTINUOUS_ABILITY_ID =
+  'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
 
 describe('live modifier helpers', () => {
   it('creates source-member Heart modifiers when the member is the source card', () => {
@@ -330,10 +343,7 @@ describe('live modifier helpers', () => {
         cardType: CardType.MEMBER,
         cost: 2,
         blade: 1,
-        hearts: [
-          createHeartIcon(HeartColor.PINK, 1),
-          createHeartIcon(HeartColor.YELLOW, 1),
-        ],
+        hearts: [createHeartIcon(HeartColor.PINK, 1), createHeartIcon(HeartColor.YELLOW, 1)],
       },
       'p1',
       'kasumi'
@@ -439,7 +449,9 @@ describe('live modifier helpers', () => {
         abilityId: 'replace-original-heart',
       },
     ]);
-    expect(projectLiveModifierCompatibility(game.liveResolution.liveModifiers).playerHeartBonuses.size).toBe(0);
+    expect(
+      projectLiveModifierCompatibility(game.liveResolution.liveModifiers).playerHeartBonuses.size
+    ).toBe(0);
   });
 
   it('counts targeted member Heart modifiers without projecting them to player Heart bonuses', () => {
@@ -1015,9 +1027,11 @@ describe('live modifier helpers', () => {
     expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1')).toEqual([
       createHeartIcon(HeartColor.GREEN, 1),
     ]);
-    expect(projectLiveModifierCompatibility(game.liveResolution.liveModifiers).playerHeartBonuses.get('p1')).toEqual([
-      createHeartIcon(HeartColor.GREEN, 1),
-    ]);
+    expect(
+      projectLiveModifierCompatibility(game.liveResolution.liveModifiers).playerHeartBonuses.get(
+        'p1'
+      )
+    ).toEqual([createHeartIcon(HeartColor.GREEN, 1)]);
   });
 
   it('preserves Heart modifier semantics through online transport JSON round trip', () => {
@@ -1791,7 +1805,11 @@ describe('live modifier helpers', () => {
     }));
     game = updatePlayer(game, 'p2', (player) => ({
       ...player,
-      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, opponentMiracra.instanceId),
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.RIGHT,
+        opponentMiracra.instanceId
+      ),
     }));
 
     expect(
@@ -2060,12 +2078,9 @@ describe('live modifier helpers', () => {
     game = updatePlayer(game, 'p2', (player) => ({
       ...player,
       memberSlots: placeCardInSlot(
-        placeCardInSlot(
-          player.memberSlots,
-          SlotPosition.LEFT,
-          opponentMembers[0]!.instanceId,
-          { orientation: OrientationState.WAITING }
-        ),
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, opponentMembers[0]!.instanceId, {
+          orientation: OrientationState.WAITING,
+        }),
         SlotPosition.CENTER,
         opponentMembers[1]!.instanceId,
         { orientation: OrientationState.WAITING }
@@ -2202,9 +2217,14 @@ describe('live modifier helpers', () => {
     }));
     game = updatePlayer(game, 'p2', (player) => ({
       ...player,
-      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, opponentWaiting.instanceId, {
-        orientation: OrientationState.WAITING,
-      }),
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        opponentWaiting.instanceId,
+        {
+          orientation: OrientationState.WAITING,
+        }
+      ),
     }));
 
     expect(
@@ -2345,6 +2365,387 @@ describe('live modifier helpers', () => {
       createHeartIcon(HeartColor.YELLOW, 2),
     ]);
     expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+  });
+
+  it('collects PL!-bp4-018 as BLADE +2 when own successful LIVE score is higher', () => {
+    const nico = createCardInstance(
+      {
+        cardCode: 'PL!-bp4-018-N',
+        name: '矢澤にこ',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'bp4-018-nico'
+    );
+    const ownLive = createCardInstance(
+      {
+        cardCode: 'OWN-SCORE-SIX-LIVE',
+        name: 'Own Score Six',
+        cardType: CardType.LIVE,
+        score: 6,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'own-score-six-live'
+    );
+    const opponentLive = createCardInstance(
+      {
+        cardCode: 'OPPONENT-SCORE-FOUR-LIVE',
+        name: 'Opponent Score Four',
+        cardType: CardType.LIVE,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p2',
+      'opponent-score-four-live'
+    );
+
+    let game = createGameState('bp4-018-score-lead', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [nico, ownLive, opponentLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, nico.instanceId),
+      successZone: addCardToZone(player.successZone, ownLive.instanceId),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      successZone: addCardToZone(player.successZone, opponentLive.instanceId),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: nico.instanceId,
+      abilityId: BP4_018_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', nico.instanceId, modifiers)).toBe(3);
+  });
+
+  it('does not collect PL!-bp4-018 BLADE when successful LIVE score is tied or behind', () => {
+    const nico = createCardInstance(
+      {
+        cardCode: 'PL!-bp4-018-N',
+        name: '矢澤にこ',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'bp4-018-nico-no-lead'
+    );
+    const ownLive = createCardInstance(
+      {
+        cardCode: 'OWN-SCORE-FOUR-LIVE',
+        name: 'Own Score Four',
+        cardType: CardType.LIVE,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'own-score-four-live'
+    );
+    const opponentLive = createCardInstance(
+      {
+        cardCode: 'OPPONENT-SCORE-FOUR-LIVE',
+        name: 'Opponent Score Four',
+        cardType: CardType.LIVE,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p2',
+      'opponent-score-four-live-tied'
+    );
+    const opponentHigherLive = createCardInstance(
+      {
+        cardCode: 'OPPONENT-SCORE-SIX-LIVE',
+        name: 'Opponent Score Six',
+        cardType: CardType.LIVE,
+        score: 6,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p2',
+      'opponent-score-six-live'
+    );
+
+    let game = createGameState('bp4-018-score-no-lead', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [nico, ownLive, opponentLive, opponentHigherLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, nico.instanceId),
+      successZone: addCardToZone(player.successZone, ownLive.instanceId),
+    }));
+    const tiedGame = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      successZone: addCardToZone(player.successZone, opponentLive.instanceId),
+    }));
+    const behindGame = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      successZone: addCardToZone(player.successZone, opponentHigherLive.instanceId),
+    }));
+
+    for (const state of [tiedGame, behindGame]) {
+      const modifiers = collectLiveModifiers(state);
+      expect(
+        modifiers.some(
+          (modifier) =>
+            modifier.kind === 'BLADE' &&
+            modifier.abilityId === BP4_018_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+      expect(getMemberEffectiveBladeCount(state, 'p1', nico.instanceId, modifiers)).toBe(1);
+    }
+  });
+
+  it('ignores non-LIVE cards in success zones for PL!-bp4-018 score comparison', () => {
+    const nico = createCardInstance(
+      {
+        cardCode: 'PL!-bp4-018-N',
+        name: '矢澤にこ',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'bp4-018-nico-ignore-non-live'
+    );
+    const ownLive = createCardInstance(
+      {
+        cardCode: 'OWN-SCORE-TWO-LIVE',
+        name: 'Own Score Two',
+        cardType: CardType.LIVE,
+        score: 2,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'own-score-two-live'
+    );
+    const nonLiveSuccessCard = createCardInstance(
+      {
+        cardCode: 'NON-LIVE-SUCCESS-CARD',
+        name: 'Non Live Success Card',
+        cardType: CardType.MEMBER,
+        cost: 99,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'non-live-success-card'
+    );
+    const opponentLive = createCardInstance(
+      {
+        cardCode: 'OPPONENT-SCORE-THREE-LIVE',
+        name: 'Opponent Score Three',
+        cardType: CardType.LIVE,
+        score: 3,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p2',
+      'opponent-score-three-live'
+    );
+
+    let game = createGameState('bp4-018-ignore-non-live-success', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [nico, ownLive, nonLiveSuccessCard, opponentLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, nico.instanceId),
+      successZone: addCardToZone(
+        addCardToZone(player.successZone, ownLive.instanceId),
+        nonLiveSuccessCard.instanceId
+      ),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      successZone: addCardToZone(player.successZone, opponentLive.instanceId),
+    }));
+
+    const modifiers = collectLiveModifiers(game);
+    expect(
+      modifiers.some(
+        (modifier) =>
+          modifier.kind === 'BLADE' && modifier.abilityId === BP4_018_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(getMemberEffectiveBladeCount(game, 'p1', nico.instanceId, modifiers)).toBe(1);
+  });
+
+  it('collects bp6 success-zone unit continuous Hearts as SOURCE_MEMBER Hearts', () => {
+    const cases = [
+      {
+        sourceCardCode: 'PL!-bp6-012-N',
+        sourceName: '南ことり',
+        sourceId: 'bp6-012-kotori',
+        successCardData: {
+          cardCode: 'PL!-success-printemps-live',
+          name: 'Printemps Live',
+          unitName: 'Printemps',
+          cardType: CardType.LIVE,
+          score: 4,
+          requirements: createHeartRequirement({ [HeartColor.YELLOW]: 1 }),
+        },
+        successId: 'printemps-success',
+        heartColor: HeartColor.YELLOW,
+        abilityId: BP6_012_CONTINUOUS_ABILITY_ID,
+      },
+      {
+        sourceCardCode: 'PL!-bp6-014-N',
+        sourceName: '星空 凛',
+        sourceId: 'bp6-014-rin',
+        successCardData: {
+          cardCode: 'PL!-success-lilywhite-card',
+          name: 'lilywhite Card',
+          unitName: 'lilywhite',
+          cardType: CardType.MEMBER,
+          cost: 1,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        },
+        successId: 'lilywhite-success',
+        heartColor: HeartColor.PINK,
+        abilityId: BP6_014_CONTINUOUS_ABILITY_ID,
+      },
+      {
+        sourceCardCode: 'PL!-bp6-015-N',
+        sourceName: '西木野真姫',
+        sourceId: 'bp6-015-maki',
+        successCardData: {
+          cardCode: 'PL!-success-bibi-live',
+          name: 'BiBi Live',
+          cardText: '成功区の『BiBi』のカード',
+          cardType: CardType.LIVE,
+          score: 4,
+          requirements: createHeartRequirement({ [HeartColor.PURPLE]: 1 }),
+        },
+        successId: 'bibi-success',
+        heartColor: HeartColor.PURPLE,
+        abilityId: BP6_015_CONTINUOUS_ABILITY_ID,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const source = createCardInstance(
+        {
+          cardCode: testCase.sourceCardCode,
+          name: testCase.sourceName,
+          cardType: CardType.MEMBER,
+          cost: 4,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        },
+        'p1',
+        testCase.sourceId
+      );
+      const successCard = createCardInstance(testCase.successCardData, 'p1', testCase.successId);
+      let game = createGameState(
+        `${testCase.sourceCardCode}-success-zone-heart`,
+        'p1',
+        'P1',
+        'p2',
+        'P2'
+      );
+      game = registerCards(game, [source, successCard]);
+      game = updatePlayer(game, 'p1', (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+        successZone: addCardToZone(player.successZone, successCard.instanceId),
+      }));
+
+      const modifiers = collectLiveModifiers(game);
+
+      expect(modifiers).toContainEqual({
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        playerId: 'p1',
+        hearts: [createHeartIcon(testCase.heartColor, 1)],
+        sourceCardId: source.instanceId,
+        abilityId: testCase.abilityId,
+      });
+      expect(getMemberEffectiveHeartIcons(game, 'p1', source.instanceId, modifiers)).toEqual([
+        createHeartIcon(HeartColor.PINK, 1),
+        createHeartIcon(testCase.heartColor, 1),
+      ]);
+      expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+      expect(game.liveResolution.playerHeartBonuses.has('p1')).toBe(false);
+    }
+  });
+
+  it('does not collect bp6 success-zone unit Heart from empty, other-unit, or opponent success zones', () => {
+    const kotori = createCardInstance(
+      {
+        cardCode: 'PL!-bp6-012-N',
+        name: '南ことり',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      },
+      'p1',
+      'bp6-012-kotori-negative'
+    );
+    const lilywhiteLive = createCardInstance(
+      {
+        cardCode: 'PL!-success-lilywhite-live-negative',
+        name: 'lilywhite Live',
+        unitName: 'lilywhite',
+        cardType: CardType.LIVE,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'lilywhite-success-negative'
+    );
+    const opponentPrintempsLive = createCardInstance(
+      {
+        cardCode: 'PL!-opponent-printemps-live',
+        name: 'Opponent Printemps Live',
+        unitName: 'Printemps',
+        cardType: CardType.LIVE,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.YELLOW]: 1 }),
+      },
+      'p2',
+      'opponent-printemps-success'
+    );
+
+    let emptySuccessGame = createGameState('bp6-012-empty-success-zone', 'p1', 'P1', 'p2', 'P2');
+    emptySuccessGame = registerCards(emptySuccessGame, [kotori]);
+    emptySuccessGame = updatePlayer(emptySuccessGame, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kotori.instanceId),
+    }));
+    expect(
+      collectLiveModifiers(emptySuccessGame).some(
+        (modifier) => modifier.abilityId === BP6_012_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+
+    let otherUnitGame = registerCards(emptySuccessGame, [lilywhiteLive]);
+    otherUnitGame = updatePlayer(otherUnitGame, 'p1', (player) => ({
+      ...player,
+      successZone: addCardToZone(player.successZone, lilywhiteLive.instanceId),
+    }));
+    expect(
+      collectLiveModifiers(otherUnitGame).some(
+        (modifier) => modifier.abilityId === BP6_012_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+
+    let opponentSuccessGame = registerCards(emptySuccessGame, [opponentPrintempsLive]);
+    opponentSuccessGame = updatePlayer(opponentSuccessGame, 'p2', (player) => ({
+      ...player,
+      successZone: addCardToZone(player.successZone, opponentPrintempsLive.instanceId),
+    }));
+    expect(
+      collectLiveModifiers(opponentSuccessGame).some(
+        (modifier) => modifier.abilityId === BP6_012_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
   });
 
   it('collects PL!HS-pb1-014 continuous SOURCE_MEMBER pink Heart only when front opponent cost is higher', () => {
@@ -3210,8 +3611,7 @@ function hasSpBp5012YellowHeartModifier(game: ReturnType<typeof createGameState>
     (modifier) =>
       modifier.kind === 'HEART' &&
       modifier.target === 'SOURCE_MEMBER' &&
-      modifier.abilityId ===
-        'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart'
+      modifier.abilityId === 'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart'
   );
 }
 

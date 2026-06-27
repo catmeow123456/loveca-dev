@@ -719,6 +719,252 @@ describe('discard look top select to hand shared workflow', () => {
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[5]!.instanceId]);
   });
 
+  it("lets PL!-bp6-004 reveal only a μ's member from top five", () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'discard-look-top-five-muse-member-umi',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard('PL!-bp6-004-P', '園田海未', 5, 'lilywhite'),
+      PLAYER1,
+      'p1-bp6-004-source'
+    );
+    const discardCard = createCardInstance(
+      createMemberCard('PL!-bp6-004-discard', 'Discard target'),
+      PLAYER1,
+      'p1-bp6-004-discard'
+    );
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!-bp6-004-muse-member-0', "μ's member", 1, 'lilywhite'),
+        PLAYER1,
+        'muse-member-top-0'
+      ),
+      createCardInstance(
+        createLiveCard('PL!-bp6-004-muse-live-1', "μ's live", 'lilywhite'),
+        PLAYER1,
+        'muse-live-top-1'
+      ),
+      createCardInstance(
+        createMemberCard('PL!SP-bp2-007-liella-member-2', 'Liella member', 1, 'CatChu!'),
+        PLAYER1,
+        'muse-wrong-member-top-2'
+      ),
+      createCardInstance(
+        createMemberCard('PL!-bp6-004-muse-member-3', "μ's member 2", 1, 'BiBi'),
+        PLAYER1,
+        'muse-member-top-3'
+      ),
+      createCardInstance(
+        createLiveCard('PL!SP-bp2-007-liella-live-4', 'Liella live', 'CatChu!'),
+        PLAYER1,
+        'muse-wrong-live-top-4'
+      ),
+      createCardInstance(
+        createMemberCard('PL!-bp6-004-extra-5', 'Extra member', 1, 'lilywhite'),
+        PLAYER1,
+        'muse-extra-top-5'
+      ),
+    ];
+
+    let state = registerCards(session.state!, [source, discardCard, ...topCards]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    clearPlayerZones(p1);
+    p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
+    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
+
+    const discardResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        discardCard.instanceId
+      )
+    );
+
+    expect(discardResult.success).toBe(true);
+    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(
+      topCards.slice(0, 5).map((card) => card.instanceId)
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+      topCards[0]!.instanceId,
+      topCards[3]!.instanceId,
+    ]);
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
+
+    const selectResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        topCards[0]!.instanceId
+      )
+    );
+    expect(selectResult.success).toBe(true);
+    expect(session.state?.inspectionZone.revealedCardIds).toContain(topCards[0]!.instanceId);
+
+    const revealConfirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+    expect(revealConfirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([topCards[0]!.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
+      discardCard.instanceId,
+      topCards[1]!.instanceId,
+      topCards[2]!.instanceId,
+      topCards[3]!.instanceId,
+      topCards[4]!.instanceId,
+    ]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[5]!.instanceId]);
+  });
+
+  it('lets PL!SP-bp2-007 reveal only a Liella! member from top five', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'discard-look-top-five-liella-member-mei',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard('PL!SP-bp2-007-P', '米女メイ', 5, 'CatChu!'),
+      PLAYER1,
+      'p1-sp-bp2-007-source'
+    );
+    const discardCard = createCardInstance(
+      createMemberCard('PL!SP-bp2-007-discard', 'Discard target'),
+      PLAYER1,
+      'p1-sp-bp2-007-discard'
+    );
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!SP-bp2-007-liella-member-0', 'Liella member', 1, 'CatChu!'),
+        PLAYER1,
+        'liella-member-top-0'
+      ),
+      createCardInstance(
+        createLiveCard('PL!SP-bp2-007-liella-live-1', 'Liella live', 'CatChu!'),
+        PLAYER1,
+        'liella-live-top-1'
+      ),
+      createCardInstance(
+        createMemberCard('PL!-bp6-004-muse-member-2', "μ's member", 1, 'lilywhite'),
+        PLAYER1,
+        'liella-wrong-member-top-2'
+      ),
+      createCardInstance(
+        createMemberCard('PL!SP-bp2-007-liella-member-3', 'Liella member 2', 1, '5yncri5e!'),
+        PLAYER1,
+        'liella-member-top-3'
+      ),
+      createCardInstance(
+        createLiveCard('PL!-bp6-004-muse-live-4', "μ's live", 'lilywhite'),
+        PLAYER1,
+        'liella-wrong-live-top-4'
+      ),
+      createCardInstance(
+        createMemberCard('PL!SP-bp2-007-extra-5', 'Extra member', 1, 'CatChu!'),
+        PLAYER1,
+        'liella-extra-top-5'
+      ),
+    ];
+
+    let state = registerCards(session.state!, [source, discardCard, ...topCards]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    clearPlayerZones(p1);
+    p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
+    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
+
+    const discardResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        discardCard.instanceId
+      )
+    );
+
+    expect(discardResult.success).toBe(true);
+    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(
+      topCards.slice(0, 5).map((card) => card.instanceId)
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+      topCards[0]!.instanceId,
+      topCards[3]!.instanceId,
+    ]);
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
+
+    const selectResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        topCards[3]!.instanceId
+      )
+    );
+    expect(selectResult.success).toBe(true);
+    expect(session.state?.inspectionZone.revealedCardIds).toContain(topCards[3]!.instanceId);
+
+    const revealConfirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+    expect(revealConfirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([topCards[3]!.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
+      discardCard.instanceId,
+      topCards[0]!.instanceId,
+      topCards[1]!.instanceId,
+      topCards[2]!.instanceId,
+      topCards[4]!.instanceId,
+    ]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[5]!.instanceId]);
+  });
+
   it('lets PL!-pb1-016 inspect top four and reveal a lilywhite card including LIVE', () => {
     const session = createGameSession();
     const deck = createDeck();
@@ -890,7 +1136,11 @@ describe('discard look top select to hand shared workflow', () => {
         PLAYER1,
         's-bp2-005-top-yellow'
       ),
-      createCardInstance(createLiveCard('PL!S-red-live', 'Red live'), PLAYER1, 's-bp2-005-top-live'),
+      createCardInstance(
+        createLiveCard('PL!S-red-live', 'Red live'),
+        PLAYER1,
+        's-bp2-005-top-live'
+      ),
       createCardInstance(createEnergyCard('PL!S-energy'), PLAYER1, 's-bp2-005-top-energy'),
       createCardInstance(
         createMemberCard('PL!S-purple-member', 'Purple member', 1, undefined, [
@@ -1000,7 +1250,13 @@ describe('discard look top select to hand shared workflow', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('discard-look-top-seven-yohane-no-target', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'discard-look-top-seven-yohane-no-target',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -1029,8 +1285,16 @@ describe('discard look top select to hand shared workflow', () => {
         PLAYER1,
         's-bp2-005-no-target-purple'
       ),
-      createCardInstance(createLiveCard('PL!S-live-no-target'), PLAYER1, 's-bp2-005-no-target-live'),
-      createCardInstance(createEnergyCard('PL!S-energy-no-target'), PLAYER1, 's-bp2-005-no-target-energy'),
+      createCardInstance(
+        createLiveCard('PL!S-live-no-target'),
+        PLAYER1,
+        's-bp2-005-no-target-live'
+      ),
+      createCardInstance(
+        createEnergyCard('PL!S-energy-no-target'),
+        PLAYER1,
+        's-bp2-005-no-target-energy'
+      ),
     ];
 
     let state = registerCards(session.state!, [source, discardCard, ...topCards]);
@@ -1087,7 +1351,13 @@ describe('discard look top select to hand shared workflow', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('discard-look-top-seven-yohane-decline', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'discard-look-top-seven-yohane-decline',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -1261,15 +1531,8 @@ describe('discard look top select to hand shared workflow', () => {
       })
     );
     expect(playResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID);
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([]);
-
-    const skipResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(skipResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.pendingAbilities).toEqual([]);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual(
       topCards.map((card) => card.instanceId)
@@ -1691,16 +1954,8 @@ describe('discard look top select to hand shared workflow', () => {
     );
 
     expect(playResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([]);
-    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
-
-    const skipResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(skipResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.pendingAbilities).toEqual([]);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual(
       topCards.map((card) => card.instanceId)

@@ -99,11 +99,13 @@ import { registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers } from './card-ef
 import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/maki-on-enter.js';
 import { registerKarinWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-004-karin.js';
 import { registerNBp1002KasumiWorkflowHandlers } from './card-effects/workflows/cards/n-bp1-002-kasumi.js';
+import { registerNBp5001AyumuWorkflowHandlers } from './card-effects/workflows/cards/n-bp5-001-ayumu.js';
 import { registerNBp1026PoppinUpWorkflowHandlers } from './card-effects/workflows/cards/n-bp1-026-poppin-up.js';
 import { registerNBp3008EmmaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-008-emma.js';
 import { registerNBp3010ShiorikoWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-010-shioriko.js';
 import { registerNBp3027LaBellaPatriaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-027-la-bella-patria.js';
 import { registerNPb1006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-006-kanata.js';
+import { registerNPr021LanzhuWorkflowHandlers } from './card-effects/workflows/cards/n-pr-021-lanzhu.js';
 import { registerNPr026RinaWorkflowHandlers } from './card-effects/workflows/cards/n-pr-026-rina.js';
 import { registerNozomiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/nozomi-on-enter.js';
 import { registerPb1015MakiWorkflowHandlers } from './card-effects/workflows/cards/pb1-015-maki.js';
@@ -120,6 +122,8 @@ import { registerHsSd1004GinkoWorkflowHandlers } from './card-effects/workflows/
 import { registerHsSd1005KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-005-kosuzu.js';
 import { registerHsSd1006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-006-hime.js';
 import { registerEmmaWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-008-emma.js';
+import { registerPlBp3006MakiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-006-maki.js';
+import { registerPlBp6007NozomiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp6-007-nozomi.js';
 import { registerPlBp3014RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-014-rin.js';
 import { registerPr017NicoWorkflowHandlers } from './card-effects/workflows/cards/pr-017-nico.js';
 import { registerSBp2024KimikokoWorkflowHandlers } from './card-effects/workflows/cards/s-bp2-024-kimikoko.js';
@@ -173,6 +177,7 @@ import { registerLiveStartDiscardGainHeartWorkflowHandlers } from './card-effect
 import { registerLiveStartDiscardSameUnitGainHeartBladeWorkflowHandlers } from './card-effects/workflows/shared/live-start-discard-same-unit-gain-heart-blade.js';
 import { registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHandlers } from './card-effects/workflows/shared/live-start-pay-energy-stack-waiting-members-to-deck-top.js';
 import { registerLiveStartReplaceOriginalHeartColorWorkflowHandlers } from './card-effects/workflows/shared/live-start-replace-original-heart-color.js';
+import { registerLiveStartSuccessCountChooseHeartWorkflowHandlers } from './card-effects/workflows/shared/live-start-success-count-choose-heart.js';
 import { registerMillTopGainLiveModifierWorkflowHandlers } from './card-effects/workflows/shared/mill-top-gain-live-modifier.js';
 import { registerNamedHandDiscardLiveStartWorkflowHandlers } from './card-effects/workflows/shared/named-hand-discard-live-start.js';
 import { registerOnMoveGainHeartWorkflowHandlers } from './card-effects/workflows/shared/on-move-gain-heart.js';
@@ -206,6 +211,7 @@ import {
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
   HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
+  N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
   PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID,
   SP_PB2_020_AUTO_ON_CHEER_DISCARD_LIELLA_LIVE_ADDITIONAL_CHEER_ABILITY_ID,
@@ -618,6 +624,7 @@ registerLiveStartDiscardGainHeartWorkflowHandlers({ enqueueTriggeredCardEffects 
 registerLiveStartDiscardSameUnitGainHeartBladeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHandlers();
 registerLiveStartReplaceOriginalHeartColorWorkflowHandlers();
+registerLiveStartSuccessCountChooseHeartWorkflowHandlers();
 registerBp5007NozomiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp6003KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1006HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -677,6 +684,7 @@ registerHsPb1003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsSd1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsSd1005KosuzuWorkflowHandlers();
 registerNBp1002KasumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp5001AyumuWorkflowHandlers();
 registerNBp1026PoppinUpWorkflowHandlers();
 registerNBp3008EmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3010ShiorikoWorkflowHandlers();
@@ -690,6 +698,9 @@ registerPlBp3026OhLovePeaceWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb1018NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSd1008HanayoWorkflowHandlers();
 registerEmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlBp3006MakiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlBp6007NozomiWorkflowHandlers();
+registerNPr021LanzhuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNPr026RinaWorkflowHandlers();
 registerPlBp3014RinWorkflowHandlers();
 registerSpBp2009NatsumiWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -2062,10 +2073,10 @@ function enqueueCheerCardEffects(
     }
   }
 
-  return enqueueSpPb2020StageMemberCheerCardEffects(state, player.id, cheerEventId, cheerEvent);
+  return enqueueExactStageMemberCheerCardEffects(state, player.id, cheerEventId, cheerEvent);
 }
 
-function enqueueSpPb2020StageMemberCheerCardEffects(
+function enqueueExactStageMemberCheerCardEffects(
   game: GameState,
   playerId: string,
   cheerEventId: string,
@@ -2084,69 +2095,73 @@ function enqueueSpPb2020StageMemberCheerCardEffects(
       continue;
     }
 
-    const hasNatsumiCheerAbility = getQueuedAbilityDefinitionsForCard(
+    const stageCheerAbilityIds = getQueuedAbilityDefinitionsForCard(
       sourceCard.data.cardCode,
       CardAbilityCategory.AUTO,
       CardAbilitySourceZone.STAGE_MEMBER,
       sourceSlot
-    ).some(
-      (ability) =>
-        ability.abilityId ===
-          SP_PB2_020_AUTO_ON_CHEER_DISCARD_LIELLA_LIVE_ADDITIONAL_CHEER_ABILITY_ID &&
-        ability.triggerCondition === TriggerCondition.ON_CHEER
-    );
-    if (!hasNatsumiCheerAbility) {
+    )
+      .filter(
+        (ability) =>
+          ability.triggerCondition === TriggerCondition.ON_CHEER &&
+          (ability.abilityId ===
+            SP_PB2_020_AUTO_ON_CHEER_DISCARD_LIELLA_LIVE_ADDITIONAL_CHEER_ABILITY_ID ||
+            ability.abilityId ===
+              N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID)
+      )
+      .map((ability) => ability.abilityId);
+    if (stageCheerAbilityIds.length === 0) {
       continue;
     }
 
-    const abilityId = SP_PB2_020_AUTO_ON_CHEER_DISCARD_LIELLA_LIVE_ADDITIONAL_CHEER_ABILITY_ID;
-    if (!canUseAbilityThisTurn(state, sourceCard.ownerId, abilityId, sourceCardId)) {
-      continue;
-    }
-
-    const pendingAbilityId = `${abilityId}:${sourceCardId}:${cheerEventId}`;
-    if (hasAbilityInstance(state, pendingAbilityId)) {
-      continue;
-    }
-
-    const pendingAbility: PendingAbilityState = {
-      id: pendingAbilityId,
-      abilityId,
-      sourceCardId,
-      controllerId: sourceCard.ownerId,
-      mandatory: true,
-      timingId: TriggerCondition.ON_CHEER,
-      eventIds: [cheerEventId],
-      sourceSlot,
-      metadata: cheerEvent
-        ? {
-            revealedCardIds: cheerEvent.revealedCardIds,
-            totalBlade: cheerEvent.totalBlade,
-            automated: cheerEvent.automated === true,
-            additional: cheerEvent.additional ?? false,
-          }
-        : undefined,
-    };
-
-    state = addAction(
-      {
-        ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
-      },
-      'TRIGGER_ABILITY',
-      pendingAbility.controllerId,
-      {
-        pendingAbilityId,
-        abilityId: pendingAbility.abilityId,
-        sourceCardId,
-        timingId: pendingAbility.timingId,
-        sourceSlot,
-        revealedCardIds: cheerEvent?.revealedCardIds,
-        totalBlade: cheerEvent?.totalBlade,
-        automated: cheerEvent?.automated,
-        additional: cheerEvent?.additional,
+    for (const abilityId of stageCheerAbilityIds) {
+      if (!canUseAbilityThisTurn(state, sourceCard.ownerId, abilityId, sourceCardId)) {
+        continue;
       }
-    );
+      const pendingAbilityId = `${abilityId}:${sourceCardId}:${cheerEventId}`;
+      if (hasAbilityInstance(state, pendingAbilityId)) {
+        continue;
+      }
+
+      const pendingAbility: PendingAbilityState = {
+        id: pendingAbilityId,
+        abilityId,
+        sourceCardId,
+        controllerId: sourceCard.ownerId,
+        mandatory: true,
+        timingId: TriggerCondition.ON_CHEER,
+        eventIds: [cheerEventId],
+        sourceSlot,
+        metadata: cheerEvent
+          ? {
+              revealedCardIds: cheerEvent.revealedCardIds,
+              totalBlade: cheerEvent.totalBlade,
+              automated: cheerEvent.automated === true,
+              additional: cheerEvent.additional ?? false,
+            }
+          : undefined,
+      };
+
+      state = addAction(
+        {
+          ...state,
+          pendingAbilities: [...state.pendingAbilities, pendingAbility],
+        },
+        'TRIGGER_ABILITY',
+        pendingAbility.controllerId,
+        {
+          pendingAbilityId,
+          abilityId: pendingAbility.abilityId,
+          sourceCardId,
+          timingId: pendingAbility.timingId,
+          sourceSlot,
+          revealedCardIds: cheerEvent?.revealedCardIds,
+          totalBlade: cheerEvent?.totalBlade,
+          automated: cheerEvent?.automated,
+          additional: cheerEvent?.additional,
+        }
+      );
+    }
   }
 
   return state;

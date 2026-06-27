@@ -60,7 +60,6 @@ const DISCARD_LOOK_TOP_FIVE_LIVE_BASE_CARD_CODES = [
   'PL!HS-bp1-011',
   'PL!HS-bp6-022',
 ] as const;
-const SP_PB2_017_BASE_CARD_CODE = 'PL!SP-pb2-017';
 const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
   readonly baseCardCode: string;
   readonly alias: string;
@@ -70,9 +69,23 @@ const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
 }[] = [
   { baseCardCode: 'PL!HS-bp1-009', alias: 'みらくらぱーく！', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!HS-pb1-018', alias: 'DOLLCHESTRA', selectorKind: 'UNIT', topCount: 5 },
+  {
+    baseCardCode: 'PL!-bp6-004',
+    alias: "μ's",
+    selectorKind: 'GROUP',
+    topCount: 5,
+    memberOnly: true,
+  },
   { baseCardCode: 'PL!SP-bp1-005', alias: 'Liella!', selectorKind: 'GROUP', topCount: 5 },
   {
-    baseCardCode: SP_PB2_017_BASE_CARD_CODE,
+    baseCardCode: 'PL!SP-bp2-007',
+    alias: 'Liella!',
+    selectorKind: 'GROUP',
+    topCount: 5,
+    memberOnly: true,
+  },
+  {
+    baseCardCode: 'PL!SP-pb2-017',
     alias: 'Liella!',
     selectorKind: 'GROUP',
     topCount: 5,
@@ -181,6 +194,25 @@ function startDiscardLookTopSelectToHandWorkflow(
     orderedResolution: options.orderedResolution,
   };
 
+  if (selectableCardIds.length === 0) {
+    return finishPendingAbility(
+      game,
+      ability,
+      player.id,
+      options.orderedResolution,
+      {
+        step: 'NO_OP_DISCARD_LOOK_TOP',
+        reason: 'NO_HAND',
+        topCount: metadata.topCount,
+        cardSelectorAlias: metadata.cardSelectorAlias,
+        cardSelectorKind: metadata.cardSelectorKind,
+        memberOnly: metadata.memberOnly,
+        liveOnly: metadata.liveOnly,
+      },
+      options.continuePendingCardEffects
+    );
+  }
+
   return addAction(
     {
       ...game,
@@ -282,33 +314,35 @@ function createLookTopConfig(
       ? '请选择至多3张持有赤/绿/蓝 HEART 的成员卡公开并加入手牌。其余放置入休息室。'
       : metadata.liveOnly
         ? '请选择其中1张LIVE卡加入手牌，其余放置入休息室。'
-        : metadata.memberOnly
-          ? '请选择其中1张成员卡加入手牌，其余放置入休息室。'
-          : metadata.cardSelectorAlias && metadata.memberOnly
-            ? `请选择其中1张${metadata.cardSelectorAlias}的成员卡加入手牌，其余放置入休息室。`
-            : metadata.cardSelectorAlias
+        : metadata.cardSelectorAlias && metadata.memberOnly
+          ? `请选择其中1张${metadata.cardSelectorAlias}的成员卡加入手牌，其余放置入休息室。`
+          : metadata.cardSelectorAlias
             ? `请选择其中1张${metadata.cardSelectorAlias}的卡加入手牌，其余放置入休息室。`
-            : '请选择其中1张卡加入手牌，其余放置入休息室。',
+            : metadata.memberOnly
+              ? '请选择其中1张成员卡加入手牌，其余放置入休息室。'
+              : '请选择其中1张卡加入手牌，其余放置入休息室。',
     noTargetStepText: metadata.redGreenBlueHeartMemberOnly
       ? '没有可加入手牌的持有赤/绿/蓝 HEART 的成员卡。确认后其余卡片放置入休息室。'
       : metadata.liveOnly
         ? '没有可加入手牌的LIVE卡。确认后其余卡片放置入休息室。'
-        : metadata.memberOnly
-          ? '没有可加入手牌的成员卡。确认后其余卡片放置入休息室。'
+        : metadata.cardSelectorAlias && metadata.memberOnly
+          ? `没有可加入手牌的${metadata.cardSelectorAlias}成员卡。确认后其余卡片放置入休息室。`
           : metadata.cardSelectorAlias
             ? `没有可加入手牌的${metadata.cardSelectorAlias}的卡。确认后其余卡片放置入休息室。`
-            : '没有可加入手牌的卡片。确认后其余卡片放置入休息室。',
+            : metadata.memberOnly
+              ? '没有可加入手牌的成员卡。确认后其余卡片放置入休息室。'
+              : '没有可加入手牌的卡片。确认后其余卡片放置入休息室。',
     selectionLabel: metadata.selectionRequired
       ? '请选择要加入手牌的卡牌'
       : metadata.redGreenBlueHeartMemberOnly
         ? '请选择要公开并加入手牌的赤/绿/蓝 HEART 成员卡'
-      : metadata.liveOnly
-        ? '请选择要加入手牌的LIVE卡'
-        : metadata.cardSelectorAlias && metadata.memberOnly
-          ? `请选择要加入手牌的${metadata.cardSelectorAlias}成员卡`
-        : metadata.memberOnly
-            ? '请选择要加入手牌的成员卡'
-            : '请选择要加入手牌的卡牌',
+        : metadata.liveOnly
+          ? '请选择要加入手牌的LIVE卡'
+          : metadata.cardSelectorAlias && metadata.memberOnly
+            ? `请选择要加入手牌的${metadata.cardSelectorAlias}成员卡`
+            : metadata.memberOnly
+              ? '请选择要加入手牌的成员卡'
+              : '请选择要加入手牌的卡牌',
     confirmSelectionLabel: '加入手牌',
     skipSelectionLabel: '不加入',
     revealStepText: effectText,
@@ -487,8 +521,8 @@ function getDiscardLookTopEffectText(cardCode: string | undefined): string {
   const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
   if (aliasCardConfig) {
     const topCount = getDiscardLookTopCount(cardCode);
-    if (isSpPb2017LiellaMemberCard(cardCode)) {
-      return `【登场】可以将1张手牌放置入休息室：检视自己卡组顶的${topCount}张卡。可以将1张其中的『Liella!』成员卡公开并加入手牌。其余的卡片放置入休息室。`;
+    if (aliasCardConfig.memberOnly === true) {
+      return `【登场】可以将1张手牌放置入休息室：检视自己卡组顶的${topCount}张卡。可以将1张其中的『${aliasCardConfig.alias}』成员卡公开并加入手牌。其余的卡片放置入休息室。`;
     }
     return `【登场】可以将1张手牌放置入休息室：检视自己卡组顶的${topCount}张卡。可以将1张其中的${aliasCardConfig.alias}的卡公开并加入手牌。其余的卡片放置入休息室。`;
   }
@@ -544,6 +578,29 @@ function getDiscardLookTopAliasCardConfig(
   );
 }
 
-function isSpPb2017LiellaMemberCard(cardCode: string | undefined): boolean {
-  return cardCode !== undefined && cardCodeMatchesBase(cardCode, SP_PB2_017_BASE_CARD_CODE);
+function finishPendingAbility(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string,
+  orderedResolution: boolean,
+  payload: Readonly<Record<string, unknown>>,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  return continuePendingCardEffects(
+    addAction(
+      {
+        ...game,
+        pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      },
+      'RESOLVE_ABILITY',
+      playerId,
+      {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        ...payload,
+      }
+    ),
+    orderedResolution
+  );
 }
