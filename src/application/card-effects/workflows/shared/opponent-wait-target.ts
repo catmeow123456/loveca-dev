@@ -5,11 +5,16 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import {
+  collectLiveModifiers,
+  getMemberEffectiveHeartIcons,
+} from '../../../../domain/rules/live-modifiers.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import {
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
+  SP_PR_021_LIVE_START_STAGE_HEART_FIVE_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
   SP_PB2_024_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   SP_PB2_029_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
@@ -34,6 +39,7 @@ import {
   getStageMemberOrientationTargetMetadata,
   resolveStageMemberOrientationTargetSelection,
 } from '../../../effects/stage-member-target-selection.js';
+import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 
 const HS_BP6_004_SELECT_OPPONENT_MEMBER_STEP_ID = 'HS_BP6_004_SELECT_OPPONENT_MEMBER_TO_WAIT';
 const PL_BP5_013_SELECT_OPPONENT_MEMBER_STEP_ID = 'PL_BP5_013_SELECT_OPPONENT_MEMBER_TO_WAIT';
@@ -53,6 +59,7 @@ interface OpponentWaitTargetWorkflowConfig {
   readonly selectionLabel: string;
   readonly selector: CardSelector;
   readonly startActionStep: string;
+  readonly minOwnStageHeartTotal?: number;
 }
 
 const lowCostOpponentMemberSelector = and(typeIs(CardType.MEMBER), costLte(9));
@@ -86,6 +93,17 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
     selectionLabel: '选择对方舞台上费用小于等于2的成员',
     selector: costLteTwoOpponentMemberSelector,
     startActionStep: 'START_SELECT_OPPONENT_COST_TWO_MEMBER',
+  },
+  {
+    abilityId: SP_PR_021_LIVE_START_STAGE_HEART_FIVE_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+    effectTextAbilityId:
+      SP_PR_021_LIVE_START_STAGE_HEART_FIVE_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+    stepId: SP_PB2_SELECT_OPPONENT_COST_TWO_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名费用小于等于2的成员变为待机状态。',
+    selectionLabel: '选择对方舞台上费用小于等于2的成员',
+    selector: costLteTwoOpponentMemberSelector,
+    startActionStep: 'START_SELECT_OPPONENT_COST_TWO_MEMBER',
+    minOwnStageHeartTotal: 5,
   },
   {
     abilityId: PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
@@ -160,6 +178,29 @@ function startOpponentWaitTargetWorkflow(
   const opponent = player ? getOpponent(game, player.id) : null;
   if (!player || !opponent) {
     return game;
+  }
+
+  const ownStageHeartTotal = getOwnStageEffectiveHeartTotal(game, player.id);
+  if (
+    config.minOwnStageHeartTotal !== undefined &&
+    ownStageHeartTotal < config.minOwnStageHeartTotal
+  ) {
+    const state = {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+    };
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'SKIP_CONDITION_NOT_MET',
+        sourceSlot: ability.sourceSlot,
+        ownStageHeartTotal,
+        requiredOwnStageHeartTotal: config.minOwnStageHeartTotal,
+      }),
+      orderedResolution
+    );
   }
 
   const targetSelection = createStageMemberOrientationTargetSelection(game, {
@@ -276,4 +317,11 @@ function finishOpponentWaitTargetWorkflow(
     stateWithMemberStateTriggers.gameState,
     effect.metadata?.orderedResolution === true
   );
+}
+
+function getOwnStageEffectiveHeartTotal(game: GameState, playerId: string): number {
+  const liveModifiers = collectLiveModifiers(game);
+  return getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER))
+    .flatMap((cardId) => getMemberEffectiveHeartIcons(game, playerId, cardId, liveModifiers))
+    .reduce((total, heart) => total + heart.count, 0);
 }

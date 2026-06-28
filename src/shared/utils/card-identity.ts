@@ -2,7 +2,15 @@ export interface CardIdentityLike {
   readonly groupNames?: readonly string[];
 }
 
-export type GroupIdentityName = "μ's" | '蓮ノ空' | 'Liella!' | '虹ヶ咲' | 'Aqours' | 'SaintSnow';
+export type GroupIdentityName =
+  | "μ's"
+  | '蓮ノ空'
+  | 'Liella!'
+  | '虹ヶ咲'
+  | 'Aqours'
+  | 'SunnyPassion'
+  | 'A-RISE'
+  | 'SaintSnow';
 
 const GROUP_IDENTITY_GROUPS: readonly {
   readonly canonicalName: GroupIdentityName;
@@ -17,10 +25,18 @@ const GROUP_IDENTITY_GROUPS: readonly {
     canonicalName: 'Liella!',
     aliases: ['Liella!', 'Liella', 'リエラ', 'スーパースター', 'superstar'],
   },
+  {
+    canonicalName: 'SunnyPassion',
+    aliases: ['SunnyPassion', 'Sunny Passion', 'サニーパッション'],
+  },
   { canonicalName: '虹ヶ咲', aliases: ['虹咲', '虹ヶ咲', 'Nijigasaki'] },
   {
     canonicalName: 'Aqours',
     aliases: ['Aqours', 'ラブライブ！サンシャイン!!'],
+  },
+  {
+    canonicalName: 'A-RISE',
+    aliases: ['A-RISE', 'ARISE', 'A RISE'],
   },
   {
     canonicalName: 'SaintSnow',
@@ -28,10 +44,7 @@ const GROUP_IDENTITY_GROUPS: readonly {
   },
 ];
 
-export function cardBelongsToGroup(
-  card: CardIdentityLike,
-  groupName: string
-): boolean {
+export function cardBelongsToGroup(card: CardIdentityLike, groupName: string): boolean {
   const groupIdentity = getGroupIdentity(groupName);
   if (!groupIdentity) {
     return false;
@@ -40,12 +53,10 @@ export function cardBelongsToGroup(
   return cardMatchesGroupIdentity(card, groupIdentity);
 }
 
-export function getKnownCardGroupIdentityName(
-  card: CardIdentityLike
-): GroupIdentityName | null {
+export function getKnownCardGroupIdentityName(card: CardIdentityLike): GroupIdentityName | null {
   return (
-    GROUP_IDENTITY_GROUPS.find((group) => cardMatchesGroupIdentity(card, group))
-      ?.canonicalName ?? null
+    GROUP_IDENTITY_GROUPS.find((group) => cardMatchesGroupIdentity(card, group))?.canonicalName ??
+    null
   );
 }
 
@@ -68,12 +79,9 @@ function cardMatchesGroupIdentity(
     readonly aliases: readonly string[];
   }
 ): boolean {
-  if (
-    groupIdentity.canonicalName === 'Aqours' &&
-    hasStructuredGroupIdentity(card, 'SaintSnow') &&
-    !hasStructuredGroupIdentity(card, 'Aqours')
-  ) {
-    return false;
+  const structuredGroupNames = getStructuredGroupIdentityNames(card);
+  if (structuredGroupNames.length > 0) {
+    return structuredGroupNames.includes(groupIdentity.canonicalName);
   }
 
   const normalizedAliases = groupIdentity.aliases.map((alias) => normalizeGroupIdentityText(alias));
@@ -82,15 +90,13 @@ function cardMatchesGroupIdentity(
   );
 }
 
-function hasStructuredGroupIdentity(card: CardIdentityLike, groupName: string): boolean {
-  const groupIdentity = getGroupIdentity(groupName);
-  if (!groupIdentity) {
-    return false;
-  }
-  const normalizedAliases = groupIdentity.aliases.map((alias) => normalizeGroupIdentityText(alias));
-  return getStructuredIdentityTextCandidates(card).some((value) =>
-    matchesAnyNormalizedAlias(value, normalizedAliases)
-  );
+function getStructuredGroupIdentityNames(card: CardIdentityLike): readonly GroupIdentityName[] {
+  return GROUP_IDENTITY_GROUPS.filter((group) => {
+    const normalizedAliases = group.aliases.map((alias) => normalizeGroupIdentityText(alias));
+    return getStructuredIdentityTextCandidates(card).some((value) =>
+      matchesAnyNormalizedAlias(value, normalizedAliases)
+    );
+  }).map((group) => group.canonicalName);
 }
 
 function getStructuredIdentityTextCandidates(
@@ -108,5 +114,10 @@ function matchesAnyNormalizedAlias(
 }
 
 function normalizeGroupIdentityText(value: string | undefined): string {
-  return value?.replace(/[『』「」'’]/g, '').replace(/！/g, '!').toLowerCase() ?? '';
+  return (
+    value
+      ?.replace(/[『』「」'’]/g, '')
+      .replace(/！/g, '!')
+      .toLowerCase() ?? ''
+  );
 }

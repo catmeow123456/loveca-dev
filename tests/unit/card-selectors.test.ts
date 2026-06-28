@@ -208,7 +208,13 @@ describe('card selectors', () => {
     expect(saintSnow(other)).toBe(false);
   });
 
-  it('keeps SaintSnow and Aqours structured identity boundaries without PL!S fallback', () => {
+  it('keeps structured rival-group identity boundaries without series prefix fallbacks', () => {
+    const pureSunnyPassion = memberCard('PL!SP-test-sunny-passion', {
+      groupNames: ['SunnyPassion'],
+    });
+    const pureArise = memberCard('PL!-test-a-rise', {
+      groupNames: ['A-RISE'],
+    });
     const pureSaintSnow = memberCard('PL!S-bp5-111-R', {
       groupNames: ['SaintSnow'],
     });
@@ -219,6 +225,10 @@ describe('card selectors', () => {
       groupNames: ['Aqours'],
     });
 
+    expect(groupAliasIs('Sunny Passion')(pureSunnyPassion)).toBe(true);
+    expect(groupAliasIs('Liella!')(pureSunnyPassion)).toBe(false);
+    expect(groupAliasIs('A-RISE')(pureArise)).toBe(true);
+    expect(groupAliasIs("μ's")(pureArise)).toBe(false);
     expect(groupAliasIs('SaintSnow')(pureSaintSnow)).toBe(true);
     expect(groupAliasIs('Aqours')(pureSaintSnow)).toBe(false);
     expect(groupAliasIs('SaintSnow')(aqoursAndSaintSnow)).toBe(true);
@@ -290,7 +300,8 @@ describe('card selectors', () => {
 
   it('matches known unit aliases in text only when explicitly requested', () => {
     const treatedAsThreeUnits = liveCard('PL!HS-test-L', {
-      cardText: 'すべての領域にあるこのカードは『Cerise Bouquet』、『DOLLCHESTRA』、『Mira-Cra Park!』として扱う。',
+      cardText:
+        'すべての領域にあるこのカードは『Cerise Bouquet』、『DOLLCHESTRA』、『Mira-Cra Park!』として扱う。',
     });
 
     expect(unitAliasIs('スリーズブーケ')(treatedAsThreeUnits)).toBe(false);
@@ -520,9 +531,7 @@ describe('card selectors', () => {
     expect(namedDiscardSelector(memberCard('alias-any-ayumu', { name: '上原步梦' }))).toBe(true);
     expect(namedDiscardSelector(memberCard('alias-any-kanon', { name: '涩谷香音' }))).toBe(true);
     expect(
-      namedDiscardSelector(
-        memberCard('alias-any-combo', { name: '渡辺 曜&鬼塚夏美&大沢瑠璃乃' })
-      )
+      namedDiscardSelector(memberCard('alias-any-combo', { name: '渡辺 曜&鬼塚夏美&大沢瑠璃乃' }))
     ).toBe(false);
     expect(
       cardNameAliasAny(['渡辺曜', '大沢瑠璃乃'])(

@@ -28,12 +28,13 @@ import {
   memberHasHeartColor,
   typeIs,
 } from '../../../effects/card-selectors.js';
-import {
-  clearInspectionCards,
-  inspectTopCards,
-} from '../../../effects/look-top.js';
+import { clearInspectionCards, inspectTopCards } from '../../../effects/look-top.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
+export type LookTopSelectSelectionValidator = (
+  game: GameState,
+  selectedCardIds: readonly string[]
+) => boolean;
 
 export type LookTopSelectCountRule =
   | {
@@ -96,8 +97,10 @@ interface LookTopSelectToHandMetadata {
   readonly selectedCardIds?: readonly string[];
 }
 
-interface RegisteredLookTopSelectToHandWorkflowConfig
-  extends Omit<LookTopSelectToHandWorkflowConfig, 'effectText'> {
+interface RegisteredLookTopSelectToHandWorkflowConfig extends Omit<
+  LookTopSelectToHandWorkflowConfig,
+  'effectText'
+> {
   readonly abilityId: string;
 }
 
@@ -115,8 +118,7 @@ const HS_BP2_013_SELECT_LIVE_STEP_ID = 'HS_BP2_013_SELECT_LIVE_FROM_TOP_FIVE';
 const HS_BP2_013_REVEAL_SELECTED_STEP_ID = 'HS_BP2_013_REVEAL_SELECTED_LIVE';
 const S_BP6_005_SELECT_THREE_COLOR_MEMBER_STEP_ID =
   'S_BP6_005_SELECT_THREE_COLOR_MEMBER_FROM_TOP_TWO';
-const S_BP6_005_REVEAL_THREE_COLOR_MEMBER_STEP_ID =
-  'S_BP6_005_REVEAL_SELECTED_THREE_COLOR_MEMBER';
+const S_BP6_005_REVEAL_THREE_COLOR_MEMBER_STEP_ID = 'S_BP6_005_REVEAL_SELECTED_THREE_COLOR_MEMBER';
 
 const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandWorkflowConfig[] = [
   {
@@ -327,12 +329,11 @@ export function startLookTopSelectToHandWorkflow(
         selectionLabel: config.selectionLabel,
         confirmSelectionLabel: config.confirmSelectionLabel,
         canSkipSelection,
-        skipSelectionLabel:
-          canSkipSelection
-            ? selectableCardIds.length > 0
-              ? config.skipSelectionLabel
-              : '确认'
-            : undefined,
+        skipSelectionLabel: canSkipSelection
+          ? selectableCardIds.length > 0
+            ? config.skipSelectionLabel
+            : '确认'
+          : undefined,
         metadata: {
           sourceZone: ZoneType.MAIN_DECK,
           orderedResolution: options.orderedResolution === true,
@@ -365,19 +366,24 @@ export function resolveLookTopSelectToHandSelection(
   game: GameState,
   selectedCardId: string | null,
   selectedCardIds: readonly string[] | undefined = undefined,
-  options: Pick<LookTopSelectToHandWorkflowOptions, 'continuePendingCardEffects'>
+  options: Pick<LookTopSelectToHandWorkflowOptions, 'continuePendingCardEffects'>,
+  customSelectionValidator?: LookTopSelectSelectionValidator
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
     return game;
   }
-  const selectedCardIdsToMove = selectedCardIds && selectedCardIds.length > 0
-    ? selectedCardIds
-    : selectedCardId !== null
-      ? [selectedCardId]
-      : [];
+  const selectedCardIdsToMove =
+    selectedCardIds && selectedCardIds.length > 0
+      ? selectedCardIds
+      : selectedCardId !== null
+        ? [selectedCardId]
+        : [];
   const metadata = getLookTopSelectToHandMetadata(effect.metadata);
-  if (!metadata || !validateLookTopSelection(game, selectedCardIdsToMove, metadata)) {
+  if (
+    !metadata ||
+    !validateLookTopSelection(game, selectedCardIdsToMove, metadata, customSelectionValidator)
+  ) {
     return game;
   }
 
@@ -390,14 +396,19 @@ export function resolveLookTopSelectToHandSelection(
 
 export function finishRevealedLookTopSelectToHandWorkflow(
   game: GameState,
-  options: Pick<LookTopSelectToHandWorkflowOptions, 'continuePendingCardEffects'>
+  options: Pick<LookTopSelectToHandWorkflowOptions, 'continuePendingCardEffects'>,
+  customSelectionValidator?: LookTopSelectSelectionValidator
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
     return game;
   }
   const metadata = getLookTopSelectToHandMetadata(effect.metadata);
-  if (!metadata || !metadata.selectedCardIds) {
+  if (
+    !metadata ||
+    !metadata.selectedCardIds ||
+    !validateLookTopSelection(game, metadata.selectedCardIds, metadata, customSelectionValidator)
+  ) {
     return game;
   }
 
@@ -505,7 +516,11 @@ function moveInspectedCardsToHandRestToWaitingRoom(
   playerId: string,
   inspectedCardIds: readonly string[],
   selectedCardIds: readonly string[]
-): { readonly gameState: GameState; readonly selectedCardIds: readonly string[]; readonly waitingRoomCardIds: readonly string[] } | null {
+): {
+  readonly gameState: GameState;
+  readonly selectedCardIds: readonly string[];
+  readonly waitingRoomCardIds: readonly string[];
+} | null {
   const player = getPlayerById(game, playerId);
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
   if (
@@ -519,10 +534,7 @@ function moveInspectedCardsToHandRestToWaitingRoom(
   const waitingRoomCardIds = inspectedCardIds.filter((cardId) => !selectedCardIds.includes(cardId));
   let state = updatePlayer(game, player.id, (currentPlayer) => ({
     ...currentPlayer,
-    hand: selectedCardIds.reduce(
-      (hand, cardId) => addCardToZone(hand, cardId),
-      currentPlayer.hand
-    ),
+    hand: selectedCardIds.reduce((hand, cardId) => addCardToZone(hand, cardId), currentPlayer.hand),
     waitingRoom: {
       ...currentPlayer.waitingRoom,
       cardIds: [...currentPlayer.waitingRoom.cardIds, ...waitingRoomCardIds],
@@ -540,7 +552,8 @@ function moveInspectedCardsToHandRestToWaitingRoom(
 function validateLookTopSelection(
   game: GameState,
   selectedCardIds: readonly string[],
-  metadata: LookTopSelectToHandMetadata
+  metadata: LookTopSelectToHandMetadata,
+  customSelectionValidator?: LookTopSelectSelectionValidator
 ): boolean {
   const effect = game.activeEffect;
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
@@ -555,12 +568,16 @@ function validateLookTopSelection(
   }
 
   if ('exactCount' in metadata.countRule && metadata.countRule.exactCount !== undefined) {
-    return selectedCardIds.length === metadata.countRule.exactCount;
+    return (
+      selectedCardIds.length === metadata.countRule.exactCount &&
+      (customSelectionValidator?.(game, selectedCardIds) ?? true)
+    );
   }
 
   return (
     selectedCardIds.length >= metadata.countRule.minCount &&
-    selectedCardIds.length <= metadata.countRule.maxCount
+    selectedCardIds.length <= metadata.countRule.maxCount &&
+    (customSelectionValidator?.(game, selectedCardIds) ?? true)
   );
 }
 
@@ -599,8 +616,7 @@ function getLookTopSelectToHandMetadata(
     candidateCardIds: Array.isArray(metadata?.candidateCardIds)
       ? metadata.candidateCardIds.filter((value): value is string => typeof value === 'string')
       : [],
-    includeInspectedCardIdsInFinishAction:
-      metadata?.includeInspectedCardIdsInFinishAction === true,
+    includeInspectedCardIdsInFinishAction: metadata?.includeInspectedCardIdsInFinishAction === true,
     selectedCardIds: Array.isArray(metadata?.selectedCardIds)
       ? metadata.selectedCardIds.filter((value): value is string => typeof value === 'string')
       : undefined,

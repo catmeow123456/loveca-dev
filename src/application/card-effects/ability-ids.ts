@@ -223,8 +223,18 @@ export const SP_SD2_002_ACTIVATED_PAY_TWO_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID
   'PL!SP-sd2-002:activated-pay-two-energy-self-position-change';
 export const SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_ABILITY_ID =
   'PL!SP-bp5-006:activated-mill-three-self-position-change';
+export const SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID =
+  'PL!SP-bp5-005:activated-mill-three-gain-blade-by-liella-member';
+export const SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID =
+  'PL!SP-bp5-005:auto-main-phase-card-enter-waiting-room-pay-energy-recover';
 export const SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_DRAW_RED_HEART_ABILITY_ID =
   'PL!SP-bp5-004:auto-own-effect-move-or-place-energy-draw-red-heart';
+export const SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID =
+  'PL!SP-bp5-008:on-enter-wait-discard-look-high-cost-liella-member';
+export const SP_BP5_013_ON_ENTER_DISCARD_LOOK_TOP_SUNNYPASSION_OR_BLADE_HEART_LIELLA_ABILITY_ID =
+  'PL!SP-bp5-013:on-enter-discard-look-sunnypassion-or-blade-heart-liella-member';
+export const SP_BP5_007_ON_ENTER_DISCARD_LOOK_TOP_DISTINCT_GROUPS_ABILITY_ID =
+  'PL!SP-bp5-007:on-enter-discard-look-distinct-groups';
 export const SP_PB1_008_ON_ENTER_DRAW_SELF_POSITION_CHANGE_ABILITY_ID =
   'PL!SP-pb1-008:on-enter-draw-self-position-change';
 export const SP_PB1_020_AUTO_ON_MOVE_DRAW_ONE_ABILITY_ID = 'PL!SP-pb1-020:auto-on-move-draw-one';
@@ -396,6 +406,8 @@ export const HANAYO_ACTIVATED_ABILITY_ID = 'PL!-sd1-008-SD:activated-pay-two-mil
 export const START_DASH_LIVE_SUCCESS_ABILITY_ID = 'PL!-sd1-019-SD:live-success-start-dash';
 export const KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-PR-004-PR:on-enter-discard-place-waiting-energy';
+export const SP_PR_021_LIVE_START_STAGE_HEART_FIVE_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID =
+  'PL!SP-PR-021:live-start-stage-heart-five-wait-opponent-cost-two-member';
 export const BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID = 'PL!-bp3-010-N:on-enter-look-top-reveal-live';
 export const BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID =
   'PL!-bp5-005-AR:on-enter-success-score-place-active-energy';

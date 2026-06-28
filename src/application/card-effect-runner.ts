@@ -152,6 +152,9 @@ import { registerSpBp4025SpecialColorWorkflowHandlers } from './card-effects/wor
 import { registerShikiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-008-shiki.js';
 import { registerSpBp5001KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-001-kanon.js';
 import { registerSpBp5004SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-004-sumire.js';
+import { registerSpBp5005RenWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-005-ren.js';
+import { registerSpBp5007MeiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-007-mei.js';
+import { registerSpBp5013KekeWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-013-keke.js';
 import { registerSpBp5014ChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-014-chisato.js';
 import { registerSpBp5002KekeWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-002-keke.js';
 import { registerSpBp5006KinakoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-006-kinako.js';
@@ -756,6 +759,9 @@ registerSpBp4025SpecialColorWorkflowHandlers();
 registerShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5001KanonWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5004SumireWorkflowHandlers();
+registerSpBp5005RenWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp5007MeiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp5013KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5014ChisatoWorkflowHandlers();
 registerSpBp5002KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5006KinakoWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1012,10 +1018,7 @@ function enqueueEnterWaitingRoomCardEffects(
 }
 
 function isSupportedEnterWaitingRoomTriggerZone(event: EnterWaitingRoomEvent): boolean {
-  return (
-    event.toZone === ZoneType.WAITING_ROOM &&
-    (event.fromZone === ZoneType.HAND || event.fromZone === ZoneType.LIVE_ZONE)
-  );
+  return event.toZone === ZoneType.WAITING_ROOM;
 }
 
 function enqueueSingleEnterWaitingRoomCardEffect(

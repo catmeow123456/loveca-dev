@@ -175,7 +175,12 @@ import {
   SP_SD2_001_LIVE_START_DRAW_STAGE_FORMATION_CHANGE_ABILITY_ID,
   SP_BP2_008_ACTIVATED_PAY_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
   SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_DRAW_RED_HEART_ABILITY_ID,
+  SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
+  SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
   SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_ABILITY_ID,
+  SP_BP5_007_ON_ENTER_DISCARD_LOOK_TOP_DISTINCT_GROUPS_ABILITY_ID,
+  SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+  SP_BP5_013_ON_ENTER_DISCARD_LOOK_TOP_SUNNYPASSION_OR_BLADE_HEART_LIELLA_ABILITY_ID,
   SP_PB1_008_ON_ENTER_DRAW_SELF_POSITION_CHANGE_ABILITY_ID,
   SP_PB1_020_AUTO_ON_MOVE_DRAW_ONE_ABILITY_ID,
   SP_PB1_006_AUTO_ENTER_OR_MOVE_GAIN_TWO_BLADE_ABILITY_ID,
@@ -202,6 +207,7 @@ import {
   HANAYO_ACTIVATED_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
   KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
+  SP_PR_021_LIVE_START_STAGE_HEART_FIVE_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID,
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
@@ -366,8 +372,7 @@ const PL_N_BP1_012_CONTINUOUS_EFFECT_TEXT =
 const PL_N_BP1_012_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】[E][E][E]：从自己的休息室将1张LIVE卡加入手牌。';
 const PL_N_PB1_006_ACTIVATED_EFFECT_TEXT = '【起动】将此成员变为待机状态：将1张能量变为活跃状态。';
-const PL_N_PB1_011_CONTINUOUS_EFFECT_TEXT =
-  '【常时】此成员下方每有1张能量卡，此成员获得BLADE。';
+const PL_N_PB1_011_CONTINUOUS_EFFECT_TEXT = '【常时】此成员下方每有1张能量卡，此成员获得BLADE。';
 const PL_N_PB1_011_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将自己能量区的1张能量放置到此成员下方：从自己的休息室将1张「虹ヶ咲」LIVE卡加入手牌。';
 const PL_N_BP3_008_ACTIVATED_EFFECT_TEXT =
@@ -453,8 +458,18 @@ const SP_BP2_008_ACTIVATED_PAY_ENERGY_SELF_POSITION_CHANGE_EFFECT_TEXT =
   '【起动】【1回合1次】[E]：选择与此成员所在区域不同的自己的1个区域，将此成员移动到该区域。若选择区域有成员，则该成员移动到此成员原本所在区域。';
 const SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_EFFECT_TEXT =
   '【自动】【1回合1次】因自己的卡牌效果，此成员进行区域移动或能量被放置入自己的能量区时，抽1张卡，LIVE结束时为止，此成员获得[红HEART]。';
+const SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_EFFECT_TEXT =
+  '【起动】【1回合1次】将卡组顶3张放置入休息室：LIVE结束时为止，因此放置入休息室的『Liella!』成员卡每有1张，获得[BLADE]。';
+const SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_EFFECT_TEXT =
+  '【自动】【1回合1次】自己的主要阶段中，自己的卡从任意区域1张以上放置入休息室时，可以支付[E]。如此做的场合，从那些卡中将1张加入手牌。';
 const SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_EFFECT_TEXT =
   '【起动】【1回合1次】将卡组顶3张放置入休息室：此成员进行站位变换。';
+const SP_BP5_008_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将此成员变为待机状态，并将1张手牌放置入休息室：检视自己卡组顶5张，可以公开其中1张费用大于等于9的『Liella!』成员卡加入手牌，其余放置入休息室。';
+const SP_BP5_013_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将1张手牌放置入休息室：检视自己卡组顶5张，可以公开其中1张『SunnyPassion』成员卡或持有 BLADE HEART 的『Liella!』成员卡加入手牌，其余放置入休息室。';
+const SP_BP5_007_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将1张手牌放置入休息室：检视自己卡组顶5张，可以按每个团体名各1张公开至多3张加入手牌，其余放置入休息室。';
 const SP_PB1_008_ON_ENTER_DRAW_SELF_POSITION_CHANGE_EFFECT_TEXT =
   '【登场】抽1张。之后，选择与登场区域不同的自己的1个区域，将此成员移动到该区域。若选择区域有成员，则该成员移动到此成员原本所在区域。';
 const SP_PB1_020_AUTO_ON_MOVE_DRAW_ONE_EFFECT_TEXT =
@@ -676,8 +691,7 @@ const SP_PB2_010_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】从以下选择1项：抽2张卡；或从自己的能量卡组将1张能量卡以待机状态放置。';
 const SP_PB2_011_AUTO_EFFECT_TEXT =
   '【自动】【1回合1次】自己舞台中心区域的成员移动区域时，从获得[BLADE][BLADE]、将对方舞台原本 BLADE 小于等于2的成员变为待机状态、抽1张卡中选择1项。';
-const SP_PB2_011_LIVE_START_EFFECT_TEXT =
-  '【LIVE开始时】可以将此成员进行站位变换。';
+const SP_PB2_011_LIVE_START_EFFECT_TEXT = '【LIVE开始时】可以将此成员进行站位变换。';
 const SP_PB2_013_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将手牌中的1张『KALEIDOSCORE』卡放置入休息室：从自己的能量卡组将1张能量卡以待机状态放置。若因此放置入休息室的卡不持有 BLADE HEART，抽1张卡。';
 const SP_PB2_014_ON_ENTER_EFFECT_TEXT =
@@ -778,6 +792,8 @@ const START_DASH_EFFECT_TEXT =
   '【LIVE成功时】检视自己卡组顶的3张卡。将任意张按任意顺序放置于卡组顶，其余放置入休息室。';
 const KEKE_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：从自己的能量卡组，将1张能量卡以待机状态放置入能量区。';
+const SP_PR_021_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的舞台成员持有的 Heart 合计大于等于5个的场合，将对方舞台1名费用小于等于2的成员变为待机状态。';
 const BP3_010_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以将1张其中的LIVE卡公开并加入手牌。其余放置入休息室。';
 const BP5_005_ON_ENTER_EFFECT_TEXT =
@@ -1627,6 +1643,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     notes: '复用 C01 弃手步骤，并通过 E03 helper 从能量卡组放置待机能量。',
   },
   {
+    abilityId: SP_PR_021_LIVE_START_STAGE_HEART_FIVE_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!SP-PR-021'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: SP_PR_021_LIVE_START_EFFECT_TEXT,
+    notes:
+      '复用 opponent-wait-target shared workflow；启动前用 getMemberEffectiveHeartIcons 汇总己方舞台成员有效 Heart，合计>=5 时才选择对方费用<=2且当前非 WAITING 的成员。条件不满足或无合法目标时消费 pending no-op；成功 WAITING 后入队 ON_MEMBER_STATE_CHANGED。',
+  },
+  {
     abilityId: BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
     baseCardCodes: ['PL!-bp3-010', 'PL!HS-bp1-011', 'PL!HS-bp6-022'],
     category: CardAbilityCategory.ON_ENTER,
@@ -2367,6 +2395,85 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 activated workflow；发动前要求主卡组至少3张，精确将顶3张作为费用放置入休息室后打开强制自身站位变换窗口，不新增 ON_ENTER_WAITING_ROOM 事件边界。',
   },
   {
+    abilityId: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp5-005'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
+      title: '卡组顶3张作为费用，按Liella成员数获得BLADE',
+      text: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_EFFECT_TEXT,
+    },
+    notes:
+      '单卡 activated workflow；主阶段、自己回合、来源在己方舞台且主卡组至少3张时可发动。费用用 moveTopDeckCardsToWaitingRoom 精确放置顶3张并记录 PAY_COST，按其中 Liella! 成员数用 addBladeLiveModifierForSourceMember 写来源成员 BLADE；0张时只支付费用并结算。',
+  },
+  {
+    abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp5-005'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_WAITING_ROOM,
+    triggerFromZones: [
+      ZoneType.HAND,
+      ZoneType.MAIN_DECK,
+      ZoneType.ENERGY_DECK,
+      ZoneType.MEMBER_SLOT,
+      ZoneType.ENERGY_ZONE,
+      ZoneType.LIVE_ZONE,
+      ZoneType.SUCCESS_ZONE,
+      ZoneType.EXILE_ZONE,
+      ZoneType.RESOLUTION_ZONE,
+      ZoneType.INSPECTION_ZONE,
+    ],
+    triggerToZones: [ZoneType.WAITING_ROOM],
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_EFFECT_TEXT,
+    notes:
+      '单卡 AUTO workflow；ON_ENTER_WAITING_ROOM 入队依赖 definition 的 triggerFromZones/triggerToZones 通用匹配，不接 trigger matcher T-2。只在自己的 main phase 消费 pending，支付1张活跃能量后只能从本次事件 metadata.movedCardIds 中仍在自己休息室的卡选择1张加入手牌；decline、能量不足或无合法候选均安全消费 pending。',
+  },
+  {
+    abilityId: SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp5-008'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_BP5_008_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '复用 wait-discard-look-top 参数化 workflow；登场时可将来源成员变为待机状态并弃1手牌，之后看顶5张，用 costGte(9)+Liella! 成员 selector 公开加入手牌，其余放置入休息室。',
+  },
+  {
+    abilityId: SP_BP5_013_ON_ENTER_DISCARD_LOOK_TOP_SUNNYPASSION_OR_BLADE_HEART_LIELLA_ABILITY_ID,
+    cardCodes: ['PL!SP-bp5-013-N'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_BP5_013_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 ON_ENTER workflow；可选弃1手牌成本走 enter-waiting-room trigger wrapper，之后看顶5张，可公开1张 SunnyPassion 成员或持有 BLADE HEART 的 Liella! 成员加入手牌，其余入休息室。',
+  },
+  {
+    abilityId: SP_BP5_007_ON_ENTER_DISCARD_LOOK_TOP_DISTINCT_GROUPS_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp5-007'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_BP5_007_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 ON_ENTER workflow；可选弃1手牌成本走 enter-waiting-room trigger wrapper，之后看顶5张，按团体名可分配为互不重复的最多3张公开加入手牌，其余入休息室。',
+  },
+  {
     abilityId: SP_PB1_008_ON_ENTER_DRAW_SELF_POSITION_CHANGE_ABILITY_ID,
     baseCardCodes: ['PL!SP-pb1-008'],
     category: CardAbilityCategory.ON_ENTER,
@@ -2655,8 +2762,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 ON_ENTER workflow；读取 pending metadata 的双换手 relayReplacements，要求正好2名 replacement。先按因此进入休息室的 Liella! 成员数抽牌，再按其中不持有 BLADE HEART 的 Liella! 成员数写来源成员 BLADE +2N。',
   },
   {
-    abilityId:
-      SP_PB2_001_ON_ENTER_DISCARD_LOOK_TOP_LOW_COST_LIELLA_MEMBER_PLAY_OR_HAND_ABILITY_ID,
+    abilityId: SP_PB2_001_ON_ENTER_DISCARD_LOOK_TOP_LOW_COST_LIELLA_MEMBER_PLAY_OR_HAND_ABILITY_ID,
     baseCardCodes: ['PL!SP-pb2-001'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
@@ -2807,7 +2913,8 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 workflow `sp-pb2-009-natsumi.ts`；可选将己方舞台1名当前非 WAITING 的 Liella! 成员变 WAITING，费用成员与对方目标阈值均按印刷 BLADE 计算。费用变 WAITING 走成员状态变化 trigger wrapper；支付后若对方目标消失不退费。',
   },
   {
-    abilityId: SP_PB2_009_LIVE_START_WAIT_LIELLA_MEMBER_WAIT_OPPONENT_LOWER_PRINTED_BLADE_ABILITY_ID,
+    abilityId:
+      SP_PB2_009_LIVE_START_WAIT_LIELLA_MEMBER_WAIT_OPPONENT_LOWER_PRINTED_BLADE_ABILITY_ID,
     baseCardCodes: ['PL!SP-pb2-009'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
@@ -4087,8 +4194,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '孤独雨第五批窄 LIVE_START workflow；自己的 liveZone 当前卡数含此 LIVE 自身，3 张以上时此 LIVE SCORE +2，并刷新 playerScores。括号 DRAW 由 cheer/LIVE 核心处理。',
   },
   {
-    abilityId:
-      PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
+    abilityId: PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
     baseCardCodes: ['PL!N-bp5-027'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.LIVE_CARD,
