@@ -18,6 +18,7 @@ import { applyHeartRequirementModifiers } from '@game/domain/rules/live-requirem
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import { HEART_ICON_SOURCE_BY_COLOR } from '@/lib/modifierIconAssets';
 import {
   buildBattleActionIntents,
   findEnabledBattleActionTargetByTargetId,
@@ -43,7 +44,6 @@ import type {
   MemberCardData,
   LiveCardData,
 } from '@game/domain/entities/card';
-import { Heart } from 'lucide-react';
 
 interface JudgmentPanelProps {
   isOpen: boolean;
@@ -53,29 +53,6 @@ interface JudgmentPanelProps {
 // ============================================
 // 工具函数
 // ============================================
-
-const heartColorConfig: Record<HeartColor, { colorClass: string; fill: string; name: string }> = {
-  [HeartColor.PINK]: { colorClass: 'text-pink-400', fill: 'fill-pink-400', name: '粉' },
-  [HeartColor.RED]: { colorClass: 'text-red-400', fill: 'fill-red-400', name: '红' },
-  [HeartColor.YELLOW]: { colorClass: 'text-yellow-400', fill: 'fill-yellow-400', name: '黄' },
-  [HeartColor.GREEN]: { colorClass: 'text-green-400', fill: 'fill-green-400', name: '绿' },
-  [HeartColor.BLUE]: { colorClass: 'text-blue-400', fill: 'fill-blue-400', name: '蓝' },
-  [HeartColor.PURPLE]: { colorClass: 'text-purple-400', fill: 'fill-purple-400', name: '紫' },
-  [HeartColor.RAINBOW]: { colorClass: 'text-pink-400', fill: 'fill-pink-400', name: 'All' },
-};
-
-function getHeartColorClass(color: HeartColor): string {
-  const colorMap: Record<HeartColor, string> = {
-    [HeartColor.PINK]: 'text-pink-400',
-    [HeartColor.RED]: 'text-red-400',
-    [HeartColor.YELLOW]: 'text-yellow-400',
-    [HeartColor.GREEN]: 'text-green-400',
-    [HeartColor.BLUE]: 'text-blue-400',
-    [HeartColor.PURPLE]: 'text-purple-400',
-    [HeartColor.RAINBOW]: 'text-pink-400',
-  };
-  return colorMap[color] || 'text-slate-400';
-}
 
 function calculateCheerEffects(bladeHearts?: BladeHearts): {
   penLightHearts: { color: HeartColor; count: number }[];
@@ -105,6 +82,28 @@ function calculateCheerEffects(bladeHearts?: BladeHearts): {
     }
   }
   return { penLightHearts, drawBonus, scoreBonus };
+}
+
+function HeartIconValue({
+  color,
+  count,
+  iconClassName,
+}: {
+  color: HeartColor;
+  count: number;
+  iconClassName?: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      <img
+        src={HEART_ICON_SOURCE_BY_COLOR[color]}
+        alt=""
+        className={cn('h-4 w-4 object-contain', iconClassName)}
+        draggable={false}
+      />
+      <span className="text-xs font-bold text-[var(--text-primary)]">{count}</span>
+    </span>
+  );
 }
 
 function cloneHeartCounts(source: Map<HeartColor, number>): Map<HeartColor, number> {
@@ -312,16 +311,12 @@ const LiveCardJudgmentRow = memo(function LiveCardJudgmentRow({
         <div className="text-sm font-medium text-white truncate">{cardName}</div>
         <div className="flex gap-1 mt-0.5">
           {requiredHearts.map((req, idx) => (
-            <span
+            <HeartIconValue
               key={idx}
-              className={cn(
-                'inline-flex items-center gap-0.5 text-xs',
-                heartColorConfig[req.color].colorClass
-              )}
-            >
-              <Heart className={cn('w-3 h-3', heartColorConfig[req.color].fill)} />
-              {req.count}
-            </span>
+              color={req.color}
+              count={req.count}
+              iconClassName="h-3.5 w-3.5"
+            />
           ))}
         </div>
       </div>
@@ -918,9 +913,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                         )}
                         <div className="flex gap-0.5 text-[10px]">
                           {effects.penLightHearts.map((heart, i) => (
-                            <span key={i} className={getHeartColorClass(heart.color)}>
-                              {'♥'.repeat(heart.count)}
-                            </span>
+                            <HeartIconValue
+                              key={i}
+                              color={heart.color}
+                              count={heart.count}
+                              iconClassName="h-3.5 w-3.5"
+                            />
                           ))}
                           {effects.drawBonus > 0 && (
                             <span className="text-cyan-400">📄+{effects.drawBonus}</span>
@@ -985,13 +983,17 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                 if (count === 0) return null;
                 const memberCount = memberHearts.get(color) ?? 0;
                 const bladeCount = bladeHearts.get(color) ?? 0;
-                const config = heartColorConfig[color];
                 return (
                   <div
                     key={color}
                     className="flex items-center gap-1 rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] px-2 py-1"
                   >
-                    <Heart className={cn('h-4 w-4', config.colorClass, config.fill)} />
+                    <img
+                      src={HEART_ICON_SOURCE_BY_COLOR[color]}
+                      alt=""
+                      className="h-4 w-4 object-contain"
+                      draggable={false}
+                    />
                     <span className="font-bold text-[var(--text-primary)]">{count}</span>
                     {bladeCount > 0 && (
                       <span className="text-[10px] text-[var(--accent-secondary)]">
@@ -1008,7 +1010,13 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
               )}
             </div>
             <div className="mt-1.5 flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-              <Heart className="w-3 h-3 text-pink-400 fill-pink-400 inline" /> All 心可视为任意颜色
+              <img
+                src={HEART_ICON_SOURCE_BY_COLOR[HeartColor.RAINBOW]}
+                alt=""
+                className="h-3 w-3 object-contain"
+                draggable={false}
+              />
+              All 心可视为任意颜色
               {cheerCards.length > 0 && ' · 括号内为 (成员心 + 光棒心)'}
             </div>
           </div>

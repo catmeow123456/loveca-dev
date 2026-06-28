@@ -21,7 +21,25 @@
 
 `src/scripts/sync-cards-loveca-excel.ts` 是 Loveca Excel 文本/来源字段补强脚本。它只更新已有卡牌的中日名称、中日效果、真实团体、真实小队、商品编号、图片来源 URI 和外部来源标识，不插入 Excel-only 新卡，不删除 DB-only 卡，也不覆盖费用、Heart、BLADE、LIVE 分数或必要 Heart 等规则字段。
 
+`src/scripts/audit-loveca-effect-placeholders.ts` 是 Loveca Excel 卡效占位符只读调查脚本。它复用同类 XLSX XML 读取方式扫描 `多行日文效果` / `多行中文效果`，汇总 `【...】` 与 `[...]` token，并按时点、次数限制、站位、Heart、BLADE、费用、分数等类别标记已知 token；未知 token 会作为疑似数据问题输出。
+
 推荐顺序是先运行 `sync-cards-llocg.ts` 建立规则字段和基础卡池，再运行 `sync-cards-loveca-excel.ts` 补齐更可靠的双语文本、真实团体、小队原文、商品和来源信息。
+
+## 占位符调查
+
+本地 Excel 原始文件存在时，可运行：
+
+```bash
+pnpm exec tsx src/scripts/audit-loveca-effect-placeholders.ts
+```
+
+如需机器可读输出：
+
+```bash
+pnpm exec tsx src/scripts/audit-loveca-effect-placeholders.ts --json
+```
+
+截至 `docs/card-data-sync/sources/loveca_20260626015115.xlsx`，调查结果为：2274 行中 1374 行含卡效占位符，共 44 种原始 token；41 种已归类，3 种未知或疑似数据问题。高频 token 包括 `[ブレード]` 1035 次、`[E]` 710 次、`【登场】` 560 次、`【登場】` 557 次、`【LIVE开始时】` 460 次、`【ライブ開始時】` 458 次、`[赤ハート]` 199 次、`[紫ハート]` 170 次。未知项为 `[Aqours]`、一条缺失右括号导致的长 token、以及 `[ターン1回]`。
 
 ## 维护规则
 

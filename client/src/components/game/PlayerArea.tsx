@@ -34,6 +34,7 @@ import {
 } from '@/lib/cardEffectAutomationVisuals';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import { HEART_ICON_SOURCE_BY_COLOR } from '@/lib/modifierIconAssets';
 import { createScopedZoneId, createZoneId } from '@/lib/zoneUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
@@ -188,22 +189,6 @@ const SortableInspectionCard = memo(function SortableInspectionCard({
     </div>
   );
 });
-
-/**
- * 获取心颜色的显示类名
- */
-function getHeartColorClass(color: HeartColor): string {
-  const colorMap: Record<string, string> = {
-    [HeartColor.PINK]: 'text-pink-400',
-    [HeartColor.RED]: 'text-red-400',
-    [HeartColor.YELLOW]: 'text-yellow-400',
-    [HeartColor.GREEN]: 'text-green-400',
-    [HeartColor.BLUE]: 'text-blue-400',
-    [HeartColor.PURPLE]: 'text-purple-400',
-    [HeartColor.RAINBOW]: 'text-gray-400',
-  };
-  return colorMap[color] || 'text-slate-400';
-}
 
 export const PlayerArea = memo(function PlayerArea({
   playerSeat,
@@ -1779,8 +1764,18 @@ export const PlayerArea = memo(function PlayerArea({
             <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 text-[8px] whitespace-nowrap">
               {getHeartRequirementEntries(liveData.requirements?.colorRequirements).map(
                 ([color, count], i) => (
-                  <span key={i} className={getHeartColorClass(color as HeartColor)}>
-                    {'♥'.repeat(count as number)}
+                  <span key={i} className="inline-flex items-center gap-0.5">
+                    <img
+                      src={HEART_ICON_SOURCE_BY_COLOR[color as HeartColor]}
+                      alt=""
+                      className="h-3 w-3 object-contain drop-shadow"
+                      draggable={false}
+                    />
+                    {(count as number) > 1 && (
+                      <span className="text-[8px] font-bold text-white drop-shadow">
+                        ×{count as number}
+                      </span>
+                    )}
                   </span>
                 )
               )}

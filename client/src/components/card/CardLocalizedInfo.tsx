@@ -1,6 +1,7 @@
 import type { AnyCardData } from '@game/domain/entities/card';
 import { cn } from '@/lib/utils';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import { CardEffectText } from './CardEffectText';
 
 type TextAlign = 'left' | 'center';
 
@@ -18,25 +19,34 @@ function LocalizedTextRow({
   missingText,
   className,
   textClassName,
+  renderEffectText = false,
 }: {
   label: string;
   value: string | null;
   missingText: string;
   className?: string;
   textClassName?: string;
+  renderEffectText?: boolean;
 }) {
   return (
     <div className={cn('space-y-1.5', className)}>
       <LanguageLabel>{label}</LanguageLabel>
-      <p
-        className={cn(
-          'whitespace-pre-wrap break-words leading-relaxed',
-          value ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
-          textClassName
-        )}
-      >
-        {value ?? missingText}
-      </p>
+      {value && renderEffectText ? (
+        <CardEffectText
+          text={value}
+          className={cn('leading-relaxed text-[var(--text-secondary)]', textClassName)}
+        />
+      ) : (
+        <p
+          className={cn(
+            'whitespace-pre-wrap break-words leading-relaxed',
+            value ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
+            textClassName
+          )}
+        >
+          {value ?? missingText}
+        </p>
+      )}
     </div>
   );
 }
@@ -117,12 +127,14 @@ export function CardLocalizedEffect({
         label="中文"
         value={effectCn}
         missingText="未收录中文效果"
+        renderEffectText={true}
         textClassName={textClassName}
       />
       <LocalizedTextRow
         label="日文"
         value={effectJp}
         missingText="未收录日文效果"
+        renderEffectText={true}
         className="border-t border-[var(--border-subtle)] pt-3"
         textClassName={textClassName}
       />

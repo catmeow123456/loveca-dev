@@ -40,6 +40,7 @@ import { ScoreConfirmModal } from './ScoreConfirmModal';
 import { BattleAnimationLayer } from './BattleAnimationLayer';
 import { BattleActionFeedbackLayer } from './BattleActionFeedbackLayer';
 import { Card } from '@/components/card/Card';
+import { CardEffectText } from '@/components/card/CardEffectText';
 import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
 import { getDeckBackUrl } from '@/lib/imageService';
@@ -2367,9 +2368,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
               </div>
               <div className="touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-0 md:py-0">
                 <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] p-2.5 md:p-3">
-                  <p className="whitespace-pre-wrap text-[13px] leading-relaxed md:text-sm">
-                    {activeEffectDescription}
-                  </p>
+                  <CardEffectText
+                    text={activeEffectDescription}
+                    className="text-[13px] leading-relaxed md:text-sm"
+                  />
                   {!isActiveEffectOrderSelectionWindow && hasActiveEffectOriginalText && (
                     <div className="mt-3 border-t border-[var(--border-subtle)] pt-2.5 md:pt-3">
                       <button
@@ -2389,9 +2391,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                               <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
                                 中文
                               </div>
-                              <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--text-secondary)]">
-                                {activeEffectOriginalTextCn}
-                              </p>
+                              <CardEffectText
+                                text={activeEffectOriginalTextCn}
+                                className="text-xs leading-relaxed text-[var(--text-secondary)]"
+                              />
                             </div>
                           )}
                           {activeEffectOriginalTextJp && (
@@ -2399,9 +2402,10 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                               <div className="mb-1 text-[10px] font-semibold text-[var(--text-muted)]">
                                 日文
                               </div>
-                              <p className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--text-secondary)]">
-                                {activeEffectOriginalTextJp}
-                              </p>
+                              <CardEffectText
+                                text={activeEffectOriginalTextJp}
+                                className="text-xs leading-relaxed text-[var(--text-secondary)]"
+                              />
                             </div>
                           )}
                         </div>

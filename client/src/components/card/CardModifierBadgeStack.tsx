@@ -2,15 +2,7 @@ import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { HeartColor } from '@game/shared/types/enums';
 import type { ViewMemberModifierDelta } from '@game/online';
-import bladeIcon from '@/assets/modifier-icons/blade.png';
-import costIcon from '@/assets/modifier-icons/cost.png';
-import heartAllIcon from '@/assets/modifier-icons/heart_all.png';
-import heartBlueIcon from '@/assets/modifier-icons/heart_blue.png';
-import heartGreenIcon from '@/assets/modifier-icons/heart_green.png';
-import heartPinkIcon from '@/assets/modifier-icons/heart_pink.png';
-import heartPurpleIcon from '@/assets/modifier-icons/heart_purple.png';
-import heartRedIcon from '@/assets/modifier-icons/heart_red.png';
-import heartYellowIcon from '@/assets/modifier-icons/heart_yellow.png';
+import { HEART_ICON_SOURCE_BY_COLOR, MODIFIER_ICON_SOURCE } from '@/lib/modifierIconAssets';
 
 interface CardModifierBadgeStackProps {
   readonly modifierDelta?: ViewMemberModifierDelta;
@@ -26,16 +18,6 @@ const HEART_COLOR_ORDER = [
   HeartColor.PURPLE,
   HeartColor.RAINBOW,
 ] as const;
-
-const HEART_ICON_BY_COLOR: Partial<Record<HeartColor, string>> = {
-  [HeartColor.RED]: heartRedIcon,
-  [HeartColor.PINK]: heartPinkIcon,
-  [HeartColor.YELLOW]: heartYellowIcon,
-  [HeartColor.GREEN]: heartGreenIcon,
-  [HeartColor.BLUE]: heartBlueIcon,
-  [HeartColor.PURPLE]: heartPurpleIcon,
-  [HeartColor.RAINBOW]: heartAllIcon,
-};
 
 export const CardModifierBadgeStack = memo(function CardModifierBadgeStack({
   modifierDelta,
@@ -71,14 +53,17 @@ export const CardModifierBadgeStack = memo(function CardModifierBadgeStack({
       )}
       aria-hidden="true"
     >
-      {costDelta !== 0 ? <ModifierBadge iconSrc={costIcon} value={costDelta} /> : null}
-      {bladeDelta > 0 ? <ModifierBadge iconSrc={bladeIcon} value={bladeDelta} /> : null}
+      {costDelta !== 0 ? (
+        <ModifierBadge iconSrc={MODIFIER_ICON_SOURCE.cost} value={costDelta} />
+      ) : null}
+      {bladeDelta > 0 ? (
+        <ModifierBadge iconSrc={MODIFIER_ICON_SOURCE.blade} value={bladeDelta} />
+      ) : null}
       {heartRows.map((heart) => (
         <ModifierBadge
           key={heart.color}
-          iconSrc={HEART_ICON_BY_COLOR[heart.color]}
+          iconSrc={HEART_ICON_SOURCE_BY_COLOR[heart.color]}
           value={heart.count}
-          fallback={heart.color === HeartColor.RAINBOW ? 'rainbow' : undefined}
         />
       ))}
     </div>
@@ -86,15 +71,13 @@ export const CardModifierBadgeStack = memo(function CardModifierBadgeStack({
 });
 
 interface ModifierBadgeProps {
-  readonly iconSrc?: string;
+  readonly iconSrc: string;
   readonly value: number;
-  readonly fallback?: 'rainbow';
 }
 
 const ModifierBadge = memo(function ModifierBadge({
   iconSrc,
   value,
-  fallback,
 }: ModifierBadgeProps) {
   return (
     <div
@@ -103,19 +86,7 @@ const ModifierBadge = memo(function ModifierBadge({
         'md:h-6 md:min-w-11 md:gap-1 md:pr-2'
       )}
     >
-      {iconSrc ? (
-        <img src={iconSrc} alt="" className="h-4 w-4 object-contain" draggable={false} />
-      ) : (
-        <span
-          className={cn(
-            'inline-flex h-4 w-4 items-center justify-center text-[13px] leading-none',
-            fallback === 'rainbow' &&
-              'bg-linear-to-r from-red-400 via-yellow-300 to-blue-400 bg-clip-text text-transparent'
-          )}
-        >
-          ♥
-        </span>
-      )}
+      <img src={iconSrc} alt="" className="h-4 w-4 object-contain" draggable={false} />
       <span className="text-[10px] font-bold leading-none text-white drop-shadow md:text-[11px]">
         {value > 0 ? `+${value}` : `${value}`}
       </span>

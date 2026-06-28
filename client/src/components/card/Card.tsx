@@ -8,6 +8,7 @@ import { memo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import { HEART_ICON_SOURCE_BY_COLOR } from '@/lib/modifierIconAssets';
 import { HeartColor, OrientationState } from '@game/shared/types/enums';
 import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData, isEnergyCardData } from '@game/domain/entities/card';
@@ -71,26 +72,21 @@ const HeartIcon = memo(function HeartIcon({
   count?: number;
   size?: 'sm' | 'md' | 'lg';
 }) {
-  const colorClasses: Record<HeartColor, string> = {
-    [HeartColor.PINK]: 'text-pink-400',
-    [HeartColor.RED]: 'text-red-500',
-    [HeartColor.YELLOW]: 'text-yellow-400',
-    [HeartColor.GREEN]: 'text-green-500',
-    [HeartColor.BLUE]: 'text-blue-500',
-    [HeartColor.PURPLE]: 'text-purple-500',
-    [HeartColor.RAINBOW]: 'text-gray-400',
-  };
-
   const sizeClasses = {
-    sm: 'text-xs',
-    md: 'text-sm',
-    lg: 'text-base',
+    sm: 'h-3 w-3',
+    md: 'h-4 w-4',
+    lg: 'h-5 w-5',
   };
 
   return (
-    <span className={cn('inline-flex items-center gap-0.5', sizeClasses[size])}>
-      <span className={colorClasses[color]}>♥</span>
-      {count > 1 && <span className="text-white text-[0.6em]">×{count}</span>}
+    <span className="inline-flex items-center gap-0.5">
+      <img
+        src={HEART_ICON_SOURCE_BY_COLOR[color]}
+        alt=""
+        className={cn('object-contain drop-shadow', sizeClasses[size])}
+        draggable={false}
+      />
+      {count > 1 && <span className="text-[0.6em] font-bold text-white">×{count}</span>}
     </span>
   );
 });

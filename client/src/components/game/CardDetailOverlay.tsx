@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import { HEART_ICON_SOURCE_BY_COLOR, MODIFIER_ICON_SOURCE } from '@/lib/modifierIconAssets';
 import { Card } from '@/components/card/Card';
 import { CardLocalizedEffect, CardLocalizedName } from '@/components/card/CardLocalizedInfo';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -20,67 +21,133 @@ import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
 import { HeartColor } from '@game/shared/types/enums';
 import { getCardPoint } from '@game/domain/rules/deck-construction';
 
-/**
- * 获取心颜色的中文名称
- */
-function getHeartColorName(color: HeartColor): string {
-  const names: Record<HeartColor, string> = {
-    [HeartColor.PINK]: '粉色',
-    [HeartColor.RED]: '红色',
-    [HeartColor.YELLOW]: '黄色',
-    [HeartColor.GREEN]: '绿色',
-    [HeartColor.BLUE]: '蓝色',
-    [HeartColor.PURPLE]: '紫色',
-    [HeartColor.RAINBOW]: '灰',
-  };
-  return names[color] || color;
+function DetailMetric({
+  iconSrc,
+  label,
+  value,
+  compact = false,
+}: {
+  iconSrc: string;
+  label: string;
+  value: number | string;
+  compact?: boolean;
+}) {
+  return (
+    <div className={cn('chip-badge', compact ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1')}>
+      <img
+        src={iconSrc}
+        alt=""
+        className={cn('object-contain', compact ? 'h-4 w-4' : 'h-5 w-5')}
+        draggable={false}
+      />
+      <span className="text-[var(--text-muted)]">{label}</span>
+      <span className="font-bold text-[var(--text-primary)]">{value}</span>
+    </div>
+  );
 }
 
-/**
- * 获取心颜色的 CSS 类名
- */
-function getHeartColorClass(color: HeartColor): string {
-  const classes: Record<HeartColor, string> = {
-    [HeartColor.PINK]: 'text-pink-400',
-    [HeartColor.RED]: 'text-red-400',
-    [HeartColor.YELLOW]: 'text-yellow-400',
-    [HeartColor.GREEN]: 'text-green-400',
-    [HeartColor.BLUE]: 'text-blue-400',
-    [HeartColor.PURPLE]: 'text-purple-400',
-    [HeartColor.RAINBOW]: 'text-gray-400',
-  };
-  return classes[color] || 'text-[var(--text-muted)]';
+function CompactCardName({ card }: { card: AnyCardData }) {
+  const { nameCn, nameJp } = getCardLocalizedInfo(card);
+  const primaryName = nameCn ?? nameJp ?? card.cardCode;
+  const secondaryName = nameCn && nameJp ? nameJp : null;
+
+  return (
+    <div className="min-w-0">
+      <h3 className="line-clamp-2 text-sm font-bold leading-tight text-[var(--text-primary)]">
+        {primaryName}
+      </h3>
+      {secondaryName && (
+        <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-[var(--text-muted)]">
+          {secondaryName}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function HeartIconGroup({
+  color,
+  count,
+  compact = false,
+}: {
+  color: HeartColor;
+  count: number;
+  compact?: boolean;
+}) {
+  const iconSrc = HEART_ICON_SOURCE_BY_COLOR[color];
+  const repeatedCount = Math.max(0, Math.min(count, 8));
+
+  return (
+    <div
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_58%,transparent)]',
+        compact ? 'min-h-6 px-1 py-0.5' : 'min-h-7 px-1.5 py-1'
+      )}
+    >
+      <span className="inline-flex items-center gap-0.5">
+        {Array.from({ length: repeatedCount }, (_, index) => (
+          <img
+            key={`${color}-${index}`}
+            src={iconSrc}
+            alt=""
+            className={cn('object-contain', compact ? 'h-4 w-4' : 'h-5 w-5')}
+            draggable={false}
+          />
+        ))}
+      </span>
+      {count > repeatedCount && (
+        <span className="text-xs font-bold text-[var(--text-primary)]">×{count}</span>
+      )}
+    </div>
+  );
 }
 
 /** 成员卡详情 */
 export const MemberCardDetails = memo(function MemberCardDetails({
   data,
+  compact = false,
 }: {
   data: MemberCardData;
+  compact?: boolean;
 }) {
   return (
-    <div className="space-y-3">
+    <div className={cn(compact ? 'space-y-1.5' : 'space-y-2.5')}>
       {/* 基础信息 */}
-      <div className="flex items-center gap-4 text-sm">
-        <div className="chip-badge px-2.5 py-1">
-          <span className="text-[var(--text-muted)]">费用</span>
-          <span className="font-bold text-[var(--accent-primary)]">{data.cost}</span>
-        </div>
-        <div className="chip-badge px-2.5 py-1">
-          <span className="text-[var(--text-muted)]">光棒</span>
-          <span className="font-bold text-[var(--accent-gold)]">{data.blade}</span>
-        </div>
+      <div className={cn('flex flex-wrap items-center', compact ? 'gap-1.5' : 'gap-2 text-sm')}>
+        <DetailMetric
+          iconSrc={MODIFIER_ICON_SOURCE.cost}
+          label="费用"
+          value={data.cost}
+          compact={compact}
+        />
+        <DetailMetric
+          iconSrc={MODIFIER_ICON_SOURCE.blade}
+          label="光棒"
+          value={data.blade}
+          compact={compact}
+        />
       </div>
 
       {/* Hearts */}
       {data.hearts && data.hearts.length > 0 && (
-        <div className="surface-panel rounded-2xl p-3">
-          <span className="text-sm text-[var(--text-muted)]">Hearts</span>
-          <div className="flex flex-wrap gap-1 mt-1">
+        <div
+          className={cn(
+            compact
+              ? 'flex flex-wrap items-center gap-1.5'
+              : 'surface-panel rounded-xl p-2.5'
+          )}
+        >
+          <span className={cn('text-[var(--text-muted)]', compact ? 'text-[11px]' : 'text-sm')}>
+            Hearts
+          </span>
+          <div className={cn('flex flex-wrap', compact ? 'gap-1' : 'mt-1 gap-1')}>
             {data.hearts.map((heart, idx) => (
-              <span key={idx} className={cn('text-lg', getHeartColorClass(heart.color))}>
-                {'♥'.repeat(heart.count)}
-              </span>
+              <HeartIconGroup
+                key={idx}
+                color={heart.color}
+                count={heart.count}
+                compact={compact}
+              />
             ))}
           </div>
         </div>
@@ -88,7 +155,7 @@ export const MemberCardDetails = memo(function MemberCardDetails({
 
       {/* 真实团体/小组 */}
       {(data.groupName || data.unitName) && (
-        <div className="text-xs text-[var(--text-muted)]">
+        <div className={cn('text-[var(--text-muted)]', compact ? 'text-[11px]' : 'text-xs')}>
           {data.groupName && <span className="mr-2">真实团体: {data.groupName}</span>}
           {data.unitName && <span>小组: {data.unitName}</span>}
         </div>
@@ -98,36 +165,54 @@ export const MemberCardDetails = memo(function MemberCardDetails({
 });
 
 /** Live 卡详情 */
-export const LiveCardDetails = memo(function LiveCardDetails({ data }: { data: LiveCardData }) {
+export const LiveCardDetails = memo(function LiveCardDetails({
+  data,
+  compact = false,
+}: {
+  data: LiveCardData;
+  compact?: boolean;
+}) {
   // 将 Map 转换为数组进行遍历
   const requirements = getHeartRequirementEntries(data.requirements?.colorRequirements);
 
   return (
-    <div className="space-y-3">
+    <div className={cn(compact ? 'space-y-1.5' : 'space-y-2.5')}>
       {/* 分数 */}
-      <div className="chip-badge px-2.5 py-1 text-sm">
+      <div className={cn('chip-badge', compact ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-sm')}>
         <span className="text-[var(--text-muted)]">分数</span>
-        <span className="text-lg font-bold text-[var(--accent-gold)]">♪ {data.score}</span>
+        <span
+          className={cn('font-bold text-[var(--accent-gold)]', compact ? 'text-sm' : 'text-lg')}
+        >
+          ♪ {data.score}
+        </span>
       </div>
 
       {/* Heart 需求 */}
-      <div className="surface-panel rounded-2xl p-3">
-        <span className="text-sm text-[var(--text-muted)]">需要 Hearts</span>
-        <div className="flex flex-wrap gap-2 mt-1">
+      <div
+        className={cn(
+          compact
+            ? 'flex flex-wrap items-center gap-1.5'
+            : 'surface-panel rounded-xl p-2.5'
+        )}
+      >
+        <span className={cn('text-[var(--text-muted)]', compact ? 'text-[11px]' : 'text-sm')}>
+          需要
+        </span>
+        <div className={cn('flex flex-wrap', compact ? 'gap-1' : 'mt-1 gap-1.5')}>
           {requirements.map(([color, count]) => (
-            <div key={color} className="flex items-center gap-1">
-              <span className={cn('text-lg', getHeartColorClass(color as HeartColor))}>
-                {'♥'.repeat(count as number)}
-              </span>
-              <span className="text-xs text-[var(--text-muted)]">
-                ({getHeartColorName(color as HeartColor)})
-              </span>
-            </div>
+            <HeartIconGroup
+              key={color}
+              color={color as HeartColor}
+              count={count as number}
+              compact={compact}
+            />
           ))}
         </div>
-        <div className="mt-1 text-xs text-[var(--text-muted)]">
-          总计需要 {data.requirements.totalRequired} 个心
-        </div>
+        <span
+          className={cn('text-[var(--text-muted)]', compact ? 'text-[11px]' : 'mt-1 block text-xs')}
+        >
+          合计 {data.requirements.totalRequired}
+        </span>
       </div>
     </div>
   );
@@ -287,16 +372,29 @@ function CardDetailContent({
 }) {
   const point = getCardPoint(card.cardCode);
   const isMobile = density === 'mobile';
+  const typeDetails = isMemberCardData(card.cardData) ? (
+    <MemberCardDetails data={card.cardData} compact={!isMobile} />
+  ) : isLiveCardData(card.cardData) ? (
+    <LiveCardDetails data={card.cardData} compact={!isMobile} />
+  ) : null;
+  const pointBadge = (
+    <span className={cn('chip-badge', isMobile ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs')}>
+      <span className="text-[var(--text-muted)]">点数</span>
+      <span className="font-bold text-[var(--accent-primary)]">{point}pt</span>
+    </span>
+  );
 
   return (
-    <div className={cn(isMobile ? 'space-y-3 pb-1' : 'flex h-full min-h-0 flex-col gap-2.5')}>
-      {/* 大尺寸卡牌图片 */}
+    <div className={cn(isMobile ? 'space-y-3 pb-1' : 'flex h-full min-h-0 flex-col gap-2')}>
+      {/* 卡牌概要 */}
       <div
         className={cn(
-          'flex justify-center',
+          isMobile
+            ? 'flex justify-center'
+            : 'grid shrink-0 grid-cols-[120px_minmax(0,1fr)] gap-2.5',
           isMobile
             ? 'rounded-2xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_44%,transparent)] p-3'
-            : 'shrink-0'
+            : 'items-start'
         )}
       >
         <Card
@@ -308,30 +406,36 @@ function CardDetailContent({
           interactive={false}
           showHover={false}
           showInfoOverlay={false}
-          className={cn('max-w-full', !isMobile && 'h-[196px] w-[140px]')}
+          className={cn('max-w-full', !isMobile && 'h-[168px] w-[120px]')}
         />
+        {!isMobile && (
+          <div className="min-w-0 space-y-1.5">
+            <CompactCardName card={card.cardData as AnyCardData} />
+            <div className="break-all text-left text-[11px] leading-tight text-[var(--text-muted)]">
+              {card.cardCode}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">{pointBadge}</div>
+            {typeDetails}
+          </div>
+        )}
       </div>
 
-      {/* 卡牌名称 */}
-      <CardLocalizedName
-        card={card.cardData}
-        align="center"
-        className={cn(isMobile ? 'text-lg' : 'text-base')}
-      />
+      {isMobile && (
+        <>
+          {/* 卡牌名称 */}
+          <CardLocalizedName card={card.cardData} align="center" className="text-lg" />
 
-      {/* 卡牌编号 */}
-      <div className="break-all text-center text-xs text-[var(--text-muted)]">{card.cardCode}</div>
+          {/* 卡牌编号 */}
+          <div className="break-all text-center text-xs text-[var(--text-muted)]">
+            {card.cardCode}
+          </div>
 
-      <div className="flex justify-center">
-        <span className="chip-badge px-2.5 py-1 text-sm">
-          <span className="text-[var(--text-muted)]">点数</span>
-          <span className="font-bold text-[var(--accent-primary)]">{point}pt</span>
-        </span>
-      </div>
+          <div className="flex justify-center">{pointBadge}</div>
 
-      {/* 类型特定详情 */}
-      {isMemberCardData(card.cardData) && <MemberCardDetails data={card.cardData} />}
-      {isLiveCardData(card.cardData) && <LiveCardDetails data={card.cardData} />}
+          {/* 类型特定详情 */}
+          {typeDetails}
+        </>
+      )}
 
       {/* 卡牌效果文本 */}
       {(card.cardData.cardTextCn || card.cardData.cardTextJp) && (

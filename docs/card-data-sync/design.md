@@ -1,6 +1,6 @@
 # 卡牌数据同步管线
 
-> 更新时间: 2026-06-26
+> 更新时间: 2026-06-28
 > 文档类型: 设计文档
 > 适用范围: 当前卡牌同步脚本、标准化、差异审核和写入策略
 > 当前状态: 以 `src/scripts/sync-cards-llocg.ts` 与 `src/scripts/sync-cards-loveca-excel.ts` 为准
@@ -13,6 +13,8 @@
 
 - `llocg_db` 主同步：从 JP/CN JSON 读取结构化规则字段和基础展示字段，转换为项目内部卡牌模型后写入 `cards` 表。
 - Loveca Excel 文本/来源同步：从 Loveca Excel 读取中日名称、中日效果文本、真实团体、真实小队和商品来源字段，写入新增的多语言与来源字段；不读取 Excel 官方 `作品名` / `参加ユニット`，也不接管费用、Heart、分数等对局规则字段。
+
+另有一个只读调查入口 `src/scripts/audit-loveca-effect-placeholders.ts`。它不属于写库同步管线，只用于扫描 Loveca Excel 双语效果文本中的 `【...】` 与 `[...]` 占位符，辅助前端渲染映射和上游文本质量检查。
 
 两条管线是分层关系，不是互相替代：
 
@@ -112,6 +114,8 @@ Loveca Excel 文本/来源同步不会插入 Excel-only 新卡，也不会因 Ex
 
 维护者应先使用 dry-run 观察数据量、CN 匹配、CN-only、能量卡和字段缺失情况，再进行正式运行。Loveca Excel 原始文件放在本地 `docs/card-data-sync/sources/`，该目录不进入仓库；需要同步时由维护者在本地提供对应 `.xlsx`。
 
+Loveca Excel 卡效占位符调查脚本的运行命令是 `pnpm exec tsx src/scripts/audit-loveca-effect-placeholders.ts`。该脚本只读取 Excel 并输出统计，不连接数据库，不更改同步写入结果；加 `--json` 可输出机器可读摘要。当前 `loveca_20260626015115.xlsx` 的已知占位符分为时点、次数限制、站位、Heart、BLADE、费用和分数；未知 token 会保留原文输出，供修正 Excel 或扩充前端渲染映射。
+
 ## 8. 与其他模块关系
 
 同步写入的数据会被以下模块消费：
@@ -129,10 +133,13 @@ Loveca Excel 文本/来源同步不会插入 Excel-only 新卡，也不会因 Ex
 | ---------------------------------------- | --------------------------------------- |
 | `src/scripts/sync-cards-llocg.ts`        | 同步脚本入口                            |
 | `src/scripts/sync-cards-loveca-excel.ts` | Loveca Excel 中日文本与来源字段同步入口 |
+| `src/scripts/audit-loveca-effect-placeholders.ts` | Loveca Excel 卡效占位符只读调查入口 |
 | `src/shared/utils/card-code.ts`          | 卡牌编号标准化                          |
 | `src/server/db/schema.ts`                | `cards` 表 schema                       |
 | `src/domain/entities/card.ts`            | 内部卡牌领域模型                        |
 | `client/src/lib/cardService.ts`          | 前端卡牌服务与转换                      |
+| `client/src/lib/cardEffectTokens.ts`     | 前端卡效占位符解析映射                  |
+| `client/src/components/card/CardEffectText.tsx` | 前端卡效文本渲染组件                    |
 
 ## 10. 相关文档
 
