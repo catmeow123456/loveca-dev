@@ -1,6 +1,6 @@
 {
   "name": "loveca",
-  "version": "3.4.3",
+  "version": "3.5.0",
   "description": "Loveca 卡牌游戏后端",
   "type": "module",
   "pnpm": {
