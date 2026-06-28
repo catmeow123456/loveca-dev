@@ -147,6 +147,7 @@ pnpm run db:studio
 
 启动前请确保 `.env` 中存在可用的 `DATABASE_URL`，并且目标数据库已按当前 schema 和必要数据库函数完成初始化。
 
-## 致谢
+## 贡献者
 
-- [llocg_db](https://github.com/wlt233/llocg_db) — 本项目重要的卡牌数据源，提供了完整的 Love Live 卡牌游戏数据库（日文/中文）。感谢 [wlt233](https://github.com/wlt233) 的维护与贡献。
+- 开发者：[Eden](https://github.com/catmeow123456)、[aya](https://github.com/meiyikai001)
+- 卡牌数据源：[wlt233 / llocg_db](https://github.com/wlt233/llocg_db)、鬼箱（小能苗）

@@ -5,7 +5,7 @@
 
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, LogIn, Mail, WifiOff } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, LogIn, Mail, WifiOff } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { AuthLayout } from './AuthLayout';
 import { isApiConfigured } from '@/lib/apiClient';
@@ -23,6 +23,7 @@ export function LoginPage({
 }: LoginPageProps) {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [showResendVerification, setShowResendVerification] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -107,7 +108,11 @@ export function LoginPage({
   const displayError = localError || error;
 
   return (
-    <AuthLayout title="欢迎回来" subtitle="登录你的 Loveca 账号">
+    <AuthLayout
+      title="进入 Loveca"
+      subtitle="登录账号，或继续离线测试。"
+      eyebrow="Loveca 对战入口"
+    >
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
@@ -125,14 +130,25 @@ export function LoginPage({
 
         <div>
           <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">密码</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="input-field px-4 py-3"
-            placeholder="输入你的密码"
-            autoComplete="current-password"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input-field px-4 py-3 pr-12"
+              placeholder="输入你的密码"
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((value) => !value)}
+              className="absolute right-2 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]"
+              title={showPassword ? '隐藏密码' : '显示密码'}
+              aria-label={showPassword ? '隐藏密码' : '显示密码'}
+            >
+              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
+          </div>
           {isApiConfigured && passwordResetEnabled && (
             <div className="text-right mt-1.5">
               <button

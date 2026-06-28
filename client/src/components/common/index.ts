@@ -12,3 +12,4 @@ export {
 } from './DeckStats';
 export { PageHeader } from './PageHeader';
 export { ThemeToggle } from './ThemeToggle';
+export { AppCredits } from './AppCredits';

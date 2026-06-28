@@ -24,7 +24,7 @@ import {
   TriangleAlert,
   WifiOff,
 } from 'lucide-react';
-import { ThemeToggle, DeckStatsRow, formatRelativeTime } from '@/components/common';
+import { AppCredits, ThemeToggle, DeckStatsRow, formatRelativeTime } from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
@@ -356,8 +356,8 @@ export function HomePage({
         </div>
       </main>
 
-      <footer className="safe-bottom relative z-10 border-t border-[var(--border-subtle)] px-4 py-3 text-center text-xs text-[var(--text-muted)] sm:text-sm">
-        Loveca Card Game v{__APP_VERSION__}
+      <footer className="safe-bottom relative z-10 border-t border-[var(--border-subtle)] px-4 py-3">
+        <AppCredits version={__APP_VERSION__} />
       </footer>
     </div>
   );

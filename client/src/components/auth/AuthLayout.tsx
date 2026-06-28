@@ -6,15 +6,21 @@
 
 import { ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { ThemeToggle } from '@/components/common';
+import { AppCredits, ThemeToggle } from '@/components/common';
 
 interface AuthLayoutProps {
   children: React.ReactNode;
   title: string;
   subtitle?: string;
+  eyebrow?: string;
 }
 
-export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
+export function AuthLayout({
+  children,
+  title,
+  subtitle,
+  eyebrow = 'Account Portal',
+}: AuthLayoutProps) {
   return (
     <div className="app-shell safe-top fixed inset-0 overflow-y-auto">
       <div className="absolute right-3 top-3 z-10 sm:right-4 sm:top-4">
@@ -36,13 +42,13 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
             <div className="text-center sm:text-left">
               <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[color:var(--bg-overlay)] px-3 py-1 text-[11px] font-semibold tracking-[0.12em] text-[var(--text-secondary)] uppercase sm:mb-1 sm:text-xs">
                 <ShieldCheck size={14} />
-                Account Portal
+                {eyebrow}
               </div>
               <motion.h1
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
-                className="text-2xl font-bold tracking-[-0.02em] text-[var(--text-primary)] sm:text-3xl"
+                className="text-2xl font-bold tracking-normal text-[var(--text-primary)] sm:text-3xl"
               >
                 {title}
               </motion.h1>
@@ -68,9 +74,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
             {children}
           </motion.div>
 
-          <div className="mt-4 px-2 text-center text-xs text-[var(--text-muted)] sm:mt-5 sm:text-sm">
-            Loveca Card Game · ラブライブ！
-          </div>
+          <AppCredits className="mt-4 px-2 sm:mt-5" />
         </motion.div>
       </div>
     </div>
