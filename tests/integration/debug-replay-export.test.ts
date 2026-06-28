@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import type { Request, Response } from 'express';
 import type { DeckConfig } from '../../src/application/game-service';
 import { createMulliganCommand } from '../../src/application/game-commands';
@@ -31,7 +32,7 @@ vi.mock('../../src/server/db/pool.js', () => ({
 }));
 
 const HISTORY_REPLAY_EXPORT_FIXTURE =
-  'data/20260628-cst_history-replay-export/loveca-match-SOL-9ae2482c-e7b7-4e54-95dd-6aa7b1c3ea1e-0d341246-0044-4e39-b5cc-73bdf28f12f8.replay.json';
+  'data/20260628-cst_history-replay-export/loveca-match-SOL-9ae2482c-e7b7-4e54-95dd-6aa7b1c3ea1e-0d341246-0044-4e39-b5cc-73bdf28f12f8.replay.json.gz';
 
 function createTestMemberCard(cardCode: string, name: string): MemberCardData {
   return {
@@ -258,7 +259,7 @@ describe('debug replay export', () => {
   });
 
   it('可导入归档的历史对局 replay bundle，并按双方座位读取只读投影', () => {
-    const bundle = JSON.parse(readFileSync(HISTORY_REPLAY_EXPORT_FIXTURE, 'utf8'));
+    const bundle = JSON.parse(gunzipSync(readFileSync(HISTORY_REPLAY_EXPORT_FIXTURE)).toString());
     const service = new DebugReplayService({ now: () => 1_782_632_740_000 });
 
     const imported = service.importBundle(bundle);

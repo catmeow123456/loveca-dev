@@ -2,27 +2,6 @@
 
 更新时间：2026-06-27
 
-## 本次 2026-06-28 历史对局视觉收敛与管理员筛选/导出
-
-- 历史对局页从三栏审计面板收敛为“对局列表 + 摘要/回放节点/时间线”主视图，公开事件、私密事件、决策、区域与正面卡列表默认折叠到“调试详情”，减少普通回放时的文字噪声。
-- 管理员历史页新增用户/房间/match id 关键字筛选、开始日期/结束日期筛选、FIRST/SECOND 回放视角切换，以及单局导出按钮。
-- 追修历史对局页密度：左侧对局列表改为单一滚动容器，列表卡片移除重复参与者块并压缩间距；右侧摘要从多张高卡片收敛为“对局/玩家/结果/卡组”四条紧凑 key-value 行。
-- 新增管理员历史读取与导出 API：`/api/battle/admin/match-records...`。导出格式为 `.replay.json` 的历史回放包，包含版本/hash 元数据、参与者、卡组快照、timeline、authority checkpoints、public/private events 与 decision records；该格式可直接导入现有管理员 Debug Replay 查看器，也适合作为仓库真实数据 fixture 继续扩充回归测试。
-- `DebugReplayBundle` 放宽为可承载 `HISTORY_RECORD` 来源；运行中调试包仍保留 `RUNNING_OR_RECENT` 与 `NOT_USER_HISTORY_RECORD` 边界。历史导出当前如实保留 `commands: []`，依靠 decision records 表达可结构化决策，不伪造完整 command log。
-- 归档用户导出的历史 replay fixture：`data/20260628-cst_history-replay-export/loveca-match-SOL-9ae2482c-e7b7-4e54-95dd-6aa7b1c3ea1e-0d341246-0044-4e39-b5cc-73bdf28f12f8.replay.json`。该包为 `HISTORY_RECORD` 来源，包含 23 个 authority checkpoints、26 个 timeline frames、122 个 public events、11 条 decisions；新增 integration 回归验证可导入并按 FIRST/SECOND 投影读取。
-- 验证：`pnpm exec tsc -p tsconfig.server.json --noEmit` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec vitest run tests/unit/match-replay-read-service.test.ts tests/integration/debug-replay-export.test.ts` passed（19 tests）；`pnpm test:run` passed（194 files / 1593 tests，3 performance tests skipped；其中 `tests/integration/real-data-online-replay-harness.test.ts` 5 tests 已执行）；`git diff --check` passed。
-
-## 本次 2026-06-28 真实联机回放数据回归 harness 与自送费用修复
-
-- 修复 `SEND_SOURCE_MEMBER_TO_WAITING_ROOM` 发动费用清理舞台来源成员时未删除 `memberSlots.cardStates` 的状态残留；现在复用 `removeCardFromSlot` 清槽，保留下方能量/成员一起进入休息室与 `ON_LEAVE_STAGE` 事件语义。
-- `tests/unit/effect-costs.test.ts` 补充来源成员状态删除断言，覆盖费用 2「日野下花帆」/费用 2「村野沙耶香」/费用 2「夕雾缀理」/费用 2「大泽瑠璃乃」这类自送休息室能力共享的费用底座。
-- 新增真实数据回归 `tests/integration/real-data-online-replay-harness.test.ts`，直接流式读取 online-only SQL gzip fixture，解析 SQL `COPY` 段并验证 6 场 ONLINE 对局的 timeline 连续性、事件/decision 分布、736 个 checkpoint rehydrate、1472 次双玩家投影、实体卡归属与舞台 `cardStates` invariant；可用 `REAL_DATA_ONLINE_FIXTURE=...` 指向未来新导出的 fixture。
-- 真实数据 harness 已补状态结果测试：对每场相邻 authority checkpoint 做状态差分，固定验证 730 对 checkpoint 的阶段/子阶段/回合、区域数量、pending/activeEffect 生命周期、eventLog/actionHistory 追加、LIVE 结算摘要，以及 public/private event 增量分布；这一步先覆盖“真实操作后权威状态确实发生对应结果”，后续再在新导出数据带完整 command payload 后推进命令重放 harness。
-- 真实数据 harness 已接入引擎重放测试：从 structured decision record 重建 `GameCommand`，把对应前置 checkpoint 注入 `GameSession` 后执行，再与后置 authority checkpoint 做稳定化权威状态比对；当前 2026-06-27 normalized fixture 可完整重放 287 条确定性决策，覆盖 LIVE 设置、成功 LIVE 选择、pending ability 顺序选择与 active effect 提交。
-- 旧 fixture 的不可完整重放边界已显式记录为 skipped reason：112 条 `ACTIVE_EFFECT_OPENED` 不是提交动作，12 条 mulligan 缺随机种子/洗牌记录，28 条起动能力缺可靠 before checkpoint，31 条 partial decision 缺 exact command 前置 checkpoint；未来新线上导出应保证每个 submitted command 都有精确 before/after checkpoint，并记录随机源，才能把这些跳过项收紧为完整引擎回归。
-- 新增脚本：`pnpm test:real-data:online` 跑固定真实数据回归；`pnpm test:real-data:online:strict` 用于未来新导出数据要求舞台 `cardStates` 残留为 0。
-- 当前 legacy fixture 是修复前历史数据，harness 在未生成 normalized fixture 时会将 20 个唯一舞台 `cardStates` 残留作为显式基线记录；`.normalized.sql.gz` 是本次为迁移这批旧数据生成的标准化 fixture，新线上版本产生的新对局数据不应依赖一次性迁移脚本。
-
 ## 接续方式
 
 新窗口建议先读：

@@ -3,10 +3,15 @@ Loveca match replay export
 Date window: 2026-06-27 00:00:00 <= match_records.started_at < 2026-06-28 00:00:00, Asia/Shanghai.
 Generated from production PostgreSQL on 2026-06-27 UTC / 2026-06-28 Asia/Shanghai.
 
-Files:
-- loveca-match-replay-2026-06-27-cst-online-only.sql.gz
+Tracked fixture:
+- loveca-match-replay-2026-06-27-cst-online-only.normalized.sql.gz
   - match_mode = ONLINE only
   - 6 matches
+  - normalized after fixing legacy member slot cardStates drift
+
+Local export artifacts not tracked in git:
+- loveca-match-replay-2026-06-27-cst-online-only.sql.gz
+  - original online-only export before normalization
 - loveca-match-replay-2026-06-27-cst-all.sql.gz
   - all matches in the date window
   - 93 matches total: 6 ONLINE + 87 SOLITAIRE
@@ -26,8 +31,7 @@ Tables intentionally not included:
 - cards / decks and other non-replay application tables
 
 Import examples:
-- gunzip -c loveca-match-replay-2026-06-27-cst-online-only.sql.gz | psql "$DATABASE_URL"
-- gunzip -c loveca-match-replay-2026-06-27-cst-all.sql.gz | psql "$DATABASE_URL"
+- gunzip -c loveca-match-replay-2026-06-27-cst-online-only.normalized.sql.gz | psql "$DATABASE_URL"
 
 Import behavior:
 - The SQL starts a transaction.
