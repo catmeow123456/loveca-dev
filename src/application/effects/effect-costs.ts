@@ -1,5 +1,11 @@
 import type { GameState } from '../../domain/entities/game.js';
-import { emitGameEvent, getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
+import {
+  emitGameEvent,
+  getCardById,
+  getPlayerById,
+  updatePlayer,
+} from '../../domain/entities/game.js';
+import { removeCardFromSlot } from '../../domain/entities/zone.js';
 import { createLeaveStageEvent } from '../../domain/events/game-events.js';
 import { OrientationState, SlotPosition, ZoneType } from '../../shared/types/enums.js';
 import { setMemberOrientation } from './member-state.js';
@@ -144,11 +150,7 @@ export function payImmediateEffectCosts(
             cardIds: [...currentPlayer.waitingRoom.cardIds, ...cardIdsForCost],
           },
           memberSlots: {
-            ...currentPlayer.memberSlots,
-            slots: {
-              ...currentPlayer.memberSlots.slots,
-              [slot]: null,
-            },
+            ...removeCardFromSlot(currentPlayer.memberSlots, slot),
             energyBelow: {
               ...currentPlayer.memberSlots.energyBelow,
               [slot]: [],
@@ -185,11 +187,17 @@ export function payImmediateEffectCosts(
         if (!existingState || existingState.orientation === cost.orientation) {
           return null;
         }
-        const orientationResult = setMemberOrientation(state, playerId, sourceCardId, cost.orientation, {
-          kind: 'CARD_EFFECT',
+        const orientationResult = setMemberOrientation(
+          state,
           playerId,
           sourceCardId,
-        });
+          cost.orientation,
+          {
+            kind: 'CARD_EFFECT',
+            playerId,
+            sourceCardId,
+          }
+        );
         if (!orientationResult) {
           return null;
         }

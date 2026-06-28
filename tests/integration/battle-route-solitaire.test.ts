@@ -23,9 +23,14 @@ vi.mock('../../src/server/services/match-replay-read-service.js', () => ({
   },
   matchReplayReadService: {
     listMatchRecordsForUser: vi.fn(),
+    listMatchRecordsForAdmin: vi.fn(),
     getMatchRecordTimeline: vi.fn(),
+    getMatchRecordTimelineForAdmin: vi.fn(),
     getMatchRecordReplay: vi.fn(),
+    getMatchRecordReplayForAdmin: vi.fn(),
     getMatchRecordDetail: vi.fn(),
+    getMatchRecordDetailForAdmin: vi.fn(),
+    exportMatchRecordBundleForAdmin: vi.fn(),
   },
 }));
 
@@ -65,6 +70,18 @@ function findRouteHandler(path: string, method: 'get' | 'post') {
   }
 
   return layer.route.stack.at(-1)?.handle as (req: Request, res: Response) => void | Promise<void>;
+}
+
+function findRoute(path: string, method: 'get' | 'post') {
+  const layer = battleRouter.stack.find(
+    (candidate) =>
+      'route' in candidate && candidate.route?.path === path && candidate.route.methods[method]
+  );
+  if (!layer?.route) {
+    throw new Error(`Route not found: ${method.toUpperCase()} ${path}`);
+  }
+
+  return layer.route;
 }
 
 async function invokeRoute(path: string, method: 'get' | 'post', options: Partial<Request> = {}) {
@@ -172,5 +189,32 @@ describe('battleRouter solitaire match routes', () => {
       data: null,
       error: { code: 'INVALID_REQUEST', message: '撤销参数非法' },
     });
+  });
+
+  it('管理员历史对局路由全部要求 admin 角色', () => {
+    const adminRoutes = [
+      '/admin/match-records',
+      '/admin/match-records/:matchId/timeline',
+      '/admin/match-records/:matchId/replay',
+      '/admin/match-records/:matchId/export',
+      '/admin/match-records/:matchId',
+    ];
+
+    for (const path of adminRoutes) {
+      const route = findRoute(path, 'get');
+      const requireAdmin = route.stack.at(1)?.handle as (
+        req: Request,
+        res: Response,
+        next: () => void
+      ) => void;
+      const response = createMockResponse();
+      const next = vi.fn();
+
+      requireAdmin({ user: { id: 'u1', role: 'user' } } as Request, response, next);
+
+      expect(response.statusCode, path).toBe(403);
+      expect(response.body?.error?.code, path).toBe('FORBIDDEN');
+      expect(next, path).not.toHaveBeenCalled();
+    }
   });
 });

@@ -22,6 +22,8 @@
     "dev:online-service2": "pnpm --dir client dev:debug-service2",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:real-data:online": "RUN_REAL_DATA_ONLINE=1 vitest run tests/integration/real-data-online-replay-harness.test.ts",
+    "test:real-data:online:strict": "RUN_REAL_DATA_ONLINE=1 REAL_DATA_STRICT_STAGE_CARD_STATES=1 vitest run tests/integration/real-data-online-replay-harness.test.ts",
     "test:perf:online": "RUN_PERF=1 vitest run tests/performance/online-performance.bench.test.ts",
     "test:perf:solitaire": "RUN_PERF=1 vitest run tests/performance/solitaire-recording-performance.bench.test.ts",
     "test:perf:inspection": "RUN_PERF=1 vitest run tests/performance/inspection-hot-paths.bench.test.ts",

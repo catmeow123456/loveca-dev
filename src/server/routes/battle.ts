@@ -7,6 +7,7 @@ import {
   MatchReplayReadServiceError,
   matchReplayReadService,
 } from '../services/match-replay-read-service.js';
+import { requireAdmin } from '../middleware/require-admin.js';
 import {
   SolitaireMatchServiceError,
   solitaireMatchService,
@@ -174,6 +175,100 @@ battleRouter.get('/match-records', requireAuth, async (req, res) => {
   }
 });
 
+battleRouter.get('/admin/match-records', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const records = await matchReplayReadService.listMatchRecordsForAdmin({
+      limit: readOptionalPositiveInt(req.query?.limit),
+      offset: readOptionalPositiveInt(req.query?.offset),
+      userQuery: readOptionalString(req.query?.userQuery),
+      userId: readOptionalString(req.query?.userId),
+      startedFrom: readOptionalTimestamp(req.query?.startedFrom),
+      startedTo: readOptionalTimestamp(req.query?.startedTo),
+    });
+    res.json({ data: records, total: records.length, error: null });
+  } catch (error) {
+    respondBattleError(res, error);
+  }
+});
+
+battleRouter.get(
+  '/admin/match-records/:matchId/timeline',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const timeline = await matchReplayReadService.getMatchRecordTimelineForAdmin(
+        readPathParam(req.params.matchId),
+        readSeatQuery(req.query?.viewerSeat) ?? 'FIRST'
+      );
+      if (!timeline) {
+        respondMatchRecordNotFound(res);
+        return;
+      }
+      res.json({ data: timeline, error: null });
+    } catch (error) {
+      respondBattleError(res, error);
+    }
+  }
+);
+
+battleRouter.get(
+  '/admin/match-records/:matchId/replay',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const replay = await matchReplayReadService.getMatchRecordReplayForAdmin(
+        readPathParam(req.params.matchId),
+        readSeatQuery(req.query?.viewerSeat) ?? 'FIRST',
+        readReplayCheckpointSeqQuery(req.query)
+      );
+      if (!replay) {
+        respondMatchRecordNotFound(res);
+        return;
+      }
+      res.json({ data: replay, error: null });
+    } catch (error) {
+      respondBattleError(res, error);
+    }
+  }
+);
+
+battleRouter.get(
+  '/admin/match-records/:matchId/export',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const bundle = await matchReplayReadService.exportMatchRecordBundleForAdmin(
+        readPathParam(req.params.matchId)
+      );
+      if (!bundle) {
+        respondMatchRecordNotFound(res);
+        return;
+      }
+      res.json({ data: bundle, error: null });
+    } catch (error) {
+      respondBattleError(res, error);
+    }
+  }
+);
+
+battleRouter.get('/admin/match-records/:matchId', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const detail = await matchReplayReadService.getMatchRecordDetailForAdmin(
+      readPathParam(req.params.matchId)
+    );
+    if (!detail) {
+      respondMatchRecordNotFound(res);
+      return;
+    }
+    res.json({ data: detail, error: null });
+  } catch (error) {
+    respondBattleError(res, error);
+  }
+});
+
 battleRouter.get('/match-records/:matchId/timeline', requireAuth, async (req, res) => {
   try {
     const timeline = await matchReplayReadService.getMatchRecordTimeline(
@@ -276,6 +371,26 @@ function readOptionalPositiveInt(value: unknown): number | undefined {
   }
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function readOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function readOptionalTimestamp(value: unknown): number | undefined {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function readSeatQuery(value: unknown): 'FIRST' | 'SECOND' | null {
+  return value === 'FIRST' || value === 'SECOND' ? value : null;
 }
 
 function readReplayCheckpointSeqQuery(query: unknown): number | undefined {

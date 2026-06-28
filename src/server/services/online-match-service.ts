@@ -538,11 +538,7 @@ export class OnlineMatchService {
     };
   }
 
-  getUndoAvailability(
-    matchId: string,
-    userId: string,
-    policy?: UndoPolicy
-  ): OnlineUndoView | null {
+  getUndoAvailability(matchId: string, userId: string, policy?: UndoPolicy): OnlineUndoView | null {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -577,9 +573,7 @@ export class OnlineMatchService {
     await this.expirePendingUndoRequestIfNeeded(match);
     await this.expireActiveUndoGrantIfNeeded(match);
     const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
-    const appliedUndoKey = idempotencyKey
-      ? `${input.undoEntryId}:${idempotencyKey}`
-      : null;
+    const appliedUndoKey = idempotencyKey ? `${input.undoEntryId}:${idempotencyKey}` : null;
     if (appliedUndoKey && match.appliedUndoKeys.has(appliedUndoKey)) {
       touchMatch(match);
       return {
@@ -629,10 +623,7 @@ export class OnlineMatchService {
       }
     }
 
-    const undoResult = match.session.undoLastStepForPlayer(
-      participant.playerId,
-      input.undoEntryId
-    );
+    const undoResult = match.session.undoLastStepForPlayer(participant.playerId, input.undoEntryId);
     if (!undoResult.success) {
       touchMatch(match);
       return {
@@ -1030,10 +1021,7 @@ export class OnlineMatchService {
     await this.expirePendingUndoRequest(match, '撤销请求已超时');
   }
 
-  private async expirePendingUndoRequest(
-    match: OnlineMatchState,
-    summary: string
-  ): Promise<void> {
+  private async expirePendingUndoRequest(match: OnlineMatchState, summary: string): Promise<void> {
     const request = match.pendingUndoRequest;
     if (!request) {
       return;
@@ -1058,9 +1046,7 @@ export class OnlineMatchService {
     await this.expireActiveUndoGrant(match, '连续撤销授权已超时');
   }
 
-  private async expireActiveUndoGrantIfNoLongerUsable(
-    match: OnlineMatchState
-  ): Promise<void> {
+  private async expireActiveUndoGrantIfNoLongerUsable(match: OnlineMatchState): Promise<void> {
     const grant = match.activeUndoGrant;
     if (!grant) {
       return;
@@ -1079,10 +1065,7 @@ export class OnlineMatchService {
     await this.expireActiveUndoGrant(match, '连续撤销授权已无可撤销目标');
   }
 
-  private async expireActiveUndoGrant(
-    match: OnlineMatchState,
-    summary: string
-  ): Promise<void> {
+  private async expireActiveUndoGrant(match: OnlineMatchState, summary: string): Promise<void> {
     const grant = match.activeUndoGrant;
     if (!grant) {
       return;
@@ -1239,6 +1222,7 @@ export class OnlineMatchService {
       const sealedAudit = match.session.getSealedAuditSince(captureCursor.auditSeq);
       const commandLog = match.session.getCommandLogSince(captureCursor.commandSeq);
       const gameEvents = match.session.getGameEventsSince(captureCursor.gameEventSeq);
+      const latestCommandRecord = commandLog.at(-1);
       const hasNewFacts =
         publicEvents.length > 0 ||
         firstPrivateEvents.length > 0 ||
@@ -1267,7 +1251,11 @@ export class OnlineMatchService {
       await this.recorder.appendMatchRecordFrame({
         matchId: match.matchId,
         frameType,
-        summary: options.summary,
+        summary:
+          options.summary ??
+          (frameType === 'COMMAND_REJECTED'
+            ? buildRejectedCommandSummary(options.command, latestCommandRecord)
+            : undefined),
         authorityState,
         stateSummary: buildRecordStateSummary(match.session.state),
         writeAuthorityCheckpoint,
@@ -1278,7 +1266,7 @@ export class OnlineMatchService {
           latestSeq(secondPrivateEvents, (event) => event.seq)
         ),
         relatedAuditSeq: latestSeq(sealedAudit, (record) => record.seq),
-        relatedCommandSeq: latestSeq(commandLog, (record) => record.seq),
+        relatedCommandSeq: latestCommandRecord?.seq ?? null,
         relatedGameEventSeq:
           latestSeq(gameEvents, (event) => event.sequence) ??
           match.session.getCurrentGameEventSeq(),
@@ -1302,7 +1290,7 @@ export class OnlineMatchService {
             relatedPublicSeq:
               latestSeq(publicEvents, (event) => event.seq) ??
               match.session.getCurrentPublicEventSeq(),
-            relatedCommandSeq: latestSeq(commandLog, (record) => record.seq),
+            relatedCommandSeq: latestCommandRecord?.seq ?? null,
             relatedGameEventSeq:
               latestSeq(gameEvents, (event) => event.sequence) ??
               match.session.getCurrentGameEventSeq(),
@@ -1381,6 +1369,15 @@ function buildSnapshot(
   };
 }
 
+function buildRejectedCommandSummary(
+  command: GameCommand | undefined,
+  commandRecord: { readonly commandType?: string; readonly error?: string } | undefined
+): string {
+  const commandType = commandRecord?.commandType ?? command?.type ?? 'UNKNOWN_COMMAND';
+  const reason = commandRecord?.error?.trim();
+  return reason ? `命令被拒绝：${commandType}；原因：${reason}` : `命令被拒绝：${commandType}`;
+}
+
 function shouldBuildDecisionRecordsForCommand(command: GameCommand): boolean {
   switch (command.type) {
     case GameCommandType.ACTIVATE_ABILITY:
@@ -1443,7 +1440,9 @@ function isCheckpointCriticalCommand(command: GameCommand | undefined): boolean 
   }
 }
 
-function buildRecordStateSummary(state: GameState | null): AppendMatchRecordFrameInput['stateSummary'] {
+function buildRecordStateSummary(
+  state: GameState | null
+): AppendMatchRecordFrameInput['stateSummary'] {
   if (!state) {
     return null;
   }

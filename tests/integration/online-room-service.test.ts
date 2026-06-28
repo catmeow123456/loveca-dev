@@ -3,6 +3,7 @@ import {
   createDrawCardToHandCommand,
   createMulliganCommand,
   createPlayMemberToSlotCommand,
+  createSetLiveCardCommand,
 } from '../../src/application/game-commands';
 import type { DeckConfig } from '../../src/application/game-service';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
@@ -616,7 +617,8 @@ describe('OnlineRoomService', () => {
       undoEntryId: undoEntry!.undoEntryId,
       idempotencyKey: 'request-order',
     });
-    const requestId = requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
+    const requestId =
+      requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
     expect(requestResult?.success).toBe(true);
     expect(requestId).toBeTruthy();
 
@@ -693,7 +695,8 @@ describe('OnlineRoomService', () => {
       idempotencyKey: 'request-member-play',
     });
     expect(requestResult?.success).toBe(true);
-    const requestId = requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
+    const requestId =
+      requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
     expect(requestId).toBeTruthy();
 
     now += 1_000;
@@ -800,7 +803,8 @@ describe('OnlineRoomService', () => {
       idempotencyKey: 'request-continuous',
     });
     expect(requestResult?.success).toBe(true);
-    const requestId = requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
+    const requestId =
+      requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
     expect(requestId).toBeTruthy();
 
     now += 500;
@@ -875,7 +879,8 @@ describe('OnlineRoomService', () => {
       undoEntryId: undoEntry!.undoEntryId,
       idempotencyKey: 'request-reject',
     });
-    const requestId = requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
+    const requestId =
+      requestResult?.snapshot?.playerViewState.match.undo?.pendingRequest?.requestId;
     expect(requestResult?.success).toBe(true);
     expect(requestId).toBeTruthy();
 
@@ -1077,7 +1082,9 @@ describe('OnlineRoomService', () => {
 
     expect(firstResult?.success).toBe(false);
     expect(secondResult?.success).toBe(false);
-    const appendCalls = vi.mocked(recorder.appendMatchRecordFrame).mock.calls.map(([input]) => input);
+    const appendCalls = vi
+      .mocked(recorder.appendMatchRecordFrame)
+      .mock.calls.map(([input]) => input);
     expect(appendCalls).toHaveLength(2);
     appendCalls.forEach((input) => {
       expect(input).toMatchObject({
@@ -1090,6 +1097,46 @@ describe('OnlineRoomService', () => {
     expect(appendCalls[0]?.dedupeKey).toMatch(/^service-rejected:advance-phase:/);
     expect(appendCalls[1]?.dedupeKey).toMatch(/^service-rejected:advance-phase:/);
     expect(appendCalls[1]?.dedupeKey).not.toBe(appendCalls[0]?.dedupeKey);
+  });
+
+  it('规则层拒绝命令时应在 rejected timeline 摘要中记录命令类型与原因', async () => {
+    let now = 5_800_000;
+    const recorder = createTestRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'APP04',
+      startedAt: now,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+
+    now += 1_000;
+    const result = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createSetLiveCardCommand('ignored-client-player-id', 'not-in-hand', true)
+    );
+
+    expect(result?.success).toBe(false);
+    const appendCall = vi
+      .mocked(recorder.appendMatchRecordFrame)
+      .mock.calls.map(([input]) => input)
+      .at(-1);
+    expect(appendCall).toMatchObject({
+      matchId: match.matchId,
+      frameType: 'COMMAND_REJECTED',
+      summary: expect.stringContaining('命令被拒绝：SET_LIVE_CARD；原因：'),
+      writeAuthorityCheckpoint: false,
+    });
+    expect(appendCall?.summary).toContain(result?.error);
   });
 
   it('对局房间销毁前应先封存运行中 match 为 INTERRUPTED/PARTIAL', async () => {

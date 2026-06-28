@@ -2,8 +2,8 @@
 
 > 文档类型：实现契约 / review 基线
 > 适用范围：`DebugReplayBundle`、`Replay Checkpoint`、历史回放读取前的权威状态复水
-> 当前状态：v0.2；已补充服务端可记录对墙打 replay limitation
-> 最后更新：2026-06-19
+> 当前状态：v0.3；已补充服务端可记录对墙打 replay limitation 与历史记录高权限导出包边界
+> 最后更新：2026-06-28
 
 ## 1. 契约目的
 
@@ -37,7 +37,7 @@
 
 `Authority Checkpoint`：完整权威状态，包含双方隐藏信息、牌库顺序和可能关联审计的信息。只供服务端投影、审计、调试和未来确定性重演使用。
 
-`DebugReplayBundle`：E0 管理员调试导出包。它可以包含隐藏信息，但必须只走管理员或开发审计入口。
+`DebugReplayBundle`：管理员调试 / 历史高权限导出包 envelope。`sourceMatch.exportedStatus=RUNNING_OR_RECENT` 表示 E0 运行中或近期对局调试导出；`sourceMatch.exportedStatus=HISTORY_RECORD` 表示从正式历史记录导出的回放包。它可以包含隐藏信息，但必须只走管理员或开发审计入口。
 
 `RecordFrame`：记录层生成的单调时间线节点。每个 frame 分配 `timelineSeq`，并按需关联命令、事件、决策、随机事实和 checkpoint。
 
@@ -109,7 +109,7 @@ interface ReplaySerializedPayloadEnvelope {
 
 ## 6. DebugReplayBundle Envelope
 
-E0 bundle 顶层必须明确自身不是普通用户历史记录。
+Bundle 顶层必须明确来源类型，不能把运行中调试导出和正式历史记录导出混在一起。
 
 逻辑字段：
 
@@ -134,7 +134,7 @@ E0 bundle 顶层必须明确自身不是普通用户历史记录。
 - `capabilities`
 - `limitations`
 
-E0a 若只能导出当前 authority checkpoint 和运行时可获得事实，必须在 `capabilities` / `limitations` 中标清：
+`sourceMatch.exportedStatus=RUNNING_OR_RECENT` 的 E0a 若只能导出当前 authority checkpoint 和运行时可获得事实，必须在 `capabilities` / `limitations` 中标清：
 
 - `AUTHORITY_CHECKPOINT`
 - `SINGLE_CHECKPOINT_ONLY` 或 `LIMITED_CHECKPOINTS`
@@ -144,7 +144,9 @@ E0a 若只能导出当前 authority checkpoint 和运行时可获得事实，必
 - `NO_DETERMINISTIC_REPLAY`
 - `NOT_USER_HISTORY_RECORD`
 
-导入端必须读取这些能力标记。缺少完整 timeline 的 bundle 只能打开为有限调试视图，不能伪装成完整回放。
+`sourceMatch.exportedStatus=HISTORY_RECORD` 的历史导出包不应标记 `NOT_USER_HISTORY_RECORD`。它仍是管理员高权限材料，但来源已经是正式持久化历史记录；导出可以包含完整历史 timeline、authority checkpoints、public/private events 与 decision records。若历史记录当前缺少完整 command log，必须如实保留 `commands: []` 或等价空集合，依靠 decision records 表达结构化决策，不能伪造命令序列。
+
+导入端必须读取这些能力标记。缺少完整 timeline 的 bundle 只能打开为有限调试视图，不能伪装成完整回放。历史导出包即使可以导入管理员 Debug Replay 查看器，也不改变普通玩家历史读取边界。
 
 服务端可记录对墙打如果仍把对手自动流程压缩在玩家命令后的 checkpoint 中，根记录或相关 checkpoint capability/limitation 必须标记 `SOLITAIRE_AUTOMATION_COMPRESSED`。该标记表示 replay 可查看状态节点，但不能逐步展开对手自动换牌、自动跳过主阶段或自动确认等中间动作。
 
@@ -260,16 +262,16 @@ P0/P1 可以先只实现其中一部分，但读模型不能把 `PublicEvent.seq
 - 完整随机顺序。
 - 审计候选、隐藏候选或服务端校验细节。
 
-管理员调试导出必须：
+管理员调试 / 历史高权限导出必须：
 
 - 使用 `requireAdmin` 或等价高权限中间件。
 - 记录访问审计或至少服务端安全日志。
 - 不把完整 bundle 写入普通请求日志。
-- 设置临时存储过期或显式删除机制。
+- 运行中调试包若进入服务端临时存储，需要设置过期或显式删除机制；直接下载的历史 `.replay.json` 导出不进入普通用户历史列表或分享链路。
 
 ## 11. Review 检查清单
 
-E0a review 必须确认：
+E0a / 历史高权限导出 review 必须确认：
 
 - bundle 顶层有 `recordSchemaVersion`、`bundleSchemaVersion`、`serializer`、版本和 hash 字段。
 - authority checkpoint 使用 payload envelope，不是裸 `GameState`。
@@ -277,6 +279,8 @@ E0a review 必须确认：
 - 导入路径实际调用 `fromTransport`。
 - `Map` 结构复水后仍是 `Map`，至少覆盖 `cardRegistry`、zone `cardStates`、`liveResolution` maps 和 Heart requirements。
 - bundle capabilities 标明是否 `SINGLE_CHECKPOINT_ONLY`、`LIMITED_TIMELINE`、`NO_DETERMINISTIC_REPLAY`。
+- `RUNNING_OR_RECENT` bundle 标记 `NOT_USER_HISTORY_RECORD`；`HISTORY_RECORD` bundle 不要求该 limitation，但必须仍走管理员权限。
+- 历史导出不伪造缺失 command log，缺失时使用空 `commands` 并保留 decision records。
 - 非管理员无法导出、导入或读取 bundle。
 
 P0 review 必须确认：

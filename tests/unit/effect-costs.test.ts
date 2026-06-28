@@ -8,7 +8,13 @@ import {
   payImmediateEffectCosts,
   paySelectedDiscardHandCost,
 } from '../../src/application/effects/effect-costs';
-import { CardType, FaceState, HeartColor, OrientationState, SlotPosition } from '../../src/shared/types/enums';
+import {
+  CardType,
+  FaceState,
+  HeartColor,
+  OrientationState,
+  SlotPosition,
+} from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -116,6 +122,7 @@ describe('effect cost helpers', () => {
         slots: Record<SlotPosition, string | null>;
         energyBelow: Record<SlotPosition, string[]>;
         memberBelow: Record<SlotPosition, string[]>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
       };
     };
     const memberCardIds = [...state.cardRegistry.values()]
@@ -132,6 +139,10 @@ describe('effect cost helpers', () => {
     p1.memberSlots.slots[SlotPosition.CENTER] = memberCardIds[0];
     p1.memberSlots.energyBelow[SlotPosition.CENTER] = [energyCardId!];
     p1.memberSlots.memberBelow[SlotPosition.CENTER] = [memberCardIds[1]];
+    p1.memberSlots.cardStates.set(memberCardIds[0], {
+      orientation: OrientationState.WAITING,
+      face: FaceState.FACE_UP,
+    });
 
     const result = payImmediateEffectCosts(state, PLAYER1, memberCardIds[0], [
       { kind: 'SEND_SOURCE_MEMBER_TO_WAITING_ROOM' },
@@ -147,6 +158,7 @@ describe('effect cost helpers', () => {
     expect(result?.gameState.players[0].memberSlots.slots[SlotPosition.CENTER]).toBeNull();
     expect(result?.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
     expect(result?.gameState.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(result?.gameState.players[0].memberSlots.cardStates.has(memberCardIds[0])).toBe(false);
   });
 
   it('pays source-member orientation cost by setting the staged source member to waiting', () => {

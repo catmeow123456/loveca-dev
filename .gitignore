@@ -67,6 +67,9 @@ yarn.lock
 *.sql
 !docker/init.sql
 !drizzle/**/*.sql
+data/**/*.sql.gz
+!data/**/*.normalized.sql.gz
+data/**/*.replay.json
 test-results
 
 debug.log

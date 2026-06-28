@@ -190,7 +190,7 @@ export interface ReplayRecordFrame {
 export interface DebugReplaySourceMatch {
   readonly matchId: string;
   readonly roomCode: string;
-  readonly exportedStatus: 'RUNNING_OR_RECENT';
+  readonly exportedStatus: 'RUNNING_OR_RECENT' | 'HISTORY_RECORD';
   readonly startedAt: number;
   readonly updatedAt: number;
   readonly lastActivityAt: number;
@@ -221,11 +221,11 @@ export interface DebugReplayDeckSnapshot {
   readonly seat: Seat;
   readonly sourceDeckId: string | null;
   readonly sourceDeckName: string | null;
-  readonly source: 'ONLINE_RUNTIME_DECK';
+  readonly source: MatchDeckSnapshotSource;
   readonly mainDeck: readonly string[];
   readonly energyDeck: readonly string[];
   readonly cardSummaries: Readonly<Record<string, DebugReplayCardSummary>>;
-  readonly validationState: 'RUNTIME_ACCEPTED';
+  readonly validationState: MatchDeckSnapshotValidationState;
   readonly cardDataVersion: string;
   readonly cardDataHash: string;
   readonly lockedAt: number | null;
@@ -360,6 +360,7 @@ export interface MatchRecordSummaryView {
   readonly replayCapabilities: readonly ReplayCapability[];
   readonly replayLimitations: readonly ReplayLimitation[];
   readonly partialReasonSummary: string | null;
+  readonly participants?: readonly MatchRecordParticipantView[];
 }
 
 export interface MatchRecordDetailView extends MatchRecordSummaryView {

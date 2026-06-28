@@ -27,6 +27,7 @@ import {
   stableJsonStringify,
   toReplayJsonValue,
 } from '../../src/server/services/replay-payload-serialization';
+import { DebugReplayService } from '../../src/server/services/debug-replay-service';
 
 vi.mock('../../src/server/db/pool.js', () => ({
   pool: {
@@ -176,6 +177,7 @@ function createHarness(options: CreateHarnessOptions = {}) {
     sub_phase: String(authorityState!.currentSubPhase),
   };
   const firstPrivateEventRow = {
+    seat: 'FIRST',
     timeline_seq: 2,
     event_seq: 2,
     event_id: 'private-event-first-2',
@@ -198,6 +200,7 @@ function createHarness(options: CreateHarnessOptions = {}) {
   };
   const secondPrivateEventRow = {
     ...firstPrivateEventRow,
+    seat: 'SECOND',
     event_seq: 4,
     event_id: 'private-event-second-4',
     payload: {
@@ -219,7 +222,11 @@ function createHarness(options: CreateHarnessOptions = {}) {
     status: 'OPENED',
     player_id: 'p1',
     event_ids: ['event-1'],
+    source_type: 'CARD_EFFECT',
     ability_id: 'test-ability',
+    trigger_condition: 'ON_ENTER_STAGE',
+    ability_category: 'ON_ENTER',
+    ability_source_zone: 'MEMBER_SLOT',
     source_card_object_id: 'source-card-1',
     source_card_code: 'PL!HS-bp1-006-P',
     source_base_card_code: 'PL!HS-bp1-006',
@@ -235,6 +242,14 @@ function createHarness(options: CreateHarnessOptions = {}) {
         cardCode: 'PL!HS-bp1-004-P',
         baseCardCode: 'PL!HS-bp1-004',
         name: '夕雾缀理',
+      },
+    ],
+    audit_candidates: [
+      {
+        cardId: 'audit-candidate-1',
+        cardCode: 'AUDIT-CARD',
+        baseCardCode: 'AUDIT',
+        name: '审计候选',
       },
     ],
     visible_context_summary: {
@@ -282,6 +297,8 @@ function createHarness(options: CreateHarnessOptions = {}) {
     turn_count: authorityState!.turnCount,
     last_timeline_seq: 2,
     last_checkpoint_seq: 1,
+    last_public_seq: 3,
+    last_game_event_seq: 4,
     record_version: REPLAY_RECORD_SCHEMA_VERSION,
     rules_version: REPLAY_RULES_VERSION,
     card_data_version: REPLAY_CARD_DATA_VERSION,
@@ -289,6 +306,25 @@ function createHarness(options: CreateHarnessOptions = {}) {
     replay_capabilities: ['AUTHORITY_CHECKPOINT'],
     replay_limitations: [],
     partial_reason: 'command_accepted append failed: database stack',
+    updated_at: new Date(2_000),
+    participants: [
+      {
+        seat: 'FIRST',
+        userId: 'u1',
+        displayName: 'Alpha',
+        playerId: 'p1',
+        participantKind: 'USER',
+        ownerUserId: null,
+      },
+      {
+        seat: 'SECOND',
+        userId: 'u2',
+        displayName: 'Beta',
+        playerId: 'p2',
+        participantKind: 'USER',
+        ownerUserId: null,
+      },
+    ],
     viewer_seat: 'FIRST',
     viewer_player_id: 'p1',
     opponent_seat: 'SECOND',
@@ -304,7 +340,8 @@ function createHarness(options: CreateHarnessOptions = {}) {
       source: 'ONLINE_RUNTIME_DECK',
       main_deck: firstDeck.mainDeck.map((card) => card.cardCode),
       energy_deck: firstDeck.energyDeck.map((card) => card.cardCode),
-      validation_state: 'RUNTIME_ACCEPTED',
+      card_summaries: createCardSummaries([...firstDeck.mainDeck, ...firstDeck.energyDeck]),
+      validation_state: 'VALID',
       card_data_version: REPLAY_CARD_DATA_VERSION,
       card_data_hash: cardDataHash,
       locked_at: new Date(900),
@@ -317,6 +354,7 @@ function createHarness(options: CreateHarnessOptions = {}) {
       source: 'ONLINE_RUNTIME_DECK',
       main_deck: secondDeck.mainDeck.map((card) => card.cardCode),
       energy_deck: secondDeck.energyDeck.map((card) => card.cardCode),
+      card_summaries: createCardSummaries([...secondDeck.mainDeck, ...secondDeck.energyDeck]),
       validation_state: 'RUNTIME_ACCEPTED',
       card_data_version: REPLAY_CARD_DATA_VERSION,
       card_data_hash: cardDataHash,
@@ -338,14 +376,20 @@ function createHarness(options: CreateHarnessOptions = {}) {
     payload,
     payload_hash: payload.payloadHash,
     capabilities: ['AUTHORITY_CHECKPOINT'],
+    visibility_scope: 'ADMIN',
     created_at: new Date(2_000),
     ...options.checkpointOverrides,
   };
 
+  const calls: { text: string; values: readonly unknown[] }[] = [];
   const client: MatchReplayReadQueryClient = {
     async query<T = unknown>(text: string, values: readonly unknown[] = []) {
       await Promise.resolve();
+      calls.push({ text, values });
       if (text.includes('FROM match_records record')) {
+        if (text.includes('AS participants')) {
+          return { rows: [accessRow] as T[] };
+        }
         const requestedUserId = text.includes('record.match_id = $1') ? values[1] : values[0];
         return { rows: requestedUserId === 'u1' ? ([accessRow] as T[]) : [] };
       }
@@ -385,11 +429,17 @@ function createHarness(options: CreateHarnessOptions = {}) {
         return { rows: [publicEventRow] as T[] };
       }
       if (text.includes('FROM match_record_private_events')) {
+        if (!text.includes('event.seat = $2')) {
+          return { rows: [firstPrivateEventRow, secondPrivateEventRow] as T[] };
+        }
         return {
           rows: (values[1] === 'FIRST' ? [firstPrivateEventRow] : [secondPrivateEventRow]) as T[],
         };
       }
       if (text.includes('FROM match_decision_records')) {
+        if (!text.includes('waiting_seat IS NULL OR waiting_seat = $2')) {
+          return { rows: [firstDecisionRow, opponentDecisionRow] as T[] };
+        }
         return {
           rows: (values[1] === 'FIRST' ? [firstDecisionRow] : [opponentDecisionRow]) as T[],
         };
@@ -410,6 +460,7 @@ function createHarness(options: CreateHarnessOptions = {}) {
   return {
     authorityState: authorityState!,
     service: new MatchReplayReadService({ queryClient: client }),
+    calls,
   };
 }
 
@@ -422,6 +473,21 @@ function createCardDataHash(decks: Readonly<Record<'FIRST' | 'SECOND', DeckConfi
     }))
   );
   return `sha256:${createHash('sha256').update(stableJsonStringify(input)).digest('hex')}`;
+}
+
+function createCardSummaries(cards: readonly AnyCardData[]): Record<string, unknown> {
+  return Object.fromEntries(
+    cards.map((card) => [
+      card.cardCode,
+      {
+        cardCode: card.cardCode,
+        name: card.name,
+        cardType: card.cardType,
+        ...('cost' in card ? { cost: card.cost } : {}),
+        ...('score' in card ? { score: card.score } : {}),
+      },
+    ])
+  );
 }
 
 describe('MatchReplayReadService P1b', () => {
@@ -575,6 +641,76 @@ describe('MatchReplayReadService P1b', () => {
     const { service } = createHarness();
 
     await expect(service.getMatchRecordDetail('match-read-1', 'u3')).resolves.toBeNull();
+  });
+
+  it('管理员可按用户和时间筛选历史列表，并获得参与者摘要', async () => {
+    const { service, calls } = createHarness();
+
+    const records = await service.listMatchRecordsForAdmin({
+      userQuery: 'Alpha',
+      startedFrom: 1_000,
+      startedTo: 9_000,
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0].participants).toEqual([
+      expect.objectContaining({ seat: 'FIRST', displayName: 'Alpha' }),
+      expect.objectContaining({ seat: 'SECOND', displayName: 'Beta' }),
+    ]);
+    const listCall = calls.find((call) => call.text.includes('ILIKE'));
+    expect(listCall?.values).toEqual([
+      '%Alpha%',
+      new Date(1_000),
+      new Date(9_000),
+      50,
+      0,
+    ]);
+  });
+
+  it('管理员可导出历史对局 replay bundle，并可重新导入读取 checkpoint 投影', () => {
+    const { authorityState, service } = createHarness();
+
+    return service.exportMatchRecordBundleForAdmin('match-read-1').then((bundle) => {
+      expect(bundle).not.toBeNull();
+      expect(bundle?.sourceMatch.exportedStatus).toBe('HISTORY_RECORD');
+      expect(bundle?.limitations).not.toContain('NOT_USER_HISTORY_RECORD');
+      expect(bundle?.recordFrames.map((frame) => frame.timelineSeq)).toEqual([1, 2, 3]);
+      expect(bundle?.checkpoints).toHaveLength(1);
+      expect(bundle?.publicEvents).toHaveLength(1);
+      expect(bundle?.privateEventsBySeat.FIRST).toHaveLength(1);
+      expect(bundle?.privateEventsBySeat.SECOND).toHaveLength(1);
+      expect(bundle?.decisions).toHaveLength(2);
+      expect(bundle?.decisions[0]).toMatchObject({
+        sourceType: 'CARD_EFFECT',
+        triggerCondition: 'ON_ENTER_STAGE',
+        abilityCategory: 'ON_ENTER',
+        abilitySourceZone: 'MEMBER_SLOT',
+        auditCandidates: [
+          expect.objectContaining({
+            cardId: 'audit-candidate-1',
+            cardCode: 'AUDIT-CARD',
+          }),
+        ],
+      });
+      expect(bundle?.deckSnapshots[0].cardSummaries['A-MEM-0']).toMatchObject({
+        cardCode: 'A-MEM-0',
+        name: 'A 成员 0',
+        cardType: 'MEMBER',
+      });
+      expect(bundle?.deckSnapshots[0].validationState).toBe('VALID');
+
+      const debugReplay = new DebugReplayService({ now: () => 5_000 });
+      const imported = debugReplay.importBundle(JSON.parse(JSON.stringify(bundle)));
+      const checkpointView = debugReplay.getCheckpointView(imported.bundleId, 1, 'FIRST');
+      const opponentHiddenCardId = authorityState.players[1].hand.cardIds[0];
+
+      expect(checkpointView.sourceMatch.exportedStatus).toBe('HISTORY_RECORD');
+      expect(checkpointView.playerViewState.match.viewerSeat).toBe('FIRST');
+      expect(
+        checkpointView.playerViewState.objects[createPublicObjectId(opponentHiddenCardId)]
+      ).toBeUndefined();
+      expect(JSON.stringify(checkpointView)).not.toContain('payloadEnvelope');
+    });
   });
 
   it('规则版本不兼容时拒绝读取回放节点', async () => {

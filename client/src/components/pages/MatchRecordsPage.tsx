@@ -6,26 +6,33 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Download,
   Eye,
+  Filter,
   History,
   ListTree,
   LockKeyhole,
   MousePointerClick,
   RefreshCw,
   ShieldCheck,
-  Trophy,
-  UserRound,
   X,
 } from 'lucide-react';
 import { PageHeader, ThemeToggle } from '@/components/common';
 import { GameBoard } from '@/components/game';
 import {
+  exportAdminMatchRecordBundle,
+  fetchAdminMatchRecordDetail,
+  fetchAdminMatchRecordReplay,
+  fetchAdminMatchRecords,
+  fetchAdminMatchRecordTimeline,
   fetchMatchRecordDetail,
   fetchMatchRecords,
   fetchMatchRecordReplay,
   fetchMatchRecordTimeline,
+  type AdminMatchRecordFilters,
 } from '@/lib/onlineClient';
 import { useGameStore } from '@/store/gameStore';
+import { useAuthStore } from '@/store/authStore';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import type {
   MatchRecordDetailView,
@@ -52,21 +59,43 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const [replay, setReplay] = useState<MatchRecordReplayView | null>(null);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [isLoadingNode, setIsLoadingNode] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [adminUserQuery, setAdminUserQuery] = useState('');
+  const [adminDateFrom, setAdminDateFrom] = useState('');
+  const [adminDateTo, setAdminDateTo] = useState('');
+  const [adminFilters, setAdminFilters] = useState<AdminMatchRecordFilters>({});
+  const [debugDetailsOpen, setDebugDetailsOpen] = useState(false);
+  const [adminViewerSeat, setAdminViewerSeat] = useState<Seat>('FIRST');
   const [replayBoardOpen, setReplayBoardOpen] = useState(false);
+  const profile = useAuthStore((s) => s.profile);
+  const isAdmin = profile?.role === 'admin';
   const latestReplayRequestRef = useRef(0);
   const replayBoardOpenRef = useRef(false);
+  const lastViewerSeatReloadKeyRef = useRef<string | null>(null);
+  const isAdminRef = useRef(isAdmin);
+  const adminViewerSeatRef = useRef(adminViewerSeat);
   const enterReadonlyReplay = useGameStore((s) => s.enterReadonlyReplay);
   const leaveReadonlyReplay = useGameStore((s) => s.leaveReadonlyReplay);
 
   const selectedRecord =
     records.find((candidate) => candidate.matchId === selectedMatchId) ?? records[0] ?? null;
 
+  useEffect(() => {
+    isAdminRef.current = isAdmin;
+  }, [isAdmin]);
+
+  useEffect(() => {
+    adminViewerSeatRef.current = adminViewerSeat;
+  }, [adminViewerSeat]);
+
   const loadRecords = useCallback(async () => {
     setIsLoadingRecords(true);
     setError(null);
     try {
-      const nextRecords = await fetchMatchRecords();
+      const nextRecords = isAdmin
+        ? await fetchAdminMatchRecords(adminFilters)
+        : await fetchMatchRecords();
       setRecords(nextRecords);
       setSelectedMatchId((current) =>
         current && nextRecords.some((record) => record.matchId === current)
@@ -78,7 +107,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     } finally {
       setIsLoadingRecords(false);
     }
-  }, []);
+  }, [adminFilters, isAdmin]);
 
   const loadMatchNode = useCallback(
     async (matchId: string, checkpointSeq?: number) => {
@@ -86,11 +115,18 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       setIsLoadingNode(true);
       setError(null);
       try {
-        const [nextDetail, nextTimeline, nextReplay] = await Promise.all([
-          fetchMatchRecordDetail(matchId),
-          fetchMatchRecordTimeline(matchId),
-          fetchMatchRecordReplay(matchId, { checkpointSeq }),
-        ]);
+        const adminSeat = adminViewerSeatRef.current;
+        const [nextDetail, nextTimeline, nextReplay] = isAdminRef.current
+          ? await Promise.all([
+              fetchAdminMatchRecordDetail(matchId),
+              fetchAdminMatchRecordTimeline(matchId, adminSeat),
+              fetchAdminMatchRecordReplay(matchId, { checkpointSeq, viewerSeat: adminSeat }),
+            ])
+          : await Promise.all([
+              fetchMatchRecordDetail(matchId),
+              fetchMatchRecordTimeline(matchId),
+              fetchMatchRecordReplay(matchId, { checkpointSeq }),
+            ]);
         if (requestId !== latestReplayRequestRef.current) {
           return;
         }
@@ -130,6 +166,19 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   }, [loadRecords]);
 
   useEffect(() => {
+    if (!isAdmin || !selectedMatchId) {
+      return;
+    }
+    const reloadKey = `${selectedMatchId}:${adminViewerSeat}`;
+    if (lastViewerSeatReloadKeyRef.current === reloadKey) {
+      return;
+    }
+    lastViewerSeatReloadKeyRef.current = reloadKey;
+    const checkpoint = replay?.replayPosition.checkpointSeq;
+    void loadMatchNode(selectedMatchId, checkpoint);
+  }, [adminViewerSeat, isAdmin, loadMatchNode, replay?.replayPosition.checkpointSeq, selectedMatchId]);
+
+  useEffect(() => {
     if (!selectedMatchId) {
       latestReplayRequestRef.current += 1;
       replayBoardOpenRef.current = false;
@@ -142,6 +191,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     }
 
     replayBoardOpenRef.current = false;
+    lastViewerSeatReloadKeyRef.current = `${selectedMatchId}:${adminViewerSeat}`;
     setReplayBoardOpen(false);
     leaveReadonlyReplay();
     void loadMatchNode(selectedMatchId);
@@ -239,6 +289,53 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
     leaveReadonlyReplay();
   }, [leaveReadonlyReplay]);
 
+  const handleApplyAdminFilters = useCallback(() => {
+    const nextFilters: {
+      userQuery?: string;
+      startedFrom?: number;
+      startedTo?: number;
+    } = {};
+    const query = adminUserQuery.trim();
+    if (query) {
+      nextFilters.userQuery = query;
+    }
+    const from = parseDateInputStart(adminDateFrom);
+    const to = parseDateInputEnd(adminDateTo);
+    if (from !== null) {
+      nextFilters.startedFrom = from;
+    }
+    if (to !== null) {
+      nextFilters.startedTo = to;
+    }
+    setAdminFilters(nextFilters);
+  }, [adminDateFrom, adminDateTo, adminUserQuery]);
+
+  const handleResetAdminFilters = useCallback(() => {
+    setAdminUserQuery('');
+    setAdminDateFrom('');
+    setAdminDateTo('');
+    setAdminFilters({});
+  }, []);
+
+  const handleExportSelectedRecord = useCallback(async () => {
+    if (!selectedRecord || !isAdmin) {
+      return;
+    }
+    setIsExporting(true);
+    setError(null);
+    try {
+      const bundle = await exportAdminMatchRecordBundle(selectedRecord.matchId);
+      downloadJson(
+        `loveca-match-${selectedRecord.roomCode}-${selectedRecord.matchId}.replay.json`,
+        bundle
+      );
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出历史对局失败');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [isAdmin, selectedRecord]);
+
   return (
     <div className="app-shell flex min-h-screen flex-col overflow-x-hidden">
       <PageHeader
@@ -267,12 +364,12 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       />
 
       <main className="relative z-10 flex-1 px-3 py-4 sm:px-4 lg:px-5 xl:px-6">
-        <div className="mx-auto grid w-full max-w-[1540px] items-start gap-4 lg:grid-cols-[minmax(220px,280px)_minmax(360px,1fr)_minmax(260px,320px)] xl:grid-cols-[300px_minmax(0,1fr)_360px]">
+        <div className="mx-auto grid w-full max-w-[1480px] items-start gap-4 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
           <motion.section
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.28 }}
-            className="surface-panel min-w-0 overflow-x-hidden rounded-lg p-3 sm:p-4 lg:sticky lg:top-[5.75rem] lg:max-h-[calc(100dvh-6.5rem)]"
+            className="surface-panel flex min-w-0 flex-col overflow-hidden rounded-lg p-3 sm:p-4 lg:sticky lg:top-[5.75rem] lg:h-[calc(100dvh-6.5rem)]"
           >
             <PanelTitle
               icon={<History size={16} />}
@@ -280,12 +377,26 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
               detail={`${records.length} 条`}
             />
 
+            {isAdmin ? (
+              <AdminMatchRecordFiltersPanel
+                userQuery={adminUserQuery}
+                dateFrom={adminDateFrom}
+                dateTo={adminDateTo}
+                onUserQueryChange={setAdminUserQuery}
+                onDateFromChange={setAdminDateFrom}
+                onDateToChange={setAdminDateTo}
+                onApply={handleApplyAdminFilters}
+                onReset={handleResetAdminFilters}
+                disabled={isLoadingRecords}
+              />
+            ) : null}
+
             {isLoadingRecords ? (
               <LoadingPanel label="读取历史对局" />
             ) : records.length === 0 ? (
               <EmptyPanel title="暂无历史对局" detail="完成正式联机或对墙打后会在这里显示。" />
             ) : (
-              <div className="mt-3 grid gap-2 lg:max-h-[calc(100dvh-12rem)] lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1">
+              <div className="mt-3 grid gap-1.5 overflow-x-hidden lg:min-h-0 lg:flex-1 lg:content-start lg:overflow-y-auto lg:pr-1">
                 {records.map((record) => (
                   <MatchRecordButton
                     key={record.matchId}
@@ -311,13 +422,29 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
             ) : null}
 
             <section className="surface-panel rounded-lg p-4">
-              <PanelTitle
-                icon={<ShieldCheck size={16} />}
-                title={selectedRecord ? shortId(selectedRecord.matchId) : '未选择对局'}
-                detail={
-                  selectedRecord ? formatDateTime(selectedRecord.startedAt) : '请选择一条记录'
-                }
-              />
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <PanelTitle
+                  icon={<ShieldCheck size={16} />}
+                  title={selectedRecord ? formatRecordTitle(selectedRecord) : '未选择对局'}
+                  detail={
+                    selectedRecord ? formatDateTime(selectedRecord.startedAt) : '请选择一条记录'
+                  }
+                />
+                {isAdmin && selectedRecord ? (
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <SeatSegmentedControl value={adminViewerSeat} onChange={setAdminViewerSeat} />
+                    <button
+                      type="button"
+                      onClick={() => void handleExportSelectedRecord()}
+                      disabled={isExporting}
+                      className="button-ghost inline-flex h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-50"
+                    >
+                      <Download size={14} />
+                      导出
+                    </button>
+                  </div>
+                ) : null}
+              </div>
               {selectedRecord?.partialReasonSummary ? (
                 <PartialRecordNotice detail={selectedRecord.partialReasonSummary} />
               ) : null}
@@ -332,82 +459,112 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
               )}
             </section>
 
-            <section className="surface-panel rounded-lg p-4">
-              <PanelTitle
-                icon={<ListTree size={16} />}
-                title="Timeline"
-                detail={timeline.length > 0 ? `${timeline.length} 节点` : '无节点'}
-              />
-              {isLoadingNode && timeline.length === 0 ? (
-                <LoadingPanel label="读取 timeline" />
-              ) : timeline.length === 0 ? (
-                <EmptyPanel title="暂无 timeline" detail="该记录还没有可读时间线。" />
-              ) : (
-                <div className="mt-3 grid max-h-[520px] gap-2 overflow-x-hidden overflow-y-auto pr-1 lg:max-h-[420px] xl:max-h-[460px]">
-                  {timeline.map((entry) => (
-                    <TimelineRow
-                      key={entry.timelineSeq}
-                      entry={entry}
-                      selected={
-                        entry.relatedCheckpointSeq !== null &&
-                        entry.relatedCheckpointSeq === checkpointSeq
-                      }
-                      onClick={() => handleSelectTimeline(entry)}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          </motion.section>
-
-          <motion.aside
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.28, delay: 0.08 }}
-            className="surface-panel min-w-0 overflow-x-hidden rounded-lg p-3 sm:p-4 lg:sticky lg:top-[5.75rem] lg:col-span-1 lg:max-h-[calc(100dvh-6.5rem)] lg:overflow-y-auto lg:overscroll-contain"
-          >
-            <PanelTitle
-              icon={<Eye size={16} />}
-              title="回放节点"
-              detail={replay ? `checkpoint ${replay.replayPosition.checkpointSeq}` : '未载入'}
-            />
-
-            {isLoadingNode && !replay ? (
-              <LoadingPanel label="读取 checkpoint" />
-            ) : replay ? (
-              <div className="mt-4 grid min-w-0 gap-3 xl:gap-4">
-                <CheckpointNavigator
-                  currentIndex={currentCheckpointIndex}
-                  total={checkpointEntries.length}
-                  canPrevious={canGoPreviousCheckpoint}
-                  canNext={canGoNextCheckpoint}
-                  onPrevious={() => handleStepCheckpoint(-1)}
-                  onNext={() => handleStepCheckpoint(1)}
+            <section className="grid gap-4 xl:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
+              <div className="surface-panel rounded-lg p-4">
+                <PanelTitle
+                  icon={<Eye size={16} />}
+                  title="回放节点"
+                  detail={replay ? `CP ${replay.replayPosition.checkpointSeq}` : '未载入'}
                 />
+
+                {isLoadingNode && !replay ? (
+                  <LoadingPanel label="读取 checkpoint" />
+                ) : replay ? (
+                  <div className="mt-4 grid min-w-0 gap-3">
+                    <CheckpointNavigator
+                      currentIndex={currentCheckpointIndex}
+                      total={checkpointEntries.length}
+                      canPrevious={canGoPreviousCheckpoint}
+                      canNext={canGoNextCheckpoint}
+                      onPrevious={() => handleStepCheckpoint(-1)}
+                      onNext={() => handleStepCheckpoint(1)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenReplayBoard()}
+                      disabled={isLoadingNode}
+                      className="button-primary inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Eye size={15} />
+                      打开桌面回放
+                    </button>
+                    {replay.partialReasonSummary ? (
+                      <PartialRecordNotice detail={replay.partialReasonSummary} compact />
+                    ) : null}
+                    <ReplayStagePanel replay={replay} />
+                    <ReplayMetricGrid replay={replay} />
+                  </div>
+                ) : (
+                  <EmptyPanel title="暂无 checkpoint" detail="选择带 checkpoint 的 timeline 节点。" />
+                )}
+              </div>
+
+              <div className="surface-panel rounded-lg p-4">
+                <PanelTitle
+                  icon={<ListTree size={16} />}
+                  title="时间线"
+                  detail={timeline.length > 0 ? `${timeline.length} 节点` : '无节点'}
+                />
+                {isLoadingNode && timeline.length === 0 ? (
+                  <LoadingPanel label="读取 timeline" />
+                ) : timeline.length === 0 ? (
+                  <EmptyPanel title="暂无 timeline" detail="该记录还没有可读时间线。" />
+                ) : (
+                  <div className="mt-3 grid max-h-[560px] gap-2 overflow-x-hidden overflow-y-auto pr-1">
+                    {timeline.map((entry) => (
+                      <TimelineRow
+                        key={entry.timelineSeq}
+                        entry={entry}
+                        selected={
+                          entry.relatedCheckpointSeq !== null &&
+                          entry.relatedCheckpointSeq === checkpointSeq
+                        }
+                        onClick={() => handleSelectTimeline(entry)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {replay ? (
+              <section className="surface-panel rounded-lg p-4">
                 <button
                   type="button"
-                  onClick={() => void handleOpenReplayBoard()}
-                  disabled={isLoadingNode}
-                  className="button-primary inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => setDebugDetailsOpen((open) => !open)}
+                  className="flex w-full items-center justify-between gap-3 text-left"
                 >
-                  <Eye size={15} />
-                  打开桌面回放
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="text-[var(--accent-primary)]">
+                      <ListTree size={16} />
+                    </span>
+                    <span className="text-sm font-bold text-[var(--text-primary)]">调试详情</span>
+                  </span>
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {debugDetailsOpen ? '收起' : '展开'}
+                  </span>
                 </button>
-                {replay.partialReasonSummary ? (
-                  <PartialRecordNotice detail={replay.partialReasonSummary} compact />
-                ) : null}
-                <ReplayMetricGrid replay={replay} />
-                <ReplayStagePanel replay={replay} />
-                <VisibleEventList events={replay.visibleEvents} />
-                <PrivateEventList events={replay.visiblePrivateEvents} />
-                <DecisionRecordList decisions={replay.visibleDecisions} />
-                <ZoneList zones={visibleZones} />
-                <FrontCardList cards={visibleFrontCards} />
-              </div>
-            ) : (
-              <EmptyPanel title="暂无 checkpoint" detail="选择带 checkpoint 的 timeline 节点。" />
-            )}
-          </motion.aside>
+                {debugDetailsOpen ? (
+                  <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <VisibleEventList events={replay.visibleEvents} />
+                    <PrivateEventList events={replay.visiblePrivateEvents} />
+                    <DecisionRecordList decisions={replay.visibleDecisions} />
+                    <ZoneList zones={visibleZones} />
+                    <FrontCardList cards={visibleFrontCards} />
+                  </div>
+                ) : (
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--text-muted)]">
+                    <span className="chip-badge px-2 py-1">公开事件 {replay.visibleEvents.length}</span>
+                    <span className="chip-badge px-2 py-1">
+                      私密事件 {replay.visiblePrivateEvents.length}
+                    </span>
+                    <span className="chip-badge px-2 py-1">决策 {replay.visibleDecisions.length}</span>
+                    <span className="chip-badge px-2 py-1">区域 {visibleZones.length}</span>
+                  </div>
+                )}
+              </section>
+            ) : null}
+          </motion.section>
         </div>
       </main>
 
@@ -479,28 +636,30 @@ function MatchRecordButton({
   selected: boolean;
   onClick: () => void;
 }) {
+  const title = formatRecordTitle(record);
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-lg border px-3 py-3 text-left transition ${
+      className={`w-full rounded-md border px-2.5 py-2 text-left transition ${
         selected
           ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_11%,var(--bg-surface))]'
           : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]'
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate text-sm font-bold text-[var(--text-primary)]">
-            {record.opponentDisplayName ?? '对手'}
+            {title}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
-            <span>{record.viewerSeat}</span>
-            <span>T{record.turnCount}</span>
+          <div className="mt-1 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] text-[var(--text-muted)]">
             <span>{formatDateTime(record.startedAt)}</span>
+            <span>T{record.turnCount}</span>
+            <span className="truncate">{shortId(record.matchId)}</span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1">
           <ModePill mode={record.matchMode} />
           <StatusPill status={record.status} completeness={record.completeness} />
         </div>
@@ -512,6 +671,106 @@ function MatchRecordButton({
         </div>
       ) : null}
     </button>
+  );
+}
+
+function AdminMatchRecordFiltersPanel({
+  userQuery,
+  dateFrom,
+  dateTo,
+  onUserQueryChange,
+  onDateFromChange,
+  onDateToChange,
+  onApply,
+  onReset,
+  disabled,
+}: {
+  userQuery: string;
+  dateFrom: string;
+  dateTo: string;
+  onUserQueryChange: (value: string) => void;
+  onDateFromChange: (value: string) => void;
+  onDateToChange: (value: string) => void;
+  onApply: () => void;
+  onReset: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="mt-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-3">
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+        <Filter size={13} className="text-[var(--accent-primary)]" />
+        管理筛选
+      </div>
+      <div className="grid gap-2">
+        <input
+          value={userQuery}
+          onChange={(event) => onUserQueryChange(event.target.value)}
+          className="h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
+          placeholder="用户、房间、match id"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            value={dateFrom}
+            onChange={(event) => onDateFromChange(event.target.value)}
+            type="date"
+            className="h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
+            aria-label="开始日期"
+          />
+          <input
+            value={dateTo}
+            onChange={(event) => onDateToChange(event.target.value)}
+            type="date"
+            className="h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
+            aria-label="结束日期"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onApply}
+            disabled={disabled}
+            className="button-primary h-9 px-3 text-xs font-semibold disabled:opacity-50"
+          >
+            筛选
+          </button>
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={disabled}
+            className="button-ghost h-9 border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-50"
+          >
+            清空
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SeatSegmentedControl({
+  value,
+  onChange,
+}: {
+  value: Seat;
+  onChange: (seat: Seat) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-1">
+      {(['FIRST', 'SECOND'] as const).map((seat) => (
+        <button
+          key={seat}
+          type="button"
+          onClick={() => onChange(seat)}
+          className={`h-7 rounded-md px-2 text-[11px] font-semibold transition ${
+            value === seat
+              ? 'bg-[var(--accent-primary)] text-white'
+              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)]'
+          }`}
+        >
+          {seat}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -527,30 +786,29 @@ function MatchRecordSummary({
   const first = detail?.participants.find((participant) => participant.seat === 'FIRST');
   const second = detail?.participants.find((participant) => participant.seat === 'SECOND');
   const viewerDeck = detail?.deckSnapshots.find((snapshot) => snapshot.seat === record.viewerSeat);
+  const resultSummary =
+    record.status === 'IN_PROGRESS'
+      ? '进行中'
+      : `${record.winnerSeat ? `胜者 ${record.winnerSeat}` : '无胜者'}${
+          record.endReason ? ` · ${record.endReason}` : ''
+        }`;
+  const deckSummary = viewerDeck
+    ? `${viewerDeck.mainDeckCount}+${viewerDeck.energyDeckCount} · ${
+        viewerDeck.sourceDeckName ?? viewerDeck.source
+      }`
+    : loading
+      ? '读取中'
+      : '-';
 
   return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      <InfoTile label="模式" value={formatMatchModeLabel(record.matchMode)} />
-      <InfoTile label="来源" value={record.originLabel} />
-      <InfoTile icon={<UserRound size={15} />} label="FIRST" value={first?.displayName ?? '-'} />
-      <InfoTile icon={<UserRound size={15} />} label="SECOND" value={second?.displayName ?? '-'} />
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <InfoTile label="对局" value={`${formatMatchModeLabel(record.matchMode)} · ${formatRecordStatus(record)}`} />
       <InfoTile
-        icon={<Trophy size={15} />}
-        label="胜者"
-        value={record.winnerSeat ?? (record.status === 'IN_PROGRESS' ? '进行中' : '-')}
+        label="玩家"
+        value={`FIRST ${first?.displayName ?? '-'} / SECOND ${second?.displayName ?? '-'}`}
       />
-      <InfoTile label="记录状态" value={`${record.status} / ${record.completeness}`} />
-      <InfoTile label="结束原因" value={record.endReason ?? '-'} />
-      <InfoTile
-        label="我的卡组"
-        value={
-          viewerDeck
-            ? `${viewerDeck.mainDeckCount}+${viewerDeck.energyDeckCount} · ${viewerDeck.sourceDeckName ?? viewerDeck.source}`
-            : loading
-              ? '读取中'
-              : '-'
-        }
-      />
+      <InfoTile label="结果" value={resultSummary} />
+      <InfoTile label="卡组" value={deckSummary} />
     </div>
   );
 }
@@ -591,12 +849,9 @@ function TimelineRow({
           ) : null}
         </div>
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
-          <span>{entry.frameType}</span>
           <span>T{entry.turnCount}</span>
-          <span>
-            {entry.phase} / {entry.subPhase}
-          </span>
           <span>{formatDateTime(entry.createdAt)}</span>
+          <span>{formatFrameTypeLabel(entry.frameType)}</span>
         </div>
       </div>
     </button>
@@ -930,21 +1185,16 @@ function PanelTitle({
 }
 
 function InfoTile({
-  icon,
   label,
   value,
 }: {
-  icon?: React.ReactNode;
   label: string;
   value: string;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2">
-      <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div className="mt-1 truncate text-sm font-semibold text-[var(--text-primary)]">{value}</div>
+    <div className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] items-center gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5">
+      <div className="text-[11px] font-medium text-[var(--text-muted)]">{label}</div>
+      <div className="truncate text-sm font-semibold text-[var(--text-primary)]">{value}</div>
     </div>
   );
 }
@@ -1077,6 +1327,94 @@ function formatDateTime(value: number | null): string {
 
 function formatMatchModeLabel(mode: MatchRecordSummaryView['matchMode']): string {
   return mode === 'SOLITAIRE' ? '对墙打' : '正式联机';
+}
+
+function formatRecordStatus(record: Pick<MatchRecordSummaryView, 'status' | 'completeness'>): string {
+  const status =
+    record.status === 'IN_PROGRESS'
+      ? '进行中'
+      : record.status === 'COMPLETED'
+        ? '已完成'
+        : record.status === 'SURRENDERED'
+          ? '认输'
+          : record.status === 'INTERRUPTED'
+            ? '中断'
+            : '异常';
+  return record.completeness === 'FULL' ? status : `${status} · 部分`;
+}
+
+function formatRecordTitle(record: MatchRecordSummaryView): string {
+  const participants = record.participants ?? [];
+  const first = participants.find((participant) => participant.seat === 'FIRST')?.displayName;
+  const second = participants.find((participant) => participant.seat === 'SECOND')?.displayName;
+  if (first && second) {
+    return `${first} vs ${second}`;
+  }
+  return record.opponentDisplayName
+    ? `${formatMatchModeLabel(record.matchMode)} · ${record.opponentDisplayName}`
+    : `${formatMatchModeLabel(record.matchMode)} · ${record.roomCode}`;
+}
+
+function formatFrameTypeLabel(frameType: MatchRecordTimelineEntryView['frameType']): string {
+  switch (frameType) {
+    case 'MATCH_INITIALIZED':
+      return '开始';
+    case 'COMMAND_ACCEPTED':
+      return '操作';
+    case 'COMMAND_REJECTED':
+      return '失败操作';
+    case 'SYSTEM_TRANSITION':
+      return '系统推进';
+    case 'UNDO_ACCEPTED':
+    case 'UNDO_APPLIED':
+    case 'UNDO_REJECTED':
+    case 'UNDO_REQUESTED':
+    case 'UNDO_EXPIRED':
+      return '撤销';
+    case 'PUBLIC_EVENT':
+      return '公开事件';
+    case 'PRIVATE_EVENT':
+      return '私密事件';
+    case 'DECISION_OPENED':
+    case 'DECISION_SUBMITTED':
+      return '决策';
+    case 'CHECKPOINT_WRITTEN':
+      return '检查点';
+    case 'MATCH_SEALED':
+      return '封存';
+    default:
+      return frameType;
+  }
+}
+
+function parseDateInputStart(value: string): number | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isFinite(parsed.getTime()) ? parsed.getTime() : null;
+}
+
+function parseDateInputEnd(value: string): number | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(`${value}T23:59:59.999`);
+  return Number.isFinite(parsed.getTime()) ? parsed.getTime() : null;
+}
+
+function downloadJson(filename: string, value: unknown): void {
+  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename.replace(/[^\w.!-]+/g, '_');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function formatEventPayload(payload: unknown): string | null {

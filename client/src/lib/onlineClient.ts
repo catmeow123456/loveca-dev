@@ -308,6 +308,26 @@ export async function fetchMatchRecords(): Promise<readonly MatchRecordSummaryVi
   return response.data;
 }
 
+export interface AdminMatchRecordFilters {
+  readonly userQuery?: string;
+  readonly userId?: string;
+  readonly startedFrom?: number;
+  readonly startedTo?: number;
+}
+
+export async function fetchAdminMatchRecords(
+  filters: AdminMatchRecordFilters = {}
+): Promise<readonly MatchRecordSummaryView[]> {
+  const search = buildAdminMatchRecordSearch(filters);
+  const response = await apiClient.get<MatchRecordSummaryView[]>(
+    `/api/battle/admin/match-records${search}`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取管理员历史对局记录失败');
+  }
+  return response.data;
+}
+
 export async function fetchMatchRecordDetail(matchId: string): Promise<MatchRecordDetailView> {
   const response = await apiClient.get<MatchRecordDetailView>(
     `/api/battle/match-records/${encodeURIComponent(matchId)}`
@@ -318,12 +338,37 @@ export async function fetchMatchRecordDetail(matchId: string): Promise<MatchReco
   return response.data;
 }
 
+export async function fetchAdminMatchRecordDetail(
+  matchId: string
+): Promise<MatchRecordDetailView> {
+  const response = await apiClient.get<MatchRecordDetailView>(
+    `/api/battle/admin/match-records/${encodeURIComponent(matchId)}`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取管理员历史对局详情失败');
+  }
+  return response.data;
+}
+
 export async function fetchMatchRecordTimeline(matchId: string): Promise<MatchRecordTimelineView> {
   const response = await apiClient.get<MatchRecordTimelineView>(
     `/api/battle/match-records/${encodeURIComponent(matchId)}/timeline`
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取历史对局时间线失败');
+  }
+  return response.data;
+}
+
+export async function fetchAdminMatchRecordTimeline(
+  matchId: string,
+  viewerSeat: 'FIRST' | 'SECOND' = 'FIRST'
+): Promise<MatchRecordTimelineView> {
+  const response = await apiClient.get<MatchRecordTimelineView>(
+    `/api/battle/admin/match-records/${encodeURIComponent(matchId)}/timeline?viewerSeat=${viewerSeat}`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取管理员历史对局时间线失败');
   }
   return response.data;
 }
@@ -344,6 +389,57 @@ export async function fetchMatchRecordReplay(
     throw new Error(response.error?.message ?? '读取历史对局回放节点失败');
   }
   return response.data;
+}
+
+export async function fetchAdminMatchRecordReplay(
+  matchId: string,
+  options: { readonly checkpointSeq?: number; readonly viewerSeat?: 'FIRST' | 'SECOND' } = {}
+): Promise<MatchRecordReplayView> {
+  const searchParams = new URLSearchParams();
+  if (
+    options.checkpointSeq !== undefined &&
+    Number.isSafeInteger(options.checkpointSeq) &&
+    options.checkpointSeq > 0
+  ) {
+    searchParams.set('checkpointSeq', String(options.checkpointSeq));
+  }
+  searchParams.set('viewerSeat', options.viewerSeat ?? 'FIRST');
+  const search = `?${searchParams.toString()}`;
+  const response = await apiClient.get<MatchRecordReplayView>(
+    `/api/battle/admin/match-records/${encodeURIComponent(matchId)}/replay${search}`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取管理员历史对局回放节点失败');
+  }
+  return response.data;
+}
+
+export async function exportAdminMatchRecordBundle(matchId: string): Promise<DebugReplayBundle> {
+  const response = await apiClient.get<DebugReplayBundle>(
+    `/api/battle/admin/match-records/${encodeURIComponent(matchId)}/export`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '导出历史对局回放包失败');
+  }
+  return response.data;
+}
+
+function buildAdminMatchRecordSearch(filters: AdminMatchRecordFilters): string {
+  const params = new URLSearchParams();
+  if (filters.userQuery?.trim()) {
+    params.set('userQuery', filters.userQuery.trim());
+  }
+  if (filters.userId?.trim()) {
+    params.set('userId', filters.userId.trim());
+  }
+  if (typeof filters.startedFrom === 'number' && Number.isFinite(filters.startedFrom)) {
+    params.set('startedFrom', String(filters.startedFrom));
+  }
+  if (typeof filters.startedTo === 'number' && Number.isFinite(filters.startedTo)) {
+    params.set('startedTo', String(filters.startedTo));
+  }
+  const search = params.toString();
+  return search ? `?${search}` : '';
 }
 
 export async function exportDebugReplayBundle(matchId: string): Promise<DebugReplayBundle> {
