@@ -16,6 +16,7 @@ import {
 } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { maybeStartManualPendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
 import { and, groupAliasIs, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors.js';
 
 const AQOURS = 'Aqours';
@@ -41,13 +42,18 @@ export function registerSFutureWaterBatch3WorkflowHandlers(): void {
   );
   registerPendingAbilityStarterHandler(
     S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveRubyLiveSuccessCenterCheerScore(
+    (game, ability, options, context) => {
+      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+      if (manualConfirmation) {
+        return manualConfirmation;
+      }
+      return resolveRubyLiveSuccessCenterCheerScore(
         game,
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      );
+    }
   );
 }
 

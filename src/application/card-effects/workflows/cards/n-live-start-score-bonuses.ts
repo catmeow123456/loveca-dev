@@ -15,9 +15,11 @@ import {
 } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
+import { normalizeCardName } from '../../../effects/card-selectors.js';
 import {
   PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 
@@ -49,6 +51,16 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
     PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveEutopiaLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      )
+  );
+  registerPendingAbilityStarterHandler(
+    PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveMiracleStayTuneLiveStart(
         game,
         ability,
         options.orderedResolution === true,
@@ -145,6 +157,59 @@ function resolveEutopiaLiveStart(
   );
 }
 
+function resolveMiracleStayTuneLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const opponent = game.players.find((candidate) => candidate.id !== player.id) ?? null;
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const ownSuccessZoneCount = player.successZone.cardIds.length;
+  const opponentSuccessZoneCount = opponent?.successZone.cardIds.length ?? 0;
+  const successZoneConditionMet = ownSuccessZoneCount >= 2 || opponentSuccessZoneCount >= 2;
+  const differentNamedStageMembers = sourceInLiveZone
+    ? getDifferentNamedStageMembers(stateWithoutPending, player.id)
+    : [];
+  const differentNameConditionMet = differentNamedStageMembers.length >= 3;
+  const conditionMet = sourceInLiveZone && successZoneConditionMet && differentNameConditionMet;
+  const scoreBonus = conditionMet ? 1 : 0;
+  const stateAfterScore = conditionMet
+    ? addScoreModifierAndRefresh(stateWithoutPending, {
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        scoreBonus,
+      })
+    : stateWithoutPending;
+
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: conditionMet
+        ? 'SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE'
+        : 'NO_SUCCESS_ZONE_TWO_DIFFERENT_NAMES',
+      sourceInLiveZone,
+      ownSuccessZoneCount,
+      opponentSuccessZoneCount,
+      successZoneConditionMet,
+      differentNamedStageMemberCardIds: differentNamedStageMembers.map((member) => member.cardId),
+      differentNamedStageMemberNames: differentNamedStageMembers.map((member) => member.name),
+      differentNameConditionMet,
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
 function consumePendingAbility(game: GameState, ability: PendingAbilityState): GameState {
   return {
     ...game,
@@ -155,6 +220,32 @@ function consumePendingAbility(game: GameState, ability: PendingAbilityState): G
 function isNijigasakiMember(game: GameState, cardId: string): boolean {
   const card = getCardById(game, cardId);
   return card !== null && isMemberCardData(card.data) && cardBelongsToGroup(card.data, '虹ヶ咲');
+}
+
+function getDifferentNamedStageMembers(
+  game: GameState,
+  playerId: string
+): readonly { readonly cardId: string; readonly name: string }[] {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return [];
+  }
+
+  const seenNames = new Set<string>();
+  const members: { readonly cardId: string; readonly name: string }[] = [];
+  for (const cardId of getAllMemberCardIds(player.memberSlots)) {
+    const card = getCardById(game, cardId);
+    if (!card || !isMemberCardData(card.data)) {
+      continue;
+    }
+    const normalizedName = normalizeCardName(card.data.name);
+    if (!normalizedName || seenNames.has(normalizedName)) {
+      continue;
+    }
+    seenNames.add(normalizedName);
+    members.push({ cardId, name: card.data.name });
+  }
+  return members;
 }
 
 function getUniqueNormalEffectiveHeartColors(

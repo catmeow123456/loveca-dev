@@ -6,7 +6,10 @@ import {
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
-import { GENERIC_ON_ENTER_SELF_POSITION_CHANGE_ABILITY_ID } from '../../ability-ids.js';
+import {
+  GENERIC_ON_ENTER_SELF_POSITION_CHANGE_ABILITY_ID,
+  SP_PB2_011_LIVE_START_SELF_POSITION_CHANGE_ABILITY_ID,
+} from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
   moveMemberBetweenSlotsAndEnqueueTriggers,
@@ -19,6 +22,7 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 const SELF_POSITION_CHANGE_STEP_ID = 'SELF_POSITION_CHANGE';
 const SELF_POSITION_CHANGE_ABILITY_IDS = [
   GENERIC_ON_ENTER_SELF_POSITION_CHANGE_ABILITY_ID,
+  SP_PB2_011_LIVE_START_SELF_POSITION_CHANGE_ABILITY_ID,
 ] as const;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;

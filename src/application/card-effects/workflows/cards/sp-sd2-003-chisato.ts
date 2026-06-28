@@ -8,20 +8,28 @@ import { hasMemberPositionMovedThisTurn } from '../../../effects/conditions.js';
 import { SP_SD2_003_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_MOVED_ABILITY_ID } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
+import {
+  maybeStartManualPendingAbilityConfirmation,
+  recordAbilityUseForContext,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export function registerSpSd2003ChisatoWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_SD2_003_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_MOVED_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveSpSd2003ChisatoLiveSuccess(
+    (game, ability, options, context) => {
+      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+      if (manualConfirmation) {
+        return manualConfirmation;
+      }
+      return resolveSpSd2003ChisatoLiveSuccess(
         game,
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      );
+    }
   );
 }
 

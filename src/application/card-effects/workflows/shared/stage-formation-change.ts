@@ -21,9 +21,15 @@ import {
   rearrangeStageMembersByMoveHistoryAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForMemberSlotMoved,
 } from '../../runtime/member-slot-moved-triggers.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartManualPendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 import type {
   RearrangeStageMemberPlacement,
   StageFormationMoveHistoryEntry,
@@ -82,6 +88,7 @@ export function registerStageFormationChangeWorkflowHandlers(deps: {
   for (const config of STAGE_FORMATION_CHANGE_CONFIGS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
       startStageFormationChangeWorkflow(game, ability, config, {
+        starterOptions: options,
         orderedResolution: options.orderedResolution === true,
         continuePendingCardEffects: context.continuePendingCardEffects,
       })
@@ -106,6 +113,7 @@ function startStageFormationChangeWorkflow(
   ability: PendingAbilityState,
   config: StageFormationChangeConfig,
   options: {
+    readonly starterOptions: PendingAbilityStarterOptions;
     readonly orderedResolution: boolean;
     readonly continuePendingCardEffects: ContinuePendingCardEffects;
   }
@@ -124,6 +132,13 @@ function startStageFormationChangeWorkflow(
   const stageMembers = conditionMet ? getStageMembers(stateAfterDraw, player.id) : [];
 
   if (!conditionMet || stageMembers.length === 0) {
+    const manualConfirmation =
+      config.preDrawCount === undefined
+        ? maybeStartManualPendingAbilityConfirmation(game, ability, options.starterOptions)
+        : null;
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
     return finishWithoutFormationWindow(
       stateAfterDraw,
       ability,

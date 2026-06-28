@@ -21,7 +21,10 @@ import {
   setMemberOrientation,
   setMembersOrientation,
 } from '../../src/application/effects/member-state';
-import { removeCardFromPlayerZone } from '../../src/application/action-handlers/zone-operations';
+import {
+  addCardToPlayerZone,
+  removeCardFromPlayerZone,
+} from '../../src/application/action-handlers/zone-operations';
 import {
   CardType,
   HeartColor,
@@ -211,13 +214,15 @@ describe('member state effect helpers', () => {
     });
   });
 
-  it('defensively clears memberBelow when a main member is removed through the bare zone helper', () => {
+  it('defensively clears cards below when a main member is removed through the bare zone helper', () => {
     const member = createCardInstance(createMemberCard('MEM-HOST'), 'p1', 'member-host');
+    const energy = createCardInstance(createEnergyCard('ENE-HOST'), 'p1', 'energy-host');
     const belowMember = createCardInstance(createMemberCard('MEM-BELOW'), 'p1', 'member-below');
     let game = createGameState('member-state-bare-remove', 'p1', 'P1', 'p2', 'P2');
-    game = registerCards(game, [member, belowMember]);
+    game = registerCards(game, [member, energy, belowMember]);
     game = updatePlayer(game, 'p1', (player) => {
       let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.LEFT, member.instanceId);
+      memberSlots = addEnergyBelowMember(memberSlots, SlotPosition.LEFT, energy.instanceId);
       memberSlots = addMemberBelowMember(memberSlots, SlotPosition.LEFT, belowMember.instanceId);
       return { ...player, memberSlots };
     });
@@ -230,8 +235,42 @@ describe('member state effect helpers', () => {
     );
 
     expect(result.players[0].memberSlots.slots[SlotPosition.LEFT]).toBeNull();
+    expect(result.players[0].memberSlots.energyBelow[SlotPosition.LEFT]).toEqual([]);
     expect(result.players[0].memberSlots.memberBelow[SlotPosition.LEFT]).toEqual([]);
+    expect(result.players[0].energyDeck.cardIds).toContain(energy.instanceId);
     expect(result.players[0].waitingRoom.cardIds).toContain(belowMember.instanceId);
+    expect(result.players[0].waitingRoom.cardIds).not.toContain(energy.instanceId);
+  });
+
+  it('returns energyBelow to energy deck when a normal member placement replaces a main member', () => {
+    const oldMember = createCardInstance(createMemberCard('MEM-OLD'), 'p1', 'old-member');
+    const newMember = createCardInstance(createMemberCard('MEM-NEW'), 'p1', 'new-member');
+    const energy = createCardInstance(createEnergyCard('ENE-OLD'), 'p1', 'energy-old');
+    const belowMember = createCardInstance(createMemberCard('MEM-BELOW'), 'p1', 'member-below');
+    let game = createGameState('member-state-replace-main-member', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [oldMember, newMember, energy, belowMember]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.CENTER, oldMember.instanceId);
+      memberSlots = addEnergyBelowMember(memberSlots, SlotPosition.CENTER, energy.instanceId);
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.CENTER, belowMember.instanceId);
+      return { ...player, memberSlots };
+    });
+
+    const result = addCardToPlayerZone(
+      game,
+      'p1',
+      newMember.instanceId,
+      ZoneType.MEMBER_SLOT,
+      { targetSlot: SlotPosition.CENTER }
+    );
+
+    expect(result.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(newMember.instanceId);
+    expect(result.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(result.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(result.players[0].energyDeck.cardIds).toContain(energy.instanceId);
+    expect(result.players[0].waitingRoom.cardIds).toContain(oldMember.instanceId);
+    expect(result.players[0].waitingRoom.cardIds).toContain(belowMember.instanceId);
+    expect(result.players[0].waitingRoom.cardIds).not.toContain(energy.instanceId);
   });
 
   it('swaps occupied member slots with their attached cards', () => {

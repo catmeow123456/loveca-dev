@@ -167,6 +167,53 @@ describe('card selectors', () => {
     expect(hasunosora(other)).toBe(false);
   });
 
+  it('matches SaintSnow aliases through central groupAliasIs identity fields', () => {
+    const unitName = memberCard('OTHER-SAINTSNOW-UNIT', { unitName: 'SaintSnow' });
+    const unitNameRaw = memberCard('OTHER-SAINTSNOW-UNIT-RAW', { unitNameRaw: 'Saint Snow' });
+    const groupName = memberCard('OTHER-SAINTSNOW-GROUP', { groupName: 'SaintSnow' });
+    const groupNames = memberCard('OTHER-SAINTSNOW-GROUPS', { groupNames: ['Saint Snow'] });
+    const cardText = memberCard('OTHER-SAINTSNOW-TEXT', {
+      cardText: 'このカードは『SaintSnow』のメンバーとして扱う。',
+    });
+    const cardTextJp = memberCard('OTHER-SAINTSNOW-TEXT-JP', {
+      cardTextJp: 'このカードは『Saint Snow』のメンバーとして扱う。',
+    });
+    const cardTextCn = memberCard('OTHER-SAINTSNOW-TEXT-CN', {
+      cardTextCn: '这张卡视为 SaintSnow 成员。',
+    });
+    const other = memberCard('OTHER-NOT-SAINTSNOW', { unitName: 'Aqours' });
+
+    const saintSnow = groupAliasIs('SaintSnow');
+
+    expect(saintSnow(unitName)).toBe(true);
+    expect(saintSnow(unitNameRaw)).toBe(true);
+    expect(saintSnow(groupName)).toBe(true);
+    expect(saintSnow(groupNames)).toBe(true);
+    expect(groupAliasIs('Saint Snow')(cardText)).toBe(true);
+    expect(saintSnow(cardTextJp)).toBe(true);
+    expect(saintSnow(cardTextCn)).toBe(true);
+    expect(saintSnow(other)).toBe(false);
+  });
+
+  it('keeps SaintSnow and Aqours structured identity boundaries ahead of PL!S fallback', () => {
+    const pureSaintSnow = memberCard('PL!S-bp5-111-R', {
+      unitName: 'SaintSnow',
+    });
+    const aqoursAndSaintSnow = memberCard('PL!S-test-aqours-saintsnow', {
+      unitName: 'Aqours/SaintSnow',
+    });
+    const pureAqours = memberCard('PL!S-test-aqours', {
+      unitName: 'Aqours',
+    });
+
+    expect(groupAliasIs('SaintSnow')(pureSaintSnow)).toBe(true);
+    expect(groupAliasIs('Aqours')(pureSaintSnow)).toBe(false);
+    expect(groupAliasIs('SaintSnow')(aqoursAndSaintSnow)).toBe(true);
+    expect(groupAliasIs('Aqours')(aqoursAndSaintSnow)).toBe(true);
+    expect(groupAliasIs('Aqours')(pureAqours)).toBe(true);
+    expect(groupAliasIs('SaintSnow')(pureAqours)).toBe(false);
+  });
+
   it('does not match unknown group aliases through groupAliasIs', () => {
     const customGroup = memberCard('OTHER-CUSTOM-GROUP', {
       groupName: 'Custom School Idol Club',

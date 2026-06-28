@@ -37,6 +37,8 @@ export interface CardAbilityDefinition {
   readonly triggerFromZones?: readonly ZoneType[];
   readonly triggerToZones?: readonly ZoneType[];
   readonly perTurnLimit?: number;
+  readonly observerOnly?: boolean;
+  readonly skipQueueWhenTurnLimitReached?: boolean;
   readonly activatedUi?: ActivatedAbilityUiConfig;
   readonly notes?: string;
 }

@@ -11,9 +11,15 @@ import {
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
 } from '../../ability-ids.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartManualPendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 import { countStageMembers } from '../../../effects/conditions.js';
 import {
   clearInspectionCards,
@@ -52,6 +58,7 @@ export interface ArrangeInspectedDeckTopConfig {
   readonly selectedDestination: InspectedCardDestination;
   readonly unselectedDestination: InspectedCardDestination;
   readonly orderedResolution: boolean;
+  readonly starterOptions?: PendingAbilityStarterOptions;
 }
 
 const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedDeckTopConfig[] = [
@@ -106,6 +113,7 @@ export function registerArrangeInspectedDeckTopWorkflowHandlers(): void {
           selectedDestination: 'MAIN_DECK_TOP',
           unselectedDestination: 'WAITING_ROOM',
           orderedResolution: options.orderedResolution === true,
+          starterOptions: options,
         },
         context.continuePendingCardEffects
       )
@@ -131,6 +139,12 @@ export function startArrangeInspectedDeckTopWorkflow(
   }
 
   if (player.mainDeck.cardIds.length === 0) {
+    const manualConfirmation = config.starterOptions
+      ? maybeStartManualPendingAbilityConfirmation(game, config.ability, config.starterOptions)
+      : null;
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter(

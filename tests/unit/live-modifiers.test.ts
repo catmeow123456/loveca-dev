@@ -11,6 +11,7 @@ import {
   type LiveModifierState,
 } from '../../src/domain/entities/game';
 import {
+  addEnergyBelowMember,
   addCardToStatefulZone,
   addCardToZone,
   addMemberBelowMember,
@@ -26,6 +27,7 @@ import {
   getLiveCardScoreModifier,
   getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
+  getPlayerLiveBladeModifier,
   getPlayerLiveHeartModifiers,
   getPlayerLiveScoreModifier,
   projectLiveModifierCompatibility,
@@ -46,6 +48,8 @@ const HS_BP5_002_CONTINUOUS_ABILITY_ID =
 const HS_BP5_007_CONTINUOUS_ABILITY_ID = 'PL!HS-bp5-007:continuous-other-edelnote-member-blade';
 const HS_BP2_006_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp2-006:continuous-other-miracra-stage-member-blade';
+const PL_N_PB1_011_CONTINUOUS_ABILITY_ID =
+  'PL!N-pb1-011:continuous-energy-below-gain-blade';
 const HS_BP5_016_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-016-N:continuous-opponent-two-waiting-purple-heart';
 const HS_PB1_007_CONTINUOUS_ABILITY_ID =
@@ -412,6 +416,41 @@ describe('live modifier helpers', () => {
     expect(getMemberEffectiveHeartIcons(game, 'p1', shioriko.instanceId)).toEqual([
       createHeartIcon(HeartColor.BLUE, 1),
     ]);
+  });
+
+  it('replaces a member printed original BLADE count before appending BLADE modifiers', () => {
+    const kanon = createCardInstance(
+      {
+        cardCode: 'PL!SP-bp4-025-test-member',
+        name: '澁谷かのん',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 5,
+        hearts: [createHeartIcon(HeartColor.RED, 1)],
+      },
+      'p1',
+      'kanon'
+    );
+    let game = createGameState('original-blade-replacement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kanon]);
+    game = addLiveModifier(game, {
+      kind: 'MEMBER_ORIGINAL_BLADE_REPLACEMENT',
+      playerId: 'p1',
+      memberCardId: kanon.instanceId,
+      count: 3,
+      sourceCardId: 'special-color',
+      abilityId: 'replace-original-blade',
+    });
+    game = addLiveModifier(game, {
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: kanon.instanceId,
+      abilityId: 'bonus-blade',
+    });
+
+    expect(getMemberEffectiveBladeCount(game, 'p1', kanon.instanceId)).toBe(5);
+    expect(getPlayerLiveBladeModifier(game.liveResolution, 'p1')).toBe(2);
   });
 
   it('replaces existing original Heart replacement modifiers by source and ability', () => {
@@ -4160,3 +4199,117 @@ function createHasunosoraLiveData(cardCode: string, name: string, score = 1) {
     cardText: 'Hasunosora のLIVE。',
   };
 }
+
+describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
+  function setupMiaEnergyBelowScenario(options: {
+    readonly energyBelowCount?: number;
+    readonly sourcePlacement?: 'STAGE' | 'MEMBER_BELOW' | 'OFF_STAGE';
+    readonly addEnergyBelowOtherSlot?: boolean;
+    readonly sourceOwner?: 'p1' | 'p2';
+  } = {}) {
+    const sourceOwner = options.sourceOwner ?? 'p1';
+    const mia = createCardInstance(
+      {
+        cardCode: 'PL!N-pb1-011-R',
+        name: 'ミア・テイラー',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 5,
+        hearts: [createHeartIcon(HeartColor.BLUE, 2)],
+        groupName: '虹ヶ咲',
+      },
+      sourceOwner,
+      'mia'
+    );
+    const host = createCardInstance(
+      {
+        cardCode: 'HOST-MEMBER',
+        name: 'Host',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'host'
+    );
+    const energies = Array.from({ length: 3 }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `ENE-${index}`,
+          name: `Energy ${index}`,
+          cardType: CardType.ENERGY,
+        },
+        'p1',
+        `energy-${index}`
+      )
+    );
+    let game = createGameState('n-pb1-011-continuous', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [mia, host, ...energies]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      if (options.sourcePlacement === 'MEMBER_BELOW') {
+        memberSlots = addMemberBelowMember(
+          placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          mia.instanceId
+        );
+      } else if (options.sourcePlacement !== 'OFF_STAGE') {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, mia.instanceId);
+      }
+      for (const energy of energies.slice(0, options.energyBelowCount ?? 0)) {
+        memberSlots = addEnergyBelowMember(memberSlots, SlotPosition.CENTER, energy.instanceId);
+      }
+      if (options.addEnergyBelowOtherSlot === true) {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, host.instanceId);
+        memberSlots = addEnergyBelowMember(memberSlots, SlotPosition.LEFT, energies[2]!.instanceId);
+      }
+      return { ...player, memberSlots };
+    });
+    return { game, mia };
+  }
+
+  it('grants BLADE equal to the number of energy cards below this member', () => {
+    for (const [energyBelowCount, expectedDelta] of [
+      [0, 0],
+      [1, 1],
+      [2, 2],
+    ] as const) {
+      const { game, mia } = setupMiaEnergyBelowScenario({ energyBelowCount });
+      const modifiers = collectLiveModifiers(game).filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId === PL_N_PB1_011_CONTINUOUS_ABILITY_ID
+      );
+      if (expectedDelta === 0) {
+        expect(modifiers).toEqual([]);
+      } else {
+        expect(modifiers).toContainEqual({
+          kind: 'BLADE',
+          playerId: 'p1',
+          countDelta: expectedDelta,
+          sourceCardId: mia.instanceId,
+          abilityId: PL_N_PB1_011_CONTINUOUS_ABILITY_ID,
+        });
+      }
+      expect(getMemberEffectiveBladeCount(game, 'p1', mia.instanceId)).toBe(5 + expectedDelta);
+    }
+  });
+
+  it('does not count energy below other slots, off-stage sources, memberBelow sources, or opponent-owned cards', () => {
+    for (const scenario of [
+      setupMiaEnergyBelowScenario({ energyBelowCount: 0, addEnergyBelowOtherSlot: true }),
+      setupMiaEnergyBelowScenario({ energyBelowCount: 2, sourcePlacement: 'OFF_STAGE' }),
+      setupMiaEnergyBelowScenario({ energyBelowCount: 2, sourcePlacement: 'MEMBER_BELOW' }),
+      setupMiaEnergyBelowScenario({ energyBelowCount: 2, sourceOwner: 'p2' }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'BLADE' &&
+            modifier.abilityId === PL_N_PB1_011_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+});

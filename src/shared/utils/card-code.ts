@@ -257,6 +257,7 @@ const SPECIAL_MEMBER_PATTERNS = [
   /^PL!HS-pb1-002-/,
   /^PL!N-PR-026-/,
   /^PL!SP-pb2-005-/,
+  /^PL!SP-pb2-006-/,
 ];
 
 /**

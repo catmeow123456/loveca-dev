@@ -7,7 +7,11 @@ import {
   type MemberCardData,
 } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
-import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
+import {
+  addMemberBelowMember,
+  placeCardInSlot,
+  removeCardFromSlot,
+} from '../../src/domain/entities/zone';
 import { addMemberCostLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
 import {
   cardNameAliasIs,
@@ -408,6 +412,56 @@ describe('effect conditions', () => {
     }));
 
     expect(getMemberEffectiveCost(game, 'p1', hanayoR.instanceId)).toBe(7);
+  });
+
+  it('adds PL!SP-pb2-006 cost by same-slot memberBelow Liella members only while on stage', () => {
+    const kinako = memberCard('sp-pb2-006-kinako', {
+      cardCode: 'PL!SP-pb2-006-R',
+      name: '桜小路きな子',
+      cost: 2,
+      groupName: 'Liella!',
+    });
+    const liellaA = memberCard('sp-pb2-006-liella-a', {
+      cardCode: 'PL!SP-pb2-006-liella-a',
+      groupName: 'Liella!',
+    });
+    const liellaB = memberCard('sp-pb2-006-liella-b', {
+      cardCode: 'PL!SP-pb2-006-liella-b',
+      groupName: 'ラブライブ！スーパースター!!',
+    });
+    const nonLiella = memberCard('sp-pb2-006-non-liella', {
+      cardCode: 'PL!N-pb2-006-non-liella',
+      groupName: '虹咲学園スクールアイドル同好会',
+    });
+    const liveBelow = liveCard('sp-pb2-006-live-below', { groupName: 'Liella!' });
+    const otherSlotLiella = memberCard('sp-pb2-006-other-slot-liella', {
+      cardCode: 'PL!SP-pb2-006-other-slot-liella',
+      groupName: 'Liella!',
+    });
+
+    let game = createGameState('conditions-sp-pb2-006-cost', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kinako, liellaA, liellaB, nonLiella, liveBelow, otherSlotLiella]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kinako.instanceId);
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.CENTER, liellaA.instanceId);
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.CENTER, liellaB.instanceId);
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.CENTER, nonLiella.instanceId);
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.CENTER, liveBelow.instanceId);
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.RIGHT, otherSlotLiella.instanceId);
+      return { ...player, memberSlots };
+    });
+
+    expect(getMemberEffectiveCost(game, 'p1', kinako.instanceId)).toBe(4);
+
+    const offStage = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [kinako.instanceId],
+      },
+    }));
+    expect(getMemberEffectiveCost(offStage, 'p1', kinako.instanceId)).toBe(2);
   });
 
   it('reads temporary member cost live modifiers through the application condition helper', () => {

@@ -22,6 +22,10 @@ type MemberOriginalHeartReplacementModifierState = Extract<
   LiveModifierState,
   { readonly kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT' }
 >;
+type MemberOriginalBladeReplacementModifierState = Extract<
+  LiveModifierState,
+  { readonly kind: 'MEMBER_ORIGINAL_BLADE_REPLACEMENT' }
+>;
 type BladeModifierState = Extract<LiveModifierState, { readonly kind: 'BLADE' }>;
 type MemberCostModifierState = Extract<LiveModifierState, { readonly kind: 'MEMBER_COST' }>;
 type RequirementModifierState = Extract<LiveModifierState, { readonly kind: 'REQUIREMENT' }>;
@@ -108,6 +112,8 @@ const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
 const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
   'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
+const PL_N_PB1_011_CONTINUOUS_ENERGY_BELOW_GAIN_BLADE_ABILITY_ID =
+  'PL!N-pb1-011:continuous-energy-below-gain-blade';
 
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
@@ -408,6 +414,23 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
               abilityId: KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID,
             },
           ],
+  },
+  {
+    baseCardCodes: ['PL!N-pb1-011'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const energyBelowCount = countEnergyBelowSourceMember(game, playerId, sourceCardId);
+      return energyBelowCount > 0
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: energyBelowCount,
+              sourceCardId,
+              abilityId: PL_N_PB1_011_CONTINUOUS_ENERGY_BELOW_GAIN_BLADE_ABILITY_ID,
+            },
+          ]
+        : [];
+    },
   },
   {
     baseCardCodes: ['PL!N-PR-024', 'PL!S-PR-039'],
@@ -883,6 +906,22 @@ function isSourceStageMemberInSlot(
 function isSourceMainStageMember(game: GameState, playerId: string, sourceCardId: string): boolean {
   const player = game.players.find((candidate) => candidate.id === playerId);
   return MEMBER_SLOT_ORDER.some((slot) => player?.memberSlots.slots[slot] === sourceCardId);
+}
+
+function countEnergyBelowSourceMember(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): number {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  const sourceCard = getCardById(game, sourceCardId);
+  if (!player || sourceCard?.ownerId !== playerId || !isMemberCardData(sourceCard.data)) {
+    return 0;
+  }
+  const sourceSlot = MEMBER_SLOT_ORDER.find(
+    (slot) => player.memberSlots.slots[slot] === sourceCardId
+  );
+  return sourceSlot ? (player.memberSlots.energyBelow[sourceSlot]?.length ?? 0) : 0;
 }
 
 function countPlayerEnergyCards(game: GameState, playerId: string): number {
@@ -1504,7 +1543,14 @@ export function getMemberEffectiveBladeCount(
     .filter((modifier) => modifier.sourceCardId === sourceCardId)
     .reduce((total, modifier) => total + modifier.countDelta, 0);
 
-  return Math.max(0, sourceCard.data.blade + modifierBladeCount);
+  const replacement = getLatestMemberOriginalBladeReplacementModifier(
+    playerId,
+    sourceCardId,
+    liveModifiers
+  );
+  const originalBladeCount = replacement ? replacement.count : sourceCard.data.blade;
+
+  return Math.max(0, originalBladeCount + modifierBladeCount);
 }
 
 export function getMemberEffectiveHeartIcons(
@@ -1550,6 +1596,24 @@ function getLatestMemberOriginalHeartReplacementModifier(
   for (const modifier of liveModifiers) {
     if (
       modifier.kind === 'MEMBER_ORIGINAL_HEART_REPLACEMENT' &&
+      modifier.playerId === playerId &&
+      modifier.memberCardId === memberCardId
+    ) {
+      latest = modifier;
+    }
+  }
+  return latest;
+}
+
+function getLatestMemberOriginalBladeReplacementModifier(
+  playerId: string,
+  memberCardId: string,
+  liveModifiers: readonly LiveModifierState[]
+): MemberOriginalBladeReplacementModifierState | null {
+  let latest: MemberOriginalBladeReplacementModifierState | null = null;
+  for (const modifier of liveModifiers) {
+    if (
+      modifier.kind === 'MEMBER_ORIGINAL_BLADE_REPLACEMENT' &&
       modifier.playerId === playerId &&
       modifier.memberCardId === memberCardId
     ) {

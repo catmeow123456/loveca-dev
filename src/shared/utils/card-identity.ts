@@ -1,10 +1,15 @@
 export interface CardIdentityLike {
   readonly cardCode?: string;
   readonly groupName?: string;
+  readonly groupNames?: readonly string[];
+  readonly unitName?: string;
+  readonly unitNameRaw?: string;
   readonly cardText?: string;
+  readonly cardTextJp?: string;
+  readonly cardTextCn?: string;
 }
 
-export type GroupIdentityName = "μ's" | '蓮ノ空' | 'Liella!' | '虹ヶ咲' | 'Aqours';
+export type GroupIdentityName = "μ's" | '蓮ノ空' | 'Liella!' | '虹ヶ咲' | 'Aqours' | 'SaintSnow';
 
 const GROUP_IDENTITY_GROUPS: readonly {
   readonly canonicalName: GroupIdentityName;
@@ -27,6 +32,11 @@ const GROUP_IDENTITY_GROUPS: readonly {
     canonicalName: 'Aqours',
     aliases: ['Aqours', 'ラブライブ！サンシャイン!!'],
     cardCodePrefixes: ['PL!S-'],
+  },
+  {
+    canonicalName: 'SaintSnow',
+    aliases: ['SaintSnow', 'Saint Snow'],
+    cardCodePrefixes: [],
   },
 ];
 
@@ -53,6 +63,7 @@ export function getKnownCardGroupIdentityName(
 
 function getGroupIdentity(groupName: string):
   | {
+      readonly canonicalName: GroupIdentityName;
       readonly aliases: readonly string[];
       readonly cardCodePrefixes: readonly string[];
     }
@@ -66,16 +77,52 @@ function getGroupIdentity(groupName: string):
 function cardMatchesGroupIdentity(
   card: CardIdentityLike,
   groupIdentity: {
+    readonly canonicalName: GroupIdentityName;
     readonly aliases: readonly string[];
     readonly cardCodePrefixes: readonly string[];
   }
 ): boolean {
+  if (
+    groupIdentity.canonicalName === 'Aqours' &&
+    hasStructuredGroupIdentity(card, 'SaintSnow') &&
+    !hasStructuredGroupIdentity(card, 'Aqours')
+  ) {
+    return false;
+  }
+
   const normalizedAliases = groupIdentity.aliases.map((alias) => normalizeGroupIdentityText(alias));
   return (
-    matchesAnyNormalizedAlias(card.groupName, normalizedAliases) ||
-    matchesAnyNormalizedAlias(card.cardText, normalizedAliases) ||
+    getCardIdentityTextCandidates(card).some((value) =>
+      matchesAnyNormalizedAlias(value, normalizedAliases)
+    ) ||
     groupIdentity.cardCodePrefixes.some((prefix) => card.cardCode?.startsWith(prefix) === true)
   );
+}
+
+function hasStructuredGroupIdentity(card: CardIdentityLike, groupName: string): boolean {
+  const groupIdentity = getGroupIdentity(groupName);
+  if (!groupIdentity) {
+    return false;
+  }
+  const normalizedAliases = groupIdentity.aliases.map((alias) => normalizeGroupIdentityText(alias));
+  return getStructuredIdentityTextCandidates(card).some((value) =>
+    matchesAnyNormalizedAlias(value, normalizedAliases)
+  );
+}
+
+function getCardIdentityTextCandidates(card: CardIdentityLike): readonly (string | undefined)[] {
+  return [
+    ...getStructuredIdentityTextCandidates(card),
+    card.cardText,
+    card.cardTextJp,
+    card.cardTextCn,
+  ];
+}
+
+function getStructuredIdentityTextCandidates(
+  card: CardIdentityLike
+): readonly (string | undefined)[] {
+  return [card.groupName, ...(card.groupNames ?? []), card.unitName, card.unitNameRaw];
 }
 
 function matchesAnyNormalizedAlias(

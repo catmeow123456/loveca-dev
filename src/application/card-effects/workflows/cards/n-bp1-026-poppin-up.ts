@@ -13,8 +13,14 @@ import {
 } from '../../../effects/cheer-selection.js';
 import { PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID } from '../../ability-ids.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from '../../runtime/starter-registry.js';
+import {
+  getAbilityEffectText,
+  maybeStartManualPendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 const SELECT_NIJIGASAKI_REVEALED_CHEER_STEP_ID =
   'PL_N_BP1_026_SELECT_NIJIGASAKI_REVEALED_CHEER_TO_HAND';
@@ -29,7 +35,7 @@ export function registerNBp1026PoppinUpWorkflowHandlers(): void {
       startNBp1026PoppinUpSelection(
         game,
         ability,
-        options.orderedResolution === true,
+        options,
         context.continuePendingCardEffects
       )
   );
@@ -49,7 +55,7 @@ export function registerNBp1026PoppinUpWorkflowHandlers(): void {
 function startNBp1026PoppinUpSelection(
   game: GameState,
   ability: PendingAbilityState,
-  orderedResolution: boolean,
+  options: PendingAbilityStarterOptions,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
@@ -59,6 +65,10 @@ function startNBp1026PoppinUpSelection(
 
   const scoreComparison = getLiveScoreComparison(game, player.id);
   if (!scoreComparison.conditionMet) {
+    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
     const state = removePendingAbility(game, ability.id);
     return continuePendingCardEffects(
       addAction(state, 'RESOLVE_ABILITY', player.id, {
@@ -68,12 +78,16 @@ function startNBp1026PoppinUpSelection(
         step: 'CONDITION_NOT_MET',
         ...scoreComparison,
       }),
-      orderedResolution
+      options.orderedResolution === true
     );
   }
 
   const selectableCardIds = selectNijigasakiRevealedCheerCardIds(game, player.id);
   if (selectableCardIds.length === 0) {
+    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
     const state = removePendingAbility(game, ability.id);
     return continuePendingCardEffects(
       addAction(state, 'RESOLVE_ABILITY', player.id, {
@@ -84,7 +98,7 @@ function startNBp1026PoppinUpSelection(
         selectableCardIds,
         ...scoreComparison,
       }),
-      orderedResolution
+      options.orderedResolution === true
     );
   }
 
@@ -107,7 +121,7 @@ function startNBp1026PoppinUpSelection(
       canSkipSelection: false,
       metadata: {
         [POPPIN_UP_METADATA_KEY]: true,
-        orderedResolution,
+        orderedResolution: options.orderedResolution === true,
         ...scoreComparison,
       },
     },

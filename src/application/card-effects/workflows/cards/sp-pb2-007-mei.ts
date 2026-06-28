@@ -14,10 +14,14 @@ import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
+  maybeStartManualPendingAbilityConfirmation,
   recordPayCostAction,
 } from '../../runtime/workflow-helpers.js';
 import { SP_PB2_007_LIVE_SUCCESS_PAY_THREE_ENERGY_RECOVER_LIELLA_LIVE_ABILITY_ID } from '../../ability-ids.js';
@@ -35,7 +39,7 @@ export function registerSpPb2007MeiWorkflowHandlers(): void {
       startSpPb2007MeiLiveSuccess(
         game,
         ability,
-        options.orderedResolution === true,
+        options,
         context.continuePendingCardEffects
       )
   );
@@ -66,7 +70,7 @@ export function registerSpPb2007MeiWorkflowHandlers(): void {
 function startSpPb2007MeiLiveSuccess(
   game: GameState,
   ability: PendingAbilityState,
-  orderedResolution: boolean,
+  options: PendingAbilityStarterOptions,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
@@ -77,11 +81,15 @@ function startSpPb2007MeiLiveSuccess(
   const activeEnergyCardIds = getActiveEnergyCardIds(player);
   const selectableCardIds = getLiellaLiveWaitingRoomCardIds(game, player.id);
   if (activeEnergyCardIds.length < ENERGY_COST || selectableCardIds.length === 0) {
+    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
     return finishPendingAbility(
       game,
       ability,
       player.id,
-      orderedResolution,
+      options.orderedResolution === true,
       {
         step: 'NO_OP_PAY_THREE_ENERGY_RECOVER_LIELLA_LIVE',
         reason: activeEnergyCardIds.length < ENERGY_COST ? 'INSUFFICIENT_ACTIVE_ENERGY' : 'NO_TARGET',
@@ -109,7 +117,7 @@ function startSpPb2007MeiLiveSuccess(
         { id: 'decline', label: '不发动' },
       ],
       metadata: {
-        orderedResolution,
+        orderedResolution: options.orderedResolution === true,
         activeEnergyCardIds,
         selectableCardIds,
       },

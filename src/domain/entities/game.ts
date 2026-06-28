@@ -200,6 +200,15 @@ export type LiveModifierState =
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
+      readonly kind: 'MEMBER_ORIGINAL_BLADE_REPLACEMENT';
+      readonly playerId: string;
+      readonly memberCardId: string;
+      readonly count: number;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
       readonly kind: 'BLADE';
       readonly playerId: string;
       readonly countDelta: number;

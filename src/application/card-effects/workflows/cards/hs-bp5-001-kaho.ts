@@ -122,7 +122,11 @@ function startHsBp5KahoOnEnterMillGainBladeInspection(
     typeIs(CardType.LIVE)
   );
   const liveCardIds = hasLiveCard
-    ? getCardIdsMatchingSelector(millResult.gameState, milledCardIds, typeIs(CardType.LIVE))
+    ? [
+        ...new Set(
+          getCardIdsMatchingSelector(millResult.gameState, milledCardIds, typeIs(CardType.LIVE))
+        ),
+      ]
     : [];
   const bladeBonus = hasLiveCard ? 2 : 0;
   const refreshText = millResult.refreshCount > 0 ? '期间发生卡组更新。' : '';

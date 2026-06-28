@@ -26,6 +26,14 @@ git log --oneline -8
 wc -l src/application/card-effect-runner.ts
 ```
 
+审查执行窗口结果时，还必须检查：
+
+```bash
+git diff -- src/application/card-effect-runner.ts
+```
+
+不要只凭 runner 行数或“只增加必要胶水”的描述判断；必须看 diff 性质。
+
 如用户指定从某个 commit、分支或 PR 开始审查，先用本地 git 信息确认真实范围；不要凭提示词假设。
 
 ## 权威顺序
@@ -63,6 +71,7 @@ wc -l src/application/card-effect-runner.ts
 - `card-effect-runner.ts` 去中心化的主要迁移已经完成，完整卡效 fallback 不应回流。
 - runner 可保留 workflow handler import/register、pending/activeEffect 生命周期入口、trigger/activated 调度入口、`enqueueTriggeredCardEffects` 及尚未迁出的 trigger/relay/matcher 胶水。
 - 新卡效不应把完整流程写回 runner。按当前模式需要在 runner 做薄注册可以接受，但 diff 应限于 import/register/极薄 dispatch。
+- runner 中不应出现新卡专属的长段 gate、predicate、pending 构造、observer 主体或结算逻辑。resolved-ability observer 也必须通过 workflow/runtime registry 注册；runner 只允许调用通用 hook。
 - trigger matcher 仍是纯 matcher；除非用户明确开启 T-2，不接 runner、不替换生产 enqueue 路径、不改变 pending 创建。
 - steps-lite 只用于真实重复 workflow family 稳定后的 typed builder，不做完整 DSL 或解释器。
 
@@ -131,8 +140,18 @@ wc -l src/application/card-effect-runner.ts
 - 新增卡效是否只在 runner 做薄注册或极薄 dispatch。
 - 是否新增完整 start/finish/step 业务流程到 runner。
 - 是否新增大块 abilityId / stepId if/else。
+- 是否新增卡牌专属 gate、predicate、pending 构造、observer 主体或结算逻辑到 runner。
 - 是否改了 pending 顺序、pending continuation、事件消费时机、费用语义或费用支付时机。
 - runner 行数增长是否合理；注册增长可接受，业务逻辑增长要阻止。
+- 审查执行窗口结果时必须查看 `git diff -- src/application/card-effect-runner.ts`，并将 runner 改动分类：
+  1. import/register 胶水；
+  2. 通用 runtime/registry hook；
+  3. 薄 exact-observer hook 调用；
+  4. 卡牌专属 gate / predicate / pending 构造 / observer 主体 / effect body。
+- 只有 1/2 默认可接受；3 只有在卡牌专属 observer 主体已注册在 runner 外部时可接受；4 默认是阻塞问题，提交或 PR 前必须迁出 runner。
+- 单批 runner 净增超过约 25 行时，要解释每个非 import/register 新增；超过约 50 行且 diff 含具体 abilityId、cardCode、团体名、位置门禁或 pending 构造时，默认按 runner 回流处理。
+- resolved-ability observer 允许存在，但必须是窄注册式 observer。runner 可以调用类似 `enqueueResolvedAbilityObserverCardEffects(game)` 的通用 hook，不应直接包含具体卡牌、团体、中心位置或 abilityId 的判断。
+- 执行窗口收尾不能只写“runner 只增加必要胶水”；必须报告 runner 行数变化和 runner diff 分类。
 
 ### Workflow 边界
 

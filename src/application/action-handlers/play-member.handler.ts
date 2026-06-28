@@ -23,6 +23,7 @@ import {
 } from '../../domain/entities/zone.js';
 import { canMemberBeRelayedAway } from '../../domain/rules/cost-calculator.js';
 import { getMemberEffectiveCost } from '../effects/conditions.js';
+import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../effects/energy-below.js';
 import { canUseDoubleRelay } from '../../shared/rules/double-relay.js';
 
 interface RelayReplacementExecution {
@@ -86,7 +87,15 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
     state = updatePlayer(state, playerId, (p) => {
       let newSlots = p.memberSlots;
       let newWaitingRoom = p.waitingRoom;
+      let updatedPlayer = p;
       for (const replacement of replacements) {
+        const energyReturnResult = returnEnergyBelowMemberToEnergyDeckForPlayer(
+          { ...updatedPlayer, memberSlots: newSlots, waitingRoom: newWaitingRoom },
+          replacement.slot
+        );
+        updatedPlayer = energyReturnResult.playerState;
+        newSlots = updatedPlayer.memberSlots;
+        newWaitingRoom = updatedPlayer.waitingRoom;
         const [slotsWithoutMemberBelow, memberBelowIds] = popMemberBelowMember(
           newSlots,
           replacement.slot
@@ -97,7 +106,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
           memberBelowIds
         );
       }
-      return { ...p, memberSlots: newSlots, waitingRoom: newWaitingRoom };
+      return { ...updatedPlayer, memberSlots: newSlots, waitingRoom: newWaitingRoom };
     });
     for (const replacement of replacements) {
       state = emitGameEvent(

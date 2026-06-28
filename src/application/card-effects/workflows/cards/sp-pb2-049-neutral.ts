@@ -11,6 +11,7 @@ import { OrientationState } from '../../../../shared/types/enums.js';
 import { unitAliasIs } from '../../../effects/card-selectors.js';
 import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { maybeStartManualPendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
 import {
   SP_PB2_049_LIVE_SUCCESS_CHEER_KALEIDOSCORE_FIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_PB2_049_LIVE_SUCCESS_ENERGY_ELEVEN_THIS_LIVE_SCORE_ABILITY_ID,
@@ -21,23 +22,33 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 export function registerSpPb2049NeutralWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_PB2_049_LIVE_SUCCESS_CHEER_KALEIDOSCORE_FIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveCheerKaleidoscorePlaceWaitingEnergy(
+    (game, ability, options, context) => {
+      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+      if (manualConfirmation) {
+        return manualConfirmation;
+      }
+      return resolveCheerKaleidoscorePlaceWaitingEnergy(
         game,
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      );
+    }
   );
   registerPendingAbilityStarterHandler(
     SP_PB2_049_LIVE_SUCCESS_ENERGY_ELEVEN_THIS_LIVE_SCORE_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveEnergyElevenThisLiveScore(
+    (game, ability, options, context) => {
+      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+      if (manualConfirmation) {
+        return manualConfirmation;
+      }
+      return resolveEnergyElevenThisLiveScore(
         game,
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      );
+    }
   );
 }
 

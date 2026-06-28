@@ -35,6 +35,7 @@ import {
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
+import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../../../effects/energy-below.js';
 import { PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import {
@@ -319,18 +320,23 @@ function playKasumiFromWaitingRoomToStageSlot(
   let state = game;
   if (replacedMemberCardId && replacedMemberCard) {
     state = updatePlayer(state, playerId, (currentPlayer) => {
+      const energyReturnResult = returnEnergyBelowMemberToEnergyDeckForPlayer(
+        currentPlayer,
+        targetSlot
+      );
+      const playerWithReturnedEnergy = energyReturnResult.playerState;
       const [slotsWithoutMemberBelow, memberBelowIds] = popMemberBelowMember(
-        currentPlayer.memberSlots,
+        playerWithReturnedEnergy.memberSlots,
         targetSlot
       );
       replacedMemberBelowIds = memberBelowIds;
       const slotsWithoutReplacedMember = removeCardFromSlot(slotsWithoutMemberBelow, targetSlot);
       const waitingRoom = addCardsToZone(
-        addCardToZone(currentPlayer.waitingRoom, replacedMemberCardId),
+        addCardToZone(playerWithReturnedEnergy.waitingRoom, replacedMemberCardId),
         memberBelowIds
       );
       return {
-        ...currentPlayer,
+        ...playerWithReturnedEnergy,
         memberSlots: slotsWithoutReplacedMember,
         waitingRoom,
       };

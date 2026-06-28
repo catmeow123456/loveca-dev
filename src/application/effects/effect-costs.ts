@@ -8,6 +8,7 @@ import {
 import { removeCardFromSlot } from '../../domain/entities/zone.js';
 import { createLeaveStageEvent } from '../../domain/events/game-events.js';
 import { OrientationState, SlotPosition, ZoneType } from '../../shared/types/enums.js';
+import { returnEnergyBelowMemberToEnergyDeckForPlayer } from './energy-below.js';
 import { setMemberOrientation } from './member-state.js';
 
 export type EffectCostDefinition =
@@ -140,27 +141,36 @@ export function payImmediateEffectCosts(
           return null;
         }
         const sourceCard = getCardById(state, sourceCardId);
-        const energyBelowCardIds = player.memberSlots.energyBelow[slot] ?? [];
         const memberBelowCardIds = player.memberSlots.memberBelow[slot] ?? [];
-        const cardIdsForCost = [sourceCardId, ...energyBelowCardIds, ...memberBelowCardIds];
-        state = updatePlayer(state, playerId, (currentPlayer) => ({
-          ...currentPlayer,
-          waitingRoom: {
-            ...currentPlayer.waitingRoom,
-            cardIds: [...currentPlayer.waitingRoom.cardIds, ...cardIdsForCost],
-          },
-          memberSlots: {
-            ...removeCardFromSlot(currentPlayer.memberSlots, slot),
-            energyBelow: {
-              ...currentPlayer.memberSlots.energyBelow,
-              [slot]: [],
+        const cardIdsForWaitingRoom = [sourceCardId, ...memberBelowCardIds];
+        state = updatePlayer(state, playerId, (currentPlayer) => {
+          const energyReturnResult = returnEnergyBelowMemberToEnergyDeckForPlayer(
+            currentPlayer,
+            slot
+          );
+          const playerWithReturnedEnergy = energyReturnResult.playerState;
+          const memberSlotsWithoutSource = removeCardFromSlot(
+            playerWithReturnedEnergy.memberSlots,
+            slot
+          );
+          return {
+            ...playerWithReturnedEnergy,
+            waitingRoom: {
+              ...playerWithReturnedEnergy.waitingRoom,
+              cardIds: [
+                ...playerWithReturnedEnergy.waitingRoom.cardIds,
+                ...cardIdsForWaitingRoom,
+              ],
             },
-            memberBelow: {
-              ...currentPlayer.memberSlots.memberBelow,
-              [slot]: [],
+            memberSlots: {
+              ...memberSlotsWithoutSource,
+              memberBelow: {
+                ...memberSlotsWithoutSource.memberBelow,
+                [slot]: [],
+              },
             },
-          },
-        }));
+          };
+        });
         if (sourceCard) {
           state = emitGameEvent(
             state,
@@ -174,7 +184,7 @@ export function payImmediateEffectCosts(
           );
         }
         sourceSlot = slot;
-        movedToWaitingRoomCardIds.push(...cardIdsForCost);
+        movedToWaitingRoomCardIds.push(...cardIdsForWaitingRoom);
         break;
       }
 

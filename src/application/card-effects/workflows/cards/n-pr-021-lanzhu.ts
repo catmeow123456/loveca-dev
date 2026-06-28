@@ -24,9 +24,15 @@ import {
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartManualPendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 const N_PR_021_SELECT_DISCARD_STEP_ID = 'N_PR_021_SELECT_DISCARD_FOR_REVEALED_CHEER';
 const N_PR_021_SELECT_REVEALED_CHEER_STEP_ID =
@@ -43,7 +49,7 @@ export function registerNPr021LanzhuWorkflowHandlers(deps: {
       startNPr021LanzhuLiveSuccess(
         game,
         ability,
-        options.orderedResolution === true,
+        options,
         context.continuePendingCardEffects
       )
   );
@@ -77,7 +83,7 @@ export function registerNPr021LanzhuWorkflowHandlers(deps: {
 function startNPr021LanzhuLiveSuccess(
   game: GameState,
   ability: PendingAbilityState,
-  orderedResolution: boolean,
+  options: PendingAbilityStarterOptions,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
@@ -85,21 +91,29 @@ function startNPr021LanzhuLiveSuccess(
     ? getSourceMemberSlot(game, player.id, ability.sourceCardId)
     : null;
   if (!player || sourceSlot === null) {
+    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
     return skipPendingAbility(
       game,
       ability,
       ability.controllerId,
-      orderedResolution,
+      options.orderedResolution === true,
       continuePendingCardEffects,
       'SOURCE_NOT_ON_STAGE'
     );
   }
   if (player.hand.cardIds.length === 0) {
+    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
     return skipPendingAbility(
       game,
       ability,
       player.id,
-      orderedResolution,
+      options.orderedResolution === true,
       continuePendingCardEffects,
       'NO_HAND_TO_DISCARD'
     );
@@ -116,7 +130,7 @@ function startNPr021LanzhuLiveSuccess(
       ),
       stepId: N_PR_021_SELECT_DISCARD_STEP_ID,
       selectableCardIds: player.hand.cardIds,
-      orderedResolution,
+      orderedResolution: options.orderedResolution === true,
       metadata: {
         sourceSlot,
       },
