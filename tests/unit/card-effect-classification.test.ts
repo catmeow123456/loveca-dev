@@ -15,11 +15,19 @@ import {
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID,
+  BP6_007_LIVE_SUCCESS_REVEAL_TOP_HAND_NO_BLADE_MEMBER_SCORE_ABILITY_ID,
+  BP6_008_ACTIVATED_WAIT_SELF_ACTIVATE_OTHER_MEMBER_ABILITY_ID,
+  BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID,
+  BP6_010_ACTIVATED_SEND_SELF_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
+  BP6_011_LIVE_SUCCESS_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+  BP6_013_ON_ENTER_RECOVER_MUSE_LIVE_IF_SUCCESS_SCORE_SIX_ABILITY_ID,
+  BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID,
   BP6_012_CONTINUOUS_SUCCESS_ZONE_PRINTEMPS_CARD_YELLOW_HEART_ABILITY_ID,
   BP6_014_CONTINUOUS_SUCCESS_ZONE_LILYWHITE_CARD_PINK_HEART_ABILITY_ID,
   BP6_015_CONTINUOUS_SUCCESS_ZONE_BIBI_CARD_PURPLE_HEART_ABILITY_ID,
-  BP6_007_LIVE_SUCCESS_REVEAL_TOP_HAND_NO_BLADE_MEMBER_SCORE_ABILITY_ID,
   BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
+  BP6_021_LIVE_SUCCESS_SEND_MUSE_MEMBER_SCORE_RECOVER_MUSE_LIVE_ABILITY_ID,
+  BP6_023_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_SUCCESS_MUSE_ABILITY_ID,
   BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID,
   BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_ABILITY_ID,
   BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
@@ -807,6 +815,129 @@ describe('card effect classification registry', () => {
         implemented: true,
       });
     }
+
+    for (const cardCode of ['PL!-bp6-008-R', 'PL!-bp6-008-P']) {
+      const bp6008 = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId === BP6_008_ACTIVATED_WAIT_SELF_ACTIVATE_OTHER_MEMBER_ABILITY_ID
+      );
+      expect(bp6008).toMatchObject({
+        abilityId: BP6_008_ACTIVATED_WAIT_SELF_ACTIVATE_OTHER_MEMBER_ABILITY_ID,
+        baseCardCodes: ['PL!-bp6-008'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 1,
+      });
+      expect(bp6008?.activatedUi).toMatchObject({
+        abilityId: BP6_008_ACTIVATED_WAIT_SELF_ACTIVATE_OTHER_MEMBER_ABILITY_ID,
+      });
+    }
+
+    for (const cardCode of ['PL!-bp6-009-R', 'PL!-bp6-009-P']) {
+      const bp6009 = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID
+      );
+      expect(bp6009).toMatchObject({
+        abilityId: BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID,
+        baseCardCodes: ['PL!-bp6-009'],
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+      });
+    }
+
+    const bp6010 = getCardAbilityDefinitions('PL!-bp6-010-N').find(
+      (ability) =>
+        ability.abilityId ===
+        BP6_010_ACTIVATED_SEND_SELF_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID
+    );
+    expect(bp6010).toMatchObject({
+      abilityId: BP6_010_ACTIVATED_SEND_SELF_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
+      baseCardCodes: ['PL!-bp6-010'],
+      category: CardAbilityCategory.ACTIVATED,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      queued: false,
+      implemented: true,
+    });
+    expect(bp6010?.activatedUi).toMatchObject({
+      abilityId: BP6_010_ACTIVATED_SEND_SELF_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
+    });
+
+    const bp6011 = getCardAbilityDefinitions('PL!-bp6-011-N').find(
+      (ability) => ability.abilityId === BP6_011_LIVE_SUCCESS_DRAW_TWO_DISCARD_TWO_ABILITY_ID
+    );
+    expect(bp6011).toMatchObject({
+      abilityId: BP6_011_LIVE_SUCCESS_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+      baseCardCodes: ['PL!-bp6-011'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+    });
+
+    const bp6013 = getCardAbilityDefinitions('PL!-bp6-013-N').find(
+      (ability) =>
+        ability.abilityId === BP6_013_ON_ENTER_RECOVER_MUSE_LIVE_IF_SUCCESS_SCORE_SIX_ABILITY_ID
+    );
+    expect(bp6013).toMatchObject({
+      abilityId: BP6_013_ON_ENTER_RECOVER_MUSE_LIVE_IF_SUCCESS_SCORE_SIX_ABILITY_ID,
+      baseCardCodes: ['PL!-bp6-013'],
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const bp6016 = getCardAbilityDefinitions('PL!-bp6-016-N').find(
+      (ability) =>
+        ability.abilityId === BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID
+    );
+    expect(bp6016).toMatchObject({
+      abilityId: BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID,
+      baseCardCodes: ['PL!-bp6-016'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+    });
+
+    const bp6021 = getCardAbilityDefinitions('PL!-bp6-021-L').find(
+      (ability) =>
+        ability.abilityId ===
+        BP6_021_LIVE_SUCCESS_SEND_MUSE_MEMBER_SCORE_RECOVER_MUSE_LIVE_ABILITY_ID
+    );
+    expect(bp6021).toMatchObject({
+      abilityId: BP6_021_LIVE_SUCCESS_SEND_MUSE_MEMBER_SCORE_RECOVER_MUSE_LIVE_ABILITY_ID,
+      baseCardCodes: ['PL!-bp6-021'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+    });
+
+    const bp6023 = getCardAbilityDefinitions('PL!-bp6-023-L').find(
+      (ability) =>
+        ability.abilityId ===
+        BP6_023_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_SUCCESS_MUSE_ABILITY_ID
+    );
+    expect(bp6023).toMatchObject({
+      abilityId: BP6_023_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_SUCCESS_MUSE_ABILITY_ID,
+      baseCardCodes: ['PL!-bp6-023'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+    });
 
     expect(
       getCardAbilityDefinitions('PL!N-PR-021-PR').find(

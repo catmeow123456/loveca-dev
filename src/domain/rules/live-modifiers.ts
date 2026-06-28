@@ -8,6 +8,7 @@ import type {
   LiveResolutionState,
 } from '../entities/game.js';
 import { getCardById } from '../entities/game.js';
+import { findMemberSlot } from '../entities/player.js';
 import { getAllMemberCardIds } from '../entities/zone.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
@@ -108,6 +109,8 @@ const BP6_014_CONTINUOUS_SUCCESS_ZONE_LILYWHITE_CARD_PINK_HEART_ABILITY_ID =
   'PL!-bp6-014:continuous-success-zone-lilywhite-card-pink-heart';
 const BP6_015_CONTINUOUS_SUCCESS_ZONE_BIBI_CARD_PURPLE_HEART_ABILITY_ID =
   'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
+const BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID =
+  'PL!-bp6-009:continuous-center-side-printed-blade-two-score';
 const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
 const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
@@ -392,6 +395,21 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
           ]
         : [];
     },
+  },
+  {
+    baseCardCodes: ['PL!-bp6-009'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasCenterNicoWithSideOriginalBladeTwoMembers(game, playerId, sourceCardId)
+        ? [
+            {
+              kind: 'SCORE',
+              playerId,
+              countDelta: 1,
+              sourceCardId,
+              abilityId: BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID,
+            },
+          ]
+        : [],
   },
   {
     baseCardCodes: ['PL!HS-pb1-007'],
@@ -1084,6 +1102,31 @@ function hasNamedStageMember(game: GameState, playerId: string, names: readonly 
   });
 }
 
+function hasCenterNicoWithSideOriginalBladeTwoMembers(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player || findMemberSlot(player, sourceCardId) !== SlotPosition.CENTER) {
+    return false;
+  }
+
+  const sideCardIds = [
+    player.memberSlots.slots[SlotPosition.LEFT],
+    player.memberSlots.slots[SlotPosition.RIGHT],
+  ];
+  if (sideCardIds.some((cardId) => cardId === null)) {
+    return false;
+  }
+
+  return sideCardIds.every(
+    (cardId) =>
+      cardId !== null &&
+      getMemberOriginalBladeCount(game, playerId, cardId, game.liveResolution.liveModifiers) === 2
+  );
+}
+
 function hasAtLeastDifferentNamedStageMembers(
   game: GameState,
   playerId: string,
@@ -1551,6 +1594,25 @@ export function getMemberEffectiveBladeCount(
   const originalBladeCount = replacement ? replacement.count : sourceCard.data.blade;
 
   return Math.max(0, originalBladeCount + modifierBladeCount);
+}
+
+export function getMemberOriginalBladeCount(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  liveModifiers: readonly LiveModifierState[] = game.liveResolution.liveModifiers
+): number {
+  const sourceCard = getCardById(game, sourceCardId);
+  if (!sourceCard || !isMemberCardData(sourceCard.data)) {
+    return 0;
+  }
+
+  const replacement = getLatestMemberOriginalBladeReplacementModifier(
+    playerId,
+    sourceCardId,
+    liveModifiers
+  );
+  return Math.max(0, replacement ? replacement.count : sourceCard.data.blade);
 }
 
 export function getMemberEffectiveHeartIcons(

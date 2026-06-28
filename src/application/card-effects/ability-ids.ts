@@ -445,6 +445,18 @@ export const BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID 
   'PL!-bp6-005:on-enter-discard-two-recover-yellow-heart-member-and-live';
 export const BP6_007_LIVE_SUCCESS_REVEAL_TOP_HAND_NO_BLADE_MEMBER_SCORE_ABILITY_ID =
   'PL!-bp6-007:live-success-reveal-top-hand-no-blade-member-score';
+export const BP6_008_ACTIVATED_WAIT_SELF_ACTIVATE_OTHER_MEMBER_ABILITY_ID =
+  'PL!-bp6-008:activated-wait-self-activate-other-member';
+export const BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID =
+  'PL!-bp6-009:continuous-center-side-printed-blade-two-score';
+export const BP6_010_ACTIVATED_SEND_SELF_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID =
+  'PL!-bp6-010:activated-send-self-wait-opponent-cost-lte-four-member';
+export const BP6_011_LIVE_SUCCESS_DRAW_TWO_DISCARD_TWO_ABILITY_ID =
+  'PL!-bp6-011:live-success-draw-two-discard-two';
+export const BP6_013_ON_ENTER_RECOVER_MUSE_LIVE_IF_SUCCESS_SCORE_SIX_ABILITY_ID =
+  'PL!-bp6-013:on-enter-recover-muse-live-if-success-score-six';
+export const BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID =
+  'PL!-bp6-016:live-success-look-top-three-arrange-all-to-top';
 export const BP6_012_CONTINUOUS_SUCCESS_ZONE_PRINTEMPS_CARD_YELLOW_HEART_ABILITY_ID =
   'PL!-bp6-012:continuous-success-zone-printemps-card-yellow-heart';
 export const BP6_014_CONTINUOUS_SUCCESS_ZONE_LILYWHITE_CARD_PINK_HEART_ABILITY_ID =
@@ -453,6 +465,10 @@ export const BP6_015_CONTINUOUS_SUCCESS_ZONE_BIBI_CARD_PURPLE_HEART_ABILITY_ID =
   'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
 export const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
   'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
+export const BP6_021_LIVE_SUCCESS_SEND_MUSE_MEMBER_SCORE_RECOVER_MUSE_LIVE_ABILITY_ID =
+  'PL!-bp6-021:live-success-send-muse-member-score-recover-muse-live';
+export const BP6_023_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_SUCCESS_MUSE_ABILITY_ID =
+  'PL!-bp6-023:live-success-draw-one-plus-one-if-success-muse';
 export const BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID =
   'PL!-bp6-024:continuous-success-zone-replacement';
 export const PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID =

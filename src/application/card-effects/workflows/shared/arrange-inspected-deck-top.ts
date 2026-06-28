@@ -7,6 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { ZoneType } from '../../../../shared/types/enums.js';
 import {
+  BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID,
   HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID,
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
@@ -40,6 +41,9 @@ interface RegisteredArrangeInspectedDeckTopConfig {
   readonly selectionLabel: string;
   readonly selectMin: number;
   readonly selectMax: number;
+  readonly requireAllInspected?: boolean;
+  readonly selectedDestination?: InspectedCardDestination;
+  readonly unselectedDestination?: InspectedCardDestination;
 }
 
 export interface ArrangeInspectedDeckTopConfig {
@@ -57,6 +61,7 @@ export interface ArrangeInspectedDeckTopConfig {
   readonly selectMax: number;
   readonly selectedDestination: InspectedCardDestination;
   readonly unselectedDestination: InspectedCardDestination;
+  readonly requireAllInspected?: boolean;
   readonly orderedResolution: boolean;
   readonly starterOptions?: PendingAbilityStarterOptions;
 }
@@ -70,6 +75,18 @@ const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedD
     selectionLabel: '按卡组顶从上到下的顺序选择卡牌',
     selectMin: 0,
     selectMax: 3,
+  },
+  {
+    abilityId: BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID,
+    inspectCount: 3,
+    stepId: 'BP6_016_ARRANGE_TOP_THREE_ALL',
+    stepText: '请按卡组顶从上到下的顺序排列检视的卡牌。数字1会成为卡组最上方的卡。',
+    selectionLabel: '按卡组顶从上到下的顺序选择全部卡牌',
+    selectMin: 0,
+    selectMax: 3,
+    requireAllInspected: true,
+    selectedDestination: 'MAIN_DECK_TOP',
+    unselectedDestination: 'MAIN_DECK_TOP',
   },
   {
     abilityId: PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
@@ -110,8 +127,9 @@ export function registerArrangeInspectedDeckTopWorkflowHandlers(): void {
           selectionLabel: config.selectionLabel,
           selectMin: config.selectMin,
           selectMax: config.selectMax,
-          selectedDestination: 'MAIN_DECK_TOP',
-          unselectedDestination: 'WAITING_ROOM',
+          selectedDestination: config.selectedDestination ?? 'MAIN_DECK_TOP',
+          unselectedDestination: config.unselectedDestination ?? 'WAITING_ROOM',
+          requireAllInspected: config.requireAllInspected,
           orderedResolution: options.orderedResolution === true,
           starterOptions: options,
         },
@@ -170,6 +188,12 @@ export function startArrangeInspectedDeckTopWorkflow(
     return game;
   }
   const { gameState, inspectedCardIds } = inspection;
+  const minSelectableCards = config.requireAllInspected
+    ? inspectedCardIds.length
+    : Math.min(config.selectMin, inspectedCardIds.length);
+  const maxSelectableCards = config.requireAllInspected
+    ? inspectedCardIds.length
+    : Math.min(config.selectMax, inspectedCardIds.length);
 
   const state: GameState = {
     ...gameState,
@@ -189,8 +213,8 @@ export function startArrangeInspectedDeckTopWorkflow(
       selectableCardIds: inspectedCardIds,
       selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
       selectableCardMode: 'ORDERED_MULTI',
-      minSelectableCards: config.selectMin,
-      maxSelectableCards: Math.min(config.selectMax, inspectedCardIds.length),
+      minSelectableCards,
+      maxSelectableCards,
       selectionLabel: config.selectionLabel,
       confirmSelectionLabel: '按此顺序放回卡组顶',
       metadata: {
@@ -246,13 +270,17 @@ export function finishArrangeInspectedDeckTopWorkflow(
   const unselectedCardIds = inspectedCardIds.filter(
     (cardId) => !uniqueSelectedCardIds.includes(cardId)
   );
+  const deckTopCardIds = [
+    ...(effect.metadata?.selectedDestination === 'MAIN_DECK_TOP' ? uniqueSelectedCardIds : []),
+    ...(effect.metadata?.unselectedDestination === 'MAIN_DECK_TOP' ? unselectedCardIds : []),
+  ];
   let state = updatePlayer(game, player.id, (currentPlayer) => ({
     ...currentPlayer,
     mainDeck:
-      effect.metadata?.selectedDestination === 'MAIN_DECK_TOP'
+      deckTopCardIds.length > 0
         ? {
             ...currentPlayer.mainDeck,
-            cardIds: [...uniqueSelectedCardIds, ...currentPlayer.mainDeck.cardIds],
+            cardIds: [...deckTopCardIds, ...currentPlayer.mainDeck.cardIds],
           }
         : currentPlayer.mainDeck,
     waitingRoom:

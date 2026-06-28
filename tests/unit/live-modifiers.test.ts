@@ -74,6 +74,8 @@ const BP6_012_CONTINUOUS_ABILITY_ID =
 const BP6_014_CONTINUOUS_ABILITY_ID =
   'PL!-bp6-014:continuous-success-zone-lilywhite-card-pink-heart';
 const BP6_015_CONTINUOUS_ABILITY_ID = 'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
+const BP6_009_CONTINUOUS_ABILITY_ID =
+  'PL!-bp6-009:continuous-center-side-printed-blade-two-score';
 const BP4_018_CONTINUOUS_ABILITY_ID = 'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
 const N_PR_024_CONTINUOUS_ABILITY_ID =
   'PL!N-PR-024-PR:continuous-success-live-total-four-gain-two-blade';
@@ -2701,6 +2703,83 @@ describe('live modifier helpers', () => {
     expect(getMemberEffectiveBladeCount(game, 'p1', sourceId, modifiers)).toBe(3);
   });
 
+  it('collects PL!-bp6-009 SCORE +1 when center Nico has left and right original BLADE 2 members', () => {
+    const { game, sourceId } = setupBp6009ContinuousGame();
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'SCORE',
+      playerId: 'p1',
+      countDelta: 1,
+      sourceCardId: sourceId,
+      abilityId: BP6_009_CONTINUOUS_ABILITY_ID,
+    });
+  });
+
+  it('does not collect PL!-bp6-009 SCORE when Nico is not center', () => {
+    const { game, sourceId } = setupBp6009ContinuousGame({ nicoSlot: SlotPosition.LEFT });
+
+    expect(hasBp6009ScoreModifier(game, sourceId)).toBe(false);
+  });
+
+  it('does not collect PL!-bp6-009 SCORE when either side member is missing or original BLADE is not two', () => {
+    const missingSide = setupBp6009ContinuousGame({ rightBlade: null });
+    const wrongBlade = setupBp6009ContinuousGame({ leftBlade: 2, rightBlade: 3 });
+
+    expect(hasBp6009ScoreModifier(missingSide.game, missingSide.sourceId)).toBe(false);
+    expect(hasBp6009ScoreModifier(wrongBlade.game, wrongBlade.sourceId)).toBe(false);
+  });
+
+  it('does not let ordinary BLADE modifiers satisfy PL!-bp6-009 original BLADE condition', () => {
+    const { game, sourceId, rightId } = setupBp6009ContinuousGame({ leftBlade: 2, rightBlade: 1 });
+    const modifiedGame = addLiveModifier(game, {
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 1,
+      sourceCardId: rightId,
+      abilityId: 'test:ordinary-blade-bonus',
+    });
+
+    expect(hasBp6009ScoreModifier(modifiedGame, sourceId)).toBe(false);
+  });
+
+  it('uses original BLADE replacement, not effective BLADE, for PL!-bp6-009 side checks', () => {
+    const { game, sourceId, leftId, rightId } = setupBp6009ContinuousGame({
+      leftBlade: 5,
+      rightBlade: 1,
+    });
+    let modifiedGame = addLiveModifier(game, {
+      kind: 'MEMBER_ORIGINAL_BLADE_REPLACEMENT',
+      playerId: 'p1',
+      memberCardId: leftId,
+      count: 2,
+      sourceCardId: 'test:left-original-blade',
+      abilityId: 'test:left-original-blade',
+    });
+    modifiedGame = addLiveModifier(modifiedGame, {
+      kind: 'MEMBER_ORIGINAL_BLADE_REPLACEMENT',
+      playerId: 'p1',
+      memberCardId: rightId,
+      count: 2,
+      sourceCardId: 'test:right-original-blade',
+      abilityId: 'test:right-original-blade',
+    });
+    modifiedGame = addLiveModifier(modifiedGame, {
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 3,
+      sourceCardId: rightId,
+      abilityId: 'test:ordinary-blade-bonus',
+    });
+
+    expect(collectLiveModifiers(modifiedGame)).toContainEqual({
+      kind: 'SCORE',
+      playerId: 'p1',
+      countDelta: 1,
+      sourceCardId: sourceId,
+      abilityId: BP6_009_CONTINUOUS_ABILITY_ID,
+    });
+  });
+
   it('does not collect PL!N-PR-024 BLADE when both success LIVE zones total three cards', () => {
     const { game, sourceId } = setupNPr024ContinuousGame(2, 1);
 
@@ -4174,6 +4253,82 @@ function createMuseLiveData(cardCode: string, name: string, score: number) {
     requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 3 }),
     groupNames: ["μ's"],
   };
+}
+
+function createMuseMemberData(cardCode: string, name: string, blade: number) {
+  return {
+    cardCode,
+    name,
+    cardType: CardType.MEMBER,
+    cost: 4,
+    blade,
+    hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    groupName: "μ's",
+  };
+}
+
+function setupBp6009ContinuousGame(
+  options: {
+    readonly nicoSlot?: SlotPosition;
+    readonly leftBlade?: number | null;
+    readonly rightBlade?: number | null;
+  } = {}
+) {
+  const nico = createCardInstance(
+    createMuseMemberData('PL!-bp6-009-R', '矢澤にこ', 5),
+    'p1',
+    'bp6-009-nico'
+  );
+  const left =
+    options.leftBlade === null
+      ? null
+      : createCardInstance(
+          createMuseMemberData('PL!-bp6-009-left', 'Left Member', options.leftBlade ?? 2),
+          'p1',
+          'bp6-009-left'
+        );
+  const right =
+    options.rightBlade === null
+      ? null
+      : createCardInstance(
+          createMuseMemberData('PL!-bp6-009-right', 'Right Member', options.rightBlade ?? 2),
+          'p1',
+          'bp6-009-right'
+        );
+
+  let game = createGameState('bp6-009-continuous', 'p1', 'P1', 'p2', 'P2');
+  game = registerCards(game, [nico, ...(left ? [left] : []), ...(right ? [right] : [])]);
+  game = updatePlayer(game, 'p1', (player) => {
+    let memberSlots = player.memberSlots;
+    if (left) {
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, left.instanceId);
+    }
+    memberSlots = placeCardInSlot(
+      memberSlots,
+      options.nicoSlot ?? SlotPosition.CENTER,
+      nico.instanceId
+    );
+    if (right) {
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.RIGHT, right.instanceId);
+    }
+    return { ...player, memberSlots };
+  });
+
+  return {
+    game,
+    sourceId: nico.instanceId,
+    leftId: left?.instanceId ?? '',
+    rightId: right?.instanceId ?? '',
+  };
+}
+
+function hasBp6009ScoreModifier(game: ReturnType<typeof createGameState>, sourceId: string): boolean {
+  return collectLiveModifiers(game).some(
+    (modifier) =>
+      modifier.kind === 'SCORE' &&
+      modifier.sourceCardId === sourceId &&
+      modifier.abilityId === BP6_009_CONTINUOUS_ABILITY_ID
+  );
 }
 
 function createAqoursLiveData(cardCode: string, name: string, score = 1) {
