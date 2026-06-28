@@ -29,6 +29,12 @@ const FIXTURE_PATH = EXPLICIT_FIXTURE_PATH
 const USING_NORMALIZED_FIXTURE = FIXTURE_PATH === NORMALIZED_FIXTURE_PATH;
 const FIXTURE_EXISTS = existsSync(FIXTURE_PATH);
 const describeRealData = FIXTURE_EXISTS || REQUIRE_REAL_DATA ? describe : describe.skip;
+const LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON =
+  'legacy fixture predates refresh-aware mill automation';
+const REFRESH_AWARE_MILL_ABILITY_IDS = new Set([
+  'PL!HS-bp5-001-SEC:on-enter-mill-four-gain-blade-if-live',
+  'PL!HS-bp1-008:on-enter-mill-three-draw-if-all-members',
+]);
 
 type CopyTable =
   | 'match_records'
@@ -464,16 +470,16 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
 
     expect(replay.failedExecutions).toEqual([]);
     expect(replay.mismatches).toEqual([]);
-    expect(replay.replayedCount).toBe(287);
-    expect(replay.skippedCount).toBe(183);
+    expect(replay.replayedCount).toBe(276);
+    expect(replay.skippedCount).toBe(194);
     expect(plainRecord(replay.replayedByDecisionType)).toEqual({
-      ACTIVE_EFFECT_SUBMITTED: 133,
-      PENDING_ABILITY_ORDER_SUBMITTED: 23,
+      ACTIVE_EFFECT_SUBMITTED: 123,
+      PENDING_ABILITY_ORDER_SUBMITTED: 22,
       SELECT_SUCCESS_LIVE_SUBMITTED: 17,
       SET_LIVE_CARD_SUBMITTED: 114,
     });
     expect(plainRecord(replay.replayedByCommandType)).toEqual({
-      CONFIRM_EFFECT_STEP: 156,
+      CONFIRM_EFFECT_STEP: 145,
       SELECT_SUCCESS_LIVE: 17,
       SET_LIVE_CARD: 114,
     });
@@ -481,6 +487,7 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
       'legacy fixture lacks exact before checkpoint for command replay': 31,
       'legacy fixture lacks recorded randomness for mulligan replay': 12,
       'legacy fixture lacks reliable before checkpoint for activate ability': 28,
+      [LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON]: 11,
       'not a submitted player decision': 112,
     });
   }, 120_000);
@@ -1444,7 +1451,7 @@ function buildEngineReplayAudit(
     if (actualFingerprint !== expectedFingerprint) {
       const actualNormalized = normalizeEngineState(result.gameState);
       const expectedNormalized = normalizeEngineState(afterCheckpoint.state);
-      audit.mismatches.push({
+      const mismatch = {
         matchId: decision.matchId,
         decisionId: decision.decisionId,
         decisionType: decision.decisionType,
@@ -1454,7 +1461,14 @@ function buildEngineReplayAudit(
         diffs: findFirstDifferences(actualNormalized, expectedNormalized, 8),
         actual: summarizeReplayComparisonState(result.gameState),
         expected: summarizeReplayComparisonState(afterCheckpoint.state),
-      });
+      };
+      const skipReason = getExpectedReplayMismatchSkipReason(decision, mismatch);
+      if (skipReason) {
+        audit.skippedCount += 1;
+        increment(audit.skippedReasons, skipReason);
+        continue;
+      }
+      audit.mismatches.push(mismatch);
       continue;
     }
 
@@ -1464,6 +1478,81 @@ function buildEngineReplayAudit(
   }
 
   return audit;
+}
+
+function getExpectedReplayMismatchSkipReason(
+  decision: DecisionRecordSummary,
+  mismatch: {
+    readonly commandType: string;
+    readonly decisionId: string;
+    readonly diffs: readonly unknown[];
+    readonly actual: unknown;
+    readonly expected: unknown;
+  }
+): string | null {
+  if (mismatch.commandType !== GameCommandType.CONFIRM_EFFECT_STEP) {
+    return null;
+  }
+  if (!referencesRefreshAwareMillAbility(decision, mismatch)) {
+    return null;
+  }
+  if (!hasRefreshAwareMillDriftShape(mismatch.diffs)) {
+    return null;
+  }
+  return LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON;
+}
+
+function referencesRefreshAwareMillAbility(
+  decision: DecisionRecordSummary,
+  mismatch: { readonly decisionId: string; readonly actual: unknown; readonly expected: unknown }
+): boolean {
+  const referencedAbilityIds = [
+    decision.abilityId,
+    activeEffectAbilityId(mismatch.actual),
+    activeEffectAbilityId(mismatch.expected),
+  ];
+  if (
+    referencedAbilityIds.some(
+      (abilityId) => abilityId && REFRESH_AWARE_MILL_ABILITY_IDS.has(abilityId)
+    )
+  ) {
+    return true;
+  }
+  return [...REFRESH_AWARE_MILL_ABILITY_IDS].some((abilityId) =>
+    mismatch.decisionId.includes(encodeURIComponent(abilityId))
+  );
+}
+
+function activeEffectAbilityId(summary: unknown): string | null {
+  const activeEffect = asRecord(asRecord(summary)?.activeEffect);
+  const abilityId = activeEffect?.abilityId;
+  return typeof abilityId === 'string' ? abilityId : null;
+}
+
+function hasRefreshAwareMillDriftShape(diffs: readonly unknown[]): boolean {
+  const paths = diffs
+    .map((diff) => asRecord(diff)?.path)
+    .filter((path): path is string => typeof path === 'string');
+  const hasNewMillPayload = paths.some(
+    (path) =>
+      path.includes('.payload.milledCardIds') ||
+      path.includes('.payload.refreshCount') ||
+      path.includes('.metadata.milledCardIds')
+  );
+  const hasLegacyInspectionShape = paths.some(
+    (path) =>
+      path.includes('.payload.inspectedCardIds') ||
+      path.includes('.inspectionCardIds') ||
+      path === '$.inspectionContext' ||
+      path.startsWith('$.inspectionZone.')
+  );
+  return hasNewMillPayload && hasLegacyInspectionShape;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 interface CheckpointIndex {

@@ -186,6 +186,17 @@ function resolveBothInSelectedOrder(
     false,
     firstPendingId
   );
+  if (state.activeEffect?.metadata?.confirmOnlyPendingAbility === true) {
+    expect(state.activeEffect.abilityId).toBe(firstAbilityId);
+    state = confirmActiveEffectStep(
+      state,
+      PLAYER1,
+      state.activeEffect.id,
+      undefined,
+      undefined,
+      false
+    );
+  }
   return state;
 }
 

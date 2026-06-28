@@ -1,10 +1,13 @@
 import { isMemberCardData } from '../entities/card.js';
 import { getCardById, getPlayerById, type GameState } from '../entities/game.js';
+import { SlotPosition } from '../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
+import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
 import { successLiveScoreAtLeast } from './success-live-score.js';
 
 const BP4_008_HANAYO_BASE_CARD_CODE = 'PL!-bp4-008';
 const BP4_008_SUCCESS_SCORE_COST_BONUS = 3;
+const SP_PB2_006_KINAKO_BASE_CARD_CODE = 'PL!SP-pb2-006';
 
 export function getMemberEffectiveCost(
   game: GameState,
@@ -20,6 +23,7 @@ export function getMemberEffectiveCost(
   if (isBp4008HanayoStageCostBonusActive(game, playerId, memberCardId)) {
     effectiveCost += BP4_008_SUCCESS_SCORE_COST_BONUS;
   }
+  effectiveCost += getSpPb2006MemberBelowLiellaCostBonus(game, playerId, memberCardId);
   effectiveCost += getLiveMemberCostModifier(game, playerId, memberCardId);
   return effectiveCost;
 }
@@ -67,4 +71,37 @@ function isMemberOnPlayerStage(game: GameState, playerId: string, memberCardId: 
   }
 
   return Object.values(player.memberSlots.slots).includes(memberCardId);
+}
+
+function getSpPb2006MemberBelowLiellaCostBonus(
+  game: GameState,
+  playerId: string,
+  memberCardId: string
+): number {
+  const card = getCardById(game, memberCardId);
+  const player = getPlayerById(game, playerId);
+  if (
+    !card ||
+    !player ||
+    !isMemberCardData(card.data) ||
+    !cardCodeMatchesBase(card.data.cardCode, SP_PB2_006_KINAKO_BASE_CARD_CODE)
+  ) {
+    return 0;
+  }
+
+  const sourceSlot = Object.values(SlotPosition).find(
+    (slot) => player.memberSlots.slots[slot] === memberCardId
+  );
+  if (!sourceSlot) {
+    return 0;
+  }
+
+  return (player.memberSlots.memberBelow[sourceSlot] ?? []).filter((belowCardId) => {
+    const belowCard = getCardById(game, belowCardId);
+    return (
+      belowCard !== null &&
+      isMemberCardData(belowCard.data) &&
+      cardBelongsToGroup(belowCard.data, 'Liella!')
+    );
+  }).length;
 }

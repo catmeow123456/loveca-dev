@@ -118,6 +118,7 @@ describe('effect cost helpers', () => {
     const state = createMutableState();
     const p1 = state.players[0] as unknown as {
       waitingRoom: { cardIds: string[] };
+      energyDeck: { cardIds: string[] };
       memberSlots: {
         slots: Record<SlotPosition, string | null>;
         energyBelow: Record<SlotPosition, string[]>;
@@ -150,15 +151,13 @@ describe('effect cost helpers', () => {
 
     expect(result).not.toBeNull();
     expect(result?.sourceSlot).toBe(SlotPosition.CENTER);
-    expect(result?.movedToWaitingRoomCardIds).toEqual([
-      memberCardIds[0],
-      energyCardId,
-      memberCardIds[1],
-    ]);
+    expect(result?.movedToWaitingRoomCardIds).toEqual([memberCardIds[0], memberCardIds[1]]);
     expect(result?.gameState.players[0].memberSlots.slots[SlotPosition.CENTER]).toBeNull();
     expect(result?.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
     expect(result?.gameState.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
     expect(result?.gameState.players[0].memberSlots.cardStates.has(memberCardIds[0])).toBe(false);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).not.toContain(energyCardId);
+    expect(result?.gameState.players[0].energyDeck.cardIds).toContain(energyCardId);
   });
 
   it('pays source-member orientation cost by setting the staged source member to waiting', () => {

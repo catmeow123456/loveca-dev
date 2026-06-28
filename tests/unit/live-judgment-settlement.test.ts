@@ -2990,4 +2990,97 @@ describe('Live 判定与结算', () => {
     expect(selectP2.success).toBe(true);
     expect(selectP2.gameState.players[1].successZone.cardIds).toContain(p2Live.instanceId);
   });
+
+  it('finalizeLiveResult 仅在后攻单方实际放入成功区时切换先攻', () => {
+    let game = createGameState('g-finalize-success-placement-p2', 'p1', 'P1', 'p2', 'P2');
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_SETTLEMENT,
+      liveResolution: {
+        ...game.liveResolution,
+        liveWinnerIds: ['p2'],
+        successCardMovedBy: ['p2'],
+        settlementConfirmedBy: ['p2'],
+      },
+    };
+
+    const result = new GameService().finalizeLiveResult(game);
+
+    expect(result.success).toBe(true);
+    expect(result.gameState.firstPlayerIndex).toBe(1);
+    expect(result.gameState.players[0].isFirstPlayer).toBe(false);
+    expect(result.gameState.players[1].isFirstPlayer).toBe(true);
+  });
+
+  it('finalizeLiveResult 在双方都放入或都未放入成功区时不改变先后攻', () => {
+    const service = new GameService();
+    const createSettlementGame = (successCardMovedBy: readonly string[]) => {
+      let game = createGameState(
+        `g-finalize-success-placement-${successCardMovedBy.join('-') || 'none'}`,
+        'p1',
+        'P1',
+        'p2',
+        'P2'
+      );
+      game = {
+        ...game,
+        currentPhase: GamePhase.LIVE_RESULT_PHASE,
+        currentSubPhase: SubPhase.RESULT_SETTLEMENT,
+        liveResolution: {
+          ...game.liveResolution,
+          liveWinnerIds: ['p1', 'p2'],
+          successCardMovedBy,
+          settlementConfirmedBy: ['p1', 'p2'],
+        },
+      };
+      return game;
+    };
+
+    const bothPlaced = service.finalizeLiveResult(createSettlementGame(['p1', 'p2']));
+    const neitherPlaced = service.finalizeLiveResult(createSettlementGame([]));
+
+    expect(bothPlaced.success).toBe(true);
+    expect(bothPlaced.gameState.firstPlayerIndex).toBe(0);
+    expect(neitherPlaced.success).toBe(true);
+    expect(neitherPlaced.gameState.firstPlayerIndex).toBe(0);
+  });
+
+  it('后攻的 PL!S-bp2-024 唱成功但不能进成功区时不切换先攻', () => {
+    const live = createCardInstance(
+      {
+        cardCode: 'PL!S-bp2-024-L',
+        name: '君のこころは輝いてるかい？',
+        cardType: CardType.LIVE as const,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p2',
+      's-bp2-024-p2-live'
+    );
+    let game = createGameState('g-s-bp2-024-p2-no-first-switch', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [live]);
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_SETTLEMENT,
+      liveResolution: {
+        ...game.liveResolution,
+        liveResults: new Map([[live.instanceId, true]]),
+        liveWinnerIds: ['p2'],
+        settlementConfirmedBy: ['p2'],
+      },
+    };
+
+    const result = new GameService().finalizeLiveResult(game);
+
+    expect(result.success).toBe(true);
+    expect(result.gameState.firstPlayerIndex).toBe(0);
+    expect(result.gameState.players[1].successZone.cardIds).not.toContain(live.instanceId);
+    expect(result.gameState.players[1].waitingRoom.cardIds).toContain(live.instanceId);
+  });
 });

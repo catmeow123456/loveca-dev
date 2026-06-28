@@ -20,6 +20,7 @@ import {
 import { getCardAbilityDefinitionsForCardCode } from '../../definitions/lookup.js';
 import { registerLiveStartSuppressionGate } from '../../runtime/live-start-suppression-gates.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { maybeStartManualPendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -47,13 +48,18 @@ export function registerSpPb2046ButterflyWingWorkflowHandlers(): void {
   );
   registerPendingAbilityStarterHandler(
     SP_PB2_046_LIVE_SUCCESS_STAGE_MEMBER_LIVE_START_THIS_LIVE_SCORE_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveSpPb2046ButterflyWingLiveSuccess(
+    (game, ability, options, context) => {
+      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+      if (manualConfirmation) {
+        return manualConfirmation;
+      }
+      return resolveSpPb2046ButterflyWingLiveSuccess(
         game,
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      );
+    }
   );
 }
 

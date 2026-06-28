@@ -24,7 +24,10 @@ import {
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartManualPendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 
@@ -57,13 +60,18 @@ export function registerPlBp3026OhLovePeaceWorkflowHandlers(deps: {
   );
   registerPendingAbilityStarterHandler(
     PL_BP3_026_LIVE_SUCCESS_HIGHER_STAGE_HEART_TOTAL_THIS_LIVE_SCORE_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveOhLovePeaceLiveSuccess(
+    (game, ability, options, context) => {
+      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+      if (manualConfirmation) {
+        return manualConfirmation;
+      }
+      return resolveOhLovePeaceLiveSuccess(
         game,
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      );
+    }
   );
   registerActiveEffectStepHandler(
     PL_BP3_026_LIVE_START_DISCARD_TWO_TARGET_MEMBER_GAIN_THREE_BLADE_ABILITY_ID,

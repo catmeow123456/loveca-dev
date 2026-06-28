@@ -23,9 +23,15 @@ import { revealHandCardForActiveEffect } from '../../runtime/active-effect.js';
 import { stackMemberCardBelowSpecialMember } from '../../runtime/actions.js';
 import { getNewEnterStageEvents } from '../../runtime/events.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartManualPendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
   getCardIdsInZoneMatching,
@@ -99,7 +105,7 @@ export function registerBp6003KotoriWorkflowHandlers(
       startKotoriLiveSuccess(
         game,
         ability,
-        options.orderedResolution === true,
+        options,
         context.continuePendingCardEffects
       )
   );
@@ -289,7 +295,7 @@ function finishKotoriLiveStart(
 function startKotoriLiveSuccess(
   game: GameState,
   ability: PendingAbilityState,
-  orderedResolution: boolean,
+  options: PendingAbilityStarterOptions,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
@@ -297,16 +303,31 @@ function startKotoriLiveSuccess(
     ? getSourceMemberSlot(game, player.id, ability.sourceCardId)
     : null;
   if (!player || sourceSlot === null) {
-    return skipPendingAbility(game, ability, ability.controllerId, orderedResolution, 'SOURCE_NOT_ON_STAGE', continuePendingCardEffects);
+    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
+    return skipPendingAbility(
+      game,
+      ability,
+      ability.controllerId,
+      options.orderedResolution === true,
+      'SOURCE_NOT_ON_STAGE',
+      continuePendingCardEffects
+    );
   }
   const selectableCardIds = getLowCostMuseMemberIdsBelowSource(game, player.id, sourceSlot);
   const emptySlots = getEmptyMemberSlots(game, player.id);
   if (selectableCardIds.length === 0 || emptySlots.length === 0) {
+    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
     return skipPendingAbility(
       game,
       ability,
       player.id,
-      orderedResolution,
+      options.orderedResolution === true,
       selectableCardIds.length === 0 ? 'NO_LOW_COST_MUSE_MEMBER_BELOW' : 'NO_EMPTY_MEMBER_SLOT',
       continuePendingCardEffects
     );
@@ -331,7 +352,7 @@ function startKotoriLiveSuccess(
       selectionLabel: '选择要登场的下方成员',
       confirmSelectionLabel: '选择登场区域',
       metadata: {
-        orderedResolution,
+        orderedResolution: options.orderedResolution === true,
         sourceSlot,
         liveSuccessEventIds: ability.eventIds,
       },

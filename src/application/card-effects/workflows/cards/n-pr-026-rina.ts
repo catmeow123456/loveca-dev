@@ -21,7 +21,10 @@ import { getDelegatableQueuedAbilityDefinitions } from '../../runtime/delegatabl
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartManualPendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
   getCardIdsInZoneMatching,
@@ -54,13 +57,18 @@ export function registerNPr026RinaWorkflowHandlers(): void {
   );
   registerPendingAbilityStarterHandler(
     N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveRinaLiveSuccessDelegation(
+    (game, ability, options, context) => {
+      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+      if (manualConfirmation) {
+        return manualConfirmation;
+      }
+      return resolveRinaLiveSuccessDelegation(
         game,
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      );
+    }
   );
 }
 

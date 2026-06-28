@@ -39,10 +39,14 @@ import {
   type CardAbilityDefinition,
 } from '../../ability-definition-types.js';
 import { getCardAbilityDefinitionsForCardCode } from '../../definitions/lookup.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
+  maybeStartManualPendingAbilityConfirmation,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import { CardType } from '../../../../shared/types/enums.js';
@@ -85,6 +89,7 @@ interface RevealedCheerSelectionWorkflowConfig {
 
 interface RevealedCheerSelectionStartContext {
   readonly ability: PendingAbilityState;
+  readonly options: PendingAbilityStarterOptions;
   readonly orderedResolution: boolean;
   readonly continuePendingCardEffects: ContinuePendingCardEffects;
 }
@@ -178,6 +183,7 @@ export function registerRevealedCheerSelectionWorkflowHandlers(
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
       startRevealedCheerSelectionWorkflow(game, config, {
         ability,
+        options,
         orderedResolution: options.orderedResolution === true,
         continuePendingCardEffects: context.continuePendingCardEffects,
       })
@@ -293,6 +299,14 @@ function startRevealedCheerSelectionWorkflow(
 
   const selectableCardIds = selectRevealedCheerCardIds(game, player.id, config.predicate);
   if (selectableCardIds.length === 0) {
+    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(
+      game,
+      context.ability,
+      context.options
+    );
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter(

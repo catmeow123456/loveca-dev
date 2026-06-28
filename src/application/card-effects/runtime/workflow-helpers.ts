@@ -1,8 +1,11 @@
 import {
   addAction,
   type GameState,
+  type PendingAbilityState,
 } from '../../../domain/entities/game.js';
 import { findCardAbilityDefinitionById } from '../definitions/lookup.js';
+import { startConfirmOnlyPendingAbilityEffect } from './active-effect.js';
+import type { PendingAbilityStarterOptions } from './starter-registry.js';
 
 const ABILITY_USE_STEP = 'ABILITY_USE';
 
@@ -26,6 +29,27 @@ export function getAbilityEffectText(abilityId: string): string {
     throw new Error(`Missing card ability effect text for abilityId: ${abilityId}`);
   }
   return effectText;
+}
+
+export function maybeStartManualPendingAbilityConfirmation(
+  game: GameState,
+  ability: Pick<PendingAbilityState, 'id' | 'abilityId' | 'sourceCardId' | 'controllerId'>,
+  options: PendingAbilityStarterOptions,
+  config: {
+    readonly effectText?: string;
+    readonly stepText?: string;
+  } = {}
+): GameState | null {
+  if (options.manualConfirmation !== true || options.skipManualConfirmation === true) {
+    return null;
+  }
+
+  return startConfirmOnlyPendingAbilityEffect(game, {
+    ability,
+    effectText: config.effectText ?? getAbilityEffectText(ability.abilityId),
+    orderedResolution: options.orderedResolution === true,
+    stepText: config.stepText,
+  });
 }
 
 export function recordAbilityUseForContext(

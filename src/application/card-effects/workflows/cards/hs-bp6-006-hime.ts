@@ -14,6 +14,7 @@ import {
 } from '../../runtime/member-state-changed-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { maybeStartManualPendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -23,14 +24,19 @@ export function registerHsBp6006HimeWorkflowHandlers(deps: {
 }): void {
   registerPendingAbilityStarterHandler(
     HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveHsBp6006HimeLiveSuccess(
+    (game, ability, options, context) => {
+      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
+      if (manualConfirmation) {
+        return manualConfirmation;
+      }
+      return resolveHsBp6006HimeLiveSuccess(
         game,
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
-      )
+      );
+    }
   );
 }
 

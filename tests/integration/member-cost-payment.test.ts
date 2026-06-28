@@ -247,6 +247,7 @@ describe('member cost payment', () => {
       mainDeck: { cardIds: string[] };
       memberSlots: {
         slots: Record<SlotPosition, string | null>;
+        energyBelow: Record<SlotPosition, string[]>;
         cardStates: Map<string, { orientation: OrientationState }>;
       };
     };
@@ -675,6 +676,11 @@ describe('member cost payment', () => {
     player.energyZone.cardStates = new Map(
       activeEnergyCardIds.map((cardId) => [cardId, { orientation: OrientationState.ACTIVE }])
     );
+    const energyBelowCardId = player.energyDeck.cardIds[0];
+    expect(energyBelowCardId).toBeTruthy();
+    player.energyDeck.cardIds = player.energyDeck.cardIds.filter(
+      (cardId) => cardId !== energyBelowCardId
+    );
 
     const sourceCard = state.cardRegistry.get(sourceCardId!) as unknown as {
       data: MemberCardData;
@@ -701,6 +707,7 @@ describe('member cost payment', () => {
     );
     player.successZone.cardIds = [successLiveCardId!];
     player.memberSlots.slots[SlotPosition.CENTER] = stageCardId!;
+    player.memberSlots.energyBelow[SlotPosition.CENTER] = [energyBelowCardId!];
     player.memberSlots.cardStates = new Map([
       [stageCardId!, { orientation: OrientationState.ACTIVE }],
     ]);
@@ -712,6 +719,9 @@ describe('member cost payment', () => {
     expect(playResult.success).toBe(true);
     expect(session.state?.pendingCostPayment).toBeNull();
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(sourceCardId);
+    expect(session.state?.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(session.state?.players[0].energyDeck.cardIds).toContain(energyBelowCardId);
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(energyBelowCardId);
     expect(
       session.state?.actionHistory.some(
         (action) => action.type === 'PAY_COST' && action.payload.amount === 4
@@ -740,9 +750,11 @@ describe('member cost payment', () => {
     const player = state.players[0] as unknown as {
       hand: { cardIds: string[] };
       mainDeck: { cardIds: string[] };
+      energyDeck: { cardIds: string[] };
       waitingRoom: { cardIds: string[] };
       memberSlots: {
         slots: Record<SlotPosition, string | null>;
+        energyBelow: Record<SlotPosition, string[]>;
         cardStates: Map<string, { orientation: OrientationState }>;
       };
     };
@@ -780,8 +792,17 @@ describe('member cost payment', () => {
     player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
       (cardId) => cardId !== sourceCardId && cardId !== centerCardId && cardId !== leftCardId
     );
+    const centerEnergyBelowId = player.energyDeck.cardIds[0];
+    const leftEnergyBelowId = player.energyDeck.cardIds[1];
+    expect(centerEnergyBelowId).toBeTruthy();
+    expect(leftEnergyBelowId).toBeTruthy();
+    player.energyDeck.cardIds = player.energyDeck.cardIds.filter(
+      (cardId) => cardId !== centerEnergyBelowId && cardId !== leftEnergyBelowId
+    );
     player.memberSlots.slots[SlotPosition.CENTER] = centerCardId!;
     player.memberSlots.slots[SlotPosition.LEFT] = leftCardId!;
+    player.memberSlots.energyBelow[SlotPosition.CENTER] = [centerEnergyBelowId!];
+    player.memberSlots.energyBelow[SlotPosition.LEFT] = [leftEnergyBelowId!];
     player.memberSlots.cardStates = new Map([
       [centerCardId!, { orientation: OrientationState.ACTIVE }],
       [leftCardId!, { orientation: OrientationState.ACTIVE }],
@@ -799,9 +820,16 @@ describe('member cost payment', () => {
     expect(session.state?.pendingCostPayment).toBeNull();
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(sourceCardId);
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.LEFT]).toBeNull();
+    expect(session.state?.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(session.state?.players[0].memberSlots.energyBelow[SlotPosition.LEFT]).toEqual([]);
+    expect(session.state?.players[0].energyDeck.cardIds).toEqual(
+      expect.arrayContaining([centerEnergyBelowId, leftEnergyBelowId])
+    );
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
       expect.arrayContaining([centerCardId, leftCardId])
     );
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(centerEnergyBelowId);
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(leftEnergyBelowId);
 
     const leaveEvents = session.state?.eventLog
       .map((entry) => entry.event)

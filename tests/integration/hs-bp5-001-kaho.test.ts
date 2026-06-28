@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
+import type {
+  AnyCardData,
+  EnergyCardData,
+  LiveCardData,
+  MemberCardData,
+} from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
 import {
   createConfirmEffectStepCommand,
@@ -39,6 +48,17 @@ function createEnergyCard(cardCode: string): EnergyCardData {
     cardCode,
     name: cardCode,
     cardType: CardType.ENERGY,
+  };
+}
+
+function createLiveCard(cardCode: string, name = cardCode): LiveCardData {
+  return {
+    cardCode,
+    name,
+    groupName: '莲之空',
+    cardType: CardType.LIVE,
+    score: 3,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
   };
 }
 
@@ -136,9 +156,11 @@ describe('HS-bp5-001 Kaho workflow', () => {
       HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID
     );
     expect(session.state?.activeEffect?.stepId).toBe('HS_BP5_001_REVEAL_TOP_FOUR');
-    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
-    expect(session.state?.inspectionZone.cardIds).toEqual(topCardIds);
-    expect(session.state?.inspectionZone.revealedCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
 
     const finishResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -170,6 +192,121 @@ describe('HS-bp5-001 Kaho workflow', () => {
           action.payload.liveCardIds.length === 0 &&
           Array.isArray(action.payload.milledCardIds) &&
           action.payload.milledCardIds.join(',') === topCardIds.join(',')
+      )
+    ).toBe(true);
+  });
+
+  it('refreshes mid-effect and adds Blade when the milled cards include Live', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('hs-bp5-001-refresh-mill', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const kaho = createCardInstance(
+      createMemberCard('PL!HS-bp5-001-SEC', '日野下花帆', 11),
+      PLAYER1,
+      'p1-hs-bp5-001-refresh-kaho'
+    );
+    const liveTop = createCardInstance(
+      createLiveCard('PL!HS-bp5-001-test-live', 'Live Top'),
+      PLAYER1,
+      'p1-hs-bp5-001-refresh-live'
+    );
+    const memberTopA = createCardInstance(
+      createMemberCard('PL!HS-bp5-001-test-member-a', 'Member A'),
+      PLAYER1,
+      'p1-hs-bp5-001-refresh-member-a'
+    );
+    const memberTopB = createCardInstance(
+      createMemberCard('PL!HS-bp5-001-test-member-b', 'Member B'),
+      PLAYER1,
+      'p1-hs-bp5-001-refresh-member-b'
+    );
+    const waitingMember = createCardInstance(
+      createMemberCard('PL!HS-bp5-001-test-waiting-member', 'Waiting Member'),
+      PLAYER1,
+      'p1-hs-bp5-001-refresh-waiting'
+    );
+    const state = registerCards(session.state!, [
+      kaho,
+      liveTop,
+      memberTopA,
+      memberTopB,
+      waitingMember,
+    ]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const initialTopCardIds = [liveTop.instanceId, memberTopA.instanceId, memberTopB.instanceId];
+
+    removeFromPlayerZones(p1);
+    p1.hand.cardIds = [kaho.instanceId];
+    p1.mainDeck.cardIds = [...initialTopCardIds];
+    p1.waitingRoom.cardIds = [waitingMember.instanceId];
+    p1.memberSlots.slots = {
+      [SlotPosition.LEFT]: null,
+      [SlotPosition.CENTER]: null,
+      [SlotPosition.RIGHT]: null,
+    };
+    p1.memberSlots.cardStates = new Map();
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, kaho.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    const activeEffect = session.state?.activeEffect;
+    const milledCardIds = activeEffect?.metadata?.milledCardIds as readonly string[];
+
+    expect(playResult.success).toBe(true);
+    expect(milledCardIds).toHaveLength(4);
+    expect(milledCardIds.slice(0, 3)).toEqual(initialTopCardIds);
+    expect(activeEffect?.metadata?.liveCardIds).toEqual([liveTop.instanceId]);
+    expect(activeEffect?.metadata?.bladeBonus).toBe(2);
+    expect(activeEffect?.metadata?.refreshCount).toBe(1);
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.movedCount === 4
+      )
+    ).toBe(true);
+
+    const finishResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, activeEffect!.id)
+    );
+
+    expect(finishResult.success).toBe(true);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId: kaho.instanceId,
+      abilityId: HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+    });
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID &&
+          action.payload.step === 'MILL_TOP_FOUR_GAIN_BLADE_IF_LIVE' &&
+          action.payload.bladeBonus === 2 &&
+          action.payload.refreshCount === 1
       )
     ).toBe(true);
   });

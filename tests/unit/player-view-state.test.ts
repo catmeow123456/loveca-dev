@@ -55,12 +55,99 @@ function createTestLive(cardCode: string, name: string): LiveCardData {
   };
 }
 
+function createTestLiveWithGroup(cardCode: string, name: string, groupName: string): LiveCardData {
+  return {
+    ...createTestLive(cardCode, name),
+    groupName,
+  };
+}
+
 function createTestEnergy(cardCode: string, name: string): EnergyCardData {
   return {
     cardCode,
     name,
     cardType: CardType.ENERGY,
   };
+}
+
+function createLanzhuHiddenLiveModifierState(): {
+  readonly state: ReturnType<typeof createGameState>;
+  readonly lanzhuId: string;
+} {
+  const lanzhu = createCardInstance(
+    {
+      cardCode: 'PL!N-bp1-012-SEC',
+      name: '鐘 嵐珠',
+      groupName: '虹ヶ咲学園スクールアイドル同好会',
+      cardType: CardType.MEMBER,
+      cost: 15,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    },
+    PLAYER1,
+    'p1-lanzhu-hidden-live'
+  );
+  const liveCards = [
+    createCardInstance(
+      createTestLiveWithGroup(
+        'PL!N-TEST-LIVE-001',
+        '虹ヶ咲 Live',
+        '虹ヶ咲学園スクールアイドル同好会'
+      ),
+      PLAYER1,
+      'p1-lanzhu-nijigasaki-live'
+    ),
+    createCardInstance(
+      createTestLiveWithGroup('PL!A-TEST-LIVE-001', 'Aqours Live', 'Aqours'),
+      PLAYER1,
+      'p1-lanzhu-aqours-live'
+    ),
+    createCardInstance(
+      createTestLiveWithGroup('PL!L-TEST-LIVE-001', 'Liella Live', 'Liella!'),
+      PLAYER1,
+      'p1-lanzhu-liella-live'
+    ),
+  ];
+
+  let state = createGameState('lanzhu-hidden-live-modifier', PLAYER1, '玩家1', PLAYER2, '玩家2');
+  state = registerCards(state, [lanzhu, ...liveCards]);
+  state = updatePlayer(state, PLAYER1, (player) => ({
+    ...player,
+    memberSlots: {
+      ...player.memberSlots,
+      slots: {
+        ...player.memberSlots.slots,
+        [SlotPosition.CENTER]: lanzhu.instanceId,
+      },
+      cardStates: new Map([[lanzhu.instanceId, createDefaultCardState()]]),
+    },
+    liveZone: liveCards.reduce(
+      (zone, live) => addCardToStatefulZone(zone, live.instanceId, createFaceDownCardState()),
+      player.liveZone
+    ),
+  }));
+
+  return { state, lanzhuId: lanzhu.instanceId };
+}
+
+function revealPlayerLiveZone(
+  state: ReturnType<typeof createGameState>,
+  playerId: string
+): ReturnType<typeof createGameState> {
+  return updatePlayer(state, playerId, (player) => {
+    const cardStates = new Map(player.liveZone.cardStates);
+    for (const cardId of player.liveZone.cardIds) {
+      const currentState = cardStates.get(cardId) ?? createDefaultCardState();
+      cardStates.set(cardId, { ...currentState, face: FaceState.FACE_UP });
+    }
+    return {
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardStates,
+      },
+    };
+  });
 }
 
 function createProjectedState() {
@@ -440,6 +527,53 @@ describe('PlayerViewState projector', () => {
     });
     expect(hiddenHandObject).toBeUndefined();
     expect(opponentView.table.zones.FIRST_HAND.objectIds).toBeUndefined();
+  });
+
+  it('hides PL!N-bp1-012 hidden live-zone dependent modifiers from opponent view until reveal', () => {
+    let { state, lanzhuId } = createLanzhuHiddenLiveModifierState();
+    const lanzhuObjectId = createPublicObjectId(lanzhuId);
+
+    const ownerView = projectPlayerViewState(state, PLAYER1);
+    const hiddenOpponentView = projectPlayerViewState(state, PLAYER2);
+
+    expect(ownerView.objects[lanzhuObjectId]?.frontInfo?.modifierDelta).toEqual({
+      bladeDelta: 2,
+      heartDeltas: [{ color: HeartColor.RAINBOW, count: 2 }],
+    });
+    expect(ownerView.objects[lanzhuObjectId]?.frontInfo?.hearts).toEqual([
+      { color: HeartColor.PINK, count: 1 },
+      { color: HeartColor.RAINBOW, count: 2 },
+    ]);
+
+    expect(hiddenOpponentView.objects[lanzhuObjectId]?.frontInfo?.modifierDelta).toBeUndefined();
+    expect(hiddenOpponentView.objects[lanzhuObjectId]?.frontInfo?.hearts).toEqual([
+      { color: HeartColor.PINK, count: 1 },
+    ]);
+
+    state = revealPlayerLiveZone(state, PLAYER1);
+    const revealedOpponentView = projectPlayerViewState(state, PLAYER2);
+
+    expect(revealedOpponentView.objects[lanzhuObjectId]?.frontInfo?.modifierDelta).toEqual({
+      bladeDelta: 2,
+      heartDeltas: [{ color: HeartColor.RAINBOW, count: 2 }],
+    });
+  });
+
+  it('keeps public modifiers visible when only hidden live-zone dependent modifiers are filtered', () => {
+    let { state, lanzhuId } = createLanzhuHiddenLiveModifierState();
+    state = addLiveModifier(state, {
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: lanzhuId,
+      abilityId: 'test-public-blade-during-live-set',
+    });
+
+    const opponentView = projectPlayerViewState(state, PLAYER2);
+    const lanzhuObject = opponentView.objects[createPublicObjectId(lanzhuId)];
+
+    expect(lanzhuObject?.frontInfo?.modifierDelta).toEqual({ bladeDelta: 1 });
+    expect(lanzhuObject?.frontInfo?.hearts).toEqual([{ color: HeartColor.PINK, count: 1 }]);
   });
 
   it('keeps legacy player Heart bonuses in liveResult without mixing member Hearts', () => {

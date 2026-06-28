@@ -1,6 +1,6 @@
 import type { CardInstance } from '../../domain/entities/card.js';
 import { isLiveCardData, isMemberCardData } from '../../domain/entities/card.js';
-import type { CardType, HeartColor } from '../../shared/types/enums.js';
+import { BladeHeartEffect, HeartColor, type CardType } from '../../shared/types/enums.js';
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
 
 export type CardSelector = (card: CardInstance) => boolean;
@@ -169,6 +169,20 @@ export function hasScoreBladeHeart(): CardSelector {
   return (card) =>
     ((card.data as { readonly bladeHearts?: readonly { readonly effect?: unknown }[] }).bladeHearts
       ?.some((bladeHeart) => bladeHeart.effect === 'SCORE') ?? false);
+}
+
+export function hasAllBladeHeart(): CardSelector {
+  return (card) =>
+    ((card.data as {
+      readonly bladeHearts?: readonly {
+        readonly effect?: unknown;
+        readonly heartColor?: unknown;
+      }[];
+    }).bladeHearts?.some(
+      (bladeHeart) =>
+        bladeHeart.effect === BladeHeartEffect.HEART &&
+        bladeHeart.heartColor === HeartColor.RAINBOW
+    ) ?? false);
 }
 
 export function hasNoAbilityOrContinuousAbility(): CardSelector {

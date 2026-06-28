@@ -21,10 +21,7 @@ import {
   setFirstEnergyCardsOrientation,
   type EnergyOrientationChange,
 } from '../../effects/energy.js';
-import {
-  addMemberBelowMember,
-  removeCardFromZone,
-} from '../../../domain/entities/zone.js';
+import { addMemberBelowMember, removeCardFromZone } from '../../../domain/entities/zone.js';
 import { isSpecialMemberCard } from '../../../shared/utils/card-code.js';
 import type { SlotPosition } from '../../../shared/types/enums.js';
 
@@ -111,6 +108,32 @@ export interface MoveWaitingRoomCardsToDeckBottomForPlayerResult {
   readonly gameState: GameState;
   readonly movedCardIds: readonly string[];
   readonly selectedCardIds: readonly string[];
+  readonly remainingCandidateIds: readonly string[];
+}
+
+export interface MoveWaitingRoomCardsToDeckTopForPlayerOptions {
+  readonly candidateCardIds: readonly string[];
+  readonly minCount: number;
+  readonly maxCount: number;
+}
+
+export interface MoveWaitingRoomCardsToDeckTopForPlayerResult {
+  readonly gameState: GameState;
+  readonly movedCardIds: readonly string[];
+  readonly selectedCardIds: readonly string[];
+  readonly remainingCandidateIds: readonly string[];
+}
+
+export interface MoveWaitingRoomCardToDeckPositionForPlayerOptions {
+  readonly candidateCardIds: readonly string[];
+  readonly positionFromTop: number;
+}
+
+export interface MoveWaitingRoomCardToDeckPositionForPlayerResult {
+  readonly gameState: GameState;
+  readonly movedCardId: string;
+  readonly insertIndex: number;
+  readonly positionFromTop: number;
   readonly remainingCandidateIds: readonly string[];
 }
 
@@ -498,6 +521,117 @@ export function moveWaitingRoomCardsToDeckBottomForPlayer(
     remainingCandidateIds: options.candidateCardIds.filter(
       (cardId) => !uniqueSelectedCardIds.has(cardId)
     ),
+  };
+}
+
+export function moveWaitingRoomCardsToDeckTopForPlayer(
+  game: GameState,
+  playerId: string,
+  selectedCardIds: readonly string[],
+  options: MoveWaitingRoomCardsToDeckTopForPlayerOptions
+): MoveWaitingRoomCardsToDeckTopForPlayerResult | null {
+  const player = getPlayerById(game, playerId);
+  const minCount = Math.floor(options.minCount);
+  const maxCount = Math.floor(options.maxCount);
+  const uniqueSelectedCardIds = new Set(selectedCardIds);
+  const candidateCardIdSet = new Set(options.candidateCardIds);
+
+  if (
+    !player ||
+    !Number.isInteger(options.minCount) ||
+    !Number.isInteger(options.maxCount) ||
+    minCount < 0 ||
+    maxCount < minCount ||
+    uniqueSelectedCardIds.size !== selectedCardIds.length ||
+    selectedCardIds.length < minCount ||
+    selectedCardIds.length > maxCount
+  ) {
+    return null;
+  }
+
+  if (
+    selectedCardIds.some(
+      (cardId) => !candidateCardIdSet.has(cardId) || !player.waitingRoom.cardIds.includes(cardId)
+    )
+  ) {
+    return null;
+  }
+
+  if (selectedCardIds.length === 0) {
+    return {
+      gameState: game,
+      movedCardIds: [],
+      selectedCardIds: [],
+      remainingCandidateIds: options.candidateCardIds,
+    };
+  }
+
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    waitingRoom: {
+      ...currentPlayer.waitingRoom,
+      cardIds: currentPlayer.waitingRoom.cardIds.filter(
+        (cardId) => !uniqueSelectedCardIds.has(cardId)
+      ),
+    },
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: [...selectedCardIds, ...currentPlayer.mainDeck.cardIds],
+    },
+  }));
+
+  return {
+    gameState,
+    movedCardIds: selectedCardIds,
+    selectedCardIds,
+    remainingCandidateIds: options.candidateCardIds.filter(
+      (cardId) => !uniqueSelectedCardIds.has(cardId)
+    ),
+  };
+}
+
+export function moveWaitingRoomCardToDeckPositionForPlayer(
+  game: GameState,
+  playerId: string,
+  selectedCardId: string,
+  options: MoveWaitingRoomCardToDeckPositionForPlayerOptions
+): MoveWaitingRoomCardToDeckPositionForPlayerResult | null {
+  const player = getPlayerById(game, playerId);
+  const positionFromTop = Math.floor(options.positionFromTop);
+  const candidateCardIdSet = new Set(options.candidateCardIds);
+  if (
+    !player ||
+    !Number.isInteger(options.positionFromTop) ||
+    positionFromTop <= 0 ||
+    !candidateCardIdSet.has(selectedCardId) ||
+    !player.waitingRoom.cardIds.includes(selectedCardId)
+  ) {
+    return null;
+  }
+
+  const insertIndex = Math.min(positionFromTop - 1, player.mainDeck.cardIds.length);
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    waitingRoom: {
+      ...currentPlayer.waitingRoom,
+      cardIds: currentPlayer.waitingRoom.cardIds.filter((cardId) => cardId !== selectedCardId),
+    },
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: [
+        ...currentPlayer.mainDeck.cardIds.slice(0, insertIndex),
+        selectedCardId,
+        ...currentPlayer.mainDeck.cardIds.slice(insertIndex),
+      ],
+    },
+  }));
+
+  return {
+    gameState,
+    movedCardId: selectedCardId,
+    insertIndex,
+    positionFromTop,
+    remainingCandidateIds: options.candidateCardIds.filter((cardId) => cardId !== selectedCardId),
   };
 }
 

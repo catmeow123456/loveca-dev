@@ -1670,7 +1670,6 @@ export class GameService {
    * @returns 操作结果
    */
   finalizeLiveResult(game: GameState): GameOperationResult {
-    const firstPlayer = getFirstPlayer(game);
     const secondPlayer = getSecondPlayer(game);
 
     let state = game;
@@ -1706,19 +1705,18 @@ export class GameService {
     }
 
     // 8.4.13 更新先攻玩家
-    // 规则：胜者成为下回合先攻
-    const winnerIds = state.liveResolution.liveWinnerIds;
+    // 规则：仅有一方实际将 Live 放入成功区时，该方成为下回合先攻
+    const successPlacementPlayerIds = [...new Set(state.liveResolution.successCardMovedBy)];
 
-    // 仅有一方胜利时，胜者成为先攻
-    if (winnerIds.length === 1) {
-      const winnerId = winnerIds[0];
-      if (winnerId === secondPlayer.id) {
-        // 后攻胜利，后攻成为新的先攻
+    if (successPlacementPlayerIds.length === 1) {
+      const placedPlayerId = successPlacementPlayerIds[0];
+      if (placedPlayerId === secondPlayer.id) {
+        // 后攻放置成功 Live，后攻成为新的先攻
         state = switchFirstPlayer(state);
       }
-      // 先攻胜利，先攻权不变（已经是先攻）
+      // 先攻放置成功 Live，先攻权不变（已经是先攻）
     }
-    // 双方都胜利或都没有胜利时，先攻权不变
+    // 双方都放置或双方都没有放置时，先攻权不变
 
     // 重置 liveResolution 状态
     state = {

@@ -11,6 +11,7 @@ import { recordPositionMove } from '../../domain/entities/player.js';
 import { createLeaveStageEvent, createMemberSlotMovedEvent } from '../../domain/events/game-events.js';
 import { ZoneType, SlotPosition } from '../../shared/types/enums.js';
 import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
+import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../effects/energy-below.js';
 import {
   addCardToZone,
   addCardsToZone,
@@ -170,12 +171,16 @@ const MEMBER_SLOT_ACCESSOR: ZoneAccessor = {
     // 先查找成员卡槽位
     for (const slot of Object.values(SlotPosition)) {
       if (getCardInSlot(p.memberSlots, slot) === cardId) {
-        // 裸 remove 也必须守住空主槽不能残留 memberBelow 的 invariant。
-        const [slotsWithoutMemberBelow, memberBelowIds] = popMemberBelowMember(p.memberSlots, slot);
+        // 裸 remove 也必须守住空主槽不能残留下方卡的 invariant。
+        const energyReturnResult = returnEnergyBelowMemberToEnergyDeckForPlayer(p, slot);
+        const [slotsWithoutMemberBelow, memberBelowIds] = popMemberBelowMember(
+          energyReturnResult.playerState.memberSlots,
+          slot
+        );
         return {
-          ...p,
+          ...energyReturnResult.playerState,
           memberSlots: removeCardFromSlot(slotsWithoutMemberBelow, slot),
-          waitingRoom: addCardsToZone(p.waitingRoom, memberBelowIds),
+          waitingRoom: addCardsToZone(energyReturnResult.playerState.waitingRoom, memberBelowIds),
         };
       }
     }
@@ -228,7 +233,12 @@ const MEMBER_SLOT_ACCESSOR: ZoneAccessor = {
     let updatedPlayer = p;
 
     if (existingCardId && existingCardId !== cardId) {
-      // 将原有成员卡及其下方成员卡移到休息室
+      // 将原有成员卡及其下方成员卡移到休息室，下方能量返回能量卡组。
+      const energyReturnResult = returnEnergyBelowMemberToEnergyDeckForPlayer(
+        updatedPlayer,
+        options.targetSlot
+      );
+      updatedPlayer = energyReturnResult.playerState;
       const [slotsWithoutMemberBelow, memberBelowIds] = popMemberBelowMember(
         updatedPlayer.memberSlots,
         options.targetSlot
@@ -577,6 +587,11 @@ export function moveCardUniversal(
       // 2. 将成员卡放入目标槽位（换手：将目标槽原有成员移到休息室）
       const existingCardId = getCardInSlot(updated.memberSlots, targetSlot);
       if (existingCardId && existingCardId !== cardId) {
+        const energyReturnResult = returnEnergyBelowMemberToEnergyDeckForPlayer(
+          updated,
+          targetSlot
+        );
+        updated = energyReturnResult.playerState;
         updated = {
           ...updated,
           memberSlots: removeCardFromSlot(updated.memberSlots, targetSlot),

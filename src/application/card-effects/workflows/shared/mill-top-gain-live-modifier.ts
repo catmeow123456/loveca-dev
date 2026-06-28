@@ -17,13 +17,9 @@ import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import {
-  memberHasHeartColor,
-  typeIs,
-  type CardSelector,
-} from '../../../effects/card-selectors.js';
+import { memberHasHeartColor, typeIs, type CardSelector } from '../../../effects/card-selectors.js';
 import { allCardIdsMatchingSelector } from '../../../effects/conditions.js';
-import { inspectTopCards, moveInspectedCardsToWaitingRoom } from '../../../effects/look-top.js';
+import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -137,16 +133,22 @@ function startMillTopGainLiveModifierInspection(
     return game;
   }
 
-  const inspection = inspectTopCards(game, player.id, {
-    count: config.topCount,
-    reveal: true,
-  });
-  if (!inspection) {
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(game, player.id, config.topCount);
+  if (!millResult) {
     return game;
   }
 
-  const { gameState, inspectedCardIds } = inspection;
-  return startPendingActiveEffect(gameState, {
+  const milledCardIds = millResult.movedCardIds;
+  const revealedCardIds = [...new Set(milledCardIds)];
+  const conditionMet =
+    milledCardIds.length === config.topCount &&
+    allCardIdsMatchingSelector(millResult.gameState, milledCardIds, config.conditionSelector);
+  const refreshText = millResult.refreshCount > 0 ? '期间发生卡组更新。' : '';
+  const rewardText = conditionMet
+    ? `这些卡均为${config.conditionLabel}。确认后获得${config.reward.label}。`
+    : `这些卡不满足均为${config.conditionLabel}。确认后不获得奖励。`;
+
+  return startPendingActiveEffect(millResult.gameState, {
     ability,
     playerId: player.id,
     activeEffect: {
@@ -156,18 +158,23 @@ function startMillTopGainLiveModifierInspection(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(config.abilityId),
       stepId: config.stepId,
-      stepText: `卡组顶${config.topCount}张已公开。确认后将这些牌放入休息室，并在均为${config.conditionLabel}时获得${config.reward.label}。`,
+      stepText: `已将卡组顶合计${milledCardIds.length}张放置入休息室。${refreshText}${rewardText}`,
       awaitingPlayerId: player.id,
-      inspectionCardIds: inspectedCardIds,
+      revealedCardIds,
       metadata: {
         sourceZone: ZoneType.MAIN_DECK,
         orderedResolution,
+        milledCardIds,
+        conditionMet,
+        refreshCount: millResult.refreshCount,
       },
     },
     actionPayload: {
       sourceCardId: ability.sourceCardId,
-      step: 'START_INSPECTION',
-      inspectedCardIds,
+      step: 'MILL_TOP_CARDS',
+      milledCardIds,
+      conditionMet,
+      refreshCount: millResult.refreshCount,
     },
   });
 }
@@ -187,22 +194,11 @@ function finishMillTopGainLiveModifier(
     return game;
   }
 
-  const inspectedCardIds = effect.inspectionCardIds ?? [];
-  const conditionMet =
-    inspectedCardIds.length === config.topCount &&
-    allCardIdsMatchingSelector(game, inspectedCardIds, config.conditionSelector);
-
-  const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
-  if (!moveResult) {
-    return game;
-  }
+  const milledCardIds = getStringArrayMetadata(effect.metadata?.milledCardIds);
+  const conditionMet = effect.metadata?.conditionMet === true;
 
   let state: GameState = {
-    ...moveResult.gameState,
-    inspectionContext:
-      moveResult.gameState.inspectionZone.cardIds.length > 0
-        ? moveResult.gameState.inspectionContext
-        : null,
+    ...game,
     activeEffect: null,
   };
 
@@ -234,8 +230,10 @@ function finishMillTopGainLiveModifier(
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: config.finishStep,
-      milledCardIds: moveResult.movedCardIds,
+      milledCardIds,
       conditionMet,
+      refreshCount:
+        typeof effect.metadata?.refreshCount === 'number' ? effect.metadata.refreshCount : 0,
       ...createRewardActionPayload(config.reward, conditionMet),
     }),
     effect.metadata?.orderedResolution === true
@@ -248,12 +246,16 @@ function createRewardActionPayload(
 ): Readonly<Record<string, unknown>> {
   if (reward.type === 'heart') {
     return {
-      [reward.actionPayloadKey]: conditionMet
-        ? [{ color: reward.heartColor, count: 1 }]
-        : [],
+      [reward.actionPayloadKey]: conditionMet ? [{ color: reward.heartColor, count: 1 }] : [],
     };
   }
   return {
     [reward.actionPayloadKey]: conditionMet ? reward.amount : 0,
   };
+}
+
+function getStringArrayMetadata(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
