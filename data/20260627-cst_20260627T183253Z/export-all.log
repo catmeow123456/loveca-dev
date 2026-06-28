@@ -1,0 +1,10 @@
+[2026-06-27T18:34:01Z] start all export
+[2026-06-27T18:34:01Z] exporting match id list
+[2026-06-27T18:34:01Z] exporting match_records
+[2026-06-27T18:34:01Z] exporting match_deck_snapshots
+[2026-06-27T18:34:01Z] exporting match_participants
+[2026-06-27T18:34:01Z] exporting match_timeline_entries
+[2026-06-27T18:34:02Z] exporting match_record_public_events
+[2026-06-27T18:34:02Z] exporting match_record_private_events
+[2026-06-27T18:34:02Z] exporting match_decision_records
+[2026-06-27T18:34:02Z] exporting match_checkpoints
