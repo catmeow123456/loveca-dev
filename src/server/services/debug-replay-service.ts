@@ -674,7 +674,10 @@ function validateDebugReplayBundle(bundleInput: unknown): DebugReplayBundle {
   if (!participantSeats.has('FIRST') || !participantSeats.has('SECOND')) {
     throw new DebugReplayServiceError('DEBUG_REPLAY_INVALID_BUNDLE', '调试回放参与者座位不完整');
   }
-  if (!bundle.limitations.includes('NOT_USER_HISTORY_RECORD')) {
+  if (
+    bundle.sourceMatch.exportedStatus !== 'HISTORY_RECORD' &&
+    !bundle.limitations.includes('NOT_USER_HISTORY_RECORD')
+  ) {
     throw new DebugReplayServiceError(
       'DEBUG_REPLAY_INVALID_BUNDLE',
       'E0 调试回放包必须标记 NOT_USER_HISTORY_RECORD'

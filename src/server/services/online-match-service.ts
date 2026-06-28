@@ -1266,7 +1266,7 @@ export class OnlineMatchService {
           latestSeq(secondPrivateEvents, (event) => event.seq)
         ),
         relatedAuditSeq: latestSeq(sealedAudit, (record) => record.seq),
-        relatedCommandSeq: latestCommandRecord?.seq,
+        relatedCommandSeq: latestCommandRecord?.seq ?? null,
         relatedGameEventSeq:
           latestSeq(gameEvents, (event) => event.sequence) ??
           match.session.getCurrentGameEventSeq(),
@@ -1290,7 +1290,7 @@ export class OnlineMatchService {
             relatedPublicSeq:
               latestSeq(publicEvents, (event) => event.seq) ??
               match.session.getCurrentPublicEventSeq(),
-            relatedCommandSeq: latestCommandRecord?.seq,
+            relatedCommandSeq: latestCommandRecord?.seq ?? null,
             relatedGameEventSeq:
               latestSeq(gameEvents, (event) => event.sequence) ??
               match.session.getCurrentGameEventSeq(),

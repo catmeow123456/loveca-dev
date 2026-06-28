@@ -2,6 +2,16 @@
 
 更新时间：2026-06-27
 
+## 本次 2026-06-28 历史对局视觉收敛与管理员筛选/导出
+
+- 历史对局页从三栏审计面板收敛为“对局列表 + 摘要/回放节点/时间线”主视图，公开事件、私密事件、决策、区域与正面卡列表默认折叠到“调试详情”，减少普通回放时的文字噪声。
+- 管理员历史页新增用户/房间/match id 关键字筛选、开始日期/结束日期筛选、FIRST/SECOND 回放视角切换，以及单局导出按钮。
+- 追修历史对局页密度：左侧对局列表改为单一滚动容器，列表卡片移除重复参与者块并压缩间距；右侧摘要从多张高卡片收敛为“对局/玩家/结果/卡组”四条紧凑 key-value 行。
+- 新增管理员历史读取与导出 API：`/api/battle/admin/match-records...`。导出格式为 `.replay.json` 的历史回放包，包含版本/hash 元数据、参与者、卡组快照、timeline、authority checkpoints、public/private events 与 decision records；该格式可直接导入现有管理员 Debug Replay 查看器，也适合作为仓库真实数据 fixture 继续扩充回归测试。
+- `DebugReplayBundle` 放宽为可承载 `HISTORY_RECORD` 来源；运行中调试包仍保留 `RUNNING_OR_RECENT` 与 `NOT_USER_HISTORY_RECORD` 边界。历史导出当前如实保留 `commands: []`，依靠 decision records 表达可结构化决策，不伪造完整 command log。
+- 归档用户导出的历史 replay fixture：`data/20260628-cst_history-replay-export/loveca-match-SOL-9ae2482c-e7b7-4e54-95dd-6aa7b1c3ea1e-0d341246-0044-4e39-b5cc-73bdf28f12f8.replay.json`。该包为 `HISTORY_RECORD` 来源，包含 23 个 authority checkpoints、26 个 timeline frames、122 个 public events、11 条 decisions；新增 integration 回归验证可导入并按 FIRST/SECOND 投影读取。
+- 验证：`pnpm exec tsc -p tsconfig.server.json --noEmit` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec vitest run tests/unit/match-replay-read-service.test.ts tests/integration/debug-replay-export.test.ts` passed（19 tests）；`pnpm test:run` passed（194 files / 1593 tests，3 performance tests skipped；其中 `tests/integration/real-data-online-replay-harness.test.ts` 5 tests 已执行）；`git diff --check` passed。
+
 ## 本次 2026-06-28 真实联机回放数据回归 harness 与自送费用修复
 
 - 修复 `SEND_SOURCE_MEMBER_TO_WAITING_ROOM` 发动费用清理舞台来源成员时未删除 `memberSlots.cardStates` 的状态残留；现在复用 `removeCardFromSlot` 清槽，保留下方能量/成员一起进入休息室与 `ON_LEAVE_STAGE` 事件语义。

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import type { Request, Response } from 'express';
 import type { DeckConfig } from '../../src/application/game-service';
 import { createMulliganCommand } from '../../src/application/game-commands';
@@ -28,6 +29,9 @@ vi.mock('../../src/server/db/pool.js', () => ({
     query: vi.fn(),
   },
 }));
+
+const HISTORY_REPLAY_EXPORT_FIXTURE =
+  'data/20260628-cst_history-replay-export/loveca-match-SOL-9ae2482c-e7b7-4e54-95dd-6aa7b1c3ea1e-0d341246-0044-4e39-b5cc-73bdf28f12f8.replay.json';
 
 function createTestMemberCard(cardCode: string, name: string): MemberCardData {
   return {
@@ -251,6 +255,34 @@ describe('debug replay export', () => {
     ).toBeUndefined();
     expect(JSON.stringify(checkpointView)).not.toContain('payloadEnvelope');
     expect(JSON.stringify(checkpointView)).not.toContain('__transportType');
+  });
+
+  it('可导入归档的历史对局 replay bundle，并按双方座位读取只读投影', () => {
+    const bundle = JSON.parse(readFileSync(HISTORY_REPLAY_EXPORT_FIXTURE, 'utf8'));
+    const service = new DebugReplayService({ now: () => 1_782_632_740_000 });
+
+    const imported = service.importBundle(bundle);
+
+    expect(imported.sourceMatch.exportedStatus).toBe('HISTORY_RECORD');
+    expect(imported.sourceMatch.roomCode).toBe('SOL-9ae2482c-e7b7-4e54-95dd-6aa7b1c3ea1e');
+    expect(imported.checkpointCount).toBe(23);
+    expect(imported.timelineFrameCount).toBe(26);
+    expect(imported.limitations).not.toContain('NOT_USER_HISTORY_RECORD');
+    expect(imported.limitations).toContain('SOLITAIRE_AUTOMATION_COMPRESSED');
+
+    const timeline = service.getTimeline(imported.bundleId);
+    expect(timeline.recordFrames).toHaveLength(26);
+    expect(JSON.stringify(timeline)).not.toContain('payloadEnvelope');
+
+    const firstCheckpoint = service.getCheckpointView(imported.bundleId, 23, 'FIRST');
+    const secondCheckpoint = service.getCheckpointView(imported.bundleId, 23, 'SECOND');
+
+    expect(firstCheckpoint.playerViewState.match.viewerSeat).toBe('FIRST');
+    expect(secondCheckpoint.playerViewState.match.viewerSeat).toBe('SECOND');
+    expect(firstCheckpoint.checkpointInfo.visibilityScope).toBe('ADMIN');
+    expect(secondCheckpoint.checkpointInfo.visibilityScope).toBe('ADMIN');
+    expect(JSON.stringify(firstCheckpoint)).not.toContain('payloadEnvelope');
+    expect(JSON.stringify(secondCheckpoint)).not.toContain('payloadEnvelope');
   });
 
   it('导入时校验 payload hash，篡改 bundle 会被拒绝', async () => {

@@ -9,7 +9,11 @@ import type {
   MatchDecisionTransitionSemantics,
   MatchDecisionType,
   MatchDecisionVisibleContextSummary,
+  DebugReplayBundle,
+  DebugReplayCardSummary,
+  DebugReplayDeckSnapshot,
   MatchRecordDecisionView,
+  MatchRecordDeckSnapshotView,
   MatchDeckSnapshotSource,
   MatchDeckSnapshotValidationState,
   MatchRecordTimelineEntryView,
@@ -17,6 +21,7 @@ import type {
   MatchRecordVisiblePrivateEventView,
   MatchRecordCompleteness,
   MatchRecordDetailView,
+  MatchRecordParticipantView,
   MatchMode,
   MatchOriginKind,
   MatchParticipantKind,
@@ -25,14 +30,18 @@ import type {
   MatchRecordSummaryView,
   MatchRecordTimelineView,
   ReplayCapability,
+  ReplayCheckpointEnvelope,
   ReplayCheckpointType,
   ReplayLimitation,
+  ReplayRecordFrame,
   ReplayRecordFrameType,
   ReplaySerializedPayloadEnvelope,
+  ReplayVisibilityScope,
 } from '../../online/replay-types.js';
 import type { Seat } from '../../online/types.js';
 import { GameMode } from '../../shared/types/enums.js';
 import {
+  DEBUG_REPLAY_BUNDLE_SCHEMA_VERSION,
   GAME_STATE_SCHEMA_VERSION,
   REPLAY_CARD_DATA_VERSION,
   REPLAY_RECORD_SCHEMA_VERSION,
@@ -80,6 +89,8 @@ interface RecordAccessRow {
   readonly turn_count: number;
   readonly last_timeline_seq: number;
   readonly last_checkpoint_seq: number;
+  readonly last_public_seq?: number;
+  readonly last_game_event_seq?: number;
   readonly record_version: number;
   readonly rules_version: string;
   readonly card_data_version: string;
@@ -87,11 +98,42 @@ interface RecordAccessRow {
   readonly replay_capabilities: unknown;
   readonly replay_limitations: unknown;
   readonly partial_reason: string | null;
+  readonly updated_at?: Date | string | number;
   readonly viewer_seat: Seat;
   readonly viewer_player_id: string;
   readonly opponent_seat: Seat | null;
   readonly opponent_user_id: string | null;
   readonly opponent_display_name: string | null;
+}
+
+interface AdminRecordRow {
+  readonly match_id: string;
+  readonly room_code: string;
+  readonly match_mode: MatchMode;
+  readonly automation_game_mode: MatchAutomationGameMode;
+  readonly origin_kind: MatchOriginKind;
+  readonly origin_label: string;
+  readonly status: MatchRecordStatus;
+  readonly completeness: MatchRecordCompleteness;
+  readonly started_at: Date | string | number;
+  readonly ended_at: Date | string | number | null;
+  readonly sealed_at: Date | string | number | null;
+  readonly winner_seat: Seat | null;
+  readonly end_reason: string | null;
+  readonly turn_count: number;
+  readonly last_timeline_seq: number;
+  readonly last_checkpoint_seq: number;
+  readonly last_public_seq: number;
+  readonly last_game_event_seq: number;
+  readonly record_version: number;
+  readonly rules_version: string;
+  readonly card_data_version: string;
+  readonly card_data_hash: string;
+  readonly replay_capabilities: unknown;
+  readonly replay_limitations: unknown;
+  readonly partial_reason: string | null;
+  readonly updated_at: Date | string | number;
+  readonly participants: unknown;
 }
 
 interface ParticipantRow {
@@ -110,6 +152,7 @@ interface DeckSnapshotRow {
   readonly source: MatchDeckSnapshotSource;
   readonly main_deck: unknown;
   readonly energy_deck: unknown;
+  readonly card_summaries?: unknown;
   readonly validation_state: MatchDeckSnapshotValidationState;
   readonly card_data_version: string;
   readonly card_data_hash: string;
@@ -126,8 +169,10 @@ interface TimelineRow {
   readonly related_public_seq: number | null;
   readonly related_private_seq: number | null;
   readonly related_private_seq_by_seat: unknown;
+  readonly related_audit_seq?: number | null;
   readonly related_command_seq: number | null;
   readonly related_game_event_seq: number | null;
+  readonly related_decision_id?: string | null;
   readonly turn_count: number;
   readonly phase: string;
   readonly sub_phase: string;
@@ -148,6 +193,7 @@ interface CheckpointRow {
   readonly payload_hash: string;
   readonly capabilities: unknown;
   readonly created_at: Date | string | number;
+  readonly visibility_scope?: ReplayVisibilityScope;
 }
 
 interface DeckSnapshotCompatibilityRow {
@@ -174,6 +220,7 @@ interface PublicEventRow {
 }
 
 interface PrivateEventRow {
+  readonly seat?: Seat;
   readonly timeline_seq: number;
   readonly event_seq: number;
   readonly event_id: string;
@@ -194,7 +241,11 @@ interface DecisionRecordRow {
   readonly status: MatchDecisionRecordStatus;
   readonly player_id: string | null;
   readonly event_ids: unknown;
+  readonly source_type?: string | null;
   readonly ability_id: string | null;
+  readonly trigger_condition?: string | null;
+  readonly ability_category?: string | null;
+  readonly ability_source_zone?: string | null;
   readonly source_card_object_id: string | null;
   readonly source_card_code: string | null;
   readonly source_base_card_code: string | null;
@@ -205,10 +256,12 @@ interface DecisionRecordRow {
   readonly step_text: string | null;
   readonly waiting_seat: Seat | null;
   readonly visible_candidates: unknown;
+  readonly audit_candidates?: unknown;
   readonly visible_context_summary: unknown;
   readonly min_select: number | null;
   readonly max_select: number | null;
   readonly can_skip: boolean | null;
+  readonly opened_checkpoint_seq?: number | null;
   readonly submitted_timeline_seq: number | null;
   readonly submitted_command_seq: number | null;
   readonly submission: unknown;
@@ -216,6 +269,15 @@ interface DecisionRecordRow {
   readonly replay_capability: ReplayCapability;
   readonly transition_semantics: MatchDecisionTransitionSemantics;
   readonly created_at: Date | string | number;
+}
+
+interface AdminMatchRecordListOptions {
+  readonly limit?: number;
+  readonly offset?: number;
+  readonly userQuery?: string;
+  readonly userId?: string;
+  readonly startedFrom?: number;
+  readonly startedTo?: number;
 }
 
 export class MatchReplayReadServiceError extends Error {
@@ -252,6 +314,146 @@ export class MatchReplayReadService {
     );
 
     return result.rows.map(mapRecordSummaryRow);
+  }
+
+  async listMatchRecordsForAdmin(
+    options: AdminMatchRecordListOptions = {}
+  ): Promise<readonly MatchRecordSummaryView[]> {
+    const limit = clampListLimit(options.limit);
+    const offset = clampOffset(options.offset);
+    const { whereSql, values } = buildAdminRecordListWhere(options);
+    values.push(limit, offset);
+    const limitParam = values.length - 1;
+    const offsetParam = values.length;
+
+    const result = await this.queryClient.query<AdminRecordRow>(
+      `${adminRecordSelectSql()}
+      ${whereSql}
+      ORDER BY record.started_at DESC, record.match_id ASC
+      LIMIT $${limitParam} OFFSET $${offsetParam}`,
+      values
+    );
+
+    return result.rows.map(mapAdminRecordSummaryRow);
+  }
+
+  async exportMatchRecordBundleForAdmin(matchId: string): Promise<DebugReplayBundle | null> {
+    const record = await this.getAdminRecord(matchId);
+    if (!record) {
+      return null;
+    }
+    validateAdminRecordCompatibility(record);
+
+    const [participants, deckSnapshots, timeline, checkpoints, publicEvents, privateEvents, decisions] =
+      await Promise.all([
+        this.queryClient.query<ParticipantRow>(
+          `SELECT seat, user_id, display_name, player_id, participant_kind, owner_user_id
+          FROM match_participants
+          WHERE match_id = $1
+          ORDER BY seat`,
+          [matchId]
+        ),
+        this.queryClient.query<DeckSnapshotRow>(
+          `SELECT
+            seat,
+            source_deck_id,
+            source_deck_name,
+            source,
+            main_deck,
+            energy_deck,
+            card_summaries,
+            validation_state,
+            card_data_version,
+            card_data_hash,
+            locked_at
+          FROM match_deck_snapshots
+          WHERE match_id = $1
+          ORDER BY seat`,
+          [matchId]
+        ),
+        this.getAllTimelineRowsForExport(matchId),
+        this.getAllAuthorityCheckpointRowsForExport(matchId),
+        this.getAllPublicEventRowsForExport(matchId),
+        this.getAllPrivateEventRowsForExport(matchId),
+        this.getAllDecisionRecordRowsForExport(matchId),
+      ]);
+
+    if (checkpoints.length === 0) {
+      throw new MatchReplayReadServiceError(
+        'MATCH_RECORD_CHECKPOINT_NOT_FOUND',
+        '历史对局没有可导出的权威检查点',
+        404
+      );
+    }
+
+    for (const checkpoint of checkpoints) {
+      if (checkpoint.payload_hash !== checkpoint.payload.payloadHash) {
+        throw new MatchReplayReadServiceError(
+          'MATCH_RECORD_CHECKPOINT_CORRUPTED',
+          '历史对局检查点 hash 不一致',
+          409
+        );
+      }
+      validateCheckpointCompatibility(checkpoint);
+      const authorityState = rehydrateAuthorityCheckpoint(checkpoint);
+      validateCheckpointMatchesAuthorityState(matchId, checkpoint, authorityState);
+    }
+
+    const capabilities = readCapabilities(record.replay_capabilities);
+    const limitations = readLimitations(record.replay_limitations);
+    const updatedAt = record.updated_at ? dateToMs(record.updated_at) : dateToMs(record.started_at);
+    const timelineFrames = timeline.map((row) => mapTimelineRowToRecordFrame(matchId, row));
+
+    return {
+      recordSchemaVersion: REPLAY_RECORD_SCHEMA_VERSION,
+      bundleSchemaVersion: DEBUG_REPLAY_BUNDLE_SCHEMA_VERSION,
+      serializer: 'TRANSPORT_V1',
+      exportedAt: Date.now(),
+      appVersion: 'unknown',
+      gitCommit: null,
+      rulesVersion: record.rules_version,
+      cardDataVersion: record.card_data_version,
+      cardDataHash: record.card_data_hash,
+      sourceMatch: {
+        matchId: record.match_id,
+        roomCode: record.room_code,
+        exportedStatus: 'HISTORY_RECORD',
+        startedAt: dateToMs(record.started_at),
+        updatedAt,
+        lastActivityAt: nullableDateToMs(record.ended_at) ?? updatedAt,
+        currentPublicSeq: record.last_public_seq ?? maxPublicSeq(publicEvents),
+        currentGameEventSeq: record.last_game_event_seq ?? maxGameEventSeq(timeline),
+        turnCount: record.turn_count,
+        phase: timeline.at(-1)?.phase ?? checkpoints.at(-1)?.phase ?? 'UNKNOWN',
+        subPhase: timeline.at(-1)?.sub_phase ?? checkpoints.at(-1)?.sub_phase ?? 'UNKNOWN',
+        complete: record.status === 'COMPLETED',
+      },
+      participants: participants.rows.map((participant) => ({
+        seat: participant.seat,
+        userId: participant.user_id,
+        displayName: participant.display_name,
+        playerId: participant.player_id,
+      })),
+      deckSnapshots: deckSnapshots.rows.map(mapDeckSnapshotRowToDebugSnapshot),
+      recordFrames: timelineFrames,
+      checkpoints: checkpoints.map((checkpoint) =>
+        mapCheckpointRowToEnvelope(matchId, checkpoint, capabilities, limitations)
+      ),
+      timelineSummary: timelineFrames.map((frame) => ({
+        timelineSeq: frame.timelineSeq,
+        frameType: frame.frameType,
+        summary: frame.summary,
+        createdAt: frame.createdAt,
+      })),
+      commands: [],
+      publicEvents: publicEvents.map(mapPublicEventExportRow),
+      privateEventsBySeat: groupPrivateEventExportsBySeat(privateEvents),
+      sealedAudit: [],
+      gameEvents: [],
+      decisions: decisions.map(mapDecisionRecordExportRow),
+      capabilities,
+      limitations,
+    };
   }
 
   async getMatchRecordDetail(
@@ -315,6 +517,46 @@ export class MatchReplayReadService {
     };
   }
 
+  async getMatchRecordDetailForAdmin(matchId: string): Promise<MatchRecordDetailView | null> {
+    const record = await this.getAdminRecord(matchId);
+    if (!record) {
+      return null;
+    }
+
+    const [participants, deckSnapshots] = await Promise.all([
+      this.queryClient.query<ParticipantRow>(
+        `SELECT seat, user_id, display_name, player_id, participant_kind, owner_user_id
+        FROM match_participants
+        WHERE match_id = $1
+        ORDER BY seat`,
+        [matchId]
+      ),
+      this.queryClient.query<DeckSnapshotRow>(
+        `SELECT
+          seat,
+          source_deck_id,
+          source_deck_name,
+          source,
+          main_deck,
+          energy_deck,
+          validation_state,
+          card_data_version,
+          card_data_hash,
+          locked_at
+        FROM match_deck_snapshots
+        WHERE match_id = $1
+        ORDER BY seat`,
+        [matchId]
+      ),
+    ]);
+
+    return {
+      ...mapAdminRecordSummaryRow(record),
+      participants: participants.rows.map(mapParticipantRow),
+      deckSnapshots: deckSnapshots.rows.map(mapDeckSnapshotSummaryRow),
+    };
+  }
+
   async getMatchRecordTimeline(
     matchId: string,
     userId: string
@@ -364,6 +606,32 @@ export class MatchReplayReadService {
       timelineSummary: filterTimelineRowsForViewer(timeline.rows, access.viewer_seat).map((row) =>
         mapTimelineRow(row, access.viewer_seat)
       ),
+    };
+  }
+
+  async getMatchRecordTimelineForAdmin(
+    matchId: string,
+    viewerSeat: Seat = 'FIRST'
+  ): Promise<MatchRecordTimelineView | null> {
+    const record = await this.getAdminRecord(matchId);
+    if (!record) {
+      return null;
+    }
+
+    const timeline = await this.getAllTimelineRowsForExport(matchId);
+
+    return {
+      matchId,
+      matchMode: record.match_mode,
+      automationGameMode: record.automation_game_mode,
+      originKind: record.origin_kind,
+      originLabel: record.origin_label,
+      viewerSeat,
+      recordStatus: record.status,
+      recordCompleteness: record.completeness,
+      replayLimitations: readLimitations(record.replay_limitations),
+      partialReasonSummary: sanitizePartialReason(record.partial_reason),
+      timelineSummary: timeline.map((row) => mapTimelineRow(row, viewerSeat)),
     };
   }
 
@@ -448,12 +716,119 @@ export class MatchReplayReadService {
     };
   }
 
+  async getMatchRecordReplayForAdmin(
+    matchId: string,
+    viewerSeat: Seat = 'FIRST',
+    checkpointSeq?: number
+  ): Promise<MatchRecordReplayView | null> {
+    const record = await this.getAdminRecord(matchId);
+    if (!record) {
+      return null;
+    }
+    validateAdminRecordCompatibility(record);
+
+    const participants = await this.queryClient.query<ParticipantRow>(
+      `SELECT seat, user_id, display_name, player_id, participant_kind, owner_user_id
+      FROM match_participants
+      WHERE match_id = $1
+      ORDER BY seat`,
+      [matchId]
+    );
+    const participant = participants.rows.find((candidate) => candidate.seat === viewerSeat);
+    if (!participant) {
+      throw new MatchReplayReadServiceError(
+        'MATCH_RECORD_VIEWER_SEAT_INVALID',
+        '历史对局不存在该回放视角',
+        400
+      );
+    }
+
+    const checkpoint = await this.getAuthorityCheckpoint(matchId, checkpointSeq);
+    if (!checkpoint) {
+      throw new MatchReplayReadServiceError(
+        'MATCH_RECORD_CHECKPOINT_NOT_FOUND',
+        '历史对局检查点不存在',
+        404
+      );
+    }
+    if (checkpoint.payload_hash !== checkpoint.payload.payloadHash) {
+      throw new MatchReplayReadServiceError(
+        'MATCH_RECORD_CHECKPOINT_CORRUPTED',
+        '历史对局检查点 hash 不一致',
+        409
+      );
+    }
+    validateCheckpointCompatibility(checkpoint);
+
+    const authorityState = rehydrateAuthorityCheckpoint(checkpoint);
+    validateCheckpointMatchesAuthorityState(matchId, checkpoint, authorityState);
+    await this.validateCardDataCompatibility(matchId, record, authorityState);
+    const playerViewState = projectPlayerViewState(authorityState, participant.player_id, {
+      seq: checkpoint.related_public_seq ?? 0,
+      gameMode: toProjectorGameMode(record.automation_game_mode),
+    });
+    const frame = await this.getTimelineFrame(matchId, checkpoint.timeline_seq);
+    const mappedFrame = frame ? mapTimelineRow(frame, viewerSeat) : null;
+    const [publicEvents, privateEvents, decisionRecords] = await Promise.all([
+      this.getPublicEventRowsThrough(matchId, checkpoint.timeline_seq),
+      this.getPrivateEventRowsThrough(matchId, viewerSeat, checkpoint.timeline_seq),
+      this.getDecisionRecordRowsThrough(matchId, viewerSeat, checkpoint.timeline_seq),
+    ]);
+
+    return {
+      matchId,
+      sourceMatchMode: record.match_mode,
+      automationGameMode: record.automation_game_mode,
+      originKind: record.origin_kind,
+      originLabel: record.origin_label,
+      viewerSeat,
+      replayPosition: {
+        timelineSeq: checkpoint.timeline_seq,
+        checkpointSeq: checkpoint.checkpoint_seq,
+      },
+      timelineSummary: mappedFrame,
+      recordFrame: mappedFrame,
+      visibleEvents: publicEvents.map(mapPublicEventRow),
+      visiblePrivateEvents: privateEvents.map(mapPrivateEventRow),
+      visibleDecisions: decisionRecords.map(mapDecisionRecordRow),
+      checkpointInfo: {
+        matchId,
+        checkpointSeq: checkpoint.checkpoint_seq,
+        timelineSeq: checkpoint.timeline_seq,
+        checkpointType: checkpoint.checkpoint_type,
+        relatedPublicSeq: checkpoint.related_public_seq,
+        relatedCommandSeq: checkpoint.related_command_seq,
+        relatedGameEventSeq: checkpoint.related_game_event_seq,
+        turnCount: checkpoint.turn_count,
+        phase: checkpoint.phase,
+        subPhase: checkpoint.sub_phase,
+        createdAt: dateToMs(checkpoint.created_at),
+        capabilities: readCapabilities(checkpoint.capabilities),
+      },
+      playerViewState,
+      recordStatus: record.status,
+      recordCompleteness: record.completeness,
+      replayLimitations: readLimitations(record.replay_limitations),
+      partialReasonSummary: sanitizePartialReason(record.partial_reason),
+    };
+  }
+
   private async getRecordAccess(matchId: string, userId: string): Promise<RecordAccessRow | null> {
     const result = await this.queryClient.query<RecordAccessRow>(
       `${recordAccessSelectSql()}
       WHERE record.match_id = $1 AND viewer.user_id = $2
       LIMIT 1`,
       [matchId, userId]
+    );
+    return result.rows[0] ?? null;
+  }
+
+  private async getAdminRecord(matchId: string): Promise<AdminRecordRow | null> {
+    const result = await this.queryClient.query<AdminRecordRow>(
+      `${adminRecordSelectSql()}
+      WHERE record.match_id = $1
+      LIMIT 1`,
+      [matchId]
     );
     return result.rows[0] ?? null;
   }
@@ -499,7 +874,7 @@ export class MatchReplayReadService {
 
   private async validateCardDataCompatibility(
     matchId: string,
-    access: RecordAccessRow,
+    access: Pick<RecordAccessRow, 'card_data_version' | 'card_data_hash'>,
     authorityState: GameState
   ): Promise<void> {
     const snapshots = await this.queryClient.query<DeckSnapshotCompatibilityRow>(
@@ -623,7 +998,11 @@ export class MatchReplayReadService {
         status,
         player_id,
         event_ids,
+        source_type,
         ability_id,
+        trigger_condition,
+        ability_category,
+        ability_source_zone,
         source_card_object_id,
         source_card_code,
         source_base_card_code,
@@ -634,6 +1013,7 @@ export class MatchReplayReadService {
         step_text,
         waiting_seat,
         visible_candidates,
+        audit_candidates,
         visible_context_summary,
         min_select,
         max_select,
@@ -651,6 +1031,170 @@ export class MatchReplayReadService {
         AND (waiting_seat IS NULL OR waiting_seat = $2)
       ORDER BY timeline_seq ASC, decision_id ASC`,
       [matchId, viewerSeat, timelineSeq]
+    );
+
+    return result.rows;
+  }
+
+  private async getAllTimelineRowsForExport(matchId: string): Promise<readonly TimelineRow[]> {
+    const result = await this.queryClient.query<TimelineRow>(
+      `SELECT
+        timeline_seq,
+        frame_type,
+        visibility_scope,
+        summary,
+        created_at,
+        related_checkpoint_seq,
+        related_public_seq,
+        related_private_seq,
+        related_private_seq_by_seat,
+        related_audit_seq,
+        related_command_seq,
+        related_game_event_seq,
+        related_decision_id,
+        turn_count,
+        phase,
+        sub_phase
+      FROM match_timeline_entries
+      WHERE match_id = $1
+      ORDER BY timeline_seq ASC`,
+      [matchId]
+    );
+
+    return result.rows;
+  }
+
+  private async getAllAuthorityCheckpointRowsForExport(
+    matchId: string
+  ): Promise<readonly CheckpointRow[]> {
+    const result = await this.queryClient.query<CheckpointRow>(
+      `SELECT
+        checkpoint_seq,
+        timeline_seq,
+        checkpoint_type,
+        related_public_seq,
+        related_command_seq,
+        related_game_event_seq,
+        turn_count,
+        phase,
+        sub_phase,
+        schema_version,
+        payload,
+        payload_hash,
+        visibility_scope,
+        capabilities,
+        created_at
+      FROM match_checkpoints
+      WHERE match_id = $1
+        AND checkpoint_type = 'AUTHORITY'
+      ORDER BY checkpoint_seq ASC`,
+      [matchId]
+    );
+
+    return result.rows;
+  }
+
+  private async getAllPublicEventRowsForExport(
+    matchId: string
+  ): Promise<readonly PublicEventRow[]> {
+    const result = await this.queryClient.query<PublicEventRow>(
+      `SELECT
+        event.timeline_seq,
+        event.event_seq,
+        event.event_id,
+        event.event_type,
+        event.source,
+        event.actor_seat,
+        event.summary,
+        event.payload,
+        event.created_at,
+        frame.turn_count,
+        frame.phase,
+        frame.sub_phase
+      FROM match_record_public_events event
+      INNER JOIN match_timeline_entries frame
+        ON frame.match_id = event.match_id
+        AND frame.timeline_seq = event.timeline_seq
+      WHERE event.match_id = $1
+      ORDER BY event.timeline_seq ASC, event.event_seq ASC`,
+      [matchId]
+    );
+
+    return result.rows;
+  }
+
+  private async getAllPrivateEventRowsForExport(
+    matchId: string
+  ): Promise<readonly PrivateEventRow[]> {
+    const result = await this.queryClient.query<PrivateEventRow>(
+      `SELECT
+        event.seat,
+        event.timeline_seq,
+        event.event_seq,
+        event.event_id,
+        event.event_type,
+        event.summary,
+        event.payload,
+        event.created_at,
+        frame.turn_count,
+        frame.phase,
+        frame.sub_phase
+      FROM match_record_private_events event
+      INNER JOIN match_timeline_entries frame
+        ON frame.match_id = event.match_id
+        AND frame.timeline_seq = event.timeline_seq
+      WHERE event.match_id = $1
+      ORDER BY event.timeline_seq ASC, event.seat ASC, event.event_seq ASC`,
+      [matchId]
+    );
+
+    return result.rows;
+  }
+
+  private async getAllDecisionRecordRowsForExport(
+    matchId: string
+  ): Promise<readonly DecisionRecordRow[]> {
+    const result = await this.queryClient.query<DecisionRecordRow>(
+      `SELECT
+        decision_id,
+        timeline_seq,
+        decision_schema_version,
+        decision_type,
+        status,
+        player_id,
+        event_ids,
+        source_type,
+        ability_id,
+        trigger_condition,
+        ability_category,
+        ability_source_zone,
+        source_card_object_id,
+        source_card_code,
+        source_base_card_code,
+        source_zone,
+        source_slot,
+        effect_text_snapshot,
+        step_id,
+        step_text,
+        waiting_seat,
+        visible_candidates,
+        audit_candidates,
+        visible_context_summary,
+        min_select,
+        max_select,
+        can_skip,
+        opened_checkpoint_seq,
+        submitted_timeline_seq,
+        submitted_command_seq,
+        submission,
+        result_summary,
+        replay_capability,
+        transition_semantics,
+        created_at
+      FROM match_decision_records
+      WHERE match_id = $1
+      ORDER BY timeline_seq ASC, decision_id ASC`,
+      [matchId]
     );
 
     return result.rows;
@@ -677,6 +1221,8 @@ function recordAccessSelectSql(): string {
     record.turn_count,
     record.last_timeline_seq,
     record.last_checkpoint_seq,
+    record.last_public_seq,
+    record.last_game_event_seq,
     record.record_version,
     record.rules_version,
     record.card_data_version,
@@ -684,6 +1230,7 @@ function recordAccessSelectSql(): string {
     record.replay_capabilities,
     record.replay_limitations,
     record.partial_reason,
+    record.updated_at,
     viewer.seat AS viewer_seat,
     viewer.player_id AS viewer_player_id,
     opponent.seat AS opponent_seat,
@@ -698,7 +1245,85 @@ function recordAccessSelectSql(): string {
     AND opponent.seat <> viewer.seat`;
 }
 
+function adminRecordSelectSql(): string {
+  return `SELECT
+    record.match_id,
+    record.room_code,
+    record.match_mode,
+    record.automation_game_mode,
+    record.origin_kind,
+    record.origin_label,
+    record.status,
+    record.completeness,
+    record.started_at,
+    record.ended_at,
+    record.sealed_at,
+    record.winner_seat,
+    record.end_reason,
+    record.turn_count,
+    record.last_timeline_seq,
+    record.last_checkpoint_seq,
+    record.last_public_seq,
+    record.last_game_event_seq,
+    record.record_version,
+    record.rules_version,
+    record.card_data_version,
+    record.card_data_hash,
+    record.replay_capabilities,
+    record.replay_limitations,
+    record.partial_reason,
+    record.updated_at,
+    COALESCE(
+      (
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'seat', participant.seat,
+            'userId', participant.user_id,
+            'displayName', participant.display_name,
+            'playerId', participant.player_id,
+            'participantKind', participant.participant_kind,
+            'ownerUserId', participant.owner_user_id
+          )
+          ORDER BY participant.seat
+        )
+        FROM match_participants participant
+        WHERE participant.match_id = record.match_id
+      ),
+      '[]'::jsonb
+    ) AS participants
+  FROM match_records record`;
+}
+
 function validateRecordCompatibility(access: RecordAccessRow): void {
+  if (access.record_version !== REPLAY_RECORD_SCHEMA_VERSION) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_SCHEMA_UNSUPPORTED',
+      '历史对局记录版本不兼容',
+      409
+    );
+  }
+  if (access.rules_version !== REPLAY_RULES_VERSION) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_RULES_UNSUPPORTED',
+      '历史对局规则版本不兼容',
+      409
+    );
+  }
+  if (access.card_data_version !== REPLAY_CARD_DATA_VERSION) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_CARD_DATA_UNSUPPORTED',
+      '历史对局卡牌数据版本不兼容',
+      409
+    );
+  }
+}
+
+function validateAdminRecordCompatibility(
+  access: Pick<
+    AdminRecordRow,
+    'record_version' | 'rules_version' | 'card_data_version'
+  >
+): void {
   if (access.record_version !== REPLAY_RECORD_SCHEMA_VERSION) {
     throw new MatchReplayReadServiceError(
       'MATCH_RECORD_SCHEMA_UNSUPPORTED',
@@ -774,7 +1399,7 @@ function validateCheckpointMatchesAuthorityState(
 }
 
 function validateDeckSnapshotsCompatibility(
-  access: RecordAccessRow,
+  access: Pick<RecordAccessRow, 'card_data_version' | 'card_data_hash'>,
   rows: readonly DeckSnapshotCompatibilityRow[],
   authorityState: GameState
 ): void {
@@ -889,6 +1514,80 @@ function mapRecordSummaryRow(row: RecordAccessRow): MatchRecordSummaryView {
   };
 }
 
+function mapAdminRecordSummaryRow(row: AdminRecordRow): MatchRecordSummaryView {
+  const participants = readJsonArray<MatchRecordParticipantView>(row.participants).map(
+    normalizeParticipantView
+  );
+  const firstParticipant = participants.find((participant) => participant.seat === 'FIRST');
+  const secondParticipant = participants.find((participant) => participant.seat === 'SECOND');
+
+  return {
+    matchId: row.match_id,
+    roomCode: row.room_code,
+    matchMode: row.match_mode,
+    automationGameMode: row.automation_game_mode,
+    originKind: row.origin_kind,
+    originLabel: row.origin_label,
+    status: row.status,
+    completeness: row.completeness,
+    startedAt: dateToMs(row.started_at),
+    endedAt: nullableDateToMs(row.ended_at),
+    sealedAt: nullableDateToMs(row.sealed_at),
+    viewerSeat: 'FIRST',
+    opponentSeat: secondParticipant?.seat ?? null,
+    opponentUserId: secondParticipant?.userId ?? null,
+    opponentDisplayName: secondParticipant
+      ? secondParticipant.displayName
+      : (firstParticipant?.displayName ?? null),
+    winnerSeat: row.winner_seat,
+    endReason: row.end_reason,
+    turnCount: row.turn_count,
+    lastTimelineSeq: row.last_timeline_seq,
+    lastCheckpointSeq: row.last_checkpoint_seq,
+    replayCapabilities: readCapabilities(row.replay_capabilities),
+    replayLimitations: readLimitations(row.replay_limitations),
+    partialReasonSummary: sanitizePartialReason(row.partial_reason),
+    participants,
+  };
+}
+
+function mapParticipantRow(row: ParticipantRow): MatchRecordParticipantView {
+  return {
+    seat: row.seat,
+    userId: row.user_id,
+    displayName: row.display_name,
+    playerId: row.player_id,
+    participantKind: row.participant_kind,
+    ownerUserId: row.owner_user_id,
+  };
+}
+
+function normalizeParticipantView(participant: MatchRecordParticipantView): MatchRecordParticipantView {
+  return {
+    seat: participant.seat,
+    userId: participant.userId,
+    displayName: participant.displayName,
+    playerId: participant.playerId,
+    participantKind: participant.participantKind,
+    ownerUserId: participant.ownerUserId ?? null,
+  };
+}
+
+function mapDeckSnapshotSummaryRow(row: DeckSnapshotRow): MatchRecordDeckSnapshotView {
+  return {
+    seat: row.seat,
+    sourceDeckId: row.source_deck_id,
+    sourceDeckName: row.source_deck_name,
+    source: row.source,
+    mainDeckCount: readJsonArrayLength(row.main_deck),
+    energyDeckCount: readJsonArrayLength(row.energy_deck),
+    validationState: row.validation_state,
+    cardDataVersion: row.card_data_version,
+    cardDataHash: row.card_data_hash,
+    lockedAt: nullableDateToMs(row.locked_at),
+  };
+}
+
 function mapTimelineRow(row: TimelineRow, viewerSeat: Seat): MatchRecordTimelineEntryView {
   return {
     timelineSeq: row.timeline_seq,
@@ -905,6 +1604,147 @@ function mapTimelineRow(row: TimelineRow, viewerSeat: Seat): MatchRecordTimeline
     turnCount: row.turn_count,
     phase: row.phase,
     subPhase: row.sub_phase,
+  };
+}
+
+function mapTimelineRowToRecordFrame(matchId: string, row: TimelineRow): ReplayRecordFrame {
+  return {
+    matchId,
+    timelineSeq: row.timeline_seq,
+    frameType: row.frame_type,
+    visibilityScope: row.visibility_scope as ReplayVisibilityScope,
+    relatedCheckpointSeq: row.related_checkpoint_seq,
+    relatedPublicSeq: row.related_public_seq,
+    relatedPrivateSeq: row.related_private_seq,
+    relatedPrivateSeqBySeat: readPrivateSeqBySeat(row.related_private_seq_by_seat),
+    relatedAuditSeq: row.related_audit_seq ?? null,
+    relatedCommandSeq: row.related_command_seq,
+    relatedGameEventSeq: row.related_game_event_seq,
+    relatedDecisionId: row.related_decision_id ?? null,
+    dedupeKey: `history:${row.timeline_seq}`,
+    turnCount: row.turn_count,
+    phase: row.phase,
+    subPhase: row.sub_phase,
+    summary: row.summary,
+    createdAt: dateToMs(row.created_at),
+  };
+}
+
+function mapCheckpointRowToEnvelope(
+  matchId: string,
+  row: CheckpointRow,
+  recordCapabilities: readonly ReplayCapability[],
+  recordLimitations: readonly ReplayLimitation[]
+): ReplayCheckpointEnvelope {
+  return {
+    matchId,
+    checkpointSeq: row.checkpoint_seq,
+    timelineSeq: row.timeline_seq,
+    checkpointType: row.checkpoint_type,
+    relatedPublicSeq: row.related_public_seq,
+    relatedCommandSeq: row.related_command_seq,
+    relatedGameEventSeq: row.related_game_event_seq,
+    turnCount: row.turn_count,
+    phase: row.phase,
+    subPhase: row.sub_phase,
+    createdAt: dateToMs(row.created_at),
+    payloadEnvelope: row.payload,
+    visibilityScope: row.visibility_scope ?? 'ADMIN',
+    capabilities: readCapabilities(row.capabilities).length
+      ? readCapabilities(row.capabilities)
+      : recordCapabilities,
+    limitations: recordLimitations,
+  };
+}
+
+function mapDeckSnapshotRowToDebugSnapshot(row: DeckSnapshotRow): DebugReplayDeckSnapshot {
+  return {
+    seat: row.seat,
+    sourceDeckId: row.source_deck_id,
+    sourceDeckName: row.source_deck_name,
+    source: row.source,
+    mainDeck: readJsonArray<string>(row.main_deck),
+    energyDeck: readJsonArray<string>(row.energy_deck),
+    cardSummaries: readDebugCardSummaries(row.card_summaries),
+    validationState: row.validation_state,
+    cardDataVersion: row.card_data_version,
+    cardDataHash: row.card_data_hash,
+    lockedAt: nullableDateToMs(row.locked_at),
+  };
+}
+
+function mapPublicEventExportRow(row: PublicEventRow): unknown {
+  return {
+    timelineSeq: row.timeline_seq,
+    eventSeq: row.event_seq,
+    eventId: row.event_id,
+    eventType: row.event_type,
+    source: row.source,
+    actorSeat: row.actor_seat,
+    summary: row.summary,
+    payload: row.payload,
+    createdAt: dateToMs(row.created_at),
+    turnCount: row.turn_count,
+    phase: row.phase,
+    subPhase: row.sub_phase,
+  };
+}
+
+function mapPrivateEventExportRow(row: PrivateEventRow): unknown {
+  return {
+    seat: row.seat,
+    timelineSeq: row.timeline_seq,
+    eventSeq: row.event_seq,
+    eventId: row.event_id,
+    eventType: row.event_type,
+    summary: row.summary,
+    payload: row.payload,
+    createdAt: dateToMs(row.created_at),
+    turnCount: row.turn_count,
+    phase: row.phase,
+    subPhase: row.sub_phase,
+  };
+}
+
+function mapDecisionRecordExportRow(row: DecisionRecordRow): unknown {
+  return {
+    decisionId: row.decision_id,
+    timelineSeq: row.timeline_seq,
+    decisionSchemaVersion: row.decision_schema_version,
+    decisionType: row.decision_type,
+    status: row.status,
+    playerId: row.player_id,
+    eventIds: readJsonArray<string>(row.event_ids),
+    sourceType: row.source_type ?? null,
+    abilityId: row.ability_id,
+    triggerCondition: row.trigger_condition ?? null,
+    abilityCategory: row.ability_category ?? null,
+    abilitySourceZone: row.ability_source_zone ?? null,
+    sourceCardObjectId: row.source_card_object_id,
+    sourceCardCode: row.source_card_code,
+    sourceBaseCardCode: row.source_base_card_code,
+    sourceZone: row.source_zone,
+    sourceSlot: row.source_slot,
+    effectTextSnapshot: row.effect_text_snapshot,
+    stepId: row.step_id,
+    stepText: row.step_text,
+    waitingSeat: row.waiting_seat,
+    visibleCandidates: readJsonArray(row.visible_candidates),
+    auditCandidates: readJsonArray(row.audit_candidates),
+    visibleContextSummary: readJsonObject<MatchDecisionVisibleContextSummary>(
+      row.visible_context_summary
+    ),
+    minSelect: row.min_select,
+    maxSelect: row.max_select,
+    canSkip: row.can_skip,
+    openedCheckpointSeq: row.opened_checkpoint_seq ?? null,
+    submittedTimelineSeq: row.submitted_timeline_seq,
+    submittedCommandSeq: row.submitted_command_seq,
+    submission: readJsonObject<MatchDecisionSubmissionSummary>(row.submission),
+    resultSummary: row.result_summary,
+    replayCapability: row.replay_capability,
+    transitionSemantics: row.transition_semantics,
+    createdAt: dateToMs(row.created_at),
   };
 }
 
@@ -1012,6 +1852,108 @@ function mapDecisionRecordRow(row: DecisionRecordRow): MatchRecordDecisionView {
   };
 }
 
+function groupPrivateEventExportsBySeat(
+  rows: readonly PrivateEventRow[]
+): Readonly<Record<Seat, readonly unknown[]>> {
+  const grouped: Record<Seat, unknown[]> = { FIRST: [], SECOND: [] };
+  for (const row of rows) {
+    if (row.seat === 'FIRST' || row.seat === 'SECOND') {
+      grouped[row.seat].push(mapPrivateEventExportRow(row));
+    }
+  }
+  return grouped;
+}
+
+function readDebugCardSummaries(value: unknown): Readonly<Record<string, DebugReplayCardSummary>> {
+  const parsed = typeof value === 'string' ? safeJsonParse(value) : value;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return {};
+  }
+
+  const summaries: Record<string, DebugReplayCardSummary> = {};
+  for (const [cardCode, rawSummary] of Object.entries(parsed as Record<string, unknown>)) {
+    if (!rawSummary || typeof rawSummary !== 'object' || Array.isArray(rawSummary)) {
+      continue;
+    }
+    const summary = rawSummary as Partial<DebugReplayCardSummary> & Record<string, unknown>;
+    summaries[cardCode] = {
+      cardCode: typeof summary.cardCode === 'string' ? summary.cardCode : cardCode,
+      name: typeof summary.name === 'string' ? summary.name : cardCode,
+      cardType: typeof summary.cardType === 'string' ? summary.cardType : 'UNKNOWN',
+      ...(typeof summary.cost === 'number' ? { cost: summary.cost } : {}),
+      ...(typeof summary.score === 'number' ? { score: summary.score } : {}),
+    };
+  }
+
+  return summaries;
+}
+
+function buildAdminRecordListWhere(options: AdminMatchRecordListOptions): {
+  readonly whereSql: string;
+  readonly values: unknown[];
+} {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+
+  if (options.userId?.trim()) {
+    values.push(options.userId.trim());
+    conditions.push(`EXISTS (
+      SELECT 1
+      FROM match_participants participant
+      WHERE participant.match_id = record.match_id
+        AND (
+          participant.user_id = $${values.length}
+          OR participant.owner_user_id = $${values.length}
+        )
+    )`);
+  }
+
+  if (options.userQuery?.trim()) {
+    values.push(`%${escapeLikePattern(options.userQuery.trim())}%`);
+    conditions.push(`(
+      record.match_id ILIKE $${values.length} ESCAPE '\\'
+      OR record.room_code ILIKE $${values.length} ESCAPE '\\'
+      OR EXISTS (
+        SELECT 1
+        FROM match_participants participant
+        WHERE participant.match_id = record.match_id
+          AND (
+            participant.user_id ILIKE $${values.length} ESCAPE '\\'
+            OR participant.display_name ILIKE $${values.length} ESCAPE '\\'
+            OR COALESCE(participant.owner_user_id, '') ILIKE $${values.length} ESCAPE '\\'
+          )
+      )
+    )`);
+  }
+
+  if (typeof options.startedFrom === 'number') {
+    values.push(toDate(options.startedFrom));
+    conditions.push(`record.started_at >= $${values.length}`);
+  }
+
+  if (typeof options.startedTo === 'number') {
+    values.push(toDate(options.startedTo));
+    conditions.push(`record.started_at <= $${values.length}`);
+  }
+
+  return {
+    whereSql: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '',
+    values,
+  };
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
+}
+
+function maxPublicSeq(rows: readonly PublicEventRow[]): number {
+  return rows.reduce((max, row) => Math.max(max, row.event_seq), 0);
+}
+
+function maxGameEventSeq(rows: readonly TimelineRow[]): number {
+  return rows.reduce((max, row) => Math.max(max, row.related_game_event_seq ?? 0), 0);
+}
+
 function readPrivateSeqForSeat(row: TimelineRow, seat: Seat): number {
   return readPrivateSeqBySeat(row.related_private_seq_by_seat)[seat];
 }
@@ -1105,6 +2047,10 @@ function dateToMs(value: Date | string | number): number {
     return value;
   }
   return value instanceof Date ? value.getTime() : new Date(value).getTime();
+}
+
+function toDate(value: number): Date {
+  return new Date(value);
 }
 
 function createDefaultQueryClient(): MatchReplayReadQueryClient {
