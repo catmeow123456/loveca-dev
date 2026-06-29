@@ -12,7 +12,7 @@ import { applyHeartRequirementModifiers } from '../../../../domain/rules/live-re
 import { CardType, HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
 import { and, normalizeCardName, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { SP_PB2_048_LIVE_START_DIFFERENT_NAMED_CATCHU_REQUIREMENT_AND_SCORE_ABILITY_ID } from '../../ability-ids.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -24,7 +24,7 @@ const STAGE_SLOTS: readonly SlotPosition[] = [
 const catchuMember = and(typeIs(CardType.MEMBER), unitAliasIs('CatChu!'));
 
 export function registerSpPb2048DistortionWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     SP_PB2_048_LIVE_START_DIFFERENT_NAMED_CATCHU_REQUIREMENT_AND_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveSpPb2048DistortionLiveStart(

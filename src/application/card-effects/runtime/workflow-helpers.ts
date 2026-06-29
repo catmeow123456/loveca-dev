@@ -5,7 +5,11 @@ import {
 } from '../../../domain/entities/game.js';
 import { findCardAbilityDefinitionById } from '../definitions/lookup.js';
 import { startConfirmOnlyPendingAbilityEffect } from './active-effect.js';
-import type { PendingAbilityStarterOptions } from './starter-registry.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from './starter-registry.js';
 
 const ABILITY_USE_STEP = 'ABILITY_USE';
 
@@ -49,6 +53,32 @@ export function maybeStartManualPendingAbilityConfirmation(
     effectText: config.effectText ?? getAbilityEffectText(ability.abilityId),
     orderedResolution: options.orderedResolution === true,
     stepText: config.stepText,
+  });
+}
+
+export function registerManualConfirmablePendingAbilityStarterHandler(
+  abilityId: string,
+  resolver: PendingAbilityStarterHandler,
+  getConfirmationConfig?: (
+    game: GameState,
+    ability: PendingAbilityState
+  ) => {
+    readonly effectText?: string;
+    readonly stepText?: string;
+  }
+): void {
+  registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) => {
+    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(
+      game,
+      ability,
+      options,
+      getConfirmationConfig?.(game, ability)
+    );
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
+
+    return resolver(game, ability, options, context);
   });
 }
 

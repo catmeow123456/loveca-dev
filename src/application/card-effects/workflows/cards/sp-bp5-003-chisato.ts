@@ -6,20 +6,15 @@ import {
 } from '../../../../domain/entities/game.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import { CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID } from '../../ability-ids.js';
-import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
 } from '../../runtime/member-state-changed-triggers.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { setEnergyOrientation } from '../../../effects/energy.js';
 import { setMembersOrientation } from '../../../effects/member-state.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
-
-export const CHISATO_LIVE_START_ACTIVATE_STEP_ID = 'CHISATO_LIVE_START_ACTIVATE_ALL';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -29,27 +24,35 @@ const liellaMemberCard = and(typeIs(CardType.MEMBER), groupAliasIs('Liella!'));
 export function registerChisatoWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
 }): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID,
-    (game, ability, options) =>
-      startChisatoLiveStartActivateAll(game, ability, options.orderedResolution === true)
-  );
-  registerActiveEffectStepHandler(
-    CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID,
-    CHISATO_LIVE_START_ACTIVATE_STEP_ID,
-    (game, _input, context) =>
-      finishChisatoLiveStartActivateAll(
+    (game, ability, options, context) =>
+      resolveChisatoLiveStartActivateAll(
         game,
+        ability,
+        options.orderedResolution === true,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
-      )
+      ),
+    (game, ability) => {
+      const player = getPlayerById(game, ability.controllerId);
+      const liellaMemberCardIds = player
+        ? getStageMemberCardIdsMatching(game, player.id, liellaMemberCard)
+        : [];
+      const energyCardIds = player ? [...player.energyZone.cardIds] : [];
+      return {
+        stepText: `确认后将${liellaMemberCardIds.length}名Liella!成员和${energyCardIds.length}张能量变为活跃状态。`,
+      };
+    }
   );
 }
 
-function startChisatoLiveStartActivateAll(
+function resolveChisatoLiveStartActivateAll(
   game: GameState,
   ability: PendingAbilityState,
-  orderedResolution: boolean
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
@@ -58,56 +61,13 @@ function startChisatoLiveStartActivateAll(
 
   const liellaMemberCardIds = getStageMemberCardIdsMatching(game, player.id, liellaMemberCard);
   const energyCardIds = [...player.energyZone.cardIds];
-
-  return startPendingActiveEffect(game, {
-    ability,
-    playerId: player.id,
-    activeEffect: {
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
-      effectText: getAbilityEffectText(CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID),
-      stepId: CHISATO_LIVE_START_ACTIVATE_STEP_ID,
-      stepText: `确认后将${liellaMemberCardIds.length}名Liella!成员和${energyCardIds.length}张能量变为活跃状态。`,
-      awaitingPlayerId: player.id,
-      metadata: {
-        orderedResolution,
-        sourceSlot: ability.sourceSlot,
-        liellaMemberCardIds,
-        energyCardIds,
-      },
-    },
-    actionPayload: {
-      sourceCardId: ability.sourceCardId,
-      step: 'START_CONFIRM',
-      sourceSlot: ability.sourceSlot,
-      liellaMemberCardIds,
-      energyCardIds,
-    },
-  });
-}
-
-function finishChisatoLiveStartActivateAll(
-  game: GameState,
-  continuePendingCardEffects: ContinuePendingCardEffects,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
-): GameState {
-  const effect = game.activeEffect;
-  if (!effect) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const liellaMemberCardIds = getStageMemberCardIdsMatching(game, player.id, liellaMemberCard);
-  const energyCardIds = [...player.energyZone.cardIds];
+  const stateWithoutPending: GameState = {
+    ...game,
+    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+  };
 
   const memberOrientationChange = setMembersOrientation(
-    game,
+    stateWithoutPending,
     player.id,
     liellaMemberCardIds,
     OrientationState.ACTIVE
@@ -127,7 +87,7 @@ function finishChisatoLiveStartActivateAll(
   }
 
   const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
-    game,
+    stateWithoutPending,
     {
       ...memberOrientationChange,
       gameState: energyOrientationChange.gameState,
@@ -135,30 +95,19 @@ function finishChisatoLiveStartActivateAll(
     enqueueTriggeredCardEffects,
     {
       prepareGameStateBeforeEnqueue: (state, result) =>
-        addAction(
-          {
-            ...state,
-            activeEffect: null,
-          },
-          'RESOLVE_ABILITY',
-          player.id,
-          {
-            pendingAbilityId: effect.id,
-            abilityId: effect.abilityId,
-            sourceCardId: effect.sourceCardId,
-            step: 'ACTIVATE_MEMBERS_AND_ENERGY',
-            sourceSlot: effect.metadata?.sourceSlot,
-            activatedMemberCardIds: result.updatedMemberCardIds,
-            previousMemberOrientations: result.previousOrientations,
-            activatedEnergyCardIds: energyOrientationChange.updatedEnergyCardIds,
-            previousEnergyOrientations: energyOrientationChange.previousOrientations,
-            nextOrientation: OrientationState.ACTIVE,
-          }
-        ),
+        addAction(state, 'RESOLVE_ABILITY', player.id, {
+          pendingAbilityId: ability.id,
+          abilityId: ability.abilityId,
+          sourceCardId: ability.sourceCardId,
+          step: 'ACTIVATE_MEMBERS_AND_ENERGY',
+          sourceSlot: ability.sourceSlot,
+          activatedMemberCardIds: result.updatedMemberCardIds,
+          previousMemberOrientations: result.previousOrientations,
+          activatedEnergyCardIds: energyOrientationChange.updatedEnergyCardIds,
+          previousEnergyOrientations: energyOrientationChange.previousOrientations,
+          nextOrientation: OrientationState.ACTIVE,
+        }),
     }
   );
-  return continuePendingCardEffects(
-    stateWithMemberStateTriggers.gameState,
-    effect.metadata?.orderedResolution === true
-  );
+  return continuePendingCardEffects(stateWithMemberStateTriggers.gameState, orderedResolution);
 }

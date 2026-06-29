@@ -7,13 +7,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { CardType, SlotPosition } from '../../../../shared/types/enums.js';
-import {
-  and,
-  groupAliasIs,
-  hasBladeHeart,
-  not,
-  typeIs,
-} from '../../../effects/card-selectors.js';
+import { and, groupAliasIs, hasBladeHeart, not, typeIs } from '../../../effects/card-selectors.js';
 import {
   BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   BP6_001_LIVE_SUCCESS_CHEER_NO_BLADE_MUSE_MEMBER_DRAW_DISCARD_ABILITY_ID,
@@ -23,7 +17,11 @@ import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runti
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartManualPendingAbilityConfirmation,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 import {
   finishDrawThenDiscardCardsWorkflow,
   startDrawThenDiscardCardsWorkflow,
@@ -43,7 +41,7 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 export function registerPlBp6001HonokaWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveHonokaLiveStart(
@@ -51,7 +49,8 @@ export function registerPlBp6001HonokaWorkflowHandlers(deps: {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getHonokaLiveStartConfirmationConfig
   );
   registerPendingAbilityStarterHandler(
     BP6_001_LIVE_SUCCESS_CHEER_NO_BLADE_MUSE_MEMBER_DRAW_DISCARD_ABILITY_ID,
@@ -59,6 +58,7 @@ export function registerPlBp6001HonokaWorkflowHandlers(deps: {
       startHonokaLiveSuccessDrawDiscard(
         game,
         ability,
+        options,
         options.orderedResolution === true,
         context.continuePendingCardEffects
       )
@@ -134,6 +134,11 @@ function resolveHonokaLiveStart(
 function startHonokaLiveSuccessDrawDiscard(
   game: GameState,
   ability: PendingAbilityState,
+  options: {
+    readonly orderedResolution?: boolean;
+    readonly manualConfirmation?: boolean;
+    readonly skipManualConfirmation?: boolean;
+  },
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
@@ -143,11 +148,15 @@ function startHonokaLiveSuccessDrawDiscard(
   }
 
   const currentCheerCardIds = getCurrentOwnCheerCardIds(game, player.id);
-  const matchingCheerCardIds = getCurrentOwnRevealedCheerNoBladeMuseMemberCardIds(
-    game,
-    player.id
-  );
+  const matchingCheerCardIds = getCurrentOwnRevealedCheerNoBladeMuseMemberCardIds(game, player.id);
   if (matchingCheerCardIds.length === 0) {
+    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options, {
+      stepText: '本次声援没有公开不持有 BLADE 的 μ’s 成员卡。确认后此效果不抽弃。',
+    });
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
+
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
@@ -186,10 +195,7 @@ function getOwnLiveZoneMuseLiveCardIds(game: GameState, playerId: string): reado
   return player.liveZone.cardIds.filter((cardId) => {
     const card = getCardById(game, cardId);
     return (
-      !!card &&
-      card.ownerId === player.id &&
-      isLiveCardData(card.data) &&
-      groupAliasIs(MUSE)(card)
+      !!card && card.ownerId === player.id && isLiveCardData(card.data) && groupAliasIs(MUSE)(card)
     );
   });
 }
@@ -238,4 +244,26 @@ function getCurrentOwnCheerCardIds(game: GameState, playerId: string): readonly 
   return playerId === firstPlayerId
     ? game.liveResolution.firstPlayerCheerCardIds
     : game.liveResolution.secondPlayerCheerCardIds;
+}
+
+function getHonokaLiveStartConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly stepText: string } {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
+  const ownMuseLiveCardIds =
+    player && sourceSlot === SlotPosition.CENTER
+      ? getOwnLiveZoneMuseLiveCardIds(game, player.id)
+      : [];
+  const targetMemberCardIds =
+    player && sourceSlot === SlotPosition.CENTER && ownMuseLiveCardIds.length > 0
+      ? getOwnStageMuseMemberCardIds(game, player.id)
+      : [];
+  const conditionMet = sourceSlot === SlotPosition.CENTER && ownMuseLiveCardIds.length > 0;
+  return {
+    stepText: conditionMet
+      ? `来源在 CENTER，自己的 LIVE 卡区有 μ’s LIVE ${ownMuseLiveCardIds.length}张。确认后舞台上 ${targetMemberCardIds.length} 名 μ’s 成员各获得 BLADE。`
+      : '来源不在 CENTER，或自己的 LIVE 卡区没有 μ’s LIVE。确认后不获得 BLADE。',
+  };
 }

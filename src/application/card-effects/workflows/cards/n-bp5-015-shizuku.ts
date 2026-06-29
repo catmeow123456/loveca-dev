@@ -12,7 +12,7 @@ import {
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { N_BP5_015_LIVE_START_ALL_SIX_STAGE_HEARTS_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -26,7 +26,7 @@ const REQUIRED_STAGE_HEART_COLORS: readonly HeartColor[] = [
 ];
 
 export function registerNBp5015ShizukuWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     N_BP5_015_LIVE_START_ALL_SIX_STAGE_HEARTS_GAIN_TWO_BLADE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveNBp5015ShizukuLiveStart(

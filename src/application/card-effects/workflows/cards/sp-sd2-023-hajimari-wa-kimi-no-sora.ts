@@ -11,7 +11,7 @@ import { addLiveModifier, replaceLiveModifier } from '../../../../domain/rules/l
 import { applyHeartRequirementModifiers } from '../../../../domain/rules/live-requirement-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { SP_SD2_023_LIVE_START_SUCCESS_ZONE_TWO_SCORE_AND_SET_REQUIREMENT_ABILITY_ID } from '../../ability-ids.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -24,7 +24,7 @@ const REQUIREMENT_MODIFIERS: readonly LiveRequirementModifierState[] = [
 ];
 
 export function registerSpSd2023HajimariWaKimiNoSoraWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     SP_SD2_023_LIVE_START_SUCCESS_ZONE_TWO_SCORE_AND_SET_REQUIREMENT_ABILITY_ID,
     (game, ability, options, context) =>
       resolveSpSd2023HajimariWaKimiNoSoraLiveStart(
@@ -32,7 +32,17 @@ export function registerSpSd2023HajimariWaKimiNoSoraWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    (game, ability) => {
+      const player = getPlayerById(game, ability.controllerId);
+      const ownSuccessLiveCount = player?.successZone.cardIds.length ?? 0;
+      const conditionMet = ownSuccessLiveCount >= 2;
+      return {
+        stepText: conditionMet
+          ? `自己的成功LIVE区有 ${ownSuccessLiveCount} 张卡，条件满足。确认后此 LIVE 分数 +5，并变更必要 Heart。`
+          : `自己的成功LIVE区有 ${ownSuccessLiveCount} 张卡，条件不满足。确认后不变更分数或必要 Heart。`,
+      };
+    }
   );
 }
 
@@ -94,9 +104,7 @@ function resolveSpSd2023HajimariWaKimiNoSoraLiveStart(
       pendingAbilityId: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
-      step: conditionMet
-        ? 'SUCCESS_ZONE_TWO_SCORE_AND_SET_REQUIREMENT'
-        : 'CONDITION_NOT_MET',
+      step: conditionMet ? 'SUCCESS_ZONE_TWO_SCORE_AND_SET_REQUIREMENT' : 'CONDITION_NOT_MET',
       ownSuccessLiveCount,
       conditionMet,
       scoreBonus: conditionMet ? SCORE_BONUS : 0,

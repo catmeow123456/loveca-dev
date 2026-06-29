@@ -16,7 +16,10 @@ import {
 } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartManualPendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  maybeStartManualPendingAbilityConfirmation,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 import { and, groupAliasIs, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors.js';
 
 const AQOURS = 'Aqours';
@@ -30,7 +33,7 @@ const STAGE_SLOTS: readonly SlotPosition[] = [
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export function registerSFutureWaterBatch3WorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveMyMaiTonightLiveStart(
@@ -105,9 +108,7 @@ function resolveMyMaiTonightLiveStart(
       pendingAbilityId: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
-      step: conditionMet
-        ? 'OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE'
-        : 'NO_OTHER_AQOURS_LIVE',
+      step: conditionMet ? 'OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE' : 'NO_OTHER_AQOURS_LIVE',
       otherAqoursLiveCardIds,
       targetMemberCardIds,
       appliedTargetMemberCardIds,
@@ -140,7 +141,13 @@ function resolveRubyLiveSuccessCenterCheerScore(
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
   };
   if (scoreBonus > 0) {
-    state = addScoreModifierAndRefresh(state, player.id, ability.sourceCardId, ability.abilityId, scoreBonus);
+    state = addScoreModifierAndRefresh(
+      state,
+      player.id,
+      ability.sourceCardId,
+      ability.abilityId,
+      scoreBonus
+    );
   }
 
   return continuePendingCardEffects(

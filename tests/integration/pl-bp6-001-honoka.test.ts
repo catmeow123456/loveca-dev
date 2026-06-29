@@ -214,6 +214,8 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
 
     const resolved = resolvePendingCardEffects(game).gameState;
 
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.pendingAbilities).toEqual([]);
     expect(resolved.liveResolution.liveModifiers).toEqual(
       expect.arrayContaining([
         {
@@ -252,12 +254,10 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
       PLAYER1,
       'other-live'
     );
-    let game = registerCards(createGameState('bp6-001-live-start-miss', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      honoka,
-      museSide,
-      museLive,
-      otherLive,
-    ]);
+    let game = registerCards(
+      createGameState('bp6-001-live-start-miss', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [honoka, museSide, museLive, otherLive]
+    );
     const placements =
       sourceSlot === null
         ? [{ cardId: museSide.instanceId, slot: SlotPosition.RIGHT }]
@@ -284,8 +284,152 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
     expect(resolved.pendingAbilities).toHaveLength(0);
   });
 
+  it('LIVE_START auto-resolves remaining Honoka pending abilities after choosing ordered resolution', () => {
+    const honoka = createCardInstance(
+      createMemberCard('PL!-bp6-001-R＋', { name: '高坂穂乃果' }),
+      PLAYER1,
+      'honoka-order-center'
+    );
+    const museSide = createCardInstance(
+      createMemberCard('PL!-muse-side-order'),
+      PLAYER1,
+      'muse-side-order'
+    );
+    const museLive = createCardInstance(
+      createLiveCard('PL!-muse-live-order'),
+      PLAYER1,
+      'muse-live-order'
+    );
+    let game = registerCards(
+      createGameState('bp6-001-live-start-order', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [honoka, museSide, museLive]
+    );
+    game = placeStageMembers(game, [
+      { cardId: museSide.instanceId, slot: SlotPosition.LEFT },
+      { cardId: honoka.instanceId, slot: SlotPosition.CENTER },
+    ]);
+    game = placeOwnLiveZone(game, [museLive.instanceId]);
+    game = {
+      ...game,
+      pendingAbilities: [
+        createPendingAbility(
+          BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+          honoka.instanceId,
+          TriggerCondition.ON_LIVE_START
+        ),
+        createPendingAbility(
+          BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+          museSide.instanceId,
+          TriggerCondition.ON_LIVE_START,
+          SlotPosition.LEFT
+        ),
+      ],
+    };
+    const orderSelection = resolvePendingCardEffects(game).gameState;
+
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+    const resolved = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(
+      resolved.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.abilityId ===
+          BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID
+      )
+    ).toHaveLength(2);
+  });
+
+  it('LIVE_START shows a confirm-only bridge before resolving manually selected Honoka pending ability', () => {
+    const honoka = createCardInstance(
+      createMemberCard('PL!-bp6-001-R＋', { name: '高坂穂乃果' }),
+      PLAYER1,
+      'honoka-manual-center'
+    );
+    const museSide = createCardInstance(
+      createMemberCard('PL!-muse-side-manual'),
+      PLAYER1,
+      'muse-side-manual'
+    );
+    const museLive = createCardInstance(
+      createLiveCard('PL!-muse-live-manual'),
+      PLAYER1,
+      'muse-live-manual'
+    );
+    let game = registerCards(
+      createGameState('bp6-001-live-start-manual', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [honoka, museSide, museLive]
+    );
+    game = placeStageMembers(game, [
+      { cardId: museSide.instanceId, slot: SlotPosition.LEFT },
+      { cardId: honoka.instanceId, slot: SlotPosition.CENTER },
+    ]);
+    game = placeOwnLiveZone(game, [museLive.instanceId]);
+    game = {
+      ...game,
+      pendingAbilities: [
+        createPendingAbility(
+          BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+          honoka.instanceId,
+          TriggerCondition.ON_LIVE_START
+        ),
+        createPendingAbility(
+          BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+          museSide.instanceId,
+          TriggerCondition.ON_LIVE_START,
+          SlotPosition.LEFT
+        ),
+      ],
+    };
+    const orderSelection = resolvePendingCardEffects(game).gameState;
+
+    const preview = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      honoka.instanceId
+    );
+
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+      sourceCardId: honoka.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(preview.liveResolution.liveModifiers).toEqual([]);
+
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.liveResolution.liveModifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'BLADE',
+          sourceCardId: honoka.instanceId,
+          abilityId: BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+        }),
+        expect.objectContaining({
+          kind: 'BLADE',
+          sourceCardId: museSide.instanceId,
+          abilityId: BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+        }),
+      ])
+    );
+  });
+
   it('LIVE_SUCCESS draws one then discards one when current own revealed cheer includes a μ’s member without bladeHearts', () => {
-    const honoka = createCardInstance(createMemberCard('PL!-bp6-001-SEC'), PLAYER1, 'honoka-success');
+    const honoka = createCardInstance(
+      createMemberCard('PL!-bp6-001-SEC'),
+      PLAYER1,
+      'honoka-success'
+    );
     const revealedMuseMember = createCardInstance(
       createMemberCard('PL!-revealed-muse-member'),
       PLAYER1,
@@ -293,12 +437,10 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
     );
     const oldHand = createCardInstance(createMemberCard('PL!-old-hand'), PLAYER1, 'old-hand');
     const drawCard = createCardInstance(createMemberCard('PL!-draw-card'), PLAYER1, 'draw-card');
-    let game = registerCards(createGameState('bp6-001-live-success', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      honoka,
-      revealedMuseMember,
-      oldHand,
-      drawCard,
-    ]);
+    let game = registerCards(
+      createGameState('bp6-001-live-success', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [honoka, revealedMuseMember, oldHand, drawCard]
+    );
     game = placeStageMembers(game, [{ cardId: honoka.instanceId, slot: SlotPosition.CENTER }]);
     game = setPlayerZones(game, {
       hand: [oldHand.instanceId],
@@ -351,11 +493,10 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
     const honoka = createCardInstance(createMemberCard('PL!-bp6-001-P＋'), PLAYER1, 'honoka-noop');
     const revealed = createCardInstance(revealedCardData, PLAYER1, 'revealed-noop');
     const drawCard = createCardInstance(createMemberCard('PL!-draw-card'), PLAYER1, 'draw-card');
-    let game = registerCards(createGameState('bp6-001-live-success-noop', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      honoka,
-      revealed,
-      drawCard,
-    ]);
+    let game = registerCards(
+      createGameState('bp6-001-live-success-noop', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [honoka, revealed, drawCard]
+    );
     game = placeStageMembers(game, [{ cardId: honoka.instanceId, slot: SlotPosition.CENTER }]);
     game = setPlayerZones(game, { mainDeck: [drawCard.instanceId] });
     game = setCheerResolution(game, {
@@ -382,7 +523,11 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
   });
 
   it('LIVE_SUCCESS only reads current own cheer cards that remain revealed in resolutionZone', () => {
-    const honoka = createCardInstance(createMemberCard('PL!-bp6-001-R＋'), PLAYER1, 'honoka-own-only');
+    const honoka = createCardInstance(
+      createMemberCard('PL!-bp6-001-R＋'),
+      PLAYER1,
+      'honoka-own-only'
+    );
     const opponentRevealed = createCardInstance(
       createMemberCard('PL!-opponent-revealed'),
       PLAYER2,
@@ -391,13 +536,10 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
     const staleOwn = createCardInstance(createMemberCard('PL!-stale-own'), PLAYER1, 'stale-own');
     const hiddenOwn = createCardInstance(createMemberCard('PL!-hidden-own'), PLAYER1, 'hidden-own');
     const drawCard = createCardInstance(createMemberCard('PL!-draw-card'), PLAYER1, 'draw-card');
-    let game = registerCards(createGameState('bp6-001-live-success-own-only', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      honoka,
-      opponentRevealed,
-      staleOwn,
-      hiddenOwn,
-      drawCard,
-    ]);
+    let game = registerCards(
+      createGameState('bp6-001-live-success-own-only', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [honoka, opponentRevealed, staleOwn, hiddenOwn, drawCard]
+    );
     game = placeStageMembers(game, [{ cardId: honoka.instanceId, slot: SlotPosition.CENTER }]);
     game = setPlayerZones(game, { mainDeck: [drawCard.instanceId] });
     game = setCheerResolution(game, {
@@ -430,10 +572,10 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
       PLAYER1,
       'revealed-muse-member'
     );
-    let game = registerCards(createGameState('bp6-001-live-success-empty', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      honoka,
-      revealedMuseMember,
-    ]);
+    let game = registerCards(
+      createGameState('bp6-001-live-success-empty', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [honoka, revealedMuseMember]
+    );
     game = placeStageMembers(game, [{ cardId: honoka.instanceId, slot: SlotPosition.CENTER }]);
     game = setPlayerZones(game, { hand: [], mainDeck: [] });
     game = setCheerResolution(game, {

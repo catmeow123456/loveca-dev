@@ -50,4 +50,23 @@ describe('parseCardEffectText', () => {
       { kind: 'text', text: '抽1张。' },
     ]);
   });
+
+  it('parses standardized and legacy modifier aliases used by effect definitions', () => {
+    const parts = parseCardEffectText(
+      '获得[BLADE][ALLBLADE][虹ハート][黄HEART][红HEART][蓝HEART][紫HEART][无色HEART]。'
+    );
+
+    expect(parts).toEqual([
+      { kind: 'text', text: '获得' },
+      { kind: 'blade', raw: '[BLADE]', label: 'BLADE', icon: 'blade' },
+      { kind: 'blade', raw: '[ALLBLADE]', label: 'ALLBLADE', icon: 'blade' },
+      { kind: 'heart', raw: '[虹ハート]', label: '虹ハート', icon: 'heart_all' },
+      { kind: 'heart', raw: '[黄HEART]', label: '黄HEART', icon: 'heart_yellow' },
+      { kind: 'heart', raw: '[红HEART]', label: '红HEART', icon: 'heart_red' },
+      { kind: 'heart', raw: '[蓝HEART]', label: '蓝HEART', icon: 'heart_blue' },
+      { kind: 'heart', raw: '[紫HEART]', label: '紫HEART', icon: 'heart_purple' },
+      { kind: 'heart', raw: '[无色HEART]', label: '无色HEART', icon: 'heart_all' },
+      { kind: 'text', text: '。' },
+    ]);
+  });
 });

@@ -14,12 +14,12 @@ import {
   SP_BP4_025_LIVE_START_CENTER_LIELLA_ORIGINAL_BLADE_THREE_ABILITY_ID,
   SP_BP4_025_LIVE_SUCCESS_CENTER_LIELLA_MOVED_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export function registerSpBp4025SpecialColorWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     SP_BP4_025_LIVE_START_CENTER_LIELLA_ORIGINAL_BLADE_THREE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveOriginalBladeThree(
@@ -29,7 +29,7 @@ export function registerSpBp4025SpecialColorWorkflowHandlers(): void {
         context.continuePendingCardEffects
       )
   );
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     SP_BP4_025_LIVE_SUCCESS_CENTER_LIELLA_MOVED_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveMovedCenterLiellaScore(
@@ -130,7 +130,9 @@ function resolveMovedCenterLiellaScore(
         })
       : stateWithoutPending;
   const stateAfterScoreRefresh =
-    scoreBonus > 0 ? refreshPlayerScoreDraft(stateAfterModifier, player.id, scoreBonus) : stateAfterModifier;
+    scoreBonus > 0
+      ? refreshPlayerScoreDraft(stateAfterModifier, player.id, scoreBonus)
+      : stateAfterModifier;
 
   return continuePendingCardEffects(
     addAction(stateAfterScoreRefresh, 'RESOLVE_ABILITY', player.id, {
@@ -150,7 +152,9 @@ function resolveMovedCenterLiellaScore(
 function removePending(game: GameState, pendingAbilityId: string): GameState {
   return {
     ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== pendingAbilityId),
+    pendingAbilities: game.pendingAbilities.filter(
+      (candidate) => candidate.id !== pendingAbilityId
+    ),
   };
 }
 

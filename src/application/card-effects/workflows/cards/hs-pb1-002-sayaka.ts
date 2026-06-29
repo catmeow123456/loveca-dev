@@ -24,6 +24,7 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import { and, cardNameAliasAny, typeIs } from '../../../effects/card-selectors.js';
@@ -51,7 +52,7 @@ export function registerHsPb1002SayakaWorkflowHandlers(): void {
     CONFIRM_STACK_REVEALED_MEMBER_STEP_ID,
     (game) => finishHsPb1002SayakaStackRevealedMember(game)
   );
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     HS_PB1_002_LIVE_START_MEMBER_BELOW_COUNT_COST_BLUE_HEART_ABILITY_ID,
     (game, ability, options, context) =>
       resolveHsPb1002SayakaLiveStart(
@@ -59,7 +60,24 @@ export function registerHsPb1002SayakaWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    (game, ability) => {
+      const player = getPlayerById(game, ability.controllerId);
+      const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
+      const memberBelowIds =
+        player && sourceSlot !== null ? (player.memberSlots.memberBelow[sourceSlot] ?? []) : [];
+      const memberBelowMemberCount = memberBelowIds.filter((cardId) => {
+        const card = getCardById(game, cardId);
+        return card !== null && isMemberCardData(card.data);
+      }).length;
+      const countedMemberBelowCount = Math.min(MAX_COUNTED_MEMBER_BELOW, memberBelowMemberCount);
+      return {
+        stepText:
+          countedMemberBelowCount > 0
+            ? `此成员下方有 ${memberBelowMemberCount} 张成员卡，计入 ${countedMemberBelowCount} 张。确认后增加费用与蓝 Heart。`
+            : '此成员下方没有可计入的成员卡。确认后不增加费用或蓝 Heart。',
+      };
+    }
   );
 }
 
@@ -134,10 +152,7 @@ function startHsPb1002SayakaActivated(
   );
 }
 
-function revealHsPb1002SayakaHandMember(
-  game: GameState,
-  selectedCardId: string | null
-): GameState {
+function revealHsPb1002SayakaHandMember(game: GameState, selectedCardId: string | null): GameState {
   const effect = game.activeEffect;
   if (
     !effect ||
@@ -194,23 +209,18 @@ function finishHsPb1002SayakaStackRevealedMember(game: GameState): GameState {
     return game;
   }
 
-  return addAction(
-    { ...stackResult.gameState, activeEffect: null },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'STACK_REVEALED_SAYAKA_MEMBER_BELOW_SOURCE',
-      revealedCardId,
-      stackedCardId: stackResult.movedCardId,
-      sourceZone: stackResult.sourceZone,
-      sourceSlot: effect.metadata?.sourceSlot,
-      targetSlot: stackResult.targetSlot,
-      hostCardId: stackResult.hostCardId,
-    }
-  );
+  return addAction({ ...stackResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    step: 'STACK_REVEALED_SAYAKA_MEMBER_BELOW_SOURCE',
+    revealedCardId,
+    stackedCardId: stackResult.movedCardId,
+    sourceZone: stackResult.sourceZone,
+    sourceSlot: effect.metadata?.sourceSlot,
+    targetSlot: stackResult.targetSlot,
+    hostCardId: stackResult.hostCardId,
+  });
 }
 
 function resolveHsPb1002SayakaLiveStart(
@@ -220,9 +230,7 @@ function resolveHsPb1002SayakaLiveStart(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  const sourceSlot = player
-    ? getSourceMemberSlot(game, player.id, ability.sourceCardId)
-    : null;
+  const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
   if (!player || sourceSlot === null) {
     return skipPendingAbilityWithoutActiveEffect(
       game,

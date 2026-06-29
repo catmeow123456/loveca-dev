@@ -11,7 +11,7 @@ import {
   SP_BP4_020_LIVE_START_RIGHT_MOVED_GAIN_TWO_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -42,14 +42,16 @@ const MOVED_SIDE_BLADE_CONFIGS: readonly MovedSideBladeConfig[] = [
 
 export function registerSpBp4MovedSideBladeWorkflowHandlers(): void {
   for (const config of MOVED_SIDE_BLADE_CONFIGS) {
-    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
-      resolveMovedSideBlade(
-        game,
-        ability,
-        config,
-        options.orderedResolution === true,
-        context.continuePendingCardEffects
-      )
+    registerManualConfirmablePendingAbilityStarterHandler(
+      config.abilityId,
+      (game, ability, options, context) =>
+        resolveMovedSideBlade(
+          game,
+          ability,
+          config,
+          options.orderedResolution === true,
+          context.continuePendingCardEffects
+        )
     );
   }
 }
@@ -71,11 +73,7 @@ function resolveMovedSideBlade(
     sourceSlot !== null &&
     config.requiredSourceSlots.includes(sourceSlot) &&
     player.memberSlots.slots[sourceSlot] === ability.sourceCardId;
-  const movedThisTurn = hasMemberPositionMovedThisTurn(
-    game,
-    player.id,
-    ability.sourceCardId
-  );
+  const movedThisTurn = hasMemberPositionMovedThisTurn(game, player.id, ability.sourceCardId);
   const conditionMet = sourceStillInRequiredSlot && movedThisTurn;
   const stateWithoutPending: GameState = {
     ...game,

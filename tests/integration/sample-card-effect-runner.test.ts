@@ -727,7 +727,12 @@ function setupTsukiyomiManualCheerAdjustmentSession(
   );
   const selectableCheers = Array.from({ length: selectableCheerCount }, (_, index) =>
     createCardInstance(
-      createMemberCard(`PL!HS-test-manual-cheer-target-${index}`, `日野下 花帆 ${index}`, 1, '蓮ノ空'),
+      createMemberCard(
+        `PL!HS-test-manual-cheer-target-${index}`,
+        `日野下 花帆 ${index}`,
+        1,
+        '蓮ノ空'
+      ),
       PLAYER1,
       `p1-tsukiyomi-manual-cheer-target-${index}`
     )
@@ -2022,7 +2027,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-pr-017-activated-recover-live-energy', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-pr-017-activated-recover-live-energy',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -2183,7 +2194,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-pr-017-activated-no-target-energy', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-pr-017-activated-no-target-energy',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -2296,7 +2313,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-bp4-002-activated-condition-not-met', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-bp4-002-activated-condition-not-met',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -2329,7 +2352,8 @@ describe('sample card effect runner', () => {
     );
     const successScore3LiveId = ownedP1CardIds.find(
       (cardId) =>
-        cardId !== targetMuseLiveId && state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+        cardId !== targetMuseLiveId &&
+        state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
     );
 
     expect(eliCardId).toBeTruthy();
@@ -2371,7 +2395,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-bp4-002-activated-discard-recover-live', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-bp4-002-activated-discard-recover-live',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -2532,7 +2562,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-bp4-002-activated-no-target-after-discard', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-bp4-002-activated-no-target-after-discard',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -2638,7 +2674,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-bp5-003-activated-muse-branch', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-bp5-003-activated-muse-branch',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -2666,8 +2708,7 @@ describe('sample card effect runner', () => {
     );
     const memberCardIds = ownedP1CardIds.filter(
       (cardId) =>
-        cardId !== sourceCardId &&
-        state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+        cardId !== sourceCardId && state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
     );
     const energyCardIds = ownedP1CardIds.filter(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
@@ -2877,7 +2918,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-bp5-003-activated-non-muse-branch', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-bp5-003-activated-non-muse-branch',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -2905,8 +2952,7 @@ describe('sample card effect runner', () => {
     );
     const memberCardIds = ownedP1CardIds.filter(
       (cardId) =>
-        cardId !== sourceCardId &&
-        state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+        cardId !== sourceCardId && state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
     );
     const targetLiveId = ownedP1CardIds.find(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
@@ -2988,7 +3034,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-bp5-003-activated-non-muse-no-target', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-bp5-003-activated-non-muse-no-target',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -3065,7 +3117,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-bp5-003-activated-cannot-pay', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-bp5-003-activated-cannot-pay',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -4104,8 +4162,7 @@ describe('sample card effect runner', () => {
       session.state?.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId ===
-            PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID &&
+          action.payload.abilityId === PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID &&
           action.payload.step === 'SKIP'
       )
     ).toBe(true);
@@ -6366,10 +6423,7 @@ describe('sample card effect runner', () => {
       ...p2HandCardIds.slice(2),
       ...p2DrawCardIds,
     ]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
-      relayMemberId,
-      ...p1DiscardIds,
-    ]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([relayMemberId, ...p1DiscardIds]);
     expect(session.state?.players[1].waitingRoom.cardIds).toEqual(p2DiscardIds);
   });
 
@@ -6542,8 +6596,7 @@ describe('sample card effect runner', () => {
       session.state?.actionHistory.some(
         (action) =>
           action.type === 'TRIGGER_ABILITY' &&
-          action.payload.abilityId ===
-            BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID
+          action.payload.abilityId === BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID
       )
     ).toBe(false);
   });
@@ -6608,8 +6661,7 @@ describe('sample card effect runner', () => {
       session.state?.actionHistory.some(
         (action) =>
           action.type === 'TRIGGER_ABILITY' &&
-          action.payload.abilityId ===
-            BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID
+          action.payload.abilityId === BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID
       )
     ).toBe(false);
   });
@@ -6707,7 +6759,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-bp6-002-on-enter-look-no-ability-muse', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-bp6-002-on-enter-look-no-ability-muse',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -6791,11 +6849,13 @@ describe('sample card effect runner', () => {
     expect(finishResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
-  expect(session.state?.players[0].hand.cardIds).toEqual([eligibleMuseCardId]);
-  expect(session.state?.players[0].waitingRoom.cardIds).toEqual([triggeredMuseCardId]);
-});
+    expect(session.state?.players[0].hand.cardIds).toEqual([eligibleMuseCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([triggeredMuseCardId]);
+  });
 
-  function prepareBp6024SuccessSettlement(waitingRoomCards: ReturnType<typeof createCardInstance>[]) {
+  function prepareBp6024SuccessSettlement(
+    waitingRoomCards: ReturnType<typeof createCardInstance>[]
+  ) {
     const session = createGameSession();
     const deck = createDeck();
 
@@ -6864,10 +6924,7 @@ describe('sample card effect runner', () => {
       PLAYER1,
       'p1-bp6-024-non-muse-target'
     );
-    const { session, crossroadsId } = prepareBp6024SuccessSettlement([
-      museTarget,
-      nonMuseTarget,
-    ]);
+    const { session, crossroadsId } = prepareBp6024SuccessSettlement([museTarget, nonMuseTarget]);
 
     const selectResult = session.executeCommand(
       createSelectSuccessLiveCommand(PLAYER1, crossroadsId)
@@ -6928,7 +6985,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.liveResolution.successCardMovedBy).toContain(PLAYER1);
   });
 
-  it("places PL!-bp6-024-L normally when no Muse LIVE exists in waiting room", () => {
+  it('places PL!-bp6-024-L normally when no Muse LIVE exists in waiting room', () => {
     const nonMuseTarget = createCardInstance(
       createLiveCard('PL!S-test-bp6-024-only-non-muse-live', 'Non Muse waiting LIVE', 'Aqours'),
       PLAYER1,
@@ -8829,13 +8886,11 @@ describe('sample card effect runner', () => {
           Array.isArray(action.payload.previousOrientations) &&
           action.payload.previousOrientations.some(
             (entry: { readonly cardId: string; readonly orientation: OrientationState }) =>
-              entry.cardId === energyToActivate[0] &&
-              entry.orientation === OrientationState.WAITING
+              entry.cardId === energyToActivate[0] && entry.orientation === OrientationState.WAITING
           ) &&
           action.payload.previousOrientations.some(
             (entry: { readonly cardId: string; readonly orientation: OrientationState }) =>
-              entry.cardId === energyToActivate[1] &&
-              entry.orientation === OrientationState.WAITING
+              entry.cardId === energyToActivate[1] && entry.orientation === OrientationState.WAITING
           ) &&
           action.payload.nextOrientation === OrientationState.ACTIVE
       )
@@ -9268,9 +9323,7 @@ describe('sample card effect runner', () => {
     expect(skipResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(shikiCardId);
-    expect(session.state?.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBe(
-      rightMemberCardId
-    );
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBe(rightMemberCardId);
     expect(
       session.state?.actionHistory.some(
         (action) =>
@@ -9367,9 +9420,7 @@ describe('sample card effect runner', () => {
       SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID
     );
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(shikiCardId);
-    expect(session.state?.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBe(
-      rightMemberCardId
-    );
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBe(rightMemberCardId);
     expect(session.state?.actionHistory).toHaveLength(actionCountBeforeInvalidSelection);
   });
 
@@ -9848,15 +9899,13 @@ describe('sample card effect runner', () => {
     const { session, startResult, nicoCardId } = setupNicoLiveStartScoreScenario(25);
 
     expect(startResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(NICO_LIVE_START_SCORE_ABILITY_ID);
-    expect(session.state?.activeEffect?.sourceCardId).toBe(nicoCardId);
-    expect(session.state?.activeEffect?.effectText).toContain('当前25张');
-    expect(getLatestResolveAbilityPayload(session.state!, NICO_LIVE_START_SCORE_ABILITY_ID)).toEqual({
-      pendingAbilityId: expect.any(String),
+    expect(session.state?.activeEffect).toMatchObject({
       abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
       sourceCardId: nicoCardId,
-      step: 'START_CONFIRM',
+      metadata: { confirmOnlyPendingAbility: true },
     });
+    expect(session.state?.activeEffect?.effectText).toContain('当前25张');
+    expect(session.state?.liveResolution.playerScoreBonuses.get(PLAYER1)).toBeUndefined();
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -9872,7 +9921,9 @@ describe('sample card effect runner', () => {
       sourceCardId: nicoCardId,
       abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
     });
-    expect(getLatestResolveAbilityPayload(session.state!, NICO_LIVE_START_SCORE_ABILITY_ID)).toMatchObject({
+    expect(
+      getLatestResolveAbilityPayload(session.state!, NICO_LIVE_START_SCORE_ABILITY_ID)
+    ).toMatchObject({
       step: 'APPLY_SCORE_BONUS',
       conditionMet: true,
       museWaitingRoomCount: 25,
@@ -9884,15 +9935,12 @@ describe('sample card effect runner', () => {
     const { session, startResult, nicoCardId } = setupNicoLiveStartScoreScenario(24);
 
     expect(startResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(NICO_LIVE_START_SCORE_ABILITY_ID);
-    expect(session.state?.activeEffect?.sourceCardId).toBe(nicoCardId);
-    expect(session.state?.activeEffect?.effectText).toContain('当前24张');
-    expect(getLatestResolveAbilityPayload(session.state!, NICO_LIVE_START_SCORE_ABILITY_ID)).toEqual({
-      pendingAbilityId: expect.any(String),
+    expect(session.state?.activeEffect).toMatchObject({
       abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
       sourceCardId: nicoCardId,
-      step: 'START_CONFIRM',
+      metadata: { confirmOnlyPendingAbility: true },
     });
+    expect(session.state?.activeEffect?.effectText).toContain('当前24张');
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -9906,7 +9954,9 @@ describe('sample card effect runner', () => {
         (modifier) => modifier.abilityId === NICO_LIVE_START_SCORE_ABILITY_ID
       )
     ).toBe(false);
-    expect(getLatestResolveAbilityPayload(session.state!, NICO_LIVE_START_SCORE_ABILITY_ID)).toMatchObject({
+    expect(
+      getLatestResolveAbilityPayload(session.state!, NICO_LIVE_START_SCORE_ABILITY_ID)
+    ).toMatchObject({
       step: 'APPLY_SCORE_BONUS',
       conditionMet: false,
       museWaitingRoomCount: 24,
@@ -11054,8 +11104,7 @@ describe('sample card effect runner', () => {
       session.state?.actionHistory.some(
         (action) =>
           action.type === 'PAY_COST' &&
-          action.payload.abilityId ===
-            HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID
+          action.payload.abilityId === HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID
       )
     ).toBe(false);
   });
@@ -11236,18 +11285,6 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID);
-    expect(session.state?.activeEffect?.sourceCardId).toBe(liveCardId);
-    expect(session.state?.activeEffect?.effectText).toContain('当前成功LIVE 2张');
-    expect(
-      session.state?.liveResolution.liveRequirementReductions.get(liveCardId!)
-    ).toBeUndefined();
-
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveRequirementReductions.get(liveCardId!)).toBe(4);
     expect(session.state?.liveResolution.liveRequirementModifiers.get(liveCardId!)).toEqual([
@@ -11339,22 +11376,11 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID);
-    expect(session.state?.activeEffect?.effectText).toContain('当前成功LIVE 0张');
-    expect(session.state?.liveResolution.liveRequirementModifiers.get(liveCardId!)).toEqual([
-      { color: HeartColor.RAINBOW, countDelta: -2 },
-    ]);
-
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.liveResolution.liveRequirementReductions.get(liveCardId!)).toBeUndefined();
     expect(
-      session.state?.liveResolution.liveRequirementModifiers.get(liveCardId!)
+      session.state?.liveResolution.liveRequirementReductions.get(liveCardId!)
     ).toBeUndefined();
+    expect(session.state?.liveResolution.liveRequirementModifiers.get(liveCardId!)).toBeUndefined();
     expect(
       session.state?.liveResolution.liveModifiers.some(
         (modifier) => modifier.abilityId === BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID
@@ -11373,27 +11399,13 @@ describe('sample card effect runner', () => {
     const { session, advanceResult, heartbeatLiveCardId } = setupHeartbeatLiveStartScenario([3, 3]);
 
     expect(advanceResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(
-      BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
-    );
-    expect(session.state?.activeEffect?.sourceCardId).toBe(heartbeatLiveCardId);
-    expect(session.state?.activeEffect?.effectText).toContain('当前成功LIVE分数合计 6');
-    expect(
-      session.state?.liveResolution.liveRequirementReductions.get(heartbeatLiveCardId)
-    ).toBeUndefined();
-
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveRequirementReductions.get(heartbeatLiveCardId)).toBe(
       1
     );
-    expect(session.state?.liveResolution.liveRequirementModifiers.get(heartbeatLiveCardId)).toEqual([
-      { color: HeartColor.RAINBOW, countDelta: -1 },
-    ]);
+    expect(session.state?.liveResolution.liveRequirementModifiers.get(heartbeatLiveCardId)).toEqual(
+      [{ color: HeartColor.RAINBOW, countDelta: -1 }]
+    );
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'REQUIREMENT',
       liveCardId: heartbeatLiveCardId,
@@ -11425,17 +11437,6 @@ describe('sample card effect runner', () => {
     const { session, advanceResult, heartbeatLiveCardId } = setupHeartbeatLiveStartScenario([6, 3]);
 
     expect(advanceResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(
-      BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
-    );
-    expect(session.state?.activeEffect?.sourceCardId).toBe(heartbeatLiveCardId);
-    expect(session.state?.activeEffect?.effectText).toContain('当前成功LIVE分数合计 9');
-
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveRequirementReductions.get(heartbeatLiveCardId)).toBe(
       1
@@ -11473,17 +11474,6 @@ describe('sample card effect runner', () => {
     const { session, advanceResult, heartbeatLiveCardId } = setupHeartbeatLiveStartScenario([3]);
 
     expect(advanceResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(
-      BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
-    );
-    expect(session.state?.activeEffect?.sourceCardId).toBe(heartbeatLiveCardId);
-    expect(session.state?.activeEffect?.effectText).toContain('当前成功LIVE分数合计 3');
-
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(
       session.state?.liveResolution.liveRequirementReductions.get(heartbeatLiveCardId)
@@ -11589,17 +11579,6 @@ describe('sample card effect runner', () => {
       performerId: PLAYER1,
       liveCardIds: [hanamusubi.instanceId, otherHasunosoraLive.instanceId],
     });
-    expect(session.state?.activeEffect?.abilityId).toBe(
-      HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID
-    );
-    expect(session.state?.activeEffect?.sourceCardId).toBe(hanamusubi.instanceId);
-    expect(session.state?.activeEffect?.effectText).toContain('当前此卡以外莲之空卡 1张');
-
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(
       session.state?.liveResolution.liveRequirementModifiers.get(hanamusubi.instanceId)
@@ -11612,10 +11591,7 @@ describe('sample card effect runner', () => {
       abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
     });
     expect(
-      getLatestResolveAbilityPayload(
-        session.state!,
-        HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID
-      )
+      getLatestResolveAbilityPayload(session.state!, HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID)
     ).toMatchObject({
       step: 'APPLY_REQUIREMENT_REDUCTION',
       otherHasunosoraLiveZoneCount: 1,
@@ -11688,20 +11664,6 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(
-      HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID
-    );
-    expect(session.state?.activeEffect?.sourceCardId).toBe(hanamusubi.instanceId);
-    expect(session.state?.activeEffect?.effectText).toContain('当前此卡以外莲之空卡 0张');
-    expect(session.state?.liveResolution.liveRequirementModifiers.get(hanamusubi.instanceId)).toEqual([
-      { color: HeartColor.GREEN, countDelta: -2 },
-    ]);
-
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(
       session.state?.liveResolution.liveRequirementModifiers.get(hanamusubi.instanceId)
@@ -11712,10 +11674,7 @@ describe('sample card effect runner', () => {
       )
     ).toBe(false);
     expect(
-      getLatestResolveAbilityPayload(
-        session.state!,
-        HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID
-      )
+      getLatestResolveAbilityPayload(session.state!, HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID)
     ).toMatchObject({
       step: 'APPLY_REQUIREMENT_REDUCTION',
       otherHasunosoraLiveZoneCount: 0,
@@ -11797,25 +11756,6 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(HS_BP2_022_LIVE_START_SCORE_ABILITY_ID);
-    expect(session.state?.activeEffect?.sourceCardId).toBe(aokuharuka.instanceId);
-    expect(session.state?.activeEffect?.effectText).toContain('当前3张，满足条件');
-    expect(
-      getLatestResolveAbilityPayload(session.state!, HS_BP2_022_LIVE_START_SCORE_ABILITY_ID)
-    ).toEqual({
-      pendingAbilityId: expect.any(String),
-      abilityId: HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
-      sourceCardId: aokuharuka.instanceId,
-      step: 'START_CONFIRM',
-      ceriseBouquetLiveCount: 3,
-      scoreBonus: 1,
-    });
-
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.playerScoreBonuses.get(PLAYER1)).toBe(1);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
@@ -11910,25 +11850,6 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(HS_BP2_022_LIVE_START_SCORE_ABILITY_ID);
-    expect(session.state?.activeEffect?.sourceCardId).toBe(aokuharuka.instanceId);
-    expect(session.state?.activeEffect?.effectText).toContain('当前2张，未满足条件');
-    expect(
-      getLatestResolveAbilityPayload(session.state!, HS_BP2_022_LIVE_START_SCORE_ABILITY_ID)
-    ).toEqual({
-      pendingAbilityId: expect.any(String),
-      abilityId: HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
-      sourceCardId: aokuharuka.instanceId,
-      step: 'START_CONFIRM',
-      ceriseBouquetLiveCount: 2,
-      scoreBonus: 0,
-    });
-
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.playerScoreBonuses.get(PLAYER1)).toBeUndefined();
     expect(
@@ -12769,14 +12690,9 @@ describe('sample card effect runner', () => {
     expect(recursiveCheckResult.success).toBe(true);
     expect(recursiveCheckResult.gameState.pendingAbilities).toEqual([]);
 
-    const nextNormalCheerEvent = createCheerEvent(
-      PLAYER1,
-      [additionalCheerCardIds[0]!],
-      1,
-      {
-        automated: true,
-      }
-    );
+    const nextNormalCheerEvent = createCheerEvent(PLAYER1, [additionalCheerCardIds[0]!], 1, {
+      automated: true,
+    });
     const turnOnceCheckResult = service.executeCheckTiming(
       emitGameEvent(session.state!, nextNormalCheerEvent),
       [TriggerCondition.ON_CHEER]
@@ -12799,8 +12715,8 @@ describe('sample card effect runner', () => {
       'p1-tsukiyomi-manual-cheer-target-0',
     ]);
 
-    const cheerEvents = session.state!.eventLog
-      .map((entry) => entry.event)
+    const cheerEvents = session
+      .state!.eventLog.map((entry) => entry.event)
       .filter((event) => event.eventType === TriggerCondition.ON_CHEER);
     expect(cheerEvents).toHaveLength(1);
   });
@@ -12832,11 +12748,9 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(
       'p1-tsukiyomi-manual-cheer-target-0'
     );
-    expect(session.state?.resolutionZone.cardIds).toContain(
-      'p1-tsukiyomi-manual-cheer-target-0'
-    );
-    const cheerEvents = session.state!.eventLog
-      .map((entry) => entry.event)
+    expect(session.state?.resolutionZone.cardIds).toContain('p1-tsukiyomi-manual-cheer-target-0');
+    const cheerEvents = session
+      .state!.eventLog.map((entry) => entry.event)
       .filter((event) => event.eventType === TriggerCondition.ON_CHEER);
     expect(cheerEvents).toHaveLength(1);
     expect(
@@ -13034,9 +12948,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([
       'p1-tsukiyomi-manual-cheer-target-3',
     ]);
-    expect(selectableObjectIds()).toEqual([
-      'obj_p1-tsukiyomi-manual-cheer-target-3',
-    ]);
+    expect(selectableObjectIds()).toEqual(['obj_p1-tsukiyomi-manual-cheer-target-3']);
   });
 
   it('does not trigger PL!-sd1-019-SD live-success effect when the Live failed', () => {
@@ -13203,15 +13115,6 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(
-      CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID
-    );
-
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(
       session.state?.players[0].memberSlots.cardStates.get(liellaMemberCardId!)?.orientation
@@ -14506,7 +14409,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-rurino-leave-stage-own-position', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-rurino-leave-stage-own-position',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -14756,7 +14665,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-rurino-leave-stage-opponent-position', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-rurino-leave-stage-opponent-position',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -14829,11 +14744,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([opponentMemberCardId]);
 
     const selectOpponentResult = session.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER1,
-        session.state!.activeEffect!.id,
-        opponentMemberCardId
-      )
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, opponentMemberCardId)
     );
 
     expect(selectOpponentResult.success).toBe(true);
@@ -14862,7 +14773,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-rurino-leave-stage-no-target', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-rurino-leave-stage-no-target',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -15190,7 +15107,12 @@ describe('sample card effect runner', () => {
 
     let state = session.state!;
     const lowCostHasunosoraMember = createCardInstance(
-      createMemberCard('PL!HS-test-sd1-001-low-cost-relay-member', '蓮ノ空 Low Cost Member', 9, '蓮ノ空'),
+      createMemberCard(
+        'PL!HS-test-sd1-001-low-cost-relay-member',
+        '蓮ノ空 Low Cost Member',
+        9,
+        '蓮ノ空'
+      ),
       PLAYER1,
       'p1-sd1-001-low-cost-relay-member'
     );
@@ -16237,7 +16159,8 @@ describe('sample card effect runner', () => {
       session.state?.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId === HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID &&
+          action.payload.abilityId ===
+            HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID &&
           action.payload.sourceCardId === ginkoCardId &&
           action.payload.step === 'WAIT_OPPONENT_MEMBER' &&
           action.payload.sourceSlot === SlotPosition.CENTER &&
@@ -17213,7 +17136,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-rurino-live-start-same-group-heart', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-rurino-live-start-same-group-heart',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
 
     const state = session.state!;
@@ -17482,9 +17411,7 @@ describe('sample card effect runner', () => {
     expect(confirmLiveStartResult.success).toBe(true);
     expect(session.state?.currentSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
 
-    const judgmentResult = session.executeCommand(
-      createSubmitJudgmentCommand(PLAYER1, new Map())
-    );
+    const judgmentResult = session.executeCommand(createSubmitJudgmentCommand(PLAYER1, new Map()));
 
     expect(judgmentResult.success).toBe(true);
     expect(session.state?.liveResolution.liveResults.get(liveCardId!)).toBe(true);
@@ -17495,7 +17422,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-rurino-live-start-no-same-group-target', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-rurino-live-start-no-same-group-target',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
 
     const state = session.state!;
@@ -17587,7 +17520,13 @@ describe('sample card effect runner', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sample-rurino-live-start-no-hand', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sample-rurino-live-start-no-hand',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
 
     const state = session.state!;

@@ -10,16 +10,12 @@ import {
   addAction,
   getCardById,
   getPlayerById,
-  type ActiveEffectState,
   type GameAction,
   type GameState,
   type LiveModifierState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import {
-  addLiveModifier,
-  replaceLiveModifier,
-} from '../../../../domain/rules/live-modifiers.js';
+import { addLiveModifier, replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import {
   and,
   cardNameAliasIs,
@@ -54,10 +50,10 @@ import {
   PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
   S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
-import { startConfirmOnlyActiveEffect } from '../../runtime/active-effect.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 
 const NICO_SCORE_BONUS_STEP_ID = 'NICO_SCORE_BONUS';
 const BOKUIMA_REQUIREMENT_REDUCTION_STEP_ID = 'BOKUIMA_REQUIREMENT_REDUCTION';
@@ -73,8 +69,7 @@ const HS_BP2_024_REQUIREMENT_REDUCTION_STEP_ID = 'HS_BP2_024_REQUIREMENT_REDUCTI
 const HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
   'HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION';
 const BP4_021_SUCCESS_SCORE_MODIFIER_STEP_ID = 'BP4_021_SUCCESS_SCORE_MODIFIER';
-const S_BP6_010_RED_REQUIREMENT_GAIN_HEART_STEP_ID =
-  'S_BP6_010_RED_REQUIREMENT_GAIN_HEART';
+const S_BP6_010_RED_REQUIREMENT_GAIN_HEART_STEP_ID = 'S_BP6_010_RED_REQUIREMENT_GAIN_HEART';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -98,7 +93,7 @@ interface ConditionalLiveModifierWorkflowConfig {
   ) => ConditionalLiveModifierStartContext;
   readonly finish: (
     game: GameState,
-    effect: ActiveEffectState,
+    effect: PendingAbilityState,
     playerId: string
   ) => ConditionalLiveModifierFinishContext;
 }
@@ -291,72 +286,64 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
 
 export function registerConditionalLiveModifierWorkflowHandlers(): void {
   for (const config of CONDITIONAL_LIVE_MODIFIER_WORKFLOWS) {
-    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
-      startConditionalLiveModifierWorkflow(
-        game,
-        ability,
-        config,
-        options.orderedResolution === true
-      )
-    );
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, _input, context) =>
-      finishConditionalLiveModifierWorkflow(game, config, context.continuePendingCardEffects)
+    registerManualConfirmablePendingAbilityStarterHandler(
+      config.abilityId,
+      (game, ability, options, context) =>
+        resolveConditionalLiveModifierWorkflow(
+          game,
+          ability,
+          config,
+          options.orderedResolution === true,
+          context.continuePendingCardEffects
+        ),
+      (game, ability) => {
+        const player = getPlayerById(game, ability.controllerId);
+        if (!player) {
+          return {};
+        }
+        const startContext = config.getStartContext(game, ability, player.id);
+        return {
+          effectText: startContext.effectText,
+          stepText: startContext.effectText,
+        };
+      }
     );
   }
 }
 
-function startConditionalLiveModifierWorkflow(
+function resolveConditionalLiveModifierWorkflow(
   game: GameState,
   ability: PendingAbilityState,
   config: ConditionalLiveModifierWorkflowConfig,
-  orderedResolution: boolean
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
 
-  const startContext = config.getStartContext(game, ability, player.id);
-  return startConfirmOnlyActiveEffect(game, {
-    ability,
-    playerId: player.id,
-    effectText: startContext.effectText,
-    stepId: config.stepId,
-    stepText: startContext.effectText,
-    orderedResolution,
-    actionPayload: startContext.actionPayload,
-  });
-}
-
-function finishConditionalLiveModifierWorkflow(
-  game: GameState,
-  config: ConditionalLiveModifierWorkflowConfig,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const effect = game.activeEffect;
-  if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.stepId) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const finishContext = config.finish(game, effect, player.id);
+  const finishContext = config.finish(game, ability, player.id);
+  const stateWithoutPending: GameState = {
+    ...finishContext.gameState,
+    pendingAbilities: finishContext.gameState.pendingAbilities.filter(
+      (candidate) => candidate.id !== ability.id
+    ),
+  };
   return continuePendingCardEffects(
-    addAction(finishContext.gameState, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
+    addAction(stateWithoutPending, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
       ...finishContext.actionPayload,
     }),
-    effect.metadata?.orderedResolution === true
+    orderedResolution
   );
 }
 
 function finishNicoLiveStartScoreBonus(
   game: GameState,
-  effect: ActiveEffectState,
+  effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
   const waitingRoomCardIds = getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM);
@@ -409,7 +396,7 @@ function getNicoStartContext(game: GameState, _ability: PendingAbilityState, pla
 
 function finishSBp6010LiveStartRedRequirementGainHeart(
   game: GameState,
-  effect: ActiveEffectState,
+  effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
   const redRequirementTotal = sumOwnLiveZoneRequirement(game, playerId, HeartColor.RED);
@@ -438,11 +425,7 @@ function finishSBp6010LiveStartRedRequirementGainHeart(
   };
 }
 
-function sumOwnLiveZoneRequirement(
-  game: GameState,
-  playerId: string,
-  color: HeartColor
-): number {
+function sumOwnLiveZoneRequirement(game: GameState, playerId: string, color: HeartColor): number {
   const player = getPlayerById(game, playerId);
   if (!player) {
     return 0;
@@ -459,7 +442,7 @@ function sumOwnLiveZoneRequirement(
 
 function finishBokuimaLiveStartRequirementReduction(
   game: GameState,
-  effect: ActiveEffectState,
+  effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
   const successLiveCount = countSuccessfulLiveCards(game, playerId);
@@ -493,7 +476,7 @@ function finishBokuimaLiveStartRequirementReduction(
 
 function finishHsBp5HanamusubiLiveStartRequirementReduction(
   game: GameState,
-  effect: ActiveEffectState,
+  effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
   const otherHasunosoraLiveZoneCount = countOtherLiveZoneCardsMatching(
@@ -532,7 +515,7 @@ function finishHsBp5HanamusubiLiveStartRequirementReduction(
 
 function finishHsBp2AokuharukaLiveStartScoreBonus(
   game: GameState,
-  effect: ActiveEffectState,
+  effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
   const ceriseBouquetLiveCount = countCeriseBouquetLiveInWaitingRoom(game, playerId);
@@ -566,7 +549,7 @@ function finishHsBp2AokuharukaLiveStartScoreBonus(
 
 function finishHsBp5BardCageLiveStartScoreBonus(
   game: GameState,
-  effect: ActiveEffectState,
+  effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
   const highCostHasunosoraMemberCount = countHighCostHasunosoraStageMembers(game, playerId);
@@ -590,9 +573,7 @@ function finishHsBp5BardCageLiveStartScoreBonus(
     gameState: state,
     actionPayload: {
       step: 'APPLY_SCORE_BONUS',
-      effectText: getAbilityEffectText(
-        HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID
-      ),
+      effectText: getAbilityEffectText(HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID),
       conditionMet: isConditionMet,
       highCostHasunosoraMemberCount,
       scoreBonus: isConditionMet ? 1 : 0,
@@ -602,7 +583,7 @@ function finishHsBp5BardCageLiveStartScoreBonus(
 
 function finishPlNPb1037CaraTesoroScoreBonus(
   game: GameState,
-  effect: ActiveEffectState,
+  effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
   const history = getNijigasakiActivationHistoryThisTurn(game, playerId);
@@ -642,7 +623,7 @@ function finishPlNPb1037CaraTesoroScoreBonus(
 
 function finishHsBp2LadybugLiveStartRequirementReduction(
   game: GameState,
-  effect: ActiveEffectState,
+  effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
   const condition = getKosuzuSayakaHigherCostCondition(game, playerId);
@@ -678,7 +659,7 @@ function finishHsBp2LadybugLiveStartRequirementReduction(
 
 function finishBp4021HeartbeatLiveStartSuccessScoreModifier(
   game: GameState,
-  effect: ActiveEffectState,
+  effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
   const successLiveScore = sumSuccessfulLiveScore(game, playerId);
@@ -760,7 +741,7 @@ function createRelayEnteredHasunosoraRequirementReductionWorkflow(
 
 function finishRelayEnteredHasunosoraRequirementReduction(
   game: GameState,
-  effect: ActiveEffectState,
+  effect: PendingAbilityState,
   playerId: string,
   config: RelayEnteredHasunosoraRequirementReductionConfig
 ): ConditionalLiveModifierFinishContext {
@@ -803,10 +784,7 @@ function countCeriseBouquetLiveInWaitingRoom(game: GameState, playerId: string):
   );
 }
 
-function getRelayEnteredHasunosoraMemberIds(
-  game: GameState,
-  playerId: string
-): readonly string[] {
+function getRelayEnteredHasunosoraMemberIds(game: GameState, playerId: string): readonly string[] {
   return getRelayEnteredStageMemberCardIdsThisTurn(
     game,
     playerId,
@@ -818,7 +796,8 @@ function countHighCostHasunosoraStageMembers(game: GameState, playerId: string):
   return getStageMemberCardIdsMatching(
     game,
     playerId,
-    (card) => groupAliasIs('蓮ノ空')(card) && getMemberEffectiveCost(game, playerId, card.instanceId) >= 10
+    (card) =>
+      groupAliasIs('蓮ノ空')(card) && getMemberEffectiveCost(game, playerId, card.instanceId) >= 10
   ).length;
 }
 
@@ -872,7 +851,9 @@ function isOwnNijigasakiResolveAbilityAction(
     return false;
   }
   const sourceCard = getCardById(game, sourceCardId);
-  return sourceCard !== null && sourceCard.ownerId === playerId && groupAliasIs('虹ヶ咲')(sourceCard);
+  return (
+    sourceCard !== null && sourceCard.ownerId === playerId && groupAliasIs('虹ヶ咲')(sourceCard)
+  );
 }
 
 function hasActivatedWaitingEnergyPayload(action: GameAction): boolean {
@@ -920,7 +901,8 @@ function hasActivatedWaitingStageMemberPayload(
     (cardId) =>
       isOwnedMemberCard(game, cardId, playerId) &&
       previousOrientations.some(
-        (previous) => previous.cardId === cardId && previous.orientation === OrientationState.WAITING
+        (previous) =>
+          previous.cardId === cardId && previous.orientation === OrientationState.WAITING
       )
   );
 }
@@ -963,8 +945,16 @@ function getKosuzuSayakaHigherCostCondition(
   readonly kosuzuMemberIds: readonly string[];
   readonly sayakaMemberIds: readonly string[];
 } {
-  const kosuzuMemberIds = getStageMemberCardIdsMatching(game, playerId, cardNameAliasIs('徒町小鈴'));
-  const sayakaMemberIds = getStageMemberCardIdsMatching(game, playerId, cardNameAliasIs('村野さやか'));
+  const kosuzuMemberIds = getStageMemberCardIdsMatching(
+    game,
+    playerId,
+    cardNameAliasIs('徒町小鈴')
+  );
+  const sayakaMemberIds = getStageMemberCardIdsMatching(
+    game,
+    playerId,
+    cardNameAliasIs('村野さやか')
+  );
   const conditionMet = kosuzuMemberIds.some((kosuzuMemberId) => {
     const kosuzuCost = getMemberEffectiveCost(game, playerId, kosuzuMemberId);
     return sayakaMemberIds.some(
@@ -1000,7 +990,7 @@ function getStageMemberCardIdsMatching(
 
 function replaceSourceRequirementModifier(
   game: GameState,
-  effect: ActiveEffectState,
+  effect: PendingAbilityState,
   replacement: LiveModifierState | null
 ): GameState {
   return replaceLiveModifier(

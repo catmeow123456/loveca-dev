@@ -14,7 +14,7 @@ import {
 import { SlotPosition } from '../../../../shared/types/enums.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -25,7 +25,7 @@ const STAGE_SLOTS: readonly SlotPosition[] = [
 ];
 
 export function registerSpPb2045ZettaiLoverWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveSpPb2045ZettaiLoverLiveStart(

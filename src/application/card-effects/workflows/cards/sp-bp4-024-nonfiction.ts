@@ -20,13 +20,13 @@ import {
   addBladeLiveModifierForSourceMember,
   type AddBladeLiveModifierForSourceMemberResult,
 } from '../../runtime/actions.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export function registerSpBp4024NonfictionWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     SP_BP4_024_LIVE_START_CENTER_LIELLA_HIGHER_COST_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveCenterLiellaHigherCostScore(
@@ -36,7 +36,7 @@ export function registerSpBp4024NonfictionWorkflowHandlers(): void {
         context.continuePendingCardEffects
       )
   );
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     SP_BP4_024_LIVE_START_LEFT_LIELLA_RED_HEART_THREE_GAIN_TWO_BLADE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveLeftLiellaRedHeartBlade(
@@ -69,7 +69,10 @@ function resolveCenterLiellaHigherCostScore(
       ? getMemberEffectiveCost(game, player.id, ownCenterCardId)
       : null;
   const opponentCenterCost =
-    opponentCenterCardId && opponent && opponentCenterCard && isMemberCardData(opponentCenterCard.data)
+    opponentCenterCardId &&
+    opponent &&
+    opponentCenterCard &&
+    isMemberCardData(opponentCenterCard.data)
       ? getMemberEffectiveCost(game, opponent.id, opponentCenterCardId)
       : null;
   const ownCenterIsLiella =
@@ -171,11 +174,7 @@ function resolveLeftLiellaRedHeartBlade(
   );
 }
 
-function refreshPlayerScoreDraft(
-  game: GameState,
-  playerId: string,
-  scoreBonus: number
-): GameState {
+function refreshPlayerScoreDraft(game: GameState, playerId: string, scoreBonus: number): GameState {
   const playerScores = new Map(game.liveResolution.playerScores);
   playerScores.set(playerId, (playerScores.get(playerId) ?? 0) + scoreBonus);
   return {

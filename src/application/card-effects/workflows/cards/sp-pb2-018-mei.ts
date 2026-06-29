@@ -11,7 +11,7 @@ import { normalizeCardName, unitAliasIs } from '../../../effects/card-selectors.
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
 import { SP_PB2_018_LIVE_START_DIFFERENT_NAME_CATCHU_ACTIVATE_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -22,7 +22,7 @@ const STAGE_SLOTS: readonly SlotPosition[] = [
 ];
 
 export function registerSpPb2018MeiWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     SP_PB2_018_LIVE_START_DIFFERENT_NAME_CATCHU_ACTIVATE_ENERGY_ABILITY_ID,
     (game, ability, options, context) =>
       resolveSpPb2018MeiLiveStart(

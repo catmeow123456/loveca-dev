@@ -21,7 +21,7 @@ import {
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -37,7 +37,7 @@ const NORMAL_HEART_COLORS: readonly HeartColor[] = [
 const EUTOPIA_SCORE_BONUS = 2;
 
 export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveSolitudeRainLiveStart(
@@ -47,7 +47,7 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
         context.continuePendingCardEffects
       )
   );
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveEutopiaLiveStart(
@@ -57,7 +57,7 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
         context.continuePendingCardEffects
       )
   );
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveMiracleStayTuneLiveStart(

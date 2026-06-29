@@ -12,20 +12,19 @@ import {
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import { and, groupIs, typeIs } from '../../../effects/card-selectors.js';
 import {
-  hasCardInZoneMatching,
-  successLiveScoreAtLeast,
-} from '../../../effects/conditions.js';
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
+import { and, groupIs, typeIs } from '../../../effects/card-selectors.js';
+import { hasCardInZoneMatching, successLiveScoreAtLeast } from '../../../effects/conditions.js';
 import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 import {
   finishWaitingRoomToHandWorkflow,
   startWaitingRoomToHandWorkflow,
 } from '../shared/waiting-room-to-hand.js';
 
-const BP6_013_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID =
-  'BP6_013_SELECT_WAITING_ROOM_MUSE_LIVE';
+const BP6_013_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID = 'BP6_013_SELECT_WAITING_ROOM_MUSE_LIVE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -52,7 +51,7 @@ export function registerPlBp6013And023SuccessZoneWorkflowHandlers(): void {
       )
   );
 
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     BP6_023_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_SUCCESS_MUSE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveBp6023DrawBySuccessZone(
@@ -60,7 +59,18 @@ export function registerPlBp6013And023SuccessZoneWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    (game, ability) => {
+      const player = getPlayerById(game, ability.controllerId);
+      const hasMuseSuccessCard = player
+        ? hasCardInZoneMatching(game, player.id, ZoneType.SUCCESS_ZONE, groupIs("μ's"))
+        : false;
+      return {
+        stepText: hasMuseSuccessCard
+          ? "自己的成功LIVE区有 μ's 卡。确认后抽 2 张卡。"
+          : "自己的成功LIVE区没有 μ's 卡。确认后抽 1 张卡。",
+      };
+    }
   );
 }
 

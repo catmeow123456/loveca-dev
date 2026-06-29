@@ -10,9 +10,17 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, addCardToZone } from '../../src/domain/entities/zone';
 import { applyHeartRequirementModifiers } from '../../src/domain/rules/live-requirement-modifiers';
-import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import {
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import { SP_SD2_023_LIVE_START_SUCCESS_ZONE_TWO_SCORE_AND_SET_REQUIREMENT_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
-import { CardType, HeartColor, OrientationState, TriggerCondition } from '../../src/shared/types/enums';
+import {
+  CardType,
+  HeartColor,
+  OrientationState,
+  TriggerCondition,
+} from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -54,12 +62,14 @@ function createPendingAbility(sourceCardId: string): PendingAbilityState {
   };
 }
 
-function setupState(options: {
-  readonly ownSuccessCount?: number;
-  readonly opponentSuccessCount?: number;
-  readonly includeOtherLive?: boolean;
-  readonly initialScore?: number;
-} = {}): {
+function setupState(
+  options: {
+    readonly ownSuccessCount?: number;
+    readonly opponentSuccessCount?: number;
+    readonly includeOtherLive?: boolean;
+    readonly initialScore?: number;
+  } = {}
+): {
   readonly game: GameState;
   readonly sourceLive: ReturnType<typeof createCardInstance>;
   readonly otherLive: ReturnType<typeof createCardInstance> | null;
@@ -231,6 +241,85 @@ describe('PL!SP-sd2-023 始まりは君の空 LIVE start workflow', () => {
     });
   });
 
+  it('auto-resolves remaining pending abilities after choosing ordered resolution', () => {
+    const { game, sourceLive, otherLive } = setupState({
+      ownSuccessCount: 2,
+      includeOtherLive: true,
+      initialScore: 1,
+    });
+    expect(otherLive).not.toBeNull();
+    const orderSelection = resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [
+        createPendingAbility(sourceLive.instanceId),
+        createPendingAbility(otherLive!.instanceId),
+      ],
+    }).gameState;
+
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+    const state = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+
+    expect(state.activeEffect).toBeNull();
+    expect(state.pendingAbilities).toEqual([]);
+    expect(hajimariScoreModifiers(state)).toHaveLength(2);
+    expect(hajimariRequirementModifiers(state)).toHaveLength(2);
+  });
+
+  it('shows a confirm-only bridge before resolving a manually selected pending ability', () => {
+    const { game, sourceLive, otherLive } = setupState({
+      ownSuccessCount: 2,
+      includeOtherLive: true,
+      initialScore: 1,
+    });
+    expect(otherLive).not.toBeNull();
+    const orderSelection = resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [
+        createPendingAbility(sourceLive.instanceId),
+        createPendingAbility(otherLive!.instanceId),
+      ],
+    }).gameState;
+
+    const preview = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      sourceLive.instanceId
+    );
+
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: SP_SD2_023_LIVE_START_SUCCESS_ZONE_TWO_SCORE_AND_SET_REQUIREMENT_ABILITY_ID,
+      sourceCardId: sourceLive.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(hajimariScoreModifiers(preview)).toEqual([]);
+    expect(hajimariRequirementModifiers(preview)).toEqual([]);
+
+    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+
+    expect(state.activeEffect).toBeNull();
+    expect(hajimariScoreModifiers(state)).toContainEqual(
+      expect.objectContaining({
+        kind: 'SCORE',
+        liveCardId: sourceLive.instanceId,
+        countDelta: 5,
+      })
+    );
+    expect(hajimariRequirementModifiers(state)).toContainEqual(
+      expect.objectContaining({
+        kind: 'REQUIREMENT',
+        liveCardId: sourceLive.instanceId,
+      })
+    );
+  });
+
   it('does not count opponent successful LIVE cards for the condition', () => {
     const { game, sourceLive } = setupState({
       ownSuccessCount: 1,
@@ -259,9 +348,11 @@ describe('PL!SP-sd2-023 始まりは君の空 LIVE start workflow', () => {
     const state = startAbility(game, sourceLive.instanceId);
 
     expect(otherLive).not.toBeNull();
-    expect(hajimariScoreModifiers(state).every((modifier) => modifier.liveCardId === sourceLive.instanceId)).toBe(
-      true
-    );
+    expect(
+      hajimariScoreModifiers(state).every(
+        (modifier) => modifier.liveCardId === sourceLive.instanceId
+      )
+    ).toBe(true);
     expect(
       hajimariRequirementModifiers(state).every(
         (modifier) => modifier.liveCardId === sourceLive.instanceId
@@ -269,7 +360,8 @@ describe('PL!SP-sd2-023 始まりは君の空 LIVE start workflow', () => {
     ).toBe(true);
     expect(
       state.liveResolution.liveModifiers.some(
-        (modifier) => modifier.kind === 'REQUIREMENT' && modifier.liveCardId === otherLive?.instanceId
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' && modifier.liveCardId === otherLive?.instanceId
       )
     ).toBe(false);
   });
