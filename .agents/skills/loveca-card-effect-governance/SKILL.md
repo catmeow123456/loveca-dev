@@ -91,6 +91,19 @@ git diff -- src/application/card-effect-runner.ts
 5. 单卡 workflow 可以存在，但要复用稳定底层动作，不复制裸事件入队、抽弃、activeEffect 构造、成员移动、状态变化等胶水。
 6. 新增 helper/shared workflow 必须说明真实卡样本、稳定参数轴、不纳入的差异和测试覆盖。
 
+## Queued LIVE pending / manual confirmation
+
+- 对 `TriggerCondition.ON_LIVE_START`、`TriggerCondition.ON_LIVE_SUCCESS` 等 queued pending ability，先区分“真实交互效果”和“无交互结算效果”。
+- 无交互效果包括：starter/resolver 直接删除 pending、写 modifier、移动、抽牌、加状态、`addAction RESOLVE_ABILITY`、`continuePendingCardEffects` 等，不需要玩家选择、支付或确认规则分支的效果。
+- 无交互 queued pending 的统一语义：
+  - 单个 pending：自动结算，不开 confirm-only `activeEffect`。
+  - 多个 pending 点“顺序发动”：按顺序自动结算，不逐个开 confirm-only。
+  - 多个 pending 中用户手动点选某一个无交互效果：只在此时先开 confirm-only pending bridge，让玩家知道点到了哪个效果；确认后再用 `skipManualConfirmation` 回到真实 resolver。
+- 已有真实交互窗口的效果不要额外套 confirm-only，例如选择卡、弃手、支付费用、选择颜色、可选发动、查看、揭示、排序等 `activeEffect` workflow。
+- 新增或迁移无交互 queued pending 时，优先复用 `manualConfirmation` / `skipManualConfirmation` / `maybeStartManualPendingAbilityConfirmation` 语义，或使用薄包装 helper；不要把卡牌专属条件、modifier、费用、区域移动、抽牌等结算逻辑放入 runner 或通用 helper。
+- legacy always-confirm-only workflow 不应作为新实现模板；如果语义上无交互，应迁移为自动 resolver + 手动队列点选时的 confirm-only bridge。
+- 需要动态展示文本的 confirm-only bridge，应在 manual confirmation 分支实时计算 `effectText` / `stepText`，避免展示过期条件。
+
 ## 新卡审查窗口协议
 
 用户给候选卡、要求筛选下一批、或要求写执行窗口提示词时，保持只读审查，除非用户明确要求实现。必须先完成启动校准，再按真实卡文和当前实现状态判断。
@@ -224,6 +237,11 @@ git diff -- src/application/card-effect-runner.ts
 
 - 分类测试：`tests/unit/card-effect-classification.test.ts`。
 - workflow integration 覆盖正常结算、skip、无目标、非法选择、pending continuation。
+- 对无交互 queued LIVE pending，focused integration 至少覆盖：
+  1. 单 pending 自动结算且不留下 `activeEffect`；
+  2. 多 pending 点“顺序发动”自动连续结算且不弹 confirm-only；
+  3. 多 pending 手动点选该效果时先弹 confirm-only，确认前不应用效果，确认后才结算；
+  4. 已有真实交互 workflow 不出现双弹窗。
 - domain query/helper unit 覆盖纯函数正反例。
 - event wrapper 覆盖事件产生、事件入队、0 张/无事件不触发。
 - 高风险旧路径补 regression。

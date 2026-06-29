@@ -28,6 +28,7 @@ type MemberOriginalBladeReplacementModifierState = Extract<
   { readonly kind: 'MEMBER_ORIGINAL_BLADE_REPLACEMENT' }
 >;
 type BladeModifierState = Extract<LiveModifierState, { readonly kind: 'BLADE' }>;
+type CheerCountModifierState = Extract<LiveModifierState, { readonly kind: 'CHEER_COUNT' }>;
 type MemberCostModifierState = Extract<LiveModifierState, { readonly kind: 'MEMBER_COST' }>;
 type RequirementModifierState = Extract<LiveModifierState, { readonly kind: 'REQUIREMENT' }>;
 
@@ -111,12 +112,18 @@ const BP6_015_CONTINUOUS_SUCCESS_ZONE_BIBI_CARD_PURPLE_HEART_ABILITY_ID =
   'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
 const BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID =
   'PL!-bp6-009:continuous-center-side-printed-blade-two-score';
+const BP4_005_CONTINUOUS_CENTER_SCORE_ABILITY_ID =
+  'PL!-bp4-005:continuous-center-score-plus-one';
 const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
 const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
   'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
 const PL_N_PB1_011_CONTINUOUS_ENERGY_BELOW_GAIN_BLADE_ABILITY_ID =
   'PL!N-pb1-011:continuous-energy-below-gain-blade';
+const SP_BP4_005_CONTINUOUS_ENERGY_TEN_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!SP-bp4-005:continuous-energy-ten-gain-three-blade';
+const SP_BP2_010_CONTINUOUS_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE_ABILITY_ID =
+  'PL!SP-bp2-010:continuous-opponent-live-requirement-plus-one';
 
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
@@ -412,6 +419,21 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    baseCardCodes: ['PL!-bp4-005'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceCenterStageMember(game, playerId, sourceCardId)
+        ? [
+            {
+              kind: 'SCORE',
+              playerId,
+              countDelta: 1,
+              sourceCardId,
+              abilityId: BP4_005_CONTINUOUS_CENTER_SCORE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
     baseCardCodes: ['PL!HS-pb1-007'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasExactOwnTwoOpponentThreeStageMembers(game, playerId)
@@ -449,6 +471,29 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
           ]
         : [];
     },
+  },
+  {
+    baseCardCodes: ['PL!SP-bp4-005'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceMainStageMember(game, playerId, sourceCardId) &&
+      countPlayerEnergyCards(game, playerId) >= 10
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 3,
+              sourceCardId,
+              abilityId: SP_BP4_005_CONTINUOUS_ENERGY_TEN_GAIN_THREE_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
+    baseCardCodes: ['PL!SP-bp2-010'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceMainStageMember(game, playerId, sourceCardId)
+        ? collectOpponentLiveRequirementPlusOneModifiers(game, playerId, sourceCardId)
+        : [],
   },
   {
     baseCardCodes: ['PL!N-PR-024', 'PL!S-PR-039'],
@@ -606,6 +651,16 @@ function getBladeModifiers(
   );
 }
 
+function getCheerCountModifiers(
+  playerId: string,
+  liveModifiers: readonly LiveModifierState[]
+): CheerCountModifierState[] {
+  return liveModifiers.filter(
+    (modifier): modifier is CheerCountModifierState =>
+      modifier.kind === 'CHEER_COUNT' && modifier.playerId === playerId
+  );
+}
+
 function getRequirementModifiers(
   liveCardId: string,
   liveModifiers: readonly LiveModifierState[]
@@ -721,6 +776,32 @@ function collectDreaminGoGoRequirementModifiers(
         abilityId: BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID,
       },
     ];
+  });
+}
+
+function collectOpponentLiveRequirementPlusOneModifiers(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly LiveModifierState[] {
+  const opponent = game.players.find((candidate) => candidate.id !== playerId);
+  if (!opponent) {
+    return [];
+  }
+
+  return opponent.liveZone.cardIds.flatMap((liveCardId) => {
+    const liveCard = getCardById(game, liveCardId);
+    return liveCard && isLiveCardData(liveCard.data)
+      ? [
+          {
+            kind: 'REQUIREMENT' as const,
+            liveCardId,
+            modifiers: [{ color: HeartColor.RAINBOW, countDelta: 1 }],
+            sourceCardId,
+            abilityId: SP_BP2_010_CONTINUOUS_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE_ABILITY_ID,
+          },
+        ]
+      : [];
   });
 }
 
@@ -1123,8 +1204,17 @@ function hasCenterNicoWithSideOriginalBladeTwoMembers(
   return sideCardIds.every(
     (cardId) =>
       cardId !== null &&
-      getMemberOriginalBladeCount(game, playerId, cardId, game.liveResolution.liveModifiers) === 2
+    getMemberOriginalBladeCount(game, playerId, cardId, game.liveResolution.liveModifiers) === 2
   );
+}
+
+function isSourceCenterStageMember(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  return player ? findMemberSlot(player, sourceCardId) === SlotPosition.CENTER : false;
 }
 
 function hasAtLeastDifferentNamedStageMembers(
@@ -1569,6 +1659,19 @@ export function getPlayerLiveBladeModifier(
     (total, modifier) => total + modifier.countDelta,
     0
   );
+}
+
+export function getEffectivePerformanceCheerCount(
+  game: GameState,
+  playerId: string,
+  baseCheerCount: number,
+  liveModifiers: readonly LiveModifierState[] = collectLiveModifiers(game)
+): number {
+  const cheerCountDelta = getCheerCountModifiers(playerId, liveModifiers).reduce(
+    (total, modifier) => total + modifier.countDelta,
+    0
+  );
+  return Math.max(0, baseCheerCount + cheerCountDelta);
 }
 
 export function getMemberEffectiveBladeCount(

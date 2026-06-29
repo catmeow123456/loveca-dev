@@ -113,6 +113,14 @@ export interface LiveProhibitionState {
   readonly expiresAt: 'LIVE_END';
 }
 
+export interface LiveStartSuppressionState {
+  readonly playerId: string;
+  readonly suppressedMemberCardId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly expiresAt: 'LIVE_END';
+}
+
 export interface MemberActivePhaseSkipState {
   readonly playerId: string;
   readonly memberCardId: string;
@@ -210,6 +218,14 @@ export type LiveModifierState =
     }
   | {
       readonly kind: 'BLADE';
+      readonly playerId: string;
+      readonly countDelta: number;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
+      readonly kind: 'CHEER_COUNT';
       readonly playerId: string;
       readonly countDelta: number;
       readonly sourceCardId?: string;
@@ -669,6 +685,12 @@ export interface GameState {
    */
   readonly liveProhibitions: readonly LiveProhibitionState[];
   /**
+   * 卡效造成的“某成员全部 LIVE 开始时能力无效”临时标记。
+   *
+   * 当前仅承接“直到 Live 结束时为止”语义；由 LIVE 结束清理点统一移除。
+   */
+  readonly liveStartSuppressions: readonly LiveStartSuppressionState[];
+  /**
    * 卡效造成的“下次自己的活跃阶段不变为活跃状态”临时标记。
    */
   readonly memberActivePhaseSkips: readonly MemberActivePhaseSkipState[];
@@ -797,6 +819,7 @@ export function createGameState(
     inspectionContext: null,
     liveResolution: createEmptyLiveResolutionState(),
     liveProhibitions: [],
+    liveStartSuppressions: [],
     memberActivePhaseSkips: [],
 
     isStarted: false,

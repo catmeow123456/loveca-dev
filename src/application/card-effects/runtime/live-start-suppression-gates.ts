@@ -1,9 +1,10 @@
 import type { GameState } from '../../../domain/entities/game.js';
+import { isMemberLiveStartSuppressed } from '../../../domain/rules/live-start-suppressions.js';
 import type { SlotPosition } from '../../../shared/types/enums.js';
 import type {
   CardAbilityDefinition,
-  CardAbilitySourceZone,
 } from '../ability-definition-types.js';
+import { CardAbilitySourceZone } from '../ability-definition-types.js';
 
 export interface LiveStartSuppressionContext {
   readonly game: GameState;
@@ -27,6 +28,13 @@ export function registerLiveStartSuppressionGate(
 }
 
 export function isLiveStartAbilitySuppressed(context: LiveStartSuppressionContext): boolean {
+  if (
+    context.sourceZone === CardAbilitySourceZone.STAGE_MEMBER &&
+    isMemberLiveStartSuppressed(context.game, context.performingPlayerId, context.sourceCardId)
+  ) {
+    return true;
+  }
+
   for (const gate of liveStartSuppressionGates.values()) {
     if (gate(context)) {
       return true;

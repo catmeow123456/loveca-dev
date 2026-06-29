@@ -33,6 +33,7 @@ import {
   projectLiveModifierCompatibility,
   replaceLiveModifier,
 } from '../../src/domain/rules/live-modifiers';
+import { applyHeartRequirementModifiers } from '../../src/domain/rules/live-requirement-modifiers';
 import { getMemberEffectiveCost } from '../../src/domain/rules/member-effective-cost';
 import { fromTransport, toTransport } from '../../src/online/serde';
 import {
@@ -76,11 +77,14 @@ const BP6_014_CONTINUOUS_ABILITY_ID =
 const BP6_015_CONTINUOUS_ABILITY_ID = 'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
 const BP6_009_CONTINUOUS_ABILITY_ID =
   'PL!-bp6-009:continuous-center-side-printed-blade-two-score';
+const BP4_005_CONTINUOUS_ABILITY_ID = 'PL!-bp4-005:continuous-center-score-plus-one';
 const BP4_018_CONTINUOUS_ABILITY_ID = 'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
 const N_PR_024_CONTINUOUS_ABILITY_ID =
   'PL!N-PR-024-PR:continuous-success-live-total-four-gain-two-blade';
 const PL_N_BP1_012_CONTINUOUS_ABILITY_ID =
   'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
+const SP_BP2_010_CONTINUOUS_REQUIREMENT_ABILITY_ID =
+  'PL!SP-bp2-010:continuous-opponent-live-requirement-plus-one';
 
 describe('live modifier helpers', () => {
   it('creates source-member Heart modifiers when the member is the source card', () => {
@@ -2729,6 +2733,24 @@ describe('live modifier helpers', () => {
     expect(hasBp6009ScoreModifier(wrongBlade.game, wrongBlade.sourceId)).toBe(false);
   });
 
+  it('collects PL!-bp4-005 SCORE +1 only while Rin is in CENTER', () => {
+    const center = setupBp4005ContinuousGame(SlotPosition.CENTER);
+    const left = setupBp4005ContinuousGame(SlotPosition.LEFT);
+    const right = setupBp4005ContinuousGame(SlotPosition.RIGHT);
+    const offStage = setupBp4005ContinuousGame(null);
+
+    expect(collectLiveModifiers(center.game)).toContainEqual({
+      kind: 'SCORE',
+      playerId: 'p1',
+      countDelta: 1,
+      sourceCardId: center.sourceId,
+      abilityId: BP4_005_CONTINUOUS_ABILITY_ID,
+    });
+    expect(hasBp4005ScoreModifier(left.game, left.sourceId)).toBe(false);
+    expect(hasBp4005ScoreModifier(right.game, right.sourceId)).toBe(false);
+    expect(hasBp4005ScoreModifier(offStage.game, offStage.sourceId)).toBe(false);
+  });
+
   it('does not let ordinary BLADE modifiers satisfy PL!-bp6-009 original BLADE condition', () => {
     const { game, sourceId, rightId } = setupBp6009ContinuousGame({ leftBlade: 2, rightBlade: 1 });
     const modifiedGame = addLiveModifier(game, {
@@ -4331,6 +4353,32 @@ function hasBp6009ScoreModifier(game: ReturnType<typeof createGameState>, source
   );
 }
 
+function setupBp4005ContinuousGame(sourceSlot: SlotPosition | null) {
+  const rin = createCardInstance(
+    createMuseMemberData('PL!-bp4-005-R＋', '星空 凛', 1),
+    'p1',
+    'bp4-005-rin'
+  );
+  let game = createGameState('bp4-005-continuous', 'p1', 'P1', 'p2', 'P2');
+  game = registerCards(game, [rin]);
+  if (sourceSlot !== null) {
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, sourceSlot, rin.instanceId),
+    }));
+  }
+  return { game, sourceId: rin.instanceId };
+}
+
+function hasBp4005ScoreModifier(game: ReturnType<typeof createGameState>, sourceId: string): boolean {
+  return collectLiveModifiers(game).some(
+    (modifier) =>
+      modifier.kind === 'SCORE' &&
+      modifier.sourceCardId === sourceId &&
+      modifier.abilityId === BP4_005_CONTINUOUS_ABILITY_ID
+  );
+}
+
 function createAqoursLiveData(cardCode: string, name: string, score = 1) {
   return {
     cardCode,
@@ -4485,5 +4533,135 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
         )
       ).toBe(false);
     }
+  });
+
+  function createSpBp2010Margarete(instanceId: string, ownerId = 'p1') {
+    return createCardInstance(
+      {
+        cardCode: 'PL!SP-bp2-010-R＋',
+        name: 'ウィーン・マルガレーテ',
+        groupName: 'Liella!',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 7,
+        hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+      },
+      ownerId,
+      instanceId
+    );
+  }
+
+  function createRequirementLive(instanceId: string, ownerId: string) {
+    return createCardInstance(
+      {
+        cardCode: `LIVE-${instanceId}`,
+        name: `Live ${instanceId}`,
+        cardType: CardType.LIVE,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 2 }),
+      },
+      ownerId,
+      instanceId
+    );
+  }
+
+  function setupSpBp2010RequirementScenario(options: {
+    readonly sourceOnStage: boolean;
+    readonly includeOwnLive?: boolean;
+    readonly includeOpponentLive?: boolean;
+  }) {
+    const source = createSpBp2010Margarete('sp-bp2-010-source');
+    const ownLive = createRequirementLive('own-live', 'p1');
+    const opponentLive = createRequirementLive('opponent-live', 'p2');
+    let game = createGameState('sp-bp2-010-requirement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source, ownLive, opponentLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: options.sourceOnStage
+        ? placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId)
+        : player.memberSlots,
+      waitingRoom: options.sourceOnStage
+        ? player.waitingRoom
+        : addCardToZone(player.waitingRoom, source.instanceId),
+      liveZone:
+        options.includeOwnLive === false
+          ? player.liveZone
+          : addCardToStatefulZone(player.liveZone, ownLive.instanceId),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      liveZone:
+        options.includeOpponentLive === false
+          ? player.liveZone
+          : addCardToStatefulZone(player.liveZone, opponentLive.instanceId),
+    }));
+    return { game, source, ownLive, opponentLive };
+  }
+
+  it('collects PL!SP-bp2-010 continuous requirement +1 for every opponent live card', () => {
+    const { game, source, opponentLive } = setupSpBp2010RequirementScenario({
+      sourceOnStage: true,
+    });
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'REQUIREMENT',
+      liveCardId: opponentLive.instanceId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: 1 }],
+      sourceCardId: source.instanceId,
+      abilityId: SP_BP2_010_CONTINUOUS_REQUIREMENT_ABILITY_ID,
+    });
+  });
+
+  it('does not affect own live zone requirement', () => {
+    const { game, ownLive } = setupSpBp2010RequirementScenario({ sourceOnStage: true });
+
+    const ownModifiers = collectLiveModifiers(game).filter(
+      (modifier) =>
+        modifier.kind === 'REQUIREMENT' &&
+        modifier.liveCardId === ownLive.instanceId &&
+        modifier.abilityId === SP_BP2_010_CONTINUOUS_REQUIREMENT_ABILITY_ID
+    );
+
+    expect(ownModifiers).toEqual([]);
+  });
+
+  it('does not collect PL!SP-bp2-010 requirement modifier when the source leaves stage', () => {
+    const { game } = setupSpBp2010RequirementScenario({ sourceOnStage: false });
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId === SP_BP2_010_CONTINUOUS_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('stacks with existing requirement modifiers through applyHeartRequirementModifiers', () => {
+    const { game, opponentLive } = setupSpBp2010RequirementScenario({ sourceOnStage: true });
+    const stateWithExistingModifier = addLiveModifier(game, {
+      kind: 'REQUIREMENT',
+      liveCardId: opponentLive.instanceId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: -1 }],
+      sourceCardId: 'existing-source',
+      abilityId: 'existing-requirement-minus-one',
+    });
+    const modifiers = collectLiveModifiers(stateWithExistingModifier);
+    const requirementModifiers = getLiveCardRequirementModifiers(
+      stateWithExistingModifier.liveResolution,
+      opponentLive.instanceId,
+      modifiers
+    );
+
+    expect(requirementModifiers).toEqual(
+      expect.arrayContaining([
+        { color: HeartColor.RAINBOW, countDelta: -1 },
+        { color: HeartColor.RAINBOW, countDelta: 1 },
+      ])
+    );
+    expect(
+      applyHeartRequirementModifiers(opponentLive.data.requirements, requirementModifiers)
+        .totalRequired
+    ).toBe(2);
   });
 });
