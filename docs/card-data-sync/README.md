@@ -39,7 +39,9 @@ pnpm exec tsx src/scripts/audit-loveca-effect-placeholders.ts
 pnpm exec tsx src/scripts/audit-loveca-effect-placeholders.ts --json
 ```
 
-截至 `docs/card-data-sync/sources/loveca_20260626015115.xlsx`，调查结果为：2274 行中 1374 行含卡效占位符，共 44 种原始 token；41 种已归类，3 种未知或疑似数据问题。高频 token 包括 `[ブレード]` 1035 次、`[E]` 710 次、`【登场】` 560 次、`【登場】` 557 次、`【LIVE开始时】` 460 次、`【ライブ開始時】` 458 次、`[赤ハート]` 199 次、`[紫ハート]` 170 次。未知项为 `[Aqours]`、一条缺失右括号导致的长 token、以及 `[ターン1回]`。
+未传 `--xlsx=...` 时，Loveca Excel 同步脚本和占位符调查脚本会自动选择 `docs/card-data-sync/sources/` 下文件名时间戳最新的 `loveca_YYYYMMDDHHMMSS.xlsx`，例如当前本地默认会选中 `loveca_20260629130944.xlsx`；需要复查旧输入时可显式传入 `--xlsx=docs/card-data-sync/sources/loveca_20260626015115.xlsx`。
+
+截至 `docs/card-data-sync/sources/loveca_20260629130944.xlsx`，调查结果为：2303 行中 1382 行含卡效占位符，共 44 种原始 token；41 种已归类，3 种未知或疑似数据问题。高频 token 包括 `[ブレード]` 1053 次、`[E]` 714 次、`【登场】` 564 次、`【登場】` 561 次、`【LIVE开始时】` 459 次、`【ライブ開始時】` 457 次、`[赤ハート]` 199 次、`[紫ハート]` 170 次。未知项为 `[Aqours]`、一条缺失右括号导致的长 token、以及 `[ターン1回]`。
 
 ## 维护规则
 

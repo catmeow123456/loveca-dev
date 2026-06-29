@@ -21,10 +21,10 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import * as path from 'node:path';
 import * as readline from 'node:readline/promises';
 import { Pool } from 'pg';
 import { normalizeCardCode } from '../shared/utils/card-code.js';
+import { resolveLovecaExcelPath } from './loveca-excel-source.js';
 
 type SourceFlags = {
   excelOnly?: boolean;
@@ -84,8 +84,6 @@ interface PendingUpdate {
   readonly conflictFields: string[];
 }
 
-const DEFAULT_XLSX_PATH = 'docs/card-data-sync/sources/loveca_20260626015115.xlsx';
-
 const FIELD_NAMES = {
   effectJa: '多行日文效果',
   effectCn: '多行中文效果',
@@ -116,7 +114,7 @@ const SYNC_FIELDS: readonly (keyof ExcelSyncRecord)[] = [
 ];
 
 function parseArgs(argv: readonly string[]): Args {
-  let xlsxPath = DEFAULT_XLSX_PATH;
+  let xlsxPath: string | null = null;
   let dryRun = false;
   let yes = false;
 
@@ -135,7 +133,7 @@ function parseArgs(argv: readonly string[]): Args {
   return {
     dryRun,
     yes,
-    xlsxPath: path.resolve(xlsxPath),
+    xlsxPath: resolveLovecaExcelPath(xlsxPath),
   };
 }
 

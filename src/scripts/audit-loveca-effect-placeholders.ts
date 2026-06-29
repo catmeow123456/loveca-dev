@@ -7,8 +7,8 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import * as path from 'node:path';
 import { normalizeCardCode } from '../shared/utils/card-code.js';
+import { resolveLovecaExcelPath } from './loveca-excel-source.js';
 
 interface Args {
   readonly xlsxPath: string;
@@ -54,8 +54,6 @@ type PlaceholderKind =
   | 'score'
   | 'other'
   | 'unknown';
-
-const DEFAULT_XLSX_PATH = 'docs/card-data-sync/sources/loveca_20260626015115.xlsx';
 
 const FIELD_NAMES = {
   cardCode: 'カード番号',
@@ -112,7 +110,7 @@ const KNOWN_TOKEN_KINDS = new Map<string, PlaceholderKind>([
 ]);
 
 function parseArgs(argv: readonly string[]): Args {
-  let xlsxPath = DEFAULT_XLSX_PATH;
+  let xlsxPath: string | null = null;
   let json = false;
 
   for (const arg of argv) {
@@ -126,7 +124,7 @@ function parseArgs(argv: readonly string[]): Args {
   }
 
   return {
-    xlsxPath: path.resolve(xlsxPath),
+    xlsxPath: resolveLovecaExcelPath(xlsxPath),
     json,
   };
 }
@@ -345,7 +343,11 @@ function collectPlaceholderStats(rows: readonly ExcelCardRow[]): PlaceholderStat
   );
 }
 
-function printTextReport(rows: readonly ExcelCardRow[], stats: readonly PlaceholderStat[]) {
+function printTextReport(
+  xlsxPath: string,
+  rows: readonly ExcelCardRow[],
+  stats: readonly PlaceholderStat[]
+) {
   const withPlaceholders = new Set<number>();
   for (const row of rows) {
     if (BRACKET_TOKEN_PATTERN.test(`${row.effectJp ?? ''}\n${row.effectCn ?? ''}`)) {
@@ -358,6 +360,7 @@ function printTextReport(rows: readonly ExcelCardRow[], stats: readonly Placehol
   const unknownStats = stats.filter((stat) => !stat.known);
 
   console.log('Loveca Excel effect placeholder audit');
+  console.log(`  Excel: ${xlsxPath}`);
   console.log(`  Excel rows: ${rows.length}`);
   console.log(`  Rows with placeholders: ${withPlaceholders.size}`);
   console.log(`  Raw placeholder tokens: ${stats.length}`);
@@ -407,7 +410,7 @@ async function main() {
     return;
   }
 
-  printTextReport(rows, stats);
+  printTextReport(args.xlsxPath, rows, stats);
 }
 
 main().catch((error) => {
