@@ -12,7 +12,7 @@
 当前维护两条同步管线：
 
 - `llocg_db` 主同步：从 JP/CN JSON 读取结构化规则字段和基础展示字段，转换为项目内部卡牌模型后写入 `cards` 表。
-- Loveca Excel 文本/来源同步：从 Loveca Excel 读取中日名称、中日效果文本、真实团体、真实小队和商品来源字段，写入新增的多语言与来源字段；不读取 Excel 官方 `作品名` / `参加ユニット`，也不接管费用、Heart、分数等对局规则字段。
+- Loveca Excel 文本/来源同步：从 Loveca Excel 读取中日名称、中日效果文本、真实团体、真实小队、成员持有 Heart、BLADE Heart、LIVE 必要 Heart 和商品来源字段，写入对应字段；不读取 Excel 官方 `作品名` / `参加ユニット`，也不接管费用、BLADE、分数等其他对局规则字段。
 
 另有一个只读调查入口 `src/scripts/audit-loveca-effect-placeholders.ts`。它不属于写库同步管线，只用于扫描 Loveca Excel 双语效果文本中的 `【...】` 与 `[...]` 占位符，辅助前端渲染映射和上游文本质量检查。
 
@@ -21,7 +21,7 @@
 | 脚本 | 上游数据源 | 核心职责 | 不负责 |
 | --- | --- | --- | --- |
 | `src/scripts/sync-cards-llocg.ts` | `llocg_db/json/cards.json`、`llocg_db/json/cards_cn.json` | 建立或刷新卡牌主记录；负责卡牌类型、费用、Heart、BLADE、LIVE 分数、必要 Heart、图片文件名、稀有度、收录商品、作品数组和基础中日文本 | 不读取 Loveca Excel；不处理 Excel 修正后的真实团体、商品编号、云端图链来源和外部数据标识 |
-| `src/scripts/sync-cards-loveca-excel.ts` | `docs/card-data-sync/sources/loveca_*.xlsx` | 在已有卡牌基础上补强中日名称、中日效果、真实团体、真实小队、商品编号、图片来源 URI 和外部来源标识 | 不插入 Excel-only 新卡；不删除 DB-only 卡；不覆盖 `card_type`、费用、Heart、BLADE、LIVE 分数、必要 Heart、`blade_hearts`、`work_names` |
+| `src/scripts/sync-cards-loveca-excel.ts` | `docs/card-data-sync/sources/loveca_*.xlsx` | 在已有卡牌基础上补强中日名称、中日效果、真实团体、真实小队、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、商品编号、图片来源 URI 和外部来源标识 | 不插入 Excel-only 新卡；不删除 DB-only 卡；不覆盖 `card_type`、费用、BLADE、LIVE 分数、`work_names` |
 
 推荐运行顺序是先运行 `sync-cards-llocg.ts` 建立规则字段和基础卡池，再运行 `sync-cards-loveca-excel.ts` 补齐更可靠的双语文本、真实团体、小队原文、商品和来源信息。
 
@@ -46,7 +46,7 @@ flowchart LR
 - 外部数据结构只在同步脚本内处理，不进入卡牌 API 或前端领域模型。
 - 卡牌编号标准化是合并、去重和差异比较的前置步骤。
 - JP 数据作为主源，CN 数据作为翻译和补充源。
-- Loveca Excel 作为中日文本和来源字段的优先来源，但不覆盖结构化规则字段。
+- Loveca Excel 作为中日文本、来源字段、成员持有 Heart、BLADE Heart 和 LIVE 必要 Heart 的优先来源，但不覆盖费用、BLADE、LIVE 分数等其他结构化规则字段。
 - 结构化字段必须转换为项目内部模型后再写入。
 - 已存在卡牌不允许静默覆盖，必须经过差异审核。
 - dry-run 不连接或写入目标数据库，只用于验证转换与统计。

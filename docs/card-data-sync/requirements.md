@@ -12,7 +12,7 @@
 当前同步管线用于把外部卡牌数据转换为项目内部卡牌资料，并写入 `cards` 表：
 
 - `llocg_db` 同步负责建立或刷新卡牌主记录，尤其是结构化规则字段和基础展示字段。
-- Loveca Excel 同步负责在已有卡牌基础上补强中日名称、中日效果文本、真实团体、真实小队、收录商品和来源追踪字段；不读取 Excel 官方 `作品名` / `参加ユニット`。
+- Loveca Excel 同步负责在已有卡牌基础上补强中日名称、中日效果文本、真实团体、真实小队、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、收录商品和来源追踪字段；不读取 Excel 官方 `作品名` / `参加ユニット`。
 
 同步脚本不是日常单卡编辑入口。它适合批量引入或刷新外部卡牌资料，运行前必须理解它会影响已存在卡牌的基础字段和发布状态。
 
@@ -27,7 +27,7 @@
 
 缺少子模块或输入文件时，同步应停止，并提示维护者先初始化外部数据源。
 
-Loveca Excel 同步依赖本地 `docs/card-data-sync/sources/loveca_*.xlsx`。`sources/` 是私有输入目录，不进入仓库；正式同步前维护者需要在本地放置对应 Excel。该同步只读取 Excel 的展示、文本和来源字段，不应从 Excel 覆盖 `card_type`、`cost`、`hearts`、`blade`、`score`、`requirements`、`blade_hearts`、`work_names` 等主记录和规则字段。
+Loveca Excel 同步依赖本地 `docs/card-data-sync/sources/loveca_*.xlsx`。`sources/` 是私有输入目录，不进入仓库；正式同步前维护者需要在本地放置对应 Excel。该同步读取 Excel 的展示、文本、成员持有 Heart、BLADE Heart、LIVE 必要 Heart 和来源字段，不应从 Excel 覆盖 `card_type`、`cost`、`blade`、`score`、`work_names` 等主记录和规则字段。
 
 ## 3. 转换要求
 
@@ -43,6 +43,8 @@ Loveca Excel 同步依赖本地 `docs/card-data-sync/sources/loveca_*.xlsx`。`s
 - Loveca Excel 的 `多行日文效果` / `多行中文效果` 应分别写入 `card_text_jp` / `card_text_cn`；数据库不再保留重复的 `card_text` 列。
 - Loveca Excel 的 `真实团体` 写入 `group_names`；数据库不再保留重复的 `group_name` 列。
 - Loveca Excel 的 `真实小队` 写入 `unit_name_raw`，清洗和别名标准化后写入 `unit_name`。
+- Loveca Excel 的 `基本ハート` 只对 MEMBER 写入 `hearts`，`必要ハート` 只对 LIVE 写入 `requirements`；字段为空或解析失败时保留数据库现值。
+- Loveca Excel 的 `ブレードハート` / `特殊ハート` 写入 `blade_hearts`。
 - Loveca Excel 的官方 `作品名` / `参加ユニット` 存在已知修正问题，Excel 同步不得读取这两列；`work_names` 只由 llocg_db `series`、旧库迁移或人工维护入口维护。
 - Loveca Excel 的 `収録商品` / `商品编号` 分别写入 `product` / `product_code`。
 

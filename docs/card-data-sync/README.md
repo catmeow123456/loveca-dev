@@ -19,7 +19,7 @@
 
 `src/scripts/sync-cards-llocg.ts` 是主数据/规则字段同步脚本。它从 `llocg_db/json/cards.json` 与 `llocg_db/json/cards_cn.json` 建立或刷新卡牌主记录，尤其负责卡牌类型、费用、Heart、BLADE、LIVE 分数、必要 Heart、图片文件名、稀有度、收录商品、作品数组和基础中日文本。
 
-`src/scripts/sync-cards-loveca-excel.ts` 是 Loveca Excel 文本/来源字段补强脚本。它只更新已有卡牌的中日名称、中日效果、真实团体、真实小队、商品编号、图片来源 URI 和外部来源标识，不插入 Excel-only 新卡，不删除 DB-only 卡，也不覆盖费用、Heart、BLADE、LIVE 分数或必要 Heart 等规则字段。
+`src/scripts/sync-cards-loveca-excel.ts` 是 Loveca Excel 文本/来源字段补强脚本。它只更新已有卡牌的中日名称、中日效果、真实团体、真实小队、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、商品编号、图片来源 URI 和外部来源标识，不插入 Excel-only 新卡，不删除 DB-only 卡，也不覆盖费用、BLADE 或 LIVE 分数等其他规则字段。
 
 `src/scripts/audit-loveca-effect-placeholders.ts` 是 Loveca Excel 卡效占位符只读调查脚本。它复用同类 XLSX XML 读取方式扫描 `多行日文效果` / `多行中文效果`，汇总 `【...】` 与 `[...]` token，并按时点、次数限制、站位、Heart、BLADE、费用、分数等类别标记已知 token；未知 token 会作为疑似数据问题输出。
 

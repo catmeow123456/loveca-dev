@@ -666,7 +666,7 @@ Excel 有、当前数据库/旧数据源没有的 19 个标准化卡号：
 | `cost`           | `コスト`                        | 只对 MEMBER 写入；ENERGY/LIVE 忽略                                         |
 | `blade`          | `ブレード`                      | 只对 MEMBER 写入；空值保持 null                                            |
 | `hearts`         | `基本ハート`                    | JSON parse 后颜色 key 映射到内部枚举                                       |
-| `blade_hearts`   | `ブレードハート` + `特殊ハート` | `all` -> `RAINBOW`；`draw` -> `DRAW`；`bonus` 需确认映射到 `SCORE`         |
+| `blade_hearts`   | `ブレードハート` + `特殊ハート` | `all` -> `RAINBOW`；`draw` -> `DRAW`；`bonus` -> `SCORE`（当前落地映射，仍可由 `匹配应援心` 校验）         |
 | `score`          | `スコア`                        | 只对 LIVE 写入；不要使用 `点数`                                            |
 | `requirements`   | `必要ハート`                    | JSON parse；`any` -> `RAINBOW`                                             |
 | `unit_name`      | `真实小队`                      | trim、别名标准化、包 `「」`                                                |
@@ -699,13 +699,16 @@ Excel 中暂不作为规则写入、只做校验或来源保留的字段：
 | `group_names`        | `真实团体`     | JSON array parse 后写入                 |
 | `unit_name_raw`      | `真实小队`     | trim 后保留                             |
 | `unit_name`          | `真实小队`     | trim、别名标准化后包 `「」`             |
+| `hearts`             | `基本ハート`   | 只对 MEMBER 写入；JSON object 颜色 key 映射内部枚举；未知 key 或非正整数数量阻断，回退 DB 现值 |
+| `blade_hearts`       | `ブレードハート` + `特殊ハート` | `all` -> `RAINBOW`；`bonus` -> `SCORE`；`draw` -> `DRAW` |
+| `requirements`       | `必要ハート`   | 只对 LIVE 写入；`any` -> `RAINBOW`；未知 key 或非正整数数量阻断，回退 DB 现值 |
 | `product`            | `収録商品`     | Excel 商品展示名优先                    |
 | `product_code`       | `商品编号`     | 商品短代码                              |
 | `image_source_uri`   | `卡图链接`     | 仅保留来源 URI，不改变现有图片 basename |
 | `source_external_id` | `数据标识`     | Excel 外部行标识                        |
 | `source_flags`       | 同步过程       | 当前记录字段冲突等来源标记              |
 
-该脚本不会更新 `cost`、`blade`、`hearts`、`blade_hearts`、`score`、`requirements`、`rare`、`image_filename` 或 `status`，也不会插入 Excel-only 新卡或删除 DB-only 卡。Excel 内部标准化卡号重复时，该卡号跳过并输出 warning。
+该脚本不会更新 `cost`、`blade`、`score`、`rare`、`image_filename` 或 `status`，也不会插入 Excel-only 新卡或删除 DB-only 卡。`hearts`、`blade_hearts`、`requirements` 在 Excel 有可解析值时才覆盖（分别仅对 MEMBER / 全卡种 / LIVE 生效），解析失败或为空时保留 DB 现值。Excel 内部标准化卡号重复时，该卡号跳过并输出 warning。
 
 ### 8.1 生产库字段来源决策矩阵
 
@@ -723,7 +726,7 @@ Excel 中暂不作为规则写入、只做校验或来源保留的字段：
 | `cost`                                     | JP `cost`、CN `detail.cost`、Excel `コスト`、当前 DB 值                                                             | 对 MEMBER 是规则字段；当前运行时缺失会被映射为 0；Excel 有 2 张 MEMBER 缺 cost，1 张 ENERGY 有 `-1`           | MEMBER 必须有非负整数；LIVE / ENERGY 不写入；缺失时优先用同卡旧源/当前 DB 补全，否则阻断               | 字符串转整数；非 MEMBER cost 忽略并报告；负数阻断；同卡多源 cost 冲突进入审核                                                       |
 | `blade`                                    | JP `blade`、CN `detail.trigger_count`、Excel `ブレード`、当前 DB 值                                                 | 对 MEMBER 是规则字段；当前运行时缺失会被映射为 0；Excel 有部分 MEMBER `ブレード` 空，可能代表 0，也可能是漏填 | MEMBER 可允许 0，但空值不能直接等同 0；空值优先用同卡旧源/同基础编号/当前 DB 补全，无法确认时报告      | 字符串转整数；0 和空值区分；同基础编号不同罕度若文本/规则一致，可用非空罕度补全，但要记录派生来源                                   |
 | `hearts`                                   | JP `base_heart`、Excel `基本ハート`、当前 DB 值；CN `display_attacks` 仅展示校验                                    | 对 MEMBER 是 LIVE 判定规则字段；当前运行时缺失会变空数组，严重影响判定                                        | MEMBER 的 `基本ハート` 应视为阻断级字段；Excel 缺失时优先回旧源或当前 DB 补全，不直接写空              | JSON parse；`pink/red/yellow/green/blue/purple` 映射内部枚举；数量必须正整数；未知 key 阻断                                         |
-| `blade_hearts`                             | JP `blade_heart` + `special_heart`、Excel `ブレードハート` + `特殊ハート`、CN `trigger` / Excel `匹配应援心` 作校验 | 对声援 / LIVE 奖励有规则影响；当前已有同基础编号同类型补全逻辑；Excel `bonus` 命名需确认                      | 结构化落库优先用 JP 或 Excel 的拆分字段；`匹配应援心` 只做一致性校验；缺失可继续用同基础编号补全       | `all` -> `RAINBOW`；`draw` -> `DRAW`；`bonus` 是否等价 `SCORE` 必须确认；重复效果按数量展开                                         |
+| `blade_hearts`                             | JP `blade_heart` + `special_heart`、Excel `ブレードハート` + `特殊ハート`、CN `trigger` / Excel `匹配应援心` 作校验 | 对声援 / LIVE 奖励有规则影响；当前已有同基础编号同类型补全逻辑；Excel `bonus` 当前落地映射为 `SCORE`            | 结构化落库优先用 JP 或 Excel 的拆分字段；`匹配应援心` 只做一致性校验；缺失可继续用同基础编号补全       | `all` -> `RAINBOW`；`draw` -> `DRAW`；`bonus` -> `SCORE`；重复效果按数量展开                                         |
 | `score`                                    | JP `score`、CN `level`、Excel `スコア`、当前 DB 值                                                                  | 对 LIVE 是规则字段；当前运行时缺失会被映射为 1；Excel 有 3 张 LIVE `スコア` 空，但旧源有分数                  | LIVE 必须有整数分数；Excel 空值优先回旧源 / 当前 DB 补全；不能让 mapper 默认成 1                       | 字符串转整数；允许 0 分 LIVE；缺失阻断或补全后记录来源；不要使用 Excel `点数` 替代                                                  |
 | `requirements`                             | JP `need_heart`、Excel `必要ハート`、当前 DB 值；CN `display_attacks` 仅展示校验                                    | 对 LIVE 判定有直接影响；Excel 当前 257 条非空，覆盖 LIVE/部分变体需求                                         | LIVE 必须有可解析需求；旧源和 Excel 同卡不一致时人工审核；不直接写空需求                               | JSON parse；`any` -> `RAINBOW`；数量必须正整数；兼容当前 `createHeartRequirement()` 的 `RAINBOW` / total 语义                       |
 | `unit_name`                                | JP `unit`、Excel `真实小队`、CN `participation_unit` 数字 ID                                                        | 对卡效 selector 有影响；Excel 修正后的真实小队格式有前导 tab 和空格差异                                       | 保留标准化单值，卡效 selector 继续读该字段                                                             | `trim`；别名标准化；入库包 `「」`；`lily white` / `Guilty Kiss` / `Edel Note` 等要映射到项目既有写法                                |
@@ -768,7 +771,7 @@ Excel 中暂不作为规则写入、只做校验或来源保留的字段：
 
 JSON 字段：
 
-- Excel `真实团体`、`作品名`、`基本ハート`、`必要ハート`、`特殊ハート` 是 JSON string，不是已解析对象；当前同步只解析 `真实团体`，不读取 `作品名`。
+- Excel `真实团体`、`作品名`、`基本ハート`、`必要ハート`、`特殊ハート` 是 JSON string，不是已解析对象；当前同步解析 `真实团体`、`基本ハート`、`必要ハート`、`特殊ハート`，不读取 `作品名`。
 - 空字符串按字段语义转为 `null` 或空数组；JSON parse 失败应阻断该行。
 - Heart 数量必须为正整数；0 值不应写入 `hearts` / `requirements` 数组。
 - 未知 Heart key 不能忽略，否则会让 LIVE 判定字段静默缺失。
@@ -784,7 +787,7 @@ BLADE Heart：
 
 - Excel `ブレードハート=all` 映射为 `{ effect: "HEART", heartColor: "RAINBOW" }`。
 - Excel `特殊ハート={"draw":1}` 映射为 `{ effect: "DRAW" }`，数量大于 1 时按数量展开。
-- Excel `特殊ハート={"bonus":1}` 和 `ブレードハート=bonus` 需要先确认是否等价当前 `{ effect: "SCORE" }`。确认前应阻断写入 `blade_hearts`，或只写入待审核报告。
+- Excel `特殊ハート={"bonus":1}` 和 `ブレードハート=bonus` 当前落地映射为 `{ effect: "SCORE" }`，与 `score` 同义；写入前可用 `匹配应援心` 校验该 token 是否作为特殊效果出现。
 - `匹配应援心` 可用于检查 `ブレードハート` + `特殊ハート` 的合成结果，但不建议作为唯一来源，因为它丢失了内部 `{ effect, heartColor }` 的结构边界。
 
 ### 8.4 Excel 异常清单与建议处理

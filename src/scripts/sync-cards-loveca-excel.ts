@@ -6,13 +6,16 @@
  * - card_text_jp / card_text_cn
  * - group_names
  * - unit_name_raw / unit_name
+ * - hearts
+ * - blade_hearts
+ * - requirements
  * - product / product_code
  * - image_source_uri / source_external_id / source_flags
  *
  * 不读取 Excel 官方 `作品名` / `参加ユニット`。这两列存在已知修正问题；
  * 归属信息使用人工修正后的 `真实团体` / `真实小队`。
  *
- * 不更新 cost / hearts / blade / score / requirements / blade_hearts 等规则字段。
+ * 不更新 cost / blade / score 等其他规则字段。
  *
  * 使用方法：
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --dry-run
@@ -33,6 +36,18 @@ type SourceFlags = {
   derivedFromBase?: boolean;
 };
 
+type BladeHeartSyncItem = {
+  readonly effect: 'HEART' | 'DRAW' | 'SCORE';
+  readonly heartColor?: HeartColor;
+};
+
+type HeartColor = 'PINK' | 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'PURPLE' | 'RAINBOW';
+
+type HeartSyncItem = {
+  readonly color: HeartColor;
+  readonly count: number;
+};
+
 interface Args {
   readonly dryRun: boolean;
   readonly yes: boolean;
@@ -47,6 +62,7 @@ interface ExcelCardRow {
 
 interface ExistingCardRow {
   readonly card_code: string;
+  readonly card_type: 'MEMBER' | 'LIVE' | 'ENERGY';
   readonly name_jp: string | null;
   readonly name_cn: string | null;
   readonly group_names: string[] | null;
@@ -54,6 +70,9 @@ interface ExistingCardRow {
   readonly unit_name_raw: string | null;
   readonly card_text_jp: string | null;
   readonly card_text_cn: string | null;
+  readonly hearts: HeartSyncItem[] | null;
+  readonly blade_hearts: BladeHeartSyncItem[] | null;
+  readonly requirements: HeartSyncItem[] | null;
   readonly product: string | null;
   readonly product_code: string | null;
   readonly image_source_uri: string | null;
@@ -70,6 +89,9 @@ interface ExcelSyncRecord {
   readonly unit_name_raw: string | null;
   readonly card_text_jp: string | null;
   readonly card_text_cn: string | null;
+  readonly hearts: HeartSyncItem[] | null;
+  readonly blade_hearts: BladeHeartSyncItem[] | null;
+  readonly requirements: HeartSyncItem[] | null;
   readonly product: string | null;
   readonly product_code: string | null;
   readonly image_source_uri: string | null;
@@ -92,6 +114,10 @@ const FIELD_NAMES = {
   nameJp: 'カード名',
   nameCn: '卡牌中文名',
   cardCode: 'カード番号',
+  baseHeart: '基本ハート',
+  bladeHeart: 'ブレードハート',
+  specialHeart: '特殊ハート',
+  requiredHeart: '必要ハート',
   imageSourceUri: '卡图链接',
   product: '収録商品',
   productCode: '商品编号',
@@ -106,12 +132,38 @@ const SYNC_FIELDS: readonly (keyof ExcelSyncRecord)[] = [
   'unit_name_raw',
   'card_text_jp',
   'card_text_cn',
+  'hearts',
+  'blade_hearts',
+  'requirements',
   'product',
   'product_code',
   'image_source_uri',
   'source_external_id',
   'source_flags',
 ];
+
+const EXCEL_HEART_COLOR_MAP: Record<string, Exclude<HeartColor, 'RAINBOW'>> = {
+  pink: 'PINK',
+  red: 'RED',
+  yellow: 'YELLOW',
+  green: 'GREEN',
+  blue: 'BLUE',
+  purple: 'PURPLE',
+};
+
+const EXCEL_RAINBOW_HEART_TOKENS = new Set(['any', 'all']);
+
+const EXCEL_BLADE_HEART_COLOR_MAP: Record<string, HeartColor> = {
+  ...EXCEL_HEART_COLOR_MAP,
+  all: 'RAINBOW',
+};
+
+const EXCEL_SPECIAL_HEART_EFFECT_MAP: Record<string, Exclude<BladeHeartSyncItem['effect'], 'HEART'>> =
+  {
+    draw: 'DRAW',
+    score: 'SCORE',
+    bonus: 'SCORE',
+  };
 
 function parseArgs(argv: readonly string[]): Args {
   let xlsxPath: string | null = null;
@@ -327,6 +379,151 @@ function parseJsonStringArray(
   }
 }
 
+function parseJsonObject(
+  value: string | null,
+  context: string,
+  warnings: string[]
+): Record<string, unknown> | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      warnings.push(`${context}: JSON is not an object`);
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    warnings.push(
+      `${context}: JSON parse failed (${error instanceof Error ? error.message : error})`
+    );
+    return null;
+  }
+}
+
+function normalizeBladeHeartToken(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function parsePositiveIntegerCount(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+    const parsed = Number(value.trim());
+    return parsed > 0 ? parsed : null;
+  }
+  return null;
+}
+
+function normalizeHeartToken(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function parseExcelHearts(
+  heartValue: string | null,
+  fieldName: string,
+  context: string,
+  warnings: string[]
+): HeartSyncItem[] | null {
+  const heartObject = parseJsonObject(heartValue, `${context} ${fieldName}`, warnings);
+  if (!heartObject) {
+    return null;
+  }
+
+  const result: HeartSyncItem[] = [];
+  let hasParseError = false;
+  for (const [rawKey, rawCount] of Object.entries(heartObject)) {
+    const token = normalizeHeartToken(rawKey);
+    const color = EXCEL_RAINBOW_HEART_TOKENS.has(token)
+      ? 'RAINBOW'
+      : EXCEL_HEART_COLOR_MAP[token];
+    const count = parsePositiveIntegerCount(rawCount);
+
+    if (!color) {
+      warnings.push(`${context} ${fieldName}: unknown token "${rawKey}"`);
+      hasParseError = true;
+      continue;
+    }
+    if (!count) {
+      warnings.push(`${context} ${fieldName}: invalid count for "${rawKey}"`);
+      hasParseError = true;
+      continue;
+    }
+
+    result.push({ color, count });
+  }
+
+  if (hasParseError) {
+    return null;
+  }
+  return result.length > 0 ? result : null;
+}
+
+function parseExcelBladeHearts(
+  bladeHeartValue: string | null,
+  specialHeartValue: string | null,
+  context: string,
+  warnings: string[]
+): BladeHeartSyncItem[] | null {
+  const result: BladeHeartSyncItem[] = [];
+  let hasParseError = false;
+
+  if (bladeHeartValue) {
+    const token = normalizeBladeHeartToken(bladeHeartValue);
+    const heartColor = EXCEL_BLADE_HEART_COLOR_MAP[token];
+    const specialEffect = EXCEL_SPECIAL_HEART_EFFECT_MAP[token];
+
+    if (heartColor) {
+      result.push({ effect: 'HEART', heartColor });
+    } else if (specialEffect) {
+      result.push({ effect: specialEffect });
+    } else {
+      warnings.push(`${context} ${FIELD_NAMES.bladeHeart}: unknown token "${bladeHeartValue}"`);
+      hasParseError = true;
+    }
+  }
+
+  const warningCountBeforeSpecialHeart = warnings.length;
+  const specialHeart = parseJsonObject(
+    specialHeartValue,
+    `${context} ${FIELD_NAMES.specialHeart}`,
+    warnings
+  );
+  if (specialHeartValue && !specialHeart && warnings.length > warningCountBeforeSpecialHeart) {
+    hasParseError = true;
+  }
+  if (specialHeart) {
+    for (const [rawKey, rawCount] of Object.entries(specialHeart)) {
+      const token = normalizeBladeHeartToken(rawKey);
+      const effect = EXCEL_SPECIAL_HEART_EFFECT_MAP[token];
+      const count = parsePositiveIntegerCount(rawCount);
+
+      if (!effect) {
+        warnings.push(`${context} ${FIELD_NAMES.specialHeart}: unknown token "${rawKey}"`);
+        hasParseError = true;
+        continue;
+      }
+      if (!count) {
+        warnings.push(`${context} ${FIELD_NAMES.specialHeart}: invalid count for "${rawKey}"`);
+        hasParseError = true;
+        continue;
+      }
+
+      for (let index = 0; index < count; index++) {
+        result.push({ effect });
+      }
+    }
+  }
+
+  if (hasParseError) {
+    return null;
+  }
+  return result.length > 0 ? result : null;
+}
+
 function basenameFromUri(uri: string | null): string | null {
   if (!uri) {
     return null;
@@ -344,13 +541,33 @@ function buildExcelSyncRecord(
   const nameCn = value(FIELD_NAMES.nameCn);
   const cardTextJa = value(FIELD_NAMES.effectJa);
   const cardTextCn = value(FIELD_NAMES.effectCn);
+  const context = `${row.cardCode} row ${row.rowNumber}`;
   const groupNames = parseJsonStringArray(
     value(FIELD_NAMES.groupNames),
-    `${row.cardCode} row ${row.rowNumber} ${FIELD_NAMES.groupNames}`,
+    `${context} ${FIELD_NAMES.groupNames}`,
     warnings
   );
   const unitNameRaw = value(FIELD_NAMES.unitName);
   const unitName = normalizeUnitName(unitNameRaw);
+  const baseHearts =
+    existing.card_type === 'MEMBER'
+      ? parseExcelHearts(value(FIELD_NAMES.baseHeart), FIELD_NAMES.baseHeart, context, warnings)
+      : null;
+  const bladeHearts = parseExcelBladeHearts(
+    value(FIELD_NAMES.bladeHeart),
+    value(FIELD_NAMES.specialHeart),
+    context,
+    warnings
+  );
+  const requiredHearts =
+    existing.card_type === 'LIVE'
+      ? parseExcelHearts(
+          value(FIELD_NAMES.requiredHeart),
+          FIELD_NAMES.requiredHeart,
+          context,
+          warnings
+        )
+      : null;
   const product = value(FIELD_NAMES.product);
   const productCode = value(FIELD_NAMES.productCode);
   const imageSourceUri = value(FIELD_NAMES.imageSourceUri);
@@ -370,6 +587,9 @@ function buildExcelSyncRecord(
     unit_name_raw: unitNameRaw ?? existing.unit_name_raw,
     card_text_jp: cardTextJa ?? existing.card_text_jp,
     card_text_cn: cardTextCn ?? existing.card_text_cn,
+    hearts: baseHearts ?? existing.hearts,
+    blade_hearts: bladeHearts ?? existing.blade_hearts,
+    requirements: requiredHearts ?? existing.requirements,
     product: product ?? existing.product,
     product_code: productCode ?? existing.product_code,
     image_source_uri: imageSourceUri ?? existing.image_source_uri,
@@ -386,14 +606,46 @@ function valuesEqual(left: unknown, right: unknown): boolean {
   return stableJson(left) === stableJson(right);
 }
 
+function unorderedArrayValuesEqual(left: unknown, right: unknown): boolean {
+  if (!Array.isArray(left) && !Array.isArray(right)) {
+    return valuesEqual(left, right);
+  }
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+    return false;
+  }
+
+  const normalize = (items: readonly unknown[]) => items.map(stableJson).sort();
+  return stableJson(normalize(left)) === stableJson(normalize(right));
+}
+
+function syncFieldValuesEqual(
+  field: keyof ExcelSyncRecord,
+  left: unknown,
+  right: unknown
+): boolean {
+  switch (field) {
+    case 'group_names':
+    case 'hearts':
+    case 'blade_hearts':
+    case 'requirements':
+      return unorderedArrayValuesEqual(left, right);
+    default:
+      return valuesEqual(left, right);
+  }
+}
+
 function nonEmpty(value: string | null | undefined): boolean {
   return value != null && value.trim().length > 0;
+}
+
+function nonEmptyArray<T>(value: readonly T[] | null | undefined): boolean {
+  return Array.isArray(value) && value.length > 0;
 }
 
 function collectChangedFields(existing: ExistingCardRow, next: ExcelSyncRecord): string[] {
   const result: string[] = [];
   for (const field of SYNC_FIELDS) {
-    if (!valuesEqual(existing[field], next[field])) {
+    if (!syncFieldValuesEqual(field, existing[field], next[field])) {
       result.push(field);
     }
   }
@@ -418,8 +670,29 @@ function collectConflictFields(existing: ExistingCardRow, next: ExcelSyncRecord)
     conflicts.push(FIELD_NAMES.effectCn);
   }
 
-  if (existing.group_names && !valuesEqual(existing.group_names, next.group_names)) {
+  if (
+    nonEmptyArray(existing.group_names) &&
+    !syncFieldValuesEqual('group_names', existing.group_names, next.group_names)
+  ) {
     conflicts.push(FIELD_NAMES.groupNames);
+  }
+  if (
+    nonEmptyArray(existing.hearts) &&
+    !syncFieldValuesEqual('hearts', existing.hearts, next.hearts)
+  ) {
+    conflicts.push(FIELD_NAMES.baseHeart);
+  }
+  if (
+    nonEmptyArray(existing.blade_hearts) &&
+    !syncFieldValuesEqual('blade_hearts', existing.blade_hearts, next.blade_hearts)
+  ) {
+    conflicts.push(FIELD_NAMES.bladeHeart);
+  }
+  if (
+    nonEmptyArray(existing.requirements) &&
+    !syncFieldValuesEqual('requirements', existing.requirements, next.requirements)
+  ) {
+    conflicts.push(FIELD_NAMES.requiredHeart);
   }
 
   return [...new Set(conflicts)];
@@ -522,6 +795,12 @@ function conflictLabelToFieldKey(
       return 'card_text_cn';
     case FIELD_NAMES.groupNames:
       return 'group_names';
+    case FIELD_NAMES.baseHeart:
+      return 'hearts';
+    case FIELD_NAMES.bladeHeart:
+      return 'blade_hearts';
+    case FIELD_NAMES.requiredHeart:
+      return 'requirements';
     default:
       return null;
   }
@@ -562,11 +841,14 @@ async function applyUpdates(pool: Pool, updates: readonly PendingUpdate[]) {
             unit_name_raw = $6,
             card_text_jp = $7,
             card_text_cn = $8,
-            product = $9,
-            product_code = $10,
-            image_source_uri = $11,
-            source_external_id = $12,
-            source_flags = $13,
+            hearts = $9,
+            blade_hearts = $10,
+            requirements = $11,
+            product = $12,
+            product_code = $13,
+            image_source_uri = $14,
+            source_external_id = $15,
+            source_flags = $16,
             updated_at = now()
           WHERE card_code = $1
         `,
@@ -579,6 +861,9 @@ async function applyUpdates(pool: Pool, updates: readonly PendingUpdate[]) {
           next.unit_name_raw,
           next.card_text_jp,
           next.card_text_cn,
+          next.hearts == null ? null : JSON.stringify(next.hearts),
+          next.blade_hearts == null ? null : JSON.stringify(next.blade_hearts),
+          next.requirements == null ? null : JSON.stringify(next.requirements),
           next.product,
           next.product_code,
           next.image_source_uri,
@@ -635,9 +920,9 @@ async function main() {
   try {
     const { rows: existingRows } = await pool.query<ExistingCardRow>(`
       SELECT
-        card_code, name_jp, name_cn,
+        card_code, card_type, name_jp, name_cn,
         group_names, unit_name, unit_name_raw,
-        card_text_jp, card_text_cn,
+        card_text_jp, card_text_cn, hearts, blade_hearts, requirements,
         product, product_code, image_source_uri, source_external_id, source_flags
       FROM cards
       ORDER BY card_code
