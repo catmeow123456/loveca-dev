@@ -163,6 +163,8 @@ export const N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_
   'PL!N-PR-026-PR:live-success-delegate-member-below-live-success-abilities';
 export const N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID =
   'PL!N-PR-021-PR:live-success-discard-recover-low-cost-or-score-revealed-cheer';
+export const SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID =
+  'PL!SP-PR-016-PR:live-success-discard-recover-low-cost-or-score-revealed-cheer';
 export const N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID =
   'PL!N-PR:activated-turn-once-reveal-hand-no-live-look-top-five-take-live';
 export const N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID =
@@ -233,6 +235,8 @@ export const SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID =
   'PL!SP-bp5-008:on-enter-wait-discard-look-high-cost-liella-member';
 export const SP_BP5_013_ON_ENTER_DISCARD_LOOK_TOP_SUNNYPASSION_OR_BLADE_HEART_LIELLA_ABILITY_ID =
   'PL!SP-bp5-013:on-enter-discard-look-sunnypassion-or-blade-heart-liella-member';
+export const SP_BP5_023_LIVE_SUCCESS_SUCCESS_ZONE_TWO_SCORE_CHEER_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-bp5-023-L:live-success-success-zone-two-score-cheer-this-live-score';
 export const SP_BP5_007_ON_ENTER_DISCARD_LOOK_TOP_DISTINCT_GROUPS_ABILITY_ID =
   'PL!SP-bp5-007:on-enter-discard-look-distinct-groups';
 export const SP_PB1_008_ON_ENTER_DRAW_SELF_POSITION_CHANGE_ABILITY_ID =
@@ -244,6 +248,8 @@ export const SP_BP5_014_ON_ENTER_OTHER_STAGE_MEMBER_MOVED_DRAW_ONE_ABILITY_ID =
   'PL!SP-bp5-014:on-enter-other-stage-member-moved-draw-one';
 export const SP_SD2_003_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_MOVED_ABILITY_ID =
   'PL!SP-sd2-003:live-success-draw-one-plus-one-if-moved';
+export const SP_SD2_023_LIVE_START_SUCCESS_ZONE_TWO_SCORE_AND_SET_REQUIREMENT_ABILITY_ID =
+  'PL!SP-sd2-023:live-start-success-zone-two-score-and-set-requirement';
 export const SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-bp4-001:on-enter-liella-stage-seven-energy-place-waiting-energy';
 export const SP_BP4_004_ON_ENTER_DOUBLE_LIELLA_RELAY_DRAW_PLAY_LOW_COST_LIELLA_ABILITY_ID =
@@ -439,10 +445,20 @@ export const PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID =
   'PL!-bp5-013-N:on-enter-wait-opponent-cost-lte-four-member';
 export const SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID =
   'PL!SP-bp2-002-R:on-enter-look-top-take-high-cost-card';
+export const LL_BP6_001_ON_ENTER_LOOK_TOP_SIX_TAKE_TWO_ABILITY_ID =
+  'LL-bp6-001:on-enter-look-top-six-take-two';
+export const LL_BP6_001_LIVE_START_DISCARD_NAMED_MEMBERS_GAIN_HEARTS_ABILITY_ID =
+  'LL-bp6-001:live-start-discard-named-members-gain-hearts';
 export const BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID =
   'PL!-bp6-002:on-enter-look-top-take-no-ability-or-continuous-muse-card';
+export const BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID =
+  'PL!-bp6-001:live-start-center-muse-live-stage-muse-members-gain-blade';
+export const BP6_001_LIVE_SUCCESS_CHEER_NO_BLADE_MUSE_MEMBER_DRAW_DISCARD_ABILITY_ID =
+  'PL!-bp6-001:live-success-cheer-no-blade-muse-member-draw-discard';
 export const BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID =
   'PL!-bp6-005:on-enter-discard-two-recover-yellow-heart-member-and-live';
+export const BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID =
+  'PL!-bp6-006:activated-discard-choose-color-reveal-five-muse-hand-blade';
 export const BP6_007_LIVE_SUCCESS_REVEAL_TOP_HAND_NO_BLADE_MEMBER_SCORE_ABILITY_ID =
   'PL!-bp6-007:live-success-reveal-top-hand-no-blade-member-score';
 export const BP6_008_ACTIVATED_WAIT_SELF_ACTIVATE_OTHER_MEMBER_ABILITY_ID =
@@ -465,6 +481,8 @@ export const BP6_015_CONTINUOUS_SUCCESS_ZONE_BIBI_CARD_PURPLE_HEART_ABILITY_ID =
   'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
 export const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
   'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
+export const BP6_019_CONTINUOUS_SUCCESS_ZONE_HIGH_COST_MUSE_PLAY_COST_REDUCTION_ABILITY_ID =
+  'PL!-bp6-019:continuous-success-zone-high-cost-muse-play-cost-reduction';
 export const BP6_021_LIVE_SUCCESS_SEND_MUSE_MEMBER_SCORE_RECOVER_MUSE_LIVE_ABILITY_ID =
   'PL!-bp6-021:live-success-send-muse-member-score-recover-muse-live';
 export const BP6_023_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_SUCCESS_MUSE_ABILITY_ID =

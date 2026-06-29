@@ -73,7 +73,7 @@ function createEnergyCard(cardCode: string): EnergyCardData {
   };
 }
 
-function createDeck(): DeckConfig {
+function createDeck(energyCount: number = 12): DeckConfig {
   const mainDeck: AnyCardData[] = [];
   for (let i = 0; i < 48; i++) {
     mainDeck.push(createMemberCard(`MEM-${i}`, `Member ${i}`, 2));
@@ -82,7 +82,9 @@ function createDeck(): DeckConfig {
     mainDeck.push(createLiveCard(`LIVE-${i}`));
   }
 
-  const energyDeck = Array.from({ length: 12 }, (_, index) => createEnergyCard(`ENE-${index}`));
+  const energyDeck = Array.from({ length: energyCount }, (_, index) =>
+    createEnergyCard(`ENE-${index}`)
+  );
   return { mainDeck, energyDeck };
 }
 
@@ -620,6 +622,96 @@ describe('member cost payment', () => {
     expect(
       session.state?.actionHistory.some(
         (action) => action.type === 'PAY_COST' && action.payload.amount === 1
+      )
+    ).toBe(true);
+  });
+
+  it("applies Music S.T.A.R.T!! success zone reduction on a real hand play payment path", () => {
+    const session = createGameSession();
+    const deck = createDeck(20);
+
+    session.createGame('bp6-019-music-start-cost-payment', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    setActiveEnergyCountForPlayer(session, 0, 15);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+      };
+    };
+    const opponent = state.players[1] as unknown as {
+      successZone: { cardIds: string[] };
+    };
+    const ownedMemberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const musicStartCardId = player.mainDeck.cardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const opponentMusicStartCardId = player.mainDeck.cardIds.find(
+      (cardId) =>
+        cardId !== musicStartCardId &&
+        state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
+    const sourceCardId = ownedMemberCardIds[0];
+
+    expect(sourceCardId).toBeTruthy();
+    expect(musicStartCardId).toBeTruthy();
+    expect(opponentMusicStartCardId).toBeTruthy();
+
+    (state.cardRegistry.get(sourceCardId!) as unknown as { data: MemberCardData }).data =
+      createMemberCard('PL!-test-muse-cost17', '17费μ成员', 17, {
+        groupName: "μ's",
+      });
+    (state.cardRegistry.get(musicStartCardId!) as unknown as { data: LiveCardData }).data =
+      createLiveCard('PL!-bp6-019-L', {
+        score: 2,
+        groupName: "μ's",
+      });
+    (state.cardRegistry.get(opponentMusicStartCardId!) as unknown as { data: LiveCardData }).data =
+      createLiveCard('PL!-bp6-019-L', {
+        score: 2,
+        groupName: "μ's",
+      });
+
+    player.hand.cardIds = [sourceCardId!];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) =>
+        cardId !== sourceCardId &&
+        cardId !== musicStartCardId &&
+        cardId !== opponentMusicStartCardId
+    );
+    opponent.successZone.cardIds = [opponentMusicStartCardId!];
+
+    const withoutOwnSuccessLive = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, sourceCardId!, SlotPosition.CENTER)
+    );
+    expect(withoutOwnSuccessLive.success).toBe(false);
+    expect(withoutOwnSuccessLive.error).toContain('需要 17 能量');
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBeNull();
+
+    player.successZone.cardIds = [musicStartCardId!];
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, sourceCardId!, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.pendingCostPayment).toBeNull();
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(sourceCardId);
+    expect(session.state?.players[0].hand.cardIds).not.toContain(sourceCardId);
+    expect(
+      session.state?.actionHistory.some(
+        (action) => action.type === 'PAY_COST' && action.payload.amount === 15
       )
     ).toBe(true);
   });

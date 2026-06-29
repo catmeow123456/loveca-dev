@@ -151,12 +151,13 @@ import { startSuccessZoneReplacementEffect } from './card-effects/workflows/card
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { getMemberEffectiveCost } from './effects/conditions.js';
-import { isMemberCardData } from '../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
 import { getActiveEnergyIds, tapEnergy } from '../domain/entities/zone.js';
 import {
   costCalculator,
   type CostPaymentPlan,
   type StageMemberInfo,
+  type SuccessLiveCardInfo,
 } from '../domain/rules/cost-calculator.js';
 import {
   canLiveCardEnterSuccessZone,
@@ -3310,6 +3311,7 @@ export class GameSession {
 
     const activeEnergyIds = getActiveEnergyIds(player.energyZone);
     const stageMembers: StageMemberInfo[] = [];
+    const successLiveCards: SuccessLiveCardInfo[] = [];
     for (const slot of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT]) {
       const stageCardId = player.memberSlots.slots[slot];
       if (!stageCardId) {
@@ -3327,6 +3329,15 @@ export class GameSession {
         });
       }
     }
+    for (const successLiveCardId of player.successZone.cardIds) {
+      const successLiveCard = state.cardRegistry.get(successLiveCardId);
+      if (successLiveCard && isLiveCardData(successLiveCard.data)) {
+        successLiveCards.push({
+          cardId: successLiveCardId,
+          data: successLiveCard.data,
+        });
+      }
+    }
 
     const costCheck = costCalculator.checkCanPayCost(
       card.data,
@@ -3336,6 +3347,7 @@ export class GameSession {
         stageMembers,
         sourceCardId: command.cardId,
         handCardIds: player.hand.cardIds,
+        successLiveCards,
       },
       {
         relayMode: command.relayMode,

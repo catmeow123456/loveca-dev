@@ -10,7 +10,7 @@ import {
   StageMemberInfo,
   AvailableResources,
 } from '../../src/domain/rules/cost-calculator';
-import type { MemberCardData } from '../../src/domain/entities/card';
+import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 
 // ============================================
 // 测试辅助函数
@@ -36,6 +36,29 @@ function createMockMemberData(
     cost,
     blade: 1,
     hearts: [],
+  };
+}
+
+function createMockLiveData(
+  score: number,
+  name: string = 'Test Live',
+  cardCode: string = 'TEST-LIVE',
+  options: {
+    readonly groupName?: string;
+    readonly cardText?: string;
+  } = {}
+): LiveCardData {
+  return {
+    cardCode,
+    name,
+    groupName: options.groupName,
+    cardText: options.cardText,
+    cardType: CardType.LIVE,
+    score,
+    requirements: {
+      colorRequirements: new Map(),
+      totalRequired: 0,
+    },
   };
 }
 
@@ -724,6 +747,136 @@ describe('CostCalculator', () => {
       expect(relayPlan?.costModifierAmount).toBe(2);
       expect(relayPlan?.relayDiscount).toBe(7);
       expect(relayPlan?.actualEnergyCost).toBe(1);
+    });
+
+    it("reduces printed cost 17 or higher μ's members from hand by 2 when own success zone has PL!-bp6-019-L", () => {
+      const memberData = createMockMemberData(17, '高坂穗乃果', 'PL!-test-muse-cost17', {
+        groupName: "μ's",
+      });
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e${index}`),
+        stageMembers: [],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+        successLiveCards: [
+          {
+            cardId: 'music-start',
+            data: createMockLiveData(2, 'Music S.T.A.R.T!!', 'PL!-bp6-019-L', {
+              groupName: "μ's",
+            }),
+          },
+        ],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.totalCost).toBe(17);
+      expect(directPlan?.modifiedCost).toBe(15);
+      expect(directPlan?.costModifierAmount).toBe(2);
+      expect(directPlan?.actualEnergyCost).toBe(15);
+      expect(directPlan?.costModifiers[0]).toMatchObject({
+        id: 'PL!-bp6-019-L:success-zone-high-cost-muse-play-cost-minus-two',
+        sourceCardId: 'music-start',
+      });
+    });
+
+    it("does not reduce cost 16 or non-μ's members for PL!-bp6-019-L", () => {
+      const successLiveCards = [
+        {
+          cardId: 'music-start',
+          data: createMockLiveData(2, 'Music S.T.A.R.T!!', 'PL!-bp6-019-L', {
+            groupName: "μ's",
+          }),
+        },
+      ];
+      const cost16Muse = createMockMemberData(16, '16费μ成员', 'PL!-test-muse-cost16', {
+        groupName: "μ's",
+      });
+      const cost17Other = createMockMemberData(17, '17费非μ成员', 'PL!N-test-cost17', {
+        groupName: '虹ヶ咲学園スクールアイドル同好会',
+      });
+
+      for (const memberData of [cost16Muse, cost17Other]) {
+        const info = calculator.calculateModifiedPlayCost(memberData, {
+          activeEnergyIds: Array.from({ length: 17 }, (_, index) => `e${index}`),
+          stageMembers: [],
+          sourceCardId: 'source-card',
+          handCardIds: ['source-card'],
+          successLiveCards,
+        });
+
+        expect(info.modifiedCost).toBe(memberData.cost);
+        expect(info.modifierAmount).toBe(0);
+      }
+    });
+
+    it('does not apply PL!-bp6-019-L when only the opponent success zone has it', () => {
+      const memberData = createMockMemberData(17, '高坂穗乃果', 'PL!-test-muse-cost17', {
+        groupName: "μ's",
+      });
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, {
+        activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e${index}`),
+        stageMembers: [],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+        successLiveCards: [],
+      });
+
+      expect(result.canPay).toBe(false);
+      expect(result.reason).toContain('需要 17 能量');
+    });
+
+    it('does not stack multiple PL!-bp6-019-L success zone cost reducers', () => {
+      const memberData = createMockMemberData(17, '高坂穗乃果', 'PL!-test-muse-cost17', {
+        groupName: "μ's",
+      });
+      const info = calculator.calculateModifiedPlayCost(memberData, {
+        activeEnergyIds: Array.from({ length: 17 }, (_, index) => `e${index}`),
+        stageMembers: [],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+        successLiveCards: [
+          {
+            cardId: 'music-start-1',
+            data: createMockLiveData(2, 'Music S.T.A.R.T!!', 'PL!-bp6-019-L'),
+          },
+          {
+            cardId: 'music-start-2',
+            data: createMockLiveData(2, 'Music S.T.A.R.T!!', 'PL!-bp6-019-L'),
+          },
+        ],
+      });
+
+      expect(info.modifiedCost).toBe(15);
+      expect(info.modifierAmount).toBe(2);
+      expect(info.modifiers).toHaveLength(1);
+    });
+
+    it('uses printed member cost for PL!-bp6-019-L instead of other modified cost values', () => {
+      const memberData = createMockMemberData(16, '16费μ成员', 'PL!-test-muse-cost16', {
+        groupName: "μ's",
+      });
+      const info = calculator.calculateModifiedPlayCost(memberData, {
+        activeEnergyIds: Array.from({ length: 17 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('unrelated-stage-source', 20, SlotPosition.LEFT, {
+            effectiveCost: 17,
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+        successLiveCards: [
+          {
+            cardId: 'music-start',
+            data: createMockLiveData(2, 'Music S.T.A.R.T!!', 'PL!-bp6-019-L'),
+          },
+        ],
+      });
+
+      expect(info.modifiedCost).toBe(16);
+      expect(info.modifierAmount).toBe(0);
     });
   });
 

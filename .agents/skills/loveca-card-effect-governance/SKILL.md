@@ -43,6 +43,13 @@ git diff -- src/application/card-effect-runner.ts
 - 本地卡文以 `llocg_db/json/cards.json` 为主要事实来源；`cards_cn.json` 可做翻译或漂移参照。
 - 卡牌完成状态优先查 `docs/card-effect-reuse-audit/existing_module_map.md`，再查 `ability-ids.ts`、`definitions/index.ts` 和最近 workflow/test。
 
+## 本地环境与卡文读取注意事项
+
+- 本机 shell 里 `node` 可能不在 `PATH`；需要脚本化读取 JSON 时，优先使用 Codex bundled Node 或把其 `bin` 目录临时加入 `PATH`。这只是本地只读解析，不代表要下载、安装或修改依赖。
+- `llocg_db/json/cards.json` 当前是以 `card_no` 为 key 的对象，不是数组；不要直接 `data.filter(...)`。按 exact `card_no`、base card code、`rare_list` 做结构化查询比裸 `rg` 更可靠。
+- 卡号和稀有度存在全角符号差异，例如 `R＋`、`P＋`，不能把 ASCII `R+` / `P+` 查不到误判为缺卡。遇到未命中时，先按 base card code 和 DB 里的真实 `rare_list` 复核。
+- `cards.json` 里同一卡号可能在 FAQ relation、rare_list 等字段重复出现；抽取真实卡文时应读取顶层卡牌对象的 `cost`、`score`、`name`、`ability` 等字段，并在输出中列基础编号、费用/分数、卡名和原文。
+
 ## 必读路线
 
 总审查或架构把关窗口读：
@@ -158,6 +165,7 @@ git diff -- src/application/card-effect-runner.ts
 - 新卡效是否放入 `src/application/card-effects/workflows/`。
 - 同型效果是否优先进入 `workflows/shared/`。
 - 特殊复杂卡是否进入 `workflows/cards/<card>.ts`。
+- 同一执行批次不等于同一 workflow 文件。若以卡牌编号命名 `workflows/cards/<card>.ts`，该文件原则上只承载该基础编号/同文 rarity 的卡效。多个基础编号共用同一文件时，必须是同型效果或稳定 reusable family，并以复用形状命名；否则应拆成多个单卡 workflow。不要用 `<cardA>-<cardB>.ts` 表示仅因同批实现而放在一起的不相关卡牌。
 - workflow 内重复小胶水是否应该抽到 runtime、active-effect、workflow helpers 或 events。
 - 不强行抽象没有足够真实样本的复杂卡。
 
