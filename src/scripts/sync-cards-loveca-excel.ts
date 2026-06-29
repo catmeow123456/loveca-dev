@@ -21,13 +21,20 @@
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --dry-run
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --yes
+ * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --cloudbase-collection=real_card --dry-run
  */
 
 import { execFileSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import { createRequire } from 'node:module';
 import * as readline from 'node:readline/promises';
 import { Pool } from 'pg';
+import { parse as parseDotenv } from 'dotenv';
 import { normalizeCardCode } from '../shared/utils/card-code.js';
 import { resolveLovecaExcelPath } from './loveca-excel-source.js';
+
+const require = createRequire(import.meta.url);
+const cloudbaseSDK = require('@cloudbase/node-sdk') as typeof import('@cloudbase/node-sdk');
 
 type SourceFlags = {
   excelOnly?: boolean;
@@ -48,16 +55,23 @@ type HeartSyncItem = {
   readonly count: number;
 };
 
+type LovecaSyncSource = 'xlsx' | 'cloudbase';
+
 interface Args {
   readonly dryRun: boolean;
   readonly yes: boolean;
-  readonly xlsxPath: string;
+  readonly source: LovecaSyncSource;
+  readonly xlsxPath: string | null;
+  readonly cloudbaseCollection: string;
+  readonly cloudbaseLimit: number | null;
+  readonly cloudbaseBatchSize: number;
 }
 
 interface ExcelCardRow {
   readonly rowNumber: number;
   readonly cardCode: string;
   readonly values: Record<string, string>;
+  readonly sourceId?: string;
 }
 
 interface ExistingCardRow {
@@ -124,6 +138,131 @@ const FIELD_NAMES = {
   sourceExternalId: '数据标识',
 } as const;
 
+type SourceFieldName = (typeof FIELD_NAMES)[keyof typeof FIELD_NAMES];
+
+const DEFAULT_CLOUDBASE_COLLECTION = 'real_unit';
+const DEFAULT_CLOUDBASE_BATCH_SIZE = 100;
+
+const CLOUDBASE_FIELD_ALIASES: Record<SourceFieldName, readonly string[]> = {
+  [FIELD_NAMES.effectJa]: [
+    FIELD_NAMES.effectJa,
+    'card_text_jp',
+    'cardTextJp',
+    'card_text_ja',
+    'cardTextJa',
+    'effect_jp',
+    'effectJp',
+    'effect_ja',
+    'effectJa',
+    'text_jp',
+    'textJp',
+  ],
+  [FIELD_NAMES.effectCn]: [
+    FIELD_NAMES.effectCn,
+    'card_text_cn',
+    'cardTextCn',
+    'effect_cn',
+    'effectCn',
+    'text_cn',
+    'textCn',
+  ],
+  [FIELD_NAMES.groupNames]: [
+    FIELD_NAMES.groupNames,
+    'group_names',
+    'groupNames',
+    'groups',
+    'real_groups',
+    'realGroups',
+  ],
+  [FIELD_NAMES.unitName]: [
+    FIELD_NAMES.unitName,
+    'unit_name_raw',
+    'unitNameRaw',
+    'unit_name',
+    'unitName',
+    'real_unit',
+    'realUnit',
+    'unit',
+  ],
+  [FIELD_NAMES.nameJp]: [
+    FIELD_NAMES.nameJp,
+    'name_jp',
+    'nameJp',
+    'name_ja',
+    'nameJa',
+    'card_name_jp',
+    'cardNameJp',
+    'card_name_org',
+    'cardNameOrg',
+  ],
+  [FIELD_NAMES.nameCn]: [
+    FIELD_NAMES.nameCn,
+    'name_cn',
+    'nameCn',
+    'card_name_cn',
+    'cardNameCn',
+    'card_name',
+    'cardName',
+  ],
+  [FIELD_NAMES.cardCode]: [
+    FIELD_NAMES.cardCode,
+    'card_code',
+    'cardCode',
+    'code',
+    'card_no',
+    'cardNo',
+    'card_number',
+    'cardNumber',
+  ],
+  [FIELD_NAMES.baseHeart]: [FIELD_NAMES.baseHeart, 'base_heart', 'baseHeart', 'hearts', 'heart'],
+  [FIELD_NAMES.bladeHeart]: [
+    FIELD_NAMES.bladeHeart,
+    'blade_heart',
+    'bladeHeart',
+    'blade_hearts',
+    'bladeHearts',
+  ],
+  [FIELD_NAMES.specialHeart]: [
+    FIELD_NAMES.specialHeart,
+    'special_heart',
+    'specialHeart',
+    'special_hearts',
+    'specialHearts',
+  ],
+  [FIELD_NAMES.requiredHeart]: [
+    FIELD_NAMES.requiredHeart,
+    'required_heart',
+    'requiredHeart',
+    'requirements',
+    'requirement',
+  ],
+  [FIELD_NAMES.imageSourceUri]: [
+    FIELD_NAMES.imageSourceUri,
+    'image_source_uri',
+    'imageSourceUri',
+    'image_url',
+    'imageUrl',
+    'image',
+  ],
+  [FIELD_NAMES.product]: [FIELD_NAMES.product, 'product'],
+  [FIELD_NAMES.productCode]: [
+    FIELD_NAMES.productCode,
+    'product_code',
+    'productCode',
+    'product_no',
+    'productNo',
+  ],
+  [FIELD_NAMES.sourceExternalId]: [
+    FIELD_NAMES.sourceExternalId,
+    'source_external_id',
+    'sourceExternalId',
+    'external_id',
+    'externalId',
+    '_id',
+    'id',
+  ],
+};
+
 const SYNC_FIELDS: readonly (keyof ExcelSyncRecord)[] = [
   'name_jp',
   'name_cn',
@@ -158,25 +297,47 @@ const EXCEL_BLADE_HEART_COLOR_MAP: Record<string, HeartColor> = {
   all: 'RAINBOW',
 };
 
-const EXCEL_SPECIAL_HEART_EFFECT_MAP: Record<string, Exclude<BladeHeartSyncItem['effect'], 'HEART'>> =
-  {
-    draw: 'DRAW',
-    score: 'SCORE',
-    bonus: 'SCORE',
-  };
+const EXCEL_SPECIAL_HEART_EFFECT_MAP: Record<
+  string,
+  Exclude<BladeHeartSyncItem['effect'], 'HEART'>
+> = {
+  draw: 'DRAW',
+  score: 'SCORE',
+  bonus: 'SCORE',
+};
 
 function parseArgs(argv: readonly string[]): Args {
   let xlsxPath: string | null = null;
   let dryRun = false;
   let yes = false;
+  let source: LovecaSyncSource = 'xlsx';
+  let cloudbaseCollection = DEFAULT_CLOUDBASE_COLLECTION;
+  let cloudbaseLimit: number | null = null;
+  let cloudbaseBatchSize = DEFAULT_CLOUDBASE_BATCH_SIZE;
 
   for (const arg of argv) {
     if (arg === '--dry-run') {
       dryRun = true;
     } else if (arg === '--yes' || arg === '-y') {
       yes = true;
+    } else if (arg.startsWith('--source=')) {
+      const value = arg.slice('--source='.length);
+      if (value !== 'xlsx' && value !== 'cloudbase') {
+        throw new Error(`Invalid --source value: ${value}. Expected xlsx or cloudbase.`);
+      }
+      source = value;
     } else if (arg.startsWith('--xlsx=')) {
       xlsxPath = arg.slice('--xlsx='.length);
+    } else if (arg.startsWith('--cloudbase-collection=')) {
+      const value = cleanString(arg.slice('--cloudbase-collection='.length));
+      if (!value) {
+        throw new Error('--cloudbase-collection requires a non-empty value');
+      }
+      cloudbaseCollection = value;
+    } else if (arg.startsWith('--cloudbase-limit=')) {
+      cloudbaseLimit = parseNonNegativeIntegerArg(arg, '--cloudbase-limit=');
+    } else if (arg.startsWith('--cloudbase-batch-size=')) {
+      cloudbaseBatchSize = parsePositiveIntegerArg(arg, '--cloudbase-batch-size=');
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -185,8 +346,36 @@ function parseArgs(argv: readonly string[]): Args {
   return {
     dryRun,
     yes,
-    xlsxPath: resolveLovecaExcelPath(xlsxPath),
+    source,
+    xlsxPath: source === 'xlsx' ? resolveLovecaExcelPath(xlsxPath) : xlsxPath,
+    cloudbaseCollection,
+    cloudbaseLimit,
+    cloudbaseBatchSize,
   };
+}
+
+function parsePositiveIntegerArg(arg: string, prefix: string): number {
+  const raw = arg.slice(prefix.length);
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(`${prefix}${raw} must be a positive integer`);
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${prefix}${raw} must be a positive integer`);
+  }
+  return value;
+}
+
+function parseNonNegativeIntegerArg(arg: string, prefix: string): number {
+  const raw = arg.slice(prefix.length);
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(`${prefix}${raw} must be a non-negative integer`);
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${prefix}${raw} must be a non-negative integer`);
+  }
+  return value;
 }
 
 function unzipText(xlsxPath: string, entryName: string): string {
@@ -327,6 +516,174 @@ function readLovecaExcelRows(xlsxPath: string): ExcelCardRow[] {
   return result;
 }
 
+async function readSyncSourceRows(args: Args): Promise<ExcelCardRow[]> {
+  switch (args.source) {
+    case 'xlsx':
+      if (!args.xlsxPath) {
+        throw new Error('Missing xlsx path');
+      }
+      return readLovecaExcelRows(args.xlsxPath);
+    case 'cloudbase':
+      return readCloudbaseRows(args);
+  }
+}
+
+function requiredEnv(name: string, fallbackName?: string): string {
+  const value = readEnvValue(name) ?? (fallbackName ? readEnvValue(fallbackName) : null);
+  if (!value) {
+    throw new Error(
+      fallbackName
+        ? `Missing required environment variable: ${name} or ${fallbackName}`
+        : `Missing required environment variable: ${name}`
+    );
+  }
+  return value;
+}
+
+let dotenvValues: Record<string, string> | null = null;
+
+function readEnvValue(name: string): string | null {
+  return cleanString(process.env[name]) ?? cleanString(readDotenvValues()[name]);
+}
+
+function readDotenvValues(): Record<string, string> {
+  if (dotenvValues) {
+    return dotenvValues;
+  }
+
+  try {
+    dotenvValues = parseDotenv(fs.readFileSync('.env'));
+  } catch {
+    dotenvValues = {};
+  }
+  return dotenvValues;
+}
+
+async function readCloudbaseRows(args: Args): Promise<ExcelCardRow[]> {
+  const cloudbase = cloudbaseSDK.init({
+    env: requiredEnv('CLOUDBASE_ENV_ID'),
+    secretId: requiredEnv('CLOUDBASE_SECRET_ID', 'CLOUDBASE_SECRETID'),
+    secretKey: requiredEnv('CLOUDBASE_SECRET_KEY', 'CLOUDBASE_SECRETKEY'),
+  });
+  const db = cloudbase.database();
+  const documents = await readCloudbaseDocuments(
+    db.collection(args.cloudbaseCollection),
+    args.cloudbaseLimit,
+    args.cloudbaseBatchSize
+  );
+
+  const warnings: string[] = [];
+  const rows = documents
+    .map((document, index) => cloudbaseDocumentToRow(document, index + 1, warnings))
+    .filter((row): row is ExcelCardRow => row !== null);
+
+  if (warnings.length > 0) {
+    console.warn(`  CloudBase source warnings: ${warnings.length}`);
+    for (const warning of warnings.slice(0, 30)) {
+      console.warn(`    ${warning}`);
+    }
+    if (warnings.length > 30) {
+      console.warn(`    ... and ${warnings.length - 30} more`);
+    }
+  }
+
+  return rows;
+}
+
+async function readCloudbaseDocuments(
+  collection: {
+    skip(offset: number): { limit(limit: number): { get(): Promise<{ data?: unknown[] }> } };
+  },
+  limit: number | null,
+  batchSize: number
+): Promise<Record<string, unknown>[]> {
+  const documents: Record<string, unknown>[] = [];
+  let offset = 0;
+
+  while (limit === null || documents.length < limit) {
+    const remaining = limit === null ? batchSize : limit - documents.length;
+    const pageSize = Math.min(batchSize, remaining);
+    if (pageSize <= 0) {
+      break;
+    }
+
+    const response = await collection.skip(offset).limit(pageSize).get();
+    const page = (response.data ?? []).filter(isRecord);
+    documents.push(...page);
+    offset += response.data?.length ?? 0;
+
+    if ((response.data?.length ?? 0) < pageSize) {
+      break;
+    }
+  }
+
+  return documents;
+}
+
+function cloudbaseDocumentToRow(
+  document: Record<string, unknown>,
+  rowNumber: number,
+  warnings: string[]
+): ExcelCardRow | null {
+  const rawCode = cleanString(
+    stringifyCloudbaseFieldValue(readCloudbaseField(document, FIELD_NAMES.cardCode))
+  );
+  if (!rawCode) {
+    const sourceId = cleanString(stringifyCloudbaseFieldValue(document._id));
+    warnings.push(
+      sourceId
+        ? `document ${sourceId}: missing card code; skipped`
+        : `document #${rowNumber}: missing card code; skipped`
+    );
+    return null;
+  }
+
+  const values: Record<string, string> = {};
+  for (const fieldName of Object.values(FIELD_NAMES)) {
+    const value = readCloudbaseField(document, fieldName);
+    if (value !== undefined) {
+      values[fieldName] = stringifyCloudbaseFieldValue(value);
+    }
+  }
+
+  return {
+    rowNumber,
+    cardCode: normalizeCardCode(rawCode),
+    values,
+    sourceId: cleanString(stringifyCloudbaseFieldValue(document._id)) ?? undefined,
+  };
+}
+
+function readCloudbaseField(
+  document: Record<string, unknown>,
+  fieldName: SourceFieldName
+): unknown {
+  const aliases = CLOUDBASE_FIELD_ALIASES[fieldName] ?? [fieldName];
+  for (const alias of aliases) {
+    if (Object.prototype.hasOwnProperty.call(document, alias)) {
+      return document[alias];
+    }
+  }
+  return undefined;
+}
+
+function stringifyCloudbaseFieldValue(value: unknown): string {
+  if (value == null) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  return JSON.stringify(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
 function cleanString(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
@@ -437,9 +794,7 @@ function parseExcelHearts(
   let hasParseError = false;
   for (const [rawKey, rawCount] of Object.entries(heartObject)) {
     const token = normalizeHeartToken(rawKey);
-    const color = EXCEL_RAINBOW_HEART_TOKENS.has(token)
-      ? 'RAINBOW'
-      : EXCEL_HEART_COLOR_MAP[token];
+    const color = EXCEL_RAINBOW_HEART_TOKENS.has(token) ? 'RAINBOW' : EXCEL_HEART_COLOR_MAP[token];
     const count = parsePositiveIntegerCount(rawCount);
 
     if (!color) {
@@ -883,16 +1238,25 @@ async function applyUpdates(pool: Pool, updates: readonly PendingUpdate[]) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  console.log(`Loveca Excel card text sync${args.dryRun ? ' (DRY RUN)' : ''}`);
-  console.log(`  Excel: ${args.xlsxPath}`);
+  console.log(`Loveca card text sync${args.dryRun ? ' (DRY RUN)' : ''}`);
+  if (args.source === 'xlsx') {
+    console.log(`  Source: xlsx`);
+    console.log(`  Excel: ${args.xlsxPath}`);
+  } else {
+    console.log(`  Source: cloudbase`);
+    console.log(`  CloudBase collection: ${args.cloudbaseCollection}`);
+    if (args.cloudbaseLimit !== null) {
+      console.log(`  CloudBase limit: ${args.cloudbaseLimit}`);
+    }
+  }
 
-  const excelRows = readLovecaExcelRows(args.xlsxPath);
-  const duplicates = summarizeDuplicateRows(excelRows);
+  const sourceRows = await readSyncSourceRows(args);
+  const duplicates = summarizeDuplicateRows(sourceRows);
   const duplicateCodes = new Set(duplicates.keys());
-  const usableRows = excelRows.filter((row) => !duplicateCodes.has(row.cardCode));
-  const excelByCode = new Map(usableRows.map((row) => [row.cardCode, row]));
+  const usableRows = sourceRows.filter((row) => !duplicateCodes.has(row.cardCode));
+  const sourceByCode = new Map(usableRows.map((row) => [row.cardCode, row]));
 
-  console.log(`  Excel rows: ${excelRows.length}`);
+  console.log(`  Source rows: ${sourceRows.length}`);
   console.log(`  Unique usable card codes: ${usableRows.length}`);
   console.log(`  Duplicate card codes skipped: ${duplicates.size}`);
   if (duplicates.size > 0) {
@@ -929,18 +1293,18 @@ async function main() {
     `);
 
     const existingByCode = new Map(existingRows.map((row) => [row.card_code, row]));
-    const excelOnly = [...excelByCode.keys()].filter((code) => !existingByCode.has(code));
-    const dbOnly = existingRows.filter((row) => !excelByCode.has(row.card_code));
+    const sourceOnly = [...sourceByCode.keys()].filter((code) => !existingByCode.has(code));
+    const dbOnly = existingRows.filter((row) => !sourceByCode.has(row.card_code));
     const warnings: string[] = [];
     const updates: PendingUpdate[] = [];
 
-    for (const [code, excelRow] of excelByCode) {
+    for (const [code, sourceRow] of sourceByCode) {
       const existing = existingByCode.get(code);
       if (!existing) {
         continue;
       }
 
-      const rawNext = buildExcelSyncRecord(excelRow, existing, warnings);
+      const rawNext = buildExcelSyncRecord(sourceRow, existing, warnings);
       const conflictFields = collectConflictFields(existing, rawNext);
       const next = applyConflictFlag(rawNext, conflictFields.length > 0);
       const changedFields = collectChangedFields(existing, next);
@@ -951,7 +1315,7 @@ async function main() {
 
     console.log('\nDB comparison:');
     console.log(`  DB cards: ${existingRows.length}`);
-    console.log(`  Excel-only skipped: ${excelOnly.length}`);
+    console.log(`  Source-only skipped: ${sourceOnly.length}`);
     console.log(`  DB-only untouched: ${dbOnly.length}`);
     if (warnings.length > 0) {
       console.warn(`  Transform warnings: ${warnings.length}`);
@@ -963,10 +1327,10 @@ async function main() {
     printUpdateSummary(updates);
     printConflictDetails(updates);
 
-    if (excelOnly.length > 0) {
-      console.log(`\nExcel-only card codes (not inserted): ${excelOnly.slice(0, 40).join(', ')}`);
-      if (excelOnly.length > 40) {
-        console.log(`  ... and ${excelOnly.length - 40} more`);
+    if (sourceOnly.length > 0) {
+      console.log(`\nSource-only card codes (not inserted): ${sourceOnly.slice(0, 40).join(', ')}`);
+      if (sourceOnly.length > 40) {
+        console.log(`  ... and ${sourceOnly.length - 40} more`);
       }
     }
 
@@ -984,7 +1348,7 @@ async function main() {
     }
 
     await applyUpdates(pool, updates);
-    console.log(`Applied ${updates.length} Loveca Excel updates.`);
+    console.log(`Applied ${updates.length} Loveca source updates.`);
   } finally {
     await pool.end();
   }
