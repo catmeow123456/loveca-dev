@@ -36,9 +36,6 @@ jobs:
       - name: Install root dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install client dependencies
-        run: pnpm --dir client install --frozen-lockfile
-
       - name: Check version
         run: pnpm version:check
 
