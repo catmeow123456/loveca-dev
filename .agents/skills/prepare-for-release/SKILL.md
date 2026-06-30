@@ -100,7 +100,7 @@ pnpm --dir client build
    pnpm android:twa:doctor
    ```
 
-   需要 Node 20+、pnpm、JDK 17+、Android SDK env、`sdkmanager`；`adb`、`gradle` 为可选。前置不满足先补齐再继续。
+   需要 Node 22+、pnpm、JDK 17+、Android SDK env、`sdkmanager`；`adb`、`gradle` 为可选。前置不满足先补齐再继续。
 2. 构建 Web/PWA 产物（即 `client/dist`，应包含 `manifest.webmanifest`、`/pwa/*` 图标、`sw.js`、`version.json`）：
 
    ```bash

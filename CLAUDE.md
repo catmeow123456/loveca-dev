@@ -48,7 +48,7 @@ pnpm start:prod          # Preview production build
 
 Monorepo implementing the Love Live card game (Loveca):
 
-- **`src/`** - Backend: game engine + self-hosted API server (TypeScript, Node.js 20+)
+- **`src/`** - Backend: game engine + self-hosted API server (TypeScript, Node.js 22+)
 - **`client/`** - Frontend UI (React 19, Vite, Tailwind CSS)
 - **`src/shared/`** - Shared types imported by both (via TypeScript path aliases)
 - **`android/twa/`** - Trusted Web Activity packaging notes and generated Bubblewrap Android project
