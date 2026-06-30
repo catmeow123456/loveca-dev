@@ -1,6 +1,6 @@
 # 卡牌数据同步需求
 
-> 更新时间: 2026-06-26
+> 更新时间: 2026-06-30
 > 文档类型: 需求文档
 > 适用范围: `llocg_db` 与 Loveca Excel 到 `cards` 表的同步脚本输入、转换、审核和写入边界
 > 当前状态: 当前同步需求；实现架构与代码路径见 [设计文档](./design.md)
@@ -13,6 +13,7 @@
 
 - `llocg_db` 同步负责建立或刷新卡牌主记录，尤其是结构化规则字段和基础展示字段。
 - Loveca Excel 同步负责在已有卡牌基础上补强中日名称、中日效果文本、真实团体、真实小队、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、收录商品和来源追踪字段；不读取 Excel 官方 `作品名` / `参加ユニット`。
+- CloudBase 新卡导入负责从 CloudBase 卡牌集合插入 DB 不存在的新卡，并可选处理卡图；它不更新已有卡牌字段。
 
 同步脚本不是日常单卡编辑入口。它适合批量引入或刷新外部卡牌资料，运行前必须理解它会影响已存在卡牌的基础字段和发布状态。
 
@@ -28,6 +29,8 @@
 缺少子模块或输入文件时，同步应停止，并提示维护者先初始化外部数据源。
 
 Loveca Excel 同步依赖本地 `docs/card-data-sync/sources/loveca_*.xlsx`。`sources/` 是私有输入目录，不进入仓库；正式同步前维护者需要在本地放置对应 Excel。该同步读取 Excel 的展示、文本、成员持有 Heart、BLADE Heart、LIVE 必要 Heart 和来源字段，不应从 Excel 覆盖 `card_type`、`cost`、`blade`、`score`、`work_names` 等主记录和规则字段。
+
+CloudBase 新卡导入依赖 CloudBase 卡牌集合和现有 PostgreSQL `cards` 表。集合文档必须至少提供可标准化的卡号、可映射的卡牌类型，以及中日名称中的至少一个；图片处理需要 CloudBase 云存储读取权限和 MinIO / S3 写入环境变量。
 
 ## 3. 转换要求
 
@@ -47,6 +50,7 @@ Loveca Excel 同步依赖本地 `docs/card-data-sync/sources/loveca_*.xlsx`。`s
 - Loveca Excel 的 `ブレードハート` / `特殊ハート` 写入 `blade_hearts`。
 - Loveca Excel 的官方 `作品名` / `参加ユニット` 存在已知修正问题，Excel 同步不得读取这两列；`work_names` 只由 llocg_db `series`、旧库迁移或人工维护入口维护。
 - Loveca Excel 的 `収録商品` / `商品编号` 分别写入 `product` / `product_code`。
+- CloudBase 新卡导入可以从 `作品名` / `work_names` / `series` 写入 `work_names`，因为该脚本只处理 DB 不存在的新记录；若上游字段质量未确认，应先保持默认 `DRAFT` 并用报告审核。
 
 ## 4. 去重与合并
 
@@ -77,15 +81,26 @@ Loveca Excel 同步的交互确认规则：
 - 非交互环境必须显式使用 `--yes` 才允许正式更新。
 - Excel 内部标准化卡号重复时，不按遍历顺序选择；该卡号应跳过并报告 warning。
 
+CloudBase 新卡导入的写入规则：
+
+- DB 已存在卡号必须跳过，不更新已有卡。
+- CloudBase 输入内部标准化卡号重复时，整组跳过并报告。
+- 正式运行必须显式选择 `--upload-images` 或 `--skip-images`。
+- 图片对象默认不覆盖；图片 basename 与候选内部或 DB 已有记录冲突时必须跳过。
+- `--upload-images` 模式下图片失败默认不插入该卡；只有显式 `--allow-missing-images` 时才允许插入并写入 source flag。
+- `--skip-images` 模式下不得写入 `image_filename`，只保留 `image_source_uri` 和 `source_flags.imageSkipped`。
+
 ## 6. 发布状态风险
 
-当前同步脚本构建的记录会进入 PUBLISHED 状态。运行同步前需要确认：
+`sync-cards-llocg.ts` 构建的记录会进入 PUBLISHED 状态。运行同步前需要确认：
 
 - 是否允许新卡牌直接对普通玩家可见。
 - 是否会把已有 DRAFT 卡牌改为 PUBLISHED。
 - 是否需要先在管理端或数据库备份中保留人工修订记录。
 
 这项行为属于同步管线的核心风险点，修改前需要同步更新需求文档、设计文档和脚本实现。
+
+`sync-cards-cloudbase-new.ts` 默认把新卡写入 `DRAFT`。如果需要直接发布 CloudBase-only 新卡，必须显式使用 `--status=PUBLISHED`，并先确认规则字段、卡图和卡效自动化风险。
 
 ## 7. dry-run 要求
 
@@ -98,6 +113,7 @@ dry-run 输出应帮助维护者判断：
 - CN 匹配与 CN-only 数量是否异常。
 - 能量卡、结构化字段和图片字段是否存在明显缺失。
 - Loveca Excel 行数、可用唯一卡号数、重复卡号、Excel-only 与 DB-only 数量是否合理。
+- CloudBase 新卡候选数量、DB 已存在跳过数量、重复卡号、字段解析 warning、缺规则字段、图片 basename 冲突和可插入候选是否合理。
 
 ## 8. 正式运行要求
 

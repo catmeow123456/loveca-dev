@@ -52,7 +52,7 @@
 | 卡组管理 | [卡组管理需求](deck-management/requirements.md)、[卡组管理设计](deck-management/design.md) | 云端卡组、DeckLog、分享、游戏入口选组 |
 | 卡牌数据管理 | [卡牌数据管理需求](card-data-management/requirements.md)、[卡牌数据管理设计](card-data-management/design.md) | 管理后台、卡牌 CRUD、发布状态和字段边界 |
 | 卡牌数据规范 | [卡牌数据规范](card-data-management/data-spec.md) | `cards` 表字段、同步脚本和管理端输入约束 |
-| 卡牌同步 | [专题索引](card-data-sync/README.md)、[同步需求](card-data-sync/requirements.md)、[同步设计](card-data-sync/design.md)、[llocg_db 与 Loveca Excel 格式差异调查](card-data-sync/llocg-vs-xlsx-format-audit-20260626.md) | `llocg_db` 与 Loveca Excel 到当前 `cards` 表的同步管线、格式差异和接入边界 |
+| 卡牌同步 | [专题索引](card-data-sync/README.md)、[同步需求](card-data-sync/requirements.md)、[同步设计](card-data-sync/design.md)、[CloudBase 新卡同步脚本](card-data-sync/cloudbase-new-card-sync.md)、[llocg_db 与 Loveca Excel 格式差异调查](card-data-sync/llocg-vs-xlsx-format-audit-20260626.md) | `llocg_db`、Loveca Excel 与 CloudBase 到当前 `cards` 表的同步管线、格式差异和接入边界 |
 | 卡牌效果自动化 | [卡效框架入口](card-effect-framework/README.md)、[目标架构](card-effect-framework/target_architecture.md)、[模块边界](card-effect-framework/module_boundaries.md)、[卡效实现指南](card-effect-framework/card_effect_implementation_guide.md)、[迁移路线](card-effect-framework/migration_roadmap.md)、[旧文档索引](card-effect-framework/legacy_doc_index.md)、[卡效完成状态登记册](card-effect-reuse-audit/existing_module_map.md) | 卡效系统最终目标、runner 去中心化边界、新卡效实现入口、迁移计划、旧文档权威关系和已实现基础编号 |
 | MinIO 与图片 | [MinIO 需求与设计](minio-requirements.md)、[图片优化方案](image_optimization.md) | 对象存储、图片上传、压缩和访问 URL |
 | 生产发布 | [生产发布 Runbook](production-release-runbook.md) | 当前自托管发布步骤、部署检查、健康检查与回滚边界 |

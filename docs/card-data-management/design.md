@@ -2,7 +2,7 @@
 
 > 版本: 1.4.0
 > 创建日期: 2026-03-03
-> 更新日期: 2026-06-26
+> 更新日期: 2026-06-30
 > 文档类型: 设计文档
 > 适用范围: 卡牌数据模型、管理端、前端服务、同步脚本与图片能力
 > 当前状态: 主体已实现；跨模块已知限制见 [当前实现限制](../current-limitations.md)
@@ -131,10 +131,11 @@ flowchart LR
 
 ## 8. 同步与外部数据
 
-当前维护两条批量同步通道：
+当前维护三条批量同步通道：
 
 - `src/scripts/sync-cards-llocg.ts` 负责读取 `llocg_db` JP/CN JSON、标准化卡号、合并中文补充数据、转换结构化规则字段，并在写入前对已有卡牌差异进行人工审核。
 - `src/scripts/sync-cards-loveca-excel.ts` 负责读取 Loveca Excel 的中日名称、中日效果文本、真实团体、真实小队、商品和来源字段；不读取 Excel 官方 `作品名` / `参加ユニット`，也不覆盖费用、Heart、分数等对局规则字段。
+- `src/scripts/sync-cards-cloudbase-new.ts` 负责从 CloudBase 卡牌集合插入 DB 不存在的新卡，默认写入 `DRAFT`，可选下载、压缩并上传卡图；它不更新已有卡牌，也不登记卡效。
 
 同步脚本会影响卡牌基础资料和发布状态，因此属于高风险维护入口。具体字段映射与运行边界见 [卡牌数据同步需求](../card-data-sync/requirements.md) 和 [卡牌数据同步管线](../card-data-sync/design.md)。
 
@@ -172,6 +173,7 @@ flowchart LR
 | `src/server/services/card-registry-service.ts` | 后端从数据库加载并缓存 PUBLISHED 卡牌注册表 |
 | `src/scripts/sync-cards-llocg.ts` | `llocg_db` 卡牌同步脚本 |
 | `src/scripts/sync-cards-loveca-excel.ts` | Loveca Excel 中日文本与来源字段同步脚本 |
+| `src/scripts/sync-cards-cloudbase-new.ts` | CloudBase-only 新卡导入与卡图上传脚本 |
 
 ## 12. 相关文档
 

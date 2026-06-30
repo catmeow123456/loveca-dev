@@ -61,6 +61,16 @@ export type CardSourceFlags = {
   oldSourceOnly?: boolean;
   fieldConflict?: boolean;
   derivedFromBase?: boolean;
+  cloudbaseOnly?: boolean;
+  importedBy?: string;
+  missingRuleFields?: string[];
+  parseWarnings?: string[];
+  missingImage?: boolean;
+  imageSkipped?: boolean;
+  imageDownloadFailed?: boolean;
+  imageProcessFailed?: boolean;
+  imageUploadFailed?: boolean;
+  [key: string]: unknown;
 };
 
 export const users = pgTable(

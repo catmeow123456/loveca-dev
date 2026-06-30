@@ -1,6 +1,21 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-06-27
+更新时间：2026-06-30
+
+## 本次 2026-06-30 CloudBase 新卡导入脚本
+
+- 新增 `src/scripts/sync-cards-cloudbase-new.ts`：只从 CloudBase 卡牌集合插入 DB 不存在的新卡，支持 `--dry-run`、`--report`、重复卡号跳过、缺规则字段 source flag、默认 `DRAFT`、正式导入交互确认或 `--yes`。
+- 新脚本正式运行必须显式选择 `--upload-images` 或 `--skip-images`；`--upload-images` 会通过 CloudBase 临时下载 URL / HTTPS 下载卡图，使用 `sharp` 生成 `thumb/medium/large` WebP 并上传 MinIO，默认不覆盖已有对象，图片失败默认不插入该卡。
+- 风险处理：DB 已存在卡不更新；候选内部或 DB 已有图片 basename 冲突会跳过；`--allow-missing-images` 才允许缺图卡入库并写入 `missingImage` / `imageDownloadFailed` 等 source flag。已确认当前可读取卡牌集合是 `loveca`，`real_card` 不存在；仍需用更完整数据确认图片字段形态和 CloudBase 云存储权限。
+- 文档同步：新增 `docs/card-data-sync/cloudbase-new-card-sync.md` 作为 CloudBase 新卡专题说明；`docs/card-data-sync/README.md`、`docs/card-data-sync/design.md`、`docs/card-data-sync/requirements.md` 已纳入新脚本职责边界与运行要求。
+- 验证：`pnpm exec tsc --noEmit` passed；`pnpm exec tsx src/scripts/sync-cards-cloudbase-new.ts --help` passed；`pnpm exec tsx src/scripts/sync-cards-cloudbase-new.ts --cloudbase-collection=loveca --cloudbase-limit=5 --dry-run --report=tmp/card-sync/cloudbase-loveca-dry-run.json` passed（5 条均可转换，均因 DB 已存在跳过）；`pnpm exec tsx src/scripts/sync-cards-cloudbase-new.ts --cloudbase-collection=loveca --cloudbase-limit=100 --dry-run --report=tmp/card-sync/cloudbase-loveca-100-dry-run.json` passed（100 条转换无 warning，均因 DB 已存在跳过）。
+
+## 本次 2026-06-29 Loveca Excel Heart 字段同步
+
+- `src/scripts/sync-cards-loveca-excel.ts` 现在会从 Loveca Excel 的 `基本ハート` / `必要ハート` 加载结构化 Heart：`基本ハート` 只写入 MEMBER `hearts`，`必要ハート` 只写入 LIVE `requirements`；`any` / `all` 映射为 `RAINBOW`，字段为空或解析失败时保留数据库现值。
+- 该脚本继续同步既有中日文本、真实团体/小队、BLADE Heart、商品与来源字段；仍不插入 Excel-only 卡，不删除 DB-only 卡，不覆盖费用、BLADE、LIVE 分数和 `work_names`。
+- 文档同步：`docs/card-data-sync/README.md`、`docs/card-data-sync/design.md`、`docs/card-data-sync/requirements.md` 已更新 Loveca Excel 同步职责边界。
+- 验证：`pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --dry-run` passed（parse-only，2303 行，2 组重复卡号，2299 个可用卡号）；`pnpm exec tsc --noEmit` passed。
 
 ## 接续方式
 

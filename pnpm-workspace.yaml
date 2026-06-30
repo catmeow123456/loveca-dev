@@ -1,0 +1,5 @@
+allowBuilds:
+  bcrypt: true
+  core-js-pure: true
+  esbuild: true
+  sharp: true
