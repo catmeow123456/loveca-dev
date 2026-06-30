@@ -22,7 +22,7 @@ import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 import {
   finishWaitingRoomToHandWorkflow,
   startWaitingRoomToHandWorkflow,
-} from '../shared/waiting-room-to-hand.js';
+} from './waiting-room-to-hand.js';
 
 const BP6_013_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID = 'BP6_013_SELECT_WAITING_ROOM_MUSE_LIVE';
 

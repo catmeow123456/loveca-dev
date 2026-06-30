@@ -14,6 +14,7 @@ import {
   SP_BP4_025_LIVE_START_CENTER_LIELLA_ORIGINAL_BLADE_THREE_ABILITY_ID,
   SP_BP4_025_LIVE_SUCCESS_CENTER_LIELLA_MOVED_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { GameService } from '../../src/application/game-service';
 import { addLiveModifier, getMemberEffectiveBladeCount } from '../../src/domain/rules/live-modifiers';
 import {
   CardType,
@@ -26,6 +27,10 @@ import {
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
+
+interface AutoCheerService {
+  autoRevealPerformanceCheer(game: GameState, playerId: string): GameState;
+}
 
 function createMember(
   cardCode: string,
@@ -60,6 +65,7 @@ function setupState(options: {
   readonly centerGroupName?: string;
   readonly centerCardCode?: string;
   readonly emptyCenter?: boolean;
+  readonly mainDeckCardCount?: number;
 } = {}): {
   readonly game: GameState;
   readonly liveId: string;
@@ -74,11 +80,19 @@ function setupState(options: {
     PLAYER1,
     'special-color-center'
   );
+  const cheerCards = Array.from({ length: options.mainDeckCardCount ?? 0 }, (_, index) =>
+    createCardInstance(
+      createMember(`SPECIAL-COLOR-CHEER-${index}`, { blade: 0 }),
+      PLAYER1,
+      `special-color-cheer-${index}`
+    )
+  );
   let game = createGameState('sp-bp4-025-special-color', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, [live, centerMember]);
+  game = registerCards(game, [live, centerMember, ...cheerCards]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     liveZone: { ...player.liveZone, cardIds: [live.instanceId] },
+    mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((card) => card.instanceId) },
     memberSlots: options.emptyCenter
       ? player.memberSlots
       : placeCardInSlot(player.memberSlots, SlotPosition.CENTER, centerMember.instanceId, {
@@ -112,6 +126,11 @@ function resolveAbility(game: GameState, ability: PendingAbilityState): GameStat
   }).gameState;
 }
 
+function autoRevealCheer(game: GameState): GameState {
+  const service = new GameService() as unknown as AutoCheerService;
+  return service.autoRevealPerformanceCheer(game, PLAYER1);
+}
+
 describe('PL!SP-bp4-025 Special Color', () => {
   it.each([1, 5])('treats center Liella printed BLADE %i as original BLADE 3', (blade) => {
     const scenario = setupState({ centerBlade: blade });
@@ -126,6 +145,29 @@ describe('PL!SP-bp4-025 Special Color', () => {
 
     expect(getMemberEffectiveBladeCount(state, PLAYER1, scenario.centerMemberId)).toBe(3);
   });
+
+  it.each([1, 5])(
+    'auto-reveals 3 cheer cards after replacing center Liella printed BLADE %i',
+    (blade) => {
+      const scenario = setupState({ centerBlade: blade, mainDeckCardCount: 5 });
+      const state = resolveAbility(
+        scenario.game,
+        pendingAbility(
+          SP_BP4_025_LIVE_START_CENTER_LIELLA_ORIGINAL_BLADE_THREE_ABILITY_ID,
+          scenario.liveId,
+          TriggerCondition.ON_LIVE_START
+        )
+      );
+      const cheered = autoRevealCheer(state);
+
+      expect(cheered.liveResolution.firstPlayerCheerCardIds).toHaveLength(3);
+      expect(cheered.resolutionZone.revealedCardIds).toHaveLength(3);
+      expect(cheered.actionHistory.at(-1)?.payload).toMatchObject({
+        cheerCount: 3,
+        automated: true,
+      });
+    }
+  );
 
   it('appends ordinary BLADE modifiers after original BLADE replacement', () => {
     const scenario = setupState({ centerBlade: 5 });

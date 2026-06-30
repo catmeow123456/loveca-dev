@@ -1425,7 +1425,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: BP6_020_AUTO_LIVE_START_RESOLVED_EFFECT_TEXT,
     perTurnLimit: 1,
     notes:
-      "单卡 workflow `bp6-020-dancing-stars.ts`；通过 `runtime/resolved-ability-observers.ts` 注册窄 observer，在中心 μ's 舞台成员 LIVE_START 能力解決后入队，不走普通 LIVE_START timing。",
+      "单卡 workflow `pl-bp6-020-dancing-stars-on-me.ts`；通过 `runtime/resolved-ability-observers.ts` 注册窄 observer，在中心 μ's 舞台成员 LIVE_START 能力解決后入队，不走普通 LIVE_START timing。",
   },
   {
     abilityId: BP6_020_AUTO_CENTER_MUSE_LIVE_SUCCESS_RESOLVED_MOVED_THIS_LIVE_SCORE_ABILITY_ID,
@@ -1438,7 +1438,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: BP6_020_AUTO_LIVE_SUCCESS_RESOLVED_EFFECT_TEXT,
     perTurnLimit: 1,
     notes:
-      "单卡 workflow `bp6-020-dancing-stars.ts`；通过 `runtime/resolved-ability-observers.ts` 注册窄 observer，在中心 μ's 舞台成员 LIVE_SUCCESS 能力解決后入队，若该成员本回合移动过则写此 LIVE SCORE +1。",
+      "单卡 workflow `pl-bp6-020-dancing-stars-on-me.ts`；通过 `runtime/resolved-ability-observers.ts` 注册窄 observer，在中心 μ's 舞台成员 LIVE_SUCCESS 能力解決后入队，若该成员本回合移动过则写此 LIVE SCORE +1。",
   },
   {
     abilityId: N_PR_026_ON_ENTER_STACK_LOW_COST_NIJIGASAKI_MEMBER_FROM_WAITING_ABILITY_ID,
@@ -1515,7 +1515,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: N_BP1_005_LIVE_START_EFFECT_TEXT,
     notes:
-      '提交前相似卡补充批；与 PL!N-sd1-004 同骨架但 BLADE 数量不同，复用 n-discard-recover-and-blade workflow 的窄配置轴，支付成功后写入 BLADE +1。',
+      '提交前相似卡补充批；与 PL!N-sd1-004 同骨架但 BLADE 数量不同，复用 discard-cost-recover-live-or-gain-blade workflow 的窄配置轴，支付成功后写入 BLADE +1。',
   },
   {
     abilityId: N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
@@ -4601,7 +4601,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP5_027_LIVE_START_EFFECT_TEXT,
     notes:
-      '扩展 n-live-start-score-bonuses；自己或对方成功 LIVE 卡区 2 张以上，且自己舞台存在 3 名 normalize 后卡名不同的成员时，此 LIVE SCORE +1 并刷新 playerScores。',
+      '扩展 live-start-score-bonuses；自己或对方成功 LIVE 卡区 2 张以上，且自己舞台存在 3 名 normalize 后卡名不同的成员时，此 LIVE SCORE +1 并刷新 playerScores。',
   },
   {
     abilityId: PL_N_BP4_030_LIVE_SUCCESS_CHOOSE_ENERGY_OR_MEMBER_RECOVERY_ABILITY_ID,

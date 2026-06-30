@@ -17,7 +17,7 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { getCardIdsInZoneMatching } from '../../../effects/conditions.js';
-import { startSuccessZoneReplacementEffect } from './bp6-024-success-replacement.js';
+import { startSuccessZoneReplacementEffect } from './pl-bp6-024-sakkaku-crossroads.js';
 import { canLiveCardEnterSuccessZone } from '../../../../domain/rules/success-live-placement.js';
 
 export const MAKI_SELECT_HAND_LIVE_STEP_ID = 'MAKI_SELECT_HAND_LIVE';

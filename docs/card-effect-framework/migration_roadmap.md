@@ -82,8 +82,8 @@ Current migrated workflow modules:
 - `workflows/shared/opponent-wait-target.ts`
 - `workflows/shared/conditional-live-modifier.ts`
 - `workflows/shared/revealed-cheer-selection.ts`
-- `workflows/cards/bp6-024-success-replacement.ts`
-- `workflows/cards/bp5-005-rin.ts`
+- `workflows/cards/pl-bp6-024-sakkaku-crossroads.ts`
+- `workflows/cards/pl-bp5-005-rin.ts`
 - `workflows/cards/hs-bp6-004-ginko.ts`
 - `workflows/cards/hs-bp6-031-fanfare.ts`
 - `workflows/shared/wait-discard-look-top-select-to-hand.ts`
@@ -91,24 +91,24 @@ Current migrated workflow modules:
 - `workflows/cards/hs-pb1-009-kaho.ts`
 - `workflows/cards/hs-sd1-001-kaho.ts`
 - `workflows/cards/hs-sd1-006-hime.ts`
-- `workflows/cards/pr-017-nico.ts`
+- `workflows/cards/pl-pr-017-nico.ts`
 - `workflows/shared/play-waiting-room-member-to-source-slot.ts`
 - `workflows/cards/hs-bp5-001-kaho.ts`
 - `workflows/cards/hs-bp5-003-rurino.ts`
 - `workflows/cards/hs-pb1-004-ginko.ts`
 - `workflows/cards/hs-pb1-012-ginko.ts`
-- `workflows/cards/keke-on-enter-place-waiting-energy.ts`
-- `workflows/cards/maki-on-enter.ts`
-- `workflows/cards/bp5-003-kotori.ts`
+- `workflows/shared/on-enter-discard-place-waiting-energy.ts`
+- `workflows/cards/pl-sd1-006-maki.ts`
+- `workflows/cards/pl-bp5-003-kotori.ts`
 - `workflows/cards/n-pb1-008-emma.ts`
 - `workflows/cards/n-pb1-004-karin.ts`
-- `workflows/cards/nozomi-on-enter.ts`
-- `workflows/cards/pb1-015-maki.ts`
-- `workflows/cards/pl-bp3-014-rin.ts`
+- `workflows/cards/pl-sd1-007-nozomi.ts`
+- `workflows/cards/pl-pb1-015-maki.ts`
+- `workflows/shared/on-enter-wait-look-top-two-arrange.ts`
 - `workflows/cards/sp-bp4-008-shiki.ts`
 - `workflows/cards/s-bp2-024-kimikoko.ts`
 - `workflows/cards/sp-bp5-003-chisato.ts`
-- `workflows/cards/yoshiko-play-low-cost-members.ts`
+- `workflows/cards/s-bp2-006-yoshiko.ts`
 
 Recent helper modules added outside `actions.ts`:
 
@@ -165,7 +165,7 @@ No pay-energy-gain-BLADE generalization, trigger matcher integration, cost-calcu
 
 ## R-5U BP5_007 Nozomi Relay Hand Adjust Draw Workflow Outcome 2026-06-19
 
-R-5U migrated only `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID` pending starter / discard step / draw resolver into the new single-card workflow file `src/application/card-effects/workflows/cards/bp5-007-nozomi.ts`.
+R-5U migrated only `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID` pending starter / discard step / draw resolver into the new single-card workflow file `src/application/card-effects/workflows/cards/pl-bp5-007-nozomi.ts`.
 
 Covered flow:
 
@@ -180,11 +180,11 @@ Covered flow:
 
 The workflow reuses existing helpers only: pending starter registry, active-effect step registry, `getAbilityEffectText`, `discardHandCardsToWaitingRoomForPlayer`, `drawCardsForEachPlayer`, and the registry-provided `continuePendingCardEffects` context. No runtime helper, hand-adjust DSL, shared family, trigger matcher integration, cost-calculator change, or new card effect was added. The workflow is 268 lines; it stays single-card because the two-player order, per-player skip windows, current-hand validation, activeEffect clear timing, final draw timing, and ordered continuation are all tightly coupled to this one card. A later helper cleanup candidate would need at least one more real card with the same two-player hand-adjust shape.
 
-Existing sample coverage still locks both-player discard, direct draw when both players are already at 3 or fewer cards, non-relay no-trigger, and not-lower-cost relay no-trigger. R-5U added `tests/integration/bp5-007-nozomi.test.ts` to lock the controller-skip / opponent-discard branch plus the key `START_DISCARD_TO_THREE`, `DISCARD_TO_THREE`, and `DRAW_THREE_AFTER_HAND_ADJUST` payloads. Runner line count after R-5U is about 2157 lines.
+Existing sample coverage still locks both-player discard, direct draw when both players are already at 3 or fewer cards, non-relay no-trigger, and not-lower-cost relay no-trigger. R-5U added `tests/integration/pl-bp5-007-nozomi.test.ts` to lock the controller-skip / opponent-discard branch plus the key `START_DISCARD_TO_THREE`, `DISCARD_TO_THREE`, and `DRAW_THREE_AFTER_HAND_ADJUST` payloads. Runner line count after R-5U is about 2157 lines.
 
 ## R-5T SD1_008 Hanayo Activated Pay Energy Mill Workflow Outcome 2026-06-19
 
-R-5T migrated only `HANAYO_ACTIVATED_ABILITY_ID` activated fallback into the new single-card workflow file `src/application/card-effects/workflows/cards/sd1-008-hanayo.ts`.
+R-5T migrated only `HANAYO_ACTIVATED_ABILITY_ID` activated fallback into the new single-card workflow file `src/application/card-effects/workflows/cards/pl-sd1-008-hanayo.ts`.
 
 Covered flow:
 
@@ -202,7 +202,7 @@ Existing sample coverage still locks HANAYO success, `PAY_COST`, `ABILITY_USE`, 
 
 ## R-5S PB1_015 Own-Effect Wait Opponent Low-Cost Draw Resolver Outcome 2026-06-19
 
-R-5S migrated only `PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID` pending resolution into the new single-card workflow file `src/application/card-effects/workflows/cards/pb1-015-maki.ts`.
+R-5S migrated only `PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID` pending resolution into the new single-card workflow file `src/application/card-effects/workflows/cards/pl-pb1-015-maki.ts`.
 
 Covered flow:
 
@@ -284,7 +284,7 @@ Existing sample coverage already locks KARIN's low-cost member reveal-to-hand pa
 
 ## R-5O NOZOMI On-Enter Mill Draw Outcome 2026-06-19
 
-R-5O migrated only `NOZOMI_ON_ENTER_ABILITY_ID` into the new single-card workflow file `src/application/card-effects/workflows/cards/nozomi-on-enter.ts`.
+R-5O migrated only `NOZOMI_ON_ENTER_ABILITY_ID` into the new single-card workflow file `src/application/card-effects/workflows/cards/pl-sd1-007-nozomi.ts`.
 
 Covered flow:
 
@@ -313,7 +313,7 @@ This cleanup did not migrate a runner fallback. It added `revealHandCardForActiv
 Current real users:
 
 - `HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID` in `workflows/cards/hs-bp5-001-kaho.ts`;
-- `MAKI_ON_ENTER_ABILITY_ID` in `workflows/cards/maki-on-enter.ts`.
+- `MAKI_ON_ENTER_ABILITY_ID` in `workflows/cards/pl-sd1-006-maki.ts`.
 
 Helper boundary:
 
@@ -344,7 +344,7 @@ The helper only constructs `ActiveEffectState`. It keeps the old default discard
 
 Replaced pure optional-discard-one windows:
 
-- `workflows/cards/keke-on-enter-place-waiting-energy.ts`;
+- `workflows/shared/on-enter-discard-place-waiting-energy.ts`;
 - `workflows/cards/hs-bp6-004-ginko.ts`;
 - `workflows/cards/hs-bp5-003-rurino.ts` for only the LIVE-start discard Heart segment;
 - `workflows/shared/live-start-discard-gain-heart.ts`;
@@ -352,7 +352,7 @@ Replaced pure optional-discard-one windows:
 
 The helper deliberately does not remove pending abilities, write action history, execute `discardOneHandCardToWaitingRoomForPlayer`, pay costs, continue pending, decide skip semantics, process extra costs, grouped recovery, or hand-adjust logic. These more complex discard windows remain explicit follow-up candidates rather than helper users:
 
-- `workflows/cards/bp5-003-kotori.ts`;
+- `workflows/cards/pl-bp5-003-kotori.ts`;
 - `workflows/cards/hs-pb1-004-ginko.ts`;
 - `workflows/shared/wait-discard-look-top-select-to-hand.ts`;
 - `workflows/shared/grouped-recovery.ts`;
@@ -386,7 +386,7 @@ Updated HEART users:
 
 ## R-5N KEKE On-Enter Place Waiting Energy Outcome 2026-06-19
 
-R-5N migrated only `KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID` into the new single-card workflow file `src/application/card-effects/workflows/cards/keke-on-enter-place-waiting-energy.ts`.
+R-5N migrated only `KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID` into the new single-card workflow file `src/application/card-effects/workflows/shared/on-enter-discard-place-waiting-energy.ts`.
 
 Covered flow:
 
@@ -405,7 +405,7 @@ Covered flow:
 
 The workflow reuses existing helpers only: pending starter registry, activeEffect step registry, `startPendingActiveEffect`, `finishSkippedActiveEffect`, `getAbilityEffectText`, `discardOneHandCardToWaitingRoomForPlayer`, and `placeEnergyFromDeckToZone`. No runtime helper, trigger matcher integration, cost-calculator change, or steps DSL was added. Runner line count after R-5N is about 3314 lines.
 
-Existing sample coverage still locks KEKE success and source-only skip paths. R-5N added `tests/integration/keke-on-enter-place-waiting-energy.test.ts` to lock that the source card is excluded from discard candidates and skip does not place energy while writing `SKIP`.
+Existing sample coverage still locks KEKE success and source-only skip paths. R-5N added `tests/integration/on-enter-discard-place-waiting-energy.test.ts` to lock that the source card is excluded from discard candidates and skip does not place energy while writing `SKIP`.
 
 ## R-5M HS_PR_019 On-Enter Mill Gain Green Heart Outcome 2026-06-19
 
@@ -479,7 +479,7 @@ Existing sample coverage still locks HS_BP1_004 paying 1 energy with 2 LIVE-zone
 
 ## R-5J BP5_005 Success-Score Active Energy Workflow Outcome 2026-06-19
 
-R-5J migrated only `BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID` into the new single-card file `src/application/card-effects/workflows/cards/bp5-005-rin.ts`.
+R-5J migrated only `BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID` into the new single-card file `src/application/card-effects/workflows/cards/pl-bp5-005-rin.ts`.
 
 Covered flow:
 
@@ -495,7 +495,7 @@ Covered flow:
 
 The workflow reuses existing helpers only: starter registry, `sumSuccessfulLiveScore`, `successLiveScoreAtLeast`, `placeEnergyFromDeckToZone`, and `OrientationState.ACTIVE`. No runtime helper, trigger matcher integration, or steps DSL was added. Runner line count after R-5J is about 3836 lines.
 
-Existing sample coverage locks the `conditionMet: true` path at successful Live score 6 and active energy placement. R-5J added `tests/integration/bp5-005-rin.test.ts` to lock the `conditionMet: false` path: no energy placement, pending removal, resolve action, and `placedEnergyCardIds: []`.
+Existing sample coverage locks the `conditionMet: true` path at successful Live score 6 and active energy placement. R-5J added `tests/integration/pl-bp5-005-rin.test.ts` to lock the `conditionMet: false` path: no energy placement, pending removal, resolve action, and `placedEnergyCardIds: []`.
 
 ## R-5I HS_BP6_004 Live-Start Discard Gain Blade Outcome 2026-06-19
 
@@ -583,7 +583,7 @@ Existing sample coverage still locks LL-bp1-001 SCORE +3 and LL-bp2-001 BLADE pe
 
 ## R-5E MAKI On-Enter Workflow Outcome 2026-06-18
 
-R-5E migrated only `MAKI_ON_ENTER_ABILITY_ID` into `src/application/card-effects/workflows/cards/maki-on-enter.ts`.
+R-5E migrated only `MAKI_ON_ENTER_ABILITY_ID` into `src/application/card-effects/workflows/cards/pl-sd1-006-maki.ts`.
 
 Covered flow:
 
@@ -599,7 +599,7 @@ Test coverage added one GameSession regression in `sample-card-effect-runner.tes
 
 ## R-5D BP6_024 Success-Zone Replacement Hook Outcome 2026-06-18
 
-R-5D migrated only `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID` success-zone replacement hook and step into `src/application/card-effects/workflows/cards/bp6-024-success-replacement.ts`.
+R-5D migrated only `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID` success-zone replacement hook and step into `src/application/card-effects/workflows/cards/pl-bp6-024-sakkaku-crossroads.ts`.
 
 Covered flow:
 
@@ -766,7 +766,7 @@ Tests now cover existing success paths plus HS_BP6_017 empty-hand skip, HS_PB1_0
 
 - Opponent wait target family: R-4M migrated `HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER`, `HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER`, and `SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER` into `src/application/card-effects/workflows/shared/opponent-wait-target.ts`. The config axes are target selector, start action step, step text, and selection label; the workflow preserves `SKIP_NO_TARGET`, `WAIT_OPPONENT_MEMBER`, member-state event enqueue timing, and source/target payload fields.
 - Fixed pay-energy gain-BLADE family: R-4K migrated `HS_SD1_006`, `BP4_010`, and `HS_PR_001` into `src/application/card-effects/workflows/shared/pay-energy-gain-blade.ts`. The config axes are energy cost count and fixed BLADE bonus. `recordPayCostAction` now lives in `runtime/workflow-helpers.ts` and is also used by `workflows/cards/hs-bp5-001-kaho.ts`.
-- Arrange top family: R-4L migrated `START_DASH` and `HS_BP6_001` into `src/application/card-effects/workflows/shared/arrange-inspected-deck-top.ts`, with `PL_BP3_014` handled by the thin wrapper `src/application/card-effects/workflows/cards/pl-bp3-014-rin.ts`. The shared core owns inspection, ordered deck-top return, unselected waiting-room movement, and inspection cleanup; the wrapper owns only the source-wait option and PAY_COST action before entering the shared core.
+- Arrange top family: R-4L migrated `START_DASH` and `HS_BP6_001` into `src/application/card-effects/workflows/shared/arrange-inspected-deck-top.ts`, with `PL_BP3_014` handled by the thin wrapper `src/application/card-effects/workflows/shared/on-enter-wait-look-top-two-arrange.ts`. The shared core owns inspection, ordered deck-top return, unselected waiting-room movement, and inspection cleanup; the wrapper owns only the source-wait option and PAY_COST action before entering the shared core.
 - Activation energy helper cleanup: R-4Q-a migrated `HS_SD1_001` into a single-card workflow, R-4Q-b migrated `SHIKI`, and R-4Q-c migrated `CHISATO` / `EMMA`. Do not retroactively collapse them into a shared activation-energy family unless another stable repeated axis appears.
 
 ## R-5 Special Workflow Candidates

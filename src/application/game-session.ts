@@ -147,7 +147,7 @@ import {
   CardAbilitySourceZone,
 } from './card-effects/ability-definition-types.js';
 import { getRenGrantedActivatedAbilityDefinition } from './card-effects/runtime/granted-activated-abilities.js';
-import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/bp6-024-success-replacement.js';
+import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/pl-bp6-024-sakkaku-crossroads.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { getMemberEffectiveCost } from './effects/conditions.js';
