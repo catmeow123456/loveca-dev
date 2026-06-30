@@ -34,7 +34,6 @@
 
    ```bash
    pnpm install --frozen-lockfile
-   pnpm --dir client install --frozen-lockfile
    pnpm version:check
    pnpm typecheck:all
    pnpm test:run
@@ -83,7 +82,6 @@
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm --dir client install --frozen-lockfile
 pnpm version:check
 pnpm build:server
 pnpm --dir client build

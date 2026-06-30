@@ -60,6 +60,7 @@ pnpm-debug.log*
 docs/card-data-sync/sources/
 
 # Lock files (keep pnpm-lock.yaml)
+client/pnpm-lock.yaml
 package-lock.json
 yarn.lock
 
