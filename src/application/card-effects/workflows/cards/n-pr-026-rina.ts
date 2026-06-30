@@ -23,7 +23,7 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
-  maybeStartManualPendingAbilityConfirmation,
+  maybeStartConfirmablePendingAbilityConfirmation,
 } from '../../runtime/workflow-helpers.js';
 import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
@@ -58,9 +58,9 @@ export function registerNPr026RinaWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
     (game, ability, options, context) => {
-      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
-      if (manualConfirmation) {
-        return manualConfirmation;
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      if (confirmation) {
+        return confirmation;
       }
       return resolveRinaLiveSuccessDelegation(
         game,

@@ -140,6 +140,14 @@ function startAbility(game: GameState, sourceLiveId: string): GameState {
   }).gameState;
 }
 
+function confirmStartedAbility(game: GameState): GameState {
+  expect(game.activeEffect).toMatchObject({
+    abilityId: SP_SD2_023_LIVE_START_SUCCESS_ZONE_TWO_SCORE_AND_SET_REQUIREMENT_ABILITY_ID,
+    metadata: { confirmOnlyPendingAbility: true },
+  });
+  return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id);
+}
+
 function hajimariRequirementModifiers(game: GameState) {
   return game.liveResolution.liveModifiers.filter(
     (modifier) =>
@@ -180,8 +188,13 @@ describe('PL!SP-sd2-023 始まりは君の空 LIVE start workflow', () => {
   it('adds SCORE +5 to this LIVE, refreshes playerScores, and sets final requirement shape when own success zone has two LIVE cards', () => {
     const { game, sourceLive } = setupState({ ownSuccessCount: 2, initialScore: 1 });
 
-    const state = startAbility(game, sourceLive.instanceId);
+    const preview = startAbility(game, sourceLive.instanceId);
 
+    expect(preview.pendingAbilities).toHaveLength(1);
+    expect(hajimariScoreModifiers(preview)).toEqual([]);
+    expect(hajimariRequirementModifiers(preview)).toEqual([]);
+
+    const state = confirmStartedAbility(preview);
     expect(state.pendingAbilities).toEqual([]);
     expect(state.activeEffect).toBeNull();
     expect(hajimariScoreModifiers(state)).toContainEqual({
@@ -227,8 +240,13 @@ describe('PL!SP-sd2-023 始まりは君の空 LIVE start workflow', () => {
   it('consumes the pending ability without modifiers when own success zone has fewer than two LIVE cards', () => {
     const { game, sourceLive } = setupState({ ownSuccessCount: 1, initialScore: 1 });
 
-    const state = startAbility(game, sourceLive.instanceId);
+    const preview = startAbility(game, sourceLive.instanceId);
 
+    expect(preview.pendingAbilities).toHaveLength(1);
+    expect(hajimariScoreModifiers(preview)).toEqual([]);
+    expect(hajimariRequirementModifiers(preview)).toEqual([]);
+
+    const state = confirmStartedAbility(preview);
     expect(state.pendingAbilities).toEqual([]);
     expect(state.activeEffect).toBeNull();
     expect(hajimariScoreModifiers(state)).toEqual([]);
@@ -302,7 +320,10 @@ describe('PL!SP-sd2-023 始まりは君の空 LIVE start workflow', () => {
     expect(hajimariScoreModifiers(preview)).toEqual([]);
     expect(hajimariRequirementModifiers(preview)).toEqual([]);
 
-    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    let state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    if (state.activeEffect?.metadata?.confirmOnlyPendingAbility === true) {
+      state = confirmStartedAbility(state);
+    }
 
     expect(state.activeEffect).toBeNull();
     expect(hajimariScoreModifiers(state)).toContainEqual(
@@ -327,7 +348,8 @@ describe('PL!SP-sd2-023 始まりは君の空 LIVE start workflow', () => {
       initialScore: 1,
     });
 
-    const state = startAbility(game, sourceLive.instanceId);
+    const preview = startAbility(game, sourceLive.instanceId);
+    const state = confirmStartedAbility(preview);
 
     expect(hajimariScoreModifiers(state)).toEqual([]);
     expect(hajimariRequirementModifiers(state)).toEqual([]);

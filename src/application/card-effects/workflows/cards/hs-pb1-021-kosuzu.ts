@@ -8,9 +8,8 @@ import {
 import { unitAliasIs } from '../../../effects/card-selectors.js';
 import { HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
-import { startConfirmOnlyPendingAbilityEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -24,6 +23,7 @@ export function registerHsPb1021KosuzuWorkflowHandlers(): void {
         {
           orderedResolution: options.orderedResolution === true,
           manualConfirmation: options.manualConfirmation === true,
+          confirmBeforeResolution: options.confirmBeforeResolution === true,
           skipManualConfirmation: options.skipManualConfirmation === true,
         },
         context.continuePendingCardEffects
@@ -37,6 +37,7 @@ function startHsPb1021KosuzuLiveSuccess(
   options: {
     readonly orderedResolution: boolean;
     readonly manualConfirmation: boolean;
+    readonly confirmBeforeResolution: boolean;
     readonly skipManualConfirmation: boolean;
   },
   continuePendingCardEffects: ContinuePendingCardEffects
@@ -46,19 +47,14 @@ function startHsPb1021KosuzuLiveSuccess(
     return game;
   }
 
-  if (options.manualConfirmation && !options.skipManualConfirmation) {
+  if ((options.manualConfirmation || options.confirmBeforeResolution) && !options.skipManualConfirmation) {
     const dollchestraLiveZoneCardIds = getDollchestraLiveZoneCardIds(game, player.id);
     const conditionMet = dollchestraLiveZoneCardIds.length > 0;
-    return startConfirmOnlyPendingAbilityEffect(game, {
-      ability,
-      effectText: getAbilityEffectText(
-        HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID
-      ),
-      orderedResolution: options.orderedResolution,
+    return maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
       stepText: conditionMet
         ? '自己的LIVE卡区存在『DOLLCHESTRA』卡片，条件满足。确认后抽 1 张卡。'
         : '自己的LIVE卡区不存在『DOLLCHESTRA』卡片，条件不满足。确认后不抽牌。',
-    });
+    }) ?? game;
   }
 
   return resolveHsPb1021KosuzuLiveSuccess(

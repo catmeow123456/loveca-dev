@@ -56,6 +56,29 @@ export function maybeStartManualPendingAbilityConfirmation(
   });
 }
 
+export function maybeStartConfirmablePendingAbilityConfirmation(
+  game: GameState,
+  ability: Pick<PendingAbilityState, 'id' | 'abilityId' | 'sourceCardId' | 'controllerId'>,
+  options: PendingAbilityStarterOptions,
+  config: {
+    readonly effectText?: string;
+    readonly stepText?: string;
+  } = {}
+): GameState | null {
+  const shouldConfirm =
+    options.manualConfirmation === true || options.confirmBeforeResolution === true;
+  if (!shouldConfirm || options.skipManualConfirmation === true) {
+    return null;
+  }
+
+  return startConfirmOnlyPendingAbilityEffect(game, {
+    ability,
+    effectText: config.effectText ?? getAbilityEffectText(ability.abilityId),
+    orderedResolution: options.orderedResolution === true,
+    stepText: config.stepText,
+  });
+}
+
 export function registerManualConfirmablePendingAbilityStarterHandler(
   abilityId: string,
   resolver: PendingAbilityStarterHandler,
@@ -68,14 +91,14 @@ export function registerManualConfirmablePendingAbilityStarterHandler(
   }
 ): void {
   registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) => {
-    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(
+    const confirmation = maybeStartConfirmablePendingAbilityConfirmation(
       game,
       ability,
       options,
       getConfirmationConfig?.(game, ability)
     );
-    if (manualConfirmation) {
-      return manualConfirmation;
+    if (confirmation) {
+      return confirmation;
     }
 
     return resolver(game, ability, options, context);

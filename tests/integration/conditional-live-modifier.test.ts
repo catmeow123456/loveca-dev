@@ -82,8 +82,12 @@ function createMember(options: {
 }
 
 function expectAutoResolved(game: GameState): GameState {
-  expect(game.activeEffect).toBeNull();
-  return game;
+  const state =
+    game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+      ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+      : game;
+  expect(state.activeEffect).toBeNull();
+  return state;
 }
 
 function runLiveStart(game: GameState): GameState {
@@ -350,14 +354,23 @@ function setupRelayEnteredLiveStartState(options: {
 }
 
 describe('conditional live modifier workflow', () => {
-  it('auto-resolves PL!HS-bp5-019 Hanamusubi when it is the only pending ability', () => {
+  it('shows a confirm-only bridge before resolving PL!HS-bp5-019 Hanamusubi when it is the only pending ability', () => {
     const { game, sourceLives } = setupHanamusubiPendingState({
       sourceCount: 1,
       includeOtherHasunosoraLive: true,
     });
 
-    const state = resolvePendingCardEffects(game).gameState;
+    const preview = resolvePendingCardEffects(game).gameState;
 
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
+      sourceCardId: sourceLives[0]!.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(preview.pendingAbilities).toHaveLength(1);
+    expect(preview.liveResolution.liveModifiers).toEqual([]);
+
+    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
     expect(state.activeEffect).toBeNull();
     expect(state.pendingAbilities).toEqual([]);
     expect(state.liveResolution.liveModifiers).toContainEqual({
@@ -423,7 +436,9 @@ describe('conditional live modifier workflow', () => {
       )
     ).toBe(true);
 
-    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    const state = expectAutoResolved(
+      confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id)
+    );
 
     expect(state.activeEffect).toBeNull();
     expect(state.liveResolution.liveModifiers).toContainEqual({

@@ -151,6 +151,12 @@ function abilityUseCount(game: GameState, abilityId: string): number {
   ).length;
 }
 
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
+}
+
 describe('PL!-bp6-020 Dancing stars on me!', () => {
   it('position changes the center Muse member after its LIVE_START ability resolves', () => {
     const scenario = setupState();
@@ -228,13 +234,27 @@ describe('PL!-bp6-020 Dancing stars on me!', () => {
       ...player,
       positionMovedThisTurn: [scenario.sourceId],
     }));
-    const state = resolvePendingCardEffects(
+    const preview = resolvePendingCardEffects(
       addResolvedMemberAbilityAction(movedGame, {
         abilityId: BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
         sourceCardId: scenario.sourceId,
       })
     ).gameState;
 
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: BP6_020_AUTO_CENTER_MUSE_LIVE_SUCCESS_RESOLVED_MOVED_THIS_LIVE_SCORE_ABILITY_ID,
+      sourceCardId: scenario.liveId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(preview.liveResolution.liveModifiers).toEqual([]);
+    expect(
+      abilityUseCount(
+        preview,
+        BP6_020_AUTO_CENTER_MUSE_LIVE_SUCCESS_RESOLVED_MOVED_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toBe(0);
+
+    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'SCORE',
       playerId: PLAYER1,
@@ -254,13 +274,21 @@ describe('PL!-bp6-020 Dancing stars on me!', () => {
 
   it('resolves without score when the center Muse member has not moved', () => {
     const scenario = setupState();
-    const state = resolvePendingCardEffects(
+    const preview = resolvePendingCardEffects(
       addResolvedMemberAbilityAction(scenario.game, {
         abilityId: BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
         sourceCardId: scenario.sourceId,
       })
     ).gameState;
 
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: BP6_020_AUTO_CENTER_MUSE_LIVE_SUCCESS_RESOLVED_MOVED_THIS_LIVE_SCORE_ABILITY_ID,
+      sourceCardId: scenario.liveId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(preview.liveResolution.liveModifiers).toEqual([]);
+
+    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
     expect(state.liveResolution.liveModifiers).toEqual([]);
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBeUndefined();
     expect(
@@ -306,7 +334,8 @@ describe('PL!-bp6-020 Dancing stars on me!', () => {
     });
     expect(preview.liveResolution.liveModifiers).toEqual([]);
 
-    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    let state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    state = confirmIfConfirmOnly(state);
 
     expect(state.activeEffect).toBeNull();
     expect(state.liveResolution.liveModifiers).toContainEqual({
@@ -357,12 +386,12 @@ describe('PL!-bp6-020 Dancing stars on me!', () => {
       )
     ).toBe(1);
 
-    const liveSuccessState = resolvePendingCardEffects(
+    const liveSuccessState = confirmIfConfirmOnly(resolvePendingCardEffects(
       addResolvedMemberAbilityAction(secondLiveStart, {
         abilityId: BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
         sourceCardId: scenario.sourceId,
       })
-    ).gameState;
+    ).gameState);
     expect(
       abilityUseCount(
         liveSuccessState,

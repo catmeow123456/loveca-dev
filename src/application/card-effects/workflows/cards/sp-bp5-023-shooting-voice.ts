@@ -13,7 +13,7 @@ import { and, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors
 import { selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { SP_BP5_023_LIVE_SUCCESS_SUCCESS_ZONE_TWO_SCORE_CHEER_THIS_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartManualPendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -21,9 +21,9 @@ export function registerSpBp5023ShootingVoiceWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_BP5_023_LIVE_SUCCESS_SUCCESS_ZONE_TWO_SCORE_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
-      if (manualConfirmation) {
-        return manualConfirmation;
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      if (confirmation) {
+        return confirmation;
       }
       return resolveSpBp5023ShootingVoiceLiveSuccess(
         game,

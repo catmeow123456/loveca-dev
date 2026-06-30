@@ -9,7 +9,10 @@ import {
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, addCardToZone } from '../../src/domain/entities/zone';
-import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import {
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import { SP_BP5_023_LIVE_SUCCESS_SUCCESS_ZONE_TWO_SCORE_CHEER_THIS_LIVE_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   BladeHeartEffect,
@@ -135,10 +138,16 @@ function setupState(options: {
 }
 
 function startAbility(game: GameState, sourceLiveId: string): GameState {
-  return resolvePendingCardEffects({
+  return confirmIfConfirmOnly(resolvePendingCardEffects({
     ...game,
     pendingAbilities: [createPendingAbility(sourceLiveId)],
-  }).gameState;
+  }).gameState);
+}
+
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
 }
 
 function latestPayload(game: GameState) {

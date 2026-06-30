@@ -9,7 +9,10 @@ import {
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
-import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import {
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import { BP6_007_LIVE_SUCCESS_REVEAL_TOP_HAND_NO_BLADE_MEMBER_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   BladeHeartEffect,
@@ -90,20 +93,26 @@ function resolveNozomi(topCardData: MemberCardData | LiveCardData | null): {
       : player.mainDeck,
   }));
 
-  const state = resolvePendingCardEffects({
+  const state = confirmIfConfirmOnly(resolvePendingCardEffects({
     ...game,
     liveResolution: {
       ...game.liveResolution,
       playerScores: new Map([[PLAYER1, 0]]),
     },
     pendingAbilities: [createPendingAbility(source.instanceId)],
-  }).gameState;
+  }).gameState);
 
   return {
     state,
     sourceCardId: source.instanceId,
     topCardId: topCard?.instanceId ?? null,
   };
+}
+
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
 }
 
 describe('PL!-bp6-007 Nozomi LIVE success reveal top to hand', () => {

@@ -341,6 +341,22 @@ function advanceToLiveStartEffects(session: ReturnType<typeof createGameSession>
   (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 }
 
+function confirmOnlyPendingEffect(
+  session: ReturnType<typeof createGameSession>,
+  expectedAbilityId: string
+): void {
+  expect(session.state?.activeEffect).toMatchObject({
+    abilityId: expectedAbilityId,
+    metadata: expect.objectContaining({ confirmOnlyPendingAbility: true }),
+  });
+
+  const confirmResult = session.executeCommand(
+    createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+  );
+
+  expect(confirmResult.success).toBe(true);
+}
+
 function setupHeartbeatLiveStartScenario(successLiveScores: readonly number[]): {
   readonly session: ReturnType<typeof createGameSession>;
   readonly advanceResult: ReturnType<GameService['advancePhase']>;
@@ -423,6 +439,11 @@ function setupHeartbeatLiveStartScenario(successLiveScores: readonly number[]): 
   const service = new GameService();
   const advanceResult = service.advancePhase(state);
   (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
+  expect(advanceResult.success).toBe(true);
+  confirmOnlyPendingEffect(
+    session,
+    BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
+  );
 
   return {
     session,
@@ -11285,6 +11306,7 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
+    confirmOnlyPendingEffect(session, BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveRequirementReductions.get(liveCardId!)).toBe(4);
     expect(session.state?.liveResolution.liveRequirementModifiers.get(liveCardId!)).toEqual([
@@ -11376,6 +11398,7 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
+    confirmOnlyPendingEffect(session, BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID);
     expect(session.state?.activeEffect).toBeNull();
     expect(
       session.state?.liveResolution.liveRequirementReductions.get(liveCardId!)
@@ -11579,6 +11602,7 @@ describe('sample card effect runner', () => {
       performerId: PLAYER1,
       liveCardIds: [hanamusubi.instanceId, otherHasunosoraLive.instanceId],
     });
+    confirmOnlyPendingEffect(session, HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID);
     expect(session.state?.activeEffect).toBeNull();
     expect(
       session.state?.liveResolution.liveRequirementModifiers.get(hanamusubi.instanceId)
@@ -11664,6 +11688,7 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
+    confirmOnlyPendingEffect(session, HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID);
     expect(session.state?.activeEffect).toBeNull();
     expect(
       session.state?.liveResolution.liveRequirementModifiers.get(hanamusubi.instanceId)
@@ -11756,6 +11781,7 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
+    confirmOnlyPendingEffect(session, HS_BP2_022_LIVE_START_SCORE_ABILITY_ID);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.playerScoreBonuses.get(PLAYER1)).toBe(1);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
@@ -11850,6 +11876,7 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
+    confirmOnlyPendingEffect(session, HS_BP2_022_LIVE_START_SCORE_ABILITY_ID);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.playerScoreBonuses.get(PLAYER1)).toBeUndefined();
     expect(
@@ -13115,6 +13142,7 @@ describe('sample card effect runner', () => {
     (session as unknown as { authorityState: GameState }).authorityState = advanceResult.gameState;
 
     expect(advanceResult.success).toBe(true);
+    confirmOnlyPendingEffect(session, CHISATO_LIVE_START_ACTIVATE_LIELLA_AND_ENERGY_ABILITY_ID);
     expect(session.state?.activeEffect).toBeNull();
     expect(
       session.state?.players[0].memberSlots.cardStates.get(liellaMemberCardId!)?.orientation

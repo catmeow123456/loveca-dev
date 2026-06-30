@@ -9,7 +9,10 @@ import {
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
-import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import {
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import { SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -132,7 +135,15 @@ function startAbility(game: GameState, sourceCardId: string): GameState {
     eventIds: ['live-success'],
     sourceSlot: SlotPosition.CENTER,
   };
-  return resolvePendingCardEffects({ ...game, pendingAbilities: [pendingAbility] }).gameState;
+  return confirmIfConfirmOnly(
+    resolvePendingCardEffects({ ...game, pendingAbilities: [pendingAbility] }).gameState
+  );
+}
+
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
 }
 
 function latestPayload(game: GameState) {

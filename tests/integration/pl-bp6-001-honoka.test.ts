@@ -36,6 +36,11 @@ const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 const MUSE = "μ's";
 
+function confirmConfirmOnlyEffect(game: GameState): GameState {
+  expect(game.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
+  return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id);
+}
+
 function createMemberCard(
   cardCode: string,
   options: {
@@ -212,8 +217,17 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
       ],
     };
 
-    const resolved = resolvePendingCardEffects(game).gameState;
+    const preview = resolvePendingCardEffects(game).gameState;
 
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+      sourceCardId: honoka.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(preview.pendingAbilities).toHaveLength(1);
+    expect(preview.liveResolution.liveModifiers).toEqual([]);
+
+    const resolved = confirmConfirmOnlyEffect(preview);
     expect(resolved.activeEffect).toBeNull();
     expect(resolved.pendingAbilities).toEqual([]);
     expect(resolved.liveResolution.liveModifiers).toEqual(
@@ -278,7 +292,15 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
       ],
     };
 
-    const resolved = resolvePendingCardEffects(game).gameState;
+    const preview = resolvePendingCardEffects(game).gameState;
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+      sourceCardId: honoka.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(preview.liveResolution.liveModifiers).toHaveLength(0);
+
+    const resolved = confirmConfirmOnlyEffect(preview);
 
     expect(resolved.liveResolution.liveModifiers).toHaveLength(0);
     expect(resolved.pendingAbilities).toHaveLength(0);
@@ -405,7 +427,10 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
     });
     expect(preview.liveResolution.liveModifiers).toEqual([]);
 
-    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    let resolved = confirmConfirmOnlyEffect(preview);
+    if (resolved.activeEffect?.metadata?.confirmOnlyPendingAbility === true) {
+      resolved = confirmConfirmOnlyEffect(resolved);
+    }
 
     expect(resolved.activeEffect).toBeNull();
     expect(resolved.liveResolution.liveModifiers).toEqual(

@@ -10,7 +10,7 @@ import { hasStageMemberMatching } from '../../../effects/conditions.js';
 import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
 import { HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartManualPendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -18,9 +18,9 @@ export function registerHsBp1023DododoWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID,
     (game, ability, options, context) => {
-      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
-      if (manualConfirmation) {
-        return manualConfirmation;
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      if (confirmation) {
+        return confirmation;
       }
       return resolveHsBp1023DododoLiveSuccess(
         game,

@@ -14,6 +14,7 @@ import {
 import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import {
+  confirmActiveEffectStep,
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
@@ -273,6 +274,12 @@ function latestButterflyPayload(game: GameState) {
     )?.payload;
 }
 
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
+}
+
 describe('PL!SP-pb2-046-L Butterfly Wing workflow', () => {
   it('prevents own stage member natural LIVE_START from entering pending or resolving', () => {
     const { game } = setupLiveStartState({
@@ -313,19 +320,20 @@ describe('PL!SP-pb2-046-L Butterfly Wing workflow', () => {
     });
 
     const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    const gameState = confirmIfConfirmOnly(result.gameState);
 
     expect(result.success).toBe(true);
-    expect(result.gameState.pendingAbilities).toEqual([]);
+    expect(gameState.pendingAbilities).toEqual([]);
     expect(
       hasAbilityAction(
-        result.gameState,
+        gameState,
         'TRIGGER_ABILITY',
         SP_BP2_009_LIVE_START_HAND_COUNT_GAIN_BLADE_ABILITY_ID
       )
     ).toBe(false);
     expect(
       hasAbilityAction(
-        result.gameState,
+        gameState,
         'RESOLVE_ABILITY',
         SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID
       )
@@ -340,24 +348,25 @@ describe('PL!SP-pb2-046-L Butterfly Wing workflow', () => {
     });
 
     const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    const gameState = confirmIfConfirmOnly(result.gameState);
 
     expect(result.success).toBe(true);
-    expect(result.gameState.pendingAbilities).toEqual([]);
+    expect(gameState.pendingAbilities).toEqual([]);
     expect(
       hasAbilityAction(
-        result.gameState,
+        gameState,
         'TRIGGER_ABILITY',
         SP_BP2_009_LIVE_START_HAND_COUNT_GAIN_BLADE_ABILITY_ID
       )
     ).toBe(true);
     expect(
       hasAbilityAction(
-        result.gameState,
+        gameState,
         'RESOLVE_ABILITY',
         SP_BP2_009_LIVE_START_HAND_COUNT_GAIN_BLADE_ABILITY_ID
       )
     ).toBe(true);
-    expect(result.gameState.liveResolution.liveModifiers).toContainEqual({
+    expect(gameState.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
       playerId: PLAYER1,
       countDelta: 2,
@@ -387,9 +396,10 @@ describe('PL!SP-pb2-046-L Butterfly Wing workflow', () => {
     const result = new GameService().executeCheckTiming(afterLiveStart.gameState, [
       TriggerCondition.ON_LIVE_SUCCESS,
     ]);
+    const gameState = confirmIfConfirmOnly(result.gameState);
 
     expect(result.success).toBe(true);
-    expect(butterflyScoreModifiers(result.gameState)).toEqual([
+    expect(butterflyScoreModifiers(gameState)).toEqual([
       {
         kind: 'SCORE',
         playerId: PLAYER1,
@@ -399,8 +409,8 @@ describe('PL!SP-pb2-046-L Butterfly Wing workflow', () => {
         abilityId: SP_PB2_046_LIVE_SUCCESS_STAGE_MEMBER_LIVE_START_THIS_LIVE_SCORE_ABILITY_ID,
       },
     ]);
-    expect(result.gameState.liveResolution.playerScores.get(PLAYER1)).toBe(3);
-    expect(latestButterflyPayload(result.gameState)).toMatchObject({
+    expect(gameState.liveResolution.playerScores.get(PLAYER1)).toBe(3);
+    expect(latestButterflyPayload(gameState)).toMatchObject({
       liveStartMemberCardIds: [ownMember!.instanceId],
       conditionMet: true,
       scoreBonus: 1,
@@ -414,12 +424,13 @@ describe('PL!SP-pb2-046-L Butterfly Wing workflow', () => {
     });
 
     const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
+    const gameState = confirmIfConfirmOnly(result.gameState);
 
     expect(result.success).toBe(true);
-    expect(result.gameState.pendingAbilities).toEqual([]);
-    expect(butterflyScoreModifiers(result.gameState)).toEqual([]);
-    expect(result.gameState.liveResolution.playerScores.get(PLAYER1)).toBe(2);
-    expect(latestButterflyPayload(result.gameState)).toMatchObject({
+    expect(gameState.pendingAbilities).toEqual([]);
+    expect(butterflyScoreModifiers(gameState)).toEqual([]);
+    expect(gameState.liveResolution.playerScores.get(PLAYER1)).toBe(2);
+    expect(latestButterflyPayload(gameState)).toMatchObject({
       liveStartMemberCardIds: [],
       conditionMet: false,
       scoreBonus: 0,
@@ -433,11 +444,12 @@ describe('PL!SP-pb2-046-L Butterfly Wing workflow', () => {
     });
 
     const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
+    const gameState = confirmIfConfirmOnly(result.gameState);
 
     expect(result.success).toBe(true);
-    expect(result.gameState.liveResolution.playerScores.get(PLAYER1)).toBe(2);
-    expect(butterflyScoreModifiers(result.gameState)).toEqual([]);
-    expect(latestButterflyPayload(result.gameState)).toMatchObject({
+    expect(gameState.liveResolution.playerScores.get(PLAYER1)).toBe(2);
+    expect(butterflyScoreModifiers(gameState)).toEqual([]);
+    expect(latestButterflyPayload(gameState)).toMatchObject({
       liveStartMemberCardIds: [],
       conditionMet: false,
       scoreBonus: 0,

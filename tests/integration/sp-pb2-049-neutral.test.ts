@@ -150,10 +150,16 @@ function pendingAbility(abilityId: string, sourceCardId: string, suffix: string)
 }
 
 function resolveSingle(game: GameState, abilityId: string, sourceCardId: string): GameState {
-  return resolvePendingCardEffects({
+  return confirmIfConfirmOnly(resolvePendingCardEffects({
     ...game,
     pendingAbilities: [pendingAbility(abilityId, sourceCardId, 'single')],
-  }).gameState;
+  }).gameState);
+}
+
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
 }
 
 function resolveBothInSelectedOrder(
@@ -197,7 +203,7 @@ function resolveBothInSelectedOrder(
       false
     );
   }
-  return state;
+  return confirmIfConfirmOnly(state);
 }
 
 describe('PL!SP-pb2-049 Neutral live success workflows', () => {

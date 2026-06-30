@@ -4,8 +4,14 @@ import {
   createCardInstance,
   createHeartRequirement,
 } from '../../src/domain/entities/card';
-import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
+import {
+  createGameState,
+  registerCards,
+  updatePlayer,
+  type GameState,
+} from '../../src/domain/entities/game';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import { S_BP5_020_LIVE_SUCCESS_LOSE_REMAINING_HEARTS_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
@@ -76,7 +82,13 @@ function prepareScenario(options: {
 function resolveLiveSuccess(game: ReturnType<typeof prepareScenario>['game']) {
   const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
   expect(result.success).toBe(true);
-  return result.gameState;
+  return confirmIfConfirmOnly(result.gameState);
+}
+
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
 }
 
 function resolveLiveSuccessWithOrderSelection(game: ReturnType<typeof prepareScenario>['game']) {

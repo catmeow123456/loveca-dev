@@ -26,7 +26,7 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
-  maybeStartManualPendingAbilityConfirmation,
+  maybeStartConfirmablePendingAbilityConfirmation,
 } from '../../runtime/workflow-helpers.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
@@ -61,9 +61,9 @@ export function registerPlBp3026OhLovePeaceWorkflowHandlers(deps: {
   registerPendingAbilityStarterHandler(
     PL_BP3_026_LIVE_SUCCESS_HIGHER_STAGE_HEART_TOTAL_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
-      if (manualConfirmation) {
-        return manualConfirmation;
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      if (confirmation) {
+        return confirmation;
       }
       return resolveOhLovePeaceLiveSuccess(
         game,

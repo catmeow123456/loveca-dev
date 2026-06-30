@@ -9,7 +9,10 @@ import {
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { moveMemberBetweenSlots } from '../../src/application/effects/member-state';
-import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import {
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import { moveMemberBetweenSlotsAndEnqueueTriggers } from '../../src/application/card-effects/runtime/member-slot-moved-triggers';
 import { SP_PB2_003_LIVE_SUCCESS_OWN_LIELLA_EFFECT_MOVED_THIS_MEMBER_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
@@ -103,10 +106,16 @@ function pendingAbility(sourceCardId: string): PendingAbilityState {
 }
 
 function resolveChisato(game: GameState, chisatoId: string): GameState {
-  return resolvePendingCardEffects({
+  return confirmIfConfirmOnly(resolvePendingCardEffects({
     ...game,
     pendingAbilities: [pendingAbility(chisatoId)],
-  }).gameState;
+  }).gameState);
+}
+
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
 }
 
 function moveByCardEffect(

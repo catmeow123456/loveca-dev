@@ -374,6 +374,7 @@ interface EnqueueTriggeredCardEffectsOptions {
 interface StartPendingAbilityEffectOptions {
   readonly orderedResolution?: boolean;
   readonly manualConfirmation?: boolean;
+  readonly confirmBeforeResolution?: boolean;
   readonly skipManualConfirmation?: boolean;
 }
 
@@ -2440,7 +2441,10 @@ export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResu
   }
 
   return {
-    gameState: startPendingAbilityEffect(game, ability),
+    gameState: startPendingAbilityEffect(game, ability, {
+      confirmBeforeResolution:
+        pendingAbilities.length === 1 && shouldConfirmSingleLivePendingAbility(ability),
+    }),
     resolvedAbilityIds: [ability.id],
   };
 }
@@ -2636,7 +2640,17 @@ function continuePendingCardEffects(game: GameState, orderedResolution: boolean)
 
   return sameTimingAbilities.length > 1
     ? startAbilityOrderSelection(game, sameTimingAbilities)
-    : startPendingAbilityEffect(game, nextAbility);
+    : startPendingAbilityEffect(game, nextAbility, {
+        confirmBeforeResolution:
+          pendingAbilities.length === 1 && shouldConfirmSingleLivePendingAbility(nextAbility),
+      });
+}
+
+function shouldConfirmSingleLivePendingAbility(ability: PendingAbilityState): boolean {
+  return (
+    ability.timingId === TriggerCondition.ON_LIVE_START ||
+    ability.timingId === TriggerCondition.ON_LIVE_SUCCESS
+  );
 }
 
 function skipPendingAbilityWithoutActiveEffect(

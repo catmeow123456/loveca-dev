@@ -11,7 +11,7 @@ import { selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js'
 import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
 import { SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartManualPendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -19,9 +19,9 @@ export function registerSpPr018KanonWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID,
     (game, ability, options, context) => {
-      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
-      if (manualConfirmation) {
-        return manualConfirmation;
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      if (confirmation) {
+        return confirmation;
       }
 
       return resolveSpPr018KanonLiveSuccess(
