@@ -1,7 +1,3 @@
-packages:
-  - .
-  - client
-
 allowBuilds:
   bcrypt: true
   core-js-pure: true
