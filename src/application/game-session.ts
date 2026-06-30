@@ -1886,6 +1886,10 @@ export class GameSession {
       command.playerId
     );
 
+    if (command.type === GameCommandType.OPEN_INSPECTION && state.activeEffect) {
+      return '当前正在处理卡牌效果，不能打开普通检视区';
+    }
+
     if (
       activeEffectControlsInspection &&
       isActiveEffectBlockedInspectionCommandType(command.type)

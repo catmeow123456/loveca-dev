@@ -1099,11 +1099,14 @@ function buildPermissionViewState(
     )
     .map((command) => buildPhaseCommandHint(command, game, viewerPlayerId, viewerSeat))
     .filter((hint): hint is ViewCommandHint => hint !== null);
+  const activeEffectPhaseHints = game.activeEffect
+    ? phaseHints.filter((hint) => hint.command !== GameCommandType.OPEN_INSPECTION)
+    : phaseHints;
 
   if (!game.inspectionContext) {
     return {
       availableCommands: mergeCommandHints(
-        phaseHints,
+        activeEffectPhaseHints,
         buildActiveEffectCommandHints(game, viewerPlayerId),
         buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
       ),
@@ -1127,14 +1130,16 @@ function buildPermissionViewState(
     ? phaseHints.filter(
         (hint) => !ACTIVE_EFFECT_INSPECTION_COMMAND_TYPES.has(hint.command as GameCommandType)
       )
-    : phaseHints;
+    : activeEffectPhaseHints;
 
   return {
     availableCommands: mergeCommandHints(
       inspectionPhaseHints,
       activeEffectControlsInspection
         ? []
-        : buildInspectionCommandHints(game, viewerPlayerId, viewerSeat),
+        : buildInspectionCommandHints(game, viewerPlayerId, viewerSeat, {
+            skipOpenInspection: !!game.activeEffect,
+          }),
       buildActiveEffectCommandHints(game, viewerPlayerId),
       buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
     ),
@@ -1282,7 +1287,8 @@ function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] 
 function buildInspectionCommandHints(
   game: GameState,
   viewerPlayerId: string,
-  viewerSeat: Seat
+  viewerSeat: Seat,
+  options: { readonly skipOpenInspection?: boolean } = {}
 ): readonly ViewCommandHint[] {
   const ownedCardCount = game.inspectionZone.cardIds.filter(
     (cardId) => game.cardRegistry.get(cardId)?.ownerId === viewerPlayerId
@@ -1294,16 +1300,20 @@ function buildInspectionCommandHints(
   const sourceSuffix =
     game.inspectionContext?.sourceZone === ZoneType.ENERGY_DECK ? 'ENERGY_DECK' : 'MAIN_DECK';
   const inspectionZoneKey = createOwnedViewZoneKey(viewerSeat, 'INSPECTION_ZONE');
-  const hints: ViewCommandHint[] = [
-    buildCommandHint(GameCommandType.OPEN_INSPECTION, {
-      scope: createCommandScope({
-        zoneKeys: [createOwnedViewZoneKey(viewerSeat, sourceSuffix)],
-      }),
-      params: {
-        sourceZone: game.inspectionContext?.sourceZone,
-      },
-    }),
-  ];
+  const hints: ViewCommandHint[] = [];
+
+  if (options.skipOpenInspection !== true) {
+    hints.push(
+      buildCommandHint(GameCommandType.OPEN_INSPECTION, {
+        scope: createCommandScope({
+          zoneKeys: [createOwnedViewZoneKey(viewerSeat, sourceSuffix)],
+        }),
+        params: {
+          sourceZone: game.inspectionContext?.sourceZone,
+        },
+      })
+    );
+  }
 
   if (unrevealedOwnedCardIds.length > 0) {
     hints.push(

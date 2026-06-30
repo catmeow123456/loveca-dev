@@ -443,6 +443,7 @@ export const PlayerArea = memo(function PlayerArea({
     !isReadOnly &&
     !isOpponent &&
     canOpenInspection &&
+    !activeEffect &&
     !isActiveEffectInspectionWindow &&
     (!hasOwnedInspectionContext || inspectionSourceZone === ZoneType.MAIN_DECK);
 
