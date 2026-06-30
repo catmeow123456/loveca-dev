@@ -9,16 +9,14 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addCardToZone } from '../../../../domain/entities/zone.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
-import {
-  HeartColor,
-  ZoneType,
-} from '../../../../shared/types/enums.js';
+import { HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import {
@@ -73,7 +71,7 @@ export function registerSFutureWaterFinalWorkflowHandlers(): void {
       )
   );
 
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     S_BP6_002_LIVE_START_AQOURS_LIVE_ZONE_REQUIREMENT_GAIN_ALL_HEART_ABILITY_ID,
     (game, ability, options, context) =>
       resolveBp6002LiveStartAqoursRequirementGainAllHeart(
@@ -98,9 +96,16 @@ function startBp6002AqoursLiveFromLiveZoneToWaitingTopBottom(
 
   const eligibleCardIds = getEligibleMovedAqoursLiveCardIds(game, player.id, ability);
   if (eligibleCardIds.length === 0) {
-    return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
-      step: 'NO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING',
-    });
+    return skipPendingAbility(
+      game,
+      ability,
+      player.id,
+      orderedResolution,
+      continuePendingCardEffects,
+      {
+        step: 'NO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING',
+      }
+    );
   }
 
   const stateAfterUseRecord = recordAbilityUseForContext(game, player.id, {
@@ -132,8 +137,7 @@ function startBp6002AqoursLiveFromLiveZoneToWaitingTopBottom(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: BP6_002_SELECT_LIVE_STEP_ID,
-      stepText:
-        '可以从因此进入休息室的『Aqours』LIVE卡中选择1张，放置到卡组顶或卡组底。',
+      stepText: '可以从因此进入休息室的『Aqours』LIVE卡中选择1张，放置到卡组顶或卡组底。',
       awaitingPlayerId: player.id,
       selectableCardIds: eligibleCardIds,
       selectableCardVisibility: 'PUBLIC',
@@ -159,7 +163,8 @@ function finishBp6002SelectWaitingRoomLive(
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !== S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID ||
+    effect.abilityId !==
+      S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID ||
     effect.stepId !== BP6_002_SELECT_LIVE_STEP_ID
   ) {
     return game;
@@ -209,7 +214,8 @@ function finishBp6002PlaceWaitingRoomLiveTopBottom(
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !== S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID ||
+    effect.abilityId !==
+      S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID ||
     effect.stepId !== BP6_002_SELECT_DESTINATION_STEP_ID
   ) {
     return game;
@@ -274,7 +280,12 @@ function resolveBp6002LiveStartAqoursRequirementGainAllHeart(
     liveCardIds.length > 0 &&
     liveCardIds.every((cardId) => {
       const card = getCardById(game, cardId);
-      return card !== null && card.ownerId === player.id && isLiveCardData(card.data) && groupAliasIs(AQOURS)(card);
+      return (
+        card !== null &&
+        card.ownerId === player.id &&
+        isLiveCardData(card.data) &&
+        groupAliasIs(AQOURS)(card)
+      );
     });
   const requirementTotal = allAqoursLive
     ? liveCardIds.reduce((total, cardId) => {

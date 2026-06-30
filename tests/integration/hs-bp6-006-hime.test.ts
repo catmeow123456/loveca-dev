@@ -5,10 +5,11 @@ import {
   createHeartIcon,
   createHeartRequirement,
 } from '../../src/domain/entities/card';
-import type { PendingAbilityState } from '../../src/domain/entities/game';
+import type { GameState, PendingAbilityState } from '../../src/domain/entities/game';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { GameService } from '../../src/application/game-service';
+import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -85,13 +86,14 @@ describe('HS-bp6-006 安養寺 姫芽 workflow', () => {
     const { game, hime } = createLiveSuccessState();
 
     const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
+    const gameState = confirmIfConfirmOnly(result.gameState);
 
     expect(result.success).toBe(true);
-    expect(result.gameState.pendingAbilities).toEqual([]);
+    expect(gameState.pendingAbilities).toEqual([]);
     expect(
-      result.gameState.players[0].memberSlots.cardStates.get(hime.instanceId)?.orientation
+      gameState.players[0].memberSlots.cardStates.get(hime.instanceId)?.orientation
     ).toBe(OrientationState.WAITING);
-    expect(result.gameState.memberActivePhaseSkips).toEqual([
+    expect(gameState.memberActivePhaseSkips).toEqual([
       {
         playerId: PLAYER1,
         memberCardId: hime.instanceId,
@@ -100,7 +102,7 @@ describe('HS-bp6-006 安養寺 姫芽 workflow', () => {
       },
     ]);
     expect(
-      result.gameState.eventLog
+      gameState.eventLog
         .map((entry) => entry.event)
         .find(
           (event) =>
@@ -121,7 +123,7 @@ describe('HS-bp6-006 安養寺 姫芽 workflow', () => {
       },
     });
     expect(
-      result.gameState.actionHistory.some(
+      gameState.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.abilityId ===
@@ -137,7 +139,7 @@ describe('HS-bp6-006 安養寺 姫芽 workflow', () => {
     const liveSuccess = service.executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
 
     const skippedActive = service.advancePhase({
-      ...liveSuccess.gameState,
+      ...confirmIfConfirmOnly(liveSuccess.gameState),
       currentPhase: GamePhase.LIVE_RESULT_PHASE,
       currentSubPhase: SubPhase.NONE,
       activePlayerIndex: 0,
@@ -171,6 +173,12 @@ describe('HS-bp6-006 安養寺 姫芽 workflow', () => {
     ).toBe(OrientationState.ACTIVE);
   });
 
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
+}
+
   it('safely resolves as no-op when the source member is no longer on stage', () => {
     const hime = createCardInstance(createHime(), PLAYER1, 'hime-source');
     let game = createGameState('hs-bp6-006-hime-no-op', PLAYER1, 'P1', PLAYER2, 'P2');
@@ -190,12 +198,13 @@ describe('HS-bp6-006 安養寺 姫芽 workflow', () => {
     };
 
     const result = new GameService().executeCheckTiming(game, []);
+    const gameState = confirmIfConfirmOnly(result.gameState);
 
     expect(result.success).toBe(true);
-    expect(result.gameState.pendingAbilities).toEqual([]);
-    expect(result.gameState.memberActivePhaseSkips).toEqual([]);
+    expect(gameState.pendingAbilities).toEqual([]);
+    expect(gameState.memberActivePhaseSkips).toEqual([]);
     expect(
-      result.gameState.actionHistory.some(
+      gameState.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.abilityId ===

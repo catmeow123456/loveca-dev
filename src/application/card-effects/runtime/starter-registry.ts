@@ -14,6 +14,7 @@ export type DelegatePendingAbility = (
 export interface PendingAbilityStarterOptions {
   readonly orderedResolution?: boolean;
   readonly manualConfirmation?: boolean;
+  readonly confirmBeforeResolution?: boolean;
   readonly skipManualConfirmation?: boolean;
 }
 

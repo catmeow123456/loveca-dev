@@ -9,18 +9,21 @@ import {
 describe('card identity helpers', () => {
   it('matches group aliases through structured groupNames with normalized punctuation', () => {
     const cases: readonly {
-      readonly groupName: GroupIdentityName;
+      readonly targetGroupName: GroupIdentityName;
       readonly card: CardIdentityLike;
     }[] = [
-      { groupName: "μ's", card: { groupNames: ['『μ』'] } },
-      { groupName: '蓮ノ空', card: { groupNames: ['莲之空女学院スクールアイドルクラブ'] } },
-      { groupName: 'Liella!', card: { groupNames: ['Liella！'] } },
-      { groupName: '虹ヶ咲', card: { groupNames: ['Nijigasaki'] } },
-      { groupName: 'Aqours', card: { groupNames: ['Aqours'] } },
+      { targetGroupName: "μ's", card: { groupNames: ['『μ』'] } },
+      { targetGroupName: '蓮ノ空', card: { groupNames: ['莲之空女学院スクールアイドルクラブ'] } },
+      { targetGroupName: 'Liella!', card: { groupNames: ['Liella！'] } },
+      { targetGroupName: 'SunnyPassion', card: { groupNames: ['Sunny Passion'] } },
+      { targetGroupName: '虹ヶ咲', card: { groupNames: ['Nijigasaki'] } },
+      { targetGroupName: 'Aqours', card: { groupNames: ['Aqours'] } },
+      { targetGroupName: 'A-RISE', card: { groupNames: ['A-RISE'] } },
+      { targetGroupName: 'SaintSnow', card: { groupNames: ['Saint Snow'] } },
     ];
 
-    for (const { groupName, card } of cases) {
-      expect(cardBelongsToGroup(card, groupName)).toBe(true);
+    for (const { targetGroupName, card } of cases) {
+      expect(cardBelongsToGroup(card, targetGroupName)).toBe(true);
     }
   });
 
@@ -53,8 +56,27 @@ describe('card identity helpers', () => {
     expect(getKnownCardGroupIdentityName({ groupNames: ['蓮ノ空女学院スクールアイドルクラブ'] })).toBe(
       '蓮ノ空'
     );
+    expect(getKnownCardGroupIdentityName({ groupNames: ['SunnyPassion'] })).toBe('SunnyPassion');
     expect(getKnownCardGroupIdentityName({ groupNames: ['Nijigasaki'] })).toBe('虹ヶ咲');
+    expect(getKnownCardGroupIdentityName({ groupNames: ['A-RISE'] })).toBe('A-RISE');
+    expect(getKnownCardGroupIdentityName({ groupNames: ['SaintSnow'] })).toBe('SaintSnow');
     expect(getKnownCardGroupIdentityName({ groupNames: ['Custom'] })).toBeNull();
+  });
+
+  it('keeps structured rival groups within groupNames boundaries', () => {
+    const sunnyPassion = { groupNames: ['SunnyPassion'] };
+    const arise = { groupNames: ['A-RISE'] };
+    const saintSnow = { groupNames: ['SaintSnow'] };
+    const aqoursAndSaintSnow = { groupNames: ['Aqours/SaintSnow'] };
+
+    expect(cardBelongsToGroup(sunnyPassion, 'SunnyPassion')).toBe(true);
+    expect(cardBelongsToGroup(sunnyPassion, 'Liella!')).toBe(false);
+    expect(cardBelongsToGroup(arise, 'A-RISE')).toBe(true);
+    expect(cardBelongsToGroup(arise, "μ's")).toBe(false);
+    expect(cardBelongsToGroup(saintSnow, 'SaintSnow')).toBe(true);
+    expect(cardBelongsToGroup(saintSnow, 'Aqours')).toBe(false);
+    expect(cardBelongsToGroup(aqoursAndSaintSnow, 'Aqours')).toBe(true);
+    expect(cardBelongsToGroup(aqoursAndSaintSnow, 'SaintSnow')).toBe(true);
   });
 
   it('does not match unrelated groups or unknown identities', () => {

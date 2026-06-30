@@ -9,7 +9,7 @@ import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.j
 import { S_BP5_020_LIVE_SUCCESS_LOSE_REMAINING_HEARTS_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { clearRemainingHeartsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartManualPendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
 
 const SCORE_BONUS = 1;
 const REQUIRED_REMAINING_HEART_TOTAL = 3;
@@ -20,9 +20,9 @@ export function registerSBp5020LandingActionYeahWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     S_BP5_020_LIVE_SUCCESS_LOSE_REMAINING_HEARTS_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
-      if (manualConfirmation) {
-        return manualConfirmation;
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      if (confirmation) {
+        return confirmation;
       }
       return resolveSBp5020LandingActionYeahLiveSuccess(
         game,

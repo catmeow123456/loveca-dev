@@ -129,8 +129,12 @@ function setupKosuzuLiveSuccess(options: {
 
   const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
   expect(result.success).toBe(true);
+  const state =
+    sourceCount === 1 && result.gameState.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+      ? confirmActiveEffect(result.gameState)
+      : result.gameState;
   return {
-    state: result.gameState,
+    state,
     sourceIds: sources.map((source) => source.instanceId),
     liveId: live.instanceId,
     drawCardId: drawCard.instanceId,
@@ -209,7 +213,10 @@ describe('PL!HS-pb1-021-N Kosuzu live success workflow', () => {
       stepText: '自己的LIVE卡区存在『DOLLCHESTRA』卡片，条件满足。确认后抽 1 张卡。',
     });
 
-    const resolvedState = confirmActiveEffect(confirmOnlyState);
+    let resolvedState = confirmActiveEffect(confirmOnlyState);
+    if (resolvedState.activeEffect?.metadata?.confirmOnlyPendingAbility === true) {
+      resolvedState = confirmActiveEffect(resolvedState);
+    }
 
     expect(resolvedState.players[0].hand.cardIds).toEqual([drawCardId]);
     expect(

@@ -3,7 +3,7 @@
  * 基于 detail_rules.md 第 9.6.2.3 章 - 成员卡费用支付
  */
 
-import type { MemberCardData } from '../entities/card.js';
+import type { LiveCardData, MemberCardData } from '../entities/card.js';
 import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
@@ -81,6 +81,16 @@ export interface StageMemberInfo {
 }
 
 /**
+ * 成功 LIVE 卡区中的 LIVE 信息（用于手牌登场费用修正）
+ */
+export interface SuccessLiveCardInfo {
+  /** LIVE 卡 ID */
+  readonly cardId: string;
+  /** LIVE 卡数据 */
+  readonly data: LiveCardData;
+}
+
+/**
  * 登场费用修正
  */
 export interface PlayCostModifierApplication {
@@ -106,6 +116,8 @@ export interface AvailableResources {
   readonly sourceCardId?: string;
   /** 当前手牌中的卡牌 ID 列表 */
   readonly handCardIds?: readonly string[];
+  /** 自己成功 LIVE 卡区中的 LIVE 卡 */
+  readonly successLiveCards?: readonly SuccessLiveCardInfo[];
 }
 
 // ============================================
@@ -201,9 +213,39 @@ export class CostCalculator {
       }
     }
 
+    modifiers.push(...this.collectSuccessLiveSourcePlayCostModifiers(memberData, resources));
     modifiers.push(...this.collectStageSourcePlayCostModifiers(memberData, resources));
 
     return modifiers;
+  }
+
+  private collectSuccessLiveSourcePlayCostModifiers(
+    memberData: MemberCardData,
+    resources: AvailableResources
+  ): PlayCostModifierApplication[] {
+    if (
+      memberData.cost < 17 ||
+      !isMuseMember(memberData) ||
+      !isSourceCardBeingPlayedFromHand(resources)
+    ) {
+      return [];
+    }
+
+    const sourceLiveCard = resources.successLiveCards?.find((successLiveCard) =>
+      cardCodeMatchesBase(successLiveCard.data.cardCode, 'PL!-bp6-019')
+    );
+    if (!sourceLiveCard) {
+      return [];
+    }
+
+    return [
+      {
+        id: 'PL!-bp6-019-L:success-zone-high-cost-muse-play-cost-minus-two',
+        label: "成功LIVE卡区的 Music S.T.A.R.T!! 使原本费用17以上的 μ's 成员登场费用减少2",
+        amount: Math.min(memberData.cost, 2),
+        sourceCardId: sourceLiveCard.cardId,
+      },
+    ];
   }
 
   private collectStageSourcePlayCostModifiers(
@@ -580,6 +622,17 @@ function isCost10LiellaMember(memberData: MemberCardData): boolean {
 
 function isLiellaMember(memberData: MemberCardData): boolean {
   return cardBelongsToGroup(memberData, 'Liella!');
+}
+
+function isMuseMember(memberData: MemberCardData): boolean {
+  return cardBelongsToGroup(memberData, "μ's");
+}
+
+function isSourceCardBeingPlayedFromHand(resources: AvailableResources): boolean {
+  return (
+    resources.sourceCardId !== undefined &&
+    (resources.handCardIds?.includes(resources.sourceCardId) ?? false)
+  );
 }
 
 function isMiraCraMember(memberData: MemberCardData): boolean {

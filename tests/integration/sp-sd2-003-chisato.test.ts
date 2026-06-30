@@ -10,6 +10,7 @@ import {
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   ABILITY_ORDER_SELECTION_ID,
+  confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { SP_SD2_003_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_MOVED_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
@@ -91,7 +92,7 @@ function setupState(options: {
 }
 
 function resolveChisato(game: GameState, sourceId: string): GameState {
-  return resolvePendingCardEffects({
+  return confirmIfConfirmOnly(resolvePendingCardEffects({
     ...game,
     pendingAbilities: [
       {
@@ -105,7 +106,13 @@ function resolveChisato(game: GameState, sourceId: string): GameState {
         sourceSlot: SlotPosition.CENTER,
       },
     ],
-  }).gameState;
+  }).gameState);
+}
+
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
 }
 
 function resolveChisatoQueue(game: GameState, sourceId: string, otherId: string): GameState {

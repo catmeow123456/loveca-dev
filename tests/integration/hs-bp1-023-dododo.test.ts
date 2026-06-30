@@ -5,9 +5,15 @@ import {
   createHeartIcon,
   createHeartRequirement,
 } from '../../src/domain/entities/card';
-import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
+import {
+  createGameState,
+  registerCards,
+  updatePlayer,
+  type GameState,
+} from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { GameService } from '../../src/application/game-service';
+import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -108,7 +114,13 @@ function runLiveSuccess(options: {
 
   const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
   expect(result.success).toBe(true);
-  return { state: result.gameState, live, energies };
+  return { state: confirmIfConfirmOnly(result.gameState), live, energies };
+}
+
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
 }
 
 describe('HS-bp1-023 ド！ド！ド！ workflow', () => {

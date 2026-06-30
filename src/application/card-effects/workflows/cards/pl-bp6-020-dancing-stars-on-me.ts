@@ -27,6 +27,7 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 
@@ -61,7 +62,7 @@ export function registerBp6020DancingStarsWorkflowHandlers(deps: {
         deps.enqueueTriggeredCardEffects
       )
   );
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     BP6_020_AUTO_CENTER_MUSE_LIVE_SUCCESS_RESOLVED_MOVED_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveLiveSuccessResolvedScore(
@@ -69,7 +70,18 @@ export function registerBp6020DancingStarsWorkflowHandlers(deps: {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    (game, ability) => {
+      const targetMemberId = getResolvedMemberCardId(ability);
+      const movedThisTurn =
+        targetMemberId !== null &&
+        hasMemberPositionMovedThisTurn(game, ability.controllerId, targetMemberId);
+      return {
+        stepText: movedThisTurn
+          ? '该 μ’s 中心成员本回合发生过站位变换。确认后此 LIVE 分数 +1。'
+          : '该 μ’s 中心成员本回合未发生站位变换。确认后不增加分数。',
+      };
+    }
   );
 }
 
@@ -103,7 +115,10 @@ function enqueueBp6020DancingStarsResolvedAbilityObserver(
         definition.sourceZone === CardAbilitySourceZone.LIVE_CARD &&
         definition.category === CardAbilityCategory.AUTO
     );
-    if (!hasDancingAbility || hasUsedAbilityThisTurn(state, player.id, observerAbilityId, liveCardId)) {
+    if (
+      !hasDancingAbility ||
+      hasUsedAbilityThisTurn(state, player.id, observerAbilityId, liveCardId)
+    ) {
       continue;
     }
 
@@ -162,20 +177,34 @@ function startResolvedLiveStartPositionChange(
   const player = getPlayerById(game, ability.controllerId);
   const targetMemberId = getResolvedMemberCardId(ability);
   if (!player || !targetMemberId || !isOwnStageMuseMember(game, player.id, targetMemberId)) {
-    return finishNoOp(game, ability, player?.id ?? ability.controllerId, orderedResolution, {
-      step: 'DANCING_STARS_POSITION_CHANGE_NOOP',
-      reason: 'TARGET_NOT_STAGE_MUSE_MEMBER',
-      targetMemberId,
-    }, continuePendingCardEffects);
+    return finishNoOp(
+      game,
+      ability,
+      player?.id ?? ability.controllerId,
+      orderedResolution,
+      {
+        step: 'DANCING_STARS_POSITION_CHANGE_NOOP',
+        reason: 'TARGET_NOT_STAGE_MUSE_MEMBER',
+        targetMemberId,
+      },
+      continuePendingCardEffects
+    );
   }
 
   const sourceSlot = findMemberSlot(player, targetMemberId);
   if (!sourceSlot) {
-    return finishNoOp(game, ability, player.id, orderedResolution, {
-      step: 'DANCING_STARS_POSITION_CHANGE_NOOP',
-      reason: 'TARGET_NOT_ON_STAGE',
-      targetMemberId,
-    }, continuePendingCardEffects);
+    return finishNoOp(
+      game,
+      ability,
+      player.id,
+      orderedResolution,
+      {
+        step: 'DANCING_STARS_POSITION_CHANGE_NOOP',
+        reason: 'TARGET_NOT_ON_STAGE',
+        targetMemberId,
+      },
+      continuePendingCardEffects
+    );
   }
 
   return addAction(
@@ -316,7 +345,9 @@ function resolveLiveSuccessResolvedScore(
         })
       : stateWithoutPending;
   const stateAfterScoreRefresh =
-    scoreBonus > 0 ? refreshPlayerScoreDraft(stateAfterModifier, player.id, scoreBonus) : stateAfterModifier;
+    scoreBonus > 0
+      ? refreshPlayerScoreDraft(stateAfterModifier, player.id, scoreBonus)
+      : stateAfterModifier;
   const stateWithUse = recordAbilityUseForContext(stateAfterScoreRefresh, player.id, {
     abilityId: ability.abilityId,
     sourceCardId: ability.sourceCardId,
@@ -380,7 +411,9 @@ function isOwnStageMuseMember(game: GameState, playerId: string, cardId: string)
 function removePending(game: GameState, pendingAbilityId: string): GameState {
   return {
     ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== pendingAbilityId),
+    pendingAbilities: game.pendingAbilities.filter(
+      (candidate) => candidate.id !== pendingAbilityId
+    ),
   };
 }
 
@@ -405,8 +438,7 @@ function getResolvedCenterMuseStageMemberAbility(
   readonly memberCardId: string;
   readonly playerId: string;
 } | null {
-  const abilityId =
-    typeof action.payload.abilityId === 'string' ? action.payload.abilityId : null;
+  const abilityId = typeof action.payload.abilityId === 'string' ? action.payload.abilityId : null;
   const sourceCardId =
     typeof action.payload.sourceCardId === 'string' ? action.payload.sourceCardId : null;
   if (!abilityId || !sourceCardId) {

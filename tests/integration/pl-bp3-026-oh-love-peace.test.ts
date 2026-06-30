@@ -17,6 +17,7 @@ import {
   addLiveModifier,
 } from '../../src/domain/rules/live-modifiers';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import {
@@ -219,7 +220,13 @@ function resolveLiveStart(game: GameState): GameState {
 function resolveLiveSuccess(game: GameState): GameState {
   const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
   expect(result.success).toBe(true);
-  return result.gameState;
+  return confirmIfConfirmOnly(result.gameState);
+}
+
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
 }
 
 function confirmEffect(

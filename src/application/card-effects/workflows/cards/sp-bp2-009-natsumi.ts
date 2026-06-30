@@ -10,7 +10,10 @@ import {
 } from '../../runtime/actions.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 import {
   SP_BP2_009_LIVE_START_HAND_COUNT_GAIN_BLADE_ABILITY_ID,
   SP_BP2_009_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
@@ -29,7 +32,7 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 export function registerSpBp2009NatsumiWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     SP_BP2_009_LIVE_START_HAND_COUNT_GAIN_BLADE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveSpBp2009NatsumiLiveStart(

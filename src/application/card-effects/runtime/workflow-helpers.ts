@@ -5,7 +5,11 @@ import {
 } from '../../../domain/entities/game.js';
 import { findCardAbilityDefinitionById } from '../definitions/lookup.js';
 import { startConfirmOnlyPendingAbilityEffect } from './active-effect.js';
-import type { PendingAbilityStarterOptions } from './starter-registry.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from './starter-registry.js';
 
 const ABILITY_USE_STEP = 'ABILITY_USE';
 
@@ -49,6 +53,55 @@ export function maybeStartManualPendingAbilityConfirmation(
     effectText: config.effectText ?? getAbilityEffectText(ability.abilityId),
     orderedResolution: options.orderedResolution === true,
     stepText: config.stepText,
+  });
+}
+
+export function maybeStartConfirmablePendingAbilityConfirmation(
+  game: GameState,
+  ability: Pick<PendingAbilityState, 'id' | 'abilityId' | 'sourceCardId' | 'controllerId'>,
+  options: PendingAbilityStarterOptions,
+  config: {
+    readonly effectText?: string;
+    readonly stepText?: string;
+  } = {}
+): GameState | null {
+  const shouldConfirm =
+    options.manualConfirmation === true || options.confirmBeforeResolution === true;
+  if (!shouldConfirm || options.skipManualConfirmation === true) {
+    return null;
+  }
+
+  return startConfirmOnlyPendingAbilityEffect(game, {
+    ability,
+    effectText: config.effectText ?? getAbilityEffectText(ability.abilityId),
+    orderedResolution: options.orderedResolution === true,
+    stepText: config.stepText,
+  });
+}
+
+export function registerManualConfirmablePendingAbilityStarterHandler(
+  abilityId: string,
+  resolver: PendingAbilityStarterHandler,
+  getConfirmationConfig?: (
+    game: GameState,
+    ability: PendingAbilityState
+  ) => {
+    readonly effectText?: string;
+    readonly stepText?: string;
+  }
+): void {
+  registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) => {
+    const confirmation = maybeStartConfirmablePendingAbilityConfirmation(
+      game,
+      ability,
+      options,
+      getConfirmationConfig?.(game, ability)
+    );
+    if (confirmation) {
+      return confirmation;
+    }
+
+    return resolver(game, ability, options, context);
   });
 }
 

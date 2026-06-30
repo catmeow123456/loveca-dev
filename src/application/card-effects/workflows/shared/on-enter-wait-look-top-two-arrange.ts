@@ -16,7 +16,7 @@ import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import {
   finishArrangeInspectedDeckTopWorkflow,
   startArrangeInspectedDeckTopWorkflow,
-} from '../shared/arrange-inspected-deck-top.js';
+} from './arrange-inspected-deck-top.js';
 
 const DECLINE_OPTION_LABEL = '不发动';
 const PL_BP3_014_ON_ENTER_OPTION_STEP_ID = 'PL_BP3_014_ON_ENTER_OPTION';

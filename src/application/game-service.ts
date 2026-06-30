@@ -30,7 +30,11 @@ import {
   SubPhase,
   EffectWindowType,
 } from '../shared/types/enums.js';
-import type { GameState, GameAction as GameHistoryAction } from '../domain/entities/game.js';
+import type {
+  GameState,
+  GameAction as GameHistoryAction,
+  LiveModifierState,
+} from '../domain/entities/game.js';
 import {
   createGameState,
   getActivePlayer,
@@ -133,8 +137,10 @@ import { liveResolver } from '../domain/rules/live-resolver.js';
 import { applyHeartRequirementModifiers } from '../domain/rules/live-requirement-modifiers.js';
 import {
   collectLiveModifiers,
+  getEffectivePerformanceCheerCount,
   getLiveCardRequirementModifiers,
   getLiveCardScoreModifier,
+  getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
   getPlayerLiveHeartModifiers,
   getPlayerLiveScoreModifier,
@@ -142,6 +148,7 @@ import {
 import { revealCheerCardsFromMainDeck } from './effects/cheer.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { clearLiveProhibitionsUntilLiveEnd } from '../domain/rules/live-prohibitions.js';
+import { clearLiveStartSuppressionsUntilLiveEnd } from '../domain/rules/live-start-suppressions.js';
 import { consumeMemberActivePhaseSkipsForPlayer } from '../domain/rules/member-active-skips.js';
 
 function isTriggerCondition(event: GameEventType | string): event is TriggerCondition {
@@ -606,6 +613,7 @@ export class GameService {
       transition.newPhase === GamePhase.ACTIVE_PHASE
     ) {
       state = clearLiveProhibitionsUntilLiveEnd(state);
+      state = clearLiveStartSuppressionsUntilLiveEnd(state);
     }
 
     // 执行阶段自动处理
@@ -1124,12 +1132,10 @@ export class GameService {
     }
 
     const liveModifiers = collectLiveModifiers(game);
-    const heartBonuses = getPlayerLiveHeartModifiers(game.liveResolution, playerId, liveModifiers);
-    const activeMemberCards = [...this.getActiveMemberCards(game, player, liveModifiers)];
-    if (heartBonuses.length > 0) {
-      activeMemberCards.push(this.createTemporaryLiveHeartSource(heartBonuses));
+    const cheerCount = this.calculatePerformanceBladeCount(game, player, liveModifiers);
+    if (cheerCount <= 0) {
+      return game;
     }
-    const cheerCount = this.calculatePerformanceBladeCount(game, player, activeMemberCards);
     return revealCheerCardsFromMainDeck(game, playerId, cheerCount, { automated: true }).gameState;
   }
 
@@ -1215,15 +1221,18 @@ export class GameService {
   private calculatePerformanceBladeCount(
     game: GameState,
     player: PlayerState,
-    activeMemberCards: readonly MemberCardData[]
+    liveModifiers: readonly LiveModifierState[] = collectLiveModifiers(game)
   ): number {
-    const activeMemberCardIds = new Set(
-      getAllMemberCardIds(player.memberSlots).filter((cardId) => {
-        const state = player.memberSlots.cardStates.get(cardId);
-        return state === undefined || state.orientation === OrientationState.ACTIVE;
-      })
+    const activeMemberCardIds = getAllMemberCardIds(player.memberSlots).filter((cardId) => {
+      const state = player.memberSlots.cardStates.get(cardId);
+      return state === undefined || state.orientation === OrientationState.ACTIVE;
+    });
+    const memberBladeCount = activeMemberCardIds.reduce(
+      (total, cardId) =>
+        total + getMemberEffectiveBladeCount(game, player.id, cardId, liveModifiers),
+      0
     );
-    const modifierBladeCount = collectLiveModifiers(game).reduce((total, modifier) => {
+    const nonMemberSourceBladeCount = liveModifiers.reduce((total, modifier) => {
       if (modifier.kind !== 'BLADE' || modifier.playerId !== player.id) {
         return total;
       }
@@ -1237,10 +1246,11 @@ export class GameService {
         return total + modifier.countDelta;
       }
 
-      return activeMemberCardIds.has(modifier.sourceCardId) ? total + modifier.countDelta : total;
+      return total;
     }, 0);
 
-    return liveResolver.calculateTotalBlade(activeMemberCards) + modifierBladeCount;
+    const totalBlade = memberBladeCount + nonMemberSourceBladeCount;
+    return getEffectivePerformanceCheerCount(game, player.id, totalBlade, liveModifiers);
   }
 
   private hasPerformanceCheerStarted(game: GameState, playerId: string): boolean {
@@ -1258,31 +1268,6 @@ export class GameService {
     return playerId === getFirstPlayer(game).id
       ? game.liveResolution.firstPlayerCheerCardIds
       : game.liveResolution.secondPlayerCheerCardIds;
-  }
-
-  private getActiveMemberCards(
-    game: GameState,
-    player: PlayerState,
-    liveModifiers = collectLiveModifiers(game)
-  ): MemberCardData[] {
-    const memberCards: MemberCardData[] = [];
-
-    for (const cardId of getAllMemberCardIds(player.memberSlots)) {
-      const state = player.memberSlots.cardStates.get(cardId);
-      if (state && state.orientation !== OrientationState.ACTIVE) {
-        continue;
-      }
-
-      const card = getCardById(game, cardId);
-      if (card && isMemberCardData(card.data)) {
-        memberCards.push({
-          ...card.data,
-          hearts: getMemberEffectiveHeartIcons(game, player.id, cardId, liveModifiers),
-        });
-      }
-    }
-
-    return memberCards;
   }
 
   private getStageMemberCardsForLiveJudgment(
@@ -1975,7 +1960,7 @@ export class GameService {
       }
     }
 
-    state = clearLiveProhibitionsUntilLiveEnd(state);
+    state = clearLiveStartSuppressionsUntilLiveEnd(clearLiveProhibitionsUntilLiveEnd(state));
     return resolveLiveZoneToWaitingRoomTriggers(state, movedLiveCardIds);
   }
 }

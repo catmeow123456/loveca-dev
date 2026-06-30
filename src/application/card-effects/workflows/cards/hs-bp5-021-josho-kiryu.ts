@@ -16,10 +16,12 @@ import {
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 
-const SELECT_HASUNOSORA_MEMBER_STEP_ID =
-  'HS_BP5_021_SELECT_HASUNOSORA_MEMBER_ORIGINAL_HEART_PINK';
+const SELECT_HASUNOSORA_MEMBER_STEP_ID = 'HS_BP5_021_SELECT_HASUNOSORA_MEMBER_ORIGINAL_HEART_PINK';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -47,7 +49,7 @@ export function registerHsBp5021JoshoKiryuWorkflowHandlers(): void {
         context.continuePendingCardEffects
       )
   );
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     HS_BP5_021_LIVE_START_THREE_MIRACRA_STAGE_MEMBERS_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveThreeMiraCraStageMembersScore(
@@ -72,12 +74,19 @@ function startTargetHasunosoraMemberOriginalHeartPink(
 
   const selectableCardIds = getStageMemberCardIdsMatching(game, player.id, hasunosoraMember);
   if (selectableCardIds.length === 0) {
-    return resolveAndContinue(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
-      sourceCardId: ability.sourceCardId,
-      step: 'NO_HASUNOSORA_STAGE_MEMBER_TARGET',
-      targetMemberCardIds: [],
-      reason: 'NO_HASUNOSORA_STAGE_MEMBER_TARGET',
-    });
+    return resolveAndContinue(
+      game,
+      ability,
+      player.id,
+      orderedResolution,
+      continuePendingCardEffects,
+      {
+        sourceCardId: ability.sourceCardId,
+        step: 'NO_HASUNOSORA_STAGE_MEMBER_TARGET',
+        targetMemberCardIds: [],
+        reason: 'NO_HASUNOSORA_STAGE_MEMBER_TARGET',
+      }
+    );
   }
 
   return startPendingActiveEffect(game, {
@@ -193,15 +202,24 @@ function resolveThreeMiraCraStageMembersScore(
     scoreModifier
   );
 
-  return resolveAndContinue(state, ability, player.id, orderedResolution, continuePendingCardEffects, {
-    sourceCardId: ability.sourceCardId,
-    step: conditionMet ? 'APPLY_THREE_MIRACRA_STAGE_MEMBERS_SCORE' : 'NO_THREE_MIRACRA_STAGE_MEMBERS',
-    conditionMet,
-    miraCraStageMemberIds: miraCraMemberIds,
-    miraCraStageMemberCount: miraCraMemberIds.length,
-    scoreBonus: conditionMet ? 1 : 0,
-    liveCardId: ability.sourceCardId,
-  });
+  return resolveAndContinue(
+    state,
+    ability,
+    player.id,
+    orderedResolution,
+    continuePendingCardEffects,
+    {
+      sourceCardId: ability.sourceCardId,
+      step: conditionMet
+        ? 'APPLY_THREE_MIRACRA_STAGE_MEMBERS_SCORE'
+        : 'NO_THREE_MIRACRA_STAGE_MEMBERS',
+      conditionMet,
+      miraCraStageMemberIds: miraCraMemberIds,
+      miraCraStageMemberCount: miraCraMemberIds.length,
+      scoreBonus: conditionMet ? 1 : 0,
+      liveCardId: ability.sourceCardId,
+    }
+  );
 }
 
 function resolveAndContinue(

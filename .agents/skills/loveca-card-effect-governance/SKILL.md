@@ -43,6 +43,13 @@ git diff -- src/application/card-effect-runner.ts
 - 本地卡文以 `llocg_db/json/cards.json` 为主要事实来源；`cards_cn.json` 可做翻译或漂移参照。
 - 卡牌完成状态优先查 `docs/card-effect-reuse-audit/existing_module_map.md`，再查 `ability-ids.ts`、`definitions/index.ts` 和最近 workflow/test。
 
+## 本地环境与卡文读取注意事项
+
+- 本机 shell 里 `node` 可能不在 `PATH`；需要脚本化读取 JSON 时，优先使用 Codex bundled Node 或把其 `bin` 目录临时加入 `PATH`。这只是本地只读解析，不代表要下载、安装或修改依赖。
+- `llocg_db/json/cards.json` 当前是以 `card_no` 为 key 的对象，不是数组；不要直接 `data.filter(...)`。按 exact `card_no`、base card code、`rare_list` 做结构化查询比裸 `rg` 更可靠。
+- 卡号和稀有度存在全角符号差异，例如 `R＋`、`P＋`，不能把 ASCII `R+` / `P+` 查不到误判为缺卡。遇到未命中时，先按 base card code 和 DB 里的真实 `rare_list` 复核。
+- `cards.json` 里同一卡号可能在 FAQ relation、rare_list 等字段重复出现；抽取真实卡文时应读取顶层卡牌对象的 `cost`、`score`、`name`、`ability` 等字段，并在输出中列基础编号、费用/分数、卡名和原文。
+
 ## 必读路线
 
 总审查或架构把关窗口读：
@@ -83,6 +90,37 @@ git diff -- src/application/card-effect-runner.ts
 4. 只有没有稳定 family 时，才写 `src/application/card-effects/workflows/cards/<card>.ts` 单卡 workflow。
 5. 单卡 workflow 可以存在，但要复用稳定底层动作，不复制裸事件入队、抽弃、activeEffect 构造、成员移动、状态变化等胶水。
 6. 新增 helper/shared workflow 必须说明真实卡样本、稳定参数轴、不纳入的差异和测试覆盖。
+
+## Workflow 文件命名与目录归属
+
+- `src/application/card-effects/workflows/cards/` 只放“卡牌维度”的 workflow 文件。文件名必须体现基础编号 + 卡名英文字符/罗马字 slug，不用效果描述、批次名或作者临时命名。
+  - 基础编号取去掉稀有度后的 base card code，统一小写 kebab，并保留系列前缀，例如 `PL!-bp6-003` -> `pl-bp6-003`，`PL!N-bp3-030` -> `n-bp3-030`，`PL!SP-pr-018` -> `sp-pr-018`。
+  - 卡名部分使用英文字符或罗马字，按 lower-kebab 写入文件名，例如 `pl-bp6-020-dancing-stars-on-me.ts`、`n-bp3-030-love-u-my-friends.ts`、`sp-pr-018-kanon.ts`。
+  - 同基础编号、同文不同 rarity 可共用同一个 `cards/<base>-<name>.ts`，并通过 definition 的 `baseCardCodes` / rarity 覆盖表达；不要为每个 rarity 拆文件。
+- `cards/` 文件原则上只承载该基础编号/同文 rarity 的卡效。若一个文件开始服务多个基础编号，即使它们来自同一执行批次，也不能继续留在 `cards/` 下，除非其中一个基础编号只是同文/同 base 的覆盖。
+- 多基础编号的同型家族必须迁入 `src/application/card-effects/workflows/shared/`，并以可复用行为命名，而不是卡号或卡名命名。示例形态：`moved-side-blade.ts`、`live-start-score-bonuses.ts`、`discard-cost-recover-live-or-gain-blade.ts`、`aqours-live-start-effects.ts`。
+- 从单卡 workflow 扩展出第二个真实样本时，必须重新判断：
+  1. 该 workflow 是否已经成为稳定 family，若是，先迁入 `workflows/shared/` 再扩配置；
+  2. 若只是同批实现但规则流程无关，应拆成多个 `cards/<base>-<name>.ts`；
+  3. 若只有局部动作重复，应抽 helper/query/event wrapper，而不是把多个基础编号塞进同一个 `cards/` 文件。
+- 测试文件名也要跟随 ownership：
+  - 单卡 focused test 优先使用对应 `cards/<base>-<name>.test.ts`；
+  - shared family test 优先使用 `shared` workflow 的行为名；
+  - 若历史测试确实同时覆盖两张无直接规则关系的卡，文件名要明确组合范围或后续拆分计划，不保留批次名/旧临时名造成误导。
+- 重命名 workflow 时必须同步更新 runner/import、workflow 内部 import、`definitions/index.ts` note、`existing_module_map.md` 和相关测试路径；提交前用 `rg` 确认旧路径没有残留。
+
+## Queued LIVE pending / manual confirmation
+
+- 对 `TriggerCondition.ON_LIVE_START`、`TriggerCondition.ON_LIVE_SUCCESS` 等 queued pending ability，先区分“真实交互效果”和“无交互结算效果”。
+- 无交互效果包括：starter/resolver 直接删除 pending、写 modifier、移动、抽牌、加状态、`addAction RESOLVE_ABILITY`、`continuePendingCardEffects` 等，不需要玩家选择、支付或确认规则分支的效果。
+- 无交互 queued pending 的统一语义：
+  - 单个 `LIVE开始` / `LIVE成功` pending：默认先开 confirm-only `activeEffect` 展示将要结算的效果，确认后再结算。
+  - 多个 pending 点“顺序发动”：按顺序自动结算，不逐个开 confirm-only。
+  - 多个 pending 中用户手动点选某一个无交互效果：只在此时先开 confirm-only pending bridge，让玩家知道点到了哪个效果；确认后再用 `skipManualConfirmation` 回到真实 resolver。
+- 已有真实交互窗口的效果不要额外套 confirm-only，例如选择卡、弃手、支付费用、选择颜色、可选发动、查看、揭示、排序等 `activeEffect` workflow。
+- 新增或迁移无交互 queued pending 时，优先复用 `manualConfirmation` / `confirmBeforeResolution` / `skipManualConfirmation` 语义，或使用薄包装 helper；不要把卡牌专属条件、modifier、费用、区域移动、抽牌等结算逻辑放入 runner 或通用 helper。
+- legacy always-confirm-only workflow 不应作为新实现模板；如果语义上无交互，应迁移为自动 resolver + 手动队列点选时的 confirm-only bridge。
+- 需要动态展示文本的 confirm-only bridge，应在 manual confirmation 分支实时计算 `effectText` / `stepText`，避免展示过期条件。
 
 ## 新卡审查窗口协议
 
@@ -158,6 +196,12 @@ git diff -- src/application/card-effect-runner.ts
 - 新卡效是否放入 `src/application/card-effects/workflows/`。
 - 同型效果是否优先进入 `workflows/shared/`。
 - 特殊复杂卡是否进入 `workflows/cards/<card>.ts`。
+- `workflows/cards/` 下新增或改名文件是否符合“基础编号 + 卡名英文字符/罗马字 slug”命名；是否错误使用效果描述、批次名、省略系列前缀或旧临时名。
+- `workflows/cards/` 下是否存在服务多个基础编号的同型家族。若有，应默认迁入 `workflows/shared/` 并以行为命名；只有同 base / 同文 rarity 覆盖可保留在 cards。
+- 同一执行批次不等于同一 workflow 文件。若以卡牌编号命名 `workflows/cards/<card>.ts`，该文件原则上只承载该基础编号/同文 rarity 的卡效。多个基础编号共用同一文件时，必须是同型效果或稳定 reusable family，并以复用形状命名；否则应拆成多个单卡 workflow。不要用 `<cardA>-<cardB>.ts` 表示仅因同批实现而放在一起的不相关卡牌。
+- 如果多个基础编号共用同一稳定 family，但文件还在 `workflows/cards/` 下，即使文件名已是行为名，也视为目录归属错误；提交前应移到 `workflows/shared/`。
+- 单卡 workflow 扩展第二个样本时，是否已重新评估晋升 shared、拆文件或抽 helper，而不是继续沿用旧 `cards/` 归属。
+- 测试文件名是否随 workflow ownership 同步：单卡测试用基础编号 + 卡名；shared family 测试用行为名；历史组合测试要明确组合范围。
 - workflow 内重复小胶水是否应该抽到 runtime、active-effect、workflow helpers 或 events。
 - 不强行抽象没有足够真实样本的复杂卡。
 
@@ -184,7 +228,15 @@ git diff -- src/application/card-effect-runner.ts
 - 多段效果拆独立 `abilityId`。
 - `category`、`sourceZone`、`triggerCondition`、`queued`、`implemented` 要准确。
 - 不混淆 `AUTO`、`ON_ENTER`、`ACTIVATED`、`CONTINUOUS`。
+- 编写或审查 `effectText` 时必须核对 `client/src/lib/cardEffectTokens.ts` 的 token 映射。
 - 不为了整理拆 `definitions/index.ts`。
+
+### Effect text / icon token
+
+- `client/src/lib/cardEffectTokens.ts` 会把效果文本里的 `【...】` 与 `[...]` 占位文本转换为前端图标或样式。卡效定义里的 `effectText` 必须使用该文件已支持的字面量，不要随手发明新的括号文本。
+- 遇到 BLADE、Heart、费用、分数等会显示为图标的内容时，先查现有映射。例如 BLADE 应使用已映射的 `[BLADE]` / `[ブレード]` 等形式，Heart 应使用已映射的 `[赤ハート]`、`[黄ハート]`、`[紫HEART]` 等形式；不要把应图标化的文本写成未映射的 `[红Heart]`、`[blade]`、`[heart]` 或混用大小写/语言导致前端无法识别。
+- 如果真实新卡需要的图标 token 当前没有映射，先明确这是前端 token 覆盖缺口：要么改用已有等价 token，要么在同一执行窗口同步扩展 `cardEffectTokens.ts` 与对应 token 测试；不要只在 `definitions/index.ts` 写一个无法转换的临时文本。
+- 文档说明可以用自然语言描述 Heart / BLADE，但面向 UI 渲染的 `effectText` 必须保持 token 兼容。审查收尾时若本批触及 Heart/BLADE/COST/score 文本，需要报告已核对 token 映射。
 
 ### Trigger matcher
 
@@ -216,6 +268,11 @@ git diff -- src/application/card-effect-runner.ts
 
 - 分类测试：`tests/unit/card-effect-classification.test.ts`。
 - workflow integration 覆盖正常结算、skip、无目标、非法选择、pending continuation。
+- 对无交互 queued LIVE pending，focused integration 至少覆盖：
+  1. 单 pending 先开 confirm-only `activeEffect`，确认前不结算，确认后才结算；
+  2. 多 pending 点“顺序发动”自动连续结算且不弹 confirm-only；
+  3. 多 pending 手动点选该效果时先弹 confirm-only，确认前不应用效果，确认后才结算；
+  4. 已有真实交互 workflow 不出现双弹窗。
 - domain query/helper unit 覆盖纯函数正反例。
 - event wrapper 覆盖事件产生、事件入队、0 张/无事件不触发。
 - 高风险旧路径补 regression。

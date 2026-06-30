@@ -16,7 +16,10 @@ import {
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { createCheerEvent } from '../../src/domain/events/game-events';
 import { collectLiveModifiers } from '../../src/domain/rules/live-modifiers';
-import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import {
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import {
   S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID,
@@ -34,6 +37,12 @@ import {
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
+
+function confirmIfConfirmOnly(game: GameState): GameState {
+  return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+    ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+    : game;
+}
 
 function createMemberCard(
   cardCode: string,
@@ -173,7 +182,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       ],
     };
 
-    const resolved = resolvePendingCardEffects(game).gameState;
+    const resolved = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState);
 
     for (const member of members) {
       expect(resolved.liveResolution.liveModifiers).toContainEqual({
@@ -222,7 +231,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       ],
     };
 
-    const resolved = resolvePendingCardEffects(game).gameState;
+    const resolved = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState);
 
     expect(resolved.liveResolution.liveModifiers).toHaveLength(0);
   });
@@ -314,7 +323,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       ],
     };
 
-    const resolved = resolvePendingCardEffects(game).gameState;
+    const resolved = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState);
 
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
     expect(resolved.liveResolution.liveModifiers).toContainEqual({
@@ -367,7 +376,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       ],
     };
 
-    const resolved = resolvePendingCardEffects(game).gameState;
+    const resolved = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState);
 
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBeUndefined();
     expect(resolved.liveResolution.liveModifiers).toHaveLength(0);
@@ -411,7 +420,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       ],
     };
 
-    const resolved = resolvePendingCardEffects(game).gameState;
+    const resolved = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState);
 
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBeUndefined();
     expect(resolved.liveResolution.liveModifiers).toHaveLength(0);

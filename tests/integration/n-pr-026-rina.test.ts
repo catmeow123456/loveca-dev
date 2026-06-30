@@ -11,6 +11,7 @@ import { addMemberBelowMember, placeCardInSlot } from '../../src/domain/entities
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import {
+  confirmActiveEffectStep,
   HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID,
   N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
   N_PR_026_ON_ENTER_STACK_LOW_COST_NIJIGASAKI_MEMBER_FROM_WAITING_ABILITY_ID,
@@ -128,6 +129,14 @@ function activeFaceUp() {
   };
 }
 
+function resolvePendingAndConfirmOnly(game: GameState): GameState {
+  let state = resolvePendingCardEffects(game).gameState;
+  while (state.activeEffect?.metadata?.confirmOnlyPendingAbility === true) {
+    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect.id);
+  }
+  return state;
+}
+
 describe('PL!N-PR-026-PR Rina memberBelow workflow', () => {
   it('stacks one low-cost Nijigasaki member from waiting room on enter', () => {
     const waitingMember = createCardInstance(
@@ -179,13 +188,13 @@ describe('PL!N-PR-026-PR Rina memberBelow workflow', () => {
       PLAYER1,
       'granted-live-success-member'
     );
-    const result = resolvePendingCardEffects(
+    const result = resolvePendingAndConfirmOnly(
       setupRinaGame({
         memberBelowCards: [grantedMember],
         pendingAbilityId:
           N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
       })
-    ).gameState;
+    );
 
     expect(result.pendingAbilities).toEqual([]);
     expect(result.players[0]!.memberSlots.cardStates.get('rina-source')?.orientation).toBe(
@@ -226,13 +235,13 @@ describe('PL!N-PR-026-PR Rina memberBelow workflow', () => {
       PLAYER1,
       'unimplemented-below'
     );
-    const result = resolvePendingCardEffects(
+    const result = resolvePendingAndConfirmOnly(
       setupRinaGame({
         memberBelowCards: [highCost, nonNijigasaki, unimplemented],
         pendingAbilityId:
           N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
       })
-    ).gameState;
+    );
 
     expect(result.pendingAbilities).toEqual([]);
     expect(result.players[0]!.memberSlots.cardStates.get('rina-source')?.orientation).toBe(

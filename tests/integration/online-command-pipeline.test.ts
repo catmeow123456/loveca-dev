@@ -15,12 +15,15 @@ import type {
   LiveCardData,
   MemberCardData,
 } from '../../src/domain/entities/card';
+import type { ActiveEffectState, PendingAbilityState } from '../../src/domain/entities/game';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import { createManualMoveCardAction } from '../../src/application/actions';
+import { ABILITY_ORDER_SELECTION_ID } from '../../src/application/card-effect-runner';
 import {
   GameCommandType,
   createAttachEnergyToMemberCommand,
+  createConfirmEffectStepCommand,
   createConfirmStepCommand,
   createConfirmPerformanceOutcomeCommand,
   createDrawCardToHandCommand,
@@ -118,6 +121,46 @@ function forceMainPhaseForPlayer(
   state.currentSubPhase = SubPhase.NONE;
   state.activePlayerIndex = activePlayerIndex;
   state.waitingPlayerId = null;
+}
+
+function installNonInspectionActiveEffect(
+  session: ReturnType<typeof createGameSession>
+): { activeEffect: ActiveEffectState; sourceCardId: string } {
+  const sourceCardId = session.state?.players[0].hand.cardIds[0];
+  expect(sourceCardId).toBeTruthy();
+
+  const pendingAbility: PendingAbilityState = {
+    id: 'pending-non-inspection-effect',
+    abilityId: 'test:non-inspection-effect',
+    sourceCardId: sourceCardId!,
+    controllerId: PLAYER1,
+    mandatory: true,
+    timingId: 'test:timing',
+    eventIds: [],
+  };
+  const activeEffect: ActiveEffectState = {
+    id: 'effect-non-inspection',
+    abilityId: ABILITY_ORDER_SELECTION_ID,
+    sourceCardId: sourceCardId!,
+    controllerId: PLAYER1,
+    effectText: '测试非检视卡牌效果',
+    stepId: 'SELECT_PENDING_EFFECT',
+    stepText: '选择要处理的效果',
+    awaitingPlayerId: PLAYER1,
+    selectableCardIds: [sourceCardId!],
+    metadata: {
+      pendingAbilityIds: [pendingAbility.id],
+    },
+  };
+
+  const state = session.state as unknown as {
+    activeEffect: ActiveEffectState | null;
+    pendingAbilities: PendingAbilityState[];
+  };
+  state.pendingAbilities = [pendingAbility];
+  state.activeEffect = activeEffect;
+
+  return { activeEffect, sourceCardId: sourceCardId! };
 }
 
 describe('GameSession command pipeline', () => {
@@ -342,7 +385,7 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
-  it('卡效控制检视区时不投影通用检视整理命令', () => {
+  it('activeEffect 卡效控制检视区时不投影通用检视整理命令', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
@@ -418,6 +461,131 @@ describe('GameSession command pipeline', () => {
     for (const command of blockedCommands) {
       expect(commands).not.toContain(command);
     }
+    expect(
+      view?.permissions.availableCommands.some(
+        (hint) => hint.command === GameCommandType.CONFIRM_EFFECT_STEP && hint.enabled
+      )
+    ).toBe(true);
+  });
+
+  it('activeEffect 处理期间拒绝双方玩家打开普通检视区且保留效果状态', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-active-effect-block-open-inspection',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const { activeEffect, sourceCardId } = installNonInspectionActiveEffect(session);
+    const player1MainDeckBefore = [...session.state!.players[0].mainDeck.cardIds];
+    const player2MainDeckBefore = [...session.state!.players[1].mainDeck.cardIds];
+
+    const player1OpenResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
+    );
+
+    expect(player1OpenResult.success).toBe(false);
+    expect(player1OpenResult.error).toContain('当前正在处理卡牌效果，不能打开普通检视区');
+    expect(session.state?.activeEffect).toMatchObject({
+      id: activeEffect.id,
+      abilityId: activeEffect.abilityId,
+    });
+    expect(session.state?.inspectionContext).toBeNull();
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual(player1MainDeckBefore);
+    expect(session.state?.players[1].mainDeck.cardIds).toEqual(player2MainDeckBefore);
+
+    const player2OpenResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER2, ZoneType.MAIN_DECK, 1)
+    );
+
+    expect(player2OpenResult.success).toBe(false);
+    expect(player2OpenResult.error).toContain('当前正在处理卡牌效果，不能打开普通检视区');
+    expect(session.state?.activeEffect).toMatchObject({
+      id: activeEffect.id,
+      abilityId: activeEffect.abilityId,
+    });
+    expect(session.state?.inspectionContext).toBeNull();
+    expect(session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual(player1MainDeckBefore);
+    expect(session.state?.players[1].mainDeck.cardIds).toEqual(player2MainDeckBefore);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, activeEffect.id, sourceCardId)
+    );
+
+    expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+  });
+
+  it('activeEffect 存在时双方视图不投影普通 OPEN_INSPECTION 但等待玩家保留效果确认命令', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-active-effect-open-inspection-hints',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    installNonInspectionActiveEffect(session);
+
+    const player1View = session.getPlayerViewState(PLAYER1);
+    const player2View = session.getPlayerViewState(PLAYER2);
+    const player1Commands =
+      player1View?.permissions.availableCommands.map((hint) => hint.command) ?? [];
+    const player2Commands =
+      player2View?.permissions.availableCommands.map((hint) => hint.command) ?? [];
+
+    expect(player1Commands).not.toContain(GameCommandType.OPEN_INSPECTION);
+    expect(player2Commands).not.toContain(GameCommandType.OPEN_INSPECTION);
+    expect(
+      player1View?.permissions.availableCommands.some(
+        (hint) => hint.command === GameCommandType.CONFIRM_EFFECT_STEP && hint.enabled
+      )
+    ).toBe(true);
+  });
+
+  it('activeEffect 存在且普通检视已打开时检视 owner 视图不投影普通 OPEN_INSPECTION', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame(
+      'online-command-active-effect-existing-inspection-owner-hints',
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const openResult = session.executeCommand(
+      createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
+    );
+    expect(openResult.success).toBe(true);
+    expect(session.state?.inspectionContext?.ownerPlayerId).toBe(PLAYER1);
+    expect(session.state?.inspectionZone.cardIds).toHaveLength(1);
+
+    installNonInspectionActiveEffect(session);
+
+    const view = session.getPlayerViewState(PLAYER1);
+    const commands = view?.permissions.availableCommands.map((hint) => hint.command) ?? [];
+
+    expect(view?.match.window?.windowType).toBe('INSPECTION');
+    expect(view?.match.window?.context?.activeEffectId).toBe('effect-non-inspection');
+    expect(commands).not.toContain(GameCommandType.OPEN_INSPECTION);
+    expect(commands).toContain(GameCommandType.MOVE_INSPECTED_CARD_TO_TOP);
+    expect(commands).toContain(GameCommandType.FINISH_INSPECTION);
     expect(
       view?.permissions.availableCommands.some(
         (hint) => hint.command === GameCommandType.CONFIRM_EFFECT_STEP && hint.enabled

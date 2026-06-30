@@ -29,7 +29,7 @@ import {
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import { finishWaitingRoomToHandWorkflow } from '../shared/waiting-room-to-hand.js';
+import { finishWaitingRoomToHandWorkflow } from './waiting-room-to-hand.js';
 
 export const N_SD1_004_SELECT_DISCARD_STEP_ID = 'N_SD1_004_SELECT_DISCARD_FOR_BLADE';
 export const N_BP1_005_SELECT_DISCARD_STEP_ID = 'N_BP1_005_SELECT_DISCARD_FOR_BLADE';

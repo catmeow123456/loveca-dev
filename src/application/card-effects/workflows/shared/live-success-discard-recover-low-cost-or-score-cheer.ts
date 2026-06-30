@@ -13,7 +13,10 @@ import {
   moveRevealedCheerCards,
   selectRevealedCheerCardIds,
 } from '../../../effects/cheer-selection.js';
-import { N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID } from '../../ability-ids.js';
+import {
+  N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
+  SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
+} from '../../ability-ids.js';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
   finishSkippedActiveEffect,
@@ -34,31 +37,34 @@ import {
   maybeStartManualPendingAbilityConfirmation,
 } from '../../runtime/workflow-helpers.js';
 
-const N_PR_021_SELECT_DISCARD_STEP_ID = 'N_PR_021_SELECT_DISCARD_FOR_REVEALED_CHEER';
-const N_PR_021_SELECT_REVEALED_CHEER_STEP_ID =
-  'N_PR_021_SELECT_LOW_COST_OR_SCORE_REVEALED_CHEER';
+const SELECT_DISCARD_STEP_ID =
+  'LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_CHEER_SELECT_DISCARD';
+const SELECT_REVEALED_CHEER_STEP_ID =
+  'LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_CHEER_SELECT_REVEALED_CHEER';
 
+const ABILITY_IDS = [
+  N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
+  SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
+] as const;
+
+type LowCostOrScoreCheerAbilityId = (typeof ABILITY_IDS)[number];
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerNPr021LanzhuWorkflowHandlers(deps: {
+export function registerLiveSuccessDiscardRecoverLowCostOrScoreCheerWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  registerPendingAbilityStarterHandler(
-    N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
-    (game, ability, options, context) =>
-      startNPr021LanzhuLiveSuccess(
+  for (const abilityId of ABILITY_IDS) {
+    registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) =>
+      startLiveSuccessDiscardRecoverLowCostOrScoreCheer(
         game,
         ability,
         options,
         context.continuePendingCardEffects
       )
-  );
-  registerActiveEffectStepHandler(
-    N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
-    N_PR_021_SELECT_DISCARD_STEP_ID,
-    (game, input, context) =>
+    );
+    registerActiveEffectStepHandler(abilityId, SELECT_DISCARD_STEP_ID, (game, input, context) =>
       input.selectedCardId
-        ? finishNPr021LanzhuDiscardCost(
+        ? finishDiscardCost(
             game,
             input.selectedCardId,
             context.continuePendingCardEffects,
@@ -67,20 +73,21 @@ export function registerNPr021LanzhuWorkflowHandlers(deps: {
         : finishSkippedActiveEffect(game, context.continuePendingCardEffects, {
             step: 'DECLINE_DISCARD_HAND_CARD',
           })
-  );
-  registerActiveEffectStepHandler(
-    N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
-    N_PR_021_SELECT_REVEALED_CHEER_STEP_ID,
-    (game, input, context) =>
-      finishNPr021LanzhuRecoverRevealedCheer(
-        game,
-        input.selectedCardId ?? null,
-        context.continuePendingCardEffects
-      )
-  );
+    );
+    registerActiveEffectStepHandler(
+      abilityId,
+      SELECT_REVEALED_CHEER_STEP_ID,
+      (game, input, context) =>
+        finishRecoverRevealedCheer(
+          game,
+          input.selectedCardId ?? null,
+          context.continuePendingCardEffects
+        )
+    );
+  }
 }
 
-function startNPr021LanzhuLiveSuccess(
+function startLiveSuccessDiscardRecoverLowCostOrScoreCheer(
   game: GameState,
   ability: PendingAbilityState,
   options: PendingAbilityStarterOptions,
@@ -125,10 +132,8 @@ function startNPr021LanzhuLiveSuccess(
     activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
       ability,
       playerId: player.id,
-      effectText: getAbilityEffectText(
-        N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID
-      ),
-      stepId: N_PR_021_SELECT_DISCARD_STEP_ID,
+      effectText: getAbilityEffectText(ability.abilityId),
+      stepId: SELECT_DISCARD_STEP_ID,
       selectableCardIds: player.hand.cardIds,
       orderedResolution: options.orderedResolution === true,
       metadata: {
@@ -144,7 +149,7 @@ function startNPr021LanzhuLiveSuccess(
   });
 }
 
-function finishNPr021LanzhuDiscardCost(
+function finishDiscardCost(
   game: GameState,
   discardCardId: string,
   continuePendingCardEffects: ContinuePendingCardEffects,
@@ -153,9 +158,8 @@ function finishNPr021LanzhuDiscardCost(
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !==
-      N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID ||
-    effect.stepId !== N_PR_021_SELECT_DISCARD_STEP_ID ||
+    !isLowCostOrScoreCheerAbilityId(effect.abilityId) ||
+    effect.stepId !== SELECT_DISCARD_STEP_ID ||
     effect.selectableCardIds?.includes(discardCardId) !== true
   ) {
     return game;
@@ -181,7 +185,10 @@ function finishNPr021LanzhuDiscardCost(
   }
 
   const discardedCardId = discardResult.discardedCardIds[0] ?? discardCardId;
-  const selectableCardIds = selectNPr021RevealedCheerCardIds(discardResult.gameState, player.id);
+  const selectableCardIds = selectLowCostOrScoreRevealedCheerCardIds(
+    discardResult.gameState,
+    player.id
+  );
   if (selectableCardIds.length === 0) {
     return continuePendingCardEffects(
       addAction(
@@ -208,7 +215,7 @@ function finishNPr021LanzhuDiscardCost(
       ...discardResult.gameState,
       activeEffect: {
         ...effect,
-        stepId: N_PR_021_SELECT_REVEALED_CHEER_STEP_ID,
+        stepId: SELECT_REVEALED_CHEER_STEP_ID,
         stepText:
           '请选择1张因声援公开的自己的费用2以下成员卡或分数2以下LIVE卡加入手牌。',
         selectableCardIds,
@@ -238,7 +245,7 @@ function finishNPr021LanzhuDiscardCost(
   );
 }
 
-function finishNPr021LanzhuRecoverRevealedCheer(
+function finishRecoverRevealedCheer(
   game: GameState,
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
@@ -246,9 +253,8 @@ function finishNPr021LanzhuRecoverRevealedCheer(
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !==
-      N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID ||
-    effect.stepId !== N_PR_021_SELECT_REVEALED_CHEER_STEP_ID ||
+    !isLowCostOrScoreCheerAbilityId(effect.abilityId) ||
+    effect.stepId !== SELECT_REVEALED_CHEER_STEP_ID ||
     selectedCardId === null ||
     effect.selectableCardIds?.includes(selectedCardId) !== true
   ) {
@@ -279,7 +285,7 @@ function finishNPr021LanzhuRecoverRevealedCheer(
   );
 }
 
-function selectNPr021RevealedCheerCardIds(
+function selectLowCostOrScoreRevealedCheerCardIds(
   game: GameState,
   playerId: string
 ): readonly string[] {
@@ -294,6 +300,10 @@ function isLowCostMemberOrLowScoreLive(card: CardInstance): boolean {
     return card.data.score <= 2;
   }
   return false;
+}
+
+function isLowCostOrScoreCheerAbilityId(value: string): value is LowCostOrScoreCheerAbilityId {
+  return ABILITY_IDS.some((abilityId) => abilityId === value);
 }
 
 function skipPendingAbility(

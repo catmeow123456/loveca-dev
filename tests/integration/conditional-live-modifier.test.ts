@@ -10,6 +10,7 @@ import {
   registerCards,
   updatePlayer,
   type GameState,
+  type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import {
   addCardToStatefulZone,
@@ -17,10 +18,11 @@ import {
   placeCardInSlot,
   removeCardFromSlot,
 } from '../../src/domain/entities/zone';
+import { createPlayMemberToSlotCommand } from '../../src/application/game-commands';
 import {
-  createConfirmEffectStepCommand,
-  createPlayMemberToSlotCommand,
-} from '../../src/application/game-commands';
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import { createGameSession } from '../../src/application/game-session';
 import { GameService } from '../../src/application/game-service';
 import {
@@ -28,6 +30,7 @@ import {
   HS_BP2_023_LIVE_START_RELAY_ENTERED_HASUNOSORA_BLUE_REQUIREMENT_ABILITY_ID,
   HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABILITY_ID,
   HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID,
+  HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
@@ -78,15 +81,13 @@ function createMember(options: {
   };
 }
 
-function confirmActiveEffect(game: GameState): GameState {
-  const session = createGameSession();
-  session.createGame('conditional-live-modifier-session', PLAYER1, 'P1', PLAYER2, 'P2');
-  (session as unknown as { authorityState: GameState }).authorityState = game;
-  const result = session.executeCommand(
-    createConfirmEffectStepCommand(PLAYER1, game.activeEffect!.id)
-  );
-  expect(result.success).toBe(true);
-  return session.state!;
+function expectAutoResolved(game: GameState): GameState {
+  const state =
+    game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
+      ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
+      : game;
+  expect(state.activeEffect).toBeNull();
+  return state;
 }
 
 function runLiveStart(game: GameState): GameState {
@@ -138,7 +139,75 @@ function setupLiveStartState(options: {
   };
 }
 
-function createRelayRequirementLive(cardCode: string, name: string, color: HeartColor): LiveCardData {
+function createHanamusubiPending(sourceCardId: string, index = 0): PendingAbilityState {
+  return {
+    id: `hanamusubi-pending-${sourceCardId}-${index}`,
+    abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
+    sourceCardId,
+    controllerId: PLAYER1,
+    mandatory: true,
+    timingId: TriggerCondition.ON_LIVE_START,
+    eventIds: ['hanamusubi-live-start-event'],
+  };
+}
+
+function setupHanamusubiPendingState(options: {
+  readonly sourceCount: number;
+  readonly includeOtherHasunosoraLive?: boolean;
+}): {
+  readonly game: GameState;
+  readonly sourceLives: readonly ReturnType<typeof createCardInstance>[];
+} {
+  const sourceLives = Array.from({ length: options.sourceCount }, (_, index) =>
+    createCardInstance(
+      createLive('PL!HS-bp5-019-L', `花结 ${index + 1}`, 6),
+      PLAYER1,
+      `hanamusubi-source-${index}`
+    )
+  );
+  const otherHasunosoraLive = options.includeOtherHasunosoraLive
+    ? createCardInstance(
+        createLive('PL!HS-test-other-live', '莲之空测试LIVE', 1),
+        PLAYER1,
+        'hanamusubi-other-live'
+      )
+    : null;
+  const liveCards = [...sourceLives, ...(otherHasunosoraLive ? [otherHasunosoraLive] : [])];
+
+  let game = createGameState('conditional-live-modifier-hanamusubi', PLAYER1, 'P1', PLAYER2, 'P2');
+  game = registerCards(game, liveCards);
+  game = updatePlayer(game, PLAYER1, (player) => ({
+    ...player,
+    liveZone: liveCards.reduce(
+      (zone, card) =>
+        addCardToStatefulZone(zone, card.instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
+      player.liveZone
+    ),
+  }));
+
+  return {
+    game: {
+      ...game,
+      pendingAbilities: sourceLives.map((live, index) =>
+        createHanamusubiPending(live.instanceId, index)
+      ),
+      liveResolution: {
+        ...game.liveResolution,
+        performingPlayerId: PLAYER1,
+      },
+    },
+    sourceLives,
+  };
+}
+
+function createRelayRequirementLive(
+  cardCode: string,
+  name: string,
+  color: HeartColor
+): LiveCardData {
   return {
     cardCode,
     name,
@@ -190,13 +259,24 @@ function setupRelayEnteredLiveStartState(options: {
 
   const session = createGameSession();
   session.createGame('conditional-live-modifier-relay-entered', PLAYER1, 'P1', PLAYER2, 'P2');
-  let game = createGameState('conditional-live-modifier-relay-entered', PLAYER1, 'P1', PLAYER2, 'P2');
+  let game = createGameState(
+    'conditional-live-modifier-relay-entered',
+    PLAYER1,
+    'P1',
+    PLAYER2,
+    'P2'
+  );
   game = registerCards(game, registeredCards);
   game = updatePlayer(game, PLAYER1, (player) => {
-    let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.LEFT, replacedOne.instanceId, {
-      orientation: OrientationState.ACTIVE,
-      face: FaceState.FACE_UP,
-    });
+    let memberSlots = placeCardInSlot(
+      player.memberSlots,
+      SlotPosition.LEFT,
+      replacedOne.instanceId,
+      {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }
+    );
     if (options.secondMode === 'relay') {
       memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, replacedTwo.instanceId, {
         orientation: OrientationState.ACTIVE,
@@ -274,6 +354,102 @@ function setupRelayEnteredLiveStartState(options: {
 }
 
 describe('conditional live modifier workflow', () => {
+  it('shows a confirm-only bridge before resolving PL!HS-bp5-019 Hanamusubi when it is the only pending ability', () => {
+    const { game, sourceLives } = setupHanamusubiPendingState({
+      sourceCount: 1,
+      includeOtherHasunosoraLive: true,
+    });
+
+    const preview = resolvePendingCardEffects(game).gameState;
+
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
+      sourceCardId: sourceLives[0]!.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(preview.pendingAbilities).toHaveLength(1);
+    expect(preview.liveResolution.liveModifiers).toEqual([]);
+
+    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(state.activeEffect).toBeNull();
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.liveResolution.liveModifiers).toContainEqual({
+      kind: 'REQUIREMENT',
+      liveCardId: sourceLives[0]!.instanceId,
+      modifiers: [{ color: HeartColor.GREEN, countDelta: -2 }],
+      sourceCardId: sourceLives[0]!.instanceId,
+      abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
+    });
+  });
+
+  it('auto-resolves PL!HS-bp5-019 Hanamusubi abilities after choosing ordered resolution', () => {
+    const { game, sourceLives } = setupHanamusubiPendingState({ sourceCount: 2 });
+    const orderSelection = resolvePendingCardEffects(game).gameState;
+
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+    const state = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+
+    expect(state.activeEffect).toBeNull();
+    expect(state.pendingAbilities).toEqual([]);
+    for (const sourceLive of sourceLives) {
+      expect(state.liveResolution.liveModifiers).toContainEqual({
+        kind: 'REQUIREMENT',
+        liveCardId: sourceLive.instanceId,
+        modifiers: [{ color: HeartColor.GREEN, countDelta: -2 }],
+        sourceCardId: sourceLive.instanceId,
+        abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
+      });
+    }
+  });
+
+  it('shows a confirm-only bridge before resolving manually selected PL!HS-bp5-019 Hanamusubi', () => {
+    const { game, sourceLives } = setupHanamusubiPendingState({ sourceCount: 2 });
+    const orderSelection = resolvePendingCardEffects(game).gameState;
+
+    const preview = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      sourceLives[1]!.instanceId
+    );
+
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
+      sourceCardId: sourceLives[1]!.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(
+      preview.liveResolution.liveModifiers.some(
+        (modifier) => modifier.sourceCardId === sourceLives[1]!.instanceId
+      )
+    ).toBe(false);
+    expect(
+      preview.pendingAbilities.some(
+        (ability) => ability.sourceCardId === sourceLives[1]!.instanceId
+      )
+    ).toBe(true);
+
+    const state = expectAutoResolved(
+      confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id)
+    );
+
+    expect(state.activeEffect).toBeNull();
+    expect(state.liveResolution.liveModifiers).toContainEqual({
+      kind: 'REQUIREMENT',
+      liveCardId: sourceLives[1]!.instanceId,
+      modifiers: [{ color: HeartColor.GREEN, countDelta: -2 }],
+      sourceCardId: sourceLives[1]!.instanceId,
+      abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
+    });
+  });
+
   it.each([
     {
       cardCode: 'PL!HS-bp2-021-L',
@@ -300,7 +476,7 @@ describe('conditional live modifier workflow', () => {
       `${config.cardCode}-live`
     );
 
-    const state = confirmActiveEffect(
+    const state = expectAutoResolved(
       runLiveStart(setupRelayEnteredLiveStartState({ live, secondMode: 'relay' }))
     );
 
@@ -331,7 +507,7 @@ describe('conditional live modifier workflow', () => {
       'relay-one-live'
     );
 
-    const state = confirmActiveEffect(
+    const state = expectAutoResolved(
       runLiveStart(setupRelayEnteredLiveStartState({ live, secondMode: 'preexisting' }))
     );
 
@@ -364,7 +540,7 @@ describe('conditional live modifier workflow', () => {
       'relay-ordinary-live'
     );
 
-    const state = confirmActiveEffect(
+    const state = expectAutoResolved(
       runLiveStart(setupRelayEnteredLiveStartState({ live, secondMode: 'ordinary' }))
     );
 
@@ -385,7 +561,7 @@ describe('conditional live modifier workflow', () => {
       'relay-left-stage-live'
     );
 
-    const state = confirmActiveEffect(
+    const state = expectAutoResolved(
       runLiveStart(
         setupRelayEnteredLiveStartState({
           live,
@@ -441,7 +617,7 @@ describe('conditional live modifier workflow', () => {
       },
     ];
 
-    const state = confirmActiveEffect(runLiveStart(setupLiveStartState({ live, stageMembers })));
+    const state = expectAutoResolved(runLiveStart(setupLiveStartState({ live, stageMembers })));
 
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'SCORE',
@@ -489,7 +665,7 @@ describe('conditional live modifier workflow', () => {
       },
     ];
 
-    const state = confirmActiveEffect(runLiveStart(setupLiveStartState({ live, stageMembers })));
+    const state = expectAutoResolved(runLiveStart(setupLiveStartState({ live, stageMembers })));
 
     expect(
       state.liveResolution.liveModifiers.some(
@@ -530,7 +706,7 @@ describe('conditional live modifier workflow', () => {
       },
     ];
 
-    const state = confirmActiveEffect(
+    const state = expectAutoResolved(
       runLiveStart(setupLiveStartState({ live, stageMembers, successLive }))
     );
 
@@ -545,8 +721,7 @@ describe('conditional live modifier workflow', () => {
       state.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId ===
-            HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID &&
+          action.payload.abilityId === HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID &&
           action.payload.conditionMet === true &&
           action.payload.requirementReduction === 3
       )
@@ -578,7 +753,7 @@ describe('conditional live modifier workflow', () => {
       },
     ];
 
-    const state = confirmActiveEffect(runLiveStart(setupLiveStartState({ live, stageMembers })));
+    const state = expectAutoResolved(runLiveStart(setupLiveStartState({ live, stageMembers })));
 
     expect(
       state.liveResolution.liveModifiers.some(

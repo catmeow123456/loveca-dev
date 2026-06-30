@@ -147,16 +147,17 @@ import {
   CardAbilitySourceZone,
 } from './card-effects/ability-definition-types.js';
 import { getRenGrantedActivatedAbilityDefinition } from './card-effects/runtime/granted-activated-abilities.js';
-import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/bp6-024-success-replacement.js';
+import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/pl-bp6-024-sakkaku-crossroads.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { getMemberEffectiveCost } from './effects/conditions.js';
-import { isMemberCardData } from '../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
 import { getActiveEnergyIds, tapEnergy } from '../domain/entities/zone.js';
 import {
   costCalculator,
   type CostPaymentPlan,
   type StageMemberInfo,
+  type SuccessLiveCardInfo,
 } from '../domain/rules/cost-calculator.js';
 import {
   canLiveCardEnterSuccessZone,
@@ -1885,6 +1886,10 @@ export class GameSession {
       command.playerId
     );
 
+    if (command.type === GameCommandType.OPEN_INSPECTION && state.activeEffect) {
+      return '当前正在处理卡牌效果，不能打开普通检视区';
+    }
+
     if (
       activeEffectControlsInspection &&
       isActiveEffectBlockedInspectionCommandType(command.type)
@@ -3310,6 +3315,7 @@ export class GameSession {
 
     const activeEnergyIds = getActiveEnergyIds(player.energyZone);
     const stageMembers: StageMemberInfo[] = [];
+    const successLiveCards: SuccessLiveCardInfo[] = [];
     for (const slot of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT]) {
       const stageCardId = player.memberSlots.slots[slot];
       if (!stageCardId) {
@@ -3327,6 +3333,15 @@ export class GameSession {
         });
       }
     }
+    for (const successLiveCardId of player.successZone.cardIds) {
+      const successLiveCard = state.cardRegistry.get(successLiveCardId);
+      if (successLiveCard && isLiveCardData(successLiveCard.data)) {
+        successLiveCards.push({
+          cardId: successLiveCardId,
+          data: successLiveCard.data,
+        });
+      }
+    }
 
     const costCheck = costCalculator.checkCanPayCost(
       card.data,
@@ -3336,6 +3351,7 @@ export class GameSession {
         stageMembers,
         sourceCardId: command.cardId,
         handCardIds: player.hand.cardIds,
+        successLiveCards,
       },
       {
         relayMode: command.relayMode,
