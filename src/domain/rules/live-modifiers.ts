@@ -104,6 +104,10 @@ const SP_PB2_035_CONTINUOUS_LEFT_SIDE_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!SP-pb2-035:continuous-left-side-gain-two-blade';
 const SP_PB2_041_CONTINUOUS_RIGHT_SIDE_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!SP-pb2-041:continuous-right-side-gain-two-blade';
+const SP_PR_022_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-PR-022-PR:continuous-total-stage-six-gain-red-yellow-heart';
+const SP_PR_025_CONTINUOUS_ENERGY_EXACT_SEVEN_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!SP-PR-025-PR:continuous-energy-exact-seven-gain-two-blade';
 const BP6_012_CONTINUOUS_SUCCESS_ZONE_PRINTEMPS_CARD_YELLOW_HEART_ABILITY_ID =
   'PL!-bp6-012:continuous-success-zone-printemps-card-yellow-heart';
 const BP6_014_CONTINUOUS_SUCCESS_ZONE_LILYWHITE_CARD_PINK_HEART_ABILITY_ID =
@@ -112,8 +116,7 @@ const BP6_015_CONTINUOUS_SUCCESS_ZONE_BIBI_CARD_PURPLE_HEART_ABILITY_ID =
   'PL!-bp6-015:continuous-success-zone-bibi-card-purple-heart';
 const BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID =
   'PL!-bp6-009:continuous-center-side-printed-blade-two-score';
-const BP4_005_CONTINUOUS_CENTER_SCORE_ABILITY_ID =
-  'PL!-bp4-005:continuous-center-score-plus-one';
+const BP4_005_CONTINUOUS_CENTER_SCORE_ABILITY_ID = 'PL!-bp4-005:continuous-center-score-plus-one';
 const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
 const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
@@ -489,6 +492,22 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    baseCardCodes: ['PL!SP-PR-025'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceMainStageMember(game, playerId, sourceCardId) &&
+      countPlayerEnergyCards(game, playerId) === 7
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 2,
+              sourceCardId,
+              abilityId: SP_PR_025_CONTINUOUS_ENERGY_EXACT_SEVEN_GAIN_TWO_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
     baseCardCodes: ['PL!SP-bp2-010'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId)
@@ -539,6 +558,29 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       abilityId: SP_PB2_032_CONTINUOUS_ENERGY_SIX_EIGHT_GAIN_PURPLE_HEART_ABILITY_ID,
     },
   ]),
+  {
+    baseCardCodes: ['PL!SP-PR-022'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        countTotalStageMembers(game) !== 6
+      ) {
+        return [];
+      }
+
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_PR_022_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_YELLOW_HEART_ABILITY_ID,
+        hearts: [
+          { color: HeartColor.RED, count: 1 },
+          { color: HeartColor.YELLOW, count: 1 },
+        ],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
   ...createActiveEnergyHeartContinuousDefinitions([
     {
       baseCardCode: 'PL!SP-pb2-026',
@@ -1028,6 +1070,13 @@ function countPlayerEnergyCards(game: GameState, playerId: string): number {
   return player?.energyZone.cardIds.length ?? 0;
 }
 
+function countTotalStageMembers(game: GameState): number {
+  return game.players.reduce(
+    (total, player) => total + getAllMemberCardIds(player.memberSlots).length,
+    0
+  );
+}
+
 function hasNonWaitingEnergy(game: GameState, playerId: string): boolean {
   const player = game.players.find((candidate) => candidate.id === playerId);
   return (
@@ -1204,7 +1253,7 @@ function hasCenterNicoWithSideOriginalBladeTwoMembers(
   return sideCardIds.every(
     (cardId) =>
       cardId !== null &&
-    getMemberOriginalBladeCount(game, playerId, cardId, game.liveResolution.liveModifiers) === 2
+      getMemberOriginalBladeCount(game, playerId, cardId, game.liveResolution.liveModifiers) === 2
   );
 }
 

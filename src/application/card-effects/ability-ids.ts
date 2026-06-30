@@ -153,6 +153,12 @@ export const BP4_005_CONTINUOUS_CENTER_SCORE_ABILITY_ID =
   'PL!-bp4-005:continuous-center-score-plus-one';
 export const BP4_005_LIVE_START_POSITION_CHANGE_IF_NO_HIGH_BLADE_MUSE_ABILITY_ID =
   'PL!-bp4-005:live-start-position-change-if-no-high-blade-muse';
+export const BP4_009_ON_ENTER_OPPONENT_WAIT_OWN_ACTIVE_MEMBER_ABILITY_ID =
+  'PL!-bp4-009:on-enter-opponent-wait-own-active-member';
+export const BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID =
+  'PL!-bp4-017-N:live-start-wait-self-center-muse-gain-blade';
+export const PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID =
+  'PL!-pb1-011:on-enter-different-bibi-wait-opponent-low-cost-member';
 export const PL_N_BP5_003_ACTIVATED_DISCARD_PAY_SCORE_RECOVER_LIVE_ABILITY_ID =
   'PL!N-bp5-003:activated-discard-pay-score-recover-live';
 export const PL_N_BP5_021_ON_ENTER_MILL_TWO_OPTIONAL_INSERT_LIVE_FOURTH_FROM_TOP_ABILITY_ID =
@@ -183,6 +189,10 @@ export const N_PR_021_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CH
   'PL!N-PR-021-PR:live-success-discard-recover-low-cost-or-score-revealed-cheer';
 export const SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID =
   'PL!SP-PR-016-PR:live-success-discard-recover-low-cost-or-score-revealed-cheer';
+export const SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-PR-018-PR:live-success-seven-liella-cheer-place-waiting-energy';
+export const SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID =
+  'PL!SP-PR-020-PR:on-enter-low-cost-relay-play-hand-low-cost-member';
 export const N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID =
   'PL!N-PR:activated-turn-once-reveal-hand-no-live-look-top-five-take-live';
 export const N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID =
@@ -374,6 +384,10 @@ export const SP_PB2_040_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!SP-pb2-040:live-start-pay-energy-gain-two-blade';
 export const SP_PB2_041_CONTINUOUS_RIGHT_SIDE_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!SP-pb2-041:continuous-right-side-gain-two-blade';
+export const SP_PR_022_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-PR-022-PR:continuous-total-stage-six-gain-red-yellow-heart';
+export const SP_PR_025_CONTINUOUS_ENERGY_EXACT_SEVEN_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!SP-PR-025-PR:continuous-energy-exact-seven-gain-two-blade';
 export const SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!SP-pb2-045:live-start-liella-heart-four-count-this-live-score';
 export const SP_PB2_046_CONTINUOUS_PREVENT_STAGE_MEMBER_LIVE_START_ABILITY_ID =

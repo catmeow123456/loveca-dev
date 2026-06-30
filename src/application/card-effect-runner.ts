@@ -138,7 +138,9 @@ import { registerEmmaWorkflowHandlers } from './card-effects/workflows/cards/n-p
 import { registerLlBp6001KotoriDiaKosuzuWorkflowHandlers } from './card-effects/workflows/cards/ll-bp6-001-kotori-dia-kosuzu.js';
 import { registerPlBp3001HonokaWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-001-honoka.js';
 import { registerPlBp3006MakiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-006-maki.js';
+import { registerPlBp4017HanayoWorkflowHandlers } from './card-effects/workflows/cards/pl-bp4-017-hanayo.js';
 import { registerPlBp4005RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp4-005-rin.js';
+import { registerPlBp4009NicoWorkflowHandlers } from './card-effects/workflows/cards/pl-bp4-009-nico.js';
 import { registerPlBp6001HonokaWorkflowHandlers } from './card-effects/workflows/cards/pl-bp6-001-honoka.js';
 import { registerPlBp6006MakiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp6-006-maki.js';
 import { registerPlBp6008And010ActivatedStateWorkflowHandlers } from './card-effects/workflows/shared/activated-stage-member-state-change.js';
@@ -190,6 +192,8 @@ import { registerSpPb2004SumireWorkflowHandlers } from './card-effects/workflows
 import { registerSpPb2005RenWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-005-ren.js';
 import { registerSpPb2007MeiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-007-mei.js';
 import { registerSpPb2008ShikiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-008-shiki.js';
+import { registerSpPr018KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-pr-018-kanon.js';
+import { registerSpPr020KinakoWorkflowHandlers } from './card-effects/workflows/cards/sp-pr-020-kinako.js';
 import { registerSpPb2000ChisatoNatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-000-chisato-natsumi.js';
 import { registerSpPb2045ZettaiLoverWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-045-zettai-lover.js';
 import { registerSpPb2046ButterflyWingWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-046-butterfly-wing.js';
@@ -756,7 +760,9 @@ registerEmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLlBp6001KotoriDiaKosuzuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp3001HonokaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp3006MakiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlBp4017HanayoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp4005RinWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlBp4009NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp6001HonokaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp6006MakiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp6008And010ActivatedStateWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -813,6 +819,8 @@ registerSpPb2004SumireWorkflowHandlers();
 registerSpPb2005RenWorkflowHandlers();
 registerSpPb2007MeiWorkflowHandlers();
 registerSpPb2008ShikiWorkflowHandlers();
+registerSpPr018KanonWorkflowHandlers();
+registerSpPr020KinakoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb2000ChisatoNatsumiWorkflowHandlers();
 registerSpPb2045ZettaiLoverWorkflowHandlers();
 registerSpPb2046ButterflyWingWorkflowHandlers();
@@ -1810,12 +1818,20 @@ function enqueueSingleOnEnterCardEffect(game: GameState, source: OnEnterAbilityS
     return game;
   }
 
-  const abilityDefinitions = getQueuedAbilityDefinitionsForCard(
-    sourceCard.data.cardCode,
-    CardAbilityCategory.ON_ENTER,
-    CardAbilitySourceZone.PLAYED_MEMBER,
-    source.sourceSlot
-  );
+  const abilityDefinitions = [
+    ...getQueuedAbilityDefinitionsForCard(
+      sourceCard.data.cardCode,
+      CardAbilityCategory.ON_ENTER,
+      CardAbilitySourceZone.PLAYED_MEMBER,
+      source.sourceSlot
+    ),
+    ...getQueuedAbilityDefinitionsForCard(
+      sourceCard.data.cardCode,
+      CardAbilityCategory.ON_ENTER,
+      CardAbilitySourceZone.STAGE_MEMBER,
+      source.sourceSlot
+    ),
+  ];
   if (abilityDefinitions.length === 0) {
     return game;
   }
