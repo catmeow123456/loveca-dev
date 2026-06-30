@@ -35,7 +35,7 @@ function createMember(cardCode: string, groupName = "μ's"): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName,
+    groupNames: [groupName],
     unitName: groupName,
     cardType: CardType.MEMBER,
     cost: 4,
@@ -48,7 +48,7 @@ function createLive(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: 'Dancing stars on me!',
-    groupName: "μ's",
+    groupNames: ["μ's"],
     unitName: "μ's",
     cardType: CardType.LIVE,
     score: 5,

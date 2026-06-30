@@ -35,7 +35,7 @@ function createWelcome(): LiveCardData {
   return {
     cardCode: 'PL!SP-pb2-047-L',
     name: 'Welcome to 僕らのセカイ',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 1,
     requirements: createHeartRequirement({
@@ -50,7 +50,7 @@ function createZettaiLover(): LiveCardData {
   return {
     cardCode: 'PL!SP-pb2-045-L',
     name: '絶対的LOVER',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 4,
     requirements: createHeartRequirement({ [HeartColor.PURPLE]: 2 }),
@@ -61,7 +61,7 @@ function createButterflyWing(): LiveCardData {
   return {
     cardCode: 'PL!SP-pb2-046-L',
     name: 'Butterfly Wing',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 2,
     requirements: createHeartRequirement({ [HeartColor.PURPLE]: 3, [HeartColor.RAINBOW]: 3 }),
@@ -70,14 +70,14 @@ function createButterflyWing(): LiveCardData {
 
 function createMember(options: {
   readonly cardCode: string;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
   readonly cost?: number;
   readonly purpleHearts?: number;
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
     name: options.cardCode,
-    groupName: options.groupName,
+    groupNames: options.groupNames,
     cardType: CardType.MEMBER,
     cost: options.cost ?? 1,
     blade: 1,
@@ -118,7 +118,7 @@ function setupState(options: {
   );
   const handCards = Array.from({ length: options.handCount ?? 1 }, (_, index) =>
     createCardInstance(
-      createMember({ cardCode: `HAND-${index}`, groupName: 'Liella!', cost: 1 }),
+      createMember({ cardCode: `HAND-${index}`, groupNames: ['Liella!'], cost: 1 }),
       PLAYER1,
       `hand-${index}`
     )
@@ -213,14 +213,14 @@ describe('PL!SP-pb2-047-L Welcome to Bokura no Sekai workflow', () => {
       ownMembers: {
         [SlotPosition.CENTER]: createMember({
           cardCode: 'PL!SP-test-own',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
           cost: 4,
         }),
       },
       opponentMembers: {
         [SlotPosition.LEFT]: createMember({
           cardCode: 'PL!SP-test-opponent-low',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
           cost: 2,
         }),
       },
@@ -277,7 +277,7 @@ describe('PL!SP-pb2-047-L Welcome to Bokura no Sekai workflow', () => {
   it('skips cleanly when the player declines to discard', () => {
     const { game } = setupState({
       ownMembers: {
-        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupName: 'Liella!' }),
+        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupNames: ['Liella!'] }),
       },
       opponentMembers: {
         [SlotPosition.LEFT]: createMember({ cardCode: 'PL!SP-test-opponent', cost: 2 }),
@@ -301,7 +301,7 @@ describe('PL!SP-pb2-047-L Welcome to Bokura no Sekai workflow', () => {
       label: 'no hand',
       handCount: 0,
       ownMembers: {
-        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupName: 'Liella!' }),
+        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupNames: ['Liella!'] }),
       },
       opponentMembers: {
         [SlotPosition.LEFT]: createMember({ cardCode: 'PL!SP-test-opponent', cost: 2 }),
@@ -312,7 +312,7 @@ describe('PL!SP-pb2-047-L Welcome to Bokura no Sekai workflow', () => {
       label: 'non-Liella own stage',
       handCount: 1,
       ownMembers: {
-        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!S-test-own', groupName: 'Aqours' }),
+        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!S-test-own', groupNames: ['Aqours'] }),
       },
       opponentMembers: {
         [SlotPosition.LEFT]: createMember({ cardCode: 'PL!SP-test-opponent', cost: 2 }),
@@ -332,7 +332,7 @@ describe('PL!SP-pb2-047-L Welcome to Bokura no Sekai workflow', () => {
       label: 'no legal opponent target',
       handCount: 1,
       ownMembers: {
-        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupName: 'Liella!' }),
+        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupNames: ['Liella!'] }),
       },
       opponentMembers: {
         [SlotPosition.LEFT]: createMember({ cardCode: 'PL!SP-test-opponent', cost: 3 }),
@@ -359,7 +359,7 @@ describe('PL!SP-pb2-047-L Welcome to Bokura no Sekai workflow', () => {
   it('does not offer cost >2 or already WAITING opponent members as targets', () => {
     const { game, handCards, opponentMembers } = setupState({
       ownMembers: {
-        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupName: 'Liella!' }),
+        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupNames: ['Liella!'] }),
       },
       opponentMembers: {
         [SlotPosition.LEFT]: createMember({ cardCode: 'PL!SP-high-cost', cost: 3 }),
@@ -383,7 +383,7 @@ describe('PL!SP-pb2-047-L Welcome to Bokura no Sekai workflow', () => {
   it('keeps the paid discard if the opponent target disappears after cost payment', () => {
     const { game, handCards, opponentMembers } = setupState({
       ownMembers: {
-        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupName: 'Liella!' }),
+        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupNames: ['Liella!'] }),
       },
       opponentMembers: {
         [SlotPosition.LEFT]: createMember({ cardCode: 'PL!SP-test-opponent', cost: 2 }),
@@ -426,7 +426,7 @@ describe('PL!SP-pb2-047-L Welcome to Bokura no Sekai workflow', () => {
     const { game } = setupState({
       includeButterfly: true,
       ownMembers: {
-        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupName: 'Liella!' }),
+        [SlotPosition.CENTER]: createMember({ cardCode: 'PL!SP-test-own', groupNames: ['Liella!'] }),
       },
       opponentMembers: {
         [SlotPosition.LEFT]: createMember({ cardCode: 'PL!SP-test-opponent', cost: 2 }),
@@ -447,7 +447,7 @@ describe('PL!SP-pb2-047-L Welcome to Bokura no Sekai workflow', () => {
       ownMembers: {
         [SlotPosition.CENTER]: createMember({
           cardCode: 'PL!SP-test-own',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
           purpleHearts: 4,
         }),
       },

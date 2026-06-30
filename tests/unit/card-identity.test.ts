@@ -7,18 +7,16 @@ import {
 } from '../../src/shared/utils/card-identity';
 
 describe('card identity helpers', () => {
-  it('matches group aliases through groupName and cardText with normalized punctuation', () => {
+  it('matches group aliases through structured groupNames with normalized punctuation', () => {
     const cases: readonly {
       readonly groupName: GroupIdentityName;
       readonly card: CardIdentityLike;
     }[] = [
-      { groupName: "μ's", card: { groupName: '『μ』' } },
-      { groupName: '蓮ノ空', card: { groupName: '莲之空女学院スクールアイドルクラブ' } },
-      { groupName: '蓮ノ空', card: { cardText: 'Hasunosora のメンバー' } },
-      { groupName: 'Liella!', card: { groupName: 'Liella！' } },
-      { groupName: 'Liella!', card: { cardText: 'SUPERSTAR 楽曲' } },
-      { groupName: '虹ヶ咲', card: { cardText: '「Nijigasaki」スクールアイドル' } },
-      { groupName: 'Aqours', card: { groupName: 'Aqours' } },
+      { groupName: "μ's", card: { groupNames: ['『μ』'] } },
+      { groupName: '蓮ノ空', card: { groupNames: ['莲之空女学院スクールアイドルクラブ'] } },
+      { groupName: 'Liella!', card: { groupNames: ['Liella！'] } },
+      { groupName: '虹ヶ咲', card: { groupNames: ['Nijigasaki'] } },
+      { groupName: 'Aqours', card: { groupNames: ['Aqours'] } },
     ];
 
     for (const { groupName, card } of cases) {
@@ -26,19 +24,21 @@ describe('card identity helpers', () => {
     }
   });
 
-  it('matches group identity from card-code fallbacks', () => {
-    expect(cardBelongsToGroup({ cardCode: 'PL!-sd1-001' }, "μ's")).toBe(true);
-    expect(cardBelongsToGroup({ cardCode: 'PL!HS-bp1-001' }, '蓮ノ空')).toBe(true);
-    expect(cardBelongsToGroup({ cardCode: 'PL!SP-bp1-001' }, 'Liella!')).toBe(true);
-    expect(cardBelongsToGroup({ cardCode: 'PL!N-pb1-001' }, '虹ヶ咲')).toBe(true);
-    expect(cardBelongsToGroup({ cardCode: 'PL!S-bp1-001' }, 'Aqours')).toBe(true);
+  it('does not infer group identity from card code prefixes or card text', () => {
+    expect(cardBelongsToGroup({}, "μ's")).toBe(false);
+    expect(cardBelongsToGroup({}, '蓮ノ空')).toBe(false);
+    expect(cardBelongsToGroup({}, 'Liella!')).toBe(false);
+    expect(cardBelongsToGroup({}, '虹ヶ咲')).toBe(false);
+    expect(cardBelongsToGroup({}, 'Aqours')).toBe(false);
   });
 
   it('matches LL-bp2-001 mixed series as each represented group', () => {
     const mixedSeriesCard: CardIdentityLike = {
-      cardCode: 'LL-bp2-001-R+',
-      groupName:
-        'ラブライブ！サンシャイン!!\nラブライブ！スーパースター!!\n蓮ノ空女学院スクールアイドルクラブ',
+      groupNames: [
+        'ラブライブ！サンシャイン!!',
+        'ラブライブ！スーパースター!!',
+        '蓮ノ空女学院スクールアイドルクラブ',
+      ],
     };
 
     expect(cardBelongsToGroup(mixedSeriesCard, 'Aqours')).toBe(true);
@@ -48,20 +48,18 @@ describe('card identity helpers', () => {
     expect(cardBelongsToGroup(mixedSeriesCard, '虹ヶ咲')).toBe(false);
   });
 
-  it('normalizes known group identity from card data without groupName', () => {
-    expect(getKnownCardGroupIdentityName({ cardCode: 'PL!-bp6-022-L' })).toBe("μ's");
-    expect(getKnownCardGroupIdentityName({ cardCode: 'PL!HS-bp5-003-AR' })).toBe('蓮ノ空');
-    expect(getKnownCardGroupIdentityName({ cardText: '対象の「Nijigasaki」カード' })).toBe(
-      '虹ヶ咲'
+  it('normalizes known group identity from structured groupNames', () => {
+    expect(getKnownCardGroupIdentityName({ groupNames: ["μ's"] })).toBe("μ's");
+    expect(getKnownCardGroupIdentityName({ groupNames: ['蓮ノ空女学院スクールアイドルクラブ'] })).toBe(
+      '蓮ノ空'
     );
-    expect(getKnownCardGroupIdentityName({ cardCode: 'OTHER-001' })).toBeNull();
+    expect(getKnownCardGroupIdentityName({ groupNames: ['Nijigasaki'] })).toBe('虹ヶ咲');
+    expect(getKnownCardGroupIdentityName({ groupNames: ['Custom'] })).toBeNull();
   });
 
   it('does not match unrelated groups or unknown identities', () => {
-    expect(cardBelongsToGroup({ groupName: 'Aqours' }, "μ's")).toBe(false);
-    expect(cardBelongsToGroup({ cardText: 'Cerise Bouquet' }, '蓮ノ空')).toBe(false);
-    expect(cardBelongsToGroup({ cardCode: 'PL!SP-bp1-001' }, '虹ヶ咲')).toBe(false);
-    expect(cardBelongsToGroup({ groupName: 'Liella' }, 'Unknown')).toBe(false);
+    expect(cardBelongsToGroup({ groupNames: ['Aqours'] }, "μ's")).toBe(false);
+    expect(cardBelongsToGroup({ groupNames: ['Liella'] }, 'Unknown')).toBe(false);
   });
 
   it('does not match when identity fields are absent', () => {

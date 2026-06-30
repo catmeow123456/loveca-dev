@@ -624,7 +624,7 @@ Covered flow:
 - no hand still resolves without opening an activeEffect and writes `NO_HAND_TO_DISCARD`;
 - the discard selection keeps `HS_BP5_003_SELECT_DISCARD_FOR_MEMBER_HEART`, optional skip label `不发动`, awaiting-player-only visibility, and the old hand-to-waiting-room cost metadata;
 - skipped selection still goes through `finishSkippedActiveEffect`, writes `SKIP`, and continues ordered pending resolution;
-- selected hand cards move through `discardOneHandCardToWaitingRoomForPlayer`, then same-group stage targets are found from both players using the discarded card's identity group fallback;
+- selected hand cards move through `discardOneHandCardToWaitingRoomForPlayer`, then same-group stage targets are found from both players using the discarded card's structured `groupNames` identity;
 - no same-group target writes `DISCARD_HAND_CARD_NO_SAME_GROUP_TARGET`;
 - target confirmation writes a `TARGET_MEMBER` pink Heart +1 live modifier and `APPLY_TARGET_MEMBER_HEART`, then continues pending.
 

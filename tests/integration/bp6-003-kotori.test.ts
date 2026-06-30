@@ -32,14 +32,14 @@ function createMember(
   name: string,
   options: {
     readonly cost?: number;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name,
-    groupName: options.groupName ?? "μ's",
-    unitName: options.groupName ?? "μ's",
+    groupNames: options.groupNames ?? ["μ's"],
+    unitName: options.groupNames?.[0] ?? "μ's",
     cardType: CardType.MEMBER,
     cost: options.cost ?? 2,
     blade: 1,

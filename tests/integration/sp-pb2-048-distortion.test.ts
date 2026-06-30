@@ -40,7 +40,7 @@ function createDistortion(): LiveCardData {
   return {
     cardCode: 'PL!SP-pb2-048-L',
     name: 'ディストーション',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName: 'CatChu!',
     cardType: CardType.LIVE,
     score: 6,
@@ -55,7 +55,7 @@ function createZettaiLover(): LiveCardData {
   return {
     cardCode: 'PL!SP-pb2-045-L',
     name: '絶対的LOVER',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 4,
     requirements: createHeartRequirement({ [HeartColor.PURPLE]: 2 }),
@@ -66,13 +66,13 @@ function createMember(options: {
   readonly cardCode: string;
   readonly name: string;
   readonly unitName?: string;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
   readonly purpleHearts?: number;
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
     name: options.name,
-    groupName: options.groupName ?? 'Liella!',
+    groupNames: options.groupNames ?? ['Liella!'],
     unitName: options.unitName,
     cardType: CardType.MEMBER,
     cost: 4,

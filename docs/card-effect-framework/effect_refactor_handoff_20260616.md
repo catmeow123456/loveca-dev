@@ -124,7 +124,7 @@ runner 中查 effect text / baseCardCodes 时应使用严格 helper。找不到 
 
 ### selector 替换要核对等价性
 
-例如 `isMuseCard` 替换为 `groupIs("μ's")` 时，要确认 `groupIs` 是否也覆盖 `PL!-` 卡号 fallback、文本字段或别名归一化。不能因为名字看起来一样就默认行为相同。
+例如 `isMuseCard` 替换为 `groupIs("μ's")` 时，要确认旧逻辑是否依赖过 `PL!-` 卡号 fallback 或文本字段；2026-06-30 起 `groupIs` 只基于结构化 `groupNames` 与别名归一化。不能因为名字看起来一样就默认行为相同。
 
 ### docs 要诚实
 

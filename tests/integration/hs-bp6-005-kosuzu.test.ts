@@ -33,14 +33,14 @@ function createMemberCard(
   cost: number,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly unitName?: string;
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: options.groupNames ?? ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: options.unitName ?? 'DOLLCHESTRA',
     cardType: CardType.MEMBER,
     cost,
@@ -53,7 +53,7 @@ function createLiveCard(cardCode: string, score = 3): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.LIVE,
     score,

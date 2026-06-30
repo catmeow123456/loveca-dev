@@ -32,7 +32,7 @@ function createMemberCard(cardCode: string, name = cardCode, cost = 2): MemberCa
   return {
     cardCode,
     name,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,

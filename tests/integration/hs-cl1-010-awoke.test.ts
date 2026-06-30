@@ -33,7 +33,7 @@ function createAwoke(): LiveCardData {
   return {
     cardCode: 'PL!HS-cl1-010-CL',
     name: 'AWOKE',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.LIVE,
     score: 3,
@@ -51,7 +51,7 @@ function createMember(
   return {
     cardCode,
     name,
-    groupName,
+    groupNames: [groupName],
     unitName,
     cardType: CardType.MEMBER,
     cost,

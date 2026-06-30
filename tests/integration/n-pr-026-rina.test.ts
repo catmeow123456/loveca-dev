@@ -33,14 +33,14 @@ function createMember(
   name: string,
   options: {
     readonly cost?: number;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name,
-    groupName: options.groupName ?? '虹ヶ咲',
-    unitName: options.groupName ?? '虹ヶ咲',
+    groupNames: options.groupNames ?? ['虹ヶ咲'],
+    unitName: options.groupNames?.[0] ?? '虹ヶ咲',
     cardType: CardType.MEMBER,
     cost: options.cost ?? 9,
     blade: 1,
@@ -174,7 +174,7 @@ describe('PL!N-PR-026-PR Rina memberBelow workflow', () => {
     const grantedMember = createCardInstance(
       createMember('PL!HS-bp6-006-R+', '下方授予LIVE成功能力成员', {
         cost: 9,
-        groupName: '虹ヶ咲',
+        groupNames: ['虹ヶ咲'],
       }),
       PLAYER1,
       'granted-live-success-member'
@@ -212,12 +212,12 @@ describe('PL!N-PR-026-PR Rina memberBelow workflow', () => {
 
   it('does not delegate high-cost, non-Nijigasaki, or unimplemented memberBelow abilities', () => {
     const highCost = createCardInstance(
-      createMember('PL!HS-bp6-006-R+', '高费下方', { cost: 10, groupName: '虹ヶ咲' }),
+      createMember('PL!HS-bp6-006-R+', '高费下方', { cost: 10, groupNames: ['虹ヶ咲'] }),
       PLAYER1,
       'high-cost-below'
     );
     const nonNijigasaki = createCardInstance(
-      createMember('PL!HS-bp6-006-R+', '非虹下方', { cost: 9, groupName: '蓮ノ空' }),
+      createMember('PL!HS-bp6-006-R+', '非虹下方', { cost: 9, groupNames: ['蓮ノ空'] }),
       PLAYER1,
       'non-niji-below'
     );

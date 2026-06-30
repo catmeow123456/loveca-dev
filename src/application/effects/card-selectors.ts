@@ -92,16 +92,7 @@ export function costGte(minCost: number): CardSelector {
 }
 
 export function groupIs(groupName: string): CardSelector {
-  const normalizedGroupName = normalizeGroupName(groupName);
-  return (card) => {
-    const cardGroupName = normalizeGroupName(card.data.groupName);
-    const cardText = normalizeGroupName(card.data.cardText);
-    if (cardGroupName.includes(normalizedGroupName) || cardText.includes(normalizedGroupName)) {
-      return true;
-    }
-
-    return cardBelongsToGroup(card.data, groupName);
-  };
+  return groupAliasIs(groupName);
 }
 
 export function groupAliasIs(groupName: string): CardSelector {

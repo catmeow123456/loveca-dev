@@ -34,7 +34,7 @@ function createSerasData(): MemberCardData {
   return {
     cardCode: 'PL!HS-bp5-007-R',
     name: 'セラス 柳田 リリエンフェルト',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'EdelNote',
     cardType: CardType.MEMBER,
     cost: 13,
@@ -47,7 +47,7 @@ function createMember(cardCode: string, unitName = 'EdelNote'): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName,
     cardType: CardType.MEMBER,
     cost: 4,
@@ -60,7 +60,7 @@ function createLive(cardCode: string, unitName = 'EdelNote'): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName,
     cardType: CardType.LIVE,
     score: 1,

@@ -38,7 +38,7 @@ function createMemberCard(cardCode: string, name = cardCode, cost = 1): MemberCa
   return {
     cardCode,
     name,
-    groupName: '莲之空女学院学园偶像俱乐部',
+    groupNames: ['莲之空女学院学园偶像俱乐部'],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
@@ -50,7 +50,7 @@ function createLiveCard(cardCode: string, name = cardCode): LiveCardData {
   return {
     cardCode,
     name,
-    groupName: '莲之空女学院学园偶像俱乐部',
+    groupNames: ['莲之空女学院学园偶像俱乐部'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),

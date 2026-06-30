@@ -33,7 +33,7 @@ function createMemberCard(cardCode: string, name = cardCode, cost = 1): MemberCa
   return {
     cardCode,
     name,
-    groupName: '莲之空',
+    groupNames: ['莲之空'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.MEMBER,
     cost,
@@ -46,7 +46,7 @@ function createLiveCard(cardCode: string, name = cardCode): LiveCardData {
   return {
     cardCode,
     name,
-    groupName: '莲之空',
+    groupNames: ['莲之空'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.LIVE,
     score: 3,

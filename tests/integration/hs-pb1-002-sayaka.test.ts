@@ -45,7 +45,7 @@ function createMember(cardCode: string, name: string, cost = 4): MemberCardData 
   return {
     cardCode,
     name,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,

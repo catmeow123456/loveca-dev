@@ -34,7 +34,7 @@ function createZettaiLover(cardCode = 'PL!SP-pb2-045-L'): LiveCardData {
   return {
     cardCode,
     name: '絶対的LOVER',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 4,
     requirements: createHeartRequirement({ [HeartColor.PURPLE]: 2 }),
@@ -43,13 +43,13 @@ function createZettaiLover(cardCode = 'PL!SP-pb2-045-L'): LiveCardData {
 
 function createMember(options: {
   readonly cardCode: string;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
   readonly heartCount: number;
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
     name: options.cardCode,
-    groupName: options.groupName,
+    groupNames: options.groupNames,
     cardType: CardType.MEMBER,
     cost: 5,
     blade: 1,
@@ -63,7 +63,7 @@ function setupState(options: {
       SlotPosition,
       {
         readonly cardCode: string;
-        readonly groupName?: string;
+        readonly groupNames?: readonly string[];
         readonly heartCount: number;
       }
     >
@@ -84,7 +84,7 @@ function setupState(options: {
     const card = createCardInstance(
       createMember({
         cardCode: member.cardCode,
-        groupName: member.groupName,
+        groupNames: member.groupNames,
         heartCount: member.heartCount,
       }),
       PLAYER1,
@@ -168,7 +168,7 @@ describe('PL!SP-pb2-045-L Zettai LOVER live start workflow', () => {
       members: {
         [SlotPosition.LEFT]: {
           cardCode: 'PL!SP-test-left',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
           heartCount: 3,
         },
       },
@@ -191,7 +191,7 @@ describe('PL!SP-pb2-045-L Zettai LOVER live start workflow', () => {
       members: {
         [SlotPosition.LEFT]: {
           cardCode: 'PL!SP-test-left',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
           heartCount: 4,
         },
       },
@@ -221,17 +221,17 @@ describe('PL!SP-pb2-045-L Zettai LOVER live start workflow', () => {
       members: {
         [SlotPosition.LEFT]: {
           cardCode: 'PL!SP-test-left',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
           heartCount: 4,
         },
         [SlotPosition.CENTER]: {
           cardCode: 'PL!SP-test-center',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
           heartCount: 5,
         },
         [SlotPosition.RIGHT]: {
           cardCode: 'PL!S-test-right',
-          groupName: 'Aqours',
+          groupNames: ['Aqours'],
           heartCount: 6,
         },
       },
@@ -264,7 +264,7 @@ describe('PL!SP-pb2-045-L Zettai LOVER live start workflow', () => {
       members: {
         [SlotPosition.CENTER]: {
           cardCode: 'PL!SP-test-center',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
           heartCount: 2,
         },
       },
@@ -310,7 +310,7 @@ describe('PL!SP-pb2-045-L Zettai LOVER live start workflow', () => {
       members: {
         [SlotPosition.LEFT]: {
           cardCode: 'PL!SP-test-left',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
           heartCount: 4,
         },
       },
@@ -354,7 +354,7 @@ describe('PL!SP-pb2-045-L Zettai LOVER live start workflow', () => {
       members: {
         [SlotPosition.LEFT]: {
           cardCode: 'PL!SP-test-left',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
           heartCount: 4,
         },
       },

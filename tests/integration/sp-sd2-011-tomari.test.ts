@@ -27,7 +27,7 @@ function createTomari(): MemberCardData {
   return {
     cardCode: 'PL!SP-sd2-011-SD2',
     name: '鬼塚冬毬',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 1,
@@ -39,7 +39,7 @@ function createMember(cardCode: string): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,

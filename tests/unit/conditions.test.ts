@@ -81,9 +81,9 @@ function liveCard(instanceId: string, overrides: Partial<LiveCardData> = {}) {
 
 describe('effect conditions', () => {
   it('counts and filters card id lists through selectors', () => {
-    const museMember = memberCard('muse-member', { groupName: "μ's" });
+    const museMember = memberCard('muse-member', { groupNames: ["μ's"] });
     const hasunosoraMember = memberCard('hasunosora-member', {
-      groupName: '蓮ノ空女学院スクールアイドルクラブ',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     });
     const live = liveCard('live-card');
     const missingCardId = 'missing-card';
@@ -419,24 +419,24 @@ describe('effect conditions', () => {
       cardCode: 'PL!SP-pb2-006-R',
       name: '桜小路きな子',
       cost: 2,
-      groupName: 'Liella!',
+      groupNames: ['Liella!'],
     });
     const liellaA = memberCard('sp-pb2-006-liella-a', {
       cardCode: 'PL!SP-pb2-006-liella-a',
-      groupName: 'Liella!',
+      groupNames: ['Liella!'],
     });
     const liellaB = memberCard('sp-pb2-006-liella-b', {
       cardCode: 'PL!SP-pb2-006-liella-b',
-      groupName: 'ラブライブ！スーパースター!!',
+      groupNames: ['ラブライブ！スーパースター!!'],
     });
     const nonLiella = memberCard('sp-pb2-006-non-liella', {
       cardCode: 'PL!N-pb2-006-non-liella',
-      groupName: '虹咲学園スクールアイドル同好会',
+      groupNames: ['虹咲学園スクールアイドル同好会'],
     });
-    const liveBelow = liveCard('sp-pb2-006-live-below', { groupName: 'Liella!' });
+    const liveBelow = liveCard('sp-pb2-006-live-below', { groupNames: ['Liella!'] });
     const otherSlotLiella = memberCard('sp-pb2-006-other-slot-liella', {
       cardCode: 'PL!SP-pb2-006-other-slot-liella',
-      groupName: 'Liella!',
+      groupNames: ['Liella!'],
     });
 
     let game = createGameState('conditions-sp-pb2-006-cost', 'p1', 'P1', 'p2', 'P2');
@@ -486,15 +486,15 @@ describe('effect conditions', () => {
 
   it('sums effective cost for stage members that match a selector', () => {
     const hasunosora = memberCard('stage-hasunosora-cost', {
-      groupName: '蓮ノ空女学院スクールアイドルクラブ',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
       cost: 10,
     });
     const hasunosoraWithModifier = memberCard('stage-hasunosora-modified-cost', {
-      groupName: '蓮ノ空女学院スクールアイドルクラブ',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
       cost: 8,
     });
     const liella = memberCard('stage-liella-cost', {
-      groupName: 'ラブライブ！スーパースター!!',
+      groupNames: ['ラブライブ！スーパースター!!'],
       cost: 7,
     });
 

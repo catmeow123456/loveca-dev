@@ -705,22 +705,22 @@ describe('member state effect helpers', () => {
 
   it('queries current stage members that position-moved this turn and match the selector', () => {
     const liellaMoved = createCardInstance(
-      { ...createMemberCard('MEM-A'), groupName: 'Liella!' },
+      { ...createMemberCard('MEM-A'), groupNames: ['Liella!'] },
       'p1',
       'liella-moved'
     );
     const museMoved = createCardInstance(
-      { ...createMemberCard('MEM-B'), groupName: "μ's" },
+      { ...createMemberCard('MEM-B'), groupNames: ["μ's"] },
       'p1',
       'muse-moved'
     );
     const liellaNotMoved = createCardInstance(
-      { ...createMemberCard('MEM-C'), groupName: 'Liella!' },
+      { ...createMemberCard('MEM-C'), groupNames: ['Liella!'] },
       'p1',
       'liella-not-moved'
     );
     const liellaLeftStage = createCardInstance(
-      { ...createMemberCard('MEM-D'), groupName: 'Liella!' },
+      { ...createMemberCard('MEM-D'), groupNames: ['Liella!'] },
       'p1',
       'liella-left-stage'
     );
@@ -741,7 +741,7 @@ describe('member state effect helpers', () => {
     });
 
     expect(
-      getPositionMovedStageMemberIdsMatching(game, 'p1', (card) => card.data.groupName === 'Liella!')
+      getPositionMovedStageMemberIdsMatching(game, 'p1', (card) => card.data.groupNames?.includes('Liella!') === true)
     ).toEqual([liellaMoved.instanceId]);
     expect(getPositionMovedStageMemberIdsMatching(game, 'p1', () => true)).toEqual([
       liellaMoved.instanceId,

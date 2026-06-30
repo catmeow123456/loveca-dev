@@ -35,7 +35,7 @@ function createMemberCard(
   return {
     cardCode,
     name: cardCode,
-    groupName,
+    groupNames: [groupName],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.MEMBER,
     cost,
@@ -48,7 +48,7 @@ function createLiveCard(cardCode: string, score = 5): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.LIVE,
     score,

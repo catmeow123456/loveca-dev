@@ -33,7 +33,7 @@ function createKosuzu(cardCode = 'PL!HS-pb1-005-R'): MemberCardData {
   return {
     cardCode,
     name: '徒町小鈴',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.MEMBER,
     cost: 11,
@@ -46,7 +46,7 @@ function createMemberCard(cardCode: string, cost: number, name = cardCode): Memb
   return {
     cardCode,
     name,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.MEMBER,
     cost,
@@ -59,7 +59,7 @@ function createLiveCard(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.LIVE,
     score: 3,

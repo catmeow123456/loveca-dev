@@ -22,7 +22,7 @@ function createMember(cardCode: string, name: string): MemberCardData {
   return {
     cardCode,
     name,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName: 'CatChu!',
     cardType: CardType.MEMBER,
     cost: 17,

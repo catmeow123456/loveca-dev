@@ -46,7 +46,7 @@ function createMember(cardCode: string, unitName = 'みらくらぱーく！'): 
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName,
     cardType: CardType.MEMBER,
     cost: 15,
@@ -59,7 +59,7 @@ function createLive(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'みらくらぱーく！',
     cardType: CardType.LIVE,
     score: 2,

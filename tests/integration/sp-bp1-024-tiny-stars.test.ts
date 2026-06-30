@@ -37,7 +37,7 @@ function createTinyStars(): LiveCardData {
   return {
     cardCode: 'PL!SP-bp1-024-L',
     name: 'Tiny Stars',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 2,
     requirements: createHeartRequirement({
@@ -51,7 +51,7 @@ function createVitaminSummerLive(): LiveCardData {
   return {
     cardCode: 'PL!SP-bp2-024-SECL',
     name: 'ビタミンSUMMER!',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 5,
     requirements: createHeartRequirement({
@@ -64,7 +64,7 @@ function createMember(cardCode: string, name: string): MemberCardData {
   return {
     cardCode,
     name,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName: 'Liella!',
     cardType: CardType.MEMBER,
     cost: 4,

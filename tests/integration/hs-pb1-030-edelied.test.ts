@@ -32,7 +32,7 @@ function createEdelied(): LiveCardData {
   return {
     cardCode: 'PL!HS-pb1-030-L',
     name: 'Edelied',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'EdelNote',
     cardType: CardType.LIVE,
     score: 7,
@@ -49,7 +49,7 @@ function createMember(
   return {
     cardCode,
     name,
-    groupName,
+    groupNames: [groupName],
     unitName,
     cardType: CardType.MEMBER,
     cost: 9,

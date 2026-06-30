@@ -52,14 +52,14 @@ function createMemberCard(
   options: {
     readonly name?: string;
     readonly cost?: number;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly hearts?: readonly HeartColor[];
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Aqours',
+    groupNames: options.groupNames ?? ['Aqours'],
     cardType: CardType.MEMBER,
     cost: options.cost ?? 4,
     blade: 1,
@@ -70,7 +70,7 @@ function createMemberCard(
 function createLiveCard(
   cardCode: string,
   options: {
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly redRequirement?: number;
     readonly hasScore?: boolean;
   } = {}
@@ -78,7 +78,7 @@ function createLiveCard(
   return {
     cardCode,
     name: cardCode,
-    groupName: options.groupName ?? 'Aqours',
+    groupNames: options.groupNames ?? ['Aqours'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({
@@ -494,7 +494,7 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
     );
     const noScoreLive = createCardInstance(createLiveCard('PL!S-no-score-live'), PLAYER1, 'no-score');
     const otherGroupScoreLive = createCardInstance(
-      createLiveCard('PL!SP-score-live', { groupName: 'Liella!', hasScore: true }),
+      createLiveCard('PL!SP-score-live', { groupNames: ['Liella!'], hasScore: true }),
       PLAYER1,
       'other-score-live'
     );

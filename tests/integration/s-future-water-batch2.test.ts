@@ -39,14 +39,14 @@ function createMemberCard(
   options: {
     readonly name?: string;
     readonly cost?: number;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly blade?: number;
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Aqours',
+    groupNames: options.groupNames ?? ['Aqours'],
     cardType: CardType.MEMBER,
     cost: options.cost ?? 4,
     blade: options.blade ?? 1,
@@ -58,14 +58,14 @@ function createLiveCard(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly score?: number;
   } = {}
 ): LiveCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Aqours',
+    groupNames: options.groupNames ?? ['Aqours'],
     cardType: CardType.LIVE,
     score: options.score ?? 3,
     requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
@@ -153,7 +153,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
     );
     const aqoursHand = createCardInstance(createMemberCard('PL!S-hand-aqours'), PLAYER1, 'aqours-hand');
     const nonAqoursHand = createCardInstance(
-      createMemberCard('PL!SP-hand-liella', { groupName: 'Liella!' }),
+      createMemberCard('PL!SP-hand-liella', { groupNames: ['Liella!'] }),
       PLAYER1,
       'liella-hand'
     );
@@ -263,7 +263,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
       'low-blade'
     );
     const nonAqours = createCardInstance(
-      createMemberCard('PL!SP-liella-member', { groupName: 'Liella!', blade: 9 }),
+      createMemberCard('PL!SP-liella-member', { groupNames: ['Liella!'], blade: 9 }),
       PLAYER1,
       'liella-member'
     );
@@ -505,7 +505,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
     const live = createCardInstance(createLiveCard('PL!S-bp6-019-L'), PLAYER1, 'bp6-019-miss-live');
     const aqours = createCardInstance(createMemberCard('PL!S-stage-a'), PLAYER1, 'bp6-019-aqours');
     const nonAqours = createCardInstance(
-      createMemberCard('PL!SP-stage-liella', { groupName: 'Liella!' }),
+      createMemberCard('PL!SP-stage-liella', { groupNames: ['Liella!'] }),
       PLAYER1,
       'bp6-019-liella'
     );

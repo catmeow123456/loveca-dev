@@ -6,18 +6,18 @@
 
 审查日期：2026-06-16
 
-本文档记录 Batch G 的边界设计与当前迁移状态。G-1 / G-2 / G-3 / G-4 已完成。
+本文档记录 Batch G 的边界设计与迁移状态。G-1 / G-2 / G-3 / G-4 已完成；2026-06-30 已移除卡号前缀、卡牌文本、`unitName` 与旧 `groupName` 兜底，当前实现只读取结构化 `groupNames`。
 
 ## Current Status
 
-- Batch G-1 已完成：`src/shared/utils/card-identity.ts` 提供 shared/domain-safe `cardBelongsToGroup(card, groupName)`，并有 focused unit test 覆盖 alias、文本 normalize 与卡号 fallback。
-- Batch G-2 已完成：application 层 `groupAliasIs(groupName)` 已委托 shared helper；`groupIs(groupName)` 仍保留直接 contains 语义后再走 shared identity fallback。
+- Batch G-1 已完成：`src/shared/utils/card-identity.ts` 提供 shared/domain-safe `cardBelongsToGroup(card, groupName)`，并有 focused unit test 覆盖结构化 `groupNames` alias。
+- Batch G-2 已完成：application 层 `groupAliasIs(groupName)` 与 `groupIs(groupName)` 均委托 shared helper，不再保留直接 contains / 卡文扫描语义。
 - Batch G-3 已完成：`src/domain/rules/cost-calculator.ts` 中 Nijigasaki / Liella! 身份判断已委托 shared helper；费用语义、modifier metadata 与费用计算顺序未改。
 - Batch G-4 已完成：`src/domain/rules/live-modifiers.ts` 中 Hasunosora 身份判断已委托 shared helper；continuous modifier 收集时机、三面不同名语义与 SCORE modifier metadata 未改。
 
 ## Why
 
-application 层已经有 `groupAliasIs(groupName)`，用于把团体 alias、文本字段和卡号 fallback 统一成 `CardSelector`。但 domain 层不能 import `src/application/effects/card-selectors.ts`，因此 `cost-calculator.ts` 与 `live-modifiers.ts` 里仍有手写身份判断。
+application 层已经有 `groupAliasIs(groupName)`，用于把真实团体 `groupNames` alias 统一成 `CardSelector`。但 domain 层不能 import `src/application/effects/card-selectors.ts`，因此 `cost-calculator.ts` 与 `live-modifiers.ts` 里曾有手写身份判断。
 
 已迁移项：
 
@@ -43,9 +43,7 @@ helper 应只接收 domain 与 shared 层可见的数据，不读取 `GameState`
 
 ```ts
 interface CardIdentityLike {
-  readonly cardCode?: string;
-  readonly groupName?: string;
-  readonly cardText?: string;
+  readonly groupNames?: readonly string[];
 }
 ```
 
@@ -73,20 +71,20 @@ function isNijigasakiCardIdentity(card: CardIdentityLike): boolean;
 
 团体身份判断只处理 group identity，不处理角色姓名 alias，也不处理 unit identity。
 
-| canonical group | aliases / text matches | card-code fallback |
+| canonical group | structured `groupNames` aliases | card-code support |
 |---|---|---|
-| `μ's` | `μ's`、`μ` | `PL!-` |
-| `蓮ノ空` | `蓮ノ空`、`莲之空`、`Hasunosora` | `PL!HS-` |
-| `Liella!` | `Liella!`、`Liella`、`リエラ`、`スーパースター`、`superstar` | `PL!SP-` |
-| `虹ヶ咲` | `虹咲`、`虹ヶ咲`、`Nijigasaki` | `PL!N-` |
-| `Aqours` | `Aqours` | `PL!S-` |
+| `μ's` | `μ's`、`μ` | 不支持 |
+| `蓮ノ空` | `蓮ノ空`、`莲之空`、`Hasunosora` | 不支持 |
+| `Liella!` | `Liella!`、`Liella`、`リエラ`、`スーパースター`、`superstar` | 不支持 |
+| `虹ヶ咲` | `虹咲`、`虹ヶ咲`、`Nijigasaki` | 不支持 |
+| `Aqours` | `Aqours` | 不支持 |
 
 归一化要求：
 
-- 文本比较应兼容大小写差异。
+- `groupNames` 比较应兼容大小写差异。
 - `！` 应视作 `!`。
 - 引号类字符如 `『』「」'’` 不应影响匹配。
-- 卡号 fallback 应使用当前卡号前缀语义，不能误改成 base-card 精确匹配。
+- 当前实现不再允许卡号或卡牌文本 fallback；规则侧团体身份必须来自 `groupNames`。
 
 ## Adapter Direction
 
@@ -112,20 +110,20 @@ function groupAliasIs(groupName: string): CardSelector {
 ### Batch G-2: application adapter
 
 - 已完成：让 `groupAliasIs` 复用 shared helper。
-- 已完成：保留并扩充 selector 测试，确认 alias 与 card-code fallback 不漂移。
+- 已完成：保留并扩充 selector 测试，确认 alias 生效且 card-code / cardText 旧 fallback 不再命中。
 - 已保持：未改 domain rules。
 
 ### Batch G-3: cost-calculator identity
 
 - 已完成：迁移 `isNijigasakiMember` / `isLiellaMember` 的身份判断到 shared helper。
 - 已保持：费用条件本身不变，包括待机状态、10 费限制、来源卡限制、费用减少量。
-- 已覆盖：`tests/unit/cost-calculator.test.ts` 补充 Liella / Nijigasaki alias、cardText 与 fallback 单测。
+- 已覆盖：`tests/unit/cost-calculator.test.ts` 补充 Liella / Nijigasaki alias 单测。
 
 ### Batch G-4: live-modifiers identity
 
 - 已完成：迁移 `isHasunosoraMemberCard` 的身份判断到 shared helper。
 - 已保持：三面均为「莲之空」成员、三名不同名、continuous modifier 收集时机不变。
-- 已覆盖：`tests/unit/live-modifiers.test.ts` 补充 Hasunosora alias、cardText、fallback、非 MEMBER、重复姓名与缺槽单测。
+- 已覆盖：`tests/unit/live-modifiers.test.ts` 补充 Hasunosora alias、非 MEMBER、重复姓名与缺槽单测。
 
 ## Explicit Non-goals
 

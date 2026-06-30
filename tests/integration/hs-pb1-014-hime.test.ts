@@ -32,7 +32,7 @@ function createMemberCard(
   return {
     cardCode,
     name,
-    groupName: '莲之空',
+    groupNames: ['莲之空'],
     unitName,
     cardType: CardType.MEMBER,
     cost,

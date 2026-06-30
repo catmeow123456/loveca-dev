@@ -30,7 +30,7 @@ function createMember(
   return {
     cardCode,
     name: cardCode,
-    groupName,
+    groupNames: [groupName],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,
@@ -42,7 +42,7 @@ function createLive(): LiveCardData {
   return {
     cardCode: 'PL!HS-bp1-023-L',
     name: 'ド！ド！ド！',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'みらくらぱーく！',
     cardType: CardType.LIVE,
     score: 2,

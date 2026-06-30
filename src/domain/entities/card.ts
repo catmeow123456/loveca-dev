@@ -97,12 +97,6 @@ export interface BaseCardData {
   readonly nameCn?: string;
 
   /**
-   * 组合名称（偶像组合）
-   * 参考规则 2.4
-   */
-  readonly groupName?: string;
-
-  /**
    * 作品名数组，保留 Excel 原始结构化来源
    */
   readonly workNames?: readonly string[];

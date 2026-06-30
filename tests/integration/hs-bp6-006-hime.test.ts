@@ -28,7 +28,7 @@ function createHime(): MemberCardData {
   return {
     cardCode: 'PL!HS-bp6-006-SEC',
     name: '安養寺 姫芽',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'みらくらぱーく！',
     cardType: CardType.MEMBER,
     cost: 20,
@@ -41,7 +41,7 @@ function createLive(): LiveCardData {
   return {
     cardCode: 'TEST-LIVE',
     name: 'テストLIVE',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     cardType: CardType.LIVE,
     score: 1,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),

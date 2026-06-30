@@ -40,14 +40,14 @@ function createMember(
   options: {
     readonly name?: string;
     readonly cost?: number;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Liella!',
-    unitName: options.groupName ?? 'Liella!',
+    groupNames: options.groupNames ?? ['Liella!'],
+    unitName: options.groupNames?.[0] ?? 'Liella!',
     cardType: CardType.MEMBER,
     cost: options.cost ?? 6,
     blade: 1,
@@ -113,7 +113,7 @@ function setupRelayScenario(options: {
       options.replacementGroupName === 'Aqours' ? 'PL!S-replacement' : 'PL!SP-replacement',
       {
         name: 'Replacement',
-        groupName: options.replacementGroupName ?? 'Liella!',
+        groupNames: [options.replacementGroupName ?? 'Liella!'],
       }
     ),
     PLAYER1,

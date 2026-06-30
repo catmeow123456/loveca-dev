@@ -39,7 +39,7 @@ function createMember(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly unitName?: string;
     readonly cost?: number;
   } = {}
@@ -47,7 +47,7 @@ function createMember(
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Liella!',
+    groupNames: options.groupNames ?? ['Liella!'],
     unitName: options.unitName ?? '5yncri5e!',
     cardType: CardType.MEMBER,
     cost: options.cost ?? 2,
@@ -60,7 +60,7 @@ function createLive(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName: 'Liella!',
     cardType: CardType.LIVE,
     score: 3,
@@ -98,7 +98,7 @@ function setupState(options: {
   const nonLiella = createCardInstance(
     createMember('PL!N-pb2-006-non-liella-member', {
       name: 'Non Liella',
-      groupName: '虹咲学園スクールアイドル同好会',
+      groupNames: ['虹咲学園スクールアイドル同好会'],
       unitName: 'A・ZU・NA',
     }),
     PLAYER1,

@@ -27,7 +27,7 @@ function createMiracleStayTune(cardCode = 'PL!N-bp5-027-L'): LiveCardData {
   return {
     cardCode,
     name: 'ミラクル STAY TUNE！',
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.LIVE,
     score: 5,
     requirements: createHeartRequirement({ [HeartColor.YELLOW]: 2 }),
@@ -38,7 +38,7 @@ function createMember(name: string): MemberCardData {
   return {
     cardCode: `TEST-${name}`,
     name,
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost: 5,
     blade: 1,

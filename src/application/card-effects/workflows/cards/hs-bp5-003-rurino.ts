@@ -596,10 +596,7 @@ function findStageMemberLocation(game: GameState, cardId: string): StageMemberLo
 }
 
 function getKnownCardGroupName(card: CardInstance): string | null {
-  return (
-    getKnownCardGroupIdentityName(card.data) ??
-    (typeof card.data.groupName === 'string' ? card.data.groupName : null)
-  );
+  return getKnownCardGroupIdentityName(card.data);
 }
 
 function getStageMemberPositionChangeCandidates(game: GameState): readonly StageMemberLocation[] {

@@ -31,14 +31,14 @@ const PLAYER2 = 'player2';
 function createMember(
   cardCode: string,
   options: {
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly bladeHeart?: boolean;
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: options.groupName ?? 'Liella!',
+    groupNames: options.groupNames ?? ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 2,
     blade: 1,
@@ -51,7 +51,7 @@ function createLive(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.PURPLE]: 1 }),
@@ -170,7 +170,7 @@ describe('PL!SP-pb2-008 Shiki live success score workflow', () => {
       'sp-pb2-008-blade-heart'
     );
     const nonLiellaMember = createCardInstance(
-      createMember('PL!S-test-aqours', { groupName: 'Aqours' }),
+      createMember('PL!S-test-aqours', { groupNames: ['Aqours'] }),
       PLAYER1,
       'sp-pb2-008-aqours'
     );

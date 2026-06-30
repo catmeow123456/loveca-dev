@@ -32,7 +32,7 @@ function createRiseUpHigh(): LiveCardData {
   return {
     cardCode: 'PL!N-bp4-029-L',
     name: 'Rise Up High!',
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.LIVE,
     score: 1,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -46,7 +46,7 @@ function createMember(
   return {
     cardCode,
     name: cardCode,
-    groupName,
+    groupNames: [groupName],
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 1,

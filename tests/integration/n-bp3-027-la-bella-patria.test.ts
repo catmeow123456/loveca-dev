@@ -34,7 +34,7 @@ function createLive(cardCode = 'PL!N-bp3-027-L'): LiveCardData {
   return {
     cardCode,
     name: 'La Bella Patria',
-    groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['ラブライブ！虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.LIVE,
     score: 2,
     requirements: createHeartRequirement({
@@ -52,7 +52,7 @@ function createMember(
   return {
     cardCode,
     name: cardCode,
-    groupName,
+    groupNames: [groupName],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,

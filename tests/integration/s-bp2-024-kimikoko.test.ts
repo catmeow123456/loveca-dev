@@ -20,7 +20,7 @@ function createKimikokoLive(cardCode = 'PL!S-bp2-024-SECL'): LiveCardData {
   return {
     cardCode,
     name: '君のこころは輝いてるかい？',
-    groupName: 'Aqours',
+    groupNames: ['Aqours'],
     cardType: CardType.LIVE,
     score: 4,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -31,7 +31,7 @@ function createMember(cardCode: string): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Aqours',
+    groupNames: ['Aqours'],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,

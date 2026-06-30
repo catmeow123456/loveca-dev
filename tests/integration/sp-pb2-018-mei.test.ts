@@ -27,7 +27,7 @@ function createMember(cardCode: string, name: string, unitName = 'CatChu!'): Mem
   return {
     cardCode,
     name,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName,
     cardType: CardType.MEMBER,
     cost: 2,

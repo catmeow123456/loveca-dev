@@ -55,10 +55,10 @@ function createTestLive(cardCode: string, name: string): LiveCardData {
   };
 }
 
-function createTestLiveWithGroup(cardCode: string, name: string, groupName: string): LiveCardData {
+function createTestLiveWithGroup(cardCode: string, name: string, groupNames: string): LiveCardData {
   return {
     ...createTestLive(cardCode, name),
-    groupName,
+    groupNames: [groupNames],
   };
 }
 
@@ -78,7 +78,7 @@ function createLanzhuHiddenLiveModifierState(): {
     {
       cardCode: 'PL!N-bp1-012-SEC',
       name: '鐘 嵐珠',
-      groupName: '虹ヶ咲学園スクールアイドル同好会',
+      groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
       cardType: CardType.MEMBER,
       cost: 15,
       blade: 1,
@@ -642,7 +642,7 @@ describe('PlayerViewState projector', () => {
         cardType: CardType.LIVE,
         score: 9,
         requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 5 }),
-        groupName: "μ's",
+        groupNames: ["μ's"],
       },
       PLAYER1,
       'p1-dreamin-success'
@@ -654,7 +654,7 @@ describe('PlayerViewState projector', () => {
         cardType: CardType.LIVE,
         score: 5,
         requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 3 }),
-        groupName: "μ's",
+        groupNames: ["μ's"],
       },
       PLAYER1,
       'p1-projected-live'

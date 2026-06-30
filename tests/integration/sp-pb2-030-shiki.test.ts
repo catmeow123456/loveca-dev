@@ -27,7 +27,7 @@ function createMember(): MemberCardData {
   return {
     cardCode: 'PL!SP-pb2-030-N',
     name: '若菜四季',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName: '5yncri5e!',
     cardType: CardType.MEMBER,
     cost: 2,

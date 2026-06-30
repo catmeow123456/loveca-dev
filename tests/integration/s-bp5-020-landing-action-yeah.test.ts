@@ -24,7 +24,7 @@ function createLandingActionYeahLive(): LiveCardData {
   return {
     cardCode: 'PL!S-bp5-020-L',
     name: 'Landing action Yeah!!',
-    groupName: 'Aqours',
+    groupNames: ['Aqours'],
     cardType: CardType.LIVE,
     score: 1,
     requirements: createHeartRequirement({

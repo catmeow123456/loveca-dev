@@ -34,7 +34,7 @@ function createHasunosoraMember(cardCode: string, name = cardCode): MemberCardDa
   return {
     cardCode,
     name,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 1,
@@ -46,7 +46,7 @@ function createHasunosoraLive(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     cardType: CardType.LIVE,
     score: 2,
     requirements: createHeartRequirement({ [HeartColor.GREEN]: 1 }),

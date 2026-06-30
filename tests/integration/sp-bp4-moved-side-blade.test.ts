@@ -51,7 +51,7 @@ function createMember(testCase: MovedSideBladeCase): MemberCardData {
   return {
     cardCode: testCase.cardCode,
     name: testCase.name,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 1,

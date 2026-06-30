@@ -37,7 +37,7 @@ function createSerasData(): MemberCardData {
   return {
     cardCode: 'PL!HS-pb1-007-R',
     name: 'セラス 柳田 リリエンフェルト',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'EdelNote',
     cardType: CardType.MEMBER,
     cost: 11,
@@ -50,7 +50,7 @@ function createHasunosoraMember(cardCode: string): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 1,
@@ -62,7 +62,7 @@ function createHasunosoraLive(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     cardType: CardType.LIVE,
     score: 1,
     requirements: createHeartRequirement({ [HeartColor.GREEN]: 1 }),
@@ -73,7 +73,7 @@ function createNonHasunosoraLive(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 1,
     requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),

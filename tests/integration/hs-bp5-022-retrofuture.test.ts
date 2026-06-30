@@ -41,7 +41,7 @@ function createRetrofuture(): LiveCardData {
   return {
     cardCode: 'PL!HS-bp5-022-L',
     name: 'Retrofuture',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'EdelNote',
     cardType: CardType.LIVE,
     score: 4,
@@ -61,7 +61,7 @@ function createMember(
   return {
     cardCode,
     name,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName,
     cardType: CardType.MEMBER,
     cost,

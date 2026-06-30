@@ -37,7 +37,7 @@ function createMemberCard(
   return {
     cardCode,
     name,
-    groupName: '莲之空',
+    groupNames: ['莲之空'],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,

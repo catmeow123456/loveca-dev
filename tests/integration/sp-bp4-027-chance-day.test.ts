@@ -26,7 +26,7 @@ function createChanceDay(): LiveCardData {
   return {
     cardCode: 'PL!SP-bp4-027-SRL',
     name: 'Chance Day, Chance Way!',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 1,
     requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
@@ -37,7 +37,7 @@ function createMember(name: string): MemberCardData {
   return {
     cardCode: `PL!SP-test-${name}`,
     name,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName: 'CatChu!',
     cardType: CardType.MEMBER,
     cost: 4,

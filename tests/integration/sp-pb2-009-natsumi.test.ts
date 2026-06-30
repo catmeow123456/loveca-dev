@@ -34,7 +34,7 @@ function createMember(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly unitName?: string;
     readonly blade?: number;
   } = {}
@@ -42,7 +42,7 @@ function createMember(
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Liella!',
+    groupNames: options.groupNames ?? ['Liella!'],
     unitName: options.unitName ?? 'Liella!',
     cardType: CardType.MEMBER,
     cost: 4,
@@ -73,7 +73,7 @@ function setupState(options: {
   const ownPay = createCardInstance(
     createMember('PL!SP-test-own-liella', {
       name: 'Liella pay member',
-      groupName: options.ownPayGroupName ?? 'Liella!',
+      groupNames: [options.ownPayGroupName ?? 'Liella!'],
       unitName: options.ownPayGroupName ?? 'Liella!',
       blade: options.ownPayBlade ?? 4,
     }),

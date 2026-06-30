@@ -197,13 +197,13 @@ function createMemberCard(
   cardCode: string,
   name: string,
   cost = 1,
-  groupName?: string,
+  groupNames?: string | readonly string[],
   blade = 1
 ): MemberCardData {
   return {
     cardCode,
     name,
-    groupName,
+    groupNames: typeof groupNames === 'string' ? [groupNames] : groupNames,
     cardType: CardType.MEMBER,
     cost,
     blade,
@@ -215,7 +215,7 @@ function createLiveCard(cardCode: string, name: string, groupName = "μ's"): Liv
   return {
     cardCode,
     name,
-    groupName,
+    groupNames: [groupName],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -363,7 +363,7 @@ function setupHeartbeatLiveStartScenario(successLiveScores: readonly number[]): 
     {
       cardCode: 'PL!-bp4-021-L',
       name: '?←HEARTBEAT',
-      groupName: "μ's",
+      groupNames: ["μ's"],
       cardType: CardType.LIVE as const,
       score: 6,
       requirements: createHeartRequirement({
@@ -381,7 +381,7 @@ function setupHeartbeatLiveStartScenario(successLiveScores: readonly number[]): 
       {
         cardCode: `SUCCESS-SCORE-${score}-${index}`,
         name: `Success Score ${score}`,
-        groupName: "μ's",
+        groupNames: ["μ's"],
         cardType: CardType.LIVE as const,
         score,
         requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -1175,7 +1175,7 @@ function setupFixedPayEnergyGainBladeLiveStartScenario(options: {
   readonly gameId: string;
   readonly cardCode: string;
   readonly cardName: string;
-  readonly groupName: string;
+  readonly groupNames: readonly string[];
   readonly activeEnergyCount: number;
 }): FixedPayEnergyGainBladeScenario {
   const session = createGameSession();
@@ -1221,7 +1221,7 @@ function setupFixedPayEnergyGainBladeLiveStartScenario(options: {
     options.cardCode,
     options.cardName,
     15,
-    options.groupName
+    options.groupNames
   );
 
   removeFromPlayerZones(p1);
@@ -1292,7 +1292,7 @@ function prepareHsPb1KahoMegumiOrderScenario(gameId: string): {
   );
   const megumiCardId = ownedP1CardIds.find((cardId) => {
     const card = state.cardRegistry.get(cardId);
-    return card?.data.cardCode === 'PL!HS-bp1-006-P' && card.data.groupName === '莲之空';
+    return card?.data.cardCode === 'PL!HS-bp1-006-P' && card.data.groupNames?.includes('莲之空') === true;
   });
   const energyCardIds = ownedP1CardIds.filter(
     (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
@@ -1591,7 +1591,7 @@ describe('sample card effect runner', () => {
     nonMuseLiveCard.data = {
       ...nonMuseLiveCard.data,
       cardCode: 'OTHER-LIVE-0',
-      groupName: 'Other',
+      groupNames: ['Other'],
     };
 
     const inspectedCardIds = [
@@ -1892,11 +1892,12 @@ describe('sample card effect runner', () => {
       data: MemberCardData;
     };
     kotoriCard.data = createMemberCard('PL!-sd1-003-SD', '南 ことり', 1);
-    targetMemberCard.data = createMemberCard('PL!-sd1-test-low-cost-muse', '低费用 μs 成员', 4);
+    targetMemberCard.data = createMemberCard('PL!-sd1-test-low-cost-muse', '低费用 μs 成员', 4, "μ's");
     highCostMuseMemberCard.data = createMemberCard(
       'PL!-sd1-test-high-cost-muse',
       '高费用 μs 成员',
-      5
+      5,
+      "μ's"
     );
     nonMuseMemberCard.data = createMemberCard('OTHER-MEMBER-0', 'Other Member', 4);
 
@@ -10969,7 +10970,7 @@ describe('sample card effect runner', () => {
         gameId: 'sample-bp4-010-live-start-blade-decline',
         cardCode: 'PL!-bp4-010-N',
         cardName: '高坂穗乃果',
-        groupName: "μ's",
+        groupNames: ["μ's"],
         activeEnergyCount: 1,
       });
 
@@ -11021,7 +11022,7 @@ describe('sample card effect runner', () => {
         gameId: 'sample-hs-pr-001-live-start-blade-insufficient-energy',
         cardCode: 'PL!HS-PR-001-PR',
         cardName: '日野下 花帆',
-        groupName: "μ's",
+        groupNames: ["μ's"],
         activeEnergyCount: 1,
       });
 
@@ -11523,7 +11524,7 @@ describe('sample card effect runner', () => {
       {
         cardCode: 'PL!HS-bp5-019-L',
         name: '花结',
-        groupName: 'スリーズブーケ',
+        groupNames: ['スリーズブーケ'],
         cardType: CardType.LIVE as const,
         score: 6,
         requirements: createHeartRequirement({
@@ -11538,7 +11539,7 @@ describe('sample card effect runner', () => {
       {
         cardCode: 'PL!HS-test-live',
         name: '莲之空测试LIVE',
-        groupName: '蓮ノ空',
+        groupNames: ['蓮ノ空'],
         cardType: CardType.LIVE as const,
         score: 1,
         requirements: createHeartRequirement({ [HeartColor.GREEN]: 1 }),
@@ -11639,7 +11640,7 @@ describe('sample card effect runner', () => {
       {
         cardCode: 'PL!HS-bp5-019-L',
         name: '花结',
-        groupName: 'スリーズブーケ',
+        groupNames: ['スリーズブーケ'],
         cardType: CardType.LIVE as const,
         score: 6,
         requirements: createHeartRequirement({
@@ -11739,7 +11740,7 @@ describe('sample card effect runner', () => {
       {
         cardCode: 'PL!HS-bp2-022-L+',
         name: 'アオクハルカ',
-        groupName: 'スリーズブーケ',
+        groupNames: ['スリーズブーケ'],
         cardType: CardType.LIVE as const,
         score: 2,
         requirements: createHeartRequirement({ [HeartColor.GREEN]: 1 }),
@@ -11752,7 +11753,7 @@ describe('sample card effect runner', () => {
         {
           cardCode: `CERISE-LIVE-${index}`,
           name: `Cerise Live ${index}`,
-          groupName: '蓮ノ空女学院スクールアイドルクラブ',
+          groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
           unitName: 'スリーズブーケ',
           cardType: CardType.LIVE as const,
           score: 1,
@@ -11852,7 +11853,7 @@ describe('sample card effect runner', () => {
       {
         cardCode: 'PL!HS-bp2-022-L+',
         name: 'アオクハルカ',
-        groupName: 'スリーズブーケ',
+        groupNames: ['スリーズブーケ'],
         cardType: CardType.LIVE as const,
         score: 2,
         requirements: createHeartRequirement({ [HeartColor.GREEN]: 1 }),
@@ -11865,7 +11866,7 @@ describe('sample card effect runner', () => {
         {
           cardCode: `CERISE-LIVE-UNMET-${index}`,
           name: `Cerise Live Unmet ${index}`,
-          groupName: '蓮ノ空女学院スクールアイドルクラブ',
+          groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
           unitName: 'スリーズブーケ',
           cardType: CardType.LIVE as const,
           score: 1,
@@ -13148,6 +13149,21 @@ describe('sample card effect runner', () => {
     expect(liveCardId).toBeTruthy();
     expect(energyCardIds.length).toBeGreaterThanOrEqual(3);
 
+    const liellaMemberCard = state.cardRegistry.get(liellaMemberCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    const chisatoCard = state.cardRegistry.get(chisatoCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    chisatoCard.data = {
+      ...chisatoCard.data,
+      groupNames: ['Liella!'],
+    };
+    liellaMemberCard.data = {
+      ...liellaMemberCard.data,
+      groupNames: ['Liella!'],
+    };
+
     removeFromPlayerZones(p1);
     p1.memberSlots.slots[SlotPosition.LEFT] = liellaMemberCardId!;
     p1.memberSlots.slots[SlotPosition.CENTER] = chisatoCardId!;
@@ -14146,7 +14162,7 @@ describe('sample card effect runner', () => {
       data: MemberCardData;
     };
     kotoriCard.data = createMemberCard('PL!-sd1-003-SD', '南 ことり', 2);
-    targetMemberCard.data = createMemberCard('PL!-sd1-test-low-cost-muse', '低费用 μs 成员', 4);
+    targetMemberCard.data = createMemberCard('PL!-sd1-test-low-cost-muse', '低费用 μs 成员', 4, "μ's");
 
     const preparedState = updatePlayer(state, PLAYER1, (player) => ({
       ...player,
@@ -15344,6 +15360,14 @@ describe('sample card effect runner', () => {
     expect(deckCardIds.every(Boolean)).toBe(true);
     expect(energyCardIds.length).toBeGreaterThanOrEqual(4);
 
+    const megumiCard = state.cardRegistry.get(megumiCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    megumiCard.data = {
+      ...megumiCard.data,
+      groupNames: ['莲之空'],
+    };
+
     const preparedState = updatePlayer(state, PLAYER1, (player) => ({
       ...player,
       hand: { ...player.hand, cardIds: [megumiCardId!] },
@@ -15467,6 +15491,14 @@ describe('sample card effect runner', () => {
     expect(megumiCardId).toBeTruthy();
     expect(deckCardIds.every(Boolean)).toBe(true);
     expect(energyCardIds.length).toBeGreaterThanOrEqual(4);
+
+    const megumiCard = state.cardRegistry.get(megumiCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    megumiCard.data = {
+      ...megumiCard.data,
+      groupNames: ['莲之空'],
+    };
 
     const preparedState = updatePlayer(state, PLAYER1, (player) => ({
       ...player,
@@ -17302,12 +17334,12 @@ describe('sample card effect runner', () => {
     });
   });
 
-  it('uses card identity fallback when PL!HS-bp5-003 discards Dreamin so target Heart affects live judgment', () => {
+  it('uses structured groupNames when PL!HS-bp5-003 discards Dreamin so target Heart affects live judgment', () => {
     const session = createGameSession();
     const deck = createDeck();
 
     session.createGame(
-      'sample-rurino-live-start-card-code-group-heart-judgment',
+      'sample-rurino-live-start-structured-group-heart-judgment',
       PLAYER1,
       'Player 1',
       PLAYER2,
@@ -17379,11 +17411,11 @@ describe('sample card effect runner', () => {
     };
     discardDreaminCard.data = {
       ...discardDreaminCard.data,
-      groupName: undefined,
+      groupNames: ["μ's"],
     };
     targetMuseCard.data = {
       ...targetMuseCard.data,
-      groupName: undefined,
+      groupNames: ["μ's"],
       blade: 0,
       hearts: [createHeartIcon(HeartColor.PINK, 1)],
     };

@@ -32,7 +32,7 @@ function createLoveUMyFriends(): LiveCardData {
   return {
     cardCode: 'PL!N-bp3-030-L',
     name: 'Love U my friends',
-    groupName: '虹ヶ咲',
+    groupNames: ['虹ヶ咲'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -43,7 +43,7 @@ function createDummyLive(cardCode: string, bladeHearts: BladeHearts = []): LiveC
   return {
     cardCode,
     name: cardCode,
-    groupName: '虹ヶ咲',
+    groupNames: ['虹ヶ咲'],
     cardType: CardType.LIVE,
     score: 1,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -55,7 +55,7 @@ function createCheerMember(cardCode: string, bladeHearts: BladeHearts = []): Mem
   return {
     cardCode,
     name: cardCode,
-    groupName: '虹ヶ咲',
+    groupNames: ['虹ヶ咲'],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,

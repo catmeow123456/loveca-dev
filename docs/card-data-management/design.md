@@ -68,13 +68,13 @@ flowchart TB
 
 | 类型 | 主要用途 | 关键结构化字段 |
 | --- | --- | --- |
-| MEMBER | 成员卡、费用、应援棒与心图标规则 | cost、blade、hearts、bladeHearts、groupName、unitName |
-| LIVE | Live 成功判定与分数展示 | score、requirements、bladeHearts、groupName、unitName |
-| ENERGY | 能量牌组与能量区展示 | groupName、unitName、product |
+| MEMBER | 成员卡、费用、应援棒与心图标规则 | cost、blade、hearts、bladeHearts、groupNames、unitName |
+| LIVE | Live 成功判定与分数展示 | score、requirements、bladeHearts、groupNames、unitName |
+| ENERGY | 能量牌组与能量区展示 | groupNames、unitName、product |
 
 通用字段包括中日名称、中日效果文本、作品名、真实团体、图片文件名、稀有度、收录商品和发布状态。`rare` 与 `product` 用于管理、展示和筛选，不参与对局规则计算。
 
-领域对象仍保留 `name`、`cardText`、`groupName` 作为运行时展示和规则兼容字段。这些字段由读取转换层按 `name_cn/name_jp`、`card_text_cn/card_text_jp` 与 `group_names` 派生，数据库不再持久化重复的 `name`、`card_text`、`group_name` 单列。
+领域对象仍保留 `name`、`cardText` 作为运行时展示字段。这些字段由读取转换层按 `name_cn/name_jp`、`card_text_cn/card_text_jp` 派生，数据库不再持久化重复的 `name`、`card_text`、`group_name` 单列。真实团体只通过结构化 `groupNames` 暴露。
 
 特殊点数不属于卡牌表字段，也不进入通用卡牌实体；点数规则由构筑规则模块维护，避免把构筑限制写入基础卡牌资料。
 

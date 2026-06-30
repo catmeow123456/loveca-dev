@@ -49,7 +49,7 @@ function createMemberCard(
   return {
     cardCode,
     name,
-    groupName,
+    groupNames: [groupName],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
@@ -61,7 +61,7 @@ function createLiveCard(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -88,7 +88,7 @@ interface StageMemberConfig {
   readonly cardCode: string;
   readonly name: string;
   readonly orientation: OrientationState;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
 }
 
 interface EmmaScenarioOptions {
@@ -127,7 +127,7 @@ function setupEmmaScenario(options: EmmaScenarioOptions = {}): EmmaScenario {
           options.left.cardCode,
           options.left.name,
           1,
-          options.left.groupName
+          options.left.groupNames?.[0]
         ),
         PLAYER1,
         'p1-emma-left'
@@ -139,7 +139,7 @@ function setupEmmaScenario(options: EmmaScenarioOptions = {}): EmmaScenario {
           options.right.cardCode,
           options.right.name,
           1,
-          options.right.groupName
+          options.right.groupNames?.[0]
         ),
         PLAYER1,
         'p1-emma-right'
@@ -369,7 +369,7 @@ describe('PL!N-bp3-008 Emma workflow', () => {
       right: {
         cardCode: 'PL!SP-emma-non-niji',
         name: '澁谷かのん',
-        groupName: 'Liella!',
+        groupNames: ['Liella!'],
         orientation: OrientationState.ACTIVE,
       },
       mainDeckCount: 1,
@@ -395,7 +395,7 @@ describe('PL!N-bp3-008 Emma workflow', () => {
       right: {
         cardCode: 'PL!SP-emma-non-niji',
         name: '澁谷かのん',
-        groupName: 'Liella!',
+        groupNames: ['Liella!'],
         orientation: OrientationState.ACTIVE,
       },
       mainDeckCount: 1,

@@ -32,7 +32,7 @@ function createLiveCard(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: "μ's",
+    groupNames: ["μ's"],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),

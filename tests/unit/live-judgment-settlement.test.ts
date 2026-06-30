@@ -414,7 +414,7 @@ describe('Live 判定与结算', () => {
           cost: 1,
           blade: 0,
           hearts: [],
-          groupName: "μ's",
+          groupNames: ["μ's"],
         },
         'p1',
         `p1-nico-waiting-${index}`
@@ -1779,7 +1779,7 @@ describe('Live 判定与结算', () => {
         cardType: CardType.LIVE as const,
         score: 9,
         requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 5 }),
-        groupName: "μ's",
+        groupNames: ["μ's"],
       },
       'p1',
       'p1-dreamin-success'
@@ -1791,7 +1791,7 @@ describe('Live 判定与结算', () => {
         cardType: CardType.LIVE as const,
         score: 5,
         requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 3 }),
-        groupName: "μ's",
+        groupNames: ["μ's"],
       },
       'p1',
       'p1-current-generic-live'

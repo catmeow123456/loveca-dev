@@ -20,7 +20,7 @@ function createAwokeLive(): LiveCardData {
   return {
     cardCode: 'PL!HS-bp1-022-L',
     name: 'AWOKE',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.LIVE,
     score: 5,
@@ -42,7 +42,7 @@ function createHasunosoraMember(cardCode: string): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.MEMBER,
     cost: 1,
@@ -55,7 +55,7 @@ function createLiellaMember(cardCode: string): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,
@@ -67,7 +67,7 @@ function createHasunosoraLive(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.LIVE,
     score: 1,

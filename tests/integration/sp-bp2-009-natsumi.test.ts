@@ -32,7 +32,7 @@ function createNatsumi(cardCode = 'PL!SP-bp2-009-SEC'): MemberCardData {
   return {
     cardCode,
     name: '鬼塚夏美',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 13,
     blade: 1,
@@ -44,7 +44,7 @@ function createMember(cardCode: string): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,
@@ -56,7 +56,7 @@ function createLive(): LiveCardData {
   return {
     cardCode: 'PL!SP-test-live',
     name: 'Test Live',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),

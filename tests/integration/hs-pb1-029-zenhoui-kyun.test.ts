@@ -26,7 +26,7 @@ function createMiraCraMember(cardCode: string, heartCount = 1): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'みらくらぱーく！',
     cardType: CardType.MEMBER,
     cost: 1,
@@ -39,7 +39,7 @@ function createLive(cardCode = 'PL!HS-pb1-029-L'): LiveCardData {
   return {
     cardCode,
     name: '全方位キュン♡',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'みらくらぱーく！',
     cardType: CardType.LIVE,
     score: 6,

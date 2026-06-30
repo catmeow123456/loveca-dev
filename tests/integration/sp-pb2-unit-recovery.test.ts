@@ -38,7 +38,7 @@ function createMember(cardCode: string, unitName: string): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName,
     cardType: CardType.MEMBER,
     cost: 4,
@@ -51,7 +51,7 @@ function createLive(cardCode: string, unitName: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName,
     cardType: CardType.LIVE,
     score: 1,

@@ -33,7 +33,7 @@ function createMember(cardCode: string, cost = 2): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
@@ -45,7 +45,7 @@ function createLive(cardCode: string, score = 1): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.LIVE,
     score,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),

@@ -22,7 +22,7 @@ function createVitaminSummer(cardCode = 'PL!SP-bp2-024-SECL'): LiveCardData {
   return {
     cardCode,
     name: 'ビタミンSUMMER!',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 5,
     requirements: createHeartRequirement({ [HeartColor.YELLOW]: 3 }),
@@ -53,7 +53,7 @@ function createHandCard(cardCode: string): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,

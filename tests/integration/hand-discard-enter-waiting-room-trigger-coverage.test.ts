@@ -52,7 +52,7 @@ function createMemberCard(
   return {
     cardCode,
     name,
-    groupName,
+    groupNames: [groupName],
     unitName,
     cardType: CardType.MEMBER,
     cost,
@@ -70,7 +70,7 @@ function createLiveCard(
   return {
     cardCode,
     name,
-    groupName,
+    groupNames: [groupName],
     cardType: CardType.LIVE,
     score,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),

@@ -39,7 +39,7 @@ function createMemberCard(cardCode: string, name = cardCode, cost = 5): MemberCa
   return {
     cardCode,
     name,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,

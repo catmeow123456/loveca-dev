@@ -35,7 +35,7 @@ function createNeutral(): LiveCardData {
   return {
     cardCode: 'PL!SP-pb2-049-L',
     name: 'ニュートラル',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName: 'KALEIDOSCORE',
     cardType: CardType.LIVE,
     score: 5,
@@ -47,7 +47,7 @@ function createCheerMember(cardCode: string, unitName = 'KALEIDOSCORE'): MemberC
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName,
     cardType: CardType.MEMBER,
     cost: 4,

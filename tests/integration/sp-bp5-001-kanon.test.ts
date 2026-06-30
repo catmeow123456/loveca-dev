@@ -42,7 +42,7 @@ function createMember(cardCode: string, options: Partial<MemberCardData> = {}): 
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Liella!',
+    groupNames: options.groupNames ?? ['Liella!'],
     unitName: options.unitName ?? 'CatChu!',
     cardType: CardType.MEMBER,
     cost: options.cost ?? 10,

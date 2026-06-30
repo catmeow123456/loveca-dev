@@ -40,7 +40,7 @@ function createMember(cardCode: string, options: Partial<MemberCardData> = {}): 
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? '虹ヶ咲',
+    groupNames: options.groupNames ?? ['虹ヶ咲'],
     cardType: CardType.MEMBER,
     cost: options.cost ?? 1,
     blade: options.blade ?? 1,
@@ -53,7 +53,7 @@ function createLive(cardCode: string, options: Partial<LiveCardData> = {}): Live
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? '虹ヶ咲',
+    groupNames: options.groupNames ?? ['虹ヶ咲'],
     cardType: CardType.LIVE,
     score: options.score ?? 1,
     requirements: options.requirements ?? createHeartRequirement({ [HeartColor.BLUE]: 1 }),
@@ -79,17 +79,17 @@ function createCards() {
     createCardInstance(createEnergy(`MIA-ENERGY-${index}`), PLAYER1, `mia-energy-${index}`)
   );
   const nijigasakiLive = createCardInstance(
-    createLive('PL!N-LIVE-001-L', { name: '虹咲 LIVE', groupName: '虹ヶ咲' }),
+    createLive('PL!N-LIVE-001-L', { name: '虹咲 LIVE', groupNames: ['虹ヶ咲'] }),
     PLAYER1,
     'nijigasaki-live'
   );
   const otherLive = createCardInstance(
-    createLive('PL!S-LIVE-001-L', { name: 'Aqours LIVE', groupName: 'Aqours' }),
+    createLive('PL!S-LIVE-001-L', { name: 'Aqours LIVE', groupNames: ['Aqours'] }),
     PLAYER1,
     'other-live'
   );
   const waitingMember = createCardInstance(
-    createMember('PL!N-MEMBER-001-R', { name: '虹咲 member', groupName: '虹ヶ咲' }),
+    createMember('PL!N-MEMBER-001-R', { name: '虹咲 member', groupNames: ['虹ヶ咲'] }),
     PLAYER1,
     'waiting-member'
   );

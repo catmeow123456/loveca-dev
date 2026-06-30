@@ -70,7 +70,7 @@ function createMember(cardCode: string, hearts: readonly ReturnType<typeof creat
   return {
     cardCode,
     name: cardCode,
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost: 2,
     blade: 1,

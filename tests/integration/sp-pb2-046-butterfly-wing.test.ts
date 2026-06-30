@@ -41,7 +41,7 @@ function createButterflyWing(cardCode = 'PL!SP-pb2-046-L'): LiveCardData {
   return {
     cardCode,
     name: 'Butterfly Wing',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 2,
     requirements: createHeartRequirement({ [HeartColor.PURPLE]: 3, [HeartColor.RAINBOW]: 3 }),
@@ -52,7 +52,7 @@ function createZettaiLover(): LiveCardData {
   return {
     cardCode: 'PL!SP-pb2-045-L',
     name: '絶対的LOVER',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 4,
     requirements: createHeartRequirement({ [HeartColor.PURPLE]: 2 }),
@@ -63,7 +63,7 @@ function createPlainLive(): LiveCardData {
   return {
     cardCode: 'PL!SP-test-live',
     name: 'Test Live',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 2,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -74,7 +74,7 @@ function createNatsumi(): MemberCardData {
   return {
     cardCode: 'PL!SP-bp2-009-SEC',
     name: '鬼塚夏美',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 13,
     blade: 1,
@@ -86,7 +86,7 @@ function createKotori(): MemberCardData {
   return {
     cardCode: 'PL!-sd1-003-SD',
     name: '南ことり',
-    groupName: "μ's",
+    groupNames: ["μ's"],
     cardType: CardType.MEMBER,
     cost: 2,
     blade: 1,
@@ -98,7 +98,7 @@ function createPlainMember(cardCode = 'PL!SP-test-member'): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,

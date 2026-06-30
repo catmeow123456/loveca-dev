@@ -40,7 +40,7 @@ function createMember(
   return {
     cardCode,
     name: cardCode,
-    groupName: ownerGroup,
+    groupNames: [ownerGroup],
     cardType: CardType.MEMBER,
     cost: 5,
     blade: 1,
@@ -53,7 +53,7 @@ function createLive(cardCode: string, bladeHearts: BladeHearts = []): LiveCardDa
   return {
     cardCode,
     name: cardCode,
-    groupName: '虹ヶ咲',
+    groupNames: ['虹ヶ咲'],
     cardType: CardType.LIVE,
     score: 2,
     requirements: createHeartRequirement({ [HeartColor.GREEN]: 2, [HeartColor.BLUE]: 1 }),

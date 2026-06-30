@@ -30,7 +30,7 @@ function createMemberCard(
   name: string,
   cost: number,
   options: {
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly unitName?: string;
     readonly cardText?: string;
   } = {}
@@ -38,7 +38,7 @@ function createMemberCard(
   return {
     cardCode,
     name,
-    groupName: options.groupName,
+    groupNames: options.groupNames,
     unitName: options.unitName,
     cardText: options.cardText,
     cardType: CardType.MEMBER,
@@ -52,14 +52,14 @@ function createLiveCard(
   cardCode: string,
   options: {
     readonly score?: number;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
   } = {}
 ): LiveCardData {
   return {
     cardCode,
     name: `Live ${cardCode}`,
     cardType: CardType.LIVE,
-    groupName: options.groupName,
+    groupNames: options.groupNames,
     score: options.score ?? 3,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
   };
@@ -314,11 +314,11 @@ describe('member cost payment', () => {
 
     (state.cardRegistry.get(incomingCardId!) as unknown as { data: MemberCardData }).data =
       createMemberCard('PL!HS-test-cerise-incoming', 'Non Mira-Cra Incoming', 4, {
-        groupName: '蓮ノ空',
+        groupNames: ['蓮ノ空'],
       });
     (state.cardRegistry.get(himeCardId!) as unknown as { data: MemberCardData }).data =
       createMemberCard('PL!HS-bp6-006-SEC', '安養寺 姫芽', 20, {
-        groupName: '蓮ノ空',
+        groupNames: ['蓮ノ空'],
       });
     setActiveEnergyCountForPlayer(session, 0, 4);
 
@@ -371,12 +371,12 @@ describe('member cost payment', () => {
 
     (state.cardRegistry.get(incomingCardId!) as unknown as { data: MemberCardData }).data =
       createMemberCard('PL!HS-test-miracra-incoming', 'Mira-Cra Incoming', 4, {
-        groupName: '蓮ノ空',
+        groupNames: ['蓮ノ空'],
         unitName: 'みらくらぱーく！',
       });
     (state.cardRegistry.get(himeCardId!) as unknown as { data: MemberCardData }).data =
       createMemberCard('PL!HS-bp6-006-SEC', '安養寺 姫芽', 20, {
-        groupName: '蓮ノ空',
+        groupNames: ['蓮ノ空'],
         unitName: 'みらくらぱーく！',
       });
 
@@ -427,13 +427,13 @@ describe('member cost payment', () => {
 
     (state.cardRegistry.get(himeIncomingCardId!) as unknown as { data: MemberCardData }).data =
       createMemberCard('PL!HS-bp6-006-SEC', '安養寺 姫芽', 20, {
-        groupName: '蓮ノ空',
+        groupNames: ['蓮ノ空'],
         unitName: 'みらくらぱーく！',
       });
     for (const stageCardId of stageCardIds) {
       (state.cardRegistry.get(stageCardId) as unknown as { data: MemberCardData }).data =
         createMemberCard(`PL!HS-test-miracra-${stageCardId}`, 'Mira-Cra Stage', 4, {
-          groupName: '蓮ノ空',
+          groupNames: ['蓮ノ空'],
           unitName: 'みらくらぱーく！',
         });
     }
@@ -505,7 +505,7 @@ describe('member cost payment', () => {
       data: MemberCardData;
     };
     stageCard.data = createMemberCard('PL!N-test-waiting', '待机虹咲成员', 2, {
-      groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+      groupNames: ['ラブライブ！虹ヶ咲学園スクールアイドル同好会'],
     });
 
     player.hand.cardIds = [sourceCardId!];
@@ -581,7 +581,9 @@ describe('member cost payment', () => {
     const sourceCard = state.cardRegistry.get(sourceCardId!) as unknown as {
       data: MemberCardData;
     };
-    sourceCard.data = createMemberCard('PL!SP-test-cost10', '10费Liella!成员', 10);
+    sourceCard.data = createMemberCard('PL!SP-test-cost10', '10费Liella!成员', 10, {
+      groupNames: ['Liella!'],
+    });
 
     const stageCard = state.cardRegistry.get(stageCardId!) as unknown as {
       data: MemberCardData;
@@ -605,7 +607,7 @@ describe('member cost payment', () => {
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(stageCardId);
 
     stageCard.data = createMemberCard('PL!SP-bp5-003-AR', '岚 千砂都', 7, {
-      groupName: 'ラブライブ！スーパースター!!',
+      groupNames: ['ラブライブ！スーパースター!!'],
     });
 
     const playResult = session.executeCommand(
@@ -697,7 +699,7 @@ describe('member cost payment', () => {
     };
     successLiveCard.data = createLiveCard('PL!-bp6-022-L', {
       score: 9,
-      groupName: "μ's",
+      groupNames: ["μ's"],
     });
 
     player.hand.cardIds = [sourceCardId!];
@@ -773,19 +775,19 @@ describe('member cost payment', () => {
       data: MemberCardData;
     };
     sourceCard.data = createMemberCard('PL!SP-bp4-004-P', '平安名すみれ', 22, {
-      groupName: 'Liella!',
+      groupNames: ['Liella!'],
     });
     const centerCard = state.cardRegistry.get(centerCardId!) as unknown as {
       data: MemberCardData;
     };
     centerCard.data = createMemberCard('PL!SP-test-center', 'Center Liella', 8, {
-      groupName: 'Liella!',
+      groupNames: ['Liella!'],
     });
     const leftCard = state.cardRegistry.get(leftCardId!) as unknown as {
       data: MemberCardData;
     };
     leftCard.data = createMemberCard('PL!SP-test-left', 'Left Liella', 5, {
-      groupName: 'Liella!',
+      groupNames: ['Liella!'],
     });
 
     player.hand.cardIds = [sourceCardId!];

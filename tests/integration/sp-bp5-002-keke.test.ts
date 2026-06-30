@@ -32,14 +32,14 @@ function createMemberCard(
   options: {
     readonly name?: string;
     readonly cost?: number;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly bladeHearts?: MemberCardData['bladeHearts'];
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Liella!',
+    groupNames: options.groupNames ?? ['Liella!'],
     unitName: 'Liella!',
     cardType: CardType.MEMBER,
     cost: options.cost ?? 4,
@@ -123,7 +123,7 @@ function setupKekeScenario(options: {
     ? createCardInstance(
         createMemberCard('PL!HS-pb1-003-R', {
           name: '大泽瑠璃乃',
-          groupName: '莲之空',
+          groupNames: ['莲之空'],
         }),
         PLAYER1,
         'p1-hs-pb1-003-watcher'

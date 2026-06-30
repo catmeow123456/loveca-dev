@@ -21,7 +21,7 @@ function createMockMemberData(
   name: string = 'Test Member',
   cardCode: string = 'TEST-001',
   options: {
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly unitName?: string;
     readonly cardText?: string;
   } = {}
@@ -29,7 +29,7 @@ function createMockMemberData(
   return {
     cardCode,
     name,
-    groupName: options.groupName,
+    groupNames: options.groupNames,
     unitName: options.unitName,
     cardText: options.cardText,
     cardType: CardType.MEMBER,
@@ -46,7 +46,7 @@ function createStageMemberInfo(
   options: {
     readonly orientation?: OrientationState;
     readonly cardCode?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly unitName?: string;
     readonly cardText?: string;
     readonly effectiveCost?: number;
@@ -55,7 +55,7 @@ function createStageMemberInfo(
   return {
     cardId,
     data: createMockMemberData(cost, 'Stage Member', options.cardCode, {
-      groupName: options.groupName,
+      groupNames: options.groupNames,
       unitName: options.unitName,
       cardText: options.cardText,
     }),
@@ -427,11 +427,11 @@ describe('CostCalculator', () => {
         stageMembers: [
           createStageMemberInfo('active-nijigasaki', 4, SlotPosition.LEFT, {
             orientation: OrientationState.ACTIVE,
-            groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+            groupNames: ['ラブライブ！虹ヶ咲学園スクールアイドル同好会'],
           }),
           createStageMemberInfo('waiting-other', 4, SlotPosition.CENTER, {
             orientation: OrientationState.WAITING,
-            groupName: 'ラブライブ！スーパースター!!',
+            groupNames: ['ラブライブ！スーパースター!!'],
           }),
         ],
         sourceCardId: 'source-card',
@@ -451,7 +451,7 @@ describe('CostCalculator', () => {
         stageMembers: [
           createStageMemberInfo('waiting-nijigasaki', 4, SlotPosition.LEFT, {
             orientation: OrientationState.WAITING,
-            groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+            groupNames: ['ラブライブ！虹ヶ咲学園スクールアイドル同好会'],
           }),
         ],
         sourceCardId: 'source-card',
@@ -468,49 +468,56 @@ describe('CostCalculator', () => {
       expect(directPlan?.actualEnergyCost).toBe(15);
     });
 
-    it('应该通过虹咲 alias、文本和 PL!N- fallback 识别待机成员', () => {
-      const nijigasakiCases = [
-        {
-          label: 'alias',
-          stageMember: createStageMemberInfo('waiting-nijigasaki-alias', 4, SlotPosition.LEFT, {
+    it('应该只通过结构化虹咲 groupNames 识别待机成员', () => {
+      const memberData = createMockMemberData(17, '艾玛·维尔德', 'PL!N-pb1-008-P+');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('waiting-nijigasaki-alias', 4, SlotPosition.LEFT, {
             orientation: OrientationState.WAITING,
-            groupName: '虹咲学園スクールアイドル同好会',
+            groupNames: ['虹咲学園スクールアイドル同好会'],
           }),
-        },
-        {
-          label: 'cardText',
-          stageMember: createStageMemberInfo('waiting-nijigasaki-text', 4, SlotPosition.LEFT, {
-            orientation: OrientationState.WAITING,
-            cardText: 'Nijigasaki のメンバー。',
-          }),
-        },
-        {
-          label: 'cardCode',
-          stageMember: createStageMemberInfo('waiting-nijigasaki-code', 4, SlotPosition.LEFT, {
-            orientation: OrientationState.WAITING,
-            cardCode: 'PL!N-test-member',
-          }),
-        },
-      ] as const;
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
 
-      for (const { label, stageMember } of nijigasakiCases) {
-        const memberData = createMockMemberData(17, `艾玛·维尔德-${label}`, 'PL!N-pb1-008-P+');
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.RIGHT, resources);
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.modifiedCost).toBe(15);
+      expect(directPlan?.costModifierAmount).toBe(2);
+      expect(directPlan?.costModifiers[0]?.id).toBe(
+        'PL!N-pb1-008-P+:hand-self-cost-minus-if-waiting-nijigasaki-member'
+      );
+    });
+
+    it('不应该用文本或 PL!N- 卡号前缀识别虹咲待机成员', () => {
+      const legacyIdentityCases = [
+        createStageMemberInfo('waiting-nijigasaki-text', 4, SlotPosition.LEFT, {
+          orientation: OrientationState.WAITING,
+          cardText: 'Nijigasaki のメンバー。',
+        }),
+        createStageMemberInfo('waiting-nijigasaki-code', 4, SlotPosition.LEFT, {
+          orientation: OrientationState.WAITING,
+          cardCode: 'PL!N-test-member',
+        }),
+      ];
+
+      for (const stageMember of legacyIdentityCases) {
+        const memberData = createMockMemberData(17, '艾玛·维尔德', 'PL!N-pb1-008-P+');
         const resources: AvailableResources = {
-          activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e-${label}-${index}`),
+          activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e${index}`),
           stageMembers: [stageMember],
           sourceCardId: 'source-card',
           handCardIds: ['source-card'],
         };
 
         const result = calculator.checkCanPayCost(memberData, SlotPosition.RIGHT, resources);
-        const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
 
-        expect(result.canPay).toBe(true);
-        expect(directPlan?.modifiedCost).toBe(15);
-        expect(directPlan?.costModifierAmount).toBe(2);
-        expect(directPlan?.costModifiers[0]?.id).toBe(
-          'PL!N-pb1-008-P+:hand-self-cost-minus-if-waiting-nijigasaki-member'
-        );
+        expect(result.canPay).toBe(false);
+        expect(result.reason).toContain('需要 17 能量');
       }
     });
 
@@ -521,7 +528,7 @@ describe('CostCalculator', () => {
         stageMembers: [
           createStageMemberInfo('waiting-nijigasaki', 4, SlotPosition.LEFT, {
             orientation: OrientationState.WAITING,
-            groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+            groupNames: ['ラブライブ！虹ヶ咲学園スクールアイドル同好会'],
           }),
         ],
         sourceCardId: 'source-card',
@@ -557,13 +564,15 @@ describe('CostCalculator', () => {
     });
 
     it('应该让舞台上的 PL!SP-bp5-003-AR 使10费Liella!成员费用减少2', () => {
-      const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10');
+      const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10', {
+        groupNames: ['Liella!'],
+      });
       const resources: AvailableResources = {
         activeEnergyIds: Array.from({ length: 8 }, (_, index) => `e${index}`),
         stageMembers: [
           createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
             cardCode: 'PL!SP-bp5-003-AR',
-            groupName: 'ラブライブ！スーパースター!!',
+            groupNames: ['ラブライブ！スーパースター!!'],
           }),
         ],
         sourceCardId: 'source-card',
@@ -582,13 +591,15 @@ describe('CostCalculator', () => {
     });
 
     it('应该让 PL!SP-bp5-003-SEC 同编号罕度同样作为舞台来源减费', () => {
-      const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10');
+      const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10', {
+        groupNames: ['Liella!'],
+      });
       const resources: AvailableResources = {
         activeEnergyIds: Array.from({ length: 8 }, (_, index) => `e${index}`),
         stageMembers: [
           createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
             cardCode: 'PL!SP-bp5-003-SEC',
-            groupName: 'ラブライブ！スーパースター!!',
+            groupNames: ['ラブライブ！スーパースター!!'],
           }),
         ],
         sourceCardId: 'source-card',
@@ -603,39 +614,56 @@ describe('CostCalculator', () => {
       expect(directPlan?.costModifierAmount).toBe(2);
     });
 
-    it('应该通过 Liella! alias、文本和 PL!SP- fallback 识别10费目标成员', () => {
-      const liellaTargets = [
-        createMockMemberData(10, '10费Liella alias成员', 'OTHER-LIELLA-ALIAS', {
-          groupName: 'Liella',
-        }),
+    it('应该只通过结构化 Liella! groupNames 识别10费目标成员', () => {
+      const memberData = createMockMemberData(10, '10费Liella alias成员', 'OTHER-LIELLA-ALIAS', {
+        groupNames: ['Liella'],
+      });
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 8 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
+            cardCode: 'PL!SP-bp5-003-AR',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.totalCost).toBe(10);
+      expect(directPlan?.modifiedCost).toBe(8);
+      expect(directPlan?.costModifierAmount).toBe(2);
+      expect(directPlan?.costModifiers[0]?.id).toBe(
+        'PL!SP-bp5-003-AR:stage-source-cost-minus-cost10-liella'
+      );
+    });
+
+    it('不应该用文本或 PL!SP- 卡号前缀识别10费 Liella! 目标成员', () => {
+      const legacyIdentityTargets = [
         createMockMemberData(10, '10费Liella text成员', 'OTHER-LIELLA-TEXT', {
           cardText: '『スーパースター』のメンバー。',
         }),
-        createMockMemberData(10, '10费Liella fallback成员', 'PL!SP-test-cost10'),
+        createMockMemberData(10, '10费Liella prefix成员', 'PL!SP-test-cost10'),
       ];
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 8 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
+            cardCode: 'PL!SP-bp5-003-AR',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
 
-      for (const memberData of liellaTargets) {
-        const resources: AvailableResources = {
-          activeEnergyIds: Array.from({ length: 8 }, (_, index) => `${memberData.cardCode}-e${index}`),
-          stageMembers: [
-            createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
-              cardCode: 'PL!SP-bp5-003-AR',
-            }),
-          ],
-          sourceCardId: 'source-card',
-          handCardIds: ['source-card'],
-        };
-
+      for (const memberData of legacyIdentityTargets) {
         const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
-        const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
 
-        expect(result.canPay).toBe(true);
-        expect(directPlan?.totalCost).toBe(10);
-        expect(directPlan?.modifiedCost).toBe(8);
-        expect(directPlan?.costModifierAmount).toBe(2);
-        expect(directPlan?.costModifiers[0]?.id).toBe(
-          'PL!SP-bp5-003-AR:stage-source-cost-minus-cost10-liella'
-        );
+        expect(result.canPay).toBe(false);
+        expect(result.reason).toContain('需要 10 能量');
       }
     });
 
@@ -645,16 +673,18 @@ describe('CostCalculator', () => {
         stageMembers: [
           createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
             cardCode: 'PL!SP-bp5-003-AR',
-            groupName: 'ラブライブ！スーパースター!!',
+            groupNames: ['ラブライブ！スーパースター!!'],
           }),
         ],
         sourceCardId: 'source-card',
         handCardIds: ['source-card'],
       };
 
-      const cost9Liella = createMockMemberData(9, '9费Liella!成员', 'PL!SP-test-cost9');
+      const cost9Liella = createMockMemberData(9, '9费Liella!成员', 'PL!SP-test-cost9', {
+        groupNames: ['Liella!'],
+      });
       const cost10Other = createMockMemberData(10, '10费非Liella!成员', 'PL!N-test-cost10', {
-        groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+        groupNames: ['ラブライブ！虹ヶ咲学園スクールアイドル同好会'],
       });
 
       const cost9Result = calculator.checkCanPayCost(cost9Liella, SlotPosition.CENTER, resources);
@@ -671,13 +701,15 @@ describe('CostCalculator', () => {
     });
 
     it('应该先应用 PL!SP-bp5-003-AR 舞台来源减费，再计算换手减免', () => {
-      const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10');
+      const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10', {
+        groupNames: ['Liella!'],
+      });
       const resources: AvailableResources = {
         activeEnergyIds: ['e1'],
         stageMembers: [
           createStageMemberInfo('chisato-source', 7, SlotPosition.CENTER, {
             cardCode: 'PL!SP-bp5-003-AR',
-            groupName: 'ラブライブ！スーパースター!!',
+            groupNames: ['ラブライブ！スーパースター!!'],
           }),
         ],
         sourceCardId: 'source-card',

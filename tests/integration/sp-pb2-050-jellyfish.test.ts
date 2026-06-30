@@ -27,7 +27,7 @@ function createJellyfish(): LiveCardData {
   return {
     cardCode: 'PL!SP-pb2-050-L',
     name: 'Jellyfish',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName: '5yncri5e!',
     cardType: CardType.LIVE,
     score: 2,
@@ -39,7 +39,7 @@ function createMember(name: string, unitName: string): MemberCardData {
   return {
     cardCode: `PL!SP-test-${name}`,
     name,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName,
     cardType: CardType.MEMBER,
     cost: 4,

@@ -555,7 +555,7 @@ describe('live modifier helpers', () => {
       {
         cardCode: 'PL!HS-test-kosuzu',
         name: '徒町小铃',
-        groupName: '蓮ノ空女学院スクールアイドルクラブ',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
         cardType: CardType.MEMBER,
         cost: 4,
         blade: 1,
@@ -597,7 +597,7 @@ describe('live modifier helpers', () => {
       {
         cardCode: 'PL!S-bp6-009-P',
         name: '黒澤ルビィ',
-        groupName: 'Aqours',
+        groupNames: ['Aqours'],
         cardType: CardType.MEMBER,
         cost: 9,
         blade: 2,
@@ -675,7 +675,7 @@ describe('live modifier helpers', () => {
       {
         cardCode: 'PL!HS-test-kaho',
         name: '日野下花帆',
-        groupName: '蓮ノ空女学院スクールアイドルクラブ',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
         cardType: CardType.MEMBER,
         cost: 4,
         blade: 1,
@@ -720,7 +720,7 @@ describe('live modifier helpers', () => {
       {
         cardCode: 'PL!HS-test-sayaka',
         name: '村野沙耶香',
-        groupName: '蓮ノ空女学院スクールアイドルクラブ',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
         cardType: CardType.MEMBER,
         cost: 4,
         blade: 1,
@@ -770,7 +770,7 @@ describe('live modifier helpers', () => {
       {
         cardCode: 'PL!HS-test-kaho',
         name: '日野下花帆',
-        groupName: '蓮ノ空女学院スクールアイドルクラブ',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
         cardType: CardType.MEMBER,
         cost: 4,
         blade: 1,
@@ -2811,7 +2811,7 @@ describe('live modifier helpers', () => {
       {
         cardCode: 'PL!N-bp1-012-SEC',
         name: '鐘 嵐珠',
-        groupName: '虹ヶ咲学園スクールアイドル同好会',
+        groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
         cardType: CardType.MEMBER,
         cost: 15,
         blade: 1,
@@ -2825,7 +2825,7 @@ describe('live modifier helpers', () => {
         {
           cardCode: `${getTestLiveCardCodePrefix(groupName)}-bp1-012-test-live-${index}`,
           name: `Live ${index}`,
-          groupName,
+          groupNames: [groupName],
           cardType: CardType.LIVE,
           score: 1,
           requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -2918,14 +2918,14 @@ describe('live modifier helpers', () => {
     );
   });
 
-  function getTestLiveCardCodePrefix(groupName: string): string {
-    if (groupName.includes('虹')) {
+  function getTestLiveCardCodePrefix(groupNames: string): string {
+    if (groupNames.includes('虹')) {
       return 'PL!N';
     }
-    if (groupName.includes('Aqours')) {
+    if (groupNames.includes('Aqours')) {
       return 'PL!S';
     }
-    if (groupName.includes('Liella')) {
+    if (groupNames.includes('Liella')) {
       return 'PL!SP';
     }
     return 'PL!HS';
@@ -3109,7 +3109,7 @@ describe('live modifier helpers', () => {
       {
         cardCode: 'PL!HS-pb1-014-R',
         name: '安養寺姫芽',
-        groupName: '莲之空',
+        groupNames: ['莲之空'],
         unitName: 'みらくらぱーく！',
         cardType: CardType.MEMBER,
         cost: 9,
@@ -3355,7 +3355,7 @@ describe('live modifier helpers', () => {
           [HeartColor.RED]: 3,
           [HeartColor.YELLOW]: 5,
         }),
-        groupName: 'Aqours',
+        groupNames: ['Aqours'],
       },
     });
 
@@ -3807,50 +3807,70 @@ describe('live modifier helpers', () => {
     ).toBe(false);
   });
 
-  it('recognizes Hasunosora members by group aliases, text alias, and PL!HS fallback', () => {
-    const identityCases = [
-      {
-        label: 'group-aliases',
-        left: createHasunosoraMemberData('OTHER-HS-CN', '日野下花帆', 4, {
-          groupName: '莲之空',
-        }),
-        center: createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13, {
-          groupName: '蓮ノ空',
-        }),
-        right: createHasunosoraMemberData('OTHER-HS-JP', '村野沙耶香', 11, {
-          groupName: '蓮ノ空女学院スクールアイドルクラブ',
-        }),
-      },
+  it('recognizes Hasunosora members through structured groupNames only', () => {
+    const left = createHasunosoraMemberData('OTHER-HS-CN', '日野下花帆', 4, {
+      groupNames: ['莲之空'],
+    });
+    const center = createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13, {
+      groupNames: ['蓮ノ空'],
+    });
+    const right = createHasunosoraMemberData('OTHER-HS-JP', '村野沙耶香', 11, {
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+    });
+    const leftCard = createCardInstance(left, 'p1', 'group-aliases-left');
+    const centerCard = createCardInstance(center, 'p1', 'group-aliases-center');
+    const rightCard = createCardInstance(right, 'p1', 'group-aliases-right');
+
+    let game = createGameState('hs-bp1-003-group-aliases', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [leftCard, centerCard, rightCard]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, leftCard.instanceId),
+          SlotPosition.CENTER,
+          centerCard.instanceId
+        ),
+        SlotPosition.RIGHT,
+        rightCard.instanceId
+      ),
+    }));
+
+    expect(hasHsBp1ContinuousScore(game)).toBe(true);
+  });
+
+  it('does not recognize Hasunosora members from text or PL!HS card-code prefix', () => {
+    const legacyIdentityCases = [
       {
         label: 'card-text',
         left: createHasunosoraMemberData('OTHER-HS-TEXT-1', '日野下花帆', 4, {
-          groupName: undefined,
+          groupNames: [],
           cardText: 'Hasunosora のメンバー。',
         }),
         center: createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13, {
-          groupName: undefined,
+          groupNames: [],
           cardText: 'Hasunosora のメンバー。',
         }),
         right: createHasunosoraMemberData('OTHER-HS-TEXT-2', '村野沙耶香', 11, {
-          groupName: undefined,
+          groupNames: [],
           cardText: 'Hasunosora のメンバー。',
         }),
       },
       {
-        label: 'card-code-fallback',
+        label: 'card-code-prefix',
         left: createHasunosoraMemberData('PL!HS-test-left', '日野下花帆', 4, {
-          groupName: undefined,
+          groupNames: [],
         }),
         center: createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13, {
-          groupName: undefined,
+          groupNames: [],
         }),
         right: createHasunosoraMemberData('PL!HS-test-right', '村野沙耶香', 11, {
-          groupName: undefined,
+          groupNames: [],
         }),
       },
     ] as const;
 
-    for (const { label, left, center, right } of identityCases) {
+    for (const { label, left, center, right } of legacyIdentityCases) {
       const leftCard = createCardInstance(left, 'p1', `${label}-left`);
       const centerCard = createCardInstance(center, 'p1', `${label}-center`);
       const rightCard = createCardInstance(right, 'p1', `${label}-right`);
@@ -3870,7 +3890,7 @@ describe('live modifier helpers', () => {
         ),
       }));
 
-      expect(hasHsBp1ContinuousScore(game)).toBe(true);
+      expect(hasHsBp1ContinuousScore(game)).toBe(false);
     }
   });
 
@@ -4008,7 +4028,7 @@ function createSpBp5012Kanon(instanceId: string) {
     {
       cardCode: 'PL!SP-bp5-012-N',
       name: '澁谷かのん',
-      groupName: 'Liella!',
+      groupNames: ['Liella!'],
       cardType: CardType.MEMBER,
       cost: 2,
       blade: 1,
@@ -4028,7 +4048,7 @@ function createSpPb2EnergyHeartState(options: {
     {
       cardCode: options.cardCode,
       name: options.cardCode,
-      groupName: 'Liella!',
+      groupNames: ['Liella!'],
       cardType: CardType.MEMBER,
       cost: 4,
       blade: 1,
@@ -4041,7 +4061,7 @@ function createSpPb2EnergyHeartState(options: {
     {
       cardCode: 'PL!SP-test-host',
       name: 'Host',
-      groupName: 'Liella!',
+      groupNames: ['Liella!'],
       cardType: CardType.MEMBER,
       cost: 4,
       blade: 1,
@@ -4103,7 +4123,7 @@ function createLiellaLiveData(
   return {
     cardCode,
     name,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 4,
     requirements: createHeartRequirement(requirements),
@@ -4138,7 +4158,7 @@ function createDreaminGoGo(instanceId: string) {
         [HeartColor.PURPLE]: 5,
         [HeartColor.RAINBOW]: 5,
       }),
-      groupName: "μ's",
+      groupNames: ["μ's"],
     },
     'p1',
     instanceId
@@ -4152,7 +4172,7 @@ function createMuseLiveData(cardCode: string, name: string, score: number) {
     cardType: CardType.LIVE,
     score,
     requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 3 }),
-    groupName: "μ's",
+    groupNames: ["μ's"],
   };
 }
 
@@ -4163,7 +4183,7 @@ function createAqoursLiveData(cardCode: string, name: string, score = 1) {
     cardType: CardType.LIVE,
     score,
     requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
-    groupName: 'Aqours',
+    groupNames: ['Aqours'],
   };
 }
 
@@ -4172,11 +4192,10 @@ function createHasunosoraMemberData(
   name: string,
   cost: number,
   options: {
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly cardText?: string;
   } = {}
 ) {
-  const groupName = 'groupName' in options ? options.groupName : '莲之空';
   return {
     cardCode,
     name,
@@ -4184,7 +4203,7 @@ function createHasunosoraMemberData(
     cost,
     blade: 1,
     hearts: [createHeartIcon(HeartColor.GREEN, 1)],
-    groupName,
+    groupNames: options.groupNames ?? ['莲之空'],
     cardText: options.cardText,
   };
 }
@@ -4216,7 +4235,7 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
         cost: 15,
         blade: 5,
         hearts: [createHeartIcon(HeartColor.BLUE, 2)],
-        groupName: '虹ヶ咲',
+        groupNames: ['虹ヶ咲'],
       },
       sourceOwner,
       'mia'

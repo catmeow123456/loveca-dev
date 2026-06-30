@@ -74,49 +74,49 @@ describe('card selectors', () => {
     expect(costGte(5)(live)).toBe(false);
   });
 
-  it('matches Muse cards by explicit group, text, and PL card-code fallback', () => {
-    const explicitMuse = memberCard('OTHER-1', { groupName: "μ's" });
+  it('matches Muse cards by structured groupNames only', () => {
+    const explicitMuse = memberCard('OTHER-1', { groupNames: ["μ's"] });
     const textMuse = memberCard('OTHER-2', { cardText: "从『μ's』的成员中选择。" });
     const fallbackMuse = memberCard('PL!-fallback');
-    const other = memberCard('OTHER-3', { groupName: 'Aqours' });
+    const other = memberCard('OTHER-3', { groupNames: ['Aqours'] });
 
     const muse = groupIs("μ's");
 
     expect(muse(explicitMuse)).toBe(true);
-    expect(muse(textMuse)).toBe(true);
-    expect(muse(fallbackMuse)).toBe(true);
+    expect(muse(textMuse)).toBe(false);
+    expect(muse(fallbackMuse)).toBe(false);
     expect(muse(other)).toBe(false);
   });
 
-  it('matches Muse aliases through groupAliasIs with legacy bare mu support', () => {
-    const explicitMuse = memberCard('OTHER-MUSE-GROUP', { groupName: "μ's" });
+  it('matches Muse aliases through groupAliasIs with structured bare mu support', () => {
+    const explicitMuse = memberCard('OTHER-MUSE-GROUP', { groupNames: ["μ's"] });
     const textMuse = memberCard('OTHER-MUSE-TEXT', { cardText: "从『μ's』的成员中选择。" });
-    const bareMuGroup = memberCard('OTHER-MUSE-BARE-GROUP', { groupName: 'μ' });
+    const bareMuGroup = memberCard('OTHER-MUSE-BARE-GROUP', { groupNames: ['μ'] });
     const bareMuText = memberCard('OTHER-MUSE-BARE-TEXT', { cardText: '选择1名μ成员。' });
     const fallbackMuse = memberCard('PL!-fallback');
-    const aqours = memberCard('OTHER-AQOURS', { groupName: 'Aqours' });
-    const other = memberCard('OTHER-GROUP', { groupName: '蓮ノ空' });
+    const aqours = memberCard('OTHER-AQOURS', { groupNames: ['Aqours'] });
+    const other = memberCard('OTHER-GROUP', { groupNames: ['蓮ノ空'] });
 
     const muse = groupAliasIs("μ's");
 
     expect(muse(explicitMuse)).toBe(true);
-    expect(muse(textMuse)).toBe(true);
+    expect(muse(textMuse)).toBe(false);
     expect(muse(bareMuGroup)).toBe(true);
-    expect(muse(bareMuText)).toBe(true);
-    expect(muse(fallbackMuse)).toBe(true);
+    expect(muse(bareMuText)).toBe(false);
+    expect(muse(fallbackMuse)).toBe(false);
     expect(muse(aqours)).toBe(false);
     expect(muse(other)).toBe(false);
   });
 
-  it('matches known group aliases and card-code fallbacks through one generic selector', () => {
-    const hasunosoraChinese = memberCard('OTHER-HS-CN', { groupName: '莲之空女学院' });
+  it('matches known group aliases through structured groupNames', () => {
+    const hasunosoraChinese = memberCard('OTHER-HS-CN', { groupNames: ['莲之空女学院'] });
     const hasunosoraJapanese = memberCard('OTHER-HS-JP', {
-      groupName: '蓮ノ空女学院スクールアイドルクラブ',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     });
     const hasunosoraText = memberCard('OTHER-HS-TEXT', { cardText: 'Hasunosora のメンバー。' });
-    const hasunosoraFallback = memberCard('PL!HS-fallback');
-    const liellaGroup = memberCard('OTHER-SP-GROUP', { groupName: 'Liella!' });
-    const liellaGroupWithoutBang = memberCard('OTHER-SP-GROUP-NO-BANG', { groupName: 'Liella' });
+    const hasunosoraPrefixOnly = memberCard('PL!HS-prefix-only');
+    const liellaGroup = memberCard('OTHER-SP-GROUP', { groupNames: ['Liella!'] });
+    const liellaGroupWithoutBang = memberCard('OTHER-SP-GROUP-NO-BANG', { groupNames: ['Liella'] });
     const liellaTextWithoutBang = memberCard('OTHER-SP-TEXT-NO-BANG', {
       cardText: 'Liella のメンバー。',
     });
@@ -125,52 +125,65 @@ describe('card selectors', () => {
     const liellaSuperstarEnglish = memberCard('OTHER-SP-SUPERSTAR-EN', {
       cardText: 'SUPERSTAR member.',
     });
-    const liellaFallback = memberCard('PL!SP-fallback');
-    const nijigasakiGroup = memberCard('OTHER-N-GROUP', { groupName: '虹ヶ咲学園' });
+    const liellaPrefixOnly = memberCard('PL!SP-prefix-only');
+    const nijigasakiGroup = memberCard('OTHER-N-GROUP', { groupNames: ['虹ヶ咲学園'] });
     const nijigasakiShort = memberCard('OTHER-N-SHORT', { cardText: '虹咲のメンバー。' });
     const nijigasakiText = memberCard('OTHER-N-TEXT', { cardText: 'Nijigasaki のメンバー。' });
-    const nijigasakiFallback = memberCard('PL!N-fallback');
-    const aqoursText = memberCard('OTHER-S-TEXT', { groupName: 'Aqours' });
-    const aqoursFallback = memberCard('PL!S-fallback');
+    const nijigasakiPrefixOnly = memberCard('PL!N-prefix-only');
+    const aqoursText = memberCard('OTHER-S-TEXT', { groupNames: ['Aqours'] });
+    const aqoursPrefixOnly = memberCard('PL!S-prefix-only');
     const aqoursMixedSeries = memberCard('LL-bp2-001-R+', {
       name: '渡辺 曜&鬼塚夏美&大沢瑠璃乃',
-      groupName:
-        'ラブライブ！サンシャイン!!\nラブライブ！スーパースター!!\n蓮ノ空女学院スクールアイドルクラブ',
+      groupNames: [
+        'ラブライブ！サンシャイン!!',
+        'ラブライブ！スーパースター!!',
+        '蓮ノ空女学院スクールアイドルクラブ',
+      ],
     });
-    const other = memberCard('OTHER-identity', { groupName: "μ's" });
+    const other = memberCard('OTHER-identity', { groupNames: ["μ's"] });
 
     const hasunosora = groupAliasIs('蓮ノ空');
     const liella = groupAliasIs('Liella!');
     const nijigasaki = groupAliasIs('虹ヶ咲');
     const aqours = groupAliasIs('Aqours');
 
-    expect(groupAliasIs("μ's")(memberCard('PL!-fallback'))).toBe(true);
+    expect(groupAliasIs("μ's")(memberCard('PL!-prefix-only'))).toBe(false);
     expect(hasunosora(hasunosoraChinese)).toBe(true);
     expect(hasunosora(hasunosoraJapanese)).toBe(true);
-    expect(groupAliasIs('Hasunosora')(hasunosoraText)).toBe(true);
-    expect(groupAliasIs('Hasunosora')(hasunosoraFallback)).toBe(true);
-    expect(hasunosora(hasunosoraFallback)).toBe(true);
+    expect(groupAliasIs('Hasunosora')(hasunosoraText)).toBe(false);
+    expect(groupAliasIs('Hasunosora')(hasunosoraPrefixOnly)).toBe(false);
+    expect(hasunosora(hasunosoraPrefixOnly)).toBe(false);
     expect(liella(liellaGroup)).toBe(true);
     expect(liella(liellaGroupWithoutBang)).toBe(true);
-    expect(liella(liellaTextWithoutBang)).toBe(true);
-    expect(liella(liellaText)).toBe(true);
-    expect(liella(liellaSuperstar)).toBe(true);
-    expect(liella(liellaSuperstarEnglish)).toBe(true);
-    expect(liella(liellaFallback)).toBe(true);
+    expect(liella(liellaTextWithoutBang)).toBe(false);
+    expect(liella(liellaText)).toBe(false);
+    expect(liella(liellaSuperstar)).toBe(false);
+    expect(liella(liellaSuperstarEnglish)).toBe(false);
+    expect(liella(liellaPrefixOnly)).toBe(false);
     expect(nijigasaki(nijigasakiGroup)).toBe(true);
-    expect(nijigasaki(nijigasakiShort)).toBe(true);
-    expect(nijigasaki(nijigasakiText)).toBe(true);
-    expect(nijigasaki(nijigasakiFallback)).toBe(true);
+    expect(nijigasaki(nijigasakiShort)).toBe(false);
+    expect(nijigasaki(nijigasakiText)).toBe(false);
+    expect(nijigasaki(nijigasakiPrefixOnly)).toBe(false);
     expect(aqours(aqoursText)).toBe(true);
-    expect(aqours(aqoursFallback)).toBe(true);
+    expect(aqours(aqoursPrefixOnly)).toBe(false);
     expect(aqours(aqoursMixedSeries)).toBe(true);
     expect(hasunosora(other)).toBe(false);
   });
 
-  it('matches SaintSnow aliases through central groupAliasIs identity fields', () => {
+  it('does not treat PL!SP card-code prefix as Liella! when true groupNames differ', () => {
+    const vienneSolo = memberCard('PL!SP-pb1-021-N', {
+      name: 'ウィーン・マルガレーテ',
+      groupNames: ['ウィーン・マルガレーテ'],
+    });
+
+    expect(groupAliasIs('Liella!')(vienneSolo)).toBe(false);
+    expect(groupIs('Liella!')(vienneSolo)).toBe(false);
+  });
+
+  it('matches SaintSnow aliases through structured groupNames only', () => {
     const unitName = memberCard('OTHER-SAINTSNOW-UNIT', { unitName: 'SaintSnow' });
     const unitNameRaw = memberCard('OTHER-SAINTSNOW-UNIT-RAW', { unitNameRaw: 'Saint Snow' });
-    const groupName = memberCard('OTHER-SAINTSNOW-GROUP', { groupName: 'SaintSnow' });
+    const groupName = memberCard('OTHER-SAINTSNOW-GROUP', { groupNames: ['SaintSnow'] });
     const groupNames = memberCard('OTHER-SAINTSNOW-GROUPS', { groupNames: ['Saint Snow'] });
     const cardText = memberCard('OTHER-SAINTSNOW-TEXT', {
       cardText: 'このカードは『SaintSnow』のメンバーとして扱う。',
@@ -185,25 +198,25 @@ describe('card selectors', () => {
 
     const saintSnow = groupAliasIs('SaintSnow');
 
-    expect(saintSnow(unitName)).toBe(true);
-    expect(saintSnow(unitNameRaw)).toBe(true);
+    expect(saintSnow(unitName)).toBe(false);
+    expect(saintSnow(unitNameRaw)).toBe(false);
     expect(saintSnow(groupName)).toBe(true);
     expect(saintSnow(groupNames)).toBe(true);
-    expect(groupAliasIs('Saint Snow')(cardText)).toBe(true);
-    expect(saintSnow(cardTextJp)).toBe(true);
-    expect(saintSnow(cardTextCn)).toBe(true);
+    expect(groupAliasIs('Saint Snow')(cardText)).toBe(false);
+    expect(saintSnow(cardTextJp)).toBe(false);
+    expect(saintSnow(cardTextCn)).toBe(false);
     expect(saintSnow(other)).toBe(false);
   });
 
-  it('keeps SaintSnow and Aqours structured identity boundaries ahead of PL!S fallback', () => {
+  it('keeps SaintSnow and Aqours structured identity boundaries without PL!S fallback', () => {
     const pureSaintSnow = memberCard('PL!S-bp5-111-R', {
-      unitName: 'SaintSnow',
+      groupNames: ['SaintSnow'],
     });
     const aqoursAndSaintSnow = memberCard('PL!S-test-aqours-saintsnow', {
-      unitName: 'Aqours/SaintSnow',
+      groupNames: ['Aqours/SaintSnow'],
     });
     const pureAqours = memberCard('PL!S-test-aqours', {
-      unitName: 'Aqours',
+      groupNames: ['Aqours'],
     });
 
     expect(groupAliasIs('SaintSnow')(pureSaintSnow)).toBe(true);
@@ -216,7 +229,7 @@ describe('card selectors', () => {
 
   it('does not match unknown group aliases through groupAliasIs', () => {
     const customGroup = memberCard('OTHER-CUSTOM-GROUP', {
-      groupName: 'Custom School Idol Club',
+      groupNames: ['Custom School Idol Club'],
       cardText: 'Custom School Idol Club member.',
     });
     const customFallback = memberCard('PL!CUSTOM-fallback');
@@ -227,29 +240,29 @@ describe('card selectors', () => {
     expect(unknownGroup(customFallback)).toBe(false);
   });
 
-  it('preserves direct contains matching for groupIs before identity fallback', () => {
+  it('uses the same known identity matching for groupIs', () => {
     const customGroup = memberCard('OTHER-CUSTOM-GROUP', {
-      groupName: 'Custom School Idol Club',
+      groupNames: ['Custom School Idol Club'],
     });
     const customText = memberCard('OTHER-CUSTOM-TEXT', {
       cardText: 'Choose a Custom School Idol Club member.',
     });
-    const other = memberCard('OTHER-CUSTOM-MISS', { groupName: 'Other Group' });
+    const other = memberCard('OTHER-CUSTOM-MISS', { groupNames: ['Other Group'] });
 
     const custom = groupIs('Custom School Idol Club');
 
-    expect(custom(customGroup)).toBe(true);
-    expect(custom(customText)).toBe(true);
+    expect(custom(customGroup)).toBe(false);
+    expect(custom(customText)).toBe(false);
     expect(custom(other)).toBe(false);
   });
 
   it('matches card unit independently from series group', () => {
     const ceriseLive = liveCard('PL!HS-bp2-022-L', {
-      groupName: '蓮ノ空女学院スクールアイドルクラブ',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
       unitName: 'スリーズブーケ',
     });
     const dollchestraLive = liveCard('PL!HS-bp6-027-L', {
-      groupName: '蓮ノ空女学院スクールアイドルクラブ',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
       unitName: 'DOLLCHESTRA',
     });
 
@@ -260,11 +273,11 @@ describe('card selectors', () => {
 
   it('matches known unit aliases across English and Japanese unit names', () => {
     const ceriseLive = liveCard('PL!HS-bp2-022-L', {
-      groupName: '蓮ノ空女学院スクールアイドルクラブ',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
       unitName: 'スリーズブーケ',
     });
     const miraCraLive = liveCard('PL!HS-bp6-027-L', {
-      groupName: '蓮ノ空女学院スクールアイドルクラブ',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
       unitName: 'みらくらぱーく！',
     });
 
@@ -520,8 +533,8 @@ describe('card selectors', () => {
   });
 
   it('composes selectors with and, or, and not', () => {
-    const lowCostMuse = memberCard('PL!-sd1-low', { cost: 4 });
-    const highCostMuse = memberCard('PL!-sd1-high', { cost: 5 });
+    const lowCostMuse = memberCard('PL!-sd1-low', { cost: 4, groupNames: ["μ's"] });
+    const highCostMuse = memberCard('PL!-sd1-high', { cost: 5, groupNames: ["μ's"] });
     const live = liveCard('PL!-sd1-live');
 
     const lowCostMuseMember = and(typeIs(CardType.MEMBER), groupIs("μ's"), costLte(4));

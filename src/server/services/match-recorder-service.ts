@@ -69,7 +69,7 @@ export interface MatchRecorderCardSummary {
   readonly cardCode: string;
   readonly name: string;
   readonly cardType: string;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
   readonly unitName?: string;
   readonly cost?: number;
   readonly score?: number;
@@ -1270,7 +1270,7 @@ function summarizeCard(card: AnyCardData): MatchRecorderCardSummary {
     cardCode: card.cardCode,
     name: card.name,
     cardType: card.cardType,
-    ...('groupName' in card && card.groupName ? { groupName: card.groupName } : {}),
+    ...(card.groupNames && card.groupNames.length > 0 ? { groupNames: card.groupNames } : {}),
     ...('unitName' in card && card.unitName ? { unitName: card.unitName } : {}),
     ...('cost' in card ? { cost: card.cost } : {}),
     ...('score' in card ? { score: card.score } : {}),

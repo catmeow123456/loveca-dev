@@ -1,12 +1,5 @@
 export interface CardIdentityLike {
-  readonly cardCode?: string;
-  readonly groupName?: string;
   readonly groupNames?: readonly string[];
-  readonly unitName?: string;
-  readonly unitNameRaw?: string;
-  readonly cardText?: string;
-  readonly cardTextJp?: string;
-  readonly cardTextCn?: string;
 }
 
 export type GroupIdentityName = "μ's" | '蓮ノ空' | 'Liella!' | '虹ヶ咲' | 'Aqours' | 'SaintSnow';
@@ -14,29 +7,24 @@ export type GroupIdentityName = "μ's" | '蓮ノ空' | 'Liella!' | '虹ヶ咲' |
 const GROUP_IDENTITY_GROUPS: readonly {
   readonly canonicalName: GroupIdentityName;
   readonly aliases: readonly string[];
-  readonly cardCodePrefixes: readonly string[];
 }[] = [
-  { canonicalName: "μ's", aliases: ["μ's", 'μ'], cardCodePrefixes: ['PL!-'] },
+  { canonicalName: "μ's", aliases: ["μ's", 'μ'] },
   {
     canonicalName: '蓮ノ空',
     aliases: ['蓮ノ空', '莲之空', 'Hasunosora'],
-    cardCodePrefixes: ['PL!HS-'],
   },
   {
     canonicalName: 'Liella!',
     aliases: ['Liella!', 'Liella', 'リエラ', 'スーパースター', 'superstar'],
-    cardCodePrefixes: ['PL!SP-'],
   },
-  { canonicalName: '虹ヶ咲', aliases: ['虹咲', '虹ヶ咲', 'Nijigasaki'], cardCodePrefixes: ['PL!N-'] },
+  { canonicalName: '虹ヶ咲', aliases: ['虹咲', '虹ヶ咲', 'Nijigasaki'] },
   {
     canonicalName: 'Aqours',
     aliases: ['Aqours', 'ラブライブ！サンシャイン!!'],
-    cardCodePrefixes: ['PL!S-'],
   },
   {
     canonicalName: 'SaintSnow',
     aliases: ['SaintSnow', 'Saint Snow'],
-    cardCodePrefixes: [],
   },
 ];
 
@@ -65,7 +53,6 @@ function getGroupIdentity(groupName: string):
   | {
       readonly canonicalName: GroupIdentityName;
       readonly aliases: readonly string[];
-      readonly cardCodePrefixes: readonly string[];
     }
   | undefined {
   const normalizedGroupName = normalizeGroupIdentityText(groupName);
@@ -79,7 +66,6 @@ function cardMatchesGroupIdentity(
   groupIdentity: {
     readonly canonicalName: GroupIdentityName;
     readonly aliases: readonly string[];
-    readonly cardCodePrefixes: readonly string[];
   }
 ): boolean {
   if (
@@ -91,11 +77,8 @@ function cardMatchesGroupIdentity(
   }
 
   const normalizedAliases = groupIdentity.aliases.map((alias) => normalizeGroupIdentityText(alias));
-  return (
-    getCardIdentityTextCandidates(card).some((value) =>
-      matchesAnyNormalizedAlias(value, normalizedAliases)
-    ) ||
-    groupIdentity.cardCodePrefixes.some((prefix) => card.cardCode?.startsWith(prefix) === true)
+  return getStructuredIdentityTextCandidates(card).some((value) =>
+    matchesAnyNormalizedAlias(value, normalizedAliases)
   );
 }
 
@@ -110,19 +93,10 @@ function hasStructuredGroupIdentity(card: CardIdentityLike, groupName: string): 
   );
 }
 
-function getCardIdentityTextCandidates(card: CardIdentityLike): readonly (string | undefined)[] {
-  return [
-    ...getStructuredIdentityTextCandidates(card),
-    card.cardText,
-    card.cardTextJp,
-    card.cardTextCn,
-  ];
-}
-
 function getStructuredIdentityTextCandidates(
   card: CardIdentityLike
 ): readonly (string | undefined)[] {
-  return [card.groupName, ...(card.groupNames ?? []), card.unitName, card.unitNameRaw];
+  return card.groupNames ?? [];
 }
 
 function matchesAnyNormalizedAlias(

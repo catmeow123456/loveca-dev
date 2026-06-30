@@ -49,7 +49,7 @@ function createLive(cardCode: string, name: string, score = 1): LiveCardData {
   return {
     cardCode,
     name,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.LIVE,
     score,
@@ -64,12 +64,12 @@ function createMember(options: {
   readonly cardCode: string;
   readonly name: string;
   readonly cost: number;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
     name: options.name,
-    groupName: options.groupName ?? '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: options.groupNames ?? ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.MEMBER,
     cost: options.cost,
@@ -142,7 +142,7 @@ function createRelayRequirementLive(cardCode: string, name: string, color: Heart
   return {
     cardCode,
     name,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.LIVE,
     score: 3,
@@ -481,7 +481,7 @@ describe('conditional live modifier workflow', () => {
       },
       {
         card: createCardInstance(
-          createMember({ cardCode: 'PL!SP-test-high', name: 'Liella High', cost: 12, groupName: 'Liella!' }),
+          createMember({ cardCode: 'PL!SP-test-high', name: 'Liella High', cost: 12, groupNames: ['Liella!'] }),
           PLAYER1,
           'liella-high'
         ),

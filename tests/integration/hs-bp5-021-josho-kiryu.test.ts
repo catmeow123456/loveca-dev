@@ -44,14 +44,14 @@ const ABILITY_ORDER_SELECTION_ID = 'system:select-pending-card-effect';
 function createMember(options: {
   readonly cardCode: string;
   readonly name: string;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
   readonly unitName?: string;
   readonly hearts?: readonly ReturnType<typeof createHeartIcon>[];
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
     name: options.name,
-    groupName: options.groupName ?? '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: options.groupNames ?? ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: options.unitName,
     cardType: CardType.MEMBER,
     cost: 10,
@@ -64,7 +64,7 @@ function createJoshoKiryuLive(): LiveCardData {
   return {
     cardCode: 'PL!HS-bp5-021-L',
     name: 'ジョーショーキリュー',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'Mira-Cra Park!',
     cardType: CardType.LIVE,
     score: 4,
@@ -275,7 +275,7 @@ describe('PL!HS-bp5-021-L Josho Kiryu workflow', () => {
       createMember({
         cardCode: 'PL!SP-test-kanon',
         name: '澁谷かのん',
-        groupName: 'Liella!',
+        groupNames: ['Liella!'],
         unitName: 'Liella!',
       }),
       PLAYER1,

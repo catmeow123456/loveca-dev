@@ -40,14 +40,14 @@ function createMemberCard(
   options: {
     readonly name?: string;
     readonly cost?: number;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly unitName?: string;
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? "μ's",
+    groupNames: options.groupNames ?? ["μ's"],
     unitName: options.unitName ?? "μ's",
     cardType: CardType.MEMBER,
     cost: options.cost ?? 2,
@@ -60,7 +60,7 @@ function createLiveCard(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: "μ's",
+    groupNames: ["μ's"],
     cardType: CardType.LIVE,
     score: 2,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -133,7 +133,7 @@ function setupNicoScenario(options: {
     createMemberCard(candidateCardCode, {
       name: 'P1 low cost',
       cost: 2,
-      groupName: options.candidatesHaveOnEnterAbility ? 'Liella!' : "μ's",
+      groupNames: options.candidatesHaveOnEnterAbility ? ['Liella!'] : ["μ's"],
       unitName: options.candidatesHaveOnEnterAbility ? 'Liella!' : "μ's",
     }),
     PLAYER1,
@@ -143,7 +143,7 @@ function setupNicoScenario(options: {
     createMemberCard(candidateCardCode, {
       name: 'P2 low cost',
       cost: 2,
-      groupName: options.candidatesHaveOnEnterAbility ? 'Liella!' : "μ's",
+      groupNames: options.candidatesHaveOnEnterAbility ? ['Liella!'] : ["μ's"],
       unitName: options.candidatesHaveOnEnterAbility ? 'Liella!' : "μ's",
     }),
     PLAYER2,

@@ -4,7 +4,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useGameStore } from '@/store/gameStore';
-import { cleanLocalizedText } from '@/lib/cardLocalization';
+import { cleanLocalizedText, getCardGroupDisplayText } from '@/lib/cardLocalization';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
 import { CardType, HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
@@ -146,7 +146,7 @@ export function useCardFilters(): UseCardFiltersReturn {
       // 规范化后包含匹配，支持联动卡牌（多个真实团体用换行分隔）和 μ’s/μ's 等写法差异。
       const normalizedSelectedGroup = normalizeGroupFilterText(selectedGroup);
       filtered = filtered.filter((card) =>
-        normalizeGroupFilterText(card.groupName).includes(normalizedSelectedGroup)
+        normalizeGroupFilterText(getCardGroupDisplayText(card)).includes(normalizedSelectedGroup)
       );
     }
 

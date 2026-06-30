@@ -30,13 +30,13 @@ const PLAYER2 = 'player2';
 function createMemberCard(options: {
   readonly cardCode: string;
   readonly name: string;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
   readonly cost?: number;
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
     name: options.name,
-    groupName: options.groupName ?? '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: options.groupNames ?? ['蓮ノ空女学院スクールアイドルクラブ'],
     cardType: CardType.MEMBER,
     cost: options.cost ?? 4,
     blade: 1,
@@ -48,7 +48,7 @@ function createLiveCard(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     cardType: CardType.LIVE,
     score: 2,
     requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),
@@ -116,7 +116,7 @@ function setupScenario(options: {
     createMemberCard({
       cardCode: options.replacementCardCode,
       name: options.replacementName,
-      groupName: options.replacementGroupName,
+      groupNames: options.replacementGroupName ? [options.replacementGroupName] : undefined,
     }),
     PLAYER1,
     'relay-replacement'

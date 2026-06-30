@@ -40,7 +40,7 @@ function createNonfiction(): LiveCardData {
   return {
     cardCode: 'PL!SP-bp4-024-L',
     name: 'ノンフィクション!!',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 6,
     requirements: createHeartRequirement({ [HeartColor.RED]: 3 }),
@@ -60,13 +60,13 @@ function createSuccessLive(score: number): LiveCardData {
 function createMember(options: {
   readonly cardCode: string;
   readonly cost: number;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
   readonly redHearts?: number;
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
     name: options.cardCode,
-    groupName: options.groupName,
+    groupNames: options.groupNames,
     cardType: CardType.MEMBER,
     cost: options.cost,
     blade: 1,
@@ -98,7 +98,7 @@ function setupState(options: {
     createMember({
       cardCode: options.leftGroup === 'Aqours' ? 'PL!S-test-left' : 'PL!SP-test-left',
       cost: 4,
-      groupName: options.leftGroup ?? 'Liella!',
+      groupNames: [options.leftGroup ?? 'Liella!'],
       redHearts: options.leftRedHearts ?? 1,
     }),
     PLAYER1,
@@ -108,7 +108,7 @@ function setupState(options: {
     createMember({
       cardCode: options.ownCenterGroup === 'Aqours' ? 'PL!S-test-center' : 'PL!SP-test-center',
       cost: options.ownCenterCost ?? 7,
-      groupName: options.ownCenterGroup ?? 'Liella!',
+      groupNames: [options.ownCenterGroup ?? 'Liella!'],
       redHearts: 1,
     }),
     PLAYER1,
@@ -121,7 +121,7 @@ function setupState(options: {
           createMember({
             cardCode: options.opponentCenterCardCode ?? 'PL!S-test-opponent-center',
             cost: options.opponentCenterCost ?? 5,
-            groupName: 'Aqours',
+            groupNames: ['Aqours'],
             redHearts: 1,
           }),
           PLAYER2,

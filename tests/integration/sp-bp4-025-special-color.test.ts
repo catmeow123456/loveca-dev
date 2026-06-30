@@ -29,12 +29,12 @@ const PLAYER2 = 'player2';
 
 function createMember(
   cardCode: string,
-  options: { readonly blade?: number; readonly groupName?: string } = {}
+  options: { readonly blade?: number; readonly groupNames?: readonly string[] } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: options.groupName ?? 'Liella!',
+    groupNames: options.groupNames ?? ['Liella!'],
     unitName: 'CatChu!',
     cardType: CardType.MEMBER,
     cost: 4,
@@ -47,7 +47,7 @@ function createLive(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: 'Special Color',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     unitName: 'Liella!',
     cardType: CardType.LIVE,
     score: 2,
@@ -69,7 +69,7 @@ function setupState(options: {
   const centerMember = createCardInstance(
     createMember(options.centerCardCode ?? 'PL!SP-bp4-025-center', {
       blade: options.centerBlade ?? 1,
-      groupName: options.centerGroupName ?? 'Liella!',
+      groupNames: [options.centerGroupName ?? 'Liella!'],
     }),
     PLAYER1,
     'special-color-center'

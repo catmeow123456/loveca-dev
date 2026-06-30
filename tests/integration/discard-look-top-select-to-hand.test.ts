@@ -36,6 +36,16 @@ import {
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 
+// 真实团体身份必须由结构化 groupNames 决定（卡号前缀不再作为 fallback）。
+function groupNamesFromCardCode(cardCode: string): readonly string[] {
+  if (cardCode.startsWith('PL!SP-')) return ['Liella!'];
+  if (cardCode.startsWith('PL!HS-')) return ['蓮ノ空'];
+  if (cardCode.startsWith('PL!N-')) return ['虹ヶ咲'];
+  if (cardCode.startsWith('PL!S-')) return ['Aqours'];
+  if (cardCode.startsWith('PL!-')) return ["μ's"];
+  return ['虹咲学园学园偶像同好会'];
+}
+
 function createMemberCard(
   cardCode: string,
   name = cardCode,
@@ -46,7 +56,7 @@ function createMemberCard(
   return {
     cardCode,
     name,
-    groupName: '虹咲学园学园偶像同好会',
+    groupNames: groupNamesFromCardCode(cardCode),
     unitName,
     cardType: CardType.MEMBER,
     cost,
@@ -67,7 +77,7 @@ function createLiveCard(cardCode: string, name = cardCode, unitName?: string): L
   return {
     cardCode,
     name,
-    groupName: '莲之空女学院学园偶像俱乐部',
+    groupNames: groupNamesFromCardCode(cardCode),
     unitName,
     cardType: CardType.LIVE,
     score: 3,

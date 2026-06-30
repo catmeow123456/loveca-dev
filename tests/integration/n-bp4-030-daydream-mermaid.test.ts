@@ -40,13 +40,13 @@ function createLive(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
   } = {}
 ): LiveCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+    groupNames: options.groupNames ?? ['ラブライブ！虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({
@@ -60,7 +60,7 @@ function createMember(cardCode: string): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['ラブライブ！虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,
@@ -108,7 +108,7 @@ function setupScenario(
       ? createCardInstance(
           createLive('PL!N-success-live', {
             name: 'Nijigasaki Success',
-            groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+            groupNames: ['ラブライブ！虹ヶ咲学園スクールアイドル同好会'],
           }),
           PLAYER1,
           'success-nijigasaki'
@@ -117,7 +117,7 @@ function setupScenario(
         ? createCardInstance(
             createLive('PL!SP-success-live', {
               name: 'Liella Success',
-              groupName: 'ラブライブ！スーパースター!!',
+              groupNames: ['ラブライブ！スーパースター!!'],
             }),
             PLAYER1,
             'success-other'

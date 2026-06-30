@@ -34,13 +34,13 @@ function createMember(
   options: {
     readonly name?: string;
     readonly cost?: number;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: options.groupNames ?? ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost: options.cost ?? 4,
     blade: 1,

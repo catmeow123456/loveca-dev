@@ -36,15 +36,15 @@ function createMember(
   options: {
     readonly name?: string;
     readonly cost?: number;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly hasBladeHeart?: boolean;
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Liella!',
-    unitName: options.groupName ?? 'Liella!',
+    groupNames: options.groupNames ?? ['Liella!'],
+    unitName: options.groupNames?.[0] ?? 'Liella!',
     cardType: CardType.MEMBER,
     cost: options.cost ?? 7,
     blade: 1,
@@ -116,7 +116,7 @@ function setupDoubleRelayScenario(options: {
     createMember('PL!SP-test-center', {
       name: 'Center Replacement',
       cost: 8,
-      groupName: options.centerGroupName ?? 'Liella!',
+      groupNames: [options.centerGroupName ?? 'Liella!'],
       hasBladeHeart: options.centerHasBladeHeart,
     }),
     PLAYER1,
@@ -126,7 +126,7 @@ function setupDoubleRelayScenario(options: {
     createMember(options.leftGroupName === 'Aqours' ? 'PL!S-test-left' : 'PL!SP-test-left', {
       name: 'Left Replacement',
       cost: 7,
-      groupName: options.leftGroupName ?? 'Liella!',
+      groupNames: [options.leftGroupName ?? 'Liella!'],
       hasBladeHeart: options.leftHasBladeHeart,
     }),
     PLAYER1,

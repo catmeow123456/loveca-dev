@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { useGameStore } from '@/store/gameStore';
 import { Card } from '@/components/card/Card';
 import { CardLocalizedEffect, CardLocalizedName } from '@/components/card/CardLocalizedInfo';
+import { getCardGroupDisplayText } from '@/lib/cardLocalization';
 import { MemberCardDetails, LiveCardDetails } from '@/components/game/CardDetailOverlay';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
@@ -38,6 +39,7 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
   );
   const point = card ? getCardPoint(card.cardCode) : 0;
   const isLivePreview = !!card && isLiveCardData(card);
+  const groupDisplayText = card ? getCardGroupDisplayText(card) : null;
 
   // ESC 关闭
   useEffect(() => {
@@ -140,10 +142,10 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
                       基本信息
                     </div>
                     <div>
-                      {card.groupName && <MetaRow label="真实团体" value={card.groupName} />}
+                      {groupDisplayText && <MetaRow label="真实团体" value={groupDisplayText} />}
                       {card.unitName && <MetaRow label="小组" value={card.unitName} />}
                       {card.product && <MetaRow label="商品" value={card.product} />}
-                      {!card.groupName && !card.unitName && !card.product && (
+                      {!groupDisplayText && !card.unitName && !card.product && (
                         <div className="text-sm text-[var(--text-muted)]">暂无额外信息</div>
                       )}
                     </div>

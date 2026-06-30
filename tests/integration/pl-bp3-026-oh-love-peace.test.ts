@@ -42,7 +42,7 @@ function createOhLovePeace(): LiveCardData {
   return {
     cardCode: 'PL!-bp3-026-L',
     name: 'Oh,Love&Peace!',
-    groupName: "μ's",
+    groupNames: ["μ's"],
     cardType: CardType.LIVE,
     score: 6,
     requirements: createHeartRequirement({
@@ -57,7 +57,7 @@ function createMember(cardCode: string, name: string, heartCount = 1): MemberCar
   return {
     cardCode,
     name,
-    groupName: "μ's",
+    groupNames: ["μ's"],
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 1,

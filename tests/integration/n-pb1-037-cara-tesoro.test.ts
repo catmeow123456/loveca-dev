@@ -37,7 +37,7 @@ function createLive(cardCode = 'PL!N-pb1-037-L', name = 'Cara Tesoro'): LiveCard
   return {
     cardCode,
     name,
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.LIVE,
     score: 5,
     requirements: createHeartRequirement({
@@ -50,12 +50,12 @@ function createLive(cardCode = 'PL!N-pb1-037-L', name = 'Cara Tesoro'): LiveCard
 function createMember(options: {
   readonly cardCode: string;
   readonly name: string;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
     name: options.name,
-    groupName: options.groupName ?? '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: options.groupNames ?? ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost: 9,
     blade: 1,
@@ -90,7 +90,7 @@ function setupCaraTesoroState(options: {
     createMember({
       cardCode: 'PL!SP-test-source',
       name: 'Liella Source',
-      groupName: 'Liella!',
+      groupNames: ['Liella!'],
     }),
     PLAYER1,
     'other-group-source'

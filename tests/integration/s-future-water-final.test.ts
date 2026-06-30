@@ -59,7 +59,7 @@ function createMemberCard(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly cost?: number;
     readonly bladeHearts?: MemberCardData['bladeHearts'];
   } = {}
@@ -67,7 +67,7 @@ function createMemberCard(
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Aqours',
+    groupNames: options.groupNames ?? ['Aqours'],
     cardType: CardType.MEMBER,
     cost: options.cost ?? 4,
     blade: 1,
@@ -80,7 +80,7 @@ function createLiveCard(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly requirements?: LiveCardData['requirements'];
     readonly bladeHearts?: LiveCardData['bladeHearts'];
   } = {}
@@ -88,7 +88,7 @@ function createLiveCard(
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Aqours',
+    groupNames: options.groupNames ?? ['Aqours'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: options.requirements ?? createHeartRequirement({ [HeartColor.RED]: 1 }),
@@ -268,8 +268,8 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       createMemberCard('LL-bp2-001-R+', {
         name: '渡辺 曜&鬼塚夏美&大沢瑠璃乃',
         cost: 20,
-        groupName:
-          'ラブライブ！サンシャイン!!\nラブライブ！スーパースター!!\n蓮ノ空女学院スクールアイドルクラブ',
+        groupNames:
+          ['ラブライブ！サンシャイン!!\nラブライブ！スーパースター!!\n蓮ノ空女学院スクールアイドルクラブ'],
       }),
       PLAYER1,
       'll-bp2-001'
@@ -336,7 +336,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     const sourceLive = createCardInstance(createLiveCard('PL!S-bp6-021-L'), PLAYER1, 'mirai-filter');
     const valid = createCardInstance(createMemberCard('PL!S-valid', { cost: 10 }), PLAYER1, 'valid');
     const nonAqours = createCardInstance(
-      createMemberCard('PL!SP-liella-member', { groupName: 'Liella!', cost: 10 }),
+      createMemberCard('PL!SP-liella-member', { groupNames: ['Liella!'], cost: 10 }),
       PLAYER1,
       'non-aqours'
     );
@@ -1060,7 +1060,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       liveCards: [
         createCardInstance(createLiveCard('PL!S-aqours-live-a'), PLAYER1, 'miss-aqours-live'),
         createCardInstance(
-          createLiveCard('PL!SP-liella-live', { groupName: 'Liella!' }),
+          createLiveCard('PL!SP-liella-live', { groupNames: ['Liella!'] }),
           PLAYER1,
           'miss-liella-live'
         ),

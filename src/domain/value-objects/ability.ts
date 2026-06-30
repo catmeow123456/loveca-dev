@@ -111,8 +111,6 @@ export interface TargetCondition {
   readonly slotPosition?: SlotPosition;
   /** 卡牌名称包含 */
   readonly nameContains?: string;
-  /** 团体名限制 */
-  readonly groupName?: string;
   /** 状态限制（活跃/等待） */
   readonly orientationState?: 'active' | 'waiting';
   /** 心颜色限制 */

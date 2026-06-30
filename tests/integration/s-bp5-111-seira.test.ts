@@ -43,7 +43,7 @@ function createMember(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly unitName?: string;
     readonly blade?: number;
   } = {}
@@ -51,7 +51,7 @@ function createMember(
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Aqours',
+    groupNames: options.groupNames ?? ['Aqours'],
     unitName: options.unitName,
     cardType: CardType.MEMBER,
     cost: 4,
@@ -76,7 +76,7 @@ function createSlotOccupant(kind: SlotOccupant, slot: SlotPosition) {
     return createCardInstance(
       createMember(`TEST-SAINTSNOW-${slot}`, {
         name: `SaintSnow ${slot}`,
-        groupName: 'ラブライブ！サンシャイン!!',
+        groupNames: ['ラブライブ！サンシャイン!!'],
         unitName: 'SaintSnow',
       }),
       PLAYER1,
@@ -87,7 +87,7 @@ function createSlotOccupant(kind: SlotOccupant, slot: SlotPosition) {
     return createCardInstance(
       createMember(`PL!SP-test-other-${slot}`, {
         name: `Other ${slot}`,
-        groupName: 'Liella!',
+        groupNames: ['Liella!'],
         unitName: 'Liella!',
       }),
       PLAYER1,
@@ -97,7 +97,7 @@ function createSlotOccupant(kind: SlotOccupant, slot: SlotPosition) {
   return createCardInstance(
     createMember(`PL!S-test-aqours-${slot}`, {
       name: `Aqours ${slot}`,
-      groupName: 'Aqours',
+      groupNames: ['Aqours'],
     }),
     PLAYER1,
     `p1-aqours-${slot}`
@@ -132,7 +132,7 @@ function setupScenario(
   const source = createCardInstance(
     createMember('PL!S-bp5-111-R', {
       name: '鹿角聖良',
-      groupName: 'ラブライブ！サンシャイン!!',
+      groupNames: ['ラブライブ！サンシャイン!!'],
       unitName: 'SaintSnow',
       blade: 2,
     }),
@@ -142,14 +142,14 @@ function setupScenario(
   const left = createSlotOccupant(options.left ?? 'aqours', SlotPosition.LEFT);
   const right = createSlotOccupant(options.right ?? 'empty', SlotPosition.RIGHT);
   const otherOwn = createCardInstance(
-    createMember('PL!S-test-other-own', { name: 'Other own member', groupName: 'Aqours' }),
+    createMember('PL!S-test-other-own', { name: 'Other own member', groupNames: ['Aqours'] }),
     PLAYER1,
     'other-own-member'
   );
   const lowOpponent = createCardInstance(
     createMember('PL!S-test-opponent-low', {
       name: 'Opponent low blade',
-      groupName: 'Aqours',
+      groupNames: ['Aqours'],
       blade: 2,
     }),
     PLAYER2,
@@ -158,7 +158,7 @@ function setupScenario(
   const highOpponent = createCardInstance(
     createMember('PL!S-test-opponent-high', {
       name: 'Opponent high blade',
-      groupName: 'Aqours',
+      groupNames: ['Aqours'],
       blade: 3,
     }),
     PLAYER2,

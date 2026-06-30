@@ -29,7 +29,7 @@ function createMember(cardCode: string, name: string, unitName: string): MemberC
   return {
     cardCode,
     name,
-    groupName: '蓮ノ空',
+    groupNames: ['蓮ノ空'],
     unitName,
     cardType: CardType.MEMBER,
     cost: 15,

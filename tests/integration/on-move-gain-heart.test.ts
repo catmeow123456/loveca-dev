@@ -66,7 +66,7 @@ function createOnMoveHeartMember(testCase: OnMoveHeartCase): MemberCardData {
   return {
     cardCode: testCase.cardCode,
     name: testCase.name,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 2,
     blade: 1,
@@ -78,7 +78,7 @@ function createMember(cardCode: string): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,

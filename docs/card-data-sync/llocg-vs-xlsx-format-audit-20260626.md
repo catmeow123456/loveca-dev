@@ -10,7 +10,7 @@
 
 本文记录两个数据源的实际格式、字段值域、现有入库映射，以及将 Excel 数据接入当前同步管线前需要处理的差异。
 
-> 2026-06-26 落地决策：本轮直接调整 schema，数据库不保留重复展示字段。`cards` 表使用 `name_jp` / `name_cn`、`card_text_jp` / `card_text_cn`、`work_names` / `group_names` 表达中日文本和归属结构；旧 `name` / `card_text` / `group_name` 不再作为 DB 列存在。运行时展示用的 `card.data.name` / `card.data.cardText` / `card.data.groupName` 由 registry 与前端 mapper 派生，其中 `groupName` 使用修正后的 `group_names`。Loveca Excel 同步入口为 `src/scripts/sync-cards-loveca-excel.ts`，只更新文本/展示/来源字段，不覆盖规则字段；Excel 官方 `作品名` / `参加ユニット` 存在已知修正问题，本轮不读取这两列。
+> 2026-06-26 落地决策：本轮直接调整 schema，数据库不保留重复展示字段。`cards` 表使用 `name_jp` / `name_cn`、`card_text_jp` / `card_text_cn`、`work_names` / `group_names` 表达中日文本和归属结构；旧 `name` / `card_text` / `group_name` 不再作为 DB 列存在。运行时展示用的 `card.data.name` / `card.data.cardText` 由 registry 与前端 mapper 派生。2026-06-30 起运行时不再派生 `card.data.groupName`，真实团体只通过结构化 `card.data.groupNames` 暴露。Loveca Excel 同步入口为 `src/scripts/sync-cards-loveca-excel.ts`，只更新文本/展示/来源字段，不覆盖规则字段；Excel 官方 `作品名` / `参加ユニット` 存在已知修正问题，本轮不读取这两列。
 
 ## 1. 总览
 

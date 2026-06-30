@@ -55,7 +55,7 @@ function createMember(
   return {
     cardCode,
     name,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: options.unitName ?? 'DOLLCHESTRA',
     cardType: CardType.MEMBER,
     cost: options.cost ?? 11,
@@ -68,7 +68,7 @@ function createCompassLive(): LiveCardData {
   return {
     cardCode: 'PL!HS-pb1-028-L',
     name: 'COMPASS',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'DOLLCHESTRA',
     cardType: CardType.LIVE,
     score: 7,

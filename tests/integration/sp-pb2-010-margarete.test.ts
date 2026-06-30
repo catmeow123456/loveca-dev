@@ -37,7 +37,7 @@ function createMemberCard(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly unitName?: string;
     readonly cost?: number;
   } = {}
@@ -45,7 +45,7 @@ function createMemberCard(
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Liella!',
+    groupNames: options.groupNames ?? ['Liella!'],
     unitName: options.unitName ?? 'Liella!',
     cardType: CardType.MEMBER,
     cost: options.cost ?? 4,
@@ -129,7 +129,7 @@ function setupMargareteScenario(
   const watcher = createCardInstance(
     createMemberCard('PL!HS-pb1-003-R', {
       name: '大泽瑠璃乃',
-      groupName: '莲之空',
+      groupNames: ['莲之空'],
       unitName: 'みらくらぱーく！',
     }),
     PLAYER1,

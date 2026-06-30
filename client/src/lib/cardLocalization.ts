@@ -4,6 +4,7 @@ export interface LocalizedCardLike {
   readonly nameCn?: string | null;
   readonly cardTextJp?: string | null;
   readonly cardTextCn?: string | null;
+  readonly groupNames?: readonly string[] | null;
 }
 
 export function cleanLocalizedText(value?: string | null): string | null {
@@ -27,4 +28,11 @@ export function getCardLocalizedInfo(card: LocalizedCardLike) {
     effectJp,
     hasEffect: Boolean(effectCn || effectJp),
   };
+}
+
+export function getCardGroupDisplayText(card: LocalizedCardLike): string | null {
+  const groups = card.groupNames?.map(cleanLocalizedText).filter((value): value is string =>
+    Boolean(value)
+  );
+  return groups && groups.length > 0 ? groups.join('\n') : null;
 }

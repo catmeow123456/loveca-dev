@@ -11,7 +11,7 @@ import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
-import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import { getCardGroupDisplayText, getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { HEART_ICON_SOURCE_BY_COLOR, MODIFIER_ICON_SOURCE } from '@/lib/modifierIconAssets';
 import { Card } from '@/components/card/Card';
 import { CardLocalizedEffect, CardLocalizedName } from '@/components/card/CardLocalizedInfo';
@@ -110,6 +110,8 @@ export const MemberCardDetails = memo(function MemberCardDetails({
   data: MemberCardData;
   compact?: boolean;
 }) {
+  const groupDisplayText = getCardGroupDisplayText(data);
+
   return (
     <div className={cn(compact ? 'space-y-1.5' : 'space-y-2.5')}>
       {/* 基础信息 */}
@@ -154,9 +156,9 @@ export const MemberCardDetails = memo(function MemberCardDetails({
       )}
 
       {/* 真实团体/小组 */}
-      {(data.groupName || data.unitName) && (
+      {(groupDisplayText || data.unitName) && (
         <div className={cn('text-[var(--text-muted)]', compact ? 'text-[11px]' : 'text-xs')}>
-          {data.groupName && <span className="mr-2">真实团体: {data.groupName}</span>}
+          {groupDisplayText && <span className="mr-2">真实团体: {groupDisplayText}</span>}
           {data.unitName && <span>小组: {data.unitName}</span>}
         </div>
       )}

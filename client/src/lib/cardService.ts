@@ -93,14 +93,12 @@ export interface CardCreateInput extends CardUpdateInput {
 function dbRecordToCardData(record: CardDbRecord): AnyCardData {
   const name = record.name_cn?.trim() || record.name_jp?.trim() || record.card_code;
   const cardText = record.card_text_cn?.trim() || record.card_text_jp?.trim() || undefined;
-  const groupName = record.group_names?.length ? record.group_names.join('\n') : undefined;
 
   const baseData = {
     cardCode: record.card_code,
     name,
     nameJp: record.name_jp ?? undefined,
     nameCn: record.name_cn ?? undefined,
-    groupName,
     workNames: record.work_names ?? undefined,
     groupNames: record.group_names ?? undefined,
     unitName: record.unit_name ?? undefined,
@@ -358,7 +356,7 @@ class CardService {
 
   async getCardsByGroup(groupName: string): Promise<AnyCardData[]> {
     const allCards = await this.getAllCards();
-    return allCards.filter((card) => card.groupName === groupName);
+    return allCards.filter((card) => card.groupNames?.includes(groupName) === true);
   }
 
   async searchCards(query: string): Promise<AnyCardData[]> {

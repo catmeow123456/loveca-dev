@@ -39,7 +39,7 @@ function createMemberCard(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly cost?: number;
     readonly blade?: number;
   } = {}
@@ -47,7 +47,7 @@ function createMemberCard(
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Aqours',
+    groupNames: options.groupNames ?? ['Aqours'],
     cardType: CardType.MEMBER,
     cost: options.cost ?? 4,
     blade: options.blade ?? 1,
@@ -59,14 +59,14 @@ function createLiveCard(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly hasScore?: boolean;
   } = {}
 ): LiveCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Aqours',
+    groupNames: options.groupNames ?? ['Aqours'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
@@ -198,7 +198,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       'same-name-live'
     );
     const nonAqoursLive = createCardInstance(
-      createLiveCard('PL!SP-non-aqours-live', { name: 'Tiny Stars', groupName: 'Liella!' }),
+      createLiveCard('PL!SP-non-aqours-live', { name: 'Tiny Stars', groupNames: ['Liella!'] }),
       PLAYER1,
       'non-aqours-live'
     );

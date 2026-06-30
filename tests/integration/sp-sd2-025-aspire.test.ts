@@ -31,7 +31,7 @@ function createAspire(cardCode = 'PL!SP-sd2-025-SD2'): LiveCardData {
   return {
     cardCode,
     name: 'Aspire',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 4,
     requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
@@ -40,12 +40,12 @@ function createAspire(cardCode = 'PL!SP-sd2-025-SD2'): LiveCardData {
 
 function createMember(options: {
   readonly cardCode: string;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
     name: options.cardCode,
-    groupName: options.groupName,
+    groupNames: options.groupNames,
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 1,
@@ -59,7 +59,7 @@ function setupState(options: {
     readonly id: string;
     readonly slot: SlotPosition;
     readonly cardCode: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
   }[];
 }): {
   readonly game: GameState;
@@ -69,7 +69,7 @@ function setupState(options: {
   const live = createCardInstance(createAspire(options.liveCardCode), PLAYER1, 'aspire-live');
   const members = options.members.map((member) =>
     createCardInstance(
-      createMember({ cardCode: member.cardCode, groupName: member.groupName }),
+      createMember({ cardCode: member.cardCode, groupNames: member.groupNames }),
       PLAYER1,
       member.id
     )
@@ -125,7 +125,7 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
           id: 'moved-liella',
           slot: SlotPosition.LEFT,
           cardCode: 'PL!SP-test-moved',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
         },
       ],
     });
@@ -150,7 +150,7 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
           id: 'unmoved-liella',
           slot: SlotPosition.LEFT,
           cardCode: 'PL!SP-test-unmoved',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
         },
       ],
     });
@@ -166,7 +166,7 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
           id: 'moved-aqours',
           slot: SlotPosition.LEFT,
           cardCode: 'PL!S-test-moved',
-          groupName: 'Aqours',
+          groupNames: ['Aqours'],
         },
       ],
     });
@@ -183,13 +183,13 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
           id: 'liella-left',
           slot: SlotPosition.LEFT,
           cardCode: 'PL!SP-test-left',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
         },
         {
           id: 'liella-center',
           slot: SlotPosition.CENTER,
           cardCode: 'PL!SP-test-center',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
         },
       ],
     });
@@ -213,7 +213,7 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
           id: 'liella-left-stage',
           slot: SlotPosition.LEFT,
           cardCode: 'PL!SP-test-left-stage',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
         },
       ],
     });
@@ -234,7 +234,7 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
           id: 'entered-liella',
           slot: SlotPosition.LEFT,
           cardCode: 'PL!SP-test-entered',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
         },
       ],
     });
@@ -250,7 +250,7 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
           id: 'unmoved-liella',
           slot: SlotPosition.LEFT,
           cardCode: 'PL!SP-test-unmoved',
-          groupName: 'Liella!',
+          groupNames: ['Liella!'],
         },
       ],
     });
@@ -280,7 +280,7 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
             id: 'moved-liella',
             slot: SlotPosition.LEFT,
             cardCode: 'PL!SP-test-moved',
-            groupName: 'Liella!',
+            groupNames: ['Liella!'],
           },
         ],
       });

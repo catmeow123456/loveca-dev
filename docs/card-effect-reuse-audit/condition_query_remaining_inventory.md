@@ -31,7 +31,7 @@
 
 相关 selector / application-local query 已覆盖：
 
-- `card-selectors.ts`：团体身份 `groupAliasIs` 已作为 shared `cardBelongsToGroup` 的 application adapter（含 μ's / 莲之空 / Liella! / 虹咲 / Aqours alias 与卡号 fallback）、绿色 Heart 成员、BLADE HEART、印刷 BLADE 阈值、`cardNameAliasAny`。
+- `card-selectors.ts`：团体身份 `groupAliasIs` 已作为 shared `cardBelongsToGroup` 的 application adapter（只读真实团体 `groupNames`，含 μ's / 莲之空 / Liella! / 虹咲 / Aqours alias）、绿色 Heart 成员、BLADE HEART、印刷 BLADE 阈值、`cardNameAliasAny`。
 - `stage-targets.ts` / `energy.ts`：application-local 的舞台成员 / 能量按朝向查询；缺失 cardState 不命中。
 
 已开始复用该层的当前卡效点：
@@ -73,8 +73,8 @@
 - Batch E-4 same-name LIVE candidate query：已把 `PL!HS-bp5-001` 费用 11「日野下花帆」起动段等待室“同名 LIVE”候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, and(typeIs(CardType.LIVE), cardNameContains(revealedName)))`。`cardNameContains` 只做 normalize 后包含判断，不做 alias；公开手牌、选择与后续处理仍留在 workflow。
 - Batch F-1 selected ids selector group count：已补 `countCardIdsMatchingSelectors`，并在 `PL!HS-bp6-017` 费用 11「日野下花帆」的已选 LIVE / 成员各至多 1 张校验中复用。选择上限、activeEffect、移动与确认流程仍留在 workflow。
 - Batch F-2 selected ids selector group count：`PL!HS-pb1-020` 费用 9「百生吟子」的 finish 校验已用 `countCardIdsMatchingSelectors` 计算已选 Cerise Bouquet 成员 / 「莲之空」LIVE 数量。强制各 1、activeEffect metadata、选择与移动流程仍留在 workflow。
-- Batch G-1 shared domain-safe identity helper：已新增 `src/shared/utils/card-identity.ts` 与 focused 单测，覆盖 μ's / 莲之空 / Liella! / 虹咲 / Aqours alias 与卡号 fallback；未迁任何调用点。
-- Batch G-2 application identity adapter：`groupAliasIs(groupName)` 已委托 shared `cardBelongsToGroup(card.data, groupName)`；`groupIs` 的直接 contains 语义仍保留；未迁 runner 或 domain/rules 调用点。
+- Batch G-1 shared domain-safe identity helper：已新增 `src/shared/utils/card-identity.ts` 与 focused 单测，覆盖 μ's / 莲之空 / Liella! / 虹咲 / Aqours alias。2026-06-30 起该 helper 只读取结构化 `groupNames`，不再用卡号前缀、卡牌文本、`unitName` 或旧 `groupName` 兜底。
+- Batch G-2 application identity adapter：`groupAliasIs(groupName)` / `groupIs(groupName)` 均委托 shared `cardBelongsToGroup(card.data, groupName)`；`groupIs` 的直接 contains 与卡文扫描语义已移除。
 - Batch G-3 cost-calculator identity：`cost-calculator.ts` 中 Nijigasaki / Liella! 身份判断已委托 shared `cardBelongsToGroup`；费用语义、modifier id/label/amount/source、费用计算顺序未改；未进入 live-modifiers。
 - Batch G-4 live-modifiers identity：`live-modifiers.ts` 中 Hasunosora 身份判断已委托 shared `cardBelongsToGroup`；三面成员、三名不同名、continuous modifier 收集时机、sourceCardId / abilityId / countDelta 未改。
 
@@ -110,15 +110,15 @@
 
 已关闭的 selector 项：
 
-- NS-01 Hasunosora：已由 `groupAliasIs('蓮ノ空')` 覆盖中文/日文 alias 与 `PL!HS-` fallback，并替换 application runner 中最直接的用法。
-- NS-02 μ's：已由 `groupAliasIs("μ's")` 覆盖 `μ's`、裸 `μ` 与 `PL!-` fallback，并替换 Umi LIVE 候选。
+- NS-01 Hasunosora：已由 `groupAliasIs('蓮ノ空')` 基于结构化 `groupNames` 覆盖中文/日文 alias，并替换 application runner 中最直接的用法；2026-06-30 起不再使用 `PL!HS-` 卡号 fallback。
+- NS-02 μ's：已由 `groupAliasIs("μ's")` 基于结构化 `groupNames` 覆盖 `μ's` 与裸 `μ`，并替换 Umi LIVE 候选；2026-06-30 起不再使用 `PL!-` 卡号 fallback。
 - NS-03 绿色 Heart 成员：已由 `memberHasHeartColor(HeartColor.GREEN)` 覆盖，保留 `count > 0` 条件。
 - NS-04 BLADE HEART：已由 `hasBladeHeart()` 覆盖，供无 BLADE HEART 声援公开卡筛选组合使用。
 - NS-05 印刷 BLADE 阈值：已由 `memberPrintedBladeLte(maxBlade)` 覆盖，未混入有效 BLADE query。
 - NS-06 多姓名弃手：已由 `cardNameAliasAny(names)` 覆盖。
 - NS-07 规范化卡名包含关系：已由 `cardNameContains(name)` 覆盖，语义是 normalize 后“候选卡名包含传入卡名”，不是 alias 或完全相等。
-- NS-08 Liella! application selector：application 层已由 `groupAliasIs('Liella!')` 覆盖 `Liella!` / `Liella` / `リエラ` / `スーパースター` / `superstar` 与 `PL!SP-` fallback；domain cost-calculator 中的 Liella! 身份已在 G-3 迁移，live-modifiers 中的 Hasunosora 身份已在 G-4 迁移；trigger matcher / steps / workflow 不属于该项。
-- NS-09 cost-calculator Nijigasaki 判断：已在 G-3 复用 shared `cardBelongsToGroup(memberData, '虹ヶ咲')`，覆盖 `PL!N-` fallback 与文本别名；待机状态与费用语义未改。
+- NS-08 Liella! application selector：application 层已由 `groupAliasIs('Liella!')` 基于结构化 `groupNames` 覆盖 `Liella!` / `Liella` / `リエラ` / `スーパースター` / `superstar`；2026-06-30 起不再使用 `PL!SP-` 卡号 fallback。domain cost-calculator 中的 Liella! 身份已在 G-3 迁移，live-modifiers 中的 Hasunosora 身份已在 G-4 迁移；trigger matcher / steps / workflow 不属于该项。
+- NS-09 cost-calculator Nijigasaki 判断：已在 G-3 复用 shared `cardBelongsToGroup(memberData, '虹ヶ咲')`，只读取结构化 `groupNames` 与 alias；待机状态与费用语义未改。
 
 ### domain-blocked
 

@@ -28,9 +28,9 @@ function createMember(cardCode: string, name: string, cost: number): MemberCardD
   return {
     cardCode,
     name,
-    groupName: cardCode.startsWith('PL!HS')
-      ? '蓮ノ空女学院スクールアイドルクラブ'
-      : '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: cardCode.startsWith('PL!HS')
+      ? ['蓮ノ空女学院スクールアイドルクラブ']
+      : ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,

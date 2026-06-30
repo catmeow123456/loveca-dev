@@ -36,7 +36,7 @@ function createSolitudeRain(): LiveCardData {
   return {
     cardCode: 'PL!N-bp1-027-L',
     name: 'Solitude Rain',
-    groupName: '虹ヶ咲',
+    groupNames: ['虹ヶ咲'],
     cardType: CardType.LIVE,
     score: 0,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -47,7 +47,7 @@ function createEutopia(): LiveCardData {
   return {
     cardCode: 'PL!N-bp1-029-L',
     name: 'Eutopia',
-    groupName: '虹ヶ咲',
+    groupNames: ['虹ヶ咲'],
     cardType: CardType.LIVE,
     score: 5,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -58,7 +58,7 @@ function createDummyLive(cardCode: string, score = 1): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '虹ヶ咲',
+    groupNames: ['虹ヶ咲'],
     cardType: CardType.LIVE,
     score,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -67,13 +67,13 @@ function createDummyLive(cardCode: string, score = 1): LiveCardData {
 
 function createMember(options: {
   readonly cardCode: string;
-  readonly groupName?: string;
+  readonly groupNames?: readonly string[];
   readonly hearts: readonly HeartColor[];
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
     name: options.cardCode,
-    groupName: options.groupName ?? '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: options.groupNames ?? ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 1,
@@ -156,7 +156,7 @@ function createMemberInstance(
   return createCardInstance(
     createMember({
       cardCode: groupName === 'Aqours' ? `PL!S-${id}` : `PL!N-${id}`,
-      groupName,
+      groupNames: [groupName],
       hearts,
     }),
     PLAYER1,

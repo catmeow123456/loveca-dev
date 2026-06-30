@@ -42,7 +42,7 @@ function createNijigasakiMember(cardCode: string, name = cardCode, cost = 9): Me
   return {
     cardCode,
     name,
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
@@ -54,7 +54,7 @@ function createOtherMember(cardCode: string, name = cardCode): MemberCardData {
   return {
     cardCode,
     name,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.MEMBER,
     cost: 3,
     blade: 1,
@@ -66,7 +66,7 @@ function createNijigasakiLive(cardCode: string, name = cardCode): LiveCardData {
   return {
     cardCode,
     name,
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -77,7 +77,7 @@ function createOtherLive(cardCode: string, name = cardCode): LiveCardData {
   return {
     cardCode,
     name,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.YELLOW]: 1 }),

@@ -39,7 +39,7 @@ function createMemberCard(
   return {
     cardCode,
     name,
-    groupName: '莲之空',
+    groupNames: ['莲之空'],
     unitName,
     cardType: CardType.MEMBER,
     cost,
@@ -52,7 +52,7 @@ function createLiveCard(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '莲之空',
+    groupNames: ['莲之空'],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),

@@ -31,7 +31,7 @@ function createLive(cardCode: string, name = cardCode): LiveCardData {
   return {
     cardCode,
     name,
-    groupName: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['ラブライブ！虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.LIVE,
     score: 1,
     requirements: createHeartRequirement({ [HeartColor.YELLOW]: 1, [HeartColor.RAINBOW]: 2 }),
@@ -45,7 +45,7 @@ function createMember(
   return {
     cardCode,
     name: cardCode,
-    groupName,
+    groupNames: [groupName],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,

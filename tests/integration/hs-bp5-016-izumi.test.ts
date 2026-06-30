@@ -34,7 +34,7 @@ function createIzumiData(): MemberCardData {
   return {
     cardCode: 'PL!HS-bp5-016-N',
     name: '桂城 泉',
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     unitName: 'EdelNote',
     cardType: CardType.MEMBER,
     cost: 9,
@@ -47,7 +47,7 @@ function createMember(cardCode: string, cost = 4): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '蓮ノ空女学院スクールアイドルクラブ',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
