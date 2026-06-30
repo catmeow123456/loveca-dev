@@ -29,7 +29,7 @@ function createHajimari(cardCode = 'PL!SP-sd2-023-P'): LiveCardData {
   return {
     cardCode,
     name: '始まりは君の空',
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 1,
     requirements: createHeartRequirement({
@@ -43,7 +43,7 @@ function createLive(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: 1,
     requirements: createHeartRequirement({ [HeartColor.YELLOW]: 1 }),

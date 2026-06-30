@@ -38,7 +38,7 @@ function createMemberCard(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly hearts?: readonly { readonly color: HeartColor; readonly count: number }[];
     readonly cost?: number;
   } = {}
@@ -46,7 +46,7 @@ function createMemberCard(
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? "μ's",
+    groupNames: options.groupNames ?? ["μ's"],
     cardType: CardType.MEMBER,
     cost: options.cost ?? 2,
     blade: 1,
@@ -258,7 +258,7 @@ describe('LL-bp6-001 Kotori & Dia & Kosuzu workflow', () => {
     const dia = createCardInstance(
       createMemberCard('PL!S-dia', {
         name: '黒澤ダイヤ',
-        groupName: 'Aqours',
+        groupNames: ['Aqours'],
         hearts: [
           createHeartIcon(HeartColor.GREEN, 1),
           createHeartIcon(HeartColor.BLUE, 1),

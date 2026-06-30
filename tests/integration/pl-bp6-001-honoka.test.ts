@@ -40,14 +40,14 @@ function createMemberCard(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly bladeHearts?: BladeHearts;
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? MUSE,
+    groupNames: options.groupNames ?? [MUSE],
     cardType: CardType.MEMBER,
     cost: 2,
     blade: 1,
@@ -58,12 +58,12 @@ function createMemberCard(
 
 function createLiveCard(
   cardCode: string,
-  options: { readonly groupName?: string } = {}
+  options: { readonly groupNames?: readonly string[] } = {}
 ): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: options.groupName ?? MUSE,
+    groupNames: options.groupNames ?? [MUSE],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -184,7 +184,7 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
     );
     const museSide = createCardInstance(createMemberCard('PL!-muse-side'), PLAYER1, 'muse-side');
     const nonMuse = createCardInstance(
-      createMemberCard('PL!-non-muse', { groupName: 'Liella!' }),
+      createMemberCard('PL!-non-muse', { groupNames: ['Liella!'] }),
       PLAYER1,
       'non-muse'
     );
@@ -250,7 +250,7 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
     const museSide = createCardInstance(createMemberCard('PL!-muse-side'), PLAYER1, 'muse-side');
     const museLive = createCardInstance(createLiveCard('PL!-muse-live'), PLAYER1, 'muse-live');
     const otherLive = createCardInstance(
-      createLiveCard('PL!-other-live', { groupName: 'Liella!' }),
+      createLiveCard('PL!-other-live', { groupNames: ['Liella!'] }),
       PLAYER1,
       'other-live'
     );
@@ -481,7 +481,7 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
   });
 
   it.each([
-    ['non-μ’s member', createMemberCard('PL!-revealed-liella', { groupName: 'Liella!' })],
+    ['non-μ’s member', createMemberCard('PL!-revealed-liella', { groupNames: ['Liella!'] })],
     ['LIVE card', createLiveCard('PL!-revealed-live')],
     [
       'μ’s member with bladeHeart',

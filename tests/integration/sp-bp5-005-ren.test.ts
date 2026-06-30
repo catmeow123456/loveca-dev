@@ -46,7 +46,7 @@ function createMemberCard(
   return {
     cardCode,
     name,
-    groupName,
+    groupNames: [groupName],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,

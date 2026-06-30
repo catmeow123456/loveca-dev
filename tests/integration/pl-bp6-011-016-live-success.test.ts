@@ -37,7 +37,7 @@ function createMuseMember(cardCode: string, name = cardCode, cost = 1): MemberCa
   return {
     cardCode,
     name,
-    groupName: "μ's",
+    groupNames: ["μ's"],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
@@ -49,7 +49,7 @@ function createLive(): LiveCardData {
   return {
     cardCode: 'PL!-bp6-test-live',
     name: 'Test Live',
-    groupName: "μ's",
+    groupNames: ["μ's"],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),

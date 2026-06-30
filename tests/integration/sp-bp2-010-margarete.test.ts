@@ -41,7 +41,7 @@ function createMember(options: {
     {
       cardCode: options.cardCode,
       name: options.name ?? options.cardCode,
-      groupName: 'Liella!',
+      groupNames: ['Liella!'],
       cardType: CardType.MEMBER,
       cost: 15,
       blade: options.blade ?? 0,

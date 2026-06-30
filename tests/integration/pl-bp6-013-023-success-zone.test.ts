@@ -36,7 +36,7 @@ function createMuseMember(cardCode: string, cost = 9): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: "μ's",
+    groupNames: ["μ's"],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
@@ -47,14 +47,14 @@ function createMuseMember(cardCode: string, cost = 9): MemberCardData {
 function createLive(
   cardCode: string,
   options: {
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly score?: number;
   } = {}
 ): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: options.groupName ?? "μ's",
+    groupNames: options.groupNames ?? ["μ's"],
     cardType: CardType.LIVE,
     score: options.score ?? 4,
     requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),
@@ -105,7 +105,7 @@ function setupBp6013(options: {
       ? createCardInstance(createLive('PL!-bp6-muse-live-target'), PLAYER1, 'bp6-013-muse-live')
       : null;
   const aqoursLiveTarget = createCardInstance(
-    createLive('PL!S-bp6-aqours-live-target', { groupName: 'Aqours' }),
+    createLive('PL!S-bp6-aqours-live-target', { groupNames: ['Aqours'] }),
     PLAYER1,
     'bp6-013-aqours-live'
   );
@@ -182,7 +182,7 @@ function setupBp6023(options: {
     options.successZoneGroup !== undefined
       ? createCardInstance(
           createLive('PL!-bp6-023-success-live', {
-            groupName: options.successZoneGroup,
+            groupNames: [options.successZoneGroup],
             score: 3,
           }),
           PLAYER1,

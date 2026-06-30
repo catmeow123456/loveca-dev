@@ -38,7 +38,7 @@ function createSetsuna(): MemberCardData {
   return {
     cardCode: 'PL!N-bp5-007-R＋',
     name: '優木せつ菜',
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost: 7,
     blade: 1,
@@ -50,7 +50,7 @@ function createMember(cardCode: string): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '虹ヶ咲学園スクールアイドル同好会',
+    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,
@@ -62,7 +62,7 @@ function createLive(cardCode: string): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: '虹ヶ咲',
+    groupNames: ['虹ヶ咲'],
     cardType: CardType.LIVE,
     score: 2,
     requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),

@@ -35,7 +35,7 @@ function createMemberCard(
   options: {
     readonly name?: string;
     readonly cost?: number;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly unitName?: string;
     readonly bladeHeart?: boolean;
   } = {}
@@ -43,7 +43,7 @@ function createMemberCard(
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? 'Liella!',
+    groupNames: options.groupNames ?? ['Liella!'],
     unitName: options.unitName,
     cardType: CardType.MEMBER,
     cost: options.cost ?? 4,
@@ -103,7 +103,7 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
       'bp5-008-low'
     );
     const highAqours = createCardInstance(
-      createMemberCard('PL!S-high-aqours', { cost: 11, groupName: 'Aqours' }),
+      createMemberCard('PL!S-high-aqours', { cost: 11, groupNames: ['Aqours'] }),
       PLAYER1,
       'bp5-008-aqours'
     );
@@ -278,17 +278,17 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
       'liella-two'
     );
     const sunnyPassion = createCardInstance(
-      createMemberCard('PL!SP-sunny-passion', { groupName: 'SunnyPassion' }),
+      createMemberCard('PL!SP-sunny-passion', { groupNames: ['SunnyPassion'] }),
       PLAYER1,
       'sunny-passion'
     );
     const arise = createCardInstance(
-      createMemberCard('PL!-a-rise', { groupName: 'A-RISE' }),
+      createMemberCard('PL!-a-rise', { groupNames: ['A-RISE'] }),
       PLAYER1,
       'a-rise'
     );
     const saintSnow = createCardInstance(
-      createMemberCard('PL!S-saint-snow', { groupName: 'SaintSnow' }),
+      createMemberCard('PL!S-saint-snow', { groupNames: ['SaintSnow'] }),
       PLAYER1,
       'saint-snow'
     );

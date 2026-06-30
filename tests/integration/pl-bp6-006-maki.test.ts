@@ -41,7 +41,7 @@ function createMemberCard(
   cardCode: string,
   options: {
     readonly name?: string;
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly hearts?: readonly { readonly color: HeartColor; readonly count: number }[];
     readonly cost?: number;
   } = {}
@@ -49,7 +49,7 @@ function createMemberCard(
   return {
     cardCode,
     name: options.name ?? cardCode,
-    groupName: options.groupName ?? "μ's",
+    groupNames: options.groupNames ?? ["μ's"],
     cardType: CardType.MEMBER,
     cost: options.cost ?? 2,
     blade: 1,
@@ -60,14 +60,14 @@ function createMemberCard(
 function createLiveCard(
   cardCode: string,
   options: {
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly requirements?: Partial<Record<HeartColor, number>>;
   } = {}
 ): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: options.groupName ?? "μ's",
+    groupNames: options.groupNames ?? ["μ's"],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement(options.requirements ?? { [HeartColor.PINK]: 1 }),
@@ -201,7 +201,7 @@ describe('PL!-bp6-006 Maki workflow', () => {
       createCardInstance(
         createMemberCard('PL!S-red-member', {
           name: 'aqours red',
-          groupName: 'Aqours',
+          groupNames: ['Aqours'],
           hearts: [createHeartIcon(HeartColor.RED, 1)],
         }),
         PLAYER1,
@@ -214,7 +214,7 @@ describe('PL!-bp6-006 Maki workflow', () => {
       ),
       createCardInstance(
         createLiveCard('PL!S-red-live', {
-          groupName: 'Aqours',
+          groupNames: ['Aqours'],
           requirements: { [HeartColor.RED]: 1 },
         }),
         PLAYER1,
@@ -361,7 +361,7 @@ describe('PL!-bp6-006 Maki workflow', () => {
     const revealedCards = Array.from({ length: 5 }, (_, index) =>
       createCardInstance(
         createMemberCard(`PL!S-red-member-${index}`, {
-          groupName: 'Aqours',
+          groupNames: ['Aqours'],
           hearts: [createHeartIcon(HeartColor.RED, 1)],
         }),
         PLAYER1,

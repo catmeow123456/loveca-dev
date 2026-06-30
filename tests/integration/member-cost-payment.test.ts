@@ -670,17 +670,17 @@ describe('member cost payment', () => {
 
     (state.cardRegistry.get(sourceCardId!) as unknown as { data: MemberCardData }).data =
       createMemberCard('PL!-test-muse-cost17', '17费μ成员', 17, {
-        groupName: "μ's",
+        groupNames: ["μ's"],
       });
     (state.cardRegistry.get(musicStartCardId!) as unknown as { data: LiveCardData }).data =
       createLiveCard('PL!-bp6-019-L', {
         score: 2,
-        groupName: "μ's",
+        groupNames: ["μ's"],
       });
     (state.cardRegistry.get(opponentMusicStartCardId!) as unknown as { data: LiveCardData }).data =
       createLiveCard('PL!-bp6-019-L', {
         score: 2,
-        groupName: "μ's",
+        groupNames: ["μ's"],
       });
 
     player.hand.cardIds = [sourceCardId!];

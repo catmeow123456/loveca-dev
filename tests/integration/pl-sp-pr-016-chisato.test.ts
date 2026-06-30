@@ -34,7 +34,7 @@ function createMember(cardCode: string, cost: number, groupName = '5yncri5e!'): 
   return {
     cardCode,
     name: cardCode,
-    groupName,
+    groupNames: [groupName],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
@@ -46,7 +46,7 @@ function createLive(cardCode: string, score: number, groupName = 'Liella!'): Liv
   return {
     cardCode,
     name: cardCode,
-    groupName,
+    groupNames: [groupName],
     cardType: CardType.LIVE,
     score,
     requirements: createHeartRequirement({ [HeartColor.YELLOW]: 1 }),

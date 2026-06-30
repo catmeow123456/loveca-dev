@@ -35,7 +35,7 @@ function createMuseMember(cardCode: string, name = cardCode, cost = 1): MemberCa
   return {
     cardCode,
     name,
-    groupName: "μ's",
+    groupNames: ["μ's"],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,

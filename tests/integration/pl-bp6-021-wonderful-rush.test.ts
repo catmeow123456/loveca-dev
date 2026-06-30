@@ -32,14 +32,14 @@ const PLAYER2 = 'player2';
 function createMember(
   cardCode: string,
   options: {
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly cost?: number;
   } = {}
 ): MemberCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: options.groupName ?? "μ's",
+    groupNames: options.groupNames ?? ["μ's"],
     cardType: CardType.MEMBER,
     cost: options.cost ?? 4,
     blade: 1,
@@ -50,14 +50,14 @@ function createMember(
 function createLive(
   cardCode: string,
   options: {
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly score?: number;
   } = {}
 ): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupName: options.groupName ?? "μ's",
+    groupNames: options.groupNames ?? ["μ's"],
     cardType: CardType.LIVE,
     score: options.score ?? 7,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
@@ -102,7 +102,7 @@ function setupScenario(options: {
   const aqoursMember =
     options.aqoursStageMember === true
       ? createCardInstance(
-          createMember('PL!S-bp6-021-aqours-member', { groupName: 'Aqours' }),
+          createMember('PL!S-bp6-021-aqours-member', { groupNames: ['Aqours'] }),
           PLAYER1,
           'bp6-021-aqours-member'
         )
@@ -114,7 +114,7 @@ function setupScenario(options: {
   const aqoursWaitingLive =
     options.aqoursWaitingLive === true
       ? createCardInstance(
-          createLive('PL!S-bp6-021-aqours-live', { groupName: 'Aqours' }),
+          createLive('PL!S-bp6-021-aqours-live', { groupNames: ['Aqours'] }),
           PLAYER1,
           'bp6-021-aqours-live'
         )

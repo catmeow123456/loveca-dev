@@ -32,7 +32,7 @@ function createLive(
   return {
     cardCode,
     name: cardCode,
-    groupName: 'Liella!',
+    groupNames: ['Liella!'],
     cardType: CardType.LIVE,
     score: options.score ?? 5,
     requirements: createHeartRequirement({ [HeartColor.YELLOW]: 1 }),

@@ -44,14 +44,14 @@ function createMockLiveData(
   name: string = 'Test Live',
   cardCode: string = 'TEST-LIVE',
   options: {
-    readonly groupName?: string;
+    readonly groupNames?: readonly string[];
     readonly cardText?: string;
   } = {}
 ): LiveCardData {
   return {
     cardCode,
     name,
-    groupName: options.groupName,
+    groupNames: options.groupNames,
     cardText: options.cardText,
     cardType: CardType.LIVE,
     score,
@@ -751,7 +751,7 @@ describe('CostCalculator', () => {
 
     it("reduces printed cost 17 or higher μ's members from hand by 2 when own success zone has PL!-bp6-019-L", () => {
       const memberData = createMockMemberData(17, '高坂穗乃果', 'PL!-test-muse-cost17', {
-        groupName: "μ's",
+        groupNames: ["μ's"],
       });
       const resources: AvailableResources = {
         activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e${index}`),
@@ -762,7 +762,7 @@ describe('CostCalculator', () => {
           {
             cardId: 'music-start',
             data: createMockLiveData(2, 'Music S.T.A.R.T!!', 'PL!-bp6-019-L', {
-              groupName: "μ's",
+              groupNames: ["μ's"],
             }),
           },
         ],
@@ -787,15 +787,15 @@ describe('CostCalculator', () => {
         {
           cardId: 'music-start',
           data: createMockLiveData(2, 'Music S.T.A.R.T!!', 'PL!-bp6-019-L', {
-            groupName: "μ's",
+            groupNames: ["μ's"],
           }),
         },
       ];
       const cost16Muse = createMockMemberData(16, '16费μ成员', 'PL!-test-muse-cost16', {
-        groupName: "μ's",
+        groupNames: ["μ's"],
       });
       const cost17Other = createMockMemberData(17, '17费非μ成员', 'PL!N-test-cost17', {
-        groupName: '虹ヶ咲学園スクールアイドル同好会',
+        groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
       });
 
       for (const memberData of [cost16Muse, cost17Other]) {
@@ -814,7 +814,7 @@ describe('CostCalculator', () => {
 
     it('does not apply PL!-bp6-019-L when only the opponent success zone has it', () => {
       const memberData = createMockMemberData(17, '高坂穗乃果', 'PL!-test-muse-cost17', {
-        groupName: "μ's",
+        groupNames: ["μ's"],
       });
       const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, {
         activeEnergyIds: Array.from({ length: 15 }, (_, index) => `e${index}`),
@@ -830,7 +830,7 @@ describe('CostCalculator', () => {
 
     it('does not stack multiple PL!-bp6-019-L success zone cost reducers', () => {
       const memberData = createMockMemberData(17, '高坂穗乃果', 'PL!-test-muse-cost17', {
-        groupName: "μ's",
+        groupNames: ["μ's"],
       });
       const info = calculator.calculateModifiedPlayCost(memberData, {
         activeEnergyIds: Array.from({ length: 17 }, (_, index) => `e${index}`),
@@ -856,7 +856,7 @@ describe('CostCalculator', () => {
 
     it('uses printed member cost for PL!-bp6-019-L instead of other modified cost values', () => {
       const memberData = createMockMemberData(16, '16费μ成员', 'PL!-test-muse-cost16', {
-        groupName: "μ's",
+        groupNames: ["μ's"],
       });
       const info = calculator.calculateModifiedPlayCost(memberData, {
         activeEnergyIds: Array.from({ length: 17 }, (_, index) => `e${index}`),

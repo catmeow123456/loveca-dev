@@ -9,21 +9,21 @@ import {
 describe('card identity helpers', () => {
   it('matches group aliases through structured groupNames with normalized punctuation', () => {
     const cases: readonly {
-      readonly groupName: GroupIdentityName;
+      readonly targetGroupName: GroupIdentityName;
       readonly card: CardIdentityLike;
     }[] = [
-      { groupName: "μ's", card: { groupNames: ['『μ』'] } },
-      { groupName: '蓮ノ空', card: { groupNames: ['莲之空女学院スクールアイドルクラブ'] } },
-      { groupName: 'Liella!', card: { groupNames: ['Liella！'] } },
-      { groupName: 'SunnyPassion', card: { groupNames: ['Sunny Passion'] } },
-      { groupName: '虹ヶ咲', card: { groupNames: ['Nijigasaki'] } },
-      { groupName: 'Aqours', card: { groupNames: ['Aqours'] } },
-      { groupName: 'A-RISE', card: { groupNames: ['A-RISE'] } },
-      { groupName: 'SaintSnow', card: { groupNames: ['Saint Snow'] } },
+      { targetGroupName: "μ's", card: { groupNames: ['『μ』'] } },
+      { targetGroupName: '蓮ノ空', card: { groupNames: ['莲之空女学院スクールアイドルクラブ'] } },
+      { targetGroupName: 'Liella!', card: { groupNames: ['Liella！'] } },
+      { targetGroupName: 'SunnyPassion', card: { groupNames: ['Sunny Passion'] } },
+      { targetGroupName: '虹ヶ咲', card: { groupNames: ['Nijigasaki'] } },
+      { targetGroupName: 'Aqours', card: { groupNames: ['Aqours'] } },
+      { targetGroupName: 'A-RISE', card: { groupNames: ['A-RISE'] } },
+      { targetGroupName: 'SaintSnow', card: { groupNames: ['Saint Snow'] } },
     ];
 
-    for (const { groupName, card } of cases) {
-      expect(cardBelongsToGroup(card, groupName)).toBe(true);
+    for (const { targetGroupName, card } of cases) {
+      expect(cardBelongsToGroup(card, targetGroupName)).toBe(true);
     }
   });
 

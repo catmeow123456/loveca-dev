@@ -4285,7 +4285,7 @@ function createMuseMemberData(cardCode: string, name: string, blade: number) {
     cost: 4,
     blade,
     hearts: [createHeartIcon(HeartColor.PINK, 1)],
-    groupName: "μ's",
+    groupNames: ["μ's"],
   };
 }
 
@@ -4540,7 +4540,7 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
       {
         cardCode: 'PL!SP-bp2-010-R＋',
         name: 'ウィーン・マルガレーテ',
-        groupName: 'Liella!',
+        groupNames: ['Liella!'],
         cardType: CardType.MEMBER,
         cost: 15,
         blade: 7,
