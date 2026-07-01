@@ -492,7 +492,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
-    baseCardCodes: ['PL!SP-PR-025'],
+    cardCodes: ['PL!SP-PR-025-PR'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
       countPlayerEnergyCards(game, playerId) === 7

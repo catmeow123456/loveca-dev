@@ -3627,7 +3627,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: SP_PR_025_CONTINUOUS_ENERGY_EXACT_SEVEN_GAIN_TWO_BLADE_ABILITY_ID,
-    baseCardCodes: ['PL!SP-PR-025'],
+    cardCodes: ['PL!SP-PR-025-PR'],
     category: CardAbilityCategory.CONTINUOUS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
