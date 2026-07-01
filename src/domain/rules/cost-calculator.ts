@@ -78,6 +78,8 @@ export interface StageMemberInfo {
   readonly position: SlotPosition;
   /** 成员当前活跃/待机状态 */
   readonly orientation: OrientationState;
+  /** 此成员本回合是否在成员区之间移动过。 */
+  readonly positionMovedThisTurn?: boolean;
 }
 
 /**
@@ -207,6 +209,23 @@ export class CostCalculator {
         modifiers.push({
           id: 'PL!N-pb1-008-P+:hand-self-cost-minus-if-waiting-nijigasaki-member',
           label: '自己的舞台存在待机状态的虹咲成员，费用减少2',
+          amount: Math.min(memberData.cost, 2),
+          sourceCardId: resources.sourceCardId,
+        });
+      }
+    }
+
+    if (cardCodeMatchesBase(memberData.cardCode, 'PL!SP-bp5-017')) {
+      const hasMovedLiellaStageMember = resources.stageMembers.some(
+        (stageMember) =>
+          stageMember.positionMovedThisTurn === true &&
+          cardBelongsToGroup(stageMember.data, 'Liella!')
+      );
+
+      if (hasMovedLiellaStageMember) {
+        modifiers.push({
+          id: 'PL!SP-bp5-017:hand-self-cost-minus-if-moved-liella-stage-member',
+          label: '自己的舞台存在本回合进行过区域移动的Liella!成员，费用减少2',
           amount: Math.min(memberData.cost, 2),
           sourceCardId: resources.sourceCardId,
         });

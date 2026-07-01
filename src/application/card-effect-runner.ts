@@ -167,10 +167,20 @@ import { registerShikiWorkflowHandlers } from './card-effects/workflows/cards/sp
 import { registerSpBp5001KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-001-kanon.js';
 import { registerSpBp5004SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-004-sumire.js';
 import { registerSpBp5005RenWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-005-ren.js';
+import { registerSpBp5009NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-009-natsumi.js';
+import { registerSpBp5010MargareteWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-010-margarete.js';
 import { registerSpBp5007MeiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-007-mei.js';
 import { registerSpBp5013KekeWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-013-keke.js';
 import { registerSpBp5014ChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-014-chisato.js';
+import { registerSpBp5015SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-015-sumire.js';
+import { registerSpBp5020NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-020-natsumi.js';
 import { registerSpBp5023ShootingVoiceWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-023-shooting-voice.js';
+import { registerSpBp5024MiracleNewStoryWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-024-miracle-new-story.js';
+import { registerSpBp5025TokonatsuSunshineWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-025-tokonatsu-sunshine.js';
+import { registerSpBp5026LetsBeOneWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-026-lets-be-one.js';
+import { registerSpBp5027HotPassionWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-027-hot-passion.js';
+import { registerSpBp5111MaoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-111-mao.js';
+import { registerSpBp5222YuunaWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-222-yuuna.js';
 import { registerSpBp5002KekeWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-002-keke.js';
 import { registerSpBp5006KinakoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-006-kinako.js';
 import { registerSpPb1006KinakoWorkflowHandlers } from './card-effects/workflows/cards/sp-pb1-006-kinako.js';
@@ -795,10 +805,23 @@ registerShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5001KanonWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5004SumireWorkflowHandlers();
 registerSpBp5005RenWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp5009NatsumiWorkflowHandlers({
+  enqueueTriggeredCardEffectsForEnterWaitingRoom: enqueueTriggeredCardEffects,
+  enqueueTriggeredCardEffectsForMemberStateChanged: enqueueTriggeredCardEffects,
+});
+registerSpBp5010MargareteWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5007MeiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5013KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5014ChisatoWorkflowHandlers();
+registerSpBp5015SumireWorkflowHandlers();
+registerSpBp5020NatsumiWorkflowHandlers();
 registerSpBp5023ShootingVoiceWorkflowHandlers();
+registerSpBp5024MiracleNewStoryWorkflowHandlers();
+registerSpBp5025TokonatsuSunshineWorkflowHandlers();
+registerSpBp5026LetsBeOneWorkflowHandlers();
+registerSpBp5027HotPassionWorkflowHandlers();
+registerSpBp5111MaoWorkflowHandlers();
+registerSpBp5222YuunaWorkflowHandlers();
 registerSpBp5002KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5006KinakoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb1006KinakoWorkflowHandlers();

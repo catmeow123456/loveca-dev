@@ -260,6 +260,7 @@ export interface ActiveEffectViewState {
   };
   readonly numericInput?: {
     readonly min?: number;
+    readonly max?: number;
     readonly integerOnly?: boolean;
     readonly label?: string;
     readonly placeholder?: string;

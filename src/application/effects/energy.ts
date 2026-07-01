@@ -1,6 +1,10 @@
 import type { GameState } from '../../domain/entities/game.js';
 import { getPlayerById, updatePlayer } from '../../domain/entities/game.js';
-import { addCardToStatefulZone } from '../../domain/entities/zone.js';
+import {
+  addCardToStatefulZone,
+  addCardToZone,
+  removeCardFromStatefulZone,
+} from '../../domain/entities/zone.js';
 import { FaceState, OrientationState } from '../../shared/types/enums.js';
 
 export interface PlaceEnergyFromDeckResult {
@@ -18,6 +22,11 @@ export interface SetEnergyOrientationResult {
   readonly updatedEnergyCardIds: readonly string[];
   readonly previousOrientations: readonly EnergyOrientationChange[];
   readonly nextOrientation: OrientationState;
+}
+
+export interface MoveEnergyZoneCardsToEnergyDeckResult {
+  readonly gameState: GameState;
+  readonly movedEnergyCardIds: readonly string[];
 }
 
 export function getEnergyCardIdsByOrientation(
@@ -73,6 +82,50 @@ export function placeEnergyFromDeckToZone(
   return {
     gameState,
     placedEnergyCardIds,
+  };
+}
+
+export function moveEnergyZoneCardsToEnergyDeck(
+  game: GameState,
+  playerId: string,
+  selectedEnergyCardIds: readonly string[],
+  options: { readonly exactCount?: number } = {}
+): MoveEnergyZoneCardsToEnergyDeckResult | null {
+  const player = getPlayerById(game, playerId);
+  const exactCount = options.exactCount ?? selectedEnergyCardIds.length;
+  const uniqueEnergyCardIds = [...new Set(selectedEnergyCardIds)];
+  if (
+    !player ||
+    !Number.isInteger(exactCount) ||
+    exactCount < 0 ||
+    uniqueEnergyCardIds.length !== selectedEnergyCardIds.length ||
+    selectedEnergyCardIds.length !== exactCount ||
+    selectedEnergyCardIds.some((cardId) => !player.energyZone.cardIds.includes(cardId))
+  ) {
+    return null;
+  }
+
+  if (selectedEnergyCardIds.length === 0) {
+    return { gameState: game, movedEnergyCardIds: [] };
+  }
+
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => {
+    let energyZone = currentPlayer.energyZone;
+    let energyDeck = currentPlayer.energyDeck;
+    for (const energyCardId of selectedEnergyCardIds) {
+      energyZone = removeCardFromStatefulZone(energyZone, energyCardId);
+      energyDeck = addCardToZone(energyDeck, energyCardId);
+    }
+    return {
+      ...currentPlayer,
+      energyZone,
+      energyDeck,
+    };
+  });
+
+  return {
+    gameState,
+    movedEnergyCardIds: selectedEnergyCardIds,
   };
 }
 

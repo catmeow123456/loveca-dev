@@ -269,10 +269,42 @@ export const SP_BP5_021_ACTIVATED_SELF_SACRIFICE_ENERGY_SIX_PLACE_WAITING_ENERGY
   'PL!SP-bp5-021:activated-self-sacrifice-energy-six-place-waiting-energy';
 export const SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID =
   'PL!SP-bp5-008:on-enter-wait-discard-look-high-cost-liella-member';
+export const SP_BP5_009_LIVE_START_REPEAT_MILL_GAIN_BLADE_WAIT_IF_LIVE_ABILITY_ID =
+  'PL!SP-bp5-009:live-start-repeat-mill-gain-blade-wait-if-live';
+export const SP_BP5_010_ON_ENTER_BOTH_CENTER_POSITION_CHANGE_ABILITY_ID =
+  'PL!SP-bp5-010:on-enter-both-center-position-change';
+export const SP_BP5_011_CONTINUOUS_SLOT_HEARTS_ABILITY_ID =
+  'PL!SP-bp5-011:continuous-slot-hearts';
 export const SP_BP5_013_ON_ENTER_DISCARD_LOOK_TOP_SUNNYPASSION_OR_BLADE_HEART_LIELLA_ABILITY_ID =
   'PL!SP-bp5-013:on-enter-discard-look-sunnypassion-or-blade-heart-liella-member';
+export const SP_BP5_015_ON_ENTER_CENTER_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!SP-bp5-015:on-enter-center-gain-two-blade';
+export const SP_BP5_016_CONTINUOUS_ENERGY_TEN_GAIN_TWO_PURPLE_HEART_ABILITY_ID =
+  'PL!SP-bp5-016:continuous-energy-ten-gain-two-purple-heart';
+export const SP_BP5_017_CONTINUOUS_HAND_SELF_COST_MINUS_MOVED_LIELLA_ABILITY_ID =
+  'PL!SP-bp5-017:continuous-hand-self-cost-minus-if-moved-liella-stage-member';
+export const SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID =
+  'PL!SP-bp5-020:activated-pay-two-energy-draw-one';
+export const SP_BP5_020_LIVE_SUCCESS_PAY_ENERGY_DRAW_ONE_ABILITY_ID =
+  'PL!SP-bp5-020:live-success-pay-energy-draw-one';
 export const SP_BP5_023_LIVE_SUCCESS_SUCCESS_ZONE_TWO_SCORE_CHEER_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp5-023-L:live-success-success-zone-two-score-cheer-this-live-score';
+export const SP_BP5_024_LIVE_START_CHOOSE_HEART_FOR_MOVED_STAGE_MEMBERS_ABILITY_ID =
+  'PL!SP-bp5-024-L:live-start-choose-heart-for-moved-stage-members';
+export const SP_BP5_025_LIVE_SUCCESS_PAY_ANY_ENERGY_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-bp5-025-L:live-success-pay-any-energy-this-live-score';
+export const SP_BP5_026_LIVE_START_LIELLA_STAGE_HEART_ELEVEN_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-bp5-026-L:live-start-liella-stage-heart-eleven-this-live-score';
+export const SP_BP5_027_LIVE_SUCCESS_PLACE_WAITING_ENERGY_OPPONENT_DRAW_ABILITY_ID =
+  'PL!SP-bp5-027-L:live-success-place-waiting-energy-opponent-draw';
+export const SP_BP5_111_CONTINUOUS_ENERGY_EXACT_EIGHT_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-bp5-111:continuous-energy-exact-eight-live-score';
+export const SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID =
+  'PL!SP-bp5-111:activated-return-two-energy-recover-live';
+export const SP_BP5_222_CONTINUOUS_ENERGY_EXACT_EIGHT_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-bp5-222:continuous-energy-exact-eight-live-score';
+export const SP_BP5_222_LIVE_START_PAY_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-bp5-222:live-start-pay-energy-place-waiting-energy';
 export const SP_BP5_007_ON_ENTER_DISCARD_LOOK_TOP_DISTINCT_GROUPS_ABILITY_ID =
   'PL!SP-bp5-007:on-enter-discard-look-distinct-groups';
 export const SP_PB1_008_ON_ENTER_DRAW_SELF_POSITION_CHANGE_ABILITY_ID =

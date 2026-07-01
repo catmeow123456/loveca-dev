@@ -371,6 +371,15 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
         )
       ).success
     ).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: 'SP_BP5_007_REVEAL_SELECTED_GROUP_CARDS',
+      selectableCardIds: [],
+      canSkipSelection: false,
+    });
+    expect(session.state?.activeEffect?.selectableCardMode).toBeUndefined();
+    expect(session.state?.activeEffect?.minSelectableCards).toBeUndefined();
+    expect(session.state?.activeEffect?.maxSelectableCards).toBeUndefined();
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBeUndefined();
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([
       liellaTwo.instanceId,
       sunnyPassion.instanceId,

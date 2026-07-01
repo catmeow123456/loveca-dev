@@ -1747,6 +1747,9 @@ export class GameSession {
           if (typeof numericInput.min === 'number' && command.selectedNumber < numericInput.min) {
             return '输入数字低于当前效果允许范围';
           }
+          if (typeof numericInput.max === 'number' && command.selectedNumber > numericInput.max) {
+            return '输入数字高于当前效果允许范围';
+          }
         } else if (command.selectedNumber !== undefined) {
           return '当前效果不能输入数字';
         }
@@ -3330,6 +3333,7 @@ export class GameSession {
           position: slot,
           orientation:
             player.memberSlots.cardStates.get(stageCardId)?.orientation ?? OrientationState.ACTIVE,
+          positionMovedThisTurn: player.positionMovedThisTurn.includes(stageCardId),
         });
       }
     }

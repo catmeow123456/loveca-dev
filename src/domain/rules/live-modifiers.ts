@@ -283,6 +283,71 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    baseCardCodes: ['PL!SP-bp5-011'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const slot = getSourceMainStageSlot(game, playerId, sourceCardId);
+      const heartColor =
+        slot === SlotPosition.LEFT
+          ? HeartColor.RED
+          : slot === SlotPosition.CENTER
+            ? HeartColor.YELLOW
+            : slot === SlotPosition.RIGHT
+              ? HeartColor.BLUE
+              : null;
+      if (!heartColor) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_BP5_011_CONTINUOUS_SLOT_HEARTS_ABILITY_ID,
+        hearts: [{ color: heartColor, count: 3 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
+    baseCardCodes: ['PL!SP-bp5-016'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        countPlayerEnergyCards(game, playerId) < 10
+      ) {
+        return [];
+      }
+
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_BP5_016_CONTINUOUS_ENERGY_TEN_GAIN_TWO_PURPLE_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.PURPLE, count: 2 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
+    baseCardCodes: ['PL!SP-bp5-111'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      collectExactEightEnergyScoreModifier(
+        game,
+        playerId,
+        sourceCardId,
+        SP_BP5_111_CONTINUOUS_ENERGY_EXACT_EIGHT_LIVE_SCORE_ABILITY_ID
+      ),
+  },
+  {
+    baseCardCodes: ['PL!SP-bp5-222'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      collectExactEightEnergyScoreModifier(
+        game,
+        playerId,
+        sourceCardId,
+        SP_BP5_222_CONTINUOUS_ENERGY_EXACT_EIGHT_LIVE_SCORE_ABILITY_ID
+      ),
+  },
+  {
     baseCardCodes: ['PL!HS-bp1-003'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasThreeDifferentHasunosoraMembersOnStage(game, playerId)
@@ -636,6 +701,13 @@ const BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID =
   'PL!-bp5-003:continuous-three-different-names-yellow-heart';
 const SP_BP5_012_CONTINUOUS_LIELLA_LIVE_REQUIREMENT_EIGHT_YELLOW_HEART_ABILITY_ID =
   'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart';
+const SP_BP5_011_CONTINUOUS_SLOT_HEARTS_ABILITY_ID = 'PL!SP-bp5-011:continuous-slot-hearts';
+const SP_BP5_016_CONTINUOUS_ENERGY_TEN_GAIN_TWO_PURPLE_HEART_ABILITY_ID =
+  'PL!SP-bp5-016:continuous-energy-ten-gain-two-purple-heart';
+const SP_BP5_111_CONTINUOUS_ENERGY_EXACT_EIGHT_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-bp5-111:continuous-energy-exact-eight-live-score';
+const SP_BP5_222_CONTINUOUS_ENERGY_EXACT_EIGHT_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-bp5-222:continuous-energy-exact-eight-live-score';
 const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
   'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
 const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
@@ -1045,8 +1117,16 @@ function isSourceStageMemberInSlot(
 }
 
 function isSourceMainStageMember(game: GameState, playerId: string, sourceCardId: string): boolean {
+  return getSourceMainStageSlot(game, playerId, sourceCardId) !== null;
+}
+
+function getSourceMainStageSlot(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): SlotPosition | null {
   const player = game.players.find((candidate) => candidate.id === playerId);
-  return MEMBER_SLOT_ORDER.some((slot) => player?.memberSlots.slots[slot] === sourceCardId);
+  return MEMBER_SLOT_ORDER.find((slot) => player?.memberSlots.slots[slot] === sourceCardId) ?? null;
 }
 
 function countEnergyBelowSourceMember(
@@ -1198,6 +1278,26 @@ function collectHsBp5002SayakaContinuousModifiers(
         HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID,
     },
   ];
+}
+
+function collectExactEightEnergyScoreModifier(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  abilityId: string
+): readonly LiveModifierState[] {
+  return isSourceMainStageMember(game, playerId, sourceCardId) &&
+    countPlayerEnergyCards(game, playerId) === 8
+    ? [
+        {
+          kind: 'SCORE',
+          playerId,
+          countDelta: 1,
+          sourceCardId,
+          abilityId,
+        },
+      ]
+    : [];
 }
 
 function collectHsSd1004GinkoGreenHeartModifier(

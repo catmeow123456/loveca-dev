@@ -6,6 +6,7 @@ import type { DeckConfig } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import {
   getEnergyCardIdsByOrientation,
+  moveEnergyZoneCardsToEnergyDeck,
   placeEnergyFromDeckToZone,
   setEnergyOrientation,
   setFirstEnergyCardsOrientation,
@@ -162,6 +163,55 @@ describe('energy effect helpers', () => {
     expect(
       result?.gameState.players[0].energyZone.cardStates.get(energyCardIds[3])?.orientation
     ).toBe(OrientationState.WAITING);
+  });
+
+  it('moves selected energy zone cards back to the energy deck in selection order', () => {
+    const state = createMutableState();
+    const energyCardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.ENERGY)
+      .slice(0, 4)
+      .map((card) => card.instanceId);
+    setPlayerEnergyZones(state, {
+      energyDeckCardIds: [energyCardIds[3]],
+      energyZoneCardIds: energyCardIds.slice(0, 3),
+    });
+
+    const result = moveEnergyZoneCardsToEnergyDeck(
+      state,
+      PLAYER1,
+      [energyCardIds[1], energyCardIds[0]],
+      { exactCount: 2 }
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.movedEnergyCardIds).toEqual([energyCardIds[1], energyCardIds[0]]);
+    expect(result?.gameState.players[0].energyZone.cardIds).toEqual([energyCardIds[2]]);
+    expect(result?.gameState.players[0].energyDeck.cardIds).toEqual([
+      energyCardIds[3],
+      energyCardIds[1],
+      energyCardIds[0],
+    ]);
+    expect(result?.gameState.players[0].energyZone.cardStates.has(energyCardIds[1])).toBe(false);
+  });
+
+  it('rejects invalid selected energy zone cards for energy deck movement', () => {
+    const state = createMutableState();
+    const energyCardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.ENERGY)
+      .slice(0, 2)
+      .map((card) => card.instanceId);
+    setPlayerEnergyZones(state, {
+      energyDeckCardIds: [energyCardIds[1]],
+      energyZoneCardIds: [energyCardIds[0]],
+    });
+
+    expect(
+      moveEnergyZoneCardsToEnergyDeck(state, PLAYER1, [energyCardIds[0]], { exactCount: 2 })
+    ).toBeNull();
+    expect(
+      moveEnergyZoneCardsToEnergyDeck(state, PLAYER1, [energyCardIds[0], energyCardIds[0]])
+    ).toBeNull();
+    expect(moveEnergyZoneCardsToEnergyDeck(state, PLAYER1, [energyCardIds[1]])).toBeNull();
   });
 
   it('treats missing energy card state as active when counting and toggling', () => {

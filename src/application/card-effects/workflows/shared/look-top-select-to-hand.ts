@@ -463,7 +463,12 @@ function revealLookTopSelectToHandSelection(
         stepId: metadata.revealStepId,
         stepText: metadata.revealStepText,
         selectableCardIds: [],
+        selectableCardVisibility: undefined,
+        selectableCardMode: undefined,
+        minSelectableCards: undefined,
+        maxSelectableCards: undefined,
         selectionLabel: undefined,
+        confirmSelectionLabel: undefined,
         canSkipSelection: false,
         skipSelectionLabel: undefined,
         metadata: {

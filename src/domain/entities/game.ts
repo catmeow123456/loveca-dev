@@ -449,6 +449,7 @@ export type ActiveEffectSelectableCardVisibility = 'PUBLIC' | 'AWAITING_PLAYER_O
 
 export interface ActiveEffectNumericInputState {
   readonly min?: number;
+  readonly max?: number;
   readonly integerOnly?: boolean;
   readonly label?: string;
   readonly placeholder?: string;
