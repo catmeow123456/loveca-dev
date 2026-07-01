@@ -3,8 +3,9 @@
  * 仅在当前观察者属于本轮胜者时显示全屏结果动画
  */
 
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -32,6 +33,8 @@ interface LiveResultAnimationProps {
   scoreInfo?: LiveScoreInfo | null;
   /** 动画结束回调 */
   onComplete?: () => void;
+  /** 重新挂载同一个结果窗口时用于重启动画确认计时 */
+  animationKey?: string | number | null;
   /** 动画持续时间 (ms) */
   duration?: number;
 }
@@ -48,33 +51,46 @@ export const LiveResultAnimation = memo(function LiveResultAnimation({
   isViewerWinner,
   scoreInfo,
   onComplete,
+  animationKey,
   duration = 2800,
 }: LiveResultAnimationProps) {
   const reduceMotion = useReducedMotion();
-  const prevVisibleRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxScore = useMemo(
     () => Math.max(scoreInfo?.selfScore ?? 0, scoreInfo?.opponentScore ?? 0, 1),
     [scoreInfo?.opponentScore, scoreInfo?.selfScore]
   );
 
+  const completeAnimation = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    onComplete?.();
+  }, [onComplete]);
+
   useEffect(() => {
-    if (visible && !prevVisibleRef.current) {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    if (visible) {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
       timerRef.current = setTimeout(() => {
-        onComplete?.();
+        completeAnimation();
       }, duration);
     }
-    prevVisibleRef.current = visible;
 
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
+        timerRef.current = null;
       }
     };
-  }, [duration, onComplete, visible]);
+  }, [animationKey, completeAnimation, duration, visible]);
 
   const title = scoreInfo?.isDraw ? 'DOUBLE VICTORY' : 'LIVE VICTORY';
   const subtitle = scoreInfo?.isDraw ? '双方 Live 成功' : '本轮 Live 胜利';
@@ -206,6 +222,20 @@ export const LiveResultAnimation = memo(function LiveResultAnimation({
               animate={{ scaleX: 1, opacity: 1 }}
               transition={{ delay: reduceMotion ? 0 : 0.62, duration: reduceMotion ? 0.1 : 0.36 }}
             />
+
+            {onComplete && (
+              <motion.button
+                type="button"
+                onClick={completeAnimation}
+                className="pointer-events-auto mt-6 inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md border border-[color:color-mix(in_srgb,var(--semantic-info)_42%,white)] bg-[color:color-mix(in_srgb,var(--bg-surface)_78%,white)] px-4 text-sm font-semibold text-[var(--text-primary)] shadow-[0_10px_24px_rgba(80,100,130,0.24)] transition-colors hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))]"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: reduceMotion ? 0 : 0.72, duration: 0.2 }}
+              >
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                继续
+              </motion.button>
+            )}
           </motion.div>
         </motion.div>
       )}

@@ -248,6 +248,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const canMoveResolutionCardToZoneCommand = useGameStore((s) =>
     s.canUseAction(GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE)
   );
+  const canConfirmResultAnimationCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.CONFIRM_STEP)
+  );
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
   const selectedCardId = useGameStore((s) => s.ui.selectedCardId);
   const logCount = useGameStore((s) => s.ui.logs.length);
@@ -907,7 +910,12 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
 
   const isViewerWinnerInCurrentLive = viewerLiveWinner;
   const isResultAnimationWindow = matchView?.window?.windowType === 'RESULT_ANIMATION';
-  const shouldShowWinnerAnimation = isResultAnimationWindow && isViewerWinnerInCurrentLive;
+  const shouldShowWinnerAnimation =
+    isResultAnimationWindow && isViewerWinnerInCurrentLive && canConfirmResultAnimationCommand;
+  const liveResultAnimationKey =
+    shouldShowWinnerAnimation && viewerSeat
+      ? `${viewerSeat}:${matchView?.seq ?? 0}`
+      : null;
 
   const handleLiveAnimationComplete = useCallback(() => {
     if (isReadOnly) {
@@ -2925,6 +2933,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 } as LiveScoreInfo)
               : null
           }
+          animationKey={liveResultAnimationKey}
           onComplete={handleLiveAnimationComplete}
         />
 

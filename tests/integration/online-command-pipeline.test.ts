@@ -17,6 +17,7 @@ import type {
 } from '../../src/domain/entities/card';
 import type { ActiveEffectState, PendingAbilityState } from '../../src/domain/entities/game';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
+import { addCardToStatefulZone, removeCardFromZone } from '../../src/domain/entities/zone';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import { createManualMoveCardAction } from '../../src/application/actions';
 import { ABILITY_ORDER_SELECTION_ID } from '../../src/application/card-effect-runner';
@@ -51,6 +52,7 @@ import {
   createSetLiveCardCommand,
   createSelectSuccessLiveCommand,
   createSubmitJudgmentCommand,
+  createSubmitScoreCommand,
   createTapEnergyCommand,
   createTapMemberCommand,
 } from '../../src/application/game-commands';
@@ -121,6 +123,15 @@ function forceMainPhaseForPlayer(
   state.currentSubPhase = SubPhase.NONE;
   state.activePlayerIndex = activePlayerIndex;
   state.waitingPlayerId = null;
+}
+
+function getEnabledCommand(
+  view: ReturnType<ReturnType<typeof createGameSession>['getPlayerViewState']>,
+  command: GameCommandType
+) {
+  return view?.permissions.availableCommands.find(
+    (hint) => hint.command === command && hint.enabled
+  );
 }
 
 function installNonInspectionActiveEffect(
@@ -3380,6 +3391,96 @@ describe('GameSession command pipeline', () => {
     expect(moveEvent?.card?.cardCode).toBeUndefined();
     expect(moveEvent?.card?.name).toBeUndefined();
     expect(moveEvent?.card?.cardType).toBeUndefined();
+  });
+
+  it('平分双胜者时切到另一玩家视角仍可确认胜者动画', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-live-tie-double-winner', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const state = session.state!;
+    const p1LiveCardId = [...state.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.LIVE
+    )?.instanceId;
+    const p2LiveCardId = [...state.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER2 && card.data.cardType === CardType.LIVE
+    )?.instanceId;
+    expect(p1LiveCardId).toBeTruthy();
+    expect(p2LiveCardId).toBeTruthy();
+
+    const mutableState = state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+      players: Array<{
+        hand: typeof state.players[number]['hand'];
+        mainDeck: typeof state.players[number]['mainDeck'];
+        liveZone: typeof state.players[number]['liveZone'];
+      }>;
+      liveResolution: typeof state.liveResolution;
+    };
+    const p1 = mutableState.players[0]!;
+    const p2 = mutableState.players[1]!;
+    p1.hand = removeCardFromZone(p1.hand, p1LiveCardId!) as typeof p1.hand;
+    p1.mainDeck = removeCardFromZone(p1.mainDeck, p1LiveCardId!) as typeof p1.mainDeck;
+    p1.liveZone = addCardToStatefulZone(p1.liveZone, p1LiveCardId!);
+    p2.hand = removeCardFromZone(p2.hand, p2LiveCardId!) as typeof p2.hand;
+    p2.mainDeck = removeCardFromZone(p2.mainDeck, p2LiveCardId!) as typeof p2.mainDeck;
+    p2.liveZone = addCardToStatefulZone(p2.liveZone, p2LiveCardId!);
+    mutableState.currentPhase = GamePhase.LIVE_RESULT_PHASE;
+    mutableState.currentSubPhase = SubPhase.RESULT_SCORE_CONFIRM;
+    mutableState.activePlayerIndex = 0;
+    mutableState.waitingPlayerId = null;
+    mutableState.liveResolution = {
+      ...mutableState.liveResolution,
+      liveResults: new Map([
+        [p1LiveCardId!, true],
+        [p2LiveCardId!, true],
+      ]),
+      playerScores: new Map([
+        [PLAYER1, 3],
+        [PLAYER2, 3],
+      ]),
+      scoreConfirmedBy: [],
+      liveWinnerIds: [],
+      animationConfirmedBy: [],
+      successCardMovedBy: [],
+      settlementConfirmedBy: [],
+    };
+
+    const p1Score = session.executeCommand(createSubmitScoreCommand(PLAYER1, 3));
+    expect(p1Score.success, p1Score.error).toBe(true);
+    const p2Score = session.executeCommand(createSubmitScoreCommand(PLAYER2, 3));
+    expect(p2Score.success, p2Score.error).toBe(true);
+    expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_ANIMATION);
+
+    const p1AnimationView = session.getPlayerViewState(PLAYER1);
+    expect(p1AnimationView?.match.window?.windowType).toBe('RESULT_ANIMATION');
+    expect(p1AnimationView?.match.liveResult?.winnerSeats).toEqual(['FIRST', 'SECOND']);
+    expect(getEnabledCommand(p1AnimationView, GameCommandType.CONFIRM_STEP)).toBeTruthy();
+
+    const p1AnimationConfirm = session.executeCommand(
+      createConfirmStepCommand(PLAYER1, SubPhase.RESULT_ANIMATION)
+    );
+    expect(p1AnimationConfirm.success, p1AnimationConfirm.error).toBe(true);
+    expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_ANIMATION);
+    expect(session.state?.liveResolution.animationConfirmedBy).toEqual([PLAYER1]);
+    expect(getEnabledCommand(session.getPlayerViewState(PLAYER1), GameCommandType.CONFIRM_STEP)).toBeUndefined();
+
+    const p2AnimationView = session.getPlayerViewState(PLAYER2);
+    const p2ConfirmHint = getEnabledCommand(p2AnimationView, GameCommandType.CONFIRM_STEP);
+    expect(p2AnimationView?.match.viewerSeat).toBe('SECOND');
+    expect(p2AnimationView?.match.window?.windowType).toBe('RESULT_ANIMATION');
+    expect(p2ConfirmHint?.params?.subPhase).toBe(SubPhase.RESULT_ANIMATION);
+
+    const p2AnimationConfirm = session.executeCommand(
+      createConfirmStepCommand(PLAYER2, SubPhase.RESULT_ANIMATION)
+    );
+    expect(p2AnimationConfirm.success, p2AnimationConfirm.error).toBe(true);
+    expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SETTLEMENT);
   });
 
   it('常用基础命令会通过命令层落到既有动作处理', () => {
