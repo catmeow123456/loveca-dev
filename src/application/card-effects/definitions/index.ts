@@ -2831,7 +2831,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: SP_BP5_009_LIVE_START_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_START workflow `sp-bp5-009-natsumi.ts`；真实交互可选重复流程。每次选择继续时将自己卡组顶1张放入休息室并写入 ON_ENTER_WAITING_ROOM 事件，来源成员获得 BLADE +1；若该卡为 LIVE，则通过成员状态变化 wrapper 将来源变 WAITING 并入队 ON_MEMBER_STATE_CHANGED，随后停止重复。最多5次，decline、主卡组与休息室均无法提供顶牌、来源离场或已 WAITING 均安全消费。',
+      '单卡 LIVE_START workflow `sp-bp5-009-natsumi.ts`；真实交互可选重复流程。每次选择继续时将自己卡组顶1张放入休息室并写入 ON_ENTER_WAITING_ROOM 事件，来源成员获得 BLADE +1；若该卡为 LIVE，则通过成员状态变化 wrapper 将来源变 WAITING 并入队 ON_MEMBER_STATE_CHANGED，但仍可按“最多可再重复4次”的文本继续后续重复。最多5次，decline、主卡组与休息室均无法提供顶牌、来源离场均安全消费。',
   },
   {
     abilityId: SP_BP5_010_ON_ENTER_BOTH_CENTER_POSITION_CHANGE_ABILITY_ID,

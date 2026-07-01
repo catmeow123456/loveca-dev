@@ -40,7 +40,8 @@ export function registerSpBp2009NatsumiWorkflowHandlers(deps: {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getSpBp2009NatsumiLiveStartConfirmationConfig
   );
   registerPendingAbilityStarterHandler(
     SP_BP2_009_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
@@ -66,6 +67,18 @@ export function registerSpBp2009NatsumiWorkflowHandlers(deps: {
         deps.enqueueTriggeredCardEffects
       )
   );
+}
+
+function getSpBp2009NatsumiLiveStartConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const player = getPlayerById(game, ability.controllerId);
+  const handCount = player?.hand.cardIds.length ?? 0;
+  const bladeBonus = Math.floor(handCount / 2);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前手牌 ${handCount}张，[BLADE]+${bladeBonus}）`,
+  };
 }
 
 function resolveSpBp2009NatsumiLiveStart(

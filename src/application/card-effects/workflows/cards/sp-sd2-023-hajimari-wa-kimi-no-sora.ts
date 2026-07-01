@@ -11,7 +11,10 @@ import { addLiveModifier, replaceLiveModifier } from '../../../../domain/rules/l
 import { applyHeartRequirementModifiers } from '../../../../domain/rules/live-requirement-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { SP_SD2_023_LIVE_START_SUCCESS_ZONE_TWO_SCORE_AND_SET_REQUIREMENT_ABILITY_ID } from '../../ability-ids.js';
-import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -38,6 +41,7 @@ export function registerSpSd2023HajimariWaKimiNoSoraWorkflowHandlers(): void {
       const ownSuccessLiveCount = player?.successZone.cardIds.length ?? 0;
       const conditionMet = ownSuccessLiveCount >= 2;
       return {
+        effectText: `${getAbilityEffectText(ability.abilityId)}（当前成功LIVE ${ownSuccessLiveCount}张，${conditionMet ? '满足条件，分数+5并变更必要Heart' : '未满足条件，不增加分数，不变更必要Heart'}）`,
         stepText: conditionMet
           ? `自己的成功LIVE区有 ${ownSuccessLiveCount} 张卡，条件满足。确认后此 LIVE 分数 +5，并变更必要 Heart。`
           : `自己的成功LIVE区有 ${ownSuccessLiveCount} 张卡，条件不满足。确认后不变更分数或必要 Heart。`,

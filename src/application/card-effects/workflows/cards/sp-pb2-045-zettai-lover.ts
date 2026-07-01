@@ -14,7 +14,10 @@ import {
 import { SlotPosition } from '../../../../shared/types/enums.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
-import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -33,8 +36,20 @@ export function registerSpPb2045ZettaiLoverWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getSpPb2045ConfirmationConfig
   );
+}
+
+function getSpPb2045ConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const checkedMembers = getCheckedMembers(game, ability.controllerId);
+  const qualifyingMemberCount = checkedMembers.filter((member) => member.qualifies).length;
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前满足4Heart以上的Liella!成员 ${qualifyingMemberCount}名，分数+${qualifyingMemberCount}）`,
+  };
 }
 
 function resolveSpPb2045ZettaiLoverLiveStart(
@@ -48,25 +63,7 @@ function resolveSpPb2045ZettaiLoverLiveStart(
     return game;
   }
 
-  const liveModifiers = collectLiveModifiers(game);
-  const checkedMembers = STAGE_SLOTS.map((slot) => {
-    const memberCardId = player.memberSlots.slots[slot];
-    const memberCard = memberCardId ? getCardById(game, memberCardId) : null;
-    const isMember = memberCard !== null && isMemberCardData(memberCard.data);
-    const isLiella =
-      isMember && memberCard !== null && cardBelongsToGroup(memberCard.data, 'Liella!');
-    const heartCount =
-      memberCardId && isMember
-        ? countHearts(getMemberEffectiveHeartIcons(game, player.id, memberCardId, liveModifiers))
-        : 0;
-    return {
-      slot,
-      memberCardId,
-      isLiella,
-      heartCount,
-      qualifies: isLiella && heartCount >= 4,
-    };
-  });
+  const checkedMembers = getCheckedMembers(game, player.id);
   const qualifyingMemberCardIds = checkedMembers
     .filter((member) => member.qualifies && member.memberCardId !== null)
     .map((member) => member.memberCardId as string);
@@ -103,6 +100,29 @@ function resolveSpPb2045ZettaiLoverLiveStart(
     }),
     orderedResolution
   );
+}
+
+function getCheckedMembers(game: GameState, playerId: string) {
+  const player = getPlayerById(game, playerId);
+  const liveModifiers = collectLiveModifiers(game);
+  return STAGE_SLOTS.map((slot) => {
+    const memberCardId = player?.memberSlots.slots[slot] ?? null;
+    const memberCard = memberCardId ? getCardById(game, memberCardId) : null;
+    const isMember = memberCard !== null && isMemberCardData(memberCard.data);
+    const isLiella =
+      isMember && memberCard !== null && cardBelongsToGroup(memberCard.data, 'Liella!');
+    const heartCount =
+      memberCardId && isMember
+        ? countHearts(getMemberEffectiveHeartIcons(game, playerId, memberCardId, liveModifiers))
+        : 0;
+    return {
+      slot,
+      memberCardId,
+      isLiella,
+      heartCount,
+      qualifies: isLiella && heartCount >= 4,
+    };
+  });
 }
 
 function refreshPlayerScoreDraft(game: GameState, playerId: string, scoreBonus: number): GameState {

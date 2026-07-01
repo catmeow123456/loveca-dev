@@ -9,6 +9,7 @@ import { SP_SD2_003_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_MOVED_ABILITY_ID } from '.
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
+  getAbilityEffectText,
   maybeStartConfirmablePendingAbilityConfirmation,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
@@ -19,7 +20,9 @@ export function registerSpSd2003ChisatoWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_SD2_003_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_MOVED_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getSpSd2003ChisatoConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -31,6 +34,18 @@ export function registerSpSd2003ChisatoWorkflowHandlers(): void {
       );
     }
   );
+}
+
+function getSpSd2003ChisatoConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const movedThisTurn = hasMemberPositionMovedThisTurn(
+    game,
+    ability.controllerId,
+    ability.sourceCardId
+  );
+  return `${getAbilityEffectText(ability.abilityId)}（本回合移动：${movedThisTurn ? '是' : '否'}，抽${movedThisTurn ? 2 : 1}张）`;
 }
 
 function resolveSpSd2003ChisatoLiveSuccess(

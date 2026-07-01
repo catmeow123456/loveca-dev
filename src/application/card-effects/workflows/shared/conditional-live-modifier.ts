@@ -119,7 +119,7 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
       const successLiveCount = countSuccessfulLiveCards(game, playerId);
       const reduction = successLiveCount * 2;
       return {
-        effectText: `${getAbilityEffectText(BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID)}（当前成功LIVE ${successLiveCount}张，减少${reduction}个無Heart）`,
+        effectText: `${getAbilityEffectText(BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID)}（当前成功LIVE ${successLiveCount}张，减少${reduction}个[無ハート]）`,
         actionPayload: {
           successLiveCount,
           requirementReduction: reduction,
@@ -140,7 +140,7 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
       );
       const reduction = otherHasunosoraLiveZoneCount * 2;
       return {
-        effectText: `${getAbilityEffectText(HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID)}（当前此卡以外莲之空卡 ${otherHasunosoraLiveZoneCount}张，减少${reduction}个绿Heart）`,
+        effectText: `${getAbilityEffectText(HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID)}（当前此卡以外莲之空卡 ${otherHasunosoraLiveZoneCount}张，减少${reduction}个[緑ハート]）`,
         actionPayload: {
           otherHasunosoraLiveZoneCount,
           requirementReduction: reduction,
@@ -157,7 +157,7 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
       const isConditionMet = ceriseBouquetLiveCount >= 3;
       return {
         effectText: `${getAbilityEffectText(HS_BP2_022_LIVE_START_SCORE_ABILITY_ID)}（当前${ceriseBouquetLiveCount}张，${
-          isConditionMet ? '满足条件' : '未满足条件'
+          isConditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'
         }）`,
         actionPayload: {
           ceriseBouquetLiveCount,
@@ -171,19 +171,19 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
     abilityId: HS_BP2_021_LIVE_START_RELAY_ENTERED_HASUNOSORA_GREEN_REQUIREMENT_ABILITY_ID,
     stepId: HS_BP2_021_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID,
     color: HeartColor.GREEN,
-    colorLabel: '绿Heart',
+    colorLabel: '[緑ハート]',
   }),
   createRelayEnteredHasunosoraRequirementReductionWorkflow({
     abilityId: HS_BP2_023_LIVE_START_RELAY_ENTERED_HASUNOSORA_BLUE_REQUIREMENT_ABILITY_ID,
     stepId: HS_BP2_023_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID,
     color: HeartColor.BLUE,
-    colorLabel: '蓝Heart',
+    colorLabel: '[青ハート]',
   }),
   createRelayEnteredHasunosoraRequirementReductionWorkflow({
     abilityId: HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABILITY_ID,
     stepId: HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID,
     color: HeartColor.PINK,
-    colorLabel: '桃Heart',
+    colorLabel: '[桃ハート]',
   }),
   {
     abilityId: HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
@@ -195,7 +195,7 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
         effectText: `${getAbilityEffectText(
           HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID
         )}（当前${highCostHasunosoraMemberCount}名，${
-          isConditionMet ? '满足条件' : '未满足条件'
+          isConditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'
         }）`,
         actionPayload: {
           highCostHasunosoraMemberCount,
@@ -233,7 +233,7 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
       return {
         effectText: `${getAbilityEffectText(
           HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID
-        )}（${condition.conditionMet ? '满足条件' : '未满足条件'}）`,
+        )}（小鈴 ${condition.kosuzuMemberIds.length}名，さやか ${condition.sayakaMemberIds.length}名，${condition.conditionMet ? '满足条件，减少3个[無ハート]' : '未满足条件，不减少必要[無ハート]'}）`,
         actionPayload: {
           kosuzuMemberIds: condition.kosuzuMemberIds,
           sayakaMemberIds: condition.sayakaMemberIds,
@@ -254,7 +254,7 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
         effectText: `${getAbilityEffectText(
           BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID
         )}（当前成功LIVE分数合计 ${successLiveScore}，${
-          reducesRequirement ? '减少必要無Heart' : '未减少必要Heart'
+          reducesRequirement ? '减少1个必要[無ハート]' : '未减少必要[無ハート]'
         }，${gainsScore ? '分数+1' : '未获得分数+1'}）`,
         actionPayload: {
           successLiveScore,
@@ -270,10 +270,11 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
     stepId: S_BP6_010_RED_REQUIREMENT_GAIN_HEART_STEP_ID,
     getStartContext: (game, _ability, playerId) => {
       const redRequirementTotal = sumOwnLiveZoneRequirement(game, playerId, HeartColor.RED);
+      const conditionMet = redRequirementTotal >= 4;
       return {
         effectText: `${getAbilityEffectText(
           S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID
-        )}（当前红Heart必要数合计 ${redRequirementTotal}）`,
+        )}（当前[赤ハート]必要数合计 ${redRequirementTotal}，${conditionMet ? '满足条件，[赤ハート]+1' : '未满足条件'}）`,
         actionPayload: {
           redRequirementTotal,
           heartBonus: redRequirementTotal >= 4 ? 1 : 0,
@@ -386,10 +387,11 @@ function getNicoStartContext(game: GameState, _ability: PendingAbilityState, pla
     getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM),
     groupIs("μ's")
   );
+  const conditionMet = museWaitingRoomCount >= 25;
   return {
     effectText: `${getAbilityEffectText(
       NICO_LIVE_START_SCORE_ABILITY_ID
-    )}（当前${museWaitingRoomCount}张）`,
+    )}（当前 μ's 休息室 ${museWaitingRoomCount}张，${conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'}）`,
     actionPayload: {},
   };
 }
@@ -726,7 +728,7 @@ function createRelayEnteredHasunosoraRequirementReductionWorkflow(
       const conditionMet = relayEnteredHasunosoraMemberIds.length >= 2;
       return {
         effectText: `${getAbilityEffectText(relayConfig.abilityId)}（当前${relayEnteredHasunosoraMemberIds.length}名，${
-          conditionMet ? '满足条件' : '未满足条件'
+          conditionMet ? `满足条件，减少1个${relayConfig.colorLabel}` : `未满足条件，不减少${relayConfig.colorLabel}`
         }）`,
         actionPayload: {
           relayEnteredHasunosoraMemberIds,

@@ -10,7 +10,10 @@ import { hasAllBladeHeart } from '../../../effects/card-selectors.js';
 import { selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -20,7 +23,9 @@ export function registerNLiveSuccessCheerAllBladeScoreWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getNLiveSuccessCheerAllBladeScoreConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -32,6 +37,20 @@ export function registerNLiveSuccessCheerAllBladeScoreWorkflowHandlers(): void {
       );
     }
   );
+}
+
+function getNLiveSuccessCheerAllBladeScoreConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
+  const allBladeCheerCardIds =
+    player && sourceInLiveZone
+      ? selectRevealedCheerCardIds(game, player.id, hasAllBladeHeart())
+      : [];
+  const conditionMet = allBladeCheerCardIds.length > 0;
+  return `${getAbilityEffectText(ability.abilityId)}（声援[ALLブレード]卡 ${allBladeCheerCardIds.length}张，${conditionMet ? '满足条件，分数+1' : '未满足条件'}）`;
 }
 
 function resolveNLiveSuccessCheerAllBladeScore(

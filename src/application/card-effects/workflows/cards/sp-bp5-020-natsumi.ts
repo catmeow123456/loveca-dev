@@ -26,7 +26,6 @@ import {
 
 const LIVE_SUCCESS_PAY_DECISION_STEP_ID = 'SP_BP5_020_LIVE_SUCCESS_PAY_DECISION';
 const PAY_OPTION_ID = 'pay';
-const DECLINE_OPTION_ID = 'decline';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -128,11 +127,9 @@ function startLiveSuccessPayDecision(
       stepId: LIVE_SUCCESS_PAY_DECISION_STEP_ID,
       stepText: '可以支付1张能量抽1张卡。',
       awaitingPlayerId: player.id,
-      selectableOptions: [
-        { id: PAY_OPTION_ID, label: '支付1张能量' },
-        { id: DECLINE_OPTION_ID, label: '不发动' },
-      ],
+      selectableOptions: [{ id: PAY_OPTION_ID, label: '支付1张能量' }],
       canSkipSelection: true,
+      skipSelectionLabel: '不发动',
       metadata: {
         orderedResolution,
       },

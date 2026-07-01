@@ -11,7 +11,10 @@ import { CardType } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, hasBladeHeart, not, typeIs } from '../../../effects/card-selectors.js';
 import { SP_PB2_008_LIVE_SUCCESS_CHEER_NO_BLADE_HEART_LIELLA_MEMBER_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -19,7 +22,9 @@ export function registerSpPb2008ShikiWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_PB2_008_LIVE_SUCCESS_CHEER_NO_BLADE_HEART_LIELLA_MEMBER_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getSpPb2008ShikiConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -31,6 +36,18 @@ export function registerSpPb2008ShikiWorkflowHandlers(): void {
       );
     }
   );
+}
+
+function getSpPb2008ShikiConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const qualifyingCheerMemberIds = getOwnCheerNoBladeHeartLiellaMemberIds(
+    game,
+    ability.controllerId
+  );
+  const scoreBonus = Math.min(2, Math.floor(qualifyingCheerMemberIds.length / 2));
+  return `${getAbilityEffectText(ability.abilityId)}（符合条件的声援成员 ${qualifyingCheerMemberIds.length}张，分数+${scoreBonus}）`;
 }
 
 function resolveSpPb2008ShikiLiveSuccess(

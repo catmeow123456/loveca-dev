@@ -17,7 +17,11 @@ import {
   registerManualConfirmablePendingAbilityStarterHandler,
 } from '../../runtime/workflow-helpers.js';
 import { and, groupIs, typeIs } from '../../../effects/card-selectors.js';
-import { hasCardInZoneMatching, successLiveScoreAtLeast } from '../../../effects/conditions.js';
+import {
+  countCardsInZoneMatching,
+  hasCardInZoneMatching,
+  successLiveScoreAtLeast,
+} from '../../../effects/conditions.js';
 import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 import {
   finishWaitingRoomToHandWorkflow,
@@ -62,11 +66,13 @@ export function registerPlBp6013And023SuccessZoneWorkflowHandlers(): void {
       ),
     (game, ability) => {
       const player = getPlayerById(game, ability.controllerId);
-      const hasMuseSuccessCard = player
-        ? hasCardInZoneMatching(game, player.id, ZoneType.SUCCESS_ZONE, groupIs("μ's"))
-        : false;
+      const museSuccessCardCount = player
+        ? countCardsInZoneMatching(game, player.id, ZoneType.SUCCESS_ZONE, groupIs("μ's"))
+        : 0;
+      const drawCount = museSuccessCardCount > 0 ? 2 : 1;
       return {
-        stepText: hasMuseSuccessCard
+        effectText: `${getAbilityEffectText(ability.abilityId)}（成功LIVE区 μ's 卡 ${museSuccessCardCount}张，抽${drawCount}张）`,
+        stepText: museSuccessCardCount > 0
           ? "自己的成功LIVE区有 μ's 卡。确认后抽 2 张卡。"
           : "自己的成功LIVE区没有 μ's 卡。确认后抽 1 张卡。",
       };

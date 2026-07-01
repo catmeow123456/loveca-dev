@@ -17,6 +17,7 @@ import {
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
+  getAbilityEffectText,
   maybeStartConfirmablePendingAbilityConfirmation,
   registerManualConfirmablePendingAbilityStarterHandler,
 } from '../../runtime/workflow-helpers.js';
@@ -41,12 +42,17 @@ export function registerSFutureWaterBatch3WorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    (game, ability) => ({
+      effectText: getMyMaiTonightLiveStartConfirmationEffectText(game, ability),
+    })
   );
   registerPendingAbilityStarterHandler(
     S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getRubyLiveSuccessConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -60,6 +66,31 @@ export function registerSFutureWaterBatch3WorkflowHandlers(): void {
   );
 }
 
+function getRubyLiveSuccessConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const matchingCardCount = player
+    ? getRubyLiveSuccessMatchingCardIds(game, player.id).length
+    : 0;
+  return `${getAbilityEffectText(ability.abilityId)}（当前中心声援[スコア]Aqours LIVE ${matchingCardCount}张，${
+    matchingCardCount > 0 ? '满足条件，分数+1' : '未满足条件，不增加分数'
+  }）`;
+}
+
+function getMyMaiTonightLiveStartConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const otherAqoursLiveCardIds = player ? getOtherAqoursLiveCardIds(game, player.id) : [];
+  const stageMemberCardIds = player ? getOwnStageMemberCardIds(game, player.id) : [];
+  return `${getAbilityEffectText(ability.abilityId)}（此卡以外Aqours LIVE ${otherAqoursLiveCardIds.length}张，舞台成员 ${stageMemberCardIds.length}名，${
+    otherAqoursLiveCardIds.length > 0 ? '满足条件，各获得[BLADE]+1' : '未满足条件，不获得[BLADE]'
+  }）`;
+}
+
 function resolveMyMaiTonightLiveStart(
   game: GameState,
   ability: PendingAbilityState,
@@ -71,16 +102,7 @@ function resolveMyMaiTonightLiveStart(
     return game;
   }
 
-  const otherAqoursLiveCardIds = player.liveZone.cardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return (
-      !!card &&
-      card.ownerId === player.id &&
-      isLiveCardData(card.data) &&
-      card.data.name !== MY_MAI_TONIGHT &&
-      groupAliasIs(AQOURS)(card)
-    );
-  });
+  const otherAqoursLiveCardIds = getOtherAqoursLiveCardIds(game, player.id);
   const conditionMet = otherAqoursLiveCardIds.length > 0;
   const targetMemberCardIds = conditionMet ? getOwnStageMemberCardIds(game, player.id) : [];
   let state: GameState = {
@@ -118,6 +140,23 @@ function resolveMyMaiTonightLiveStart(
   );
 }
 
+function getOtherAqoursLiveCardIds(game: GameState, playerId: string): readonly string[] {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return [];
+  }
+  return player.liveZone.cardIds.filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return (
+      !!card &&
+      card.ownerId === player.id &&
+      isLiveCardData(card.data) &&
+      card.data.name !== MY_MAI_TONIGHT &&
+      groupAliasIs(AQOURS)(card)
+    );
+  });
+}
+
 function resolveRubyLiveSuccessCenterCheerScore(
   game: GameState,
   ability: PendingAbilityState,
@@ -130,11 +169,7 @@ function resolveRubyLiveSuccessCenterCheerScore(
   }
 
   const centerCheerCardIds = getOwnNonAdditionalCheerRevealedCardIds(game, player.id);
-  const isScoreAqoursLive = and(typeIs(CardType.LIVE), groupAliasIs(AQOURS), hasScoreBladeHeart());
-  const matchingCardIds = centerCheerCardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && card.ownerId === player.id && isScoreAqoursLive(card);
-  });
+  const matchingCardIds = getRubyLiveSuccessMatchingCardIds(game, player.id);
   const scoreBonus = matchingCardIds.length > 0 ? 1 : 0;
   let state: GameState = {
     ...game,
@@ -165,6 +200,15 @@ function resolveRubyLiveSuccessCenterCheerScore(
     }),
     orderedResolution
   );
+}
+
+function getRubyLiveSuccessMatchingCardIds(game: GameState, playerId: string): readonly string[] {
+  const centerCheerCardIds = getOwnNonAdditionalCheerRevealedCardIds(game, playerId);
+  const isScoreAqoursLive = and(typeIs(CardType.LIVE), groupAliasIs(AQOURS), hasScoreBladeHeart());
+  return centerCheerCardIds.filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return card !== null && card.ownerId === playerId && isScoreAqoursLive(card);
+  });
 }
 
 function getOwnStageMemberCardIds(game: GameState, playerId: string): readonly string[] {

@@ -125,6 +125,7 @@ git diff -- src/application/card-effect-runner.ts
 - 新增或迁移无交互 queued pending 时，优先复用 `manualConfirmation` / `confirmBeforeResolution` / `skipManualConfirmation` 语义，或使用薄包装 helper；不要把卡牌专属条件、modifier、费用、区域移动、抽牌等结算逻辑放入 runner 或通用 helper。
 - legacy always-confirm-only workflow 不应作为新实现模板；如果语义上无交互，应迁移为自动 resolver + 手动队列点选时的 confirm-only bridge。
 - 需要动态展示文本的 confirm-only bridge，应在 manual confirmation 分支实时计算 `effectText` / `stepText`，避免展示过期条件。
+- 无交互且有条件触发、条件分支或动态计数影响结算结果的 `LIVE开始` / `LIVE成功` 效果，必须在 confirm-only 展示的 `effectText` 后追加实时条件说明，例如当前计数、关键布尔条件、满足/未满足以及实际结算结果。若评估后决定不追加，必须在审查结论、执行窗口提示词或收尾说明中明确写出原因；不要默默省略。
 
 ## 新卡审查窗口协议
 
@@ -240,6 +241,7 @@ git diff -- src/application/card-effect-runner.ts
 - `client/src/lib/cardEffectTokens.ts` 会把效果文本里的 `【...】` 与 `[...]` 占位文本转换为前端图标或样式。卡效定义里的 `effectText` 必须使用该文件已支持的字面量，不要随手发明新的括号文本。
 - 前台卡牌详情的效果文本应走卡牌数据本身的 `cardTextCn` / `cardTextJp`，而不是从 `definitions/index.ts` 反推。同步源优先使用 Excel `多行中文效果` -> `card_text_cn`，中文存在时应作为卡牌详情的第一展示文本。
 - `definitions/index.ts` 的 `effectText` 用于 pending / activeEffect / 处理窗口展示。新增或修正卡效时，优先直接采用 Excel `多行中文效果` 的卡牌效果描述，只做已支持 token 的等价替换；不要自行总结、缩写或改写成规则摘要。Excel 中文缺失时，才用日文原文或当前最可靠来源兜底，并在审查/收尾中说明。
+- 对无交互、有条件触发的 `LIVE开始` / `LIVE成功` 处理窗口，`definitions/index.ts` 的原始效果文本只负责说明卡牌效果本体；manual confirmation 的 `effectText` 必须在其后追加实时条件状态和实际结果，避免玩家只能看到“可以/如果”的卡文却不知道当前是否满足。若不追加，必须明确说明例外理由。
 - `activeEffect` 的前端可见操作文案也按中文处理，包括 `stepText`、`selectionLabel`、`confirmSelectionLabel`、`skipSelectionLabel`、`selectableOptions[].label`、`numericInput.confirmLabel` 等。除“查看原卡文”等明确展示日文原文的入口外，不要把日文按钮或日文步骤提示混入中文 UI。
 - `selectableOptions[].label` 可以使用 `client/src/lib/cardEffectTokens.ts` 已支持的 token（如 `[E]`、`[BLADE]`、`[桃ハート]`、`[赤ハート]`、`[紫ハート]`），由前端统一渲染成图标；不要用 emoji 或手写图片替代，也不要写未映射 token。
 - 可选发动窗口若使用 `selectableOptions` 展示“支付/放置/选择能力”等正向选项，跳过动作应建模为 `canSkipSelection: true` + 明确的 `skipSelectionLabel`（例如 `不发动`、`不放置`），不要同时在 `selectableOptions` 里放 `不发动` / `不处理`，否则前端会同时出现两个跳过按钮；也不要依赖默认 `不加入`，除非真实语义就是“不加入手牌”。

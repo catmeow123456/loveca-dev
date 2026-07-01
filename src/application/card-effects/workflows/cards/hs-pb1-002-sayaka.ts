@@ -72,6 +72,7 @@ export function registerHsPb1002SayakaWorkflowHandlers(): void {
       }).length;
       const countedMemberBelowCount = Math.min(MAX_COUNTED_MEMBER_BELOW, memberBelowMemberCount);
       return {
+        effectText: `${getAbilityEffectText(ability.abilityId)}（下方成员卡 ${memberBelowMemberCount}张，计入${countedMemberBelowCount}张，[E]+${countedMemberBelowCount * COST_DELTA_PER_MEMBER_BELOW}，[青ハート]+${countedMemberBelowCount}）`,
         stepText:
           countedMemberBelowCount > 0
             ? `此成员下方有 ${memberBelowMemberCount} 张成员卡，计入 ${countedMemberBelowCount} 张。确认后增加费用与蓝 Heart。`

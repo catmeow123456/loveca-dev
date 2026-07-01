@@ -16,7 +16,10 @@ import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import { and, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
-import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 import { HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID } from '../../ability-ids.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -32,8 +35,21 @@ export function registerHsPb1029ZenhouiKyunWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getHsPb1029ZenhouiKyunConfirmationConfig
   );
+}
+
+function getHsPb1029ZenhouiKyunConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const extraHeartMemberIds = getMiraCraMembersWithExtraHeart(game, ability.controllerId);
+  const shouldDraw = extraHeartMemberIds.length >= 1;
+  const shouldReduceRequirement = extraHeartMemberIds.length >= 2;
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（额外Heart的みらくらぱーく！成员 ${extraHeartMemberIds.length}名，${shouldDraw ? '抽1张' : '不抽牌'}，${shouldReduceRequirement ? '减少2个[無ハート]' : '不减少必要[無ハート]'}）`,
+  };
 }
 
 function resolveHsPb1029ZenhouiKyunLiveStart(

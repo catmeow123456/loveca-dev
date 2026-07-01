@@ -11,7 +11,10 @@ import { normalizeCardName, unitAliasIs } from '../../../effects/card-selectors.
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
 import { SP_PB2_018_LIVE_START_DIFFERENT_NAME_CATCHU_ACTIVATE_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
-import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -30,8 +33,19 @@ export function registerSpPb2018MeiWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getSpPb2018MeiConfirmationConfig
   );
+}
+
+function getSpPb2018MeiConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getSpPb2018MeiContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（不同名CatChu!成员 ${context.differentNamedCatchuMemberIds.length}名，等待能量 ${context.waitingEnergyCount}张，激活${context.activationCount}张）`,
+  };
 }
 
 function resolveSpPb2018MeiLiveStart(
@@ -46,17 +60,7 @@ function resolveSpPb2018MeiLiveStart(
     return game;
   }
 
-  const differentNamedCatchuMemberIds = getDifferentNamedCatchuStageMemberIds(
-    game,
-    player.id,
-    normalizeCardName(sourceCard.data.name)
-  );
-  const waitingEnergyCount = getEnergyCardIdsByOrientation(
-    game,
-    player.id,
-    OrientationState.WAITING
-  ).length;
-  const activationCount = Math.min(differentNamedCatchuMemberIds.length, waitingEnergyCount);
+  const { differentNamedCatchuMemberIds, activationCount } = getSpPb2018MeiContext(game, ability);
   const activationResult = activateWaitingEnergyCardsForPlayer(game, player.id, activationCount);
   if (!activationResult) {
     return game;
@@ -84,6 +88,37 @@ function resolveSpPb2018MeiLiveStart(
     }),
     orderedResolution
   );
+}
+
+function getSpPb2018MeiContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly differentNamedCatchuMemberIds: readonly string[];
+  readonly waitingEnergyCount: number;
+  readonly activationCount: number;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceCard = getCardById(game, ability.sourceCardId);
+  if (!player || !sourceCard || !isMemberCardData(sourceCard.data)) {
+    return { differentNamedCatchuMemberIds: [], waitingEnergyCount: 0, activationCount: 0 };
+  }
+
+  const differentNamedCatchuMemberIds = getDifferentNamedCatchuStageMemberIds(
+    game,
+    player.id,
+    normalizeCardName(sourceCard.data.name)
+  );
+  const waitingEnergyCount = getEnergyCardIdsByOrientation(
+    game,
+    player.id,
+    OrientationState.WAITING
+  ).length;
+  return {
+    differentNamedCatchuMemberIds,
+    waitingEnergyCount,
+    activationCount: Math.min(differentNamedCatchuMemberIds.length, waitingEnergyCount),
+  };
 }
 
 function getDifferentNamedCatchuStageMemberIds(

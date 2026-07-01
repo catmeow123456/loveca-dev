@@ -11,7 +11,10 @@ import {
   SP_BP4_020_LIVE_START_RIGHT_MOVED_GAIN_TWO_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
-import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -19,6 +22,7 @@ interface MovedSideBladeConfig {
   readonly abilityId: string;
   readonly baseCardCodes: readonly string[];
   readonly requiredSourceSlots: readonly SlotPosition[];
+  readonly sideLabel: string;
   readonly bladeAmount: number;
   readonly actionStep: string;
 }
@@ -28,6 +32,7 @@ const MOVED_SIDE_BLADE_CONFIGS: readonly MovedSideBladeConfig[] = [
     abilityId: SP_BP4_017_LIVE_START_LEFT_MOVED_GAIN_TWO_BLADE_ABILITY_ID,
     baseCardCodes: ['PL!SP-bp4-017'],
     requiredSourceSlots: [SlotPosition.LEFT],
+    sideLabel: '左侧',
     bladeAmount: 2,
     actionStep: 'LEFT_MOVED_GAIN_TWO_BLADE',
   },
@@ -35,6 +40,7 @@ const MOVED_SIDE_BLADE_CONFIGS: readonly MovedSideBladeConfig[] = [
     abilityId: SP_BP4_020_LIVE_START_RIGHT_MOVED_GAIN_TWO_BLADE_ABILITY_ID,
     baseCardCodes: ['PL!SP-bp4-020'],
     requiredSourceSlots: [SlotPosition.RIGHT],
+    sideLabel: '右侧',
     bladeAmount: 2,
     actionStep: 'RIGHT_MOVED_GAIN_TWO_BLADE',
   },
@@ -51,9 +57,21 @@ export function registerSpBp4MovedSideBladeWorkflowHandlers(): void {
           config,
           options.orderedResolution === true,
           context.continuePendingCardEffects
-        )
+        ),
+      (game, ability) => getMovedSideBladeConfirmationConfig(game, ability, config)
     );
   }
+}
+
+function getMovedSideBladeConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState,
+  config: MovedSideBladeConfig
+): { readonly effectText: string } {
+  const context = getMovedSideBladeContext(game, ability, config);
+  return {
+    effectText: `${getAbilityEffectText(config.abilityId)}（成员位于${config.sideLabel}：${context.sourceStillInRequiredSlot ? '是' : '否'}，本回合移动：${context.movedThisTurn ? '是' : '否'}，${context.conditionMet ? `满足条件，[BLADE]+${config.bladeAmount}` : '未满足条件'}）`,
+  };
 }
 
 function resolveMovedSideBlade(
@@ -68,13 +86,8 @@ function resolveMovedSideBlade(
     return game;
   }
 
-  const sourceSlot = ability.sourceSlot ?? null;
-  const sourceStillInRequiredSlot =
-    sourceSlot !== null &&
-    config.requiredSourceSlots.includes(sourceSlot) &&
-    player.memberSlots.slots[sourceSlot] === ability.sourceCardId;
-  const movedThisTurn = hasMemberPositionMovedThisTurn(game, player.id, ability.sourceCardId);
-  const conditionMet = sourceStillInRequiredSlot && movedThisTurn;
+  const { sourceSlot, sourceStillInRequiredSlot, movedThisTurn, conditionMet } =
+    getMovedSideBladeContext(game, ability, config);
   const stateWithoutPending: GameState = {
     ...game,
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
@@ -104,4 +117,38 @@ function resolveMovedSideBlade(
     }),
     orderedResolution
   );
+}
+
+function getMovedSideBladeContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  config: MovedSideBladeConfig
+): {
+  readonly sourceSlot: SlotPosition | null;
+  readonly sourceStillInRequiredSlot: boolean;
+  readonly movedThisTurn: boolean;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return {
+      sourceSlot: null,
+      sourceStillInRequiredSlot: false,
+      movedThisTurn: false,
+      conditionMet: false,
+    };
+  }
+
+  const sourceSlot = ability.sourceSlot ?? null;
+  const sourceStillInRequiredSlot =
+    sourceSlot !== null &&
+    config.requiredSourceSlots.includes(sourceSlot) &&
+    player.memberSlots.slots[sourceSlot] === ability.sourceCardId;
+  const movedThisTurn = hasMemberPositionMovedThisTurn(game, player.id, ability.sourceCardId);
+  return {
+    sourceSlot,
+    sourceStillInRequiredSlot,
+    movedThisTurn,
+    conditionMet: sourceStillInRequiredSlot && movedThisTurn,
+  };
 }

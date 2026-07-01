@@ -21,7 +21,10 @@ import {
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -45,7 +48,8 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getSolitudeRainConfirmationConfig
   );
   registerManualConfirmablePendingAbilityStarterHandler(
     PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
@@ -55,7 +59,8 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getEutopiaConfirmationConfig
   );
   registerManualConfirmablePendingAbilityStarterHandler(
     PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
@@ -65,8 +70,39 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getMiracleStayTuneConfirmationConfig
   );
+}
+
+function getSolitudeRainConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getSolitudeRainContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前虹咲成员Heart颜色 ${context.effectiveHeartColors.length}种，分数+${context.scoreBonus}）`,
+  };
+}
+
+function getEutopiaConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getEutopiaContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前LIVE区 ${context.liveZoneCardCount}张，${context.conditionMet ? `满足条件，分数+${EUTOPIA_SCORE_BONUS}` : '未满足条件，不增加分数'}）`,
+  };
+}
+
+function getMiracleStayTuneConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getMiracleStayTuneContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（自己成功LIVE ${context.ownSuccessZoneCount}张，对方成功LIVE ${context.opponentSuccessZoneCount}张，不同名成员 ${context.differentNamedStageMembers.length}名，${context.conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'}）`,
+  };
 }
 
 function resolveSolitudeRainLiveStart(
@@ -81,18 +117,8 @@ function resolveSolitudeRainLiveStart(
   }
 
   const stateWithoutPending = consumePendingAbility(game, ability);
-  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
-  const nijigasakiStageMemberIds = sourceInLiveZone
-    ? getAllMemberCardIds(player.memberSlots).filter((cardId) =>
-        isNijigasakiMember(stateWithoutPending, cardId)
-      )
-    : [];
-  const effectiveHeartColors = getUniqueNormalEffectiveHeartColors(
-    stateWithoutPending,
-    player.id,
-    nijigasakiStageMemberIds
-  );
-  const scoreBonus = sourceInLiveZone ? effectiveHeartColors.length : 0;
+  const { sourceInLiveZone, nijigasakiStageMemberIds, effectiveHeartColors, scoreBonus } =
+    getSolitudeRainContext(stateWithoutPending, ability);
   const stateAfterScore =
     scoreBonus > 0
       ? addScoreModifierAndRefresh(stateWithoutPending, {
@@ -130,9 +156,10 @@ function resolveEutopiaLiveStart(
   }
 
   const stateWithoutPending = consumePendingAbility(game, ability);
-  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
-  const liveZoneCardCount = player.liveZone.cardIds.length;
-  const conditionMet = sourceInLiveZone && liveZoneCardCount >= 3;
+  const { sourceInLiveZone, liveZoneCardCount, conditionMet } = getEutopiaContext(
+    stateWithoutPending,
+    ability
+  );
   const stateAfterScore = conditionMet
     ? addScoreModifierAndRefresh(stateWithoutPending, {
         playerId: player.id,
@@ -168,17 +195,16 @@ function resolveMiracleStayTuneLiveStart(
     return game;
   }
 
-  const opponent = game.players.find((candidate) => candidate.id !== player.id) ?? null;
   const stateWithoutPending = consumePendingAbility(game, ability);
-  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
-  const ownSuccessZoneCount = player.successZone.cardIds.length;
-  const opponentSuccessZoneCount = opponent?.successZone.cardIds.length ?? 0;
-  const successZoneConditionMet = ownSuccessZoneCount >= 2 || opponentSuccessZoneCount >= 2;
-  const differentNamedStageMembers = sourceInLiveZone
-    ? getDifferentNamedStageMembers(stateWithoutPending, player.id)
-    : [];
-  const differentNameConditionMet = differentNamedStageMembers.length >= 3;
-  const conditionMet = sourceInLiveZone && successZoneConditionMet && differentNameConditionMet;
+  const {
+    sourceInLiveZone,
+    ownSuccessZoneCount,
+    opponentSuccessZoneCount,
+    successZoneConditionMet,
+    differentNamedStageMembers,
+    differentNameConditionMet,
+    conditionMet,
+  } = getMiracleStayTuneContext(stateWithoutPending, ability);
   const scoreBonus = conditionMet ? 1 : 0;
   const stateAfterScore = conditionMet
     ? addScoreModifierAndRefresh(stateWithoutPending, {
@@ -208,6 +234,109 @@ function resolveMiracleStayTuneLiveStart(
     }),
     orderedResolution
   );
+}
+
+function getSolitudeRainContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly nijigasakiStageMemberIds: readonly string[];
+  readonly effectiveHeartColors: readonly HeartColor[];
+  readonly scoreBonus: number;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return {
+      sourceInLiveZone: false,
+      nijigasakiStageMemberIds: [],
+      effectiveHeartColors: [],
+      scoreBonus: 0,
+    };
+  }
+
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const nijigasakiStageMemberIds = sourceInLiveZone
+    ? getAllMemberCardIds(player.memberSlots).filter((cardId) => isNijigasakiMember(game, cardId))
+    : [];
+  const effectiveHeartColors = getUniqueNormalEffectiveHeartColors(
+    game,
+    player.id,
+    nijigasakiStageMemberIds
+  );
+  return {
+    sourceInLiveZone,
+    nijigasakiStageMemberIds,
+    effectiveHeartColors,
+    scoreBonus: sourceInLiveZone ? effectiveHeartColors.length : 0,
+  };
+}
+
+function getEutopiaContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly liveZoneCardCount: number;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return { sourceInLiveZone: false, liveZoneCardCount: 0, conditionMet: false };
+  }
+
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const liveZoneCardCount = player.liveZone.cardIds.length;
+  return {
+    sourceInLiveZone,
+    liveZoneCardCount,
+    conditionMet: sourceInLiveZone && liveZoneCardCount >= 3,
+  };
+}
+
+function getMiracleStayTuneContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly ownSuccessZoneCount: number;
+  readonly opponentSuccessZoneCount: number;
+  readonly successZoneConditionMet: boolean;
+  readonly differentNamedStageMembers: readonly { readonly cardId: string; readonly name: string }[];
+  readonly differentNameConditionMet: boolean;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return {
+      sourceInLiveZone: false,
+      ownSuccessZoneCount: 0,
+      opponentSuccessZoneCount: 0,
+      successZoneConditionMet: false,
+      differentNamedStageMembers: [],
+      differentNameConditionMet: false,
+      conditionMet: false,
+    };
+  }
+
+  const opponent = game.players.find((candidate) => candidate.id !== player.id) ?? null;
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const ownSuccessZoneCount = player.successZone.cardIds.length;
+  const opponentSuccessZoneCount = opponent?.successZone.cardIds.length ?? 0;
+  const successZoneConditionMet = ownSuccessZoneCount >= 2 || opponentSuccessZoneCount >= 2;
+  const differentNamedStageMembers = sourceInLiveZone
+    ? getDifferentNamedStageMembers(game, player.id)
+    : [];
+  const differentNameConditionMet = differentNamedStageMembers.length >= 3;
+  return {
+    sourceInLiveZone,
+    ownSuccessZoneCount,
+    opponentSuccessZoneCount,
+    successZoneConditionMet,
+    differentNamedStageMembers,
+    differentNameConditionMet,
+    conditionMet: sourceInLiveZone && successZoneConditionMet && differentNameConditionMet,
+  };
 }
 
 function consumePendingAbility(game: GameState, ability: PendingAbilityState): GameState {

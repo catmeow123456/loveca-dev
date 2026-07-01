@@ -172,8 +172,9 @@ describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
 
     expect(started.activeEffect?.selectableOptions).toEqual([
       { id: 'pay', label: '支付1张能量' },
-      { id: 'decline', label: '不发动' },
     ]);
+    expect(started.activeEffect?.canSkipSelection).toBe(true);
+    expect(started.activeEffect?.skipSelectionLabel).toBe('不发动');
 
     const resolved = confirmActiveEffectStep(
       started,

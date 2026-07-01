@@ -15,7 +15,10 @@ import {
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 import {
   finishDrawThenDiscardCardsWorkflow,
   startDrawThenDiscardCardsWorkflow,
@@ -29,7 +32,7 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 export function registerNBp5007SetsunaWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  registerPendingAbilityStarterHandler(
+  registerManualConfirmablePendingAbilityStarterHandler(
     PL_N_BP5_007_LIVE_START_EQUAL_SUCCESS_ZONES_GAIN_RED_HEART_ABILITY_ID,
     (game, ability, options, context) =>
       resolveLiveStartEqualSuccessZones(
@@ -37,7 +40,8 @@ export function registerNBp5007SetsunaWorkflowHandlers(deps: {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getLiveStartEqualSuccessZonesConfirmationConfig
   );
   registerPendingAbilityStarterHandler(
     PL_N_BP5_007_LIVE_SUCCESS_REMAINING_HEART_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
@@ -63,6 +67,16 @@ export function registerNBp5007SetsunaWorkflowHandlers(deps: {
   );
 }
 
+function getLiveStartEqualSuccessZonesConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getLiveStartEqualSuccessZonesContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（自己成功LIVE ${context.ownSuccessCount}张，对方成功LIVE ${context.opponentSuccessCount}张，${context.conditionMet ? '满足条件' : '未满足条件'}）`,
+  };
+}
+
 function resolveLiveStartEqualSuccessZones(
   game: GameState,
   ability: PendingAbilityState,
@@ -70,16 +84,12 @@ function resolveLiveStartEqualSuccessZones(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  const opponent = game.players.find((candidate) => candidate.id !== ability.controllerId);
   if (!player) {
     return game;
   }
 
-  const sourceSlot = findMemberSlot(player, ability.sourceCardId);
-  const sourceOnStage = sourceSlot !== null;
-  const ownSuccessCount = player.successZone.cardIds.length;
-  const opponentSuccessCount = opponent?.successZone.cardIds.length ?? 0;
-  const conditionMet = sourceOnStage && ownSuccessCount === opponentSuccessCount;
+  const { sourceSlot, sourceOnStage, ownSuccessCount, opponentSuccessCount, conditionMet } =
+    getLiveStartEqualSuccessZonesContext(game, ability);
   const stateWithoutPending: GameState = {
     ...game,
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
@@ -110,6 +120,41 @@ function resolveLiveStartEqualSuccessZones(
     }),
     orderedResolution
   );
+}
+
+function getLiveStartEqualSuccessZonesContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceSlot: ReturnType<typeof findMemberSlot>;
+  readonly sourceOnStage: boolean;
+  readonly ownSuccessCount: number;
+  readonly opponentSuccessCount: number;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  const opponent = game.players.find((candidate) => candidate.id !== ability.controllerId);
+  if (!player) {
+    return {
+      sourceSlot: null,
+      sourceOnStage: false,
+      ownSuccessCount: 0,
+      opponentSuccessCount: opponent?.successZone.cardIds.length ?? 0,
+      conditionMet: false,
+    };
+  }
+
+  const sourceSlot = findMemberSlot(player, ability.sourceCardId);
+  const sourceOnStage = sourceSlot !== null;
+  const ownSuccessCount = player.successZone.cardIds.length;
+  const opponentSuccessCount = opponent?.successZone.cardIds.length ?? 0;
+  return {
+    sourceSlot,
+    sourceOnStage,
+    ownSuccessCount,
+    opponentSuccessCount,
+    conditionMet: sourceOnStage && ownSuccessCount === opponentSuccessCount,
+  };
 }
 
 function startLiveSuccessDrawDiscardIfRemainingHeart(

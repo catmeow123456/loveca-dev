@@ -10,7 +10,10 @@ import { hasStageMemberMatching } from '../../../effects/conditions.js';
 import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
 import { HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -18,7 +21,9 @@ export function registerHsBp1023DododoWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getHsBp1023DododoConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -30,6 +35,21 @@ export function registerHsBp1023DododoWorkflowHandlers(): void {
       );
     }
   );
+}
+
+function getHsBp1023DododoConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const opponent = game.players.find((candidate) => candidate.id !== ability.controllerId);
+  const ownScore = player ? (game.liveResolution.playerScores.get(player.id) ?? 0) : 0;
+  const opponentScore = opponent ? (game.liveResolution.playerScores.get(opponent.id) ?? 0) : 0;
+  const hasHasunosoraStageMember = player
+    ? hasStageMemberMatching(game, player.id, groupAliasIs('蓮ノ空'))
+    : false;
+  const conditionMet = ownScore > opponentScore && hasHasunosoraStageMember;
+  return `${getAbilityEffectText(ability.abilityId)}（自己分数 ${ownScore}，对方分数 ${opponentScore}，${hasHasunosoraStageMember ? '舞台有莲之空成员' : '舞台无莲之空成员'}，${conditionMet ? '满足条件，放置1张等待能量' : '未满足条件'}）`;
 }
 
 function resolveHsBp1023DododoLiveSuccess(

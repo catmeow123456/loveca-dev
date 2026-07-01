@@ -12,7 +12,10 @@ import { applyHeartRequirementModifiers } from '../../../../domain/rules/live-re
 import { CardType, HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
 import { and, normalizeCardName, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { SP_PB2_048_LIVE_START_DIFFERENT_NAMED_CATCHU_REQUIREMENT_AND_SCORE_ABILITY_ID } from '../../ability-ids.js';
-import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -32,8 +35,32 @@ export function registerSpPb2048DistortionWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getSpPb2048ConfirmationConfig
   );
+}
+
+function getSpPb2048ConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const player = getPlayerById(game, ability.controllerId);
+  const liveCard = getCardById(game, ability.sourceCardId);
+  const catchuCount = player ? getDifferentNamedCatchuStageMembers(game, player.id).length : 0;
+  const requirementModifiers = createRequirementModifiers(catchuCount);
+  const adjustedRequirement =
+    liveCard && isLiveCardData(liveCard.data)
+      ? applyHeartRequirementModifiers(liveCard.data.requirements, requirementModifiers)
+      : null;
+  const adjustedRedRequirement = adjustedRequirement?.colorRequirements.get(HeartColor.RED) ?? 0;
+  const scoreBonus = adjustedRedRequirement >= 9 ? 1 : 0;
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前不同名CatChu!成员 ${catchuCount}名，减少${
+      catchuCount * 2
+    }个[無ハート]、增加${catchuCount}个[赤ハート]，调整后[赤ハート]必要数 ${adjustedRedRequirement}，${
+      scoreBonus > 0 ? '分数+1' : '不增加分数'
+    }）`,
+  };
 }
 
 function resolveSpPb2048DistortionLiveStart(

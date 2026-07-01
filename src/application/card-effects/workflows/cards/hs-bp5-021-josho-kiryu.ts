@@ -57,8 +57,20 @@ export function registerHsBp5021JoshoKiryuWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getThreeMiraCraStageMembersScoreConfirmationConfig
   );
+}
+
+function getThreeMiraCraStageMembersScoreConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const miraCraMemberIds = getStageMemberCardIdsMatching(game, ability.controllerId, miraCraMember);
+  const conditionMet = miraCraMemberIds.length >= 3;
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（舞台みらくらぱーく！成员 ${miraCraMemberIds.length}名，${conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'}）`,
+  };
 }
 
 function startTargetHasunosoraMemberOriginalHeartPink(

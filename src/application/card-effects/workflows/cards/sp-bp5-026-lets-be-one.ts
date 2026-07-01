@@ -15,7 +15,10 @@ import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { SP_BP5_026_LIVE_START_LIELLA_STAGE_HEART_ELEVEN_THIS_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 const SCORE_BONUS = 1;
 const HEART_THRESHOLD = 11;
@@ -26,7 +29,9 @@ export function registerSpBp5026LetsBeOneWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_BP5_026_LIVE_START_LIELLA_STAGE_HEART_ELEVEN_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getLetsBeOneConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -38,6 +43,22 @@ export function registerSpBp5026LetsBeOneWorkflowHandlers(): void {
       );
     }
   );
+}
+
+function getLetsBeOneConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceIsCurrentLive = player
+    ? sourceIsCurrentBp5026Live(game, player.id, ability.sourceCardId)
+    : false;
+  const liellaStageMemberHeartTotal =
+    player && sourceIsCurrentLive ? countLiellaStageMemberEffectiveHearts(game, player.id) : 0;
+  const conditionMet = sourceIsCurrentLive && liellaStageMemberHeartTotal >= HEART_THRESHOLD;
+  return `${getAbilityEffectText(ability.abilityId)}（当前Liella!成员Heart合计 ${liellaStageMemberHeartTotal}，${
+    conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'
+  }）`;
 }
 
 function resolveLetsBeOneLiveStart(
