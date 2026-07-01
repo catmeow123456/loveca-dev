@@ -18,6 +18,7 @@ import {
   SlotPosition,
   TriggerCondition,
 } from '../../src/shared/types/enums';
+import { confirmIfConfirmOnly } from './confirm-only-pending';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -130,8 +131,9 @@ function setupState(options: {
 function resolveLiveStart(game: GameState): GameState {
   const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
   expect(result.success).toBe(true);
-  expect(result.gameState.activeEffect).toBeNull();
-  return result.gameState;
+  const gameState = confirmIfConfirmOnly(result.gameState, PLAYER1);
+  expect(gameState.activeEffect).toBeNull();
+  return gameState;
 }
 
 function miracleScoreModifiers(game: GameState) {
@@ -243,7 +245,11 @@ describe('PL!N-bp5-027-L Miracle STAY TUNE live start workflow', () => {
       ],
     };
 
-    const result = resolvePendingCardEffects(stateWithPending);
+    const pendingResult = resolvePendingCardEffects(stateWithPending);
+    const result = {
+      ...pendingResult,
+      gameState: confirmIfConfirmOnly(pendingResult.gameState, PLAYER1),
+    };
 
     expect(result.gameState.pendingAbilities).toEqual([]);
     expect(miracleScoreModifiers(result.gameState)).toEqual([]);

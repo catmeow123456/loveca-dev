@@ -16,6 +16,7 @@ import {
 } from '../../src/application/card-effects/ability-ids';
 import { GameService } from '../../src/application/game-service';
 import { addLiveModifier, getMemberEffectiveBladeCount } from '../../src/domain/rules/live-modifiers';
+import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
 import {
   CardType,
   FaceState,
@@ -24,6 +25,7 @@ import {
   SlotPosition,
   TriggerCondition,
 } from '../../src/shared/types/enums';
+import { confirmIfConfirmOnly } from './confirm-only-pending';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -120,10 +122,13 @@ function pendingAbility(
 }
 
 function resolveAbility(game: GameState, ability: PendingAbilityState): GameState {
-  return resolvePendingCardEffects({
-    ...game,
-    pendingAbilities: [ability],
-  }).gameState;
+  return confirmIfConfirmOnly(
+    resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [ability],
+    }).gameState,
+    PLAYER1
+  );
 }
 
 function autoRevealCheer(game: GameState): GameState {
@@ -144,6 +149,9 @@ describe('PL!SP-bp4-025 Special Color', () => {
     );
 
     expect(getMemberEffectiveBladeCount(state, PLAYER1, scenario.centerMemberId)).toBe(3);
+    const view = projectPlayerViewState(state, PLAYER1);
+    const centerObject = view.objects[createPublicObjectId(scenario.centerMemberId)];
+    expect(centerObject?.frontInfo?.modifierDelta).toEqual({ bladeDelta: 3 - blade });
   });
 
   it.each([1, 5])(

@@ -40,6 +40,7 @@ import {
   TriggerCondition,
   TurnType,
 } from '../../src/shared/types/enums';
+import { confirmIfConfirmOnly } from './confirm-only-pending';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -217,7 +218,7 @@ describe('PL!HS-pb1-028 COMPASS workflow', () => {
     game = addStageMember(game, noAbility.instanceId, SlotPosition.RIGHT);
     game = { ...game, pendingAbilities: [createCompassPending(compass.instanceId)] };
 
-    const result = resolvePendingCardEffects(game).gameState;
+    const result = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1);
 
     expect(result.activeEffect).toBeNull();
     expect(result.pendingAbilities).toEqual([]);
@@ -237,7 +238,9 @@ describe('PL!HS-pb1-028 COMPASS workflow', () => {
     game = addCompassLive(game, compass);
     game = addStageMember(game, kosuzu.instanceId, SlotPosition.CENTER);
     game = { ...game, pendingAbilities: [createCompassPending(compass.instanceId)] };
-    const session = createSessionWithState(resolvePendingCardEffects(game).gameState);
+    const session = createSessionWithState(
+      confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1)
+    );
 
     expect(session.state?.activeEffect).toMatchObject({
       abilityId: HS_PB1_028_LIVE_START_ACTIVATE_DOLLCHESTRA_MEMBER_LIVE_START_ABILITY_ID,
@@ -287,13 +290,16 @@ describe('PL!HS-pb1-028 COMPASS workflow', () => {
         ),
       ],
     };
-    const afterNatural = resolvePendingCardEffects(game).gameState;
+    const afterNatural = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1);
     expect(getMemberEffectiveCost(afterNatural, PLAYER1, sayaka.instanceId)).toBe(10);
 
-    const afterCompassStart = resolvePendingCardEffects({
-      ...afterNatural,
-      pendingAbilities: [createCompassPending(compass.instanceId)],
-    }).gameState;
+    const afterCompassStart = confirmIfConfirmOnly(
+      resolvePendingCardEffects({
+        ...afterNatural,
+        pendingAbilities: [createCompassPending(compass.instanceId)],
+      }).gameState,
+      PLAYER1
+    );
     const session = createSessionWithState(afterCompassStart);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([sayaka.instanceId]);
 
@@ -344,7 +350,9 @@ describe('PL!HS-pb1-028 COMPASS workflow', () => {
     game = addStageMember(game, kosuzu.instanceId, SlotPosition.RIGHT);
     game = addMainDeckTop(game, topCard.instanceId);
     game = { ...game, pendingAbilities: [createCompassPending(compass.instanceId)] };
-    const session = createSessionWithState(resolvePendingCardEffects(game).gameState);
+    const session = createSessionWithState(
+      confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1)
+    );
 
     expect(confirm(session, { selectedCardId: kosuzu.instanceId }).success).toBe(true);
     expect(
@@ -387,7 +395,9 @@ describe('PL!HS-pb1-028 COMPASS workflow', () => {
       },
     }));
     game = { ...game, pendingAbilities: [createCompassPending(compass.instanceId)] };
-    const session = createSessionWithState(resolvePendingCardEffects(game).gameState);
+    const session = createSessionWithState(
+      confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1)
+    );
 
     expect(confirm(session, { selectedCardId: izumi.instanceId }).success).toBe(true);
     expect(
@@ -431,7 +441,9 @@ describe('PL!HS-pb1-028 COMPASS workflow', () => {
       SlotPosition.CENTER
     );
     game = { ...game, pendingAbilities: [compassPending, naturalPending] };
-    const session = createSessionWithState(resolvePendingCardEffects(game).gameState);
+    const session = createSessionWithState(
+      confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1)
+    );
 
     expect(session.state?.activeEffect?.canResolveInOrder).toBe(true);
     expect(
