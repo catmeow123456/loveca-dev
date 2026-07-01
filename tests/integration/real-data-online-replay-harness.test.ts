@@ -11,7 +11,10 @@ import type {
   ReplaySerializedPayloadEnvelope,
 } from '../../src/online/replay-types';
 import { projectPlayerViewState } from '../../src/online/projector';
-import { rehydrateAuthorityGameState } from '../../src/server/services/replay-payload-serialization';
+import {
+  rehydrateAuthorityGameState,
+  rehydrateLegacyReplayPayloadForMigration,
+} from '../../src/server/services/replay-payload-serialization';
 import { GameMode, type SlotPosition, type SubPhase } from '../../src/shared/types/enums';
 
 const LEGACY_FIXTURE_PATH =
@@ -880,7 +883,10 @@ function readCheckpoint(row: Record<string, string | null>):
       turnCount: readNumber(row, 'turn_count'),
       phase: readRequired(row, 'phase'),
       subPhase: readRequired(row, 'sub_phase'),
-      state: rehydrateAuthorityGameState(payload),
+      state:
+        payload.compression === 'NONE'
+          ? rehydrateLegacyReplayPayloadForMigration<GameState>(payload, 'AUTHORITY_GAME_STATE')
+          : rehydrateAuthorityGameState(payload),
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };

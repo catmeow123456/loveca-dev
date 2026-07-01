@@ -374,6 +374,7 @@ function createHarness(options: CreateHarnessOptions = {}) {
     sub_phase: String(authorityState!.currentSubPhase),
     schema_version: GAME_STATE_SCHEMA_VERSION,
     payload,
+    payload_compression: payload.compression,
     payload_hash: payload.payloadHash,
     capabilities: ['AUTHORITY_CHECKPOINT'],
     visibility_scope: 'ADMIN',
@@ -676,6 +677,9 @@ describe('MatchReplayReadService P1b', () => {
       expect(bundle?.limitations).not.toContain('NOT_USER_HISTORY_RECORD');
       expect(bundle?.recordFrames.map((frame) => frame.timelineSeq)).toEqual([1, 2, 3]);
       expect(bundle?.checkpoints).toHaveLength(1);
+      expect(bundle?.checkpoints[0].payloadEnvelope.compression).toBe('GZIP');
+      expect(bundle?.checkpoints[0].payloadEnvelope.encoding).toBe('BASE64_JSON');
+      expect(typeof bundle?.checkpoints[0].payloadEnvelope.payload).toBe('string');
       expect(bundle?.publicEvents).toHaveLength(1);
       expect(bundle?.privateEventsBySeat.FIRST).toHaveLength(1);
       expect(bundle?.privateEventsBySeat.SECOND).toHaveLength(1);
@@ -730,6 +734,34 @@ describe('MatchReplayReadService P1b', () => {
         ...payload,
         sourceSchemaVersion: 'GAME_STATE_V0',
       }),
+    });
+
+    await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
+      code: 'MATCH_RECORD_CHECKPOINT_UNSUPPORTED',
+      statusCode: 409,
+    });
+  });
+
+  it('checkpoint 表字段与 envelope 压缩格式不一致时拒绝读取', async () => {
+    const { service } = createHarness({
+      checkpointOverrides: { payload_compression: 'NONE' },
+    });
+
+    await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
+      code: 'MATCH_RECORD_CHECKPOINT_CORRUPTED',
+      statusCode: 409,
+    });
+  });
+
+  it('旧 NONE checkpoint 不进入正式读取路径', async () => {
+    const { service } = createHarness({
+      mutatePayload: (payload) => ({
+        ...payload,
+        compressed: false,
+        compression: 'NONE',
+        encoding: 'JSON_VALUE',
+      }),
+      checkpointOverrides: { payload_compression: 'NONE' },
     });
 
     await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({

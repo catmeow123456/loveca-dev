@@ -13,6 +13,7 @@ import type {
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { CardType, GamePhase, HeartColor } from '../../src/shared/types/enums';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
+import type { DebugReplayBundle } from '../../src/online/replay-types';
 import { onlineRouter } from '../../src/server/routes/online';
 import {
   OnlineMatchService,
@@ -23,7 +24,10 @@ import {
   createDebugReplayBundle,
   debugReplayService,
 } from '../../src/server/services/debug-replay-service';
-import { rehydrateAuthorityGameState } from '../../src/server/services/replay-payload-serialization';
+import {
+  compressLegacyReplayPayloadEnvelopeForMigration,
+  rehydrateAuthorityGameState,
+} from '../../src/server/services/replay-payload-serialization';
 
 vi.mock('../../src/server/db/pool.js', () => ({
   pool: {
@@ -168,6 +172,9 @@ describe('debug replay export', () => {
     expect(checkpoint.checkpointSeq).toBe(1);
     expect(checkpoint.timelineSeq).toBe(bundle.recordFrames.at(-1)?.timelineSeq);
     expect(checkpoint.payloadEnvelope.payloadKind).toBe('AUTHORITY_GAME_STATE');
+    expect(checkpoint.payloadEnvelope.compression).toBe('GZIP');
+    expect(checkpoint.payloadEnvelope.encoding).toBe('BASE64_JSON');
+    expect(typeof checkpoint.payloadEnvelope.payload).toBe('string');
     expectContainsNoNativeMap(bundle);
 
     const parsedBundle = JSON.parse(JSON.stringify(bundle)) as typeof bundle;
@@ -258,8 +265,10 @@ describe('debug replay export', () => {
     expect(JSON.stringify(checkpointView)).not.toContain('__transportType');
   });
 
-  it('可导入归档的历史对局 replay bundle，并按双方座位读取只读投影', () => {
-    const bundle = JSON.parse(gunzipSync(readFileSync(HISTORY_REPLAY_EXPORT_FIXTURE)).toString());
+  it('旧归档历史 replay bundle 经迁移后可导入，并按双方座位读取只读投影', () => {
+    const bundle = migrateLegacyFixtureBundleForTest(
+      JSON.parse(gunzipSync(readFileSync(HISTORY_REPLAY_EXPORT_FIXTURE)).toString())
+    );
     const service = new DebugReplayService({ now: () => 1_782_632_740_000 });
 
     const imported = service.importBundle(bundle);
@@ -393,6 +402,19 @@ describe('debug replay export', () => {
     expect(JSON.stringify(checkpointResponse.body?.data)).not.toContain('__transportType');
   });
 });
+
+function migrateLegacyFixtureBundleForTest(bundle: DebugReplayBundle): DebugReplayBundle {
+  return {
+    ...bundle,
+    checkpoints: bundle.checkpoints.map((checkpoint) => ({
+      ...checkpoint,
+      payloadEnvelope: compressLegacyReplayPayloadEnvelopeForMigration(
+        checkpoint.payloadEnvelope,
+        'AUTHORITY_GAME_STATE'
+      ),
+    })),
+  };
+}
 
 function expectContainsNoNativeMap(value: unknown, path = 'value'): void {
   if (value instanceof Map) {

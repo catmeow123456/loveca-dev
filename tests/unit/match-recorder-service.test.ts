@@ -309,7 +309,12 @@ describe('MatchRecorderService P0a', () => {
       serializer: 'TRANSPORT_V1',
       payloadKind: 'AUTHORITY_GAME_STATE',
       sourceSchemaVersion: 'GAME_STATE_V1',
+      compressed: true,
+      compression: 'GZIP',
+      encoding: 'BASE64_JSON',
     });
+    expect(typeof payloadEnvelope.payload).toBe('string');
+    expect(checkpointInsert!.values[11]).toBe('GZIP');
     const rehydrated = rehydrateAuthorityGameState(payloadEnvelope as never);
     expect(rehydrated.cardRegistry).toBeInstanceOf(Map);
     expect(rehydrated.gameId).toBe('match-recorder-1');

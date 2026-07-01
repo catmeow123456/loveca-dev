@@ -32,6 +32,7 @@ import type {
   ReplayCapability,
   ReplayCheckpointEnvelope,
   ReplayCheckpointType,
+  ReplayCompression,
   ReplayLimitation,
   ReplayRecordFrame,
   ReplayRecordFrameType,
@@ -190,6 +191,7 @@ interface CheckpointRow {
   readonly sub_phase: string;
   readonly schema_version: string;
   readonly payload: ReplaySerializedPayloadEnvelope;
+  readonly payload_compression: ReplayCompression;
   readonly payload_hash: string;
   readonly capabilities: unknown;
   readonly created_at: Date | string | number;
@@ -387,13 +389,7 @@ export class MatchReplayReadService {
     }
 
     for (const checkpoint of checkpoints) {
-      if (checkpoint.payload_hash !== checkpoint.payload.payloadHash) {
-        throw new MatchReplayReadServiceError(
-          'MATCH_RECORD_CHECKPOINT_CORRUPTED',
-          '历史对局检查点 hash 不一致',
-          409
-        );
-      }
+      validateCheckpointStorageEnvelope(checkpoint);
       validateCheckpointCompatibility(checkpoint);
       const authorityState = rehydrateAuthorityCheckpoint(checkpoint);
       validateCheckpointMatchesAuthorityState(matchId, checkpoint, authorityState);
@@ -654,13 +650,7 @@ export class MatchReplayReadService {
         404
       );
     }
-    if (checkpoint.payload_hash !== checkpoint.payload.payloadHash) {
-      throw new MatchReplayReadServiceError(
-        'MATCH_RECORD_CHECKPOINT_CORRUPTED',
-        '历史对局检查点 hash 不一致',
-        409
-      );
-    }
+    validateCheckpointStorageEnvelope(checkpoint);
     validateCheckpointCompatibility(checkpoint);
 
     const authorityState = rehydrateAuthorityCheckpoint(checkpoint);
@@ -751,13 +741,7 @@ export class MatchReplayReadService {
         404
       );
     }
-    if (checkpoint.payload_hash !== checkpoint.payload.payloadHash) {
-      throw new MatchReplayReadServiceError(
-        'MATCH_RECORD_CHECKPOINT_CORRUPTED',
-        '历史对局检查点 hash 不一致',
-        409
-      );
-    }
+    validateCheckpointStorageEnvelope(checkpoint);
     validateCheckpointCompatibility(checkpoint);
 
     const authorityState = rehydrateAuthorityCheckpoint(checkpoint);
@@ -857,6 +841,7 @@ export class MatchReplayReadService {
         sub_phase,
         schema_version,
         payload,
+        payload_compression,
         payload_hash,
         capabilities,
         created_at
@@ -1080,6 +1065,7 @@ export class MatchReplayReadService {
         sub_phase,
         schema_version,
         payload,
+        payload_compression,
         payload_hash,
         visibility_scope,
         capabilities,
@@ -1355,6 +1341,30 @@ function validateCheckpointCompatibility(checkpoint: CheckpointRow): void {
     throw new MatchReplayReadServiceError(
       'MATCH_RECORD_CHECKPOINT_UNSUPPORTED',
       '历史对局权威状态版本不兼容',
+      409
+    );
+  }
+}
+
+function validateCheckpointStorageEnvelope(checkpoint: CheckpointRow): void {
+  if (checkpoint.payload_hash !== checkpoint.payload.payloadHash) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_CHECKPOINT_CORRUPTED',
+      '历史对局检查点 hash 不一致',
+      409
+    );
+  }
+  if (checkpoint.payload_compression !== checkpoint.payload.compression) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_CHECKPOINT_CORRUPTED',
+      '历史对局检查点压缩格式不一致',
+      409
+    );
+  }
+  if (checkpoint.payload_compression !== 'GZIP') {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_CHECKPOINT_UNSUPPORTED',
+      '历史对局检查点序列化格式不兼容',
       409
     );
   }
