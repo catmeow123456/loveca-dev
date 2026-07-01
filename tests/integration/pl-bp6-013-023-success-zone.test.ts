@@ -28,6 +28,7 @@ import {
   SlotPosition,
   TriggerCondition,
 } from '../../src/shared/types/enums';
+import { confirmIfConfirmOnly } from './confirm-only-pending';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -157,16 +158,19 @@ function setupBp6013(options: {
 }
 
 function startBp6013(game: GameState, sourceId: string): GameState {
-  return resolvePendingCardEffects({
-    ...game,
-    pendingAbilities: [
-      pendingAbility(
-        BP6_013_ON_ENTER_RECOVER_MUSE_LIVE_IF_SUCCESS_SCORE_SIX_ABILITY_ID,
-        sourceId,
-        TriggerCondition.ON_ENTER_STAGE
-      ),
-    ],
-  }).gameState;
+  return confirmIfConfirmOnly(
+    resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          BP6_013_ON_ENTER_RECOVER_MUSE_LIVE_IF_SUCCESS_SCORE_SIX_ABILITY_ID,
+          sourceId,
+          TriggerCondition.ON_ENTER_STAGE
+        ),
+      ],
+    }).gameState,
+    PLAYER1
+  );
 }
 
 function setupBp6023(options: {
@@ -227,16 +231,19 @@ function setupBp6023(options: {
 }
 
 function startBp6023(game: GameState, sourceId: string): GameState {
-  return resolvePendingCardEffects({
-    ...game,
-    pendingAbilities: [
-      pendingAbility(
-        BP6_023_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_SUCCESS_MUSE_ABILITY_ID,
-        sourceId,
-        TriggerCondition.ON_LIVE_SUCCESS
-      ),
-    ],
-  }).gameState;
+  return confirmIfConfirmOnly(
+    resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          BP6_023_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_SUCCESS_MUSE_ABILITY_ID,
+          sourceId,
+          TriggerCondition.ON_LIVE_SUCCESS
+        ),
+      ],
+    }).gameState,
+    PLAYER1
+  );
 }
 
 function latestPayload(game: GameState, abilityId: string) {

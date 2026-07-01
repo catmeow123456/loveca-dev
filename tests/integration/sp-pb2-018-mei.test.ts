@@ -19,6 +19,7 @@ import {
   SlotPosition,
   TriggerCondition,
 } from '../../src/shared/types/enums';
+import { confirmIfConfirmOnly } from './confirm-only-pending';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -142,10 +143,13 @@ function startAbility(game: GameState, sourceId: string): GameState {
     eventIds: ['live-start'],
     sourceSlot: SlotPosition.CENTER,
   };
-  return resolvePendingCardEffects({
-    ...game,
-    pendingAbilities: [pending],
-  }).gameState;
+  return confirmIfConfirmOnly(
+    resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [pending],
+    }).gameState,
+    PLAYER1
+  );
 }
 
 describe('PL!SP-pb2-018 Mei live start energy activation', () => {

@@ -18,6 +18,7 @@ import {
   SlotPosition,
   TriggerCondition,
 } from '../../src/shared/types/enums';
+import { confirmIfConfirmOnly } from './confirm-only-pending';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -112,7 +113,7 @@ function runLiveStart(extraHeartMemberIndexes: readonly number[], printedRich = 
 
   const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
   expect(result.success).toBe(true);
-  return { state: result.gameState, live, drawCard, members };
+  return { state: confirmIfConfirmOnly(result.gameState, PLAYER1), live, drawCard, members };
 }
 
 describe('HS-pb1-029 全方位キュン♡ workflow', () => {

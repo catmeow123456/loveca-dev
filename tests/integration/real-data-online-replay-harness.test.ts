@@ -31,6 +31,8 @@ const FIXTURE_EXISTS = existsSync(FIXTURE_PATH);
 const describeRealData = FIXTURE_EXISTS || REQUIRE_REAL_DATA ? describe : describe.skip;
 const LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON =
   'legacy fixture predates refresh-aware mill automation';
+const LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON =
+  'legacy fixture predates confirm-only no-input LIVE pending replay';
 const REFRESH_AWARE_MILL_ABILITY_IDS = new Set([
   'PL!HS-bp5-001-SEC:on-enter-mill-four-gain-blade-if-live',
   'PL!HS-bp1-008:on-enter-mill-three-draw-if-all-members',
@@ -470,16 +472,16 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
 
     expect(replay.failedExecutions).toEqual([]);
     expect(replay.mismatches).toEqual([]);
-    expect(replay.replayedCount).toBe(276);
-    expect(replay.skippedCount).toBe(194);
+    expect(replay.replayedCount).toBe(242);
+    expect(replay.skippedCount).toBe(228);
     expect(plainRecord(replay.replayedByDecisionType)).toEqual({
-      ACTIVE_EFFECT_SUBMITTED: 123,
-      PENDING_ABILITY_ORDER_SUBMITTED: 22,
+      ACTIVE_EFFECT_SUBMITTED: 94,
+      PENDING_ABILITY_ORDER_SUBMITTED: 17,
       SELECT_SUCCESS_LIVE_SUBMITTED: 17,
       SET_LIVE_CARD_SUBMITTED: 114,
     });
     expect(plainRecord(replay.replayedByCommandType)).toEqual({
-      CONFIRM_EFFECT_STEP: 145,
+      CONFIRM_EFFECT_STEP: 111,
       SELECT_SUCCESS_LIVE: 17,
       SET_LIVE_CARD: 114,
     });
@@ -487,7 +489,8 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
       'legacy fixture lacks exact before checkpoint for command replay': 31,
       'legacy fixture lacks recorded randomness for mulligan replay': 12,
       'legacy fixture lacks reliable before checkpoint for activate ability': 28,
-      [LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON]: 11,
+      [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 32,
+      [LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON]: 13,
       'not a submitted player decision': 112,
     });
   }, 120_000);
@@ -1493,6 +1496,15 @@ function getExpectedReplayMismatchSkipReason(
   if (mismatch.commandType !== GameCommandType.CONFIRM_EFFECT_STEP) {
     return null;
   }
+  if (isRefreshAwareMillOrderMetadataMismatch(decision, mismatch)) {
+    return LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON;
+  }
+  if (isLegacyConfirmOnlyLivePendingOrderMismatch(decision, mismatch)) {
+    return LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON;
+  }
+  if (isLegacyConfirmOnlyLivePendingContinuationMismatch(decision, mismatch)) {
+    return LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON;
+  }
   if (!referencesRefreshAwareMillAbility(decision, mismatch)) {
     return null;
   }
@@ -1500,6 +1512,55 @@ function getExpectedReplayMismatchSkipReason(
     return null;
   }
   return LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON;
+}
+
+function isLegacyConfirmOnlyLivePendingOrderMismatch(
+  decision: DecisionRecordSummary,
+  mismatch: { readonly decisionId: string; readonly diffs: readonly unknown[] }
+): boolean {
+  return (
+    decision.decisionType === 'PENDING_ABILITY_ORDER_SUBMITTED' &&
+    mismatch.decisionId.includes('system%3Aselect-pending-card-effect') &&
+    (mismatch.decisionId.includes('ON_LIVE_START') ||
+      mismatch.decisionId.includes('ON_LIVE_SUCCESS'))
+  );
+}
+
+function isRefreshAwareMillOrderMetadataMismatch(
+  decision: DecisionRecordSummary,
+  mismatch: { readonly decisionId: string; readonly diffs: readonly unknown[] }
+): boolean {
+  return (
+    mismatch.diffs.length === 1 &&
+    mismatch.diffs.some(
+      (diff) =>
+        typeof diff === 'object' &&
+        diff !== null &&
+        'path' in diff &&
+        diff.path === '$.activeEffect.metadata.enqueueWaitingRoomTriggersForRemainder'
+    )
+  );
+}
+
+function isLegacyConfirmOnlyLivePendingContinuationMismatch(
+  decision: DecisionRecordSummary,
+  mismatch: { readonly actual: unknown; readonly expected: unknown; readonly diffs: readonly unknown[] }
+): boolean {
+  if (decision.decisionType !== 'ACTIVE_EFFECT_SUBMITTED') {
+    return false;
+  }
+  const expectedAbilityId = activeEffectAbilityId(mismatch.expected);
+  const actualAbilityId = activeEffectAbilityId(mismatch.actual);
+  if (!isLivePendingAbilityId(expectedAbilityId) && !isLivePendingAbilityId(actualAbilityId)) {
+    return false;
+  }
+  return mismatch.diffs.some(
+    (diff) =>
+      typeof diff === 'object' &&
+      diff !== null &&
+      'path' in diff &&
+      (diff.path === '$.activeEffect' || diff.path === '$.activeEffect.metadata.confirmOnlyPendingAbility')
+  );
 }
 
 function referencesRefreshAwareMillAbility(
@@ -1676,6 +1737,9 @@ function getReplayWindowSkipReason(
     beforeCheckpoint.checkpointSeq === decision.openedCheckpointSeq &&
     checkpointMatchesDecisionActiveEffect(beforeCheckpoint, decision)
   ) {
+    if (isLegacyNoInputLivePendingReplay(decision, beforeCheckpoint.state)) {
+      return LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON;
+    }
     return null;
   }
 
@@ -1683,10 +1747,60 @@ function getReplayWindowSkipReason(
     decision.submittedCommandSeq !== null &&
     beforeCheckpoint.relatedCommandSeq === decision.submittedCommandSeq - 1
   ) {
+    if (isLegacyNoInputLivePendingReplay(decision, beforeCheckpoint.state)) {
+      return LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON;
+    }
     return null;
   }
 
   return 'legacy fixture lacks exact before checkpoint for command replay';
+}
+
+function isLegacyNoInputLivePendingReplay(
+  decision: DecisionRecordSummary,
+  beforeState: GameState
+): boolean {
+  if (
+    decision.decisionType !== 'ACTIVE_EFFECT_SUBMITTED' ||
+    decision.submission?.commandType !== GameCommandType.CONFIRM_EFFECT_STEP ||
+    !isLivePendingAbilityId(decision.abilityId)
+  ) {
+    return false;
+  }
+
+  const effect = beforeState.activeEffect;
+  if (!effect || effect.metadata?.confirmOnlyPendingAbility === true) {
+    return false;
+  }
+  if (
+    hasValues(effect.selectableCardIds) ||
+    hasValues(effect.selectableObjectIds) ||
+    hasValues(effect.selectableOptions) ||
+    effect.numericInput ||
+    effect.stageFormationSelection
+  ) {
+    return false;
+  }
+
+  const submission = decision.submission;
+  return (
+    !submission.selectedCardId &&
+    !hasValues(submission.selectedCardIds) &&
+    !submission.selectedOptionId &&
+    !submission.selectedPendingAbilityId &&
+    !submission.selectedSlot &&
+    submission.selectedNumber === undefined &&
+    !hasValues(submission.stageFormationMoveHistory) &&
+    !hasValues(submission.stageFormationPlacements)
+  );
+}
+
+function isLivePendingAbilityId(abilityId: string | null): boolean {
+  return abilityId?.includes(':live-start-') === true || abilityId?.includes(':live-success-') === true;
+}
+
+function hasValues(value: readonly unknown[] | null | undefined): boolean {
+  return Array.isArray(value) && value.length > 0;
 }
 
 function rebuildDecisionCommand(

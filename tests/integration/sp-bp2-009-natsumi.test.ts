@@ -24,6 +24,7 @@ import {
   SubPhase,
   TriggerCondition,
 } from '../../src/shared/types/enums';
+import { confirmIfConfirmOnly } from './confirm-only-pending';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -110,7 +111,7 @@ function runLiveStart(options: { readonly handCount: number }) {
   });
   const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
   expect(result.success).toBe(true);
-  return { state: result.gameState, source, handCards };
+  return { state: confirmIfConfirmOnly(result.gameState, PLAYER1), source, handCards };
 }
 
 function runLiveSuccessStart(options: {
@@ -138,7 +139,10 @@ function runLiveSuccessStart(options: {
 
   const session = createGameSession();
   session.createGame('sp-bp2-009-natsumi-session', PLAYER1, 'P1', PLAYER2, 'P2');
-  (session as unknown as { authorityState: GameState }).authorityState = result.gameState;
+  (session as unknown as { authorityState: GameState }).authorityState = confirmIfConfirmOnly(
+    result.gameState,
+    PLAYER1
+  );
   return { session, source, handCards, deckCards };
 }
 

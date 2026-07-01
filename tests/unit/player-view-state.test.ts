@@ -410,6 +410,43 @@ describe('PlayerViewState projector', () => {
     expect(sourceObject?.frontInfo?.hearts).toEqual([{ color: HeartColor.PINK, count: 1 }]);
   });
 
+  it('projects negative BLADE modifier delta on staged member frontInfo', () => {
+    let { state } = createProjectedState();
+    const sourceMember = createCardInstance(
+      {
+        ...createTestMember('MEM-SOURCE-NEGATIVE-BLADE', '减刃成员'),
+        blade: 5,
+      },
+      PLAYER1,
+      'p1-source-negative-blade'
+    );
+    state = registerCards(state, [sourceMember]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.CENTER]: sourceMember.instanceId,
+        },
+        cardStates: new Map([[sourceMember.instanceId, createDefaultCardState()]]),
+      },
+    }));
+    state = addLiveModifier(state, {
+      kind: 'MEMBER_ORIGINAL_BLADE_REPLACEMENT',
+      playerId: PLAYER1,
+      memberCardId: sourceMember.instanceId,
+      count: 3,
+      sourceCardId: sourceMember.instanceId,
+      abilityId: 'test-source-member-original-blade-replacement',
+    });
+
+    const view = projectPlayerViewState(state, PLAYER1);
+    const sourceObject = view.objects[createPublicObjectId(sourceMember.instanceId)];
+
+    expect(sourceObject?.frontInfo?.modifierDelta).toEqual({ bladeDelta: -2 });
+  });
+
   it('projects signed COST modifier deltas on staged member frontInfo', () => {
     let { state } = createProjectedState();
     const increasedCostMember = createCardInstance(

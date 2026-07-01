@@ -27,6 +27,7 @@ import {
   SlotPosition,
   TriggerCondition,
 } from '../../src/shared/types/enums';
+import { confirmIfConfirmOnly } from './confirm-only-pending';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -113,7 +114,10 @@ function setupLiveStart(options: {
 
   const stateWithPending = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_LIVE_START]);
   const resolveResult = resolvePendingCardEffects(stateWithPending);
-  return { session: createSessionWithState(resolveResult.gameState), source };
+  return {
+    session: createSessionWithState(confirmIfConfirmOnly(resolveResult.gameState, PLAYER1)),
+    source,
+  };
 }
 
 function createMemberInstance(
@@ -252,7 +256,9 @@ describe('PL!N-bp5-015-N Shizuku live-start workflow', () => {
 
     const stateWithPending = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_LIVE_START]);
     const resolveResult = resolvePendingCardEffects(stateWithPending);
-    const session = createSessionWithState(resolveResult.gameState);
+    const session = createSessionWithState(
+      confirmIfConfirmOnly(resolveResult.gameState, PLAYER1)
+    );
 
     expect(session.state?.activeEffect?.canResolveInOrder).toBe(true);
     const result = session.executeCommand(

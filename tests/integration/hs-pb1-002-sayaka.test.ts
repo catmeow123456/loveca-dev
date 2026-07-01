@@ -37,6 +37,7 @@ import {
   TriggerCondition,
   TurnType,
 } from '../../src/shared/types/enums';
+import { confirmIfConfirmOnly } from './confirm-only-pending';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -258,7 +259,7 @@ describe('PL!HS-pb1-002 Sayaka workflow', () => {
   ])('resolves live start from memberBelow count $below with cap at three', (config) => {
     const { game, source } = setupLiveStartGame({ memberBelowCount: config.below });
 
-    const result = resolvePendingCardEffects(game).gameState;
+    const result = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1);
 
     expect(result.pendingAbilities).toEqual([]);
     expect(getMemberEffectiveCost(result, PLAYER1, source.instanceId)).toBe(config.expectedCost);
@@ -283,7 +284,7 @@ describe('PL!HS-pb1-002 Sayaka workflow', () => {
       pendingSourceSlot: SlotPosition.LEFT,
     });
 
-    const result = resolvePendingCardEffects(game).gameState;
+    const result = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1);
 
     expect(getMemberEffectiveCost(result, PLAYER1, source.instanceId)).toBe(6);
     expect(
@@ -298,7 +299,10 @@ describe('PL!HS-pb1-002 Sayaka workflow', () => {
 
   it('skips live start when source is no longer on stage or there are no members below', () => {
     const noBelow = setupLiveStartGame({ memberBelowCount: 0 });
-    const noBelowResult = resolvePendingCardEffects(noBelow.game).gameState;
+    const noBelowResult = confirmIfConfirmOnly(
+      resolvePendingCardEffects(noBelow.game).gameState,
+      PLAYER1
+    );
     expect(noBelowResult.pendingAbilities).toEqual([]);
     expect(getMemberEffectiveCost(noBelowResult, PLAYER1, noBelow.source.instanceId)).toBe(2);
     expect(
@@ -313,7 +317,10 @@ describe('PL!HS-pb1-002 Sayaka workflow', () => {
       memberSlots: removeCardFromSlot(player.memberSlots, offStage.sourceSlot),
       waitingRoom: addCardToZone(player.waitingRoom, offStage.source.instanceId),
     }));
-    const offStageResult = resolvePendingCardEffects(offStageGame).gameState;
+    const offStageResult = confirmIfConfirmOnly(
+      resolvePendingCardEffects(offStageGame).gameState,
+      PLAYER1
+    );
     expect(offStageResult.pendingAbilities).toEqual([]);
     expect(
       offStageResult.actionHistory.some(
@@ -324,16 +331,19 @@ describe('PL!HS-pb1-002 Sayaka workflow', () => {
 
   it('stacks cost and Heart modifiers when the same live-start ability resolves twice in one Live', () => {
     const { game, source } = setupLiveStartGame({ memberBelowCount: 1 });
-    const first = resolvePendingCardEffects(game).gameState;
+    const first = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1);
     const secondPending = createLiveStartPendingAbility(
       source.instanceId,
       SlotPosition.CENTER,
       '2'
     );
-    const second = resolvePendingCardEffects({
-      ...first,
-      pendingAbilities: [secondPending],
-    }).gameState;
+    const second = confirmIfConfirmOnly(
+      resolvePendingCardEffects({
+        ...first,
+        pendingAbilities: [secondPending],
+      }).gameState,
+      PLAYER1
+    );
 
     expect(getMemberEffectiveCost(second, PLAYER1, source.instanceId)).toBe(10);
     expect(getMemberEffectiveHeartIcons(second, PLAYER1, source.instanceId)).toEqual([

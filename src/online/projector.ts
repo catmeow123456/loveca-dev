@@ -1029,13 +1029,13 @@ function buildMemberModifierDelta(
   const heartDeltas = buildHeartDeltas(printedHearts, effectiveHearts);
   const bladeDelta = effectiveBlade - printedBlade;
   const costDelta = effectiveCost - printedCost;
-  if (costDelta === 0 && bladeDelta <= 0 && heartDeltas.length === 0) {
+  if (costDelta === 0 && bladeDelta === 0 && heartDeltas.length === 0) {
     return undefined;
   }
 
   return {
     ...(costDelta !== 0 ? { costDelta } : {}),
-    ...(bladeDelta > 0 ? { bladeDelta } : {}),
+    ...(bladeDelta !== 0 ? { bladeDelta } : {}),
     ...(heartDeltas.length > 0 ? { heartDeltas } : {}),
   };
 }

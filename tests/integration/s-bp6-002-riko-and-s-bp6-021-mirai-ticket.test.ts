@@ -51,6 +51,7 @@ import {
   TriggerCondition,
   ZoneType,
 } from '../../src/shared/types/enums';
+import { confirmIfConfirmOnly } from './confirm-only-pending';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -103,7 +104,10 @@ function createSessionFromGame(
 ) {
   const session = createGameSession(options);
   session.createGame(gameId, PLAYER1, 'P1', PLAYER2, 'P2');
-  (session as unknown as { authorityState: GameState }).authorityState = game;
+  (session as unknown as { authorityState: GameState }).authorityState = confirmIfConfirmOnly(
+    game,
+    PLAYER1
+  );
   return session;
 }
 
@@ -980,7 +984,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     game = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
       enterWaitingRoomEvents: [staleEvent],
     });
-    game = resolvePendingCardEffects(game).gameState;
+    game = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1);
     expect(game.activeEffect).toBeNull();
 
     game = updatePlayer(game, PLAYER1, (player) => ({
@@ -1041,7 +1045,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       ],
     };
 
-    const resolved = resolvePendingCardEffects(game).gameState;
+    const resolved = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1);
 
     expect(resolved.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
     expect(resolved.liveResolution.liveModifiers).toContainEqual({
@@ -1108,7 +1112,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       ],
     };
 
-    const resolved = resolvePendingCardEffects(game).gameState;
+    const resolved = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1);
 
     expect(resolved.liveResolution.liveModifiers).toEqual([]);
   });

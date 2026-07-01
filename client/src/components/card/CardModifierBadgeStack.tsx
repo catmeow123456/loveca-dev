@@ -41,7 +41,7 @@ export const CardModifierBadgeStack = memo(function CardModifierBadgeStack({
     count: heartDeltaByColor.get(color) ?? 0,
   })).filter((row) => row.count !== 0);
 
-  if (costDelta === 0 && bladeDelta <= 0 && heartRows.length === 0) {
+  if (costDelta === 0 && bladeDelta === 0 && heartRows.length === 0) {
     return null;
   }
 
@@ -56,7 +56,7 @@ export const CardModifierBadgeStack = memo(function CardModifierBadgeStack({
       {costDelta !== 0 ? (
         <ModifierBadge iconSrc={MODIFIER_ICON_SOURCE.cost} value={costDelta} />
       ) : null}
-      {bladeDelta > 0 ? (
+      {bladeDelta !== 0 ? (
         <ModifierBadge iconSrc={MODIFIER_ICON_SOURCE.blade} value={bladeDelta} />
       ) : null}
       {heartRows.map((heart) => (
