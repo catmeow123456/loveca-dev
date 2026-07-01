@@ -5,8 +5,8 @@
  * after stopping new match writes and taking a database backup.
  *
  * Usage:
- *   DATABASE_URL=postgresql://... pnpm exec tsx src/scripts/compress-match-replay-checkpoints.ts --dry-run
- *   DATABASE_URL=postgresql://... pnpm exec tsx src/scripts/compress-match-replay-checkpoints.ts --apply --yes
+ *   DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/3.5.0-to-3.6.0-compress-match-replay-checkpoints.ts --dry-run
+ *   DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/3.5.0-to-3.6.0-compress-match-replay-checkpoints.ts --apply --yes
  */
 
 import * as fs from 'node:fs';
@@ -14,19 +14,19 @@ import * as path from 'node:path';
 import * as readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
-import type { GameState } from '../domain/entities/game.js';
+import type { GameState } from '../../src/domain/entities/game.js';
 import type {
   ReplayCompression,
   ReplaySerializedPayloadEnvelope,
-} from '../online/replay-types.js';
-import { GAME_STATE_SCHEMA_VERSION } from '../server/services/replay-constants.js';
+} from '../../src/online/replay-types.js';
+import { GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants.js';
 import {
   ReplayPayloadSerializationError,
   compressLegacyReplayPayloadEnvelopeForMigration,
   rehydrateAuthorityGameState,
   rehydrateLegacyReplayPayloadForMigration,
   stableJsonStringify,
-} from '../server/services/replay-payload-serialization.js';
+} from '../../src/server/services/replay-payload-serialization.js';
 
 type MigrationMode = 'dry-run' | 'apply';
 
@@ -73,6 +73,29 @@ interface CompressedColumnSizeRow {
 
 interface RemainingInvalidRow {
   readonly remaining_invalid_count: number | string;
+}
+
+interface TotalCheckpointCountRow {
+  readonly total_count: number | string;
+}
+
+interface ProgressSnapshot {
+  readonly phase: 'analyze' | 'apply';
+  readonly processed: number;
+  readonly total: number | null;
+  readonly legacyCount?: number;
+  readonly alreadyMigratedCount?: number;
+  readonly blockingErrorCount?: number;
+  readonly updatedCount?: number;
+  readonly cursor?: {
+    readonly matchId: string;
+    readonly checkpointSeq: number;
+  } | null;
+  readonly done?: boolean;
+}
+
+interface ProgressReporter {
+  readonly update: (snapshot: ProgressSnapshot) => void;
 }
 
 export interface BlockingError {
@@ -157,6 +180,7 @@ interface AnalysisResult {
 const SCRIPT_NAME = 'compress-match-replay-checkpoints';
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_COLUMN_SIZE_SAMPLE_LIMIT = 20;
+const PROGRESS_MIN_INTERVAL_MS = 2000;
 
 export function parseArgs(argv: readonly string[]): CompressReplayCheckpointArgs {
   let mode: MigrationMode = 'dry-run';
@@ -204,13 +228,14 @@ export async function runCheckpointCompressionMigration(
   queryClient: MigrationQueryClient,
   args: CompressReplayCheckpointArgs
 ): Promise<CompressReplayCheckpointReport> {
-  const analysis = await analyzeCheckpoints(queryClient, args);
+  const progress = createConsoleProgressReporter();
+  const analysis = await analyzeCheckpoints(queryClient, args, progress);
   let updatedCount = 0;
   let relationSizeAfter: PostgresStorageStats['relationSizeAfter'] = null;
   let remainingInvalidCheckpointCount: number | null = null;
 
   if (analysis.blockingErrors.length === 0 && args.mode === 'apply') {
-    updatedCount = await applyCheckpointUpdates(queryClient, analysis.updates, args.batchSize);
+    updatedCount = await applyCheckpointUpdates(queryClient, analysis.updates, args.batchSize, progress);
     remainingInvalidCheckpointCount = await countRemainingInvalidCheckpoints(queryClient, args);
     relationSizeAfter = await readRelationSize(queryClient);
   } else if (analysis.blockingErrors.length === 0) {
@@ -242,9 +267,12 @@ export async function runCheckpointCompressionMigration(
 
 async function analyzeCheckpoints(
   queryClient: MigrationQueryClient,
-  args: CompressReplayCheckpointArgs
+  args: CompressReplayCheckpointArgs,
+  progress: ProgressReporter
 ): Promise<AnalysisResult> {
   const relationSizeBefore = await readRelationSize(queryClient);
+  const totalCheckpointCount = await countAuthorityCheckpoints(queryClient, args);
+  const progressTotal = args.limit === null ? totalCheckpointCount : Math.min(totalCheckpointCount, args.limit);
   const updates: CheckpointUpdatePlan[] = [];
   const blockingErrors: BlockingError[] = [];
   const samplePlans: Array<{
@@ -259,6 +287,16 @@ async function analyzeCheckpoints(
   let originalEnvelopeJsonBytes = 0;
   let targetEnvelopeJsonBytes = 0;
   let cursor: { readonly matchId: string; readonly checkpointSeq: number } | null = null;
+
+  progress.update({
+    phase: 'analyze',
+    processed: 0,
+    total: progressTotal,
+    legacyCount: legacyCheckpointCount,
+    alreadyMigratedCount: alreadyMigratedCheckpointCount,
+    blockingErrorCount: blockingErrors.length,
+    cursor,
+  });
 
   while (args.limit === null || scannedCheckpointCount < args.limit) {
     const remaining =
@@ -299,7 +337,28 @@ async function analyzeCheckpoints(
         alreadyMigratedCheckpointCount += 1;
       }
     }
+
+    progress.update({
+      phase: 'analyze',
+      processed: scannedCheckpointCount,
+      total: progressTotal,
+      legacyCount: legacyCheckpointCount,
+      alreadyMigratedCount: alreadyMigratedCheckpointCount,
+      blockingErrorCount: blockingErrors.length,
+      cursor,
+    });
   }
+
+  progress.update({
+    phase: 'analyze',
+    processed: scannedCheckpointCount,
+    total: progressTotal,
+    legacyCount: legacyCheckpointCount,
+    alreadyMigratedCount: alreadyMigratedCheckpointCount,
+    blockingErrorCount: blockingErrors.length,
+    cursor,
+    done: true,
+  });
 
   const estimatedEnvelopeJsonSavingsBytes = originalEnvelopeJsonBytes - targetEnvelopeJsonBytes;
   const stats: MigrationStats = {
@@ -545,9 +604,16 @@ async function estimateColumnSizeSample(
 async function applyCheckpointUpdates(
   queryClient: MigrationQueryClient,
   updates: readonly CheckpointUpdatePlan[],
-  batchSize: number
+  batchSize: number,
+  progress: ProgressReporter
 ): Promise<number> {
   let updatedCount = 0;
+  progress.update({
+    phase: 'apply',
+    processed: 0,
+    total: updates.length,
+    updatedCount,
+  });
   await queryClient.query('BEGIN');
   try {
     for (let index = 0; index < updates.length; index += batchSize) {
@@ -578,13 +644,45 @@ async function applyCheckpointUpdates(
         }
         updatedCount += 1;
       }
+      progress.update({
+        phase: 'apply',
+        processed: updatedCount,
+        total: updates.length,
+        updatedCount,
+      });
     }
     await queryClient.query('COMMIT');
+    progress.update({
+      phase: 'apply',
+      processed: updatedCount,
+      total: updates.length,
+      updatedCount,
+      done: true,
+    });
     return updatedCount;
   } catch (error) {
     await queryClient.query('ROLLBACK');
     throw error;
   }
+}
+
+async function countAuthorityCheckpoints(
+  queryClient: MigrationQueryClient,
+  args: CompressReplayCheckpointArgs
+): Promise<number> {
+  const values: unknown[] = [];
+  const whereSql = ["checkpoint_type = 'AUTHORITY'"];
+  if (args.matchId) {
+    values.push(args.matchId);
+    whereSql.push(`match_id = $${values.length}`);
+  }
+  const result = await queryClient.query<TotalCheckpointCountRow>(
+    `SELECT count(*)::int AS total_count
+    FROM match_checkpoints
+    WHERE ${whereSql.join(' AND ')}`,
+    values
+  );
+  return toNumber(result.rows[0]?.total_count ?? 0);
 }
 
 async function readRelationSize(
@@ -691,11 +789,98 @@ function percent(part: number, total: number): number {
   return Number(((part / total) * 100).toFixed(2));
 }
 
+function createConsoleProgressReporter(): ProgressReporter {
+  const phaseStarts = new Map<ProgressSnapshot['phase'], number>();
+  const lastPrintedAt = new Map<ProgressSnapshot['phase'], number>();
+
+  return {
+    update(snapshot) {
+      const now = Date.now();
+      if (!phaseStarts.has(snapshot.phase)) {
+        phaseStarts.set(snapshot.phase, now);
+      }
+
+      const last = lastPrintedAt.get(snapshot.phase) ?? 0;
+      const shouldPrint =
+        snapshot.processed === 0 ||
+        snapshot.done === true ||
+        now - last >= PROGRESS_MIN_INTERVAL_MS;
+      if (!shouldPrint) {
+        return;
+      }
+      lastPrintedAt.set(snapshot.phase, now);
+
+      const startedAt = phaseStarts.get(snapshot.phase) ?? now;
+      const elapsedMs = Math.max(now - startedAt, 1);
+      const rate = snapshot.processed / (elapsedMs / 1000);
+      const remaining =
+        snapshot.total === null ? null : Math.max(snapshot.total - snapshot.processed, 0);
+      const etaMs = remaining === null || rate <= 0 ? null : (remaining / rate) * 1000;
+      const totalLabel = snapshot.total === null ? '?' : String(snapshot.total);
+      const pctLabel =
+        snapshot.total === null || snapshot.total <= 0
+          ? 'n/a'
+          : `${percent(snapshot.processed, snapshot.total).toFixed(2)}%`;
+      const phaseLabel = snapshot.phase === 'analyze' ? 'analyze' : 'apply';
+      const extras =
+        snapshot.phase === 'analyze'
+          ? [
+              `legacy=${snapshot.legacyCount ?? 0}`,
+              `current=${snapshot.alreadyMigratedCount ?? 0}`,
+              `errors=${snapshot.blockingErrorCount ?? 0}`,
+              snapshot.cursor
+                ? `cursor=${snapshot.cursor.matchId}#${snapshot.cursor.checkpointSeq}`
+                : null,
+            ]
+          : [`updated=${snapshot.updatedCount ?? 0}`];
+      const doneLabel = snapshot.done ? ' done' : '';
+      const line = [
+        `[${SCRIPT_NAME}] ${phaseLabel}${doneLabel}: ${snapshot.processed}/${totalLabel} (${pctLabel})`,
+        `${formatRate(rate)} rows/s`,
+        `elapsed ${formatDuration(elapsedMs)}`,
+        `ETA ${etaMs === null ? 'n/a' : formatDuration(etaMs)}`,
+        ...extras.filter((item): item is string => item !== null),
+      ].join(' | ');
+
+      console.error(line);
+    },
+  };
+}
+
+function formatRate(rate: number): string {
+  if (!Number.isFinite(rate) || rate < 0) {
+    return '0.0';
+  }
+  if (rate >= 100) {
+    return rate.toFixed(0);
+  }
+  if (rate >= 10) {
+    return rate.toFixed(1);
+  }
+  return rate.toFixed(2);
+}
+
+function formatDuration(durationMs: number): string {
+  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}h${minutes.toString().padStart(2, '0')}m${seconds
+      .toString()
+      .padStart(2, '0')}s`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m${seconds.toString().padStart(2, '0')}s`;
+  }
+  return `${seconds}s`;
+}
+
 function printUsage(): void {
   console.log(`
 Usage:
-  DATABASE_URL=postgresql://... pnpm exec tsx src/scripts/compress-match-replay-checkpoints.ts --dry-run
-  DATABASE_URL=postgresql://... pnpm exec tsx src/scripts/compress-match-replay-checkpoints.ts --apply --yes
+  DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/3.5.0-to-3.6.0-compress-match-replay-checkpoints.ts --dry-run
+  DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/3.5.0-to-3.6.0-compress-match-replay-checkpoints.ts --apply --yes
 
 Options:
   --dry-run             Scan and report only. This is the default.

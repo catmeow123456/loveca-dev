@@ -9,7 +9,7 @@ import {
   parseArgs,
   runCheckpointCompressionMigration,
   type MigrationQueryClient,
-} from '../../src/scripts/compress-match-replay-checkpoints';
+} from '../../drizzle/data-migrations/3.5.0-to-3.6.0-compress-match-replay-checkpoints';
 import {
   serializeReplayPayload,
   stableJsonStringify,
@@ -125,6 +125,17 @@ function createHarness(rows: HarnessRow[]): {
         const json = values[0] as string;
         return {
           rows: [{ compressed_pg_column_size: Buffer.byteLength(json, 'utf8') }] as T[],
+        };
+      }
+
+      if (text.includes('SELECT count(*)::int AS total_count')) {
+        return {
+          rows: [
+            {
+              total_count: mutableRows.filter((row) => row.checkpoint_type === 'AUTHORITY')
+                .length,
+            },
+          ] as T[],
         };
       }
 
