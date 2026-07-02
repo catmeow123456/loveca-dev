@@ -7,6 +7,7 @@ import type {
   OnlineCommandResult,
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
+  PublicEventsResponse,
 } from '../../online/index.js';
 import { getPublishedCardRegistry } from './card-registry-service.js';
 import {
@@ -141,6 +142,18 @@ export class SolitaireMatchService {
       return null;
     }
     return this.matchService.getMatchSnapshot(matchId, userId, options);
+  }
+
+  async getMatchPublicEvents(
+    matchId: string,
+    userId: string,
+    options: { readonly afterSeq?: number } = {}
+  ): Promise<PublicEventsResponse | null> {
+    const match = this.getPlayableSolitaireMatch(matchId, userId);
+    if (!match) {
+      return null;
+    }
+    return this.matchService.getMatchPublicEvents(matchId, userId, options);
   }
 
   async executeCommand(

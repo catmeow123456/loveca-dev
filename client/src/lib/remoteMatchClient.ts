@@ -3,6 +3,8 @@ import type {
   DebugMatchSnapshot,
   OnlineCommandResult,
   OnlineMatchSnapshot,
+  OnlineMatchSnapshotResponse,
+  PublicEventsResponse,
 } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
 import {
@@ -15,20 +17,31 @@ import {
   acceptOnlineUndoRequest,
   createOnlineUndoRequest,
   executeOnlineMatchCommand,
+  fetchOnlineMatchPublicEvents,
   fetchOnlineMatchSnapshot,
+  fetchOnlineMatchSnapshotResponse,
   rejectOnlineUndoRequest,
   undoOnlineMatch,
 } from './onlineClient';
 import {
   advanceSolitaireMatchPhase,
   executeSolitaireMatchCommand,
+  fetchSolitaireMatchPublicEvents,
   fetchSolitaireMatchSnapshot,
+  fetchSolitaireMatchSnapshotResponse,
   undoSolitaireMatch,
 } from './solitaireMatchClient';
 
 export type RemoteSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE';
 export type RemoteSnapshot = DebugMatchSnapshot | OnlineMatchSnapshot;
 export type RemoteCommandExecutionResult = DebugCommandResult | OnlineCommandResult;
+
+export interface RemoteSnapshotSyncResult {
+  readonly matchId: string;
+  readonly seq: number;
+  readonly currentPublicSeq: number;
+  readonly snapshot: RemoteSnapshot | null;
+}
 
 export async function fetchRemoteSnapshot(
   source: RemoteSessionSource,
@@ -47,6 +60,68 @@ export async function fetchRemoteSnapshot(
   }
 
   return fetchOnlineMatchSnapshot(matchId, sinceSeq);
+}
+
+export async function fetchRemoteSnapshotSyncResult(
+  source: RemoteSessionSource,
+  matchId: string,
+  seat?: DebugMatchSnapshot['seat'],
+  sinceSeq?: number
+): Promise<RemoteSnapshotSyncResult> {
+  if (source === 'DEBUG') {
+    if (!seat) {
+      throw new Error('调试联机会话缺少 seat');
+    }
+    const snapshot = await fetchOnlineDebugSnapshot(matchId, seat);
+    return {
+      matchId: snapshot.matchId,
+      seq: snapshot.seq,
+      currentPublicSeq: snapshot.currentPublicSeq,
+      snapshot,
+    };
+  }
+
+  const response =
+    source === 'SOLITAIRE'
+      ? await fetchSolitaireMatchSnapshotResponse(matchId, sinceSeq)
+      : await fetchOnlineMatchSnapshotResponse(matchId, sinceSeq);
+  const snapshot = isSnapshotNotModified(response) ? null : response;
+  return {
+    matchId: response.matchId,
+    seq: response.seq,
+    currentPublicSeq: response.currentPublicSeq,
+    snapshot,
+  };
+}
+
+function isSnapshotNotModified(
+  snapshot: OnlineMatchSnapshotResponse
+): snapshot is Extract<OnlineMatchSnapshotResponse, { readonly modified: false }> {
+  return 'modified' in snapshot && snapshot.modified === false;
+}
+
+export async function fetchRemotePublicEvents(
+  source: RemoteSessionSource,
+  matchId: string,
+  seat?: DebugMatchSnapshot['seat'],
+  afterSeq?: number
+): Promise<PublicEventsResponse | null> {
+  if (source === 'DEBUG') {
+    if (!seat) {
+      throw new Error('调试联机会话缺少 seat');
+    }
+    const snapshot = await fetchOnlineDebugSnapshot(matchId, seat);
+    return {
+      matchId: snapshot.matchId,
+      currentPublicSeq: snapshot.currentPublicSeq,
+      publicEvents: snapshot.publicEvents.filter((event) => event.seq > (afterSeq ?? 0)),
+    };
+  }
+  if (source === 'SOLITAIRE') {
+    return fetchSolitaireMatchPublicEvents(matchId, afterSeq);
+  }
+
+  return fetchOnlineMatchPublicEvents(matchId, afterSeq);
 }
 
 export async function executeRemoteCommand(

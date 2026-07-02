@@ -35,7 +35,7 @@ export const GameLogContent = memo(function GameLogContent({ active = true }: Ga
       <div className="modal-header flex flex-shrink-0 items-center justify-between px-3 py-2">
         <span className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
           <ScrollText size={16} className="text-[var(--accent-primary)]" />
-          游戏日志
+          调试日志
         </span>
         <span className="text-xs text-[var(--text-muted)]">{logs.length} 条</span>
       </div>

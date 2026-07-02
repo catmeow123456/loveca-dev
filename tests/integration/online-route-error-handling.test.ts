@@ -124,6 +124,26 @@ describe('onlineRouter error handling', () => {
     });
   });
 
+  it('public-events 二次读取返回空时按对局不存在处理', async () => {
+    vi.spyOn(onlineMatchService, 'getMatch').mockReturnValue({ matchId: 'm1' } as never);
+    vi.spyOn(onlineMatchService, 'getMatchPublicEvents').mockResolvedValue(null);
+
+    const response = await invokeRoute('/matches/:matchId/public-events', 'get', {
+      params: { matchId: 'm1' },
+      query: { afterSeq: '3' },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.body).toEqual({
+      data: null,
+      error: {
+        code: 'ONLINE_MATCH_NOT_FOUND',
+        message: '联机对局不存在或已失效',
+      },
+    });
+    expect(onlineRoomService.touchInGameMemberByMatch).not.toHaveBeenCalled();
+  });
+
   it('match advance 内部抛错时应返回统一 500 错误', async () => {
     vi.spyOn(onlineMatchService, 'getMatch').mockReturnValue({ matchId: 'm1' } as never);
     vi.spyOn(onlineMatchService, 'advancePhase').mockImplementation(() => {

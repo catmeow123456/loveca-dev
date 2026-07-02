@@ -259,12 +259,31 @@ describe('OnlineRoomService', () => {
     expect(unchangedSnapshot).toEqual({
       matchId: started.matchId,
       seq: snapshot!.seq,
+      currentPublicSeq: snapshot!.currentPublicSeq,
       modified: false,
     });
     expect(expectJsonRoundTrip(unchangedSnapshot)).toEqual({
       matchId: started.matchId,
       seq: snapshot!.seq,
+      currentPublicSeq: snapshot!.currentPublicSeq,
       modified: false,
+    });
+
+    const publicLog = await matchService.getMatchPublicEvents(started.matchId!, 'u2', {
+      afterSeq: 0,
+    });
+    expect(publicLog?.matchId).toBe(started.matchId);
+    expect(publicLog?.currentPublicSeq).toBeGreaterThan(0);
+    expect(publicLog?.publicEvents.length).toBeGreaterThan(0);
+    expect('privateEvents' in publicLog!).toBe(false);
+
+    const publicLogDelta = await matchService.getMatchPublicEvents(started.matchId!, 'u2', {
+      afterSeq: publicLog!.currentPublicSeq,
+    });
+    expect(publicLogDelta).toEqual({
+      matchId: started.matchId,
+      currentPublicSeq: publicLog!.currentPublicSeq,
+      publicEvents: [],
     });
 
     const commandResult = await matchService.executeCommand(

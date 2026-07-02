@@ -221,15 +221,21 @@ export const LiveCardDetails = memo(function LiveCardDetails({
 });
 
 export const CardDetailOverlay = memo(function CardDetailOverlay() {
-  const hoveredCardId = useGameStore((s) => s.ui.hoveredCardId);
+  const cardDetail = useGameStore((s) => s.ui.cardDetail);
   const getVisibleCardPresentation = useGameStore((s) => s.getVisibleCardPresentation);
-  const setHoveredCard = useGameStore((s) => s.setHoveredCard);
+  const getPublicEventCardPresentation = useGameStore((s) => s.getPublicEventCardPresentation);
+  const setCardDetail = useGameStore((s) => s.setCardDetail);
   const shouldUseCompactDrawer = useMediaQuery('(max-width: 1023px)');
 
-  const card = hoveredCardId ? getVisibleCardPresentation(hoveredCardId) : null;
+  const card =
+    cardDetail?.kind === 'visible'
+      ? getVisibleCardPresentation(cardDetail.cardId)
+      : cardDetail?.kind === 'public-event-card'
+        ? getPublicEventCardPresentation(cardDetail.cardCode, cardDetail.publicObjectId)
+        : null;
   const closeDetail = useCallback(() => {
-    setHoveredCard(null);
-  }, [setHoveredCard]);
+    setCardDetail(null);
+  }, [setCardDetail]);
 
   useEffect(() => {
     if (!card) return;
@@ -374,11 +380,13 @@ function CardDetailContent({
 }) {
   const point = getCardPoint(card.cardCode);
   const isMobile = density === 'mobile';
-  const typeDetails = isMemberCardData(card.cardData) ? (
-    <MemberCardDetails data={card.cardData} compact={!isMobile} />
-  ) : isLiveCardData(card.cardData) ? (
-    <LiveCardDetails data={card.cardData} compact={!isMobile} />
-  ) : null;
+  const typeDetails = card.eventOnlyMissingData
+    ? null
+    : isMemberCardData(card.cardData)
+      ? <MemberCardDetails data={card.cardData} compact={!isMobile} />
+      : isLiveCardData(card.cardData)
+        ? <LiveCardDetails data={card.cardData} compact={!isMobile} />
+        : null;
   const pointBadge = (
     <span className={cn('chip-badge', isMobile ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs')}>
       <span className="text-[var(--text-muted)]">点数</span>
@@ -440,7 +448,13 @@ function CardDetailContent({
       )}
 
       {/* 卡牌效果文本 */}
-      {(card.cardData.cardTextCn || card.cardData.cardTextJp) && (
+      {card.eventOnlyMissingData && (
+        <div className="rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)] p-3 text-sm text-[var(--text-secondary)]">
+          本地卡库未收录这张卡。公开日志只保留了卡号，不包含卡牌详情快照。
+        </div>
+      )}
+
+      {!card.eventOnlyMissingData && (card.cardData.cardTextCn || card.cardData.cardTextJp) && (
         <div
           className={cn(
             'min-h-0 border-t border-[var(--border-subtle)] pt-2',

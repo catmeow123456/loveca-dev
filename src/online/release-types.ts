@@ -65,6 +65,7 @@ export type OnlineCommandResult = RemoteCommandResult<OnlineMatchSnapshot>;
 export interface OnlineMatchSnapshotNotModified {
   readonly matchId: string;
   readonly seq: number;
+  readonly currentPublicSeq: number;
   readonly modified: false;
 }
 

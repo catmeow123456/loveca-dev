@@ -289,9 +289,7 @@ export interface PendingCostPaymentViewState {
 
 export interface PublicCardInfo {
   readonly publicObjectId: string;
-  readonly cardCode?: string;
-  readonly name?: string;
-  readonly cardType?: CardType;
+  readonly cardCode: string;
 }
 
 export interface PublicZoneRef {
@@ -408,6 +406,7 @@ export interface CardMovedPublicEvent extends BasePublicEvent {
   readonly from?: PublicZoneRef;
   readonly to?: PublicZoneRef;
   readonly count?: number;
+  readonly reason?: string;
 }
 
 export interface CardsInspectedSummaryPublicEvent extends BasePublicEvent {

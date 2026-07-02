@@ -87,6 +87,7 @@ export function getDebugMatchSnapshot(matchId: string, seat: Seat): DebugMatchSn
     seat,
     playerId,
     seq: match.session.getCurrentPublicEventSeq(),
+    currentPublicSeq: match.session.getCurrentPublicEventSeq(),
     playerViewState,
     publicEvents: match.session.getPublicEventsSince(0),
     privateEvents: match.session.getPrivateEventsSince(playerId, 0),

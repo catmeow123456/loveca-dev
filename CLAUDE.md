@@ -103,7 +103,7 @@ client/src/
     ├── imageUploadService.ts # Browser-side compression + API upload
     ├── onlineClient.ts # Formal online room + match REST client
     ├── onlineDebugClient.ts # Dev-only debug-online REST client
-    └── remoteMatchClient.ts # Shared remote snapshot/command dispatch (DEBUG | ONLINE)
+    └── remoteMatchClient.ts # Shared remote snapshot/command/public-event dispatch
 ```
 
 ## Core Design Principles

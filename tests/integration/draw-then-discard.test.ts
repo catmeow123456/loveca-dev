@@ -33,7 +33,9 @@ import {
   SubPhase,
   TriggerCondition,
   TurnType,
+  ZoneType,
 } from '../../src/shared/types/enums';
+import { createPublicObjectId } from '../../src/online/projector';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -183,6 +185,7 @@ describe('draw-then-discard shared workflow', () => {
     ]);
 
     const selectedDiscardIds = [handCards[0]!.instanceId, drawnCards[0]!.instanceId];
+    const beforeDiscardSeq = session.getCurrentPublicEventSeq();
     const discardResult = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -202,6 +205,23 @@ describe('draw-then-discard shared workflow', () => {
       handCards[1]!.instanceId,
       drawnCards[1]!.instanceId,
     ]);
+    const publicEvents = session.getPublicEventsSince(beforeDiscardSeq);
+    for (const cardId of selectedDiscardIds) {
+      const cardCode = session.state?.cardRegistry.get(cardId)?.data.cardCode;
+      expect(cardCode).toBeTruthy();
+      expect(
+        publicEvents.some(
+          (event) =>
+            event.type === 'CardMovedPublic' &&
+            event.card?.publicObjectId === createPublicObjectId(cardId) &&
+            event.card.cardCode === cardCode &&
+            event.from?.zone === ZoneType.HAND &&
+            event.to?.zone === ZoneType.WAITING_ROOM &&
+            !('name' in event.card) &&
+            !('cardType' in event.card)
+        )
+      ).toBe(true);
+    }
     expect(
       session.state?.actionHistory.some(
         (action) =>

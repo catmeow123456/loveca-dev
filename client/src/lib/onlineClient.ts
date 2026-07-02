@@ -15,6 +15,7 @@ import type {
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
   OnlineRoomView,
+  PublicEventsResponse,
 } from '@game/online';
 import { toTransport } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
@@ -202,6 +203,14 @@ export async function fetchOnlineMatchSnapshot(
   matchId: string,
   sinceSeq?: number
 ): Promise<OnlineMatchSnapshot | null> {
+  const snapshot = await fetchOnlineMatchSnapshotResponse(matchId, sinceSeq);
+  return isSnapshotNotModified(snapshot) ? null : snapshot;
+}
+
+export async function fetchOnlineMatchSnapshotResponse(
+  matchId: string,
+  sinceSeq?: number
+): Promise<OnlineMatchSnapshotResponse> {
   const search =
     sinceSeq !== undefined && Number.isSafeInteger(sinceSeq) && sinceSeq >= 0
       ? `?sinceSeq=${sinceSeq}`
@@ -212,8 +221,24 @@ export async function fetchOnlineMatchSnapshot(
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取联机对局快照失败');
   }
-  const snapshot = response.data;
-  return isSnapshotNotModified(snapshot) ? null : snapshot;
+  return response.data;
+}
+
+export async function fetchOnlineMatchPublicEvents(
+  matchId: string,
+  afterSeq?: number
+): Promise<PublicEventsResponse> {
+  const search =
+    afterSeq !== undefined && Number.isSafeInteger(afterSeq) && afterSeq >= 0
+      ? `?afterSeq=${afterSeq}`
+      : '';
+  const response = await apiClient.get<PublicEventsResponse>(
+    `/api/online/matches/${encodeURIComponent(matchId)}/public-events${search}`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取公开对局日志失败');
+  }
+  return response.data;
 }
 
 function isSnapshotNotModified(

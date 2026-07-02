@@ -2,6 +2,7 @@ import type {
   OnlineCommandResult,
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
+  PublicEventsResponse,
 } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
 import { toTransport } from '@game/online/serde';
@@ -29,6 +30,14 @@ export async function fetchSolitaireMatchSnapshot(
   matchId: string,
   sinceSeq?: number
 ): Promise<OnlineMatchSnapshot | null> {
+  const snapshot = await fetchSolitaireMatchSnapshotResponse(matchId, sinceSeq);
+  return isSnapshotNotModified(snapshot) ? null : snapshot;
+}
+
+export async function fetchSolitaireMatchSnapshotResponse(
+  matchId: string,
+  sinceSeq?: number
+): Promise<OnlineMatchSnapshotResponse> {
   const search =
     sinceSeq !== undefined && Number.isSafeInteger(sinceSeq) && sinceSeq >= 0
       ? `?sinceSeq=${sinceSeq}`
@@ -39,8 +48,24 @@ export async function fetchSolitaireMatchSnapshot(
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取对墙打快照失败');
   }
-  const snapshot = response.data;
-  return isSnapshotNotModified(snapshot) ? null : snapshot;
+  return response.data;
+}
+
+export async function fetchSolitaireMatchPublicEvents(
+  matchId: string,
+  afterSeq?: number
+): Promise<PublicEventsResponse> {
+  const search =
+    afterSeq !== undefined && Number.isSafeInteger(afterSeq) && afterSeq >= 0
+      ? `?afterSeq=${afterSeq}`
+      : '';
+  const response = await apiClient.get<PublicEventsResponse>(
+    `/api/battle/solitaire-matches/${encodeURIComponent(matchId)}/public-events${search}`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取对墙打公开日志失败');
+  }
+  return response.data;
 }
 
 function isSnapshotNotModified(
