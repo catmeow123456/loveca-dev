@@ -20,6 +20,7 @@ import {
 import { DeckSelector, type DeckDisplayItem, PageHeader, ThemeToggle } from '@/components/common';
 import { GameBoard } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
+import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import {
@@ -547,6 +548,9 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
               {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <DoorOpen size={16} />}
               离开房间
             </button>
+            <div className="hidden md:block">
+              <PublicBattleLogButton />
+            </div>
           </div>
           {restartRequest && (
             <div className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-3 text-sm text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
@@ -589,7 +593,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
             </div>
           )}
         </div>
-        <GameBoard />
+        <GameBoard showDesktopPublicBattleLogButton={false} />
         <PreMatchBriefingModal
           isOpen={!briefingAcknowledged}
           mode="online"

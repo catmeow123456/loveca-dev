@@ -1399,15 +1399,15 @@ function summarizePublicEvent(event: PublicEvent): string {
     case 'PlayerDeclared':
       return `玩家宣言：${event.declarationType}`;
     case 'CardMovedPublic':
-      return event.card?.name
-        ? `公开移动：${event.card.name}`
+      return event.card?.cardCode
+        ? `公开移动：${event.card.cardCode}`
         : `公开移动：${event.count ?? 1} 张卡`;
     case 'CardsInspectedSummary':
       return `检视 ${event.count} 张卡`;
     case 'CardRevealed':
-      return `公开：${event.card.name ?? event.card.cardCode ?? '卡牌'}`;
+      return `公开：${event.card.cardCode}`;
     case 'CardRevealedAndMoved':
-      return `公开并移动：${event.card.name ?? event.card.cardCode ?? '卡牌'}`;
+      return `公开并移动：${event.card.cardCode}`;
     case 'DeckRefreshed':
       return `卡组刷新：${event.ownerSeat} 移动 ${event.movedCount} 张`;
   }

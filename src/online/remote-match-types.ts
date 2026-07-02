@@ -20,6 +20,12 @@ export interface RemoteMatchHistorySnapshot extends RemoteMatchSnapshot {
   readonly snapshots: readonly MatchSnapshotSummary[];
 }
 
+export interface PublicEventsResponse {
+  readonly matchId: string;
+  readonly currentPublicSeq: number;
+  readonly publicEvents: readonly PublicEvent[];
+}
+
 export interface RemoteCommandResult<TSnapshot extends RemoteMatchSnapshot = RemoteMatchSnapshot> {
   readonly success: boolean;
   readonly error?: string;

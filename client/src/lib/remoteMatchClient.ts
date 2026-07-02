@@ -3,6 +3,7 @@ import type {
   DebugMatchSnapshot,
   OnlineCommandResult,
   OnlineMatchSnapshot,
+  PublicEventsResponse,
 } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
 import {
@@ -15,6 +16,7 @@ import {
   acceptOnlineUndoRequest,
   createOnlineUndoRequest,
   executeOnlineMatchCommand,
+  fetchOnlineMatchPublicEvents,
   fetchOnlineMatchSnapshot,
   rejectOnlineUndoRequest,
   undoOnlineMatch,
@@ -22,6 +24,7 @@ import {
 import {
   advanceSolitaireMatchPhase,
   executeSolitaireMatchCommand,
+  fetchSolitaireMatchPublicEvents,
   fetchSolitaireMatchSnapshot,
   undoSolitaireMatch,
 } from './solitaireMatchClient';
@@ -47,6 +50,30 @@ export async function fetchRemoteSnapshot(
   }
 
   return fetchOnlineMatchSnapshot(matchId, sinceSeq);
+}
+
+export async function fetchRemotePublicEvents(
+  source: RemoteSessionSource,
+  matchId: string,
+  seat?: DebugMatchSnapshot['seat'],
+  afterSeq?: number
+): Promise<PublicEventsResponse | null> {
+  if (source === 'DEBUG') {
+    if (!seat) {
+      throw new Error('调试联机会话缺少 seat');
+    }
+    const snapshot = await fetchOnlineDebugSnapshot(matchId, seat);
+    return {
+      matchId: snapshot.matchId,
+      currentPublicSeq: snapshot.seq,
+      publicEvents: snapshot.publicEvents.filter((event) => event.seq > (afterSeq ?? 0)),
+    };
+  }
+  if (source === 'SOLITAIRE') {
+    return fetchSolitaireMatchPublicEvents(matchId, afterSeq);
+  }
+
+  return fetchOnlineMatchPublicEvents(matchId, afterSeq);
 }
 
 export async function executeRemoteCommand(

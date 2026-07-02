@@ -430,6 +430,30 @@ onlineRouter.get('/matches/:matchId/snapshot', requireAuth, async (req, res) => 
   }
 });
 
+onlineRouter.get('/matches/:matchId/public-events', requireAuth, async (req, res) => {
+  try {
+    const matchId = readPathParam(req.params.matchId);
+    const match = onlineMatchService.getMatch(matchId);
+    if (!match) {
+      respondMatchNotFound(res);
+      return;
+    }
+
+    const events = await onlineMatchService.getMatchPublicEvents(match.matchId, req.user!.id, {
+      afterSeq: readOptionalSeq(req.query?.afterSeq),
+    });
+    if (!events) {
+      respondMatchForbidden(res);
+      return;
+    }
+
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
+    res.json({ data: events, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
 onlineRouter.post('/matches/:matchId/command', requireAuth, async (req, res) => {
   try {
     const body = req.body as Partial<{ command: unknown }> | undefined;

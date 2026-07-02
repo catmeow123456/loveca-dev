@@ -4347,7 +4347,12 @@ export class GameSession {
       });
     }
 
-    for (const event of options.extraPublicEvents ?? []) {
+    const explicitPublicEvents = options.extraPublicEvents ?? [];
+    const explicitPublicMoveKeys = new Set(
+      explicitPublicEvents.map(getPublicMoveEventKey).filter((key): key is string => Boolean(key))
+    );
+
+    for (const event of explicitPublicEvents) {
       this.appendPublicEvent(nextState, event);
     }
 
@@ -4398,8 +4403,15 @@ export class GameSession {
       });
     }
 
-    if (source === 'SYSTEM' && previousState) {
-      for (const event of buildSystemDerivedPublicEvents(previousState, nextState)) {
+    if (previousState) {
+      for (const event of buildDerivedPublicEvents(previousState, nextState, {
+        source,
+        actorSeat: actorSeat ?? undefined,
+      })) {
+        const moveKey = getPublicMoveEventKey(event);
+        if (moveKey && explicitPublicMoveKeys.has(moveKey)) {
+          continue;
+        }
         this.appendPublicEvent(nextState, event);
       }
     }
@@ -4530,15 +4542,18 @@ function buildCardMovedPublicEvent(
     from?: PublicZoneRef;
     to?: PublicZoneRef;
     source?: PublicEventSource;
+    reason?: string;
   }
 ): PublicEventDraft {
+  const card = buildMovedPublicCardInfo(previousState, nextState, cardId, refs);
   return {
     type: 'CardMovedPublic',
     source: refs.source ?? 'PLAYER',
     actorSeat,
-    card: buildMovedPublicCardInfo(previousState, nextState, cardId, refs),
+    ...(card ? { card } : { count: 1 }),
     from: refs.from,
     to: refs.to,
+    ...(refs.reason ? { reason: refs.reason } : {}),
   };
 }
 
@@ -4565,12 +4580,6 @@ function latestSeq<T>(items: readonly T[], getSeq: (item: T) => number): number 
   }, null);
 }
 
-function buildPublicCardInfo(cardId: string): PublicCardInfo {
-  return {
-    publicObjectId: createPublicObjectId(cardId),
-  };
-}
-
 function buildMovedPublicCardInfo(
   previousState: GameState,
   nextState: GameState,
@@ -4579,7 +4588,7 @@ function buildMovedPublicCardInfo(
     from?: PublicZoneRef;
     to?: PublicZoneRef;
   }
-): PublicCardInfo {
+): PublicCardInfo | undefined {
   if (isPublicFrontCardAtRef(nextState, cardId, refs.to)) {
     return buildDetailedPublicCardInfo(nextState, cardId);
   }
@@ -4588,7 +4597,7 @@ function buildMovedPublicCardInfo(
     return buildDetailedPublicCardInfo(previousState, cardId);
   }
 
-  return buildPublicCardInfo(cardId);
+  return undefined;
 }
 
 function buildCardRevealedPublicEvent(
@@ -4677,9 +4686,13 @@ function buildDeckRefreshPublicEvents(
   return events;
 }
 
-function buildSystemDerivedPublicEvents(
+function buildDerivedPublicEvents(
   previousState: GameState,
-  nextState: GameState
+  nextState: GameState,
+  options: {
+    readonly source: PublicEventSource;
+    readonly actorSeat?: Seat;
+  }
 ): PublicEventDraft[] {
   const events: PublicEventDraft[] = [];
   const candidateCardIds = new Set<string>([
@@ -4700,10 +4713,10 @@ function buildSystemDerivedPublicEvents(
     }
 
     events.push(
-      buildCardMovedPublicEvent(previousState, nextState, undefined, cardId, {
+      buildCardMovedPublicEvent(previousState, nextState, options.actorSeat, cardId, {
         from: sanitizeSystemZoneRef(previousLocation),
         to: sanitizeSystemZoneRef(nextLocation),
-        source: 'SYSTEM',
+        source: options.source,
       })
     );
     moveEventCardIds.add(cardId);
@@ -4736,18 +4749,61 @@ function buildSystemDerivedPublicEvents(
       }
 
       events.push(
-        buildCardRevealedPublicEvent(nextState, undefined, cardId, {
+        buildCardRevealedPublicEvent(nextState, options.actorSeat, cardId, {
           from: createOwnedZoneRef(ZoneType.LIVE_ZONE, ownerSeat, {
             index: getOwnedLiveIndex(nextState, player.id, cardId) ?? undefined,
           }),
           reason: 'PERFORMANCE_REVEAL',
-          source: 'SYSTEM',
+          source: options.source,
         })
       );
     }
   }
 
   return events;
+}
+
+function getPublicMoveEventKey(event: PublicEventDraft): string | null {
+  if (event.type !== 'CardMovedPublic' && event.type !== 'CardRevealedAndMoved') {
+    return null;
+  }
+
+  if (event.type === 'CardMovedPublic' && !event.card) {
+    return [
+      `count:${event.count ?? 1}`,
+      formatPublicZoneRefKey(event.from, { includeIndex: false }),
+      formatPublicZoneRefKey(event.to, { includeIndex: false }),
+    ].join('|');
+  }
+
+  const card = event.card;
+  if (!card) {
+    return null;
+  }
+
+  return [
+    card.publicObjectId,
+    formatPublicZoneRefKey(event.from),
+    formatPublicZoneRefKey(event.to),
+  ].join('|');
+}
+
+function formatPublicZoneRefKey(
+  ref?: PublicZoneRef,
+  options: { readonly includeIndex?: boolean } = {}
+): string {
+  if (!ref) {
+    return 'NONE';
+  }
+
+  const includeIndex = options.includeIndex ?? true;
+  return [
+    ref.zone,
+    ref.ownerSeat ?? '',
+    ref.slot ?? '',
+    includeIndex ? (ref.index ?? '') : '',
+    includeIndex ? (ref.overlayIndex ?? '') : '',
+  ].join(':');
 }
 
 interface EventCardLocation {
@@ -4918,9 +4974,7 @@ function buildDetailedPublicCardInfo(state: GameState, cardId: string): PublicCa
   const card = state.cardRegistry.get(cardId);
   return {
     publicObjectId: createPublicObjectId(cardId),
-    cardCode: card?.data.cardCode,
-    name: card?.data.name,
-    cardType: card?.data.cardType,
+    cardCode: card?.data.cardCode ?? 'UNKNOWN_CARD',
   };
 }
 

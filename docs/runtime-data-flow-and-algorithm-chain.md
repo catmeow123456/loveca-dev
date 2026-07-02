@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：权威对局状态、命令处理、玩家视图投影、卡效队列、LIVE 判定、联机同步、对局记录与回放的运行时链路
 > 当前状态：当前实现基线；字段级 schema 以代码类型、`src/server/db/schema.ts` 和专题文档为准
-> 最后更新：2026-06-22
+> 最后更新：2026-07-02
 
 ## 1. 文档边界
 
@@ -194,6 +194,8 @@ sequenceDiagram
     Online->>Projector: getPlayerViewState(seqOverride)
     Projector-->>Store: OnlineMatchSnapshot
     Store-->>UI: 先应用 snapshot，再后台预载图片
+    Store->>Online: 按 afterSeq 拉取 PublicEvent 增量
+    Online-->>Store: PublicEventsResponse
 ```
 
 分析一条命令时按这个顺序查：
@@ -205,6 +207,12 @@ sequenceDiagram
 5. 状态改变是否写入了 `actionHistory` / `eventLog`。
 6. 正式联机是否追加了 recorder frame，是否需要 checkpoint。
 7. `PlayerViewState` 是否正确隐藏私密信息并暴露必要 UI 提示。
+
+运行中同步的分工：
+
+- `OnlineMatchSnapshot` / `PlayerViewState` 只表达当前玩家此刻能看到和能操作的视图，不携带完整公共事件流。
+- 正式联机与服务端可记录对墙打通过独立公共事件接口读取对局日志增量：`/api/online/matches/:matchId/public-events` 与 `/api/battle/solitaire-matches/:matchId/public-events`，游标为 `afterSeq`。
+- `PublicEvent` 面向双方可见事实，公开卡牌只携带 `publicObjectId + cardCode`，卡名、类型和图片由前端当前卡表派生；未公开移动只记录数量，避免把隐藏区卡牌身份放进事件载荷。
 
 ## 4. 卡效链路
 

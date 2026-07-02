@@ -32,6 +32,8 @@ import {
   shouldIgnoreRemoteSnapshotBySeq,
   type MatchRecordReplayView,
   type MatchMode,
+  type PublicEvent,
+  type PublicEventsResponse,
 } from '@game/online';
 import {
   GameCommandType,
@@ -95,6 +97,7 @@ import {
   acceptRemoteUndoRequest,
   createRemoteUndoRequest,
   executeRemoteCommand,
+  fetchRemotePublicEvents,
   fetchRemoteSnapshot,
   rejectRemoteUndoRequest,
   undoRemoteMatch,
@@ -109,6 +112,18 @@ import {
 
 const REMOTE_SNAPSHOT_PRELOAD_BUDGET_MS = 180;
 const REMOTE_SNAPSHOT_LATENCY_PROBE_STORAGE_KEY = 'loveca:remoteSnapshotLatencyProbe';
+
+const EMPTY_PUBLIC_BATTLE_LOG: PublicBattleLogState = {
+  matchId: null,
+  events: [],
+  cursorSeq: 0,
+  currentPublicSeq: 0,
+  lastReadSeq: 0,
+  unreadCount: 0,
+  isPanelOpen: false,
+  loadState: 'idle',
+  error: null,
+};
 
 interface RemoteSnapshotLatencyProbe {
   readonly context: string;
@@ -147,6 +162,27 @@ export interface VisibleCardPresentation {
   readonly cardData: AnyCardData;
   readonly imagePath: string;
   readonly modifierDelta?: ViewMemberModifierDelta;
+  readonly eventOnlyMissingData?: boolean;
+}
+
+export type SelectedCardDetail =
+  | { readonly kind: 'visible'; readonly cardId: string }
+  | {
+      readonly kind: 'public-event-card';
+      readonly cardCode: string;
+      readonly publicObjectId?: string;
+    };
+
+export interface PublicBattleLogState {
+  readonly matchId: string | null;
+  readonly events: readonly PublicEvent[];
+  readonly cursorSeq: number;
+  readonly currentPublicSeq: number;
+  readonly lastReadSeq: number;
+  readonly unreadCount: number;
+  readonly isPanelOpen: boolean;
+  readonly loadState: 'idle' | 'loading' | 'error';
+  readonly error: string | null;
 }
 
 export interface CommandDispatchResult {
@@ -174,6 +210,8 @@ export interface UIState {
   selectedCardId: string | null;
   /** 当前悬停的卡牌 ID (用于详情浮窗) */
   hoveredCardId: string | null;
+  /** 当前打开的卡牌详情来源 */
+  cardDetail: SelectedCardDetail | null;
   /** 当前是否处于拖拽中（用于区域高亮/变暗提示） */
   isDragging: boolean;
   /** 高亮的区域 */
@@ -229,6 +267,8 @@ export interface GameStore {
   freePlayEnabled: boolean;
   /** UI 状态 */
   ui: UIState;
+  /** 服务端公开对局日志 */
+  publicBattleLog: PublicBattleLogState;
   /** 当前视角玩家 ID */
   viewingPlayerId: string | null;
   /** 当前远程联机会话 */
@@ -357,6 +397,12 @@ export interface GameStore {
   hidePhaseBanner: () => void;
   /** 设置悬停卡牌（用于详情浮窗） */
   setHoveredCard: (cardId: string | null) => void;
+  /** 设置当前卡牌详情来源 */
+  setCardDetail: (detail: SelectedCardDetail | null) => void;
+  /** 打开/关闭公开对局日志面板 */
+  setPublicBattleLogPanelOpen: (open: boolean) => void;
+  /** 主动拉取公开对局日志 */
+  syncPublicBattleLog: () => Promise<void>;
   /** 同步状态（从 GameSession 获取最新状态） */
   syncState: () => void;
   /** 设置拖拽提示状态（高亮推荐区域/变暗其他区域） */
@@ -438,6 +484,11 @@ export interface GameStore {
   getCardFrontInfo: (cardId: string) => ViewFrontCardInfo | null;
   /** 获取当前视角可见卡牌的展示数据 */
   getVisibleCardPresentation: (cardId: string) => VisibleCardPresentation | null;
+  /** 通过已公开事件中的 cardCode 获取只读卡牌展示数据 */
+  getPublicEventCardPresentation: (
+    cardCode: string,
+    publicObjectId?: string
+  ) => VisibleCardPresentation;
   /** 获取当前视角已知的卡牌类型 */
   getKnownCardType: (cardId: string) => CardType | null;
   /** 获取区域中的公开对象 ID 列表 */
@@ -716,9 +767,11 @@ export const useGameStore = create<GameStore>((set, get) => {
     viewingPlayerId: null,
     remoteSession: null,
     replaySession: null,
+    publicBattleLog: EMPTY_PUBLIC_BATTLE_LOG,
     ui: {
       selectedCardId: null,
       hoveredCardId: null,
+      cardDetail: null,
       isDragging: false,
       highlightedZones: [],
       dragActionHint: null,
@@ -784,9 +837,11 @@ export const useGameStore = create<GameStore>((set, get) => {
         replaySession: null,
         gameMode: GameMode.DEBUG,
         freePlayEnabled: false,
+        publicBattleLog: EMPTY_PUBLIC_BATTLE_LOG,
         ui: {
           selectedCardId: null,
           hoveredCardId: null,
+          cardDetail: null,
           isDragging: false,
           highlightedZones: [],
           dragActionHint: null,
@@ -895,6 +950,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           ...state.ui,
           selectedCardId: null,
           hoveredCardId: null,
+          cardDetail: null,
           isDragging: false,
           highlightedZones: [],
           dragActionHint: null,
@@ -1178,8 +1234,92 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     setHoveredCard: (cardId) => {
       set((state) => ({
-        ui: { ...state.ui, hoveredCardId: cardId },
+        ui: {
+          ...state.ui,
+          hoveredCardId: cardId,
+          cardDetail: cardId
+            ? { kind: 'visible', cardId }
+            : state.ui.cardDetail?.kind === 'visible'
+              ? null
+              : state.ui.cardDetail,
+        },
       }));
+    },
+
+    setCardDetail: (detail) => {
+      set((state) => ({
+        ui: {
+          ...state.ui,
+          hoveredCardId: detail?.kind === 'visible' ? detail.cardId : null,
+          cardDetail: detail,
+        },
+      }));
+    },
+
+    setPublicBattleLogPanelOpen: (open) => {
+      set((state) => {
+        const lastReadSeq = open
+          ? Math.max(state.publicBattleLog.lastReadSeq, state.publicBattleLog.currentPublicSeq)
+          : state.publicBattleLog.lastReadSeq;
+        return {
+          publicBattleLog: {
+            ...state.publicBattleLog,
+            isPanelOpen: open,
+            lastReadSeq,
+            unreadCount: countUnreadPublicEvents(state.publicBattleLog.events, lastReadSeq),
+          },
+        };
+      });
+      if (open) {
+        void get().syncPublicBattleLog();
+      }
+    },
+
+    syncPublicBattleLog: async () => {
+      const remoteSession = get().remoteSession;
+      if (!remoteSession || get().replaySession) {
+        return;
+      }
+
+      const afterSeq =
+        get().publicBattleLog.matchId === remoteSession.matchId
+          ? get().publicBattleLog.cursorSeq
+          : 0;
+      set((state) => ({
+        publicBattleLog: {
+          ...(state.publicBattleLog.matchId === remoteSession.matchId
+            ? state.publicBattleLog
+            : { ...EMPTY_PUBLIC_BATTLE_LOG, matchId: remoteSession.matchId }),
+          loadState: 'loading',
+          error: null,
+        },
+      }));
+
+      try {
+        const response = await fetchRemotePublicEvents(
+          remoteSession.source,
+          remoteSession.matchId,
+          remoteSession.seat,
+          afterSeq
+        );
+        if (!response || !isRemoteSessionStillCurrent(remoteSession)) {
+          return;
+        }
+        set((state) => ({
+          publicBattleLog: mergePublicBattleLogResponse(state.publicBattleLog, response),
+        }));
+      } catch (error) {
+        if (!isRemoteSessionStillCurrent(remoteSession)) {
+          return;
+        }
+        set((state) => ({
+          publicBattleLog: {
+            ...state.publicBattleLog,
+            loadState: 'error',
+            error: error instanceof Error ? error.message : '公开日志拉取失败',
+          },
+        }));
+      }
     },
 
     setDragHints: (isDragging, highlightedZones) => {
@@ -1333,10 +1473,12 @@ export const useGameStore = create<GameStore>((set, get) => {
         },
         gameMode: GameMode.DEBUG,
         freePlayEnabled: false,
+        publicBattleLog: EMPTY_PUBLIC_BATTLE_LOG,
         ui: {
           ...state.ui,
           selectedCardId: null,
           hoveredCardId: null,
+          cardDetail: null,
           isDragging: false,
           highlightedZones: [],
           dragActionHint: null,
@@ -1354,10 +1496,12 @@ export const useGameStore = create<GameStore>((set, get) => {
         viewingPlayerId: null,
         replaySession: null,
         freePlayEnabled: false,
+        publicBattleLog: EMPTY_PUBLIC_BATTLE_LOG,
         ui: {
           ...state.ui,
           selectedCardId: null,
           hoveredCardId: null,
+          cardDetail: null,
           isDragging: false,
           highlightedZones: [],
           dragActionHint: null,
@@ -1381,7 +1525,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         viewingPlayerId: session.playerId,
         gameMode: GameMode.DEBUG,
         freePlayEnabled: false,
+        publicBattleLog: { ...EMPTY_PUBLIC_BATTLE_LOG, matchId: session.matchId },
       });
+      void get().syncPublicBattleLog();
     },
 
     applyRemoteSnapshot: async (snapshot) => {
@@ -1397,6 +1543,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         replaySession: null,
         playerViewState: null,
         viewingPlayerId: null,
+        publicBattleLog: EMPTY_PUBLIC_BATTLE_LOG,
       });
     },
 
@@ -1416,6 +1563,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         get().playerViewState?.match.seq
       );
       if (!snapshot) {
+        await get().syncPublicBattleLog();
         return;
       }
 
@@ -1464,6 +1612,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           ui: {
             ...state.ui,
             hoveredCardId: null,
+            cardDetail: state.ui.cardDetail?.kind === 'visible' ? null : state.ui.cardDetail,
           },
         }));
         return;
@@ -1477,6 +1626,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         ui: {
           ...state.ui,
           hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
+          cardDetail: resolveSelectedCardDetail(state.ui.cardDetail, normalizedPlayerViewState),
         },
       }));
     },
@@ -1603,6 +1753,29 @@ export const useGameStore = create<GameStore>((set, get) => {
         cardData,
         imagePath: get().getCardImagePath(frontInfo.cardCode),
         ...(frontInfo.modifierDelta ? { modifierDelta: frontInfo.modifierDelta } : {}),
+      };
+    },
+
+    getPublicEventCardPresentation: (cardCode, publicObjectId) => {
+      const cardData = get().getCardData(cardCode);
+      const instanceId = publicObjectId
+        ? getCardIdFromPublicObjectId(publicObjectId)
+        : `public:${cardCode}`;
+      if (cardData) {
+        return {
+          instanceId,
+          cardCode,
+          cardData,
+          imagePath: get().getCardImagePath(cardCode),
+        };
+      }
+
+      return {
+        instanceId,
+        cardCode,
+        cardData: buildMissingPublicEventCardData(cardCode),
+        imagePath: get().getCardImagePath(cardCode),
+        eventOnlyMissingData: true,
       };
     },
 
@@ -2130,6 +2303,19 @@ function resolveHoveredCardId(
   return viewObject.surface === 'FRONT' ? hoveredCardId : null;
 }
 
+function resolveSelectedCardDetail(
+  detail: SelectedCardDetail | null,
+  playerViewState: PlayerViewState | null
+): SelectedCardDetail | null {
+  if (!detail || detail.kind === 'public-event-card') {
+    return detail;
+  }
+
+  return resolveHoveredCardId(detail.cardId, playerViewState)
+    ? detail
+    : null;
+}
+
 function buildFallbackCardData(frontInfo: ViewFrontCardInfo): AnyCardData {
   const name = frontInfo.nameCn?.trim() || frontInfo.nameJp?.trim() || frontInfo.cardCode;
   const cardText = frontInfo.cardTextCn?.trim() || frontInfo.cardTextJp?.trim() || undefined;
@@ -2181,6 +2367,19 @@ function buildFallbackCardData(frontInfo: ViewFrontCardInfo): AnyCardData {
         cardTextCn: frontInfo.cardTextCn,
       };
   }
+}
+
+function buildMissingPublicEventCardData(cardCode: string): AnyCardData {
+  return {
+    cardCode,
+    name: '未收录卡牌',
+    nameCn: '未收录卡牌',
+    cardType: CardType.MEMBER,
+    cost: 0,
+    blade: 0,
+    hearts: [],
+    bladeHearts: [],
+  };
 }
 
 function buildFallbackHeartRequirement(
@@ -2306,6 +2505,7 @@ function applyRemoteSnapshot(
       ui: {
         ...state.ui,
         hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
+        cardDetail: resolveSelectedCardDetail(state.ui.cardDetail, normalizedPlayerViewState),
       },
     };
   });
@@ -2335,6 +2535,62 @@ function applyRemoteSnapshotThenPreload(
   }
 
   scheduleFrontTransitionPreload(previousViewState, nextViewState, cardDataRegistry, latencyProbe);
+  mergePublicEventsFromSnapshot(snapshot);
+  void useGameStore.getState().syncPublicBattleLog();
+}
+
+function mergePublicEventsFromSnapshot(snapshot: RemoteSnapshot): void {
+  if (!('publicEvents' in snapshot)) {
+    return;
+  }
+
+  useGameStore.setState((state) => ({
+    publicBattleLog: mergePublicBattleLogResponse(state.publicBattleLog, {
+      matchId: snapshot.matchId,
+      currentPublicSeq: snapshot.seq,
+      publicEvents: snapshot.publicEvents,
+    }),
+  }));
+}
+
+function mergePublicBattleLogResponse(
+  previous: PublicBattleLogState,
+  response: PublicEventsResponse
+): PublicBattleLogState {
+  const base =
+    previous.matchId === response.matchId
+      ? previous
+      : { ...EMPTY_PUBLIC_BATTLE_LOG, matchId: response.matchId };
+  const retainedEvents = base.events.filter((event) => event.seq <= response.currentPublicSeq);
+  const bySeq = new Map<number, PublicEvent>();
+  for (const event of retainedEvents) {
+    bySeq.set(event.seq, event);
+  }
+  for (const event of response.publicEvents) {
+    if (event.seq <= response.currentPublicSeq) {
+      bySeq.set(event.seq, event);
+    }
+  }
+  const events = [...bySeq.values()].sort((left, right) => left.seq - right.seq);
+  const cursorSeq = Math.max(response.currentPublicSeq, events.at(-1)?.seq ?? 0);
+  const lastReadSeq = base.isPanelOpen
+    ? Math.max(base.lastReadSeq, cursorSeq)
+    : Math.min(base.lastReadSeq, cursorSeq);
+
+  return {
+    ...base,
+    events,
+    cursorSeq,
+    currentPublicSeq: response.currentPublicSeq,
+    lastReadSeq,
+    unreadCount: base.isPanelOpen ? 0 : countUnreadPublicEvents(events, lastReadSeq),
+    loadState: 'idle',
+    error: null,
+  };
+}
+
+function countUnreadPublicEvents(events: readonly PublicEvent[], lastReadSeq: number): number {
+  return events.filter((event) => event.seq > lastReadSeq).length;
 }
 
 // 通用的卡图预加载:对比前后两个 PlayerViewState，预取新翻面卡的图片。

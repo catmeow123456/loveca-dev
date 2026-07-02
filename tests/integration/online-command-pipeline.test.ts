@@ -208,7 +208,8 @@ describe('GameSession command pipeline', () => {
       openEvents.some(
         (event) =>
           event.type === 'CardMovedPublic' &&
-          event.card?.publicObjectId === createPublicObjectId(topCardId!) &&
+          event.card === undefined &&
+          event.count === 1 &&
           event.from?.zone === ZoneType.MAIN_DECK &&
           event.to?.zone === 'INSPECTION_ZONE'
       )
@@ -228,7 +229,8 @@ describe('GameSession command pipeline', () => {
       moveEvents.some(
         (event) =>
           event.type === 'CardMovedPublic' &&
-          event.card?.publicObjectId === createPublicObjectId(topCardId!) &&
+          event.card === undefined &&
+          event.count === 1 &&
           event.from?.zone === 'INSPECTION_ZONE' &&
           event.to?.zone === ZoneType.HAND
       )
@@ -328,7 +330,8 @@ describe('GameSession command pipeline', () => {
       events.some(
         (event) =>
           event.type === 'CardMovedPublic' &&
-          event.card?.publicObjectId === createPublicObjectId(secondTopCardId!) &&
+          event.card === undefined &&
+          event.count === 1 &&
           event.from?.zone === 'INSPECTION_ZONE' &&
           event.to?.zone === 'INSPECTION_ZONE' &&
           event.from?.index === 1 &&
@@ -883,7 +886,8 @@ describe('GameSession command pipeline', () => {
         (event) =>
           event.type === 'CardMovedPublic' &&
           event.to?.zone === ZoneType.RESOLUTION_ZONE &&
-          event.card.cardCode === undefined
+          event.card === undefined &&
+          event.count === 1
       )
     ).toBe(true);
     expect(
@@ -1663,7 +1667,7 @@ describe('GameSession command pipeline', () => {
     expect(moveEvent).toBeTruthy();
     expect(moveEvent?.to?.overlayIndex).toBe(0);
     expect(moveEvent?.card?.cardCode).toBe(state.cardRegistry.get(energyCardId!)?.data.cardCode);
-    expect(moveEvent?.card?.cardType).toBe(CardType.ENERGY);
+    expect(moveEvent?.card && 'cardType' in moveEvent.card).toBe(false);
     expect(
       events.some(
         (event) =>
@@ -1736,6 +1740,15 @@ describe('GameSession command pipeline', () => {
           event.reason === 'PLAY_MEMBER'
       )
     ).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(enteringCardId!) &&
+          event.from?.zone === ZoneType.HAND &&
+          event.to?.zone === ZoneType.MEMBER_SLOT
+      )
+    ).toBe(false);
     expect(
       events.some(
         (event) =>
@@ -2716,7 +2729,8 @@ describe('GameSession command pipeline', () => {
     );
     expect(moveEvent).toBeTruthy();
     expect(moveEvent?.card?.cardCode).toBe(state.cardRegistry.get(publicCardId!)?.data.cardCode);
-    expect(moveEvent?.card?.name).toBe(state.cardRegistry.get(publicCardId!)?.data.name);
+    expect(moveEvent?.card && 'name' in moveEvent.card).toBe(false);
+    expect(moveEvent?.card && 'cardType' in moveEvent.card).toBe(false);
     expect(
       events.some(
         (event) =>
@@ -3384,13 +3398,12 @@ describe('GameSession command pipeline', () => {
     const moveEvent = events.find(
       (event) =>
         event.type === 'CardMovedPublic' &&
-        event.card?.publicObjectId === createPublicObjectId(liveCardId!) &&
+        event.card === undefined &&
+        event.count === 1 &&
         event.to?.zone === ZoneType.LIVE_ZONE
     );
     expect(moveEvent).toBeTruthy();
-    expect(moveEvent?.card?.cardCode).toBeUndefined();
-    expect(moveEvent?.card?.name).toBeUndefined();
-    expect(moveEvent?.card?.cardType).toBeUndefined();
+    expect(moveEvent?.card).toBeUndefined();
   });
 
   it('平分双胜者时切到另一玩家视角仍可确认胜者动画', () => {

@@ -17,6 +17,7 @@ import type {
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
   OnlineUndoView,
+  PublicEventsResponse,
   Seat,
   UndoEntrySummary,
   UndoPolicy,
@@ -388,6 +389,32 @@ export class OnlineMatchService {
     }
 
     return buildSnapshot(match, participant);
+  }
+
+  async getMatchPublicEvents(
+    matchId: string,
+    userId: string,
+    options: { readonly afterSeq?: number } = {}
+  ): Promise<PublicEventsResponse | null> {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant) {
+      return null;
+    }
+
+    await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expireActiveUndoGrantIfNeeded(match);
+    touchMatch(match);
+    const afterSeq = normalizePublicEventCursor(options.afterSeq);
+    return {
+      matchId: match.matchId,
+      currentPublicSeq: match.session.getCurrentPublicEventSeq(),
+      publicEvents: match.session.getPublicEventsSince(afterSeq),
+    };
   }
 
   async executeCommand(
@@ -1513,6 +1540,10 @@ function getSeatByPlayerId(
 
 function incrementRemoteRevision(match: OnlineMatchState): void {
   match.remoteRevision += 1;
+}
+
+function normalizePublicEventCursor(value: number | undefined): number {
+  return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
 function deriveRemoteUndoPolicy(

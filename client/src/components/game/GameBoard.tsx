@@ -29,6 +29,11 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
 import { PlayerArea } from './PlayerArea';
 import { GameLog, GameLogContent } from './GameLog';
+import {
+  PublicBattleLogButton,
+  PublicBattleLogContent,
+  PublicBattleLogPanel,
+} from './PublicBattleLog';
 import { PhaseIndicator } from './PhaseIndicator';
 import { PhaseBanner } from './PhaseBanner';
 import { LiveResultAnimation, type LiveScoreInfo } from './LiveResultAnimation';
@@ -109,7 +114,7 @@ function formatCardCompactLabel(cardData: AnyCardData): string {
   return localizedName.title;
 }
 
-type MobileBattlePanel = 'opponent' | 'log';
+type MobileBattlePanel = 'opponent' | 'log' | 'publicLog';
 
 interface DragBattleActionIntentCache {
   readonly key: string;
@@ -180,9 +185,13 @@ function didObjectMoveIntoMemberSlot(
 
 interface GameBoardProps {
   onLeaveLocalGame?: () => void;
+  showDesktopPublicBattleLogButton?: boolean;
 }
 
-export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoardProps) {
+export const GameBoard = memo(function GameBoard({
+  onLeaveLocalGame,
+  showDesktopPublicBattleLogButton = true,
+}: GameBoardProps) {
   // 配置拖拽传感器：需要移动 5px 才开始拖拽，避免与双击冲突
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -254,8 +263,14 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
   const selectedCardId = useGameStore((s) => s.ui.selectedCardId);
   const logCount = useGameStore((s) => s.ui.logs.length);
+  const publicLogCount = useGameStore((s) => s.publicBattleLog.events.length);
+  const publicLogUnreadCount = useGameStore((s) => s.publicBattleLog.unreadCount);
+  const setPublicBattleLogPanelOpen = useGameStore((s) => s.setPublicBattleLogPanelOpen);
   const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
   const canShowDebugLog = capabilities.canShowDebugLog;
+  const canShowPublicBattleLog = capabilities.authority === 'REMOTE';
+  const canShowDesktopPublicBattleLogButton =
+    canShowPublicBattleLog && showDesktopPublicBattleLogButton;
   const isReadOnly = capabilities.isReadOnly;
   const canShowUndo = capabilities.undoPolicy !== 'NONE';
   const undoGrant = matchView?.undo?.grant ?? null;
@@ -890,6 +905,20 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
       return () => window.clearTimeout(timer);
     }
   }, [canShowDebugLog, mobilePanel]);
+
+  useEffect(() => {
+    if (!canShowPublicBattleLog && mobilePanel === 'publicLog') {
+      const timer = window.setTimeout(() => setMobilePanel(null), 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [canShowPublicBattleLog, mobilePanel]);
+
+  useEffect(() => {
+    if (!isMobileBattlefield) {
+      return;
+    }
+    setPublicBattleLogPanelOpen(mobilePanel === 'publicLog');
+  }, [isMobileBattlefield, mobilePanel, setPublicBattleLogPanelOpen]);
 
   useEffect(() => {
     if (!isMobileBattlefield || !mobilePanel) return;
@@ -1753,9 +1782,15 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
   const turnNumber = currentTurnCount ?? matchView.turnCount;
   const showMobileFreePlay = capabilities.showFreePlayControl;
   const mobileActionCount =
-    2 + (canShowDebugLog ? 1 : 0) + (showMobileFreePlay ? 1 : 0) + (canShowUndo ? 1 : 0);
+    2 +
+    (canShowPublicBattleLog ? 1 : 0) +
+    (canShowDebugLog ? 1 : 0) +
+    (showMobileFreePlay ? 1 : 0) +
+    (canShowUndo ? 1 : 0);
   const mobileActionGridClass =
-    mobileActionCount >= 5
+    mobileActionCount >= 6
+      ? 'grid-cols-6'
+      : mobileActionCount === 5
       ? 'grid-cols-5'
       : mobileActionCount === 4
         ? 'grid-cols-4'
@@ -1919,6 +1954,16 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                 <Swords size={15} />
                 对手
               </button>
+              {canShowPublicBattleLog && (
+                <button
+                  type="button"
+                  onClick={() => setMobilePanel('publicLog')}
+                  className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]"
+                >
+                  <ScrollText size={15} />
+                  对局 {publicLogUnreadCount > 0 ? publicLogUnreadCount : publicLogCount}
+                </button>
+              )}
               {canShowDebugLog && (
                 <button
                   type="button"
@@ -1926,7 +1971,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                   className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]"
                 >
                   <ScrollText size={15} />
-                  日志 {logCount}
+                  调试 {logCount}
                 </button>
               )}
               {showMobileFreePlay && (
@@ -1999,11 +2044,17 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="truncate text-sm font-bold text-[var(--text-primary)]">
-                            {mobilePanel === 'opponent' ? '对手战场' : '游戏日志'}
+                            {mobilePanel === 'opponent'
+                              ? '对手战场'
+                              : mobilePanel === 'publicLog'
+                                ? '对局日志'
+                                : '调试日志'}
                           </div>
                           <div className="mt-0.5 text-xs text-[var(--text-muted)]">
                             {mobilePanel === 'opponent'
                               ? (opponentIdentity?.name ?? opponentSeat)
+                              : mobilePanel === 'publicLog'
+                                ? `${publicLogCount} 条公开事件`
                               : `${logCount} 条记录`}
                           </div>
                         </div>
@@ -2033,6 +2084,12 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                           />
                         </div>
                       </div>
+                    ) : mobilePanel === 'publicLog' ? (
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
+                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
+                          <PublicBattleLogContent active={mobilePanel === 'publicLog'} />
+                        </div>
+                      </div>
                     ) : (
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3">
                         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
@@ -2051,17 +2108,20 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
               <ThemeToggle />
             </div>
 
-            {showLeaveLocalGameButton && (
+            {(showLeaveLocalGameButton || canShowDesktopPublicBattleLogButton) && (
               <div className="absolute left-4 top-4 z-[120] flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={onLeaveLocalGame}
-                  className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
-                  title={leaveLocalGameButtonTitle}
-                >
-                  <DoorOpen size={16} />
-                  离开房间
-                </button>
+                {showLeaveLocalGameButton && (
+                  <button
+                    type="button"
+                    onClick={onLeaveLocalGame}
+                    className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
+                    title={leaveLocalGameButtonTitle}
+                  >
+                    <DoorOpen size={16} />
+                    离开房间
+                  </button>
+                )}
+                {canShowDesktopPublicBattleLogButton && <PublicBattleLogButton />}
               </div>
             )}
 
@@ -2907,6 +2967,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
         )}
 
         {/* 游戏日志 */}
+        {!isMobileBattlefield && canShowPublicBattleLog && <PublicBattleLogPanel />}
         {!isMobileBattlefield && canShowDebugLog && <GameLog />}
 
         {/* 阶段提示横幅 */}

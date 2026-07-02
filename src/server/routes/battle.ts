@@ -62,6 +62,23 @@ battleRouter.get('/solitaire-matches/:matchId/snapshot', requireAuth, async (req
   }
 });
 
+battleRouter.get('/solitaire-matches/:matchId/public-events', requireAuth, async (req, res) => {
+  try {
+    const events = await solitaireMatchService.getMatchPublicEvents(
+      readPathParam(req.params.matchId),
+      req.user!.id,
+      { afterSeq: readOptionalSeq(req.query?.afterSeq) }
+    );
+    if (!events) {
+      respondMatchNotFound(res);
+      return;
+    }
+    res.json({ data: events, error: null });
+  } catch (error) {
+    respondBattleError(res, error);
+  }
+});
+
 battleRouter.post('/solitaire-matches/:matchId/command', requireAuth, async (req, res) => {
   try {
     const body = req.body as Partial<{ command: unknown }> | undefined;
