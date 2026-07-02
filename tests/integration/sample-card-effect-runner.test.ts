@@ -9925,7 +9925,9 @@ describe('sample card effect runner', () => {
       sourceCardId: nicoCardId,
       metadata: { confirmOnlyPendingAbility: true },
     });
-    expect(session.state?.activeEffect?.effectText).toContain('当前25张');
+    expect(session.state?.activeEffect?.effectText).toContain(
+      "当前 μ's 休息室 25张，满足条件"
+    );
     expect(session.state?.liveResolution.playerScoreBonuses.get(PLAYER1)).toBeUndefined();
 
     const confirmResult = session.executeCommand(
@@ -9961,7 +9963,9 @@ describe('sample card effect runner', () => {
       sourceCardId: nicoCardId,
       metadata: { confirmOnlyPendingAbility: true },
     });
-    expect(session.state?.activeEffect?.effectText).toContain('当前24张');
+    expect(session.state?.activeEffect?.effectText).toContain(
+      "当前 μ's 休息室 24张，未满足条件"
+    );
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)

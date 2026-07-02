@@ -9,9 +9,14 @@ import {
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
-import { createDrawEvent, createMemberSlotMovedEvent } from '../../src/domain/events/game-events';
+import {
+  createDrawEvent,
+  createEnterWaitingRoomEvent,
+  createMemberSlotMovedEvent,
+} from '../../src/domain/events/game-events';
 import type { DeckConfig } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
+import { enqueueTriggeredCardEffects } from '../../src/application/card-effect-runner';
 import {
   activateWaitingEnergyCardsForPlayer,
   addBladeLiveModifierForSourceMember,
@@ -337,6 +342,58 @@ describe('card effect runtime actions', () => {
         eventCardIds: [cardIds[0], cardIds[2]],
       },
     ]);
+  });
+
+  it('enqueues enter-waiting-room triggers only from the supplied event-log window', () => {
+    const source = createCardInstance(
+      createMemberCard('PL!HS-pb1-003-R'),
+      PLAYER1,
+      'waiting-room-trigger-source'
+    );
+    const oldDiscarded = createCardInstance(createMemberCard('OLD_DISCARD'), PLAYER1, 'old-card');
+    const newDiscarded = createCardInstance(createMemberCard('NEW_DISCARD'), PLAYER1, 'new-card');
+    let state = createGameState('waiting-room-trigger-window', PLAYER1, 'P1', PLAYER2, 'P2');
+    state = registerCards(state, [source, oldDiscarded, newDiscarded]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+    }));
+
+    const oldEvent = createEnterWaitingRoomEvent(
+      [oldDiscarded.instanceId],
+      ZoneType.HAND,
+      PLAYER1,
+      PLAYER1
+    );
+    state = emitGameEvent(state, oldEvent);
+    const triggerEventLogStartIndex = state.eventLog.length;
+    const newEvent = createEnterWaitingRoomEvent(
+      [newDiscarded.instanceId],
+      ZoneType.HAND,
+      PLAYER1,
+      PLAYER1
+    );
+    state = emitGameEvent(state, newEvent);
+
+    const withoutEventWindow = enqueueTriggeredCardEffects(state, [
+      TriggerCondition.ON_ENTER_WAITING_ROOM,
+    ]);
+    expect(withoutEventWindow.pendingAbilities).toEqual([]);
+
+    const queued = enqueueTriggeredCardEffects(state, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
+      triggerEventLogStartIndex,
+    });
+
+    expect(queued.pendingAbilities).toHaveLength(1);
+    expect(queued.pendingAbilities[0]).toMatchObject({
+      sourceCardId: source.instanceId,
+      eventIds: [newEvent.eventId],
+      metadata: {
+        movedCardIds: [newDiscarded.instanceId],
+        fromZone: ZoneType.HAND,
+        toZone: ZoneType.WAITING_ROOM,
+      },
+    });
   });
 
   it('does not enqueue enter-waiting-room triggers for a zero-card wrapper discard', () => {

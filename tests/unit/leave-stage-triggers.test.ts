@@ -75,8 +75,12 @@ describe('leave-stage trigger wrapper', () => {
     const [stateBeforeEnqueue, triggerConditions, options] =
       enqueueTriggeredCardEffects.mock.calls[0];
     expect(stateBeforeEnqueue.players[0].memberSlots.slots[SlotPosition.CENTER]).toBeNull();
-    expect(triggerConditions).toEqual([TriggerCondition.ON_LEAVE_STAGE]);
+    expect(triggerConditions).toEqual([
+      TriggerCondition.ON_LEAVE_STAGE,
+      TriggerCondition.ON_ENTER_WAITING_ROOM,
+    ]);
     expect(options?.leaveStageEvents).toEqual(result?.leaveStageEvents);
+    expect(options?.enterWaitingRoomEvents).toEqual([result?.enterWaitingRoomEvent]);
     expect(result?.gameState.actionHistory.map((action) => action.type)).toEqual([
       'TRIGGER_ABILITY',
     ]);

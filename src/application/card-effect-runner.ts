@@ -390,6 +390,7 @@ interface EnqueueTriggeredCardEffectsOptions {
   readonly onEnterSources?: readonly OnEnterAbilitySource[];
   readonly enterStageEvents?: readonly EnterStageEvent[];
   readonly enterWaitingRoomEvents?: readonly EnterWaitingRoomEvent[];
+  readonly triggerEventLogStartIndex?: number;
   readonly onLeaveStageSources?: readonly OnLeaveStageAbilitySource[];
   readonly leaveStageEvents?: readonly LeaveStageEvent[];
   readonly liveStartEvents?: readonly LiveStartEvent[];
@@ -965,9 +966,14 @@ export function enqueueTriggeredCardEffects(
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_ENTER_WAITING_ROOM)) {
+    const enterWaitingRoomEvents =
+      options.enterWaitingRoomEvents ??
+      (options.triggerEventLogStartIndex === undefined
+        ? []
+        : getEnterWaitingRoomEventsFromLog(state, options.triggerEventLogStartIndex));
     state = enqueueEnterWaitingRoomCardEffects(
       state,
-      options.enterWaitingRoomEvents ?? getLatestEnterWaitingRoomEventsFromLog(state)
+      enterWaitingRoomEvents
     );
   }
 
@@ -1029,21 +1035,17 @@ function getLeaveStageEventsFromLog(game: GameState): readonly LeaveStageEvent[]
     );
 }
 
-function getEnterWaitingRoomEventsFromLog(game: GameState): readonly EnterWaitingRoomEvent[] {
+function getEnterWaitingRoomEventsFromLog(
+  game: GameState,
+  startIndex = 0
+): readonly EnterWaitingRoomEvent[] {
   return game.eventLog
+    .slice(startIndex)
     .map((entry) => entry.event)
     .filter(
       (event): event is EnterWaitingRoomEvent =>
         event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
     );
-}
-
-function getLatestEnterWaitingRoomEventsFromLog(
-  game: GameState
-): readonly EnterWaitingRoomEvent[] {
-  const events = getEnterWaitingRoomEventsFromLog(game);
-  const latestEvent = events.at(-1);
-  return latestEvent ? [latestEvent] : [];
 }
 
 function getLiveStartEventsFromLog(game: GameState): readonly LiveStartEvent[] {
