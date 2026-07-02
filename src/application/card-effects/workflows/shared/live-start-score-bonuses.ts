@@ -15,8 +15,10 @@ import {
 } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
+import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 import { normalizeCardName } from '../../../effects/card-selectors.js';
 import {
+  HS_BP5_018_LIVE_START_DIFFERENT_NAMES_AND_COSTS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
@@ -73,6 +75,17 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
       ),
     getMiracleStayTuneConfirmationConfig
   );
+  registerManualConfirmablePendingAbilityStarterHandler(
+    HS_BP5_018_LIVE_START_DIFFERENT_NAMES_AND_COSTS_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveAuroraFlowerLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getAuroraFlowerConfirmationConfig
+  );
 }
 
 function getSolitudeRainConfirmationConfig(
@@ -102,6 +115,16 @@ function getMiracleStayTuneConfirmationConfig(
   const context = getMiracleStayTuneContext(game, ability);
   return {
     effectText: `${getAbilityEffectText(ability.abilityId)}（自己成功LIVE ${context.ownSuccessZoneCount}张，对方成功LIVE ${context.opponentSuccessZoneCount}张，不同名成员 ${context.differentNamedStageMembers.length}名，${context.conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'}）`,
+  };
+}
+
+function getAuroraFlowerConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getAuroraFlowerContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（不同名且不同有效费用成员 ${context.matchingStageMembers.length}名，${context.conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'}）`,
   };
 }
 
@@ -236,6 +259,51 @@ function resolveMiracleStayTuneLiveStart(
   );
 }
 
+function resolveAuroraFlowerLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const { sourceInLiveZone, matchingStageMembers, conditionMet } = getAuroraFlowerContext(
+    stateWithoutPending,
+    ability
+  );
+  const scoreBonus = conditionMet ? 1 : 0;
+  const stateAfterScore = conditionMet
+    ? addScoreModifierAndRefresh(stateWithoutPending, {
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        scoreBonus,
+      })
+    : stateWithoutPending;
+
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: conditionMet
+        ? 'DIFFERENT_NAMES_AND_COSTS_THIS_LIVE_SCORE'
+        : 'NO_DIFFERENT_NAMES_AND_COSTS',
+      sourceInLiveZone,
+      matchingStageMemberCardIds: matchingStageMembers.map((member) => member.cardId),
+      matchingStageMemberNames: matchingStageMembers.map((member) => member.name),
+      matchingStageMemberCosts: matchingStageMembers.map((member) => member.effectiveCost),
+      conditionMet,
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
 function getSolitudeRainContext(
   game: GameState,
   ability: PendingAbilityState
@@ -339,6 +407,38 @@ function getMiracleStayTuneContext(
   };
 }
 
+function getAuroraFlowerContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly matchingStageMembers: readonly {
+    readonly cardId: string;
+    readonly name: string;
+    readonly effectiveCost: number;
+  }[];
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return {
+      sourceInLiveZone: false,
+      matchingStageMembers: [],
+      conditionMet: false,
+    };
+  }
+
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const matchingStageMembers = sourceInLiveZone
+    ? getDifferentNamedAndEffectiveCostStageMembers(game, player.id)
+    : [];
+  return {
+    sourceInLiveZone,
+    matchingStageMembers,
+    conditionMet: sourceInLiveZone && matchingStageMembers.length >= 3,
+  };
+}
+
 function consumePendingAbility(game: GameState, ability: PendingAbilityState): GameState {
   return {
     ...game,
@@ -373,6 +473,36 @@ function getDifferentNamedStageMembers(
     }
     seenNames.add(normalizedName);
     members.push({ cardId, name: card.data.name });
+  }
+  return members;
+}
+
+function getDifferentNamedAndEffectiveCostStageMembers(
+  game: GameState,
+  playerId: string
+): readonly { readonly cardId: string; readonly name: string; readonly effectiveCost: number }[] {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return [];
+  }
+
+  const seenNames = new Set<string>();
+  const seenCosts = new Set<number>();
+  const members: { readonly cardId: string; readonly name: string; readonly effectiveCost: number }[] =
+    [];
+  for (const cardId of getAllMemberCardIds(player.memberSlots)) {
+    const card = getCardById(game, cardId);
+    if (!card || !isMemberCardData(card.data)) {
+      continue;
+    }
+    const normalizedName = normalizeCardName(card.data.name);
+    const effectiveCost = getMemberEffectiveCost(game, playerId, cardId);
+    if (!normalizedName || seenNames.has(normalizedName) || seenCosts.has(effectiveCost)) {
+      continue;
+    }
+    seenNames.add(normalizedName);
+    seenCosts.add(effectiveCost);
+    members.push({ cardId, name: card.data.name, effectiveCost });
   }
   return members;
 }

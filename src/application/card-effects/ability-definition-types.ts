@@ -10,6 +10,7 @@ export enum CardAbilityCategory {
 }
 
 export enum CardAbilitySourceZone {
+  ANYWHERE = 'ANYWHERE',
   PLAYED_MEMBER = 'PLAYED_MEMBER',
   STAGE_MEMBER = 'STAGE_MEMBER',
   HAND = 'HAND',

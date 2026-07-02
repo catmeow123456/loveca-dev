@@ -242,6 +242,15 @@ export type LiveModifierState =
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
+      readonly kind: 'MEMBER_COST_SET';
+      readonly playerId: string;
+      readonly memberCardId: string;
+      readonly setTo: number;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
       readonly kind: 'REQUIREMENT';
       readonly liveCardId: string;
       readonly modifiers: readonly LiveRequirementModifierState[];

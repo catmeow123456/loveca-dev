@@ -20,6 +20,7 @@ import {
 import {
   addHeartLiveModifierForMember,
   addMemberCostLiveModifierForMember,
+  addMemberCostSetLiveModifierForMember,
   addLiveModifier,
   collectLiveModifiers,
   createHeartLiveModifierForMember,
@@ -1617,6 +1618,47 @@ describe('live modifier helpers', () => {
       second?.modifier,
     ]);
     expect(getMemberEffectiveCost(second!.gameState, 'p1', member.instanceId)).toBe(14);
+  });
+
+  it('lets member cost set modifiers override existing member cost deltas', () => {
+    const member = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp5-005-R',
+        name: '徒町 小鈴',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'bp5-005-kosuzu'
+    );
+    let game = createGameState('member-cost-set-live-modifier', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [member]);
+
+    const delta = addMemberCostLiveModifierForMember(game, {
+      playerId: 'p1',
+      memberCardId: member.instanceId,
+      sourceCardId: member.instanceId,
+      abilityId: 'test-cost-plus-six',
+      countDelta: 6,
+    });
+    expect(delta).not.toBeNull();
+    const setCost = addMemberCostSetLiveModifierForMember(delta!.gameState, {
+      playerId: 'p1',
+      memberCardId: member.instanceId,
+      sourceCardId: member.instanceId,
+      abilityId: 'test-cost-set',
+      setTo: 11,
+    });
+
+    expect(setCost).not.toBeNull();
+    expect(getMemberEffectiveCost(setCost!.gameState, 'p1', member.instanceId)).toBe(11);
+    expect(setCost?.modifier).toMatchObject({
+      kind: 'MEMBER_COST_SET',
+      memberCardId: member.instanceId,
+      setTo: 11,
+    });
   });
 
   it('lets PL!HS-bp5-002 continuous different-effective-cost check read temporary member cost modifiers', () => {

@@ -1,4 +1,5 @@
 export interface CardIdentityLike {
+  readonly cardCode?: string;
   readonly groupNames?: readonly string[];
 }
 
@@ -44,7 +45,23 @@ const GROUP_IDENTITY_GROUPS: readonly {
   },
 ];
 
+const HASUNOSORA_TRIPLE_UNIT_CARD_CODES = new Set([
+  'PL!HS-bp2-020-L',
+  'PL!HS-bp5-018-L',
+  'PL!HS-sd1-020-SD',
+]);
+
+const HASUNOSORA_TRIPLE_UNIT_ALIAS_GROUPS: readonly (readonly string[])[] = [
+  ['cerise-bouquet', 'Cerise Bouquet', 'スリーズブーケ'],
+  ['dollchestra', 'DOLLCHESTRA'],
+  ['mira-cra-park', 'Mira-Cra Park!', 'みらくらぱーく！', 'みらくらぱーく!'],
+];
+
 export function cardBelongsToGroup(card: CardIdentityLike, groupName: string): boolean {
+  if (cardHasHasunosoraTripleUnitIdentity(card, groupName)) {
+    return true;
+  }
+
   const groupIdentity = getGroupIdentity(groupName);
   if (!groupIdentity) {
     return false;
@@ -57,6 +74,20 @@ export function getKnownCardGroupIdentityName(card: CardIdentityLike): GroupIden
   return (
     GROUP_IDENTITY_GROUPS.find((group) => cardMatchesGroupIdentity(card, group))?.canonicalName ??
     null
+  );
+}
+
+export function cardHasHasunosoraTripleUnitIdentity(
+  card: CardIdentityLike,
+  unitName: string
+): boolean {
+  if (!card.cardCode || !HASUNOSORA_TRIPLE_UNIT_CARD_CODES.has(card.cardCode)) {
+    return false;
+  }
+
+  const normalizedUnitName = normalizeGroupIdentityText(unitName);
+  return HASUNOSORA_TRIPLE_UNIT_ALIAS_GROUPS.some((aliases) =>
+    aliases.some((alias) => normalizeGroupIdentityText(alias) === normalizedUnitName)
   );
 }
 

@@ -30,6 +30,10 @@ type MemberOriginalBladeReplacementModifierState = Extract<
 type BladeModifierState = Extract<LiveModifierState, { readonly kind: 'BLADE' }>;
 type CheerCountModifierState = Extract<LiveModifierState, { readonly kind: 'CHEER_COUNT' }>;
 type MemberCostModifierState = Extract<LiveModifierState, { readonly kind: 'MEMBER_COST' }>;
+type MemberCostSetModifierState = Extract<
+  LiveModifierState,
+  { readonly kind: 'MEMBER_COST_SET' }
+>;
 type RequirementModifierState = Extract<LiveModifierState, { readonly kind: 'REQUIREMENT' }>;
 
 type LiveModifierCompatibilityProjection = Pick<
@@ -150,10 +154,24 @@ export interface MemberCostLiveModifierForMemberOptions {
   readonly countDelta: number;
 }
 
+export interface MemberCostSetLiveModifierForMemberOptions {
+  readonly playerId: string;
+  readonly memberCardId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly setTo: number;
+}
+
 export interface AddMemberCostLiveModifierForMemberResult {
   readonly gameState: GameState;
   readonly modifier: MemberCostModifierState;
   readonly costDelta: number;
+}
+
+export interface AddMemberCostSetLiveModifierForMemberResult {
+  readonly gameState: GameState;
+  readonly modifier: MemberCostSetModifierState;
+  readonly setTo: number;
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
@@ -1676,6 +1694,39 @@ export function addMemberCostLiveModifierForMember(
     gameState: addLiveModifier(game, modifier),
     modifier,
     costDelta: options.countDelta,
+  };
+}
+
+export function addMemberCostSetLiveModifierForMember(
+  game: GameState,
+  options: MemberCostSetLiveModifierForMemberOptions
+): AddMemberCostSetLiveModifierForMemberResult | null {
+  if (!Number.isInteger(options.setTo) || options.setTo < 0) {
+    return null;
+  }
+
+  const memberCard = getCardById(game, options.memberCardId);
+  if (
+    !memberCard ||
+    memberCard.ownerId !== options.playerId ||
+    !isMemberCardData(memberCard.data)
+  ) {
+    return null;
+  }
+
+  const modifier: MemberCostSetModifierState = {
+    kind: 'MEMBER_COST_SET',
+    playerId: options.playerId,
+    memberCardId: options.memberCardId,
+    setTo: options.setTo,
+    sourceCardId: options.sourceCardId,
+    abilityId: options.abilityId,
+  };
+
+  return {
+    gameState: addLiveModifier(game, modifier),
+    modifier,
+    setTo: options.setTo,
   };
 }
 

@@ -25,6 +25,7 @@ export function getMemberEffectiveCost(
   }
   effectiveCost += getSpPb2006MemberBelowLiellaCostBonus(game, playerId, memberCardId);
   effectiveCost += getLiveMemberCostModifier(game, playerId, memberCardId);
+  effectiveCost = getLiveMemberCostSetValue(game, playerId, memberCardId) ?? effectiveCost;
   return effectiveCost;
 }
 
@@ -44,6 +45,24 @@ function getLiveMemberCostModifier(
     }
   }
   return total;
+}
+
+function getLiveMemberCostSetValue(
+  game: GameState,
+  playerId: string,
+  memberCardId: string
+): number | null {
+  let setTo: number | null = null;
+  for (const modifier of game.liveResolution.liveModifiers) {
+    if (
+      modifier.kind === 'MEMBER_COST_SET' &&
+      modifier.playerId === playerId &&
+      modifier.memberCardId === memberCardId
+    ) {
+      setTo = modifier.setTo;
+    }
+  }
+  return setTo;
 }
 
 function isBp4008HanayoStageCostBonusActive(

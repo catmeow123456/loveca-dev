@@ -1,7 +1,10 @@
 import type { CardInstance } from '../../domain/entities/card.js';
 import { isLiveCardData, isMemberCardData } from '../../domain/entities/card.js';
 import { BladeHeartEffect, HeartColor, type CardType } from '../../shared/types/enums.js';
-import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
+import {
+  cardBelongsToGroup,
+  cardHasHasunosoraTripleUnitIdentity,
+} from '../../shared/utils/card-identity.js';
 
 export type CardSelector = (card: CardInstance) => boolean;
 
@@ -106,7 +109,9 @@ export function unitIs(unitName: string): CardSelector {
 
 export function unitAliasIs(unitName: string): CardSelector {
   const normalizedAliases = getNormalizedUnitAliases(unitName);
-  return (card) => matchesAnyNormalizedAlias(card.data.unitName, normalizedAliases);
+  return (card) =>
+    matchesAnyNormalizedAlias(card.data.unitName, normalizedAliases) ||
+    cardHasHasunosoraTripleUnitIdentity(card.data, unitName);
 }
 
 export function unitAliasOrTextAliasIs(unitName: string): CardSelector {
