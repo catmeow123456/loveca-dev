@@ -30,6 +30,14 @@ export async function fetchSolitaireMatchSnapshot(
   matchId: string,
   sinceSeq?: number
 ): Promise<OnlineMatchSnapshot | null> {
+  const snapshot = await fetchSolitaireMatchSnapshotResponse(matchId, sinceSeq);
+  return isSnapshotNotModified(snapshot) ? null : snapshot;
+}
+
+export async function fetchSolitaireMatchSnapshotResponse(
+  matchId: string,
+  sinceSeq?: number
+): Promise<OnlineMatchSnapshotResponse> {
   const search =
     sinceSeq !== undefined && Number.isSafeInteger(sinceSeq) && sinceSeq >= 0
       ? `?sinceSeq=${sinceSeq}`
@@ -40,8 +48,7 @@ export async function fetchSolitaireMatchSnapshot(
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取对墙打快照失败');
   }
-  const snapshot = response.data;
-  return isSnapshotNotModified(snapshot) ? null : snapshot;
+  return response.data;
 }
 
 export async function fetchSolitaireMatchPublicEvents(

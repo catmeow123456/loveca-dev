@@ -10,7 +10,10 @@ export interface RemoteMatchSnapshot {
   readonly matchId: string;
   readonly seat: Seat;
   readonly playerId: string;
+  /** Remote state revision used for command optimistic concurrency. */
   readonly seq: number;
+  /** Current public event cursor. This is intentionally separate from seq. */
+  readonly currentPublicSeq: number;
   readonly playerViewState: PlayerViewState;
 }
 

@@ -203,6 +203,14 @@ export async function fetchOnlineMatchSnapshot(
   matchId: string,
   sinceSeq?: number
 ): Promise<OnlineMatchSnapshot | null> {
+  const snapshot = await fetchOnlineMatchSnapshotResponse(matchId, sinceSeq);
+  return isSnapshotNotModified(snapshot) ? null : snapshot;
+}
+
+export async function fetchOnlineMatchSnapshotResponse(
+  matchId: string,
+  sinceSeq?: number
+): Promise<OnlineMatchSnapshotResponse> {
   const search =
     sinceSeq !== undefined && Number.isSafeInteger(sinceSeq) && sinceSeq >= 0
       ? `?sinceSeq=${sinceSeq}`
@@ -213,8 +221,7 @@ export async function fetchOnlineMatchSnapshot(
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取联机对局快照失败');
   }
-  const snapshot = response.data;
-  return isSnapshotNotModified(snapshot) ? null : snapshot;
+  return response.data;
 }
 
 export async function fetchOnlineMatchPublicEvents(

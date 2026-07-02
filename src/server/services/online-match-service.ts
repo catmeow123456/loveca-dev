@@ -384,6 +384,7 @@ export class OnlineMatchService {
       return {
         matchId: match.matchId,
         seq: currentSeq,
+        currentPublicSeq: match.session.getCurrentPublicEventSeq(),
         modified: false,
       };
     }
@@ -1392,6 +1393,7 @@ function buildSnapshot(
     seat: participant.seat,
     playerId: participant.playerId,
     seq: match.remoteRevision,
+    currentPublicSeq: match.session.getCurrentPublicEventSeq(),
     playerViewState,
   };
 }

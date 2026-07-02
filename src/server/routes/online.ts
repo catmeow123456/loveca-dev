@@ -443,7 +443,7 @@ onlineRouter.get('/matches/:matchId/public-events', requireAuth, async (req, res
       afterSeq: readOptionalSeq(req.query?.afterSeq),
     });
     if (!events) {
-      respondMatchForbidden(res);
+      respondMatchNotFound(res);
       return;
     }
 

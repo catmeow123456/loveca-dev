@@ -4974,6 +4974,11 @@ function deriveWindowStatus(
 
 function buildDetailedPublicCardInfo(state: GameState, cardId: string): PublicCardInfo {
   const card = state.cardRegistry.get(cardId);
+  if (!card) {
+    console.warn(
+      `[GameSession] 生成公开卡牌信息时找不到 registry 记录: matchId=${state.gameId} cardId=${cardId} publicObjectId=${createPublicObjectId(cardId)}`
+    );
+  }
   return {
     publicObjectId: createPublicObjectId(cardId),
     cardCode: card?.data.cardCode ?? 'UNKNOWN_CARD',

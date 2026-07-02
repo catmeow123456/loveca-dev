@@ -98,7 +98,7 @@ import {
   createRemoteUndoRequest,
   executeRemoteCommand,
   fetchRemotePublicEvents,
-  fetchRemoteSnapshot,
+  fetchRemoteSnapshotSyncResult,
   rejectRemoteUndoRequest,
   undoRemoteMatch,
   type RemoteSessionSource,
@@ -1302,7 +1302,12 @@ export const useGameStore = create<GameStore>((set, get) => {
           remoteSession.seat,
           afterSeq
         );
-        if (!response || !isRemoteSessionStillCurrent(remoteSession)) {
+        if (!response) {
+          settleStalePublicBattleLogLoad(remoteSession);
+          return;
+        }
+        if (!isRemoteSessionStillCurrent(remoteSession)) {
+          settleStalePublicBattleLogLoad(remoteSession);
           return;
         }
         set((state) => ({
@@ -1310,6 +1315,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         }));
       } catch (error) {
         if (!isRemoteSessionStillCurrent(remoteSession)) {
+          settleStalePublicBattleLogLoad(remoteSession);
           return;
         }
         set((state) => ({
@@ -1556,18 +1562,21 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      const snapshot = await fetchRemoteSnapshot(
+      const snapshotResult = await fetchRemoteSnapshotSyncResult(
         remoteSession.source,
         remoteSession.matchId,
         remoteSession.seat,
         get().playerViewState?.match.seq
       );
-      if (!snapshot) {
-        await get().syncPublicBattleLog();
+      if (!isRemoteSessionStillCurrent(remoteSession)) {
+        return;
+      }
+      if (!snapshotResult.snapshot) {
+        await syncPublicBattleLogIfNeeded(remoteSession.matchId, snapshotResult.currentPublicSeq);
         return;
       }
 
-      applyRemoteSnapshotThenPreload(snapshot, set, 'syncRemoteState');
+      applyRemoteSnapshotThenPreload(snapshotResult.snapshot, set, 'syncRemoteState');
     },
 
     isRemoteMode: () => get().remoteSession !== null,
@@ -2536,7 +2545,7 @@ function applyRemoteSnapshotThenPreload(
 
   scheduleFrontTransitionPreload(previousViewState, nextViewState, cardDataRegistry, latencyProbe);
   mergePublicEventsFromSnapshot(snapshot);
-  void useGameStore.getState().syncPublicBattleLog();
+  void syncPublicBattleLogIfNeeded(snapshot.matchId, snapshot.currentPublicSeq);
 }
 
 function mergePublicEventsFromSnapshot(snapshot: RemoteSnapshot): void {
@@ -2547,10 +2556,60 @@ function mergePublicEventsFromSnapshot(snapshot: RemoteSnapshot): void {
   useGameStore.setState((state) => ({
     publicBattleLog: mergePublicBattleLogResponse(state.publicBattleLog, {
       matchId: snapshot.matchId,
-      currentPublicSeq: snapshot.seq,
+      currentPublicSeq: snapshot.currentPublicSeq,
       publicEvents: snapshot.publicEvents,
     }),
   }));
+}
+
+async function syncPublicBattleLogIfNeeded(
+  matchId: string,
+  currentPublicSeq: number
+): Promise<void> {
+  if (!shouldSyncPublicBattleLog(matchId, currentPublicSeq)) {
+    return;
+  }
+  await useGameStore.getState().syncPublicBattleLog();
+}
+
+function shouldSyncPublicBattleLog(matchId: string, currentPublicSeq: number): boolean {
+  const state = useGameStore.getState();
+  if (state.replaySession || !state.remoteSession || state.remoteSession.matchId !== matchId) {
+    return false;
+  }
+
+  const log = state.publicBattleLog;
+  if (log.matchId !== matchId) {
+    return true;
+  }
+  if (log.loadState === 'loading') {
+    return false;
+  }
+  if (log.loadState === 'error') {
+    return true;
+  }
+
+  return log.cursorSeq < currentPublicSeq;
+}
+
+function settleStalePublicBattleLogLoad(
+  remoteSession: NonNullable<GameStore['remoteSession']>
+): void {
+  useGameStore.setState((state) => {
+    if (
+      state.publicBattleLog.matchId !== remoteSession.matchId ||
+      state.publicBattleLog.loadState !== 'loading'
+    ) {
+      return state;
+    }
+
+    return {
+      publicBattleLog: {
+        ...state.publicBattleLog,
+        loadState: 'idle',
+      },
+    };
+  });
 }
 
 function mergePublicBattleLogResponse(

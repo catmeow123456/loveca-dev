@@ -259,11 +259,13 @@ describe('OnlineRoomService', () => {
     expect(unchangedSnapshot).toEqual({
       matchId: started.matchId,
       seq: snapshot!.seq,
+      currentPublicSeq: snapshot!.currentPublicSeq,
       modified: false,
     });
     expect(expectJsonRoundTrip(unchangedSnapshot)).toEqual({
       matchId: started.matchId,
       seq: snapshot!.seq,
+      currentPublicSeq: snapshot!.currentPublicSeq,
       modified: false,
     });
 
