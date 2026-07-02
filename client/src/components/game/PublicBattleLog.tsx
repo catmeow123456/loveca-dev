@@ -3,8 +3,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Filter, ScrollText, X } from 'lucide-react';
 import { useGameStore } from '@/store/gameStore';
 import {
-  formatPublicBattleLogEvent,
-  isKeyPublicBattleLogEvent,
+  formatPublicBattleLogEvents,
+  type PublicBattleLogCardGroupView,
+  type PublicBattleLogCardView,
   type PublicBattleLogFilter,
 } from '@/lib/publicBattleLogFormatter';
 import { cn } from '@/lib/utils';
@@ -83,6 +84,7 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
   const error = useGameStore((s) => s.publicBattleLog.error);
   const getCardData = useGameStore((s) => s.getCardData);
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
+  const viewerSeat = useGameStore((s) => s.playerViewState?.match.viewerSeat ?? null);
   const setCardDetail = useGameStore((s) => s.setCardDetail);
   const [filter, setFilter] = useState<PublicBattleLogFilter>('KEY');
   const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set());
@@ -90,15 +92,13 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
 
   const items = useMemo(
     () =>
-      events
-        .filter((event) => filter === 'ALL' || isKeyPublicBattleLogEvent(event))
-        .map((event) =>
-          formatPublicBattleLogEvent(event, {
-            getCardData,
-            getSeatLabel: (seat) => getPlayerIdentityForSeat(seat)?.name ?? seat,
-          })
-        ),
-    [events, filter, getCardData, getPlayerIdentityForSeat]
+      formatPublicBattleLogEvents(events, {
+        filter,
+        getCardData,
+        getSeatLabel: (seat) => getPlayerIdentityForSeat(seat)?.name ?? seat,
+        viewerSeat,
+      }),
+    [events, filter, getCardData, getPlayerIdentityForSeat, viewerSeat]
   );
 
   useEffect(() => {
@@ -136,8 +136,13 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
       <div ref={scrollRef} className="cute-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
         {items.map((item) => {
           const expanded = expandedEventIds.has(item.id);
-          const visibleCards = expanded ? item.cards : item.cards.slice(0, 3);
-          const hiddenCount = item.cards.length - visibleCards.length;
+          const visibleCardGroups = item.cardGroups.slice(0, 3);
+          const visibleGroupedCardCount = visibleCardGroups.reduce(
+            (total, group) => total + group.count,
+            0
+          );
+          const hiddenPublicCardCount = expanded ? 0 : item.cards.length - visibleGroupedCardCount;
+          const showCardArea = item.cards.length > 0 || item.hiddenCardCount > 0;
 
           return (
             <div
@@ -146,7 +151,7 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
             >
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-[10px] font-semibold uppercase tracking-normal text-[var(--text-muted)]">
-                  #{item.seq}
+                  #{item.seqLabel}
                 </span>
                 <span className="text-[10px] text-[var(--text-muted)]">
                   {new Date(item.timestamp).toLocaleTimeString('zh-CN', {
@@ -157,7 +162,7 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
                   })}
                 </span>
               </div>
-              <div className="text-xs font-semibold leading-snug text-[var(--text-primary)]">
+              <div className="line-clamp-2 text-xs font-semibold leading-snug text-[var(--text-primary)]">
                 {item.title}
               </div>
               {item.detail && (
@@ -165,25 +170,53 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
                   {item.detail}
                 </div>
               )}
-              {visibleCards.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {visibleCards.map((card) => (
-                    <button
-                      key={`${item.id}:${card.publicObjectId}`}
-                      type="button"
-                      onClick={() =>
-                        setCardDetail({
-                          kind: 'public-event-card',
-                          cardCode: card.cardCode,
-                          publicObjectId: card.publicObjectId,
-                        })
-                      }
-                      className="min-h-9 max-w-full rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_48%,transparent)] px-2 py-1 text-left text-[11px] font-semibold leading-tight text-[var(--accent-primary)] transition hover:border-[var(--accent-primary)] hover:text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
-                    >
-                      <span className="block max-w-[15rem] truncate">{card.label}</span>
-                    </button>
-                  ))}
-                  {hiddenCount > 0 && (
+              {showCardArea && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {expanded
+                    ? item.cards.map((card) => (
+                        <PublicBattleLogCardChip
+                          key={`${item.id}:${card.publicObjectId}`}
+                          card={card}
+                          onOpen={() =>
+                            setCardDetail({
+                              kind: 'public-event-card',
+                              cardCode: card.cardCode,
+                              publicObjectId: card.publicObjectId,
+                            })
+                          }
+                        />
+                      ))
+                    : visibleCardGroups.map((group) => (
+                        <PublicBattleLogCardGroupChip
+                          key={`${item.id}:group:${group.id}`}
+                          group={group}
+                          onOpen={() => {
+                            if (group.count > 1 || item.cardGroups.length > 3) {
+                              setExpandedEventIds((previous) => {
+                                const next = new Set(previous);
+                                next.add(item.id);
+                                return next;
+                              });
+                              return;
+                            }
+                            const card = group.cards[0];
+                            if (!card) {
+                              return;
+                            }
+                            setCardDetail({
+                              kind: 'public-event-card',
+                              cardCode: card.cardCode,
+                              publicObjectId: card.publicObjectId,
+                            });
+                          }}
+                        />
+                      ))}
+                  {item.hiddenCardCount > 0 && (
+                    <span className="inline-flex min-h-8 items-center rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_34%,transparent)] px-2 py-1 text-[11px] font-semibold text-[var(--text-muted)]">
+                      身份未公开{item.hiddenCardCount > 1 ? ` ×${item.hiddenCardCount}` : ''}
+                    </span>
+                  )}
+                  {hiddenPublicCardCount > 0 && (
                     <button
                       type="button"
                       onClick={() =>
@@ -195,7 +228,7 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
                       }
                       className="min-h-9 rounded border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                     >
-                      展开 {hiddenCount} 张
+                      另有 {hiddenPublicCardCount} 张
                     </button>
                   )}
                 </div>
@@ -222,5 +255,54 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
     </div>
   );
 });
+
+function PublicBattleLogCardGroupChip({
+  group,
+  onOpen,
+}: {
+  readonly group: PublicBattleLogCardGroupView;
+  readonly onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="min-h-9 max-w-full rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_48%,transparent)] px-2 py-1 text-left text-[11px] leading-tight transition hover:border-[var(--accent-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+    >
+      <span className="flex max-w-[15rem] items-baseline gap-1.5 overflow-hidden">
+        <span className="shrink-0 font-semibold text-[var(--text-muted)]">{group.cardCode}</span>
+        <span className="min-w-0 truncate font-bold text-[var(--text-primary)]">
+          「{group.name}」
+        </span>
+        {group.count > 1 && (
+          <span className="shrink-0 font-bold text-[var(--accent-primary)]">×{group.count}</span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+function PublicBattleLogCardChip({
+  card,
+  onOpen,
+}: {
+  readonly card: PublicBattleLogCardView;
+  readonly onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="min-h-9 max-w-full rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_48%,transparent)] px-2 py-1 text-left text-[11px] leading-tight transition hover:border-[var(--accent-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+    >
+      <span className="flex max-w-[15rem] items-baseline gap-1.5 overflow-hidden">
+        <span className="shrink-0 font-semibold text-[var(--text-muted)]">{card.cardCode}</span>
+        <span className="min-w-0 truncate font-bold text-[var(--text-primary)]">
+          「{card.name}」
+        </span>
+      </span>
+    </button>
+  );
+}
 
 export default PublicBattleLogPanel;
