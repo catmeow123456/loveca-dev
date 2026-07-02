@@ -15,9 +15,16 @@ interface PublicBattleLogContentProps {
 }
 
 export const PublicBattleLogButton = memo(function PublicBattleLogButton() {
+  const canShowPublicBattleLog = useGameStore(
+    (s) => s.getBattleSurfaceCapabilities().authority === 'REMOTE'
+  );
   const unreadCount = useGameStore((s) => s.publicBattleLog.unreadCount);
   const isOpen = useGameStore((s) => s.publicBattleLog.isPanelOpen);
   const setOpen = useGameStore((s) => s.setPublicBattleLogPanelOpen);
+
+  if (!canShowPublicBattleLog) {
+    return null;
+  }
 
   return (
     <button
@@ -39,8 +46,15 @@ export const PublicBattleLogButton = memo(function PublicBattleLogButton() {
 });
 
 export const PublicBattleLogPanel = memo(function PublicBattleLogPanel() {
+  const canShowPublicBattleLog = useGameStore(
+    (s) => s.getBattleSurfaceCapabilities().authority === 'REMOTE'
+  );
   const isOpen = useGameStore((s) => s.publicBattleLog.isPanelOpen);
   const setOpen = useGameStore((s) => s.setPublicBattleLogPanelOpen);
+
+  if (!canShowPublicBattleLog) {
+    return null;
+  }
 
   return (
     <AnimatePresence>

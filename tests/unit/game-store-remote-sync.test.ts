@@ -126,6 +126,11 @@ describe('gameStore remote snapshot sync', () => {
       remoteSession: null,
       replaySession: null,
       publicBattleLog: EMPTY_PUBLIC_BATTLE_LOG,
+      ui: {
+        ...useGameStore.getState().ui,
+        hoveredCardId: null,
+        cardDetail: null,
+      },
     });
   });
 
@@ -202,5 +207,24 @@ describe('gameStore remote snapshot sync', () => {
       expect(fetchRemotePublicEvents).toHaveBeenCalledWith('ONLINE', 'match-1', 'FIRST', 5);
     });
     expect(useGameStore.getState().publicBattleLog.currentPublicSeq).toBe(8);
+  });
+
+  it('keeps a public event card detail pinned while visible cards are hovered', () => {
+    const pinnedDetail = {
+      kind: 'public-event-card' as const,
+      cardCode: 'PL!HS-bp5-001-SEC',
+      publicObjectId: 'obj-public-event-card',
+    };
+
+    useGameStore.getState().setCardDetail(pinnedDetail);
+    useGameStore.getState().setHoveredCard('visible-card-1');
+
+    expect(useGameStore.getState().ui.hoveredCardId).toBe('visible-card-1');
+    expect(useGameStore.getState().ui.cardDetail).toEqual(pinnedDetail);
+
+    useGameStore.getState().setHoveredCard(null);
+
+    expect(useGameStore.getState().ui.hoveredCardId).toBeNull();
+    expect(useGameStore.getState().ui.cardDetail).toEqual(pinnedDetail);
   });
 });

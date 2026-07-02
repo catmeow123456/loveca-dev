@@ -1233,17 +1233,24 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     setHoveredCard: (cardId) => {
-      set((state) => ({
-        ui: {
-          ...state.ui,
-          hoveredCardId: cardId,
-          cardDetail: cardId
-            ? { kind: 'visible', cardId }
-            : state.ui.cardDetail?.kind === 'visible'
-              ? null
-              : state.ui.cardDetail,
-        },
-      }));
+      set((state) => {
+        const currentDetail = state.ui.cardDetail;
+        const nextDetail = cardId
+          ? currentDetail?.kind === 'public-event-card'
+            ? currentDetail
+            : { kind: 'visible' as const, cardId }
+          : currentDetail?.kind === 'visible'
+            ? null
+            : currentDetail;
+
+        return {
+          ui: {
+            ...state.ui,
+            hoveredCardId: cardId,
+            cardDetail: nextDetail,
+          },
+        };
+      });
     },
 
     setCardDetail: (detail) => {
