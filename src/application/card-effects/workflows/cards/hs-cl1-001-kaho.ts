@@ -1,15 +1,14 @@
 import {
   addAction,
-  emitGameEvent,
   getPlayerById,
   updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { createEnterWaitingRoomEvent } from '../../../../domain/events/game-events.js';
-import { TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
 import { clearInspectionCards, inspectTopCards } from '../../../effects/look-top.js';
 import { HS_CL1_001_LIVE_START_LOOK_TOP_ONE_OPTIONAL_WAITING_ROOM_ABILITY_ID } from '../../ability-ids.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveInspectedCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -19,16 +18,8 @@ const PLACE_WAITING_ROOM_OPTION_ID = 'place-waiting-room';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-type EnqueueTriggeredCardEffects = (
-  game: GameState,
-  triggerConditions: readonly TriggerCondition[],
-  options?: {
-    readonly enterWaitingRoomEvents?: readonly ReturnType<typeof createEnterWaitingRoomEvent>[];
-  }
-) => GameState;
-
 export function registerHsCl1001KahoWorkflowHandlers(deps: {
-  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
   registerPendingAbilityStarterHandler(
     HS_CL1_001_LIVE_START_LOOK_TOP_ONE_OPTIONAL_WAITING_ROOM_ABILITY_ID,
@@ -123,7 +114,7 @@ function startHsCl1001KahoLiveStart(
 function finishHsCl1001KahoLiveStart(
   game: GameState,
   selectedOptionId: string | null,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
@@ -147,18 +138,19 @@ function finishHsCl1001KahoLiveStart(
   }
 
   const stateAfterMove = placeInWaitingRoom
-    ? moveInspectedTopCardToWaitingRoom(game, player.id, inspectedCardId)
+    ? (moveInspectedCardsToWaitingRoomAndEnqueueTriggers(
+        game,
+        player.id,
+        [inspectedCardId],
+        enqueueTriggeredCardEffects
+      )?.gameState ?? null)
     : returnInspectedTopCardToDeckTop(game, player.id, inspectedCardId);
   if (!stateAfterMove) {
     return game;
   }
 
-  const stateWithTriggers = placeInWaitingRoom
-    ? enqueueEnterWaitingRoomTrigger(stateAfterMove, player.id, inspectedCardId, enqueueTriggeredCardEffects)
-    : stateAfterMove;
-
   return continuePendingCardEffects(
-    addAction({ ...stateWithTriggers, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+    addAction({ ...stateAfterMove, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
@@ -169,26 +161,6 @@ function finishHsCl1001KahoLiveStart(
     }),
     effect.metadata?.orderedResolution === true
   );
-}
-
-function moveInspectedTopCardToWaitingRoom(
-  game: GameState,
-  playerId: string,
-  cardId: string
-): GameState | null {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return null;
-  }
-
-  const state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, cardId],
-    },
-  }));
-  return clearInspectionCards(state, [cardId]);
 }
 
 function returnInspectedTopCardToDeckTop(
@@ -209,23 +181,4 @@ function returnInspectedTopCardToDeckTop(
     },
   }));
   return clearInspectionCards(state, [cardId]);
-}
-
-function enqueueEnterWaitingRoomTrigger(
-  game: GameState,
-  playerId: string,
-  cardId: string,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
-): GameState {
-  const enterWaitingRoomEvent = createEnterWaitingRoomEvent(
-    [cardId],
-    ZoneType.MAIN_DECK,
-    playerId,
-    playerId
-  );
-  return enqueueTriggeredCardEffects(
-    emitGameEvent(game, enterWaitingRoomEvent),
-    [TriggerCondition.ON_ENTER_WAITING_ROOM],
-    { enterWaitingRoomEvents: [enterWaitingRoomEvent] }
-  );
 }

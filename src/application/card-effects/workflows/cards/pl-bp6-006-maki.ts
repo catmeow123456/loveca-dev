@@ -5,27 +5,21 @@ import {
 } from '../../../../domain/entities/card.js';
 import {
   addAction,
-  emitGameEvent,
   getCardById,
   getPlayerById,
-  updatePlayer,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import { createEnterWaitingRoomEvent } from '../../../../domain/events/game-events.js';
-import { addCardToZone } from '../../../../domain/entities/zone.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   GamePhase,
   HeartColor,
   OrientationState,
-  TriggerCondition,
-  ZoneType,
 } from '../../../../shared/types/enums.js';
 import {
   groupAliasIs,
   memberHasHeartColor,
 } from '../../../effects/card-selectors.js';
-import { clearInspectionCards, inspectTopCards } from '../../../effects/look-top.js';
+import { inspectTopCards } from '../../../effects/look-top.js';
 import {
   BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -34,6 +28,10 @@ import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
+import {
+  moveInspectedCardsToWaitingRoomAndEnqueueTriggers,
+  moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers,
+} from '../../runtime/inspection-waiting-room-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -283,7 +281,7 @@ function finishBp6006ChooseColor(
     : [];
 
   if (!conditionMet || museCandidateCardIds.length === 0) {
-    const moveResult = moveInspectedCardsToWaitingRoomAndEnqueue(
+    const moveResult = moveInspectedCardsToWaitingRoomAndEnqueueTriggers(
       inspection.gameState,
       player.id,
       inspectedCardIds,
@@ -366,7 +364,7 @@ function finishBp6006SelectMuseCard(
     return game;
   }
 
-  const moveResult = moveInspectedSelectedCardToHandRestToWaitingRoomAndEnqueue(
+  const moveResult = moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
     effect.inspectionCardIds,
@@ -418,85 +416,6 @@ function isCardMatchingBp6006ColorCondition(card: CardInstance, color: HeartColo
 
 function isNormalHeartColor(value: string | null): value is HeartColor {
   return value !== null && NORMAL_HEART_COLORS.some((color) => color === value);
-}
-
-function moveInspectedSelectedCardToHandRestToWaitingRoomAndEnqueue(
-  game: GameState,
-  playerId: string,
-  inspectedCardIds: readonly string[],
-  selectedCardId: string,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
-): { readonly gameState: GameState; readonly waitingRoomCardIds: readonly string[] } | null {
-  const player = getPlayerById(game, playerId);
-  if (!player || !inspectedCardIds.includes(selectedCardId)) {
-    return null;
-  }
-  const waitingRoomCardIds = inspectedCardIds.filter((cardId) => cardId !== selectedCardId);
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    hand: addCardToZone(currentPlayer.hand, selectedCardId),
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...waitingRoomCardIds],
-    },
-  }));
-  state = clearInspectionCards(state, inspectedCardIds);
-  state = enqueueMainDeckToWaitingRoomEvents(
-    state,
-    player.id,
-    waitingRoomCardIds,
-    enqueueTriggeredCardEffects
-  );
-  return { gameState: state, waitingRoomCardIds };
-}
-
-function moveInspectedCardsToWaitingRoomAndEnqueue(
-  game: GameState,
-  playerId: string,
-  inspectedCardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
-): { readonly gameState: GameState; readonly waitingRoomCardIds: readonly string[] } | null {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return null;
-  }
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...inspectedCardIds],
-    },
-  }));
-  state = clearInspectionCards(state, inspectedCardIds);
-  state = enqueueMainDeckToWaitingRoomEvents(
-    state,
-    player.id,
-    inspectedCardIds,
-    enqueueTriggeredCardEffects
-  );
-  return { gameState: state, waitingRoomCardIds: inspectedCardIds };
-}
-
-function enqueueMainDeckToWaitingRoomEvents(
-  game: GameState,
-  playerId: string,
-  cardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
-): GameState {
-  if (cardIds.length === 0) {
-    return game;
-  }
-  const enterWaitingRoomEvent = createEnterWaitingRoomEvent(
-    cardIds,
-    ZoneType.MAIN_DECK,
-    playerId,
-    playerId
-  );
-  return enqueueTriggeredCardEffects(
-    emitGameEvent(game, enterWaitingRoomEvent),
-    [TriggerCondition.ON_ENTER_WAITING_ROOM],
-    { enterWaitingRoomEvents: [enterWaitingRoomEvent] }
-  );
 }
 
 function hasTurnUse(

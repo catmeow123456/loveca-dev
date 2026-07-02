@@ -1502,9 +1502,6 @@ function getExpectedReplayMismatchSkipReason(
   if (mismatch.commandType !== GameCommandType.CONFIRM_EFFECT_STEP) {
     return null;
   }
-  if (isRefreshAwareMillOrderMetadataMismatch(decision, mismatch)) {
-    return LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON;
-  }
   if (isLegacyConfirmOnlyLivePendingOrderMismatch(decision, mismatch)) {
     return LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON;
   }
@@ -1529,22 +1526,6 @@ function isLegacyConfirmOnlyLivePendingOrderMismatch(
     mismatch.decisionId.includes('system%3Aselect-pending-card-effect') &&
     (mismatch.decisionId.includes('ON_LIVE_START') ||
       mismatch.decisionId.includes('ON_LIVE_SUCCESS'))
-  );
-}
-
-function isRefreshAwareMillOrderMetadataMismatch(
-  decision: DecisionRecordSummary,
-  mismatch: { readonly decisionId: string; readonly diffs: readonly unknown[] }
-): boolean {
-  return (
-    mismatch.diffs.length === 1 &&
-    mismatch.diffs.some(
-      (diff) =>
-        typeof diff === 'object' &&
-        diff !== null &&
-        'path' in diff &&
-        diff.path === '$.activeEffect.metadata.enqueueWaitingRoomTriggersForRemainder'
-    )
   );
 }
 

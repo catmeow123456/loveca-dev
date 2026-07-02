@@ -524,6 +524,7 @@ export function getAbilityTurnLimitStatus(
   if (limit === undefined) {
     return null;
   }
+  const countPendingAsTurnUse = definition.countPendingAsTurnUse !== false;
 
   const resolvedUses = game.actionHistory.filter(
     (action) =>
@@ -535,13 +536,16 @@ export function getAbilityTurnLimitStatus(
         action.payload.step === ACTIVATED_ABILITY_USE_STEP) &&
       action.payload.turnCount === game.turnCount
   ).length;
-  const pendingUses = game.pendingAbilities.filter(
-    (ability) =>
-      ability.controllerId === playerId &&
-      ability.abilityId === abilityId &&
-      ability.sourceCardId === sourceCardId
-  ).length;
+  const pendingUses = countPendingAsTurnUse
+    ? game.pendingAbilities.filter(
+        (ability) =>
+          ability.controllerId === playerId &&
+          ability.abilityId === abilityId &&
+          ability.sourceCardId === sourceCardId
+      ).length
+    : 0;
   const activeUse =
+    countPendingAsTurnUse &&
     game.activeEffect?.controllerId === playerId &&
     game.activeEffect.abilityId === abilityId &&
     game.activeEffect.sourceCardId === sourceCardId
@@ -678,9 +682,9 @@ function revealSelectedInspectionCard(
   );
 }
 const ABILITY_ORDER_SELECTION_STEP_ID = 'SELECT_NEXT_PENDING_ABILITY';
-registerLookTopSelectToHandWorkflowHandlers();
-registerActivatedRevealHandNoLiveLookTopLiveWorkflowHandlers();
-registerArrangeInspectedDeckTopWorkflowHandlers();
+registerLookTopSelectToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerActivatedRevealHandNoLiveLookTopLiveWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerArrangeInspectedDeckTopWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerConditionalLiveModifierWorkflowHandlers();
 registerSFutureWaterBatch2LiveStartWorkflowHandlers();
 registerSFutureWaterBatch3WorkflowHandlers();
@@ -817,7 +821,7 @@ registerLiveSuccessDiscardRecoverLowCostOrScoreCheerWorkflowHandlers({
   enqueueTriggeredCardEffects,
 });
 registerNPr026RinaWorkflowHandlers();
-registerPlBp3014RinWorkflowHandlers();
+registerPlBp3014RinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp5007SetsunaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp2009NatsumiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp2010MargareteWorkflowHandlers();
@@ -2527,6 +2531,12 @@ export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResu
     isSamePendingAbilityChoiceWindow(candidate, ability)
   );
   if (sameTimingAbilities.length > 1) {
+    if (shouldProcessSameAbilitySourceQueueInOrder(sameTimingAbilities)) {
+      return {
+        gameState: startPendingAbilityEffect(game, ability),
+        resolvedAbilityIds: [ability.id],
+      };
+    }
     return {
       gameState: startAbilityOrderSelection(game, sameTimingAbilities),
       resolvedAbilityIds: [],
@@ -2739,6 +2749,13 @@ function continuePendingCardEffects(game: GameState, orderedResolution: boolean)
     isSamePendingAbilityChoiceWindow(candidate, nextAbility)
   );
 
+  if (
+    sameTimingAbilities.length > 1 &&
+    shouldProcessSameAbilitySourceQueueInOrder(sameTimingAbilities)
+  ) {
+    return startPendingAbilityEffect(game, nextAbility, { orderedResolution });
+  }
+
   return sameTimingAbilities.length > 1
     ? startAbilityOrderSelection(game, sameTimingAbilities)
     : startPendingAbilityEffect(game, nextAbility, {
@@ -2751,6 +2768,26 @@ function shouldConfirmSingleLivePendingAbility(ability: PendingAbilityState): bo
   return (
     ability.timingId === TriggerCondition.ON_LIVE_START ||
     ability.timingId === TriggerCondition.ON_LIVE_SUCCESS
+  );
+}
+
+function shouldProcessSameAbilitySourceQueueInOrder(
+  abilities: readonly PendingAbilityState[]
+): boolean {
+  const firstAbility = abilities[0];
+  if (!firstAbility) {
+    return false;
+  }
+  const definition = findCardAbilityDefinitionById(firstAbility.abilityId);
+  return (
+    definition?.countPendingAsTurnUse === false &&
+    abilities.every(
+      (ability) =>
+        ability.abilityId === firstAbility.abilityId &&
+        ability.sourceCardId === firstAbility.sourceCardId &&
+        ability.controllerId === firstAbility.controllerId &&
+        ability.timingId === firstAbility.timingId
+    )
   );
 }
 

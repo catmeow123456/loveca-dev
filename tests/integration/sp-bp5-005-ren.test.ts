@@ -5,6 +5,7 @@ import {
   emitGameEvent,
   registerCards,
   type GameState,
+  type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { createEnterWaitingRoomEvent } from '../../src/domain/events/game-events';
 import {
@@ -20,6 +21,7 @@ import {
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import {
+  GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
   SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -617,6 +619,113 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
     expect(scenario.session.state?.pendingAbilities[0]).toMatchObject({
       abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
       metadata: { movedCardIds: [scenario.movedCardIds[1]], fromZone: ZoneType.HAND },
+    });
+  });
+
+  it('can decline a discard-cost event and still prompt for the following look-top remainder event', () => {
+    const scenario = setupScenario();
+    const searchSource = createCardInstance(
+      createMemberCard('PL!SP-bp1-005-P', 'Search Ren', 2),
+      PLAYER1,
+      'p1-ren-search-source'
+    );
+    const discardCard = createCardInstance(
+      createMemberCard('PL!SP-bp1-005-discard', 'Discard cost'),
+      PLAYER1,
+      'p1-ren-search-discard'
+    );
+    const topCards = Array.from({ length: 5 }, (_, index) =>
+      createCardInstance(
+        createMemberCard(`PL!SP-bp1-005-top-${index}`, `Top Liella ${index}`),
+        PLAYER1,
+        `p1-ren-search-top-${index}`
+      )
+    );
+
+    let state = registerCards(scenario.session.state!, [
+      searchSource,
+      discardCard,
+      ...topCards,
+    ]);
+    state = {
+      ...state,
+      pendingAbilities: [
+        {
+          id: 'generic-discard-look-top:search-ren',
+          abilityId: GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
+          sourceCardId: searchSource.instanceId,
+          controllerId: PLAYER1,
+          mandatory: false,
+          timingId: TriggerCondition.ON_ENTER_STAGE,
+          eventIds: ['generic-discard-look-top:event'],
+          sourceSlot: SlotPosition.LEFT,
+        } satisfies PendingAbilityState,
+      ],
+    };
+    setAuthorityState(scenario.session, state);
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    p1.hand.cardIds = [discardCard.instanceId];
+    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+    p1.waitingRoom.cardIds = [];
+    p1.memberSlots.slots[SlotPosition.LEFT] = searchSource.instanceId;
+    p1.memberSlots.cardStates.set(searchSource.instanceId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+
+    resolvePending(scenario);
+    expect(scenario.session.state?.activeEffect?.abilityId).toBe(
+      GENERIC_DISCARD_LOOK_TOP_ABILITY_ID
+    );
+
+    const discardResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        scenario.session.state!.activeEffect!.id,
+        discardCard.instanceId
+      )
+    );
+    expect(discardResult.success).toBe(true);
+    expect(scenario.session.state?.activeEffect?.abilityId).toBe(
+      GENERIC_DISCARD_LOOK_TOP_ABILITY_ID
+    );
+    expect(scenario.session.state?.pendingAbilities[0]).toMatchObject({
+      abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
+      metadata: { movedCardIds: [discardCard.instanceId], fromZone: ZoneType.HAND },
+    });
+
+    const selectResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        scenario.session.state!.activeEffect!.id,
+        topCards[0]!.instanceId
+      )
+    );
+    expect(selectResult.success).toBe(true);
+    const revealConfirmResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+    );
+    expect(revealConfirmResult.success).toBe(true);
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
+      metadata: { movedCardIds: [discardCard.instanceId] },
+    });
+
+    declineAuto(scenario);
+    const remainderCardIds = topCards.slice(1).map((card) => card.instanceId);
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
+      metadata: { movedCardIds: remainderCardIds },
+      selectableCardIds: remainderCardIds,
     });
   });
 

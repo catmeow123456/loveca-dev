@@ -95,13 +95,20 @@ export function registerWaitDiscardLookTopSelectToHandWorkflowHandlers(deps: {
           game,
           input.selectedCardId ?? null,
           input.selectedCardIds,
-          context
+          {
+            continuePendingCardEffects: context.continuePendingCardEffects,
+            enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+          }
         )
     );
     registerActiveEffectStepHandler(
       config.abilityId,
       DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
-      (game, _input, context) => finishRevealedLookTopSelectToHandWorkflow(game, context)
+      (game, _input, context) =>
+        finishRevealedLookTopSelectToHandWorkflow(game, {
+          continuePendingCardEffects: context.continuePendingCardEffects,
+          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+        })
     );
   }
 }
@@ -265,6 +272,7 @@ function startInspectionAfterWaitDiscardCost(
     {
       orderedResolution: effect.metadata?.orderedResolution === true,
       continuePendingCardEffects,
+      enqueueTriggeredCardEffects,
     }
   );
 }

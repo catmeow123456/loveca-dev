@@ -4,14 +4,9 @@ import {
   emitGameEvent,
   getCardById,
   getPlayerById,
-  updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import {
-  addCardToZone,
-  placeCardInSlot,
-} from '../../../../domain/entities/zone.js';
 import {
   createEnterStageEvent,
   type EnterStageEvent,
@@ -19,13 +14,11 @@ import {
 } from '../../../../domain/events/game-events.js';
 import {
   CardType,
-  FaceState,
-  OrientationState,
   SlotPosition,
   TriggerCondition,
   ZoneType,
 } from '../../../../shared/types/enums.js';
-import { clearInspectionCards, inspectTopCards } from '../../../effects/look-top.js';
+import { inspectTopCards } from '../../../effects/look-top.js';
 import {
   and,
   costLte,
@@ -41,6 +34,11 @@ import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { getNewEnterStageEvents } from '../../runtime/events.js';
+import {
+  moveInspectedCardsToWaitingRoomAndEnqueueTriggers,
+  moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers,
+  moveInspectedSelectionToStageRestToWaitingRoomAndEnqueueTriggers,
+} from '../../runtime/inspection-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -106,7 +104,8 @@ export function registerSpPb2001KanonWorkflowHandlers(deps: {
       finishInspectedMemberSelection(
         game,
         input.selectedCardId ?? null,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
   );
   registerActiveEffectStepHandler(
@@ -116,7 +115,8 @@ export function registerSpPb2001KanonWorkflowHandlers(deps: {
       finishDestinationSelection(
         game,
         input.selectedOptionId ?? null,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
   );
   registerActiveEffectStepHandler(
@@ -223,10 +223,11 @@ function startInspectionAfterDiscard(
   }
 
   if (inspection.inspectedCardIds.length === 0 || inspection.selectableCardIds.length === 0) {
-    const moveResult = moveInspectedCardsToWaitingRoom(
+    const moveResult = moveInspectedCardsToWaitingRoomAndEnqueueTriggers(
       inspection.gameState,
       player.id,
-      inspection.inspectedCardIds
+      inspection.inspectedCardIds,
+      enqueueTriggeredCardEffects
     );
     if (!moveResult) {
       return game;
@@ -242,7 +243,7 @@ function startInspectionAfterDiscard(
             : 'NO_LOW_COST_LIELLA_MEMBER_TARGET',
         discardCardId,
         inspectedCardIds: inspection.inspectedCardIds,
-        waitingRoomCardIds: moveResult.movedCardIds,
+        waitingRoomCardIds: moveResult.waitingRoomCardIds,
       }),
       effect.metadata?.orderedResolution === true
     );
@@ -291,7 +292,8 @@ function startInspectionAfterDiscard(
 function finishInspectedMemberSelection(
   game: GameState,
   selectedCardId: string | null,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
   const effect = game.activeEffect;
   if (!effect || effect.stepId !== SELECT_INSPECTED_MEMBER_STEP_ID) {
@@ -304,7 +306,12 @@ function finishInspectedMemberSelection(
   const inspectedCardIds = effect.inspectionCardIds ?? [];
 
   if (selectedCardId === null) {
-    const moveResult = moveInspectedCardsToWaitingRoom(game, player.id, inspectedCardIds);
+    const moveResult = moveInspectedCardsToWaitingRoomAndEnqueueTriggers(
+      game,
+      player.id,
+      inspectedCardIds,
+      enqueueTriggeredCardEffects
+    );
     if (!moveResult) {
       return game;
     }
@@ -315,7 +322,7 @@ function finishInspectedMemberSelection(
         sourceCardId: effect.sourceCardId,
         step: 'NO_SELECTION_MOVE_INSPECTED_TO_WAITING_ROOM',
         inspectedCardIds,
-        waitingRoomCardIds: moveResult.movedCardIds,
+        waitingRoomCardIds: moveResult.waitingRoomCardIds,
       }),
       effect.metadata?.orderedResolution === true
     );
@@ -342,6 +349,7 @@ function finishInspectedMemberSelection(
       player.id,
       selectedCardId,
       continuePendingCardEffects,
+      enqueueTriggeredCardEffects,
       'ADD_SELECTED_MEMBER_TO_HAND_NO_EMPTY_SLOT'
     );
   }
@@ -390,7 +398,8 @@ function finishInspectedMemberSelection(
 function finishDestinationSelection(
   game: GameState,
   selectedOptionId: string | null,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
   const effect = game.activeEffect;
   if (!effect || effect.stepId !== SELECT_DESTINATION_STEP_ID) {
@@ -415,6 +424,7 @@ function finishDestinationSelection(
       player.id,
       selectedCardId,
       continuePendingCardEffects,
+      enqueueTriggeredCardEffects,
       'ADD_SELECTED_MEMBER_TO_HAND'
     );
   }
@@ -431,6 +441,7 @@ function finishDestinationSelection(
       player.id,
       selectedCardId,
       continuePendingCardEffects,
+      enqueueTriggeredCardEffects,
       'ADD_SELECTED_MEMBER_TO_HAND_NO_EMPTY_SLOT'
     );
   }
@@ -489,7 +500,13 @@ function finishPlaySelectedMemberToSlot(
     return game;
   }
 
-  const playResult = playInspectedMemberToEmptySlot(game, player.id, selectedCardId, selectedSlot);
+  const playResult = playInspectedMemberToEmptySlot(
+    game,
+    player.id,
+    selectedCardId,
+    selectedSlot,
+    enqueueTriggeredCardEffects
+  );
   if (!playResult) {
     return game;
   }
@@ -531,14 +548,16 @@ function moveSelectedInspectedMemberToHandAndFinish(
   playerId: string,
   selectedCardId: string,
   continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
   step: string
 ): GameState {
   const inspectedCardIds = effect.inspectionCardIds ?? [];
-  const moveResult = moveInspectedSelectedCardToHandRestToWaitingRoom(
+  const moveResult = moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers(
     game,
     playerId,
     inspectedCardIds,
-    selectedCardId
+    selectedCardId,
+    enqueueTriggeredCardEffects
   );
   if (!moveResult) {
     return game;
@@ -558,38 +577,12 @@ function moveSelectedInspectedMemberToHandAndFinish(
   );
 }
 
-function moveInspectedSelectedCardToHandRestToWaitingRoom(
-  game: GameState,
-  playerId: string,
-  inspectedCardIds: readonly string[],
-  selectedCardId: string
-): { readonly gameState: GameState; readonly waitingRoomCardIds: readonly string[] } | null {
-  const player = getPlayerById(game, playerId);
-  if (
-    !player ||
-    !inspectedCardIds.includes(selectedCardId) ||
-    !game.inspectionZone.cardIds.includes(selectedCardId)
-  ) {
-    return null;
-  }
-  const waitingRoomCardIds = inspectedCardIds.filter((cardId) => cardId !== selectedCardId);
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    hand: addCardToZone(currentPlayer.hand, selectedCardId),
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...waitingRoomCardIds],
-    },
-  }));
-  state = clearInspectionCards(state, inspectedCardIds);
-  return { gameState: state, waitingRoomCardIds };
-}
-
 function playInspectedMemberToEmptySlot(
   game: GameState,
   playerId: string,
   selectedCardId: string,
-  selectedSlot: SlotPosition
+  selectedSlot: SlotPosition,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): { readonly gameState: GameState; readonly waitingRoomCardIds: readonly string[] } | null {
   const player = getPlayerById(game, playerId);
   const card = getCardById(game, selectedCardId);
@@ -608,22 +601,19 @@ function playInspectedMemberToEmptySlot(
   if (!inspectedCardIds.includes(selectedCardId)) {
     return null;
   }
-  const waitingRoomCardIds = inspectedCardIds.filter((cardId) => cardId !== selectedCardId);
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...waitingRoomCardIds],
-    },
-    memberSlots: placeCardInSlot(currentPlayer.memberSlots, selectedSlot, selectedCardId, {
-      orientation: OrientationState.ACTIVE,
-      face: FaceState.FACE_UP,
-    }),
-    movedToStageThisTurn: [...currentPlayer.movedToStageThisTurn, selectedCardId],
-  }));
-  state = clearInspectionCards(state, inspectedCardIds);
-  state = emitGameEvent(
-    state,
+  const moveResult = moveInspectedSelectionToStageRestToWaitingRoomAndEnqueueTriggers(
+    game,
+    player.id,
+    inspectedCardIds,
+    selectedCardId,
+    selectedSlot,
+    enqueueTriggeredCardEffects
+  );
+  if (!moveResult) {
+    return null;
+  }
+  const state = emitGameEvent(
+    moveResult.gameState,
     createEnterStageEvent(
       selectedCardId,
       ZoneType.INSPECTION_ZONE,
@@ -632,30 +622,7 @@ function playInspectedMemberToEmptySlot(
       player.id
     )
   );
-  return { gameState: state, waitingRoomCardIds };
-}
-
-function moveInspectedCardsToWaitingRoom(
-  game: GameState,
-  playerId: string,
-  inspectedCardIds: readonly string[]
-): { readonly gameState: GameState; readonly movedCardIds: readonly string[] } | null {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return null;
-  }
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...inspectedCardIds],
-    },
-  }));
-  state = clearInspectionCards(state, inspectedCardIds);
-  return {
-    gameState: state,
-    movedCardIds: inspectedCardIds,
-  };
+  return { gameState: state, waitingRoomCardIds: moveResult.waitingRoomCardIds };
 }
 
 function getEmptyMemberSlots(game: GameState, playerId: string): readonly SlotPosition[] {

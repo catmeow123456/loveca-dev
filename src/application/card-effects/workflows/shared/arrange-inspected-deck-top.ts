@@ -18,6 +18,8 @@ import {
   type PendingAbilityStarterOptions,
 } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { enqueueInspectionCardsEnteredWaitingRoom } from '../../runtime/inspection-waiting-room-triggers.js';
 import {
   getAbilityEffectText,
   maybeStartConfirmablePendingAbilityConfirmation,
@@ -142,7 +144,9 @@ const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedD
   },
 ];
 
-export function registerArrangeInspectedDeckTopWorkflowHandlers(): void {
+export function registerArrangeInspectedDeckTopWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   for (const config of ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
       startArrangeInspectedDeckTopWorkflow(
@@ -174,7 +178,8 @@ export function registerArrangeInspectedDeckTopWorkflowHandlers(): void {
       finishArrangeInspectedDeckTopWorkflow(
         game,
         input.selectedCardIds ?? [],
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
     );
   }
@@ -304,7 +309,8 @@ export function startArrangeInspectedDeckTopWorkflow(
 export function finishArrangeInspectedDeckTopWorkflow(
   game: GameState,
   selectedCardIds: readonly string[],
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -359,6 +365,14 @@ export function finishArrangeInspectedDeckTopWorkflow(
   }));
 
   state = clearInspectionCards({ ...state, activeEffect: null }, inspectedCardIds);
+  if (effect.metadata?.unselectedDestination === 'WAITING_ROOM') {
+    state = enqueueInspectionCardsEnteredWaitingRoom(
+      state,
+      player.id,
+      unselectedCardIds,
+      enqueueTriggeredCardEffects
+    );
+  }
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,

@@ -3,7 +3,6 @@ import {
   addAction,
   getCardById,
   getPlayerById,
-  updatePlayer,
   type ActiveEffectState,
   type GameState,
 } from '../../../../domain/entities/game.js';
@@ -21,13 +20,14 @@ import {
   getAbilityEffectText,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
+import { moveInspectedCardsToHandRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import {
   payImmediateEffectCosts,
   type EffectCostDefinition,
 } from '../../../effects/effect-costs.js';
-import { clearInspectionCards, inspectTopCards } from '../../../effects/look-top.js';
+import { inspectTopCards } from '../../../effects/look-top.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -68,7 +68,8 @@ export function registerBp5003KotoriWorkflowHandlers(deps: {
       finishBp5003KotoriTakeTopCards(
         game,
         input.selectedCardIds ?? [],
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
   );
   registerActiveEffectStepHandler(
@@ -303,7 +304,8 @@ function startBp5003KotoriLookTopFour(
 function finishBp5003KotoriTakeTopCards(
   game: GameState,
   selectedCardIds: readonly string[],
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (
@@ -332,21 +334,17 @@ function finishBp5003KotoriTakeTopCards(
     return game;
   }
 
-  const waitingRoomCardIds = inspectedCardIds.filter(
-    (cardId) => !uniqueSelectedCardIds.includes(cardId)
+  const moveResult = moveInspectedCardsToHandRestToWaitingRoomAndEnqueueTriggers(
+    game,
+    player.id,
+    inspectedCardIds,
+    uniqueSelectedCardIds,
+    enqueueTriggeredCardEffects
   );
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    hand: {
-      ...currentPlayer.hand,
-      cardIds: [...currentPlayer.hand.cardIds, ...uniqueSelectedCardIds],
-    },
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...waitingRoomCardIds],
-    },
-  }));
-  state = clearInspectionCards({ ...state, activeEffect: null }, inspectedCardIds);
+  if (!moveResult) {
+    return game;
+  }
+  const state = { ...moveResult.gameState, activeEffect: null };
 
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
@@ -355,7 +353,7 @@ function finishBp5003KotoriTakeTopCards(
       sourceCardId: effect.sourceCardId,
       step: 'TAKE_TWO_FROM_TOP_FOUR',
       selectedCardIds: uniqueSelectedCardIds,
-      waitingRoomCardIds,
+      waitingRoomCardIds: moveResult.waitingRoomCardIds,
       discardCardId: effect.metadata?.discardCardId,
       paidEnergyCardIds: effect.metadata?.paidEnergyCardIds,
     }),

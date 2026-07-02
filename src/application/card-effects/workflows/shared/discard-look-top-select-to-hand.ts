@@ -148,13 +148,20 @@ export function registerDiscardLookTopSelectToHandWorkflowHandlers(deps: {
           game,
           input.selectedCardId ?? null,
           input.selectedCardIds,
-          context
+          {
+            continuePendingCardEffects: context.continuePendingCardEffects,
+            enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+          }
         )
     );
     registerActiveEffectStepHandler(
       abilityId,
       DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
-      (game, _input, context) => finishRevealedLookTopSelectToHandWorkflow(game, context)
+      (game, _input, context) =>
+        finishRevealedLookTopSelectToHandWorkflow(game, {
+          continuePendingCardEffects: context.continuePendingCardEffects,
+          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+        })
     );
   }
 }
@@ -288,6 +295,7 @@ function startDiscardLookTopInspection(
     {
       orderedResolution: metadata.orderedResolution,
       continuePendingCardEffects,
+      enqueueTriggeredCardEffects,
     }
   );
 }

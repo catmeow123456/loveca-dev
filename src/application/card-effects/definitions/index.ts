@@ -3134,9 +3134,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     perTurnLimit: 1,
+    countPendingAsTurnUse: false,
     effectText: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_EFFECT_TEXT,
     notes:
-      '单卡 AUTO workflow；ON_ENTER_WAITING_ROOM 入队依赖 definition 的 triggerFromZones/triggerToZones 通用匹配，不接 trigger matcher T-2。只在自己的 main phase 消费 pending，支付1张活跃能量后只能从本次事件 metadata.movedCardIds 中仍在自己休息室的卡选择1张加入手牌；decline、能量不足或无合法候选均安全消费 pending。',
+      '单卡 AUTO workflow；ON_ENTER_WAITING_ROOM 入队依赖 definition 的 triggerFromZones/triggerToZones 通用匹配，不接 trigger matcher T-2。只在自己的 main phase 消费 pending，pending/active 不预占 turn1，只有实际支付1张活跃能量后记录使用；只能从本次事件 metadata.movedCardIds 中仍在自己休息室的卡选择1张加入手牌；decline、能量不足或无合法候选均安全消费 pending。',
   },
   {
     abilityId: SP_BP5_009_LIVE_START_REPEAT_MILL_GAIN_BLADE_WAIT_IF_LIVE_ABILITY_ID,
