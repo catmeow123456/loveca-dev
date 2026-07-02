@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：权威对局状态、命令处理、玩家视图投影、卡效队列、LIVE 判定、联机同步、对局记录与回放的运行时链路
 > 当前状态：当前实现基线；字段级 schema 以代码类型、`src/server/db/schema.ts` 和专题文档为准
-> 最后更新：2026-07-02
+> 最后更新：2026-07-03
 
 ## 1. 文档边界
 
@@ -208,11 +208,19 @@ sequenceDiagram
 6. 正式联机是否追加了 recorder frame，是否需要 checkpoint。
 7. `PlayerViewState` 是否正确隐藏私密信息并暴露必要 UI 提示。
 
-运行中同步的分工：
+运行中同步的当前设计：
 
-- `OnlineMatchSnapshot` / `PlayerViewState` 只表达当前玩家此刻能看到和能操作的视图，不携带完整公共事件流。
-- 正式联机与服务端可记录对墙打通过独立公共事件接口读取对局日志增量：`/api/online/matches/:matchId/public-events` 与 `/api/battle/solitaire-matches/:matchId/public-events`，游标为 `afterSeq`。
+- 正式联机与服务端可记录对墙打的 `OnlineMatchSnapshot` / `PlayerViewState` 只表达当前玩家此刻能看到和能操作的视图，不携带完整公共事件流。
+- 公共对局日志以独立公共事件接口为当前权威增量通道：`/api/online/matches/:matchId/public-events` 与 `/api/battle/solitaire-matches/:matchId/public-events`，游标为 `afterSeq`。
+- 调试联机历史快照 `DebugMatchSnapshot` 仍可携带全量 `publicEvents` / `privateEvents` / `snapshots`，服务于调试与本地回放，不代表正式联机 snapshot 的数据契约。
+- 前端当前会在应用远端 snapshot 后同步公共事件增量；这是“视图状态”和“日志事实”两条通道并行的保守实现，公共日志合并以 `PublicEvent.seq` 去重和排序。
 - `PublicEvent` 面向双方可见事实，公开卡牌只携带 `publicObjectId + cardCode`，卡名、类型和图片由前端当前卡表派生；未公开移动只记录数量，避免把隐藏区卡牌身份放进事件载荷。
+
+未来优化方向：
+
+- 为正式联机与对墙打 snapshot / not-modified 响应增加 `currentPublicSeq`，前端只有在本地公共日志 cursor 落后时才拉取 `/public-events`，避免每次高频 snapshot 轮询都伴随一次日志请求。
+- 若后续选择让 snapshot 携带公共事件窗口，必须明确窗口完整性和 cursor 语义，并移除同一场景下的无条件 `/public-events` 回退，避免两个权威增量源并存。
+- 若切到 SSE / WebSocket 推送，snapshot 继续负责当前视图复水，公共事件流负责日志增量；断线重连时仍通过 `afterSeq` 拉取缺口。
 
 ## 4. 卡效链路
 

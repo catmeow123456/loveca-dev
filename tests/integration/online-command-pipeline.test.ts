@@ -59,6 +59,7 @@ import {
 import { createGameSession } from '../../src/application/game-session';
 import { createPublicObjectId } from '../../src/online/projector';
 import { fromTransport, toTransport } from '../../src/online/serde';
+import type { PublicEvent, PublicZoneRef } from '../../src/online/types';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -123,6 +124,38 @@ function forceMainPhaseForPlayer(
   state.currentSubPhase = SubPhase.NONE;
   state.activePlayerIndex = activePlayerIndex;
   state.waitingPlayerId = null;
+}
+
+function expectNoDuplicateCardMoveEvents(events: readonly PublicEvent[]): void {
+  const seenSeqByKey = new Map<string, number>();
+
+  for (const event of events) {
+    if (event.type !== 'CardMovedPublic' && event.type !== 'CardRevealedAndMoved') {
+      continue;
+    }
+    if (!event.card) {
+      continue;
+    }
+
+    const key = [
+      event.card.publicObjectId,
+      formatMoveDedupeZone(event.from),
+      formatMoveDedupeZone(event.to),
+    ].join('|');
+    const previousSeq = seenSeqByKey.get(key);
+    if (previousSeq !== undefined) {
+      throw new Error(`重复公开移动事件: ${key} firstSeq=${previousSeq} duplicateSeq=${event.seq}`);
+    }
+    seenSeqByKey.set(key, event.seq);
+  }
+}
+
+function formatMoveDedupeZone(ref?: PublicZoneRef): string {
+  if (!ref) {
+    return 'NONE';
+  }
+
+  return [ref.zone, ref.ownerSeat ?? '', ref.slot ?? ''].join(':');
 }
 
 function getEnabledCommand(
@@ -1035,15 +1068,16 @@ describe('GameSession command pipeline', () => {
     expect(session.state?.players[0].energyZone.cardIds).toContain(topEnergyCardId);
 
     const events = session.getPublicEventsSince(beforeSeq);
+    expectNoDuplicateCardMoveEvents(events);
     expect(
-      events.some(
+      events.filter(
         (event) =>
           event.type === 'CardMovedPublic' &&
           event.card?.publicObjectId === createPublicObjectId(topEnergyCardId!) &&
           event.from?.zone === ZoneType.ENERGY_DECK &&
           event.to?.zone === ZoneType.ENERGY_ZONE
       )
-    ).toBe(true);
+    ).toHaveLength(1);
   });
 
   it('能量区中的能量可以通过专用命令随时拖回能量卡组', () => {
@@ -1073,15 +1107,24 @@ describe('GameSession command pipeline', () => {
     expect(session.state?.players[0].energyDeck.cardIds[0]).toBe(energyCardId);
 
     const events = session.getPublicEventsSince(beforeSeq);
+    expectNoDuplicateCardMoveEvents(events);
     expect(
-      events.some(
+      events.filter(
         (event) =>
           event.type === 'CardMovedPublic' &&
           event.card?.publicObjectId === createPublicObjectId(energyCardId!) &&
           event.from?.zone === ZoneType.ENERGY_ZONE &&
           event.to?.zone === ZoneType.ENERGY_DECK
       )
-    ).toBe(true);
+    ).toHaveLength(1);
+    expect(
+      events.filter(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.from?.zone === ZoneType.ENERGY_ZONE &&
+          event.to?.zone === ZoneType.ENERGY_ZONE
+      )
+    ).toHaveLength(0);
     expect(
       events.some(
         (event) =>

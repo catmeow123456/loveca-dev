@@ -4783,8 +4783,8 @@ function getPublicMoveEventKey(event: PublicEventDraft): string | null {
 
   return [
     card.publicObjectId,
-    formatPublicZoneRefKey(event.from),
-    formatPublicZoneRefKey(event.to),
+    formatPublicZoneRefKey(event.from, { includeIndex: false }),
+    formatPublicZoneRefKey(event.to, { includeIndex: false }),
   ].join('|');
 }
 
@@ -4922,7 +4922,7 @@ function shouldEmitSystemMoveEvent(
   previousLocation: EventCardLocation,
   nextLocation: EventCardLocation
 ): boolean {
-  if (areZoneRefsEqual(previousLocation.ref, nextLocation.ref)) {
+  if (areZoneRefsSameLogicalLocation(previousLocation.ref, nextLocation.ref)) {
     return false;
   }
 
@@ -4941,14 +4941,16 @@ function sanitizeSystemZoneRef(location: EventCardLocation): PublicZoneRef {
   };
 }
 
-function areZoneRefsEqual(left: PublicZoneRef, right: PublicZoneRef): boolean {
-  return (
-    left.zone === right.zone &&
-    left.ownerSeat === right.ownerSeat &&
-    left.slot === right.slot &&
-    left.index === right.index &&
-    left.overlayIndex === right.overlayIndex
-  );
+function areZoneRefsSameLogicalLocation(left: PublicZoneRef, right: PublicZoneRef): boolean {
+  if (left.zone !== right.zone || left.ownerSeat !== right.ownerSeat || left.slot !== right.slot) {
+    return false;
+  }
+
+  if (left.zone === ZoneType.MEMBER_SLOT) {
+    return (left.overlayIndex === undefined) === (right.overlayIndex === undefined);
+  }
+
+  return true;
 }
 
 function deriveWindowStatus(
