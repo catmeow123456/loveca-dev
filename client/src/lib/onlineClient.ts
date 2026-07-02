@@ -10,10 +10,11 @@ import type {
   MatchRecordTimelineView,
   OnlineAdminRoomSummary,
   OnlineCommandResult,
+  OpeningRpsGesture,
+  OpeningTurnOrderChoice,
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
   OnlineRoomView,
-  TurnOrderProposalMode,
 } from '@game/online';
 import { toTransport } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
@@ -60,30 +61,50 @@ export async function lockOnlineRoomDeck(
   return response.data;
 }
 
-export async function proposeTurnOrder(
-  roomCode: string,
-  proposal: TurnOrderProposalMode
-): Promise<OnlineRoomView> {
+export async function readyOnlineRoomStart(roomCode: string): Promise<OnlineRoomView> {
   const response = await apiClient.post<OnlineRoomView>(
-    `/api/online/rooms/${encodeURIComponent(roomCode)}/turn-order-proposal`,
-    { proposal }
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/ready-start`
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '提交先后手提议失败');
+    throw new Error(response.error?.message ?? '准备开始失败');
   }
   return response.data;
 }
 
-export async function respondTurnOrder(
+export async function submitOnlineOpeningRps(
   roomCode: string,
-  accepted: boolean
+  gesture: OpeningRpsGesture
 ): Promise<OnlineRoomView> {
   const response = await apiClient.post<OnlineRoomView>(
-    `/api/online/rooms/${encodeURIComponent(roomCode)}/turn-order-response`,
-    { accepted }
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/opening-rps`,
+    { gesture }
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '响应先后手提议失败');
+    throw new Error(response.error?.message ?? '提交猜拳失败');
+  }
+  return response.data;
+}
+
+export async function replayOnlineOpeningRps(roomCode: string): Promise<OnlineRoomView> {
+  const response = await apiClient.post<OnlineRoomView>(
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/opening-rps/replay`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '重新猜拳失败');
+  }
+  return response.data;
+}
+
+export async function chooseOnlineOpeningTurnOrder(
+  roomCode: string,
+  choice: OpeningTurnOrderChoice
+): Promise<OnlineRoomView> {
+  const response = await apiClient.post<OnlineRoomView>(
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/opening-turn-order`,
+    { choice }
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '选择先后手失败');
   }
   return response.data;
 }

@@ -116,6 +116,24 @@ function createInMemoryMatchService(): OnlineMatchService {
   return new OnlineMatchService({ recorder: null });
 }
 
+async function startRoomThroughOpening(
+  service: OnlineRoomService,
+  roomCode: string,
+  hostUserId: string,
+  guestUserId: string,
+  firstUserId: string
+) {
+  if (firstUserId !== hostUserId && firstUserId !== guestUserId) {
+    throw new Error('firstUserId must be one of the room members');
+  }
+  const secondUserId = firstUserId === hostUserId ? guestUserId : hostUserId;
+  await service.markReadyToStart(roomCode, hostUserId);
+  await service.markReadyToStart(roomCode, guestUserId);
+  await service.submitOpeningRps(roomCode, firstUserId, 'ROCK');
+  await service.submitOpeningRps(roomCode, secondUserId, 'SCISSORS');
+  return service.chooseOpeningTurnOrder(roomCode, firstUserId, 'SELF_FIRST');
+}
+
 function forceMainPhaseForFirst(match: OnlineMatchState): void {
   const state = match.session.state as {
     currentPhase: GamePhase;
@@ -193,7 +211,7 @@ function createTestRecorder(overrides: Partial<TestRecorder> = {}): TestRecorder
 }
 
 describe('OnlineRoomService', () => {
-  it('应完成正式房间准备流程并在接受提议后生成联机对局', async () => {
+  it('应完成正式房间开局流程并生成联机对局', async () => {
     const matchService = createInMemoryMatchService();
     const service = new OnlineRoomService({
       matchService,
@@ -219,11 +237,7 @@ describe('OnlineRoomService', () => {
     await service.lockDeck('ROOM9', 'u1', 'deck-a');
     await service.lockDeck('ROOM9', 'u2', 'deck-b');
 
-    const proposed = await service.proposeTurnOrder('ROOM9', 'u1', 'HOST_SECOND');
-    expect(proposed.status).toBe('READY');
-    expect(proposed.turnOrderProposal?.proposal).toBe('HOST_SECOND');
-
-    const started = await service.respondTurnOrder('ROOM9', 'u2', true);
+    const started = await startRoomThroughOpening(service, 'ROOM9', 'u1', 'u2', 'u2');
     expect(started.status).toBe('IN_GAME');
     expect(started.matchId).toBeTruthy();
     expect(started.currentUserSeat).toBe('FIRST');
@@ -269,7 +283,119 @@ describe('OnlineRoomService', () => {
     expect(commandRoundTrip.snapshot?.playerViewState.match.viewerSeat).toBe('FIRST');
   });
 
-  it('重开请求应在对手同意后封存旧对局并创建新对局', async () => {
+  it('双方准备开始后应进入开局猜拳，由胜者决定先后手后生成联机对局', async () => {
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      matchService,
+      loadUserProfile: async (userId) => ({
+        userId,
+        displayName: userId === 'u1' ? 'Alpha' : 'Beta',
+      }),
+      loadOwnedDeck: async (userId, deckId) => ({
+        deckId,
+        deckName: `${userId}-${deckId}`,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('rps1', 'u1');
+    await service.joinRoom('rps1', 'u2');
+    await service.lockDeck('rps1', 'u1', 'deck-a');
+    await service.lockDeck('rps1', 'u2', 'deck-b');
+
+    const hostReady = await service.markReadyToStart('rps1', 'u1');
+    expect(hostReady.status).toBe('READY');
+    expect(hostReady.members.find((member) => member.userId === 'u1')?.startReady).toBe(true);
+    expect(hostReady.openingRps).toBeNull();
+
+    const opening = await service.markReadyToStart('rps1', 'u2');
+    expect(opening.status).toBe('OPENING');
+    expect(opening.openingRps).toMatchObject({
+      round: 1,
+      revealed: false,
+      winnerUserId: null,
+    });
+
+    const hostSubmitted = await service.submitOpeningRps('rps1', 'u1', 'ROCK');
+    expect(hostSubmitted.openingRps?.choices).toEqual([
+      { userId: 'u1', selected: true, gesture: 'ROCK' },
+      { userId: 'u2', selected: false, gesture: null },
+    ]);
+
+    const guestViewAfterHostSubmit = await service.getRoomView('rps1', 'u2');
+    expect(guestViewAfterHostSubmit.openingRps?.choices).toEqual([
+      { userId: 'u1', selected: true, gesture: null },
+      { userId: 'u2', selected: false, gesture: null },
+    ]);
+
+    const revealed = await service.submitOpeningRps('rps1', 'u2', 'SCISSORS');
+    expect(revealed.openingRps).toMatchObject({
+      revealed: true,
+      winnerUserId: 'u1',
+      chooserUserId: 'u1',
+    });
+    expect(revealed.matchId).toBeNull();
+
+    await expect(
+      service.chooseOpeningTurnOrder('rps1', 'u2', 'SELF_FIRST')
+    ).rejects.toMatchObject({
+      code: 'ONLINE_OPENING_FORBIDDEN',
+      statusCode: 403,
+    });
+
+    const started = await service.chooseOpeningTurnOrder('rps1', 'u1', 'SELF_SECOND');
+    expect(started.status).toBe('IN_GAME');
+    expect(started.matchId).toBeTruthy();
+    expect(started.currentUserSeat).toBe('SECOND');
+    expect(started.openingRps).toBeNull();
+
+    const snapshot = await matchService.getMatchSnapshot(started.matchId!, 'u2');
+    expect(snapshot?.seat).toBe('FIRST');
+    expect(snapshot?.playerViewState.match.viewerSeat).toBe('FIRST');
+  });
+
+  it('开局猜拳平局时应允许重开下一轮', async () => {
+    const service = new OnlineRoomService({
+      matchService: createInMemoryMatchService(),
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (_userId, deckId) => ({
+        deckId,
+        deckName: deckId,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('draw1', 'u1');
+    await service.joinRoom('draw1', 'u2');
+    await service.lockDeck('draw1', 'u1', 'deck-a');
+    await service.lockDeck('draw1', 'u2', 'deck-b');
+    await service.markReadyToStart('draw1', 'u1');
+    await service.markReadyToStart('draw1', 'u2');
+    await service.submitOpeningRps('draw1', 'u1', 'PAPER');
+    const draw = await service.submitOpeningRps('draw1', 'u2', 'PAPER');
+
+    expect(draw.openingRps).toMatchObject({
+      round: 1,
+      revealed: true,
+      winnerUserId: null,
+      chooserUserId: null,
+    });
+
+    const nextRound = await service.replayOpeningRps('draw1', 'u1');
+    expect(nextRound.openingRps).toEqual({
+      round: 2,
+      choices: [
+        { userId: 'u1', selected: false, gesture: null },
+        { userId: 'u2', selected: false, gesture: null },
+      ],
+      revealed: false,
+      winnerUserId: null,
+      chooserUserId: null,
+      revealedAt: null,
+    });
+  });
+
+  it('重开请求应在对手同意后封存旧对局并回到开局猜拳', async () => {
     let now = 4_000_000;
     const recorder = createTestRecorder();
     const matchService = new OnlineMatchService({ now: () => now, recorder });
@@ -291,8 +417,7 @@ describe('OnlineRoomService', () => {
     await service.joinRoom('again1', 'u2');
     await service.lockDeck('again1', 'u1', 'deck-a');
     await service.lockDeck('again1', 'u2', 'deck-b');
-    await service.proposeTurnOrder('again1', 'u1', 'HOST_FIRST');
-    const started = await service.respondTurnOrder('again1', 'u2', true);
+    const started = await startRoomThroughOpening(service, 'again1', 'u1', 'u2', 'u1');
     const previousMatchId = started.matchId!;
 
     now += 1_000;
@@ -310,13 +435,16 @@ describe('OnlineRoomService', () => {
       requested.restartRequest!.requestId
     );
 
-    expect(restarted.status).toBe('IN_GAME');
+    expect(restarted.status).toBe('OPENING');
     expect(restarted.restartRequest).toBeNull();
-    expect(restarted.matchId).toBeTruthy();
-    expect(restarted.matchId).not.toBe(previousMatchId);
-    expect(restarted.currentUserSeat).toBe('SECOND');
+    expect(restarted.matchId).toBeNull();
+    expect(restarted.currentUserSeat).toBeUndefined();
+    expect(restarted.openingRps).toMatchObject({
+      round: 1,
+      revealed: false,
+      winnerUserId: null,
+    });
     expect(matchService.getMatch(previousMatchId)).toBeNull();
-    expect(matchService.getMatch(restarted.matchId!)).not.toBeNull();
     expect(recorder.sealMatch).toHaveBeenCalledWith(
       expect.objectContaining({
         matchId: previousMatchId,
@@ -326,9 +454,14 @@ describe('OnlineRoomService', () => {
       })
     );
 
-    const snapshot = await matchService.getMatchSnapshot(restarted.matchId!, 'u2');
-    expect(snapshot?.matchId).toBe(restarted.matchId);
-    expect(snapshot?.seat).toBe('SECOND');
+    await service.submitOpeningRps('again1', 'u1', 'ROCK');
+    const rpsDone = await service.submitOpeningRps('again1', 'u2', 'SCISSORS');
+    expect(rpsDone.openingRps?.winnerUserId).toBe('u1');
+    const newMatch = await service.chooseOpeningTurnOrder('again1', 'u1', 'SELF_FIRST');
+    expect(newMatch.status).toBe('IN_GAME');
+    expect(newMatch.matchId).toBeTruthy();
+    expect(newMatch.matchId).not.toBe(previousMatchId);
+    expect(matchService.getMatch(newMatch.matchId!)).not.toBeNull();
   });
 
   it('recorder 启动失败时不应进入 IN_GAME 或创建运行中 match', async () => {
@@ -352,11 +485,14 @@ describe('OnlineRoomService', () => {
     await service.joinRoom('recfail', 'u2');
     await service.lockDeck('recfail', 'u1', 'deck-a');
     await service.lockDeck('recfail', 'u2', 'deck-b');
-    await service.proposeTurnOrder('recfail', 'u1', 'HOST_FIRST');
+    await service.markReadyToStart('recfail', 'u1');
+    await service.markReadyToStart('recfail', 'u2');
+    await service.submitOpeningRps('recfail', 'u1', 'ROCK');
+    await service.submitOpeningRps('recfail', 'u2', 'SCISSORS');
 
     let startError: unknown;
     try {
-      await service.respondTurnOrder('recfail', 'u2', true);
+      await service.chooseOpeningTurnOrder('recfail', 'u1', 'SELF_FIRST');
     } catch (error) {
       startError = error;
     }
@@ -371,7 +507,8 @@ describe('OnlineRoomService', () => {
     });
 
     const room = await service.getRoomIfPresent('recfail');
-    expect(room?.status).toBe('READY');
+    expect(room?.status).toBe('OPENING');
+    expect(room?.openingRps?.winnerUserId).toBe('u1');
     expect(room?.matchId).toBeNull();
     expect(recorder.recordInitialCheckpoint).not.toHaveBeenCalled();
   });
@@ -1158,8 +1295,7 @@ describe('OnlineRoomService', () => {
     await service.joinRoom('seal1', 'u2');
     await service.lockDeck('seal1', 'u1', 'deck-a');
     await service.lockDeck('seal1', 'u2', 'deck-b');
-    await service.proposeTurnOrder('seal1', 'u1', 'HOST_FIRST');
-    const started = await service.respondTurnOrder('seal1', 'u2', true);
+    const started = await startRoomThroughOpening(service, 'seal1', 'u1', 'u2', 'u1');
     await service.leaveRoom('seal1', 'u1');
     await service.leaveRoom('seal1', 'u2');
 
@@ -1200,8 +1336,7 @@ describe('OnlineRoomService', () => {
     await service.joinRoom('sealx', 'u2');
     await service.lockDeck('sealx', 'u1', 'deck-a');
     await service.lockDeck('sealx', 'u2', 'deck-b');
-    await service.proposeTurnOrder('sealx', 'u1', 'HOST_FIRST');
-    const started = await service.respondTurnOrder('sealx', 'u2', true);
+    const started = await startRoomThroughOpening(service, 'sealx', 'u1', 'u2', 'u1');
     await service.leaveRoom('sealx', 'u1');
     await service.leaveRoom('sealx', 'u2');
 
@@ -1336,8 +1471,7 @@ describe('OnlineRoomService', () => {
     await service.joinRoom('rest1', 'u2');
     await service.lockDeck('rest1', 'u1', 'deck-a');
     await service.lockDeck('rest1', 'u2', 'deck-b');
-    await service.proposeTurnOrder('rest1', 'u1', 'HOST_FIRST');
-    const started = await service.respondTurnOrder('rest1', 'u2', true);
+    const started = await startRoomThroughOpening(service, 'rest1', 'u1', 'u2', 'u1');
 
     const left = await service.leaveRoom('rest1', 'u2');
     expect(left.room?.status).toBe('IN_GAME');
@@ -1402,8 +1536,7 @@ describe('OnlineRoomService', () => {
     await service.joinRoom('gone1', 'u2');
     await service.lockDeck('gone1', 'u1', 'deck-a');
     await service.lockDeck('gone1', 'u2', 'deck-b');
-    await service.proposeTurnOrder('gone1', 'u1', 'HOST_FIRST');
-    const started = await service.respondTurnOrder('gone1', 'u2', true);
+    const started = await startRoomThroughOpening(service, 'gone1', 'u1', 'u2', 'u1');
 
     now += 61_000;
 
@@ -1429,8 +1562,7 @@ describe('OnlineRoomService', () => {
     await service.joinRoom('live1', 'u2');
     await service.lockDeck('live1', 'u1', 'deck-a');
     await service.lockDeck('live1', 'u2', 'deck-b');
-    await service.proposeTurnOrder('live1', 'u1', 'HOST_FIRST');
-    const started = await service.respondTurnOrder('live1', 'u2', true);
+    const started = await startRoomThroughOpening(service, 'live1', 'u1', 'u2', 'u1');
 
     now += 61_000;
     await service.touchInGameMemberByMatch(started.matchId!, 'u1');
@@ -1459,8 +1591,7 @@ describe('OnlineRoomService', () => {
     await service.joinRoom('race1', 'u2');
     await service.lockDeck('race1', 'u1', 'deck-a');
     await service.lockDeck('race1', 'u2', 'deck-b');
-    await service.proposeTurnOrder('race1', 'u1', 'HOST_FIRST');
-    const started = await service.respondTurnOrder('race1', 'u2', true);
+    const started = await startRoomThroughOpening(service, 'race1', 'u1', 'u2', 'u1');
 
     now += 61_000;
 
@@ -1511,14 +1642,13 @@ describe('OnlineRoomService', () => {
     await service.joinRoom('ready1', 'u4');
     await service.lockDeck('ready1', 'u3', 'deck-c');
     await service.lockDeck('ready1', 'u4', 'deck-d');
-    await service.proposeTurnOrder('ready1', 'u3', 'HOST_FIRST');
+    await service.markReadyToStart('ready1', 'u3');
 
     await service.createRoom('game1', 'u5');
     await service.joinRoom('game1', 'u6');
     await service.lockDeck('game1', 'u5', 'deck-e');
     await service.lockDeck('game1', 'u6', 'deck-f');
-    await service.proposeTurnOrder('game1', 'u5', 'HOST_SECOND');
-    const started = await service.respondTurnOrder('game1', 'u6', true);
+    const started = await startRoomThroughOpening(service, 'game1', 'u5', 'u6', 'u6');
 
     now += 12_000;
 

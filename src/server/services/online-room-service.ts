@@ -1,15 +1,15 @@
 import type { DeckConfig as RuntimeDeckConfig } from '../../application/game-service.js';
 import { DeckLoader } from '../../domain/card-data/deck-loader.js';
 import type {
+  OpeningRpsGesture,
+  OpeningTurnOrderChoice,
   OnlineAdminRoomSummary,
+  OnlineOpeningRpsView,
   OnlineRestartRequestView,
   OnlineRoomMemberPresence,
   OnlineRoomMemberRole,
   OnlineRoomStatus,
   OnlineRoomView,
-  OnlineTurnOrderAgreementView,
-  OnlineTurnOrderProposalView,
-  TurnOrderProposalMode,
 } from '../../online/release-types.js';
 import type { Seat } from '../../online/types.js';
 import { pool } from '../db/pool.js';
@@ -37,12 +37,11 @@ interface OnlineRoomMemberState {
   lockedDeckName: string | null;
   resolvedDeckConfig: RuntimeDeckConfig | null;
   lockedDeckAt: number | null;
+  startReady: boolean;
   lastSeenAt: number;
 }
 
-type OnlineRoomTurnOrderProposalState = OnlineTurnOrderProposalView;
-
-type OnlineRoomTurnOrderAgreementState = OnlineTurnOrderAgreementView;
+type OnlineOpeningRpsState = OnlineOpeningRpsView;
 
 type OnlineRestartRequestState = OnlineRestartRequestView;
 
@@ -51,8 +50,7 @@ interface OnlineRoomState {
   status: OnlineRoomStatus;
   ownerUserId: string;
   readonly members: OnlineRoomMemberState[];
-  turnOrderProposal: OnlineRoomTurnOrderProposalState | null;
-  turnOrderAgreement: OnlineRoomTurnOrderAgreementState | null;
+  openingRps: OnlineOpeningRpsState | null;
   restartRequest: OnlineRestartRequestState | null;
   matchId: string | null;
   seatAssignments: Partial<Record<Seat, string>>;
@@ -138,11 +136,11 @@ export class OnlineRoomService {
           lockedDeckName: null,
           resolvedDeckConfig: null,
           lockedDeckAt: null,
+          startReady: false,
           lastSeenAt: now,
         },
       ],
-      turnOrderProposal: null,
-      turnOrderAgreement: null,
+      openingRps: null,
       restartRequest: null,
       matchId: null,
       seatAssignments: {},
@@ -163,7 +161,7 @@ export class OnlineRoomService {
       return this.buildRoomView(room, existingMember);
     }
 
-    if (room.status === 'IN_GAME') {
+    if (room.status === 'OPENING' || room.status === 'IN_GAME') {
       throw new OnlineRoomServiceError(
         'ONLINE_ROOM_FORBIDDEN',
         '该房间对局已开始，不能以新成员身份加入',
@@ -186,6 +184,7 @@ export class OnlineRoomService {
       lockedDeckName: null,
       resolvedDeckConfig: null,
       lockedDeckAt: null,
+      startReady: false,
       lastSeenAt: now,
     };
     room.members.push(member);
@@ -225,7 +224,7 @@ export class OnlineRoomService {
     await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
-    if (room.status === 'IN_GAME') {
+    if (room.status === 'OPENING' || room.status === 'IN_GAME') {
       throw new OnlineRoomServiceError(
         'ONLINE_ROOM_FORBIDDEN',
         '对局已开始，不能再修改已锁定卡组',
@@ -240,11 +239,13 @@ export class OnlineRoomService {
     member.lockedDeckName = deck.deckName;
     member.resolvedDeckConfig = deck.runtimeDeck;
     member.lockedDeckAt = this.now();
+    room.members.forEach((candidate) => {
+      candidate.startReady = false;
+    });
     member.presence = 'ACTIVE';
     member.lastSeenAt = member.lockedDeckAt;
 
-    room.turnOrderProposal = null;
-    room.turnOrderAgreement = null;
+    room.openingRps = null;
     room.restartRequest = null;
     room.status = 'PREPARING';
     touchRoom(room, member.lastSeenAt);
@@ -252,33 +253,83 @@ export class OnlineRoomService {
     return this.buildRoomView(room, member);
   }
 
-  async proposeTurnOrder(
+  async markReadyToStart(roomCodeInput: string, userId: string): Promise<OnlineRoomView> {
+    await this.cleanupExpiredState();
+
+    const room = this.getRoomState(roomCodeInput);
+    if (room.status === 'OPENING' || room.status === 'IN_GAME') {
+      throw new OnlineRoomServiceError(
+        'ONLINE_READY_FORBIDDEN',
+        '对局已开始，不能重复准备',
+        409
+      );
+    }
+
+    const member = this.requireMember(room, userId);
+    ensureBothDecksLocked(room);
+    ensureBothMembersActive(room);
+    const now = this.now();
+    member.startReady = true;
+    member.presence = 'ACTIVE';
+    member.lastSeenAt = now;
+    room.openingRps = null;
+    room.restartRequest = null;
+    room.status = room.members.every((candidate) => candidate.startReady) ? 'OPENING' : 'READY';
+    if (room.status === 'OPENING') {
+      room.openingRps = createOpeningRpsState(room, 1, now);
+    }
+    touchRoom(room, now);
+
+    return this.buildRoomView(room, member);
+  }
+
+  async submitOpeningRps(
     roomCodeInput: string,
     userId: string,
-    proposal: TurnOrderProposalMode
+    gesture: OpeningRpsGesture
   ): Promise<OnlineRoomView> {
     await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
     const member = this.requireMember(room, userId);
-    if (member.role !== 'HOST') {
+    ensureOpeningRpsRoom(room);
+    const current = room.openingRps!;
+    if (current.winnerUserId) {
       throw new OnlineRoomServiceError(
-        'ONLINE_TURN_ORDER_FORBIDDEN',
-        '只有房主可以发起先后手提议',
-        403
+        'ONLINE_OPENING_FORBIDDEN',
+        '本轮猜拳已结束，等待胜者决定先后手',
+        409
+      );
+    }
+    const previousChoice = current.choices.find((choice) => choice.userId === userId);
+    if (previousChoice?.selected) {
+      if (previousChoice.gesture === gesture) {
+        member.presence = 'ACTIVE';
+        member.lastSeenAt = this.now();
+        touchRoom(room, member.lastSeenAt);
+        return this.buildRoomView(room, member);
+      }
+
+      throw new OnlineRoomServiceError(
+        'ONLINE_OPENING_FORBIDDEN',
+        '本轮猜拳手势已经锁定',
+        409
       );
     }
 
-    ensureBothDecksLocked(room);
-
     const now = this.now();
-    room.turnOrderProposal = {
-      proposal,
-      proposedByUserId: userId,
-      proposedAt: now,
-    };
-    room.turnOrderAgreement = null;
-    room.status = 'READY';
+    const choices = current.choices.map((choice) =>
+      choice.userId === userId
+        ? { userId, selected: true, gesture }
+        : choice
+    );
+    const allSelected = choices.every((choice) => choice.selected && choice.gesture);
+    room.openingRps = allSelected
+      ? revealOpeningRpsRound(current, choices, now)
+      : {
+          ...current,
+          choices,
+        };
     member.presence = 'ACTIVE';
     member.lastSeenAt = now;
     touchRoom(room, now);
@@ -286,76 +337,65 @@ export class OnlineRoomService {
     return this.buildRoomView(room, member);
   }
 
-  async respondTurnOrder(
+  async chooseOpeningTurnOrder(
     roomCodeInput: string,
     userId: string,
-    accepted: boolean
+    choice: OpeningTurnOrderChoice
   ): Promise<OnlineRoomView> {
     await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
     const member = this.requireMember(room, userId);
-    if (member.role !== 'GUEST') {
+    ensureOpeningRpsRoom(room);
+    const opening = room.openingRps!;
+    const now = this.now();
+
+    if (!opening.winnerUserId || opening.chooserUserId !== userId) {
       throw new OnlineRoomServiceError(
-        'ONLINE_TURN_ORDER_FORBIDDEN',
-        '只有客方可以响应先后手提议',
+        'ONLINE_OPENING_FORBIDDEN',
+        '只有猜拳胜者可以决定先后手',
         403
       );
     }
 
-    ensureBothDecksLocked(room);
-    if (!room.turnOrderProposal) {
+    const winnerFirst = choice === 'SELF_FIRST';
+    const firstUserId = winnerFirst ? userId : getOpponentUserId(room, userId);
+    if (!firstUserId) {
+      throw new OnlineRoomServiceError('ONLINE_MATCH_GONE', '房间状态异常，无法开始对局', 409);
+    }
+
+    try {
+      await this.startMatchForRoom(room, firstUserId, now);
+    } catch (error) {
+      room.status = 'OPENING';
+      touchRoom(room, now);
+      throw error;
+    }
+
+    member.presence = 'ACTIVE';
+    member.lastSeenAt = now;
+    return this.buildRoomView(room, member);
+  }
+
+  async replayOpeningRps(roomCodeInput: string, userId: string): Promise<OnlineRoomView> {
+    await this.cleanupExpiredState();
+
+    const room = this.getRoomState(roomCodeInput);
+    const member = this.requireMember(room, userId);
+    ensureOpeningRpsRoom(room);
+    const opening = room.openingRps!;
+    if (!opening.revealed || opening.winnerUserId) {
       throw new OnlineRoomServiceError(
-        'ONLINE_TURN_ORDER_FORBIDDEN',
-        '当前没有待确认的先后手提议',
+        'ONLINE_OPENING_FORBIDDEN',
+        '当前猜拳结果不能重来',
         409
       );
     }
 
     const now = this.now();
-    room.turnOrderAgreement = {
-      accepted,
-      respondedByUserId: userId,
-      respondedAt: now,
-    };
+    room.openingRps = createOpeningRpsState(room, opening.round + 1, now);
     member.presence = 'ACTIVE';
     member.lastSeenAt = now;
-
-    if (!accepted) {
-      room.status = 'READY';
-      touchRoom(room, now);
-      return this.buildRoomView(room, member);
-    }
-
-    let match: Awaited<ReturnType<OnlineMatchService['createMatch']>>;
-    try {
-      match = await this.startMatch(room);
-    } catch (error) {
-      room.turnOrderAgreement = null;
-      room.status = 'READY';
-      touchRoom(room, now);
-      if (error instanceof OnlineRoomServiceError) {
-        throw error;
-      }
-      if (error instanceof OnlineMatchServiceError) {
-        throw new OnlineRoomServiceError(
-          error.code,
-          '无法开始对局：历史对局记录服务暂时不可用，请稍后重试',
-          error.code === 'ONLINE_MATCH_RECORD_BEGIN_FAILED' ||
-            error.code === 'ONLINE_MATCH_RECORD_CHECKPOINT_FAILED'
-            ? 503
-            : 500
-        );
-      }
-      throw new OnlineRoomServiceError(
-        'ONLINE_MATCH_START_FAILED',
-        `无法开始对局：${readErrorMessage(error)}`,
-        500
-      );
-    }
-    room.matchId = match.matchId;
-    room.restartRequest = null;
-    room.status = 'IN_GAME';
     touchRoom(room, now);
 
     return this.buildRoomView(room, member);
@@ -430,22 +470,11 @@ export class OnlineRoomService {
     }
 
     const previousMatchId = room.matchId!;
-    let nextMatch: Awaited<ReturnType<OnlineMatchService['createMatch']>>;
-    try {
-      nextMatch = await this.startMatch(room);
-    } catch (error) {
-      throw toMatchStartRoomError(error, '无法重开对局');
-    }
-
     const previousDeleted = await this.matchService.deleteMatch(previousMatchId, {
       reason: 'ROOM_RESTART_ACCEPTED',
       now,
     });
     if (!previousDeleted) {
-      await this.matchService.deleteMatch(nextMatch.matchId, {
-        reason: 'ROOM_RESTART_ROLLBACK',
-        now,
-      });
       throw new OnlineRoomServiceError(
         'ONLINE_RESTART_SEAL_FAILED',
         '无法重开对局：旧对局封存失败，请稍后重试',
@@ -453,9 +482,16 @@ export class OnlineRoomService {
       );
     }
 
-    room.matchId = nextMatch.matchId;
+    room.matchId = null;
+    room.seatAssignments = {};
+    room.members.forEach((candidate) => {
+      candidate.startReady = true;
+      candidate.presence = 'ACTIVE';
+      candidate.lastSeenAt = now;
+    });
+    room.openingRps = createOpeningRpsState(room, 1, now);
     room.restartRequest = null;
-    room.status = 'IN_GAME';
+    room.status = 'OPENING';
     member.presence = 'ACTIVE';
     member.lastSeenAt = now;
     touchRoom(room, now);
@@ -522,7 +558,7 @@ export class OnlineRoomService {
     const member = this.requireMember(room, userId);
     const now = this.now();
 
-    if (room.status === 'IN_GAME') {
+    if (room.status === 'OPENING' || room.status === 'IN_GAME') {
       member.presence = 'LEFT';
       member.lastSeenAt = now;
       if (
@@ -555,10 +591,12 @@ export class OnlineRoomService {
       }
     }
 
-    room.turnOrderProposal = null;
-    room.turnOrderAgreement = null;
+    room.openingRps = null;
     room.restartRequest = null;
     room.status = 'PREPARING';
+    room.members.forEach((candidate) => {
+      candidate.startReady = false;
+    });
     touchRoom(room, now);
 
     return {
@@ -667,10 +705,10 @@ export class OnlineRoomService {
         lockedDeckId: member.lockedDeckId,
         lockedDeckName: member.lockedDeckName,
         ready: member.resolvedDeckConfig !== null,
+        startReady: member.startReady,
         seat: getAssignedSeat(room, member.userId) ?? undefined,
       })),
-      turnOrderProposal: room.turnOrderProposal,
-      turnOrderAgreement: room.turnOrderAgreement,
+      openingRps: buildOpeningRpsViewForViewer(room.openingRps, viewer.userId),
       restartRequest: room.restartRequest,
       matchId: room.matchId,
       updatedAt: room.updatedAt,
@@ -698,11 +736,11 @@ export class OnlineRoomService {
         lockedDeckId: member.lockedDeckId,
         lockedDeckName: member.lockedDeckName,
         ready: member.resolvedDeckConfig !== null,
+        startReady: member.startReady,
         seat: getAssignedSeat(room, member.userId) ?? undefined,
         lastSeenAt: member.lastSeenAt,
       })),
-      turnOrderProposal: room.turnOrderProposal,
-      turnOrderAgreement: room.turnOrderAgreement,
+      openingRps: buildOpeningRpsViewForViewer(room.openingRps, null),
       restartRequest: room.restartRequest,
       matchId: room.matchId,
       match: room.matchId ? this.matchService.getAdminMatchSummary(room.matchId, now) : null,
@@ -710,7 +748,7 @@ export class OnlineRoomService {
     };
   }
 
-  private async startMatch(room: OnlineRoomState) {
+  private async startMatch(room: OnlineRoomState, firstUserId: string) {
     const host = room.members.find((member) => member.role === 'HOST');
     const guest = room.members.find((member) => member.role === 'GUEST');
     if (!host || !guest || !host.resolvedDeckConfig || !guest.resolvedDeckConfig) {
@@ -719,9 +757,12 @@ export class OnlineRoomService {
     const hostDeck = host.resolvedDeckConfig;
     const guestDeck = guest.resolvedDeckConfig;
 
-    const firstIsHost = room.turnOrderProposal?.proposal === 'HOST_FIRST';
-    const firstMember = firstIsHost ? host : guest;
-    const secondMember = firstIsHost ? guest : host;
+    const firstMember =
+      firstUserId === host.userId ? host : firstUserId === guest.userId ? guest : null;
+    if (!firstMember) {
+      throw new OnlineRoomServiceError('ONLINE_MATCH_GONE', '房间状态异常，无法开始对局', 409);
+    }
+    const secondMember = firstMember.userId === host.userId ? guest : host;
 
     const params: CreateOnlineMatchParams = {
       roomCode: room.roomCode,
@@ -753,6 +794,23 @@ export class OnlineRoomService {
     return match;
   }
 
+  private async startMatchForRoom(room: OnlineRoomState, firstUserId: string, now: number) {
+    let match: Awaited<ReturnType<OnlineMatchService['createMatch']>>;
+    try {
+      match = await this.startMatch(room, firstUserId);
+    } catch (error) {
+      throw toMatchStartRoomError(error, '无法开始对局');
+    }
+
+    room.matchId = match.matchId;
+    room.openingRps = null;
+    room.restartRequest = null;
+    room.status = 'IN_GAME';
+    touchRoom(room, now);
+
+    return match;
+  }
+
   private async cleanupExpiredState(): Promise<void> {
     const now = this.now();
 
@@ -761,9 +819,9 @@ export class OnlineRoomService {
       this.expireRestartRequestIfNeeded(room, now);
       this.clearRestartRequestIfParticipantInactive(room);
 
-      if (room.status === 'IN_GAME') {
+      if (room.status === 'OPENING' || room.status === 'IN_GAME') {
         if (shouldDestroyRoom(room, now)) {
-          if (room.matchId) {
+          if (room.status === 'IN_GAME' && room.matchId) {
             const deleted = await this.matchService.deleteMatch(room.matchId, {
               reason: 'ROOM_DESTROYED_ALL_ABSENT',
               now,
@@ -817,13 +875,13 @@ export class OnlineRoomService {
 
     room.members.forEach((member, index) => {
       member.role = index === 0 ? 'HOST' : 'GUEST';
+      member.startReady = false;
       if (!isMemberPresenceStale(member, now)) {
         member.presence = 'ACTIVE';
       }
     });
 
-    room.turnOrderProposal = null;
-    room.turnOrderAgreement = null;
+    room.openingRps = null;
     room.restartRequest = null;
     room.status = 'PREPARING';
     touchRoom(room, now);
@@ -920,6 +978,117 @@ function getAssignedSeat(room: OnlineRoomState, userId: string): Seat | null {
   return null;
 }
 
+function getHostUserId(room: OnlineRoomState): string | null {
+  return room.members.find((member) => member.role === 'HOST')?.userId ?? null;
+}
+
+function getOpponentUserId(room: OnlineRoomState, userId: string): string | null {
+  return room.members.find((member) => member.userId !== userId)?.userId ?? null;
+}
+
+function createOpeningRpsState(
+  room: OnlineRoomState,
+  round: number,
+  _now: number
+): OnlineOpeningRpsState {
+  return {
+    round,
+    choices: room.members.map((member) => ({
+      userId: member.userId,
+      selected: false,
+      gesture: null,
+    })),
+    revealed: false,
+    winnerUserId: null,
+    chooserUserId: null,
+    revealedAt: null,
+  };
+}
+
+function revealOpeningRpsRound(
+  current: OnlineOpeningRpsState,
+  choices: readonly OnlineOpeningRpsState['choices'][number][],
+  now: number
+): OnlineOpeningRpsState {
+  const [left, right] = choices;
+  const winnerUserId =
+    left && right && left.gesture && right.gesture
+      ? getRpsWinner(left.userId, left.gesture, right.userId, right.gesture)
+      : null;
+
+  return {
+    ...current,
+    choices,
+    revealed: true,
+    winnerUserId,
+    chooserUserId: winnerUserId,
+    revealedAt: now,
+  };
+}
+
+function getRpsWinner(
+  leftUserId: string,
+  leftGesture: OpeningRpsGesture,
+  rightUserId: string,
+  rightGesture: OpeningRpsGesture
+): string | null {
+  if (leftGesture === rightGesture) {
+    return null;
+  }
+  if (
+    (leftGesture === 'ROCK' && rightGesture === 'SCISSORS') ||
+    (leftGesture === 'SCISSORS' && rightGesture === 'PAPER') ||
+    (leftGesture === 'PAPER' && rightGesture === 'ROCK')
+  ) {
+    return leftUserId;
+  }
+  return rightUserId;
+}
+
+function buildOpeningRpsViewForViewer(
+  opening: OnlineOpeningRpsState | null,
+  viewerUserId: string | null
+): OnlineOpeningRpsView | null {
+  if (!opening) {
+    return null;
+  }
+
+  return {
+    ...opening,
+    choices: opening.choices.map((choice) => ({
+      ...choice,
+      gesture:
+        opening.revealed || choice.userId === viewerUserId || viewerUserId === null
+          ? choice.gesture
+          : null,
+    })),
+  };
+}
+
+function ensureOpeningRpsRoom(room: OnlineRoomState): void {
+  if (room.status !== 'OPENING' || !room.openingRps) {
+    throw new OnlineRoomServiceError(
+      'ONLINE_OPENING_FORBIDDEN',
+      '当前不在开局猜拳流程中',
+      409
+    );
+  }
+  if (room.members.length !== 2) {
+    throw new OnlineRoomServiceError(
+      'ONLINE_OPENING_FORBIDDEN',
+      '需要双方都在房间中才能进行开局猜拳',
+      409
+    );
+  }
+  if (room.members.some((member) => member.presence !== 'ACTIVE')) {
+    throw new OnlineRoomServiceError(
+      'ONLINE_OPENING_FORBIDDEN',
+      '双方都在线时才能进行开局猜拳',
+      409
+    );
+  }
+}
+
 function touchRoom(room: OnlineRoomState, updatedAt: number): void {
   room.updatedAt = updatedAt;
 }
@@ -952,6 +1121,16 @@ function ensureBothDecksLocked(room: OnlineRoomState): void {
     throw new OnlineRoomServiceError(
       'ONLINE_DECK_INVALID',
       '双方都锁定合法卡组后才能继续准备流程',
+      409
+    );
+  }
+}
+
+function ensureBothMembersActive(room: OnlineRoomState): void {
+  if (room.members.length !== 2 || room.members.some((member) => member.presence !== 'ACTIVE')) {
+    throw new OnlineRoomServiceError(
+      'ONLINE_READY_FORBIDDEN',
+      '双方都在线时才能开始对局',
       409
     );
   }

@@ -8,6 +8,10 @@ vi.mock('../../src/server/services/online-room-service.js', () => ({
   },
   onlineRoomService: {
     touchInGameMemberByMatch: vi.fn(),
+    markReadyToStart: vi.fn(),
+    submitOpeningRps: vi.fn(),
+    replayOpeningRps: vi.fn(),
+    chooseOpeningTurnOrder: vi.fn(),
     requestRestart: vi.fn(),
     acceptRestartRequest: vi.fn(),
     rejectRestartRequest: vi.fn(),
@@ -298,5 +302,73 @@ describe('onlineRouter error handling', () => {
     expect(onlineRoomService.acceptRestartRequest).toHaveBeenCalledWith('ROOM1', 'u1', 'req-1');
     expect(onlineRoomService.rejectRestartRequest).toHaveBeenCalledWith('ROOM1', 'u1', 'req-2');
     expect(onlineRoomService.cancelRestartRequest).toHaveBeenCalledWith('ROOM1', 'u1', 'req-3');
+  });
+
+  it('开局猜拳路由应透传准备、手势、重来和先后手选择', async () => {
+    vi.mocked(onlineRoomService.markReadyToStart).mockResolvedValue({
+      roomCode: 'ROOM2',
+      status: 'READY',
+    } as never);
+    vi.mocked(onlineRoomService.submitOpeningRps).mockResolvedValue({
+      roomCode: 'ROOM2',
+      openingRps: { revealed: false },
+    } as never);
+    vi.mocked(onlineRoomService.replayOpeningRps).mockResolvedValue({
+      roomCode: 'ROOM2',
+      openingRps: { round: 2 },
+    } as never);
+    vi.mocked(onlineRoomService.chooseOpeningTurnOrder).mockResolvedValue({
+      roomCode: 'ROOM2',
+      status: 'IN_GAME',
+    } as never);
+
+    const readyResponse = await invokeRoute('/rooms/:roomCode/ready-start', 'post', {
+      params: { roomCode: 'ROOM2' },
+    });
+    const rpsResponse = await invokeRoute('/rooms/:roomCode/opening-rps', 'post', {
+      params: { roomCode: 'ROOM2' },
+      body: { gesture: 'ROCK' },
+    });
+    const replayResponse = await invokeRoute('/rooms/:roomCode/opening-rps/replay', 'post', {
+      params: { roomCode: 'ROOM2' },
+    });
+    const chooseResponse = await invokeRoute('/rooms/:roomCode/opening-turn-order', 'post', {
+      params: { roomCode: 'ROOM2' },
+      body: { choice: 'SELF_SECOND' },
+    });
+
+    expect(readyResponse.statusCode).toBe(200);
+    expect(rpsResponse.statusCode).toBe(200);
+    expect(replayResponse.statusCode).toBe(200);
+    expect(chooseResponse.statusCode).toBe(200);
+    expect(onlineRoomService.markReadyToStart).toHaveBeenCalledWith('ROOM2', 'u1');
+    expect(onlineRoomService.submitOpeningRps).toHaveBeenCalledWith('ROOM2', 'u1', 'ROCK');
+    expect(onlineRoomService.replayOpeningRps).toHaveBeenCalledWith('ROOM2', 'u1');
+    expect(onlineRoomService.chooseOpeningTurnOrder).toHaveBeenCalledWith(
+      'ROOM2',
+      'u1',
+      'SELF_SECOND'
+    );
+  });
+
+  it('开局猜拳路由应拒绝非法参数', async () => {
+    const submitOpeningRps = vi.mocked(onlineRoomService.submitOpeningRps);
+    const chooseOpeningTurnOrder = vi.mocked(onlineRoomService.chooseOpeningTurnOrder);
+    submitOpeningRps.mockClear();
+    chooseOpeningTurnOrder.mockClear();
+
+    const rpsResponse = await invokeRoute('/rooms/:roomCode/opening-rps', 'post', {
+      params: { roomCode: 'ROOM2' },
+      body: { gesture: 'LIZARD' },
+    });
+    const chooseResponse = await invokeRoute('/rooms/:roomCode/opening-turn-order', 'post', {
+      params: { roomCode: 'ROOM2' },
+      body: { choice: 'OPPONENT_FIRST' },
+    });
+
+    expect(rpsResponse.statusCode).toBe(400);
+    expect(chooseResponse.statusCode).toBe(400);
+    expect(submitOpeningRps).not.toHaveBeenCalled();
+    expect(chooseOpeningTurnOrder).not.toHaveBeenCalled();
   });
 });

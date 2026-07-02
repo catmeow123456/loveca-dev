@@ -696,10 +696,19 @@ function StatusBadge({ status }: { status: OnlineRoomStatus }) {
   const tone =
     status === 'IN_GAME'
       ? 'border-[color:var(--semantic-success)]/40 bg-[color:var(--semantic-success)]/10 text-[var(--semantic-success)]'
+      : status === 'OPENING'
+        ? 'border-[color:var(--accent-primary)]/40 bg-[color:var(--accent-primary)]/10 text-[var(--accent-primary)]'
       : status === 'READY'
         ? 'border-[color:var(--semantic-warning)]/40 bg-[color:var(--semantic-warning)]/10 text-[var(--semantic-warning)]'
         : 'border-[color:var(--semantic-info)]/40 bg-[color:var(--semantic-info)]/10 text-[var(--semantic-info)]';
-  const label = status === 'IN_GAME' ? '对局中' : status === 'READY' ? '已就绪' : '准备中';
+  const label =
+    status === 'IN_GAME'
+      ? '对局中'
+      : status === 'OPENING'
+        ? '开局中'
+        : status === 'READY'
+          ? '已就绪'
+          : '准备中';
 
   return (
     <span

@@ -26,12 +26,12 @@ const deckSelectionSchema = z.object({
   deckId: z.string().uuid(),
 });
 
-const turnOrderProposalSchema = z.object({
-  proposal: z.enum(['HOST_FIRST', 'HOST_SECOND']),
+const openingRpsSchema = z.object({
+  gesture: z.enum(['ROCK', 'PAPER', 'SCISSORS']),
 });
 
-const turnOrderResponseSchema = z.object({
-  accepted: z.boolean(),
+const openingTurnOrderSchema = z.object({
+  choice: z.enum(['SELF_FIRST', 'SELF_SECOND']),
 });
 
 const undoRequestSchema = z.object({
@@ -265,20 +265,11 @@ onlineRouter.post('/rooms/:roomCode/deck', requireAuth, async (req, res) => {
   }
 });
 
-onlineRouter.post('/rooms/:roomCode/turn-order-proposal', requireAuth, async (req, res) => {
-  const parsed = turnOrderProposalSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res
-      .status(400)
-      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '先后手提议参数非法' } });
-    return;
-  }
-
+onlineRouter.post('/rooms/:roomCode/ready-start', requireAuth, async (req, res) => {
   try {
-    const room = await onlineRoomService.proposeTurnOrder(
+    const room = await onlineRoomService.markReadyToStart(
       readPathParam(req.params.roomCode),
-      req.user!.id,
-      parsed.data.proposal
+      req.user!.id
     );
     res.json({ data: room, error: null });
   } catch (error) {
@@ -286,20 +277,53 @@ onlineRouter.post('/rooms/:roomCode/turn-order-proposal', requireAuth, async (re
   }
 });
 
-onlineRouter.post('/rooms/:roomCode/turn-order-response', requireAuth, async (req, res) => {
-  const parsed = turnOrderResponseSchema.safeParse(req.body);
+onlineRouter.post('/rooms/:roomCode/opening-rps', requireAuth, async (req, res) => {
+  const parsed = openingRpsSchema.safeParse(req.body);
   if (!parsed.success) {
     res
       .status(400)
-      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '先后手响应参数非法' } });
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '猜拳手势参数非法' } });
     return;
   }
 
   try {
-    const room = await onlineRoomService.respondTurnOrder(
+    const room = await onlineRoomService.submitOpeningRps(
       readPathParam(req.params.roomCode),
       req.user!.id,
-      parsed.data.accepted
+      parsed.data.gesture
+    );
+    res.json({ data: room, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.post('/rooms/:roomCode/opening-rps/replay', requireAuth, async (req, res) => {
+  try {
+    const room = await onlineRoomService.replayOpeningRps(
+      readPathParam(req.params.roomCode),
+      req.user!.id
+    );
+    res.json({ data: room, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.post('/rooms/:roomCode/opening-turn-order', requireAuth, async (req, res) => {
+  const parsed = openingTurnOrderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '先后手选择参数非法' } });
+    return;
+  }
+
+  try {
+    const room = await onlineRoomService.chooseOpeningTurnOrder(
+      readPathParam(req.params.roomCode),
+      req.user!.id,
+      parsed.data.choice
     );
     res.json({ data: room, error: null });
   } catch (error) {

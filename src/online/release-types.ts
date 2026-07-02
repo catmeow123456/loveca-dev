@@ -1,10 +1,26 @@
 import type { Seat } from './types.js';
 import type { RemoteCommandResult, RemoteMatchSnapshot } from './remote-match-types.js';
 
-export type OnlineRoomStatus = 'PREPARING' | 'READY' | 'IN_GAME';
+export type OnlineRoomStatus = 'PREPARING' | 'READY' | 'OPENING' | 'IN_GAME';
 export type OnlineRoomMemberRole = 'HOST' | 'GUEST';
 export type OnlineRoomMemberPresence = 'ACTIVE' | 'LEFT';
-export type TurnOrderProposalMode = 'HOST_FIRST' | 'HOST_SECOND';
+export type OpeningRpsGesture = 'ROCK' | 'PAPER' | 'SCISSORS';
+export type OpeningTurnOrderChoice = 'SELF_FIRST' | 'SELF_SECOND';
+
+export interface OnlineOpeningRpsChoiceView {
+  readonly userId: string;
+  readonly selected: boolean;
+  readonly gesture: OpeningRpsGesture | null;
+}
+
+export interface OnlineOpeningRpsView {
+  readonly round: number;
+  readonly choices: readonly OnlineOpeningRpsChoiceView[];
+  readonly revealed: boolean;
+  readonly winnerUserId: string | null;
+  readonly chooserUserId: string | null;
+  readonly revealedAt: number | null;
+}
 
 export interface OnlineRoomMemberView {
   readonly userId: string;
@@ -14,19 +30,8 @@ export interface OnlineRoomMemberView {
   readonly lockedDeckId: string | null;
   readonly lockedDeckName: string | null;
   readonly ready: boolean;
+  readonly startReady: boolean;
   readonly seat?: Seat;
-}
-
-export interface OnlineTurnOrderProposalView {
-  readonly proposal: TurnOrderProposalMode;
-  readonly proposedByUserId: string;
-  readonly proposedAt: number;
-}
-
-export interface OnlineTurnOrderAgreementView {
-  readonly accepted: boolean;
-  readonly respondedByUserId: string;
-  readonly respondedAt: number;
 }
 
 export interface OnlineRestartRequestView {
@@ -47,8 +52,7 @@ export interface OnlineRoomView {
   readonly currentUserPresence: OnlineRoomMemberPresence;
   readonly currentUserSeat?: Seat;
   readonly members: readonly OnlineRoomMemberView[];
-  readonly turnOrderProposal: OnlineTurnOrderProposalView | null;
-  readonly turnOrderAgreement: OnlineTurnOrderAgreementView | null;
+  readonly openingRps: OnlineOpeningRpsView | null;
   readonly restartRequest: OnlineRestartRequestView | null;
   readonly matchId: string | null;
   readonly updatedAt: number;
@@ -74,6 +78,7 @@ export interface OnlineAdminRoomMemberSummary {
   readonly lockedDeckId: string | null;
   readonly lockedDeckName: string | null;
   readonly ready: boolean;
+  readonly startReady: boolean;
   readonly seat?: Seat;
   readonly lastSeenAt: number;
 }
@@ -96,8 +101,7 @@ export interface OnlineAdminRoomSummary {
   readonly status: OnlineRoomStatus;
   readonly ownerUserId: string;
   readonly members: readonly OnlineAdminRoomMemberSummary[];
-  readonly turnOrderProposal: OnlineTurnOrderProposalView | null;
-  readonly turnOrderAgreement: OnlineTurnOrderAgreementView | null;
+  readonly openingRps: OnlineOpeningRpsView | null;
   readonly restartRequest: OnlineRestartRequestView | null;
   readonly matchId: string | null;
   readonly match: OnlineAdminMatchSummary | null;
