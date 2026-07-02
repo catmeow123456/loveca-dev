@@ -8,7 +8,11 @@ import type { GameState } from '../../domain/entities/game.js';
 import type { PlayerState } from '../../domain/entities/player.js';
 import { emitGameEvent, getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
 import { recordPositionMove } from '../../domain/entities/player.js';
-import { createLeaveStageEvent, createMemberSlotMovedEvent } from '../../domain/events/game-events.js';
+import {
+  createEnterWaitingRoomEvent,
+  createLeaveStageEvent,
+  createMemberSlotMovedEvent,
+} from '../../domain/events/game-events.js';
 import { ZoneType, SlotPosition } from '../../shared/types/enums.js';
 import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../effects/energy-below.js';
@@ -645,6 +649,10 @@ export function moveCardUniversal(
     playerBeforeMove !== null &&
     cardBeforeMove !== null &&
     getCardInSlot(playerBeforeMove.memberSlots, sourceSlot) === cardId;
+  const memberBelowIdsMovedToWaitingRoom =
+    shouldEmitLeaveStage && sourceSlot !== undefined
+      ? [...(playerBeforeMove?.memberSlots.memberBelow[sourceSlot] ?? [])]
+      : [];
 
   // 从来源区域移除
   if (fromZone === ZoneType.RESOLUTION_ZONE) {
@@ -669,6 +677,15 @@ export function moveCardUniversal(
         cardId,
         sourceSlot,
         ZoneType.WAITING_ROOM,
+        cardBeforeMove.ownerId,
+        playerId
+      )
+    );
+    state = emitGameEvent(
+      state,
+      createEnterWaitingRoomEvent(
+        [cardId, ...memberBelowIdsMovedToWaitingRoom],
+        ZoneType.MEMBER_SLOT,
         cardBeforeMove.ownerId,
         playerId
       )

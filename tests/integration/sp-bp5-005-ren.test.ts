@@ -10,6 +10,8 @@ import { createEnterWaitingRoomEvent } from '../../src/domain/events/game-events
 import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
+  createMovePublicCardToWaitingRoomCommand,
+  createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
@@ -21,6 +23,7 @@ import {
   SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import {
   CardType,
   FaceState,
@@ -238,7 +241,7 @@ function resolvePending(scenario: RenScenario): void {
 function declineAuto(scenario: RenScenario): void {
   const effect = scenario.session.state!.activeEffect!;
   const result = scenario.session.executeCommand(
-    createConfirmEffectStepCommand(PLAYER1, effect.id, undefined, undefined, undefined, 'decline')
+    createConfirmEffectStepCommand(PLAYER1, effect.id, null)
   );
   expect(result.success).toBe(true);
 }
@@ -263,11 +266,11 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
             SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID
       )
     ).toMatchObject([{ sourceCardId: scenario.sourceId, countDelta: 2 }]);
-    expect(scenario.session.state?.pendingAbilities).toHaveLength(1);
-    expect(scenario.session.state?.pendingAbilities[0]).toMatchObject({
+    expect(scenario.session.state?.pendingAbilities).toHaveLength(0);
+    expect(scenario.session.state?.activeEffect).toMatchObject({
       abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
       sourceCardId: scenario.sourceId,
-      metadata: { movedCardIds: scenario.deckCardIds.slice(0, 3), fromZone: ZoneType.MAIN_DECK },
+      metadata: { movedCardIds: scenario.deckCardIds.slice(0, 3) },
     });
   });
 
@@ -347,6 +350,148 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
     expect(scenario.session.state?.pendingAbilities).toHaveLength(1);
   });
 
+  it('opens the auto effect when a relay sends another stage member to waiting room', () => {
+    const scenario = setupScenario();
+    const replacedMember = createCardInstance(
+      createMemberCard('PL!SP-bp5-005-replaced-member', 'Replaced member'),
+      PLAYER1,
+      'p1-ren-replaced-member'
+    );
+    const incomingMember = createCardInstance(
+      createMemberCard('PL!SP-bp5-005-incoming-member', 'Incoming member'),
+      PLAYER1,
+      'p1-ren-incoming-member'
+    );
+    const state = registerCards(scenario.session.state!, [replacedMember, incomingMember]);
+    setAuthorityState(scenario.session, state);
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    p1.hand.cardIds = [incomingMember.instanceId];
+    p1.memberSlots.slots[SlotPosition.LEFT] = replacedMember.instanceId;
+    p1.memberSlots.cardStates.set(replacedMember.instanceId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+
+    const result = scenario.session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, incomingMember.instanceId, SlotPosition.LEFT, {
+        freePlay: true,
+        relayMode: 'SINGLE',
+        relayReplacementSlots: [SlotPosition.LEFT],
+      })
+    );
+
+    expect(result.success).toBe(true);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(
+      replacedMember.instanceId
+    );
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
+      sourceCardId: scenario.sourceId,
+      metadata: {
+        movedCardIds: [replacedMember.instanceId],
+      },
+    });
+  });
+
+  it('opens the auto effect when a manual public move sends a stage member to waiting room', () => {
+    const scenario = setupScenario();
+    const movedMember = createCardInstance(
+      createMemberCard('PL!SP-bp5-005-manual-stage-member', 'Manual moved member'),
+      PLAYER1,
+      'p1-ren-manual-stage-member'
+    );
+    const state = registerCards(scenario.session.state!, [movedMember]);
+    setAuthorityState(scenario.session, state);
+    const p1 = state.players[0] as unknown as {
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    p1.memberSlots.slots[SlotPosition.LEFT] = movedMember.instanceId;
+    p1.memberSlots.cardStates.set(movedMember.instanceId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+
+    const result = scenario.session.executeCommand(
+      createMovePublicCardToWaitingRoomCommand(
+        PLAYER1,
+        movedMember.instanceId,
+        ZoneType.MEMBER_SLOT,
+        SlotPosition.LEFT
+      )
+    );
+
+    expect(result.success).toBe(true);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(
+      movedMember.instanceId
+    );
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
+      sourceCardId: scenario.sourceId,
+      metadata: {
+        movedCardIds: [movedMember.instanceId],
+      },
+    });
+  });
+
+  it('queues the auto effect when an activated cost sends a stage member to waiting room', () => {
+    const scenario = setupScenario();
+    const sacrificeMember = createCardInstance(
+      createMemberCard('PL!SP-bp5-005-sacrifice-member', 'Sacrifice member'),
+      PLAYER1,
+      'p1-ren-sacrifice-member'
+    );
+    const state = registerCards(scenario.session.state!, [sacrificeMember]);
+    setAuthorityState(scenario.session, state);
+    const p1 = state.players[0] as unknown as {
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    p1.memberSlots.slots[SlotPosition.LEFT] = sacrificeMember.instanceId;
+    p1.memberSlots.cardStates.set(sacrificeMember.instanceId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+
+    const costPayment = paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      scenario.session.state!,
+      PLAYER1,
+      sacrificeMember.instanceId,
+      enqueueTriggeredCardEffects
+    );
+
+    expect(costPayment?.enterWaitingRoomEvent).toMatchObject({
+      cardInstanceIds: [sacrificeMember.instanceId],
+      fromZone: ZoneType.MEMBER_SLOT,
+      toZone: ZoneType.WAITING_ROOM,
+    });
+    setAuthorityState(scenario.session, costPayment!.gameState);
+    expect(scenario.session.state?.pendingAbilities).toHaveLength(1);
+    expect(scenario.session.state?.pendingAbilities[0]).toMatchObject({
+      abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
+      sourceCardId: scenario.sourceId,
+      metadata: {
+        movedCardIds: [sacrificeMember.instanceId],
+        fromZone: ZoneType.MEMBER_SLOT,
+      },
+    });
+    resolvePending(scenario);
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
+      sourceCardId: scenario.sourceId,
+    });
+  });
+
   it('does not queue for opponent cards and consumes stale non-main-phase pending as no-op', () => {
     const scenario = setupScenario();
 
@@ -370,32 +515,48 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
     enqueueRenEnterWaitingRoomEvent(scenario);
     resolvePending(scenario);
 
-    const payResult = scenario.session.executeCommand(
+    const effect = scenario.session.state!.activeEffect!;
+    expect(effect).toMatchObject({
+      selectableOptions: [{ id: 'pay', label: '支付1能量' }],
+      selectableCardIds: scenario.movedCardIds,
+      selectableCardMode: 'SINGLE',
+      minSelectableCards: 1,
+      maxSelectableCards: 1,
+      selectableCardVisibility: 'PUBLIC',
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
+    expect(effect.selectableCardIds).not.toContain(scenario.unrelatedWaitingCardId);
+
+    const payWithoutSelectionResult = scenario.session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
-        scenario.session.state!.activeEffect!.id,
+        effect.id,
         undefined,
         undefined,
         undefined,
         'pay'
       )
     );
-    expect(payResult.success).toBe(true);
-    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual(
-      scenario.movedCardIds
-    );
-    expect(scenario.session.state?.activeEffect?.selectableCardIds).not.toContain(
-      scenario.unrelatedWaitingCardId
-    );
+    expect(payWithoutSelectionResult.success).toBe(false);
+    expect(scenario.session.state?.activeEffect?.id).toBe(effect.id);
+    expect(
+      scenario.session.state?.players[0].energyZone.cardStates.get(scenario.energyCardIds[0])
+        ?.orientation
+    ).toBe(OrientationState.ACTIVE);
 
     const recoverResult = scenario.session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
-        scenario.session.state!.activeEffect!.id,
-        scenario.movedCardIds[0]
+        effect.id,
+        scenario.movedCardIds[0],
+        undefined,
+        undefined,
+        'pay'
       )
     );
     expect(recoverResult.success).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
     expect(scenario.session.state?.players[0].hand.cardIds).toContain(scenario.movedCardIds[0]);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).not.toContain(
       scenario.movedCardIds[0]
@@ -416,9 +577,12 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
     const noEnergyScenario = setupScenario({ energyCount: 0 });
     enqueueRenEnterWaitingRoomEvent(noEnergyScenario);
     resolvePending(noEnergyScenario);
-    expect(noEnergyScenario.session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'decline', label: '不发动' },
-    ]);
+    expect(noEnergyScenario.session.state?.activeEffect).toMatchObject({
+      selectableOptions: undefined,
+      selectableCardIds: undefined,
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
     declineAuto(noEnergyScenario);
     expect(noEnergyScenario.session.state?.pendingAbilities).toHaveLength(0);
     enqueueRenEnterWaitingRoomEvent(noEnergyScenario, {
@@ -461,22 +625,14 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
 
     enqueueRenEnterWaitingRoomEvent(scenario);
     resolvePending(scenario);
-    const payResult = scenario.session.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER1,
-        scenario.session.state!.activeEffect!.id,
-        undefined,
-        undefined,
-        undefined,
-        'pay'
-      )
-    );
-    expect(payResult.success).toBe(true);
     const recoverResult = scenario.session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
         scenario.session.state!.activeEffect!.id,
-        scenario.movedCardIds[0]
+        scenario.movedCardIds[0],
+        undefined,
+        undefined,
+        'pay'
       )
     );
     expect(recoverResult.success).toBe(true);

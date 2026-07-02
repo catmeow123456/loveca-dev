@@ -66,8 +66,24 @@ import {
   HS_BP6_005_LIVE_SUCCESS_DOLLCHESTRA_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   HS_BP6_006_LIVE_SUCCESS_WAIT_SKIP_NEXT_ACTIVE_ABILITY_ID,
   HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID,
+  HS_BP6_008_LIVE_START_LOW_SCORE_LIVE_ACTIVATE_SELF_ABILITY_ID,
+  HS_BP6_008_ON_ENTER_WAIT_SELF_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
+  HS_BP6_010_LIVE_START_DISCARD_DOLLCHESTRA_DRAW_TARGET_COST_ABILITY_ID,
+  HS_BP6_012_ON_ENTER_OTHER_CERISE_BOUQUET_ACTIVATE_ENERGY_ABILITY_ID,
+  HS_BP6_013_LIVE_START_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
+  HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
+  HS_BP6_014_ACTIVATED_HAND_DISCARD_SELF_DRAW_TARGET_MEGU_RURINO_BLADE_ABILITY_ID,
+  HS_BP6_015_ON_ENTER_FROM_NON_HAND_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+  HS_BP6_016_ACTIVATED_TURN_ONCE_PAY_FOUR_ENERGY_PLAY_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID,
+  HS_BP6_018_LEAVE_STAGE_DISCARD_TARGET_BLUE_HEART_BLADE_ABILITY_ID,
+  HS_BP6_025_LIVE_START_DISCARD_TARGET_HASUNOSORA_BLUE_HEART_ABILITY_ID,
+  HS_BP6_025_LIVE_SUCCESS_STAGE_TWO_RECOVER_LOW_SCORE_LIVE_ABILITY_ID,
   HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID,
   HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+  HS_BP6_002_CONTINUOUS_ALONE_GAIN_TWO_BLADE_ABILITY_ID,
+  HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
+  HS_BP6_028_LIVE_SUCCESS_REMAINING_HEART_LOOK_TOP_TWO_ABILITY_ID,
+  HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
   HS_BP6_029_LIVE_START_HASUNOSORA_COST_LOOK_TOP_TWO_HAND_REDUCE_REQUIREMENT_ABILITY_ID,
   HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
@@ -183,6 +199,7 @@ import {
   HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
   HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID,
   HS_BP6_032_LIVE_SUCCESS_LOW_COST_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+  HS_CL1_002_ON_ENTER_PAY_ENERGY_RECOVER_DOLLCHESTRA_CARD_ABILITY_ID,
   HS_BP2_021_LIVE_START_RELAY_ENTERED_HASUNOSORA_GREEN_REQUIREMENT_ABILITY_ID,
   HS_BP2_006_CONTINUOUS_OTHER_MIRACRA_STAGE_MEMBER_BLADE_ABILITY_ID,
   HS_BP2_006_ON_ENTER_STAGE_FORMATION_CHANGE_ABILITY_ID,
@@ -2470,8 +2487,7 @@ describe('card effect classification registry', () => {
     expect(
       getCardAbilityDefinitions('PL!SP-PR-025-PR').find(
         (ability) =>
-          ability.abilityId ===
-          SP_PR_025_CONTINUOUS_ENERGY_EXACT_SEVEN_GAIN_TWO_BLADE_ABILITY_ID
+          ability.abilityId === SP_PR_025_CONTINUOUS_ENERGY_EXACT_SEVEN_GAIN_TWO_BLADE_ABILITY_ID
       )
     ).toMatchObject({
       abilityId: SP_PR_025_CONTINUOUS_ENERGY_EXACT_SEVEN_GAIN_TWO_BLADE_ABILITY_ID,
@@ -3414,6 +3430,220 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
+    for (const cardCode of ['PL!HS-bp6-002-R', 'PL!HS-bp6-002-P']) {
+      const hsBp6002Sayaka = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === HS_BP6_002_CONTINUOUS_ALONE_GAIN_TWO_BLADE_ABILITY_ID
+      );
+      expect(hsBp6002Sayaka).toMatchObject({
+        abilityId: HS_BP6_002_CONTINUOUS_ALONE_GAIN_TWO_BLADE_ABILITY_ID,
+        baseCardCodes: ['PL!HS-bp6-002'],
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+      });
+    }
+
+    const hsBp6009Kaho = getCardAbilityDefinitions('PL!HS-bp6-009-R').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID
+    );
+    expect(hsBp6009Kaho).toMatchObject({
+      abilityId: HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-009'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    for (const cardCode of ['PL!HS-bp6-008-R', 'PL!HS-bp6-008-P']) {
+      const hsBp6008OnEnter = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId ===
+          HS_BP6_008_ON_ENTER_WAIT_SELF_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID
+      );
+      expect(hsBp6008OnEnter).toMatchObject({
+        abilityId: HS_BP6_008_ON_ENTER_WAIT_SELF_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
+        baseCardCodes: ['PL!HS-bp6-008'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+
+      const hsBp6008LiveStart = getCardAbilityDefinitions(cardCode).find(
+        (ability) =>
+          ability.abilityId === HS_BP6_008_LIVE_START_LOW_SCORE_LIVE_ACTIVATE_SELF_ABILITY_ID
+      );
+      expect(hsBp6008LiveStart).toMatchObject({
+        abilityId: HS_BP6_008_LIVE_START_LOW_SCORE_LIVE_ACTIVATE_SELF_ABILITY_ID,
+        baseCardCodes: ['PL!HS-bp6-008'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    const hsBp6010Sayaka = getCardAbilityDefinitions('PL!HS-bp6-010-R').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_010_LIVE_START_DISCARD_DOLLCHESTRA_DRAW_TARGET_COST_ABILITY_ID
+    );
+    expect(hsBp6010Sayaka).toMatchObject({
+      abilityId: HS_BP6_010_LIVE_START_DISCARD_DOLLCHESTRA_DRAW_TARGET_COST_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-010'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6012Ginko = getCardAbilityDefinitions('PL!HS-bp6-012-R').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_012_ON_ENTER_OTHER_CERISE_BOUQUET_ACTIVATE_ENERGY_ABILITY_ID
+    );
+    expect(hsBp6012Ginko).toMatchObject({
+      abilityId: HS_BP6_012_ON_ENTER_OTHER_CERISE_BOUQUET_ACTIVATE_ENERGY_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-012'],
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6013OnEnter = getCardAbilityDefinitions('PL!HS-bp6-013-R').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID
+    );
+    expect(hsBp6013OnEnter).toMatchObject({
+      abilityId: HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-013'],
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6013LiveStart = getCardAbilityDefinitions('PL!HS-bp6-013-R').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_013_LIVE_START_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID
+    );
+    expect(hsBp6013LiveStart).toMatchObject({
+      abilityId: HS_BP6_013_LIVE_START_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-013'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6015Seras = getCardAbilityDefinitions('PL!HS-bp6-015-R').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_015_ON_ENTER_FROM_NON_HAND_DRAW_TWO_DISCARD_TWO_ABILITY_ID
+    );
+    expect(hsBp6015Seras).toMatchObject({
+      abilityId: HS_BP6_015_ON_ENTER_FROM_NON_HAND_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-015'],
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6016Izumi = getCardAbilityDefinitions('PL!HS-bp6-016-R').find(
+      (ability) =>
+        ability.abilityId ===
+        HS_BP6_016_ACTIVATED_TURN_ONCE_PAY_FOUR_ENERGY_PLAY_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID
+    );
+    expect(hsBp6016Izumi).toMatchObject({
+      abilityId:
+        HS_BP6_016_ACTIVATED_TURN_ONCE_PAY_FOUR_ENERGY_PLAY_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-016'],
+      category: CardAbilityCategory.ACTIVATED,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      queued: false,
+      implemented: true,
+      perTurnLimit: 1,
+    });
+
+    const hsBp6018Sayaka = getCardAbilityDefinitions('PL!HS-bp6-018-N').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_018_LEAVE_STAGE_DISCARD_TARGET_BLUE_HEART_BLADE_ABILITY_ID
+    );
+    expect(hsBp6018Sayaka).toMatchObject({
+      abilityId: HS_BP6_018_LEAVE_STAGE_DISCARD_TARGET_BLUE_HEART_BLADE_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-018'],
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6025LiveStart = getCardAbilityDefinitions('PL!HS-bp6-025-L').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_025_LIVE_START_DISCARD_TARGET_HASUNOSORA_BLUE_HEART_ABILITY_ID
+    );
+    expect(hsBp6025LiveStart).toMatchObject({
+      abilityId: HS_BP6_025_LIVE_START_DISCARD_TARGET_HASUNOSORA_BLUE_HEART_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-025'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6025LiveSuccess = getCardAbilityDefinitions('PL!HS-bp6-025-L').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_025_LIVE_SUCCESS_STAGE_TWO_RECOVER_LOW_SCORE_LIVE_ABILITY_ID
+    );
+    expect(hsBp6025LiveSuccess).toMatchObject({
+      abilityId: HS_BP6_025_LIVE_SUCCESS_STAGE_TWO_RECOVER_LOW_SCORE_LIVE_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-025'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6028BlueMoment = getCardAbilityDefinitions('PL!HS-bp6-028-L').find(
+      (ability) =>
+        ability.abilityId === HS_BP6_028_LIVE_SUCCESS_REMAINING_HEART_LOOK_TOP_TWO_ABILITY_ID
+    );
+    expect(hsBp6028BlueMoment).toMatchObject({
+      abilityId: HS_BP6_028_LIVE_SUCCESS_REMAINING_HEART_LOOK_TOP_TWO_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-028'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+    });
+
+    const hsBp6030Coconatsu = getCardAbilityDefinitions('PL!HS-bp6-030-L').find(
+      (ability) => ability.abilityId === HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID
+    );
+    expect(hsBp6030Coconatsu).toMatchObject({
+      abilityId: HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+      baseCardCodes: ['PL!HS-bp6-030'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
     const watercolorWorldLiveSuccess = getCardAbilityDefinitions('PL!HS-cl1-009-CL').find(
       (ability) => ability.abilityId === HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID
     );
@@ -3435,6 +3665,20 @@ describe('card effect classification registry', () => {
       category: CardAbilityCategory.LIVE_START,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+    });
+
+    const sayakaOnEnter = getCardAbilityDefinitions('PL!HS-cl1-002-CL').find(
+      (ability) =>
+        ability.abilityId ===
+        HS_CL1_002_ON_ENTER_PAY_ENERGY_RECOVER_DOLLCHESTRA_CARD_ABILITY_ID
+    );
+    expect(sayakaOnEnter).toMatchObject({
+      cardCodes: ['PL!HS-cl1-002-CL'],
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
       queued: true,
       implemented: true,
     });
@@ -5196,8 +5440,7 @@ describe('card effect classification registry', () => {
     for (const cardCode of ['PL!SP-bp5-009-R', 'PL!SP-bp5-009-P', 'PL!SP-bp5-009-AR']) {
       const liveStart = getCardAbilityDefinitions(cardCode).find(
         (ability) =>
-          ability.abilityId ===
-          SP_BP5_009_LIVE_START_REPEAT_MILL_GAIN_BLADE_WAIT_IF_LIVE_ABILITY_ID
+          ability.abilityId === SP_BP5_009_LIVE_START_REPEAT_MILL_GAIN_BLADE_WAIT_IF_LIVE_ABILITY_ID
       );
       expect(liveStart).toMatchObject({
         abilityId: SP_BP5_009_LIVE_START_REPEAT_MILL_GAIN_BLADE_WAIT_IF_LIVE_ABILITY_ID,
@@ -5212,7 +5455,8 @@ describe('card effect classification registry', () => {
 
     for (const cardCode of ['PL!SP-bp5-010-R', 'PL!SP-bp5-010-P', 'PL!SP-bp5-010-AR']) {
       const onEnter = getCardAbilityDefinitions(cardCode).find(
-        (ability) => ability.abilityId === SP_BP5_010_ON_ENTER_BOTH_CENTER_POSITION_CHANGE_ABILITY_ID
+        (ability) =>
+          ability.abilityId === SP_BP5_010_ON_ENTER_BOTH_CENTER_POSITION_CHANGE_ABILITY_ID
       );
       expect(onEnter).toMatchObject({
         abilityId: SP_BP5_010_ON_ENTER_BOTH_CENTER_POSITION_CHANGE_ABILITY_ID,
@@ -5442,8 +5686,7 @@ describe('card effect classification registry', () => {
 
     const bp5027HotPassion = getCardAbilityDefinitions('PL!SP-bp5-027-L').find(
       (ability) =>
-        ability.abilityId ===
-        SP_BP5_027_LIVE_SUCCESS_PLACE_WAITING_ENERGY_OPPONENT_DRAW_ABILITY_ID
+        ability.abilityId === SP_BP5_027_LIVE_SUCCESS_PLACE_WAITING_ENERGY_OPPONENT_DRAW_ABILITY_ID
     );
     expect(bp5027HotPassion).toMatchObject({
       baseCardCodes: ['PL!SP-bp5-027'],
@@ -5502,8 +5745,7 @@ describe('card effect classification registry', () => {
 
       const bp5222YuunaLiveStart = getCardAbilityDefinitions(cardCode).find(
         (ability) =>
-          ability.abilityId ===
-          SP_BP5_222_LIVE_START_PAY_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID
+          ability.abilityId === SP_BP5_222_LIVE_START_PAY_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID
       );
       expect(bp5222YuunaLiveStart).toMatchObject({
         baseCardCodes: ['PL!SP-bp5-222'],
@@ -6198,9 +6440,11 @@ describe('card effect classification registry', () => {
       }
 
       if (ability.category === CardAbilityCategory.ACTIVATED) {
-        expect([CardAbilitySourceZone.STAGE_MEMBER, CardAbilitySourceZone.WAITING_ROOM]).toContain(
-          ability.sourceZone
-        );
+        expect([
+          CardAbilitySourceZone.STAGE_MEMBER,
+          CardAbilitySourceZone.HAND,
+          CardAbilitySourceZone.WAITING_ROOM,
+        ]).toContain(ability.sourceZone);
         expect(ability.queued).toBe(false);
         expect(ability.activatedUi).toBeTruthy();
       }
@@ -6315,6 +6559,23 @@ describe('card effect classification registry', () => {
     expect(
       getActivatedAbilityUiConfig('PL!N-bp1-002-P', CardAbilitySourceZone.WAITING_ROOM)?.abilityId
     ).toBe(PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID);
+    expect(getActivatedAbilityUiConfig('PL!HS-bp6-014-R')).toBeNull();
+    expect(
+      getActivatedAbilityUiConfig('PL!HS-bp6-014-R', CardAbilitySourceZone.HAND)?.abilityId
+    ).toBe(HS_BP6_014_ACTIVATED_HAND_DISCARD_SELF_DRAW_TARGET_MEGU_RURINO_BLADE_ABILITY_ID);
+    expect(
+      getCardAbilityDefinitions('PL!HS-bp6-014-R').find(
+        (ability) =>
+          ability.abilityId ===
+          HS_BP6_014_ACTIVATED_HAND_DISCARD_SELF_DRAW_TARGET_MEGU_RURINO_BLADE_ABILITY_ID
+      )
+    ).toMatchObject({
+      baseCardCodes: ['PL!HS-bp6-014'],
+      category: CardAbilityCategory.ACTIVATED,
+      sourceZone: CardAbilitySourceZone.HAND,
+      queued: false,
+      implemented: true,
+    });
     expect(getActivatedAbilityUiConfig('PL!HS-bp5-001-SEC')?.abilityId).toBe(
       HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID
     );

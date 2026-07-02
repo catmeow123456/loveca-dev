@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
+import type {
+  AnyCardData,
+  EnergyCardData,
+  LiveCardData,
+  MemberCardData,
+} from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
 import {
   createConfirmEffectStepCommand,
@@ -9,9 +18,11 @@ import {
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
+  HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import {
   CardType,
   FaceState,
@@ -20,6 +31,7 @@ import {
   OrientationState,
   SlotPosition,
   SubPhase,
+  TriggerCondition,
   TurnType,
 } from '../../src/shared/types/enums';
 
@@ -43,6 +55,17 @@ function createEnergyCard(cardCode: string): EnergyCardData {
     cardCode,
     name: cardCode,
     cardType: CardType.ENERGY,
+  };
+}
+
+function createLiveCard(cardCode: string, name = cardCode): LiveCardData {
+  return {
+    cardCode,
+    name,
+    groupNames: ['蓮ノ空'],
+    cardType: CardType.LIVE,
+    score: 1,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
   };
 }
 
@@ -282,6 +305,89 @@ describe('draw-then-discard shared workflow', () => {
           Array.isArray(action.payload.discardedCardIds) &&
           action.payload.discardedCardIds.length === 1 &&
           action.payload.discardedCardIds[0] === drawnCard.instanceId
+      )
+    ).toBe(true);
+  });
+
+  it('handles PL!HS-bp6-030-L live-start draw one discard one with enter-waiting-room triggers', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('hs-bp6-030-live-start-draw-discard', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+
+    const sourceLive = createCardInstance(
+      createLiveCard('PL!HS-bp6-030-L', 'Very! Very! COCO夏っ'),
+      PLAYER1,
+      'p1-hs-bp6-030-live'
+    );
+    const handCard = createCardInstance(
+      createMemberCard('PL!HS-bp6-030-hand', 'Hand Card'),
+      PLAYER1,
+      'p1-hs-bp6-030-hand'
+    );
+    const drawCard = createCardInstance(
+      createMemberCard('PL!HS-bp6-030-draw', 'Draw Card'),
+      PLAYER1,
+      'p1-hs-bp6-030-draw'
+    );
+
+    let state = registerCards(session.state!, [sourceLive, handCard, drawCard]);
+    state = {
+      ...state,
+      pendingAbilities: [
+        {
+          id: 'hs-bp6-030-live-start-pending',
+          abilityId: HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+          sourceCardId: sourceLive.instanceId,
+          controllerId: PLAYER1,
+          mandatory: true,
+          timingId: TriggerCondition.ON_LIVE_START,
+          eventIds: ['manual-live-start'],
+        },
+      ],
+    };
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    removeFromPlayerZones(p1);
+    p1.hand.cardIds = [handCard.instanceId];
+    p1.mainDeck.cardIds = [drawCard.instanceId];
+    p1.liveZone.cardIds = [sourceLive.instanceId];
+
+    (session as unknown as { authorityState: GameState }).authorityState =
+      resolvePendingCardEffects(session.state!).gameState;
+
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.metadata?.drawCount).toBe(1);
+    expect(session.state?.activeEffect?.metadata?.discardCount).toBe(1);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+      handCard.instanceId,
+      drawCard.instanceId,
+    ]);
+
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, handCard.instanceId)
+      ).success
+    ).toBe(true);
+
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([drawCard.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([handCard.instanceId]);
+    expect(
+      session.state?.eventLog.some(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          entry.event.cardInstanceId === handCard.instanceId
       )
     ).toBe(true);
   });

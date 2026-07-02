@@ -1486,6 +1486,10 @@ export class GameSession {
           if (!player.waitingRoom.cardIds.includes(command.cardId)) {
             return '起动效果来源卡当前不在自己的休息室';
           }
+        } else if (sourceZone === CardAbilitySourceZone.HAND) {
+          if (!player.hand.cardIds.includes(command.cardId)) {
+            return '起动效果来源卡当前不在自己的手牌';
+          }
         } else if (!Object.values(player.memberSlots.slots).includes(command.cardId)) {
           return '起动效果来源成员当前不在舞台';
         }
@@ -4037,9 +4041,11 @@ export class GameSession {
       };
     }
 
+    const abilityResult = resolvePendingCardEffects(nextState);
+
     return {
       success: true,
-      gameState: nextState,
+      gameState: abilityResult.gameState,
       declarationType: 'ACTIVATE_ABILITY',
       declarationPublicValue: command.abilityId,
       sealedAuditRecords: [

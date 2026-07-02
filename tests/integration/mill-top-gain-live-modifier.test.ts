@@ -11,6 +11,7 @@ import { GameService } from '../../src/application/game-service';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
   HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID,
+  HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
   HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
@@ -531,11 +532,160 @@ describe('mill-top gain live modifier workflow', () => {
       hearts: [{ color: HeartColor.BLUE, count: 1 }],
     });
   });
+
+  it('mills top four and adds BLADE +1 for PL!HS-bp6-009-R when all cards are Hasunosora', () => {
+    const session = createLiveStartSession('hs-bp6-009-hasunosora-blade', {
+      sourceCard: createCardInstance(
+        createMemberCard('PL!HS-bp6-009-R', '日野下花帆'),
+        PLAYER1,
+        'p1-hs-bp6-009-kaho'
+      ),
+      topCards: [0, 1, 2, 3].map((index) =>
+        createCardInstance(
+          { ...createMemberCard(`PL!HS-bp6-009-hasu-${index}`), groupNames: ['蓮ノ空'] },
+          PLAYER1,
+          `p1-hs-bp6-009-top-${index}`
+        )
+      ),
+    });
+
+    const timingResult = new GameService().executeCheckTiming(session.state!, [
+      TriggerCondition.ON_LIVE_START,
+    ]);
+
+    expect(timingResult.success).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState = timingResult.gameState;
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.stepId).toBe('HS_BP6_009_MILL_TOP_FOUR');
+    expect(session.state?.activeEffect?.metadata?.conditionMet).toBe(true);
+
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      sourceCardId: 'p1-hs-bp6-009-kaho',
+      abilityId: HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
+      countDelta: 1,
+    });
+  });
+
+  it('does not add BLADE for PL!HS-bp6-009-R when a milled card is not Hasunosora', () => {
+    const session = createLiveStartSession('hs-bp6-009-mixed-no-blade', {
+      sourceCard: createCardInstance(
+        createMemberCard('PL!HS-bp6-009-R', '日野下花帆'),
+        PLAYER1,
+        'p1-hs-bp6-009-mixed-kaho'
+      ),
+      topCards: [
+        createCardInstance(
+          { ...createMemberCard('PL!HS-bp6-009-mixed-0'), groupNames: ['蓮ノ空'] },
+          PLAYER1,
+          'p1-hs-bp6-009-mixed-0'
+        ),
+        createCardInstance(
+          { ...createMemberCard('PL!N-bp6-009-mixed-1'), groupNames: ['虹ヶ咲'] },
+          PLAYER1,
+          'p1-hs-bp6-009-mixed-1'
+        ),
+        createCardInstance(
+          { ...createMemberCard('PL!HS-bp6-009-mixed-2'), groupNames: ['蓮ノ空'] },
+          PLAYER1,
+          'p1-hs-bp6-009-mixed-2'
+        ),
+        createCardInstance(
+          { ...createMemberCard('PL!HS-bp6-009-mixed-3'), groupNames: ['蓮ノ空'] },
+          PLAYER1,
+          'p1-hs-bp6-009-mixed-3'
+        ),
+      ],
+    });
+
+    const timingResult = new GameService().executeCheckTiming(session.state!, [
+      TriggerCondition.ON_LIVE_START,
+    ]);
+
+    expect(timingResult.success).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState = timingResult.gameState;
+    expect(session.state?.activeEffect?.metadata?.conditionMet).toBe(false);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId ===
+            HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('uses existing refresh semantics for PL!HS-bp6-009-R and checks four actually milled cards', () => {
+    const waitingCards = [0, 1].map((index) =>
+      createCardInstance(
+        { ...createMemberCard(`PL!HS-bp6-009-refresh-wait-${index}`), groupNames: ['蓮ノ空'] },
+        PLAYER1,
+        `p1-hs-bp6-009-refresh-wait-${index}`
+      )
+    );
+    const session = createLiveStartSession('hs-bp6-009-refresh', {
+      sourceCard: createCardInstance(
+        createMemberCard('PL!HS-bp6-009-R', '日野下花帆'),
+        PLAYER1,
+        'p1-hs-bp6-009-refresh-kaho'
+      ),
+      topCards: [0, 1].map((index) =>
+        createCardInstance(
+          { ...createMemberCard(`PL!HS-bp6-009-refresh-top-${index}`), groupNames: ['蓮ノ空'] },
+          PLAYER1,
+          `p1-hs-bp6-009-refresh-top-${index}`
+        )
+      ),
+      waitingCards,
+    });
+
+    const timingResult = new GameService().executeCheckTiming(session.state!, [
+      TriggerCondition.ON_LIVE_START,
+    ]);
+
+    expect(timingResult.success).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState = timingResult.gameState;
+    expect(session.state?.activeEffect?.metadata?.refreshCount).toBe(1);
+    expect(session.state?.activeEffect?.metadata?.milledCardIds).toHaveLength(4);
+    expect(session.state?.activeEffect?.metadata?.conditionMet).toBe(true);
+
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      sourceCardId: 'p1-hs-bp6-009-refresh-kaho',
+      abilityId: HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
+      countDelta: 1,
+    });
+  });
 });
 
 function createLiveStartSession(
   gameId: string,
-  options: { readonly topCards: readonly ReturnType<typeof createCardInstance>[] }
+  options: {
+    readonly topCards: readonly ReturnType<typeof createCardInstance>[];
+    readonly sourceCard?: ReturnType<typeof createCardInstance>;
+    readonly waitingCards?: readonly ReturnType<typeof createCardInstance>[];
+  }
 ): ReturnType<typeof createGameSession> {
   const session = createGameSession();
   const deck = createDeck();
@@ -543,12 +693,18 @@ function createLiveStartSession(
   session.createGame(gameId, PLAYER1, 'Player 1', PLAYER2, 'Player 2');
   session.initializeGame(deck, deck);
 
-  const kosuzu = createCardInstance(
-    createMemberCard('PL!HS-bp5-013-N', '徒町 小鈴'),
-    PLAYER1,
-    'p1-hs-bp5-013-kosuzu'
-  );
-  const state = registerCards(session.state!, [kosuzu, ...options.topCards]);
+  const source =
+    options.sourceCard ??
+    createCardInstance(
+      createMemberCard('PL!HS-bp5-013-N', '徒町 小鈴'),
+      PLAYER1,
+      'p1-hs-bp5-013-kosuzu'
+    );
+  const state = registerCards(session.state!, [
+    source,
+    ...options.topCards,
+    ...(options.waitingCards ?? []),
+  ]);
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
   const p1 = state.players[0] as unknown as {
@@ -571,13 +727,14 @@ function createLiveStartSession(
 
   removeFromPlayerZones(p1);
   p1.mainDeck.cardIds = options.topCards.map((card) => card.instanceId);
+  p1.waitingRoom.cardIds = (options.waitingCards ?? []).map((card) => card.instanceId);
   p1.memberSlots.slots = {
     [SlotPosition.LEFT]: null,
-    [SlotPosition.CENTER]: kosuzu.instanceId,
+    [SlotPosition.CENTER]: source.instanceId,
     [SlotPosition.RIGHT]: null,
   };
   p1.memberSlots.cardStates = new Map([
-    [kosuzu.instanceId, { orientation: OrientationState.ACTIVE }],
+    [source.instanceId, { orientation: OrientationState.ACTIVE }],
   ]);
   mutableState.currentPhase = GamePhase.PERFORMANCE;
   mutableState.currentSubPhase = SubPhase.PERFORMANCE_LIVE_START_EFFECTS;

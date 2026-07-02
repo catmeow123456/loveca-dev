@@ -1475,6 +1475,7 @@ function buildPhaseCommandHint(
       return buildCommandHint(command, {
         scope: createCommandScope({
           zoneKeys: [
+            createOwnedViewZoneKey(viewerSeat, 'HAND'),
             createOwnedViewZoneKey(viewerSeat, 'MEMBER_LEFT'),
             createOwnedViewZoneKey(viewerSeat, 'MEMBER_CENTER'),
             createOwnedViewZoneKey(viewerSeat, 'MEMBER_RIGHT'),

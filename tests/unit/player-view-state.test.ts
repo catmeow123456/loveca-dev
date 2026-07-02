@@ -1010,6 +1010,7 @@ describe('PlayerViewState projector', () => {
     const mainView = projectPlayerViewState(state, PLAYER1);
     expect(hasEnabledCommand(mainView, GameCommandType.ACTIVATE_ABILITY)).toBe(true);
     expect(getCommandHint(mainView, GameCommandType.ACTIVATE_ABILITY)?.scope?.zoneKeys).toEqual([
+      'FIRST_HAND',
       'FIRST_MEMBER_LEFT',
       'FIRST_MEMBER_CENTER',
       'FIRST_MEMBER_RIGHT',

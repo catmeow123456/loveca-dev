@@ -70,6 +70,14 @@ import { registerHsBp6004GinkoWorkflowHandlers } from './card-effects/workflows/
 import { registerHsBp6005KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-005-kosuzu.js';
 import { registerHsBp6006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-006-hime.js';
 import { registerHsBp6007SerasWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-007-seras.js';
+import { registerHsBp6008IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-008-izumi.js';
+import { registerHsBp6010SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-010-sayaka.js';
+import { registerHsBp6012GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-012-ginko.js';
+import { registerHsBp6014HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-014-hime.js';
+import { registerHsBp6015SerasWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-015-seras.js';
+import { registerHsBp6016IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-016-izumi.js';
+import { registerHsBp6018SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-018-sayaka.js';
+import { registerHsBp6025TsubasaLaLiberteWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-025-tsubasa-la-liberte.js';
 import { registerHsBp6029ProofWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-029-proof.js';
 import { registerHsBp6003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-003-rurino.js';
 import { registerSFutureWaterBatch2LiveStartWorkflowHandlers } from './card-effects/workflows/shared/aqours-live-start-effects.js';
@@ -97,6 +105,7 @@ import { registerHsPb1029ZenhouiKyunWorkflowHandlers } from './card-effects/work
 import { registerHsPb1030EdeliedWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-030-edelied.js';
 import { registerHsPb1028CompassWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-028-compass.js';
 import { registerHsPb1003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-003-rurino.js';
+import { registerHsCl1002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-cl1-002-sayaka.js';
 import { registerHsCl1010AwokeWorkflowHandlers } from './card-effects/workflows/cards/hs-cl1-010-awoke.js';
 import { registerKekeOnEnterPlaceWaitingEnergyWorkflowHandlers } from './card-effects/workflows/shared/on-enter-discard-place-waiting-energy.js';
 import { registerMakiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/pl-sd1-006-maki.js';
@@ -324,6 +333,7 @@ interface OnEnterAbilitySource {
   readonly controllerId: string;
   readonly sourceSlot: SlotPosition | null;
   readonly eventId: string;
+  readonly fromZone?: ZoneType;
   readonly replacedMemberCardId?: string;
   readonly replacedMemberEffectiveCost?: number;
   readonly relayReplacements?: readonly RelayReplacementMetadata[];
@@ -701,7 +711,16 @@ registerHsBp6004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp6005KosuzuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp6006HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp6007SerasWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp6008IzumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp6010SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp6012GinkoWorkflowHandlers();
+registerHsBp6014HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp6015SerasWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp6016IzumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp6018SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp6025TsubasaLaLiberteWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp6029ProofWorkflowHandlers();
+registerHsCl1002SayakaWorkflowHandlers();
 registerHsSd1001KahoWorkflowHandlers();
 registerHsSd1006HimeWorkflowHandlers();
 registerHsBp1008KosuzuWorkflowHandlers();
@@ -928,7 +947,10 @@ export function enqueueTriggeredCardEffects(
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_ENTER_WAITING_ROOM)) {
-    state = enqueueEnterWaitingRoomCardEffects(state, options.enterWaitingRoomEvents ?? []);
+    state = enqueueEnterWaitingRoomCardEffects(
+      state,
+      options.enterWaitingRoomEvents ?? getLatestEnterWaitingRoomEventsFromLog(state)
+    );
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_MEMBER_SLOT_MOVED)) {
@@ -987,6 +1009,23 @@ function getLeaveStageEventsFromLog(game: GameState): readonly LeaveStageEvent[]
     .filter(
       (event): event is LeaveStageEvent => event.eventType === TriggerCondition.ON_LEAVE_STAGE
     );
+}
+
+function getEnterWaitingRoomEventsFromLog(game: GameState): readonly EnterWaitingRoomEvent[] {
+  return game.eventLog
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is EnterWaitingRoomEvent =>
+        event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
+    );
+}
+
+function getLatestEnterWaitingRoomEventsFromLog(
+  game: GameState
+): readonly EnterWaitingRoomEvent[] {
+  const events = getEnterWaitingRoomEventsFromLog(game);
+  const latestEvent = events.at(-1);
+  return latestEvent ? [latestEvent] : [];
 }
 
 function getLiveStartEventsFromLog(game: GameState): readonly LiveStartEvent[] {
@@ -1731,6 +1770,7 @@ function getLatestPlayMemberOnEnterSources(game: GameState): readonly OnEnterAbi
       controllerId: action.playerId ?? sourceCard.ownerId,
       sourceSlot: toSlotPosition(action.payload.targetSlot),
       eventId: `action:${action.sequence}`,
+      fromZone: ZoneType.HAND,
       replacedMemberCardId:
         typeof action.payload.replacedCardId === 'string'
           ? action.payload.replacedCardId
@@ -1752,6 +1792,7 @@ function createOnEnterAbilitySourcesFromEvents(
     controllerId: event.controllerId,
     sourceSlot: event.toSlot,
     eventId: event.eventId,
+    fromZone: event.fromZone,
     replacedMemberCardId: event.replacedMemberCardId,
     replacedMemberEffectiveCost: event.replacedMemberEffectiveCost,
     relayReplacements: event.relayReplacements,
@@ -1818,7 +1859,7 @@ function createEnterStageEventsFromOnEnterSources(
         eventType: TriggerCondition.ON_ENTER_STAGE,
         timestamp: 0,
         cardInstanceId: source.cardId,
-        fromZone: ZoneType.HAND,
+        fromZone: source.fromZone ?? ZoneType.HAND,
         toZone: ZoneType.MEMBER_SLOT,
         toSlot: source.sourceSlot,
         ownerId: card.ownerId,
@@ -1874,6 +1915,19 @@ function enqueueSingleOnEnterCardEffect(game: GameState, source: OnEnterAbilityS
       continue;
     }
 
+    const pendingMetadata =
+      source.fromZone !== undefined ||
+      source.replacedMemberCardId ||
+      source.replacedMemberEffectiveCost !== undefined ||
+      (source.relayReplacements && source.relayReplacements.length > 0)
+        ? {
+            ...(source.fromZone !== undefined ? { fromZone: source.fromZone } : {}),
+            replacedMemberCardId: source.replacedMemberCardId ?? null,
+            replacedMemberEffectiveCost: source.replacedMemberEffectiveCost ?? null,
+            relayReplacements: source.relayReplacements ?? [],
+          }
+        : undefined;
+
     const pendingAbility: PendingAbilityState = {
       id: pendingAbilityId,
       abilityId,
@@ -1883,16 +1937,7 @@ function enqueueSingleOnEnterCardEffect(game: GameState, source: OnEnterAbilityS
       timingId: TriggerCondition.ON_ENTER_STAGE,
       eventIds: [source.eventId],
       sourceSlot: source.sourceSlot ?? undefined,
-      metadata:
-        source.replacedMemberCardId ||
-        source.replacedMemberEffectiveCost !== undefined ||
-        (source.relayReplacements && source.relayReplacements.length > 0)
-          ? {
-              replacedMemberCardId: source.replacedMemberCardId ?? null,
-              replacedMemberEffectiveCost: source.replacedMemberEffectiveCost ?? null,
-              relayReplacements: source.relayReplacements ?? [],
-            }
-          : undefined,
+      metadata: pendingMetadata,
     };
 
     state = addAction(
@@ -1908,6 +1953,7 @@ function enqueueSingleOnEnterCardEffect(game: GameState, source: OnEnterAbilityS
         sourceCardId: source.cardId,
         timingId: pendingAbility.timingId,
         sourceSlot: source.sourceSlot,
+        fromZone: source.fromZone ?? null,
         replacedMemberCardId: source.replacedMemberCardId ?? null,
         replacedMemberEffectiveCost: source.replacedMemberEffectiveCost ?? null,
         relayReplacements: source.relayReplacements ?? [],

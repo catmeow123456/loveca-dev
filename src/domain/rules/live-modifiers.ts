@@ -406,6 +406,21 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    baseCardCodes: ['PL!HS-bp6-002'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasNoOtherStageMembers(game, playerId, sourceCardId)
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 2,
+              sourceCardId,
+              abilityId: HS_BP6_002_CONTINUOUS_ALONE_GAIN_TWO_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
     cardCodes: ['PL!HS-bp5-016-N'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasOpponentWaitingStageMembers(game, playerId, 2)
@@ -726,6 +741,8 @@ const HS_BP5_007_CONTINUOUS_OTHER_EDELNOTE_MEMBER_BLADE_ABILITY_ID =
   'PL!HS-bp5-007:continuous-other-edelnote-member-blade';
 const HS_BP2_006_CONTINUOUS_OTHER_MIRACRA_STAGE_MEMBER_BLADE_ABILITY_ID =
   'PL!HS-bp2-006:continuous-other-miracra-stage-member-blade';
+const HS_BP6_002_CONTINUOUS_ALONE_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!HS-bp6-002:continuous-alone-gain-two-blade';
 const HS_BP5_016_CONTINUOUS_OPPONENT_TWO_WAITING_PURPLE_HEART_ABILITY_ID =
   'PL!HS-bp5-016-N:continuous-opponent-two-waiting-purple-heart';
 const HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GREEN_HEART_ABILITY_ID =
@@ -1501,6 +1518,24 @@ function hasOtherEdelNoteStageMember(
       isEdelNoteUnit(card.data.unitName)
     );
   });
+}
+
+function hasNoOtherStageMembers(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return false;
+  }
+
+  const stageMemberIds = MEMBER_SLOT_ORDER.flatMap((slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    const card = cardId ? getCardById(game, cardId) : null;
+    return cardId !== null && card !== null && isMemberCardData(card.data) ? [cardId] : [];
+  });
+  return stageMemberIds.includes(sourceCardId) && stageMemberIds.length === 1;
 }
 
 function countOtherMiracraParkStageMembers(
