@@ -8,10 +8,11 @@ import {
 } from '../../../../domain/entities/game.js';
 import { CardType, ZoneType } from '../../../../shared/types/enums.js';
 import { typeIs } from '../../../effects/card-selectors.js';
-import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 import { PL_N_BP5_021_ON_ENTER_MILL_TWO_OPTIONAL_INSERT_LIVE_FOURTH_FROM_TOP_ABILITY_ID } from '../../ability-ids.js';
 import { moveWaitingRoomCardToDeckPositionForPlayer } from '../../runtime/actions.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -22,7 +23,9 @@ const DECK_POSITION_FROM_TOP = 4;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerNBp5021RinaWorkflowHandlers(): void {
+export function registerNBp5021RinaWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerPendingAbilityStarterHandler(
     PL_N_BP5_021_ON_ENTER_MILL_TWO_OPTIONAL_INSERT_LIVE_FOURTH_FROM_TOP_ABILITY_ID,
     (game, ability, options, context) =>
@@ -30,7 +33,8 @@ export function registerNBp5021RinaWorkflowHandlers(): void {
         game,
         ability,
         options.orderedResolution === true,
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
   );
   registerActiveEffectStepHandler(
@@ -49,14 +53,20 @@ function startRinaOnEnter(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
 
-  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(game, player.id, MILL_COUNT);
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+    game,
+    player.id,
+    MILL_COUNT,
+    enqueueTriggeredCardEffects
+  );
   if (!millResult) {
     return game;
   }

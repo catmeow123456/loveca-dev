@@ -14,15 +14,23 @@ import {
   recordPayCostAction,
 } from '../../runtime/workflow-helpers.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
-import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 
-export function registerSd1008HanayoWorkflowHandlers(): void {
+export function registerSd1008HanayoWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerActivatedAbilityHandler(HANAYO_ACTIVATED_ABILITY_ID, (game, playerId, cardId) =>
-    startHanayoActivatedEffect(game, playerId, cardId)
+    startHanayoActivatedEffect(game, playerId, cardId, deps.enqueueTriggeredCardEffects)
   );
 }
 
-function startHanayoActivatedEffect(game: GameState, playerId: string, cardId: string): GameState {
+function startHanayoActivatedEffect(
+  game: GameState,
+  playerId: string,
+  cardId: string,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+): GameState {
   if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
     return game;
   }
@@ -49,16 +57,25 @@ function startHanayoActivatedEffect(game: GameState, playerId: string, cardId: s
   if (!costPayment) {
     return game;
   }
-  const moveResult = moveTopDeckCardsToWaitingRoomWithRefresh(costPayment.gameState, player.id, 10);
+  const moveResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+    costPayment.gameState,
+    player.id,
+    10,
+    enqueueTriggeredCardEffects,
+    {
+      prepareGameStateBeforeEnqueue: (gameState) =>
+        recordPayCostAction(gameState, player.id, {
+          abilityId: HANAYO_ACTIVATED_ABILITY_ID,
+          sourceCardId: cardId,
+          energyCardIds: costPayment.paidEnergyCardIds,
+        }),
+    }
+  );
   if (!moveResult) {
     return game;
   }
 
-  let state = recordPayCostAction(moveResult.gameState, player.id, {
-    abilityId: HANAYO_ACTIVATED_ABILITY_ID,
-    sourceCardId: cardId,
-    energyCardIds: costPayment.paidEnergyCardIds,
-  });
+  let state = moveResult.gameState;
   state = addAction(state, 'RESOLVE_ABILITY', player.id, {
     abilityId: HANAYO_ACTIVATED_ABILITY_ID,
     sourceCardId: cardId,

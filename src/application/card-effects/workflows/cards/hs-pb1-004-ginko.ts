@@ -19,13 +19,13 @@ import {
   payImmediateEffectCosts,
   type EffectCostDefinition,
 } from '../../../effects/effect-costs.js';
-import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
   selectWaitingRoomCardIds,
 } from '../../../effects/zone-selection.js';
 import { finishWaitingRoomToHandWorkflow } from '../shared/waiting-room-to-hand.js';
+import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 
 const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
 const DECLINE_OPTION_LABEL = '不发动';
@@ -189,7 +189,12 @@ function finishHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
     discardedHandCardIds: discardResult.discardedCardIds,
   });
 
-  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(stateAfterCost, player.id, 3);
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+    stateAfterCost,
+    player.id,
+    3,
+    enqueueTriggeredCardEffects
+  );
   if (!millResult) {
     return game;
   }

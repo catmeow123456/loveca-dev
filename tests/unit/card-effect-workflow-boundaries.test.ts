@@ -26,18 +26,18 @@ const rawInspectionWaitingRoomHelpers = [
   'moveInspectedCardsToWaitingRoom',
   'moveInspectedSelectionToHandRestToWaitingRoom',
 ] as const;
+const rawMainDeckWaitingRoomHelpers = [
+  'moveTopDeckCardsToWaitingRoom',
+  'moveTopDeckCardsToWaitingRoomWithRefresh',
+] as const;
 const disallowedWorkflowHelpers = [
   ...rawHandDiscardHelpers,
   ...rawMemberSlotMovedHelpers,
   ...rawMemberStateChangedEventHelpers,
   ...rawSourceMemberLeaveStageHelpers,
   ...rawInspectionWaitingRoomHelpers,
+  ...rawMainDeckWaitingRoomHelpers,
 ] as const;
-const allowedInspectionWaitingRoomFiles = new Set([
-  path.join(workflowsRoot, 'shared/mill-top-gain-live-modifier.ts'),
-  path.join(workflowsRoot, 'cards/hs-bp1-008-kosuzu.ts'),
-  path.join(workflowsRoot, 'cards/hs-bp5-001-kaho.ts'),
-]);
 
 type BoundaryViolation = {
   readonly filePath: string;
@@ -88,6 +88,9 @@ function boundaryMessageForHelper(helperName: (typeof disallowedWorkflowHelpers)
   if ((rawInspectionWaitingRoomHelpers as readonly string[]).includes(helperName)) {
     return 'use inspection-to-waiting-room trigger wrapper';
   }
+  if ((rawMainDeckWaitingRoomHelpers as readonly string[]).includes(helperName)) {
+    return 'use main-deck-to-waiting-room trigger wrapper';
+  }
   return 'use runtime trigger wrappers';
 }
 
@@ -110,12 +113,6 @@ describe('card effect workflow boundaries', () => {
     const violations = collectTypeScriptFiles(workflowsRoot).flatMap((filePath) => {
       const source = readFileSync(filePath, 'utf8');
       return disallowedWorkflowHelpers.flatMap((helperName): readonly BoundaryViolation[] => {
-        if (
-          (rawInspectionWaitingRoomHelpers as readonly string[]).includes(helperName) &&
-          allowedInspectionWaitingRoomFiles.has(filePath)
-        ) {
-          return [];
-        }
         const lines = lineNumbersForIdentifier(source, helperName);
         if (lines.length === 0) {
           return [];
@@ -129,9 +126,6 @@ describe('card effect workflow boundaries', () => {
 
   it('keeps inspected card waiting-room movement behind the trigger wrapper', () => {
     const violations = collectTypeScriptFiles(workflowsRoot).flatMap((filePath) => {
-      if (allowedInspectionWaitingRoomFiles.has(filePath)) {
-        return [];
-      }
       const source = readFileSync(filePath, 'utf8');
       const writesWaitingRoomCards = /waitingRoom:\s*\{[\s\S]*?cardIds:/m.test(source);
       const usesInspectionWaitingRoomWrapper = source.includes('inspection-waiting-room-triggers');

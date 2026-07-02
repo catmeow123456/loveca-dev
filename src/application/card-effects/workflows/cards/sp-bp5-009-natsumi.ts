@@ -1,16 +1,13 @@
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
-  emitGameEvent,
   getCardById,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { createEnterWaitingRoomEvent } from '../../../../domain/events/game-events.js';
-import { OrientationState, TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
-import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
+import { OrientationState } from '../../../../shared/types/enums.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import { SP_BP5_009_LIVE_START_REPEAT_MILL_GAIN_BLADE_WAIT_IF_LIVE_ABILITY_ID } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
@@ -20,6 +17,7 @@ import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
 } from '../../runtime/member-state-changed-triggers.js';
+import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import {
   registerPendingAbilityStarterHandler,
   type PendingAbilityStarterOptions,
@@ -146,7 +144,12 @@ function finishSpBp5009NatsumiIteration(
     });
   }
 
-  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(game, player.id, 1);
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+    game,
+    player.id,
+    1,
+    enqueueEnterWaitingRoomTriggers
+  );
   const milledCardId = millResult?.movedCardIds[0] ?? null;
   if (!millResult || !milledCardId) {
     return finishNoOpActiveEffect(game, continuePendingCardEffects, {
@@ -157,12 +160,7 @@ function finishSpBp5009NatsumiIteration(
     });
   }
 
-  let state = enqueueTopDeckEnterWaitingRoomTriggers(
-    millResult.gameState,
-    player.id,
-    [milledCardId],
-    enqueueEnterWaitingRoomTriggers
-  );
+  let state = millResult.gameState;
   const milledCard = getCardById(state, milledCardId);
   const milledLiveCard = !!milledCard && isLiveCardData(milledCard.data);
   const bladeResult = addBladeLiveModifierForSourceMember(state, {
@@ -328,24 +326,6 @@ function getNoPromptReason(game: GameState, playerId: string, sourceCardId: stri
     return 'NO_REFRESHABLE_TOP_CARD';
   }
   return 'UNKNOWN';
-}
-
-function enqueueTopDeckEnterWaitingRoomTriggers(
-  game: GameState,
-  playerId: string,
-  movedCardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
-): GameState {
-  const event = createEnterWaitingRoomEvent(
-    movedCardIds,
-    ZoneType.MAIN_DECK,
-    playerId,
-    playerId
-  );
-  const stateWithEvent = emitGameEvent(game, event);
-  return enqueueTriggeredCardEffects(stateWithEvent, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
-    enterWaitingRoomEvents: [event],
-  });
 }
 
 function consumePendingWithoutPrompt(

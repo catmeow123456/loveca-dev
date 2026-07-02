@@ -215,6 +215,7 @@ git diff -- src/application/card-effect-runner.ts
 - 手牌进休息室默认使用 `discardHandCardsToWaitingRoomAndEnqueueTriggers` 或 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`。
 - 检视 / 查看 / 公开卡组顶后，inspected cards 从检视区进入休息室必须走统一 inspection-to-waiting helper；事件事实按卡组顶移动处理，`fromZone` 为 `MAIN_DECK`、`toZone` 为 `WAITING_ROOM`，同一次检视进入休息室的一组卡作为同一个 `movedCardIds`。
 - workflow 不允许裸写 `waitingRoom.cardIds` + `clearInspectionCards` 来处理 inspected remainder；若只是 direct mill 或不进入休息室，应在实现/审查中明确说明不属于 inspection-to-waiting helper 范围。
+- 牌组顶直接进入休息室（不经过检视区的 direct mill）默认使用 `moveTopDeckCardsToWaitingRoomAndEnqueueTriggers` / `moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers` 或 `enqueueMainDeckCardsEnteredWaitingRoom`；事件事实为 `MAIN_DECK -> WAITING_ROOM`，同一次实际进入休息室的顶牌作为同一个 `movedCardIds`。`WithRefresh` 只记录实际从刷新后的主卡组顶进入休息室的卡，不把 refresh 洗回卡组的牌算入本次事件；无刷新费用路径不能偷偷改成 refresh 语义。
 - 成员区移动默认使用 `moveMemberBetweenSlotsAndEnqueueTriggers` 或当前 stage-formation wrapper。
 - 成员状态变化默认使用 state-change trigger wrapper。
 - 来源成员自送或离场费用默认使用 leave-stage trigger wrapper。

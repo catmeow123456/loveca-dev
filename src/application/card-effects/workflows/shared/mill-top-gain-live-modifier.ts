@@ -18,6 +18,8 @@ import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import {
   groupAliasIs,
   memberHasHeartColor,
@@ -25,7 +27,6 @@ import {
   type CardSelector,
 } from '../../../effects/card-selectors.js';
 import { allCardIdsMatchingSelector } from '../../../effects/conditions.js';
-import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -126,14 +127,17 @@ const MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS: readonly MillTopGainLiveModifierConfi
   },
 ];
 
-export function registerMillTopGainLiveModifierWorkflowHandlers(): void {
+export function registerMillTopGainLiveModifierWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   for (const config of MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
       startMillTopGainLiveModifierInspection(
         game,
         ability,
         options.orderedResolution === true,
-        config
+        config,
+        deps.enqueueTriggeredCardEffects
       )
     );
     registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, _input, context) =>
@@ -146,14 +150,20 @@ function startMillTopGainLiveModifierInspection(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
-  config: MillTopGainLiveModifierConfig
+  config: MillTopGainLiveModifierConfig,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
 
-  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(game, player.id, config.topCount);
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+    game,
+    player.id,
+    config.topCount,
+    enqueueTriggeredCardEffects
+  );
   if (!millResult) {
     return game;
   }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import {
+  addAction,
   createGameState,
   emitGameEvent,
   registerCards,
@@ -28,6 +29,10 @@ import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../src/application/card-effects/runtime/enter-waiting-room-triggers';
+import {
+  moveTopDeckCardsToWaitingRoomAndEnqueueTriggers,
+  moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers,
+} from '../../src/application/card-effects/runtime/main-deck-waiting-room-triggers';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
   revealHandCardForActiveEffect,
@@ -360,6 +365,203 @@ describe('card effect runtime actions', () => {
     expect(result?.enterWaitingRoomEvent).toBeUndefined();
     expect(result?.gameState).toBe(state);
     expect(enqueueCallCount).toBe(0);
+  });
+
+  it('moves top deck cards to waiting room and enqueues a main-deck enter-waiting-room event', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 4);
+    setPlayerZones(state, 0, { mainDeckCardIds: cardIds });
+    const calls: {
+      readonly triggerConditions: readonly TriggerCondition[];
+      readonly eventCardIds: readonly string[];
+      readonly eventFromZone: ZoneType | undefined;
+      readonly eventOwnerId: string | undefined;
+      readonly eventControllerId: string | undefined;
+      readonly emittedEventCount: number;
+    }[] = [];
+    const enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom = (
+      game,
+      triggerConditions,
+      options
+    ) => {
+      const event = options?.enterWaitingRoomEvents?.[0];
+      calls.push({
+        triggerConditions,
+        eventCardIds: event?.cardInstanceIds ?? [],
+        eventFromZone: event?.fromZone,
+        eventOwnerId: event?.ownerId,
+        eventControllerId: event?.controllerId,
+        emittedEventCount: game.eventLog.length,
+      });
+      return { ...game, turnNumber: game.turnNumber + 1 };
+    };
+
+    const result = moveTopDeckCardsToWaitingRoomAndEnqueueTriggers(
+      state,
+      PLAYER1,
+      2,
+      enqueueTriggeredCardEffects
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.movedCardIds).toEqual(cardIds.slice(0, 2));
+    expect(result?.gameState.players[0].mainDeck.cardIds).toEqual(cardIds.slice(2));
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual(cardIds.slice(0, 2));
+    expect(result?.gameState.turnNumber).toBe(state.turnNumber + 1);
+    expect(calls).toEqual([
+      {
+        triggerConditions: [TriggerCondition.ON_ENTER_WAITING_ROOM],
+        eventCardIds: cardIds.slice(0, 2),
+        eventFromZone: ZoneType.MAIN_DECK,
+        eventOwnerId: PLAYER1,
+        eventControllerId: PLAYER1,
+        emittedEventCount: 1,
+      },
+    ]);
+  });
+
+  it('does not enqueue main-deck enter-waiting-room triggers for zero moved cards', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 2);
+    setPlayerZones(state, 0, { mainDeckCardIds: cardIds });
+    let enqueueCallCount = 0;
+    const enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom = (game) => {
+      enqueueCallCount += 1;
+      return { ...game, turnNumber: game.turnNumber + 1 };
+    };
+
+    const zeroCountResult = moveTopDeckCardsToWaitingRoomAndEnqueueTriggers(
+      state,
+      PLAYER1,
+      0,
+      enqueueTriggeredCardEffects
+    );
+    expect(zeroCountResult).not.toBeNull();
+    expect(zeroCountResult?.movedCardIds).toEqual([]);
+    expect(zeroCountResult?.gameState.players[0].mainDeck.cardIds).toEqual(cardIds);
+    expect(zeroCountResult?.gameState.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(enqueueCallCount).toBe(0);
+
+    const emptyDeckState = createMutableState();
+    setPlayerZones(emptyDeckState, 0, { mainDeckCardIds: [] });
+    const emptyDeckResult = moveTopDeckCardsToWaitingRoomAndEnqueueTriggers(
+      emptyDeckState,
+      PLAYER1,
+      3,
+      enqueueTriggeredCardEffects
+    );
+    expect(emptyDeckResult).not.toBeNull();
+    expect(emptyDeckResult?.movedCardIds).toEqual([]);
+    expect(emptyDeckResult?.gameState.players[0].mainDeck.cardIds).toEqual([]);
+    expect(emptyDeckResult?.gameState.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(enqueueCallCount).toBe(0);
+  });
+
+  it('enqueues only actually milled top cards after refresh', () => {
+    const state = createMutableState();
+    const waitingCardIds = ownedMemberIds(state, PLAYER1, 5);
+    setPlayerZones(state, 0, { mainDeckCardIds: [], waitingRoomCardIds: waitingCardIds });
+    const calls: {
+      readonly triggerConditions: readonly TriggerCondition[];
+      readonly eventCardIds: readonly string[];
+      readonly eventFromZone: ZoneType | undefined;
+      readonly waitingRoomSizeAtEnqueue: number;
+    }[] = [];
+    const enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom = (
+      game,
+      triggerConditions,
+      options
+    ) => {
+      calls.push({
+        triggerConditions,
+        eventCardIds: options?.enterWaitingRoomEvents?.[0]?.cardInstanceIds ?? [],
+        eventFromZone: options?.enterWaitingRoomEvents?.[0]?.fromZone,
+        waitingRoomSizeAtEnqueue: game.players[0].waitingRoom.cardIds.length,
+      });
+      return game;
+    };
+
+    const result = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+      state,
+      PLAYER1,
+      2,
+      enqueueTriggeredCardEffects
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.refreshCount).toBe(1);
+    expect(result?.movedCardIds).toHaveLength(2);
+    expect(result?.movedCardIds.every((cardId) => waitingCardIds.includes(cardId))).toBe(true);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual(result?.movedCardIds);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toHaveLength(3);
+    expect(calls).toEqual([
+      {
+        triggerConditions: [TriggerCondition.ON_ENTER_WAITING_ROOM],
+        eventCardIds: result?.movedCardIds ?? [],
+        eventFromZone: ZoneType.MAIN_DECK,
+        waitingRoomSizeAtEnqueue: 2,
+      },
+    ]);
+  });
+
+  it('prepares main-deck enter-waiting-room game state before enqueue without changing move metadata', () => {
+    const state = createMutableState();
+    const waitingCardIds = ownedMemberIds(state, PLAYER1, 4);
+    setPlayerZones(state, 0, { mainDeckCardIds: [], waitingRoomCardIds: waitingCardIds });
+    let preparedMovedCardIds: readonly string[] = [];
+    let preparedRefreshCount = -1;
+    const calls: {
+      readonly actionStep: unknown;
+      readonly actionMovedCardIds: unknown;
+      readonly actionRefreshCount: unknown;
+      readonly eventCardIds: readonly string[];
+    }[] = [];
+    const enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom = (
+      game,
+      _triggerConditions,
+      options
+    ) => {
+      const action = game.actionHistory.at(-1);
+      calls.push({
+        actionStep: action?.payload.step,
+        actionMovedCardIds: action?.payload.movedCardIds,
+        actionRefreshCount: action?.payload.refreshCount,
+        eventCardIds: options?.enterWaitingRoomEvents?.[0]?.cardInstanceIds ?? [],
+      });
+      return game;
+    };
+
+    const result = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+      state,
+      PLAYER1,
+      2,
+      enqueueTriggeredCardEffects,
+      {
+        prepareGameStateBeforeEnqueue: (game, movedCardIds, refreshCount) => {
+          preparedMovedCardIds = movedCardIds;
+          preparedRefreshCount = refreshCount;
+          return addAction(game, 'RESOLVE_ABILITY', PLAYER1, {
+            step: 'PREPARE_MAIN_DECK_WAITING_ROOM_TEST',
+            movedCardIds,
+            refreshCount,
+          });
+        },
+      }
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.refreshCount).toBe(1);
+    expect(result?.movedCardIds).toHaveLength(2);
+    expect(preparedMovedCardIds).toEqual(result?.movedCardIds);
+    expect(preparedRefreshCount).toBe(result?.refreshCount);
+    expect(calls).toEqual([
+      {
+        actionStep: 'PREPARE_MAIN_DECK_WAITING_ROOM_TEST',
+        actionMovedCardIds: result?.movedCardIds,
+        actionRefreshCount: result?.refreshCount,
+        eventCardIds: result?.movedCardIds ?? [],
+      },
+    ]);
   });
 
   it('discards one hand card to waiting room with the single-card helper', () => {

@@ -1,24 +1,16 @@
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
-  emitGameEvent,
   getCardById,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { createEnterWaitingRoomEvent } from '../../../../domain/events/game-events.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import {
-  GamePhase,
-  OrientationState,
-  TriggerCondition,
-  ZoneType,
-} from '../../../../shared/types/enums.js';
+import { GamePhase, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
-import { moveTopDeckCardsToWaitingRoom } from '../../../effects/look-top.js';
 import {
   SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
@@ -30,6 +22,7 @@ import {
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveTopDeckCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import {
   registerPendingAbilityStarterHandler,
   type PendingAbilityStarterOptions,
@@ -107,22 +100,25 @@ function startSpBp5005RenActivated(
     abilityId: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
     sourceCardId: cardId,
   });
-  const millResult = moveTopDeckCardsToWaitingRoom(state, player.id, MILL_COST_COUNT);
+  const millResult = moveTopDeckCardsToWaitingRoomAndEnqueueTriggers(
+    state,
+    player.id,
+    MILL_COST_COUNT,
+    enqueueTriggeredCardEffects,
+    {
+      prepareGameStateBeforeEnqueue: (gameState, movedCardIds) =>
+        recordPayCostAction(gameState, player.id, {
+          abilityId: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
+          sourceCardId: cardId,
+          milledCardIds: movedCardIds,
+          count: movedCardIds.length,
+        }),
+    }
+  );
   if (!millResult || millResult.movedCardIds.length !== MILL_COST_COUNT) {
     return game;
   }
-  state = recordPayCostAction(millResult.gameState, player.id, {
-    abilityId: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
-    sourceCardId: cardId,
-    milledCardIds: millResult.movedCardIds,
-    count: millResult.movedCardIds.length,
-  });
-  state = enqueueMilledCardsEnterWaitingRoomTriggers(
-    state,
-    player.id,
-    millResult.movedCardIds,
-    enqueueTriggeredCardEffects
-  );
+  state = millResult.gameState;
 
   const liellaMemberCount = millResult.movedCardIds.filter((movedCardId) =>
     isLiellaMemberCard(state, movedCardId)
@@ -431,28 +427,6 @@ function isOwnMainPhase(game: GameState, playerId: string): boolean {
     game.currentPhase === GamePhase.MAIN_PHASE &&
     game.players[game.activePlayerIndex]?.id === playerId
   );
-}
-
-function enqueueMilledCardsEnterWaitingRoomTriggers(
-  game: GameState,
-  playerId: string,
-  movedCardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
-): GameState {
-  if (movedCardIds.length === 0) {
-    return game;
-  }
-
-  const event = createEnterWaitingRoomEvent(
-    movedCardIds,
-    ZoneType.MAIN_DECK,
-    playerId,
-    playerId
-  );
-  const stateWithEvent = emitGameEvent(game, event);
-  return enqueueTriggeredCardEffects(stateWithEvent, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
-    enterWaitingRoomEvents: [event],
-  });
 }
 
 function isLiellaMemberCard(game: GameState, cardId: string): boolean {

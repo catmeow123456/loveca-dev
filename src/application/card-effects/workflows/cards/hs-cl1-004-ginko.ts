@@ -1,7 +1,5 @@
-import { createEnterWaitingRoomEvent } from '../../../../domain/events/game-events.js';
 import {
   addAction,
-  emitGameEvent,
   getOpponent,
   getPlayerById,
   type ActiveEffectState,
@@ -13,10 +11,8 @@ import {
   OrientationState,
   SlotPosition,
   TriggerCondition,
-  ZoneType,
 } from '../../../../shared/types/enums.js';
 import { and, costLte, typeIs } from '../../../effects/card-selectors.js';
-import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 import {
   createStageMemberOrientationTargetSelection,
   getStageMemberOrientationTargetMetadata,
@@ -32,6 +28,7 @@ import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
 } from '../../runtime/member-state-changed-triggers.js';
+import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -202,30 +199,30 @@ function finishHsCl1004MillTopThree(
     );
   }
 
-  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(game, player.id, 3);
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+    game,
+    player.id,
+    3,
+    enqueueTriggeredCardEffects,
+    {
+      prepareGameStateBeforeEnqueue: (gameState, movedCardIds, refreshCount) =>
+        addAction({ ...gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+          pendingAbilityId: effect.id,
+          abilityId: effect.abilityId,
+          sourceCardId: effect.sourceCardId,
+          sourceSlot: effect.metadata?.sourceSlot,
+          step: 'MILL_TOP_THREE_TO_WAITING_ROOM',
+          movedCardIds,
+          movedCount: movedCardIds.length,
+          refreshCount,
+        }),
+    }
+  );
   if (!millResult) {
     return game;
   }
 
-  const actionPayload = {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    sourceSlot: effect.metadata?.sourceSlot,
-    step: 'MILL_TOP_THREE_TO_WAITING_ROOM',
-    movedCardIds: millResult.movedCardIds,
-    movedCount: millResult.movedCardIds.length,
-    refreshCount: millResult.refreshCount,
-  };
-  let state = addAction({ ...millResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, actionPayload);
-  if (millResult.movedCardIds.length > 0) {
-    state = enqueueTopDeckEnterWaitingRoomTriggers(
-      state,
-      player.id,
-      millResult.movedCardIds,
-      enqueueTriggeredCardEffects
-    );
-  }
+  const state = millResult.gameState;
 
   return continuePendingCardEffects(state, effect.metadata?.orderedResolution === true);
 }
@@ -411,25 +408,6 @@ function getOpponentLowCostWaitTargetIds(game: GameState, playerId: string): rea
   ).filter(
     (cardId) =>
       opponent.memberSlots.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
-  );
-}
-
-function enqueueTopDeckEnterWaitingRoomTriggers(
-  game: GameState,
-  playerId: string,
-  movedCardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
-): GameState {
-  const enterWaitingRoomEvent = createEnterWaitingRoomEvent(
-    movedCardIds,
-    ZoneType.MAIN_DECK,
-    playerId,
-    playerId
-  );
-  return enqueueTriggeredCardEffects(
-    emitGameEvent(game, enterWaitingRoomEvent),
-    [TriggerCondition.ON_ENTER_WAITING_ROOM],
-    { enterWaitingRoomEvents: [enterWaitingRoomEvent] }
   );
 }
 
