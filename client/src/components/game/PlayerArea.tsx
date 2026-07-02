@@ -2357,6 +2357,16 @@ export const PlayerArea = memo(function PlayerArea({
 
           // 结果阶段切走后，这里会自动退化为只读展示。
           const isDraggable = canDragFromHand;
+          const isHandCardSelected = selectedCardId === card.instanceId;
+          const activatedAbilityConfig = getActivatedAbilityUiConfig(
+            card.cardCode,
+            CardAbilitySourceZone.HAND
+          );
+          const canActivateHandAbility =
+            activatedAbilityConfig !== null &&
+            viewerSeat === playerSeat &&
+            canActivateAbilityCommand &&
+            isHandCardSelected;
 
           return (
             <div
@@ -2390,8 +2400,10 @@ export const PlayerArea = memo(function PlayerArea({
                       imagePath={card.imagePath}
                       size="sm"
                       faceUp={true}
-                      selected={selectedCardId === card.instanceId}
-                      effectVisualState={getEffectVisualState(card)}
+                      selected={isHandCardSelected}
+                      effectVisualState={getEffectVisualState(card, {
+                        isActionableNow: canActivateHandAbility,
+                      })}
                       className={getActiveEffectTaskCardClass(card.instanceId)}
                       onClick={() => {
                         if (confirmActiveEffectCardFromTable(card.instanceId)) {
@@ -2405,6 +2417,24 @@ export const PlayerArea = memo(function PlayerArea({
                     />
                   </CardDetailPressTarget>
                 </DraggableCard>
+                {canActivateHandAbility && activatedAbilityConfig && (
+                  <button
+                    type="button"
+                    className={cn(
+                      'absolute bottom-full left-1/2 z-50 mb-1 w-[min(420px,92vw)] -translate-x-1/2 rounded-lg border border-rose-300/70',
+                      'bg-white/95 px-3 py-1.5 font-semibold text-rose-600 shadow-lg',
+                      'transition-colors hover:bg-rose-50 active:scale-95'
+                    )}
+                    style={{ fontSize: '12px', lineHeight: 1.25 }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      activateCardAbility(card.instanceId, activatedAbilityConfig.abilityId);
+                    }}
+                    title={activatedAbilityConfig.title}
+                  >
+                    {activatedAbilityConfig.text}
+                  </button>
+                )}
               </div>
             </div>
           );

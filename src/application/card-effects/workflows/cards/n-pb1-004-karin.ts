@@ -1,28 +1,30 @@
 import { isMemberCardData } from '../../../../domain/entities/card.js';
-import type { MemberSlotMovedEvent } from '../../../../domain/events/game-events.js';
+import type {
+  EnterWaitingRoomEvent,
+  MemberSlotMovedEvent,
+} from '../../../../domain/events/game-events.js';
 import {
   addAction,
   getCardById,
   getPlayerById,
-  updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { addCardToZone } from '../../../../domain/entities/zone.js';
 import {
   SlotPosition,
   TriggerCondition,
   ZoneType,
 } from '../../../../shared/types/enums.js';
 import { KARIN_LIVE_START_ABILITY_ID } from '../../ability-ids.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
 import { moveMemberBetweenSlotsAndEnqueueTriggers } from '../../runtime/member-slot-moved-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import {
-  clearInspectionCards,
   inspectTopCards,
 } from '../../../effects/look-top.js';
 
@@ -34,6 +36,7 @@ type EnqueueTriggeredCardEffects = (
   game: GameState,
   triggerConditions: readonly TriggerCondition[],
   options?: {
+    readonly enterWaitingRoomEvents?: readonly EnterWaitingRoomEvent[];
     readonly memberSlotMovedEvents?: readonly MemberSlotMovedEvent[];
   }
 ) => GameState;
@@ -55,7 +58,11 @@ export function registerKarinWorkflowHandlers(deps: {
     KARIN_LIVE_START_ABILITY_ID,
     KARIN_REVEAL_STEP_ID,
     (game, _input, context) =>
-      finishKarinLiveStart(game, context.continuePendingCardEffects)
+      finishKarinLiveStart(
+        game,
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
+      )
   );
   registerActiveEffectStepHandler(
     KARIN_LIVE_START_ABILITY_ID,
@@ -136,7 +143,8 @@ function startKarinLiveStartInspection(
 
 function finishKarinLiveStart(
   game: GameState,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (
@@ -160,18 +168,17 @@ function finishKarinLiveStart(
   const destination = shouldAddToHand ? ZoneType.HAND : ZoneType.WAITING_ROOM;
   const orderedResolution = effect.metadata?.orderedResolution === true;
 
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    hand:
-      shouldAddToHand && revealedCardId
-        ? addCardToZone(currentPlayer.hand, revealedCardId)
-        : currentPlayer.hand,
-    waitingRoom:
-      !shouldAddToHand && revealedCardId
-        ? addCardToZone(currentPlayer.waitingRoom, revealedCardId)
-        : currentPlayer.waitingRoom,
-  }));
-  state = clearInspectionCards(state, inspectedCardIds);
+  const moveResult = moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers(
+    game,
+    player.id,
+    inspectedCardIds,
+    shouldAddToHand ? revealedCardId : null,
+    enqueueTriggeredCardEffects
+  );
+  if (!moveResult) {
+    return game;
+  }
+  let state = moveResult.gameState;
   state = {
     ...state,
     activeEffect: null,

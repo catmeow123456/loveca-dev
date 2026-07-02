@@ -11,7 +11,10 @@ import { TriggerCondition } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { SP_PB2_003_LIVE_SUCCESS_OWN_LIELLA_EFFECT_MOVED_THIS_MEMBER_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -19,7 +22,9 @@ export function registerSpPb2003ChisatoWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_PB2_003_LIVE_SUCCESS_OWN_LIELLA_EFFECT_MOVED_THIS_MEMBER_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getSpPb2003ChisatoConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -31,6 +36,24 @@ export function registerSpPb2003ChisatoWorkflowHandlers(): void {
       );
     }
   );
+}
+
+function getSpPb2003ChisatoConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const matchingMoveEventIds = getOwnLiellaCardEffectMoveEventIds(
+    game,
+    ability.controllerId,
+    ability.sourceCardId
+  );
+  const movedThisTurn = hasMemberPositionMovedThisTurn(
+    game,
+    ability.controllerId,
+    ability.sourceCardId
+  );
+  const conditionMet = movedThisTurn && matchingMoveEventIds.length > 0;
+  return `${getAbilityEffectText(ability.abilityId)}（因自己的Liella!卡牌效果移动过：${conditionMet ? '是，分数+1' : '否，不增加分数'}）`;
 }
 
 function resolveSpPb2003ChisatoLiveSuccess(

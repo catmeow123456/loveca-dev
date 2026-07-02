@@ -12,7 +12,10 @@ import { and, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors
 import { SP_PB2_004_LIVE_SUCCESS_SCORE_CONDITION_DRAW_ABILITY_ID } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -20,7 +23,9 @@ export function registerSpPb2004SumireWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_PB2_004_LIVE_SUCCESS_SCORE_CONDITION_DRAW_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getSpPb2004SumireConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -32,6 +37,19 @@ export function registerSpPb2004SumireWorkflowHandlers(): void {
       );
     }
   );
+}
+
+function getSpPb2004SumireConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const higherScoreLiveCardIds = getOwnLiveZoneHigherThanOriginalScoreLiveCardIds(
+    game,
+    ability.controllerId
+  );
+  const scoreCheerLiveCardIds = getOwnCheerRevealedScoreLiveCardIds(game, ability.controllerId);
+  const conditionMet = higherScoreLiveCardIds.length > 0 || scoreCheerLiveCardIds.length > 0;
+  return `${getAbilityEffectText(ability.abilityId)}（高于原本分数的LIVE ${higherScoreLiveCardIds.length}张，声援[スコア]LIVE ${scoreCheerLiveCardIds.length}张，${conditionMet ? '满足条件，抽1张' : '未满足条件，不抽牌'}）`;
 }
 
 function resolveSpPb2004SumireLiveSuccess(

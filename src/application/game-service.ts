@@ -195,6 +195,10 @@ export interface GameOperationResult {
   readonly ruleActions?: readonly RuleActionResult[];
 }
 
+interface DispatchEventsOptions {
+  readonly triggerEventLogStartIndex?: number;
+}
+
 /**
  * 卡组配置
  */
@@ -364,6 +368,7 @@ export class GameService {
     const handler = getActionHandler(action.type);
     if (handler) {
       const context = this.createHandlerContext();
+      const triggerEventLogStartIndex = game.eventLog.length;
       const result = handler(game, action, context);
 
       if (result.success) {
@@ -386,7 +391,7 @@ export class GameService {
         const events: (GameEventType | string)[] = [...(result.triggeredEvents ?? [])];
         // 始终追加 RUN_CHECK_TIMING
         events.push(GameEventType.RUN_CHECK_TIMING);
-        return this.dispatchEvents(preparedState, events);
+        return this.dispatchEvents(preparedState, events, { triggerEventLogStartIndex });
       }
 
       return {
@@ -417,7 +422,8 @@ export class GameService {
    */
   private dispatchEvents(
     initialState: GameState,
-    events: (GameEventType | string)[]
+    events: (GameEventType | string)[],
+    options: DispatchEventsOptions = {}
   ): GameOperationResult {
     let state = initialState;
     const processedEvents: (GameEventType | string)[] = [];
@@ -504,7 +510,9 @@ export class GameService {
               checkState.currentSubPhase
             );
           }
-          const checkResult = this.executeCheckTiming(checkState, triggerConditions);
+          const checkResult = this.executeCheckTiming(checkState, triggerConditions, {
+            triggerEventLogStartIndex: options.triggerEventLogStartIndex,
+          });
           state = checkResult.gameState;
           processedEvents.push(event);
           break;
@@ -1473,9 +1481,12 @@ export class GameService {
    */
   executeCheckTiming(
     game: GameState,
-    triggerConditions: readonly TriggerCondition[] = []
+    triggerConditions: readonly TriggerCondition[] = [],
+    options: DispatchEventsOptions = {}
   ): GameOperationResult {
-    let state = enqueueTriggeredCardEffects(game, triggerConditions);
+    let state = enqueueTriggeredCardEffects(game, triggerConditions, {
+      triggerEventLogStartIndex: options.triggerEventLogStartIndex,
+    });
     const ruleActionResult = this.executePendingRuleActions(state);
     state = ruleActionResult.gameState;
     if (ruleActionResult.triggeredEvents?.includes('GAME_ENDED')) {

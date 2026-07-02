@@ -30,6 +30,7 @@ import {
   HS_BP6_032_LIVE_SUCCESS_LOW_COST_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
   HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
+  HS_CL1_012_LIVE_SUCCESS_EQUAL_SCORE_REVEALED_CHEER_HIGH_COST_MEMBER_TO_HAND_ABILITY_ID,
   HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
   S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -59,12 +60,19 @@ export const HS_BP6_032_SELECT_LOW_COST_CHEER_MEMBER_TO_HAND_STEP_ID =
   'HS_BP6_032_SELECT_REVEALED_CHEER_LOW_COST_MEMBER_TO_HAND';
 export const HS_BP6_005_SELECT_DOLLCHESTRA_CHEER_MEMBER_TO_HAND_STEP_ID =
   'HS_BP6_005_SELECT_REVEALED_CHEER_DOLLCHESTRA_MEMBER_TO_HAND';
+export const HS_CL1_012_SELECT_HIGH_COST_CHEER_MEMBER_TO_HAND_STEP_ID =
+  'HS_CL1_012_SELECT_REVEALED_CHEER_HIGH_COST_MEMBER_TO_HAND';
 export const HS_BP6_027_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID =
   'HS_BP6_027_SELECT_REVEALED_CHEER_TO_WAITING_ROOM';
 export const S_BP6_021_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID =
   'S_BP6_021_SELECT_REVEALED_CHEER_TO_WAITING_ROOM';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
+
+interface RevealedCheerSelectionStartConditionResult {
+  readonly conditionMet: boolean;
+  readonly payload?: Readonly<Record<string, unknown>>;
+}
 
 export type ResolvePendingCardEffects = (game: GameState) => { readonly gameState: GameState };
 
@@ -76,6 +84,11 @@ interface RevealedCheerSelectionWorkflowConfig {
   readonly predicate?: CheerCardPredicate;
   readonly destination: RevealedCheerCardDestination;
   readonly optional: boolean;
+  readonly startCondition?: (
+    game: GameState,
+    playerId: string,
+    ability: PendingAbilityState
+  ) => RevealedCheerSelectionStartConditionResult;
   readonly selectMin?: number;
   readonly selectMax?: number;
   readonly additionalCheerEqualToMoved?: boolean;
@@ -143,6 +156,17 @@ const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflo
     predicate: (card) => isMemberCardData(card.data) && unitAliasIs('DOLLCHESTRA')(card),
     destination: 'HAND',
     optional: false,
+  },
+  {
+    abilityId:
+      HS_CL1_012_LIVE_SUCCESS_EQUAL_SCORE_REVEALED_CHEER_HIGH_COST_MEMBER_TO_HAND_ABILITY_ID,
+    stepId: HS_CL1_012_SELECT_HIGH_COST_CHEER_MEMBER_TO_HAND_STEP_ID,
+    stepText: '请选择1张因声援被公开的费用9以上成员卡加入手牌。',
+    selectionLabel: '选择要加入手牌的声援公开高费成员',
+    predicate: (card) => isMemberCardData(card.data) && costGte(9)(card),
+    destination: 'HAND',
+    optional: false,
+    startCondition: liveScoresAreEqual,
   },
   {
     abilityId: HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
@@ -297,6 +321,26 @@ function startRevealedCheerSelectionWorkflow(
     return game;
   }
 
+  const startCondition = config.startCondition?.(game, player.id, context.ability);
+  if (startCondition && !startCondition.conditionMet) {
+    const state = {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter(
+        (candidate) => candidate.id !== context.ability.id
+      ),
+    };
+    return context.continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: context.ability.id,
+        abilityId: context.ability.abilityId,
+        sourceCardId: context.ability.sourceCardId,
+        step: 'CONDITION_NOT_MET',
+        ...startCondition.payload,
+      }),
+      context.orderedResolution
+    );
+  }
+
   const selectableCardIds = selectRevealedCheerCardIds(game, player.id, config.predicate);
   if (selectableCardIds.length === 0) {
     const manualConfirmation = maybeStartManualPendingAbilityConfirmation(
@@ -319,6 +363,7 @@ function startRevealedCheerSelectionWorkflow(
         abilityId: context.ability.abilityId,
         sourceCardId: context.ability.sourceCardId,
         step: 'NO_REVEALED_CHEER_TARGET',
+        ...startCondition?.payload,
       }),
       context.orderedResolution
     );
@@ -357,6 +402,7 @@ function startRevealedCheerSelectionWorkflow(
         destination: config.destination,
         additionalCheerEqualToMoved: config.additionalCheerEqualToMoved === true,
         orderedResolution: context.orderedResolution,
+        ...startCondition?.payload,
       },
     },
   };
@@ -368,6 +414,7 @@ function startRevealedCheerSelectionWorkflow(
     step: 'START_SELECT_REVEALED_CHEER_CARD',
     selectableCardIds,
     destination: config.destination,
+    ...startCondition?.payload,
   });
 }
 
@@ -573,6 +620,22 @@ function countSBp6021AdditionalCheer(
     return total + Math.floor(card.data.cost / 5);
   }, 0);
   return Math.min(4, cheerCount);
+}
+
+function liveScoresAreEqual(
+  game: GameState,
+  playerId: string
+): RevealedCheerSelectionStartConditionResult {
+  const opponent = game.players.find((candidate) => candidate.id !== playerId);
+  const ownScore = game.liveResolution.playerScores.get(playerId) ?? 0;
+  const opponentScore = opponent ? (game.liveResolution.playerScores.get(opponent.id) ?? 0) : 0;
+  return {
+    conditionMet: ownScore === opponentScore,
+    payload: {
+      ownScore,
+      opponentScore,
+    },
+  };
 }
 
 function isMultiSelectRevealedCheerConfig(

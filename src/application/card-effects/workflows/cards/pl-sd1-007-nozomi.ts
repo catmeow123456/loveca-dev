@@ -13,15 +13,23 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { hasCardIdsMatchingSelector } from '../../../effects/conditions.js';
-import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 
 const NOZOMI_REVEAL_STEP_ID = 'NOZOMI_REVEAL_TOP_FIVE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerNozomiOnEnterWorkflowHandlers(): void {
+export function registerNozomiOnEnterWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerPendingAbilityStarterHandler(NOZOMI_ON_ENTER_ABILITY_ID, (game, ability, options) =>
-    startNozomiOnEnterInspection(game, ability, options.orderedResolution === true)
+    startNozomiOnEnterInspection(
+      game,
+      ability,
+      options.orderedResolution === true,
+      deps.enqueueTriggeredCardEffects
+    )
   );
   registerActiveEffectStepHandler(
     NOZOMI_ON_ENTER_ABILITY_ID,
@@ -33,14 +41,20 @@ export function registerNozomiOnEnterWorkflowHandlers(): void {
 function startNozomiOnEnterInspection(
   game: GameState,
   ability: PendingAbilityState,
-  orderedResolution: boolean
+  orderedResolution: boolean,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
 
-  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(game, player.id, 5);
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+    game,
+    player.id,
+    5,
+    enqueueTriggeredCardEffects
+  );
   if (!millResult) {
     return game;
   }

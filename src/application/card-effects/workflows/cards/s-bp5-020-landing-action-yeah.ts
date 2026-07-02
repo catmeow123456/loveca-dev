@@ -9,7 +9,10 @@ import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.j
 import { S_BP5_020_LIVE_SUCCESS_LOSE_REMAINING_HEARTS_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { clearRemainingHeartsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 const SCORE_BONUS = 1;
 const REQUIRED_REMAINING_HEART_TOTAL = 3;
@@ -20,7 +23,9 @@ export function registerSBp5020LandingActionYeahWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     S_BP5_020_LIVE_SUCCESS_LOSE_REMAINING_HEARTS_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getSBp5020LandingActionYeahConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -32,6 +37,15 @@ export function registerSBp5020LandingActionYeahWorkflowHandlers(): void {
       );
     }
   );
+}
+
+function getSBp5020LandingActionYeahConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const remainingHeartTotalCount = getRemainingHeartTotalCount(game, ability.controllerId);
+  const conditionMet = remainingHeartTotalCount >= REQUIRED_REMAINING_HEART_TOTAL;
+  return `${getAbilityEffectText(ability.abilityId)}（当前余Heart ${remainingHeartTotalCount}个，${conditionMet ? '满足条件，失去全部余Heart并分数+1' : '未满足条件'}）`;
 }
 
 function resolveSBp5020LandingActionYeahLiveSuccess(

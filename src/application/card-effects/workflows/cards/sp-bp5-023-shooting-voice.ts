@@ -13,7 +13,10 @@ import { and, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors
 import { selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { SP_BP5_023_LIVE_SUCCESS_SUCCESS_ZONE_TWO_SCORE_CHEER_THIS_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -21,7 +24,9 @@ export function registerSpBp5023ShootingVoiceWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_BP5_023_LIVE_SUCCESS_SUCCESS_ZONE_TWO_SCORE_CHEER_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getSpBp5023ConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -33,6 +38,27 @@ export function registerSpBp5023ShootingVoiceWorkflowHandlers(): void {
       );
     }
   );
+}
+
+function getSpBp5023ConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const ownSuccessLiveCount = player?.successZone.cardIds.length ?? 0;
+  const opponent = player
+    ? (game.players.find((candidate) => candidate.id !== player.id) ?? null)
+    : null;
+  const opponentSuccessLiveCount = opponent?.successZone.cardIds.length ?? 0;
+  const successZoneConditionMet = ownSuccessLiveCount >= 2 || opponentSuccessLiveCount >= 2;
+  const scoreCheerLiveCount = player
+    ? selectScoreLiveRevealedCheerCardIds(game, player.id).length
+    : 0;
+  const sourceIsCurrentLive = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
+  const conditionMet = sourceIsCurrentLive && successZoneConditionMet && scoreCheerLiveCount > 0;
+  return `${getAbilityEffectText(ability.abilityId)}（自己成功LIVE ${ownSuccessLiveCount}张，对方成功LIVE ${opponentSuccessLiveCount}张，[スコア]LIVE声援 ${scoreCheerLiveCount}张，${
+    conditionMet ? '满足条件，分数+2' : '未满足条件，不增加分数'
+  }）`;
 }
 
 function resolveSpBp5023ShootingVoiceLiveSuccess(

@@ -79,8 +79,23 @@ export function registerSFutureWaterFinalWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getBp6002LiveStartConfirmationConfig
   );
+}
+
+function getBp6002LiveStartConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getBp6002LiveStartContext(game, ability.controllerId);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（LIVE区Aqours：${
+      context.allAqoursLive ? '已满足' : '未满足'
+    }，[赤ハート][緑ハート][青ハート]必要数合计 ${context.requirementTotal}，${
+      context.conditionMet ? '满足条件' : '未满足条件'
+    }）`,
+  };
 }
 
 function startBp6002AqoursLiveFromLiveZoneToWaitingTopBottom(
@@ -275,27 +290,10 @@ function resolveBp6002LiveStartAqoursRequirementGainAllHeart(
     return game;
   }
 
-  const liveCardIds = player.liveZone.cardIds;
-  const allAqoursLive =
-    liveCardIds.length > 0 &&
-    liveCardIds.every((cardId) => {
-      const card = getCardById(game, cardId);
-      return (
-        card !== null &&
-        card.ownerId === player.id &&
-        isLiveCardData(card.data) &&
-        groupAliasIs(AQOURS)(card)
-      );
-    });
-  const requirementTotal = allAqoursLive
-    ? liveCardIds.reduce((total, cardId) => {
-        const card = getCardById(game, cardId);
-        return card && isLiveCardData(card.data)
-          ? total + sumRequirementColors(card.data.requirements.colorRequirements)
-          : total;
-      }, 0)
-    : 0;
-  const conditionMet = allAqoursLive && requirementTotal >= 12;
+  const { liveCardIds, requirementTotal, conditionMet } = getBp6002LiveStartContext(
+    game,
+    player.id
+  );
 
   let state: GameState = {
     ...game,
@@ -328,6 +326,44 @@ function resolveBp6002LiveStartAqoursRequirementGainAllHeart(
     }),
     orderedResolution
   );
+}
+
+function getBp6002LiveStartContext(
+  game: GameState,
+  playerId: string
+): {
+  readonly liveCardIds: readonly string[];
+  readonly allAqoursLive: boolean;
+  readonly requirementTotal: number;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, playerId);
+  const liveCardIds = player?.liveZone.cardIds ?? [];
+  const allAqoursLive =
+    liveCardIds.length > 0 &&
+    liveCardIds.every((cardId) => {
+      const card = getCardById(game, cardId);
+      return (
+        card !== null &&
+        card.ownerId === playerId &&
+        isLiveCardData(card.data) &&
+        groupAliasIs(AQOURS)(card)
+      );
+    });
+  const requirementTotal = allAqoursLive
+    ? liveCardIds.reduce((total, cardId) => {
+        const card = getCardById(game, cardId);
+        return card && isLiveCardData(card.data)
+          ? total + sumRequirementColors(card.data.requirements.colorRequirements)
+          : total;
+      }, 0)
+    : 0;
+  return {
+    liveCardIds,
+    allAqoursLive,
+    requirementTotal,
+    conditionMet: allAqoursLive && requirementTotal >= 12,
+  };
 }
 
 function startBp6002DestinationSelection(

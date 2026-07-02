@@ -11,7 +11,10 @@ import { OrientationState } from '../../../../shared/types/enums.js';
 import { unitAliasIs } from '../../../effects/card-selectors.js';
 import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 import {
   SP_PB2_049_LIVE_SUCCESS_CHEER_KALEIDOSCORE_FIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_PB2_049_LIVE_SUCCESS_ENERGY_ELEVEN_THIS_LIVE_SCORE_ABILITY_ID,
@@ -23,7 +26,9 @@ export function registerSpPb2049NeutralWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_PB2_049_LIVE_SUCCESS_CHEER_KALEIDOSCORE_FIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getCheerKaleidoscoreConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -38,7 +43,9 @@ export function registerSpPb2049NeutralWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_PB2_049_LIVE_SUCCESS_ENERGY_ELEVEN_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getEnergyElevenConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -50,6 +57,32 @@ export function registerSpPb2049NeutralWorkflowHandlers(): void {
       );
     }
   );
+}
+
+function getCheerKaleidoscoreConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const kaleidoscoreCheerCount = player
+    ? getOwnCheerRevealedKaleidoscoreCardIds(game, player.id).length
+    : 0;
+  const conditionMet = kaleidoscoreCheerCount >= 5;
+  return `${getAbilityEffectText(ability.abilityId)}（当前KALEIDOSCORE声援 ${kaleidoscoreCheerCount}张，${
+    conditionMet ? '满足条件' : '未满足条件'
+  }）`;
+}
+
+function getEnergyElevenConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const energyCount = player?.energyZone.cardIds.length ?? 0;
+  const conditionMet = energyCount >= 11;
+  return `${getAbilityEffectText(ability.abilityId)}（当前能量 ${energyCount}张，${
+    conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'
+  }）`;
 }
 
 function resolveCheerKaleidoscorePlaceWaitingEnergy(

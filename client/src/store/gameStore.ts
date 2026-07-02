@@ -275,7 +275,7 @@ export interface GameStore {
     slot: SlotPosition,
     options?: PlayMemberToSlotOptions
   ) => CommandDispatchResult;
-  /** 发动舞台上卡牌的起动效果 */
+  /** 发动卡牌的起动效果 */
   activateCardAbility: (cardId: string, abilityId: string) => CommandDispatchResult;
   /** 将公开区卡牌移入休息室 */
   movePublicCardToWaitingRoom: (

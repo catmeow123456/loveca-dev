@@ -61,7 +61,9 @@ export function registerPlBp3026OhLovePeaceWorkflowHandlers(deps: {
   registerPendingAbilityStarterHandler(
     PL_BP3_026_LIVE_SUCCESS_HIGHER_STAGE_HEART_TOTAL_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getOhLovePeaceLiveSuccessConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -94,6 +96,21 @@ export function registerPlBp3026OhLovePeaceWorkflowHandlers(deps: {
         context.continuePendingCardEffects
       )
   );
+}
+
+function getOhLovePeaceLiveSuccessConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const opponent = player
+    ? (game.players.find((candidate) => candidate.id !== player.id) ?? null)
+    : null;
+  const liveModifiers = collectLiveModifiers(game);
+  const ownHeartTotal = player ? countStageHeartTotal(game, player.id, liveModifiers) : 0;
+  const opponentHeartTotal = opponent ? countStageHeartTotal(game, opponent.id, liveModifiers) : 0;
+  const conditionMet = ownHeartTotal > opponentHeartTotal;
+  return `${getAbilityEffectText(ability.abilityId)}（自己舞台Heart合计 ${ownHeartTotal}，对方舞台Heart合计 ${opponentHeartTotal}，${conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'}）`;
 }
 
 function startOhLovePeaceLiveStart(

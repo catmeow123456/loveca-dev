@@ -11,7 +11,10 @@ import { selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js'
 import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
 import { SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -19,7 +22,9 @@ export function registerSpPr018KanonWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getSpPr018KanonConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -32,6 +37,18 @@ export function registerSpPr018KanonWorkflowHandlers(): void {
       );
     }
   );
+}
+
+function getSpPr018KanonConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceOnStage = player ? findMemberSlot(player, ability.sourceCardId) !== null : false;
+  const liellaCheerCardIds =
+    player && sourceOnStage ? selectRevealedCheerCardIds(game, player.id, groupAliasIs('Liella!')) : [];
+  const conditionMet = sourceOnStage && liellaCheerCardIds.length >= 7;
+  return `${getAbilityEffectText(ability.abilityId)}（声援Liella!卡 ${liellaCheerCardIds.length}张，${conditionMet ? '满足条件，放置1张等待能量' : '未满足条件'}）`;
 }
 
 function resolveSpPr018KanonLiveSuccess(

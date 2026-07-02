@@ -72,13 +72,20 @@ export function registerSpBp5013KekeWorkflowHandlers(deps: {
         game,
         input.selectedCardId ?? null,
         input.selectedCardIds,
-        context
+        {
+          continuePendingCardEffects: context.continuePendingCardEffects,
+          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+        }
       )
   );
   registerActiveEffectStepHandler(
     SP_BP5_013_ON_ENTER_DISCARD_LOOK_TOP_SUNNYPASSION_OR_BLADE_HEART_LIELLA_ABILITY_ID,
     REVEAL_SELECTED_STEP_ID,
-    (game, _input, context) => finishRevealedLookTopSelectToHandWorkflow(game, context)
+    (game, _input, context) =>
+      finishRevealedLookTopSelectToHandWorkflow(game, {
+        continuePendingCardEffects: context.continuePendingCardEffects,
+        enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+      })
   );
 }
 
@@ -194,6 +201,7 @@ function finishDiscardCostAndStartInspection(
     {
       orderedResolution: effect.metadata?.orderedResolution === true,
       continuePendingCardEffects,
+      enqueueTriggeredCardEffects,
     }
   );
 }

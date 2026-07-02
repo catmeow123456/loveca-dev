@@ -33,12 +33,13 @@ import {
   hasCardIdsMatchingSelector,
 } from '../../../effects/conditions.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
-import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
 } from '../../../effects/zone-selection.js';
 import { finishWaitingRoomToHandWorkflow } from '../shared/waiting-room-to-hand.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 
 const HS_BP5_001_SELECT_HAND_LIVE_STEP_ID = 'HS_BP5_001_SELECT_HAND_LIVE_TO_REVEAL';
 const HS_BP5_001_REVEAL_HAND_LIVE_STEP_ID = 'HS_BP5_001_REVEAL_HAND_LIVE';
@@ -47,7 +48,9 @@ const HS_BP5_001_REVEAL_TOP_FOUR_STEP_ID = 'HS_BP5_001_REVEAL_TOP_FOUR';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerHsBp5001KahoWorkflowHandlers(): void {
+export function registerHsBp5001KahoWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerPendingAbilityStarterHandler(
     HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
     (game, ability, options) =>
@@ -55,6 +58,7 @@ export function registerHsBp5001KahoWorkflowHandlers(): void {
         orderedResolution: options.orderedResolution === true,
         manualConfirmation: options.manualConfirmation === true,
         skipManualConfirmation: options.skipManualConfirmation === true,
+        enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
       })
   );
   registerActiveEffectStepHandler(
@@ -97,6 +101,7 @@ function startHsBp5KahoOnEnterMillGainBladeInspection(
     readonly orderedResolution: boolean;
     readonly manualConfirmation: boolean;
     readonly skipManualConfirmation: boolean;
+    readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
   }
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
@@ -111,7 +116,12 @@ function startHsBp5KahoOnEnterMillGainBladeInspection(
     });
   }
 
-  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(game, player.id, 4);
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+    game,
+    player.id,
+    4,
+    options.enqueueTriggeredCardEffects
+  );
   if (!millResult) {
     return game;
   }

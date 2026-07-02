@@ -9,7 +9,10 @@ import { unitAliasIs } from '../../../effects/card-selectors.js';
 import { HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -51,6 +54,7 @@ function startHsPb1021KosuzuLiveSuccess(
     const dollchestraLiveZoneCardIds = getDollchestraLiveZoneCardIds(game, player.id);
     const conditionMet = dollchestraLiveZoneCardIds.length > 0;
     return maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+      effectText: getHsPb1021KosuzuConfirmationEffectText(game, ability),
       stepText: conditionMet
         ? '自己的LIVE卡区存在『DOLLCHESTRA』卡片，条件满足。确认后抽 1 张卡。'
         : '自己的LIVE卡区不存在『DOLLCHESTRA』卡片，条件不满足。确认后不抽牌。',
@@ -97,6 +101,15 @@ function resolveHsPb1021KosuzuLiveSuccess(
     }),
     orderedResolution
   );
+}
+
+function getHsPb1021KosuzuConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const dollchestraLiveZoneCardIds = getDollchestraLiveZoneCardIds(game, ability.controllerId);
+  const conditionMet = dollchestraLiveZoneCardIds.length > 0;
+  return `${getAbilityEffectText(ability.abilityId)}（LIVE区DOLLCHESTRA卡 ${dollchestraLiveZoneCardIds.length}张，${conditionMet ? '满足条件，抽1张' : '未满足条件，不抽牌'}）`;
 }
 
 function getDollchestraLiveZoneCardIds(game: GameState, playerId: string): readonly string[] {

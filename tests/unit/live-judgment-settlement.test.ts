@@ -464,7 +464,9 @@ describe('Live 判定与结算', () => {
     expect(advanceResult.success).toBe(true);
     expect(advanceResult.gameState.activeEffect?.abilityId).toBe(NICO_LIVE_START_SCORE_ABILITY_ID);
     expect(advanceResult.gameState.activeEffect?.awaitingPlayerId).toBe('p1');
-    expect(advanceResult.gameState.activeEffect?.effectText).toContain('（当前25张）');
+    expect(advanceResult.gameState.activeEffect?.effectText).toContain(
+      "当前 μ's 休息室 25张，满足条件"
+    );
     expect(advanceResult.gameState.liveResolution.playerScoreBonuses.get('p1')).toBeUndefined();
 
     const afterNico = confirmActiveEffectStep(

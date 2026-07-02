@@ -11,7 +11,11 @@ import { success, failure } from './types.js';
 import { SlotPosition, TriggerCondition, ZoneType } from '../../shared/types/enums.js';
 import { isMemberCardData, type MemberCardData } from '../../domain/entities/card.js';
 import { addAction, emitGameEvent, updatePlayer } from '../../domain/entities/game.js';
-import { createEnterStageEvent, createLeaveStageEvent } from '../../domain/events/game-events.js';
+import {
+  createEnterStageEvent,
+  createEnterWaitingRoomEvent,
+  createLeaveStageEvent,
+} from '../../domain/events/game-events.js';
 import {
   addCardsToZone,
   removeCardFromZone,
@@ -83,6 +87,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   let state = game;
 
   // 执行：处理被替换的成员（换手）
+  const replacedCardIdsMovedToWaitingRoom: string[] = [];
   if (replacements.length > 0) {
     state = updatePlayer(state, playerId, (p) => {
       let newSlots = p.memberSlots;
@@ -100,6 +105,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
           newSlots,
           replacement.slot
         );
+        replacedCardIdsMovedToWaitingRoom.push(replacement.cardId, ...memberBelowIds);
         newSlots = removeCardFromSlot(slotsWithoutMemberBelow, replacement.slot);
         newWaitingRoom = addCardsToZone(
           addCardToZone(newWaitingRoom, replacement.cardId),
@@ -118,6 +124,17 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
           replacement.ownerId,
           playerId,
           cardId
+        )
+      );
+    }
+    if (replacedCardIdsMovedToWaitingRoom.length > 0) {
+      state = emitGameEvent(
+        state,
+        createEnterWaitingRoomEvent(
+          replacedCardIdsMovedToWaitingRoom,
+          ZoneType.MEMBER_SLOT,
+          firstReplacement?.ownerId ?? playerId,
+          playerId
         )
       );
     }

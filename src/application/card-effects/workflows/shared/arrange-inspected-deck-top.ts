@@ -8,6 +8,7 @@ import {
 import { ZoneType } from '../../../../shared/types/enums.js';
 import {
   BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID,
+  HS_BP6_028_LIVE_SUCCESS_REMAINING_HEART_LOOK_TOP_TWO_ABILITY_ID,
   HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID,
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
@@ -17,8 +18,11 @@ import {
   type PendingAbilityStarterOptions,
 } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { enqueueInspectionCardsEnteredWaitingRoom } from '../../runtime/inspection-waiting-room-triggers.js';
 import {
   getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
   maybeStartManualPendingAbilityConfirmation,
 } from '../../runtime/workflow-helpers.js';
 import { countStageMembers } from '../../../effects/conditions.js';
@@ -26,6 +30,7 @@ import {
   clearInspectionCards,
   inspectTopCards,
 } from '../../../effects/look-top.js';
+import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.js';
 
 const START_DASH_ARRANGE_STEP_ID = 'START_DASH_ARRANGE_TOP_DECK';
 const HS_BP6_001_ARRANGE_STEP_ID = 'HS_BP6_001_ARRANGE_STAGE_PLUS_TWO_TOP_DECK';
@@ -44,6 +49,14 @@ interface RegisteredArrangeInspectedDeckTopConfig {
   readonly requireAllInspected?: boolean;
   readonly selectedDestination?: InspectedCardDestination;
   readonly unselectedDestination?: InspectedCardDestination;
+  readonly condition?: (
+    game: GameState,
+    playerId: string
+  ) => {
+    readonly met: boolean;
+    readonly stepText: string;
+    readonly payload?: Readonly<Record<string, unknown>>;
+  };
 }
 
 export interface ArrangeInspectedDeckTopConfig {
@@ -62,6 +75,7 @@ export interface ArrangeInspectedDeckTopConfig {
   readonly selectedDestination: InspectedCardDestination;
   readonly unselectedDestination: InspectedCardDestination;
   readonly requireAllInspected?: boolean;
+  readonly condition?: RegisteredArrangeInspectedDeckTopConfig['condition'];
   readonly orderedResolution: boolean;
   readonly starterOptions?: PendingAbilityStarterOptions;
 }
@@ -99,6 +113,27 @@ const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedD
     selectMax: 3,
   },
   {
+    abilityId: HS_BP6_028_LIVE_SUCCESS_REMAINING_HEART_LOOK_TOP_TWO_ABILITY_ID,
+    inspectCount: 2,
+    stepId: 'HS_BP6_028_ARRANGE_TOP_TWO',
+    stepText:
+      '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
+    selectionLabel: '按卡组顶从上到下的顺序选择卡牌',
+    selectMin: 0,
+    selectMax: 2,
+    condition: (game, playerId) => {
+      const remainingHeartTotalCount = getRemainingHeartTotalCount(game, playerId);
+      return {
+        met: remainingHeartTotalCount >= 1,
+        stepText:
+          remainingHeartTotalCount >= 1
+            ? `当前余剩Heart ${remainingHeartTotalCount}个，满足条件。`
+            : '当前没有余剩Heart。确认后不检视卡组。',
+        payload: { remainingHeartTotalCount },
+      };
+    },
+  },
+  {
     abilityId: HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID,
     inspectCount: (game, playerId) => countStageMembers(game, playerId) + 2,
     stepId: HS_BP6_001_ARRANGE_STEP_ID,
@@ -109,7 +144,9 @@ const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedD
   },
 ];
 
-export function registerArrangeInspectedDeckTopWorkflowHandlers(): void {
+export function registerArrangeInspectedDeckTopWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   for (const config of ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
       startArrangeInspectedDeckTopWorkflow(
@@ -130,6 +167,7 @@ export function registerArrangeInspectedDeckTopWorkflowHandlers(): void {
           selectedDestination: config.selectedDestination ?? 'MAIN_DECK_TOP',
           unselectedDestination: config.unselectedDestination ?? 'WAITING_ROOM',
           requireAllInspected: config.requireAllInspected,
+          condition: config.condition,
           orderedResolution: options.orderedResolution === true,
           starterOptions: options,
         },
@@ -140,7 +178,8 @@ export function registerArrangeInspectedDeckTopWorkflowHandlers(): void {
       finishArrangeInspectedDeckTopWorkflow(
         game,
         input.selectedCardIds ?? [],
-        context.continuePendingCardEffects
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
       )
     );
   }
@@ -154,6 +193,36 @@ export function startArrangeInspectedDeckTopWorkflow(
   const player = getPlayerById(game, config.playerId);
   if (!player) {
     return game;
+  }
+
+  const condition = config.condition?.(game, player.id);
+  if (condition && !condition.met) {
+    const manualConfirmation = config.starterOptions
+      ? maybeStartConfirmablePendingAbilityConfirmation(game, config.ability, config.starterOptions, {
+          effectText: `${config.effectText}（${condition.stepText}）`,
+          stepText: condition.stepText,
+        })
+      : null;
+    if (manualConfirmation) {
+      return manualConfirmation;
+    }
+    const state = {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter(
+        (candidate) => candidate.id !== config.ability.id
+      ),
+    };
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: config.ability.id,
+        abilityId: config.ability.abilityId,
+        sourceCardId: config.ability.sourceCardId,
+        step: 'CONDITION_NOT_MET',
+        inspectedCardIds: [],
+        ...(condition.payload ?? {}),
+      }),
+      config.orderedResolution
+    );
   }
 
   if (player.mainDeck.cardIds.length === 0) {
@@ -222,6 +291,7 @@ export function startArrangeInspectedDeckTopWorkflow(
         selectedDestination: config.selectedDestination,
         unselectedDestination: config.unselectedDestination,
         orderedResolution: config.orderedResolution,
+        ...(condition?.payload ?? {}),
       },
     },
   };
@@ -232,13 +302,15 @@ export function startArrangeInspectedDeckTopWorkflow(
     sourceCardId: config.ability.sourceCardId,
     step: 'START_INSPECTION',
     inspectedCardIds,
+    ...(condition?.payload ?? {}),
   });
 }
 
 export function finishArrangeInspectedDeckTopWorkflow(
   game: GameState,
   selectedCardIds: readonly string[],
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -293,6 +365,14 @@ export function finishArrangeInspectedDeckTopWorkflow(
   }));
 
   state = clearInspectionCards({ ...state, activeEffect: null }, inspectedCardIds);
+  if (effect.metadata?.unselectedDestination === 'WAITING_ROOM') {
+    state = enqueueInspectionCardsEnteredWaitingRoom(
+      state,
+      player.id,
+      unselectedCardIds,
+      enqueueTriggeredCardEffects
+    );
+  }
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,

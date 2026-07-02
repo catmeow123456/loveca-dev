@@ -61,7 +61,6 @@ export function registerLlBp6001KotoriDiaKosuzuWorkflowHandlers(deps: {
           confirmSelectionLabel: '加入手牌',
           finishActionStep: 'TAKE_TWO_REST_TO_WAITING_ROOM',
           includeInspectedCardIdsInFinishAction: true,
-          enqueueWaitingRoomTriggersForRemainder: true,
         },
         {
           orderedResolution: options.orderedResolution === true,

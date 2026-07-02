@@ -20,7 +20,10 @@ import {
 import { getCardAbilityDefinitionsForCardCode } from '../../definitions/lookup.js';
 import { registerLiveStartSuppressionGate } from '../../runtime/live-start-suppression-gates.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -49,7 +52,9 @@ export function registerSpPb2046ButterflyWingWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     SP_PB2_046_LIVE_SUCCESS_STAGE_MEMBER_LIVE_START_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getSpPb2046LiveSuccessConfirmationEffectText(game, ability),
+      });
       if (confirmation) {
         return confirmation;
       }
@@ -63,6 +68,15 @@ export function registerSpPb2046ButterflyWingWorkflowHandlers(): void {
   );
 }
 
+function getSpPb2046LiveSuccessConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const liveStartMemberCardIds = getStageLiveStartMemberCardIds(game, ability.controllerId);
+  const conditionMet = liveStartMemberCardIds.length > 0;
+  return `${getAbilityEffectText(ability.abilityId)}（持有LIVE开始能力的舞台成员 ${liveStartMemberCardIds.length}名，${conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'}）`;
+}
+
 function resolveSpPb2046ButterflyWingLiveSuccess(
   game: GameState,
   ability: PendingAbilityState,
@@ -74,22 +88,7 @@ function resolveSpPb2046ButterflyWingLiveSuccess(
     return game;
   }
 
-  const checkedMembers = STAGE_SLOTS.map((slot) => {
-    const memberCardId = player.memberSlots.slots[slot];
-    const memberCard = memberCardId ? getCardById(game, memberCardId) : null;
-    const liveStartAbilityIds =
-      memberCard && memberCard.ownerId === player.id
-        ? getStageMemberLiveStartAbilityDefinitions(memberCard.data.cardCode, slot).map(
-            (definition) => definition.abilityId
-          )
-        : [];
-    return {
-      slot,
-      memberCardId,
-      liveStartAbilityIds,
-      hasLiveStartAbility: liveStartAbilityIds.length > 0,
-    };
-  });
+  const checkedMembers = getStageLiveStartMemberChecks(game, player.id);
   const liveStartMemberCardIds = checkedMembers
     .filter((member) => member.hasLiveStartAbility && member.memberCardId !== null)
     .map((member) => member.memberCardId as string);
@@ -126,6 +125,43 @@ function resolveSpPb2046ButterflyWingLiveSuccess(
     }),
     orderedResolution
   );
+}
+
+function getStageLiveStartMemberCardIds(game: GameState, playerId: string): readonly string[] {
+  return getStageLiveStartMemberChecks(game, playerId)
+    .filter((member) => member.hasLiveStartAbility && member.memberCardId !== null)
+    .map((member) => member.memberCardId as string);
+}
+
+function getStageLiveStartMemberChecks(
+  game: GameState,
+  playerId: string
+): readonly {
+  readonly slot: SlotPosition;
+  readonly memberCardId: string | null;
+  readonly liveStartAbilityIds: readonly string[];
+  readonly hasLiveStartAbility: boolean;
+}[] {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return [];
+  }
+  return STAGE_SLOTS.map((slot) => {
+    const memberCardId = player.memberSlots.slots[slot];
+    const memberCard = memberCardId ? getCardById(game, memberCardId) : null;
+    const liveStartAbilityIds =
+      memberCard && memberCard.ownerId === player.id
+        ? getStageMemberLiveStartAbilityDefinitions(memberCard.data.cardCode, slot).map(
+            (definition) => definition.abilityId
+          )
+        : [];
+    return {
+      slot,
+      memberCardId,
+      liveStartAbilityIds,
+      hasLiveStartAbility: liveStartAbilityIds.length > 0,
+    };
+  });
 }
 
 function getStageMemberLiveStartAbilityDefinitions(

@@ -9,7 +9,10 @@ import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { getPositionMovedStageMemberIdsMatching } from '../../../effects/conditions.js';
 import { SP_SD2_025_LIVE_START_MOVED_LIELLA_MEMBERS_GAIN_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
-import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -22,8 +25,19 @@ export function registerSpSd2025AspireWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getSpSd2025AspireConfirmationConfig
   );
+}
+
+function getSpSd2025AspireConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const targetMemberCardIds = getMovedLiellaStageMemberIds(game, ability.controllerId);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（本回合移动过的Liella!成员 ${targetMemberCardIds.length}名，各获得[BLADE]+1）`,
+  };
 }
 
 function resolveSpSd2025AspireLiveStart(
@@ -37,9 +51,7 @@ function resolveSpSd2025AspireLiveStart(
     return game;
   }
 
-  const targetMemberCardIds = getPositionMovedStageMemberIdsMatching(game, player.id, (card) => {
-    return isMemberCardData(card.data) && cardBelongsToGroup(card.data, 'Liella!');
-  });
+  const targetMemberCardIds = getMovedLiellaStageMemberIds(game, player.id);
   let state: GameState = {
     ...game,
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
@@ -73,4 +85,10 @@ function resolveSpSd2025AspireLiveStart(
     }),
     orderedResolution
   );
+}
+
+function getMovedLiellaStageMemberIds(game: GameState, playerId: string): readonly string[] {
+  return getPositionMovedStageMemberIdsMatching(game, playerId, (card) => {
+    return isMemberCardData(card.data) && cardBelongsToGroup(card.data, 'Liella!');
+  });
 }

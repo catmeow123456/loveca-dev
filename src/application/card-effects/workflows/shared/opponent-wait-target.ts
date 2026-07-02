@@ -13,6 +13,8 @@ import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import {
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+  HS_BP6_013_LIVE_START_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
+  HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
   PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
   SP_PR_021_LIVE_START_STAGE_HEART_FIVE_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
@@ -25,14 +27,21 @@ import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
 } from '../../runtime/member-state-changed-triggers.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import {
+  registerPendingAbilityStarterHandler,
+  type PendingAbilityStarterOptions,
+} from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+} from '../../runtime/workflow-helpers.js';
 import {
   and,
   costLte,
   memberPrintedBladeLte,
   normalizeCardName,
+  not,
   type CardSelector,
   typeIs,
   unitAliasIs,
@@ -50,6 +59,8 @@ const SP_PB2_SELECT_OPPONENT_COST_TWO_MEMBER_STEP_ID =
   'SP_PB2_SELECT_OPPONENT_COST_TWO_MEMBER_TO_WAIT';
 const SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_STEP_ID =
   'SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_TO_WAIT';
+const HS_BP6_013_SELECT_OPPONENT_LOW_BLADE_NON_DOLLCHESTRA_MEMBER_STEP_ID =
+  'HS_BP6_013_SELECT_OPPONENT_LOW_BLADE_NON_DOLLCHESTRA_MEMBER_TO_WAIT';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -64,11 +75,17 @@ interface OpponentWaitTargetWorkflowConfig {
   readonly startActionStep: string;
   readonly minOwnStageHeartTotal?: number;
   readonly minOwnStageDifferentBiBiMemberNameCount?: number;
+  readonly confirmNoTargetWithRealtimeText?: boolean;
 }
 
 const lowCostOpponentMemberSelector = and(typeIs(CardType.MEMBER), costLte(9));
 const costLteFourOpponentMemberSelector = and(typeIs(CardType.MEMBER), costLte(4));
 const costLteTwoOpponentMemberSelector = and(typeIs(CardType.MEMBER), costLte(2));
+const lowBladeNonDollchestraOpponentMemberSelector = and(
+  typeIs(CardType.MEMBER),
+  memberPrintedBladeLte(3),
+  not(unitAliasIs('DOLLCHESTRA'))
+);
 
 const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[] = [
   {
@@ -155,6 +172,25 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
     selector: memberPrintedBladeLte(3),
     startActionStep: 'START_SELECT_OPPONENT_LOW_BLADE_MEMBER',
   },
+  {
+    abilityId: HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
+    effectTextAbilityId: HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
+    stepId: HS_BP6_013_SELECT_OPPONENT_LOW_BLADE_NON_DOLLCHESTRA_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名原本[BLADE]小于等于3，且不是『DOLLCHESTRA』的成员变为待机状态。',
+    selectionLabel: '选择对方舞台上低原本[BLADE]且非DOLLCHESTRA的成员',
+    selector: lowBladeNonDollchestraOpponentMemberSelector,
+    startActionStep: 'START_SELECT_OPPONENT_LOW_BLADE_NON_DOLLCHESTRA_MEMBER',
+  },
+  {
+    abilityId: HS_BP6_013_LIVE_START_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
+    effectTextAbilityId: HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
+    stepId: HS_BP6_013_SELECT_OPPONENT_LOW_BLADE_NON_DOLLCHESTRA_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名原本[BLADE]小于等于3，且不是『DOLLCHESTRA』的成员变为待机状态。',
+    selectionLabel: '选择对方舞台上低原本[BLADE]且非DOLLCHESTRA的成员',
+    selector: lowBladeNonDollchestraOpponentMemberSelector,
+    startActionStep: 'START_SELECT_OPPONENT_LOW_BLADE_NON_DOLLCHESTRA_MEMBER',
+    confirmNoTargetWithRealtimeText: true,
+  },
 ];
 
 export function registerOpponentWaitTargetWorkflowHandlers(deps: {
@@ -166,7 +202,7 @@ export function registerOpponentWaitTargetWorkflowHandlers(deps: {
         game,
         ability,
         config,
-        options.orderedResolution === true,
+        options,
         context.continuePendingCardEffects
       )
     );
@@ -185,7 +221,7 @@ function startOpponentWaitTargetWorkflow(
   game: GameState,
   ability: PendingAbilityState,
   config: OpponentWaitTargetWorkflowConfig,
-  orderedResolution: boolean,
+  options: PendingAbilityStarterOptions,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
@@ -193,6 +229,7 @@ function startOpponentWaitTargetWorkflow(
   if (!player || !opponent) {
     return game;
   }
+  const orderedResolution = options.orderedResolution === true;
 
   const ownStageHeartTotal = getOwnStageEffectiveHeartTotal(game, player.id);
   if (
@@ -261,6 +298,23 @@ function startOpponentWaitTargetWorkflow(
   });
 
   if (targetSelection.activeEffect === null) {
+    if (config.confirmNoTargetWithRealtimeText === true) {
+      const opponentStageMemberCount = getStageMemberCardIdsMatching(
+        game,
+        opponent.id,
+        typeIs(CardType.MEMBER)
+      ).length;
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: `${getAbilityEffectText(
+          config.effectTextAbilityId
+        )}（当前对方舞台成员${opponentStageMemberCount}名，符合“原本[BLADE]≤3、非DOLLCHESTRA、当前非待机”的目标${targetSelection.selectableCardIds.length}名；未满足目标条件，不会将成员变为待机状态。）`,
+        stepText: `当前合法目标${targetSelection.selectableCardIds.length}名，确认后不处理。`,
+      });
+      if (confirmation) {
+        return confirmation;
+      }
+    }
+
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),

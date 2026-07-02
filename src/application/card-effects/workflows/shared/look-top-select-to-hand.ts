@@ -1,15 +1,11 @@
 import { isMemberCardData, type CardInstance } from '../../../../domain/entities/card.js';
 import {
   addAction,
-  emitGameEvent,
   getCardById,
   getPlayerById,
-  updatePlayer,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import { createEnterWaitingRoomEvent } from '../../../../domain/events/game-events.js';
-import { addCardToZone } from '../../../../domain/entities/zone.js';
-import { CardType, HeartColor, TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
+import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import {
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
@@ -22,6 +18,7 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveInspectedCardsToHandRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
 import {
   and,
   costGte,
@@ -31,7 +28,7 @@ import {
   memberHasHeartColor,
   typeIs,
 } from '../../../effects/card-selectors.js';
-import { clearInspectionCards, inspectTopCards } from '../../../effects/look-top.js';
+import { inspectTopCards } from '../../../effects/look-top.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 export type LookTopSelectSelectionValidator = (
@@ -73,13 +70,12 @@ export interface LookTopSelectToHandWorkflowConfig {
   readonly selectionRequiredWhenHasTargets?: boolean;
   readonly includeInspectedCardIdsInFinishAction?: boolean;
   readonly clampExactCountToInspectedCount?: boolean;
-  readonly enqueueWaitingRoomTriggersForRemainder?: boolean;
 }
 
 export interface LookTopSelectToHandWorkflowOptions {
   readonly orderedResolution?: boolean;
   readonly continuePendingCardEffects: ContinuePendingCardEffects;
-  readonly enqueueTriggeredCardEffects?: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }
 
 export interface LookTopSelectToHandAbilityContext {
@@ -100,7 +96,6 @@ interface LookTopSelectToHandMetadata {
   readonly countRule: LookTopSelectCountRule;
   readonly candidateCardIds: readonly string[];
   readonly includeInspectedCardIdsInFinishAction?: boolean;
-  readonly enqueueWaitingRoomTriggersForRemainder?: boolean;
   readonly selectedCardIds?: readonly string[];
 }
 
@@ -236,7 +231,9 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
   },
 ];
 
-export function registerLookTopSelectToHandWorkflowHandlers(): void {
+export function registerLookTopSelectToHandWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   for (const config of LOOK_TOP_SELECT_TO_HAND_WORKFLOWS) {
     const { abilityId, ...workflowConfig } = config;
     registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) =>
@@ -250,6 +247,7 @@ export function registerLookTopSelectToHandWorkflowHandlers(): void {
         {
           orderedResolution: options.orderedResolution,
           continuePendingCardEffects: context.continuePendingCardEffects,
+          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
         }
       )
     );
@@ -258,12 +256,18 @@ export function registerLookTopSelectToHandWorkflowHandlers(): void {
         game,
         input.selectedCardId ?? null,
         input.selectedCardIds,
-        context
+        {
+          continuePendingCardEffects: context.continuePendingCardEffects,
+          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+        }
       )
     );
     if (config.revealStepId) {
       registerActiveEffectStepHandler(abilityId, config.revealStepId, (game, _input, context) =>
-        finishRevealedLookTopSelectToHandWorkflow(game, context)
+        finishRevealedLookTopSelectToHandWorkflow(game, {
+          continuePendingCardEffects: context.continuePendingCardEffects,
+          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+        })
       );
     }
   }
@@ -358,8 +362,6 @@ export function startLookTopSelectToHandWorkflow(
           countRule,
           candidateCardIds: selectableCardIds,
           includeInspectedCardIdsInFinishAction: config.includeInspectedCardIdsInFinishAction,
-          enqueueWaitingRoomTriggersForRemainder:
-            config.enqueueWaitingRoomTriggersForRemainder === true,
         } satisfies LookTopSelectToHandMetadata,
       },
     },
@@ -463,7 +465,12 @@ function revealLookTopSelectToHandSelection(
         stepId: metadata.revealStepId,
         stepText: metadata.revealStepText,
         selectableCardIds: [],
+        selectableCardVisibility: undefined,
+        selectableCardMode: undefined,
+        minSelectableCards: undefined,
+        maxSelectableCards: undefined,
         selectionLabel: undefined,
+        confirmSelectionLabel: undefined,
         canSkipSelection: false,
         skipSelectionLabel: undefined,
         metadata: {
@@ -505,34 +512,18 @@ function finishLookTopSelectToHandWorkflow(
   }
 
   const inspectedCardIds = effect.inspectionCardIds ?? [];
-  const moveResult = moveInspectedCardsToHandRestToWaitingRoom(
+  const moveResult = moveInspectedCardsToHandRestToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
     inspectedCardIds,
-    selectedCardIds
+    selectedCardIds,
+    options.enqueueTriggeredCardEffects
   );
   if (!moveResult) {
     return game;
   }
 
   let state: GameState = { ...moveResult.gameState, activeEffect: null };
-  if (
-    metadata.enqueueWaitingRoomTriggersForRemainder === true &&
-    moveResult.waitingRoomCardIds.length > 0 &&
-    options.enqueueTriggeredCardEffects
-  ) {
-    const enterWaitingRoomEvent = createEnterWaitingRoomEvent(
-      moveResult.waitingRoomCardIds,
-      ZoneType.MAIN_DECK,
-      player.id,
-      player.id
-    );
-    state = options.enqueueTriggeredCardEffects(
-      emitGameEvent(state, enterWaitingRoomEvent),
-      [TriggerCondition.ON_ENTER_WAITING_ROOM],
-      { enterWaitingRoomEvents: [enterWaitingRoomEvent] }
-    );
-  }
   const finishPayload: Record<string, unknown> = {
     pendingAbilityId: effect.id,
     abilityId: effect.abilityId,
@@ -550,44 +541,6 @@ function finishLookTopSelectToHandWorkflow(
     addAction(state, 'RESOLVE_ABILITY', player.id, finishPayload),
     metadata.orderedResolution
   );
-}
-
-function moveInspectedCardsToHandRestToWaitingRoom(
-  game: GameState,
-  playerId: string,
-  inspectedCardIds: readonly string[],
-  selectedCardIds: readonly string[]
-): {
-  readonly gameState: GameState;
-  readonly selectedCardIds: readonly string[];
-  readonly waitingRoomCardIds: readonly string[];
-} | null {
-  const player = getPlayerById(game, playerId);
-  const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
-  if (
-    !player ||
-    uniqueSelectedCardIds.length !== selectedCardIds.length ||
-    selectedCardIds.some((cardId) => !inspectedCardIds.includes(cardId))
-  ) {
-    return null;
-  }
-
-  const waitingRoomCardIds = inspectedCardIds.filter((cardId) => !selectedCardIds.includes(cardId));
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    hand: selectedCardIds.reduce((hand, cardId) => addCardToZone(hand, cardId), currentPlayer.hand),
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: [...currentPlayer.waitingRoom.cardIds, ...waitingRoomCardIds],
-    },
-  }));
-  state = clearInspectionCards(state, inspectedCardIds);
-
-  return {
-    gameState: state,
-    selectedCardIds,
-    waitingRoomCardIds,
-  };
 }
 
 function validateLookTopSelection(
@@ -658,8 +611,6 @@ function getLookTopSelectToHandMetadata(
       ? metadata.candidateCardIds.filter((value): value is string => typeof value === 'string')
       : [],
     includeInspectedCardIdsInFinishAction: metadata?.includeInspectedCardIdsInFinishAction === true,
-    enqueueWaitingRoomTriggersForRemainder:
-      metadata?.enqueueWaitingRoomTriggersForRemainder === true,
     selectedCardIds: Array.isArray(metadata?.selectedCardIds)
       ? metadata.selectedCardIds.filter((value): value is string => typeof value === 'string')
       : undefined,

@@ -7,10 +7,11 @@ import {
 import { CardType, ZoneType } from '../../../../shared/types/enums.js';
 import { allCardIdsMatchingSelector } from '../../../effects/conditions.js';
 import { typeIs } from '../../../effects/card-selectors.js';
-import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 import { HS_BP1_008_ON_ENTER_MILL_THREE_DRAW_IF_ALL_MEMBERS_ABILITY_ID } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -20,11 +21,18 @@ const TOP_COUNT = 3;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerHsBp1008KosuzuWorkflowHandlers(): void {
+export function registerHsBp1008KosuzuWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerPendingAbilityStarterHandler(
     HS_BP1_008_ON_ENTER_MILL_THREE_DRAW_IF_ALL_MEMBERS_ABILITY_ID,
     (game, ability, options) =>
-      startHsBp1008KosuzuInspection(game, ability, options.orderedResolution === true)
+      startHsBp1008KosuzuInspection(
+        game,
+        ability,
+        options.orderedResolution === true,
+        deps.enqueueTriggeredCardEffects
+      )
   );
   registerActiveEffectStepHandler(
     HS_BP1_008_ON_ENTER_MILL_THREE_DRAW_IF_ALL_MEMBERS_ABILITY_ID,
@@ -36,14 +44,20 @@ export function registerHsBp1008KosuzuWorkflowHandlers(): void {
 function startHsBp1008KosuzuInspection(
   game: GameState,
   ability: PendingAbilityState,
-  orderedResolution: boolean
+  orderedResolution: boolean,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
 
-  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(game, player.id, TOP_COUNT);
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+    game,
+    player.id,
+    TOP_COUNT,
+    enqueueTriggeredCardEffects
+  );
   if (!millResult) {
     return game;
   }

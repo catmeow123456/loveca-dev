@@ -8,6 +8,7 @@ import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-mod
 import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import {
   HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID,
+  HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
   HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
@@ -17,9 +18,15 @@ import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import { memberHasHeartColor, typeIs, type CardSelector } from '../../../effects/card-selectors.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
+import {
+  groupAliasIs,
+  memberHasHeartColor,
+  typeIs,
+  type CardSelector,
+} from '../../../effects/card-selectors.js';
 import { allCardIdsMatchingSelector } from '../../../effects/conditions.js';
-import { moveTopDeckCardsToWaitingRoomWithRefresh } from '../../../effects/look-top.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -104,16 +111,33 @@ const MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS: readonly MillTopGainLiveModifierConfi
     },
     finishStep: 'FINISH_MILL_TOP_THREE_CHECK_MEMBERS_GAIN_BLADE',
   },
+  {
+    abilityId: HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
+    stepId: 'HS_BP6_009_MILL_TOP_FOUR',
+    topCount: 4,
+    conditionSelector: groupAliasIs('蓮ノ空'),
+    conditionLabel: '『莲之空』卡',
+    reward: {
+      type: 'blade',
+      amount: 1,
+      label: '[BLADE]',
+      actionPayloadKey: 'bladeBonus',
+    },
+    finishStep: 'FINISH_MILL_TOP_FOUR_CHECK_HASUNOSORA_GAIN_BLADE',
+  },
 ];
 
-export function registerMillTopGainLiveModifierWorkflowHandlers(): void {
+export function registerMillTopGainLiveModifierWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   for (const config of MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
       startMillTopGainLiveModifierInspection(
         game,
         ability,
         options.orderedResolution === true,
-        config
+        config,
+        deps.enqueueTriggeredCardEffects
       )
     );
     registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, _input, context) =>
@@ -126,14 +150,20 @@ function startMillTopGainLiveModifierInspection(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
-  config: MillTopGainLiveModifierConfig
+  config: MillTopGainLiveModifierConfig,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
 
-  const millResult = moveTopDeckCardsToWaitingRoomWithRefresh(game, player.id, config.topCount);
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+    game,
+    player.id,
+    config.topCount,
+    enqueueTriggeredCardEffects
+  );
   if (!millResult) {
     return game;
   }

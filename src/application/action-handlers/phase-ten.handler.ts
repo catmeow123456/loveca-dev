@@ -431,7 +431,7 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
       !isCardInMemberBelow &&
       fromZone === ZoneType.MEMBER_SLOT &&
       toZone === ZoneType.WAITING_ROOM
-        ? [TriggerCondition.ON_LEAVE_STAGE]
+        ? [TriggerCondition.ON_LEAVE_STAGE, TriggerCondition.ON_ENTER_WAITING_ROOM]
         : [],
   });
 };

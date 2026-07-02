@@ -1486,6 +1486,10 @@ export class GameSession {
           if (!player.waitingRoom.cardIds.includes(command.cardId)) {
             return '起动效果来源卡当前不在自己的休息室';
           }
+        } else if (sourceZone === CardAbilitySourceZone.HAND) {
+          if (!player.hand.cardIds.includes(command.cardId)) {
+            return '起动效果来源卡当前不在自己的手牌';
+          }
         } else if (!Object.values(player.memberSlots.slots).includes(command.cardId)) {
           return '起动效果来源成员当前不在舞台';
         }
@@ -1746,6 +1750,9 @@ export class GameSession {
           }
           if (typeof numericInput.min === 'number' && command.selectedNumber < numericInput.min) {
             return '输入数字低于当前效果允许范围';
+          }
+          if (typeof numericInput.max === 'number' && command.selectedNumber > numericInput.max) {
+            return '输入数字高于当前效果允许范围';
           }
         } else if (command.selectedNumber !== undefined) {
           return '当前效果不能输入数字';
@@ -3330,6 +3337,7 @@ export class GameSession {
           position: slot,
           orientation:
             player.memberSlots.cardStates.get(stageCardId)?.orientation ?? OrientationState.ACTIVE,
+          positionMovedThisTurn: player.positionMovedThisTurn.includes(stageCardId),
         });
       }
     }
@@ -4033,9 +4041,11 @@ export class GameSession {
       };
     }
 
+    const abilityResult = resolvePendingCardEffects(nextState);
+
     return {
       success: true,
-      gameState: nextState,
+      gameState: abilityResult.gameState,
       declarationType: 'ACTIVATE_ABILITY',
       declarationPublicValue: command.abilityId,
       sealedAuditRecords: [

@@ -242,6 +242,15 @@ export type LiveModifierState =
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
+      readonly kind: 'MEMBER_COST_SET';
+      readonly playerId: string;
+      readonly memberCardId: string;
+      readonly setTo: number;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
       readonly kind: 'REQUIREMENT';
       readonly liveCardId: string;
       readonly modifiers: readonly LiveRequirementModifierState[];
@@ -449,6 +458,7 @@ export type ActiveEffectSelectableCardVisibility = 'PUBLIC' | 'AWAITING_PLAYER_O
 
 export interface ActiveEffectNumericInputState {
   readonly min?: number;
+  readonly max?: number;
   readonly integerOnly?: boolean;
   readonly label?: string;
   readonly placeholder?: string;

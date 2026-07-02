@@ -50,6 +50,7 @@ export interface PaySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggersOptions
 export interface PaySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggersResult
   extends EffectCostPaymentResult {
   readonly leaveStageEvents: readonly LeaveStageEvent[];
+  readonly enterWaitingRoomEvent: EnterWaitingRoomEvent | null;
 }
 
 export interface SendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggersResult {
@@ -75,18 +76,37 @@ export function paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
     return null;
   }
 
-  const leaveStageEvents = getNewLeaveStageEvents(game, costPayment.gameState);
+  const sourceCard = getCardById(game, sourceCardId);
+  const enterWaitingRoomEvent =
+    sourceCard && costPayment.movedToWaitingRoomCardIds.length > 0
+      ? createEnterWaitingRoomEvent(
+          costPayment.movedToWaitingRoomCardIds,
+          ZoneType.MEMBER_SLOT,
+          sourceCard.ownerId,
+          playerId
+        )
+      : null;
+  const stateWithEnterEvent = enterWaitingRoomEvent
+    ? emitGameEvent(costPayment.gameState, enterWaitingRoomEvent)
+    : costPayment.gameState;
+  const leaveStageEvents = getNewLeaveStageEvents(game, stateWithEnterEvent);
+  const triggerConditions = [
+    ...(leaveStageEvents.length > 0 ? [TriggerCondition.ON_LEAVE_STAGE] : []),
+    ...(enterWaitingRoomEvent ? [TriggerCondition.ON_ENTER_WAITING_ROOM] : []),
+  ];
   const gameState =
-    leaveStageEvents.length > 0
-      ? enqueueTriggeredCardEffects(costPayment.gameState, [TriggerCondition.ON_LEAVE_STAGE], {
+    triggerConditions.length > 0
+      ? enqueueTriggeredCardEffects(stateWithEnterEvent, triggerConditions, {
+          enterWaitingRoomEvents: enterWaitingRoomEvent ? [enterWaitingRoomEvent] : [],
           leaveStageEvents,
         })
-      : costPayment.gameState;
+      : stateWithEnterEvent;
 
   return {
     ...costPayment,
     gameState,
     leaveStageEvents,
+    enterWaitingRoomEvent,
   };
 }
 

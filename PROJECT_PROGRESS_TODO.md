@@ -1,6 +1,62 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-06-30
+更新时间：2026-07-02
+
+## 本次 2026-07-02 莲之空 CL1 002 卡效补充
+
+- 已实现 `PL!HS-cl1-002-CL` 费用 5「村野さやか」：登场时可支付 1 张 ACTIVE 能量；如此做时，从自己的休息室将 1 张 DOLLCHESTRA 卡片加入手牌。
+- 按 `cards.json` rare_list 仅 CL 窄登记 exact `cardCodes: ['PL!HS-cl1-002-CL']`；不覆盖未知 rarity。
+- 新增单卡 workflow `workflows/cards/hs-cl1-002-sayaka.ts`；启动时检查来源仍在己方舞台、ACTIVE 能量与 DOLLCHESTRA 目标，支付后重新扫描目标，目标消失时保留费用并 no-op。
+- 复用 `payImmediateEffectCosts` / `recordPayCostAction` 与 `zone-selection` 的 WAITING_ROOM -> HAND 流程；目标用 `unitAliasIs('DOLLCHESTRA')`，成员与 LIVE 均可回收。
+- 本卡是 ON_ENTER 且有真实可选支付/选择窗口，不属于 LIVE_START / LIVE_SUCCESS confirm-only 效果。
+
+## 本次 2026-07-02 莲之空 BP6 014 卡效补充
+
+- 已实现 `PL!HS-bp6-014-R` 费用 2「安養寺 姫芽」：手牌来源起动，将本卡从手牌放置入休息室后抽 1，再选择己方舞台「藤島慈」或「大沢瑠璃乃」获得 BLADE +1。
+- 通用更新：新增 `CardAbilitySourceZone.HAND`，命令校验和手牌 UI 均按 sourceZone 分流；本卡不是舞台成员来源起动。
+- FAQ Q258 已落实：没有合法目标时仍可发动，保留本卡入休息室与抽 1，后续 no-op。
+- 新增单卡 workflow `workflows/cards/hs-bp6-014-hime.ts`；弃手成本使用 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`，runner 仅增加 workflow import/register 胶水。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录基础编号、rarity、HAND source 与测试入口；`docs/card-effect-framework/workflow_module_guide.md` 已补 HAND activated source 边界。
+
+## 本次 2026-07-02 莲之空 BP6 008/016 卡效补充
+
+- 已实现 `PL!HS-bp6-008-R/P` 费用 11「桂城 泉」：登场时先将来源成员变为 WAITING，再从休息室回收 1 张分数 4 以下的莲之空 LIVE；无回收目标也保留 WAITING，符合 FAQ Q257。
+- 已实现 `PL!HS-bp6-008-R/P` LIVE 开始段：自己的 LIVE 中存在分数 2 以下 LIVE 时将来源成员变为 ACTIVE；无交互 confirm-only 文本追加当前低分 LIVE 数、来源姿态与实际结算结果。
+- 已实现 `PL!HS-bp6-016-R` 费用 9「桂城 泉」：起动 1 回合 1 次支付 4 张 ACTIVE 能量，从休息室选择费用 4 以下莲之空成员登场到空成员区，并以 WAITING_ROOM 来源入队 ON_ENTER_STAGE。
+- 新增单卡 workflow `workflows/cards/hs-bp6-008-izumi.ts` 与 `workflows/cards/hs-bp6-016-izumi.ts`；本批未新增 shared helper 或扩大 shared 配置轴，runner 仅增加 workflow import/register 胶水。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录基础编号、rarity、复用模块与测试入口；`tests/integration/hs-bp6-008-016-effects.test.ts` 覆盖 008 登场/LIVE_START 与 016 起动支付/筛选/入队登场触发。
+
+## 本次 2026-07-02 莲之空 BP6 015 卡效补充
+
+- 已实现 `PL!HS-bp6-015-R` 费用 4「セラス 柳田 リリエンフェルト」：登场来源明确为手牌以外时抽 2 弃 2；手牌来源或缺少来源 metadata 时消费 pending no-op。
+- 新增单卡 workflow `workflows/cards/hs-bp6-015-seras.ts`，复用 `draw-then-discard` shared workflow；弃手继续走 `discardHandCardsToWaitingRoomAndEnqueueTriggers`，手牌不足 2 张时沿用 shared workflow 的实际可弃数量语义。
+- 通用更新：普通 ON_ENTER source / EnterStageEvent 路径传播 `metadata.fromZone`，保留既有 relay metadata；runner 未加入 015 专属 gate/predicate/pending 分支。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录基础编号、rarity、复用模块与测试入口；`docs/card-effect-framework/workflow_module_guide.md` 已补 ON_ENTER event metadata 边界说明。
+
+## 本次 2026-07-02 莲之空 BP6 012/013 卡效补充
+
+- 已实现 `PL!HS-bp6-012-R` 费用 2「百生 吟子」：登场时己方主舞台存在其他 Cerise Bouquet 成员才活跃至多 1 张 WAITING 能量；无其他成员或无 WAITING 能量消费 pending no-op。
+- 已实现 `PL!HS-bp6-013-R` 费用 15「徒町 小鈴」：登场与 LIVE 开始两段分别登记 abilityId，选择对方舞台原本 BLADE <= 3 且非 DOLLCHESTRA、当前非 WAITING 的成员变为待机状态，并保留成员状态变化触发 wrapper。
+- `opponent-wait-target` 仅新增 `confirmNoTargetWithRealtimeText` 小型配置轴，用于本卡 LIVE_START 无目标 no-op 时展示当前对方舞台成员数、合法目标数与实际不会 WAITING 的结果；真实目标选择窗口不额外套 confirm-only。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已按基础编号记录完成状态、覆盖 rarity、复用模块与测试入口；`docs/card-effect-framework/workflow_module_guide.md` 已补充 shared workflow 配置轴边界。
+
+## 本次 2026-07-02 莲之空 BP6 010/018/025 卡效补充
+
+- 已实现 `PL!HS-bp6-010-R` 费用 4「村野さやか」：LIVE 开始可弃 1 张 DOLLCHESTRA 手牌，抽 1 后选择己方舞台 DOLLCHESTRA 成员费用 +5；弃手/抽牌后无目标保留已发生动作并 no-op。
+- 已实现 `PL!HS-bp6-018-N` 费用 7「村野さやか」：舞台到休息室时可弃 1 手牌，选择己方舞台成员获得蓝 Heart +1 与 BLADE +1；弃手使用进休息室触发安全 wrapper。
+- 已实现 `PL!HS-bp6-025-L` 分数 4「ツバサ・ラ・リベルテ」：LIVE 开始可弃手给莲之空成员蓝 Heart +1；LIVE 成功在己方舞台 2 名以上时强制从休息室回收 1 张分数 3 以下 LIVE。
+- LIVE_SUCCESS 无交互 no-op 分支已按治理规则在 confirm-only 文本追加实时舞台人数、合法目标数与实际不回收结果；有等待室选择窗口时不额外套 confirm-only。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已按基础编号记录完成状态、覆盖 rarity、复用模块与测试入口；本批未新增 shared helper 或扩大 shared 配置轴。
+- 验证：`env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin ./node_modules/.bin/vitest run tests/unit/card-effect-classification.test.ts tests/integration/hs-bp6-010-018-025-effects.test.ts` passed（2 files / 16 tests）；`git diff --check` passed。
+
+## 本次 2026-07-01 莲之空 BP6 零散卡效补充
+
+- 已实现 `PL!HS-bp6-002-R/P` 费用 9「村野さやか」：常时，自己舞台无其他成员时来源成员获得 BLADE +2，进入 `live-modifiers` continuous registry。
+- 已实现 `PL!HS-bp6-009-R` 费用 7「日野下花帆」：LIVE 开始时卡组顶 4 张放置入休息室，实际满 4 张且全为『莲之空』卡时获得 BLADE +1，复用 `mill-top-gain-live-modifier`。
+- 已实现 `PL!HS-bp6-028-L` 分数 2「ブルウモーメント」：LIVE 成功且余剩 Heart >=1 时检视顶 2，任意张按顺序回顶，其余入休息室，不消耗余剩 Heart，复用 `arrange-inspected-deck-top`。
+- 已实现 `PL!HS-bp6-030-L` 分数 1「Very! Very! COCO夏っ」：LIVE 开始抽 1 弃 1，复用 `draw-then-discard` 与手牌进休息室触发安全 wrapper。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已按基础编号记录完成状态与复用模块；本批仅扩 shared workflow 小型配置轴，未扩 framework/gap 文档。
+- 验证：`env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/bin:/bin:/usr/sbin:/sbin ./node_modules/.bin/vitest run tests/unit/card-effect-classification.test.ts tests/unit/live-modifiers.test.ts tests/integration/mill-top-gain-live-modifier.test.ts tests/integration/draw-then-discard.test.ts tests/integration/hs-bp6-028-blue-moment.test.ts` passed（5 files / 133 tests）；`git diff --check` passed。
 
 ## 本次 2026-06-30 CloudBase 新卡导入脚本
 

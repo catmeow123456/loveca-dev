@@ -310,6 +310,37 @@ describe('card selectors', () => {
     expect(unitAliasOrTextAliasIs('みらくらぱーく！')(treatedAsThreeUnits)).toBe(true);
   });
 
+  it('matches exact Hasunosora triple-unit identity cards through unitAliasIs without scanning text broadly', () => {
+    const tripleUnitCardCodes = [
+      'PL!HS-bp2-020-L',
+      'PL!HS-bp5-018-L',
+      'PL!HS-sd1-020-SD',
+    ];
+
+    for (const cardCode of tripleUnitCardCodes) {
+      const card = liveCard(cardCode, {
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+        cardText:
+          'すべての領域にあるこのカードは『スリーズブーケ』、『DOLLCHESTRA』、『みらくらぱーく！』として扱う。',
+      });
+
+      expect(unitAliasIs('スリーズブーケ')(card)).toBe(true);
+      expect(unitAliasIs('DOLLCHESTRA')(card)).toBe(true);
+      expect(unitAliasIs('みらくらぱーく！')(card)).toBe(true);
+    }
+
+    const nonExactTextOnly = liveCard('PL!HS-non-exact-triple-unit-L', {
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+      cardText:
+        'すべての領域にあるこのカードは『スリーズブーケ』、『DOLLCHESTRA』、『みらくらぱーく！』として扱う。',
+    });
+
+    expect(unitAliasIs('スリーズブーケ')(nonExactTextOnly)).toBe(false);
+    expect(unitAliasIs('DOLLCHESTRA')(nonExactTextOnly)).toBe(false);
+    expect(unitAliasIs('みらくらぱーく！')(nonExactTextOnly)).toBe(false);
+    expect(unitAliasOrTextAliasIs('スリーズブーケ')(nonExactTextOnly)).toBe(true);
+  });
+
   it('matches card names after whitespace normalization', () => {
     const spacedName = memberCard('PL!HS-bp6-004-R', { name: '百生 吟子' });
     const compactName = memberCard('PL!HS-pb1-004-R', { name: '百生吟子' });

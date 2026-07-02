@@ -240,6 +240,41 @@ function hasEnabledCommand(view: PlayerViewState, command: GameCommandType): boo
 }
 
 describe('PlayerViewState projector', () => {
+  it('projects numericInput max for active effect number entry', () => {
+    const { state } = createProjectedState();
+    const view = projectPlayerViewState(
+      {
+        ...state,
+        activeEffect: {
+          id: 'numeric-effect',
+          abilityId: 'test:numeric-input-max',
+          sourceCardId: 'p1-live-card',
+          controllerId: PLAYER1,
+          effectText: '测试数字输入',
+          stepId: 'CHOOSE_NUMBER',
+          stepText: '选择数字',
+          awaitingPlayerId: PLAYER1,
+          numericInput: {
+            min: 0,
+            max: 4,
+            integerOnly: true,
+            label: '选择数量',
+            placeholder: '0',
+            confirmLabel: '确认',
+          },
+        },
+      },
+      PLAYER1
+    );
+
+    expect(view.activeEffect?.numericInput).toMatchObject({
+      min: 0,
+      max: 4,
+      integerOnly: true,
+      label: '选择数量',
+    });
+  });
+
   it('projects TARGET_MEMBER Heart modifiers into staged member frontInfo for judgment preview', () => {
     let { state } = createProjectedState();
     const sourceMember = createCardInstance(
@@ -975,6 +1010,7 @@ describe('PlayerViewState projector', () => {
     const mainView = projectPlayerViewState(state, PLAYER1);
     expect(hasEnabledCommand(mainView, GameCommandType.ACTIVATE_ABILITY)).toBe(true);
     expect(getCommandHint(mainView, GameCommandType.ACTIVATE_ABILITY)?.scope?.zoneKeys).toEqual([
+      'FIRST_HAND',
       'FIRST_MEMBER_LEFT',
       'FIRST_MEMBER_CENTER',
       'FIRST_MEMBER_RIGHT',

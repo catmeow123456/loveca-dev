@@ -41,6 +41,8 @@ git diff -- src/application/card-effect-runner.ts
 - 判断当前阶段时，以真实代码、当前 diff、`docs/card-effect-framework/migration_roadmap.md` 为准。
 - `docs/card-effect-framework/README.md` 是入口，但 `Current Goal` 可能滞后；不要单独把它当最终状态。
 - 本地卡文以 `llocg_db/json/cards.json` 为主要事实来源；`cards_cn.json` 可做翻译或漂移参照。
+- `docs/card-data-sync/sources/loveca_*.xlsx` 是本地私有同步源，可能比 `cards.json` 更新。若新卡在 `cards.json` 缺失、卡文明显滞后，或用户明确说 Excel 已有，应读取最新 Excel 作为兜底事实来源，并在结论中说明来源。
+- 规则实现以日文卡文为准：优先 `cards.json` 的日文 `ability`，兜底用 Excel 的 `多行日文效果`。前台展示文本优先使用 Excel 的 `多行中文效果`。
 - 卡牌完成状态优先查 `docs/card-effect-reuse-audit/existing_module_map.md`，再查 `ability-ids.ts`、`definitions/index.ts` 和最近 workflow/test。
 
 ## 本地环境与卡文读取注意事项
@@ -49,6 +51,8 @@ git diff -- src/application/card-effect-runner.ts
 - `llocg_db/json/cards.json` 当前是以 `card_no` 为 key 的对象，不是数组；不要直接 `data.filter(...)`。按 exact `card_no`、base card code、`rare_list` 做结构化查询比裸 `rg` 更可靠。
 - 卡号和稀有度存在全角符号差异，例如 `R＋`、`P＋`，不能把 ASCII `R+` / `P+` 查不到误判为缺卡。遇到未命中时，先按 base card code 和 DB 里的真实 `rare_list` 复核。
 - `cards.json` 里同一卡号可能在 FAQ relation、rare_list 等字段重复出现；抽取真实卡文时应读取顶层卡牌对象的 `cost`、`score`、`name`、`ability` 等字段，并在输出中列基础编号、费用/分数、卡名和原文。
+- Excel 兜底优先读取最新 `docs/card-data-sync/sources/loveca_YYYYMMDDHHMMSS.xlsx`；关键列为 `カード番号`、`カード名`、`卡牌中文名`、`多行日文效果`、`多行中文效果`、`真实团体`、`真实小队`。这是私有/gitignored 输入，不要为同步它而 stage 文件或改 submodule。
+- 读取 Excel 时按 exact card number 匹配，再按 base card code 聚合同文 rarity；不要只凭中文译名或裸文本搜索判断是否同卡。
 
 ## 必读路线
 
@@ -85,7 +89,7 @@ git diff -- src/application/card-effect-runner.ts
 ## 新卡效开发流程
 
 1. 确认卡牌范围：来自用户列表、commit message、diff 或 registry 时，都要反查 `definitions/index.ts`、`ability-ids.ts`、`existing_module_map.md` 并按 base card code 去重。
-2. 核对真实卡文：从 `llocg_db/json/cards.json` 读取日文原始卡文；必要时用 `cards_cn.json` 检查翻译漂移。
+2. 核对真实卡文：从 `llocg_db/json/cards.json` 读取日文原始卡文；若缺失或疑似滞后，读取最新 `docs/card-data-sync/sources/loveca_*.xlsx` 兜底，并报告采用了哪个来源。必要时用 `cards_cn.json` 检查翻译漂移。
 3. 先审查复用路径，再写代码：优先复用已有 query、selector、runtime helper、event wrapper、activeEffect shell、shared workflow。
 4. 只有没有稳定 family 时，才写 `src/application/card-effects/workflows/cards/<card>.ts` 单卡 workflow。
 5. 单卡 workflow 可以存在，但要复用稳定底层动作，不复制裸事件入队、抽弃、activeEffect 构造、成员移动、状态变化等胶水。
@@ -121,6 +125,7 @@ git diff -- src/application/card-effect-runner.ts
 - 新增或迁移无交互 queued pending 时，优先复用 `manualConfirmation` / `confirmBeforeResolution` / `skipManualConfirmation` 语义，或使用薄包装 helper；不要把卡牌专属条件、modifier、费用、区域移动、抽牌等结算逻辑放入 runner 或通用 helper。
 - legacy always-confirm-only workflow 不应作为新实现模板；如果语义上无交互，应迁移为自动 resolver + 手动队列点选时的 confirm-only bridge。
 - 需要动态展示文本的 confirm-only bridge，应在 manual confirmation 分支实时计算 `effectText` / `stepText`，避免展示过期条件。
+- 无交互且有条件触发、条件分支或动态计数影响结算结果的 `LIVE开始` / `LIVE成功` 效果，必须在 confirm-only 展示的 `effectText` 后追加实时条件说明，例如当前计数、关键布尔条件、满足/未满足以及实际结算结果。若评估后决定不追加，必须在审查结论、执行窗口提示词或收尾说明中明确写出原因；不要默默省略。
 
 ## 新卡审查窗口协议
 
@@ -208,6 +213,9 @@ git diff -- src/application/card-effect-runner.ts
 ### Runtime helper / event wrapper
 
 - 手牌进休息室默认使用 `discardHandCardsToWaitingRoomAndEnqueueTriggers` 或 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`。
+- 检视 / 查看 / 公开卡组顶后，inspected cards 从检视区进入休息室必须走统一 inspection-to-waiting helper；事件事实按卡组顶移动处理，`fromZone` 为 `MAIN_DECK`、`toZone` 为 `WAITING_ROOM`，同一次检视进入休息室的一组卡作为同一个 `movedCardIds`。
+- workflow 不允许裸写 `waitingRoom.cardIds` + `clearInspectionCards` 来处理 inspected remainder；若只是 direct mill 或不进入休息室，应在实现/审查中明确说明不属于 inspection-to-waiting helper 范围。
+- 牌组顶直接进入休息室（不经过检视区的 direct mill）默认使用 `moveTopDeckCardsToWaitingRoomAndEnqueueTriggers` / `moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers` 或 `enqueueMainDeckCardsEnteredWaitingRoom`；事件事实为 `MAIN_DECK -> WAITING_ROOM`，同一次实际进入休息室的顶牌作为同一个 `movedCardIds`。`WithRefresh` 只记录实际从刷新后的主卡组顶进入休息室的卡，不把 refresh 洗回卡组的牌算入本次事件；无刷新费用路径不能偷偷改成 refresh 语义。
 - 成员区移动默认使用 `moveMemberBetweenSlotsAndEnqueueTriggers` 或当前 stage-formation wrapper。
 - 成员状态变化默认使用 state-change trigger wrapper。
 - 来源成员自送或离场费用默认使用 leave-stage trigger wrapper。
@@ -234,6 +242,13 @@ git diff -- src/application/card-effect-runner.ts
 ### Effect text / icon token
 
 - `client/src/lib/cardEffectTokens.ts` 会把效果文本里的 `【...】` 与 `[...]` 占位文本转换为前端图标或样式。卡效定义里的 `effectText` 必须使用该文件已支持的字面量，不要随手发明新的括号文本。
+- 前台卡牌详情的效果文本应走卡牌数据本身的 `cardTextCn` / `cardTextJp`，而不是从 `definitions/index.ts` 反推。同步源优先使用 Excel `多行中文效果` -> `card_text_cn`，中文存在时应作为卡牌详情的第一展示文本。
+- `definitions/index.ts` 的 `effectText` 用于 pending / activeEffect / 处理窗口展示。新增或修正卡效时，优先直接采用 Excel `多行中文效果` 的卡牌效果描述，只做已支持 token 的等价替换；不要自行总结、缩写或改写成规则摘要。Excel 中文缺失时，才用日文原文或当前最可靠来源兜底，并在审查/收尾中说明。
+- 对无交互、有条件触发的 `LIVE开始` / `LIVE成功` 处理窗口，`definitions/index.ts` 的原始效果文本只负责说明卡牌效果本体；manual confirmation 的 `effectText` 必须在其后追加实时条件状态和实际结果，避免玩家只能看到“可以/如果”的卡文却不知道当前是否满足。若不追加，必须明确说明例外理由。
+- `activeEffect` 的前端可见操作文案也按中文处理，包括 `stepText`、`selectionLabel`、`confirmSelectionLabel`、`skipSelectionLabel`、`selectableOptions[].label`、`numericInput.confirmLabel` 等。除“查看原卡文”等明确展示日文原文的入口外，不要把日文按钮或日文步骤提示混入中文 UI。
+- `selectableOptions[].label` 可以使用 `client/src/lib/cardEffectTokens.ts` 已支持的 token（如 `[E]`、`[BLADE]`、`[桃ハート]`、`[赤ハート]`、`[紫ハート]`），由前端统一渲染成图标；不要用 emoji 或手写图片替代，也不要写未映射 token。
+- 可选发动窗口若使用 `selectableOptions` 展示“支付/放置/选择能力”等正向选项，跳过动作应建模为 `canSkipSelection: true` + 明确的 `skipSelectionLabel`（例如 `不发动`、`不放置`），不要同时在 `selectableOptions` 里放 `不发动` / `不处理`，否则前端会同时出现两个跳过按钮；也不要依赖默认 `不加入`，除非真实语义就是“不加入手牌”。
+- 多步骤 activeEffect 从“选择”进入“公开/确认/继续处理”阶段时，必须清理上一阶段专属字段（例如 `selectableCardMode`、`minSelectableCards`、`maxSelectableCards`、`confirmSelectionLabel`、`canSkipSelection`），避免前端同时渲染旧按钮和新步骤按钮。
 - 遇到 BLADE、Heart、费用、分数等会显示为图标的内容时，先查现有映射。例如 BLADE 应使用已映射的 `[BLADE]` / `[ブレード]` 等形式，Heart 应使用已映射的 `[赤ハート]`、`[黄ハート]`、`[紫HEART]` 等形式；不要把应图标化的文本写成未映射的 `[红Heart]`、`[blade]`、`[heart]` 或混用大小写/语言导致前端无法识别。
 - 如果真实新卡需要的图标 token 当前没有映射，先明确这是前端 token 覆盖缺口：要么改用已有等价 token，要么在同一执行窗口同步扩展 `cardEffectTokens.ts` 与对应 token 测试；不要只在 `definitions/index.ts` 写一个无法转换的临时文本。
 - 文档说明可以用自然语言描述 Heart / BLADE，但面向 UI 渲染的 `effectText` 必须保持 token 兼容。审查收尾时若本批触及 Heart/BLADE/COST/score 文本，需要报告已核对 token 映射。

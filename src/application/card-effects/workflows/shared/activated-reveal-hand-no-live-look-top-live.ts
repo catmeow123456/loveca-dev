@@ -14,10 +14,11 @@ import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import {
   inspectTopCards,
-  moveInspectedSelectionToHandRestToWaitingRoom,
 } from '../../../effects/look-top.js';
 import { N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import {
@@ -37,7 +38,9 @@ interface WorkflowMetadata {
   readonly selectedLiveCardId?: string | null;
 }
 
-export function registerActivatedRevealHandNoLiveLookTopLiveWorkflowHandlers(): void {
+export function registerActivatedRevealHandNoLiveLookTopLiveWorkflowHandlers(deps: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+}): void {
   registerActivatedAbilityHandler(
     N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID,
     startRevealHandNoLiveLookTopLive
@@ -50,12 +53,13 @@ export function registerActivatedRevealHandNoLiveLookTopLiveWorkflowHandlers(): 
   registerActiveEffectStepHandler(
     N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID,
     SELECT_LIVE_STEP_ID,
-    (game, input) => revealSelectedTopLive(game, input.selectedCardId ?? null)
+    (game, input) =>
+      revealSelectedTopLive(game, input.selectedCardId ?? null, deps.enqueueTriggeredCardEffects)
   );
   registerActiveEffectStepHandler(
     N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID,
     REVEAL_SELECTED_LIVE_STEP_ID,
-    (game) => finishLookTopLiveSelection(game)
+    (game) => finishLookTopLiveSelection(game, deps.enqueueTriggeredCardEffects)
   );
 }
 
@@ -212,7 +216,11 @@ function resolveRevealedHand(game: GameState): GameState {
   );
 }
 
-function revealSelectedTopLive(game: GameState, selectedCardId: string | null): GameState {
+function revealSelectedTopLive(
+  game: GameState,
+  selectedCardId: string | null,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+): GameState {
   const effect = game.activeEffect;
   if (
     !effect ||
@@ -228,7 +236,7 @@ function revealSelectedTopLive(game: GameState, selectedCardId: string | null): 
   }
 
   if (selectedCardId === null) {
-    return finishLookTopLiveSelection(game);
+    return finishLookTopLiveSelection(game, enqueueTriggeredCardEffects);
   }
   if (
     !metadata.candidateCardIds?.includes(selectedCardId) ||
@@ -274,7 +282,10 @@ function revealSelectedTopLive(game: GameState, selectedCardId: string | null): 
   );
 }
 
-function finishLookTopLiveSelection(game: GameState): GameState {
+function finishLookTopLiveSelection(
+  game: GameState,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+): GameState {
   const effect = game.activeEffect;
   if (
     !effect ||
@@ -295,11 +306,12 @@ function finishLookTopLiveSelection(game: GameState): GameState {
     return game;
   }
 
-  const moveResult = moveInspectedSelectionToHandRestToWaitingRoom(
+  const moveResult = moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
     inspectedCardIds,
-    selectedCardId
+    selectedCardId,
+    enqueueTriggeredCardEffects
   );
   if (!moveResult) {
     return game;
@@ -316,7 +328,7 @@ function finishLookTopLiveSelection(game: GameState): GameState {
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: 'FINISH_LOOK_TOP_LIVE_SELECTION',
-      selectedCardId: moveResult.selectedCardId,
+      selectedCardId: moveResult.selectedCardIds[0] ?? null,
       inspectedCardIds,
       waitingRoomCardIds: moveResult.waitingRoomCardIds,
     }

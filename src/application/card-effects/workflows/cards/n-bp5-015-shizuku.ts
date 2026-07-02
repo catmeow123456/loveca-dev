@@ -12,7 +12,10 @@ import {
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { N_BP5_015_LIVE_START_ALL_SIX_STAGE_HEARTS_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
-import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  registerManualConfirmablePendingAbilityStarterHandler,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -34,8 +37,19 @@ export function registerNBp5015ShizukuWorkflowHandlers(): void {
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
+      ),
+    getNBp5015ConfirmationConfig
   );
+}
+
+function getNBp5015ConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getNBp5015LiveStartContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前舞台Heart颜色 ${context.stageHeartColors.length}/6种，${context.conditionMet ? '满足条件' : '未满足条件'}）`,
+  };
 }
 
 function resolveNBp5015ShizukuLiveStart(
@@ -53,13 +67,10 @@ function resolveNBp5015ShizukuLiveStart(
     ...game,
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
   };
-  const stageMemberCardIds = getAllMemberCardIds(player.memberSlots);
-  const sourceOnStage = stageMemberCardIds.includes(ability.sourceCardId);
-  const stageHeartColors = sourceOnStage
-    ? getStageMemberEffectiveHeartColors(stateWithoutPending, player.id, stageMemberCardIds)
-    : [];
-  const conditionMet =
-    sourceOnStage && REQUIRED_STAGE_HEART_COLORS.every((color) => stageHeartColors.includes(color));
+  const { sourceOnStage, stageHeartColors, conditionMet } = getNBp5015LiveStartContext(
+    stateWithoutPending,
+    ability
+  );
   const bladeResult = conditionMet
     ? addBladeLiveModifierForSourceMember(stateWithoutPending, {
         playerId: player.id,
@@ -85,6 +96,33 @@ function resolveNBp5015ShizukuLiveStart(
     }),
     orderedResolution
   );
+}
+
+function getNBp5015LiveStartContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceOnStage: boolean;
+  readonly stageHeartColors: readonly HeartColor[];
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return { sourceOnStage: false, stageHeartColors: [], conditionMet: false };
+  }
+
+  const stageMemberCardIds = getAllMemberCardIds(player.memberSlots);
+  const sourceOnStage = stageMemberCardIds.includes(ability.sourceCardId);
+  const stageHeartColors = sourceOnStage
+    ? getStageMemberEffectiveHeartColors(game, player.id, stageMemberCardIds)
+    : [];
+  return {
+    sourceOnStage,
+    stageHeartColors,
+    conditionMet:
+      sourceOnStage &&
+      REQUIRED_STAGE_HEART_COLORS.every((color) => stageHeartColors.includes(color)),
+  };
 }
 
 function getStageMemberEffectiveHeartColors(

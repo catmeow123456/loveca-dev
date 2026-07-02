@@ -36,6 +36,10 @@ const LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON =
   'legacy fixture predates refresh-aware mill automation';
 const LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON =
   'legacy fixture predates confirm-only no-input LIVE pending replay';
+const LEGACY_REVEAL_STEP_UI_REPLAY_SKIP_REASON =
+  'legacy fixture predates reveal-step UI cleanup and waiting-room event emission';
+const LEGACY_ENTER_STAGE_SOURCE_METADATA_REPLAY_SKIP_REASON =
+  'legacy fixture predates enter-stage source metadata';
 const REFRESH_AWARE_MILL_ABILITY_IDS = new Set([
   'PL!HS-bp5-001-SEC:on-enter-mill-four-gain-blade-if-live',
   'PL!HS-bp1-008:on-enter-mill-three-draw-if-all-members',
@@ -475,16 +479,16 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
 
     expect(replay.failedExecutions).toEqual([]);
     expect(replay.mismatches).toEqual([]);
-    expect(replay.replayedCount).toBe(242);
-    expect(replay.skippedCount).toBe(228);
+    expect(replay.replayedCount).toBe(219);
+    expect(replay.skippedCount).toBe(251);
     expect(plainRecord(replay.replayedByDecisionType)).toEqual({
-      ACTIVE_EFFECT_SUBMITTED: 94,
-      PENDING_ABILITY_ORDER_SUBMITTED: 17,
+      ACTIVE_EFFECT_SUBMITTED: 70,
+      PENDING_ABILITY_ORDER_SUBMITTED: 18,
       SELECT_SUCCESS_LIVE_SUBMITTED: 17,
       SET_LIVE_CARD_SUBMITTED: 114,
     });
     expect(plainRecord(replay.replayedByCommandType)).toEqual({
-      CONFIRM_EFFECT_STEP: 111,
+      CONFIRM_EFFECT_STEP: 88,
       SELECT_SUCCESS_LIVE: 17,
       SET_LIVE_CARD: 114,
     });
@@ -493,7 +497,9 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
       'legacy fixture lacks recorded randomness for mulligan replay': 12,
       'legacy fixture lacks reliable before checkpoint for activate ability': 28,
       [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 32,
-      [LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON]: 13,
+      [LEGACY_ENTER_STAGE_SOURCE_METADATA_REPLAY_SKIP_REASON]: 2,
+      [LEGACY_REVEAL_STEP_UI_REPLAY_SKIP_REASON]: 23,
+      [LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON]: 11,
       'not a submitted player decision': 112,
     });
   }, 120_000);
@@ -1502,14 +1508,17 @@ function getExpectedReplayMismatchSkipReason(
   if (mismatch.commandType !== GameCommandType.CONFIRM_EFFECT_STEP) {
     return null;
   }
-  if (isRefreshAwareMillOrderMetadataMismatch(decision, mismatch)) {
-    return LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON;
-  }
   if (isLegacyConfirmOnlyLivePendingOrderMismatch(decision, mismatch)) {
     return LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON;
   }
   if (isLegacyConfirmOnlyLivePendingContinuationMismatch(decision, mismatch)) {
     return LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON;
+  }
+  if (isLegacyEnterStageSourceMetadataReplayMismatch(mismatch)) {
+    return LEGACY_ENTER_STAGE_SOURCE_METADATA_REPLAY_SKIP_REASON;
+  }
+  if (isLegacyRevealStepReplayMismatch(mismatch)) {
+    return LEGACY_REVEAL_STEP_UI_REPLAY_SKIP_REASON;
   }
   if (!referencesRefreshAwareMillAbility(decision, mismatch)) {
     return null;
@@ -1532,22 +1541,6 @@ function isLegacyConfirmOnlyLivePendingOrderMismatch(
   );
 }
 
-function isRefreshAwareMillOrderMetadataMismatch(
-  decision: DecisionRecordSummary,
-  mismatch: { readonly decisionId: string; readonly diffs: readonly unknown[] }
-): boolean {
-  return (
-    mismatch.diffs.length === 1 &&
-    mismatch.diffs.some(
-      (diff) =>
-        typeof diff === 'object' &&
-        diff !== null &&
-        'path' in diff &&
-        diff.path === '$.activeEffect.metadata.enqueueWaitingRoomTriggersForRemainder'
-    )
-  );
-}
-
 function isLegacyConfirmOnlyLivePendingContinuationMismatch(
   decision: DecisionRecordSummary,
   mismatch: { readonly actual: unknown; readonly expected: unknown; readonly diffs: readonly unknown[] }
@@ -1566,6 +1559,81 @@ function isLegacyConfirmOnlyLivePendingContinuationMismatch(
       diff !== null &&
       'path' in diff &&
       (diff.path === '$.activeEffect' || diff.path === '$.activeEffect.metadata.confirmOnlyPendingAbility')
+  );
+}
+
+function isLegacyRevealStepReplayMismatch(mismatch: {
+  readonly diffs: readonly unknown[];
+}): boolean {
+  if (mismatch.diffs.length === 0) {
+    return false;
+  }
+  return mismatch.diffs.every(
+    (diff) => isRevealStepUiCleanupDiff(diff) || isAddedEventLogDiff(diff)
+  );
+}
+
+function isLegacyEnterStageSourceMetadataReplayMismatch(mismatch: {
+  readonly diffs: readonly unknown[];
+}): boolean {
+  return (
+    mismatch.diffs.length === 2 &&
+    mismatch.diffs.some((diff) => isActionHistoryFromZoneMetadataDiff(diff)) &&
+    mismatch.diffs.some((diff) => isPendingAbilityEnterStageSourceMetadataDiff(diff))
+  );
+}
+
+function isActionHistoryFromZoneMetadataDiff(diff: unknown): boolean {
+  const record = asRecord(diff);
+  const path = record?.path;
+  return (
+    typeof path === 'string' &&
+    /^\$\.actionHistory\[\d+\]\.payload\.fromZone$/.test(path) &&
+    record.actual === 'WAITING_ROOM' &&
+    record.expected === undefined
+  );
+}
+
+function isPendingAbilityEnterStageSourceMetadataDiff(diff: unknown): boolean {
+  const record = asRecord(diff);
+  const actual = asRecord(record?.actual);
+  return (
+    record?.path === '$.pendingAbilities[0].metadata' &&
+    record.expected === null &&
+    actual?.fromZone === 'WAITING_ROOM' &&
+    Array.isArray(actual.relayReplacements) &&
+    actual.replacedMemberCardId === null &&
+    actual.replacedMemberEffectiveCost === null
+  );
+}
+
+function isRevealStepUiCleanupDiff(diff: unknown): boolean {
+  const record = asRecord(diff);
+  const path = record?.path;
+  if (typeof path !== 'string') {
+    return false;
+  }
+  return (
+    [
+      '$.activeEffect.confirmSelectionLabel',
+      '$.activeEffect.maxSelectableCards',
+      '$.activeEffect.minSelectableCards',
+      '$.activeEffect.selectableCardMode',
+      '$.activeEffect.selectableCardVisibility',
+    ].includes(path) && record.actual === undefined
+  );
+}
+
+function isAddedEventLogDiff(diff: unknown): boolean {
+  const record = asRecord(diff);
+  const path = record?.path;
+  if (path !== '$.eventLog.length' && path !== '$.eventSequence') {
+    return false;
+  }
+  return (
+    typeof record.actual === 'number' &&
+    typeof record.expected === 'number' &&
+    record.actual === record.expected + 1
   );
 }
 

@@ -22,6 +22,7 @@ import {
   PL_N_BP5_007_LIVE_START_EQUAL_SUCCESS_ZONES_GAIN_RED_HEART_ABILITY_ID,
   PL_N_BP5_007_LIVE_SUCCESS_REMAINING_HEART_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { confirmIfConfirmOnly } from './confirm-only-pending';
 import {
   CardType,
   FaceState,
@@ -161,11 +162,15 @@ function setupStageSource(options: {
   };
 }
 
-function resolveTiming(game: GameState, timing: TriggerCondition): GameState {
+function startTiming(game: GameState, timing: TriggerCondition): GameState {
   return resolvePendingCardEffects(enqueueTriggeredCardEffects(game, [timing])).gameState;
 }
 
-function resolveManualPending(game: GameState, sourceId: string): GameState {
+function resolveTiming(game: GameState, timing: TriggerCondition): GameState {
+  return confirmIfConfirmOnly(startTiming(game, timing), PLAYER1);
+}
+
+function startManualPending(game: GameState, sourceId: string): GameState {
   return resolvePendingCardEffects({
     ...game,
     pendingAbilities: [
@@ -183,7 +188,22 @@ function resolveManualPending(game: GameState, sourceId: string): GameState {
   }).gameState;
 }
 
+function resolveManualPending(game: GameState, sourceId: string): GameState {
+  return confirmIfConfirmOnly(startManualPending(game, sourceId), PLAYER1);
+}
+
 describe('PL!N-bp5-007 Setsuna workflow', () => {
+  it('shows live-start success zone condition in effect text', () => {
+    const { game } = setupStageSource({ ownSuccessCount: 1, opponentSuccessCount: 0 });
+
+    const state = startTiming(game, TriggerCondition.ON_LIVE_START);
+
+    expect(state.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
+    expect(state.activeEffect?.effectText).toContain(
+      '自己成功LIVE 1张，对方成功LIVE 0张，未满足条件'
+    );
+  });
+
   it('gains RED Heart x2 at live start when success zones are both 0', () => {
     const { game, sourceId } = setupStageSource();
 

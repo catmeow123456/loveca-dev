@@ -7,9 +7,10 @@ import {
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { GamePhase, SlotPosition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { moveTopDeckCardsToWaitingRoom } from '../../../effects/look-top.js';
 import { SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveTopDeckCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import {
   moveMemberBetweenSlotsAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForMemberSlotMoved,
@@ -25,13 +26,16 @@ const SP_BP5_006_POSITION_CHANGE_STEP_ID = 'SP_BP5_006_SELF_POSITION_CHANGE';
 const MILL_COST_COUNT = 3;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
+type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForEnterWaitingRoom &
+  EnqueueTriggeredCardEffectsForMemberSlotMoved;
 
 export function registerSpBp5006KinakoWorkflowHandlers(deps: {
-  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberSlotMoved;
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
 }): void {
   registerActivatedAbilityHandler(
     SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_ABILITY_ID,
-    (game, playerId, cardId) => startSpBp5006KinakoActivated(game, playerId, cardId)
+    (game, playerId, cardId) =>
+      startSpBp5006KinakoActivated(game, playerId, cardId, deps.enqueueTriggeredCardEffects)
   );
   registerActiveEffectStepHandler(
     SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_ABILITY_ID,
@@ -49,7 +53,8 @@ export function registerSpBp5006KinakoWorkflowHandlers(deps: {
 function startSpBp5006KinakoActivated(
   game: GameState,
   playerId: string,
-  cardId: string
+  cardId: string,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
     return game;
@@ -75,16 +80,25 @@ function startSpBp5006KinakoActivated(
     abilityId: SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_ABILITY_ID,
     sourceCardId: cardId,
   });
-  const millResult = moveTopDeckCardsToWaitingRoom(state, player.id, MILL_COST_COUNT);
+  const millResult = moveTopDeckCardsToWaitingRoomAndEnqueueTriggers(
+    state,
+    player.id,
+    MILL_COST_COUNT,
+    enqueueTriggeredCardEffects,
+    {
+      prepareGameStateBeforeEnqueue: (gameState, movedCardIds) =>
+        recordPayCostAction(gameState, player.id, {
+          abilityId: SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_ABILITY_ID,
+          sourceCardId: cardId,
+          milledCardIds: movedCardIds,
+          count: movedCardIds.length,
+        }),
+    }
+  );
   if (!millResult || millResult.movedCardIds.length !== MILL_COST_COUNT) {
     return game;
   }
-  state = recordPayCostAction(millResult.gameState, player.id, {
-    abilityId: SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_ABILITY_ID,
-    sourceCardId: cardId,
-    milledCardIds: millResult.movedCardIds,
-    count: millResult.movedCardIds.length,
-  });
+  state = millResult.gameState;
 
   return addAction(
     {

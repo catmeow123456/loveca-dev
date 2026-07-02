@@ -79,7 +79,10 @@ export function registerSpBp5007MeiWorkflowHandlers(deps: {
         game,
         input.selectedCardId ?? null,
         input.selectedCardIds,
-        context,
+        {
+          continuePendingCardEffects: context.continuePendingCardEffects,
+          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+        },
         hasDistinctGroupAssignment
       )
   );
@@ -87,7 +90,14 @@ export function registerSpBp5007MeiWorkflowHandlers(deps: {
     SP_BP5_007_ON_ENTER_DISCARD_LOOK_TOP_DISTINCT_GROUPS_ABILITY_ID,
     REVEAL_SELECTED_STEP_ID,
     (game, _input, context) =>
-      finishRevealedLookTopSelectToHandWorkflow(game, context, hasDistinctGroupAssignment)
+      finishRevealedLookTopSelectToHandWorkflow(
+        game,
+        {
+          continuePendingCardEffects: context.continuePendingCardEffects,
+          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+        },
+        hasDistinctGroupAssignment
+      )
   );
 }
 
@@ -200,6 +210,7 @@ function finishDiscardCostAndStartInspection(
     {
       orderedResolution: effect.metadata?.orderedResolution === true,
       continuePendingCardEffects,
+      enqueueTriggeredCardEffects,
     }
   );
 }

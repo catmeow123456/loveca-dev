@@ -1,24 +1,16 @@
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
-  emitGameEvent,
   getCardById,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { createEnterWaitingRoomEvent } from '../../../../domain/events/game-events.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import {
-  GamePhase,
-  OrientationState,
-  TriggerCondition,
-  ZoneType,
-} from '../../../../shared/types/enums.js';
+import { GamePhase, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
-import { moveTopDeckCardsToWaitingRoom } from '../../../effects/look-top.js';
 import {
   SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
@@ -30,6 +22,7 @@ import {
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { moveTopDeckCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import {
   registerPendingAbilityStarterHandler,
   type PendingAbilityStarterOptions,
@@ -43,7 +36,6 @@ import {
 
 const MILL_COST_COUNT = 3;
 const PAY_ENERGY_STEP_ID = 'SP_BP5_005_PAY_ENERGY_TO_RECOVER_MOVED_CARD';
-const SELECT_MOVED_CARD_STEP_ID = 'SP_BP5_005_SELECT_MOVED_CARD_TO_HAND';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -65,22 +57,16 @@ export function registerSpBp5005RenWorkflowHandlers(deps: {
     PAY_ENERGY_STEP_ID,
     (game, input, context) =>
       input.selectedOptionId === 'pay'
-        ? finishPayEnergyForMovedCardRecovery(game, context.continuePendingCardEffects)
+        ? finishPayEnergyRecoverSelectedMovedCard(
+            game,
+            input.selectedCardId ?? null,
+            context.continuePendingCardEffects
+          )
         : finishUnpaidActiveAutoEffect(game, context.continuePendingCardEffects, {
             step: 'DECLINE_PAY_ENERGY_RECOVER_MOVED_CARD',
             paidEnergyCardIds: [],
             selectedCardIds: [],
           })
-  );
-  registerActiveEffectStepHandler(
-    SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
-    SELECT_MOVED_CARD_STEP_ID,
-    (game, input, context) =>
-      finishRecoverMovedCard(
-        game,
-        input.selectedCardId ?? null,
-        context.continuePendingCardEffects
-      )
   );
 }
 
@@ -114,22 +100,25 @@ function startSpBp5005RenActivated(
     abilityId: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
     sourceCardId: cardId,
   });
-  const millResult = moveTopDeckCardsToWaitingRoom(state, player.id, MILL_COST_COUNT);
+  const millResult = moveTopDeckCardsToWaitingRoomAndEnqueueTriggers(
+    state,
+    player.id,
+    MILL_COST_COUNT,
+    enqueueTriggeredCardEffects,
+    {
+      prepareGameStateBeforeEnqueue: (gameState, movedCardIds) =>
+        recordPayCostAction(gameState, player.id, {
+          abilityId: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
+          sourceCardId: cardId,
+          milledCardIds: movedCardIds,
+          count: movedCardIds.length,
+        }),
+    }
+  );
   if (!millResult || millResult.movedCardIds.length !== MILL_COST_COUNT) {
     return game;
   }
-  state = recordPayCostAction(millResult.gameState, player.id, {
-    abilityId: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
-    sourceCardId: cardId,
-    milledCardIds: millResult.movedCardIds,
-    count: millResult.movedCardIds.length,
-  });
-  state = enqueueMilledCardsEnterWaitingRoomTriggers(
-    state,
-    player.id,
-    millResult.movedCardIds,
-    enqueueTriggeredCardEffects
-  );
+  state = millResult.gameState;
 
   const liellaMemberCount = millResult.movedCardIds.filter((movedCardId) =>
     isLiellaMemberCard(state, movedCardId)
@@ -178,6 +167,19 @@ function startSpBp5005RenAuto(
       continuePendingCardEffects
     );
   }
+  if (hasPaidSpBp5005RenAutoUseThisTurn(game, player.id, ability.sourceCardId)) {
+    return consumePendingAutoAbilityWithoutUse(
+      game,
+      ability,
+      player.id,
+      options.orderedResolution === true,
+      {
+        step: 'NO_OP_AUTO_RECOVER_MOVED_CARD',
+        reason: 'TURN_LIMIT_ALREADY_USED',
+      },
+      continuePendingCardEffects
+    );
+  }
 
   const movedCardIds = getMovedCardIdsFromPendingAbility(ability);
   const selectableCardIds = getRecoverableMovedWaitingRoomCardIds(game, player.id, movedCardIds);
@@ -197,6 +199,7 @@ function startSpBp5005RenAuto(
   }
 
   const activeEnergyCardIds = getActiveEnergyCardIds(player);
+  const canPayEnergy = activeEnergyCardIds.length > 0;
   return startPendingActiveEffect(game, {
     ability,
     playerId: player.id,
@@ -207,16 +210,19 @@ function startSpBp5005RenAuto(
       controllerId: player.id,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_STEP_ID,
-      stepText:
-        '可以支付1张活跃能量，从本次进入休息室的卡中选择1张加入手牌。',
+      stepText: canPayEnergy
+        ? '选择本次进入休息室的1张卡，支付1张活跃能量后加入手牌。'
+        : '没有可支付的活跃能量，不能发动此效果。',
       awaitingPlayerId: player.id,
-      selectableOptions:
-        activeEnergyCardIds.length > 0
-          ? [
-              { id: 'pay', label: '支付1能量' },
-              { id: 'decline', label: '不发动' },
-            ]
-          : [{ id: 'decline', label: '不发动' }],
+      selectableOptions: canPayEnergy ? [{ id: 'pay', label: '支付1能量' }] : undefined,
+      selectableCardIds: canPayEnergy ? selectableCardIds : undefined,
+      selectableCardMode: canPayEnergy ? 'SINGLE' : undefined,
+      minSelectableCards: canPayEnergy ? 1 : undefined,
+      maxSelectableCards: canPayEnergy ? 1 : undefined,
+      selectableCardVisibility: canPayEnergy ? 'PUBLIC' : undefined,
+      selectionLabel: canPayEnergy ? '选择要加入手牌的卡' : undefined,
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
       metadata: {
         orderedResolution: options.orderedResolution === true,
         movedCardIds,
@@ -234,13 +240,30 @@ function startSpBp5005RenAuto(
   });
 }
 
-function finishPayEnergyForMovedCardRecovery(
+function finishPayEnergyRecoverSelectedMovedCard(
   game: GameState,
+  selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
-  if (!effect || effect.stepId !== PAY_ENERGY_STEP_ID || !player) {
+  if (
+    !effect ||
+    effect.stepId !== PAY_ENERGY_STEP_ID ||
+    !player ||
+    !selectedCardId ||
+    effect.selectableCardIds?.includes(selectedCardId) !== true
+  ) {
+    return game;
+  }
+
+  const movedCardIds = getMovedCardIdsFromActiveEffect(game);
+  const selectableCardIdsBeforeCost = getRecoverableMovedWaitingRoomCardIds(
+    game,
+    player.id,
+    movedCardIds
+  );
+  if (!selectableCardIdsBeforeCost.includes(selectedCardId)) {
     return game;
   }
 
@@ -258,94 +281,27 @@ function finishPayEnergyForMovedCardRecovery(
     energyCardIds: costPayment.paidEnergyCardIds,
     amount: costPayment.paidEnergyCardIds.length,
   });
-  const movedCardIds = getMovedCardIdsFromActiveEffect(game);
   const selectableCardIds = getRecoverableMovedWaitingRoomCardIds(
     stateAfterCost,
     player.id,
     movedCardIds
   );
-  if (selectableCardIds.length === 0) {
+  if (!selectableCardIds.includes(selectedCardId)) {
     return finishPaidActiveAutoEffect(
       { ...stateAfterCost, activeEffect: effect },
       continuePendingCardEffects,
       {
-        step: 'PAY_ENERGY_NO_LEGAL_MOVED_CARD',
+        step: 'SELECTED_MOVED_CARD_NO_LONGER_LEGAL_AFTER_PAY',
         movedCardIds,
         paidEnergyCardIds: costPayment.paidEnergyCardIds,
+        selectedCardId,
         selectedCardIds: [],
       }
     );
   }
 
-  return addAction(
-    {
-      ...stateAfterCost,
-      activeEffect: {
-        ...effect,
-        stepId: SELECT_MOVED_CARD_STEP_ID,
-        stepText: '请选择本次进入休息室的1张卡加入手牌。',
-        selectableOptions: undefined,
-        selectableCardIds,
-        selectableCardMode: 'SINGLE',
-        minSelectableCards: 1,
-        maxSelectableCards: 1,
-        selectableCardVisibility: 'PUBLIC',
-        selectionLabel: '选择要加入手牌的卡',
-        confirmSelectionLabel: '加入手牌',
-        canSkipSelection: false,
-        metadata: {
-          ...effect.metadata,
-          movedCardIds,
-          selectableCardIds,
-          paidEnergyCardIds: costPayment.paidEnergyCardIds,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: 'PAY_ENERGY_SELECT_MOVED_CARD',
-      movedCardIds,
-      paidEnergyCardIds: costPayment.paidEnergyCardIds,
-      selectableCardIds,
-    }
-  );
-}
-
-function finishRecoverMovedCard(
-  game: GameState,
-  selectedCardId: string | null,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const effect = game.activeEffect;
-  const player = effect ? getPlayerById(game, effect.controllerId) : null;
-  if (
-    !effect ||
-    effect.stepId !== SELECT_MOVED_CARD_STEP_ID ||
-    !player ||
-    !selectedCardId ||
-    effect.selectableCardIds?.includes(selectedCardId) !== true
-  ) {
-    return game;
-  }
-
-  const movedCardIds = getMovedCardIdsFromActiveEffect(game);
-  const selectableCardIds = getRecoverableMovedWaitingRoomCardIds(game, player.id, movedCardIds);
-  if (!selectableCardIds.includes(selectedCardId)) {
-    return finishPaidActiveAutoEffect(game, continuePendingCardEffects, {
-      step: 'SELECTED_MOVED_CARD_NO_LONGER_LEGAL',
-      movedCardIds,
-      paidEnergyCardIds: effect.metadata?.paidEnergyCardIds ?? [],
-      selectedCardId,
-      selectedCardIds: [],
-    });
-  }
-
   const recoveryResult = recoverCardsFromWaitingRoomToHandForPlayer(
-    game,
+    stateAfterCost,
     player.id,
     [selectedCardId],
     {
@@ -354,13 +310,17 @@ function finishRecoverMovedCard(
     }
   );
   if (!recoveryResult) {
-    return finishPaidActiveAutoEffect(game, continuePendingCardEffects, {
-      step: 'RECOVER_MOVED_CARD_FAILED',
-      movedCardIds,
-      paidEnergyCardIds: effect.metadata?.paidEnergyCardIds ?? [],
-      selectedCardId,
-      selectedCardIds: [],
-    });
+    return finishPaidActiveAutoEffect(
+      { ...stateAfterCost, activeEffect: effect },
+      continuePendingCardEffects,
+      {
+        step: 'RECOVER_MOVED_CARD_FAILED',
+        movedCardIds,
+        paidEnergyCardIds: costPayment.paidEnergyCardIds,
+        selectedCardId,
+        selectedCardIds: [],
+      }
+    );
   }
 
   return finishPaidActiveAutoEffect(
@@ -372,7 +332,7 @@ function finishRecoverMovedCard(
     {
       step: 'RECOVER_MOVED_CARD_TO_HAND',
       movedCardIds,
-      paidEnergyCardIds: effect.metadata?.paidEnergyCardIds ?? [],
+      paidEnergyCardIds: costPayment.paidEnergyCardIds,
       selectedCardId: recoveryResult.movedCardIds[0] ?? null,
       selectedCardIds: recoveryResult.movedCardIds,
     }
@@ -469,31 +429,26 @@ function isOwnMainPhase(game: GameState, playerId: string): boolean {
   );
 }
 
-function enqueueMilledCardsEnterWaitingRoomTriggers(
-  game: GameState,
-  playerId: string,
-  movedCardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
-): GameState {
-  if (movedCardIds.length === 0) {
-    return game;
-  }
-
-  const event = createEnterWaitingRoomEvent(
-    movedCardIds,
-    ZoneType.MAIN_DECK,
-    playerId,
-    playerId
-  );
-  const stateWithEvent = emitGameEvent(game, event);
-  return enqueueTriggeredCardEffects(stateWithEvent, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
-    enterWaitingRoomEvents: [event],
-  });
-}
-
 function isLiellaMemberCard(game: GameState, cardId: string): boolean {
   const card = getCardById(game, cardId);
   return !!card && isMemberCardData(card.data) && cardBelongsToGroup(card.data, 'Liella!');
+}
+
+function hasPaidSpBp5005RenAutoUseThisTurn(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  return game.actionHistory.some(
+    (action) =>
+      action.type === 'RESOLVE_ABILITY' &&
+      action.playerId === playerId &&
+      action.payload.abilityId ===
+        SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID &&
+      action.payload.sourceCardId === sourceCardId &&
+      action.payload.step === 'ABILITY_USE' &&
+      action.payload.turnCount === game.turnCount
+  );
 }
 
 function getMovedCardIdsFromPendingAbility(ability: PendingAbilityState): readonly string[] {

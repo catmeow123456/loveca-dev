@@ -73,6 +73,7 @@ function createStageMemberInfo(
     readonly unitName?: string;
     readonly cardText?: string;
     readonly effectiveCost?: number;
+    readonly positionMovedThisTurn?: boolean;
   } = {}
 ): StageMemberInfo {
   return {
@@ -85,6 +86,7 @@ function createStageMemberInfo(
     effectiveCost: options.effectiveCost,
     position,
     orientation: options.orientation ?? OrientationState.ACTIVE,
+    positionMovedThisTurn: options.positionMovedThisTurn,
   };
 }
 
@@ -747,6 +749,78 @@ describe('CostCalculator', () => {
       expect(relayPlan?.costModifierAmount).toBe(2);
       expect(relayPlan?.relayDiscount).toBe(7);
       expect(relayPlan?.actualEnergyCost).toBe(1);
+    });
+
+    it('reduces PL!SP-bp5-017 hand self play cost from 9 to 7 when a stage Liella member moved this turn', () => {
+      const memberData = createMockMemberData(9, '桜小路きな子', 'PL!SP-bp5-017-N');
+      const info = calculator.calculateModifiedPlayCost(memberData, {
+        activeEnergyIds: Array.from({ length: 9 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('moved-liella', 4, SlotPosition.CENTER, {
+            groupNames: ['Liella!'],
+            positionMovedThisTurn: true,
+          }),
+        ],
+        sourceCardId: 'kinako-hand',
+        handCardIds: ['kinako-hand'],
+      });
+
+      expect(info.baseCost).toBe(9);
+      expect(info.modifiedCost).toBe(7);
+      expect(info.modifierAmount).toBe(2);
+      expect(info.modifiers[0]).toMatchObject({
+        id: 'PL!SP-bp5-017:hand-self-cost-minus-if-moved-liella-stage-member',
+        sourceCardId: 'kinako-hand',
+        amount: 2,
+      });
+    });
+
+    it('does not reduce PL!SP-bp5-017 cost without a moved stage member', () => {
+      const memberData = createMockMemberData(9, '桜小路きな子', 'PL!SP-bp5-017-N');
+      const info = calculator.calculateModifiedPlayCost(memberData, {
+        activeEnergyIds: Array.from({ length: 9 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('still-liella', 4, SlotPosition.CENTER, {
+            groupNames: ['Liella!'],
+          }),
+        ],
+        sourceCardId: 'kinako-hand',
+        handCardIds: ['kinako-hand'],
+      });
+
+      expect(info.modifiedCost).toBe(9);
+      expect(info.modifierAmount).toBe(0);
+    });
+
+    it('does not reduce PL!SP-bp5-017 cost for a moved non-Liella stage member', () => {
+      const memberData = createMockMemberData(9, '桜小路きな子', 'PL!SP-bp5-017-N');
+      const info = calculator.calculateModifiedPlayCost(memberData, {
+        activeEnergyIds: Array.from({ length: 9 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('moved-non-liella', 4, SlotPosition.CENTER, {
+            groupNames: ['Aqours'],
+            positionMovedThisTurn: true,
+          }),
+        ],
+        sourceCardId: 'kinako-hand',
+        handCardIds: ['kinako-hand'],
+      });
+
+      expect(info.modifiedCost).toBe(9);
+      expect(info.modifierAmount).toBe(0);
+    });
+
+    it('does not reduce PL!SP-bp5-017 cost when the moved Liella member is no longer on stage', () => {
+      const memberData = createMockMemberData(9, '桜小路きな子', 'PL!SP-bp5-017-N');
+      const info = calculator.calculateModifiedPlayCost(memberData, {
+        activeEnergyIds: Array.from({ length: 9 }, (_, index) => `e${index}`),
+        stageMembers: [],
+        sourceCardId: 'kinako-hand',
+        handCardIds: ['kinako-hand'],
+      });
+
+      expect(info.modifiedCost).toBe(9);
+      expect(info.modifierAmount).toBe(0);
     });
 
     it("reduces printed cost 17 or higher μ's members from hand by 2 when own success zone has PL!-bp6-019-L", () => {

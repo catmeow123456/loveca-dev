@@ -489,7 +489,9 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
     (activeEffectNumericInput.integerOnly !== true ||
       Number.isInteger(activeEffectSelectedNumber)) &&
     (typeof activeEffectNumericInput.min !== 'number' ||
-      activeEffectSelectedNumber >= activeEffectNumericInput.min);
+      activeEffectSelectedNumber >= activeEffectNumericInput.min) &&
+    (typeof activeEffectNumericInput.max !== 'number' ||
+      activeEffectSelectedNumber <= activeEffectNumericInput.max);
   const activeEffectUsesCardOptionSelection =
     !activeEffectUsesOrderedMultiSelect &&
     activeEffectSelectableCardIds.length > 0 &&
@@ -2712,7 +2714,11 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                         : 'cursor-not-allowed opacity-50'
                     }`}
                   >
-                    {option.label}
+                    <CardEffectText
+                      as="span"
+                      text={option.label}
+                      className="inline-flex items-center justify-center gap-1 whitespace-normal break-normal"
+                    />
                   </button>
                 ))}
                 {activeEffectNumericInput && (
@@ -2724,6 +2730,7 @@ export const GameBoard = memo(function GameBoard({ onLeaveLocalGame }: GameBoard
                       <input
                         type="number"
                         min={activeEffectNumericInput.min ?? undefined}
+                        max={activeEffectNumericInput.max ?? undefined}
                         step={activeEffectNumericInput.integerOnly === true ? 1 : undefined}
                         value={activeEffectNumberInput}
                         placeholder={activeEffectNumericInput.placeholder}
