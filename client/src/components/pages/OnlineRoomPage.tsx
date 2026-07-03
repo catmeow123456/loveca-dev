@@ -17,7 +17,13 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { DeckSelector, type DeckDisplayItem, PageHeader, ThemeToggle } from '@/components/common';
+import {
+  DeckSelector,
+  DeckStatsRow,
+  type DeckDisplayItem,
+  PageHeader,
+  ThemeToggle,
+} from '@/components/common';
 import { GameBoard } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
@@ -39,7 +45,17 @@ import {
   requestOnlineRoomRestart,
   submitOnlineOpeningRps,
 } from '@/lib/onlineClient';
-import { isDeckRecordValidForCurrentCardPool } from '@/lib/deckRecordUtils';
+import {
+  createDeckRecordCardTypeResolver,
+  isDeckRecordValidForCurrentCardPool,
+} from '@/lib/deckRecordUtils';
+import { buildDeckDisplayItems } from '@/lib/deckDisplay';
+import {
+  choosePreferredDeck,
+  DECK_SELECTION_PREFERENCE_KEYS,
+  readLastUsedDeckId,
+  writeLastUsedDeckId,
+} from '@/lib/deckSelectionPreferences';
 import type { OnlineRoomView, OpeningRpsGesture, OpeningTurnOrderChoice } from '@game/online';
 
 const ROOM_POLL_INTERVAL_MS = 1200;
@@ -87,10 +103,30 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const [joinedRoomCode, setJoinedRoomCode] = useState<string | null>(null);
   const [room, setRoom] = useState<OnlineRoomView | null>(null);
   const [selectedDeck, setSelectedDeck] = useState<DeckDisplayItem | null>(null);
+  const [hasManualSelectedDeck, setHasManualSelectedDeck] = useState(false);
+  const [lastUsedDeckId, setLastUsedDeckId] = useState(() =>
+    readLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.onlineRoom)
+  );
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBootstrappingMatch, setIsBootstrappingMatch] = useState(false);
   const [briefingAcknowledged, setBriefingAcknowledged] = useState(false);
+  const resolveDeckRecordCardType = useMemo(
+    () => createDeckRecordCardTypeResolver(cardDataRegistry),
+    [cardDataRegistry]
+  );
+  const deckDisplayItems = useMemo(
+    () =>
+      buildDeckDisplayItems({
+        cloudDecks: validDecks,
+        resolveDeckRecordCardType,
+      }),
+    [resolveDeckRecordCardType, validDecks]
+  );
+  const preferredDeck = useMemo(
+    () => choosePreferredDeck(deckDisplayItems, lastUsedDeckId),
+    [deckDisplayItems, lastUsedDeckId]
+  );
 
   useEffect(() => {
     setBriefingAcknowledged(false);
@@ -99,6 +135,32 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   useEffect(() => {
     fetchCloudDecks();
   }, [fetchCloudDecks]);
+
+  useEffect(() => {
+    if (!selectedDeck) {
+      return;
+    }
+
+    const refreshedDeck = deckDisplayItems.find(
+      (deck) => deck.id === selectedDeck.id && deck.isValid
+    );
+    if (!refreshedDeck) {
+      setSelectedDeck(null);
+      return;
+    }
+
+    if (refreshedDeck !== selectedDeck) {
+      setSelectedDeck(refreshedDeck);
+    }
+  }, [deckDisplayItems, selectedDeck]);
+
+  useEffect(() => {
+    if (selectedDeck || hasManualSelectedDeck || !preferredDeck.deck) {
+      return;
+    }
+
+    setSelectedDeck(preferredDeck.deck);
+  }, [hasManualSelectedDeck, preferredDeck.deck, selectedDeck]);
 
   useEffect(() => {
     const savedRoomCode = sessionStorage.getItem(ONLINE_ROOM_STORAGE_KEY);
@@ -299,9 +361,15 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     setRoom(null);
     setJoinedRoomCode(null);
     setSelectedDeck(null);
+    setHasManualSelectedDeck(false);
     setRoomCodeInput('');
     setError(null);
     onBack();
+  };
+
+  const handleSelectDeck = (deck: DeckDisplayItem) => {
+    setHasManualSelectedDeck(true);
+    setSelectedDeck(deck);
   };
 
   const handleJoinRoom = async () => {
@@ -335,6 +403,8 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     setError(null);
     try {
       const nextRoom = await lockOnlineRoomDeck(room.roomCode, selectedDeck.cloudDeck.id);
+      writeLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.onlineRoom, selectedDeck.cloudDeck.id);
+      setLastUsedDeckId(selectedDeck.cloudDeck.id);
       setRoom(nextRoom);
     } catch (lockError) {
       setError(lockError instanceof Error ? lockError.message : '锁定卡组失败');
@@ -425,6 +495,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
       setRoom(null);
       setJoinedRoomCode(null);
       setSelectedDeck(null);
+      setHasManualSelectedDeck(false);
     } catch (leaveError) {
       setError(leaveError instanceof Error ? leaveError.message : '离开房间失败');
     } finally {
@@ -680,19 +751,25 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
             </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-            <DeckSelector
-              cloudDecks={validDecks}
-              selectedId={selectedDeck?.id}
-              onSelect={setSelectedDeck}
-              isLoading={isLoadingCloud}
-              error={cloudError}
-              onRefresh={fetchCloudDecks}
-              title="选择并锁定自己的云端卡组"
-              emptyText="没有可用的合法卡组，请先创建一副合法卡组"
-            />
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+            <div className="order-2 h-[54dvh] min-h-[360px] overflow-hidden lg:order-1 lg:h-[calc(100dvh-14rem)] lg:min-h-[460px]">
+              <DeckSelector
+                cloudDecks={validDecks}
+                selectedId={selectedDeck?.id}
+                onSelect={handleSelectDeck}
+                isLoading={isLoadingCloud}
+                error={cloudError}
+                onRefresh={fetchCloudDecks}
+                title="更换卡组"
+                subtitle=""
+                selectionLabel="当前卡组"
+                emptyText="没有可用的合法卡组，请先创建一副合法卡组"
+                density="compact"
+                lastUsedDeckId={lastUsedDeckId}
+              />
+            </div>
 
-            <div className="surface-panel-frosted flex flex-col gap-4 p-5">
+            <div className="surface-panel-frosted order-1 flex flex-col gap-4 p-5 lg:order-2">
               <div>
                 <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] px-3 py-1 text-xs uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                   <Users size={12} />
@@ -704,6 +781,71 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                 <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
                   双方锁组并准备后进入开局猜拳。
                 </p>
+              </div>
+
+              <CurrentDeckSummary
+                deck={selectedDeck}
+                lockedDeckId={myMember?.ready ? myMember.lockedDeckId : null}
+                lockedDeckName={myMember?.ready ? myMember.lockedDeckName : null}
+                emptyText="先选择一副卡组；有默认卡组时会自动填入。"
+              />
+
+              {error && (
+                <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
+                  <div>{error}</div>
+                  {canClearSavedRoom && (
+                    <button
+                      type="button"
+                      onClick={handleClearSavedRoomAndBack}
+                      className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] px-3 py-2 text-sm font-semibold text-[var(--semantic-error)] transition hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
+                    >
+                      清除保存房间并返回首页
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                {room && !myMember?.ready && (
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={handleLockDeck}
+                    disabled={!canLockDeck || isSubmitting}
+                    className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5 ${!canLockDeck || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
+                  >
+                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    锁定这副卡组
+                  </motion.button>
+                )}
+
+                {room && myMember?.ready && bothReady && (
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    type="button"
+                    onClick={handleReadyStart}
+                    disabled={isSubmitting || myMember.startReady}
+                    className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5 ${
+                      isSubmitting || myMember.startReady ? 'cursor-not-allowed opacity-60' : ''
+                    }`}
+                  >
+                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Swords size={16} />}
+                    {myMember.startReady ? '已准备开始' : '准备开始'}
+                  </motion.button>
+                )}
+
+                {joinedRoomCode && (
+                  <button
+                    type="button"
+                    onClick={handleLeaveRoom}
+                    disabled={isSubmitting}
+                    className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-5"
+                  >
+                    <RefreshCw size={16} />
+                    离开房间
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] p-2">
@@ -751,64 +893,6 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                   )}
                 </div>
               )}
-
-              {error && (
-                <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
-                  <div>{error}</div>
-                  {canClearSavedRoom && (
-                    <button
-                      type="button"
-                      onClick={handleClearSavedRoomAndBack}
-                      className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] px-3 py-2 text-sm font-semibold text-[var(--semantic-error)] transition hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
-                    >
-                      清除保存房间并返回首页
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div className="mt-auto flex flex-col gap-3">
-                {room && !myMember?.ready && (
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    onClick={handleLockDeck}
-                    disabled={!canLockDeck || isSubmitting}
-                    className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5 ${!canLockDeck || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
-                  >
-                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                    锁定这副卡组
-                  </motion.button>
-                )}
-
-                {room && myMember?.ready && bothReady && (
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    type="button"
-                    onClick={handleReadyStart}
-                    disabled={isSubmitting || myMember.startReady}
-                    className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5 ${
-                      isSubmitting || myMember.startReady ? 'cursor-not-allowed opacity-60' : ''
-                    }`}
-                  >
-                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Swords size={16} />}
-                    {myMember.startReady ? '已准备开始' : '准备开始'}
-                  </motion.button>
-                )}
-
-                {joinedRoomCode && (
-                  <button
-                    type="button"
-                    onClick={handleLeaveRoom}
-                    disabled={isSubmitting}
-                    className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-5"
-                  >
-                    <RefreshCw size={16} />
-                    离开房间
-                  </button>
-                )}
-              </div>
             </div>
           </div>
         </div>
@@ -873,6 +957,46 @@ function RoomMemberCard({
         <div className="mt-3 text-sm text-[var(--text-secondary)]">
           {member.lockedDeckName ?? '未命名卡组'}
         </div>
+      )}
+    </div>
+  );
+}
+
+function CurrentDeckSummary({
+  deck,
+  lockedDeckId,
+  lockedDeckName,
+  emptyText,
+}: {
+  deck: DeckDisplayItem | null;
+  lockedDeckId?: string | null;
+  lockedDeckName?: string | null;
+  emptyText: string;
+}) {
+  const hasLockedDeck = Boolean(lockedDeckId || lockedDeckName);
+  const displayName = lockedDeckName ?? deck?.name ?? null;
+  const statsDeck = hasLockedDeck ? (deck?.id === lockedDeckId ? deck : null) : deck;
+
+  return (
+    <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--accent-primary)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_9%,var(--bg-overlay))] p-4">
+      <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+        {hasLockedDeck ? '已锁定卡组' : '当前卡组'}
+      </div>
+      {displayName ? (
+        <>
+          <div className="mt-1 truncate text-base font-bold text-[var(--text-primary)]">
+            {displayName}
+          </div>
+          {statsDeck && (
+            <DeckStatsRow
+              stats={statsDeck}
+              size="sm"
+              className="mt-2 gap-x-3 text-[var(--text-secondary)]"
+            />
+          )}
+        </>
+      ) : (
+        <div className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">{emptyText}</div>
       )}
     </div>
   );

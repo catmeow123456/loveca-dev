@@ -46,6 +46,13 @@ import {
   deckRecordToConfig,
   isDeckRecordValidForCurrentCardPool,
 } from '@/lib/deckRecordUtils';
+import { buildDeckDisplayItems } from '@/lib/deckDisplay';
+import {
+  choosePreferredDeck,
+  DECK_SELECTION_PREFERENCE_KEYS,
+  readLastUsedDeckId,
+  writeLastUsedDeckId,
+} from '@/lib/deckSelectionPreferences';
 import { useAuthStore } from '@/store/authStore';
 import { isApiConfigured } from '@/lib/apiClient';
 import { createSolitaireMatch } from '@/lib/solitaireMatchClient';
@@ -64,6 +71,8 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
   const [setupMode, setSetupMode] = useState<SetupMode>(GameMode.SOLITAIRE);
   const [selectedP1Deck, setSelectedP1Deck] = useState<DeckDisplayItem | null>(null);
   const [selectedP2Deck, setSelectedP2Deck] = useState<DeckDisplayItem | null>(null);
+  const [hasManualSelectedP1Deck, setHasManualSelectedP1Deck] = useState(false);
+  const [hasManualSelectedP2Deck, setHasManualSelectedP2Deck] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isOnlineMode = setupMode === 'ONLINE';
@@ -99,16 +108,107 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
     () => cloudDecks.filter((deck) => isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry)),
     [cardDataRegistry, cloudDecks]
   );
+  const resolveDeckRecordCardType = useMemo(
+    () => createDeckRecordCardTypeResolver(cardDataRegistry),
+    [cardDataRegistry]
+  );
+  const deckDisplayItems = useMemo(
+    () =>
+      buildDeckDisplayItems({
+        cloudDecks: validDecks,
+        resolveDeckRecordCardType,
+      }),
+    [resolveDeckRecordCardType, validDecks]
+  );
+  const p1PreferenceKey =
+    gameMode === GameMode.DEBUG
+      ? DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer1
+      : DECK_SELECTION_PREFERENCE_KEYS.solitaire;
+  const p1LastUsedDeckId = useMemo(
+    () => readLastUsedDeckId(p1PreferenceKey),
+    [p1PreferenceKey, deckDisplayItems.length]
+  );
+  const p2LastUsedDeckId = useMemo(
+    () => readLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer2),
+    [deckDisplayItems.length]
+  );
+  const p1PreferredDeck = useMemo(
+    () => choosePreferredDeck(deckDisplayItems, p1LastUsedDeckId),
+    [deckDisplayItems, p1LastUsedDeckId]
+  );
+  const p2PreferredDeck = useMemo(
+    () => choosePreferredDeck(deckDisplayItems, p2LastUsedDeckId),
+    [deckDisplayItems, p2LastUsedDeckId]
+  );
+
+  useEffect(() => {
+    if (!selectedP1Deck) {
+      return;
+    }
+
+    const refreshedDeck = deckDisplayItems.find(
+      (deck) => deck.id === selectedP1Deck.id && deck.isValid
+    );
+    if (!refreshedDeck) {
+      setSelectedP1Deck(null);
+      return;
+    }
+
+    if (refreshedDeck !== selectedP1Deck) {
+      setSelectedP1Deck(refreshedDeck);
+    }
+  }, [deckDisplayItems, selectedP1Deck]);
+
+  useEffect(() => {
+    if (!selectedP2Deck) {
+      return;
+    }
+
+    const refreshedDeck = deckDisplayItems.find(
+      (deck) => deck.id === selectedP2Deck.id && deck.isValid
+    );
+    if (!refreshedDeck) {
+      setSelectedP2Deck(null);
+      return;
+    }
+
+    if (refreshedDeck !== selectedP2Deck) {
+      setSelectedP2Deck(refreshedDeck);
+    }
+  }, [deckDisplayItems, selectedP2Deck]);
+
+  useEffect(() => {
+    if (isOnlineMode || selectedP1Deck || hasManualSelectedP1Deck || !p1PreferredDeck.deck) {
+      return;
+    }
+
+    setSelectedP1Deck(p1PreferredDeck.deck);
+  }, [hasManualSelectedP1Deck, isOnlineMode, p1PreferredDeck.deck, selectedP1Deck]);
+
+  useEffect(() => {
+    if (
+      gameMode !== GameMode.DEBUG ||
+      selectedP2Deck ||
+      hasManualSelectedP2Deck ||
+      !p2PreferredDeck.deck
+    ) {
+      return;
+    }
+
+    setSelectedP2Deck(p2PreferredDeck.deck);
+  }, [gameMode, hasManualSelectedP2Deck, p2PreferredDeck.deck, selectedP2Deck]);
 
   // 处理选择 P1 卡组
   const handleSelectP1 = (deck: DeckDisplayItem) => {
     if (!deck.isValid) return;
+    setHasManualSelectedP1Deck(true);
     setSelectedP1Deck(deck);
   };
 
   // 处理选择 P2 卡组（仅调试模式）
   const handleSelectP2 = (deck: DeckDisplayItem) => {
     if (!deck.isValid) return;
+    setHasManualSelectedP2Deck(true);
     setSelectedP2Deck(deck);
   };
 
@@ -118,6 +218,8 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
     // 切换模式时重置卡组选择
     setSelectedP1Deck(null);
     setSelectedP2Deck(null);
+    setHasManualSelectedP1Deck(false);
+    setHasManualSelectedP2Deck(false);
     setError(null);
   };
 
@@ -182,6 +284,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
           playerId: created.snapshot.playerId,
         });
         await applyRemoteSnapshot(created.snapshot);
+        persistCurrentSetupDeckPreferences();
         onGameStart();
         return;
       }
@@ -197,7 +300,6 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
         throw new Error('卡组数据无效');
       }
 
-      const resolveDeckRecordCardType = createDeckRecordCardTypeResolver(cardDataRegistry);
       const p1Config = deckRecordToConfig(p1CloudDeck, {
         resolveCardType: resolveDeckRecordCardType,
       });
@@ -247,12 +349,38 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
       );
 
       // 触发游戏开始回调
+      persistCurrentSetupDeckPreferences();
       onGameStart();
     } catch (err) {
       setError(err instanceof Error ? err.message : '启动游戏失败');
       setIsStarting(false);
     }
   };
+
+  function persistCurrentSetupDeckPreferences() {
+    if (!selectedP1Deck?.cloudDeck) {
+      return;
+    }
+
+    if (gameMode === GameMode.SOLITAIRE) {
+      writeLastUsedDeckId(
+        DECK_SELECTION_PREFERENCE_KEYS.solitaire,
+        selectedP1Deck.cloudDeck.id
+      );
+      return;
+    }
+
+    writeLastUsedDeckId(
+      DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer1,
+      selectedP1Deck.cloudDeck.id
+    );
+    if (selectedP2Deck?.cloudDeck) {
+      writeLastUsedDeckId(
+        DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer2,
+        selectedP2Deck.cloudDeck.id
+      );
+    }
+  }
 
   // 步骤指示器
   const renderStepIndicator = () => {
@@ -453,16 +581,17 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                             : 'bg-[color:color-mix(in_srgb,var(--semantic-info)_38%,transparent)]'
                         }`}
                       />
-                      <span
-                        className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${
-                          setupMode === 'ONLINE'
-                            ? 'border-[color:color-mix(in_srgb,var(--semantic-info)_44%,var(--border-default))] bg-[var(--semantic-info)] text-white'
-                            : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--text-muted)]'
-                        }`}
-                      >
-                        {setupMode === 'ONLINE' && <Check size={12} />}
-                        {setupMode === 'ONLINE' ? '已选择' : canUseOnlineRoom ? '可选择' : '需连接'}
-                      </span>
+                      {(setupMode === 'ONLINE' || !canUseOnlineRoom) && (
+                        <span
+                          className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${
+                            setupMode === 'ONLINE'
+                              ? 'border-[color:color-mix(in_srgb,var(--semantic-info)_44%,var(--border-default))] bg-[var(--semantic-info)] text-white'
+                              : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+                          }`}
+                        >
+                          {setupMode === 'ONLINE' ? <Check size={12} /> : '需连接'}
+                        </span>
+                      )}
                       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-info)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-info)_10%,var(--bg-overlay))] text-[var(--semantic-info)]">
                         <Globe2 size={23} />
                       </div>
@@ -501,16 +630,11 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                             : 'bg-[color:color-mix(in_srgb,var(--heart-green)_38%,transparent)]'
                         }`}
                       />
-                      <span
-                        className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${
-                          setupMode === GameMode.SOLITAIRE
-                            ? 'border-[color:color-mix(in_srgb,var(--heart-green)_44%,var(--border-default))] bg-[var(--heart-green)] text-white'
-                            : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--text-muted)]'
-                        }`}
-                      >
-                        {setupMode === GameMode.SOLITAIRE && <Check size={12} />}
-                        {setupMode === GameMode.SOLITAIRE ? '已选择' : '可选择'}
-                      </span>
+                      {setupMode === GameMode.SOLITAIRE && (
+                        <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg border border-[color:color-mix(in_srgb,var(--heart-green)_44%,var(--border-default))] bg-[var(--heart-green)] px-2 py-1 text-[11px] font-bold text-white">
+                          <Check size={12} />
+                        </span>
+                      )}
                       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--heart-green)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--heart-green)_10%,var(--bg-overlay))] text-[var(--heart-green)]">
                         <Target size={23} />
                       </div>
@@ -549,16 +673,11 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                             : 'bg-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)]'
                         }`}
                       />
-                      <span
-                        className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold ${
-                          setupMode === GameMode.DEBUG
-                            ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_44%,var(--border-default))] bg-[var(--accent-primary)] text-white'
-                            : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--text-muted)]'
-                        }`}
-                      >
-                        {setupMode === GameMode.DEBUG && <Check size={12} />}
-                        {setupMode === GameMode.DEBUG ? '已选择' : '可选择'}
-                      </span>
+                      {setupMode === GameMode.DEBUG && (
+                        <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_44%,var(--border-default))] bg-[var(--accent-primary)] px-2 py-1 text-[11px] font-bold text-white">
+                          <Check size={12} />
+                        </span>
+                      )}
                       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-overlay))] text-[var(--accent-primary)]">
                         <Bug size={23} />
                       </div>
@@ -588,7 +707,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-bold text-[var(--text-primary)]">
-                        已选择 {selectedModeSummary.label}
+                        当前：{selectedModeSummary.label}
                       </div>
                       <p className="mt-1 text-sm leading-relaxed text-[var(--text-secondary)]">
                         {selectedModeSummary.description}
@@ -619,11 +738,13 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                     title={gameMode === GameMode.SOLITAIRE ? '己方卡组' : 'Player 1 卡组'}
                     subtitle={
                       gameMode === GameMode.SOLITAIRE
-                        ? '选择这局由你操作的卡组；对手会使用默认卡组。'
-                        : '选择 Player 1 使用的卡组；下一步会选择 Player 2。'
+                        ? '确认这局由你操作的卡组；对手会使用默认卡组。'
+                        : '确认 Player 1 使用的卡组；下一步会选择 Player 2。'
                     }
                     selectionLabel={gameMode === GameMode.SOLITAIRE ? '己方卡组' : 'Player 1'}
                     emptyText="没有可用的卡组，请先创建一个完整的卡组"
+                    density="compact"
+                    lastUsedDeckId={p1LastUsedDeckId}
                   />
                 </div>
               </motion.div>
@@ -647,9 +768,11 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                     error={cloudError}
                     onRefresh={fetchCloudDecks}
                     title="Player 2 卡组"
-                    subtitle="选择 Player 2 使用的卡组；确认后会进入本地双人调试桌面。"
+                    subtitle="确认 Player 2 使用的卡组；确认后会进入本地双人调试桌面。"
                     selectionLabel="Player 2"
                     emptyText="没有可用的卡组，请先创建一个完整的卡组"
+                    density="compact"
+                    lastUsedDeckId={p2LastUsedDeckId}
                   />
                 </div>
               </motion.div>
