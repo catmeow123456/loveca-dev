@@ -1,9 +1,9 @@
 import type { CardInstance } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
-import { addAction, getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
-import { applyRuleActionResult, ruleActionProcessor } from '../../domain/rules/rule-actions.js';
+import { getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
 import { addCardToZone } from '../../domain/entities/zone.js';
 import { ZoneType } from '../../shared/types/enums.js';
+import { applyPendingRefreshForPlayer } from './refresh.js';
 
 export type InspectionCardPredicate = (card: CardInstance) => boolean;
 
@@ -190,24 +190,11 @@ export function moveTopDeckCardsToWaitingRoomWithRefresh(
     }
 
     if (player.mainDeck.cardIds.length === 0) {
-      if (player.waitingRoom.cardIds.length === 0) {
+      const refreshedState = applyPendingRefreshForPlayer(state, playerId);
+      if (refreshedState === state) {
         break;
       }
-
-      const refreshAction = ruleActionProcessor.executeRefresh(playerId);
-      const movedCount = player.waitingRoom.cardIds.length;
-      const refreshedState = applyRuleActionResult(state, refreshAction, (cardId) => {
-        const card = getCardById(state, cardId);
-        return card?.data.cardType ?? null;
-      });
-      const playerAfterRefresh = getPlayerById(refreshedState, playerId);
-      state = addAction(refreshedState, 'RULE_ACTION', null, {
-        type: refreshAction.type,
-        description: refreshAction.description,
-        affectedPlayerId: refreshAction.affectedPlayerId,
-        movedCount,
-        mainDeckCountAfter: playerAfterRefresh?.mainDeck.cardIds.length ?? 0,
-      });
+      state = refreshedState;
       refreshCount += 1;
       continue;
     }
@@ -226,6 +213,11 @@ export function moveTopDeckCardsToWaitingRoomWithRefresh(
       },
     }));
     movedCardIds.push(...cardIdsToMove);
+    const refreshedState = applyPendingRefreshForPlayer(state, playerId);
+    if (refreshedState !== state) {
+      state = refreshedState;
+      refreshCount += 1;
+    }
   }
 
   return {

@@ -28,6 +28,7 @@ import {
   S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_004_LIVE_START_RETURN_NO_LIVE_START_AQOURS_LIVE_GAIN_RED_GREEN_HEART_ABILITY_ID,
   S_BP6_019_LIVE_START_ALL_AQOURS_SCORE_DRAW_HAND_TOP_BOTTOM_ABILITY_ID,
+  S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID,
   S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { getCardAbilityDefinitionsForCardCode } from '../../definitions/lookup.js';
@@ -43,6 +44,7 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
+import { getRelayEnteredStageMemberCardIdsThisTurn } from '../../../effects/relay-entered-members.js';
 
 const AQOURS = 'Aqours';
 const TOP_OPTION_ID = 'top';
@@ -53,6 +55,12 @@ const SD1_009_SELECT_DESTINATION_STEP_ID = 'S_SD1_009_SELECT_REVEALED_HAND_TOP_B
 const BP3_025_SELECT_MEMBER_STEP_ID = 'S_BP3_025_SELECT_AQOURS_MEMBER_BLADE_CHECK';
 const BP6_004_SELECT_LIVE_STEP_ID = 'S_BP6_004_SELECT_NO_LIVE_START_AQOURS_LIVE';
 const BP6_019_SELECT_HAND_STEP_ID = 'S_BP6_019_SELECT_HAND_TOP_BOTTOM';
+const BP6_020_CHOOSE_ADVENTURE_TYPE_STEP_ID = 'S_BP6_020_CHOOSE_ADVENTURE_TYPE';
+const BP6_020_SELECT_RELAY_ENTERED_AQOURS_MEMBER_STEP_ID =
+  'S_BP6_020_SELECT_RELAY_ENTERED_AQOURS_MEMBER';
+const BP6_020_GRANT_DRAW_OPTION_ID = 'grant-live-success-draw-one';
+const BP6_020_GAIN_HEART_OPTION_ID = 'relay-entered-aqours-gain-red-heart';
+const BP6_020_SCORE_OPTION_ID = 'success-live-two-this-live-score';
 
 const STAGE_SLOTS: readonly SlotPosition[] = [
   SlotPosition.LEFT,
@@ -155,6 +163,37 @@ export function registerSFutureWaterBatch2LiveStartWorkflowHandlers(): void {
         game,
         input.selectedCardId ?? null,
         input.selectedOptionId ?? null,
+        context.continuePendingCardEffects
+      )
+  );
+
+  registerPendingAbilityStarterHandler(
+    S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID,
+    (game, ability, options, context) =>
+      startBp6020ChooseAdventureType(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      )
+  );
+  registerActiveEffectStepHandler(
+    S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID,
+    BP6_020_CHOOSE_ADVENTURE_TYPE_STEP_ID,
+    (game, input, context) =>
+      finishBp6020AdventureTypeChoice(
+        game,
+        input.selectedOptionId ?? null,
+        context.continuePendingCardEffects
+      )
+  );
+  registerActiveEffectStepHandler(
+    S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID,
+    BP6_020_SELECT_RELAY_ENTERED_AQOURS_MEMBER_STEP_ID,
+    (game, input, context) =>
+      finishBp6020RedHeartTargetSelection(
+        game,
+        input.selectedCardId ?? null,
         context.continuePendingCardEffects
       )
   );
@@ -670,6 +709,224 @@ function finishBp6019PlaceHandTopBottom(
       destination: selectedOptionId,
       scoreBonus: effect.metadata?.scoreBonus,
       drawnCardIds: effect.metadata?.drawnCardIds,
+    }),
+    effect.metadata?.orderedResolution === true
+  );
+}
+
+function startBp6020ChooseAdventureType(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const selectableOptions = [
+    {
+      id: BP6_020_GRANT_DRAW_OPTION_ID,
+      label: '获得「LIVE成功时抽1张」',
+    },
+    {
+      id: BP6_020_GAIN_HEART_OPTION_ID,
+      label: '本回合换手登场的 Aqours 成员获得[赤ハート]',
+    },
+    {
+      id: BP6_020_SCORE_OPTION_ID,
+      label: '成功LIVE区2张以上时此LIVE分数+1',
+    },
+  ];
+
+  return startPendingActiveEffect(game, {
+    ability,
+    playerId: player.id,
+    activeEffect: {
+      id: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      controllerId: ability.controllerId,
+      effectText: getAbilityEffectText(ability.abilityId),
+      stepId: BP6_020_CHOOSE_ADVENTURE_TYPE_STEP_ID,
+      stepText: '请选择「冒险Type A, B, C!!」的1个效果。',
+      awaitingPlayerId: player.id,
+      selectableOptions,
+      confirmSelectionLabel: '选择',
+      canSkipSelection: false,
+      metadata: {
+        orderedResolution,
+      },
+    },
+    actionPayload: {
+      sourceCardId: ability.sourceCardId,
+      step: 'START_CHOOSE_ADVENTURE_TYPE',
+      selectableOptionIds: selectableOptions.map((option) => option.id),
+    },
+  });
+}
+
+function finishBp6020AdventureTypeChoice(
+  game: GameState,
+  selectedOptionId: string | null,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !== S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID ||
+    effect.stepId !== BP6_020_CHOOSE_ADVENTURE_TYPE_STEP_ID ||
+    selectedOptionId === null ||
+    effect.selectableOptions?.some((option) => option.id === selectedOptionId) !== true
+  ) {
+    return game;
+  }
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  if (selectedOptionId === BP6_020_GRANT_DRAW_OPTION_ID) {
+    return continuePendingCardEffects(
+      addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'GRANT_LIVE_SUCCESS_DRAW_ONE',
+        grantedTurnCount: game.turnCount,
+        sourceLiveCardId: effect.sourceCardId,
+      }),
+      effect.metadata?.orderedResolution === true
+    );
+  }
+
+  if (selectedOptionId === BP6_020_GAIN_HEART_OPTION_ID) {
+    const relayEnteredAqoursMemberCardIds = getRelayEnteredStageMemberCardIdsThisTurn(
+      game,
+      player.id,
+      groupAliasIs(AQOURS)
+    );
+    if (relayEnteredAqoursMemberCardIds.length === 0) {
+      return continuePendingCardEffects(
+        addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+          pendingAbilityId: effect.id,
+          abilityId: effect.abilityId,
+          sourceCardId: effect.sourceCardId,
+          step: 'NO_RELAY_ENTERED_AQOURS_MEMBER_FOR_RED_HEART',
+          selectedOptionId,
+          relayEnteredAqoursMemberCardIds,
+        }),
+        effect.metadata?.orderedResolution === true
+      );
+    }
+
+    return addAction(
+      {
+        ...game,
+        activeEffect: {
+          ...effect,
+          stepId: BP6_020_SELECT_RELAY_ENTERED_AQOURS_MEMBER_STEP_ID,
+          stepText: '选择本回合换手登场的1名 Aqours 成员获得[赤ハート]。',
+          selectableCardIds: relayEnteredAqoursMemberCardIds,
+          selectableOptions: undefined,
+          selectionLabel: '选择本回合换手登场的 Aqours 成员',
+          confirmSelectionLabel: '赋予[赤ハート]',
+          canSkipSelection: false,
+          metadata: {
+            ...effect.metadata,
+            selectedOptionId,
+          },
+        },
+      },
+      'RESOLVE_ABILITY',
+      player.id,
+      {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'START_SELECT_RELAY_ENTERED_AQOURS_MEMBER_FOR_RED_HEART',
+        relayEnteredAqoursMemberCardIds,
+      }
+    );
+  }
+
+  if (selectedOptionId !== BP6_020_SCORE_OPTION_ID) {
+    return game;
+  }
+
+  const successLiveCount = player.successZone.cardIds.length;
+  const scoreBonus = successLiveCount >= 2 ? 1 : 0;
+  let state: GameState = { ...game, activeEffect: null };
+  if (scoreBonus > 0) {
+    state = addScoreModifierAndRefresh(state, {
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      scoreBonus,
+    });
+  }
+
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: scoreBonus > 0 ? 'SUCCESS_LIVE_TWO_THIS_LIVE_SCORE' : 'NO_SUCCESS_LIVE_TWO',
+      successLiveCount,
+      scoreBonus,
+    }),
+    effect.metadata?.orderedResolution === true
+  );
+}
+
+function finishBp6020RedHeartTargetSelection(
+  game: GameState,
+  selectedCardId: string | null,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !== S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID ||
+    effect.stepId !== BP6_020_SELECT_RELAY_ENTERED_AQOURS_MEMBER_STEP_ID ||
+    selectedCardId === null ||
+    effect.selectableCardIds?.includes(selectedCardId) !== true
+  ) {
+    return game;
+  }
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+  const relayEnteredAqoursMemberCardIds = getRelayEnteredStageMemberCardIdsThisTurn(
+    game,
+    player.id,
+    groupAliasIs(AQOURS)
+  );
+  if (!relayEnteredAqoursMemberCardIds.includes(selectedCardId)) {
+    return game;
+  }
+
+  const heartResult = addHeartLiveModifierForMember(game, {
+    playerId: player.id,
+    memberCardId: selectedCardId,
+    sourceCardId: effect.sourceCardId,
+    abilityId: effect.abilityId,
+    hearts: [{ color: HeartColor.RED, count: 1 }],
+  });
+  if (!heartResult) {
+    return game;
+  }
+
+  return continuePendingCardEffects(
+    addAction({ ...heartResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'RELAY_ENTERED_AQOURS_MEMBER_GAIN_RED_HEART',
+      selectedCardId,
+      gainedHearts: [HeartColor.RED],
     }),
     effect.metadata?.orderedResolution === true
   );

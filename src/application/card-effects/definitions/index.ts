@@ -133,7 +133,16 @@ import {
   HS_PR_016_LIVE_START_DISCARD_SAME_UNIT_GAIN_GREEN_HEART_BLADE_ABILITY_ID,
   HS_PR_017_LIVE_START_DISCARD_SAME_UNIT_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
   HS_PR_020_LIVE_START_PAY_ENERGY_STACK_WAITING_MEMBERS_TO_DECK_TOP_ABILITY_ID,
+  S_BP6_001_ON_ENTER_FROM_WAITING_WAIT_OPPONENT_SIDE_HIGH_COST_MEMBER_ABILITY_ID,
+  S_BP6_003_ACTIVATED_UPGRADE_OTHER_AQOURS_MEMBER_ABILITY_ID,
+  S_BP6_006_ON_ENTER_DRAW_TWO_FROM_WAITING_GAIN_THREE_BLADE_ABILITY_ID,
+  S_BP6_007_LIVE_START_PAY_ENERGY_OR_DISCARD_GRANT_AQOURS_SCORE_ABILITY_ID,
+  S_BP6_011_ON_ENTER_FROM_WAITING_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+  S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_BP6_013_ON_ENTER_GAIN_TWO_BLADE_ABILITY_ID,
+  S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+  S_BP6_016_ON_ENTER_FROM_WAITING_LOOK_TOP_THREE_TAKE_ONE_ABILITY_ID,
+  S_BP6_017_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
   S_PR_016_ON_ENTER_GAIN_ONE_BLADE_ABILITY_ID,
   N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
@@ -354,12 +363,18 @@ import {
   S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
   S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
   S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID,
+  S_BP3_006_ACTIVATED_WAIT_SELF_UPGRADE_OTHER_AQOURS_MEMBER_ABILITY_ID,
   S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_004_LIVE_START_RETURN_NO_LIVE_START_AQOURS_LIVE_GAIN_RED_GREEN_HEART_ABILITY_ID,
   S_BP6_019_LIVE_START_ALL_AQOURS_SCORE_DRAW_HAND_TOP_BOTTOM_ABILITY_ID,
+  S_BP6_020_GRANTED_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
+  S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID,
   S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID,
   S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
+  S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID,
+  S_BP6_023_LIVE_SUCCESS_OWN_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+  S_BP6_024_LIVE_SUCCESS_OPPONENT_LOSE_REMAINING_HEARTS_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID,
   S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID,
   S_BP6_002_LIVE_START_AQOURS_LIVE_ZONE_REQUIREMENT_GAIN_ALL_HEART_ABILITY_ID,
@@ -473,7 +488,7 @@ const BP3_001_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将此成员变为待机状态：抽1张卡，将1张手牌放置入休息室。（待机状态成员持有的 BLADE 不会增加声援公开张数。）';
 const BP3_001_LIVE_START_EFFECT_TEXT = '【LIVE开始时】可以将自己舞台上的成员至多1名变为活跃状态。';
 const BP4_005_ON_ENTER_EFFECT_TEXT = '【登场】从自己的休息室将1张费用小于等于2的成员卡加入手牌。';
-const BP4_005_CONTINUOUS_EFFECT_TEXT = '【常时】【CENTER】LIVE的合计分数+1。';
+const BP4_005_CONTINUOUS_EFFECT_TEXT = '【常时】【中央】LIVE的合计分数+1。';
 const BP4_005_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的舞台没有持有BLADE大于等于5个的『μ’s』成员的场合，此成员站位变换到CENTER以外的区域。';
 const BP4_009_ON_ENTER_EFFECT_TEXT = '【登場】对方将自身舞台上1名活跃状态的成员变为待机状态。';
@@ -819,8 +834,12 @@ const S_PR_013_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[BLADE][BLADE]。';
 const S_PR_016_ON_ENTER_EFFECT_TEXT =
   '【登场】LIVE结束时为止，获得[BLADE]。';
+const S_BP6_ON_ENTER_MILL_TOP_FIVE_EFFECT_TEXT =
+  '【登场】将自己卡组顶5张卡放置入休息室。';
 const S_BP6_013_ON_ENTER_EFFECT_TEXT =
   '【登场】LIVE结束时为止，获得[BLADE][BLADE]。';
+const S_BP6_015_ON_ENTER_EFFECT_TEXT =
+  '【登场】将对方舞台上1名费用小于等于2的成员变为待机状态。';
 const N_SD1_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以支付[E][E]：LIVE结束时为止，获得[緑ハート]。';
 const SP_BP4_012_LIVE_START_EFFECT_TEXT =
@@ -1070,6 +1089,18 @@ const YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_EFFECT_TEXT =
   '【登场】可以支付[E][E][E][E]：从自己的休息室选择至多2张费用合计小于等于4的成员卡登场到舞台。';
 const S_BP6_005_ON_ENTER_EFFECT_TEXT =
   '【登场】检视自己卡组顶的2张卡。可以从其中将1张同时持有红Heart、绿Heart、蓝Heart的成员卡公开并加入手牌。其余的卡片放置入休息室。';
+const S_BP6_003_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：将此成员以外的自己舞台上1名『Aqours』成员放置入休息室。如此做时，从自己的休息室将1张费用正好为该成员费用+2的『Aqours』成员卡登场到该成员原本所在区域。';
+const S_BP6_001_ON_ENTER_EFFECT_TEXT =
+  '【登场】从休息室登场的场合，将对方舞台右侧或左侧区域1名费用大于等于13的成员变为待机状态。';
+const S_BP6_006_ON_ENTER_EFFECT_TEXT =
+  '【登场】抽2张卡。之后，从休息室登场的场合，LIVE结束时为止，获得[BLADE][BLADE][BLADE]。';
+const S_BP6_007_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以支付[E][E]或将2张手牌放置入休息室：自己的成功LIVE卡区没有卡，且对方的成功LIVE卡区有2张以上卡的场合，LIVE结束时为止，自己的舞台上至多2名『Aqours』成员获得“【常时】LIVE合计分数+1”。';
+const S_BP6_011_ON_ENTER_EFFECT_TEXT =
+  '【登场】从休息室登场的场合，抽2张卡，将1张手牌放置入休息室。';
+const S_BP6_016_ON_ENTER_EFFECT_TEXT =
+  '【登场】从休息室登场的场合，检视自己卡组顶的3张卡。从其中将1张加入手牌，其余的卡片放置入休息室。';
 const S_DRAW_ONE_PLACE_HAND_BOTTOM_EFFECT_TEXT = '【登场】抽1张卡，将1张手牌放置到卡组底。';
 const S_BP6_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的LIVE中的LIVE卡的必要Heart中红Heart合计大于等于4的场合，LIVE结束时为止，获得红Heart。';
@@ -1079,18 +1110,29 @@ const S_BP6_008_ACTIVATED_EFFECT_TEXT =
   '【起动】[E][E]将此成员从舞台放置入休息室：从自己的休息室将1张费用小于等于17的『Aqours』成员卡，登场至此成员曾存在的区域。';
 const S_SD1_009_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以公开1张手牌中的『Aqours』卡：将因此公开的卡放置到卡组顶或卡组底，LIVE结束时为止，获得[BLADE]。';
+const S_BP3_006_ACTIVATED_EFFECT_TEXT =
+  '【起动】【中央】【1回合1次】将此成员变为待机状态，并将1张手牌放置入休息室：将此成员以外的自己舞台上1名『Aqours』成员放置入休息室。如此做时，从自己的休息室将1张费用正好为该成员费用+2的『Aqours』成员卡登场到该成员原本所在区域。（此能力仅在登场于中心区域时可以起动。）';
 const S_BP3_025_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】选择自己舞台上1名『Aqours』成员。该成员持有的 BLADE 大于等于6个的场合，此卡的分数+1。';
 const S_BP6_004_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的LIVE区有2张以上卡的场合，可以从其中选择1张不持有 LIVE 开始能力的『Aqours』LIVE卡放置到卡组顶。如此做的场合，LIVE结束时为止，获得红Heart与绿Heart。';
 const S_BP6_019_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己舞台上的成员全部为『Aqours』的场合，此卡的分数+1，抽1张卡，将1张手牌放置到卡组顶或卡组底。';
+const S_BP6_020_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】从以下选择1个。\n・此卡获得「【LIVE成功时】抽1张卡。」\n・LIVE结束时为止，本回合因换手登场的1名『Aqours』成员获得[赤ハート]。\n・自己的成功LIVE卡置场有2张以上时，此卡的分数+1。';
+const S_BP6_020_GRANTED_LIVE_SUCCESS_EFFECT_TEXT = '【LIVE成功时】抽1张卡。';
 const S_BP2_023_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的LIVE区有「MY舞☆TONIGHT」以外的『Aqours』LIVE卡的场合，LIVE结束时为止，自己舞台上的成员获得 BLADE。';
 const S_BP6_009_CONTINUOUS_EFFECT_TEXT =
   '【常时】对方成功LIVE区的卡片数多于自己的期间，获得等同于其差值数量的 BLADE。';
 const S_BP6_009_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】中心声援公开的自己的卡中有持有 SCORE 图标的『Aqours』LIVE卡的场合，LIVE总分+1。';
+const S_BP6_022_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】对方的能量多于自己的场合，此卡的分数+1。';
+const S_BP6_023_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】因声援公开的自己的卡中有 LIVE 卡的场合，此卡的分数+1。';
+const S_BP6_024_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】LIVE结束时为止，对方失去全部余Heart。因此对方失去2个以上余Heart的场合，此卡的分数+1。';
 const S_BP6_021_ON_CHEER_EFFECT_TEXT =
   '【自动】【1回合1次】自己进行声援时，可以从因声援公开的自己的卡中将至多1张不持有 BLADE HEART 的『Aqours』成员卡放置入休息室。如此做的场合，按因此放置入休息室的卡的费用每5点追加1次声援；此能力最多追加4次声援。';
 const S_BP6_002_AUTO_EFFECT_TEXT =
@@ -2909,6 +2951,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '复用 opponent-wait-target shared workflow；无合法目标时通过 confirm-only no-op 文本追加当前对方舞台成员数、合法目标数与不会 WAIT 的实时结果。',
   },
   {
+    abilityId: S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+    cardCodes: ['PL!S-bp6-012-N'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_ON_ENTER_MILL_TOP_FIVE_EFFECT_TEXT,
+    notes:
+      'shared direct-mill-top workflow；登场时经 moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers 将实际卡组顶5张放置入休息室，并显式入队 ON_ENTER_WAITING_ROOM。refresh 洗回卡组的牌不计入本次 movedCardIds。',
+  },
+  {
     abilityId: S_BP6_013_ON_ENTER_GAIN_TWO_BLADE_ABILITY_ID,
     cardCodes: ['PL!S-bp6-013-N'],
     category: CardAbilityCategory.ON_ENTER,
@@ -2919,6 +2973,30 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: S_BP6_013_ON_ENTER_EFFECT_TEXT,
     notes:
       'shared on-enter-source-member-gain-blade workflow；来源仍在己方舞台且来源卡合法时复用 addBladeLiveModifierForSourceMember 写 SOURCE_MEMBER BLADE +2。来源离场、非法 pending 或 controller 缺失均消费 pending no-op。',
+  },
+  {
+    abilityId: S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+    cardCodes: ['PL!S-bp6-015-N'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_015_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '复用 opponent-wait-target shared workflow；目标为对方舞台费用小于等于2且当前非 WAITING 的成员，成功 WAITING 后走 ON_MEMBER_STATE_CHANGED wrapper。',
+  },
+  {
+    abilityId: S_BP6_017_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+    cardCodes: ['PL!S-bp6-017-N'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_ON_ENTER_MILL_TOP_FIVE_EFFECT_TEXT,
+    notes:
+      'shared direct-mill-top workflow；登场时经 moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers 将实际卡组顶5张放置入休息室，并显式入队 ON_ENTER_WAITING_ROOM。refresh 洗回卡组的牌不计入本次 movedCardIds。',
   },
   {
     abilityId: HS_BP6_015_ON_ENTER_FROM_NON_HAND_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
@@ -4411,6 +4489,59 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '先支付4能量，再从休息室选择至多2张费用合计<=4的成员，逐张选择空槽登场；不走普通登场费用/换手。',
   },
   {
+    abilityId: S_BP6_003_ACTIVATED_UPGRADE_OTHER_AQOURS_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp6-003'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: S_BP6_003_ACTIVATED_EFFECT_TEXT,
+    perTurnLimit: 1,
+    notes:
+      '单卡 workflow；外层支付2活跃能量与弃1手牌，弃手走 hand -> waiting room trigger wrapper。之后复用 stage-member-upgrade-replacement shared core：选择来源以外己方舞台 Aqours 主成员，使用 leave-stage wrapper 送入休息室，按该成员卡面费用+2精确筛选自己的休息室 Aqours 成员卡并登场回原区域，登场后显式入队 ON_ENTER_STAGE。',
+    activatedUi: {
+      abilityId: S_BP6_003_ACTIVATED_UPGRADE_OTHER_AQOURS_MEMBER_ABILITY_ID,
+      text: S_BP6_003_ACTIVATED_EFFECT_TEXT,
+      title: '支付2能量并弃1手牌，升级替换1名其他 Aqours 成员',
+    },
+  },
+  {
+    abilityId: S_BP6_001_ON_ENTER_FROM_WAITING_WAIT_OPPONENT_SIDE_HIGH_COST_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp6-001'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_001_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 workflow；复用 on-enter source-zone helper，只在 metadata.fromZone 为 WAITING_ROOM 时选择对方 LEFT/RIGHT 费用>=13且当前非 WAITING 的成员，成功 WAITING 后走 ON_MEMBER_STATE_CHANGED wrapper。',
+  },
+  {
+    abilityId: S_BP6_006_ON_ENTER_DRAW_TWO_FROM_WAITING_GAIN_THREE_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp6-006'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_006_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 workflow；抽2无条件发生，之后复用 on-enter source-zone helper，只有 metadata.fromZone 为 WAITING_ROOM 且来源仍在舞台时写 SOURCE_MEMBER BLADE +3。',
+  },
+  {
+    abilityId: S_BP6_007_LIVE_START_PAY_ENERGY_OR_DISCARD_GRANT_AQOURS_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp6-007'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_007_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 workflow `s-bp6-007-hanamaru.ts`；LIVE_START 可支付2活跃能量、弃2手牌或不发动。弃手走 hand -> waiting room trigger wrapper；支付成本后重查双方成功LIVE区，满足时选择自己的舞台至多2名 Aqours 成员，逐目标写 SCORE +1 并刷新 playerScores。',
+  },
+  {
     abilityId: S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
     baseCardCodes: ['PL!S-bp6-005'],
     category: CardAbilityCategory.ON_ENTER,
@@ -4421,6 +4552,30 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: S_BP6_005_ON_ENTER_EFFECT_TEXT,
     notes:
       '复用 look-top-select-to-hand；检视2张，selector 为成员且同时持有红/绿/蓝 Heart，公开后入手，其余进休息室。',
+  },
+  {
+    abilityId: S_BP6_011_ON_ENTER_FROM_WAITING_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+    cardCodes: ['PL!S-bp6-011-N'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_011_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 workflow；复用 on-enter source-zone helper，WAITING_ROOM 来源时委托 draw-then-discard 抽2弃1，弃手走 ON_ENTER_WAITING_ROOM wrapper。',
+  },
+  {
+    abilityId: S_BP6_016_ON_ENTER_FROM_WAITING_LOOK_TOP_THREE_TAKE_ONE_ABILITY_ID,
+    cardCodes: ['PL!S-bp6-016-N'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_016_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 workflow；复用 on-enter source-zone helper，WAITING_ROOM 来源时委托 look-top-select-to-hand 检视顶3选1入手，其余从 MAIN_DECK 进入休息室并入队 ON_ENTER_WAITING_ROOM。',
   },
   {
     abilityId: S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID,
@@ -4480,6 +4635,24 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     },
   },
   {
+    abilityId: S_BP3_006_ACTIVATED_WAIT_SELF_UPGRADE_OTHER_AQOURS_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp3-006'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: S_BP3_006_ACTIVATED_EFFECT_TEXT,
+    perTurnLimit: 1,
+    requiredSourceSlots: [SlotPosition.CENTER],
+    notes:
+      '单卡外层 + shared upgrade replacement workflow；发动前要求主要阶段、当前玩家、来源在 CENTER 且为 ACTIVE。来源 WAITING 成本用 setMemberOrientation + ON_MEMBER_STATE_CHANGED wrapper，弃1手走 hand -> waiting room trigger wrapper；成本成功后记录 turn1 use，再复用 stage-member-upgrade-replacement shared steps 处理来源以外己方舞台 Aqours 成员送休息室与 cost+2 Aqours 成员登场回原区域。',
+    activatedUi: {
+      abilityId: S_BP3_006_ACTIVATED_WAIT_SELF_UPGRADE_OTHER_AQOURS_MEMBER_ABILITY_ID,
+      text: S_BP3_006_ACTIVATED_EFFECT_TEXT,
+      title: '中心位待机并弃1手，升级替换1名其他 Aqours 成员',
+    },
+  },
+  {
     abilityId: S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID,
     baseCardCodes: ['PL!S-sd1-009'],
     category: CardAbilityCategory.LIVE_START,
@@ -4529,6 +4702,30 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 LIVE_START workflow；己方舞台至少1名成员且全部为 Aqours 时写此 LIVE SCORE +1、抽1，再私有选择1张手牌放置到卡组顶或底。',
   },
   {
+    abilityId: S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID,
+    cardCodes: ['PL!S-bp6-020-L'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_020_LIVE_START_EFFECT_TEXT,
+    notes:
+      '扩展 Aqours LIVE_START shared workflow；强制三选一。A 记录同 source live / turnCount 的 LIVE_SUCCESS 抽1授予事实；B 只显示本回合因换手登场且仍在舞台的 Aqours 成员，写 TARGET_MEMBER 红Heart；C 重查成功LIVE区，>=2 时写此 LIVE SCORE +1 并刷新 playerScores。',
+  },
+  {
+    abilityId: S_BP6_020_GRANTED_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
+    cardCodes: ['PL!S-bp6-020-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_020_GRANTED_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '受守卫的 pseudo LIVE_SUCCESS ability；仅在本卡 LIVE_START 选择“获得 LIVE成功时抽1”后，对同一 sourceCardId、同一 turnCount 且本次 LIVE 成功的 pending 抽1。未选择或 guard 不满足时直接 no-op 消费，不弹确认、不抽牌。',
+  },
+  {
     abilityId: S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
     baseCardCodes: ['PL!S-bp2-023'],
     category: CardAbilityCategory.LIVE_START,
@@ -4562,6 +4759,42 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: S_BP6_009_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
       '单卡 LIVE_SUCCESS workflow；从 eventLog 读取本次自己非 additional 的中心声援公开卡，存在 SCORE Aqours LIVE 时写玩家 LIVE 合计 SCORE +1 并刷新 playerScores。',
+  },
+  {
+    abilityId: S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID,
+    cardCodes: ['PL!S-bp6-022-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_022_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '扩展 Aqours LIVE success shared workflow；LIVE_SUCCESS 时比较双方能量数量，对方多于自己则给当前 source LIVE 写 SCORE +1，并刷新 playerScores。',
+  },
+  {
+    abilityId: S_BP6_023_LIVE_SUCCESS_OWN_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+    cardCodes: ['PL!S-bp6-023-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_023_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '扩展 Aqours LIVE success shared workflow；复用 selectRevealedCheerCardIds 只读当前自己的声援公开且仍在 resolutionZone/revealedCardIds 的卡，存在 LIVE 卡时给当前 source LIVE 写 SCORE +1 并刷新 playerScores。',
+  },
+  {
+    abilityId: S_BP6_024_LIVE_SUCCESS_OPPONENT_LOSE_REMAINING_HEARTS_THIS_LIVE_SCORE_ABILITY_ID,
+    cardCodes: ['PL!S-bp6-024-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_BP6_024_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '扩展 Aqours LIVE success shared workflow；LIVE_SUCCESS 时通过 remaining-heart helper 清空对手全部余Heart，实际失去2个以上时给当前 source LIVE 写 SCORE +1 并刷新 playerScores。',
   },
   {
     abilityId: S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID,

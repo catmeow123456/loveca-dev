@@ -646,8 +646,26 @@ export const HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID =
   'PL!HS-bp6-013-R:on-enter-wait-low-blade-non-dollchestra';
 export const HS_BP6_013_LIVE_START_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID =
   'PL!HS-bp6-013-R:live-start-wait-low-blade-non-dollchestra';
+export const S_BP6_003_ACTIVATED_UPGRADE_OTHER_AQOURS_MEMBER_ABILITY_ID =
+  'PL!S-bp6-003:activated-upgrade-other-aqours-member';
+export const S_BP6_001_ON_ENTER_FROM_WAITING_WAIT_OPPONENT_SIDE_HIGH_COST_MEMBER_ABILITY_ID =
+  'PL!S-bp6-001:on-enter-from-waiting-wait-opponent-side-high-cost-member';
+export const S_BP6_006_ON_ENTER_DRAW_TWO_FROM_WAITING_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!S-bp6-006:on-enter-draw-two-from-waiting-gain-three-blade';
+export const S_BP6_007_LIVE_START_PAY_ENERGY_OR_DISCARD_GRANT_AQOURS_SCORE_ABILITY_ID =
+  'PL!S-bp6-007:live-start-pay-energy-or-discard-grant-aqours-score';
+export const S_BP6_011_ON_ENTER_FROM_WAITING_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
+  'PL!S-bp6-011-N:on-enter-from-waiting-draw-two-discard-one';
+export const S_BP6_016_ON_ENTER_FROM_WAITING_LOOK_TOP_THREE_TAKE_ONE_ABILITY_ID =
+  'PL!S-bp6-016-N:on-enter-from-waiting-look-top-three-take-one';
 export const S_BP6_013_ON_ENTER_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!S-bp6-013-N:on-enter-gain-two-blade';
+export const S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID =
+  'PL!S-bp6-012-N:on-enter-mill-top-five';
+export const S_BP6_017_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID =
+  'PL!S-bp6-017-N:on-enter-mill-top-five';
+export const S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID =
+  'PL!S-bp6-015-N:on-enter-wait-opponent-cost-two-member';
 export const HS_BP6_014_ACTIVATED_HAND_DISCARD_SELF_DRAW_TARGET_MEGU_RURINO_BLADE_ABILITY_ID =
   'PL!HS-bp6-014-R:activated-hand-discard-self-draw-target-megu-rurino-blade';
 export const HS_BP6_015_ON_ENTER_FROM_NON_HAND_DRAW_TWO_DISCARD_TWO_ABILITY_ID =
@@ -682,18 +700,30 @@ export const S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID =
   'PL!S-bp6-008:activated-pay-two-send-self-play-aqours-member';
 export const S_SD1_009_LIVE_START_REVEAL_AQOURS_HAND_TOP_BOTTOM_GAIN_BLADE_ABILITY_ID =
   'PL!S-sd1-009:live-start-reveal-aqours-hand-top-bottom-gain-blade';
+export const S_BP3_006_ACTIVATED_WAIT_SELF_UPGRADE_OTHER_AQOURS_MEMBER_ABILITY_ID =
+  'PL!S-bp3-006:activated-wait-self-upgrade-other-aqours-member';
 export const S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!S-bp3-025-L:live-start-aqours-blade-six-this-live-score';
 export const S_BP6_004_LIVE_START_RETURN_NO_LIVE_START_AQOURS_LIVE_GAIN_RED_GREEN_HEART_ABILITY_ID =
   'PL!S-bp6-004:live-start-return-no-live-start-aqours-live-gain-red-green-heart';
 export const S_BP6_019_LIVE_START_ALL_AQOURS_SCORE_DRAW_HAND_TOP_BOTTOM_ABILITY_ID =
   'PL!S-bp6-019-L:live-start-all-aqours-score-draw-hand-top-bottom';
+export const S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID =
+  'PL!S-bp6-020-L:live-start-choose-adventure-type';
+export const S_BP6_020_GRANTED_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID =
+  'PL!S-bp6-020-L:granted-live-success-draw-one';
 export const S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID =
   'PL!S-bp2-023-L:live-start-other-aqours-live-stage-members-gain-blade';
 export const S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID =
   'PL!S-bp6-009:continuous-success-live-difference-gain-blade';
 export const S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID =
   'PL!S-bp6-009:live-success-center-cheer-score-aqours-live-score';
+export const S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!S-bp6-022-L:live-success-opponent-energy-more-this-live-score';
+export const S_BP6_023_LIVE_SUCCESS_OWN_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!S-bp6-023-L:live-success-own-cheer-live-this-live-score';
+export const S_BP6_024_LIVE_SUCCESS_OPPONENT_LOSE_REMAINING_HEARTS_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!S-bp6-024-L:live-success-opponent-lose-remaining-hearts-this-live-score';
 export const S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID =
   'PL!S-bp6-021-L:on-cheer-send-no-blade-aqours-member-additional-cheer';
 export const S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID =
