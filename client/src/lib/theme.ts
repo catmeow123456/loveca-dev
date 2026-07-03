@@ -9,8 +9,12 @@ export function getPreferredTheme(): Theme {
 
 export function readTheme(): Theme {
   if (typeof window === 'undefined') return 'dark';
-  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return stored === 'light' || stored === 'dark' ? stored : getPreferredTheme();
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === 'light' || stored === 'dark' ? stored : getPreferredTheme();
+  } catch {
+    return getPreferredTheme();
+  }
 }
 
 export function applyTheme(theme: Theme): Theme {
@@ -18,7 +22,11 @@ export function applyTheme(theme: Theme): Theme {
     document.documentElement.setAttribute('data-theme', theme);
   }
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Theme remains applied through the data attribute even if storage is unavailable.
+    }
   }
   return theme;
 }

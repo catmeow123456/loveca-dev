@@ -49,7 +49,8 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
 
   const [cards, setCards] = useState<AnyCardData[]>([]);
   const [cardStatusMap, setCardStatusMap] = useState<Map<string, 'DRAFT' | 'PUBLISHED'>>(new Map());
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<CardType | 'ALL'>('ALL');
@@ -63,6 +64,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
   const [batchWorking, setBatchWorking] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const isLoading = initialLoading || refreshing;
 
   const cardTypeOptions = [
     { value: 'ALL' as const, label: '全部' },
@@ -109,8 +111,12 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
     }
   }, [isMobile]);
 
-  const loadCards = useCallback(async () => {
-    setLoading(true);
+  const loadCards = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
+    if (mode === 'initial') {
+      setInitialLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     setError(null);
     try {
       const data = await cardService.getAllCards(true, 'all');
@@ -120,12 +126,20 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
     } finally {
-      setLoading(false);
+      if (mode === 'initial') {
+        setInitialLoading(false);
+      } else {
+        setRefreshing(false);
+      }
     }
   }, []);
 
+  const refreshCards = useCallback(() => {
+    void loadCards(cards.length > 0 ? 'refresh' : 'initial');
+  }, [cards.length, loadCards]);
+
   useEffect(() => {
-    loadCards();
+    void loadCards('initial');
   }, [loadCards]);
 
   const filteredCards = useMemo(() => {
@@ -152,7 +166,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
   }, [filteredCards, currentPage, pageSize]);
 
   useEffect(() => {
-    if (paginatedCards.length > 0 && !loading) {
+    if (paginatedCards.length > 0 && !initialLoading) {
       const imageBaseNames = paginatedCards.map((card) =>
         card.imageFilename
           ? card.imageFilename.replace(/^.*\//, '').replace(/\.(jpg|jpeg|png|webp)$/i, '')
@@ -160,23 +174,23 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
       );
       preloadCardImages(imageBaseNames, getRecommendedImageSize('sm'));
     }
-  }, [paginatedCards, loading]);
+  }, [paginatedCards, initialLoading]);
 
   const goToPage = (page: number) => setCurrentPage(Math.max(1, Math.min(page, totalPages)));
 
   const handleSave = async (cardCode: string, updates: CardUpdateInput) => {
     await cardService.updateCard(cardCode, updates);
-    await loadCards();
+    await loadCards('refresh');
   };
 
   const handleCreate = async (input: CardCreateInput) => {
     await cardService.createCard(input);
-    await loadCards();
+    await loadCards(cards.length > 0 ? 'refresh' : 'initial');
   };
 
   const handleDelete = async (cardCode: string) => {
     await cardService.deleteCard(cardCode);
-    await loadCards();
+    await loadCards(cards.length > 1 ? 'refresh' : 'initial');
   };
 
   const handleExport = async () => {
@@ -212,7 +226,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
           ? (code: string) => cardService.publishCard(code)
           : (code: string) => cardService.unpublishCard(code);
       await Promise.all(targets.map((c) => fn(c.cardCode)));
-      await loadCards();
+      await loadCards('refresh');
     } catch (err) {
       setError(err instanceof Error ? err.message : `批量${action}失败`);
     } finally {
@@ -227,7 +241,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
       } else {
         await cardService.unpublishCard(cardCode);
       }
-      await loadCards();
+      await loadCards('refresh');
     } catch (err) {
       setError(
         err instanceof Error ? err.message : targetStatus === 'PUBLISHED' ? '上线失败' : '下线失败'
@@ -322,8 +336,13 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                     </span>
                   )}
                 </button>
-                <button onClick={loadCards} disabled={loading} className="button-icon h-10 w-10">
-                  <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                <button
+                  onClick={refreshCards}
+                  disabled={isLoading}
+                  className="button-icon h-10 w-10"
+                  aria-label="刷新卡牌列表"
+                >
+                  <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
                 </button>
               </div>
               <div className="hidden flex-wrap items-center gap-2 md:flex">
@@ -358,14 +377,25 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                     {opt.label}
                   </button>
                 ))}
-                <button onClick={loadCards} disabled={loading} className="button-icon h-9 w-9">
-                  <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                <button
+                  onClick={refreshCards}
+                  disabled={isLoading}
+                  className="button-icon h-9 w-9"
+                  aria-label="刷新卡牌列表"
+                >
+                  <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
                 </button>
               </div>
 
               <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--text-muted)]">
                 <span>共 {cards.length} 张</span>
                 <span>筛选: {filteredCards.length} 张</span>
+                {refreshing && (
+                  <span className="inline-flex items-center gap-1 text-[var(--accent-primary)]">
+                    <Loader2 size={12} className="animate-spin" />
+                    刷新中
+                  </span>
+                )}
                 {filteredCards.length > 0 && (
                   <div className="hidden items-center gap-3 md:flex">
                     <button
@@ -530,18 +560,18 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
             <div className="mb-4 flex items-center gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3 text-sm text-[var(--semantic-error)]">
               <AlertTriangle size={14} />
               {error}
-              <button onClick={loadCards} className="ml-2 underline">
+              <button onClick={refreshCards} className="ml-2 underline">
                 重试
               </button>
             </div>
           )}
 
-          {loading ? (
+          {initialLoading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 size={28} className="animate-spin text-[var(--accent-primary)]" />
             </div>
           ) : (
-            <>
+            <div aria-busy={refreshing}>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                 {paginatedCards.map((card) => {
                   const localizedName = getCardLocalizedInfo(card);
@@ -700,10 +730,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
 
-          {filteredCards.length === 0 && !loading && (
+          {filteredCards.length === 0 && !initialLoading && (
             <div className="text-center py-20">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_78%,transparent)]">
                 <Search size={24} className="text-[var(--text-muted)]" />

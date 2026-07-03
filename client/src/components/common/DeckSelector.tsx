@@ -192,7 +192,7 @@ export function DeckSelector({
           </div>
         )}
 
-        <AnimatePresence>
+        <AnimatePresence initial={false}>
           <div className={isCompact ? 'grid gap-2' : 'grid gap-3'}>
             {displayDecks.map((deck, index) => {
               const isSelected = selectedId === deck.id;
@@ -200,7 +200,7 @@ export function DeckSelector({
               return (
                 <motion.div
                   key={deck.id}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={false}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{

@@ -25,7 +25,6 @@ import {
   VerifyEmailPage,
 } from '@/components/auth';
 import { DEFAULT_APP_CONFIG, loadPublicAppConfig, type PublicAppConfig } from '@/lib/appConfig';
-import { applyTheme, readTheme } from '@/lib/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
@@ -142,11 +141,6 @@ function App() {
   const initDeckStore = useDeckStore((s) => s.init);
   const [gameBriefingAcknowledged, setGameBriefingAcknowledged] = useState(false);
   const gameBriefingKeyRef = useRef<string | null>(null);
-
-  // 初始化认证 - 使用 ref 确保只执行一次
-  useEffect(() => {
-    applyTheme(readTheme());
-  }, []);
 
   useEffect(() => {
     let cancelled = false;

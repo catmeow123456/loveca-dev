@@ -6,6 +6,22 @@
     <link rel="apple-touch-icon" href="/pwa/icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#2d2820" />
+    <script>
+      (() => {
+        try {
+          const storedTheme = window.localStorage.getItem('loveca-theme');
+          const systemLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+          const theme = storedTheme === 'light' || storedTheme === 'dark'
+            ? storedTheme
+            : systemLight
+              ? 'light'
+              : 'dark';
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
     <title>LOVECA</title>
   </head>
   <body>

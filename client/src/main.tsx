@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.tsx';
+import { applyTheme, readTheme } from '@/lib/theme';
 
 let hasRefreshedForUpdate = false;
 const VERSION_STORAGE_KEY = 'loveca.app.version';
@@ -16,6 +17,8 @@ const CACHE_PREFIXES = [
   'energy-card-images-',
   'compressed-card-images-',
 ];
+
+applyTheme(readTheme());
 
 async function clearRuntimeCaches(): Promise<void> {
   if (!('caches' in window)) {
