@@ -40,6 +40,16 @@
 | P1-soon | `F12` | Draw-then-deck-placement composed steps | none yet | F02 抽 2 弃 1已有第一条 proving path；F12 继续等待实际样例验证 deck placement 与 refresh semantics。 |
 | P2-later | unmatched/P2 special fragments | Custom resolver hook with explicit boundaries | none urgent | 继续允许低频特例留在 runner，但内部必须复用 cost/selector/look-top/move/modifier APIs。 |
 
+### Public log follow-ups for card-local inspection shapes
+
+本次 shared/common 公共日志只收口共通 workflow；以下单卡或 card-local 特殊检视日志后续分别评估，不纳入本次 shared/common commit。
+
+| scope | note |
+|---|---|
+| `PL!SP-bp5-007` / `PL!SP-bp5-013` | SP-bp5 单卡特殊检视形状，后续按 card-local 日志处理。 |
+| `PL!-bp5-003` / `PL!-bp6-006` / `PL!SP-pb2-001` | 带分支、费用或特殊筛选的检视形状，后续单独评估。 |
+| `PL!HS-cl1-001` / `PL!HS-bp6-029` / `PL!HS-pb1-005` / `PL!-bp6-007` | 非本次 shared/common 覆盖的特殊检视或公开确认形状，后续按单卡边界补日志。 |
+
 ## Still-inline implemented effects
 
 | card | inline part | why not migrated yet |

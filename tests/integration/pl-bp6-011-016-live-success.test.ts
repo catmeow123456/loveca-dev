@@ -209,6 +209,23 @@ describe('PL!-bp6-011/016 LIVE success workflows', () => {
     expect(session.state?.activeEffect?.selectableCardIds).toEqual(
       deckCards.slice(0, 3).map((card) => card.instanceId)
     );
+    expect(
+      session.state?.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID &&
+          action.payload.step === 'START_INSPECTION'
+      )?.payload.publicEffectSummary
+    ).toMatchObject({
+      effectKind: 'ARRANGE_INSPECTED_DECK_TOP',
+      summaryStatus: 'STARTED',
+      sourceActionLabel: 'LIVE成功',
+      requestedInspectCount: 3,
+      actualInspectedCount: 3,
+      selectedCardIds: [],
+      waitingRoomCardIds: [],
+    });
 
     const selectedTopOrder = [
       deckCards[2]!.instanceId,
@@ -234,6 +251,22 @@ describe('PL!-bp6-011/016 LIVE success workflows', () => {
       deckCards[3]!.instanceId,
     ]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(
+      session.state?.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID &&
+          action.payload.step === 'FINISH'
+      )?.payload.publicEffectSummary
+    ).toMatchObject({
+      effectKind: 'ARRANGE_INSPECTED_DECK_TOP',
+      summaryStatus: 'COMPLETED',
+      sourceActionLabel: 'LIVE成功',
+      actualInspectedCount: 3,
+      selectedCardIds: selectedTopOrder,
+      waitingRoomCardIds: [],
+    });
   });
 
   it('arranges all available cards when PL!-bp6-016-N sees fewer than three', () => {

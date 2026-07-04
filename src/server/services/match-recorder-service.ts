@@ -1410,6 +1410,30 @@ function summarizePublicEvent(event: PublicEvent): string {
       return `公开并移动：${event.card.cardCode}`;
     case 'DeckRefreshed':
       return `卡组刷新：${event.ownerSeat} 移动 ${event.movedCount} 张`;
+    case 'CardEffectSummary':
+      if (event.effectKind === 'DISCARD_LOOK_TOP_SELECT_TO_HAND') {
+        const selectedCount =
+          (event.selectedCards?.length ?? 0) + (event.hiddenSelectedCardCount ?? 0);
+        if (event.summaryStatus === 'STARTED') {
+          return `效果摘要：${event.abilityId} 检视处理中`;
+        }
+        return event.noSelectedCards
+          ? `效果摘要：${event.abilityId} 检视后未加入`
+          : `效果摘要：${event.abilityId} 检视后加入 ${selectedCount} 张`;
+      }
+      if (event.effectKind === 'ARRANGE_INSPECTED_DECK_TOP') {
+        const topDeckCount =
+          (event.selectedCards?.length ?? 0) + (event.hiddenSelectedCardCount ?? 0);
+        if (event.summaryStatus === 'STARTED') {
+          return `效果摘要：${event.abilityId} 检视排序中`;
+        }
+        return `效果摘要：${event.abilityId} 检视后回顶 ${topDeckCount} 张`;
+      }
+      return event.noRecoveredCards
+        ? `效果摘要：${event.abilityId} 未回收`
+        : `效果摘要：${event.abilityId} 回收 ${
+            event.recoveredCards.length + event.hiddenRecoveredCardCount
+          } 张`;
   }
 }
 

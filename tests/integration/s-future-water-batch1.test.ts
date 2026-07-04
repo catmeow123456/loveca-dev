@@ -178,9 +178,27 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
         ),
       ],
     };
-    const session = createSessionFromGame(resolvePendingCardEffects(game).gameState);
+    const resolved = resolvePendingCardEffects(game).gameState;
+    const session = createSessionFromGame(resolved);
 
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
+    const startedSummary = session.state?.actionHistory
+      .map((action) => action.payload.publicEffectSummary)
+      .find(
+        (summary): summary is Record<string, unknown> =>
+          typeof summary === 'object' &&
+          summary !== null &&
+          summary.summaryStatus === 'STARTED'
+      );
+    expect(startedSummary).toMatchObject({
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: 'MAIN_DECK',
+      requestedInspectCount: 2,
+      actualInspectedCount: 2,
+    });
+    expect(startedSummary?.discardedCostCardIds).toEqual(undefined);
+    expect(startedSummary?.sourceOrientationCost).toEqual(undefined);
 
     const reveal = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, target.instanceId)
@@ -194,6 +212,23 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
     expect(finish.success, finish.error).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([miss.instanceId]);
+    const completedSummary = session.state?.actionHistory
+      .map((action) => action.payload.publicEffectSummary)
+      .find(
+        (summary): summary is Record<string, unknown> =>
+          typeof summary === 'object' &&
+          summary !== null &&
+          summary.summaryStatus === 'COMPLETED'
+      );
+    expect(completedSummary).toMatchObject({
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: 'MAIN_DECK',
+      requestedInspectCount: 2,
+      actualInspectedCount: 2,
+      selectedCardIds: [target.instanceId],
+      waitingRoomCardIds: [miss.instanceId],
+    });
   });
 
   it('PL!S-bp5-006 only waits source, discards, and inspects after the optional cost is chosen', () => {
@@ -246,6 +281,7 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
 
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([discard.instanceId]);
 
+    const beforeCostSeq = session.getCurrentPublicEventSeq();
     const cost = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, discard.instanceId)
     );
@@ -255,6 +291,22 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
     ).toBe(OrientationState.WAITING);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discard.instanceId]);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
+    const startedSummary = session
+      .getPublicEventsSince(beforeCostSeq)
+      .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'STARTED');
+    expect(startedSummary?.type).toBe('CardEffectSummary');
+    if (startedSummary?.type === 'CardEffectSummary') {
+      expect(startedSummary.abilityId).toBe(S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID);
+      expect(startedSummary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
+      expect(startedSummary.summaryStatus).toBe('STARTED');
+      expect(startedSummary.sourceOrientationCost).toBe('WAITING');
+      expect(startedSummary.sourceCard?.publicObjectId).toBe(`obj_${source.instanceId}`);
+      expect(startedSummary.discardedCostCards?.map((card) => card.publicObjectId)).toEqual([
+        `obj_${discard.instanceId}`,
+      ]);
+      expect(startedSummary.requestedInspectCount).toBe(5);
+      expect(startedSummary.actualInspectedCount).toBe(2);
+    }
 
     const reveal = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, target.instanceId)
@@ -269,6 +321,20 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
       discard.instanceId,
       lowCost.instanceId,
     ]);
+    const completedSummary = session
+      .getPublicEventsSince(beforeCostSeq)
+      .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'COMPLETED');
+    expect(completedSummary?.type).toBe('CardEffectSummary');
+    if (completedSummary?.type === 'CardEffectSummary') {
+      expect(completedSummary.abilityId).toBe(S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID);
+      expect(completedSummary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
+      expect(completedSummary.summaryStatus).toBe('COMPLETED');
+      expect(completedSummary.sourceOrientationCost).toBe('WAITING');
+      expect(completedSummary.selectedCards?.map((card) => card.publicObjectId)).toEqual([
+        `obj_${target.instanceId}`,
+      ]);
+      expect(completedSummary.waitingRoomCardCount).toBe(1);
+    }
   });
 
   it('PL!S-bp5-006 decline consumes pending without paying cost or inspecting deck', () => {

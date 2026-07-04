@@ -203,6 +203,11 @@ function finishPr017NicoRecoverMuseLiveActivateEnergy(
       step: 'RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_IF_SUCCESS_SCORE',
       selectedCardId: selectedCardIds[0] ?? null,
       selectedCardIds,
+      publicEffectSummary: {
+        effectKind: 'SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM',
+        recoveredCardIds: recoveryResult.movedCardIds,
+        noRecoveredCards: recoveryResult.movedCardIds.length === 0,
+      },
       successLiveScore,
       conditionMet,
       activatedEnergyCardIds: orientationChange?.activatedEnergyCardIds ?? [],

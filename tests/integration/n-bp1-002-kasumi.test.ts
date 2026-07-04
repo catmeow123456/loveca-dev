@@ -272,6 +272,21 @@ describe('PL!N-bp1-002 Kasumi workflow', () => {
     expect(scenario.session.state?.activeEffect?.selectableCardMode).toBe('ORDERED_MULTI');
     expect(scenario.session.state?.activeEffect?.minSelectableCards).toBe(0);
     expect(scenario.session.state?.activeEffect?.maxSelectableCards).toBe(3);
+    expect(
+      scenario.session.state?.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID &&
+          action.payload.step === 'START_INSPECTION'
+      )?.payload.publicEffectSummary
+    ).toMatchObject({
+      effectKind: 'ARRANGE_INSPECTED_DECK_TOP',
+      summaryStatus: 'STARTED',
+      sourceActionLabel: '登场',
+      requestedInspectCount: 3,
+      actualInspectedCount: 3,
+    });
 
     const selectedTopOrder = [scenario.mainDeckCardIds[1]!, scenario.mainDeckCardIds[0]!];
     expect(confirmSelectedCards(scenario.session, selectedTopOrder).success).toBe(true);
@@ -282,6 +297,22 @@ describe('PL!N-bp1-002 Kasumi workflow', () => {
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
       scenario.mainDeckCardIds[2],
     ]);
+    expect(
+      scenario.session.state?.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID &&
+          action.payload.step === 'FINISH'
+      )?.payload.publicEffectSummary
+    ).toMatchObject({
+      effectKind: 'ARRANGE_INSPECTED_DECK_TOP',
+      summaryStatus: 'COMPLETED',
+      sourceActionLabel: '登场',
+      actualInspectedCount: 3,
+      selectedCardIds: selectedTopOrder,
+      waitingRoomCardIds: [scenario.mainDeckCardIds[2]],
+    });
   });
 
   it('allows selecting none, all, and fewer than three inspected cards on enter', () => {

@@ -324,6 +324,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    const beforeSeq = session.getCurrentPublicEventSeq();
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -380,6 +381,30 @@ describe('discard look top select to hand shared workflow', () => {
       topCards[4]!.instanceId,
     ]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[5]!.instanceId]);
+
+    const summary = session
+      .getPublicEventsSince(beforeSeq)
+      .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'COMPLETED');
+    expect(summary?.type).toBe('CardEffectSummary');
+    if (summary?.type === 'CardEffectSummary') {
+      expect(summary.abilityId).toBe(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
+      expect(summary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
+      expect(summary.summaryStatus).toBe('COMPLETED');
+      expect(summary.sourceCard?.publicObjectId).toBe(`obj_${source.instanceId}`);
+      expect(summary.discardedCostCards?.map((card) => card.publicObjectId)).toEqual([
+        `obj_${discardCard.instanceId}`,
+      ]);
+      expect(summary.hiddenDiscardedCostCardCount).toBe(0);
+      expect(summary.inspectSourceZone).toBe('MAIN_DECK');
+      expect(summary.requestedInspectCount).toBe(5);
+      expect(summary.actualInspectedCount).toBe(5);
+      expect(summary.selectedCards?.map((card) => card.publicObjectId)).toEqual([
+        `obj_${topCards[1]!.instanceId}`,
+      ]);
+      expect(summary.hiddenSelectedCardCount).toBe(0);
+      expect(summary.noSelectedCards).toBe(false);
+      expect(summary.waitingRoomCardCount).toBe(4);
+    }
   });
 
   it('uses the DOLLCHESTRA unit-card selector for PL!HS-pb1-018', () => {
@@ -923,6 +948,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    const meiBeforeSeq = session.getCurrentPublicEventSeq();
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -949,6 +975,28 @@ describe('discard look top select to hand shared workflow', () => {
     ]);
     expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
 
+    const startedSummary = session
+      .getPublicEventsSince(meiBeforeSeq)
+      .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'STARTED');
+    expect(startedSummary?.type).toBe('CardEffectSummary');
+    if (startedSummary?.type === 'CardEffectSummary') {
+      expect(startedSummary.abilityId).toBe(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
+      expect(startedSummary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
+      expect(startedSummary.summaryStatus).toBe('STARTED');
+      expect(startedSummary.sourceCard?.publicObjectId).toBe(`obj_${source.instanceId}`);
+      expect(startedSummary.discardedCostCards?.map((card) => card.publicObjectId)).toEqual([
+        `obj_${discardCard.instanceId}`,
+      ]);
+      expect(startedSummary.hiddenDiscardedCostCardCount).toBe(0);
+      expect(startedSummary.inspectSourceZone).toBe('MAIN_DECK');
+      expect(startedSummary.requestedInspectCount).toBe(5);
+      expect(startedSummary.actualInspectedCount).toBe(5);
+      expect(startedSummary.selectedCards).toEqual([]);
+      expect(startedSummary.hiddenSelectedCardCount).toBe(0);
+      expect(startedSummary.noSelectedCards).toBe(false);
+      expect(startedSummary.waitingRoomCardCount).toBe(0);
+    }
+
     const selectResult = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -973,6 +1021,30 @@ describe('discard look top select to hand shared workflow', () => {
       topCards[4]!.instanceId,
     ]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[5]!.instanceId]);
+
+    const meiSummary = session
+      .getPublicEventsSince(meiBeforeSeq)
+      .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'COMPLETED');
+    expect(meiSummary?.type).toBe('CardEffectSummary');
+    if (meiSummary?.type === 'CardEffectSummary') {
+      expect(meiSummary.abilityId).toBe(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
+      expect(meiSummary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
+      expect(meiSummary.summaryStatus).toBe('COMPLETED');
+      expect(meiSummary.sourceCard?.publicObjectId).toBe(`obj_${source.instanceId}`);
+      expect(meiSummary.discardedCostCards?.map((card) => card.publicObjectId)).toEqual([
+        `obj_${discardCard.instanceId}`,
+      ]);
+      expect(meiSummary.hiddenDiscardedCostCardCount).toBe(0);
+      expect(meiSummary.inspectSourceZone).toBe('MAIN_DECK');
+      expect(meiSummary.requestedInspectCount).toBe(5);
+      expect(meiSummary.actualInspectedCount).toBe(5);
+      expect(meiSummary.selectedCards?.map((card) => card.publicObjectId)).toEqual([
+        `obj_${topCards[3]!.instanceId}`,
+      ]);
+      expect(meiSummary.hiddenSelectedCardCount).toBe(0);
+      expect(meiSummary.noSelectedCards).toBe(false);
+      expect(meiSummary.waitingRoomCardCount).toBe(4);
+    }
   });
 
   it('lets PL!-pb1-016 inspect top four and reveal a lilywhite card including LIVE', () => {

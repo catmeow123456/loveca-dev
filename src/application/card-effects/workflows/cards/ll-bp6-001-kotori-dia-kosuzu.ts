@@ -12,6 +12,7 @@ import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-mod
 import {
   HeartColor,
   SlotPosition,
+  ZoneType,
 } from '../../../../shared/types/enums.js';
 import { cardNameAliasAny } from '../../../effects/card-selectors.js';
 import {
@@ -61,6 +62,12 @@ export function registerLlBp6001KotoriDiaKosuzuWorkflowHandlers(deps: {
           confirmSelectionLabel: '加入手牌',
           finishActionStep: 'TAKE_TWO_REST_TO_WAITING_ROOM',
           includeInspectedCardIdsInFinishAction: true,
+          publicEffectSummaryContext: {
+            effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+            sourceActionLabel: '登场',
+            inspectSourceZone: ZoneType.MAIN_DECK,
+            requestedInspectCount: 6,
+          },
         },
         {
           orderedResolution: options.orderedResolution === true,

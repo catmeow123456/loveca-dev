@@ -174,6 +174,20 @@ function latestResolvePayload(game: GameState, abilityId: string): Record<string
   return action?.payload ?? null;
 }
 
+function publicEffectSummaryPayload(
+  game: GameState,
+  summaryStatus: 'STARTED' | 'COMPLETED'
+): Record<string, unknown> | undefined {
+  return game.actionHistory
+    .map((action) => action.payload.publicEffectSummary)
+    .find(
+      (summary): summary is Record<string, unknown> =>
+        typeof summary === 'object' &&
+        summary !== null &&
+        summary.summaryStatus === summaryStatus
+    );
+}
+
 function putOpponentStage(
   game: GameState,
   cards: readonly {
@@ -495,6 +509,17 @@ describe('PL!S-bp6 from waiting-room on-enter effects', () => {
 
     expect(started.activeEffect?.inspectionCardIds).toEqual(scenario.deckCardIds);
     expect(started.activeEffect?.selectableCardIds).toEqual(scenario.deckCardIds);
+    const startedSummary = publicEffectSummaryPayload(started, 'STARTED');
+    expect(startedSummary).toMatchObject({
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      summaryStatus: 'STARTED',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 3,
+      actualInspectedCount: 3,
+    });
+    expect(startedSummary?.discardedCostCardIds).toBeUndefined();
+    expect(startedSummary?.sourceOrientationCost).toBeUndefined();
 
     const finished = confirmOne(started, scenario.deckCardIds[1]!);
 
@@ -512,6 +537,19 @@ describe('PL!S-bp6 from waiting-room on-enter effects', () => {
       fromZone: ZoneType.MAIN_DECK,
       toZone: ZoneType.WAITING_ROOM,
     });
+    const completedSummary = publicEffectSummaryPayload(finished, 'COMPLETED');
+    expect(completedSummary).toMatchObject({
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      summaryStatus: 'COMPLETED',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 3,
+      actualInspectedCount: 3,
+      selectedCardIds: [scenario.deckCardIds[1]],
+      waitingRoomCardIds: [scenario.deckCardIds[0], scenario.deckCardIds[2]],
+    });
+    expect(completedSummary?.discardedCostCardIds).toBeUndefined();
+    expect(completedSummary?.sourceOrientationCost).toBeUndefined();
   });
 
   it('PL!S-bp6-016-N handles short or empty deck paths', () => {
@@ -548,5 +586,29 @@ describe('PL!S-bp6 from waiting-room on-enter effects', () => {
       step: 'TAKE_ONE_REST_TO_WAITING_ROOM',
       inspectedCardIds: [],
     });
+
+    const handEnter = setupSource({
+      testId: 's-bp6-016-hand-no-summary',
+      abilityId: S_BP6_016_ON_ENTER_FROM_WAITING_LOOK_TOP_THREE_TAKE_ONE_ABILITY_ID,
+      sourceCardCode: 'PL!S-bp6-016-N',
+      sourceName: '国木田花丸',
+      sourceCost: 4,
+      fromZone: ZoneType.HAND,
+      deckCards: [createMember('HAND-NO-SUMMARY-TOP')],
+    });
+    const handState = resolve(handEnter.game);
+
+    expect(handState.activeEffect).toBeNull();
+    expect(
+      latestResolvePayload(
+        handState,
+        S_BP6_016_ON_ENTER_FROM_WAITING_LOOK_TOP_THREE_TAKE_ONE_ABILITY_ID
+      )
+    ).toMatchObject({
+      step: 'ON_ENTER_SOURCE_ZONE_MISMATCH',
+      actualFromZone: ZoneType.HAND,
+    });
+    expect(publicEffectSummaryPayload(handState, 'STARTED')).toBeUndefined();
+    expect(publicEffectSummaryPayload(handState, 'COMPLETED')).toBeUndefined();
   });
 });

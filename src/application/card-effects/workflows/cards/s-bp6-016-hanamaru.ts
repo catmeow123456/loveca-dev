@@ -82,6 +82,12 @@ function startSBp6016HanamaruWorkflow(
       startActionStep: 'START_LOOK_TOP_THREE',
       finishActionStep: 'TAKE_ONE_REST_TO_WAITING_ROOM',
       clampExactCountToInspectedCount: true,
+      publicEffectSummaryContext: {
+        effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+        sourceActionLabel: '登场',
+        inspectSourceZone: ZoneType.MAIN_DECK,
+        requestedInspectCount: 3,
+      },
     },
     {
       orderedResolution,
