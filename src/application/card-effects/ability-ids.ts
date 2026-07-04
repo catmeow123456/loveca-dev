@@ -137,6 +137,12 @@ export const PL_N_BP4_030_LIVE_SUCCESS_CHOOSE_ENERGY_OR_MEMBER_RECOVERY_ABILITY_
   'PL!N-bp4-030-L:live-success-choose-energy-or-member-recovery';
 export const PL_N_BP4_029_LIVE_START_TURN_ONE_SCORE_TARGET_NIJIGASAKI_BLADE_ABILITY_ID =
   'PL!N-bp4-029-L:live-start-turn-one-score-target-nijigasaki-blade';
+export const PL_N_BP4_010_ON_ENTER_EXCHANGE_NIJIGASAKI_SUCCESS_LIVE_ABILITY_ID =
+  'PL!N-bp4-010:on-enter-exchange-nijigasaki-success-live';
+export const PL_N_BP4_010_LIVE_START_MATCHING_NIJIGASAKI_LIVE_GAIN_GREEN_HEART_ABILITY_ID =
+  'PL!N-bp4-010:live-start-matching-nijigasaki-live-gain-green-heart';
+export const PL_N_BP4_027_LIVE_START_SUCCESS_EMOTION_SCORE_REQUIREMENT_ABILITY_ID =
+  'PL!N-bp4-027-L:live-start-success-emotion-score-requirement';
 export const PL_N_BP4_004_LIVE_START_DRAW_WAIT_LOW_COST_OPPONENT_MEMBER_ABILITY_ID =
   'PL!N-bp4-004:live-start-draw-wait-low-cost-opponent-member';
 export const PL_N_BP4_004_LIVE_START_STACK_NIJIGASAKI_MEMBERS_BY_OPPONENT_WAIT_COUNT_ABILITY_ID =
@@ -596,6 +602,8 @@ export const SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID 
   'PL!SP-bp4-011-P:auto-enter-or-move-wait-opponent-low-blade-member';
 export const HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID =
   'PL!HS-bp2-002-P:on-enter-take-up-to-two-low-cost-members';
+export const HS_BP2_002_CONTINUOUS_OTHER_HIGHER_COST_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!HS-bp2-002:continuous-other-higher-cost-gain-three-blade';
 export const HS_BP2_006_ON_ENTER_STAGE_FORMATION_CHANGE_ABILITY_ID =
   'PL!HS-bp2-006:on-enter-stage-formation-change';
 export const HS_BP2_006_CONTINUOUS_OTHER_MIRACRA_STAGE_MEMBER_BLADE_ABILITY_ID =

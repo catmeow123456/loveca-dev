@@ -7,7 +7,11 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { OrientationState, SlotPosition } from '../../../../shared/types/enums.js';
-import { normalizeCardName, unitAliasIs } from '../../../effects/card-selectors.js';
+import {
+  getNormalizedCardNameCandidates,
+  selectDifferentNamedCards,
+} from '../../../../shared/utils/card-identity.js';
+import { unitAliasIs } from '../../../effects/card-selectors.js';
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
 import { SP_PB2_018_LIVE_START_DIFFERENT_NAME_CATCHU_ACTIVATE_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
@@ -107,7 +111,7 @@ function getSpPb2018MeiContext(
   const differentNamedCatchuMemberIds = getDifferentNamedCatchuStageMemberIds(
     game,
     player.id,
-    normalizeCardName(sourceCard.data.name)
+    getNormalizedCardNameCandidates(sourceCard.data)
   );
   const waitingEnergyCount = getEnergyCardIdsByOrientation(
     game,
@@ -124,7 +128,7 @@ function getSpPb2018MeiContext(
 function getDifferentNamedCatchuStageMemberIds(
   game: GameState,
   playerId: string,
-  sourceNormalizedName: string
+  sourceNormalizedNames: readonly string[]
 ): readonly string[] {
   const player = getPlayerById(game, playerId);
   if (!player) {
@@ -132,21 +136,18 @@ function getDifferentNamedCatchuStageMemberIds(
   }
 
   const isCatchu = unitAliasIs('CatChu!');
-  return STAGE_SLOTS.flatMap((slot) => {
-    const cardId = player.memberSlots.slots[slot];
-    if (cardId === null) {
-      return [];
-    }
-    const card = cardId ? getCardById(game, cardId) : null;
-    if (
-      !card ||
-      card.ownerId !== playerId ||
-      !isMemberCardData(card.data) ||
-      !isCatchu(card) ||
-      normalizeCardName(card.data.name) === sourceNormalizedName
-    ) {
-      return [];
-    }
-    return [cardId];
-  });
+  return selectDifferentNamedCards(
+    STAGE_SLOTS.flatMap((slot) => {
+      const cardId = player.memberSlots.slots[slot];
+      return cardId === null ? [] : [cardId];
+    }),
+    (cardId) => {
+      const card = cardId ? getCardById(game, cardId) : null;
+      if (!card || card.ownerId !== playerId || !isMemberCardData(card.data) || !isCatchu(card)) {
+        return null;
+      }
+      return card.data;
+    },
+    { excludedNormalizedNames: sourceNormalizedNames, minCount: 1 }
+  ).map((match) => match.item);
 }

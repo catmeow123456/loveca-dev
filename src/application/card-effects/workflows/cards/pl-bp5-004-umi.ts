@@ -19,6 +19,7 @@ import {
   TriggerCondition,
 } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
+import { getCardGroupIdentityKeys } from '../../../../shared/utils/card-identity.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import { and, costLte, typeIs } from '../../../effects/card-selectors.js';
@@ -358,46 +359,11 @@ function getOwnStageGroupIdentityKeys(game: GameState, playerId: string): readon
     if (!card || !isMemberCardData(card.data)) {
       continue;
     }
-    for (const groupName of card.data.groupNames ?? []) {
-      const groupKey = normalizeSchoolIdolGroupKey(groupName);
-      if (groupKey.length > 0) {
-        groupKeys.add(groupKey);
-      }
+    for (const groupKey of getCardGroupIdentityKeys(card.data)) {
+      groupKeys.add(groupKey);
     }
   }
   return [...groupKeys].sort();
-}
-
-function normalizeSchoolIdolGroupKey(groupName: string): string {
-  const normalized = groupName
-    .normalize('NFKC')
-    .replace(/[『』「」'’`´\s　・･·.]/g, '')
-    .replace(/！/g, '!')
-    .toLowerCase();
-  if (normalized === 'μs' || normalized === 'µs' || normalized === "μ's" || normalized === "µ's") {
-    return 'muse';
-  }
-  if (normalized === 'muse') {
-    return 'muse';
-  }
-  if (normalized === 'aqours') {
-    return 'aqours';
-  }
-  if (normalized === 'liella!' || normalized === 'liella') {
-    return 'liella';
-  }
-  if (normalized.includes('蓮ノ空') || normalized.includes('蓮之空') || normalized === 'hasunosora') {
-    return 'hasunosora';
-  }
-  if (
-    normalized.includes('虹ヶ咲') ||
-    normalized.includes('虹咲') ||
-    normalized.includes('虹之咲') ||
-    normalized === 'nijigasaki'
-  ) {
-    return 'nijigasaki';
-  }
-  return normalized;
 }
 
 function getOwnCheerEventForAbility(

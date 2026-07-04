@@ -227,6 +227,36 @@ describe('PL!N-bp5-027-L Miracle STAY TUNE live start workflow', () => {
     });
   });
 
+  it('treats LL-bp1-001 as one member that can use an unoccupied Q207/Q208 name', () => {
+    const { game } = setupState({
+      ownSuccessCount: 2,
+      memberNames: ['上原歩夢&澁谷かのん&日野下花帆', '上原歩夢', '日野下花帆'],
+    });
+
+    const state = resolveLiveStart(game);
+
+    expect(miracleScoreModifiers(state)).toHaveLength(1);
+    expect(latestPayload(state)).toMatchObject({
+      differentNameConditionMet: true,
+      scoreBonus: 1,
+    });
+  });
+
+  it('does not let one LL-bp1-001 contribute multiple names for Q207/Q208', () => {
+    const { game } = setupState({
+      ownSuccessCount: 2,
+      memberNames: ['上原歩夢&澁谷かのん&日野下花帆', '上原歩夢', '上原 歩夢'],
+    });
+
+    const state = resolveLiveStart(game);
+
+    expect(miracleScoreModifiers(state)).toEqual([]);
+    expect(latestPayload(state)).toMatchObject({
+      differentNameConditionMet: false,
+      scoreBonus: 0,
+    });
+  });
+
   it('does not add SCORE when the source is not in the live zone', () => {
     const { game, live } = setupState({ ownSuccessCount: 2, sourceInLiveZone: false });
     const stateWithPending: GameState = {

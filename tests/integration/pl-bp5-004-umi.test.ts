@@ -378,6 +378,52 @@ describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
     expect(state.activeEffect?.selectableCardIds).toEqual([legalTarget!.instanceId]);
   });
 
+  it('reduces activated cost to zero for Q228 LL-bp1-001 official groupNames and can activate again', () => {
+    const llBp1 = createCardInstance(
+      createMember('LL-bp1-001-R＋', {
+        name: '上原歩夢&澁谷かのん&日野下花帆',
+        groupNames: [
+          'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+          'ラブライブ！スーパースター!!',
+          '蓮ノ空女学院スクールアイドルクラブ',
+        ],
+      }),
+      PLAYER1,
+      'p1-ll-bp1-001'
+    );
+    const { game, source, legalTarget } = setupActivatedState({
+      ownExtraMembers: [llBp1],
+      activeEnergyCount: 0,
+    });
+
+    let state = activateUmi(game, source.instanceId);
+
+    expect(latestPayCostPayload(state)).toMatchObject({
+      amount: 0,
+      reducedEnergyCost: 0,
+      stageGroupKeys: ['hasunosora', 'liella', 'muse', 'nijigasaki'],
+    });
+    expect(state.activeEffect?.selectableCardIds).toEqual([legalTarget!.instanceId]);
+
+    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, legalTarget!.instanceId);
+    expect(orientationOf(state, PLAYER2, legalTarget!.instanceId)).toBe(OrientationState.WAITING);
+
+    state = activateUmi(state, source.instanceId);
+    expect(latestPayCostPayload(state)).toMatchObject({
+      amount: 0,
+      reducedEnergyCost: 0,
+      stageGroupKeys: ['hasunosora', 'liella', 'muse', 'nijigasaki'],
+    });
+    expect(latestPayload(
+      state,
+      BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID,
+      'NO_OPPONENT_COST_TEN_TARGET_AFTER_COST'
+    )).toMatchObject({
+      reducedEnergyCost: 0,
+      paidEnergyCardIds: [],
+    });
+  });
+
   it('reduces activated cost to one with LL-bp3-001', () => {
     const llBp3 = createCardInstance(
       createMember('LL-bp3-001-R+', {

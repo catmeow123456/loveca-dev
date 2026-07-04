@@ -14,9 +14,11 @@ import {
   getMemberEffectiveHeartIcons,
 } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
-import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
+import {
+  cardBelongsToGroup,
+  selectDifferentNamedCards,
+} from '../../../../shared/utils/card-identity.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
-import { normalizeCardName } from '../../../effects/card-selectors.js';
 import {
   HS_BP5_018_LIVE_START_DIFFERENT_NAMES_AND_COSTS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
@@ -460,21 +462,14 @@ function getDifferentNamedStageMembers(
     return [];
   }
 
-  const seenNames = new Set<string>();
-  const members: { readonly cardId: string; readonly name: string }[] = [];
-  for (const cardId of getAllMemberCardIds(player.memberSlots)) {
-    const card = getCardById(game, cardId);
-    if (!card || !isMemberCardData(card.data)) {
-      continue;
-    }
-    const normalizedName = normalizeCardName(card.data.name);
-    if (!normalizedName || seenNames.has(normalizedName)) {
-      continue;
-    }
-    seenNames.add(normalizedName);
-    members.push({ cardId, name: card.data.name });
-  }
-  return members;
+  return selectDifferentNamedCards(
+    getAllMemberCardIds(player.memberSlots),
+    (cardId) => {
+      const card = getCardById(game, cardId);
+      return card && isMemberCardData(card.data) ? card.data : null;
+    },
+    { minCount: 1 }
+  ).map((match) => ({ cardId: match.item, name: match.name }));
 }
 
 function getDifferentNamedAndEffectiveCostStageMembers(
@@ -486,25 +481,21 @@ function getDifferentNamedAndEffectiveCostStageMembers(
     return [];
   }
 
-  const seenNames = new Set<string>();
-  const seenCosts = new Set<number>();
-  const members: { readonly cardId: string; readonly name: string; readonly effectiveCost: number }[] =
-    [];
-  for (const cardId of getAllMemberCardIds(player.memberSlots)) {
-    const card = getCardById(game, cardId);
-    if (!card || !isMemberCardData(card.data)) {
-      continue;
+  return selectDifferentNamedCards(
+    getAllMemberCardIds(player.memberSlots),
+    (cardId) => {
+      const card = getCardById(game, cardId);
+      return card && isMemberCardData(card.data) ? card.data : null;
+    },
+    {
+      minCount: 1,
+      getSecondaryKey: (cardId) => getMemberEffectiveCost(game, playerId, cardId),
     }
-    const normalizedName = normalizeCardName(card.data.name);
-    const effectiveCost = getMemberEffectiveCost(game, playerId, cardId);
-    if (!normalizedName || seenNames.has(normalizedName) || seenCosts.has(effectiveCost)) {
-      continue;
-    }
-    seenNames.add(normalizedName);
-    seenCosts.add(effectiveCost);
-    members.push({ cardId, name: card.data.name, effectiveCost });
-  }
-  return members;
+  ).map((match) => ({
+    cardId: match.item,
+    name: match.name,
+    effectiveCost: getMemberEffectiveCost(game, playerId, match.item),
+  }));
 }
 
 function getUniqueNormalEffectiveHeartColors(

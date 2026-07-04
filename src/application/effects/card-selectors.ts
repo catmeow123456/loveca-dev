@@ -4,6 +4,8 @@ import { BladeHeartEffect, HeartColor, type CardType } from '../../shared/types/
 import {
   cardBelongsToGroup,
   cardHasHasunosoraTripleUnitIdentity,
+  getNormalizedCardNameCandidates as getSharedNormalizedCardNameCandidates,
+  normalizeCardName as normalizeSharedCardName,
 } from '../../shared/utils/card-identity.js';
 
 export type CardSelector = (card: CardInstance) => boolean;
@@ -213,7 +215,7 @@ function normalizeGroupName(value: string | undefined): string {
 }
 
 export function normalizeCardName(value: string | undefined): string {
-  return value?.replace(/[\s・·]/g, '') ?? '';
+  return normalizeSharedCardName(value);
 }
 
 function getNormalizedUnitAliases(unitName: string): readonly string[] {
@@ -241,10 +243,5 @@ function getNormalizedCardNameAliases(name: string): readonly string[] {
 }
 
 function getNormalizedCardNameCandidates(value: string | undefined): readonly string[] {
-  if (!value) {
-    return [];
-  }
-
-  const names = [value, ...value.split(/[&＆]/g)];
-  return [...new Set(names.map((name) => normalizeCardName(name)).filter(Boolean))];
+  return getSharedNormalizedCardNameCandidates({ name: value });
 }

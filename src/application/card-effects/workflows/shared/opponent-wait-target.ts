@@ -41,12 +41,12 @@ import {
   and,
   costLte,
   memberPrintedBladeLte,
-  normalizeCardName,
   not,
   type CardSelector,
   typeIs,
   unitAliasIs,
 } from '../../../effects/card-selectors.js';
+import { selectDifferentNamedCards } from '../../../../shared/utils/card-identity.js';
 import {
   createStageMemberOrientationTargetSelection,
   getStageMemberOrientationTargetMetadata,
@@ -434,19 +434,9 @@ function getOwnStageEffectiveHeartTotal(game: GameState, playerId: string): numb
 }
 
 function getOwnStageDifferentBiBiMemberNameCount(game: GameState, playerId: string): number {
-  const bibiMemberNames = getStageMemberCardIdsMatching(
-    game,
-    playerId,
-    and(typeIs(CardType.MEMBER), unitAliasIs('BiBi'))
-  )
-    .map((cardId) => getCardName(game, cardId))
-    .filter((name): name is string => name !== null)
-    .map((name) => normalizeCardName(name))
-    .filter((name) => name.length > 0);
-
-  return new Set(bibiMemberNames).size;
-}
-
-function getCardName(game: GameState, cardId: string): string | null {
-  return game.cardRegistry.get(cardId)?.data.name ?? null;
+  return selectDifferentNamedCards(
+    getStageMemberCardIdsMatching(game, playerId, and(typeIs(CardType.MEMBER), unitAliasIs('BiBi'))),
+    (cardId) => game.cardRegistry.get(cardId)?.data,
+    { minCount: 1 }
+  ).length;
 }

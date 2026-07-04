@@ -1,5 +1,7 @@
 export interface CardIdentityLike {
   readonly cardCode?: string;
+  readonly name?: string;
+  readonly workNames?: readonly string[];
   readonly groupNames?: readonly string[];
 }
 
@@ -13,34 +15,73 @@ export type GroupIdentityName =
   | 'A-RISE'
   | 'SaintSnow';
 
+export type GroupIdentityKey =
+  | 'muse'
+  | 'hasunosora'
+  | 'liella'
+  | 'nijigasaki'
+  | 'aqours'
+  | 'sunny-passion'
+  | 'a-rise'
+  | 'saint-snow';
+
+export interface DifferentNamedCardMatch<T> {
+  readonly item: T;
+  readonly name: string;
+  readonly normalizedName: string;
+}
+
 const GROUP_IDENTITY_GROUPS: readonly {
   readonly canonicalName: GroupIdentityName;
+  readonly key: GroupIdentityKey;
   readonly aliases: readonly string[];
 }[] = [
-  { canonicalName: "μ's", aliases: ["μ's", 'μ'] },
+  { canonicalName: "μ's", key: 'muse', aliases: ["μ's", 'μ', 'muse', 'ラブライブ！'] },
   {
     canonicalName: '蓮ノ空',
+    key: 'hasunosora',
     aliases: ['蓮ノ空', '莲之空', 'Hasunosora'],
   },
   {
     canonicalName: 'Liella!',
-    aliases: ['Liella!', 'Liella', 'リエラ', 'スーパースター', 'superstar'],
+    key: 'liella',
+    aliases: [
+      'Liella!',
+      'Liella',
+      'リエラ',
+      'スーパースター',
+      'superstar',
+      'ラブライブ！スーパースター!!',
+    ],
   },
   {
     canonicalName: 'SunnyPassion',
+    key: 'sunny-passion',
     aliases: ['SunnyPassion', 'Sunny Passion', 'サニーパッション'],
   },
-  { canonicalName: '虹ヶ咲', aliases: ['虹咲', '虹ヶ咲', 'Nijigasaki'] },
+  {
+    canonicalName: '虹ヶ咲',
+    key: 'nijigasaki',
+    aliases: [
+      '虹咲',
+      '虹ヶ咲',
+      'Nijigasaki',
+      'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+    ],
+  },
   {
     canonicalName: 'Aqours',
+    key: 'aqours',
     aliases: ['Aqours', 'ラブライブ！サンシャイン!!'],
   },
   {
     canonicalName: 'A-RISE',
+    key: 'a-rise',
     aliases: ['A-RISE', 'ARISE', 'A RISE'],
   },
   {
     canonicalName: 'SaintSnow',
+    key: 'saint-snow',
     aliases: ['SaintSnow', 'Saint Snow'],
   },
 ];
@@ -77,6 +118,113 @@ export function getKnownCardGroupIdentityName(card: CardIdentityLike): GroupIden
   );
 }
 
+export function getCardGroupIdentityKeys(card: CardIdentityLike): readonly GroupIdentityKey[] {
+  return [
+    ...new Set(getStructuredGroupIdentityNames(card).map((name) => getGroupIdentityKey(name))),
+  ].sort();
+}
+
+export function getGroupIdentityKey(groupName: GroupIdentityName): GroupIdentityKey {
+  const group = GROUP_IDENTITY_GROUPS.find((candidate) => candidate.canonicalName === groupName);
+  if (!group) {
+    throw new Error(`Unknown group identity: ${groupName}`);
+  }
+  return group.key;
+}
+
+export function getCardNameCandidates(
+  card: CardIdentityLike,
+  options: { readonly groupName?: string } = {}
+): readonly string[] {
+  const nameCandidates = splitCardNameCandidates(card.name);
+  if (!options.groupName) {
+    return nameCandidates;
+  }
+
+  const groupIdentity = getGroupIdentity(options.groupName);
+  if (!groupIdentity || !cardMatchesGroupIdentity(card, groupIdentity)) {
+    return [];
+  }
+
+  const groupNames = getGroupIdentityNamesForNameMapping(card, nameCandidates.length);
+  if (nameCandidates.length > 1 && groupNames.length === nameCandidates.length) {
+    return nameCandidates.filter((_, index) => groupNames[index] === groupIdentity.canonicalName);
+  }
+
+  return nameCandidates;
+}
+
+export function getNormalizedCardNameCandidates(
+  card: CardIdentityLike,
+  options: { readonly groupName?: string } = {}
+): readonly string[] {
+  return [...new Set(getCardNameCandidates(card, options).map(normalizeCardName).filter(Boolean))];
+}
+
+export function normalizeCardName(value: string | undefined): string {
+  return value?.replace(/[\s・·]/g, '') ?? '';
+}
+
+export function selectDifferentNamedCards<T>(
+  items: readonly T[],
+  getCard: (item: T) => CardIdentityLike | null | undefined,
+  options: {
+    readonly groupName?: string;
+    readonly minCount?: number;
+    readonly maxCount?: number;
+    readonly excludedNormalizedNames?: readonly string[];
+    readonly getSecondaryKey?: (item: T) => string | number | null | undefined;
+  } = {}
+): readonly DifferentNamedCardMatch<T>[] {
+  const candidates = items.flatMap((item) => {
+    const card = getCard(item);
+    if (!card) {
+      return [];
+    }
+    const names = getCardNameCandidates(card, { groupName: options.groupName });
+    if (names.length === 0) {
+      return [];
+    }
+    const secondaryKey = options.getSecondaryKey?.(item);
+    return [
+      {
+        item,
+        names,
+        secondaryKey:
+          secondaryKey === null || secondaryKey === undefined ? null : String(secondaryKey),
+      },
+    ];
+  });
+  const maxCount = Math.min(options.maxCount ?? candidates.length, candidates.length);
+  const minCount = Math.min(options.minCount ?? maxCount, maxCount);
+  const selected = findDifferentNameAssignment(
+    candidates,
+    maxCount,
+    new Set(options.excludedNormalizedNames ?? []),
+    new Set()
+  );
+  return selected.length >= minCount ? selected : [];
+}
+
+export function hasAtLeastDifferentNamedCards<T>(
+  items: readonly T[],
+  minCount: number,
+  getCard: (item: T) => CardIdentityLike | null | undefined,
+  options: {
+    readonly groupName?: string;
+    readonly excludedNormalizedNames?: readonly string[];
+    readonly getSecondaryKey?: (item: T) => string | number | null | undefined;
+  } = {}
+): boolean {
+  return (
+    selectDifferentNamedCards(items, getCard, {
+      ...options,
+      minCount,
+      maxCount: minCount,
+    }).length >= minCount
+  );
+}
+
 export function cardHasHasunosoraTripleUnitIdentity(
   card: CardIdentityLike,
   unitName: string
@@ -94,6 +242,7 @@ export function cardHasHasunosoraTripleUnitIdentity(
 function getGroupIdentity(groupName: string):
   | {
       readonly canonicalName: GroupIdentityName;
+      readonly key: GroupIdentityKey;
       readonly aliases: readonly string[];
     }
   | undefined {
@@ -107,6 +256,7 @@ function cardMatchesGroupIdentity(
   card: CardIdentityLike,
   groupIdentity: {
     readonly canonicalName: GroupIdentityName;
+    readonly key: GroupIdentityKey;
     readonly aliases: readonly string[];
   }
 ): boolean {
@@ -122,18 +272,52 @@ function cardMatchesGroupIdentity(
 }
 
 function getStructuredGroupIdentityNames(card: CardIdentityLike): readonly GroupIdentityName[] {
-  return GROUP_IDENTITY_GROUPS.filter((group) => {
-    const normalizedAliases = group.aliases.map((alias) => normalizeGroupIdentityText(alias));
-    return getStructuredIdentityTextCandidates(card).some((value) =>
-      matchesAnyNormalizedAlias(value, normalizedAliases)
-    );
-  }).map((group) => group.canonicalName);
+  return [...new Set(getStructuredGroupIdentityNamesInOrder(card))];
+}
+
+function getStructuredGroupIdentityNamesInOrder(
+  card: CardIdentityLike
+): readonly GroupIdentityName[] {
+  return getIdentityNamesFromTexts(getStructuredIdentityTextCandidates(card));
+}
+
+function getGroupIdentityNamesForNameMapping(
+  card: CardIdentityLike,
+  expectedNameCount: number
+): readonly GroupIdentityName[] {
+  const fromGroupNames = getIdentityNamesFromTexts(card.groupNames ?? []);
+  if (fromGroupNames.length === expectedNameCount) {
+    return fromGroupNames;
+  }
+
+  const fromWorkNames = getIdentityNamesFromTexts(card.workNames ?? []);
+  if (fromWorkNames.length === expectedNameCount) {
+    return fromWorkNames;
+  }
+
+  return [];
+}
+
+function getIdentityNamesFromTexts(texts: readonly (string | undefined)[]): readonly GroupIdentityName[] {
+  return texts.flatMap((text) =>
+    (text ?? '').split(/\n/g).flatMap((value) => {
+      const normalizedAliasesByGroup = GROUP_IDENTITY_GROUPS.map((group) => ({
+        group,
+        normalizedAliases: group.aliases.map((alias) => normalizeGroupIdentityText(alias)),
+      }));
+      return normalizedAliasesByGroup
+        .filter(({ normalizedAliases }) => matchesAnyNormalizedAlias(value, normalizedAliases))
+        .map(({ group }) => group.canonicalName);
+    })
+  );
 }
 
 function getStructuredIdentityTextCandidates(
   card: CardIdentityLike
 ): readonly (string | undefined)[] {
-  return card.groupNames ?? [];
+  return [...(card.groupNames ?? []), ...(card.workNames ?? [])].flatMap((value) =>
+    value.split(/\n/g)
+  );
 }
 
 function matchesAnyNormalizedAlias(
@@ -141,7 +325,10 @@ function matchesAnyNormalizedAlias(
   normalizedAliases: readonly string[]
 ): boolean {
   const normalizedValue = normalizeGroupIdentityText(value);
-  return normalizedAliases.some((alias) => normalizedValue.includes(alias));
+  return normalizedAliases.some(
+    (alias) =>
+      normalizedValue === alias || (alias !== 'ラブライブ!' && normalizedValue.includes(alias))
+  );
 }
 
 function normalizeGroupIdentityText(value: string | undefined): string {
@@ -151,4 +338,62 @@ function normalizeGroupIdentityText(value: string | undefined): string {
       .replace(/！/g, '!')
       .toLowerCase() ?? ''
   );
+}
+
+function splitCardNameCandidates(value: string | undefined): readonly string[] {
+  if (!value) {
+    return [];
+  }
+  return [...new Set(value.split(/[&＆]/g).map((name) => name.trim()).filter(Boolean))];
+}
+
+function findDifferentNameAssignment<T>(
+  candidates: readonly {
+    readonly item: T;
+    readonly names: readonly string[];
+    readonly secondaryKey: string | null;
+  }[],
+  maxCount: number,
+  usedNames: ReadonlySet<string>,
+  usedSecondaryKeys: ReadonlySet<string>
+): readonly DifferentNamedCardMatch<T>[] {
+  if (maxCount === 0 || candidates.length === 0) {
+    return [];
+  }
+
+  let best: readonly DifferentNamedCardMatch<T>[] = [];
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index]!;
+    if (candidate.secondaryKey !== null && usedSecondaryKeys.has(candidate.secondaryKey)) {
+      continue;
+    }
+    for (const name of candidate.names) {
+      const normalizedName = normalizeCardName(name);
+      if (!normalizedName || usedNames.has(normalizedName)) {
+        continue;
+      }
+      const nextUsedNames = new Set(usedNames);
+      nextUsedNames.add(normalizedName);
+      const nextUsedSecondaryKeys = new Set(usedSecondaryKeys);
+      if (candidate.secondaryKey !== null) {
+        nextUsedSecondaryKeys.add(candidate.secondaryKey);
+      }
+      const rest = findDifferentNameAssignment(
+        candidates.slice(index + 1),
+        maxCount - 1,
+        nextUsedNames,
+        nextUsedSecondaryKeys
+      );
+      const match = { item: candidate.item, name, normalizedName };
+      if (rest.length === maxCount - 1) {
+        return [match, ...rest];
+      }
+      const selected = [match, ...rest];
+      if (selected.length > best.length) {
+        best = selected;
+      }
+    }
+  }
+
+  return best;
 }
