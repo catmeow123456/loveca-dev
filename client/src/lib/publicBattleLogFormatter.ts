@@ -21,6 +21,29 @@ export interface PublicBattleLogCardGroupView {
   readonly cards: readonly PublicBattleLogCardView[];
 }
 
+export interface PublicBattleLogEffectSummaryView {
+  readonly kind:
+    | 'SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM'
+    | 'DISCARD_LOOK_TOP_SELECT_TO_HAND'
+    | 'ARRANGE_INSPECTED_DECK_TOP';
+  readonly summaryStatus: 'STARTED' | 'COMPLETED';
+  readonly sourceCard: PublicBattleLogCardView | null;
+  readonly sourceActionLabel: '登场' | '离场' | '起动' | 'LIVE成功';
+  readonly sourceOrientationCost: 'WAITING' | null;
+  readonly recoveredCards: readonly PublicBattleLogCardView[];
+  readonly hiddenRecoveredCardCount: number;
+  readonly noRecoveredCards: boolean;
+  readonly discardedCostCards: readonly PublicBattleLogCardView[];
+  readonly hiddenDiscardedCostCardCount: number;
+  readonly inspectSourceZone: string | null;
+  readonly requestedInspectCount: number | null;
+  readonly actualInspectedCount: number | null;
+  readonly selectedCards: readonly PublicBattleLogCardView[];
+  readonly hiddenSelectedCardCount: number;
+  readonly noSelectedCards: boolean;
+  readonly waitingRoomCardCount: number | null;
+}
+
 export interface PublicBattleLogEventView {
   readonly id: string;
   readonly eventIds: readonly string[];
@@ -36,6 +59,7 @@ export interface PublicBattleLogEventView {
   readonly cards: readonly PublicBattleLogCardView[];
   readonly cardGroups: readonly PublicBattleLogCardGroupView[];
   readonly hiddenCardCount: number;
+  readonly effectSummary?: PublicBattleLogEffectSummaryView;
 }
 
 interface PublicBattleLogFormatterOptions {
@@ -45,6 +69,10 @@ interface PublicBattleLogFormatterOptions {
 }
 
 export function isKeyPublicBattleLogEvent(event: PublicEvent): boolean {
+  if (event.type === 'CardEffectSummary') {
+    return true;
+  }
+
   if (event.type === 'CardMovedPublic') {
     return !isHiddenDeckToInspectionMove(event);
   }
@@ -70,7 +98,11 @@ export function formatPublicBattleLogEvents(
 ): readonly PublicBattleLogEventView[] {
   const filter = options.filter ?? 'ALL';
   const sortedEvents = [...events].sort((left, right) => left.seq - right.seq);
-  const skippedIndexes = findDuplicateRevealMoveIndexes(sortedEvents);
+  const skippedIndexes = new Set<number>([
+    ...findDuplicateRevealMoveIndexes(sortedEvents),
+    ...(filter === 'KEY' ? findSupersededStartedSummaryIndexes(sortedEvents) : []),
+    ...(filter === 'KEY' ? findCardEffectSummaryMoveIndexes(sortedEvents) : []),
+  ]);
   const items: PublicBattleLogEventView[] = [];
 
   for (let index = 0; index < sortedEvents.length; index += 1) {
@@ -123,6 +155,14 @@ function getEventCards(event: PublicEvent): readonly PublicCardInfo[] {
   }
   if (event.type === 'CardRevealed' || event.type === 'CardRevealedAndMoved') {
     return [event.card];
+  }
+  if (event.type === 'CardEffectSummary') {
+    return [
+      event.sourceCard,
+      ...event.recoveredCards,
+      ...(event.discardedCostCards ?? []),
+      ...(event.selectedCards ?? []),
+    ].filter((card): card is PublicCardInfo => Boolean(card));
   }
   return [];
 }
@@ -400,6 +440,88 @@ function buildSingleEventView(
         hiddenCardCount: 0,
         actorSeat: event.ownerSeat,
       });
+    case 'CardEffectSummary': {
+      const sourceCard = event.sourceCard
+        ? formatPublicCard(event.sourceCard, options.getCardData)
+        : null;
+      const recoveredCards = event.recoveredCards.map((card) =>
+        formatPublicCard(card, options.getCardData)
+      );
+      const discardedCostCards = (event.discardedCostCards ?? []).map((card) =>
+        formatPublicCard(card, options.getCardData)
+      );
+      const selectedCards = (event.selectedCards ?? []).map((card) =>
+        formatPublicCard(card, options.getCardData)
+      );
+      const hiddenDiscardedCostCardCount = event.hiddenDiscardedCostCardCount ?? 0;
+      const hiddenSelectedCardCount = event.hiddenSelectedCardCount ?? 0;
+      const recoveredCount = recoveredCards.length + event.hiddenRecoveredCardCount;
+      const selectedCount = selectedCards.length + hiddenSelectedCardCount;
+      const detail =
+        event.effectKind === 'DISCARD_LOOK_TOP_SELECT_TO_HAND'
+          ? formatDiscardLookTopSelectSummaryDetail({
+              summaryStatus: event.summaryStatus,
+              actualInspectedCount: event.actualInspectedCount ?? null,
+              requestedInspectCount: event.requestedInspectCount ?? null,
+              selectedCount,
+              noSelectedCards: event.noSelectedCards === true,
+              waitingRoomCardCount: event.waitingRoomCardCount ?? null,
+            })
+          : event.effectKind === 'ARRANGE_INSPECTED_DECK_TOP'
+            ? formatArrangeInspectedDeckTopSummaryDetail({
+                summaryStatus: event.summaryStatus,
+                actualInspectedCount: event.actualInspectedCount ?? null,
+                requestedInspectCount: event.requestedInspectCount ?? null,
+                topDeckCount: selectedCount,
+                noTopDeckCards: event.noSelectedCards === true,
+                waitingRoomCardCount: event.waitingRoomCardCount ?? null,
+              })
+            : event.noRecoveredCards
+              ? '未回收卡牌'
+              : recoveredCount > 0
+                ? `回收 ${recoveredCount} 张卡`
+                : null;
+
+      return buildView({
+        events: [event],
+        options,
+        type: event.type,
+        keyEvent: true,
+        title: formatActionTitle(event, getCardEffectSummarySourceActionLabel(event), {
+          subjectSeat: actorSeat,
+          options,
+        }),
+        detail,
+        cards,
+        hiddenCardCount:
+          event.hiddenRecoveredCardCount +
+          hiddenDiscardedCostCardCount +
+          (event.effectKind === 'DISCARD_LOOK_TOP_SELECT_TO_HAND' ||
+          event.effectKind === 'ARRANGE_INSPECTED_DECK_TOP'
+            ? 0
+            : hiddenSelectedCardCount),
+        actorSeat,
+        effectSummary: {
+          kind: event.effectKind,
+          summaryStatus: event.summaryStatus,
+          sourceCard,
+          sourceActionLabel: getCardEffectSummarySourceActionLabel(event),
+          sourceOrientationCost: event.sourceOrientationCost ?? null,
+          recoveredCards,
+          hiddenRecoveredCardCount: event.hiddenRecoveredCardCount,
+          noRecoveredCards: event.noRecoveredCards,
+          discardedCostCards,
+          hiddenDiscardedCostCardCount,
+          inspectSourceZone: event.inspectSourceZone ?? null,
+          requestedInspectCount: event.requestedInspectCount ?? null,
+          actualInspectedCount: event.actualInspectedCount ?? null,
+          selectedCards,
+          hiddenSelectedCardCount,
+          noSelectedCards: event.noSelectedCards === true,
+          waitingRoomCardCount: event.waitingRoomCardCount ?? null,
+        },
+      });
+    }
     case 'PhaseStarted':
       return buildView({
         events: [event],
@@ -457,6 +579,15 @@ function buildSingleEventView(
   }
 }
 
+function getCardEffectSummarySourceActionLabel(
+  event: Extract<PublicEvent, { type: 'CardEffectSummary' }>
+): '登场' | '离场' | '起动' | 'LIVE成功' {
+  if (event.sourceActionLabel) {
+    return event.sourceActionLabel;
+  }
+  return event.effectKind === 'DISCARD_LOOK_TOP_SELECT_TO_HAND' ? '登场' : '起动';
+}
+
 function buildView(input: {
   readonly events: readonly PublicEvent[];
   readonly options: PublicBattleLogFormatterOptions;
@@ -467,6 +598,7 @@ function buildView(input: {
   readonly cards: readonly PublicBattleLogCardView[];
   readonly hiddenCardCount: number;
   readonly actorSeat?: Seat;
+  readonly effectSummary?: PublicBattleLogEffectSummaryView;
 }): PublicBattleLogEventView {
   const eventIds = input.events.map((event) => event.eventId);
   const seqs = input.events.map((event) => event.seq);
@@ -489,6 +621,7 @@ function buildView(input: {
     cards: input.cards,
     cardGroups: groupCardsByCode(input.cards),
     hiddenCardCount: input.hiddenCardCount,
+    ...(input.effectSummary ? { effectSummary: input.effectSummary } : {}),
   };
 }
 
@@ -513,6 +646,466 @@ function findDuplicateRevealMoveIndexes(events: readonly PublicEvent[]): Set<num
   }
 
   return skippedIndexes;
+}
+
+function findSupersededStartedSummaryIndexes(events: readonly PublicEvent[]): Set<number> {
+  const skippedIndexes = new Set<number>();
+  const completedSummaries = events.filter(
+    (event): event is Extract<PublicEvent, { type: 'CardEffectSummary' }> =>
+      event.type === 'CardEffectSummary' &&
+      isInspectionEffectSummary(event) &&
+      event.summaryStatus === 'COMPLETED'
+  );
+
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index]!;
+    if (
+      event.type !== 'CardEffectSummary' ||
+      !isInspectionEffectSummary(event) ||
+      event.summaryStatus !== 'STARTED'
+    ) {
+      continue;
+    }
+    if (
+      completedSummaries.some(
+        (summary) =>
+          summary.seq > event.seq &&
+          summary.seq - event.seq <= 96 &&
+          isSameInspectionSummaryThread(event, summary)
+      )
+    ) {
+      skippedIndexes.add(index);
+    }
+  }
+
+  return skippedIndexes;
+}
+
+function findCardEffectSummaryMoveIndexes(events: readonly PublicEvent[]): Set<number> {
+  const skippedIndexes = new Set<number>();
+  const summaries = events.filter(
+    (event): event is Extract<PublicEvent, { type: 'CardEffectSummary' }> =>
+      event.type === 'CardEffectSummary'
+  );
+
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index]!;
+    if (summaries.some((summary) => shouldHideEventForCardEffectSummary(event, summary, events))) {
+      skippedIndexes.add(index);
+    }
+  }
+
+  return skippedIndexes;
+}
+
+function shouldHideEventForCardEffectSummary(
+  event: PublicEvent,
+  summary: Extract<PublicEvent, { type: 'CardEffectSummary' }>,
+  events: readonly PublicEvent[]
+): boolean {
+  if (event.actorSeat !== summary.actorSeat) {
+    return false;
+  }
+
+  if (summary.effectKind === 'DISCARD_LOOK_TOP_SELECT_TO_HAND') {
+    return shouldHideEventForDiscardLookTopSelectSummary(event, summary, events);
+  }
+
+  if (summary.effectKind === 'ARRANGE_INSPECTED_DECK_TOP') {
+    return shouldHideEventForArrangeInspectedDeckTopSummary(event, summary, events);
+  }
+
+  if (event.type !== 'CardMovedPublic' || !event.card) {
+    return false;
+  }
+
+  if (
+    summary.sourceCard?.publicObjectId === event.card.publicObjectId &&
+    isSelfSacrificeSummarySourceMove(event)
+  ) {
+    return event.seq < summary.seq && summary.seq - event.seq <= 8;
+  }
+
+  if (
+    summary.recoveredCards.some((card) => card.publicObjectId === event.card?.publicObjectId) &&
+    isSelfSacrificeSummaryRecoveryMove(event)
+  ) {
+    return event.seq > summary.seq && event.seq - summary.seq <= 8;
+  }
+
+  return false;
+}
+
+function shouldHideEventForDiscardLookTopSelectSummary(
+  event: PublicEvent,
+  summary: Extract<PublicEvent, { type: 'CardEffectSummary' }>,
+  events: readonly PublicEvent[]
+): boolean {
+  if (event.seq === summary.seq) {
+    return false;
+  }
+
+  const isStarted = summary.summaryStatus === 'STARTED';
+  const isCompleted = summary.summaryStatus === 'COMPLETED';
+  const isNearbyBeforeSummary = event.seq < summary.seq && summary.seq - event.seq <= 32;
+  const isNearbyAfterSummary = event.seq > summary.seq && event.seq - summary.seq <= 32;
+
+  if (event.type === 'CardsInspectedSummary') {
+    return isStarted
+      ? isNearbyAfterSummary && isWithinInspectionSummaryBudget(event, summary, events, 'AFTER')
+      : isCompleted &&
+          isNearbyBeforeSummary &&
+          isWithinInspectionSummaryBudget(event, summary, events, 'BEFORE');
+  }
+
+  if (event.type !== 'CardMovedPublic') {
+    return false;
+  }
+
+  if (isDiscardLookTopCostMove(event, summary)) {
+    return isStarted ? isNearbyAfterSummary : isCompleted && isNearbyBeforeSummary;
+  }
+
+  if (
+    !event.card &&
+    (event.from?.zone === ZoneType.MAIN_DECK || event.from?.zone === ZoneType.ENERGY_DECK) &&
+    event.to?.zone === ZoneType.INSPECTION_ZONE
+  ) {
+    return isStarted
+      ? isNearbyAfterSummary && isWithinHiddenInspectionMoveBudget(event, summary, events, 'AFTER')
+      : isCompleted &&
+          isNearbyBeforeSummary &&
+          isWithinHiddenInspectionMoveBudget(event, summary, events, 'BEFORE');
+  }
+
+  if (isInspectionResultMove(event)) {
+    return (
+      isCompleted &&
+      isNearbyAfterSummary &&
+      isDiscardLookTopInspectionResultMove(event, summary, events)
+    );
+  }
+
+  return false;
+}
+
+function shouldHideEventForArrangeInspectedDeckTopSummary(
+  event: PublicEvent,
+  summary: Extract<PublicEvent, { type: 'CardEffectSummary' }>,
+  events: readonly PublicEvent[]
+): boolean {
+  if (event.seq === summary.seq) {
+    return false;
+  }
+
+  const isStarted = summary.summaryStatus === 'STARTED';
+  const isCompleted = summary.summaryStatus === 'COMPLETED';
+  const isNearbyBeforeSummary = event.seq < summary.seq && summary.seq - event.seq <= 32;
+  const isNearbyAfterSummary = event.seq > summary.seq && event.seq - summary.seq <= 32;
+
+  if (event.type === 'CardsInspectedSummary') {
+    return isStarted
+      ? isNearbyAfterSummary && isWithinInspectionSummaryBudget(event, summary, events, 'AFTER')
+      : isCompleted &&
+          isNearbyBeforeSummary &&
+          isWithinInspectionSummaryBudget(event, summary, events, 'BEFORE');
+  }
+
+  if (event.type !== 'CardMovedPublic') {
+    return false;
+  }
+
+  if (
+    !event.card &&
+    (event.from?.zone === ZoneType.MAIN_DECK || event.from?.zone === ZoneType.ENERGY_DECK) &&
+    event.to?.zone === ZoneType.INSPECTION_ZONE
+  ) {
+    return isStarted
+      ? isNearbyAfterSummary && isWithinHiddenInspectionMoveBudget(event, summary, events, 'AFTER')
+      : isCompleted &&
+          isNearbyBeforeSummary &&
+          isWithinHiddenInspectionMoveBudget(event, summary, events, 'BEFORE');
+  }
+
+  if (
+    event.from?.zone !== ZoneType.INSPECTION_ZONE ||
+    !isCompleted ||
+    !isNearbyAfterSummary
+  ) {
+    return false;
+  }
+
+  if (
+    event.to?.zone === ZoneType.MAIN_DECK &&
+    isWithinInspectionResultMainDeckBudget(event, summary, events)
+  ) {
+    return true;
+  }
+
+  return (
+    event.to?.zone === ZoneType.WAITING_ROOM &&
+    isWithinInspectionResultWaitingRoomBudget(event, summary, events)
+  );
+}
+
+function isInspectionEffectSummary(
+  event: Extract<PublicEvent, { type: 'CardEffectSummary' }>
+): boolean {
+  return (
+    event.effectKind === 'DISCARD_LOOK_TOP_SELECT_TO_HAND' ||
+    event.effectKind === 'ARRANGE_INSPECTED_DECK_TOP'
+  );
+}
+
+function isSameInspectionSummaryThread(
+  left: Extract<PublicEvent, { type: 'CardEffectSummary' }>,
+  right: Extract<PublicEvent, { type: 'CardEffectSummary' }>
+): boolean {
+  return (
+    left.actorSeat === right.actorSeat &&
+    left.abilityId === right.abilityId &&
+    left.sourceCard?.publicObjectId === right.sourceCard?.publicObjectId &&
+    left.discardedCostCards?.map((card) => card.publicObjectId).join(',') ===
+      right.discardedCostCards?.map((card) => card.publicObjectId).join(',') &&
+    (left.hiddenDiscardedCostCardCount ?? 0) === (right.hiddenDiscardedCostCardCount ?? 0)
+  );
+}
+
+function isWithinInspectionSummaryBudget(
+  event: Extract<PublicEvent, { type: 'CardsInspectedSummary' }>,
+  summary: Extract<PublicEvent, { type: 'CardEffectSummary' }>,
+  events: readonly PublicEvent[],
+  direction: 'BEFORE' | 'AFTER'
+): boolean {
+  const actualInspectedCount = summary.actualInspectedCount;
+  if (actualInspectedCount === undefined) {
+    return true;
+  }
+  let inspectedCount = 0;
+  for (const candidate of getInspectionCandidatesInSummaryDirection(events, summary, direction)) {
+    if (candidate.type !== 'CardsInspectedSummary') {
+      continue;
+    }
+    if (
+      candidate.actorSeat !== summary.actorSeat ||
+      candidate.sourceZone !== (summary.inspectSourceZone ?? ZoneType.MAIN_DECK)
+    ) {
+      continue;
+    }
+    inspectedCount += candidate.count;
+    if (candidate.eventId === event.eventId) {
+      return inspectedCount <= actualInspectedCount;
+    }
+    if (inspectedCount >= actualInspectedCount) {
+      return false;
+    }
+  }
+  return false;
+}
+
+function isWithinHiddenInspectionMoveBudget(
+  event: Extract<PublicEvent, { type: 'CardMovedPublic' }>,
+  summary: Extract<PublicEvent, { type: 'CardEffectSummary' }>,
+  events: readonly PublicEvent[],
+  direction: 'BEFORE' | 'AFTER'
+): boolean {
+  const actualInspectedCount = summary.actualInspectedCount;
+  if (actualInspectedCount === undefined) {
+    return event.from?.zone === (summary.inspectSourceZone ?? ZoneType.MAIN_DECK);
+  }
+  let inspectedCount = 0;
+  for (const candidate of getInspectionCandidatesInSummaryDirection(events, summary, direction)) {
+    if (!isHiddenDeckToInspectionMove(candidate)) {
+      continue;
+    }
+    if (
+      candidate.actorSeat !== summary.actorSeat ||
+      candidate.from?.zone !== (summary.inspectSourceZone ?? ZoneType.MAIN_DECK)
+    ) {
+      continue;
+    }
+    inspectedCount += getPublicEventCardCount(candidate);
+    if (candidate.eventId === event.eventId) {
+      return inspectedCount <= actualInspectedCount;
+    }
+    if (inspectedCount >= actualInspectedCount) {
+      return false;
+    }
+  }
+  return false;
+}
+
+function getInspectionCandidatesInSummaryDirection(
+  events: readonly PublicEvent[],
+  summary: Extract<PublicEvent, { type: 'CardEffectSummary' }>,
+  direction: 'BEFORE' | 'AFTER'
+): readonly PublicEvent[] {
+  const candidates = events.filter((event) =>
+    direction === 'BEFORE'
+      ? event.seq < summary.seq && summary.seq - event.seq <= 32
+      : event.seq > summary.seq && event.seq - summary.seq <= 32
+  );
+  return direction === 'BEFORE'
+    ? [...candidates].sort((left, right) => right.seq - left.seq)
+    : [...candidates].sort((left, right) => left.seq - right.seq);
+}
+
+function isDiscardLookTopInspectionResultMove(
+  event: Extract<PublicEvent, { type: 'CardMovedPublic' }>,
+  summary: Extract<PublicEvent, { type: 'CardEffectSummary' }>,
+  events: readonly PublicEvent[]
+): boolean {
+  const toZone = event.to?.zone;
+  if (
+    toZone === ZoneType.HAND &&
+    event.card &&
+    summary.selectedCards?.some((card) => card.publicObjectId === event.card?.publicObjectId)
+  ) {
+    return true;
+  }
+  if (
+    toZone === ZoneType.HAND &&
+    event.from?.zone === ZoneType.INSPECTION_ZONE &&
+    !event.card &&
+    isWithinInspectionResultHandBudget(event, summary, events)
+  ) {
+    return true;
+  }
+  return (
+    toZone === ZoneType.WAITING_ROOM &&
+    event.from?.zone === ZoneType.INSPECTION_ZONE &&
+    isWithinInspectionResultWaitingRoomBudget(event, summary, events)
+  );
+}
+
+function isWithinInspectionResultHandBudget(
+  event: Extract<PublicEvent, { type: 'CardMovedPublic' }>,
+  summary: Extract<PublicEvent, { type: 'CardEffectSummary' }>,
+  events: readonly PublicEvent[]
+): boolean {
+  const selectedCount =
+    (summary.selectedCards?.length ?? 0) + (summary.hiddenSelectedCardCount ?? 0);
+  if (selectedCount <= 0) {
+    return false;
+  }
+  let movedCount = 0;
+  for (const candidate of events
+    .filter(
+      (candidate) =>
+        candidate.seq > summary.seq &&
+        candidate.seq - summary.seq <= 32 &&
+        candidate.type === 'CardMovedPublic' &&
+        candidate.actorSeat === summary.actorSeat &&
+        candidate.from?.zone === ZoneType.INSPECTION_ZONE &&
+        candidate.to?.zone === ZoneType.HAND
+    )
+    .sort((left, right) => left.seq - right.seq)) {
+    movedCount += getPublicEventCardCount(candidate);
+    if (candidate.eventId === event.eventId) {
+      return movedCount <= selectedCount;
+    }
+    if (movedCount >= selectedCount) {
+      return false;
+    }
+  }
+  return false;
+}
+
+function isWithinInspectionResultMainDeckBudget(
+  event: Extract<PublicEvent, { type: 'CardMovedPublic' }>,
+  summary: Extract<PublicEvent, { type: 'CardEffectSummary' }>,
+  events: readonly PublicEvent[]
+): boolean {
+  const topDeckCount =
+    (summary.selectedCards?.length ?? 0) + (summary.hiddenSelectedCardCount ?? 0);
+  if (topDeckCount <= 0) {
+    return false;
+  }
+  let movedCount = 0;
+  for (const candidate of events
+    .filter(
+      (candidate) =>
+        candidate.seq > summary.seq &&
+        candidate.seq - summary.seq <= 32 &&
+        candidate.type === 'CardMovedPublic' &&
+        candidate.actorSeat === summary.actorSeat &&
+        candidate.from?.zone === ZoneType.INSPECTION_ZONE &&
+        candidate.to?.zone === ZoneType.MAIN_DECK
+    )
+    .sort((left, right) => left.seq - right.seq)) {
+    movedCount += getPublicEventCardCount(candidate);
+    if (candidate.eventId === event.eventId) {
+      return movedCount <= topDeckCount;
+    }
+    if (movedCount >= topDeckCount) {
+      return false;
+    }
+  }
+  return false;
+}
+
+function isWithinInspectionResultWaitingRoomBudget(
+  event: Extract<PublicEvent, { type: 'CardMovedPublic' }>,
+  summary: Extract<PublicEvent, { type: 'CardEffectSummary' }>,
+  events: readonly PublicEvent[]
+): boolean {
+  const waitingRoomCardCount = summary.waitingRoomCardCount;
+  if (waitingRoomCardCount === undefined) {
+    return true;
+  }
+  let movedCount = 0;
+  for (const candidate of events
+    .filter(
+      (candidate) =>
+        candidate.seq > summary.seq &&
+        candidate.seq - summary.seq <= 32 &&
+        candidate.type === 'CardMovedPublic' &&
+        candidate.actorSeat === summary.actorSeat &&
+        candidate.from?.zone === ZoneType.INSPECTION_ZONE &&
+        candidate.to?.zone === ZoneType.WAITING_ROOM
+    )
+    .sort((left, right) => left.seq - right.seq)) {
+    movedCount += getPublicEventCardCount(candidate);
+    if (candidate.eventId === event.eventId) {
+      return movedCount <= waitingRoomCardCount;
+    }
+    if (movedCount >= waitingRoomCardCount) {
+      return false;
+    }
+  }
+  return false;
+}
+
+function isDiscardLookTopCostMove(
+  event: Extract<PublicEvent, { type: 'CardMovedPublic' }>,
+  summary: Extract<PublicEvent, { type: 'CardEffectSummary' }>
+): boolean {
+  return (
+    event.from?.zone === ZoneType.HAND &&
+    event.to?.zone === ZoneType.WAITING_ROOM &&
+    Boolean(
+      event.card &&
+        summary.discardedCostCards?.some(
+          (card) => card.publicObjectId === event.card?.publicObjectId
+        )
+    )
+  );
+}
+
+function isSelfSacrificeSummarySourceMove(event: PublicEvent): boolean {
+  return (
+    event.type === 'CardMovedPublic' &&
+    event.from?.zone === ZoneType.MEMBER_SLOT &&
+    event.to?.zone === ZoneType.WAITING_ROOM
+  );
+}
+
+function isSelfSacrificeSummaryRecoveryMove(event: PublicEvent): boolean {
+  return (
+    event.type === 'CardMovedPublic' &&
+    event.from?.zone === ZoneType.WAITING_ROOM &&
+    event.to?.zone === ZoneType.HAND
+  );
 }
 
 function formatEventCards(
@@ -568,6 +1161,16 @@ function getPublicEventCardCount(event: PublicEvent): number {
   }
   if (event.type === 'DeckRefreshed') {
     return event.movedCount;
+  }
+  if (event.type === 'CardEffectSummary') {
+    return (
+      event.recoveredCards.length +
+      event.hiddenRecoveredCardCount +
+      (event.discardedCostCards?.length ?? 0) +
+      (event.hiddenDiscardedCostCardCount ?? 0) +
+      (event.selectedCards?.length ?? 0) +
+      (event.hiddenSelectedCardCount ?? 0)
+    );
   }
   return 0;
 }
@@ -654,6 +1257,66 @@ function formatInspectionAction(sourceZone: string | undefined, count: number): 
     return `检视卡组顶 ${count} 张`;
   }
   return `检视${formatZoneName(sourceZone)} ${count} 张`;
+}
+
+function formatDiscardLookTopSelectSummaryDetail(input: {
+  readonly summaryStatus: 'STARTED' | 'COMPLETED';
+  readonly requestedInspectCount: number | null;
+  readonly actualInspectedCount: number | null;
+  readonly selectedCount: number;
+  readonly noSelectedCards: boolean;
+  readonly waitingRoomCardCount: number | null;
+}): string {
+  const inspectCount = input.requestedInspectCount ?? input.actualInspectedCount;
+  const parts: string[] = [];
+  if (inspectCount !== null) {
+    parts.push(`检视卡组顶 ${inspectCount} 张`);
+  }
+  if (input.summaryStatus === 'STARTED') {
+    parts.push('处理中');
+  } else if (input.noSelectedCards || input.selectedCount === 0) {
+    parts.push('未加入');
+  } else {
+    parts.push(`加入 ${input.selectedCount} 张卡`);
+  }
+  if (
+    input.summaryStatus === 'COMPLETED' &&
+    input.waitingRoomCardCount !== null &&
+    input.waitingRoomCardCount > 0
+  ) {
+    parts.push(`余下 ${input.waitingRoomCardCount} 张放置入休息室`);
+  }
+  return parts.join('，');
+}
+
+function formatArrangeInspectedDeckTopSummaryDetail(input: {
+  readonly summaryStatus: 'STARTED' | 'COMPLETED';
+  readonly requestedInspectCount: number | null;
+  readonly actualInspectedCount: number | null;
+  readonly topDeckCount: number;
+  readonly noTopDeckCards: boolean;
+  readonly waitingRoomCardCount: number | null;
+}): string {
+  const inspectCount = input.actualInspectedCount ?? input.requestedInspectCount;
+  const parts: string[] = [];
+  if (inspectCount !== null) {
+    parts.push(`检视卡组顶 ${inspectCount} 张`);
+  }
+  if (input.summaryStatus === 'STARTED') {
+    parts.push('排序中');
+  } else if (input.topDeckCount > 0) {
+    parts.push(`按顺序放回卡组顶 ${input.topDeckCount} 张`);
+  } else if (input.noTopDeckCards) {
+    parts.push('未放回卡组顶');
+  }
+  if (
+    input.summaryStatus === 'COMPLETED' &&
+    input.waitingRoomCardCount !== null &&
+    input.waitingRoomCardCount > 0
+  ) {
+    parts.push(`余下 ${input.waitingRoomCardCount} 张放置入休息室`);
+  }
+  return parts.join('，');
 }
 
 function formatSingleInspectionResultAction(event: PublicEvent, count: number): string {
@@ -825,7 +1488,8 @@ function isHardGroupingBoundary(event: PublicEvent): boolean {
     event.type === 'SubPhaseStarted' ||
     event.type === 'WindowStatusChanged' ||
     event.type === 'PlayerDeclared' ||
-    event.type === 'DeckRefreshed'
+    event.type === 'DeckRefreshed' ||
+    event.type === 'CardEffectSummary'
   );
 }
 

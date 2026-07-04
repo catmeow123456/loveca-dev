@@ -1,6 +1,7 @@
 import type { GameState } from '../../domain/entities/game.js';
 import { getPlayerById, updatePlayer } from '../../domain/entities/game.js';
 import { addCardToZone } from '../../domain/entities/zone.js';
+import { applyPendingRefreshForPlayer } from './refresh.js';
 
 export interface DrawCardsResult {
   readonly gameState: GameState;
@@ -12,30 +13,39 @@ export function drawCardsFromMainDeckToHand(
   playerId: string,
   count: number
 ): DrawCardsResult | null {
-  const player = getPlayerById(game, playerId);
-  if (!player || count <= 0) {
+  if (count <= 0) {
     return null;
   }
 
-  const drawnCardIds = player.mainDeck.cardIds.slice(0, count);
-  if (drawnCardIds.length === 0) {
-    return {
-      gameState: game,
-      drawnCardIds: [],
-    };
+  let state = game;
+  const drawnCardIds: string[] = [];
+
+  while (drawnCardIds.length < count) {
+    state = applyPendingRefreshForPlayer(state, playerId);
+
+    const player = getPlayerById(state, playerId);
+    if (!player) {
+      return null;
+    }
+    const cardId = player.mainDeck.cardIds[0];
+    if (!cardId) {
+      break;
+    }
+
+    state = updatePlayer(state, playerId, (currentPlayer) => ({
+      ...currentPlayer,
+      mainDeck: {
+        ...currentPlayer.mainDeck,
+        cardIds: currentPlayer.mainDeck.cardIds.slice(1),
+      },
+      hand: addCardToZone(currentPlayer.hand, cardId),
+    }));
+    drawnCardIds.push(cardId);
+    state = applyPendingRefreshForPlayer(state, playerId);
   }
 
-  const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
-    ...currentPlayer,
-    mainDeck: {
-      ...currentPlayer.mainDeck,
-      cardIds: currentPlayer.mainDeck.cardIds.slice(drawnCardIds.length),
-    },
-    hand: drawnCardIds.reduce((hand, cardId) => addCardToZone(hand, cardId), currentPlayer.hand),
-  }));
-
   return {
-    gameState,
+    gameState: state,
     drawnCardIds,
   };
 }

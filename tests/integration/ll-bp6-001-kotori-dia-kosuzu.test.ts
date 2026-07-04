@@ -125,6 +125,20 @@ function enterWaitingRoomEvents(game: GameState): readonly {
   }[];
 }
 
+function publicEffectSummaryPayload(
+  game: GameState,
+  summaryStatus: 'STARTED' | 'COMPLETED'
+): Record<string, unknown> | undefined {
+  return game.actionHistory
+    .map((action) => action.payload.publicEffectSummary)
+    .find(
+      (summary): summary is Record<string, unknown> =>
+        typeof summary === 'object' &&
+        summary !== null &&
+        summary.summaryStatus === summaryStatus
+    );
+}
+
 describe('LL-bp6-001 Kotori & Dia & Kosuzu workflow', () => {
   it('LL-bp6-001 on-enter looks top six, takes two, and sends the rest to waiting room with events', () => {
     const source = createCardInstance(
@@ -154,6 +168,17 @@ describe('LL-bp6-001 Kotori & Dia & Kosuzu workflow', () => {
 
     let resolved = resolvePendingCardEffects(game).gameState;
     expect(resolved.activeEffect?.inspectionCardIds).toEqual(deckCards.map((card) => card.instanceId));
+    const startedSummary = publicEffectSummaryPayload(resolved, 'STARTED');
+    expect(startedSummary).toMatchObject({
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      summaryStatus: 'STARTED',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 6,
+      actualInspectedCount: 6,
+    });
+    expect(startedSummary?.discardedCostCardIds).toBeUndefined();
+    expect(startedSummary?.sourceOrientationCost).toBeUndefined();
     resolved = confirmActiveEffectStep(
       resolved,
       PLAYER1,
@@ -178,6 +203,19 @@ describe('LL-bp6-001 Kotori & Dia & Kosuzu workflow', () => {
       fromZone: ZoneType.MAIN_DECK,
       cardInstanceIds: player.waitingRoom.cardIds,
     });
+    const completedSummary = publicEffectSummaryPayload(resolved, 'COMPLETED');
+    expect(completedSummary).toMatchObject({
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      summaryStatus: 'COMPLETED',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 6,
+      actualInspectedCount: 6,
+      selectedCardIds: [deckCards[1]!.instanceId, deckCards[4]!.instanceId],
+      waitingRoomCardIds: player.waitingRoom.cardIds,
+    });
+    expect(completedSummary?.discardedCostCardIds).toBeUndefined();
+    expect(completedSummary?.sourceOrientationCost).toBeUndefined();
   });
 
   it('LL-bp6-001 on-enter clamps exact two selection for a short deck', () => {

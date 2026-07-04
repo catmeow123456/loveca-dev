@@ -438,6 +438,36 @@ export interface DeckRefreshedPublicEvent extends BasePublicEvent {
   readonly mainDeckCountAfter: number;
 }
 
+export type CardEffectSummaryKind =
+  | 'SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM'
+  | 'DISCARD_LOOK_TOP_SELECT_TO_HAND'
+  | 'ARRANGE_INSPECTED_DECK_TOP';
+export type CardEffectSummaryStatus = 'STARTED' | 'COMPLETED';
+export type CardEffectSummarySourceActionLabel = '登场' | '离场' | '起动' | 'LIVE成功';
+
+export interface CardEffectSummaryPublicEvent extends BasePublicEvent {
+  readonly type: 'CardEffectSummary';
+  readonly abilityId: string;
+  readonly effectKind: CardEffectSummaryKind;
+  readonly summaryStatus: CardEffectSummaryStatus;
+  readonly sourceCard?: PublicCardInfo;
+  readonly sourceHidden?: boolean;
+  readonly sourceActionLabel?: CardEffectSummarySourceActionLabel;
+  readonly sourceOrientationCost?: 'WAITING';
+  readonly recoveredCards: readonly PublicCardInfo[];
+  readonly hiddenRecoveredCardCount: number;
+  readonly noRecoveredCards: boolean;
+  readonly discardedCostCards?: readonly PublicCardInfo[];
+  readonly hiddenDiscardedCostCardCount?: number;
+  readonly inspectSourceZone?: string;
+  readonly requestedInspectCount?: number;
+  readonly actualInspectedCount?: number;
+  readonly selectedCards?: readonly PublicCardInfo[];
+  readonly hiddenSelectedCardCount?: number;
+  readonly noSelectedCards?: boolean;
+  readonly waitingRoomCardCount?: number;
+}
+
 export type PublicEvent =
   | PhaseStartedPublicEvent
   | SubPhaseStartedPublicEvent
@@ -447,7 +477,8 @@ export type PublicEvent =
   | CardsInspectedSummaryPublicEvent
   | CardRevealedPublicEvent
   | CardRevealedAndMovedPublicEvent
-  | DeckRefreshedPublicEvent;
+  | DeckRefreshedPublicEvent
+  | CardEffectSummaryPublicEvent;
 
 export type PublicEventDraft =
   | Omit<PhaseStartedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
@@ -458,7 +489,8 @@ export type PublicEventDraft =
   | Omit<CardsInspectedSummaryPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<CardRevealedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
   | Omit<CardRevealedAndMovedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
-  | Omit<DeckRefreshedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>;
+  | Omit<DeckRefreshedPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>
+  | Omit<CardEffectSummaryPublicEvent, 'eventId' | 'matchId' | 'seq' | 'timestamp'>;
 
 export type PrivateEventDraft = Omit<
   PrivateEvent,

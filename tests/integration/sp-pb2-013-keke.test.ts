@@ -72,7 +72,7 @@ function setupState(options: {
   const energyCards = Array.from({ length: options.energyCount ?? 1 }, (_, index) =>
     createCardInstance(createEnergy(`energy-${index + 1}`), PLAYER1, `energy-${index + 1}`)
   );
-  const deckCards = Array.from({ length: options.deckCount ?? 1 }, (_, index) =>
+  const deckCards = Array.from({ length: options.deckCount ?? 2 }, (_, index) =>
     createCardInstance(
       createMember(`deck-${index + 1}`, 'CatChu!'),
       PLAYER1,

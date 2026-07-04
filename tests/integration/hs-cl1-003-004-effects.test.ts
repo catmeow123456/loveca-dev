@@ -366,21 +366,22 @@ describe('PL!HS-cl1-004-CL Ginko on-enter workflow', () => {
   });
 
   it('places actual top deck cards into waiting room and emits enter-waiting-room trigger events', () => {
-    const { state, deckCardIds } = setupGinkoOnEnter({ mainDeckCount: 3, opponentCost: 5 });
+    const { state, deckCardIds } = setupGinkoOnEnter({ mainDeckCount: 4, opponentCost: 5 });
+    const milledCardIds = deckCardIds.slice(0, 3);
 
     const resolved = confirmOption(state, 'mill-top-three');
 
     expect(resolved.activeEffect).toBeNull();
-    expect(resolved.players[0].waitingRoom.cardIds).toEqual(deckCardIds);
+    expect(resolved.players[0].waitingRoom.cardIds).toEqual(milledCardIds);
     expect(
       resolved.eventLog.find(
         (entry) =>
           entry.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
-          entry.event.cardInstanceId === deckCardIds[0]
+          entry.event.cardInstanceId === milledCardIds[0]
       )?.event
     ).toMatchObject({
       eventType: TriggerCondition.ON_ENTER_WAITING_ROOM,
-      cardInstanceIds: deckCardIds,
+      cardInstanceIds: milledCardIds,
       fromZone: ZoneType.MAIN_DECK,
       toZone: ZoneType.WAITING_ROOM,
       ownerId: PLAYER1,
@@ -390,7 +391,7 @@ describe('PL!HS-cl1-004-CL Ginko on-enter workflow', () => {
       latestPayload(resolved, HS_CL1_004_ON_ENTER_MILL_THREE_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID)
     ).toMatchObject({
       step: 'MILL_TOP_THREE_TO_WAITING_ROOM',
-      movedCardIds: deckCardIds,
+      movedCardIds: milledCardIds,
       movedCount: 3,
     });
   });

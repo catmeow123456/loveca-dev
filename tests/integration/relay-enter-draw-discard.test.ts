@@ -123,8 +123,19 @@ function setupRelayDrawDiscardScenario(options: {
       `p1-relay-draw-discard-draw-${index}`
     )
   );
+  const remainingDeckCard = createCardInstance(
+    createMemberCard('PL!N-test-remaining-deck', 'Remaining Deck'),
+    PLAYER1,
+    'p1-relay-draw-discard-remaining-deck'
+  );
 
-  const state = registerCards(session.state!, [source, replacement, ...handCards, ...drawCards]);
+  const state = registerCards(session.state!, [
+    source,
+    replacement,
+    ...handCards,
+    ...drawCards,
+    remainingDeckCard,
+  ]);
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
   const p1 = state.players[0] as unknown as {
@@ -139,7 +150,7 @@ function setupRelayDrawDiscardScenario(options: {
     };
   };
   p1.hand.cardIds = [source.instanceId, ...handCards.map((card) => card.instanceId)];
-  p1.mainDeck.cardIds = drawCards.map((card) => card.instanceId);
+  p1.mainDeck.cardIds = [...drawCards.map((card) => card.instanceId), remainingDeckCard.instanceId];
   p1.waitingRoom.cardIds = [];
   p1.successZone.cardIds = [];
   p1.liveZone.cardIds = [];

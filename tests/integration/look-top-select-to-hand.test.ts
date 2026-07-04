@@ -137,6 +137,7 @@ describe('look top select to hand shared workflow', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = preparedState;
 
+    const beforeSeq = session.getCurrentPublicEventSeq();
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -169,6 +170,21 @@ describe('look top select to hand shared workflow', () => {
     expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topFiveCardIds);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual(selectableLiveCardIds);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([source.instanceId]);
+    const startedSummary = session
+      .getPublicEventsSince(beforeSeq)
+      .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'STARTED');
+    expect(startedSummary?.type).toBe('CardEffectSummary');
+    if (startedSummary?.type === 'CardEffectSummary') {
+      expect(startedSummary.abilityId).toBe(HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID);
+      expect(startedSummary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
+      expect(startedSummary.sourceActionLabel).toBe('离场');
+      expect(startedSummary.sourceOrientationCost).toBeUndefined();
+      expect(startedSummary.sourceCard?.publicObjectId).toBe(`obj_${source.instanceId}`);
+      expect(startedSummary.discardedCostCards).toEqual([]);
+      expect(startedSummary.hiddenDiscardedCostCardCount).toBe(0);
+      expect(startedSummary.requestedInspectCount).toBe(5);
+      expect(startedSummary.actualInspectedCount).toBe(5);
+    }
 
     const revealResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, selectedLiveCardId)
@@ -195,5 +211,22 @@ describe('look top select to hand shared workflow', () => {
       topCards[4]!.instanceId,
     ]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
+    const completedSummary = session
+      .getPublicEventsSince(beforeSeq)
+      .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'COMPLETED');
+    expect(completedSummary?.type).toBe('CardEffectSummary');
+    if (completedSummary?.type === 'CardEffectSummary') {
+      expect(completedSummary.abilityId).toBe(HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID);
+      expect(completedSummary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
+      expect(completedSummary.sourceActionLabel).toBe('离场');
+      expect(completedSummary.sourceOrientationCost).toBeUndefined();
+      expect(completedSummary.discardedCostCards).toEqual([]);
+      expect(completedSummary.hiddenDiscardedCostCardCount).toBe(0);
+      expect(completedSummary.selectedCards?.map((card) => card.publicObjectId)).toEqual([
+        `obj_${selectedLiveCardId}`,
+      ]);
+      expect(completedSummary.noSelectedCards).toBe(false);
+      expect(completedSummary.waitingRoomCardCount).toBe(4);
+    }
   });
 });

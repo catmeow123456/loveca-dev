@@ -47,6 +47,8 @@ import {
 
 const HS_BP5_002_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
+const HS_BP2_002_CONTINUOUS_ABILITY_ID =
+  'PL!HS-bp2-002:continuous-other-higher-cost-gain-three-blade';
 const HS_BP5_007_CONTINUOUS_ABILITY_ID = 'PL!HS-bp5-007:continuous-other-edelnote-member-blade';
 const HS_BP2_006_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp2-006:continuous-other-miracra-stage-member-blade';
@@ -1741,6 +1743,104 @@ describe('live modifier helpers', () => {
         }),
       ])
     );
+  });
+
+  it('adds PL!HS-bp2-002 BLADE +3 when another own stage member has higher effective cost', () => {
+    const sayaka = createHsBp2002Sayaka('bp2-sayaka', 13);
+    const higherCostMember = createTestMember('higher-cost', 14);
+    let game = createGameState('hs-bp2-002-higher-cost', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [sayaka, higherCostMember]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, sayaka.instanceId),
+        SlotPosition.LEFT,
+        higherCostMember.instanceId
+      ),
+    }));
+
+    const liveModifiers = collectLiveModifiers(game);
+
+    expect(liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 3,
+      sourceCardId: sayaka.instanceId,
+      abilityId: HS_BP2_002_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', sayaka.instanceId, liveModifiers)).toBe(4);
+  });
+
+  it.each([
+    ['source alone', []],
+    ['equal own cost', [createTestMember('equal-cost', 13)]],
+    ['lower own cost', [createTestMember('lower-cost', 12)]],
+  ])('does not add PL!HS-bp2-002 BLADE when %s', (_label, otherMembers) => {
+    const sayaka = createHsBp2002Sayaka('bp2-sayaka-no-condition', 13);
+    let game = createGameState('hs-bp2-002-no-condition', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [sayaka, ...otherMembers]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: otherMembers.reduce(
+        (slots, member, index) =>
+          placeCardInSlot(
+            slots,
+            index === 0 ? SlotPosition.LEFT : SlotPosition.RIGHT,
+            member.instanceId
+          ),
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, sayaka.instanceId)
+      ),
+    }));
+
+    expect(hasHsBp2002BladeModifier(game)).toBe(false);
+  });
+
+  it('does not count opponent higher-cost members for PL!HS-bp2-002', () => {
+    const sayaka = createHsBp2002Sayaka('bp2-sayaka-opponent', 13);
+    const opponentHigherCostMember = createTestMember('opponent-higher-cost', 14, 'p2');
+    let game = createGameState('hs-bp2-002-opponent-higher-cost', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [sayaka, opponentHigherCostMember]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, sayaka.instanceId),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        opponentHigherCostMember.instanceId
+      ),
+    }));
+
+    expect(hasHsBp2002BladeModifier(game)).toBe(false);
+  });
+
+  it('uses effective cost modifiers for PL!HS-bp2-002 higher-cost comparison', () => {
+    const sayaka = createHsBp2002Sayaka('bp2-sayaka-effective-cost', 13);
+    const lowerCostMember = createTestMember('modified-lower-cost', 12);
+    let game = createGameState('hs-bp2-002-effective-cost', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [sayaka, lowerCostMember]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, sayaka.instanceId),
+        SlotPosition.LEFT,
+        lowerCostMember.instanceId
+      ),
+    }));
+    expect(hasHsBp2002BladeModifier(game)).toBe(false);
+
+    const costResult = addMemberCostLiveModifierForMember(game, {
+      playerId: 'p1',
+      memberCardId: lowerCostMember.instanceId,
+      sourceCardId: sayaka.instanceId,
+      abilityId: 'test-higher-effective-cost',
+      countDelta: 2,
+    });
+    expect(costResult).not.toBeNull();
+
+    expect(hasHsBp2002BladeModifier(costResult!.gameState)).toBe(true);
   });
 
   it('does not add PL!HS-bp5-002 modifiers when costs repeat, fewer than three members are on stage, or source is not on stage', () => {
@@ -3703,6 +3803,116 @@ describe('live modifier helpers', () => {
     expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
   });
 
+  it('counts LL-bp1-001 as one available different name for PL!-bp5-003', () => {
+    const kotori = createCardInstance(
+      {
+        cardCode: 'PL!-bp5-003-AR',
+        name: '南ことり',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 3,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'kotori-bp5-003'
+    );
+    const llBp1001 = createCardInstance(createLlBp1001MemberData(), 'p1', 'll-bp1-001');
+    const kaho = createCardInstance(
+      createHasunosoraMemberData('PL!HS-test-kaho', '日野下花帆', 4),
+      'p1',
+      'kaho-stage'
+    );
+
+    let game = createGameState('bp5-003-ll-bp1-001-kaho', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kotori, llBp1001, kaho]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kotori.instanceId),
+          SlotPosition.LEFT,
+          llBp1001.instanceId
+        ),
+        SlotPosition.RIGHT,
+        kaho.instanceId
+      ),
+    }));
+
+    expect(hasBp5003YellowHeartModifier(game)).toBe(true);
+  });
+
+  it('can use two LL-bp1-001 copies as unoccupied names beside an Ayumu source', () => {
+    const ayumuSource = createCardInstance(
+      {
+        cardCode: 'PL!-bp5-003-AR',
+        name: '上原歩夢',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 3,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'ayumu-source'
+    );
+    const firstLlBp1001 = createCardInstance(createLlBp1001MemberData(), 'p1', 'll-bp1-001-a');
+    const secondLlBp1001 = createCardInstance(createLlBp1001MemberData(), 'p1', 'll-bp1-001-b');
+
+    let game = createGameState('bp5-003-two-ll-bp1-001-ayumu', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [ayumuSource, firstLlBp1001, secondLlBp1001]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ayumuSource.instanceId),
+          SlotPosition.LEFT,
+          firstLlBp1001.instanceId
+        ),
+        SlotPosition.RIGHT,
+        secondLlBp1001.instanceId
+      ),
+    }));
+
+    expect(hasBp5003YellowHeartModifier(game)).toBe(true);
+  });
+
+  it('does not count LL-bp1-001 plus two Kaho members as three names for PL!-bp5-003', () => {
+    const kahoSource = createCardInstance(
+      {
+        cardCode: 'PL!-bp5-003-AR',
+        name: '日野下花帆',
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 3,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'kaho-source'
+    );
+    const llBp1001 = createCardInstance(createLlBp1001MemberData(), 'p1', 'll-bp1-001');
+    const secondKaho = createCardInstance(
+      createHasunosoraMemberData('PL!HS-test-kaho-2', '日野 下花帆', 5),
+      'p1',
+      'second-kaho-stage'
+    );
+
+    let game = createGameState('bp5-003-ll-bp1-001-two-kaho', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [kahoSource, llBp1001, secondKaho]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, llBp1001.instanceId),
+          SlotPosition.CENTER,
+          kahoSource.instanceId
+        ),
+        SlotPosition.RIGHT,
+        secondKaho.instanceId
+      ),
+    }));
+
+    expect(hasBp5003YellowHeartModifier(game)).toBe(false);
+  });
+
   it('collects PL!SP-bp5-012 as SOURCE_MEMBER yellow Heart when own Liella LIVE requirement total is exactly 8', () => {
     const kanon = createSpBp5012Kanon('sp-bp5-012-kanon');
     const liellaLive = createCardInstance(
@@ -4283,6 +4493,76 @@ describe('live modifier helpers', () => {
     expect(hasHsBp1ContinuousScore(game)).toBe(true);
   });
 
+  it('uses LL-bp1-001 as Hinoshita Kaho for PL!HS-bp1-003 Q81 Hasunosora names', () => {
+    const llBp1001 = createCardInstance(createLlBp1001MemberData(), 'p1', 'll-bp1-001');
+    const kozue = createCardInstance(
+      createHasunosoraMemberData('PL!HS-bp1-003-SEC', '乙宗梢', 13, {
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+      }),
+      'p1',
+      'kozue'
+    );
+    const sayaka = createCardInstance(
+      createHasunosoraMemberData('PL!HS-test-sayaka', '村野さやか', 5, {
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+      }),
+      'p1',
+      'sayaka'
+    );
+
+    let game = createGameState('hs-bp1-003-q81-positive', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [llBp1001, kozue, sayaka]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, llBp1001.instanceId),
+          SlotPosition.CENTER,
+          kozue.instanceId
+        ),
+        SlotPosition.RIGHT,
+        sayaka.instanceId
+      ),
+    }));
+
+    expect(hasHsBp1ContinuousScore(game)).toBe(true);
+  });
+
+  it('does not use LL-bp1-001 as another name under Hasunosora when Kaho is occupied', () => {
+    const llBp1001 = createCardInstance(createLlBp1001MemberData(), 'p1', 'll-bp1-001');
+    const kahoSource = createCardInstance(
+      createHasunosoraMemberData('PL!HS-bp1-003-SEC', '日野下花帆', 13, {
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+      }),
+      'p1',
+      'kaho-source'
+    );
+    const sayaka = createCardInstance(
+      createHasunosoraMemberData('PL!HS-test-sayaka', '村野さやか', 5, {
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+      }),
+      'p1',
+      'sayaka'
+    );
+
+    let game = createGameState('hs-bp1-003-q81-negative', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [llBp1001, kahoSource, sayaka]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, llBp1001.instanceId),
+          SlotPosition.CENTER,
+          kahoSource.instanceId
+        ),
+        SlotPosition.RIGHT,
+        sayaka.instanceId
+      ),
+    }));
+
+    expect(hasHsBp1ContinuousScore(game)).toBe(false);
+  });
+
   it('does not recognize Hasunosora members from text or PL!HS card-code prefix', () => {
     const legacyIdentityCases = [
       {
@@ -4405,6 +4685,43 @@ function hasHsBp1ContinuousScore(game: ReturnType<typeof createGameState>): bool
     (modifier) =>
       modifier.kind === 'SCORE' &&
       modifier.abilityId === 'PL!HS-bp1-003-SEC:continuous-three-different-hasunosora-score'
+  );
+}
+
+function createHsBp2002Sayaka(instanceId: string, cost: number) {
+  return createCardInstance(
+    {
+      cardCode: 'PL!HS-bp2-002-R＋',
+      name: '村野さやか',
+      cardType: CardType.MEMBER,
+      cost,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+    },
+    'p1',
+    instanceId
+  );
+}
+
+function createTestMember(instanceId: string, cost: number, ownerId = 'p1') {
+  return createCardInstance(
+    {
+      cardCode: `PL!HS-test-${instanceId}`,
+      name: instanceId,
+      cardType: CardType.MEMBER,
+      cost,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    },
+    ownerId,
+    instanceId
+  );
+}
+
+function hasHsBp2002BladeModifier(game: ReturnType<typeof createGameState>): boolean {
+  return collectLiveModifiers(game).some(
+    (modifier) =>
+      modifier.kind === 'BLADE' && modifier.abilityId === HS_BP2_002_CONTINUOUS_ABILITY_ID
   );
 }
 
@@ -4944,6 +5261,26 @@ function createHasunosoraMemberData(
     hearts: [createHeartIcon(HeartColor.GREEN, 1)],
     groupNames: options.groupNames ?? ['莲之空'],
     cardText: options.cardText,
+  };
+}
+
+function createLlBp1001MemberData() {
+  return {
+    cardCode: 'LL-bp1-001-R＋',
+    name: '上原歩夢&澁谷かのん&日野下花帆',
+    cardType: CardType.MEMBER,
+    cost: 20,
+    blade: 5,
+    hearts: [
+      createHeartIcon(HeartColor.PINK, 3),
+      createHeartIcon(HeartColor.GREEN, 3),
+      createHeartIcon(HeartColor.PURPLE, 3),
+    ],
+    groupNames: [
+      'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
+      'ラブライブ！スーパースター!!',
+      '蓮ノ空女学院スクールアイドルクラブ',
+    ],
   };
 }
 

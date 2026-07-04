@@ -91,6 +91,16 @@ function setupScenario(
   const drawnCards = Array.from({ length: options.drawCount ?? 1 }, (_, index) =>
     createCardInstance(createMemberCard(`DRAW-${index}`, `Draw ${index}`), PLAYER1, `draw-${index}`)
   );
+  const remainingDeckCards =
+    (options.drawCount ?? 1) > 0
+      ? [
+          createCardInstance(
+            createMemberCard('REMAINING-0', 'Remaining 0'),
+            PLAYER1,
+            'remaining-0'
+          ),
+        ]
+      : [];
   const triggerSource =
     options.addHandToWaitingRoomTriggerSource === true
       ? createCardInstance(
@@ -104,6 +114,7 @@ function setupScenario(
     source,
     ...handCards,
     ...drawnCards,
+    ...remainingDeckCards,
     ...(triggerSource ? [triggerSource] : []),
   ]);
   (session as unknown as { authorityState: GameState }).authorityState = state;
@@ -131,7 +142,10 @@ function setupScenario(
     };
   };
   p1.hand.cardIds = handCards.map((card) => card.instanceId);
-  p1.mainDeck.cardIds = drawnCards.map((card) => card.instanceId);
+  p1.mainDeck.cardIds = [
+    ...drawnCards.map((card) => card.instanceId),
+    ...remainingDeckCards.map((card) => card.instanceId),
+  ];
   p1.waitingRoom.cardIds = [];
   p1.memberSlots.slots = {
     [SlotPosition.LEFT]: triggerSource?.instanceId ?? null,

@@ -12,7 +12,11 @@ import {
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
-import { PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
+  S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+  S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -311,5 +315,331 @@ describe('opponent wait target shared workflow', () => {
           action.payload.targetPlayerId === PLAYER2
       )
     ).toBe(true);
+  });
+
+  it('waits a legal cost two or lower opponent member for PL!S-bp6-015-N and rejects illegal choices', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('opponent-wait-target-s-bp6-015', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp6-015-N', '津島善子', 4),
+      PLAYER1,
+      'p1-s-bp6-015-source'
+    );
+    const legalTarget = createCardInstance(
+      createMemberCard('PL!S-bp6-015-legal-cost-2', 'Cost 2', 2),
+      PLAYER2,
+      'p2-s-bp6-015-cost-2'
+    );
+    const waitingLegalTarget = createCardInstance(
+      createMemberCard('PL!S-bp6-015-waiting-cost-2', 'Waiting Cost 2', 2),
+      PLAYER2,
+      'p2-s-bp6-015-waiting-cost-2'
+    );
+    const illegalCostTarget = createCardInstance(
+      createMemberCard('PL!S-bp6-015-illegal-cost-3', 'Cost 3', 3),
+      PLAYER2,
+      'p2-s-bp6-015-cost-3'
+    );
+
+    const state = registerCards(session.state!, [
+      source,
+      legalTarget,
+      waitingLegalTarget,
+      illegalCostTarget,
+    ]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    const p2 = state.players[1] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    clearPlayerZones(p1);
+    clearPlayerZones(p2);
+    p1.hand.cardIds = [source.instanceId];
+    p2.memberSlots.slots[SlotPosition.LEFT] = legalTarget.instanceId;
+    p2.memberSlots.slots[SlotPosition.CENTER] = waitingLegalTarget.instanceId;
+    p2.memberSlots.slots[SlotPosition.RIGHT] = illegalCostTarget.instanceId;
+    p2.memberSlots.cardStates = new Map([
+      [legalTarget.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      [
+        waitingLegalTarget.instanceId,
+        { orientation: OrientationState.WAITING, face: FaceState.FACE_UP },
+      ],
+      [
+        illegalCostTarget.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+      ],
+    ]);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([legalTarget.instanceId]);
+
+    const illegalSelection = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        illegalCostTarget.instanceId
+      )
+    );
+    expect(illegalSelection.success).toBe(false);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID
+    );
+
+    const waitResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        legalTarget.instanceId
+      )
+    );
+
+    expect(waitResult.success, waitResult.error).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(
+      session.state?.players[1].memberSlots.cardStates.get(legalTarget.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(
+      session.state?.players[1].memberSlots.cardStates.get(waitingLegalTarget.instanceId)
+        ?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(
+      session.state?.players[1].memberSlots.cardStates.get(illegalCostTarget.instanceId)
+        ?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(
+      session.state?.eventLog.some(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED &&
+          entry.event.cardInstanceId === legalTarget.instanceId &&
+          entry.event.controllerId === PLAYER2 &&
+          entry.event.previousOrientation === OrientationState.ACTIVE &&
+          entry.event.nextOrientation === OrientationState.WAITING
+      )
+    ).toBe(true);
+  });
+
+  it('skips PL!S-bp6-015-N when no active cost two or lower opponent target exists', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'opponent-wait-target-s-bp6-015-no-target',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp6-015-N', '津島善子', 4),
+      PLAYER1,
+      'p1-s-bp6-015-no-target-source'
+    );
+    const waitingLowCostTarget = createCardInstance(
+      createMemberCard('PL!S-bp6-015-waiting-cost-2', 'Waiting Cost 2', 2),
+      PLAYER2,
+      'p2-s-bp6-015-no-target-waiting'
+    );
+    const activeHighCostTarget = createCardInstance(
+      createMemberCard('PL!S-bp6-015-active-cost-3', 'Cost 3', 3),
+      PLAYER2,
+      'p2-s-bp6-015-no-target-cost-3'
+    );
+
+    const state = registerCards(session.state!, [source, waitingLowCostTarget, activeHighCostTarget]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    const p2 = state.players[1] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    clearPlayerZones(p1);
+    clearPlayerZones(p2);
+    p1.hand.cardIds = [source.instanceId];
+    p2.memberSlots.slots[SlotPosition.LEFT] = waitingLowCostTarget.instanceId;
+    p2.memberSlots.slots[SlotPosition.RIGHT] = activeHighCostTarget.instanceId;
+    p2.memberSlots.cardStates = new Map([
+      [
+        waitingLowCostTarget.instanceId,
+        { orientation: OrientationState.WAITING, face: FaceState.FACE_UP },
+      ],
+      [
+        activeHighCostTarget.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+      ],
+    ]);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID &&
+          action.payload.sourceCardId === source.instanceId &&
+          action.payload.step === 'SKIP_NO_TARGET'
+      )
+    ).toBe(true);
+  });
+
+  it('continues pending effects after PL!S-bp6-015-N resolves', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'opponent-wait-target-s-bp6-015-continuation',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp6-015-N', '津島善子', 4),
+      PLAYER1,
+      'p1-s-bp6-015-continuation-source'
+    );
+    const nextSource = createCardInstance(
+      createMemberCard('PL!S-bp6-012-N', '松浦果南', 2),
+      PLAYER1,
+      'p1-s-bp6-012-continuation-source'
+    );
+    const target = createCardInstance(
+      createMemberCard('PL!S-bp6-015-continuation-cost-2', 'Cost 2', 2),
+      PLAYER2,
+      'p2-s-bp6-015-continuation-target'
+    );
+    const topCards = [0, 1, 2, 3, 4].map((index) =>
+      createCardInstance(
+        createMemberCard(`PL!S-bp6-012-continuation-top-${index}`, `Top ${index}`),
+        PLAYER1,
+        `p1-s-bp6-012-continuation-top-${index}`
+      )
+    );
+
+    const state = registerCards(session.state!, [source, nextSource, target, ...topCards]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const p2 = state.players[1] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    clearPlayerZones(p1);
+    clearPlayerZones(p2);
+    p1.hand.cardIds = [source.instanceId];
+    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+    p1.memberSlots.slots[SlotPosition.LEFT] = nextSource.instanceId;
+    p1.memberSlots.cardStates = new Map([
+      [nextSource.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    p2.memberSlots.slots[SlotPosition.CENTER] = target.instanceId;
+    p2.memberSlots.cardStates = new Map([
+      [target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID
+    );
+
+    (session.state as unknown as { pendingAbilities: GameState['pendingAbilities'] })
+      .pendingAbilities = [
+      ...session.state!.pendingAbilities,
+      {
+        id: `${S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID}:${nextSource.instanceId}:manual-continuation`,
+        abilityId: S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+        sourceCardId: nextSource.instanceId,
+        controllerId: PLAYER1,
+        mandatory: true,
+        timingId: TriggerCondition.ON_ENTER_STAGE,
+        sourceSlot: SlotPosition.LEFT,
+      },
+    ];
+
+    const waitResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, target.instanceId)
+    );
+
+    expect(waitResult.success, waitResult.error).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID);
+    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(
+      topCards.map((card) => card.instanceId)
+    );
   });
 });

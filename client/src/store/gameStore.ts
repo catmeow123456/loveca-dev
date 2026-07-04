@@ -1268,7 +1268,13 @@ export const useGameStore = create<GameStore>((set, get) => {
         const lastReadSeq = open
           ? Math.max(state.publicBattleLog.lastReadSeq, state.publicBattleLog.currentPublicSeq)
           : state.publicBattleLog.lastReadSeq;
+        const cardDetail =
+          !open && state.ui.cardDetail?.kind === 'public-event-card' ? null : state.ui.cardDetail;
         return {
+          ui: {
+            ...state.ui,
+            cardDetail,
+          },
           publicBattleLog: {
             ...state.publicBattleLog,
             isPanelOpen: open,
@@ -1628,7 +1634,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           ui: {
             ...state.ui,
             hoveredCardId: null,
-            cardDetail: state.ui.cardDetail?.kind === 'visible' ? null : state.ui.cardDetail,
+            cardDetail: null,
           },
         }));
         return;
@@ -2505,6 +2511,10 @@ function applyRemoteSnapshot(
       state.playerViewState,
       normalizedSnapshotViewState
     );
+    const currentMatchId = state.playerViewState?.match.matchId ?? null;
+    const nextMatchId = normalizedPlayerViewState?.match.matchId ?? null;
+    const shouldClearPublicEventCardDetail =
+      state.ui.cardDetail?.kind === 'public-event-card' && currentMatchId !== nextMatchId;
     return {
       remoteSession: state.remoteSession
         ? state.remoteSession.playerId === snapshot.playerId &&
@@ -2521,7 +2531,9 @@ function applyRemoteSnapshot(
       ui: {
         ...state.ui,
         hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
-        cardDetail: resolveSelectedCardDetail(state.ui.cardDetail, normalizedPlayerViewState),
+        cardDetail: shouldClearPublicEventCardDetail
+          ? null
+          : resolveSelectedCardDetail(state.ui.cardDetail, normalizedPlayerViewState),
       },
     };
   });

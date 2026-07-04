@@ -171,6 +171,7 @@ describe('PL!HS-bp1-008 Kosuzu workflow', () => {
       createCardInstance(createMemberCard('PL!HS-test-member-1'), PLAYER1, 'top-1'),
       createCardInstance(createMemberCard('PL!HS-test-member-2'), PLAYER1, 'top-2'),
       createCardInstance(createMemberCard('PL!HS-test-draw'), PLAYER1, 'draw-card'),
+      createCardInstance(createMemberCard('PL!HS-test-remaining'), PLAYER1, 'remaining-card'),
     ];
     const session = setupOnEnter({
       sourceCardCode: 'PL!HS-bp1-008-R',
@@ -187,7 +188,10 @@ describe('PL!HS-bp1-008 Kosuzu workflow', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
       topCards.slice(0, 3).map((card) => card.instanceId)
     );
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[3]!.instanceId]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[3]!.instanceId,
+      topCards[4]!.instanceId,
+    ]);
 
     confirmActiveEffect(session);
 

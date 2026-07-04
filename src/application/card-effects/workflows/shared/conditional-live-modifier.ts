@@ -5,7 +5,7 @@ import {
   OrientationState,
   ZoneType,
 } from '../../../../shared/types/enums.js';
-import { isLiveCardData } from '../../../../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
@@ -18,6 +18,7 @@ import {
 import { addLiveModifier, replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import {
   and,
+  cardNameContains,
   cardNameAliasIs,
   groupAliasIs,
   groupIs,
@@ -30,6 +31,7 @@ import {
   countOtherLiveZoneCardsMatching,
   countSuccessfulLiveCards,
   getCardIdsInZone,
+  getCardIdsInZoneMatching,
   getMemberEffectiveCost,
   hasAtLeastCardsMatchingSelector,
   successLiveScoreAtLeast,
@@ -46,6 +48,7 @@ import {
   HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
+  HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
   PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
   S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
@@ -70,6 +73,7 @@ const HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
   'HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION';
 const BP4_021_SUCCESS_SCORE_MODIFIER_STEP_ID = 'BP4_021_SUCCESS_SCORE_MODIFIER';
 const S_BP6_010_RED_REQUIREMENT_GAIN_HEART_STEP_ID = 'S_BP6_010_RED_REQUIREMENT_GAIN_HEART';
+const HS_SD1_018_DREAM_BELIEVERS_SCORE_STEP_ID = 'HS_SD1_018_DREAM_BELIEVERS_SCORE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -282,6 +286,26 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
       };
     },
     finish: finishSBp6010LiveStartRedRequirementGainHeart,
+  },
+  {
+    abilityId: HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,
+    stepId: HS_SD1_018_DREAM_BELIEVERS_SCORE_STEP_ID,
+    getStartContext: (game, _ability, playerId) => {
+      const condition = getHsSd1018DreamBelieversCondition(game, playerId);
+      return {
+        effectText: `${getAbilityEffectText(
+          HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID
+        )}（当前莲之空成员 ${condition.hasunosoraStageMemberCount}名，休息室 Dream Believers LIVE ${condition.dreamBelieversLiveCount}张，${
+          condition.conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'
+        }）`,
+        actionPayload: {
+          hasunosoraStageMemberCount: condition.hasunosoraStageMemberCount,
+          dreamBelieversLiveCount: condition.dreamBelieversLiveCount,
+          scoreBonus: condition.conditionMet ? 1 : 0,
+        },
+      };
+    },
+    finish: finishHsSd1018DreamBelieversScoreBonus,
   },
 ];
 
@@ -579,6 +603,95 @@ function finishHsBp5BardCageLiveStartScoreBonus(
       conditionMet: isConditionMet,
       highCostHasunosoraMemberCount,
       scoreBonus: isConditionMet ? 1 : 0,
+    },
+  };
+}
+
+function finishHsSd1018DreamBelieversScoreBonus(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const condition = getHsSd1018DreamBelieversCondition(game, playerId);
+  const scoreBonus = condition.conditionMet ? 1 : 0;
+  let state: GameState = {
+    ...game,
+    activeEffect: null,
+  };
+  if (scoreBonus > 0) {
+    state = addLiveModifier(state, {
+      kind: 'SCORE',
+      playerId,
+      countDelta: scoreBonus,
+      liveCardId: effect.sourceCardId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    });
+    state = refreshPlayerScoreDraft(state, playerId, scoreBonus);
+  }
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_SCORE_BONUS',
+      effectText: getAbilityEffectText(
+        HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID
+      ),
+      conditionMet: condition.conditionMet,
+      hasunosoraStageMemberCount: condition.hasunosoraStageMemberCount,
+      dreamBelieversLiveCount: condition.dreamBelieversLiveCount,
+      dreamBelieversLiveCardIds: condition.dreamBelieversLiveCardIds,
+      scoreBonus,
+    },
+  };
+}
+
+function getHsSd1018DreamBelieversCondition(
+  game: GameState,
+  playerId: string
+): {
+  readonly hasunosoraStageMemberCount: number;
+  readonly dreamBelieversLiveCount: number;
+  readonly dreamBelieversLiveCardIds: readonly string[];
+  readonly conditionMet: boolean;
+} {
+  const hasunosoraStageMemberCount = countHasunosoraStageMembers(game, playerId);
+  const dreamBelieversLiveCardIds = getCardIdsInZoneMatching(
+    game,
+    playerId,
+    ZoneType.WAITING_ROOM,
+    and(typeIs(CardType.LIVE), cardNameContains('Dream Believers'))
+  );
+  return {
+    hasunosoraStageMemberCount,
+    dreamBelieversLiveCount: dreamBelieversLiveCardIds.length,
+    dreamBelieversLiveCardIds,
+    conditionMet: hasunosoraStageMemberCount >= 3 && dreamBelieversLiveCardIds.length > 0,
+  };
+}
+
+function countHasunosoraStageMembers(game: GameState, playerId: string): number {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return 0;
+  }
+  return Object.values(player.memberSlots.slots).filter((cardId) => {
+    if (cardId === null) {
+      return false;
+    }
+    const card = getCardById(game, cardId);
+    return card !== null && isMemberCardData(card.data) && groupAliasIs('蓮ノ空')(card);
+  }).length;
+}
+
+function refreshPlayerScoreDraft(game: GameState, playerId: string, scoreBonus: number): GameState {
+  const playerScores = new Map(game.liveResolution.playerScores);
+  playerScores.set(playerId, (playerScores.get(playerId) ?? 0) + scoreBonus);
+  return {
+    ...game,
+    liveResolution: {
+      ...game.liveResolution,
+      playerScores,
     },
   };
 }

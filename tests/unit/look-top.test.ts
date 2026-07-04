@@ -230,6 +230,33 @@ describe('look-top helpers', () => {
     ).toBe(true);
   });
 
+  it('refreshes immediately after effect milling exactly empties the main deck', () => {
+    const state = createMutableState();
+    const topCardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.MEMBER)
+      .slice(0, 3)
+      .map((card) => card.instanceId);
+    setMainDeckForPlayer(state, topCardIds);
+
+    const result = moveTopDeckCardsToWaitingRoomWithRefresh(state, PLAYER1, 3);
+
+    expect(result).not.toBeNull();
+    expect(result?.movedCardIds).toEqual(topCardIds);
+    expect(result?.refreshCount).toBe(1);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toHaveLength(3);
+    expect(
+      result?.gameState.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.affectedPlayerId === PLAYER1 &&
+          action.payload.movedCount === 3 &&
+          action.payload.mainDeckCountAfter === 3
+      )
+    ).toBe(true);
+  });
+
   it('preserves inspection context while other inspected cards remain', () => {
     const state = createMutableState();
     const cardIds = [...state.cardRegistry.values()]

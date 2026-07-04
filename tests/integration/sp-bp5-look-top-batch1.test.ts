@@ -139,6 +139,7 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
     const session = createSessionFromGame(resolvePendingCardEffects(game).gameState, 'bp5-008');
 
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([discard.instanceId]);
+    const beforeCostSeq = session.getCurrentPublicEventSeq();
     expect(
       session.executeCommand(
         createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, discard.instanceId)
@@ -148,6 +149,22 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
     expect(
       session.state?.players[0].memberSlots.cardStates.get(source.instanceId)?.orientation
     ).toBe(OrientationState.WAITING);
+    const startedSummary = session
+      .getPublicEventsSince(beforeCostSeq)
+      .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'STARTED');
+    expect(startedSummary?.type).toBe('CardEffectSummary');
+    if (startedSummary?.type === 'CardEffectSummary') {
+      expect(startedSummary.abilityId).toBe(SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID);
+      expect(startedSummary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
+      expect(startedSummary.summaryStatus).toBe('STARTED');
+      expect(startedSummary.sourceOrientationCost).toBe('WAITING');
+      expect(startedSummary.sourceCard?.publicObjectId).toBe(`obj_${source.instanceId}`);
+      expect(startedSummary.discardedCostCards?.map((card) => card.publicObjectId)).toEqual([
+        `obj_${discard.instanceId}`,
+      ]);
+      expect(startedSummary.requestedInspectCount).toBe(5);
+      expect(startedSummary.actualInspectedCount).toBe(3);
+    }
 
     expect(
       session.executeCommand(
@@ -165,6 +182,22 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
       lowLiella.instanceId,
       highAqours.instanceId,
     ]);
+    const completedSummary = session
+      .getPublicEventsSince(beforeCostSeq)
+      .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'COMPLETED');
+    expect(completedSummary?.type).toBe('CardEffectSummary');
+    if (completedSummary?.type === 'CardEffectSummary') {
+      expect(completedSummary.abilityId).toBe(
+        SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID
+      );
+      expect(completedSummary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
+      expect(completedSummary.summaryStatus).toBe('COMPLETED');
+      expect(completedSummary.sourceOrientationCost).toBe('WAITING');
+      expect(completedSummary.selectedCards?.map((card) => card.publicObjectId)).toEqual([
+        `obj_${target.instanceId}`,
+      ]);
+      expect(completedSummary.waitingRoomCardCount).toBe(2);
+    }
   });
 
   it('PL!SP-bp5-013 takes SunnyPassion or blade-heart Liella members after discard', () => {

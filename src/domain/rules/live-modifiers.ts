@@ -11,7 +11,10 @@ import { getCardById } from '../entities/game.js';
 import { findMemberSlot } from '../entities/player.js';
 import { getAllMemberCardIds } from '../entities/zone.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
-import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
+import {
+  cardBelongsToGroup,
+  hasAtLeastDifferentNamedCards,
+} from '../../shared/utils/card-identity.js';
 import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/slot-perspective.js';
 import { hasMemberPositionMovedThisTurn } from './member-turn-state.js';
 import { getMemberEffectiveCost } from './member-effective-cost.js';
@@ -388,6 +391,21 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    baseCardCodes: ['PL!HS-bp2-002'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasOtherHigherEffectiveCostStageMember(game, playerId, sourceCardId)
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 3,
+              sourceCardId,
+              abilityId: HS_BP2_002_CONTINUOUS_OTHER_HIGHER_COST_GAIN_THREE_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
     baseCardCodes: ['PL!HS-bp5-007'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasOtherEdelNoteStageMember(game, playerId, sourceCardId)
@@ -755,6 +773,8 @@ const HS_PB1_007_CONTINUOUS_EXACT_TWO_OWN_OPPONENT_THREE_PURPLE_HEART_ABILITY_ID
   'PL!HS-pb1-007:continuous-exact-two-own-opponent-three-purple-heart';
 const HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID =
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
+const HS_BP2_002_CONTINUOUS_OTHER_HIGHER_COST_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!HS-bp2-002:continuous-other-higher-cost-gain-three-blade';
 const HS_BP5_007_CONTINUOUS_OTHER_EDELNOTE_MEMBER_BLADE_ABILITY_ID =
   'PL!HS-bp5-007:continuous-other-edelnote-member-blade';
 const HS_BP2_006_CONTINUOUS_OTHER_MIRACRA_STAGE_MEMBER_BLADE_ABILITY_ID =
@@ -1226,7 +1246,13 @@ function cardMatchesNormalizedUnit(
 }
 
 function hasThreeDifferentHasunosoraMembersOnStage(game: GameState, playerId: string): boolean {
-  return hasAtLeastDifferentNamedStageMembers(game, playerId, 3, isHasunosoraMemberCard);
+  return hasAtLeastDifferentNamedStageMembers(
+    game,
+    playerId,
+    3,
+    isHasunosoraMemberCard,
+    '蓮ノ空'
+  );
 }
 
 function collectPb1014FrontHighCostHeartModifier(
@@ -1405,22 +1431,22 @@ function hasAtLeastDifferentNamedStageMembers(
   game: GameState,
   playerId: string,
   minCount: number,
-  predicate: (card: NonNullable<ReturnType<typeof getCardById>>) => boolean = isMemberCard
+  predicate: (card: NonNullable<ReturnType<typeof getCardById>>) => boolean = isMemberCard,
+  groupName?: string
 ): boolean {
   const player = game.players.find((candidate) => candidate.id === playerId);
   if (!player) {
     return false;
   }
 
-  const names = MEMBER_SLOT_ORDER.map((slot) => player.memberSlots.slots[slot])
+  const cards = MEMBER_SLOT_ORDER.map((slot) => player.memberSlots.slots[slot])
     .map((cardId) => (cardId ? getCardById(game, cardId) : null))
     .filter(
       (card): card is NonNullable<ReturnType<typeof getCardById>> =>
         card !== null && isMemberCard(card) && predicate(card)
-    )
-    .map((card) => normalizeContinuousMemberName(card.data.name));
+    );
 
-  return new Set(names).size >= minCount;
+  return hasAtLeastDifferentNamedCards(cards, minCount, (card) => card.data, { groupName });
 }
 
 function hasAtLeastDifferentEffectiveCostStageMembers(
@@ -1442,6 +1468,31 @@ function hasAtLeastDifferentEffectiveCostStageMembers(
     .map((card) => getMemberEffectiveCost(game, playerId, card.instanceId));
 
   return new Set(costs).size >= minCount;
+}
+
+function hasOtherHigherEffectiveCostStageMember(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player || !getAllMemberCardIds(player.memberSlots).includes(sourceCardId)) {
+    return false;
+  }
+
+  const sourceEffectiveCost = getMemberEffectiveCost(game, playerId, sourceCardId);
+  return MEMBER_SLOT_ORDER.some((slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    if (cardId === null || cardId === sourceCardId) {
+      return false;
+    }
+    const card = getCardById(game, cardId);
+    return (
+      card !== null &&
+      isMemberCardData(card.data) &&
+      getMemberEffectiveCost(game, playerId, cardId) > sourceEffectiveCost
+    );
+  });
 }
 
 function hasExactOwnTwoOpponentThreeStageMembers(game: GameState, playerId: string): boolean {

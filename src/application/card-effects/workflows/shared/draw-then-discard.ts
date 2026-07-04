@@ -7,14 +7,19 @@ import {
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+  HS_SD1_017_LIVE_SUCCESS_HASUNOSORA_STAGE_DRAW_DISCARD_ABILITY_ID,
+  MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
   BP6_011_LIVE_SUCCESS_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+  HS_SD1_008_ON_ENTER_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
   SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
   SP_PB2_036_ON_ENTER_RIGHT_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   SP_PB2_037_ON_ENTER_LEFT_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
 } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
+import { groupAliasIs } from '../../../effects/card-selectors.js';
+import { hasStageMemberMatching } from '../../../effects/conditions.js';
 import {
   discardHandCardsToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
@@ -44,6 +49,7 @@ export interface DrawThenDiscardCardsWorkflowConfig {
   readonly recordAbilityUseOnStart?: boolean;
   readonly requiredSourceSlot?: SlotPosition;
   readonly requiresLeaveStageToWaitingRoom?: boolean;
+  readonly requiredStageMemberGroup?: string;
 }
 
 export interface DrawThenDiscardAbilityContext {
@@ -63,6 +69,7 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
   readonly recordAbilityUseOnStart?: boolean;
   readonly requiredSourceSlot?: SlotPosition;
   readonly requiresLeaveStageToWaitingRoom?: boolean;
+  readonly requiredStageMemberGroup?: string;
 }[] = [
   {
     abilityId: SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
@@ -75,6 +82,12 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
     drawCount: 2,
     discardCount: 1,
     stepId: HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID,
+  },
+  {
+    abilityId: HS_SD1_008_ON_ENTER_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+    drawCount: 2,
+    discardCount: 1,
+    stepId: 'HS_SD1_008_ON_ENTER_SELECT_DISCARD',
   },
   {
     abilityId: HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
@@ -99,6 +112,19 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
     drawCount: 2,
     discardCount: 2,
     stepId: HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID,
+  },
+  {
+    abilityId: MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+    drawCount: 1,
+    discardCount: 1,
+    stepId: HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID,
+  },
+  {
+    abilityId: HS_SD1_017_LIVE_SUCCESS_HASUNOSORA_STAGE_DRAW_DISCARD_ABILITY_ID,
+    drawCount: 1,
+    discardCount: 1,
+    stepId: 'HS_SD1_017_LIVE_SUCCESS_SELECT_DISCARD',
+    requiredStageMemberGroup: '蓮ノ空',
   },
   {
     abilityId: SP_PB2_036_ON_ENTER_RIGHT_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
@@ -155,6 +181,7 @@ export function registerDrawThenDiscardWorkflowHandlers(deps: {
         recordAbilityUseOnStart: config.recordAbilityUseOnStart,
         requiredSourceSlot: config.requiredSourceSlot,
         requiresLeaveStageToWaitingRoom: config.requiresLeaveStageToWaitingRoom,
+        requiredStageMemberGroup: config.requiredStageMemberGroup,
       })
     );
     registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
@@ -176,6 +203,29 @@ export function startDrawThenDiscardCardsWorkflow(
   const player = getPlayerById(game, config.ability.controllerId);
   if (!player) {
     return game;
+  }
+
+  if (
+    config.requiredStageMemberGroup &&
+    !hasStageMemberMatching(game, player.id, groupAliasIs(config.requiredStageMemberGroup))
+  ) {
+    const state = {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter(
+        (candidate) => candidate.id !== config.ability.id
+      ),
+    };
+    const stateWithAction = addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: config.ability.id,
+      abilityId: config.ability.abilityId,
+      sourceCardId: config.ability.sourceCardId,
+      step: 'DRAW_DISCARD_CONDITION_NOT_MET',
+      conditionMet: false,
+      requiredStageMemberGroup: config.requiredStageMemberGroup,
+    });
+    return config.continuePendingCardEffects
+      ? config.continuePendingCardEffects(stateWithAction, config.orderedResolution)
+      : stateWithAction;
   }
 
   const sourceSlot =
@@ -279,6 +329,7 @@ export function startDrawThenDiscardCardsWorkflow(
           orderedResolution: config.orderedResolution,
           sourceSlot,
           requiredSourceSlot: config.requiredSourceSlot,
+          requiredStageMemberGroup: config.requiredStageMemberGroup,
           drawCount: config.drawCount,
           discardCount: config.discardCount,
           drawnCardIds: drawResult.drawnCardIds,
@@ -294,6 +345,7 @@ export function startDrawThenDiscardCardsWorkflow(
       step: 'DRAW_CARDS_START_DISCARD',
       sourceSlot,
       requiredSourceSlot: config.requiredSourceSlot,
+      requiredStageMemberGroup: config.requiredStageMemberGroup,
       drawCount: config.drawCount,
       discardCount: config.discardCount,
       drawnCardIds: drawResult.drawnCardIds,
