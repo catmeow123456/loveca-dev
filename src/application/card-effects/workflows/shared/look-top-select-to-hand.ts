@@ -48,6 +48,15 @@ export type LookTopSelectCountRule =
       readonly maxCount: number;
     };
 
+export interface LookTopSelectToHandPublicSummaryContext {
+  readonly effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND';
+  readonly sourceActionLabel?: '登场' | '离场' | '起动';
+  readonly discardedCostCardIds?: readonly string[];
+  readonly inspectSourceZone?: ZoneType;
+  readonly requestedInspectCount?: number;
+  readonly sourceOrientationCost?: 'WAITING';
+}
+
 export interface LookTopSelectToHandWorkflowConfig {
   readonly effectText: string;
   readonly topCount: number;
@@ -70,6 +79,7 @@ export interface LookTopSelectToHandWorkflowConfig {
   readonly selectionRequiredWhenHasTargets?: boolean;
   readonly includeInspectedCardIdsInFinishAction?: boolean;
   readonly clampExactCountToInspectedCount?: boolean;
+  readonly publicEffectSummaryContext?: LookTopSelectToHandPublicSummaryContext;
 }
 
 export interface LookTopSelectToHandWorkflowOptions {
@@ -97,6 +107,7 @@ interface LookTopSelectToHandMetadata {
   readonly candidateCardIds: readonly string[];
   readonly includeInspectedCardIdsInFinishAction?: boolean;
   readonly selectedCardIds?: readonly string[];
+  readonly publicEffectSummaryContext?: LookTopSelectToHandPublicSummaryContext;
 }
 
 interface RegisteredLookTopSelectToHandWorkflowConfig extends Omit<
@@ -139,6 +150,12 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     revealActionStep: 'REVEAL_SELECTED',
     noCardsMode: 'open-selection',
     includeInspectedCardIdsInFinishAction: true,
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 5,
+    },
   },
   {
     abilityId: SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
@@ -155,6 +172,12 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     skipSelectionLabel: '不加入',
     revealStepText: '选择的卡片已公开。确认后加入手牌，其余卡片放置入休息室。',
     revealActionStep: 'REVEAL_SELECTED_HIGH_COST_CARD',
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 3,
+    },
   },
   {
     abilityId: BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
@@ -173,6 +196,12 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     skipSelectionLabel: '不加入',
     revealStepText: '选择的卡片已公开。确认后加入手牌，其余卡片放置入休息室。',
     revealActionStep: 'REVEAL_SELECTED_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD',
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 2,
+    },
   },
   {
     abilityId: HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
@@ -189,6 +218,12 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     skipSelectionLabel: '不加入',
     revealStepText: '选择的成员卡已公开。确认后加入手牌，其余卡片放置入休息室。',
     revealActionStep: 'REVEAL_SELECTED_MEMBER',
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '离场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 5,
+    },
   },
   {
     abilityId: HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
@@ -205,6 +240,12 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     skipSelectionLabel: '不加入',
     revealStepText: '选择的LIVE卡已公开。确认后加入手牌，其余卡片放置入休息室。',
     revealActionStep: 'REVEAL_SELECTED_LIVE',
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '离场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 5,
+    },
   },
   {
     abilityId: S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
@@ -228,6 +269,12 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     skipSelectionLabel: '不加入',
     revealStepText: getAbilityEffectText(S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID),
     revealActionStep: 'REVEAL_SELECTED_THREE_COLOR_MEMBER',
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 2,
+    },
   },
 ];
 
@@ -362,6 +409,9 @@ export function startLookTopSelectToHandWorkflow(
           countRule,
           candidateCardIds: selectableCardIds,
           includeInspectedCardIdsInFinishAction: config.includeInspectedCardIdsInFinishAction,
+          ...(config.publicEffectSummaryContext
+            ? { publicEffectSummaryContext: config.publicEffectSummaryContext }
+            : {}),
         } satisfies LookTopSelectToHandMetadata,
       },
     },
@@ -374,6 +424,15 @@ export function startLookTopSelectToHandWorkflow(
       step: config.startActionStep ?? 'START_INSPECTION',
       inspectedCardIds,
       selectableCardIds,
+      ...(config.publicEffectSummaryContext
+        ? {
+            publicEffectSummary: {
+              ...config.publicEffectSummaryContext,
+              summaryStatus: 'STARTED',
+              actualInspectedCount: inspectedCardIds.length,
+            },
+          }
+        : {}),
       ...config.startActionPayload,
     }
   );
@@ -536,6 +595,16 @@ function finishLookTopSelectToHandWorkflow(
   if (metadata.includeInspectedCardIdsInFinishAction === true) {
     finishPayload.inspectedCardIds = inspectedCardIds;
   }
+  if (metadata.publicEffectSummaryContext) {
+    finishPayload.publicEffectSummary = {
+      ...metadata.publicEffectSummaryContext,
+      summaryStatus: 'COMPLETED',
+      actualInspectedCount: inspectedCardIds.length,
+      selectedCardIds: moveResult.selectedCardIds,
+      noSelectedCards: moveResult.selectedCardIds.length === 0,
+      waitingRoomCardIds: moveResult.waitingRoomCardIds,
+    };
+  }
 
   return options.continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', player.id, finishPayload),
@@ -596,7 +665,7 @@ function getLookTopSelectToHandMetadata(
     return null;
   }
 
-  return {
+  const parsedMetadata: LookTopSelectToHandMetadata = {
     orderedResolution: metadata?.orderedResolution === true,
     revealSelectedBeforeHand: metadata?.revealSelectedBeforeHand === true,
     revealStepId: typeof metadata?.revealStepId === 'string' ? metadata.revealStepId : undefined,
@@ -614,6 +683,48 @@ function getLookTopSelectToHandMetadata(
     selectedCardIds: Array.isArray(metadata?.selectedCardIds)
       ? metadata.selectedCardIds.filter((value): value is string => typeof value === 'string')
       : undefined,
+  };
+  const publicEffectSummaryContext = getLookTopSelectToHandPublicSummaryContext(
+    metadata?.publicEffectSummaryContext
+  );
+  return publicEffectSummaryContext
+    ? { ...parsedMetadata, publicEffectSummaryContext }
+    : parsedMetadata;
+}
+
+function getLookTopSelectToHandPublicSummaryContext(
+  value: unknown
+): LookTopSelectToHandPublicSummaryContext | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (candidate.effectKind !== 'DISCARD_LOOK_TOP_SELECT_TO_HAND') {
+    return undefined;
+  }
+  return {
+    effectKind: candidate.effectKind,
+    ...(Array.isArray(candidate.discardedCostCardIds)
+      ? {
+          discardedCostCardIds: candidate.discardedCostCardIds.filter(
+            (cardId): cardId is string => typeof cardId === 'string'
+          ),
+        }
+      : {}),
+    ...(typeof candidate.inspectSourceZone === 'string'
+      ? { inspectSourceZone: candidate.inspectSourceZone as ZoneType }
+      : {}),
+    ...(typeof candidate.requestedInspectCount === 'number'
+      ? { requestedInspectCount: candidate.requestedInspectCount }
+      : {}),
+    ...(candidate.sourceOrientationCost === 'WAITING'
+      ? { sourceOrientationCost: candidate.sourceOrientationCost }
+      : {}),
+    ...(candidate.sourceActionLabel === '登场' ||
+    candidate.sourceActionLabel === '离场' ||
+    candidate.sourceActionLabel === '起动'
+      ? { sourceActionLabel: candidate.sourceActionLabel }
+      : {}),
   };
 }
 

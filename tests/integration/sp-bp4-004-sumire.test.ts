@@ -140,6 +140,11 @@ function setupSumireScenario(options: {
   );
   const drawOne = createCardInstance(createMemberCard('PL!SP-test-draw-1'), PLAYER1, 'p1-draw-1');
   const drawTwo = createCardInstance(createMemberCard('PL!SP-test-draw-2'), PLAYER1, 'p1-draw-2');
+  const remainingDeckCard = createCardInstance(
+    createMemberCard('PL!SP-test-remaining-deck'),
+    PLAYER1,
+    'p1-remaining-deck'
+  );
 
   const state = registerCards(session.state!, [
     source,
@@ -148,6 +153,7 @@ function setupSumireScenario(options: {
     waitingCandidate,
     drawOne,
     drawTwo,
+    remainingDeckCard,
   ]);
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
@@ -164,7 +170,7 @@ function setupSumireScenario(options: {
   };
 
   p1.hand.cardIds = [source.instanceId];
-  p1.mainDeck.cardIds = [drawOne.instanceId, drawTwo.instanceId];
+  p1.mainDeck.cardIds = [drawOne.instanceId, drawTwo.instanceId, remainingDeckCard.instanceId];
   p1.waitingRoom.cardIds =
     options.includeWaitingCandidate === false ? [] : [waitingCandidate.instanceId];
   p1.successZone.cardIds = [];

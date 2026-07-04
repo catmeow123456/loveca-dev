@@ -252,6 +252,11 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
       step: 'FINISH',
       selectedCardId: recoveryResult.movedCardIds[0] ?? null,
       selectedCardIds: recoveryResult.movedCardIds,
+      publicEffectSummary: {
+        effectKind: 'SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM',
+        recoveredCardIds: recoveryResult.movedCardIds,
+        noRecoveredCards: recoveryResult.movedCardIds.length === 0,
+      },
     }),
     effect.metadata?.orderedResolution === true
   );

@@ -1,11 +1,14 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Filter, ScrollText, X } from 'lucide-react';
 import { useGameStore } from '@/store/gameStore';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   formatPublicBattleLogEvents,
   type PublicBattleLogCardGroupView,
   type PublicBattleLogCardView,
+  type PublicBattleLogEffectSummaryView,
   type PublicBattleLogFilter,
 } from '@/lib/publicBattleLogFormatter';
 import { cn } from '@/lib/utils';
@@ -97,9 +100,11 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
   const loadState = useGameStore((s) => s.publicBattleLog.loadState);
   const error = useGameStore((s) => s.publicBattleLog.error);
   const getCardData = useGameStore((s) => s.getCardData);
+  const getCardImagePath = useGameStore((s) => s.getCardImagePath);
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
   const viewerSeat = useGameStore((s) => s.playerViewState?.match.viewerSeat ?? null);
   const setCardDetail = useGameStore((s) => s.setCardDetail);
+  const shouldUseHoverPreview = useMediaQuery('(min-width: 1024px)');
   const [filter, setFilter] = useState<PublicBattleLogFilter>('KEY');
   const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -120,6 +125,22 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [items.length, active]);
+
+  const showPublicEventCard = (card: PublicBattleLogCardView): void => {
+    setCardDetail({
+      kind: 'public-event-card',
+      cardCode: card.cardCode,
+      publicObjectId: card.publicObjectId,
+    });
+  };
+  const hidePublicEventCard = (): void => {
+    setCardDetail(null);
+  };
+  const publicEventCardInteraction = {
+    shouldUseHoverPreview,
+    showCard: showPublicEventCard,
+    hideCard: hidePublicEventCard,
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -156,7 +177,8 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
             0
           );
           const hiddenPublicCardCount = expanded ? 0 : item.cards.length - visibleGroupedCardCount;
-          const showCardArea = item.cards.length > 0 || item.hiddenCardCount > 0;
+          const showCardArea =
+            !item.effectSummary && (item.cards.length > 0 || item.hiddenCardCount > 0);
 
           return (
             <div
@@ -184,6 +206,13 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
                   {item.detail}
                 </div>
               )}
+              {item.effectSummary && (
+                <PublicBattleLogEffectSummary
+                  summary={item.effectSummary}
+                  getCardImagePath={getCardImagePath}
+                  interaction={publicEventCardInteraction}
+                />
+              )}
               {showCardArea && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {expanded
@@ -191,19 +220,15 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
                         <PublicBattleLogCardChip
                           key={`${item.id}:${card.publicObjectId}`}
                           card={card}
-                          onOpen={() =>
-                            setCardDetail({
-                              kind: 'public-event-card',
-                              cardCode: card.cardCode,
-                              publicObjectId: card.publicObjectId,
-                            })
-                          }
+                          imagePath={getCardImagePath(card.cardCode)}
+                          interaction={publicEventCardInteraction}
                         />
                       ))
                     : visibleCardGroups.map((group) => (
                         <PublicBattleLogCardGroupChip
                           key={`${item.id}:group:${group.id}`}
                           group={group}
+                          imagePath={getCardImagePath(group.cardCode)}
                           onOpen={() => {
                             if (group.count > 1 || item.cardGroups.length > 3) {
                               setExpandedEventIds((previous) => {
@@ -217,12 +242,11 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
                             if (!card) {
                               return;
                             }
-                            setCardDetail({
-                              kind: 'public-event-card',
-                              cardCode: card.cardCode,
-                              publicObjectId: card.publicObjectId,
-                            });
+                            if (!shouldUseHoverPreview) {
+                              showPublicEventCard(card);
+                            }
                           }}
+                          interaction={publicEventCardInteraction}
                         />
                       ))}
                   {item.hiddenCardCount > 0 && (
@@ -270,23 +294,281 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
   );
 });
 
-function PublicBattleLogCardGroupChip({
-  group,
-  onOpen,
+interface PublicEventCardInteraction {
+  readonly shouldUseHoverPreview: boolean;
+  readonly showCard: (card: PublicBattleLogCardView) => void;
+  readonly hideCard: () => void;
+}
+
+function PublicBattleLogEffectSummary({
+  summary,
+  getCardImagePath,
+  interaction,
 }: {
-  readonly group: PublicBattleLogCardGroupView;
-  readonly onOpen: () => void;
+  readonly summary: PublicBattleLogEffectSummaryView;
+  readonly getCardImagePath: (cardCode: string) => string;
+  readonly interaction: PublicEventCardInteraction;
+}) {
+  const sourceCard = summary.sourceCard;
+  const hasDiscardCost =
+    summary.discardedCostCards.length > 0 || summary.hiddenDiscardedCostCardCount > 0;
+  const selectedCardCount = summary.selectedCards.length + summary.hiddenSelectedCardCount;
+  const hasSelectedCards = selectedCardCount > 0;
+  const inspectCount =
+    summary.kind === 'ARRANGE_INSPECTED_DECK_TOP'
+      ? (summary.actualInspectedCount ?? summary.requestedInspectCount)
+      : (summary.requestedInspectCount ?? summary.actualInspectedCount);
+
+  return (
+    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+      {sourceCard ? (
+        <PublicBattleLogCardThumb
+          card={sourceCard}
+          imagePath={getCardImagePath(sourceCard.cardCode)}
+          interaction={interaction}
+        />
+      ) : (
+        <span className="inline-flex h-12 w-9 items-center justify-center rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_34%,transparent)] text-[9px] font-semibold text-[var(--text-muted)]">
+          来源
+        </span>
+      )}
+      {summary.kind === 'DISCARD_LOOK_TOP_SELECT_TO_HAND' ||
+      summary.kind === 'ARRANGE_INSPECTED_DECK_TOP' ? (
+        <>
+          {summary.sourceOrientationCost === 'WAITING' && (
+            <PublicBattleLogSummaryStepLabel>-&gt; 待机</PublicBattleLogSummaryStepLabel>
+          )}
+          {summary.kind === 'DISCARD_LOOK_TOP_SELECT_TO_HAND' && hasDiscardCost && (
+            <>
+              <PublicBattleLogSummaryStepLabel>-&gt; 弃置</PublicBattleLogSummaryStepLabel>
+              {summary.discardedCostCards.map((card) => (
+                <PublicBattleLogCardThumb
+                  key={`discard:${card.publicObjectId}`}
+                  card={card}
+                  imagePath={getCardImagePath(card.cardCode)}
+                  interaction={interaction}
+                />
+              ))}
+              {summary.hiddenDiscardedCostCardCount > 0 && (
+                <PublicBattleLogHiddenCardBadge count={summary.hiddenDiscardedCostCardCount} />
+              )}
+            </>
+          )}
+          <PublicBattleLogSummaryStepLabel>
+            -&gt; {inspectCount !== null ? `检视卡组顶${inspectCount}张` : '检视卡组顶'}
+          </PublicBattleLogSummaryStepLabel>
+          {summary.summaryStatus === 'STARTED' ? (
+            <span className="inline-flex min-h-8 items-center rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_34%,transparent)] px-2 text-[11px] font-semibold text-[var(--text-muted)]">
+              {summary.kind === 'ARRANGE_INSPECTED_DECK_TOP' ? '排序中' : '处理中'}
+            </span>
+          ) : summary.kind === 'ARRANGE_INSPECTED_DECK_TOP' ? (
+            <>
+              {hasSelectedCards ? (
+                <>
+                  <PublicBattleLogSummaryStepLabel>
+                    -&gt; 按顺序放回卡组顶{selectedCardCount}张
+                  </PublicBattleLogSummaryStepLabel>
+                  {summary.selectedCards.map((card) => (
+                    <PublicBattleLogCardThumb
+                      key={`top:${card.publicObjectId}`}
+                      card={card}
+                      imagePath={getCardImagePath(card.cardCode)}
+                      interaction={interaction}
+                    />
+                  ))}
+                  {summary.hiddenSelectedCardCount > 0 && (
+                    <PublicBattleLogHiddenCardBadge count={summary.hiddenSelectedCardCount} />
+                  )}
+                </>
+              ) : (
+                summary.noSelectedCards && (
+                  <PublicBattleLogSummaryStepLabel>
+                    -&gt; 未放回卡组顶
+                  </PublicBattleLogSummaryStepLabel>
+                )
+              )}
+              {summary.waitingRoomCardCount !== null && summary.waitingRoomCardCount > 0 && (
+                <span className="inline-flex min-h-7 items-center rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_24%,transparent)] px-2 text-[11px] font-semibold text-[var(--text-muted)]">
+                  余下{summary.waitingRoomCardCount}张入休息室
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              {hasSelectedCards ? (
+                <>
+                  <PublicBattleLogSummaryStepLabel>-&gt; 加入</PublicBattleLogSummaryStepLabel>
+                  {summary.selectedCards.map((card) => (
+                    <PublicBattleLogCardThumb
+                      key={`selected:${card.publicObjectId}`}
+                      card={card}
+                      imagePath={getCardImagePath(card.cardCode)}
+                      interaction={interaction}
+                    />
+                  ))}
+                  {summary.hiddenSelectedCardCount > 0 && (
+                    <PublicBattleLogSummaryStepLabel>
+                      {summary.selectedCards.length > 0
+                        ? `另有${summary.hiddenSelectedCardCount}张`
+                        : `${summary.hiddenSelectedCardCount}张卡`}
+                    </PublicBattleLogSummaryStepLabel>
+                  )}
+                </>
+              ) : (
+                summary.noSelectedCards && (
+                  <PublicBattleLogSummaryStepLabel>-&gt; 未加入</PublicBattleLogSummaryStepLabel>
+                )
+              )}
+              {summary.waitingRoomCardCount !== null && summary.waitingRoomCardCount > 0 && (
+                <span className="inline-flex min-h-7 items-center rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_24%,transparent)] px-2 text-[11px] font-semibold text-[var(--text-muted)]">
+                  余下{summary.waitingRoomCardCount}张入休息室
+                </span>
+              )}
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <PublicBattleLogSummaryStepLabel>-&gt; 回收</PublicBattleLogSummaryStepLabel>
+          {summary.recoveredCards.map((card) => (
+            <PublicBattleLogCardThumb
+              key={card.publicObjectId}
+              card={card}
+              imagePath={getCardImagePath(card.cardCode)}
+              interaction={interaction}
+            />
+          ))}
+          {summary.hiddenRecoveredCardCount > 0 && (
+            <PublicBattleLogHiddenCardBadge count={summary.hiddenRecoveredCardCount} />
+          )}
+          {summary.noRecoveredCards && (
+            <span className="inline-flex min-h-8 items-center rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_34%,transparent)] px-2 text-[11px] font-semibold text-[var(--text-muted)]">
+              未回收
+            </span>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PublicBattleLogSummaryStepLabel({ children }: { readonly children: ReactNode }) {
+  return (
+    <span className="inline-flex min-h-7 items-center rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_28%,transparent)] px-2 text-[11px] font-bold text-[var(--text-secondary)]">
+      {children}
+    </span>
+  );
+}
+
+function PublicBattleLogHiddenCardBadge({ count }: { readonly count: number }) {
+  return (
+    <span className="inline-flex h-12 min-w-9 items-center justify-center rounded border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_34%,transparent)] px-1 text-center text-[9px] font-semibold leading-tight text-[var(--text-muted)]">
+      身份未公开{count > 1 ? ` ×${count}` : ''}
+    </span>
+  );
+}
+
+function PublicBattleLogCardThumb({
+  card,
+  imagePath,
+  interaction,
+}: {
+  readonly card: PublicBattleLogCardView;
+  readonly imagePath: string;
+  readonly interaction: PublicEventCardInteraction;
 }) {
   return (
     <button
       type="button"
-      onClick={onOpen}
-      className="min-h-9 max-w-full rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_48%,transparent)] px-2 py-1 text-left text-[11px] leading-tight transition hover:border-[var(--accent-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+      onMouseEnter={() => {
+        if (interaction.shouldUseHoverPreview) {
+          interaction.showCard(card);
+        }
+      }}
+      onMouseLeave={() => {
+        if (interaction.shouldUseHoverPreview) {
+          interaction.hideCard();
+        }
+      }}
+      onFocus={() => {
+        if (interaction.shouldUseHoverPreview) {
+          interaction.showCard(card);
+        }
+      }}
+      onBlur={() => {
+        if (interaction.shouldUseHoverPreview) {
+          interaction.hideCard();
+        }
+      }}
+      onClick={() => {
+        if (!interaction.shouldUseHoverPreview) {
+          interaction.showCard(card);
+        }
+      }}
+      className="group h-12 w-9 overflow-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_48%,transparent)] transition hover:border-[var(--accent-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+      title={card.label}
+      aria-label={card.label}
     >
-      <span className="flex max-w-[15rem] items-baseline gap-1.5 overflow-hidden">
-        <span className="shrink-0 font-semibold text-[var(--text-muted)]">{group.cardCode}</span>
-        <span className="min-w-0 truncate font-bold text-[var(--text-primary)]">
-          「{group.name}」
+      <img
+        src={imagePath}
+        alt=""
+        className="h-full w-full object-cover transition group-hover:scale-105"
+        draggable={false}
+      />
+    </button>
+  );
+}
+
+function PublicBattleLogCardGroupChip({
+  group,
+  imagePath,
+  onOpen,
+  interaction,
+}: {
+  readonly group: PublicBattleLogCardGroupView;
+  readonly imagePath: string;
+  readonly onOpen: () => void;
+  readonly interaction: PublicEventCardInteraction;
+}) {
+  const previewCard = group.cards[0] ?? null;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      onMouseEnter={() => {
+        if (interaction.shouldUseHoverPreview && previewCard) {
+          interaction.showCard(previewCard);
+        }
+      }}
+      onMouseLeave={() => {
+        if (interaction.shouldUseHoverPreview) {
+          interaction.hideCard();
+        }
+      }}
+      onFocus={() => {
+        if (interaction.shouldUseHoverPreview && previewCard) {
+          interaction.showCard(previewCard);
+        }
+      }}
+      onBlur={() => {
+        if (interaction.shouldUseHoverPreview) {
+          interaction.hideCard();
+        }
+      }}
+      className="min-h-10 max-w-full rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_48%,transparent)] px-1.5 py-1 text-left text-[11px] leading-tight transition hover:border-[var(--accent-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+    >
+      <span className="flex max-w-[15rem] items-center gap-1.5 overflow-hidden">
+        <span className="h-8 w-6 shrink-0 overflow-hidden rounded border border-[var(--border-subtle)] bg-[var(--bg-overlay)]">
+          <img src={imagePath} alt="" className="h-full w-full object-cover" draggable={false} />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate font-semibold text-[var(--text-muted)]">
+            {group.cardCode}
+          </span>
+          <span className="block truncate font-bold text-[var(--text-primary)]">
+            「{group.name}」
+          </span>
         </span>
         {group.count > 1 && (
           <span className="shrink-0 font-bold text-[var(--accent-primary)]">×{group.count}</span>
@@ -298,21 +580,54 @@ function PublicBattleLogCardGroupChip({
 
 function PublicBattleLogCardChip({
   card,
-  onOpen,
+  imagePath,
+  interaction,
 }: {
   readonly card: PublicBattleLogCardView;
-  readonly onOpen: () => void;
+  readonly imagePath: string;
+  readonly interaction: PublicEventCardInteraction;
 }) {
   return (
     <button
       type="button"
-      onClick={onOpen}
-      className="min-h-9 max-w-full rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_48%,transparent)] px-2 py-1 text-left text-[11px] leading-tight transition hover:border-[var(--accent-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+      onMouseEnter={() => {
+        if (interaction.shouldUseHoverPreview) {
+          interaction.showCard(card);
+        }
+      }}
+      onMouseLeave={() => {
+        if (interaction.shouldUseHoverPreview) {
+          interaction.hideCard();
+        }
+      }}
+      onFocus={() => {
+        if (interaction.shouldUseHoverPreview) {
+          interaction.showCard(card);
+        }
+      }}
+      onBlur={() => {
+        if (interaction.shouldUseHoverPreview) {
+          interaction.hideCard();
+        }
+      }}
+      onClick={() => {
+        if (!interaction.shouldUseHoverPreview) {
+          interaction.showCard(card);
+        }
+      }}
+      className="min-h-10 max-w-full rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_48%,transparent)] px-1.5 py-1 text-left text-[11px] leading-tight transition hover:border-[var(--accent-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
     >
-      <span className="flex max-w-[15rem] items-baseline gap-1.5 overflow-hidden">
-        <span className="shrink-0 font-semibold text-[var(--text-muted)]">{card.cardCode}</span>
-        <span className="min-w-0 truncate font-bold text-[var(--text-primary)]">
-          「{card.name}」
+      <span className="flex max-w-[15rem] items-center gap-1.5 overflow-hidden">
+        <span className="h-8 w-6 shrink-0 overflow-hidden rounded border border-[var(--border-subtle)] bg-[var(--bg-overlay)]">
+          <img src={imagePath} alt="" className="h-full w-full object-cover" draggable={false} />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate font-semibold text-[var(--text-muted)]">
+            {card.cardCode}
+          </span>
+          <span className="block truncate font-bold text-[var(--text-primary)]">
+            「{card.name}」
+          </span>
         </span>
       </span>
     </button>

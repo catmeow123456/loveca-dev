@@ -556,6 +556,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID
     );
+    const beforeCostSeq = session.getCurrentPublicEventSeq();
     expect(
       session.executeCommand(
         createConfirmEffectStepCommand(
@@ -565,11 +566,42 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
         )
       ).success
     ).toBe(true);
+    const startedSummary = session
+      .getPublicEventsSince(beforeCostSeq)
+      .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'STARTED');
+    expect(startedSummary?.type).toBe('CardEffectSummary');
+    if (startedSummary?.type === 'CardEffectSummary') {
+      expect(startedSummary.abilityId).toBe(HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID);
+      expect(startedSummary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
+      expect(startedSummary.summaryStatus).toBe('STARTED');
+      expect(startedSummary.sourceOrientationCost).toBe('WAITING');
+      expect(startedSummary.sourceCard?.publicObjectId).toBe(`obj_${source.instanceId}`);
+      expect(startedSummary.discardedCostCards?.map((card) => card.publicObjectId)).toEqual([
+        `obj_${discardCard.instanceId}`,
+      ]);
+      expect(startedSummary.requestedInspectCount).toBe(5);
+      expect(startedSummary.actualInspectedCount).toBe(5);
+    }
     expect(
       session.executeCommand(
         createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
       ).success
     ).toBe(true);
+    const completedSummary = session
+      .getPublicEventsSince(beforeCostSeq)
+      .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'COMPLETED');
+    expect(completedSummary?.type).toBe('CardEffectSummary');
+    if (completedSummary?.type === 'CardEffectSummary') {
+      expect(completedSummary.abilityId).toBe(
+        HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID
+      );
+      expect(completedSummary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
+      expect(completedSummary.summaryStatus).toBe('COMPLETED');
+      expect(completedSummary.sourceOrientationCost).toBe('WAITING');
+      expect(completedSummary.selectedCards).toEqual([]);
+      expect(completedSummary.noSelectedCards).toBe(true);
+      expect(completedSummary.waitingRoomCardCount).toBe(5);
+    }
 
     expectPb1003AutoResolvedOnce(session.state, pb1003Source.instanceId);
   });

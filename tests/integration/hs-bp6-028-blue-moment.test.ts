@@ -159,6 +159,21 @@ describe('PL!HS-bp6-028 Blue Moment workflow', () => {
     expect(session.state?.activeEffect?.metadata?.confirmOnlyPendingAbility).toBeUndefined();
     expect(session.state?.activeEffect?.inspectionCardIds).toEqual(deckCardIds);
     expect(session.state?.inspectionZone.cardIds).toEqual(deckCardIds);
+    expect(
+      session.state?.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_BP6_028_LIVE_SUCCESS_REMAINING_HEART_LOOK_TOP_TWO_ABILITY_ID &&
+          action.payload.step === 'START_INSPECTION'
+      )?.payload.publicEffectSummary
+    ).toMatchObject({
+      effectKind: 'ARRANGE_INSPECTED_DECK_TOP',
+      summaryStatus: 'STARTED',
+      sourceActionLabel: 'LIVE成功',
+      requestedInspectCount: 2,
+      actualInspectedCount: 2,
+    });
     expect(confirmSelectedCards(session, selectedCardIds).success).toBe(true);
 
     expect(session.state?.activeEffect).toBeNull();
@@ -170,6 +185,22 @@ describe('PL!HS-bp6-028 Blue Moment workflow', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
       expectedWaitIndexes.map((index) => deckCardIds[index]!)
     );
+    expect(
+      session.state?.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_BP6_028_LIVE_SUCCESS_REMAINING_HEART_LOOK_TOP_TWO_ABILITY_ID &&
+          action.payload.step === 'FINISH'
+      )?.payload.publicEffectSummary
+    ).toMatchObject({
+      effectKind: 'ARRANGE_INSPECTED_DECK_TOP',
+      summaryStatus: 'COMPLETED',
+      sourceActionLabel: 'LIVE成功',
+      actualInspectedCount: 2,
+      selectedCardIds: expectedTopIndexes.map((index) => deckCardIds[index]!),
+      waitingRoomCardIds: expectedWaitIndexes.map((index) => deckCardIds[index]!),
+    });
     expect(session.state?.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual(
       remainingHearts
     );

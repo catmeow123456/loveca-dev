@@ -11,7 +11,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { CardType, HeartColor } from '../../../../shared/types/enums.js';
+import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
@@ -291,6 +291,12 @@ function startDiscardLookTopInspection(
     {
       ...createLookTopConfig(effect.effectText, metadata),
       startActionPayload: { discardCardId },
+      publicEffectSummaryContext: {
+        effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+        discardedCostCardIds: [discardCardId],
+        inspectSourceZone: ZoneType.MAIN_DECK,
+        requestedInspectCount: metadata.topCount,
+      },
     },
     {
       orderedResolution: metadata.orderedResolution,

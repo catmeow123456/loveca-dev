@@ -56,6 +56,7 @@ function setupHime(options: {
   readonly game: GameState;
   readonly sourceId: string;
   readonly drawId: string;
+  readonly remainingDeckId: string;
   readonly targetId: string | null;
 } {
   const source = createCardInstance(
@@ -64,6 +65,11 @@ function setupHime(options: {
     'bp6-014-source'
   );
   const draw = createCardInstance(createMember('PL!HS-bp6-014-draw', 'Draw'), PLAYER1, 'draw');
+  const remainingDeckCard = createCardInstance(
+    createMember('PL!HS-bp6-014-remaining', 'Remaining'),
+    PLAYER1,
+    'remaining'
+  );
   const target =
     options.includeTarget === false
       ? null
@@ -79,12 +85,16 @@ function setupHime(options: {
   let game = registerCards(baseGame('hs-bp6-014-hime'), [
     source,
     draw,
+    remainingDeckCard,
     ...(target ? [target] : []),
   ]);
   game = updatePlayer(game, PLAYER1, (player) => {
     let nextPlayer = {
       ...player,
-      mainDeck: addCardToZone(player.mainDeck, draw.instanceId),
+      mainDeck: {
+        ...player.mainDeck,
+        cardIds: [draw.instanceId, remainingDeckCard.instanceId],
+      },
     };
     const sourceZone = options.sourceZone ?? ZoneType.HAND;
     if (sourceZone === ZoneType.HAND) {
@@ -119,6 +129,7 @@ function setupHime(options: {
     game,
     sourceId: source.instanceId,
     drawId: draw.instanceId,
+    remainingDeckId: remainingDeckCard.instanceId,
     targetId: target?.instanceId ?? null,
   };
 }
@@ -159,7 +170,7 @@ describe('PL!HS-bp6-014 Hime hand activated workflow', () => {
 
     expect(state.players[0].hand.cardIds).toEqual([scenario.drawId]);
     expect(state.players[0].waitingRoom.cardIds).toEqual([scenario.sourceId]);
-    expect(state.players[0].mainDeck.cardIds).toEqual([]);
+    expect(state.players[0].mainDeck.cardIds).toEqual([scenario.remainingDeckId]);
     expect(enterWaitingRoomEventCards(state)).toEqual([scenario.sourceId]);
     expect(state.activeEffect).toMatchObject({
       abilityId: HS_BP6_014_ACTIVATED_HAND_DISCARD_SELF_DRAW_TARGET_MEGU_RURINO_BLADE_ABILITY_ID,
@@ -230,6 +241,7 @@ describe('PL!HS-bp6-014 Hime hand activated workflow', () => {
     expect(state.activeEffect).toBeNull();
     expect(state.players[0].hand.cardIds).toEqual([scenario.drawId]);
     expect(state.players[0].waitingRoom.cardIds).toEqual([scenario.sourceId]);
+    expect(state.players[0].mainDeck.cardIds).toEqual([scenario.remainingDeckId]);
     expect(state.actionHistory.at(-1)?.payload).toMatchObject({
       step: 'DISCARD_SELF_DRAW_ONE_NO_TARGET',
       bladeBonus: 0,

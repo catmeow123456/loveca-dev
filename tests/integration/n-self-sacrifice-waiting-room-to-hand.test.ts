@@ -156,6 +156,7 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
       includeWaitingLive: true,
     });
 
+    const beforeSeq = session.getCurrentPublicEventSeq();
     const activateResult = session.executeCommand(
       createActivateAbilityCommand(PLAYER1, sourceId, PB1_019_ACTIVATED_ABILITY_ID)
     );
@@ -182,6 +183,21 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([sourceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(sourceId);
+
+    const summary = session
+      .getPublicEventsSince(beforeSeq)
+      .find((event) => event.type === 'CardEffectSummary');
+    expect(summary?.type).toBe('CardEffectSummary');
+    if (summary?.type === 'CardEffectSummary') {
+      expect(summary.abilityId).toBe(PB1_019_ACTIVATED_ABILITY_ID);
+      expect(summary.effectKind).toBe('SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM');
+      expect(summary.sourceCard?.publicObjectId).toBe(`obj_${sourceId}`);
+      expect(summary.recoveredCards.map((card) => card.publicObjectId)).toEqual([
+        `obj_${sourceId}`,
+      ]);
+      expect(summary.hiddenRecoveredCardCount).toBe(0);
+      expect(summary.noRecoveredCards).toBe(false);
+    }
   });
 
   it.each([
@@ -195,6 +211,7 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
       includeWaitingLive: true,
     });
 
+    const beforeSeq = session.getCurrentPublicEventSeq();
     const activateResult = session.executeCommand(
       createActivateAbilityCommand(PLAYER1, sourceId, RIN_ACTIVATED_ABILITY_ID)
     );
@@ -214,6 +231,20 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([waitingLiveId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toContain(sourceId);
+
+    const summary = session
+      .getPublicEventsSince(beforeSeq)
+      .find((event) => event.type === 'CardEffectSummary');
+    expect(summary?.type).toBe('CardEffectSummary');
+    if (summary?.type === 'CardEffectSummary') {
+      expect(summary.abilityId).toBe(RIN_ACTIVATED_ABILITY_ID);
+      expect(summary.sourceCard?.publicObjectId).toBe(`obj_${sourceId}`);
+      expect(summary.recoveredCards.map((card) => card.publicObjectId)).toEqual([
+        `obj_${waitingLiveId}`,
+      ]);
+      expect(summary.hiddenRecoveredCardCount).toBe(0);
+      expect(summary.noRecoveredCards).toBe(false);
+    }
   });
 
   it('keeps the self-sacrifice cost paid when the LIVE recovery family has no legal target', () => {
@@ -223,6 +254,7 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
       includeWaitingMember: true,
     });
 
+    const beforeSeq = session.getCurrentPublicEventSeq();
     const activateResult = session.executeCommand(
       createActivateAbilityCommand(PLAYER1, sourceId, RIN_ACTIVATED_ABILITY_ID)
     );
@@ -243,6 +275,18 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
       expect.arrayContaining([waitingMemberId!, sourceId])
     );
+
+    const summary = session
+      .getPublicEventsSince(beforeSeq)
+      .find((event) => event.type === 'CardEffectSummary');
+    expect(summary?.type).toBe('CardEffectSummary');
+    if (summary?.type === 'CardEffectSummary') {
+      expect(summary.abilityId).toBe(RIN_ACTIVATED_ABILITY_ID);
+      expect(summary.sourceCard?.publicObjectId).toBe(`obj_${sourceId}`);
+      expect(summary.recoveredCards).toEqual([]);
+      expect(summary.hiddenRecoveredCardCount).toBe(0);
+      expect(summary.noRecoveredCards).toBe(true);
+    }
   });
 
   it('rejects activation outside the main phase without paying the source cost', () => {

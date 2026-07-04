@@ -121,7 +121,12 @@ describe('mill-top gain live modifier workflow', () => {
         'p1-hs-pr-019-top-2'
       ),
     ];
-    const state = registerCards(session.state!, [ginko, ...topCards]);
+    const remainingDeckCard = createCardInstance(
+      createMemberCard('PL!HS-pr-019-test-remaining', 'Remaining', HeartColor.GREEN),
+      PLAYER1,
+      'p1-hs-pr-019-remaining'
+    );
+    const state = registerCards(session.state!, [ginko, ...topCards, remainingDeckCard]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
     const p1 = state.players[0] as unknown as {
@@ -139,7 +144,7 @@ describe('mill-top gain live modifier workflow', () => {
 
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [ginko.instanceId];
-    p1.mainDeck.cardIds = [...topCardIds];
+    p1.mainDeck.cardIds = [...topCardIds, remainingDeckCard.instanceId];
     p1.memberSlots.slots = {
       [SlotPosition.LEFT]: null,
       [SlotPosition.CENTER]: null,
@@ -218,7 +223,12 @@ describe('mill-top gain live modifier workflow', () => {
         `p1-hs-pr-021-top-${index}`
       )
     );
-    const state = registerCards(session.state!, [hime, ...topCards]);
+    const remainingDeckCard = createCardInstance(
+      createMemberCard('PL!HS-pr-021-test-remaining', 'Remaining', HeartColor.PINK),
+      PLAYER1,
+      'p1-hs-pr-021-remaining'
+    );
+    const state = registerCards(session.state!, [hime, ...topCards, remainingDeckCard]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
     const p1 = state.players[0] as unknown as {
@@ -236,7 +246,7 @@ describe('mill-top gain live modifier workflow', () => {
 
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [hime.instanceId];
-    p1.mainDeck.cardIds = [...topCardIds];
+    p1.mainDeck.cardIds = [...topCardIds, remainingDeckCard.instanceId];
     p1.memberSlots.slots = {
       [SlotPosition.LEFT]: null,
       [SlotPosition.CENTER]: null,
@@ -305,7 +315,12 @@ describe('mill-top gain live modifier workflow', () => {
         `p1-hs-sd1-013-top-${index}`
       )
     );
-    const state = registerCards(session.state!, [kosuzu, ...topCards]);
+    const remainingDeckCard = createCardInstance(
+      createMemberCard('PL!HS-sd1-013-test-remaining', 'Remaining', HeartColor.BLUE),
+      PLAYER1,
+      'p1-hs-sd1-013-remaining'
+    );
+    const state = registerCards(session.state!, [kosuzu, ...topCards, remainingDeckCard]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
     const p1 = state.players[0] as unknown as {
@@ -323,7 +338,7 @@ describe('mill-top gain live modifier workflow', () => {
 
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [kosuzu.instanceId];
-    p1.mainDeck.cardIds = [...topCardIds];
+    p1.mainDeck.cardIds = [...topCardIds, remainingDeckCard.instanceId];
     p1.memberSlots.slots = {
       [SlotPosition.LEFT]: null,
       [SlotPosition.CENTER]: null,
@@ -371,6 +386,13 @@ describe('mill-top gain live modifier workflow', () => {
           `p1-hs-bp5-013-top-${index}`
         )
       ),
+      remainingDeckCards: [
+        createCardInstance(
+          createMemberCard('PL!HS-bp5-013-test-remaining', 'Remaining'),
+          PLAYER1,
+          'p1-hs-bp5-013-remaining'
+        ),
+      ],
     });
 
     const timingResult = new GameService().executeCheckTiming(session.state!, [
@@ -684,6 +706,7 @@ function createLiveStartSession(
   options: {
     readonly topCards: readonly ReturnType<typeof createCardInstance>[];
     readonly sourceCard?: ReturnType<typeof createCardInstance>;
+    readonly remainingDeckCards?: readonly ReturnType<typeof createCardInstance>[];
     readonly waitingCards?: readonly ReturnType<typeof createCardInstance>[];
   }
 ): ReturnType<typeof createGameSession> {
@@ -703,6 +726,7 @@ function createLiveStartSession(
   const state = registerCards(session.state!, [
     source,
     ...options.topCards,
+    ...(options.remainingDeckCards ?? []),
     ...(options.waitingCards ?? []),
   ]);
   (session as unknown as { authorityState: GameState }).authorityState = state;
@@ -726,7 +750,10 @@ function createLiveStartSession(
   };
 
   removeFromPlayerZones(p1);
-  p1.mainDeck.cardIds = options.topCards.map((card) => card.instanceId);
+  p1.mainDeck.cardIds = [
+    ...options.topCards.map((card) => card.instanceId),
+    ...(options.remainingDeckCards ?? []).map((card) => card.instanceId),
+  ];
   p1.waitingRoom.cardIds = (options.waitingCards ?? []).map((card) => card.instanceId);
   p1.memberSlots.slots = {
     [SlotPosition.LEFT]: null,

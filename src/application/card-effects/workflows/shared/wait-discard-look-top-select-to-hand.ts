@@ -1,5 +1,5 @@
 import { addAction, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
-import { CardType, OrientationState } from '../../../../shared/types/enums.js';
+import { CardType, OrientationState, ZoneType } from '../../../../shared/types/enums.js';
 import {
   HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
@@ -268,6 +268,13 @@ function startInspectionAfterWaitDiscardCost(
       revealStepText: getAbilityEffectText(config.abilityId),
       revealActionStep: 'REVEAL_SELECTED',
       startActionPayload: { discardCardId },
+      publicEffectSummaryContext: {
+        effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+        discardedCostCardIds: [discardCardId],
+        inspectSourceZone: ZoneType.MAIN_DECK,
+        requestedInspectCount: config.topCount,
+        sourceOrientationCost: 'WAITING',
+      },
     },
     {
       orderedResolution: effect.metadata?.orderedResolution === true,

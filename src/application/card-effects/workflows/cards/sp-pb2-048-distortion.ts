@@ -10,7 +10,8 @@ import {
 import { addLiveModifier, replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { applyHeartRequirementModifiers } from '../../../../domain/rules/live-requirement-modifiers.js';
 import { CardType, HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
-import { and, normalizeCardName, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
+import { selectDifferentNamedCards } from '../../../../shared/utils/card-identity.js';
+import { and, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { SP_PB2_048_LIVE_START_DIFFERENT_NAMED_CATCHU_REQUIREMENT_AND_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import {
   getAbilityEffectText,
@@ -148,23 +149,17 @@ function getDifferentNamedCatchuStageMembers(
     return [];
   }
 
-  const seenNames = new Set<string>();
-  const members: { readonly cardId: string; readonly name: string }[] = [];
-  for (const slot of STAGE_SLOTS) {
-    const cardId = player.memberSlots.slots[slot];
-    const card = cardId ? getCardById(game, cardId) : null;
-    if (!cardId || !card || !catchuMember(card)) {
-      continue;
-    }
-
-    const normalizedName = normalizeCardName(card.data.name);
-    if (seenNames.has(normalizedName)) {
-      continue;
-    }
-    seenNames.add(normalizedName);
-    members.push({ cardId, name: card.data.name });
-  }
-  return members;
+  return selectDifferentNamedCards(
+    STAGE_SLOTS.flatMap((slot) => {
+      const cardId = player.memberSlots.slots[slot];
+      return cardId === null ? [] : [cardId];
+    }),
+    (cardId) => {
+      const card = getCardById(game, cardId);
+      return card && catchuMember(card) ? card.data : null;
+    },
+    { minCount: 1 }
+  ).map((match) => ({ cardId: match.item, name: match.name }));
 }
 
 function createRequirementModifiers(catchuCount: number): readonly LiveRequirementModifierState[] {

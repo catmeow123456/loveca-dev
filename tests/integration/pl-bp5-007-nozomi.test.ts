@@ -214,6 +214,11 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
         `p1-draw-${index}`
       )
     );
+    const p1RemainingDeckCard = createCardInstance(
+      createMemberCard('PL!-test-p1-remaining', 'P1 remaining'),
+      PLAYER1,
+      'p1-remaining'
+    );
     const p2HandCards = Array.from({ length: 5 }, (_, index) =>
       createCardInstance(
         createMemberCard(`PL!-test-p2-hand-${index}`, `P2 hand ${index}`),
@@ -233,15 +238,22 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
         `p2-draw-${index}`
       )
     );
+    const p2RemainingDeckCard = createCardInstance(
+      createMemberCard('PL!-test-p2-remaining', 'P2 remaining'),
+      PLAYER2,
+      'p2-remaining'
+    );
 
     let state = registerCards(session.state!, [
       nozomi,
       relayMember,
       ...p1HandCards,
       ...p1DrawCards,
+      p1RemainingDeckCard,
       p2Pb1003Source,
       ...p2HandCards,
       ...p2DrawCards,
+      p2RemainingDeckCard,
     ]);
     state = updatePlayer(state, PLAYER1, (player) => ({
       ...player,
@@ -251,7 +263,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
       },
       mainDeck: {
         ...player.mainDeck,
-        cardIds: p1DrawCards.map((card) => card.instanceId),
+        cardIds: [...p1DrawCards.map((card) => card.instanceId), p1RemainingDeckCard.instanceId],
       },
       waitingRoom: { ...player.waitingRoom, cardIds: [] },
       successZone: { ...player.successZone, cardIds: [] },
@@ -279,7 +291,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
       },
       mainDeck: {
         ...player.mainDeck,
-        cardIds: p2DrawCards.map((card) => card.instanceId),
+        cardIds: [...p2DrawCards.map((card) => card.instanceId), p2RemainingDeckCard.instanceId],
       },
       waitingRoom: { ...player.waitingRoom, cardIds: [] },
       successZone: { ...player.successZone, cardIds: [] },

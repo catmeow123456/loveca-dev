@@ -17,6 +17,7 @@ import {
   HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
   PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
+  S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   SP_PR_021_LIVE_START_STAGE_HEART_FIVE_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID,
   SP_PB2_024_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
@@ -40,12 +41,12 @@ import {
   and,
   costLte,
   memberPrintedBladeLte,
-  normalizeCardName,
   not,
   type CardSelector,
   typeIs,
   unitAliasIs,
 } from '../../../effects/card-selectors.js';
+import { selectDifferentNamedCards } from '../../../../shared/utils/card-identity.js';
 import {
   createStageMemberOrientationTargetSelection,
   getStageMemberOrientationTargetMetadata,
@@ -57,6 +58,8 @@ const HS_BP6_004_SELECT_OPPONENT_MEMBER_STEP_ID = 'HS_BP6_004_SELECT_OPPONENT_ME
 const PL_BP5_013_SELECT_OPPONENT_MEMBER_STEP_ID = 'PL_BP5_013_SELECT_OPPONENT_MEMBER_TO_WAIT';
 const SP_PB2_SELECT_OPPONENT_COST_TWO_MEMBER_STEP_ID =
   'SP_PB2_SELECT_OPPONENT_COST_TWO_MEMBER_TO_WAIT';
+const S_BP6_015_SELECT_OPPONENT_COST_TWO_MEMBER_STEP_ID =
+  'S_BP6_015_SELECT_OPPONENT_COST_TWO_MEMBER_TO_WAIT';
 const SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_STEP_ID =
   'SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_TO_WAIT';
 const HS_BP6_013_SELECT_OPPONENT_LOW_BLADE_NON_DOLLCHESTRA_MEMBER_STEP_ID =
@@ -88,6 +91,15 @@ const lowBladeNonDollchestraOpponentMemberSelector = and(
 );
 
 const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[] = [
+  {
+    abilityId: S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+    effectTextAbilityId: S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+    stepId: S_BP6_015_SELECT_OPPONENT_COST_TWO_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名费用小于等于2的成员变为待机状态。',
+    selectionLabel: '选择对方舞台上费用小于等于2的成员',
+    selector: costLteTwoOpponentMemberSelector,
+    startActionStep: 'START_SELECT_OPPONENT_COST_TWO_MEMBER',
+  },
   {
     abilityId: SP_PB2_024_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
     effectTextAbilityId: SP_PB2_024_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
@@ -422,19 +434,9 @@ function getOwnStageEffectiveHeartTotal(game: GameState, playerId: string): numb
 }
 
 function getOwnStageDifferentBiBiMemberNameCount(game: GameState, playerId: string): number {
-  const bibiMemberNames = getStageMemberCardIdsMatching(
-    game,
-    playerId,
-    and(typeIs(CardType.MEMBER), unitAliasIs('BiBi'))
-  )
-    .map((cardId) => getCardName(game, cardId))
-    .filter((name): name is string => name !== null)
-    .map((name) => normalizeCardName(name))
-    .filter((name) => name.length > 0);
-
-  return new Set(bibiMemberNames).size;
-}
-
-function getCardName(game: GameState, cardId: string): string | null {
-  return game.cardRegistry.get(cardId)?.data.name ?? null;
+  return selectDifferentNamedCards(
+    getStageMemberCardIdsMatching(game, playerId, and(typeIs(CardType.MEMBER), unitAliasIs('BiBi'))),
+    (cardId) => game.cardRegistry.get(cardId)?.data,
+    { minCount: 1 }
+  ).length;
 }

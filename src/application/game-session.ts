@@ -94,6 +94,9 @@ import type {
   UndoPolicy,
   UndoRuntimeCaptureCursor,
   WindowStatus,
+  CardEffectSummaryKind,
+  CardEffectSummarySourceActionLabel,
+  CardEffectSummaryStatus,
 } from '../online/types.js';
 import type {
   GameCommand,
@@ -4705,6 +4708,8 @@ function buildDerivedPublicEvents(
   }
 ): PublicEventDraft[] {
   const events: PublicEventDraft[] = [];
+  events.push(...buildCardEffectSummaryPublicEvents(previousState, nextState, options));
+
   const candidateCardIds = new Set<string>([
     ...previousState.cardRegistry.keys(),
     ...nextState.cardRegistry.keys(),
@@ -4771,6 +4776,236 @@ function buildDerivedPublicEvents(
   }
 
   return events;
+}
+
+interface PublicEffectSummaryPayload {
+  readonly effectKind: CardEffectSummaryKind;
+  readonly summaryStatus: CardEffectSummaryStatus;
+  readonly sourceActionLabel?: CardEffectSummarySourceActionLabel;
+  readonly sourceOrientationCost?: 'WAITING';
+  readonly recoveredCardIds: readonly string[];
+  readonly hiddenRecoveredCardCount?: number;
+  readonly noRecoveredCards?: boolean;
+  readonly discardedCostCardIds: readonly string[];
+  readonly hiddenDiscardedCostCardCount?: number;
+  readonly inspectSourceZone?: string;
+  readonly requestedInspectCount?: number;
+  readonly actualInspectedCount?: number;
+  readonly selectedCardIds: readonly string[];
+  readonly hiddenSelectedCardCount?: number;
+  readonly noSelectedCards?: boolean;
+  readonly waitingRoomCardIds: readonly string[];
+  readonly waitingRoomCardCount?: number;
+}
+
+function buildCardEffectSummaryPublicEvents(
+  previousState: GameState,
+  nextState: GameState,
+  options: {
+    readonly source: PublicEventSource;
+    readonly actorSeat?: Seat;
+  }
+): PublicEventDraft[] {
+  const events: PublicEventDraft[] = [];
+  const newActions = nextState.actionHistory.slice(previousState.actionHistory.length);
+
+  for (const action of newActions) {
+    if (action.type !== 'RESOLVE_ABILITY') {
+      continue;
+    }
+
+    const summary = parsePublicEffectSummaryPayload(action.payload.publicEffectSummary);
+    if (!summary) {
+      continue;
+    }
+
+    const abilityId = typeof action.payload.abilityId === 'string' ? action.payload.abilityId : null;
+    const sourceCardId =
+      typeof action.payload.sourceCardId === 'string' ? action.payload.sourceCardId : null;
+    if (!abilityId || !sourceCardId) {
+      continue;
+    }
+
+    const sourceCard = buildVisiblePublicCardInfo(previousState, nextState, sourceCardId);
+    const recoveredCardIds = summary.recoveredCardIds ?? [];
+    const recoveredCards = recoveredCardIds
+      .map((cardId) => buildVisiblePublicCardInfo(previousState, nextState, cardId))
+      .filter((card): card is PublicCardInfo => Boolean(card));
+    const explicitHiddenCount =
+      typeof summary.hiddenRecoveredCardCount === 'number' ? summary.hiddenRecoveredCardCount : 0;
+    const hiddenRecoveredCardCount = Math.max(
+      0,
+      recoveredCardIds.length - recoveredCards.length + explicitHiddenCount
+    );
+    const noRecoveredCards =
+      summary.noRecoveredCards === true &&
+      recoveredCards.length === 0 &&
+      hiddenRecoveredCardCount === 0;
+    const discardedCostCardIds = summary.discardedCostCardIds ?? [];
+    const discardedCostCards = discardedCostCardIds
+      .map((cardId) => buildVisiblePublicCardInfo(previousState, nextState, cardId))
+      .filter((card): card is PublicCardInfo => Boolean(card));
+    const explicitHiddenDiscardedCostCount =
+      typeof summary.hiddenDiscardedCostCardCount === 'number'
+        ? summary.hiddenDiscardedCostCardCount
+        : 0;
+    const hiddenDiscardedCostCardCount = Math.max(
+      0,
+      discardedCostCardIds.length - discardedCostCards.length + explicitHiddenDiscardedCostCount
+    );
+    const selectedCardIds = summary.selectedCardIds ?? [];
+    const selectedCards = selectedCardIds
+      .map((cardId) => buildVisiblePublicCardInfo(previousState, nextState, cardId))
+      .filter((card): card is PublicCardInfo => Boolean(card));
+    const explicitHiddenSelectedCount =
+      typeof summary.hiddenSelectedCardCount === 'number' ? summary.hiddenSelectedCardCount : 0;
+    const hiddenSelectedCardCount = Math.max(
+      0,
+      selectedCardIds.length - selectedCards.length + explicitHiddenSelectedCount
+    );
+    const noSelectedCards =
+      summary.noSelectedCards === true &&
+      selectedCards.length === 0 &&
+      hiddenSelectedCardCount === 0;
+
+    events.push({
+      type: 'CardEffectSummary',
+      source: options.source,
+      actorSeat: options.actorSeat,
+      abilityId,
+      effectKind: summary.effectKind,
+      summaryStatus: summary.summaryStatus,
+      ...(sourceCard ? { sourceCard } : { sourceHidden: true }),
+      ...(summary.sourceActionLabel ? { sourceActionLabel: summary.sourceActionLabel } : {}),
+      ...(summary.sourceOrientationCost ? { sourceOrientationCost: summary.sourceOrientationCost } : {}),
+      recoveredCards,
+      hiddenRecoveredCardCount,
+      noRecoveredCards,
+      discardedCostCards,
+      hiddenDiscardedCostCardCount,
+      ...(summary.inspectSourceZone ? { inspectSourceZone: summary.inspectSourceZone } : {}),
+      ...(typeof summary.requestedInspectCount === 'number'
+        ? { requestedInspectCount: summary.requestedInspectCount }
+        : {}),
+      ...(typeof summary.actualInspectedCount === 'number'
+        ? { actualInspectedCount: summary.actualInspectedCount }
+        : {}),
+      selectedCards,
+      hiddenSelectedCardCount,
+      noSelectedCards,
+      waitingRoomCardCount:
+        typeof summary.waitingRoomCardCount === 'number'
+          ? summary.waitingRoomCardCount
+          : summary.waitingRoomCardIds.length,
+    });
+  }
+
+  return events;
+}
+
+function parsePublicEffectSummaryPayload(value: unknown): PublicEffectSummaryPayload | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const payload = value as Record<string, unknown>;
+  if (
+    payload.effectKind !== 'SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM' &&
+    payload.effectKind !== 'DISCARD_LOOK_TOP_SELECT_TO_HAND' &&
+    payload.effectKind !== 'ARRANGE_INSPECTED_DECK_TOP'
+  ) {
+    return null;
+  }
+
+  const recoveredCardIds = Array.isArray(payload.recoveredCardIds)
+    ? payload.recoveredCardIds.filter((cardId): cardId is string => typeof cardId === 'string')
+    : [];
+  const discardedCostCardIds = Array.isArray(payload.discardedCostCardIds)
+    ? payload.discardedCostCardIds.filter(
+        (cardId): cardId is string => typeof cardId === 'string'
+      )
+    : [];
+  const selectedCardIds = Array.isArray(payload.selectedCardIds)
+    ? payload.selectedCardIds.filter((cardId): cardId is string => typeof cardId === 'string')
+    : [];
+  const waitingRoomCardIds = Array.isArray(payload.waitingRoomCardIds)
+    ? payload.waitingRoomCardIds.filter((cardId): cardId is string => typeof cardId === 'string')
+    : [];
+
+  const parsed: PublicEffectSummaryPayload = {
+    effectKind: payload.effectKind,
+    summaryStatus: parseCardEffectSummaryStatus(payload.summaryStatus),
+    recoveredCardIds,
+    discardedCostCardIds,
+    selectedCardIds,
+    waitingRoomCardIds,
+  };
+  return {
+    ...parsed,
+    ...(typeof payload.hiddenRecoveredCardCount === 'number'
+      ? { hiddenRecoveredCardCount: payload.hiddenRecoveredCardCount }
+      : {}),
+    ...(typeof payload.noRecoveredCards === 'boolean'
+      ? { noRecoveredCards: payload.noRecoveredCards }
+      : {}),
+    ...(parseCardEffectSummarySourceActionLabel(payload.sourceActionLabel)
+      ? { sourceActionLabel: parseCardEffectSummarySourceActionLabel(payload.sourceActionLabel) }
+      : {}),
+    ...(payload.sourceOrientationCost === 'WAITING'
+      ? { sourceOrientationCost: payload.sourceOrientationCost }
+      : {}),
+    ...(typeof payload.hiddenDiscardedCostCardCount === 'number'
+      ? { hiddenDiscardedCostCardCount: payload.hiddenDiscardedCostCardCount }
+      : {}),
+    ...(typeof payload.inspectSourceZone === 'string'
+      ? { inspectSourceZone: payload.inspectSourceZone }
+      : {}),
+    ...(typeof payload.requestedInspectCount === 'number'
+      ? { requestedInspectCount: payload.requestedInspectCount }
+      : {}),
+    ...(typeof payload.actualInspectedCount === 'number'
+      ? { actualInspectedCount: payload.actualInspectedCount }
+      : {}),
+    ...(typeof payload.hiddenSelectedCardCount === 'number'
+      ? { hiddenSelectedCardCount: payload.hiddenSelectedCardCount }
+      : {}),
+    ...(typeof payload.noSelectedCards === 'boolean'
+      ? { noSelectedCards: payload.noSelectedCards }
+      : {}),
+    ...(typeof payload.waitingRoomCardCount === 'number'
+      ? { waitingRoomCardCount: payload.waitingRoomCardCount }
+      : {}),
+  };
+}
+
+function parseCardEffectSummaryStatus(value: unknown): CardEffectSummaryStatus {
+  return value === 'STARTED' || value === 'COMPLETED' ? value : 'COMPLETED';
+}
+
+function parseCardEffectSummarySourceActionLabel(
+  value: unknown
+): CardEffectSummarySourceActionLabel | undefined {
+  return value === '登场' || value === '离场' || value === '起动' || value === 'LIVE成功'
+    ? value
+    : undefined;
+}
+
+function buildVisiblePublicCardInfo(
+  previousState: GameState,
+  nextState: GameState,
+  cardId: string
+): PublicCardInfo | undefined {
+  const previousLocation = locateCardForSystemEvent(previousState, cardId);
+  if (previousLocation && isPublicFrontCardAtRef(previousState, cardId, previousLocation.ref)) {
+    return buildDetailedPublicCardInfo(previousState, cardId);
+  }
+
+  const nextLocation = locateCardForSystemEvent(nextState, cardId);
+  if (nextLocation && isPublicFrontCardAtRef(nextState, cardId, nextLocation.ref)) {
+    return buildDetailedPublicCardInfo(nextState, cardId);
+  }
+
+  return undefined;
 }
 
 function getPublicMoveEventKey(event: PublicEventDraft): string | null {

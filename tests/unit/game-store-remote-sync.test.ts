@@ -227,4 +227,49 @@ describe('gameStore remote snapshot sync', () => {
     expect(useGameStore.getState().ui.hoveredCardId).toBeNull();
     expect(useGameStore.getState().ui.cardDetail).toEqual(pinnedDetail);
   });
+
+  it('clears a public event card detail when the public battle log closes', () => {
+    useGameStore.setState({
+      publicBattleLog: {
+        ...EMPTY_PUBLIC_BATTLE_LOG,
+        matchId: 'match-1',
+        isPanelOpen: true,
+      },
+    });
+    useGameStore.getState().setCardDetail({
+      kind: 'public-event-card',
+      cardCode: 'PL!HS-bp5-001-SEC',
+      publicObjectId: 'obj-public-event-card',
+    });
+
+    useGameStore.getState().setPublicBattleLogPanelOpen(false);
+
+    expect(useGameStore.getState().ui.cardDetail).toBeNull();
+  });
+
+  it('clears a public event card detail when a different remote match snapshot is applied', async () => {
+    setRemoteSession('match-new');
+    useGameStore.setState({
+      playerViewState: createViewState('match-old', 4),
+      ui: {
+        ...useGameStore.getState().ui,
+        cardDetail: {
+          kind: 'public-event-card',
+          cardCode: 'PL!HS-bp5-001-SEC',
+          publicObjectId: 'obj-public-event-card',
+        },
+      },
+    });
+    vi.mocked(fetchRemoteSnapshotSyncResult).mockResolvedValueOnce({
+      matchId: 'match-new',
+      seq: 1,
+      currentPublicSeq: 1,
+      snapshot: createSnapshot('match-new', 1, 1),
+    });
+
+    await useGameStore.getState().syncRemoteState();
+
+    expect(useGameStore.getState().playerViewState?.match.matchId).toBe('match-new');
+    expect(useGameStore.getState().ui.cardDetail).toBeNull();
+  });
 });

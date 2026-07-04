@@ -284,6 +284,34 @@ describe('PL!HS-bp5-018 AURORA FLOWER workflow', () => {
     expect(state.pendingAbilities).toEqual([]);
   });
 
+  it('adds score when a multi-name member can use an unoccupied name and costs differ', () => {
+    const scenario = setupAuroraStage({
+      members: [
+        { id: 'll-bp1-001', name: '上原歩夢&澁谷かのん&日野下花帆', cost: 20 },
+        { id: 'ayumu', name: '上原歩夢', cost: 4 },
+        { id: 'kaho', name: '日野下花帆', cost: 5 },
+      ],
+    });
+
+    const state = resolveConfirmOnly(
+      withPending(
+        scenario.game,
+        HS_BP5_018_LIVE_START_DIFFERENT_NAMES_AND_COSTS_THIS_LIVE_SCORE_ABILITY_ID,
+        scenario.liveId
+      )
+    );
+
+    expect(state.liveResolution.liveModifiers).toContainEqual({
+      kind: 'SCORE',
+      playerId: PLAYER1,
+      sourceCardId: scenario.liveId,
+      liveCardId: scenario.liveId,
+      abilityId: HS_BP5_018_LIVE_START_DIFFERENT_NAMES_AND_COSTS_THIS_LIVE_SCORE_ABILITY_ID,
+      countDelta: 1,
+    });
+    expect(state.actionHistory.at(-1)?.payload.conditionMet).toBe(true);
+  });
+
   it('does not add score when names repeat', () => {
     const scenario = setupAuroraStage({
       members: [

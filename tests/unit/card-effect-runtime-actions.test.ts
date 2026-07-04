@@ -231,6 +231,37 @@ describe('card effect runtime actions', () => {
     expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([cardIds[2]]);
   });
 
+  it('drawCardsForPlayer refreshes mid-draw and immediately after the deck is emptied', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 5);
+    setPlayerZones(state, 0, {
+      mainDeckCardIds: [cardIds[0], cardIds[1]],
+      waitingRoomCardIds: cardIds.slice(2),
+    });
+
+    const result = drawCardsForPlayer(state, PLAYER1, 4);
+
+    expect(result).not.toBeNull();
+    expect(result?.drawnCardIds).toHaveLength(4);
+    expect(result?.drawnCardIds.slice(0, 2)).toEqual([cardIds[0], cardIds[1]]);
+    expect(result?.drawnCardIds.slice(2).every((cardId) => cardIds.slice(2).includes(cardId))).toBe(
+      true
+    );
+    expect(result?.gameState.players[0].hand.cardIds).toEqual(result?.drawnCardIds);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toHaveLength(1);
+    expect(
+      result?.gameState.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.affectedPlayerId === PLAYER1 &&
+          action.payload.movedCount === 3 &&
+          action.payload.mainDeckCountAfter === 3
+      )
+    ).toBe(true);
+  });
+
   it('draws for each player in order and records drawn card ids by player', () => {
     const state = createMutableState();
     const p1CardIds = ownedMemberIds(state, PLAYER1, 3);
@@ -249,6 +280,36 @@ describe('card effect runtime actions', () => {
     expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([p1CardIds[2]]);
     expect(result?.gameState.players[1].hand.cardIds).toEqual(p2CardIds);
     expect(result?.gameState.players[1].mainDeck.cardIds).toEqual([]);
+  });
+
+  it('drawCardsForEachPlayer inherits refresh-aware card-effect draw semantics', () => {
+    const state = createMutableState();
+    const p1CardIds = ownedMemberIds(state, PLAYER1, 4);
+    const p2CardIds = ownedMemberIds(state, PLAYER2, 4);
+    setPlayerZones(state, 0, {
+      mainDeckCardIds: [p1CardIds[0]],
+      waitingRoomCardIds: p1CardIds.slice(1),
+    });
+    setPlayerZones(state, 1, {
+      mainDeckCardIds: [p2CardIds[0], p2CardIds[1]],
+      waitingRoomCardIds: [p2CardIds[2], p2CardIds[3]],
+    });
+
+    const result = drawCardsForEachPlayer(state, [PLAYER1, PLAYER2], 2);
+
+    expect(result).not.toBeNull();
+    expect(result?.drawnCardIdsByPlayer[PLAYER1]).toHaveLength(2);
+    expect(result?.drawnCardIdsByPlayer[PLAYER1]?.[0]).toBe(p1CardIds[0]);
+    expect(result?.drawnCardIdsByPlayer[PLAYER2]).toEqual([p2CardIds[0], p2CardIds[1]]);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(result?.gameState.players[1].waitingRoom.cardIds).toEqual([]);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toHaveLength(2);
+    expect(result?.gameState.players[1].mainDeck.cardIds).toHaveLength(2);
+    expect(
+      result?.gameState.actionHistory.filter(
+        (action) => action.type === 'RULE_ACTION' && action.payload.type === 'REFRESH'
+      )
+    ).toHaveLength(2);
   });
 
   it('discards exact hand cards to waiting room and records discarded ids', () => {
@@ -617,6 +678,55 @@ describe('card effect runtime actions', () => {
         actionMovedCardIds: result?.movedCardIds,
         actionRefreshCount: result?.refreshCount,
         eventCardIds: result?.movedCardIds ?? [],
+      },
+    ]);
+  });
+
+  it('keeps main-deck enter-waiting-room event facts when exact top-deck milling triggers post-refresh', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 3);
+    setPlayerZones(state, 0, { mainDeckCardIds: cardIds });
+    const calls: {
+      readonly eventCardIds: readonly string[];
+      readonly eventFromZone: ZoneType | undefined;
+      readonly eventToZone: ZoneType | undefined;
+      readonly refreshActionCountAtEnqueue: number;
+    }[] = [];
+    const enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom = (
+      game,
+      _triggerConditions,
+      options
+    ) => {
+      const event = options?.enterWaitingRoomEvents?.[0];
+      calls.push({
+        eventCardIds: event?.cardInstanceIds ?? [],
+        eventFromZone: event?.fromZone,
+        eventToZone: event?.toZone,
+        refreshActionCountAtEnqueue: game.actionHistory.filter(
+          (action) => action.type === 'RULE_ACTION' && action.payload.type === 'REFRESH'
+        ).length,
+      });
+      return game;
+    };
+
+    const result = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+      state,
+      PLAYER1,
+      3,
+      enqueueTriggeredCardEffects
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.movedCardIds).toEqual(cardIds);
+    expect(result?.refreshCount).toBe(1);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toHaveLength(3);
+    expect(calls).toEqual([
+      {
+        eventCardIds: cardIds,
+        eventFromZone: ZoneType.MAIN_DECK,
+        eventToZone: ZoneType.WAITING_ROOM,
+        refreshActionCountAtEnqueue: 1,
       },
     ]);
   });

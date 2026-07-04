@@ -4,7 +4,9 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import type { CardInstance } from '../../../../domain/entities/card.js';
 import {
+  HS_SD1_014_ON_ENTER_DISCARD_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
   SP_PB2_015_ON_ENTER_DISCARD_RECOVER_CATCHU_CARD_ABILITY_ID,
   SP_PB2_019_ON_ENTER_DISCARD_RECOVER_FIVEYNCRISE_CARD_ABILITY_ID,
   SP_PB2_021_ON_ENTER_DISCARD_RECOVER_KALEIDOSCORE_CARD_ABILITY_ID,
@@ -21,7 +23,7 @@ import {
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import { unitAliasIs } from '../../../effects/card-selectors.js';
+import { groupAliasIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -43,7 +45,8 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 
 interface OnEnterDiscardRecoverUnitCardConfig {
   readonly abilityId: string;
-  readonly unitAlias: string;
+  readonly recoveryLabel: string;
+  readonly recoverySelector: (card: CardInstance) => boolean;
   readonly discardStepId: string;
   readonly recoveryStepId: string;
   readonly discardActionStep: string;
@@ -55,7 +58,8 @@ const ON_ENTER_DISCARD_RECOVER_UNIT_CARD_WORKFLOWS: readonly OnEnterDiscardRecov
   [
     {
       abilityId: SP_PB2_015_ON_ENTER_DISCARD_RECOVER_CATCHU_CARD_ABILITY_ID,
-      unitAlias: 'CatChu!',
+      recoveryLabel: 'CatChu!',
+      recoverySelector: unitAliasIs('CatChu!'),
       discardStepId: SP_PB2_015_SELECT_DISCARD_STEP_ID,
       recoveryStepId: SP_PB2_015_SELECT_RECOVERY_STEP_ID,
       discardActionStep: 'START_SELECT_DISCARD_FOR_CATCHU_RECOVERY',
@@ -64,7 +68,8 @@ const ON_ENTER_DISCARD_RECOVER_UNIT_CARD_WORKFLOWS: readonly OnEnterDiscardRecov
     },
     {
       abilityId: SP_PB2_019_ON_ENTER_DISCARD_RECOVER_FIVEYNCRISE_CARD_ABILITY_ID,
-      unitAlias: '5yncri5e!',
+      recoveryLabel: '5yncri5e!',
+      recoverySelector: unitAliasIs('5yncri5e!'),
       discardStepId: SP_PB2_019_SELECT_DISCARD_STEP_ID,
       recoveryStepId: SP_PB2_019_SELECT_RECOVERY_STEP_ID,
       discardActionStep: 'START_SELECT_DISCARD_FOR_FIVEYNCRISE_RECOVERY',
@@ -73,12 +78,23 @@ const ON_ENTER_DISCARD_RECOVER_UNIT_CARD_WORKFLOWS: readonly OnEnterDiscardRecov
     },
     {
       abilityId: SP_PB2_021_ON_ENTER_DISCARD_RECOVER_KALEIDOSCORE_CARD_ABILITY_ID,
-      unitAlias: 'KALEIDOSCORE',
+      recoveryLabel: 'KALEIDOSCORE',
+      recoverySelector: unitAliasIs('KALEIDOSCORE'),
       discardStepId: SP_PB2_021_SELECT_DISCARD_STEP_ID,
       recoveryStepId: SP_PB2_021_SELECT_RECOVERY_STEP_ID,
       discardActionStep: 'START_SELECT_DISCARD_FOR_KALEIDOSCORE_RECOVERY',
       recoveryActionStep: 'DISCARD_SELECT_KALEIDOSCORE_CARD',
       recoveryStepText: '请选择自己的休息室中1张『KALEIDOSCORE』卡加入手牌。',
+    },
+    {
+      abilityId: HS_SD1_014_ON_ENTER_DISCARD_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
+      recoveryLabel: '蓮ノ空',
+      recoverySelector: groupAliasIs('蓮ノ空'),
+      discardStepId: 'HS_SD1_014_SELECT_DISCARD_FOR_HASUNOSORA_RECOVERY',
+      recoveryStepId: 'HS_SD1_014_SELECT_HASUNOSORA_CARD_FROM_WAITING_ROOM',
+      discardActionStep: 'START_SELECT_DISCARD_FOR_HASUNOSORA_RECOVERY',
+      recoveryActionStep: 'DISCARD_SELECT_HASUNOSORA_CARD',
+      recoveryStepText: '请选择自己的休息室中1张『莲之空』卡加入手牌。',
     },
   ];
 
@@ -138,7 +154,7 @@ function startOnEnterDiscardRecoverUnitCard(
       {
         step: 'NO_OP_DISCARD_RECOVER_UNIT_CARD',
         reason: 'NO_HAND',
-        unitAlias: config.unitAlias,
+        recoveryLabel: config.recoveryLabel,
       },
       continuePendingCardEffects
     );
@@ -157,14 +173,14 @@ function startOnEnterDiscardRecoverUnitCard(
       selectableCardIds: player.hand.cardIds,
       orderedResolution,
       metadata: {
-        unitAlias: config.unitAlias,
+        recoveryLabel: config.recoveryLabel,
         recoveryStepId: config.recoveryStepId,
       },
     }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: config.discardActionStep,
-      unitAlias: config.unitAlias,
+      recoveryLabel: config.recoveryLabel,
       selectableCardIds: player.hand.cardIds,
     },
   });
@@ -208,12 +224,12 @@ function finishDiscardForUnitRecovery(
     abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId,
     discardedHandCardIds: discardResult.discardedCardIds,
-    unitAlias: config.unitAlias,
+    recoveryLabel: config.recoveryLabel,
   });
   const selectableCardIds = selectWaitingRoomCardIds(
     stateAfterCost,
     player.id,
-    unitAliasIs(config.unitAlias)
+    config.recoverySelector
   );
 
   if (selectableCardIds.length === 0) {
@@ -225,7 +241,7 @@ function finishDiscardForUnitRecovery(
       continuePendingCardEffects,
       {
         step: 'DISCARD_RECOVER_UNIT_CARD_NO_TARGET',
-        unitAlias: config.unitAlias,
+        recoveryLabel: config.recoveryLabel,
         discardedCardId: discardResult.discardedCardIds[0] ?? selectedCardId,
         discardedCardIds: discardResult.discardedCardIds,
         selectableCardIds,
@@ -250,7 +266,7 @@ function finishDiscardForUnitRecovery(
         metadata: {
           ...effect.metadata,
           orderedResolution: effect.metadata?.orderedResolution === true,
-          unitAlias: config.unitAlias,
+          recoveryLabel: config.recoveryLabel,
           discardedHandCardIds: discardResult.discardedCardIds,
         },
         zoneSelection: createWaitingRoomToHandSelectionConfig({
@@ -267,7 +283,7 @@ function finishDiscardForUnitRecovery(
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: config.recoveryActionStep,
-      unitAlias: config.unitAlias,
+      recoveryLabel: config.recoveryLabel,
       discardedCardId: discardResult.discardedCardIds[0] ?? selectedCardId,
       discardedCardIds: discardResult.discardedCardIds,
       selectableCardIds,
