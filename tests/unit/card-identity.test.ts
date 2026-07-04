@@ -4,6 +4,7 @@ import {
   getCardGroupIdentityKeys,
   getCardNameCandidates,
   hasAtLeastDifferentNamedCards,
+  KNOWN_GROUP_IDENTITY_NAMES,
 } from '../../src/shared/utils/card-identity';
 
 const llBp1001 = {
@@ -110,6 +111,20 @@ describe('card identity helpers', () => {
       false
     );
     expect(getCardGroupIdentityKeys(llBp1001)).toEqual(['hasunosora', 'liella', 'nijigasaki']);
+  });
+
+  it('recognizes Ikizurai group and work identity from IKZL records', () => {
+    const ikizuraiEnergy = {
+      cardCode: 'IKZL-PR-001-PR',
+      name: 'いきづらい部！',
+      workNames: ['イキヅライブ！LOVELIVE!BLUEBIRD'],
+    };
+
+    expect(KNOWN_GROUP_IDENTITY_NAMES).toContain('いきづらい部！');
+    expect(cardBelongsToGroup({ groupNames: ['いきづらい部！'] }, 'いきづらい部！')).toBe(true);
+    expect(cardBelongsToGroup(ikizuraiEnergy, 'いきづらい部！')).toBe(true);
+    expect(cardBelongsToGroup(ikizuraiEnergy, 'IKZL')).toBe(true);
+    expect(getCardGroupIdentityKeys(ikizuraiEnergy)).toEqual(['ikizurai']);
   });
 
   it.each(THREE_NAME_MEMBER_CASES)(

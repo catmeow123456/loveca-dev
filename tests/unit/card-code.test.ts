@@ -81,7 +81,11 @@ describe('validateCardCode', () => {
       'PL!N-bp3-032-PE+',
       'PL!HS-sd1-001-SD',
       'PYHN-bp1-001-N',
+      'IKZL-PR-001-PR',
       'PL!S-PR-001-PR',
+      'PL!SP-pb2-001-PP',
+      'PL!SP-pb2-000-DUO',
+      'PL!SP-bp1-023-SRL',
       'PL!-bp3-004-P+',
       'LL-bp4-001-SEC+',
       'PL!SP-sd2-000-SECS',
@@ -135,6 +139,13 @@ describe('validateCardCode', () => {
     expect(validateCardCode('PL!SIM-bp5-E01-LLE').valid).toBe(true);
   });
 
+  it('pb2 商品与 PP/DUO/SRL 稀有度通过验证', () => {
+    expect(validateCardCode('PL!SP-pb2-012-P+').valid).toBe(true);
+    expect(validateCardCode('PL!SP-pb2-001-PP').valid).toBe(true);
+    expect(validateCardCode('PL!SP-pb2-000-DUO').valid).toBe(true);
+    expect(validateCardCode('PL!SP-bp1-023-SRL').valid).toBe(true);
+  });
+
   it('未知稀有度不通过', () => {
     const result = validateCardCode('LL-bp1-001-XX');
     expect(result.valid).toBe(false);
@@ -148,6 +159,7 @@ describe('getBaseCardCode', () => {
     expect(getBaseCardCode('LL-bp1-001-R+')).toBe('LL-bp1-001');
     expect(getBaseCardCode('PL!SP-bp2-009-R+')).toBe('PL!SP-bp2-009');
     expect(getBaseCardCode('LL-E-001-SD')).toBe('LL-E-001');
+    expect(getBaseCardCode('IKZL-PR-001-PR')).toBe('IKZL-PR-001');
   });
 
   it('不同稀有度的同一张卡返回相同基础编号', () => {

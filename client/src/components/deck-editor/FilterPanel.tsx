@@ -11,7 +11,6 @@ import { FilterChipGroup } from './FilterChipGroup';
 import { RangeSelector } from './RangeSelector';
 import {
   RARITY_OPTIONS,
-  GROUP_OPTIONS,
   GROUP_UNIT_MAP,
   ALL_UNIT_OPTIONS,
   COST_MIN,
@@ -20,7 +19,6 @@ import {
   SCORE_MAX,
   HEART_COLOR_OPTIONS,
   BLADE_HEART_OPTIONS,
-  PRODUCT_OPTIONS,
   getGroupDisplayName,
   getProductDisplayName,
 } from './filter-constants';
@@ -110,7 +108,7 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
       case 'group':
         return (
           <FilterChipGroup
-            options={GROUP_OPTIONS.map((g) => ({ value: g, label: getGroupDisplayName(g) }))}
+            options={filters.groupOptions.map((g) => ({ value: g, label: getGroupDisplayName(g) }))}
             selected={filters.selectedGroup}
             onSelect={filters.setSelectedGroup}
           />
@@ -186,7 +184,10 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
       case 'product':
         return (
           <FilterChipGroup
-            options={PRODUCT_OPTIONS.map((p) => ({ value: p, label: getProductDisplayName(p) }))}
+            options={filters.productOptions.map((p) => ({
+              value: p,
+              label: getProductDisplayName(p),
+            }))}
             selected={filters.selectedProduct}
             onSelect={filters.setSelectedProduct}
           />

@@ -7,7 +7,7 @@
  *
  * 同步策略:
  * - 新卡: INSERT (status=PUBLISHED)
- * - 已有卡: 比对字段差异后进入交互审核，确认后 UPDATE
+ * - 已有卡: 保留 DB 中的名称/效果文本/product；仅比对规则/来源字段差异后进入交互审核
  * - 非 TTY 环境发现待更新卡时终止，避免无人值守覆盖
  *
  * 使用方法:
@@ -132,6 +132,14 @@ interface PendingUpdate {
   card: CardUpsertRecord;
   changedFields: string[];
 }
+
+const EXISTING_PRESERVED_FIELDS = [
+  'name_jp',
+  'name_cn',
+  'card_text_jp',
+  'card_text_cn',
+  'product',
+] as const;
 
 // ============================================
 // 常量映射
@@ -261,6 +269,27 @@ function getChangedFields(existing: ExistingCardRow, next: CardUpsertRecord): st
   if (existing.status !== next.status) changedFields.push('status');
 
   return changedFields;
+}
+
+function getExistingPreservedChangedFields(
+  existing: ExistingCardRow,
+  next: CardUpsertRecord
+): string[] {
+  return EXISTING_PRESERVED_FIELDS.filter((field) => existing[field] !== next[field]);
+}
+
+function preserveExistingFields(
+  existing: ExistingCardRow,
+  next: CardUpsertRecord
+): CardUpsertRecord {
+  return {
+    ...next,
+    name_jp: existing.name_jp,
+    name_cn: existing.name_cn,
+    card_text_jp: existing.card_text_jp,
+    card_text_cn: existing.card_text_cn,
+    product: existing.product,
+  };
 }
 
 function displayName(card: Pick<CardUpsertRecord, 'card_code' | 'name_cn' | 'name_jp'>): string {
@@ -547,13 +576,27 @@ async function main() {
     const newCards: CardUpsertRecord[] = [];
     const updateCards: PendingUpdate[] = [];
     let unchangedCount = 0;
+    let ignoredPreservedDiffCardCount = 0;
+    const ignoredPreservedDiffFieldCounts = new Map<string, number>();
 
     for (const card of allCards) {
       const existing = existingByCode.get(card.card_code);
       if (existing) {
-        const changedFields = getChangedFields(existing, card);
+        const ignoredPreservedFields = getExistingPreservedChangedFields(existing, card);
+        if (ignoredPreservedFields.length > 0) {
+          ignoredPreservedDiffCardCount++;
+          for (const field of ignoredPreservedFields) {
+            ignoredPreservedDiffFieldCounts.set(
+              field,
+              (ignoredPreservedDiffFieldCounts.get(field) ?? 0) + 1
+            );
+          }
+        }
+
+        const cardForUpdate = preserveExistingFields(existing, card);
+        const changedFields = getChangedFields(existing, cardForUpdate);
         if (changedFields.length > 0) {
-          updateCards.push({ existing, card, changedFields });
+          updateCards.push({ existing, card: cardForUpdate, changedFields });
         } else {
           unchangedCount++;
         }
@@ -566,6 +609,14 @@ async function main() {
     console.log(`  New cards to insert: ${newCards.length}`);
     console.log(`  Existing cards to update (DRAFT + PUBLISHED): ${updateCards.length}`);
     console.log(`  Unchanged existing cards: ${unchangedCount}`);
+    if (ignoredPreservedDiffCardCount > 0) {
+      const fieldSummary = [...ignoredPreservedDiffFieldCounts.entries()]
+        .map(([field, count]) => `${field}=${count}`)
+        .join(', ');
+      console.log(
+        `  Existing name/effect/product diffs ignored: ${ignoredPreservedDiffCardCount} cards (${fieldSummary})`
+      );
+    }
 
     if (newCards.length === 0 && updateCards.length === 0) {
       console.log('\nNo changes needed. Database is up to date.');
@@ -657,20 +708,15 @@ async function main() {
             await pool.query(
               `
               UPDATE cards SET
-                card_type = $2, name_jp = $3, name_cn = $4, card_text_jp = $5,
-                card_text_cn = $6, image_filename = $7, cost = $8, blade = $9,
-                hearts = $10, blade_hearts = $11, score = $12, requirements = $13,
-                unit_name = $14, work_names = $15, rare = $16, product = $17,
-                status = $18, updated_at = now()
+                card_type = $2, image_filename = $3, cost = $4, blade = $5,
+                hearts = $6, blade_hearts = $7, score = $8, requirements = $9,
+                unit_name = $10, work_names = $11, rare = $12,
+                status = $13, updated_at = now()
               WHERE card_code = $1
             `,
               [
                 card.card_code,
                 card.card_type,
-                card.name_jp,
-                card.name_cn,
-                card.card_text_jp,
-                card.card_text_cn,
                 card.image_filename,
                 card.cost,
                 card.blade,
@@ -681,7 +727,6 @@ async function main() {
                 card.unit_name,
                 card.work_names == null ? null : JSON.stringify(card.work_names),
                 card.rare,
-                card.product,
                 card.status,
               ]
             );

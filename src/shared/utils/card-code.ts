@@ -24,6 +24,7 @@ export const VALID_PREFIXES = [
   'PL!HS',
   'PL!SIM',
   'LL',
+  'IKZL',
   'PYHN',
 ] as const;
 
@@ -39,6 +40,7 @@ export const VALID_PRODUCTS = [
   'bp6',
   'cl1',
   'pb1',
+  'pb2',
   'PR',
   'E',
 ] as const;
@@ -63,6 +65,9 @@ export const VALID_RARITIES = [
   'SECS',
   'PR',
   'PR+',
+  'PP',
+  'DUO',
+  'SRL',
   'PE',
   'PE+',
   'RE',

@@ -19,6 +19,7 @@ export const GROUP_OPTIONS = [
   'Saint Snow',
   'Sunny Passion',
   'A-RISE',
+  'いきづらい部！',
 ] as const;
 
 /** 真实团体 -> 小队名映射 */
@@ -31,6 +32,7 @@ export const GROUP_UNIT_MAP: Record<string, readonly string[]> = {
   'Saint Snow': ['「SaintSnow」'],
   'Sunny Passion': ['「SunnyPassion」'],
   'A-RISE': ['「A-RISE」'],
+  'いきづらい部！': [],
 };
 
 /** 所有小组名选项（用于无真实团体筛选时） */
@@ -53,6 +55,7 @@ export const PRODUCT_OPTIONS = [
   'プレミアムブースター ラブライブ！サンシャイン!!',
   'ブースターパック NEXT STEP',
   'プレミアムブースターラブライブ！スーパースター!!',
+  'プレミアムブースターラブライブ！スーパースター!!DUO',
   'ブースターパック　vol.1',
   'プレミアムブースターラブライブ！虹ヶ咲学園スクールアイドル同好会',
   'スタートデッキラブライブ！スーパースター!!',

@@ -9,7 +9,12 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
 import { CardType, HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
 import {
+  cardBelongsToGroup,
+  getKnownCardGroupIdentityName,
+} from '@game/shared/utils/card-identity';
+import {
   RARITY_OPTIONS,
+  GROUP_OPTIONS,
   GROUP_UNIT_MAP,
   COST_MIN,
   COST_MAX,
@@ -28,6 +33,34 @@ function normalizeGroupFilterText(value?: string | null): string {
   );
 }
 
+function normalizeProductFilterText(value?: string | null): string {
+  return cleanLocalizedText(value)?.normalize('NFKC').replace(/\s/g, '').toLowerCase() ?? '';
+}
+
+function splitOptionText(value?: string | null): string[] {
+  return (
+    cleanLocalizedText(value)
+      ?.split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean) ?? []
+  );
+}
+
+function addUniqueOption(
+  options: string[],
+  seen: Set<string>,
+  value: string | null | undefined,
+  normalize: (value?: string | null) => string
+) {
+  const cleaned = cleanLocalizedText(value);
+  const key = normalize(cleaned);
+  if (!cleaned || !key || seen.has(key)) {
+    return;
+  }
+  seen.add(key);
+  options.push(cleaned);
+}
+
 export interface UseCardFiltersReturn {
   searchQuery: string;
   selectedCardType: CardType;
@@ -42,6 +75,8 @@ export interface UseCardFiltersReturn {
   scoreMax: number;
   selectedHeartColor: HeartColor | null;
   selectedBladeHeart: string | null;
+  groupOptions: readonly string[];
+  productOptions: readonly string[];
   hasActiveFilters: boolean;
   sortedCards: AnyCardData[];
   setSearchQuery: (q: string) => void;
@@ -112,6 +147,46 @@ export function useCardFilters(): UseCardFiltersReturn {
     }
   }, []);
 
+  const groupOptions = useMemo(() => {
+    const options: string[] = [];
+    const seen = new Set<string>();
+
+    for (const group of GROUP_OPTIONS) {
+      addUniqueOption(options, seen, group, normalizeGroupFilterText);
+    }
+
+    for (const card of cardDataRegistry.values()) {
+      for (const group of card.groupNames ?? []) {
+        for (const item of splitOptionText(group)) {
+          addUniqueOption(options, seen, item, normalizeGroupFilterText);
+        }
+      }
+
+      addUniqueOption(
+        options,
+        seen,
+        getKnownCardGroupIdentityName(card),
+        normalizeGroupFilterText
+      );
+    }
+
+    return options;
+  }, [cardDataRegistry]);
+
+  const productOptions = useMemo(() => {
+    const options: string[] = [];
+    const seen = new Set<string>();
+
+    for (const product of PRODUCT_OPTIONS) {
+      addUniqueOption(options, seen, product, normalizeProductFilterText);
+    }
+    for (const card of cardDataRegistry.values()) {
+      addUniqueOption(options, seen, card.product, normalizeProductFilterText);
+    }
+
+    return options;
+  }, [cardDataRegistry]);
+
   // 能量卡支持的筛选：稀有度、真实团体、收录商品
   const hasActiveFilters =
     selectedRarity !== null ||
@@ -143,18 +218,26 @@ export function useCardFilters(): UseCardFiltersReturn {
     }
 
     if (selectedGroup) {
-      // 规范化后包含匹配，支持联动卡牌（多个真实团体用换行分隔）和 μ’s/μ's 等写法差异。
+      // 优先使用共享 identity 识别；再用文本包含兜底，覆盖未知团体和历史数据形态。
       const normalizedSelectedGroup = normalizeGroupFilterText(selectedGroup);
-      filtered = filtered.filter((card) =>
-        normalizeGroupFilterText(getCardGroupDisplayText(card)).includes(normalizedSelectedGroup)
-      );
+      filtered = filtered.filter((card) => {
+        if (cardBelongsToGroup(card, selectedGroup)) {
+          return true;
+        }
+        return (
+          normalizeGroupFilterText(getCardGroupDisplayText(card)).includes(
+            normalizedSelectedGroup
+          ) ||
+          normalizeGroupFilterText(card.workNames?.join('\n')).includes(normalizedSelectedGroup)
+        );
+      });
     }
 
     if (selectedProduct) {
       // 去除所有空格后进行匹配（支持全角/半角空格差异）
-      const normalizedSelected = selectedProduct.replace(/\s/g, '');
+      const normalizedSelected = normalizeProductFilterText(selectedProduct);
       filtered = filtered.filter((card) => {
-        const normalizedCardProduct = (card.product || '').replace(/\s/g, '');
+        const normalizedCardProduct = normalizeProductFilterText(card.product);
         return normalizedCardProduct === normalizedSelected;
       });
     }
@@ -255,6 +338,8 @@ export function useCardFilters(): UseCardFiltersReturn {
     scoreMax,
     selectedHeartColor,
     selectedBladeHeart,
+    groupOptions,
+    productOptions,
     hasActiveFilters,
     sortedCards,
     setSearchQuery,

@@ -7,6 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import {
   cardBelongsToGroup,
+  KNOWN_GROUP_IDENTITY_NAMES,
   type GroupIdentityName,
 } from '../../../../shared/utils/card-identity.js';
 import {
@@ -31,17 +32,6 @@ import {
 const SELECT_DISCARD_STEP_ID = 'SP_BP5_007_SELECT_DISCARD';
 const SELECT_TAKE_STEP_ID = 'SP_BP5_007_SELECT_DISTINCT_GROUP_CARDS';
 const REVEAL_SELECTED_STEP_ID = 'SP_BP5_007_REVEAL_SELECTED_GROUP_CARDS';
-
-const KNOWN_GROUPS: readonly GroupIdentityName[] = [
-  "μ's",
-  '蓮ノ空',
-  'Liella!',
-  'SunnyPassion',
-  '虹ヶ咲',
-  'Aqours',
-  'A-RISE',
-  'SaintSnow',
-];
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -275,5 +265,7 @@ function hasDistinctGroupAssignment(game: GameState, selectedCardIds: readonly s
 function getCardGroups(
   card: NonNullable<ReturnType<typeof getCardById>>
 ): readonly GroupIdentityName[] {
-  return KNOWN_GROUPS.filter((groupName) => cardBelongsToGroup(card.data, groupName));
+  return KNOWN_GROUP_IDENTITY_NAMES.filter((groupName) =>
+    cardBelongsToGroup(card.data, groupName)
+  );
 }

@@ -13,7 +13,8 @@ export type GroupIdentityName =
   | 'Aqours'
   | 'SunnyPassion'
   | 'A-RISE'
-  | 'SaintSnow';
+  | 'SaintSnow'
+  | 'いきづらい部！';
 
 export type GroupIdentityKey =
   | 'muse'
@@ -23,7 +24,8 @@ export type GroupIdentityKey =
   | 'aqours'
   | 'sunny-passion'
   | 'a-rise'
-  | 'saint-snow';
+  | 'saint-snow'
+  | 'ikizurai';
 
 export interface DifferentNamedCardMatch<T> {
   readonly item: T;
@@ -84,7 +86,26 @@ const GROUP_IDENTITY_GROUPS: readonly {
     key: 'saint-snow',
     aliases: ['SaintSnow', 'Saint Snow'],
   },
+  {
+    canonicalName: 'いきづらい部！',
+    key: 'ikizurai',
+    aliases: [
+      'いきづらい部！',
+      'いきづらい部!',
+      'いきづらい部',
+      'イキヅライブ！LOVELIVE!BLUEBIRD',
+      'イキヅライブ!LOVELIVE!BLUEBIRD',
+      'イキヅライブ',
+      'LOVELIVE!BLUEBIRD',
+      'IKZL',
+      'Ikizurai',
+    ],
+  },
 ];
+
+export const KNOWN_GROUP_IDENTITY_NAMES: readonly GroupIdentityName[] = Object.freeze(
+  GROUP_IDENTITY_GROUPS.map((group) => group.canonicalName)
+);
 
 const HASUNOSORA_TRIPLE_UNIT_CARD_CODES = new Set([
   'PL!HS-bp2-020-L',

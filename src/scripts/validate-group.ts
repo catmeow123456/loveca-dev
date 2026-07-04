@@ -32,6 +32,7 @@ const VALID_SERIES_NAMES = [
   'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
   'ラブライブ！スーパースター!!',
   '蓮ノ空女学院スクールアイドルクラブ',
+  'イキヅライブ！LOVELIVE!BLUEBIRD',
   '其他',
 ];
 
@@ -42,6 +43,8 @@ const GROUP_TO_SERIES_MAP: Record<string, string> = {
   虹ヶ咲学園スクールアイドル同好会: 'ラブライブ！虹ヶ咲学園スクールアイドル同好会',
   'Liella!': 'ラブライブ！スーパースター!!',
   蓮ノ空女学院スクールアイドルクラブ: '蓮ノ空女学院スクールアイドルクラブ',
+  'いきづらい部！': 'イキヅライブ！LOVELIVE!BLUEBIRD',
+  'いきづらい部!': 'イキヅライブ！LOVELIVE!BLUEBIRD',
   其他: '其他',
 };
 
@@ -126,6 +129,17 @@ function validateWorkNames(workNames: readonly string[] | null): {
  */
 function isSeriesValid(value: string): boolean {
   if (value === '(null)') return true;
+  if (value.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return (
+        Array.isArray(parsed) &&
+        parsed.every((item) => typeof item === 'string' && isSeriesValid(item))
+      );
+    } catch {
+      return false;
+    }
+  }
   if (VALID_SERIES_NAMES.includes(value)) return true;
   // 多系列检查
   if (value.includes('\n')) {
