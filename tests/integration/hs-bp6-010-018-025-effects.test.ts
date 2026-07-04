@@ -173,12 +173,23 @@ describe('PL!HS-bp6-010 Sayaka workflow', () => {
       PLAYER1,
       'bp6-010-draw'
     );
-    let game = registerCards(baseGame('bp6-010-cost'), [source, discard, nonDoll, drawCard]);
+    const remainingDeckCard = createCardInstance(
+      createMember('PL!HS-bp6-010-remaining', 'Remaining'),
+      PLAYER1,
+      'bp6-010-remaining'
+    );
+    let game = registerCards(baseGame('bp6-010-cost'), [
+      source,
+      discard,
+      nonDoll,
+      drawCard,
+      remainingDeckCard,
+    ]);
     game = stageMember(game, source.instanceId, SlotPosition.CENTER);
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
       hand: { ...player.hand, cardIds: [discard.instanceId, nonDoll.instanceId] },
-      mainDeck: { ...player.mainDeck, cardIds: [drawCard.instanceId] },
+      mainDeck: { ...player.mainDeck, cardIds: [drawCard.instanceId, remainingDeckCard.instanceId] },
     }));
     game = resolve(
       withPending(
@@ -224,11 +235,21 @@ describe('PL!HS-bp6-010 Sayaka workflow', () => {
       PLAYER1,
       'bp6-010-draw-no-target'
     );
-    let game = registerCards(baseGame('bp6-010-no-target'), [source, discard, drawCard]);
+    const remainingDeckCard = createCardInstance(
+      createMember('PL!HS-bp6-010-remaining-no-target', 'Remaining'),
+      PLAYER1,
+      'bp6-010-remaining-no-target'
+    );
+    let game = registerCards(baseGame('bp6-010-no-target'), [
+      source,
+      discard,
+      drawCard,
+      remainingDeckCard,
+    ]);
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
       hand: { ...player.hand, cardIds: [discard.instanceId] },
-      mainDeck: { ...player.mainDeck, cardIds: [drawCard.instanceId] },
+      mainDeck: { ...player.mainDeck, cardIds: [drawCard.instanceId, remainingDeckCard.instanceId] },
     }));
     game = resolve(
       withPending(

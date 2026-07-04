@@ -174,12 +174,12 @@ describe('PL!SP-bp5-009 Natsumi live-start repeat mill', () => {
   });
 
   it('waits the source and can continue repeating when the milled card is LIVE', () => {
-    const scenario = setup([live('live-top'), member('after-live')]);
+    const scenario = setup([live('live-top'), member('after-live'), member('remaining')]);
     let state = chooseContinue(start(scenario.game, scenario.sourceId));
 
     expect(state.activeEffect?.stepId).toBe('SP_BP5_009_REPEAT_MILL_TOP');
     expect(state.players[0].waitingRoom.cardIds).toEqual([scenario.deckCardIds[0]]);
-    expect(state.players[0].mainDeck.cardIds).toEqual([scenario.deckCardIds[1]]);
+    expect(state.players[0].mainDeck.cardIds).toEqual(scenario.deckCardIds.slice(1, 3));
     expect(state.players[0].memberSlots.cardStates.get(scenario.sourceId)?.orientation).toBe(
       OrientationState.WAITING
     );
@@ -199,12 +199,13 @@ describe('PL!SP-bp5-009 Natsumi live-start repeat mill', () => {
       scenario.deckCardIds[0],
       scenario.deckCardIds[1],
     ]);
+    expect(state.players[0].mainDeck.cardIds).toEqual([scenario.deckCardIds[2]]);
     expect(
       collectLiveModifiers(state).filter((modifier) => modifier.kind === 'BLADE')
     ).toHaveLength(2);
   });
 
-  it('refreshes a short deck before milling exactly one top card for this iteration', () => {
+  it('refreshes around a short deck while milling exactly one top card for this iteration', () => {
     const scenario = setup([], { waitingRoomData: [member('refresh-source')] });
     let state = start(scenario.game, scenario.sourceId);
 
@@ -220,10 +221,10 @@ describe('PL!SP-bp5-009 Natsumi live-start repeat mill', () => {
     )?.payload.milledCardId;
     expect(scenario.waitingRoomCardIds).toContain(milledCardId);
     expect(state.actionHistory.some((action) => action.type === 'RULE_ACTION')).toBe(true);
-    expect(state.actionHistory.at(-1)?.payload.refreshCount).toBe(1);
+    expect(state.actionHistory.at(-1)?.payload.refreshCount).toBe(2);
     expect(state.activeEffect).toMatchObject({
       abilityId: SP_BP5_009_LIVE_START_REPEAT_MILL_GAIN_BLADE_WAIT_IF_LIVE_ABILITY_ID,
-      metadata: { refreshCount: 1 },
+      metadata: { refreshCount: 2 },
     });
 
     const enterWaitingRoomEvents = state.eventLog

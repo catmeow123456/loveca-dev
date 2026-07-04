@@ -2229,7 +2229,8 @@ function normalizeActionPayload(value: unknown, key?: string): unknown {
             entryKey === 'endTimestamp' ||
             entryKey === 'timestamp' ||
             entryKey === 'pendingAbilityId' ||
-            entryKey === 'pendingAbilityIds'
+            entryKey === 'pendingAbilityIds' ||
+            entryKey === 'publicEffectSummary'
           ) {
             return [];
           }
@@ -2257,7 +2258,8 @@ function normalizeVolatileValue(value: unknown): unknown {
             key === 'endTimestamp' ||
             key === 'timestamp' ||
             key === 'pendingAbilityId' ||
-            key === 'pendingAbilityIds'
+            key === 'pendingAbilityIds' ||
+            key === 'publicEffectSummaryContext'
           ) {
             return [];
           }

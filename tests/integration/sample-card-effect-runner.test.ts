@@ -1406,7 +1406,7 @@ describe('sample card effect runner', () => {
     expect(nozomiCardId).toBeTruthy();
     expect(liveCardId).toBeTruthy();
     expect(energyCardIds.length).toBeGreaterThanOrEqual(7);
-    expect(otherMemberCardIds.length).toBeGreaterThanOrEqual(5);
+    expect(otherMemberCardIds.length).toBeGreaterThanOrEqual(6);
 
     const milledCardIds = [
       otherMemberCardIds[0],
@@ -1416,11 +1416,12 @@ describe('sample card effect runner', () => {
       otherMemberCardIds[3],
     ];
     const drawnCardId = otherMemberCardIds[4];
+    const remainingDeckCardId = otherMemberCardIds[5];
 
     removeFromPlayerZones(p1);
     setActiveEnergy(p1, energyCardIds.slice(0, 7));
     p1.hand.cardIds = [nozomiCardId!];
-    p1.mainDeck.cardIds = [...milledCardIds, drawnCardId];
+    p1.mainDeck.cardIds = [...milledCardIds, drawnCardId, remainingDeckCardId!];
     p1.memberSlots.slots = {
       [SlotPosition.LEFT]: null,
       [SlotPosition.CENTER]: null,
@@ -1439,7 +1440,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.inspectionContext).toBeNull();
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(milledCardIds);
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([drawnCardId]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([drawnCardId, remainingDeckCardId]);
     expect(session.state?.pendingAbilities).toEqual([]);
     expect(activeEffect?.abilityId).toBe(NOZOMI_ON_ENTER_ABILITY_ID);
     expect(activeEffect?.awaitingPlayerId).toBe(PLAYER1);
@@ -1464,7 +1465,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(milledCardIds);
     expect(session.state?.players[0].hand.cardIds).toEqual([drawnCardId]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([remainingDeckCardId]);
     expect(
       session.state?.actionHistory.some(
         (action) =>
@@ -6471,6 +6472,16 @@ describe('sample card effect runner', () => {
         );
       })
       .slice(0, 3);
+    const p1RemainingDeckCardId = ownedP1CardIds.find((cardId) => {
+      const cardCode = state.cardRegistry.get(cardId)?.data.cardCode;
+      return (
+        cardId !== nozomiCardId &&
+        cardId !== relayMemberId &&
+        !p1HandCardIds.includes(cardId) &&
+        !p1DrawCardIds.includes(cardId) &&
+        cardCode?.startsWith('MEM-')
+      );
+    });
     const p2HandCardIds = ownedP2CardIds
       .filter((cardId) => state.cardRegistry.get(cardId)?.data.cardCode?.startsWith('MEM-'))
       .slice(0, 5);
@@ -6481,6 +6492,12 @@ describe('sample card effect runner', () => {
           state.cardRegistry.get(cardId)?.data.cardCode?.startsWith('MEM-')
       )
       .slice(0, 3);
+    const p2RemainingDeckCardId = ownedP2CardIds.find(
+      (cardId) =>
+        !p2HandCardIds.includes(cardId) &&
+        !p2DrawCardIds.includes(cardId) &&
+        state.cardRegistry.get(cardId)?.data.cardCode?.startsWith('MEM-')
+    );
     const energyCardIds = ownedP1CardIds.filter(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
     );
@@ -6489,17 +6506,19 @@ describe('sample card effect runner', () => {
     expect(relayMemberId).toBeTruthy();
     expect(p1HandCardIds.length).toBe(5);
     expect(p1DrawCardIds.length).toBe(3);
+    expect(p1RemainingDeckCardId).toBeTruthy();
     expect(p2HandCardIds.length).toBe(5);
     expect(p2DrawCardIds.length).toBe(3);
+    expect(p2RemainingDeckCardId).toBeTruthy();
     expect(energyCardIds.length).toBeGreaterThanOrEqual(12);
 
     removeFromPlayerZones(p1);
     removeFromPlayerZones(p2);
     setActiveEnergy(p1, energyCardIds.slice(0, 12));
     p1.hand.cardIds = [nozomiCardId!, ...p1HandCardIds];
-    p1.mainDeck.cardIds = [...p1DrawCardIds];
+    p1.mainDeck.cardIds = [...p1DrawCardIds, p1RemainingDeckCardId!];
     p2.hand.cardIds = [...p2HandCardIds];
-    p2.mainDeck.cardIds = [...p2DrawCardIds];
+    p2.mainDeck.cardIds = [...p2DrawCardIds, p2RemainingDeckCardId!];
     p1.memberSlots.slots[SlotPosition.CENTER] = relayMemberId!;
     p1.memberSlots.cardStates = new Map([
       [relayMemberId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
@@ -6626,6 +6645,16 @@ describe('sample card effect runner', () => {
           state.cardRegistry.get(cardId)?.data.cardCode?.startsWith('MEM-')
       )
       .slice(0, 3);
+    const p1RemainingDeckCardId = ownedP1CardIds.find((cardId) => {
+      const cardCode = state.cardRegistry.get(cardId)?.data.cardCode;
+      return (
+        !p1HandCardIds.includes(cardId) &&
+        !p1DrawCardIds.includes(cardId) &&
+        cardId !== nozomiCardId &&
+        cardId !== relayMemberId &&
+        cardCode?.startsWith('MEM-')
+      );
+    });
     const p2HandCardIds = ownedP2CardIds
       .filter((cardId) => state.cardRegistry.get(cardId)?.data.cardCode?.startsWith('MEM-'))
       .slice(0, 3);
@@ -6636,6 +6665,12 @@ describe('sample card effect runner', () => {
           state.cardRegistry.get(cardId)?.data.cardCode?.startsWith('MEM-')
       )
       .slice(0, 3);
+    const p2RemainingDeckCardId = ownedP2CardIds.find(
+      (cardId) =>
+        !p2HandCardIds.includes(cardId) &&
+        !p2DrawCardIds.includes(cardId) &&
+        state.cardRegistry.get(cardId)?.data.cardCode?.startsWith('MEM-')
+    );
     const energyCardIds = ownedP1CardIds.filter(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
     );
@@ -6644,17 +6679,19 @@ describe('sample card effect runner', () => {
     expect(relayMemberId).toBeTruthy();
     expect(p1HandCardIds.length).toBe(2);
     expect(p1DrawCardIds.length).toBe(3);
+    expect(p1RemainingDeckCardId).toBeTruthy();
     expect(p2HandCardIds.length).toBe(3);
     expect(p2DrawCardIds.length).toBe(3);
+    expect(p2RemainingDeckCardId).toBeTruthy();
     expect(energyCardIds.length).toBeGreaterThanOrEqual(12);
 
     removeFromPlayerZones(p1);
     removeFromPlayerZones(p2);
     setActiveEnergy(p1, energyCardIds.slice(0, 12));
     p1.hand.cardIds = [nozomiCardId!, ...p1HandCardIds];
-    p1.mainDeck.cardIds = [...p1DrawCardIds];
+    p1.mainDeck.cardIds = [...p1DrawCardIds, p1RemainingDeckCardId!];
     p2.hand.cardIds = [...p2HandCardIds];
-    p2.mainDeck.cardIds = [...p2DrawCardIds];
+    p2.mainDeck.cardIds = [...p2DrawCardIds, p2RemainingDeckCardId!];
     p1.memberSlots.slots[SlotPosition.CENTER] = relayMemberId!;
     p1.memberSlots.cardStates = new Map([
       [relayMemberId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
@@ -7755,18 +7792,22 @@ describe('sample card effect runner', () => {
     const topCardIds = ['MEM-0', 'LIVE-0', 'MEM-1', 'MEM-2'].map((cardCode) =>
       ownedP1CardIds.find((cardId) => state.cardRegistry.get(cardId)?.data.cardCode === cardCode)
     );
+    const remainingDeckCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-3'
+    );
     const energyCardIds = ownedP1CardIds.filter(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
     );
 
     expect(kahoCardId).toBeTruthy();
     expect(topCardIds.every(Boolean)).toBe(true);
+    expect(remainingDeckCardId).toBeTruthy();
     expect(energyCardIds.length).toBeGreaterThanOrEqual(11);
 
     removeFromPlayerZones(p1);
     setActiveEnergy(p1, energyCardIds);
     p1.hand.cardIds = [kahoCardId!];
-    p1.mainDeck.cardIds = topCardIds as string[];
+    p1.mainDeck.cardIds = [...(topCardIds as string[]), remainingDeckCardId!];
     p1.memberSlots.slots = {
       [SlotPosition.LEFT]: null,
       [SlotPosition.CENTER]: null,
@@ -9699,11 +9740,11 @@ describe('sample card effect runner', () => {
     expect(firstHanayoCardId).toBeTruthy();
     expect(secondHanayoCardId).toBeTruthy();
     expect(energyCardIds.length).toBeGreaterThanOrEqual(4);
-    expect(deckCardIds.length).toBeGreaterThanOrEqual(20);
+    expect(deckCardIds.length).toBeGreaterThanOrEqual(21);
 
     removeFromPlayerZones(p1);
     setActiveEnergy(p1, energyCardIds.slice(0, 4));
-    p1.mainDeck.cardIds = deckCardIds.slice(0, 20);
+    p1.mainDeck.cardIds = deckCardIds.slice(0, 21);
     p1.memberSlots.slots[SlotPosition.CENTER] = firstHanayoCardId!;
     p1.memberSlots.slots[SlotPosition.RIGHT] = secondHanayoCardId!;
     p1.memberSlots.cardStates = new Map([
@@ -9717,7 +9758,7 @@ describe('sample card effect runner', () => {
 
     expect(firstActivateResult.success).toBe(true);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(deckCardIds.slice(0, 10));
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual(deckCardIds.slice(10, 20));
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual(deckCardIds.slice(10, 21));
     expect(
       session.state?.actionHistory.some(
         (action) =>
@@ -9745,7 +9786,7 @@ describe('sample card effect runner', () => {
     expect(secondActivateResult.success).toBe(false);
     expect(secondActivateResult.error).toContain('本回合已发动 1/1 次');
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(deckCardIds.slice(0, 10));
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual(deckCardIds.slice(10, 20));
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual(deckCardIds.slice(10, 21));
 
     const otherCopyActivateResult = session.executeCommand(
       createActivateAbilityCommand(PLAYER1, secondHanayoCardId!, HANAYO_ACTIVATED_ABILITY_ID)
@@ -9753,7 +9794,7 @@ describe('sample card effect runner', () => {
 
     expect(otherCopyActivateResult.success).toBe(true);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(deckCardIds.slice(0, 20));
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([deckCardIds[20]]);
     expect(
       session.state?.actionHistory.some(
         (action) =>

@@ -99,6 +99,7 @@ function createPreparedSession(
   options: {
     readonly handCount?: number;
     readonly drawCount?: number;
+    readonly remainingDeckCount?: number;
     readonly addHandToWaitingRoomTriggerSource?: boolean;
   } = {}
 ): {
@@ -130,6 +131,13 @@ function createPreparedSession(
       `draw-${index}`
     )
   );
+  const remainingDeckCards = Array.from({ length: options.remainingDeckCount ?? 0 }, (_, index) =>
+    createCardInstance(
+      createMemberCard(`REMAINING-${index}`, `Remaining ${index}`),
+      PLAYER1,
+      `remaining-${index}`
+    )
+  );
   const triggerSource =
     options.addHandToWaitingRoomTriggerSource === true
       ? createCardInstance(
@@ -143,6 +151,7 @@ function createPreparedSession(
     source,
     ...handCards,
     ...drawnCards,
+    ...remainingDeckCards,
     ...(triggerSource ? [triggerSource] : []),
   ]);
   (session as unknown as { authorityState: GameState }).authorityState = state;
@@ -160,7 +169,10 @@ function createPreparedSession(
   };
   removeFromPlayerZones(p1);
   p1.hand.cardIds = handCards.map((card) => card.instanceId);
-  p1.mainDeck.cardIds = drawnCards.map((card) => card.instanceId);
+  p1.mainDeck.cardIds = [
+    ...drawnCards.map((card) => card.instanceId),
+    ...remainingDeckCards.map((card) => card.instanceId),
+  ];
   p1.memberSlots.slots[SlotPosition.LEFT] = triggerSource?.instanceId ?? null;
   p1.memberSlots.slots[SlotPosition.CENTER] = source.instanceId;
   p1.memberSlots.slots[SlotPosition.RIGHT] = null;
@@ -186,6 +198,7 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
       createPreparedSession('PL!HS-bp6-019-N', '大沢瑠璃乃', {
         handCount: 2,
         drawCount: 2,
+        remainingDeckCount: 1,
         addHandToWaitingRoomTriggerSource: true,
       });
 
@@ -255,7 +268,7 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
     const { session, sourceId, handCardIds, drawnCardIds } = createPreparedSession(
       'PL!HS-bp2-015-N',
       '藤島 慈',
-      { handCount: 1, drawCount: 2 }
+      { handCount: 1, drawCount: 2, remainingDeckCount: 1 }
     );
 
     const moveResult = session.executeCommand(
@@ -284,11 +297,11 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
     expect(session.state?.players[0].hand.cardIds).toEqual([handCardIds[0], drawnCardIds[1]]);
   });
 
-  it('lets PL!HS-bp6-019-N discard only the available card when fewer than two can be discarded', () => {
+  it('lets PL!HS-bp6-019-N discard only the refreshed source when it is the only available card', () => {
     const { session, sourceId, drawnCardIds } = createPreparedSession(
       'PL!HS-bp6-019-N',
       '大沢瑠璃乃',
-      { drawCount: 1 }
+      { drawCount: 0 }
     );
 
     const moveResult = session.executeCommand(
@@ -304,7 +317,8 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP6_019_LEAVE_STAGE_DRAW_TWO_DISCARD_TWO_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([drawnCardIds[0]]);
+    expect(drawnCardIds).toEqual([]);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([sourceId]);
     expect(session.state?.activeEffect?.minSelectableCards).toBe(1);
     expect(session.state?.activeEffect?.maxSelectableCards).toBe(1);
 
@@ -316,13 +330,13 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
         undefined,
         undefined,
         undefined,
-        [drawnCardIds[0]!]
+        [sourceId]
       )
     );
 
     expect(continueResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([sourceId, drawnCardIds[0]]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([sourceId]);
   });
 
   it('puts PL!HS-bp2-015-N leave-stage AUTO and the replacing member ON_ENTER into one order window', () => {

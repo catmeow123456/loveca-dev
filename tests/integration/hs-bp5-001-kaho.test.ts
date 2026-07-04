@@ -119,7 +119,12 @@ describe('HS-bp5-001 Kaho workflow', () => {
         `p1-hs-bp5-001-top-${index}`
       )
     );
-    const state = registerCards(session.state!, [kaho, ...topCards]);
+    const remainingDeckCard = createCardInstance(
+      createMemberCard('PL!HS-bp5-001-test-remaining', 'Remaining'),
+      PLAYER1,
+      'p1-hs-bp5-001-remaining'
+    );
+    const state = registerCards(session.state!, [kaho, ...topCards, remainingDeckCard]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
     const p1 = state.players[0] as unknown as {
@@ -137,7 +142,7 @@ describe('HS-bp5-001 Kaho workflow', () => {
 
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [kaho.instanceId];
-    p1.mainDeck.cardIds = [...topCardIds];
+    p1.mainDeck.cardIds = [...topCardIds, remainingDeckCard.instanceId];
     p1.memberSlots.slots = {
       [SlotPosition.LEFT]: null,
       [SlotPosition.CENTER]: null,
