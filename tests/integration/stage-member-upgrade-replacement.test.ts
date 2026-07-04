@@ -344,7 +344,13 @@ describe('stage member upgrade replacement shared workflow', () => {
     expect(finalState.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(
       scenario.handCards[0]!.instanceId
     );
-    expect(finalState.players[0].waitingRoom.cardIds).toContain(scenario.target.instanceId);
+    expect(finalState.players[0].waitingRoom.cardIds).not.toContain(scenario.target.instanceId);
+    expect(finalState.players[0].mainDeck.cardIds).toContain(scenario.target.instanceId);
+    expect(
+      finalState.actionHistory.some(
+        (action) => action.type === 'RULE_ACTION' && action.payload.type === 'REFRESH'
+      )
+    ).toBe(true);
     expect(finalState.players[0].waitingRoom.cardIds).not.toContain(
       scenario.handCards[0]!.instanceId
     );
