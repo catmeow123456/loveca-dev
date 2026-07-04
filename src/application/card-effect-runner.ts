@@ -55,8 +55,11 @@ import { enqueueResolvedAbilityObserverCardEffects } from './card-effects/runtim
 import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime/starter-registry.js';
 import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step-registry.js';
 import { registerBp5003KotoriWorkflowHandlers } from './card-effects/workflows/cards/pl-bp5-003-kotori.js';
+import { registerBp5004UmiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp5-004-umi.js';
+import { registerNBp5004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp5-004-karin.js';
 import { registerBp5007NozomiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp5-007-nozomi.js';
 import { registerBp5005RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp5-005-rin.js';
+import { registerBp5006MakiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp5-006-maki.js';
 import { registerBp6003KotoriWorkflowHandlers } from './card-effects/workflows/cards/pl-bp6-003-kotori.js';
 import { registerBp6020DancingStarsWorkflowHandlers } from './card-effects/workflows/cards/pl-bp6-020-dancing-stars-on-me.js';
 import { registerBp6024SuccessReplacementWorkflowHandlers } from './card-effects/workflows/cards/pl-bp6-024-sakkaku-crossroads.js';
@@ -290,10 +293,8 @@ import {
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
   HS_SD1_001_RELAY_REPLACED_ACTIVATE_ENERGY_ABILITY_ID,
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
-  N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
   PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID,
-  SP_PB2_020_AUTO_ON_CHEER_DISCARD_LIELLA_LIVE_ADDITIONAL_CHEER_ABILITY_ID,
   SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID,
 } from './card-effects/ability-ids.js';
 import {
@@ -767,6 +768,9 @@ registerPayEnergyWaitingRoomToHandWorkflowHandlers();
 registerDiscardCostWaitingRoomToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPr017NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp5005RinWorkflowHandlers();
+registerBp5006MakiWorkflowHandlers();
+registerBp5004UmiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp5004KarinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerRevealedCheerSelectionWorkflowHandlers({ continuePendingCardEffects });
 registerSelfPositionChangeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerStageFormationChangeWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -2320,14 +2324,7 @@ function enqueueExactStageMemberCheerCardEffects(
       CardAbilitySourceZone.STAGE_MEMBER,
       sourceSlot
     )
-      .filter(
-        (ability) =>
-          ability.triggerCondition === TriggerCondition.ON_CHEER &&
-          (ability.abilityId ===
-            SP_PB2_020_AUTO_ON_CHEER_DISCARD_LIELLA_LIVE_ADDITIONAL_CHEER_ABILITY_ID ||
-            ability.abilityId ===
-              N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID)
-      )
+      .filter((ability) => ability.triggerCondition === TriggerCondition.ON_CHEER)
       .map((ability) => ability.abilityId);
     if (stageCheerAbilityIds.length === 0) {
       continue;

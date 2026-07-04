@@ -192,6 +192,10 @@ export function memberPrintedBladeLte(maxBlade: number): CardSelector {
   return (card) => isMemberCardData(card.data) && card.data.blade <= maxBlade;
 }
 
+export function memberPrintedBladeEquals(bladeCount: number): CardSelector {
+  return (card) => isMemberCardData(card.data) && card.data.blade === bladeCount;
+}
+
 export function and(...selectors: readonly CardSelector[]): CardSelector {
   return (card) => selectors.every((selector) => selector(card));
 }

@@ -18,6 +18,8 @@ export const MEMBER_ON_ENTER_DRAW_DISCARD_ONE_ABILITY_ID =
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID;
 export const MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID =
   'member:on-enter-draw-two-discard-two';
+export const MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
+  'member:live-success-draw-one-discard-one';
 export const PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID =
   'PL!N-bp1-002:on-enter-look-top-three-arrange-to-top';
 export const PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID =
@@ -483,6 +485,10 @@ export const BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID =
   'PL!-bp5-003:activated-pay-two-energy-discard-branch';
 export const BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID =
   'PL!-bp5-003:continuous-three-different-names-yellow-heart';
+export const BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID =
+  'PL!-bp5-004:activated-stage-group-dynamic-cost-wait-opponent-cost-ten';
+export const BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID =
+  'PL!-bp5-004:auto-on-cheer-no-blade-member-three-gain-all-heart';
 export const BP5_011_LIVE_START_SUCCESS_COUNT_CHOOSE_GREEN_BLUE_PURPLE_HEART_ABILITY_ID =
   'PL!-bp5-011:live-start-success-count-choose-green-blue-purple-heart';
 export const PB1_019_ACTIVATED_ABILITY_ID =
@@ -496,6 +502,12 @@ export const SP_PR_021_LIVE_START_STAGE_HEART_FIVE_WAIT_OPPONENT_COST_TWO_MEMBER
 export const BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID = 'PL!-bp3-010-N:on-enter-look-top-reveal-live';
 export const BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID =
   'PL!-bp5-005-AR:on-enter-success-score-place-active-energy';
+export const BP5_006_LIVE_START_LIVE_ZONE_TWO_DRAW_ABILITY_ID =
+  'PL!-bp5-006:live-start-live-zone-two-draw';
+export const PL_N_BP5_004_ON_ENTER_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID =
+  'PL!N-bp5-004:on-enter-wait-self-opponent-original-blade-four-wait';
+export const PL_N_BP5_004_LIVE_START_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID =
+  'PL!N-bp5-004:live-start-wait-self-opponent-original-blade-four-wait';
 export const BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID =
   'PL!-bp5-007:on-enter-relay-low-cost-discard-to-three-draw-three';
 export const BP4_008_CONTINUOUS_SUCCESS_SCORE_STAGE_COST_ABILITY_ID =

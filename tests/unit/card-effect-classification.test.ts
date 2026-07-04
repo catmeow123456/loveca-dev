@@ -9,9 +9,14 @@ import {
   BP4_008_CONTINUOUS_SUCCESS_SCORE_STAGE_COST_ABILITY_ID,
   BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
   BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID,
+  BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID,
+  BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
   BP5_005_ON_ENTER_SUCCESS_SCORE_PLACE_ACTIVE_ENERGY_ABILITY_ID,
+  BP5_006_LIVE_START_LIVE_ZONE_TWO_DRAW_ABILITY_ID,
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
   BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
+  PL_N_BP5_004_LIVE_START_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
+  PL_N_BP5_004_ON_ENTER_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
   LL_BP6_001_ON_ENTER_LOOK_TOP_SIX_TAKE_TWO_ABILITY_ID,
   LL_BP6_001_LIVE_START_DISCARD_NAMED_MEMBERS_GAIN_HEARTS_ABILITY_ID,
@@ -197,6 +202,7 @@ import {
   PL_N_PB1_034_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
   PL_N_PB1_036_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
   HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID,
+  MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
   PL_BP3_026_LIVE_START_DISCARD_TWO_TARGET_MEMBER_GAIN_THREE_BLADE_ABILITY_ID,
@@ -515,6 +521,13 @@ const MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_CARD_CODES = [
   'PL!S-bp2-010-N',
 ] as const;
 
+const MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_CARD_CASES = [
+  { cardCode: 'PL!N-bp5-016-N', baseCardCode: 'PL!N-bp5-016' },
+  { cardCode: 'PL!N-bp5-023-N', baseCardCode: 'PL!N-bp5-023' },
+  { cardCode: 'PL!S-sd1-014-SD', baseCardCode: 'PL!S-sd1-014' },
+  { cardCode: 'PL!SP-sd2-017-SD2', baseCardCode: 'PL!SP-sd2-017' },
+] as const;
+
 const RELAY_ENTER_DRAW_DISCARD_CARD_CASES = [
   {
     abilityId: PL_N_PB1_014_ON_ENTER_RELAY_FROM_KASUMI_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
@@ -619,6 +632,28 @@ describe('card effect classification registry', () => {
         queued: true,
         implemented: true,
       });
+    }
+
+    for (const cardCase of MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_CARD_CASES) {
+      const liveSuccessDrawDiscard = getCardAbilityDefinitions(cardCase.cardCode).find(
+        (ability) =>
+          ability.abilityId === MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID
+      );
+      expect(liveSuccessDrawDiscard).toMatchObject({
+        abilityId: MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+        baseCardCodes: [
+          'PL!N-bp5-016',
+          'PL!N-bp5-023',
+          'PL!S-sd1-014',
+          'PL!SP-sd2-017',
+        ],
+        category: CardAbilityCategory.LIVE_SUCCESS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        queued: true,
+        implemented: true,
+      });
+      expect(liveSuccessDrawDiscard?.baseCardCodes).toContain(cardCase.baseCardCode);
     }
 
     for (const cardCase of RELAY_ENTER_DRAW_DISCARD_CARD_CASES) {
@@ -2807,6 +2842,90 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+
+    for (const cardCode of ['PL!-bp5-004-AR', 'PL!-bp5-004-P', 'PL!-bp5-004-R＋', 'PL!-bp5-004-SEC']) {
+      const umiAbilities = getCardAbilityDefinitions(cardCode);
+      expect(
+        umiAbilities.find(
+          (ability) =>
+            ability.abilityId ===
+            BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId: BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID,
+        baseCardCodes: ['PL!-bp5-004'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+      });
+      expect(
+        umiAbilities.find(
+          (ability) =>
+            ability.abilityId ===
+            BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId: BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
+        baseCardCodes: ['PL!-bp5-004'],
+        category: CardAbilityCategory.AUTO,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_CHEER,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    for (const cardCode of ['PL!N-bp5-004-AR', 'PL!N-bp5-004-P', 'PL!N-bp5-004-R']) {
+      const karinAbilities = getCardAbilityDefinitions(cardCode);
+      expect(
+        karinAbilities.find(
+          (ability) =>
+            ability.abilityId ===
+            PL_N_BP5_004_ON_ENTER_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId:
+          PL_N_BP5_004_ON_ENTER_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
+        baseCardCodes: ['PL!N-bp5-004'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+      expect(
+        karinAbilities.find(
+          (ability) =>
+            ability.abilityId ===
+            PL_N_BP5_004_LIVE_START_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId:
+          PL_N_BP5_004_LIVE_START_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
+        baseCardCodes: ['PL!N-bp5-004'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    for (const cardCode of ['PL!-bp5-006-AR', 'PL!-bp5-006-P', 'PL!-bp5-006-R']) {
+      const bp5006Maki = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === BP5_006_LIVE_START_LIVE_ZONE_TWO_DRAW_ABILITY_ID
+      );
+      expect(bp5006Maki).toMatchObject({
+        abilityId: BP5_006_LIVE_START_LIVE_ZONE_TWO_DRAW_ABILITY_ID,
+        baseCardCodes: ['PL!-bp5-006'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
 
     for (const cardCode of ['PL!-bp5-007-AR', 'PL!-bp5-007-P', 'PL!-bp5-007-R']) {
       const bp5007Nozomi = getCardAbilityDefinitions(cardCode).find(
