@@ -14,6 +14,7 @@
 | [UI 重设计方案](redesign.md) | 历史/计划文档 | UI 重设计背景、分层双主题原则和遗留清理参考 |
 | [移动端适配需求](mobile-adaptation-requirements.md) | 需求文档 | 手机/平板布局、触控、覆盖层和移动端验收目标 |
 | [移动端现状差距清单](mobile-adaptation-gap-analysis.md) | 专题说明 | 移动端目标态与当前前端实现之间的差距和优先级 |
+| [对局入口卡组选择现状](deck-selection-entry-current-state.md) | 专题说明 | 游戏准备、正式联机和联机调试入口的选组体验、当前事实与未落地项 |
 | [游戏桌 UI 现状](game-table/current-state.md) | 专题说明 | 当前 `GameBoard` / `PlayerArea` / `JudgmentPanel` 布局和交互事实 |
 | [解决区行为](game-table/resolution-zone-behavior.md) | 专题说明 | 解决区局部交互定稿 |
 | [卡组点击行为](game-table/deck-click-behavior.md) | 专题说明 | 卡组点击局部交互定稿 |

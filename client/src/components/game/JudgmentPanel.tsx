@@ -18,7 +18,10 @@ import { applyHeartRequirementModifiers } from '@game/domain/rules/live-requirem
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
-import { HEART_ICON_SOURCE_BY_COLOR } from '@/lib/modifierIconAssets';
+import {
+  HEART_ICON_SOURCE_BY_COLOR,
+  HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR,
+} from '@/lib/modifierIconAssets';
 import {
   buildBattleActionIntents,
   findEnabledBattleActionTargetByTargetId,
@@ -88,15 +91,17 @@ function HeartIconValue({
   color,
   count,
   iconClassName,
+  iconSrc,
 }: {
   color: HeartColor;
   count: number;
   iconClassName?: string;
+  iconSrc?: string;
 }) {
   return (
     <span className="inline-flex items-center gap-0.5">
       <img
-        src={HEART_ICON_SOURCE_BY_COLOR[color]}
+        src={iconSrc ?? HEART_ICON_SOURCE_BY_COLOR[color]}
         alt=""
         className={cn('h-4 w-4 object-contain', iconClassName)}
         draggable={false}
@@ -315,6 +320,7 @@ const LiveCardJudgmentRow = memo(function LiveCardJudgmentRow({
               key={idx}
               color={req.color}
               count={req.count}
+              iconSrc={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[req.color]}
               iconClassName="h-3.5 w-3.5"
             />
           ))}

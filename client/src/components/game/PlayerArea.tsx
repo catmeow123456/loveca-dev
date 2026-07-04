@@ -34,7 +34,7 @@ import {
 } from '@/lib/cardEffectAutomationVisuals';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
-import { HEART_ICON_SOURCE_BY_COLOR } from '@/lib/modifierIconAssets';
+import { HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR } from '@/lib/modifierIconAssets';
 import { createScopedZoneId, createZoneId } from '@/lib/zoneUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
@@ -1767,7 +1767,7 @@ export const PlayerArea = memo(function PlayerArea({
                 ([color, count], i) => (
                   <span key={i} className="inline-flex items-center gap-0.5">
                     <img
-                      src={HEART_ICON_SOURCE_BY_COLOR[color as HeartColor]}
+                      src={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[color as HeartColor]}
                       alt=""
                       className="h-3 w-3 object-contain drop-shadow"
                       draggable={false}

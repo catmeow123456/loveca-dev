@@ -65,7 +65,7 @@ describe('parseCardEffectText', () => {
       { kind: 'heart', raw: '[红HEART]', label: '红HEART', icon: 'heart_red' },
       { kind: 'heart', raw: '[蓝HEART]', label: '蓝HEART', icon: 'heart_blue' },
       { kind: 'heart', raw: '[紫HEART]', label: '紫HEART', icon: 'heart_purple' },
-      { kind: 'heart', raw: '[无色HEART]', label: '无色HEART', icon: 'heart_all' },
+      { kind: 'heart', raw: '[无色HEART]', label: '无色HEART', icon: 'heart_gray' },
       { kind: 'text', text: '。' },
     ]);
   });

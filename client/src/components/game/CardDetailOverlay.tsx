@@ -12,7 +12,11 @@ import { cn } from '@/lib/utils';
 import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { getCardGroupDisplayText, getCardLocalizedInfo } from '@/lib/cardLocalization';
-import { HEART_ICON_SOURCE_BY_COLOR, MODIFIER_ICON_SOURCE } from '@/lib/modifierIconAssets';
+import {
+  HEART_ICON_SOURCE_BY_COLOR,
+  HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR,
+  MODIFIER_ICON_SOURCE,
+} from '@/lib/modifierIconAssets';
 import { Card } from '@/components/card/Card';
 import { CardLocalizedEffect, CardLocalizedName } from '@/components/card/CardLocalizedInfo';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -68,13 +72,15 @@ function CompactCardName({ card }: { card: AnyCardData }) {
 function HeartIconGroup({
   color,
   count,
+  iconSrc,
   compact = false,
 }: {
   color: HeartColor;
   count: number;
+  iconSrc?: string;
   compact?: boolean;
 }) {
-  const iconSrc = HEART_ICON_SOURCE_BY_COLOR[color];
+  const resolvedIconSrc = iconSrc ?? HEART_ICON_SOURCE_BY_COLOR[color];
   const repeatedCount = Math.max(0, Math.min(count, 8));
 
   return (
@@ -88,7 +94,7 @@ function HeartIconGroup({
         {Array.from({ length: repeatedCount }, (_, index) => (
           <img
             key={`${color}-${index}`}
-            src={iconSrc}
+            src={resolvedIconSrc}
             alt=""
             className={cn('object-contain', compact ? 'h-4 w-4' : 'h-5 w-5')}
             draggable={false}
@@ -206,6 +212,7 @@ export const LiveCardDetails = memo(function LiveCardDetails({
               key={color}
               color={color as HeartColor}
               count={count as number}
+              iconSrc={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[color as HeartColor]}
               compact={compact}
             />
           ))}

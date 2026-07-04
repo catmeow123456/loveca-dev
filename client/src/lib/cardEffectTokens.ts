@@ -81,9 +81,9 @@ const TOKEN_DEFINITIONS = new Map<
   ['[紫ハート]', { kind: 'heart', label: '紫ハート', icon: 'heart_purple' }],
   ['[紫HEART]', { kind: 'heart', label: '紫HEART', icon: 'heart_purple' }],
   ['[虹ハート]', { kind: 'heart', label: '虹ハート', icon: 'heart_all' }],
-  ['[無ハート]', { kind: 'heart', label: '無ハート', icon: 'heart_all' }],
-  ['[無色ハート]', { kind: 'heart', label: '無色ハート', icon: 'heart_all' }],
-  ['[无色HEART]', { kind: 'heart', label: '无色HEART', icon: 'heart_all' }],
+  ['[無ハート]', { kind: 'heart', label: '無ハート', icon: 'heart_gray' }],
+  ['[無色ハート]', { kind: 'heart', label: '無色ハート', icon: 'heart_gray' }],
+  ['[无色HEART]', { kind: 'heart', label: '无色HEART', icon: 'heart_gray' }],
   ['[ALLハート]', { kind: 'heart', label: 'ALLハート', icon: 'heart_all' }],
 ]);
 
