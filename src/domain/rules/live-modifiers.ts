@@ -116,6 +116,10 @@ const SP_PR_022_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_YELLOW_HEART_ABILITY_ID =
   'PL!SP-PR-022-PR:continuous-total-stage-six-gain-red-yellow-heart';
 const SP_PR_025_CONTINUOUS_ENERGY_EXACT_SEVEN_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!SP-PR-025-PR:continuous-energy-exact-seven-gain-two-blade';
+const SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_ABILITY_ID =
+  'PL!SP-sd2-004:continuous-center-gain-four-blade';
+const SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-sd2-008:continuous-high-cost-stage-member-gain-yellow-heart';
 const BP6_012_CONTINUOUS_SUCCESS_ZONE_PRINTEMPS_CARD_YELLOW_HEART_ABILITY_ID =
   'PL!-bp6-012:continuous-success-zone-printemps-card-yellow-heart';
 const BP6_014_CONTINUOUS_SUCCESS_ZONE_LILYWHITE_CARD_PINK_HEART_ABILITY_ID =
@@ -644,6 +648,41 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
             },
           ]
         : [],
+  },
+  {
+    baseCardCodes: ['PL!SP-sd2-004'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceCenterStageMember(game, playerId, sourceCardId)
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 4,
+              sourceCardId,
+              abilityId: SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
+    baseCardCodes: ['PL!SP-sd2-008'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        !hasOwnStageMemberWithEffectiveCostAtLeast(game, playerId, 13)
+      ) {
+        return [];
+      }
+
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+      });
+      return modifier ? [modifier] : [];
+    },
   },
   {
     baseCardCodes: ['PL!SP-bp2-010'],
@@ -1511,6 +1550,30 @@ function hasAtLeastDifferentEffectiveCostStageMembers(
     .map((card) => getMemberEffectiveCost(game, playerId, card.instanceId));
 
   return new Set(costs).size >= minCount;
+}
+
+function hasOwnStageMemberWithEffectiveCostAtLeast(
+  game: GameState,
+  playerId: string,
+  minCost: number
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return false;
+  }
+
+  return MEMBER_SLOT_ORDER.some((slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    if (!cardId) {
+      return false;
+    }
+    const card = getCardById(game, cardId);
+    return (
+      card !== null &&
+      isMemberCardData(card.data) &&
+      getMemberEffectiveCost(game, playerId, cardId) >= minCost
+    );
+  });
 }
 
 function hasOtherHigherEffectiveCostStageMember(

@@ -111,6 +111,13 @@ import {
   SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
   SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
+  SP_PR_024_AUTO_ON_CHEER_SCORE_LIELLA_LIVE_GAIN_PURPLE_HEART_ABILITY_ID,
+  SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_ABILITY_ID,
+  SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
+  SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_ABILITY_ID,
+  SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_ABILITY_ID,
+  SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID,
+  SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID,
   N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID,
   N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID,
   N_BP1_005_LIVE_START_DISCARD_GAIN_ONE_BLADE_ABILITY_ID,
@@ -668,6 +675,14 @@ const SP_BP5_222_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以支付[E]：从自己的能量卡组，将1张能量卡以待机状态放置入能量区。';
 const SP_SD2_003_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_MOVED_EFFECT_TEXT =
   '【LIVE成功时】抽1张卡。此回合此成员进行过区域移动的场合，再抽1张卡。';
+const SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_EFFECT_TEXT =
+  '【常时】【中心】获得[BLADE][BLADE][BLADE][BLADE]。';
+const SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_EFFECT_TEXT =
+  '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『Liella!』LIVE卡加入手牌。';
+const SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_EFFECT_TEXT =
+  '【常时】只要自己的舞台存在费用13以上的成员，获得[黄ハート]。';
+const SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_EFFECT_TEXT =
+  '【LIVE开始时】自己的能量为7张以上的场合，LIVE结束时为止，此成员与自己舞台上此成员以外的1名『Liella!』成员获得[BLADE]。';
 const SP_SD2_023_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的成功LIVE卡区有2张以上卡的场合，此卡的分数+5，必要Heart变为[赤ハート]3个、[黄ハート]3个、[紫ハート]3个、[無ハート]3个。';
 const SP_SD2_002_ACTIVATED_PAY_TWO_ENERGY_SELF_POSITION_CHANGE_EFFECT_TEXT =
@@ -823,6 +838,12 @@ const SP_PR_018_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】因声援公开的自己的卡中存在7张以上『Liella!』卡的场合，从自己的能量卡组将1张能量卡以待机状态放置。';
 const SP_PR_020_ON_ENTER_EFFECT_TEXT =
   '【登場】此成员从费用低于此成员的成员换手登场的场合，可以将自己手牌中1张费用4以下的成员卡登场到舞台。';
+const SP_PR_024_ON_CHEER_EFFECT_TEXT =
+  '【自动】【1回合1次】自己声援时，因本次声援公开的自己的卡中存在1张以上持有分数图标的『Liella!』LIVE卡的场合，LIVE结束时为止，获得[紫ハート]。';
+const SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_EFFECT_TEXT =
+  '【登场】自己的能量为7张以上的场合，抽1张卡。';
+const SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_EFFECT_TEXT =
+  '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[BLADE]。因此将LIVE卡放置入休息室的场合，再抽1张卡。';
 const N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_EFFECT_TEXT =
   '【起动】【1回合1次】公开全部手牌：自己的舞台存在其他成员，且因此公开的手牌中没有LIVE卡的场合，检视卡组顶5张。可以公开其中1张LIVE卡加入手牌，其余放置入休息室。';
 const N_SD1_004_LIVE_START_EFFECT_TEXT =
@@ -1819,6 +1840,31 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: SP_PR_020_ON_ENTER_EFFECT_TEXT,
     notes:
       '单卡 workflow `sp-pr-020-kinako.ts`；只读取本次 ON_ENTER_STAGE pending metadata 的 relayReplacements，要求被换下成员换手时有效费用低于此成员费用。条件满足后可跳过选择1张自己手牌费用<=4成员登场到空成员区；登场复用 runtime helper 并显式入队 ON_ENTER_STAGE。',
+  },
+  {
+    abilityId: SP_PR_024_AUTO_ON_CHEER_SCORE_LIELLA_LIVE_GAIN_PURPLE_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!SP-PR-024'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: SP_PR_024_ON_CHEER_EFFECT_TEXT,
+    notes:
+      '单卡 ON_CHEER workflow `sp-pr-024-sumire.ts`；只响应 pending eventIds 对应的自己非 additional 声援事件，使用该 CheerEvent.revealedCardIds 过滤自己持有 SCORE 图标的 Liella! LIVE。匹配到自己普通声援且来源仍在舞台时记录 turn1 use；条件满足则来源成员获得紫 Heart +1，条件不满足也消费 pending。',
+  },
+  {
+    abilityId: SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
+    baseCardCodes: ['PL!SP-PR-003', 'PL!SP-PR-007', 'PL!SP-PR-010'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_EFFECT_TEXT,
+    notes:
+      'shared workflow `member-on-enter-draw.ts` 的能量阈值配置轴；结算时自己能量区7张以上才抽1，未满足也消费 pending/no-op。',
   },
   {
     abilityId: N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID,
@@ -3751,6 +3797,57 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 STAGE_MEMBER/LIVE_SUCCESS workflow；总是抽1，再用 hasMemberPositionMovedThisTurn 判断来源自身是否本回合移动过，满足则额外抽1。',
   },
   {
+    abilityId: SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd2-004'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_EFFECT_TEXT,
+    notes:
+      '常时动态修正不进队列；来源仍在自己 CENTER 时，由 continuous modifier registry 动态收集为来源成员 BLADE +4。来源离场、非 CENTER 或 memberBelow 均不生效。',
+  },
+  {
+    abilityId: SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd2-006'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_ABILITY_ID,
+      title: '支付2张活跃能量并弃1手，回收1张Liella! LIVE',
+      text: SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_EFFECT_TEXT,
+    },
+    notes:
+      '单卡 activated workflow `sp-sd2-006-kinako.ts`；主阶段、当前玩家、来源仍在己方舞台、无 activeEffect、可支付2张活跃能量且有手牌时可启动，不因当前休息室无目标而禁止。确认弃手时先支付 [E][E]，再通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 弃1手并重扫休息室 Liella! LIVE；刚弃置的 Liella! LIVE 可被选回。费用后仍无目标时费用保留并正常 RESOLVE no-op。',
+  },
+  {
+    abilityId: SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd2-008'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_EFFECT_TEXT,
+    notes:
+      '常时动态修正不进队列；来源仍在自己主舞台，且自己的舞台存在 effective cost >= 13 的成员时，由 continuous modifier registry 写入 SOURCE_MEMBER 黄 Heart +1。',
+  },
+  {
+    abilityId: SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd2-020'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_EFFECT_TEXT,
+    notes:
+      '单卡 STAGE_MEMBER/LIVE_START workflow；结算时重查自己的能量>=7，满足则来源成员获得 BLADE +1，并选择自己舞台上来源以外1名 Liella! 成员获得 BLADE +1。单目标自动，多目标打开选择，缺其他目标时消费 pending 且只记录来源 BLADE 部分结算。',
+  },
+  {
     abilityId: SP_SD2_023_LIVE_START_SUCCESS_ZONE_TWO_SCORE_AND_SET_REQUIREMENT_ABILITY_ID,
     baseCardCodes: ['PL!SP-sd2-023'],
     category: CardAbilityCategory.LIVE_START,
@@ -4467,6 +4564,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: SP_PB2_041_CONTINUOUS_EFFECT_TEXT,
     notes:
       'live-modifiers.ts 常时 modifier；仅来源成员仍在自己的右侧主成员槽时写 SOURCE_MEMBER BLADE +2，移动或离场后动态失效。',
+  },
+  {
+    abilityId: SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-PR-009', 'PL!SP-PR-011', 'PL!SP-PR-012'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_EFFECT_TEXT,
+    notes:
+      'shared workflow `live-start-discard-gain-blade-draw-if-live.ts`；可选弃1手牌，弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室。支付后来源成员获得 BLADE，若弃置的是 LIVE 卡再抽1。',
   },
   {
     abilityId: SP_PR_022_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_YELLOW_HEART_ABILITY_ID,

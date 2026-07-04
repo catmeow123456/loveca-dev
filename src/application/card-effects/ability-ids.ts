@@ -212,6 +212,20 @@ export const SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABIL
   'PL!SP-PR-018-PR:live-success-seven-liella-cheer-place-waiting-energy';
 export const SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID =
   'PL!SP-PR-020-PR:on-enter-low-cost-relay-play-hand-low-cost-member';
+export const SP_PR_024_AUTO_ON_CHEER_SCORE_LIELLA_LIVE_GAIN_PURPLE_HEART_ABILITY_ID =
+  'PL!SP-PR-024-PR:auto-on-cheer-score-liella-live-gain-purple-heart';
+export const SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID =
+  'PL!SP-PR:on-enter-energy-seven-draw-one';
+export const SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_ABILITY_ID =
+  'PL!SP-PR:live-start-discard-gain-blade-draw-if-live';
+export const SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_ABILITY_ID =
+  'PL!SP-sd2-004:continuous-center-gain-four-blade';
+export const SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_ABILITY_ID =
+  'PL!SP-sd2-006:activated-pay-two-energy-discard-recover-liella-live';
+export const SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-sd2-008:continuous-high-cost-stage-member-gain-yellow-heart';
+export const SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID =
+  'PL!SP-sd2-020:live-start-energy-seven-source-and-other-liella-gain-blade';
 export const N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID =
   'PL!N-PR:activated-turn-once-reveal-hand-no-live-look-top-five-take-live';
 export const N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID =

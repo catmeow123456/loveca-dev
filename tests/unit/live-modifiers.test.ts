@@ -86,6 +86,10 @@ const SP_PR_022_CONTINUOUS_ABILITY_ID =
   'PL!SP-PR-022-PR:continuous-total-stage-six-gain-red-yellow-heart';
 const SP_PR_025_CONTINUOUS_ABILITY_ID =
   'PL!SP-PR-025-PR:continuous-energy-exact-seven-gain-two-blade';
+const SP_SD2_004_CONTINUOUS_ABILITY_ID =
+  'PL!SP-sd2-004:continuous-center-gain-four-blade';
+const SP_SD2_008_CONTINUOUS_ABILITY_ID =
+  'PL!SP-sd2-008:continuous-high-cost-stage-member-gain-yellow-heart';
 const BP6_012_CONTINUOUS_ABILITY_ID =
   'PL!-bp6-012:continuous-success-zone-printemps-card-yellow-heart';
 const BP6_014_CONTINUOUS_ABILITY_ID =
@@ -1222,6 +1226,84 @@ describe('live modifier helpers', () => {
       expect(
         collectLiveModifiers(state.game).some(
           (modifier) => modifier.abilityId === SP_PR_025_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+
+  it('collects PL!SP-sd2-004 BLADE +4 only while the source is in CENTER', () => {
+    const center = createSpSd2ContinuousStageState({
+      sourceCardCode: 'PL!SP-sd2-004-SD2',
+      sourcePlacement: 'CENTER',
+    });
+    const modifiers = collectLiveModifiers(center.game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 4,
+      sourceCardId: center.sourceId,
+      abilityId: SP_SD2_004_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(center.game, 'p1', center.sourceId, modifiers)).toBe(5);
+
+    for (const sourcePlacement of ['LEFT', 'OFF_STAGE', 'MEMBER_BELOW'] as const) {
+      const state = createSpSd2ContinuousStageState({
+        sourceCardCode: 'PL!SP-sd2-004-SD2',
+        sourcePlacement,
+      });
+      expect(
+        collectLiveModifiers(state.game).some(
+          (modifier) => modifier.abilityId === SP_SD2_004_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+
+  it('collects PL!SP-sd2-008 SOURCE_MEMBER yellow Heart using effective cost >= 13', () => {
+    const state = createSpSd2ContinuousStageState({
+      sourceCardCode: 'PL!SP-sd2-008-SD2',
+      sourcePlacement: 'CENTER',
+      otherPrintedCost: 12,
+      otherCostDelta: 1,
+    });
+    const modifiers = collectLiveModifiers(state.game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
+      sourceCardId: state.sourceId,
+      abilityId: SP_SD2_008_CONTINUOUS_ABILITY_ID,
+    });
+    expect(
+      getMemberEffectiveHeartIcons(state.game, 'p1', state.sourceId, modifiers)
+    ).toContainEqual(createHeartIcon(HeartColor.YELLOW, 1));
+    expect(getMemberEffectiveCost(state.game, 'p1', state.otherId)).toBe(13);
+  });
+
+  it('does not collect PL!SP-sd2-008 Heart without a high-cost stage member or valid source stage', () => {
+    const lowCostOnly = createSpSd2ContinuousStageState({
+      sourceCardCode: 'PL!SP-sd2-008-SD2',
+      sourcePlacement: 'CENTER',
+      otherPrintedCost: 12,
+    });
+    expect(
+      collectLiveModifiers(lowCostOnly.game).some(
+        (modifier) => modifier.abilityId === SP_SD2_008_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+
+    for (const sourcePlacement of ['OFF_STAGE', 'MEMBER_BELOW'] as const) {
+      const state = createSpSd2ContinuousStageState({
+        sourceCardCode: 'PL!SP-sd2-008-SD2',
+        sourcePlacement,
+        otherPrintedCost: 13,
+      });
+      expect(
+        collectLiveModifiers(state.game).some(
+          (modifier) => modifier.abilityId === SP_SD2_008_CONTINUOUS_ABILITY_ID
         )
       ).toBe(false);
     }
@@ -5101,6 +5183,87 @@ function createSpPb2EnergyHeartState(options: {
     game,
     sourceId: source.instanceId,
   };
+}
+
+function createSpSd2ContinuousStageState(options: {
+  readonly sourceCardCode: string;
+  readonly sourcePlacement: 'CENTER' | 'LEFT' | 'OFF_STAGE' | 'MEMBER_BELOW';
+  readonly otherPrintedCost?: number;
+  readonly otherCostDelta?: number;
+}) {
+  const source = createCardInstance(
+    {
+      cardCode: options.sourceCardCode,
+      name: options.sourceCardCode,
+      groupNames: ['Liella!'],
+      cardType: CardType.MEMBER,
+      cost: 5,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    },
+    'p1',
+    `${options.sourceCardCode}-source`
+  );
+  const other = createCardInstance(
+    {
+      cardCode: 'PL!SP-test-high-cost',
+      name: 'High Cost',
+      groupNames: ['Liella!'],
+      cardType: CardType.MEMBER,
+      cost: options.otherPrintedCost ?? 4,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.RED, 1)],
+    },
+    'p1',
+    `${options.sourceCardCode}-other`
+  );
+  const host = createCardInstance(
+    {
+      cardCode: 'PL!SP-test-host',
+      name: 'Host',
+      groupNames: ['Liella!'],
+      cardType: CardType.MEMBER,
+      cost: 4,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    },
+    'p1',
+    `${options.sourceCardCode}-host`
+  );
+
+  let game = createGameState(`${options.sourceCardCode}-continuous-stage`, 'p1', 'P1', 'p2', 'P2');
+  game = registerCards(game, [source, other, host]);
+  game = updatePlayer(game, 'p1', (player) => {
+    let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, other.instanceId);
+    if (options.sourcePlacement === 'CENTER') {
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, source.instanceId);
+    } else if (options.sourcePlacement === 'LEFT') {
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, source.instanceId);
+    } else if (options.sourcePlacement === 'MEMBER_BELOW') {
+      memberSlots = addMemberBelowMember(
+        placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+        SlotPosition.CENTER,
+        source.instanceId
+      );
+    }
+    return {
+      ...player,
+      memberSlots,
+    };
+  });
+
+  if (options.otherCostDelta) {
+    game =
+      addMemberCostLiveModifierForMember(game, {
+        playerId: 'p1',
+        memberCardId: other.instanceId,
+        sourceCardId: source.instanceId,
+        abilityId: 'test:other-cost-delta',
+        countDelta: options.otherCostDelta,
+      })?.gameState ?? game;
+  }
+
+  return { game, sourceId: source.instanceId, otherId: other.instanceId };
 }
 
 function createSpPr022StageState(options: {
