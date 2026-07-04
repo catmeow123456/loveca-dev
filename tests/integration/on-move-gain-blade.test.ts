@@ -10,7 +10,10 @@ import {
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { moveMemberBetweenSlots } from '../../src/application/effects/member-state';
 import { GameService } from '../../src/application/game-service';
-import { SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  HS_BP5_014_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
+  SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -23,11 +26,34 @@ import {
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 
-function createTomari(): MemberCardData {
-  return {
+interface OnMoveBladeCase {
+  readonly cardCode: string;
+  readonly name: string;
+  readonly unitName: string;
+  readonly abilityId: string;
+}
+
+const ON_MOVE_BLADE_CASES: readonly OnMoveBladeCase[] = [
+  {
     cardCode: 'PL!SP-sd2-011-SD2',
     name: '鬼塚冬毬',
-    groupNames: ['Liella!'],
+    unitName: '5yncri5e!',
+    abilityId: SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
+  },
+  {
+    cardCode: 'PL!HS-bp5-014-N',
+    name: '安養寺 姫芽',
+    unitName: 'みらくらぱーく！',
+    abilityId: HS_BP5_014_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
+  },
+];
+
+function createOnMoveBladeMember(testCase: OnMoveBladeCase): MemberCardData {
+  return {
+    cardCode: testCase.cardCode,
+    name: testCase.name,
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ', 'Liella!'],
+    unitName: testCase.unitName,
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 1,
@@ -47,14 +73,19 @@ function createMember(cardCode: string): MemberCardData {
   };
 }
 
-function setupState(): {
+function setupState(testCase: OnMoveBladeCase = ON_MOVE_BLADE_CASES[0]): {
   readonly game: GameState;
   readonly source: ReturnType<typeof createCardInstance>;
   readonly other: ReturnType<typeof createCardInstance>;
+  readonly testCase: OnMoveBladeCase;
 } {
-  const source = createCardInstance(createTomari(), PLAYER1, 'tomari-source');
+  const source = createCardInstance(
+    createOnMoveBladeMember(testCase),
+    PLAYER1,
+    'blade-source'
+  );
   const other = createCardInstance(createMember('PL!SP-test-member'), PLAYER1, 'other-member');
-  let game = createGameState('sp-sd2-011-tomari', PLAYER1, 'P1', PLAYER2, 'P2');
+  let game = createGameState('on-move-gain-blade', PLAYER1, 'P1', PLAYER2, 'P2');
   game = registerCards(game, [source, other]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
@@ -72,7 +103,7 @@ function setupState(): {
     ),
   }));
 
-  return { game, source, other };
+  return { game, source, other, testCase };
 }
 
 function resolveMove(options: {
@@ -114,30 +145,50 @@ function resolveMove(options: {
   return result.gameState;
 }
 
-function tomariBladeModifiers(game: GameState) {
+function bladeModifiers(game: GameState, abilityId = SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID) {
   return game.liveResolution.liveModifiers.filter(
-    (modifier) =>
-      modifier.kind === 'BLADE' &&
-      modifier.abilityId === SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID
+    (modifier) => modifier.kind === 'BLADE' && modifier.abilityId === abilityId
   );
 }
 
-describe('PL!SP-sd2-011 Tomari on-move BLADE workflow', () => {
-  it('gains BLADE +1 for the source member after this member moves', () => {
-    const { game, source } = setupState();
+describe('on-move BLADE shared workflow', () => {
+  it.each(ON_MOVE_BLADE_CASES)(
+    'gains BLADE +1 for the source member after $cardCode moves',
+    (testCase) => {
+      const { game, source } = setupState(testCase);
+      const state = resolveMove({
+        game,
+        cardId: source.instanceId,
+        toSlot: SlotPosition.CENTER,
+      });
+
+      expect(state.pendingAbilities).toEqual([]);
+      expect(bladeModifiers(state, testCase.abilityId)).toEqual([
+        {
+          kind: 'BLADE',
+          playerId: PLAYER1,
+          sourceCardId: source.instanceId,
+          abilityId: testCase.abilityId,
+          countDelta: 1,
+        },
+      ]);
+    }
+  );
+
+  it('preserves PL!SP-sd2-011 Tomari behavior', () => {
+    const { game, source, testCase } = setupState(ON_MOVE_BLADE_CASES[0]);
     const state = resolveMove({
       game,
       cardId: source.instanceId,
       toSlot: SlotPosition.CENTER,
     });
 
-    expect(state.pendingAbilities).toEqual([]);
-    expect(tomariBladeModifiers(state)).toEqual([
+    expect(bladeModifiers(state, testCase.abilityId)).toEqual([
       {
         kind: 'BLADE',
         playerId: PLAYER1,
         sourceCardId: source.instanceId,
-        abilityId: SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
+        abilityId: testCase.abilityId,
         countDelta: 1,
       },
     ]);
@@ -156,7 +207,7 @@ describe('PL!SP-sd2-011 Tomari on-move BLADE workflow', () => {
       toSlot: SlotPosition.LEFT,
     });
 
-    expect(tomariBladeModifiers(secondState)).toHaveLength(1);
+    expect(bladeModifiers(secondState)).toHaveLength(1);
     expect(
       secondState.actionHistory.filter(
         (action) =>
@@ -176,7 +227,7 @@ describe('PL!SP-sd2-011 Tomari on-move BLADE workflow', () => {
       triggerPlayerId: PLAYER2,
     });
 
-    expect(tomariBladeModifiers(state)).toEqual([
+    expect(bladeModifiers(state)).toEqual([
       expect.objectContaining({
         sourceCardId: source.instanceId,
         countDelta: 1,
@@ -192,7 +243,7 @@ describe('PL!SP-sd2-011 Tomari on-move BLADE workflow', () => {
       toSlot: SlotPosition.CENTER,
     });
 
-    expect(tomariBladeModifiers(state)).toEqual([]);
+    expect(bladeModifiers(state)).toEqual([]);
     expect(
       state.actionHistory.some(
         (action) =>

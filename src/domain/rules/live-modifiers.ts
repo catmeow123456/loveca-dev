@@ -13,6 +13,7 @@ import { getAllMemberCardIds } from '../entities/zone.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
 import {
   cardBelongsToGroup,
+  cardBelongsToUnit,
   hasAtLeastDifferentNamedCards,
 } from '../../shared/utils/card-identity.js';
 import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/slot-perspective.js';
@@ -389,6 +390,27 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       hasAtLeastDifferentEffectiveCostStageMembers(game, playerId, 3)
         ? collectHsBp5002SayakaContinuousModifiers(game, playerId, sourceCardId)
         : [],
+  },
+  {
+    baseCardCodes: ['PL!HS-bp5-004'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const highCostNonCeriseMemberCount = countHighCostNonCeriseBouquetStageMembers(
+        game,
+        playerId
+      );
+      return highCostNonCeriseMemberCount > 0
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: highCostNonCeriseMemberCount * 2,
+              sourceCardId,
+              abilityId:
+                HS_BP5_004_CONTINUOUS_NON_CERISE_HIGH_COST_STAGE_MEMBER_GAIN_BLADE_ABILITY_ID,
+            },
+          ]
+        : [];
+    },
   },
   {
     baseCardCodes: ['PL!HS-bp2-002'],
@@ -773,6 +795,8 @@ const HS_PB1_007_CONTINUOUS_EXACT_TWO_OWN_OPPONENT_THREE_PURPLE_HEART_ABILITY_ID
   'PL!HS-pb1-007:continuous-exact-two-own-opponent-three-purple-heart';
 const HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID =
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
+const HS_BP5_004_CONTINUOUS_NON_CERISE_HIGH_COST_STAGE_MEMBER_GAIN_BLADE_ABILITY_ID =
+  'PL!HS-bp5-004:continuous-non-cerise-high-cost-stage-members-gain-blade';
 const HS_BP2_002_CONTINUOUS_OTHER_HIGHER_COST_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!HS-bp2-002:continuous-other-higher-cost-gain-three-blade';
 const HS_BP5_007_CONTINUOUS_OTHER_EDELNOTE_MEMBER_BLADE_ABILITY_ID =
@@ -1339,6 +1363,25 @@ function collectHsBp5002SayakaContinuousModifiers(
         HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID,
     },
   ];
+}
+
+function countHighCostNonCeriseBouquetStageMembers(game: GameState, playerId: string): number {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return 0;
+  }
+
+  return MEMBER_SLOT_ORDER.filter((slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    const card = cardId ? getCardById(game, cardId) : null;
+    return (
+      cardId !== null &&
+      card !== null &&
+      isMemberCardData(card.data) &&
+      getMemberEffectiveCost(game, playerId, cardId) >= 4 &&
+      !cardBelongsToUnit(card.data, 'Cerise Bouquet')
+    );
+  }).length;
 }
 
 function collectExactEightEnergyScoreModifier(

@@ -974,7 +974,7 @@ describe('public battle log formatter', () => {
         effectKind: 'ARRANGE_INSPECTED_DECK_TOP',
         summaryStatus: 'STARTED',
         sourceCard: source,
-        sourceActionLabel: 'LIVE成功',
+        sourceActionLabel: 'LIVE开始',
         recoveredCards: [],
         hiddenRecoveredCardCount: 0,
         noRecoveredCards: false,
@@ -1018,10 +1018,10 @@ describe('public battle log formatter', () => {
     });
 
     expect(keyItems).toHaveLength(1);
-    expect(keyItems[0]?.title).toBe('测试管理员 LIVE成功');
+    expect(keyItems[0]?.title).toBe('测试管理员 LIVE开始');
     expect(keyItems[0]?.detail).toBe('检视卡组顶 3 张，排序中');
     expect(keyItems[0]?.effectSummary?.kind).toBe('ARRANGE_INSPECTED_DECK_TOP');
-    expect(keyItems[0]?.effectSummary?.sourceActionLabel).toBe('LIVE成功');
+    expect(keyItems[0]?.effectSummary?.sourceActionLabel).toBe('LIVE开始');
     expect(allItems.length).toBeGreaterThan(keyItems.length);
     expect(allItems.map((item) => item.type)).toContain('CardsInspectedSummary');
   });

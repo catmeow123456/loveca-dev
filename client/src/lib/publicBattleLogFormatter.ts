@@ -28,7 +28,7 @@ export interface PublicBattleLogEffectSummaryView {
     | 'ARRANGE_INSPECTED_DECK_TOP';
   readonly summaryStatus: 'STARTED' | 'COMPLETED';
   readonly sourceCard: PublicBattleLogCardView | null;
-  readonly sourceActionLabel: '登场' | '离场' | '起动' | 'LIVE成功';
+  readonly sourceActionLabel: '登场' | '离场' | '起动' | 'LIVE开始' | 'LIVE成功';
   readonly sourceOrientationCost: 'WAITING' | null;
   readonly recoveredCards: readonly PublicBattleLogCardView[];
   readonly hiddenRecoveredCardCount: number;
@@ -581,7 +581,7 @@ function buildSingleEventView(
 
 function getCardEffectSummarySourceActionLabel(
   event: Extract<PublicEvent, { type: 'CardEffectSummary' }>
-): '登场' | '离场' | '起动' | 'LIVE成功' {
+): '登场' | '离场' | '起动' | 'LIVE开始' | 'LIVE成功' {
   if (event.sourceActionLabel) {
     return event.sourceActionLabel;
   }

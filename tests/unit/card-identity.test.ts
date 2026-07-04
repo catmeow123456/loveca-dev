@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   cardBelongsToGroup,
+  cardBelongsToUnit,
   getCardGroupIdentityKeys,
   getCardNameCandidates,
   hasAtLeastDifferentNamedCards,
   KNOWN_GROUP_IDENTITY_NAMES,
+  selectDifferentStructuredUnitCardsWithGroup,
 } from '../../src/shared/utils/card-identity';
 
 const llBp1001 = {
@@ -127,6 +129,25 @@ describe('card identity helpers', () => {
     expect(getCardGroupIdentityKeys(ikizuraiEnergy)).toEqual(['ikizurai']);
   });
 
+  it('matches Hasunosora unit aliases from structured unitName only', () => {
+    expect(cardBelongsToUnit({ unitName: 'スリーズブーケ' }, 'Cerise Bouquet')).toBe(true);
+    expect(cardBelongsToUnit({ unitName: 'Cerise Bouquet' }, 'スリーズブーケ')).toBe(true);
+    expect(cardBelongsToUnit({ unitName: 'みらくらぱーく！' }, 'Mira-Cra Park!')).toBe(true);
+    expect(
+      cardBelongsToUnit(
+        {
+          cardCode: 'PL!HS-test-L',
+          cardText:
+            'すべての領域にあるこのカードは『スリーズブーケ』、『DOLLCHESTRA』、『みらくらぱーく！』として扱う。',
+        },
+        'スリーズブーケ'
+      )
+    ).toBe(false);
+    expect(
+      cardBelongsToUnit({ cardCode: 'PL!HS-bp5-018-L' }, 'Cerise Bouquet')
+    ).toBe(true);
+  });
+
   it.each(THREE_NAME_MEMBER_CASES)(
     'filters $cardCode names by aligned group identity source',
     ({ cardCode, name, works, expected }) => {
@@ -187,5 +208,69 @@ describe('card identity helpers', () => {
         (card) => card
       )
     ).toBe(false);
+  });
+
+  it('selects different structured unit names with at least one required group member', () => {
+    const kaho = {
+      cardCode: 'PL!HS-bp1-001-R',
+      name: '日野下花帆',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+      unitName: 'スリーズブーケ',
+    };
+    const yoshiko = {
+      cardCode: 'PL!S-bp1-001-R',
+      name: '津島善子',
+      groupNames: ['ラブライブ！サンシャイン!!'],
+      unitName: 'Guilty Kiss',
+    };
+
+    expect(
+      selectDifferentStructuredUnitCardsWithGroup([kaho, yoshiko], (card) => card, {
+        groupName: '蓮ノ空',
+      }).map((match) => match.item.cardCode)
+    ).toEqual(['PL!HS-bp1-001-R', 'PL!S-bp1-001-R']);
+  });
+
+  it('does not count cards without structured unitName for different-unit checks', () => {
+    const rurino = {
+      cardCode: 'PL!HS-bp1-005-P',
+      name: '大沢瑠璃乃',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+      unitName: 'みらくらぱーく!',
+    };
+    const llBp2001 = {
+      cardCode: 'LL-bp2-001-R＋',
+      name: '渡辺 曜&鬼塚夏美&大沢瑠璃乃',
+      groupNames: [
+        'ラブライブ！サンシャイン!!',
+        'ラブライブ！スーパースター!!',
+        '蓮ノ空女学院スクールアイドルクラブ',
+      ],
+    };
+
+    expect(
+      selectDifferentStructuredUnitCardsWithGroup([rurino, llBp2001], (card) => card, {
+        groupName: '蓮ノ空',
+      })
+    ).toEqual([]);
+  });
+
+  it('normalizes Hasunosora unit aliases before comparing structured unit names', () => {
+    const jpMiracra = {
+      cardCode: 'PL!HS-bp1-005-P',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+      unitName: 'みらくらぱーく！',
+    };
+    const enMiracra = {
+      cardCode: 'PL!HS-bp1-006-P',
+      groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+      unitName: 'Mira-Cra Park!',
+    };
+
+    expect(
+      selectDifferentStructuredUnitCardsWithGroup([jpMiracra, enMiracra], (card) => card, {
+        groupName: '蓮ノ空',
+      })
+    ).toEqual([]);
   });
 });

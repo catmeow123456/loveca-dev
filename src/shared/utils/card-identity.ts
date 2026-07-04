@@ -3,6 +3,7 @@ export interface CardIdentityLike {
   readonly name?: string;
   readonly workNames?: readonly string[];
   readonly groupNames?: readonly string[];
+  readonly unitName?: string;
 }
 
 export type GroupIdentityName =
@@ -31,6 +32,12 @@ export interface DifferentNamedCardMatch<T> {
   readonly item: T;
   readonly name: string;
   readonly normalizedName: string;
+}
+
+export interface DifferentStructuredUnitCardMatch<T> {
+  readonly item: T;
+  readonly unitName: string;
+  readonly normalizedUnitName: string;
 }
 
 const GROUP_IDENTITY_GROUPS: readonly {
@@ -118,6 +125,15 @@ const HASUNOSORA_TRIPLE_UNIT_ALIAS_GROUPS: readonly (readonly string[])[] = [
   ['dollchestra', 'DOLLCHESTRA'],
   ['mira-cra-park', 'Mira-Cra Park!', 'みらくらぱーく！', 'みらくらぱーく!'],
 ];
+
+export function cardBelongsToUnit(card: CardIdentityLike, unitName: string): boolean {
+  if (cardHasHasunosoraTripleUnitIdentity(card, unitName)) {
+    return true;
+  }
+
+  const normalizedAliases = getNormalizedHasunosoraUnitAliases(unitName);
+  return matchesAnyNormalizedAlias(card.unitName, normalizedAliases);
+}
 
 export function cardBelongsToGroup(card: CardIdentityLike, groupName: string): boolean {
   if (cardHasHasunosoraTripleUnitIdentity(card, groupName)) {
@@ -246,6 +262,41 @@ export function hasAtLeastDifferentNamedCards<T>(
   );
 }
 
+export function selectDifferentStructuredUnitCardsWithGroup<T>(
+  items: readonly T[],
+  getCard: (item: T) => CardIdentityLike | null | undefined,
+  options: {
+    readonly groupName: string;
+    readonly minCount?: number;
+  }
+): readonly DifferentStructuredUnitCardMatch<T>[] {
+  const candidates = items.flatMap((item) => {
+    const card = getCard(item);
+    const unitName = card?.unitName?.trim();
+    const normalizedUnitName = normalizeStructuredUnitName(unitName);
+    if (!card || !unitName || !normalizedUnitName) {
+      return [];
+    }
+    return [
+      {
+        item,
+        unitName,
+        normalizedUnitName,
+        belongsToGroup: cardBelongsToGroup(card, options.groupName),
+      },
+    ];
+  });
+  const minCount = options.minCount ?? 2;
+  const selected = findDifferentStructuredUnitAssignment(
+    candidates,
+    minCount,
+    new Set()
+  );
+  return selected.length >= minCount && selected.some((match) => match.belongsToGroup)
+    ? selected.map(({ belongsToGroup: _belongsToGroup, ...match }) => match)
+    : [];
+}
+
 export function cardHasHasunosoraTripleUnitIdentity(
   card: CardIdentityLike,
   unitName: string
@@ -258,6 +309,14 @@ export function cardHasHasunosoraTripleUnitIdentity(
   return HASUNOSORA_TRIPLE_UNIT_ALIAS_GROUPS.some((aliases) =>
     aliases.some((alias) => normalizeGroupIdentityText(alias) === normalizedUnitName)
   );
+}
+
+function getNormalizedHasunosoraUnitAliases(unitName: string): readonly string[] {
+  const normalizedUnitName = normalizeGroupIdentityText(unitName);
+  const aliasGroup = HASUNOSORA_TRIPLE_UNIT_ALIAS_GROUPS.find((aliases) =>
+    aliases.some((alias) => normalizeGroupIdentityText(alias) === normalizedUnitName)
+  );
+  return (aliasGroup ?? [unitName]).map((alias) => normalizeGroupIdentityText(alias));
 }
 
 function getGroupIdentity(groupName: string):
@@ -361,6 +420,16 @@ function normalizeGroupIdentityText(value: string | undefined): string {
   );
 }
 
+function normalizeStructuredUnitName(value: string | undefined): string {
+  const normalizedValue = normalizeGroupIdentityText(value);
+  const hasunosoraAliasGroup = HASUNOSORA_TRIPLE_UNIT_ALIAS_GROUPS.find((aliases) =>
+    aliases.some((alias) => normalizeGroupIdentityText(alias) === normalizedValue)
+  );
+  return hasunosoraAliasGroup
+    ? normalizeGroupIdentityText(hasunosoraAliasGroup[0])
+    : normalizedValue;
+}
+
 function splitCardNameCandidates(value: string | undefined): readonly string[] {
   if (!value) {
     return [];
@@ -413,6 +482,51 @@ function findDifferentNameAssignment<T>(
       if (selected.length > best.length) {
         best = selected;
       }
+    }
+  }
+
+  return best;
+}
+
+function findDifferentStructuredUnitAssignment<T>(
+  candidates: readonly {
+    readonly item: T;
+    readonly unitName: string;
+    readonly normalizedUnitName: string;
+    readonly belongsToGroup: boolean;
+  }[],
+  minCount: number,
+  usedUnitNames: ReadonlySet<string>
+): readonly (DifferentStructuredUnitCardMatch<T> & { readonly belongsToGroup: boolean })[] {
+  if (minCount === 0) {
+    return [];
+  }
+
+  let best: readonly (DifferentStructuredUnitCardMatch<T> & {
+    readonly belongsToGroup: boolean;
+  })[] = [];
+  for (const [index, candidate] of candidates.entries()) {
+    if (usedUnitNames.has(candidate.normalizedUnitName)) {
+      continue;
+    }
+    const nextUsedUnitNames = new Set(usedUnitNames);
+    nextUsedUnitNames.add(candidate.normalizedUnitName);
+    const rest = findDifferentStructuredUnitAssignment(
+      candidates.slice(index + 1),
+      minCount - 1,
+      nextUsedUnitNames
+    );
+    const selected = [candidate, ...rest];
+    if (selected.length >= minCount && selected.some((match) => match.belongsToGroup)) {
+      return selected;
+    }
+    if (
+      selected.length > best.length ||
+      (selected.length === best.length &&
+        selected.some((match) => match.belongsToGroup) &&
+        !best.some((match) => match.belongsToGroup))
+    ) {
+      best = selected;
     }
   }
 

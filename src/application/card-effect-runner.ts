@@ -92,6 +92,7 @@ import { registerHsBp5005KosuzuWorkflowHandlers } from './card-effects/workflows
 import { registerHsBp5006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-006-hime.js';
 import { registerHsBp5007SerasWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-007-seras.js';
 import { registerHsBp5016IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-016-izumi.js';
+import { registerHsBp5017DreamBelieversWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-017-dream-believers.js';
 import { registerHsBp5001KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-001-kaho.js';
 import { registerHsBp5021JoshoKiryuWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-021-josho-kiryu.js';
 import { registerHsBp5022RetrofutureWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-022-retrofuture.js';
@@ -105,6 +106,7 @@ import { registerHsPb1006HimeWorkflowHandlers } from './card-effects/workflows/c
 import { registerHsPb1014HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-014-hime.js';
 import { registerHsPb1021KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-021-kosuzu.js';
 import { registerHsPb1005KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-005-kosuzu.js';
+import { registerHsPb1013KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-013-kosuzu.js';
 import { registerHsPb1029ZenhouiKyunWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-029-zenhoui-kyun.js';
 import { registerHsPb1030EdeliedWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-030-edelied.js';
 import { registerHsPb1028CompassWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-028-compass.js';
@@ -238,7 +240,6 @@ import { registerSpPb2048DistortionWorkflowHandlers } from './card-effects/workf
 import { registerSpPb2049NeutralWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-049-neutral.js';
 import { registerChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-003-chisato.js';
 import { registerSpBp4MovedSideBladeWorkflowHandlers } from './card-effects/workflows/shared/moved-side-blade.js';
-import { registerSpSd2011TomariWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-011-tomari.js';
 import { registerSpSd2003ChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-003-chisato.js';
 import { registerSpSd2023HajimariWaKimiNoSoraWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-023-hajimari-wa-kimi-no-sora.js';
 import { registerSpSd2025AspireWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-025-aspire.js';
@@ -267,6 +268,8 @@ import { registerLiveStartReplaceOriginalHeartColorWorkflowHandlers } from './ca
 import { registerLiveStartSuccessCountChooseHeartWorkflowHandlers } from './card-effects/workflows/shared/live-start-success-count-choose-heart.js';
 import { registerMillTopGainLiveModifierWorkflowHandlers } from './card-effects/workflows/shared/mill-top-gain-live-modifier.js';
 import { registerNamedHandDiscardLiveStartWorkflowHandlers } from './card-effects/workflows/shared/named-hand-discard-live-start.js';
+import { registerMemberOnEnterDrawWorkflowHandlers } from './card-effects/workflows/shared/member-on-enter-draw.js';
+import { registerOnMoveGainBladeWorkflowHandlers } from './card-effects/workflows/shared/on-move-gain-blade.js';
 import { registerOnMoveGainHeartWorkflowHandlers } from './card-effects/workflows/shared/on-move-gain-heart.js';
 import { registerOpponentWaitTargetWorkflowHandlers } from './card-effects/workflows/shared/opponent-wait-target.js';
 import { registerOnEnterActivateWaitingEnergyWorkflowHandlers } from './card-effects/workflows/shared/on-enter-activate-waiting-energy.js';
@@ -720,6 +723,7 @@ registerSBp6007HanamaruWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp6011RikoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp6016HanamaruWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerDrawThenDiscardWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerMemberOnEnterDrawWorkflowHandlers();
 registerRelayEnterDrawDiscardWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerGroupedRecoveryWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerDirectMillTopWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -738,6 +742,7 @@ registerHsPb1007SerasWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1014HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1021KosuzuWorkflowHandlers();
 registerHsPb1005KosuzuWorkflowHandlers();
+registerHsPb1013KosuzuWorkflowHandlers();
 registerHsPb1028CompassWorkflowHandlers();
 registerHsPb1029ZenhouiKyunWorkflowHandlers();
 registerHsPb1030EdeliedWorkflowHandlers();
@@ -795,6 +800,7 @@ registerHsBp5003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5005KosuzuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5006HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp5007SerasWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsBp5017DreamBelieversWorkflowHandlers();
 registerHsBp5016IzumiWorkflowHandlers({
   enqueueTriggeredCardEffectsForEnterWaitingRoom: enqueueTriggeredCardEffects,
   enqueueTriggeredCardEffectsForMemberStateChanged: enqueueTriggeredCardEffects,
@@ -928,7 +934,7 @@ registerChisatoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerActivatedPayEnergySelfPositionChangeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerActivatedWaitSelfDiscardDrawWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerOnMoveGainHeartWorkflowHandlers();
-registerSpSd2011TomariWorkflowHandlers();
+registerOnMoveGainBladeWorkflowHandlers();
 registerSpSd2003ChisatoWorkflowHandlers();
 registerSpBp4MovedSideBladeWorkflowHandlers();
 registerSpSd2023HajimariWaKimiNoSoraWorkflowHandlers();

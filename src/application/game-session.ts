@@ -4985,7 +4985,13 @@ function parseCardEffectSummaryStatus(value: unknown): CardEffectSummaryStatus {
 function parseCardEffectSummarySourceActionLabel(
   value: unknown
 ): CardEffectSummarySourceActionLabel | undefined {
-  return value === '登场' || value === '离场' || value === '起动' || value === 'LIVE成功'
+  return (
+    value === '登场' ||
+    value === '离场' ||
+    value === '起动' ||
+    value === 'LIVE开始' ||
+    value === 'LIVE成功'
+  )
     ? value
     : undefined;
 }

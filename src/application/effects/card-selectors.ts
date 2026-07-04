@@ -3,7 +3,7 @@ import { isLiveCardData, isMemberCardData } from '../../domain/entities/card.js'
 import { BladeHeartEffect, HeartColor, type CardType } from '../../shared/types/enums.js';
 import {
   cardBelongsToGroup,
-  cardHasHasunosoraTripleUnitIdentity,
+  cardBelongsToUnit,
   getNormalizedCardNameCandidates as getSharedNormalizedCardNameCandidates,
   normalizeCardName as normalizeSharedCardName,
 } from '../../shared/utils/card-identity.js';
@@ -110,10 +110,7 @@ export function unitIs(unitName: string): CardSelector {
 }
 
 export function unitAliasIs(unitName: string): CardSelector {
-  const normalizedAliases = getNormalizedUnitAliases(unitName);
-  return (card) =>
-    matchesAnyNormalizedAlias(card.data.unitName, normalizedAliases) ||
-    cardHasHasunosoraTripleUnitIdentity(card.data, unitName);
+  return (card) => cardBelongsToUnit(card.data, unitName);
 }
 
 export function unitAliasOrTextAliasIs(unitName: string): CardSelector {

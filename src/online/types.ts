@@ -443,7 +443,12 @@ export type CardEffectSummaryKind =
   | 'DISCARD_LOOK_TOP_SELECT_TO_HAND'
   | 'ARRANGE_INSPECTED_DECK_TOP';
 export type CardEffectSummaryStatus = 'STARTED' | 'COMPLETED';
-export type CardEffectSummarySourceActionLabel = '登场' | '离场' | '起动' | 'LIVE成功';
+export type CardEffectSummarySourceActionLabel =
+  | '登场'
+  | '离场'
+  | '起动'
+  | 'LIVE开始'
+  | 'LIVE成功';
 
 export interface CardEffectSummaryPublicEvent extends BasePublicEvent {
   readonly type: 'CardEffectSummary';

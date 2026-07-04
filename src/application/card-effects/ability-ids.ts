@@ -16,6 +16,7 @@ export const HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
 export const MEMBER_ON_ENTER_DRAW_DISCARD_ABILITY_ID = HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID;
 export const MEMBER_ON_ENTER_DRAW_DISCARD_ONE_ABILITY_ID =
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID;
+export const MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID = 'member:on-enter-draw-one';
 export const MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID =
   'member:on-enter-draw-two-discard-two';
 export const MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
@@ -95,6 +96,8 @@ export const HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABI
   'PL!HS-bp2-025-L:live-start-reduce-pink-requirement-if-two-relay-entered-hasunosora';
 export const HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID =
   'PL!HS-bp5-020-L:live-start-score-plus-if-two-high-cost-hasunosora-members';
+export const HS_BP5_004_CONTINUOUS_NON_CERISE_HIGH_COST_STAGE_MEMBER_GAIN_BLADE_ABILITY_ID =
+  'PL!HS-bp5-004:continuous-non-cerise-high-cost-stage-members-gain-blade';
 export const HS_BP5_021_LIVE_START_TARGET_HASUNOSORA_MEMBER_ORIGINAL_HEART_PINK_ABILITY_ID =
   'PL!HS-bp5-021-L:live-start-target-hasunosora-member-original-heart-pink';
 export const HS_BP5_021_LIVE_START_THREE_MIRACRA_STAGE_MEMBERS_SCORE_ABILITY_ID =
@@ -181,6 +184,10 @@ export const HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID =
   'PL!HS-pb1-021-N:live-success-draw-if-dollchestra-live-zone';
 export const HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID =
   'PL!HS-pb1-005:live-start-choose-number-reveal-top-hand-or-blade';
+export const HS_PB1_013_LIVE_START_LOOK_TOP_TWO_ARRANGE_ABILITY_ID =
+  'PL!HS-pb1-013:live-start-look-top-two-arrange';
+export const HS_PB1_013_LIVE_SUCCESS_HIGHER_COST_STAGE_MEMBER_DRAW_ABILITY_ID =
+  'PL!HS-pb1-013:live-success-higher-cost-stage-member-draw';
 export const HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID =
   'PL!HS-pb1-002:activated-reveal-sayaka-member-stack-below';
 export const HS_PB1_002_LIVE_START_MEMBER_BELOW_COUNT_COST_BLUE_HEART_ABILITY_ID =
@@ -552,6 +559,8 @@ export const SP_SD2_022_AUTO_ON_MOVE_GAIN_YELLOW_HEART_ABILITY_ID =
   'PL!SP-sd2-022:auto-on-move-gain-yellow-heart';
 export const SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID =
   'PL!SP-sd2-011:auto-on-move-gain-blade';
+export const HS_BP5_014_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID =
+  'PL!HS-bp5-014:auto-on-move-gain-blade';
 export const SP_BP4_017_LIVE_START_LEFT_MOVED_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!SP-bp4-017:live-start-left-moved-gain-two-blade';
 export const SP_BP4_020_LIVE_START_RIGHT_MOVED_GAIN_TWO_BLADE_ABILITY_ID =
@@ -786,6 +795,8 @@ export const HS_BP5_007_CONTINUOUS_OTHER_EDELNOTE_MEMBER_BLADE_ABILITY_ID =
   'PL!HS-bp5-007:continuous-other-edelnote-member-blade';
 export const HASUNOSORA_TRIPLE_UNIT_CONTINUOUS_IDENTITY_ABILITY_ID =
   'PL!HS:continuous-treated-as-cerise-dollchestra-miracra';
+export const HS_BP5_017_LIVE_START_PAY_ENERGY_DIFFERENT_UNITS_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!HS-bp5-017-L:live-start-pay-energy-different-units-this-live-score';
 export const HS_BP5_018_LIVE_START_DIFFERENT_NAMES_AND_COSTS_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!HS-bp5-018-L:live-start-three-different-names-costs-this-live-score';
 export const HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID =

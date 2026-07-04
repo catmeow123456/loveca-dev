@@ -47,6 +47,8 @@ import {
 
 const HS_BP5_002_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
+const HS_BP5_004_CONTINUOUS_ABILITY_ID =
+  'PL!HS-bp5-004:continuous-non-cerise-high-cost-stage-members-gain-blade';
 const HS_BP2_002_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp2-002:continuous-other-higher-cost-gain-three-blade';
 const HS_BP5_007_CONTINUOUS_ABILITY_ID = 'PL!HS-bp5-007:continuous-other-edelnote-member-blade';
@@ -609,6 +611,168 @@ describe('live modifier helpers', () => {
       createHeartIcon(HeartColor.GREEN, 1),
     ]);
     expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', modifiers)).toEqual([]);
+  });
+
+  it('collects PL!HS-bp5-004 BLADE +2 for each own high effective-cost non-Cerise stage member', () => {
+    const ginko = createCardInstance(
+      {
+        cardCode: 'PL!HS-bp5-004-R',
+        name: '百生 吟子',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+        unitName: 'スリーズブーケ',
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'ginko-bp5-004'
+    );
+    const highCostDollchestra = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-dollchestra',
+        name: '村野さやか',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+        unitName: 'DOLLCHESTRA',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'high-cost-dollchestra'
+    );
+    const lowCostMiracra = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-miracra',
+        name: '安養寺 姫芽',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+        unitName: 'みらくらぱーく！',
+        cardType: CardType.MEMBER,
+        cost: 3,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'low-cost-miracra'
+    );
+    const highCostCerise = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-cerise',
+        name: '日野下花帆',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+        unitName: 'スリーズブーケ',
+        cardType: CardType.MEMBER,
+        cost: 13,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      },
+      'p1',
+      'high-cost-cerise'
+    );
+    const offStageHighCost = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-offstage',
+        name: '桂城 泉',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+      },
+      'p1',
+      'off-stage-high-cost'
+    );
+    const opponentHighCost = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-opponent-high',
+        name: 'セラス 柳田 リリエンフェルト',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+        unitName: 'EdelNote',
+        cardType: CardType.MEMBER,
+        cost: 13,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+      },
+      'p2',
+      'opponent-high-cost'
+    );
+    let game = createGameState('hs-bp5-004-continuous-blade', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [
+      ginko,
+      highCostDollchestra,
+      lowCostMiracra,
+      highCostCerise,
+      offStageHighCost,
+      opponentHighCost,
+    ]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      waitingRoom: { ...player.waitingRoom, cardIds: [offStageHighCost.instanceId] },
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ginko.instanceId),
+          SlotPosition.LEFT,
+          highCostDollchestra.instanceId
+        ),
+        SlotPosition.RIGHT,
+        lowCostMiracra.instanceId
+      ),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, opponentHighCost.instanceId),
+    }));
+
+    let modifiers = collectLiveModifiers(game);
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: ginko.instanceId,
+      abilityId: HS_BP5_004_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', ginko.instanceId, modifiers)).toBe(3);
+
+    game = addLiveModifier(game, {
+      kind: 'MEMBER_COST',
+      playerId: 'p1',
+      memberCardId: lowCostMiracra.instanceId,
+      countDelta: 1,
+      sourceCardId: ginko.instanceId,
+      abilityId: 'test-effective-cost-plus-one',
+    });
+    modifiers = collectLiveModifiers(game);
+    expect(modifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 4,
+      sourceCardId: ginko.instanceId,
+      abilityId: HS_BP5_004_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveCost(game, 'p1', lowCostMiracra.instanceId)).toBe(4);
+    expect(getMemberEffectiveBladeCount(game, 'p1', ginko.instanceId, modifiers)).toBe(5);
+
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: {
+        ...placeCardInSlot(player.memberSlots, SlotPosition.LEFT, highCostCerise.instanceId),
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.CENTER]: ginko.instanceId,
+          [SlotPosition.LEFT]: highCostCerise.instanceId,
+          [SlotPosition.RIGHT]: null,
+        },
+      },
+    }));
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId === HS_BP5_004_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
   });
 
   it('collects PL!S-bp6-009 BLADE equal to opponent success Live difference only when behind', () => {

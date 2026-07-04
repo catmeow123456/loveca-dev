@@ -4,29 +4,45 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID } from '../../ability-ids.js';
+import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerSpSd2011TomariWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
-    SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveSpSd2011TomariOnMoveGainBlade(
+interface MemberOnEnterDrawConfig {
+  readonly abilityId: string;
+  readonly drawCount: number;
+  readonly actionStep: string;
+}
+
+const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
+  {
+    abilityId: MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
+    drawCount: 1,
+    actionStep: 'ON_ENTER_DRAW_ONE',
+  },
+];
+
+export function registerMemberOnEnterDrawWorkflowHandlers(): void {
+  for (const config of MEMBER_ON_ENTER_DRAW_CONFIGS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
+      resolveMemberOnEnterDraw(
         game,
         ability,
+        config,
         options.orderedResolution === true,
         context.continuePendingCardEffects
       )
-  );
+    );
+  }
 }
 
-function resolveSpSd2011TomariOnMoveGainBlade(
+function resolveMemberOnEnterDraw(
   game: GameState,
   ability: PendingAbilityState,
+  config: MemberOnEnterDrawConfig,
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
@@ -43,27 +59,20 @@ function resolveSpSd2011TomariOnMoveGainBlade(
     abilityId: ability.abilityId,
     sourceCardId: ability.sourceCardId,
   });
-  const bladeResult = addBladeLiveModifierForSourceMember(stateAfterUseRecord, {
-    playerId: player.id,
-    sourceCardId: ability.sourceCardId,
-    abilityId: ability.abilityId,
-    amount: 1,
-  });
-  if (!bladeResult) {
+  const drawResult = drawCardsForPlayer(stateAfterUseRecord, player.id, config.drawCount);
+  if (!drawResult) {
     return game;
   }
 
   return continuePendingCardEffects(
-    addAction(bladeResult.gameState, 'RESOLVE_ABILITY', player.id, {
+    addAction(drawResult.gameState, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
-      step: 'ON_MOVE_GAIN_BLADE',
+      step: config.actionStep,
       sourceSlot: ability.sourceSlot,
-      fromSlot: ability.metadata?.fromSlot,
-      toSlot: ability.metadata?.toSlot,
-      swappedCardInstanceId: ability.metadata?.swappedCardInstanceId,
-      bladeBonus: bladeResult.bladeBonus,
+      drawnCardIds: drawResult.drawnCardIds,
+      drawCount: drawResult.drawnCardIds.length,
     }),
     orderedResolution
   );
