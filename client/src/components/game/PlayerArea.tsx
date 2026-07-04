@@ -2634,7 +2634,7 @@ export const PlayerArea = memo(function PlayerArea({
         )}
       >
         {/* 对手：手牌和能量区在最上方 */}
-        <div className="flex-shrink-0 w-full flex items-center gap-2 relative">
+        <div className="relative z-0 flex w-full flex-shrink-0 items-center gap-2">
           {/* 能量区 - 右上角 */}
           <div className="absolute right-2 top-2 z-50">{renderEnergyZone()}</div>
           {/* 手牌区 - 居中 */}
@@ -2656,7 +2656,7 @@ export const PlayerArea = memo(function PlayerArea({
 
         {/* 主区域 - 绝对定位布局（成员槽和Live区在底部，靠近中央分隔线） */}
         {/* 对手区域镜像显示：左右交换，成员槽位顺序反转 */}
-        <div className="flex-1 min-h-0 relative px-2">
+        <div className="relative z-10 min-h-0 flex-1 px-2">
           {/* 左侧区域 - 对手的资源区（镜像后在左边，对手的右手边） */}
           <div className="absolute bottom-0 left-2 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
             {renderResources(true)}
@@ -2696,7 +2696,7 @@ export const PlayerArea = memo(function PlayerArea({
       )}
     >
       {/* 主区域 - 绝对定位布局（成员槽和Live区在顶部，靠近中央分隔线） */}
-      <div className="flex-1 min-h-0 relative px-2">
+      <div className="relative z-0 min-h-0 flex-1 px-2">
         {/* 左侧区域 - 绝对定位固定在左边 */}
         <div className="absolute left-2 top-0 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
           {renderSuccessZone()}
@@ -2736,7 +2736,7 @@ export const PlayerArea = memo(function PlayerArea({
       </div>
 
       {/* 己方：手牌和能量区在最下方 */}
-      <div className="flex-shrink-0 w-full flex items-center gap-2 relative">
+      <div className="relative z-10 flex w-full flex-shrink-0 items-center gap-2">
         {/* 能量区 - 左下角 */}
         <div className="absolute left-2 bottom-2 z-50">{renderEnergyZone()}</div>
         {/* 手牌区 - 居中 */}
