@@ -126,12 +126,22 @@ import {
   HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID,
   HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID,
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
+  HS_SD1_002_LIVE_START_DISCARD_TWO_LOOK_TOP_MEMBER_HAND_GAIN_HEART_BLADE_ABILITY_ID,
   HS_SD1_004_ON_ENTER_DISCARD_HASUNOSORA_RECOVER_MEMBER_ABILITY_ID,
   HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GAIN_GREEN_HEART_ABILITY_ID,
+  HS_SD1_003_LIVE_START_PAY_ENERGY_TARGET_OTHER_HASUNOSORA_HEART_BLADE_ABILITY_ID,
   HS_SD1_005_ON_ENTER_RELAY_FROM_OTHER_HASUNOSORA_RECOVER_LIVE_ABILITY_ID,
   HS_SD1_005_CONTINUOUS_STAGE_SAYAKA_GINKO_HIME_GAIN_BLADE_ABILITY_ID,
   HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID,
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+  HS_SD1_008_ON_ENTER_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+  HS_SD1_008_LIVE_START_DISCARD_TWO_HASUNOSORA_CHOOSE_HEART_TARGET_ABILITY_ID,
+  HS_SD1_014_ON_ENTER_DISCARD_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
+  HS_SD1_017_LIVE_SUCCESS_HASUNOSORA_STAGE_DRAW_DISCARD_ABILITY_ID,
+  HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,
+  HS_SD1_020_LIVE_START_DISCARD_UP_TO_THREE_HASUNOSORA_MEMBERS_TARGET_BLADE_ABILITY_ID,
+  SP_PB1_001_LIVE_START_PAY_TWO_ENERGY_OR_DISCARD_TWO_ABILITY_ID,
+  SP_PB1_001_LIVE_SUCCESS_PAY_SIX_ENERGY_SCORE_ABILITY_ID,
   BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_PR_016_LIVE_START_DISCARD_SAME_UNIT_GAIN_GREEN_HEART_BLADE_ABILITY_ID,
@@ -826,10 +836,14 @@ const HS_PB1_003_ON_ENTER_EFFECT_TEXT =
   '【登场】将任意张手牌的『みらくらぱーく！』成员卡放置入休息室。之后，抽放置张数+1张卡。';
 const HS_PB1_003_AUTO_EFFECT_TEXT =
   '【自动】【回合2次】每当自己的手牌有1张以上放置入休息室时，LIVE结束时为止，获得[桃ハート][BLADE]。';
+const HS_SD1_002_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将2张手牌放置入休息室：检视自己卡组顶5张卡。可以公开其中1张成员卡加入手牌，剩余卡片放置入休息室。因此将『莲之空』卡加入手牌的场合，LIVE结束时为止，获得[青ハート][BLADE]。';
 const HS_SD1_004_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌的『莲之空』卡片放置入休息室：从自己的休息室将1张成员卡加入手牌。';
 const HS_SD1_004_CONTINUOUS_EFFECT_TEXT =
   '【常时】只要自己的舞台中存在「日野下花帆」或「徒町小铃」或「安养寺姬芽」，获得[緑ハート]。';
+const HS_SD1_003_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以支付[E]：LIVE结束时为止，自己舞台上此成员以外的1名『莲之空』成员获得[桃ハート][BLADE]。';
 const HS_SD1_005_ON_ENTER_EFFECT_TEXT =
   '【登场】从「徒町小铃」之外的『莲之空』的成员换手登场的场合，从自己的休息室将1张LIVE卡加入手牌。';
 const HS_SD1_005_CONTINUOUS_EFFECT_TEXT =
@@ -838,6 +852,22 @@ const HS_SD1_006_ON_ENTER_EFFECT_TEXT =
   '【登场】自己的舞台中存在「大泽瑠璃乃」或「百生吟子」或「徒町小铃」的场合，将1张能量变为活跃状态，从自己的休息室将1张『莲之空』的LIVE卡加入手牌。';
 const HS_SD1_006_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[BLADE][BLADE]。';
+const HS_SD1_008_ON_ENTER_EFFECT_TEXT =
+  '【登场】抽2张卡，将1张手牌放置入休息室。';
+const HS_SD1_008_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将手牌中的2张『莲之空』卡放置入休息室：从[桃ハート]、[緑ハート]、[青ハート]、[紫ハート]中选择1种。LIVE结束时为止，自己舞台上此成员以外的1名『莲之空』成员获得所选 Heart 2个。';
+const HS_SD1_014_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将1张手牌放置入休息室：从自己的休息室将1张『莲之空』卡加入手牌。';
+const HS_SD1_017_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】自己的舞台中存在『莲之空』成员的场合，抽1张卡，将1张手牌放置入休息室。';
+const HS_SD1_018_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的舞台中存在3名以上『莲之空』成员，且自己的休息室中存在卡名包含「Dream Believers」的LIVE卡的场合，此卡分数+1。';
+const HS_SD1_020_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将手牌中的至多3张『莲之空』成员卡放置入休息室：LIVE结束时为止，自己舞台上的1名成员每有1张因此放置入休息室的卡便获得[BLADE]。';
+const SP_PB1_001_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】除非支付[E][E]，否则将自己的2张手牌放置入休息室。';
+const SP_PB1_001_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】可以支付[E][E][E][E][E][E]：LIVE的合计分数+1。';
 const BP4_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[BLADE][BLADE]。';
 const HS_PR_001_LIVE_START_EFFECT_TEXT =
@@ -5796,6 +5826,30 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '登场时可选弃1张手牌中的「莲之空」卡作为费用；费用支付后从自己的休息室选择1张成员卡加入手牌。刚弃置的成员可成为回收目标；无目标时费用保留并空结算。',
   },
   {
+    abilityId: HS_SD1_002_LIVE_START_DISCARD_TWO_LOOK_TOP_MEMBER_HAND_GAIN_HEART_BLADE_ABILITY_ID,
+    cardCodes: ['PL!HS-sd1-002-SD'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_002_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；可选弃2张手牌，弃手走 ON_ENTER_WAITING_ROOM wrapper。费用支付后 inspectTopCards(5)，可公开1张成员加入手牌，检视剩余卡走 inspection-to-waiting trigger wrapper；加入手牌的是「莲之空」卡时来源成员获得 SOURCE_MEMBER 青 Heart +1 与 BLADE +1。',
+  },
+  {
+    abilityId: HS_SD1_003_LIVE_START_PAY_ENERGY_TARGET_OTHER_HASUNOSORA_HEART_BLADE_ABILITY_ID,
+    cardCodes: ['PL!HS-sd1-003-SD'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_003_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；可选支付1张活跃能量，支付后选择此成员以外的己方舞台「莲之空」成员，写 TARGET_MEMBER 桃 Heart +1 与目标成员 BLADE +1。无能量、跳过或无合法目标均消费 pending/no-op。',
+  },
+  {
     abilityId: HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GAIN_GREEN_HEART_ABILITY_ID,
     baseCardCodes: ['PL!HS-sd1-004'],
     category: CardAbilityCategory.CONTINUOUS,
@@ -5851,6 +5905,102 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_SD1_006_LIVE_START_EFFECT_TEXT,
     notes: 'LIVE开始时可支付1能量，通过 liveModifiers 写入 BLADE +2。',
+  },
+  {
+    abilityId: HS_SD1_008_ON_ENTER_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+    cardCodes: ['PL!HS-sd1-008-SD'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_008_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '复用 draw-then-discard shared workflow；登场抽2再弃1，弃手走 ON_ENTER_WAITING_ROOM wrapper。',
+  },
+  {
+    abilityId: HS_SD1_008_LIVE_START_DISCARD_TWO_HASUNOSORA_CHOOSE_HEART_TARGET_ABILITY_ID,
+    cardCodes: ['PL!HS-sd1-008-SD'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_008_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；可选弃2张手牌中的「莲之空」卡，弃手走 ON_ENTER_WAITING_ROOM wrapper；支付后选择桃/绿/蓝/紫 Heart，再选择此成员以外的己方舞台「莲之空」成员获得所选 Heart x2。',
+  },
+  {
+    abilityId: HS_SD1_014_ON_ENTER_DISCARD_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
+    baseCardCodes: ['PL!HS-sd1-014'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_014_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '扩展 on-enter-discard-recover-unit-card shared workflow；可选弃1张任意手牌，弃手走 hand -> waiting room trigger wrapper，支付后从自己的休息室回收1张「莲之空」卡，刚弃置的莲之空卡可成为目标。',
+  },
+  {
+    abilityId: HS_SD1_017_LIVE_SUCCESS_HASUNOSORA_STAGE_DRAW_DISCARD_ABILITY_ID,
+    cardCodes: ['PL!HS-sd1-017-SD'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_017_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '扩展 draw-then-discard shared workflow；LIVE成功时先检查己方舞台是否存在「莲之空」成员，不满足则消费 pending no-op。满足时抽1弃1，弃手走 enter-waiting-room trigger wrapper。',
+  },
+  {
+    abilityId: HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-sd1-018'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_018_LIVE_START_EFFECT_TEXT,
+    notes:
+      '扩展 conditional-live-modifier shared workflow；实时统计己方舞台「莲之空」成员数与休息室卡名包含 Dream Believers 的 LIVE，满足时给此 LIVE 写 SCORE +1 并刷新 playerScores。base 覆盖 SD / SECL。',
+  },
+  {
+    abilityId: HS_SD1_020_LIVE_START_DISCARD_UP_TO_THREE_HASUNOSORA_MEMBERS_TARGET_BLADE_ABILITY_ID,
+    cardCodes: ['PL!HS-sd1-020-SD'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: HS_SD1_020_LIVE_START_EFFECT_TEXT,
+    notes:
+      '只实现 LIVE开始段；常时三团身份仍由 HASUNOSORA_TRIPLE_UNIT_CONTINUOUS_IDENTITY_ABILITY_ID 覆盖。单卡 LIVE_START workflow 可选弃0到3张手牌中的「莲之空」成员卡，弃手走 ON_ENTER_WAITING_ROOM wrapper；弃置后选择己方舞台任意成员获得等同弃置张数的 BLADE。',
+  },
+  {
+    abilityId: SP_PB1_001_LIVE_START_PAY_TWO_ENERGY_OR_DISCARD_TWO_ABILITY_ID,
+    baseCardCodes: ['PL!SP-pb1-001'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: SP_PB1_001_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；可支付2张活跃能量来避免弃手。选择不支付或活跃能量不足时按现有强制弃牌口径将实际可弃的至多2张手牌放置入休息室，弃手走 ON_ENTER_WAITING_ROOM wrapper；无手牌也消费 pending/no-op。',
+  },
+  {
+    abilityId: SP_PB1_001_LIVE_SUCCESS_PAY_SIX_ENERGY_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-pb1-001'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: SP_PB1_001_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_SUCCESS workflow；可支付6张活跃能量，支付成功后写玩家 LIVE 合计 SCORE +1 modifier 并刷新 liveResolution.playerScores。不支付或活跃能量不足时消费 pending/no-op，不支付部分能量。',
   },
   {
     abilityId: BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,

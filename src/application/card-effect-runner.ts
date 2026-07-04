@@ -150,12 +150,17 @@ import {
   isHsSd1001HighCostHasunosoraRelayReplacement,
   registerHsSd1001KahoWorkflowHandlers,
 } from './card-effects/workflows/cards/hs-sd1-001-kaho.js';
+import { registerHsSd1002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-002-sayaka.js';
+import { registerHsSd1003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-003-rurino.js';
 import { registerHsBp6011RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-011-rurino.js';
 import { registerHsBp2005RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp2-005-rurino.js';
 import { registerHsSd1004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-004-ginko.js';
 import { registerHsSd1005KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-005-kosuzu.js';
 import { registerHsSd1006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-006-hime.js';
+import { registerHsSd1008IzumiWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-008-izumi.js';
+import { registerHsSd1020LinkToTheFutureWorkflowHandlers } from './card-effects/workflows/cards/hs-sd1-020-link-to-the-future.js';
 import { registerEmmaWorkflowHandlers } from './card-effects/workflows/cards/n-pb1-008-emma.js';
+import { registerSpPb1001KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-pb1-001-kanon.js';
 import { registerLlBp6001KotoriDiaKosuzuWorkflowHandlers } from './card-effects/workflows/cards/ll-bp6-001-kotori-dia-kosuzu.js';
 import { registerPlBp3001HonokaWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-001-honoka.js';
 import { registerPlBp3006MakiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-006-maki.js';
@@ -758,6 +763,8 @@ registerHsBp6029ProofWorkflowHandlers();
 registerHsCl1002SayakaWorkflowHandlers();
 registerOnEnterSourceMemberGainBladeWorkflowHandlers();
 registerHsSd1001KahoWorkflowHandlers();
+registerHsSd1002SayakaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsSd1003RurinoWorkflowHandlers();
 registerHsSd1006HimeWorkflowHandlers();
 registerHsBp1008KosuzuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1012GinkoWorkflowHandlers();
@@ -801,6 +808,9 @@ registerHsPb1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsSd1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsSd1005KosuzuWorkflowHandlers();
+registerHsSd1008IzumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsSd1020LinkToTheFutureWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpPb1001KanonWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp1002KasumiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNLiveStartScoreBonusesWorkflowHandlers();
 registerNLiveSuccessCheerAllBladeScoreWorkflowHandlers();

@@ -231,10 +231,14 @@ export const HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_I
   'PL!HS-pb1-003-R:on-enter-discard-miracra-members-draw-plus-one';
 export const HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID =
   'PL!HS-pb1-003-R:auto-hand-to-waiting-gain-pink-heart-blade';
+export const HS_SD1_002_LIVE_START_DISCARD_TWO_LOOK_TOP_MEMBER_HAND_GAIN_HEART_BLADE_ABILITY_ID =
+  'PL!HS-sd1-002-SD:live-start-discard-two-look-top-member-hand-gain-heart-blade';
 export const HS_SD1_004_ON_ENTER_DISCARD_HASUNOSORA_RECOVER_MEMBER_ABILITY_ID =
   'PL!HS-sd1-004-SD:on-enter-discard-hasunosora-recover-member';
 export const HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GAIN_GREEN_HEART_ABILITY_ID =
   'PL!HS-sd1-004-SD:continuous-stage-kaho-kosuzu-hime-green-heart';
+export const HS_SD1_003_LIVE_START_PAY_ENERGY_TARGET_OTHER_HASUNOSORA_HEART_BLADE_ABILITY_ID =
+  'PL!HS-sd1-003-SD:live-start-pay-energy-target-other-hasunosora-heart-blade';
 export const HS_SD1_005_ON_ENTER_RELAY_FROM_OTHER_HASUNOSORA_RECOVER_LIVE_ABILITY_ID =
   'PL!HS-sd1-005-SD:on-enter-relay-from-other-hasunosora-recover-live';
 export const HS_SD1_005_CONTINUOUS_STAGE_SAYAKA_GINKO_HIME_GAIN_BLADE_ABILITY_ID =
@@ -243,6 +247,22 @@ export const HS_SD1_006_ON_ENTER_ACTIVATE_ENERGY_RECOVER_LIVE_ABILITY_ID =
   'PL!HS-sd1-006-SD:on-enter-if-related-member-activate-energy-recover-live';
 export const HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
   'PL!HS-sd1-006-SD:live-start-pay-one-gain-two-blade';
+export const HS_SD1_008_ON_ENTER_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
+  'PL!HS-sd1-008-SD:on-enter-draw-two-discard-one';
+export const HS_SD1_008_LIVE_START_DISCARD_TWO_HASUNOSORA_CHOOSE_HEART_TARGET_ABILITY_ID =
+  'PL!HS-sd1-008-SD:live-start-discard-two-hasunosora-choose-heart-target';
+export const HS_SD1_014_ON_ENTER_DISCARD_RECOVER_HASUNOSORA_CARD_ABILITY_ID =
+  'PL!HS-sd1-014-SD:on-enter-discard-recover-hasunosora-card';
+export const HS_SD1_017_LIVE_SUCCESS_HASUNOSORA_STAGE_DRAW_DISCARD_ABILITY_ID =
+  'PL!HS-sd1-017-SD:live-success-hasunosora-stage-draw-one-discard-one';
+export const HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID =
+  'PL!HS-sd1-018:live-start-hasunosora-stage-dream-believers-score';
+export const HS_SD1_020_LIVE_START_DISCARD_UP_TO_THREE_HASUNOSORA_MEMBERS_TARGET_BLADE_ABILITY_ID =
+  'PL!HS-sd1-020-SD:live-start-discard-up-to-three-hasunosora-members-target-blade';
+export const SP_PB1_001_LIVE_START_PAY_TWO_ENERGY_OR_DISCARD_TWO_ABILITY_ID =
+  'PL!SP-pb1-001:live-start-pay-two-energy-or-discard-two';
+export const SP_PB1_001_LIVE_SUCCESS_PAY_SIX_ENERGY_SCORE_ABILITY_ID =
+  'PL!SP-pb1-001:live-success-pay-six-energy-score';
 export const BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
   'PL!-bp4-010-N:live-start-pay-one-gain-two-blade';
 export const HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID =
