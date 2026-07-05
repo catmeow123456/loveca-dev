@@ -1,6 +1,13 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-02
+更新时间：2026-07-05
+
+## 本次 2026-07-05 休息室判心统计入口
+
+- 休息室展开浮窗标题栏新增判心统计入口：桌面端显示简版 chip，并支持 hover/focus 或点击统计按钮查看完整统计；移动端点击统计按钮在标题栏下方展开完整统计。
+- 统计仅基于当前投影可见的休息室正面卡牌数据推导，不新增规则命令；只统计成员/LIVE 的 `bladeHearts` 彩心、加分判与抽卡标，不计入成员卡自身持有心 `hearts`。
+- 新增 `tests/unit/waiting-room-judgment-stats.test.ts` 锁定统计口径，防止成员持有心被误计入休息室判心统计。
+- 验证：`pnpm --dir client exec tsc -b` passed；`pnpm test:run` passed（289 files / 2347 tests，3 performance tests skipped）；`git diff --check` passed。
 
 ## 本次 2026-07-02 莲之空 CL1 002 卡效补充
 

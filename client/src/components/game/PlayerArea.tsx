@@ -35,6 +35,10 @@ import {
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR } from '@/lib/modifierIconAssets';
+import {
+  collectWaitingRoomJudgmentStats,
+  hasWaitingRoomJudgmentStats,
+} from '@/lib/waitingRoomJudgmentStats';
 import { createScopedZoneId, createZoneId } from '@/lib/zoneUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
@@ -49,8 +53,13 @@ import { CardModifierBadgeStack } from '@/components/card/CardModifierBadgeStack
 import { CardDetailPressTarget } from './CardDetailPressTarget';
 import { DraggableCard, DroppableZone } from './interaction';
 import {
+  WaitingRoomJudgmentStatsDetail,
+  WaitingRoomJudgmentSummaryChips,
+} from './WaitingRoomJudgmentStats';
+import {
   ArrowDownToLine,
   ArrowUpToLine,
+  BarChart3,
   Check,
   Layers3,
   Megaphone,
@@ -369,6 +378,8 @@ export const PlayerArea = memo(function PlayerArea({
     }))
   );
   const [waitingRoomExpanded, setWaitingRoomExpanded] = useState(false);
+  const [waitingRoomStatsExpanded, setWaitingRoomStatsExpanded] = useState(false);
+  const [waitingRoomStatsHover, setWaitingRoomStatsHover] = useState(false);
   const [inspectionBatchAction, setInspectionBatchAction] = useState<
     'waiting-room' | 'close' | null
   >(null);
@@ -415,6 +426,11 @@ export const PlayerArea = memo(function PlayerArea({
     return null;
   }
   const displayedHandCount = handZoneView?.count ?? handCardIds.length;
+  const closeWaitingRoom = () => {
+    setWaitingRoomExpanded(false);
+    setWaitingRoomStatsExpanded(false);
+    setWaitingRoomStatsHover(false);
+  };
 
   // ========================================
   // 拖拽权限控制 - "信任玩家"原则
@@ -1132,6 +1148,19 @@ export const PlayerArea = memo(function PlayerArea({
   const renderWaitingRoom = () => {
     const count = waitingRoomZoneView?.count ?? waitingRoomCardIds.length;
     const waitingRoomDroppableId = getDroppableId(ZoneType.WAITING_ROOM);
+    const waitingRoomCards = waitingRoomCardIds.flatMap((cardId: string) => {
+      const card = getVisibleCardPresentation(cardId);
+      return card ? [{ cardId, card }] : [];
+    });
+    const waitingRoomJudgmentStats = collectWaitingRoomJudgmentStats(
+      waitingRoomCards.map(({ card }) => card.cardData as AnyCardData)
+    );
+    const hasJudgmentStats = hasWaitingRoomJudgmentStats(waitingRoomJudgmentStats);
+    const showWaitingRoomStatsDetail =
+      hasJudgmentStats &&
+      (isMobileBoard
+        ? waitingRoomStatsExpanded
+        : waitingRoomStatsExpanded || waitingRoomStatsHover);
 
     return (
       <DroppableZone
@@ -1161,10 +1190,7 @@ export const PlayerArea = memo(function PlayerArea({
               onClick={() => setWaitingRoomExpanded(true)}
             >
               {/* 叠放的迷你卡片 */}
-              {waitingRoomCardIds.slice(0, 5).map((cardId: string, idx: number) => {
-                const card = getVisibleCardPresentation(cardId);
-                if (!card) return null;
-
+              {waitingRoomCards.slice(0, 5).map(({ cardId, card }, idx: number) => {
                 return (
                   <div
                     key={cardId}
@@ -1197,7 +1223,7 @@ export const PlayerArea = memo(function PlayerArea({
                   <>
                     <div
                       className={cn('modal-backdrop z-[90]', isDragging && 'pointer-events-none')}
-                      onClick={() => setWaitingRoomExpanded(false)}
+                      onClick={closeWaitingRoom}
                     />
 
                     <div className="fixed inset-0 z-[100] flex items-end justify-center p-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-4 md:items-center">
@@ -1207,12 +1233,12 @@ export const PlayerArea = memo(function PlayerArea({
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.94 }}
                       >
-                        <div className="modal-header flex shrink-0 items-center justify-between px-4 py-3 md:px-5 md:py-4">
-                          <div className="flex items-center gap-3">
+                        <div className="modal-header flex shrink-0 items-center justify-between gap-3 px-4 py-3 md:px-5 md:py-4">
+                          <div className="flex min-w-0 items-center gap-3">
                             <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_84%,transparent)] text-[var(--accent-secondary)]">
                               <Layers3 size={16} />
                             </div>
-                            <div>
+                            <div className="min-w-0">
                               <div className="text-sm font-semibold text-[var(--text-primary)]">
                                 休息室
                               </div>
@@ -1221,21 +1247,65 @@ export const PlayerArea = memo(function PlayerArea({
                               </div>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setWaitingRoomExpanded(false)}
-                            className="button-icon h-8 w-8"
-                            title="关闭休息室"
-                          >
-                            <X size={14} />
-                          </button>
+                          <div className="flex min-w-0 shrink-0 items-center gap-2">
+                            <div
+                              className="relative flex min-w-0 items-center justify-end gap-1.5"
+                              onMouseEnter={() => setWaitingRoomStatsHover(true)}
+                              onMouseLeave={() => setWaitingRoomStatsHover(false)}
+                              onFocus={() => setWaitingRoomStatsHover(true)}
+                              onBlur={() => setWaitingRoomStatsHover(false)}
+                            >
+                              <WaitingRoomJudgmentSummaryChips stats={waitingRoomJudgmentStats} />
+                              <button
+                                type="button"
+                                disabled={!hasJudgmentStats}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setWaitingRoomStatsExpanded((value) => !value);
+                                }}
+                                className={cn(
+                                  'button-icon h-8 w-8',
+                                  hasJudgmentStats
+                                    ? showWaitingRoomStatsDetail &&
+                                        'border-[var(--accent-secondary)] text-[var(--accent-secondary)]'
+                                    : 'cursor-not-allowed opacity-45'
+                                )}
+                                aria-label="查看休息室判心统计"
+                                aria-expanded={showWaitingRoomStatsDetail}
+                                title={hasJudgmentStats ? '查看休息室判心统计' : '休息室没有判心标'}
+                              >
+                                <BarChart3 size={14} />
+                              </button>
+                              {!isMobileBoard && showWaitingRoomStatsDetail && (
+                                <WaitingRoomJudgmentStatsDetail
+                                  stats={waitingRoomJudgmentStats}
+                                  className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(23rem,calc(100vw-2rem))]"
+                                />
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={closeWaitingRoom}
+                              className="button-icon h-8 w-8"
+                              title="关闭休息室"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
                         </div>
+
+                        {isMobileBoard && showWaitingRoomStatsDetail && (
+                          <div className="shrink-0 border-b border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_50%,transparent)] px-3 py-2">
+                            <WaitingRoomJudgmentStatsDetail
+                              stats={waitingRoomJudgmentStats}
+                              className="border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_88%,transparent)] shadow-none"
+                            />
+                          </div>
+                        )}
 
                         <div className="touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
                           <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 sm:grid-cols-5 md:grid-cols-6 md:gap-3">
-                            {waitingRoomCardIds.map((cardId: string) => {
-                              const card = getVisibleCardPresentation(cardId);
-                              if (!card) return null;
+                            {waitingRoomCards.map(({ cardId, card }) => {
                               const isWaitingRoomCardSelected = selectedCardId === card.instanceId;
                               const activatedAbilityConfig = getActivatedAbilityUiConfig(
                                 card.cardCode,
@@ -1309,7 +1379,7 @@ export const PlayerArea = memo(function PlayerArea({
                                           card.instanceId,
                                           activatedAbilityConfig.abilityId
                                         );
-                                        setWaitingRoomExpanded(false);
+                                        closeWaitingRoom();
                                       }}
                                       title={activatedAbilityConfig.title}
                                     >
