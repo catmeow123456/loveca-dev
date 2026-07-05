@@ -9,7 +9,9 @@ export {
   successLiveScoreAtLeast,
 } from '../../domain/rules/success-live-score.js';
 export {
+  getMovedToStageOrPositionMovedStageMemberIdsMatching,
   getPositionMovedStageMemberIdsMatching,
+  hasMemberMovedToStageThisTurn,
   hasMemberPositionMovedThisTurn,
 } from '../../domain/rules/member-turn-state.js';
 import { ZoneType } from '../../shared/types/enums.js';

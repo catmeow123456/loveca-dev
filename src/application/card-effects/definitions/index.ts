@@ -70,6 +70,7 @@ import {
   SP_BP2_009_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
   SP_BP2_010_CONTINUOUS_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE_ABILITY_ID,
   SP_BP2_010_LIVE_START_OTHER_MEMBER_CHEER_COUNT_MINUS_EIGHT_ABILITY_ID,
+  SP_BP2_011_ON_ENTER_OPPONENT_CHOOSES_DISTINCT_LIVE_RECOVERY_ABILITY_ID,
   SP_BP1_024_LIVE_START_KANON_KEKE_GAIN_HEART_BLADE_ABILITY_ID,
   SP_BP1_024_LIVE_SUCCESS_STAGE_KANON_KEKE_DRAW_ABILITY_ID,
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
@@ -191,6 +192,7 @@ import {
   SP_BP4_005_CONTINUOUS_ENERGY_TEN_GAIN_THREE_BLADE_ABILITY_ID,
   SP_BP4_005_ON_ENTER_LIELLA_RELAY_ENERGY_SEVEN_PLACE_TWO_WAITING_ENERGY_ABILITY_ID,
   SP_BP4_010_ACTIVATED_PAY_ENERGY_WAIT_SELF_PLACE_WAITING_ENERGY_ABILITY_ID,
+  SP_BP4_007_AUTO_ON_MOVE_RECOVER_LOW_SCORE_LIELLA_LIVE_ABILITY_ID,
   SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_BP4_004_ON_ENTER_DOUBLE_LIELLA_RELAY_DRAW_PLAY_LOW_COST_LIELLA_ABILITY_ID,
   SP_BP4_024_LIVE_START_CENTER_LIELLA_HIGHER_COST_THIS_LIVE_SCORE_ABILITY_ID,
@@ -277,6 +279,8 @@ import {
   SP_BP5_111_CONTINUOUS_ENERGY_EXACT_EIGHT_LIVE_SCORE_ABILITY_ID,
   SP_BP5_222_CONTINUOUS_ENERGY_EXACT_EIGHT_LIVE_SCORE_ABILITY_ID,
   SP_BP5_222_LIVE_START_PAY_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+  SP_PB1_003_ON_ENTER_ROTATE_BOTH_PLAYERS_STAGE_ABILITY_ID,
+  SP_PB1_025_LIVE_START_ENTERED_OR_MOVED_FIVEYNCRISE_REQUIREMENT_ABILITY_ID,
   SP_PB1_008_ON_ENTER_DRAW_SELF_POSITION_CHANGE_ABILITY_ID,
   SP_PB1_020_AUTO_ON_MOVE_DRAW_ONE_ABILITY_ID,
   SP_PB1_006_AUTO_ENTER_OR_MOVE_GAIN_TWO_BLADE_ABILITY_ID,
@@ -328,6 +332,7 @@ import {
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
   SP_BP2_001_ON_ENTER_SUPPRESS_LIELLA_MEMBER_LIVE_START_RECOVER_LIELLA_CARD_ABILITY_ID,
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
+  SP_BP2_003_AUTO_ON_MOVE_PLACE_WAITING_ENERGY_ABILITY_ID,
   LL_BP6_001_ON_ENTER_LOOK_TOP_SIX_TAKE_TWO_ABILITY_ID,
   LL_BP6_001_LIVE_START_DISCARD_NAMED_MEMBERS_GAIN_HEARTS_ABILITY_ID,
   BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
@@ -659,6 +664,10 @@ const HS_BP6_007_AUTO_EDELNOTE_ENTER_EFFECT_TEXT =
   '【自动】【1回合1次】自己的舞台有『EdelNote』成员登场时，对方将自身舞台上1名活跃状态成员变为待机状态。';
 const SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_EFFECT_TEXT =
   '【自动】此成员登场或移动区域时，将1名存在于对方的舞台的原本持有的[BLADE]数量小于等于3个的成员变为待机状态。';
+const SP_BP2_003_AUTO_ON_MOVE_PLACE_WAITING_ENERGY_EFFECT_TEXT =
+  '【自动】【1回合1次】此成员区域移动时，从自己的能量卡组放置1张待机状态的能量。';
+const SP_BP4_007_AUTO_ON_MOVE_RECOVER_LOW_SCORE_LIELLA_LIVE_EFFECT_TEXT =
+  '【自动】【1回合1次】此成员区域移动时，从自己的休息室选择1张[スコア]3以下的『Liella!』LIVE卡加入手牌。';
 const SP_BP2_008_ACTIVATED_PAY_ENERGY_SELF_POSITION_CHANGE_EFFECT_TEXT =
   '【起动】【1回合1次】[E]：选择与此成员所在区域不同的自己的1个区域，将此成员移动到该区域。若选择区域有成员，则该成员移动到此成员原本所在区域。';
 const SP_BP4_005_ON_ENTER_LIELLA_RELAY_ENERGY_SEVEN_PLACE_TWO_WAITING_ENERGY_EFFECT_TEXT =
@@ -691,6 +700,10 @@ const SP_BP5_023_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己或对方的成功LIVE卡区中有2张以上卡，且因声援公开的自己的卡中有持有 SCORE 图标的LIVE卡的场合，此卡的分数+2。';
 const SP_BP5_007_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以从其中按各团体名依次公开1张，将至多3张加入手牌。其余的卡片放置入休息室。';
+const SP_PB1_003_ON_ENTER_ROTATE_BOTH_PLAYERS_STAGE_EFFECT_TEXT =
+  '【登场】自己的舞台成员均为『5yncri5e!』成员的场合，自己与对战对手将中心区域成员移动到左侧区域、左侧区域成员移动到右侧区域、右侧区域成员移动到中心区域。';
+const SP_PB1_025_LIVE_START_REQUIREMENT_EFFECT_TEXT =
+  '【LIVE开始时】自己的舞台上每有1名本回合登场或进行过区域移动的『5yncri5e!』成员，此LIVE成功所需的必要[無ハート]减少1个。';
 const SP_PB1_008_ON_ENTER_DRAW_SELF_POSITION_CHANGE_EFFECT_TEXT =
   '【登场】抽1张。之后，选择与登场区域不同的自己的1个区域，将此成员移动到该区域。若选择区域有成员，则该成员移动到此成员原本所在区域。';
 const SP_PB1_020_AUTO_ON_MOVE_DRAW_ONE_EFFECT_TEXT =
@@ -842,6 +855,8 @@ const SP_BP2_010_CONTINUOUS_EFFECT_TEXT =
   '【常时】对方LIVE卡区中的全部LIVE卡，成功所需Heart增加1个无色Heart。';
 const SP_BP2_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的舞台上存在此成员以外的成员1名以上的场合，直到LIVE结束时为止，因声援公开的自己的卡牌张数减少8张。';
+const SP_BP2_011_ON_ENTER_EFFECT_TEXT =
+  '【登场】选择自己休息室中2张卡名不同的LIVE卡。如此做时，对手从那些卡中选择1张。将由对手选择的卡加入自己的手牌。';
 const SP_BP1_024_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】LIVE结束时为止，存在于自己的舞台的1名「涩谷香音」获得[青ハート][BLADE]，1名「唐 可可」获得[桃ハート][BLADE]。';
 const SP_BP1_024_LIVE_SUCCESS_EFFECT_TEXT =
@@ -2355,6 +2370,19 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     notes: '复用 look-top 检视/公开/入手流程；检视3张，可公开费用>=11的卡加入手牌，其余进休息室。',
   },
   {
+    abilityId: SP_BP2_003_AUTO_ON_MOVE_PLACE_WAITING_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp2-003'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: SP_BP2_003_AUTO_ON_MOVE_PLACE_WAITING_ENERGY_EFFECT_TEXT,
+    notes:
+      '单卡 AUTO workflow `sp-bp2-003-chisato.ts`；普通 ON_MEMBER_SLOT_MOVED 路径在此成员自身移动时入队，结算从能量卡组放置1张 WAITING 能量。能量卡组为空时消费 pending no-op，不记录 ability use。',
+  },
+  {
     abilityId: LL_BP6_001_ON_ENTER_LOOK_TOP_SIX_TAKE_TWO_ABILITY_ID,
     baseCardCodes: ['LL-bp6-001'],
     category: CardAbilityCategory.ON_ENTER,
@@ -3610,6 +3638,30 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 ON_ENTER workflow；可选弃1手牌成本走 enter-waiting-room trigger wrapper，之后看顶5张，按团体名可分配为互不重复的最多3张公开加入手牌，其余入休息室。',
   },
   {
+    abilityId: SP_PB1_003_ON_ENTER_ROTATE_BOTH_PLAYERS_STAGE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-pb1-003'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_PB1_003_ON_ENTER_ROTATE_BOTH_PLAYERS_STAGE_EFFECT_TEXT,
+    notes:
+      '单卡 ON_ENTER workflow；结算时检查自己的舞台成员至少1名且全部为 5yncri5e!，满足时无选择 UI，自己和对方分别按 CENTER->LEFT、LEFT->RIGHT、RIGHT->CENTER 固定重排。空槽安全跳过，实际移动通过 rearrangeStageMembersAndEnqueueTriggers 继续产生 ON_MEMBER_SLOT_MOVED。',
+  },
+  {
+    abilityId: SP_PB1_025_LIVE_START_ENTERED_OR_MOVED_FIVEYNCRISE_REQUIREMENT_ABILITY_ID,
+    baseCardCodes: ['PL!SP-pb1-025'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: SP_PB1_025_LIVE_START_REQUIREMENT_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow；通过 getMovedToStageOrPositionMovedStageMemberIdsMatching 读取本回合登场或区域移动过且当前仍在自己舞台的 5yncri5e! 成员，不从 eventLog 推断。按人数给此 LIVE 写 REQUIREMENT [無ハート] -N；0名时消费 pending no-op。',
+  },
+  {
     abilityId: SP_PB1_008_ON_ENTER_DRAW_SELF_POSITION_CHANGE_ABILITY_ID,
     baseCardCodes: ['PL!SP-pb1-008'],
     category: CardAbilityCategory.ON_ENTER,
@@ -4492,6 +4544,19 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: SP_PB2_027_CONTINUOUS_EFFECT_TEXT,
     notes:
       'live-modifiers.ts 常时 modifier；来源成员仍在自己的主舞台时，自己能量>=6 写 SOURCE_MEMBER 黄 Heart +1，>=8 写黄 Heart +2。',
+  },
+  {
+    abilityId: SP_BP4_007_AUTO_ON_MOVE_RECOVER_LOW_SCORE_LIELLA_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp4-007'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+    queued: true,
+    implemented: true,
+    effectText: SP_BP4_007_AUTO_ON_MOVE_RECOVER_LOW_SCORE_LIELLA_LIVE_EFFECT_TEXT,
+    perTurnLimit: 1,
+    notes:
+      '单卡 AUTO workflow `sp-bp4-007-mei.ts`；普通 ON_MEMBER_SLOT_MOVED 路径在此成员自身移动时入队，候选为自己休息室[スコア]3以下 Liella! LIVE。存在候选时强制选择1张并通过 recoverCardsFromWaitingRoomToHandForPlayer 加入手牌；无候选时消费 pending no-op，不记录 ability use。',
   },
   {
     abilityId: SP_PB2_028_AUTO_MAIN_PHASE_ON_MOVE_ACTIVATE_TWO_ENERGY_ABILITY_ID,
@@ -6022,6 +6087,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: SP_BP2_010_LIVE_START_EFFECT_TEXT,
     notes:
       '单卡 workflow `sp-bp2-010-margarete.ts`；结算时重新确认来源实例仍在己方舞台，且舞台存在 sourceCardId 以外的成员实例（同名也算）。满足时写入 CHEER_COUNT -8 live modifier，不改变 BLADE。',
+  },
+  {
+    abilityId: SP_BP2_011_ON_ENTER_OPPONENT_CHOOSES_DISTINCT_LIVE_RECOVERY_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp2-011'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_BP2_011_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 ON_ENTER workflow；第一步由控制者从自己休息室选择 exactly 2 张不同卡名 LIVE，第二步由对手从这2张中选择1张，被选中卡复用 recoverCardsFromWaitingRoomToHandForPlayer 加入控制者手牌。若休息室不存在2张不同名 LIVE，消费 pending no-op；两步均重查目标仍在控制者休息室且仍为 LIVE。',
   },
   {
     abilityId: BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,

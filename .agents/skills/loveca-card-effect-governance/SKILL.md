@@ -303,6 +303,12 @@ git diff -- src/application/card-effect-runner.ts
 git diff --check
 ```
 
+触及 `definitions/index.ts` 的 `effectText` / `activatedUi`，或触及动态 `activeEffect.effectText` / `stepText` / `selectionLabel` / `selectableOptions` / 按钮文案时，除 focused workflow 测试外必须补跑：
+
+```bash
+./node_modules/.bin/vitest run tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts
+```
+
 如本机需要指定 Node runtime，可在执行时自行把对应 `bin` 目录加入 `PATH`；不要在 skill 中写死个人机器路径。
 
 ### 文档

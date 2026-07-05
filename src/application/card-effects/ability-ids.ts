@@ -393,6 +393,10 @@ export const SP_BP5_222_LIVE_START_PAY_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-bp5-222:live-start-pay-energy-place-waiting-energy';
 export const SP_BP5_007_ON_ENTER_DISCARD_LOOK_TOP_DISTINCT_GROUPS_ABILITY_ID =
   'PL!SP-bp5-007:on-enter-discard-look-distinct-groups';
+export const SP_PB1_003_ON_ENTER_ROTATE_BOTH_PLAYERS_STAGE_ABILITY_ID =
+  'PL!SP-pb1-003:on-enter-rotate-both-players-stage';
+export const SP_PB1_025_LIVE_START_ENTERED_OR_MOVED_FIVEYNCRISE_REQUIREMENT_ABILITY_ID =
+  'PL!SP-pb1-025:live-start-entered-or-moved-fiveyncrise-requirement';
 export const SP_PB1_008_ON_ENTER_DRAW_SELF_POSITION_CHANGE_ABILITY_ID =
   'PL!SP-pb1-008:on-enter-draw-self-position-change';
 export const SP_PB1_020_AUTO_ON_MOVE_DRAW_ONE_ABILITY_ID = 'PL!SP-pb1-020:auto-on-move-draw-one';
@@ -450,6 +454,8 @@ export const SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID =
   'PL!SP-pb2-010:live-start-discard-or-return-energy';
 export const SP_PB2_010_LIVE_SUCCESS_DRAW_TWO_OR_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-pb2-010:live-success-draw-two-or-place-waiting-energy';
+export const SP_BP2_011_ON_ENTER_OPPONENT_CHOOSES_DISTINCT_LIVE_RECOVERY_ABILITY_ID =
+  'PL!SP-bp2-011:on-enter-opponent-chooses-distinct-live-recovery';
 export const SP_PB2_011_AUTO_CENTER_MEMBER_MOVED_CHOOSE_BLADE_WAIT_OR_DRAW_ABILITY_ID =
   'PL!SP-pb2-011:auto-center-member-moved-choose-blade-wait-or-draw';
 export const SP_PB2_011_LIVE_START_SELF_POSITION_CHANGE_ABILITY_ID =
@@ -619,6 +625,8 @@ export const SP_BP2_001_ON_ENTER_SUPPRESS_LIELLA_MEMBER_LIVE_START_RECOVER_LIELL
   'PL!SP-bp2-001:on-enter-suppress-liella-member-live-start-recover-liella-card';
 export const SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID =
   'PL!SP-bp2-002-R:on-enter-look-top-take-high-cost-card';
+export const SP_BP2_003_AUTO_ON_MOVE_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-bp2-003:auto-on-move-place-waiting-energy';
 export const LL_BP6_001_ON_ENTER_LOOK_TOP_SIX_TAKE_TWO_ABILITY_ID =
   'LL-bp6-001:on-enter-look-top-six-take-two';
 export const LL_BP6_001_LIVE_START_DISCARD_NAMED_MEMBERS_GAIN_HEARTS_ABILITY_ID =
@@ -675,6 +683,8 @@ export const GENERIC_ON_ENTER_SELF_POSITION_CHANGE_ABILITY_ID =
   'member:on-enter-self-position-change';
 export const SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID =
   'PL!SP-bp4-011-P:auto-enter-or-move-wait-opponent-low-blade-member';
+export const SP_BP4_007_AUTO_ON_MOVE_RECOVER_LOW_SCORE_LIELLA_LIVE_ABILITY_ID =
+  'PL!SP-bp4-007:auto-on-move-recover-low-score-liella-live';
 export const HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID =
   'PL!HS-bp2-002-P:on-enter-take-up-to-two-low-cost-members';
 export const HS_BP2_002_CONTINUOUS_OTHER_HIGHER_COST_GAIN_THREE_BLADE_ABILITY_ID =
