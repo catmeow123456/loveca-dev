@@ -1,4 +1,9 @@
+import { getCardById } from '../entities/game.js';
 import type { GameState, MemberActivePhaseSkipState } from '../entities/game.js';
+import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
+
+const CONTINUOUS_ACTIVE_PHASE_NOT_ACTIVE_BASE_CARD_CODES = ['PL!N-bp5-006'] as const;
 
 export interface AddMemberActivePhaseSkipOptions {
   readonly playerId: string;
@@ -59,4 +64,30 @@ export function consumeMemberActivePhaseSkipsForPlayer(
     },
     skippedMemberCardIds,
   };
+}
+
+export function collectContinuousActivePhaseSkippedMemberCardIds(
+  game: GameState,
+  playerId: string
+): readonly string[] {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return [];
+  }
+
+  return Object.values(SlotPosition).flatMap((slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    const cardState = cardId ? player.memberSlots.cardStates.get(cardId) : undefined;
+    const card = cardId ? getCardById(game, cardId) : null;
+    if (
+      cardId &&
+      cardState?.orientation === OrientationState.WAITING &&
+      CONTINUOUS_ACTIVE_PHASE_NOT_ACTIVE_BASE_CARD_CODES.some((baseCardCode) =>
+        cardCodeMatchesBase(card?.data.cardCode ?? '', baseCardCode)
+      )
+    ) {
+      return [cardId];
+    }
+    return [];
+  });
 }

@@ -293,6 +293,22 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    baseCardCodes: ['PL!N-bp5-002'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceMainStageMember(game, playerId, sourceCardId) &&
+      sourceHasStrictlyMostEffectiveHeartsOnStage(game, playerId, sourceCardId)
+        ? [
+            {
+              kind: 'SCORE',
+              playerId,
+              countDelta: 1,
+              sourceCardId,
+              abilityId: N_BP5_002_CONTINUOUS_STAGE_MOST_HEARTS_LIVE_SCORE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
     baseCardCodes: ['PL!SP-bp5-012'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!hasLiellaLiveWithRequirementTotalAtLeast(game, playerId, 8)) {
@@ -811,6 +827,8 @@ const BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID =
   'PL!-bp4-002:continuous-live-without-timing-purple-heart';
 const BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID =
   'PL!-bp5-003:continuous-three-different-names-yellow-heart';
+const N_BP5_002_CONTINUOUS_STAGE_MOST_HEARTS_LIVE_SCORE_ABILITY_ID =
+  'PL!N-bp5-002:continuous-stage-most-hearts-live-score';
 const SP_BP5_012_CONTINUOUS_LIELLA_LIVE_REQUIREMENT_EIGHT_YELLOW_HEART_ABILITY_ID =
   'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart';
 const SP_BP5_011_CONTINUOUS_SLOT_HEARTS_ABILITY_ID = 'PL!SP-bp5-011:continuous-slot-hearts';
@@ -1245,6 +1263,33 @@ function getSourceMainStageSlot(
 ): SlotPosition | null {
   const player = game.players.find((candidate) => candidate.id === playerId);
   return MEMBER_SLOT_ORDER.find((slot) => player?.memberSlots.slots[slot] === sourceCardId) ?? null;
+}
+
+function sourceHasStrictlyMostEffectiveHeartsOnStage(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  const liveModifiers = game.liveResolution.liveModifiers;
+  const sourceHeartCount = countEffectiveMemberHearts(game, playerId, sourceCardId, liveModifiers);
+  const otherStageMemberHeartCounts = game.players.flatMap((player) =>
+    getAllMemberCardIds(player.memberSlots)
+      .filter((cardId) => cardId !== sourceCardId)
+      .map((cardId) => countEffectiveMemberHearts(game, player.id, cardId, liveModifiers))
+  );
+  return otherStageMemberHeartCounts.every((heartCount) => sourceHeartCount > heartCount);
+}
+
+function countEffectiveMemberHearts(
+  game: GameState,
+  playerId: string,
+  memberCardId: string,
+  liveModifiers: readonly LiveModifierState[]
+): number {
+  return getMemberEffectiveHeartIcons(game, playerId, memberCardId, liveModifiers).reduce(
+    (total, heart) => total + heart.count,
+    0
+  );
 }
 
 function countEnergyBelowSourceMember(

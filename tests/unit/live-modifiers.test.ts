@@ -104,8 +104,114 @@ const PL_N_BP1_012_CONTINUOUS_ABILITY_ID =
   'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
 const SP_BP2_010_CONTINUOUS_REQUIREMENT_ABILITY_ID =
   'PL!SP-bp2-010:continuous-opponent-live-requirement-plus-one';
+const N_BP5_002_CONTINUOUS_ABILITY_ID =
+  'PL!N-bp5-002:continuous-stage-most-hearts-live-score';
+
+function createStageMember(
+  cardCode: string,
+  ownerId: string,
+  instanceId: string,
+  heartCount: number
+) {
+  return createCardInstance(
+    {
+      cardCode,
+      name: cardCode,
+      groupNames: ['虹ヶ咲'],
+      cardType: CardType.MEMBER,
+      cost: 1,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.PINK, heartCount)],
+    },
+    ownerId,
+    instanceId
+  );
+}
+
+function placeMemberOnStage(
+  game: ReturnType<typeof createGameState>,
+  playerId: string,
+  slot: SlotPosition,
+  cardId: string
+) {
+  return updatePlayer(game, playerId, (player) => ({
+    ...player,
+    memberSlots: placeCardInSlot(player.memberSlots, slot, cardId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    }),
+  }));
+}
 
 describe('live modifier helpers', () => {
+  it('adds score when PL!N-bp5-002 has strictly more effective Hearts than every other stage member', () => {
+    const source = createStageMember('PL!N-bp5-002-R', 'p1', 'n-bp5-002-source', 2);
+    const ownOther = createStageMember('OTHER-OWN', 'p1', 'own-other', 1);
+    const opponentOther = createStageMember('OTHER-OPPONENT', 'p2', 'opponent-other', 1);
+    let game = createGameState('n-bp5-002-most-hearts', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source, ownOther, opponentOther]);
+    game = placeMemberOnStage(game, 'p1', SlotPosition.CENTER, source.instanceId);
+    game = placeMemberOnStage(game, 'p1', SlotPosition.LEFT, ownOther.instanceId);
+    game = placeMemberOnStage(game, 'p2', SlotPosition.RIGHT, opponentOther.instanceId);
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'SCORE',
+      playerId: 'p1',
+      countDelta: 1,
+      sourceCardId: source.instanceId,
+      abilityId: N_BP5_002_CONTINUOUS_ABILITY_ID,
+    });
+  });
+
+  it('does not add score when PL!N-bp5-002 ties another stage member Heart count', () => {
+    const source = createStageMember('PL!N-bp5-002-R', 'p1', 'n-bp5-002-source', 2);
+    const opponentOther = createStageMember('OTHER-OPPONENT', 'p2', 'opponent-other', 2);
+    let game = createGameState('n-bp5-002-heart-tie', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source, opponentOther]);
+    game = placeMemberOnStage(game, 'p1', SlotPosition.CENTER, source.instanceId);
+    game = placeMemberOnStage(game, 'p2', SlotPosition.RIGHT, opponentOther.instanceId);
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(
+      modifiers.some(
+        (modifier) =>
+          modifier.kind === 'SCORE' &&
+          modifier.abilityId === N_BP5_002_CONTINUOUS_ABILITY_ID &&
+          modifier.sourceCardId === source.instanceId
+      )
+    ).toBe(false);
+  });
+
+  it('uses existing live modifiers, without recursive collection, for PL!N-bp5-002 Heart comparison', () => {
+    const source = createStageMember('PL!N-bp5-002-R', 'p1', 'n-bp5-002-source', 1);
+    const opponentOther = createStageMember('OTHER-OPPONENT', 'p2', 'opponent-other', 2);
+    let game = createGameState('n-bp5-002-effective-hearts', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source, opponentOther]);
+    game = placeMemberOnStage(game, 'p1', SlotPosition.CENTER, source.instanceId);
+    game = placeMemberOnStage(game, 'p2', SlotPosition.RIGHT, opponentOther.instanceId);
+    game = addLiveModifier(game, {
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      sourceCardId: source.instanceId,
+      abilityId: 'test-existing-heart',
+      hearts: [createHeartIcon(HeartColor.YELLOW, 2)],
+    });
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'SCORE',
+      playerId: 'p1',
+      countDelta: 1,
+      sourceCardId: source.instanceId,
+      abilityId: N_BP5_002_CONTINUOUS_ABILITY_ID,
+    });
+  });
+
   it('creates source-member Heart modifiers when the member is the source card', () => {
     const source = createCardInstance(
       {
