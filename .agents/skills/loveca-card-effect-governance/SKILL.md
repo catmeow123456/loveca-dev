@@ -242,6 +242,7 @@ git diff -- src/application/card-effect-runner.ts
 ### Effect text / icon token
 
 - `client/src/lib/cardEffectTokens.ts` 会把效果文本里的 `【...】` 与 `[...]` 占位文本转换为前端图标或样式。卡效定义里的 `effectText` 必须使用该文件已支持的字面量，不要随手发明新的括号文本。
+- “效果文本用中文”只要求自然语言规则说明使用中文；不要翻译已经由 `cardEffectTokens.ts` 映射的 token。正确示例：`[桃ハート]`、`[赤ハート]`、`[BLADE]`、`[スコア]`。错误示例：`[桃Heart]`、`[红Heart]`、`[blade]`、`[score]`。
 - 前台卡牌详情的效果文本应走卡牌数据本身的 `cardTextCn` / `cardTextJp`，而不是从 `definitions/index.ts` 反推。同步源优先使用 Excel `多行中文效果` -> `card_text_cn`，中文存在时应作为卡牌详情的第一展示文本。
 - `definitions/index.ts` 的 `effectText` 用于 pending / activeEffect / 处理窗口展示。新增或修正卡效时，优先直接采用 Excel `多行中文效果` 的卡牌效果描述，只做已支持 token 的等价替换；不要自行总结、缩写或改写成规则摘要。Excel 中文缺失时，才用日文原文或当前最可靠来源兜底，并在审查/收尾中说明。
 - 对无交互、有条件触发的 `LIVE开始` / `LIVE成功` 处理窗口，`definitions/index.ts` 的原始效果文本只负责说明卡牌效果本体；manual confirmation 的 `effectText` 必须在其后追加实时条件状态和实际结果，避免玩家只能看到“可以/如果”的卡文却不知道当前是否满足。若不追加，必须明确说明例外理由。
@@ -252,6 +253,7 @@ git diff -- src/application/card-effect-runner.ts
 - 遇到 BLADE、Heart、费用、分数等会显示为图标的内容时，先查现有映射。例如 BLADE 应使用已映射的 `[BLADE]` / `[ブレード]` 等形式，Heart 应使用已映射的 `[赤ハート]`、`[黄ハート]`、`[紫HEART]` 等形式；不要把应图标化的文本写成未映射的 `[红Heart]`、`[blade]`、`[heart]` 或混用大小写/语言导致前端无法识别。
 - 如果真实新卡需要的图标 token 当前没有映射，先明确这是前端 token 覆盖缺口：要么改用已有等价 token，要么在同一执行窗口同步扩展 `cardEffectTokens.ts` 与对应 token 测试；不要只在 `definitions/index.ts` 写一个无法转换的临时文本。
 - 文档说明可以用自然语言描述 Heart / BLADE，但面向 UI 渲染的 `effectText` 必须保持 token 兼容。审查收尾时若本批触及 Heart/BLADE/COST/score 文本，需要报告已核对 token 映射。
+- 对动态 `activeEffect.effectText` / `stepText` / `selectionLabel` 等前台文案，同样适用中文自然语言 + 映射 token 原样保留的规则；新增动态窗口测试时应断言关键文案不含未映射 token 和明显日文规则句式。
 
 ### Trigger matcher
 

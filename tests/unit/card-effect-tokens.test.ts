@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { parseCardEffectText } from '../../client/src/lib/cardEffectTokens';
+import {
+  getUnknownCardEffectPlaceholders,
+  parseCardEffectText,
+} from '../../client/src/lib/cardEffectTokens';
 
 describe('parseCardEffectText', () => {
   it('parses Loveca timing and modifier placeholders', () => {
@@ -68,5 +71,11 @@ describe('parseCardEffectText', () => {
       { kind: 'heart', raw: '[无色HEART]', label: '无色HEART', icon: 'heart_gray' },
       { kind: 'text', text: '。' },
     ]);
+  });
+
+  it('reports unknown placeholders for governance checks', () => {
+    expect(
+      getUnknownCardEffectPlaceholders('获得[BLADE][桃ハート]，但不要写[桃Heart]或[blade]。')
+    ).toEqual(['[桃Heart]', '[blade]']);
   });
 });

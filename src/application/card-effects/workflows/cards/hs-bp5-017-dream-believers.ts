@@ -78,7 +78,7 @@ function startHsBp5017LiveStart(
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
       controllerId: ability.controllerId,
-      effectText: getAbilityEffectText(ability.abilityId),
+      effectText: getHsBp5017DreamBelieversEffectText(game, player.id, ability.sourceCardId),
       stepId: HS_BP5_017_PAY_ENERGY_STEP_ID,
       stepText: '可以支付1张活跃能量发动此效果。',
       awaitingPlayerId: player.id,
@@ -202,6 +202,21 @@ function getHsBp5017DreamBelieversCondition(
     matchingStageMembers,
     conditionMet: sourceInLiveZone && matchingStageMembers.length >= 2,
   };
+}
+
+function getHsBp5017DreamBelieversEffectText(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): string {
+  const condition = getHsBp5017DreamBelieversCondition(game, playerId, sourceCardId);
+  const sourceStatus = condition.sourceInLiveZone ? '来源LIVE在LIVE区' : '来源LIVE不在LIVE区';
+  const conditionStatus = condition.conditionMet
+    ? '满足条件，支付后此LIVE分数+1'
+    : '未满足条件，支付后不增加分数';
+  return `${getAbilityEffectText(
+    HS_BP5_017_LIVE_START_PAY_ENERGY_DIFFERENT_UNITS_THIS_LIVE_SCORE_ABILITY_ID
+  )}（${sourceStatus}，当前可匹配小队名各不相同成员 ${condition.matchingStageMembers.length}名，${conditionStatus}）`;
 }
 
 function addScoreModifierAndRefresh(

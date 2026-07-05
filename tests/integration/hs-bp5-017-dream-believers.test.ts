@@ -266,6 +266,9 @@ describe('PL!HS-bp5-017 Dream Believers workflow', () => {
       'pay',
       'decline',
     ]);
+    expect(state.activeEffect?.effectText).toContain('【LIVE开始时】可以支付[E]');
+    expect(state.activeEffect?.effectText).toContain('当前可匹配小队名各不相同成员 2名');
+    expect(state.activeEffect?.effectText).toContain('满足条件，支付后此LIVE分数+1');
     state = confirmOption(state, 'pay');
 
     expect(payCostActions(state)).toHaveLength(1);
@@ -327,7 +330,9 @@ describe('PL!HS-bp5-017 Dream Believers workflow', () => {
       activeEnergyCount: 1,
     });
 
-    const state = confirmOption(resolve(withDreamBelieversPending(scenario.game, scenario.liveId)), 'pay');
+    const preview = resolve(withDreamBelieversPending(scenario.game, scenario.liveId));
+    expect(preview.activeEffect?.effectText).toContain('未满足条件，支付后不增加分数');
+    const state = confirmOption(preview, 'pay');
 
     expect(payCostActions(state)).toHaveLength(1);
     expect(state.players[0].energyZone.cardStates.get(scenario.energyIds[0])?.orientation).toBe(

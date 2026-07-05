@@ -323,7 +323,10 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       ],
     };
 
-    const resolved = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState);
+    const preview = resolvePendingCardEffects(game).gameState;
+    expect(preview.activeEffect?.effectText).toContain('当前声援[スコア]Aqours LIVE 1张');
+    expect(preview.activeEffect?.effectText).not.toContain('当前中央声援');
+    const resolved = confirmIfConfirmOnly(preview);
 
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
     expect(resolved.liveResolution.liveModifiers).toContainEqual({

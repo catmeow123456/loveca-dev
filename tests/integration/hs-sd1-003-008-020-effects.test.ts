@@ -279,6 +279,8 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
   it('PL!HS-sd1-003-SD pays energy and gives another Hasunosora member Heart and BLADE', () => {
     const setup = setup003({});
     const paid = chooseOption(setup.state, 'pay');
+    expect(paid.activeEffect?.selectableOptions).toBeUndefined();
+    expect(paid.activeEffect?.stepText).toContain('[桃ハート]');
     const resolved = chooseCard(paid, setup.target.instanceId);
 
     expect(resolved.players[0]!.energyZone.cardStates.get('energy-0')?.orientation).toBe(

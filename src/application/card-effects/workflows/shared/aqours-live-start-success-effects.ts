@@ -147,7 +147,7 @@ function getRubyLiveSuccessConfirmationEffectText(
   const matchingCardCount = player
     ? getRubyLiveSuccessMatchingCardIds(game, player.id).length
     : 0;
-  return `${getAbilityEffectText(ability.abilityId)}（当前中心声援[スコア]Aqours LIVE ${matchingCardCount}张，${
+  return `${getAbilityEffectText(ability.abilityId)}（当前声援[スコア]Aqours LIVE ${matchingCardCount}张，${
     matchingCardCount > 0 ? '满足条件，分数+1' : '未满足条件，不增加分数'
   }）`;
 }
