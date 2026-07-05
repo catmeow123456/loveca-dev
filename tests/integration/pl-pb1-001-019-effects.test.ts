@@ -16,6 +16,7 @@ import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src
 import {
   addHeartLiveModifierForMember,
   isLiveAbilitySuppressed,
+  suppressLiveAbility,
 } from '../../src/domain/rules/live-modifiers';
 import {
   createActivateAbilityCommand,
@@ -156,13 +157,18 @@ function setup019(options: {
   readonly redHeartCount: number;
   readonly includeSourceInLiveZone?: boolean;
   readonly opponentEnergyCount?: number;
+  readonly secondSource?: boolean;
 }): {
   readonly game: GameState;
   readonly source: CardInstance<LiveCardData>;
+  readonly secondSource: CardInstance<LiveCardData> | null;
   readonly members: readonly CardInstance<MemberCardData>[];
   readonly opponentEnergy: readonly CardInstance<EnergyCardData>[];
 } {
   const source = instance(createLive('PL!S-pb1-019-L', 3), 'genki-live');
+  const secondSource = options.secondSource
+    ? instance(createLive('PL!S-pb1-019-L', 3), 'genki-live-2')
+    : null;
   const memberCount = options.redHeartCount === 0 ? 0 : Math.min(3, options.redHeartCount);
   const members = Array.from({ length: memberCount }, (_, index) => {
     const remaining = options.redHeartCount - index;
@@ -183,16 +189,24 @@ function setup019(options: {
   );
 
   let game = createGameState('pl-s-pb1-019', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, [source, ...members, ...opponentEnergy]);
+  game = registerCards(game, [
+    source,
+    ...(secondSource ? [secondSource] : []),
+    ...members,
+    ...opponentEnergy,
+  ]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
-    liveZone:
-      options.includeSourceInLiveZone === false
-        ? player.liveZone
-        : addCardToStatefulZone(player.liveZone, source.instanceId, {
-            orientation: OrientationState.ACTIVE,
-            face: FaceState.FACE_UP,
-          }),
+    liveZone: [source, ...(secondSource ? [secondSource] : [])].reduce(
+      (zone, liveCard) =>
+        options.includeSourceInLiveZone === false
+          ? zone
+          : addCardToStatefulZone(zone, liveCard.instanceId, {
+              orientation: OrientationState.ACTIVE,
+              face: FaceState.FACE_UP,
+            }),
+      player.liveZone
+    ),
     memberSlots: members.reduce((slots, member, index) => {
       const slot = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][index % 3]!;
       return placeCardInSlot(slots, slot, member.instanceId, {
@@ -216,11 +230,15 @@ function setup019(options: {
         ...game.liveResolution,
         isInLive: true,
         performingPlayerId: PLAYER1,
-        liveResults: new Map([[source.instanceId, true]]),
+        liveResults: new Map([
+          [source.instanceId, true],
+          ...(secondSource ? ([[secondSource.instanceId, true]] as const) : []),
+        ]),
         playerScores: new Map([[PLAYER1, source.data.score]]),
       },
     },
     source,
+    secondSource,
     members,
     opponentEnergy,
   };
@@ -359,6 +377,32 @@ describe('PL!-pb1-001 and PL!S-pb1-019 workflows', () => {
       )
     ).toBe(false);
     expect(liveSuccessQueued.activeEffect).toBeNull();
+  });
+
+  it('PL!S-pb1-019 suppression only skips the matching LIVE source card', () => {
+    const { game, source, secondSource } = setup019({
+      redHeartCount: 0,
+      secondSource: true,
+    });
+    expect(secondSource).not.toBeNull();
+
+    const liveSuccessQueued = enqueueTriggeredCardEffects(
+      suppressLiveAbility(game, {
+        sourceCardId: source.instanceId,
+        suppressedAbilityId: PL_S_PB1_019_LIVE_SUCCESS_PLACE_OPPONENT_WAITING_ENERGY_ABILITY_ID,
+        abilityId: PL_S_PB1_019_LIVE_START_AQOURS_RED_HEART_SUPPRESS_SUCCESS_ABILITY_ID,
+      }),
+      [TriggerCondition.ON_LIVE_SUCCESS]
+    );
+
+    const matchingPending = liveSuccessQueued.pendingAbilities.filter(
+      (ability) =>
+        ability.abilityId ===
+        PL_S_PB1_019_LIVE_SUCCESS_PLACE_OPPONENT_WAITING_ENERGY_ABILITY_ID
+    );
+    expect(matchingPending.map((ability) => ability.sourceCardId)).toEqual([
+      secondSource!.instanceId,
+    ]);
   });
 
   it('PL!S-pb1-019 LIVE_SUCCESS no-ops safely when opponent energy deck is empty', () => {

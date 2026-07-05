@@ -197,6 +197,28 @@ describe('PL!N-bp5-011 Mia Taylor on-enter distinct LIVE recovery workflow', () 
     ]);
   });
 
+  it('does not treat three same-name same-group LIVE instances as distinct names', () => {
+    const { game } = setupMiaOnEnter({
+      waitingLives: [
+        createLive('Same Live', ['虹ヶ咲']),
+        createLive('Same Live', ['虹ヶ咲']),
+        createLive('Same Live', ['虹ヶ咲']),
+      ],
+    });
+    const state = resolvePendingCardEffects(game).gameState;
+
+    expect(state.activeEffect).toBeNull();
+    expect(state.pendingAbilities).toEqual([]);
+    expect(
+      state.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === N_BP5_011_ON_ENTER_CHOOSE_DISTINCT_LIVE_RECOVERY_ABILITY_ID &&
+          action.payload.step === 'NO_DISTINCT_LIVE_RECOVERY_MODE'
+      )
+    ).toBe(true);
+  });
+
   it('consumes the pending ability as no-op when neither condition is met', () => {
     const { game } = setupMiaOnEnter({
       waitingLives: [createLive('Live A', ['虹ヶ咲']), createLive('Live B', ['Aqours'])],

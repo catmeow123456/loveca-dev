@@ -320,8 +320,13 @@ describe('PL!N-bp5-012 Lanzhu activated and live-success workflows', () => {
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.abilityId ===
             N_BP5_012_LIVE_SUCCESS_LEADING_SCORE_PLACE_WAITING_ENERGY_BY_BELOW_ABILITY_ID
-      )?.payload.requestedEnergyCount
-    ).toBe(4);
+      )?.payload
+    ).toMatchObject({
+      requestedEnergyCount: 4,
+      availableEnergyCount: 2,
+      placedEnergyCardIds: scenario.energyDeckCards.map((card) => card.instanceId),
+    });
+    expect(result.pendingAbilities).toEqual([]);
   });
 
   it('resolves multiple live-success pending abilities in order without confirm-only prompts', () => {

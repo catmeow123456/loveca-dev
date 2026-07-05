@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  placeCardInSlot,
+  removeCardFromSlot,
+} from '../../src/domain/entities/zone';
 import {
   addMemberActivePhaseSkip,
   consumeMemberActivePhaseSkipsForPlayer,
@@ -188,6 +192,57 @@ describe('member active phase skips', () => {
     expect(second.gameState.players[0].energyZone.cardStates.get(energy.instanceId)?.orientation).toBe(
       OrientationState.ACTIVE
     );
+  });
+
+  it('does not wait an active PL!N-bp5-006 or keep applying after it leaves stage', () => {
+    const activeKanata = createCardInstance(createMember('PL!N-bp5-006-R'), PLAYER1, 'active-kanata');
+    const leftKanata = createCardInstance(createMember('PL!N-bp5-006-P'), PLAYER1, 'left-kanata');
+    const other = createCardInstance(createMember('OTHER'), PLAYER1, 'other-member');
+    let game = createGameState('n-bp5-006-active-and-left-stage', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [activeKanata, leftKanata, other]);
+    game = updatePlayer(game, PLAYER1, (player) => {
+      const withCards = placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, activeKanata.instanceId, {
+            orientation: OrientationState.ACTIVE,
+            face: FaceState.FACE_UP,
+          }),
+          SlotPosition.LEFT,
+          leftKanata.instanceId,
+          {
+            orientation: OrientationState.WAITING,
+            face: FaceState.FACE_UP,
+          }
+        ),
+        SlotPosition.RIGHT,
+        other.instanceId,
+        {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }
+      );
+      return {
+        ...player,
+        memberSlots: removeCardFromSlot(withCards, SlotPosition.LEFT),
+      };
+    });
+
+    const result = new GameService().advancePhase(prepareActivePhaseAdvance(game));
+
+    expect(result.success).toBe(true);
+    expect(
+      result.gameState.players[0].memberSlots.cardStates.get(activeKanata.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(
+      result.gameState.players[0].memberSlots.cardStates.get(other.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(
+      result.gameState.eventLog.some(
+        (entry) =>
+          entry.event.eventType === 'ON_MEMBER_STATE_CHANGED' &&
+          entry.event.cardInstanceId === activeKanata.instanceId
+      )
+    ).toBe(false);
   });
 
   it('keeps player 2 PL!N-bp5-006 waiting during player 2 own active phase without touching player 1 PL!N-bp5-006', () => {

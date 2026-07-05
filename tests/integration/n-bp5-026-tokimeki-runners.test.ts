@@ -312,6 +312,7 @@ describe('PL!N-bp5-026 TOKIMEKI Runners workflows', () => {
   it('consumes live-success pending as no-op when score is not 3 or there is no target', () => {
     for (const options of [
       { liveScore: 2, waitingNijigasaki: true },
+      { liveScore: 4, waitingNijigasaki: true },
       { liveScore: 3, waitingNijigasaki: false },
     ] as const) {
       const result = confirmIfConfirmOnly(
@@ -327,5 +328,44 @@ describe('PL!N-bp5-026 TOKIMEKI Runners workflows', () => {
       expect(result.pendingAbilities).toEqual([]);
       expect(result.players[0]!.hand.cardIds).toEqual([]);
     }
+  });
+
+  it('uses this LIVE score, not player total score or another LIVE score modifier', () => {
+    let game = setupTokimekiScenario({
+      liveScore: 2,
+      waitingNijigasaki: true,
+      abilityId: N_BP5_026_LIVE_SUCCESS_SCORE_THREE_RECOVER_NIJIGASAKI_CARD_ABILITY_ID,
+    });
+    game = updateLiveResolution(game, (liveResolution) => ({
+      ...liveResolution,
+      playerScores: new Map([[PLAYER1, 3]]),
+      liveModifiers: [
+        ...liveResolution.liveModifiers,
+        {
+          kind: 'SCORE',
+          playerId: PLAYER1,
+          countDelta: 1,
+          liveCardId: 'another-live',
+          sourceCardId: 'another-live',
+          abilityId: 'test:another-live-score',
+        },
+      ],
+    }));
+
+    const result = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState, PLAYER1);
+
+    expect(result.pendingAbilities).toEqual([]);
+    expect(result.players[0]!.hand.cardIds).toEqual([]);
+    expect(
+      result.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            N_BP5_026_LIVE_SUCCESS_SCORE_THREE_RECOVER_NIJIGASAKI_CARD_ABILITY_ID
+      )?.payload
+    ).toMatchObject({
+      step: 'LIVE_SCORE_NOT_THREE',
+      currentScore: 2,
+    });
   });
 });
