@@ -9,6 +9,7 @@ import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/ca
 import {
   addAction,
   getCardById,
+  getOpponent,
   getPlayerById,
   type GameAction,
   type GameState,
@@ -51,6 +52,8 @@ import {
   HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
   PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
+  PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID,
+  PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
   S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
@@ -74,6 +77,9 @@ const HS_BP2_025_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
 const BP4_021_SUCCESS_SCORE_MODIFIER_STEP_ID = 'BP4_021_SUCCESS_SCORE_MODIFIER';
 const S_BP6_010_RED_REQUIREMENT_GAIN_HEART_STEP_ID = 'S_BP6_010_RED_REQUIREMENT_GAIN_HEART';
 const HS_SD1_018_DREAM_BELIEVERS_SCORE_STEP_ID = 'HS_SD1_018_DREAM_BELIEVERS_SCORE';
+const PL_PB1_029_LILYWHITE_SCORE_STEP_ID = 'PL_PB1_029_LILYWHITE_SCORE';
+const PL_PB1_030_OPPONENT_WAITING_REQUIREMENT_STEP_ID =
+  'PL_PB1_030_OPPONENT_WAITING_REQUIREMENT';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -306,6 +312,18 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
       };
     },
     finish: finishHsSd1018DreamBelieversScoreBonus,
+  },
+  {
+    abilityId: PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID,
+    stepId: PL_PB1_029_LILYWHITE_SCORE_STEP_ID,
+    getStartContext: getPlPb1029LilywhiteScoreStartContext,
+    finish: finishPlPb1029LilywhiteScoreBonus,
+  },
+  {
+    abilityId: PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
+    stepId: PL_PB1_030_OPPONENT_WAITING_REQUIREMENT_STEP_ID,
+    getStartContext: getPlPb1030OpponentWaitingRequirementStartContext,
+    finish: finishPlPb1030OpponentWaitingRequirementReduction,
   },
 ];
 
@@ -667,6 +685,189 @@ function getHsSd1018DreamBelieversCondition(
     dreamBelieversLiveCount: dreamBelieversLiveCardIds.length,
     dreamBelieversLiveCardIds,
     conditionMet: hasunosoraStageMemberCount >= 3 && dreamBelieversLiveCardIds.length > 0,
+  };
+}
+
+function getPlPb1029LilywhiteScoreStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const condition = getPlPb1029LilywhiteScoreCondition(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(
+      PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID
+    )}（成功LIVE ${condition.successLiveCount}张，舞台成员 ${condition.stageMemberCount}名，其中 lilywhite ${condition.lilywhiteStageMemberCount}名，${
+      condition.conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'
+    }）`,
+    actionPayload: {
+      successLiveCount: condition.successLiveCount,
+      stageMemberCount: condition.stageMemberCount,
+      lilywhiteStageMemberCount: condition.lilywhiteStageMemberCount,
+      scoreBonus: condition.conditionMet ? 1 : 0,
+    },
+  };
+}
+
+function finishPlPb1029LilywhiteScoreBonus(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const condition = getPlPb1029LilywhiteScoreCondition(game, effect, playerId);
+  const scoreBonus = condition.conditionMet ? 1 : 0;
+  let state: GameState = {
+    ...game,
+    activeEffect: null,
+  };
+  if (scoreBonus > 0) {
+    state = addLiveModifier(state, {
+      kind: 'SCORE',
+      playerId,
+      countDelta: scoreBonus,
+      liveCardId: effect.sourceCardId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    });
+    state = refreshPlayerScoreDraft(state, playerId, scoreBonus);
+  }
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_LILYWHITE_SCORE_BONUS',
+      conditionMet: condition.conditionMet,
+      sourceInLiveZone: condition.sourceInLiveZone,
+      successLiveCount: condition.successLiveCount,
+      stageMemberCount: condition.stageMemberCount,
+      lilywhiteStageMemberCount: condition.lilywhiteStageMemberCount,
+      scoreBonus,
+    },
+  };
+}
+
+function getPlPb1029LilywhiteScoreCondition(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly successLiveCount: number;
+  readonly stageMemberCount: number;
+  readonly lilywhiteStageMemberCount: number;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return {
+      sourceInLiveZone: false,
+      successLiveCount: 0,
+      stageMemberCount: 0,
+      lilywhiteStageMemberCount: 0,
+      conditionMet: false,
+    };
+  }
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const successLiveCount = player.successZone.cardIds.length;
+  const stageMemberCount = getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER))
+    .length;
+  const lilywhiteStageMemberCount = getStageMemberCardIdsMatching(
+    game,
+    playerId,
+    and(typeIs(CardType.MEMBER), unitAliasIs('lilywhite'))
+  ).length;
+  const onlyLilywhite = stageMemberCount > 0 && stageMemberCount === lilywhiteStageMemberCount;
+  return {
+    sourceInLiveZone,
+    successLiveCount,
+    stageMemberCount,
+    lilywhiteStageMemberCount,
+    conditionMet: sourceInLiveZone && successLiveCount === 0 && onlyLilywhite,
+  };
+}
+
+function getPlPb1030OpponentWaitingRequirementStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const condition = getPlPb1030OpponentWaitingRequirementCondition(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(
+      PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID
+    )}（对方待机成员 ${condition.opponentWaitingMemberCount}名，${
+      condition.conditionMet ? '满足条件，减少2个[無ハート]' : '未满足条件，不减少必要[無ハート]'
+    }）`,
+    actionPayload: {
+      opponentWaitingMemberCount: condition.opponentWaitingMemberCount,
+      requirementReduction: condition.conditionMet ? 2 : 0,
+    },
+  };
+}
+
+function finishPlPb1030OpponentWaitingRequirementReduction(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const condition = getPlPb1030OpponentWaitingRequirementCondition(game, effect, playerId);
+  const reduction = condition.conditionMet ? 2 : 0;
+  const state = replaceSourceRequirementModifier(
+    {
+      ...game,
+      activeEffect: null,
+    },
+    effect,
+    reduction > 0
+      ? {
+          kind: 'REQUIREMENT',
+          liveCardId: effect.sourceCardId,
+          modifiers: [{ color: HeartColor.RAINBOW, countDelta: -reduction }],
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_OPPONENT_WAITING_REQUIREMENT_REDUCTION',
+      conditionMet: condition.conditionMet,
+      sourceInLiveZone: condition.sourceInLiveZone,
+      opponentWaitingMemberCount: condition.opponentWaitingMemberCount,
+      requirementReduction: reduction,
+    },
+  };
+}
+
+function getPlPb1030OpponentWaitingRequirementCondition(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly opponentWaitingMemberCount: number;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return { sourceInLiveZone: false, opponentWaitingMemberCount: 0, conditionMet: false };
+  }
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const opponent = getOpponent(game, playerId);
+  const opponentWaitingMemberCount = opponent
+    ? Object.values(opponent.memberSlots.slots).filter((cardId) => {
+        if (cardId === null) {
+          return false;
+        }
+        return opponent.memberSlots.cardStates.get(cardId)?.orientation === OrientationState.WAITING;
+      }).length
+    : 0;
+  return {
+    sourceInLiveZone,
+    opponentWaitingMemberCount,
+    conditionMet: sourceInLiveZone && opponentWaitingMemberCount > 0,
   };
 }
 

@@ -1,7 +1,6 @@
 import {
   addAction,
   getPlayerById,
-  updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
@@ -10,6 +9,7 @@ import {
   BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID,
   HS_BP6_028_LIVE_SUCCESS_REMAINING_HEART_LOOK_TOP_TWO_ABILITY_ID,
   HS_BP6_001_ON_ENTER_LOOK_STAGE_PLUS_TWO_ABILITY_ID,
+  HS_PB1_013_LIVE_START_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -19,17 +19,14 @@ import {
 } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
-import { enqueueInspectionCardsEnteredWaitingRoom } from '../../runtime/inspection-waiting-room-triggers.js';
+import { moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
 import {
   getAbilityEffectText,
   maybeStartConfirmablePendingAbilityConfirmation,
   maybeStartManualPendingAbilityConfirmation,
 } from '../../runtime/workflow-helpers.js';
 import { countStageMembers } from '../../../effects/conditions.js';
-import {
-  clearInspectionCards,
-  inspectTopCards,
-} from '../../../effects/look-top.js';
+import { inspectTopCards } from '../../../effects/look-top.js';
 import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.js';
 
 const START_DASH_ARRANGE_STEP_ID = 'START_DASH_ARRANGE_TOP_DECK';
@@ -37,7 +34,7 @@ const HS_BP6_001_ARRANGE_STEP_ID = 'HS_BP6_001_ARRANGE_STAGE_PLUS_TWO_TOP_DECK';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type InspectedCardDestination = 'MAIN_DECK_TOP' | 'WAITING_ROOM';
-type ArrangeInspectedDeckTopSourceActionLabel = '登场' | 'LIVE成功';
+type ArrangeInspectedDeckTopSourceActionLabel = '登场' | 'LIVE开始' | 'LIVE成功';
 
 interface ArrangeInspectedDeckTopPublicSummaryContext {
   readonly effectKind: 'ARRANGE_INSPECTED_DECK_TOP';
@@ -159,6 +156,17 @@ const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedD
     selectionLabel: '选择1张放回卡组顶',
     selectMin: 1,
     selectMax: 1,
+  },
+  {
+    abilityId: HS_PB1_013_LIVE_START_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
+    inspectCount: 2,
+    sourceActionLabel: 'LIVE开始',
+    stepId: 'HS_PB1_013_ARRANGE_TOP_TWO',
+    stepText:
+      '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
+    selectionLabel: '按卡组顶从上到下的顺序选择卡牌',
+    selectMin: 0,
+    selectMax: 2,
   },
 ];
 
@@ -399,44 +407,33 @@ export function finishArrangeInspectedDeckTopWorkflow(
     ...(effect.metadata?.selectedDestination === 'MAIN_DECK_TOP' ? uniqueSelectedCardIds : []),
     ...(effect.metadata?.unselectedDestination === 'MAIN_DECK_TOP' ? unselectedCardIds : []),
   ];
+  const waitingRoomCardIds = [
+    ...(effect.metadata?.selectedDestination === 'WAITING_ROOM' ? uniqueSelectedCardIds : []),
+    ...(effect.metadata?.unselectedDestination === 'WAITING_ROOM' ? unselectedCardIds : []),
+  ];
   const publicEffectSummaryContext = getArrangeInspectedDeckTopPublicSummaryContext(
     effect.metadata?.publicEffectSummaryContext
   );
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    mainDeck:
-      deckTopCardIds.length > 0
-        ? {
-            ...currentPlayer.mainDeck,
-            cardIds: [...deckTopCardIds, ...currentPlayer.mainDeck.cardIds],
-          }
-        : currentPlayer.mainDeck,
-    waitingRoom:
-      effect.metadata?.unselectedDestination === 'WAITING_ROOM'
-        ? {
-            ...currentPlayer.waitingRoom,
-            cardIds: [...currentPlayer.waitingRoom.cardIds, ...unselectedCardIds],
-          }
-        : currentPlayer.waitingRoom,
-  }));
-
-  state = clearInspectionCards({ ...state, activeEffect: null }, inspectedCardIds);
-  if (effect.metadata?.unselectedDestination === 'WAITING_ROOM') {
-    state = enqueueInspectionCardsEnteredWaitingRoom(
-      state,
-      player.id,
-      unselectedCardIds,
-      enqueueTriggeredCardEffects
-    );
+  const moveResult = moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
+    { ...game, activeEffect: null },
+    player.id,
+    inspectedCardIds,
+    deckTopCardIds,
+    waitingRoomCardIds,
+    enqueueTriggeredCardEffects
+  );
+  if (!moveResult) {
+    return game;
   }
+
   return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
+    addAction(moveResult.gameState, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: 'FINISH',
       selectedCardIds: uniqueSelectedCardIds,
-      waitingRoomCardIds: unselectedCardIds,
+      waitingRoomCardIds,
       ...(publicEffectSummaryContext
         ? {
             publicEffectSummary: {
@@ -453,7 +450,7 @@ export function finishArrangeInspectedDeckTopWorkflow(
               actualInspectedCount: inspectedCardIds.length,
               selectedCardIds: deckTopCardIds,
               noSelectedCards: deckTopCardIds.length === 0,
-              waitingRoomCardIds: unselectedCardIds,
+              waitingRoomCardIds,
             },
           }
         : {}),
@@ -472,7 +469,11 @@ function getArrangeInspectedDeckTopPublicSummaryContext(
   if (context.effectKind !== 'ARRANGE_INSPECTED_DECK_TOP') {
     return undefined;
   }
-  if (context.sourceActionLabel !== '登场' && context.sourceActionLabel !== 'LIVE成功') {
+  if (
+    context.sourceActionLabel !== '登场' &&
+    context.sourceActionLabel !== 'LIVE开始' &&
+    context.sourceActionLabel !== 'LIVE成功'
+  ) {
     return undefined;
   }
   if (

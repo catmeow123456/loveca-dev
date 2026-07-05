@@ -25,6 +25,28 @@
 - 新增 `tests/unit/waiting-room-judgment-stats.test.ts` 锁定统计口径，防止成员持有心被误计入休息室判心统计。
 - 验证：`pnpm --dir client exec tsc -b` passed；`pnpm test:run` passed（289 files / 2347 tests，3 performance tests skipped）；`git diff --check` passed。
 
+## 本次 2026-07-04 Liella SD2 / PR 剩余卡效补充
+
+- 已实现 `PL!SP-PR-024-PR` 费用 4「平安名すみれ」：自己普通声援时读取本次 `CheerEvent.revealedCardIds`，若公开的自己的卡中存在持有 SCORE 图标的 Liella! LIVE，来源成员获得紫 Heart +1；来源离场、非自己普通声援安全消费 pending 且不记录 turn1。
+- 已实现 `PL!SP-sd2-006-SD2` 费用 7「桜小路きな子」：起动 1 回合 1 次，支付 2 张活跃能量并弃 1 手牌后，从休息室回收 1 张 Liella! LIVE；弃手走 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`，费用后重扫目标，刚弃置的 Liella! LIVE 可被选回，无目标时费用保留 no-op。
+- 两张均为窄单卡 workflow：`workflows/cards/sp-pr-024-sumire.ts` 与 `workflows/cards/sp-sd2-006-kinako.ts`；runner 仅新增 import/register 胶水。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录真实卡文形状、workflow 入口与测试入口；本批未新增 shared helper 或 framework 边界。
+
+## 本次 2026-07-04 Liella SD2 modifier 系列补充
+
+- 已实现 `PL!SP-sd2-004-SD2` 费用 11「平安名すみれ」：常时 / CENTER 时来源成员获得 BLADE +4；离场、非 CENTER、memberBelow 不生效。
+- 已实现 `PL!SP-sd2-008-SD2` 费用 5「若菜四季」：常时动态检查自己舞台存在 effective cost >=13 的成员时，来源成员获得黄 Heart +1；费用判断沿用 `getMemberEffectiveCost`。
+- 已实现 `PL!SP-sd2-020-SD2` 费用 7「鬼塚夏美」：LIVE 开始结算时重查能量 >=7，来源成员和自己舞台上来源以外 1 名 Liella! 成员获得 BLADE +1；单目标自动、多目标选择、无其他 Liella! 目标时部分结算来源 BLADE 并消费 pending。
+- 常时两段进入 `domain/rules/live-modifiers.ts` continuous registry，不进队列；020 新增窄 workflow `workflows/cards/sp-sd2-020-natsumi.ts`，runner 仅增加 import/register 胶水。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录 3 张 SD2 卡的真实卡文形状、workflow / registry 入口与测试入口；本批未新增 framework 边界。
+
+## 本次 2026-07-04 Liella PR 同文卡效补充
+
+- 已实现 `PL!SP-PR-003-PR` 费用 2「澁谷かのん」、`PL!SP-PR-007-PR` 费用 2「葉月 恋」、`PL!SP-PR-010-PR` 费用 2「若菜四季」：登场时自己能量区 7 张以上则抽 1；能量不足消费 pending no-op。
+- 已实现 `PL!SP-PR-009-PR` 费用 9「米女メイ」、`PL!SP-PR-011-PR` 费用 9「鬼塚夏美」、`PL!SP-PR-012-PR` 费用 9「ウィーン・マルガレーテ」：LIVE 开始可弃 1 手牌，获得 BLADE；弃置 LIVE 卡时再抽 1。
+- 登场段扩展 shared `member-on-enter-draw.ts` 的能量阈值配置轴；LIVE 开始段新增 shared `live-start-discard-gain-blade-draw-if-live.ts`，弃手走 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`，runner 仅新增 import/register 胶水。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录 6 张 PR 卡的真实卡文形状、shared workflow 和测试入口；本批未新增更通用 framework 边界。
+
 ## 本次 2026-07-02 莲之空 CL1 002 卡效补充
 
 - 已实现 `PL!HS-cl1-002-CL` 费用 5「村野さやか」：登场时可支付 1 张 ACTIVE 能量；如此做时，从自己的休息室将 1 张 DOLLCHESTRA 卡片加入手牌。

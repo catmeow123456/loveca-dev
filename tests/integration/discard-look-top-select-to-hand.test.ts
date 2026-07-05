@@ -21,6 +21,7 @@ import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
+  N_BP5_009_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -2043,5 +2044,232 @@ describe('discard look top select to hand shared workflow', () => {
       topCards.map((card) => card.instanceId)
     );
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+  });
+});
+
+describe('PL!N-bp5-009 Rina wait-discard look top shared workflow', () => {
+  function setupRinaScenario(options: {
+    readonly topCards: readonly ReturnType<typeof createCardInstance>[];
+    readonly handCards?: readonly ReturnType<typeof createCardInstance>[];
+    readonly includeWaitingRoomTriggerSource?: boolean;
+  }) {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('n-bp5-009-rina-wait-discard-look-top', PLAYER1, 'P1', PLAYER2, 'P2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard('PL!N-bp5-009-R', '天王寺璃奈', 4),
+      PLAYER1,
+      'p1-n-bp5-009-source'
+    );
+    const discardCard = createCardInstance(
+      createMemberCard('PL!N-test-discard', 'Discard target'),
+      PLAYER1,
+      'p1-n-bp5-009-discard'
+    );
+    const triggerSource = createCardInstance(
+      createMemberCard('PL!HS-pb1-003-R', '大沢瑠璃乃', 15),
+      PLAYER1,
+      'p1-rina-discard-trigger-source'
+    );
+    const registeredCards = [
+      source,
+      discardCard,
+      ...options.topCards,
+      ...(options.handCards ?? []),
+      ...(options.includeWaitingRoomTriggerSource === true ? [triggerSource] : []),
+    ];
+
+    let state = registerCards(session.state!, registeredCards);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    clearPlayerZones(p1);
+    p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
+    p1.mainDeck.cardIds = options.topCards.map((card) => card.instanceId);
+    if (options.includeWaitingRoomTriggerSource === true) {
+      p1.memberSlots.slots[SlotPosition.RIGHT] = triggerSource.instanceId;
+      p1.memberSlots.cardStates.set(triggerSource.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      });
+    }
+
+    return { session, source, discardCard, triggerSource };
+  }
+
+  function playRina(session: ReturnType<typeof createGameSession>, sourceId: string): void {
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, sourceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      N_BP5_009_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID
+    );
+  }
+
+  it('pays source-wait and hand discard costs, then reveals a high-cost Nijigasaki member', () => {
+    const topCards = [
+      createCardInstance(createMemberCard('PL!N-low-cost', 'Low cost', 8), PLAYER1, 'rina-top-0'),
+      createCardInstance(
+        createMemberCard('PL!N-high-cost', 'High cost Nijigasaki', 9),
+        PLAYER1,
+        'rina-top-1'
+      ),
+      createCardInstance(createLiveCard('PL!N-live', 'Nijigasaki live'), PLAYER1, 'rina-top-2'),
+      createCardInstance(createMemberCard('PL!SP-high', 'Liella high', 11), PLAYER1, 'rina-top-3'),
+      createCardInstance(createMemberCard('PL!N-high-2', 'High cost 2', 10), PLAYER1, 'rina-top-4'),
+      createCardInstance(createMemberCard('PL!N-extra', 'Extra', 9), PLAYER1, 'rina-top-5'),
+    ];
+    const scenario = setupRinaScenario({ topCards, includeWaitingRoomTriggerSource: true });
+
+    playRina(scenario.session, scenario.source.instanceId);
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([
+      scenario.discardCard.instanceId,
+    ]);
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          scenario.discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect?.inspectionCardIds).toEqual(
+      topCards.slice(0, 5).map((card) => card.instanceId)
+    );
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([
+      topCards[1]!.instanceId,
+      topCards[4]!.instanceId,
+    ]);
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          topCards[4]!.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.inspectionZone.revealedCardIds).toContain(
+      topCards[4]!.instanceId
+    );
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+
+    const player = scenario.session.state!.players[0]!;
+    expect(player.memberSlots.cardStates.get(scenario.source.instanceId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(player.hand.cardIds).toEqual([topCards[4]!.instanceId]);
+    expect(player.waitingRoom.cardIds).toEqual([
+      scenario.discardCard.instanceId,
+      topCards[0]!.instanceId,
+      topCards[1]!.instanceId,
+      topCards[2]!.instanceId,
+      topCards[3]!.instanceId,
+    ]);
+    expect(player.mainDeck.cardIds).toEqual([topCards[5]!.instanceId]);
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === scenario.triggerSource.instanceId
+      )
+    ).toBe(true);
+  });
+
+  it('declines before paying any cost', () => {
+    const topCards = [
+      createCardInstance(createMemberCard('PL!N-high-cost', 'High cost', 9), PLAYER1, 'decline-0'),
+    ];
+    const scenario = setupRinaScenario({ topCards });
+
+    playRina(scenario.session, scenario.source.instanceId);
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+
+    const player = scenario.session.state!.players[0]!;
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(player.memberSlots.cardStates.get(scenario.source.instanceId)?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+    expect(player.hand.cardIds).toEqual([scenario.discardCard.instanceId]);
+    expect(player.waitingRoom.cardIds).toEqual([]);
+    expect(player.mainDeck.cardIds).toEqual([topCards[0]!.instanceId]);
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'PAY_COST' &&
+          action.payload.abilityId === N_BP5_009_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('moves inspected cards to waiting room when there is no legal target', () => {
+    const topCards = [
+      createCardInstance(createMemberCard('PL!N-low-cost', 'Low cost', 8), PLAYER1, 'no-target-0'),
+      createCardInstance(createLiveCard('PL!N-live', 'Nijigasaki live'), PLAYER1, 'no-target-1'),
+      createCardInstance(createMemberCard('PL!SP-high', 'Liella high', 11), PLAYER1, 'no-target-2'),
+      createCardInstance(createMemberCard('PL!N-low-2', 'Low cost 2', 1), PLAYER1, 'no-target-3'),
+      createCardInstance(createEnergyCard('ENERGY-no-target'), PLAYER1, 'no-target-4'),
+      createCardInstance(createMemberCard('PL!N-extra', 'Extra', 9), PLAYER1, 'no-target-5'),
+    ];
+    const scenario = setupRinaScenario({ topCards });
+
+    playRina(scenario.session, scenario.source.instanceId);
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          scenario.discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([]);
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      scenario.discardCard.instanceId,
+      ...topCards.slice(0, 5).map((card) => card.instanceId),
+    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[5]!.instanceId,
+    ]);
   });
 });

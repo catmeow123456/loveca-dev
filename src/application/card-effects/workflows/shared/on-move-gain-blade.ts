@@ -4,29 +4,53 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID } from '../../ability-ids.js';
+import {
+  HS_BP5_014_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
+  SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
+} from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerSpSd2011TomariWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
-    SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveSpSd2011TomariOnMoveGainBlade(
+interface OnMoveGainBladeConfig {
+  readonly abilityId: string;
+  readonly amount: number;
+  readonly actionStep: string;
+}
+
+const ON_MOVE_GAIN_BLADE_CONFIGS: readonly OnMoveGainBladeConfig[] = [
+  {
+    abilityId: SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
+    amount: 1,
+    actionStep: 'ON_MOVE_GAIN_BLADE',
+  },
+  {
+    abilityId: HS_BP5_014_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
+    amount: 1,
+    actionStep: 'ON_MOVE_GAIN_BLADE',
+  },
+];
+
+export function registerOnMoveGainBladeWorkflowHandlers(): void {
+  for (const config of ON_MOVE_GAIN_BLADE_CONFIGS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
+      resolveOnMoveGainBlade(
         game,
         ability,
+        config,
         options.orderedResolution === true,
         context.continuePendingCardEffects
       )
-  );
+    );
+  }
 }
 
-function resolveSpSd2011TomariOnMoveGainBlade(
+function resolveOnMoveGainBlade(
   game: GameState,
   ability: PendingAbilityState,
+  config: OnMoveGainBladeConfig,
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
@@ -47,7 +71,7 @@ function resolveSpSd2011TomariOnMoveGainBlade(
     playerId: player.id,
     sourceCardId: ability.sourceCardId,
     abilityId: ability.abilityId,
-    amount: 1,
+    amount: config.amount,
   });
   if (!bladeResult) {
     return game;
@@ -58,7 +82,7 @@ function resolveSpSd2011TomariOnMoveGainBlade(
       pendingAbilityId: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
-      step: 'ON_MOVE_GAIN_BLADE',
+      step: config.actionStep,
       sourceSlot: ability.sourceSlot,
       fromSlot: ability.metadata?.fromSlot,
       toSlot: ability.metadata?.toSlot,

@@ -13,6 +13,7 @@ import { getAllMemberCardIds } from '../entities/zone.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
 import {
   cardBelongsToGroup,
+  cardBelongsToUnit,
   hasAtLeastDifferentNamedCards,
 } from '../../shared/utils/card-identity.js';
 import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/slot-perspective.js';
@@ -115,6 +116,10 @@ const SP_PR_022_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_YELLOW_HEART_ABILITY_ID =
   'PL!SP-PR-022-PR:continuous-total-stage-six-gain-red-yellow-heart';
 const SP_PR_025_CONTINUOUS_ENERGY_EXACT_SEVEN_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!SP-PR-025-PR:continuous-energy-exact-seven-gain-two-blade';
+const SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_ABILITY_ID =
+  'PL!SP-sd2-004:continuous-center-gain-four-blade';
+const SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-sd2-008:continuous-high-cost-stage-member-gain-yellow-heart';
 const BP6_012_CONTINUOUS_SUCCESS_ZONE_PRINTEMPS_CARD_YELLOW_HEART_ABILITY_ID =
   'PL!-bp6-012:continuous-success-zone-printemps-card-yellow-heart';
 const BP6_014_CONTINUOUS_SUCCESS_ZONE_LILYWHITE_CARD_PINK_HEART_ABILITY_ID =
@@ -126,6 +131,8 @@ const BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID =
 const BP4_005_CONTINUOUS_CENTER_SCORE_ABILITY_ID = 'PL!-bp4-005:continuous-center-score-plus-one';
 const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
+const PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID =
+  'PL!-pb1-002:continuous-opponent-waiting-gain-purple-heart';
 const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
   'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
 const PL_N_PB1_011_CONTINUOUS_ENERGY_BELOW_GAIN_BLADE_ABILITY_ID =
@@ -175,6 +182,12 @@ export interface AddMemberCostSetLiveModifierForMemberResult {
   readonly gameState: GameState;
   readonly modifier: MemberCostSetModifierState;
   readonly setTo: number;
+}
+
+export interface SuppressLiveAbilityOptions {
+  readonly sourceCardId: string;
+  readonly suppressedAbilityId: string;
+  readonly abilityId: string;
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
@@ -288,6 +301,22 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    baseCardCodes: ['PL!N-bp5-002'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceMainStageMember(game, playerId, sourceCardId) &&
+      sourceHasStrictlyMostEffectiveHeartsOnStage(game, playerId, sourceCardId)
+        ? [
+            {
+              kind: 'SCORE',
+              playerId,
+              countDelta: 1,
+              sourceCardId,
+              abilityId: N_BP5_002_CONTINUOUS_STAGE_MOST_HEARTS_LIVE_SCORE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
     baseCardCodes: ['PL!SP-bp5-012'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!hasLiellaLiveWithRequirementTotalAtLeast(game, playerId, 8)) {
@@ -391,6 +420,27 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    baseCardCodes: ['PL!HS-bp5-004'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const highCostNonCeriseMemberCount = countHighCostNonCeriseBouquetStageMembers(
+        game,
+        playerId
+      );
+      return highCostNonCeriseMemberCount > 0
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: highCostNonCeriseMemberCount * 2,
+              sourceCardId,
+              abilityId:
+                HS_BP5_004_CONTINUOUS_NON_CERISE_HIGH_COST_STAGE_MEMBER_GAIN_BLADE_ABILITY_ID,
+            },
+          ]
+        : [];
+    },
+  },
+  {
     baseCardCodes: ['PL!HS-bp2-002'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasOtherHigherEffectiveCostStageMember(game, playerId, sourceCardId)
@@ -455,6 +505,11 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
             },
           ]
         : [],
+  },
+  {
+    baseCardCodes: ['PL!-pb1-002'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      collectPlPb1002OpponentWaitingPurpleHeartModifiers(game, playerId, sourceCardId),
   },
   {
     cardCodes: ['PL!HS-bp5-016-N'],
@@ -624,6 +679,41 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    baseCardCodes: ['PL!SP-sd2-004'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceCenterStageMember(game, playerId, sourceCardId)
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 4,
+              sourceCardId,
+              abilityId: SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
+    baseCardCodes: ['PL!SP-sd2-008'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        !hasOwnStageMemberWithEffectiveCostAtLeast(game, playerId, 13)
+      ) {
+        return [];
+      }
+
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
     baseCardCodes: ['PL!SP-bp2-010'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId)
@@ -750,6 +840,8 @@ const BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID =
   'PL!-bp4-002:continuous-live-without-timing-purple-heart';
 const BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID =
   'PL!-bp5-003:continuous-three-different-names-yellow-heart';
+const N_BP5_002_CONTINUOUS_STAGE_MOST_HEARTS_LIVE_SCORE_ABILITY_ID =
+  'PL!N-bp5-002:continuous-stage-most-hearts-live-score';
 const SP_BP5_012_CONTINUOUS_LIELLA_LIVE_REQUIREMENT_EIGHT_YELLOW_HEART_ABILITY_ID =
   'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart';
 const SP_BP5_011_CONTINUOUS_SLOT_HEARTS_ABILITY_ID = 'PL!SP-bp5-011:continuous-slot-hearts';
@@ -773,6 +865,8 @@ const HS_PB1_007_CONTINUOUS_EXACT_TWO_OWN_OPPONENT_THREE_PURPLE_HEART_ABILITY_ID
   'PL!HS-pb1-007:continuous-exact-two-own-opponent-three-purple-heart';
 const HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID =
   'PL!HS-bp5-002:continuous-three-different-stage-member-costs-blue-heart-blade';
+const HS_BP5_004_CONTINUOUS_NON_CERISE_HIGH_COST_STAGE_MEMBER_GAIN_BLADE_ABILITY_ID =
+  'PL!HS-bp5-004:continuous-non-cerise-high-cost-stage-members-gain-blade';
 const HS_BP2_002_CONTINUOUS_OTHER_HIGHER_COST_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!HS-bp2-002:continuous-other-higher-cost-gain-three-blade';
 const HS_BP5_007_CONTINUOUS_OTHER_EDELNOTE_MEMBER_BLADE_ABILITY_ID =
@@ -1184,6 +1278,33 @@ function getSourceMainStageSlot(
   return MEMBER_SLOT_ORDER.find((slot) => player?.memberSlots.slots[slot] === sourceCardId) ?? null;
 }
 
+function sourceHasStrictlyMostEffectiveHeartsOnStage(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  const liveModifiers = game.liveResolution.liveModifiers;
+  const sourceHeartCount = countEffectiveMemberHearts(game, playerId, sourceCardId, liveModifiers);
+  const otherStageMemberHeartCounts = game.players.flatMap((player) =>
+    getAllMemberCardIds(player.memberSlots)
+      .filter((cardId) => cardId !== sourceCardId)
+      .map((cardId) => countEffectiveMemberHearts(game, player.id, cardId, liveModifiers))
+  );
+  return otherStageMemberHeartCounts.every((heartCount) => sourceHeartCount > heartCount);
+}
+
+function countEffectiveMemberHearts(
+  game: GameState,
+  playerId: string,
+  memberCardId: string,
+  liveModifiers: readonly LiveModifierState[]
+): number {
+  return getMemberEffectiveHeartIcons(game, playerId, memberCardId, liveModifiers).reduce(
+    (total, heart) => total + heart.count,
+    0
+  );
+}
+
 function countEnergyBelowSourceMember(
   game: GameState,
   playerId: string,
@@ -1341,6 +1462,25 @@ function collectHsBp5002SayakaContinuousModifiers(
   ];
 }
 
+function countHighCostNonCeriseBouquetStageMembers(game: GameState, playerId: string): number {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return 0;
+  }
+
+  return MEMBER_SLOT_ORDER.filter((slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    const card = cardId ? getCardById(game, cardId) : null;
+    return (
+      cardId !== null &&
+      card !== null &&
+      isMemberCardData(card.data) &&
+      getMemberEffectiveCost(game, playerId, cardId) >= 4 &&
+      !cardBelongsToUnit(card.data, 'Cerise Bouquet')
+    );
+  }).length;
+}
+
 function collectExactEightEnergyScoreModifier(
   game: GameState,
   playerId: string,
@@ -1470,6 +1610,30 @@ function hasAtLeastDifferentEffectiveCostStageMembers(
   return new Set(costs).size >= minCount;
 }
 
+function hasOwnStageMemberWithEffectiveCostAtLeast(
+  game: GameState,
+  playerId: string,
+  minCost: number
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return false;
+  }
+
+  return MEMBER_SLOT_ORDER.some((slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    if (!cardId) {
+      return false;
+    }
+    const card = getCardById(game, cardId);
+    return (
+      card !== null &&
+      isMemberCardData(card.data) &&
+      getMemberEffectiveCost(game, playerId, cardId) >= minCost
+    );
+  });
+}
+
 function hasOtherHigherEffectiveCostStageMember(
   game: GameState,
   playerId: string,
@@ -1562,6 +1726,36 @@ function collectHsBp5016IzumiPurpleHeartModifier(
     sourceCardId,
     abilityId: HS_BP5_016_CONTINUOUS_OPPONENT_TWO_WAITING_PURPLE_HEART_ABILITY_ID,
     hearts: [{ color: HeartColor.PURPLE, count: 1 }],
+  });
+  return modifier ? [modifier] : [];
+}
+
+function collectPlPb1002OpponentWaitingPurpleHeartModifiers(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly LiveModifierState[] {
+  if (!isSourceMainStageMember(game, playerId, sourceCardId)) {
+    return [];
+  }
+  const opponent = game.players.find((candidate) => candidate.id !== playerId);
+  if (!opponent) {
+    return [];
+  }
+  const opponentWaitingMemberCount = countStageMembersByOrientation(
+    game,
+    opponent.id,
+    OrientationState.WAITING
+  );
+  if (opponentWaitingMemberCount === 0) {
+    return [];
+  }
+  const modifier = createHeartLiveModifierForMember(game, {
+    playerId,
+    memberCardId: sourceCardId,
+    sourceCardId,
+    abilityId: PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID,
+    hearts: [{ color: HeartColor.PURPLE, count: opponentWaitingMemberCount }],
   });
   return modifier ? [modifier] : [];
 }
@@ -1662,6 +1856,31 @@ function normalizeContinuousUnitName(unitName: string | undefined): string {
 
 export function addLiveModifier(game: GameState, modifier: LiveModifierState): GameState {
   return setLiveModifiers(game, [...game.liveResolution.liveModifiers, modifier]);
+}
+
+export function suppressLiveAbility(
+  game: GameState,
+  options: SuppressLiveAbilityOptions
+): GameState {
+  return addLiveModifier(game, {
+    kind: 'SUPPRESS_ABILITY',
+    sourceCardId: options.sourceCardId,
+    suppressedAbilityId: options.suppressedAbilityId,
+    abilityId: options.abilityId,
+  });
+}
+
+export function isLiveAbilitySuppressed(
+  game: GameState,
+  sourceCardId: string,
+  abilityId: string
+): boolean {
+  return game.liveResolution.liveModifiers.some(
+    (modifier) =>
+      modifier.kind === 'SUPPRESS_ABILITY' &&
+      modifier.sourceCardId === sourceCardId &&
+      modifier.suppressedAbilityId === abilityId
+  );
 }
 
 export function createHeartLiveModifierForMember(

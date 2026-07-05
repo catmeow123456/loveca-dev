@@ -179,6 +179,7 @@ function finishHsSd1003PayEnergy(
         selectableCardVisibility: 'PUBLIC',
         selectableCardMode: 'SINGLE',
         selectionLabel: '选择获得[桃ハート]与[BLADE]的莲之空成员',
+        selectableOptions: undefined,
         confirmSelectionLabel: '确定',
         canSkipSelection: false,
         skipSelectionLabel: undefined,

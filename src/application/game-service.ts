@@ -149,7 +149,10 @@ import { revealCheerCardsFromMainDeck } from './effects/cheer.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { clearLiveProhibitionsUntilLiveEnd } from '../domain/rules/live-prohibitions.js';
 import { clearLiveStartSuppressionsUntilLiveEnd } from '../domain/rules/live-start-suppressions.js';
-import { consumeMemberActivePhaseSkipsForPlayer } from '../domain/rules/member-active-skips.js';
+import {
+  collectContinuousActivePhaseSkippedMemberCardIds,
+  consumeMemberActivePhaseSkipsForPlayer,
+} from '../domain/rules/member-active-skips.js';
 
 function isTriggerCondition(event: GameEventType | string): event is TriggerCondition {
   return Object.values(TriggerCondition).includes(event as TriggerCondition);
@@ -1074,7 +1077,10 @@ export class GameService {
 
   private untapAllForActivePhase(game: GameState, playerId: string): GameState {
     const skipResult = consumeMemberActivePhaseSkipsForPlayer(game, playerId);
-    const skippedMemberCardIdSet = new Set(skipResult.skippedMemberCardIds);
+    const skippedMemberCardIdSet = new Set([
+      ...skipResult.skippedMemberCardIds,
+      ...collectContinuousActivePhaseSkippedMemberCardIds(skipResult.gameState, playerId),
+    ]);
     const player = getPlayerById(skipResult.gameState, playerId);
     if (!player) {
       return skipResult.gameState;

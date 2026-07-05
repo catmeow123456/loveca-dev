@@ -87,6 +87,26 @@ const TOKEN_DEFINITIONS = new Map<
   ['[ALLハート]', { kind: 'heart', label: 'ALLハート', icon: 'heart_all' }],
 ]);
 
+export function isKnownCardEffectPlaceholder(raw: string): boolean {
+  return TOKEN_DEFINITIONS.has(raw);
+}
+
+export function getUnknownCardEffectPlaceholders(text: string): string[] {
+  const unknownPlaceholders = new Set<string>();
+  let match: RegExpExecArray | null;
+
+  TOKEN_PATTERN.lastIndex = 0;
+  while ((match = TOKEN_PATTERN.exec(text)) !== null) {
+    const raw = match[0];
+    if (!isKnownCardEffectPlaceholder(raw)) {
+      unknownPlaceholders.add(raw);
+    }
+  }
+  TOKEN_PATTERN.lastIndex = 0;
+
+  return [...unknownPlaceholders];
+}
+
 export function parseCardEffectText(text: string): CardEffectPart[] {
   const parts: CardEffectPart[] = [];
   let lastIndex = 0;

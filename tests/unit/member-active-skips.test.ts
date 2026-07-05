@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  placeCardInSlot,
+  removeCardFromSlot,
+} from '../../src/domain/entities/zone';
 import {
   addMemberActivePhaseSkip,
   consumeMemberActivePhaseSkipsForPlayer,
@@ -37,6 +41,15 @@ function createEnergy(cardCode: string): EnergyCardData {
     cardCode,
     name: cardCode,
     cardType: CardType.ENERGY,
+  };
+}
+
+function prepareActivePhaseAdvance(game: ReturnType<typeof createGameState>, activePlayerIndex = 0) {
+  return {
+    ...game,
+    currentPhase: GamePhase.LIVE_RESULT_PHASE,
+    currentSubPhase: SubPhase.NONE,
+    activePlayerIndex,
   };
 }
 
@@ -117,5 +130,181 @@ describe('member active phase skips', () => {
           entry.event.cardInstanceId === skipped.instanceId
       )
     ).toBe(false);
+  });
+
+  it('keeps PL!N-bp5-006 waiting during its own active phase without consuming skip markers', () => {
+    const kanata = createCardInstance(createMember('PL!N-bp5-006-R'), PLAYER1, 'kanata');
+    const other = createCardInstance(createMember('OTHER'), PLAYER1, 'other-member');
+    const energy = createCardInstance(createEnergy('ENERGY'), PLAYER1, 'energy-card');
+    let game = createGameState('n-bp5-006-continuous-active-phase', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [kanata, other, energy]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      energyZone: addCardToStatefulZone(player.energyZone, energy.instanceId, {
+        orientation: OrientationState.WAITING,
+        face: FaceState.FACE_UP,
+      }),
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kanata.instanceId, {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }),
+        SlotPosition.LEFT,
+        other.instanceId,
+        {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }
+      ),
+    }));
+
+    const first = new GameService().advancePhase(prepareActivePhaseAdvance(game));
+
+    expect(first.success).toBe(true);
+    expect(first.gameState.memberActivePhaseSkips).toEqual([]);
+    expect(first.gameState.players[0].memberSlots.cardStates.get(kanata.instanceId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(first.gameState.players[0].memberSlots.cardStates.get(other.instanceId)?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+    expect(first.gameState.players[0].energyZone.cardStates.get(energy.instanceId)?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+
+    const second = new GameService().advancePhase(
+      prepareActivePhaseAdvance(
+        updatePlayer(first.gameState, PLAYER1, (player) => ({
+          ...player,
+          energyZone: {
+            ...player.energyZone,
+            cardStates: new Map([[energy.instanceId, { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }]]),
+          },
+        }))
+      )
+    );
+
+    expect(second.success).toBe(true);
+    expect(second.gameState.memberActivePhaseSkips).toEqual([]);
+    expect(second.gameState.players[0].memberSlots.cardStates.get(kanata.instanceId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(second.gameState.players[0].energyZone.cardStates.get(energy.instanceId)?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+  });
+
+  it('does not wait an active PL!N-bp5-006 or keep applying after it leaves stage', () => {
+    const activeKanata = createCardInstance(createMember('PL!N-bp5-006-R'), PLAYER1, 'active-kanata');
+    const leftKanata = createCardInstance(createMember('PL!N-bp5-006-P'), PLAYER1, 'left-kanata');
+    const other = createCardInstance(createMember('OTHER'), PLAYER1, 'other-member');
+    let game = createGameState('n-bp5-006-active-and-left-stage', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [activeKanata, leftKanata, other]);
+    game = updatePlayer(game, PLAYER1, (player) => {
+      const withCards = placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, activeKanata.instanceId, {
+            orientation: OrientationState.ACTIVE,
+            face: FaceState.FACE_UP,
+          }),
+          SlotPosition.LEFT,
+          leftKanata.instanceId,
+          {
+            orientation: OrientationState.WAITING,
+            face: FaceState.FACE_UP,
+          }
+        ),
+        SlotPosition.RIGHT,
+        other.instanceId,
+        {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }
+      );
+      return {
+        ...player,
+        memberSlots: removeCardFromSlot(withCards, SlotPosition.LEFT),
+      };
+    });
+
+    const result = new GameService().advancePhase(prepareActivePhaseAdvance(game));
+
+    expect(result.success).toBe(true);
+    expect(
+      result.gameState.players[0].memberSlots.cardStates.get(activeKanata.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(
+      result.gameState.players[0].memberSlots.cardStates.get(other.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(
+      result.gameState.eventLog.some(
+        (entry) =>
+          entry.event.eventType === 'ON_MEMBER_STATE_CHANGED' &&
+          entry.event.cardInstanceId === activeKanata.instanceId
+      )
+    ).toBe(false);
+  });
+
+  it('keeps player 2 PL!N-bp5-006 waiting during player 2 own active phase without touching player 1 PL!N-bp5-006', () => {
+    const ownKanata = createCardInstance(createMember('PL!N-bp5-006-P'), PLAYER1, 'p1-kanata');
+    const opponentKanata = createCardInstance(
+      createMember('PL!N-bp5-006-AR'),
+      PLAYER2,
+      'p2-kanata'
+    );
+    const opponentOther = createCardInstance(createMember('OPPONENT'), PLAYER2, 'opponent-member');
+    const opponentEnergy = createCardInstance(
+      createEnergy('OPPONENT-ENERGY'),
+      PLAYER2,
+      'opponent-energy'
+    );
+    let game = createGameState('n-bp5-006-opponent-active-phase', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [ownKanata, opponentKanata, opponentOther, opponentEnergy]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ownKanata.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+    game = updatePlayer(game, PLAYER2, (player) => ({
+      ...player,
+      energyZone: addCardToStatefulZone(player.energyZone, opponentEnergy.instanceId, {
+        orientation: OrientationState.WAITING,
+        face: FaceState.FACE_UP,
+      }),
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, opponentKanata.instanceId, {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }),
+        SlotPosition.LEFT,
+        opponentOther.instanceId,
+        {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }
+      ),
+    }));
+
+    const result = new GameService().advancePhase({
+      ...prepareActivePhaseAdvance(game, 0),
+      firstPlayerIndex: 1,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.gameState.activePlayerIndex).toBe(1);
+    expect(
+      result.gameState.players[0].memberSlots.cardStates.get(ownKanata.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(
+      result.gameState.players[1].memberSlots.cardStates.get(opponentKanata.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(
+      result.gameState.players[1].memberSlots.cardStates.get(opponentOther.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(
+      result.gameState.players[1].energyZone.cardStates.get(opponentEnergy.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
   });
 });

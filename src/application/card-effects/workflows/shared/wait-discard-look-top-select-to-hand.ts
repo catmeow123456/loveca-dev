@@ -2,6 +2,7 @@ import { addAction, getPlayerById, type GameState } from '../../../../domain/ent
 import { CardType, OrientationState, ZoneType } from '../../../../shared/types/enums.js';
 import {
   HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+  N_BP5_009_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -61,6 +62,13 @@ const WAIT_DISCARD_LOOK_TOP_WORKFLOWS: readonly WaitDiscardLookTopSelectToHandCo
     abilityId: SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
     groupAlias: 'Liella!',
     groupLabel: 'Liella!',
+    topCount: 5,
+    costGte: 9,
+  },
+  {
+    abilityId: N_BP5_009_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+    groupAlias: '虹ヶ咲',
+    groupLabel: '虹ヶ咲',
     topCount: 5,
     costGte: 9,
   },
