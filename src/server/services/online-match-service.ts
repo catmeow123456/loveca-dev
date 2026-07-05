@@ -148,6 +148,7 @@ interface OnlineSpectatorLinkState {
   readonly viewType: 'PLAYER';
   readonly viewerSeat: Seat;
   readonly createdByUserId: string;
+  readonly countsInPresence: boolean;
   readonly createdAt: number;
   readonly expiresAt: number;
   revokedAt: number | null;
@@ -160,6 +161,7 @@ interface OnlineSpectatorSessionState {
   readonly matchId: string;
   readonly viewType: 'PLAYER';
   readonly viewerSeat: Seat;
+  readonly countsInPresence: boolean;
   readonly joinedAt: number;
   displayName: string;
   lastSeenAt: number;
@@ -476,14 +478,41 @@ export class OnlineMatchService {
       return null;
     }
 
+    return this.createPlayerViewSpectatorLinkForSeat(match, participant.seat, userId, {
+      countsInPresence: true,
+    });
+  }
+
+  async createAdminPlayerViewSpectatorLink(
+    matchId: string,
+    adminUserId: string,
+    viewerSeat: Seat
+  ): Promise<OnlineSpectatorLinkView | null> {
+    const match = this.matches.get(matchId);
+    if (!match || match.matchMode !== 'ONLINE' || !match.participants[viewerSeat]) {
+      return null;
+    }
+
+    return this.createPlayerViewSpectatorLinkForSeat(match, viewerSeat, adminUserId, {
+      countsInPresence: false,
+    });
+  }
+
+  private createPlayerViewSpectatorLinkForSeat(
+    match: OnlineMatchState,
+    viewerSeat: Seat,
+    createdByUserId: string,
+    options: { readonly countsInPresence: boolean }
+  ): OnlineSpectatorLinkView {
     const now = this.now();
     this.cleanupExpiredSpectatorState(now);
     const link: OnlineSpectatorLinkState = {
       token: this.idGenerator(),
       matchId: match.matchId,
       viewType: 'PLAYER',
-      viewerSeat: participant.seat,
-      createdByUserId: userId,
+      viewerSeat,
+      createdByUserId,
+      countsInPresence: options.countsInPresence,
       createdAt: now,
       expiresAt: now + SPECTATOR_LINK_TTL_MS,
       revokedAt: null,
@@ -528,6 +557,7 @@ export class OnlineMatchService {
       matchId: link.matchId,
       viewType: link.viewType,
       viewerSeat: link.viewerSeat,
+      countsInPresence: link.countsInPresence,
       displayName: displayName ?? this.createGuestDisplayName(link.matchId, now),
       joinedAt: now,
       lastSeenAt: now,
@@ -595,6 +625,7 @@ export class OnlineMatchService {
     this.cleanupExpiredSpectatorState(now);
     const viewers = [...this.spectatorSessions.values()]
       .filter((session) => session.matchId === matchId)
+      .filter((session) => session.countsInPresence)
       .filter((session) => isSpectatorSessionActive(session, now))
       .sort(
         (left, right) =>
@@ -1334,7 +1365,11 @@ export class OnlineMatchService {
   private createGuestDisplayName(matchId: string, now: number): string {
     const usedIndexes = new Set<number>();
     for (const session of this.spectatorSessions.values()) {
-      if (session.matchId !== matchId || !isSpectatorSessionActive(session, now)) {
+      if (
+        session.matchId !== matchId ||
+        !session.countsInPresence ||
+        !isSpectatorSessionActive(session, now)
+      ) {
         continue;
       }
       const match = /^游客\s+(\d+)$/.exec(session.displayName.trim());

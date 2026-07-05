@@ -635,8 +635,13 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
               <span className="hidden text-sm font-semibold sm:inline">房间 {room.roomCode}</span>
               <span className="text-sm font-semibold sm:hidden">{room.roomCode}</span>
               <span className="h-4 w-px bg-[var(--border-default)]" />
-              <Eye size={15} />
-              <span className="text-sm">{spectatorPresence.total}</span>
+              <span
+                className="inline-flex items-center gap-1.5"
+                title="公开观战人数，不包含管理员观战"
+              >
+                <Eye size={15} />
+                <span className="text-sm">{spectatorPresence.total}</span>
+              </span>
               <ChevronDown
                 size={15}
                 className={`transition-transform ${isRoomPanelOpen ? 'rotate-180' : ''}`}
@@ -1753,10 +1758,6 @@ function RoomActionPanel({
           </div>
           <div className="mt-1 font-semibold">Room {roomCode}</div>
         </div>
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">
-          <Eye size={13} />
-          {presence.total}
-        </div>
       </div>
 
       <div className="mt-3 grid gap-2">
@@ -1832,13 +1833,15 @@ function SpectatorPresencePanel({
   return (
     <div className={containerClassName}>
       <div className="flex items-center justify-between gap-3">
-        <div className="font-semibold">当前观战者</div>
-        <div className="rounded-full border border-[var(--border-default)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">
-          {presence.total}
-        </div>
+        <div className="font-semibold">公开观战列表</div>
+        {!embedded ? (
+          <div className="rounded-full border border-[var(--border-default)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">
+            {presence.total}
+          </div>
+        ) : null}
       </div>
       {presence.viewers.length === 0 ? (
-        <div className="mt-2 text-xs text-[var(--text-secondary)]">暂无活跃观战者</div>
+        <div className="mt-2 text-xs text-[var(--text-secondary)]">暂无公开观战</div>
       ) : (
         <div className="mt-3 flex max-h-48 flex-col gap-2 overflow-y-auto pr-1">
           {presence.viewers.map((viewer) => (

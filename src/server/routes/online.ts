@@ -54,6 +54,10 @@ const spectatorSessionSchema = z.object({
   clientId: z.string().trim().min(1).max(128).optional(),
 });
 
+const adminPlayerViewSpectatorLinkSchema = z.object({
+  viewerSeat: z.enum(['FIRST', 'SECOND']),
+});
+
 onlineRouter.get('/admin/rooms', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const rooms = await onlineRoomService.listAdminRoomSummaries();
@@ -77,6 +81,44 @@ onlineRouter.post(
 
       const bundle = createDebugReplayBundle(match);
       res.json({ data: bundle, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
+  }
+);
+
+onlineRouter.post(
+  '/admin/matches/:matchId/spectator-links/player-view',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const parsed = adminPlayerViewSpectatorLinkSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ data: null, error: { code: 'INVALID_REQUEST', message: '观战视角参数非法' } });
+      return;
+    }
+
+    try {
+      const matchId = readPathParam(req.params.matchId);
+      const match = onlineMatchService.getMatch(matchId);
+      if (!match) {
+        respondMatchNotFound(res);
+        return;
+      }
+
+      const link = await onlineMatchService.createAdminPlayerViewSpectatorLink(
+        match.matchId,
+        req.user!.id,
+        parsed.data.viewerSeat
+      );
+      if (!link) {
+        respondPlayerViewSpectatorUnavailable(res);
+        return;
+      }
+
+      res.status(201).json({ data: link, error: null });
     } catch (error) {
       respondOnlineError(res, error);
     }
@@ -777,6 +819,13 @@ function respondMatchForbidden(res: Response): void {
   res.status(403).json({
     data: null,
     error: { code: 'ONLINE_MATCH_FORBIDDEN', message: '当前用户不属于该对局' },
+  });
+}
+
+function respondPlayerViewSpectatorUnavailable(res: Response): void {
+  res.status(404).json({
+    data: null,
+    error: { code: 'ONLINE_PLAYER_VIEW_NOT_FOUND', message: '该对局没有可用的玩家视角' },
   });
 }
 

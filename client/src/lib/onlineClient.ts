@@ -19,6 +19,7 @@ import type {
   OnlineSpectatorLinkView,
   OnlineSpectatorSnapshotResponse,
   PublicEventsResponse,
+  Seat,
 } from '@game/online';
 import { toTransport } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
@@ -252,6 +253,20 @@ export async function createOnlinePlayerSpectatorLink(
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '生成观战链接失败');
+  }
+  return response.data;
+}
+
+export async function createOnlineAdminPlayerSpectatorLink(
+  matchId: string,
+  viewerSeat: Seat
+): Promise<OnlineSpectatorLinkView> {
+  const response = await apiClient.post<OnlineSpectatorLinkView>(
+    `/api/online/admin/matches/${encodeURIComponent(matchId)}/spectator-links/player-view`,
+    { viewerSeat }
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '生成管理员观战链接失败');
   }
   return response.data;
 }

@@ -340,6 +340,32 @@ describe('OnlineRoomService', () => {
     );
     expect(forbiddenLink).toBeNull();
 
+    const adminLink = await matchService.createAdminPlayerViewSpectatorLink(
+      started.matchId!,
+      'admin',
+      'SECOND'
+    );
+    expect(adminLink).toMatchObject({
+      matchId: started.matchId,
+      viewType: 'PLAYER',
+      viewerSeat: 'SECOND',
+    });
+
+    const adminJoined = await matchService.joinSpectatorLink(adminLink!.token, {
+      displayName: '管理员',
+    });
+    expect(adminJoined.session).toMatchObject({
+      displayName: '管理员',
+      viewType: 'PLAYER',
+      viewerSeat: 'SECOND',
+    });
+    expect(adminJoined.snapshot.seat).toBe('SECOND');
+    expect(adminJoined.snapshot.playerViewState.match.viewerSeat).toBe('SECOND');
+
+    const roomAfterAdminJoin = await service.getRoomView('spec1', 'u1');
+    expect(roomAfterAdminJoin.spectatorPresence.total).toBe(0);
+    expect(roomAfterAdminJoin.spectatorPresence.viewers).toEqual([]);
+
     const joined = await matchService.joinSpectatorLink(link!.token, {
       displayName: '旁观者',
     });
