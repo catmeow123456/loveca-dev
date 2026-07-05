@@ -18,6 +18,7 @@ import {
   OrientationState,
   SlotPosition,
   TriggerCondition,
+  ZoneType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -290,9 +291,19 @@ describe('PL!HS-pb1-013 Kosuzu workflows', () => {
     expect(session.state?.players[0].mainDeck.cardIds.slice(0, expectedTopIndexes.length)).toEqual(
       expectedTopIndexes.map((index) => deckCardIds[index]!)
     );
+    const expectedWaitingRoomCardIds = expectedWaitIndexes.map((index) => deckCardIds[index]!);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
-      expectedWaitIndexes.map((index) => deckCardIds[index]!)
+      expectedWaitingRoomCardIds
     );
+    const enterWaitingRoomEvents = session.state!.eventLog.filter(
+      (entry) =>
+        entry.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+        entry.event.fromZone === ZoneType.MAIN_DECK &&
+        expectedWaitingRoomCardIds.every((cardId) =>
+          entry.event.cardInstanceIds?.includes(cardId)
+        )
+    );
+    expect(enterWaitingRoomEvents.length).toBe(expectedWaitingRoomCardIds.length > 0 ? 1 : 0);
     expect(
       session.state?.actionHistory.find(
         (action) =>

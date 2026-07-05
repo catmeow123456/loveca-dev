@@ -1,7 +1,6 @@
 import {
   addAction,
   getPlayerById,
-  updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
@@ -20,17 +19,14 @@ import {
 } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
-import { enqueueInspectionCardsEnteredWaitingRoom } from '../../runtime/inspection-waiting-room-triggers.js';
+import { moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
 import {
   getAbilityEffectText,
   maybeStartConfirmablePendingAbilityConfirmation,
   maybeStartManualPendingAbilityConfirmation,
 } from '../../runtime/workflow-helpers.js';
 import { countStageMembers } from '../../../effects/conditions.js';
-import {
-  clearInspectionCards,
-  inspectTopCards,
-} from '../../../effects/look-top.js';
+import { inspectTopCards } from '../../../effects/look-top.js';
 import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.js';
 
 const START_DASH_ARRANGE_STEP_ID = 'START_DASH_ARRANGE_TOP_DECK';
@@ -411,44 +407,33 @@ export function finishArrangeInspectedDeckTopWorkflow(
     ...(effect.metadata?.selectedDestination === 'MAIN_DECK_TOP' ? uniqueSelectedCardIds : []),
     ...(effect.metadata?.unselectedDestination === 'MAIN_DECK_TOP' ? unselectedCardIds : []),
   ];
+  const waitingRoomCardIds = [
+    ...(effect.metadata?.selectedDestination === 'WAITING_ROOM' ? uniqueSelectedCardIds : []),
+    ...(effect.metadata?.unselectedDestination === 'WAITING_ROOM' ? unselectedCardIds : []),
+  ];
   const publicEffectSummaryContext = getArrangeInspectedDeckTopPublicSummaryContext(
     effect.metadata?.publicEffectSummaryContext
   );
-  let state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    mainDeck:
-      deckTopCardIds.length > 0
-        ? {
-            ...currentPlayer.mainDeck,
-            cardIds: [...deckTopCardIds, ...currentPlayer.mainDeck.cardIds],
-          }
-        : currentPlayer.mainDeck,
-    waitingRoom:
-      effect.metadata?.unselectedDestination === 'WAITING_ROOM'
-        ? {
-            ...currentPlayer.waitingRoom,
-            cardIds: [...currentPlayer.waitingRoom.cardIds, ...unselectedCardIds],
-          }
-        : currentPlayer.waitingRoom,
-  }));
-
-  state = clearInspectionCards({ ...state, activeEffect: null }, inspectedCardIds);
-  if (effect.metadata?.unselectedDestination === 'WAITING_ROOM') {
-    state = enqueueInspectionCardsEnteredWaitingRoom(
-      state,
-      player.id,
-      unselectedCardIds,
-      enqueueTriggeredCardEffects
-    );
+  const moveResult = moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
+    { ...game, activeEffect: null },
+    player.id,
+    inspectedCardIds,
+    deckTopCardIds,
+    waitingRoomCardIds,
+    enqueueTriggeredCardEffects
+  );
+  if (!moveResult) {
+    return game;
   }
+
   return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
+    addAction(moveResult.gameState, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: 'FINISH',
       selectedCardIds: uniqueSelectedCardIds,
-      waitingRoomCardIds: unselectedCardIds,
+      waitingRoomCardIds,
       ...(publicEffectSummaryContext
         ? {
             publicEffectSummary: {
@@ -465,7 +450,7 @@ export function finishArrangeInspectedDeckTopWorkflow(
               actualInspectedCount: inspectedCardIds.length,
               selectedCardIds: deckTopCardIds,
               noSelectedCards: deckTopCardIds.length === 0,
-              waitingRoomCardIds: unselectedCardIds,
+              waitingRoomCardIds,
             },
           }
         : {}),

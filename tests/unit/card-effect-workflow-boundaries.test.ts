@@ -128,12 +128,7 @@ describe('card effect workflow boundaries', () => {
     const violations = collectTypeScriptFiles(workflowsRoot).flatMap((filePath) => {
       const source = readFileSync(filePath, 'utf8');
       const writesWaitingRoomCards = /waitingRoom:\s*\{[\s\S]*?cardIds:/m.test(source);
-      const usesInspectionWaitingRoomWrapper = source.includes('inspection-waiting-room-triggers');
-      if (
-        !source.includes('clearInspectionCards') ||
-        !writesWaitingRoomCards ||
-        usesInspectionWaitingRoomWrapper
-      ) {
+      if (!source.includes('clearInspectionCards') || !writesWaitingRoomCards) {
         return [];
       }
 

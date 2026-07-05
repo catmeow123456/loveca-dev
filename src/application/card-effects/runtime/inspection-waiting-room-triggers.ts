@@ -24,6 +24,11 @@ export interface MoveInspectedMultiSelectionResult {
   readonly waitingRoomCardIds: readonly string[];
 }
 
+export interface MoveInspectedDeckTopRestToWaitingRoomResult
+  extends MoveInspectedMultiSelectionResult {
+  readonly deckTopCardIds: readonly string[];
+}
+
 export interface MoveInspectedSelectionToStageResult {
   readonly gameState: GameState;
   readonly waitingRoomCardIds: readonly string[];
@@ -137,6 +142,60 @@ export function moveInspectedCardsToHandRestToWaitingRoomAndEnqueueTriggers(
     gameState: state,
     selectedCardIds,
     waitingRoomCardIds,
+  };
+}
+
+export function moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
+  game: GameState,
+  playerId: string,
+  inspectedCardIds: readonly string[],
+  deckTopCardIds: readonly string[],
+  waitingRoomCardIds: readonly string[],
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+): MoveInspectedDeckTopRestToWaitingRoomResult | null {
+  const player = getPlayerById(game, playerId);
+  const destinationCardIds = [...deckTopCardIds, ...waitingRoomCardIds];
+  const uniqueDestinationCardIds = new Set(destinationCardIds);
+  if (
+    !player ||
+    uniqueDestinationCardIds.size !== destinationCardIds.length ||
+    uniqueDestinationCardIds.size !== inspectedCardIds.length ||
+    destinationCardIds.some((cardId) => !inspectedCardIds.includes(cardId)) ||
+    inspectedCardIds.some((cardId) => !game.inspectionZone.cardIds.includes(cardId))
+  ) {
+    return null;
+  }
+
+  let state = updatePlayer(game, player.id, (currentPlayer) => ({
+    ...currentPlayer,
+    mainDeck:
+      deckTopCardIds.length > 0
+        ? {
+            ...currentPlayer.mainDeck,
+            cardIds: [...deckTopCardIds, ...currentPlayer.mainDeck.cardIds],
+          }
+        : currentPlayer.mainDeck,
+    waitingRoom:
+      waitingRoomCardIds.length > 0
+        ? {
+            ...currentPlayer.waitingRoom,
+            cardIds: [...currentPlayer.waitingRoom.cardIds, ...waitingRoomCardIds],
+          }
+        : currentPlayer.waitingRoom,
+  }));
+  state = clearInspectionCards(state, inspectedCardIds);
+  state = enqueueInspectionCardsEnteredWaitingRoom(
+    state,
+    player.id,
+    waitingRoomCardIds,
+    enqueueTriggeredCardEffects
+  );
+
+  return {
+    gameState: state,
+    selectedCardIds: deckTopCardIds,
+    waitingRoomCardIds,
+    deckTopCardIds,
   };
 }
 
