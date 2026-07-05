@@ -131,6 +131,8 @@ const BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID =
 const BP4_005_CONTINUOUS_CENTER_SCORE_ABILITY_ID = 'PL!-bp4-005:continuous-center-score-plus-one';
 const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
+const PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID =
+  'PL!-pb1-002:continuous-opponent-waiting-gain-purple-heart';
 const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
   'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
 const PL_N_PB1_011_CONTINUOUS_ENERGY_BELOW_GAIN_BLADE_ABILITY_ID =
@@ -180,6 +182,12 @@ export interface AddMemberCostSetLiveModifierForMemberResult {
   readonly gameState: GameState;
   readonly modifier: MemberCostSetModifierState;
   readonly setTo: number;
+}
+
+export interface SuppressLiveAbilityOptions {
+  readonly sourceCardId: string;
+  readonly suppressedAbilityId: string;
+  readonly abilityId: string;
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
@@ -497,6 +505,11 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
             },
           ]
         : [],
+  },
+  {
+    baseCardCodes: ['PL!-pb1-002'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      collectPlPb1002OpponentWaitingPurpleHeartModifiers(game, playerId, sourceCardId),
   },
   {
     cardCodes: ['PL!HS-bp5-016-N'],
@@ -1717,6 +1730,36 @@ function collectHsBp5016IzumiPurpleHeartModifier(
   return modifier ? [modifier] : [];
 }
 
+function collectPlPb1002OpponentWaitingPurpleHeartModifiers(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly LiveModifierState[] {
+  if (!isSourceMainStageMember(game, playerId, sourceCardId)) {
+    return [];
+  }
+  const opponent = game.players.find((candidate) => candidate.id !== playerId);
+  if (!opponent) {
+    return [];
+  }
+  const opponentWaitingMemberCount = countStageMembersByOrientation(
+    game,
+    opponent.id,
+    OrientationState.WAITING
+  );
+  if (opponentWaitingMemberCount === 0) {
+    return [];
+  }
+  const modifier = createHeartLiveModifierForMember(game, {
+    playerId,
+    memberCardId: sourceCardId,
+    sourceCardId,
+    abilityId: PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID,
+    hearts: [{ color: HeartColor.PURPLE, count: opponentWaitingMemberCount }],
+  });
+  return modifier ? [modifier] : [];
+}
+
 function hasOtherEdelNoteStageMember(
   game: GameState,
   playerId: string,
@@ -1813,6 +1856,31 @@ function normalizeContinuousUnitName(unitName: string | undefined): string {
 
 export function addLiveModifier(game: GameState, modifier: LiveModifierState): GameState {
   return setLiveModifiers(game, [...game.liveResolution.liveModifiers, modifier]);
+}
+
+export function suppressLiveAbility(
+  game: GameState,
+  options: SuppressLiveAbilityOptions
+): GameState {
+  return addLiveModifier(game, {
+    kind: 'SUPPRESS_ABILITY',
+    sourceCardId: options.sourceCardId,
+    suppressedAbilityId: options.suppressedAbilityId,
+    abilityId: options.abilityId,
+  });
+}
+
+export function isLiveAbilitySuppressed(
+  game: GameState,
+  sourceCardId: string,
+  abilityId: string
+): boolean {
+  return game.liveResolution.liveModifiers.some(
+    (modifier) =>
+      modifier.kind === 'SUPPRESS_ABILITY' &&
+      modifier.sourceCardId === sourceCardId &&
+      modifier.suppressedAbilityId === abilityId
+  );
 }
 
 export function createHeartLiveModifierForMember(

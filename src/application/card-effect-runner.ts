@@ -17,7 +17,7 @@ import {
   getPlayerById,
   updatePlayer,
 } from '../domain/entities/game.js';
-import { addLiveModifier } from '../domain/rules/live-modifiers.js';
+import { addLiveModifier, isLiveAbilitySuppressed } from '../domain/rules/live-modifiers.js';
 import { getZoneSelectionConfig } from './effects/zone-selection.js';
 import {
   getRenGrantedActivatedAbilityUiConfig,
@@ -156,9 +156,16 @@ import { registerLiveSuccessDiscardRecoverLowCostOrScoreCheerWorkflowHandlers } 
 import { registerNPr026RinaWorkflowHandlers } from './card-effects/workflows/cards/n-pr-026-rina.js';
 import { registerNozomiOnEnterWorkflowHandlers } from './card-effects/workflows/cards/pl-sd1-007-nozomi.js';
 import { registerPb1015MakiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-015-maki.js';
+import { registerPlPb1001HonokaWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-001-honoka.js';
+import { registerPlPb1002EliWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-002-eli.js';
+import { registerPlPb1010HonokaWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-010-honoka.js';
+import { registerPlPb1028WaoWaoPowerfulDayWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-028-wao-wao-powerful-day.js';
+import { registerPlPb1030CutiePantherWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-030-cutie-panther.js';
+import { registerPlPb1031KaguyaNoShiroDeOdoritaiWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-031-kaguya-no-shiro-de-odoritai.js';
 import { registerPlBp3026OhLovePeaceWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-026-oh-love-peace.js';
 import { registerPlPb1018NicoWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-018-nico.js';
 import { registerSd1008HanayoWorkflowHandlers } from './card-effects/workflows/cards/pl-sd1-008-hanayo.js';
+import { registerSPb1019GenkiZenkaiDayDayDayWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-019-genki-zenkai-day-day-day.js';
 import {
   isHsSd1001HighCostHasunosoraRelayReplacement,
   registerHsSd1001KahoWorkflowHandlers,
@@ -873,10 +880,17 @@ registerNPb1011MiaWorkflowHandlers();
 registerHsBp6011RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp2005RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerMakiOnEnterWorkflowHandlers();
+registerPlPb1001HonokaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlPb1002EliWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlPb1010HonokaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPb1015MakiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlPb1028WaoWaoPowerfulDayWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerPlPb1030CutiePantherWorkflowHandlers();
+registerPlPb1031KaguyaNoShiroDeOdoritaiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp3026OhLovePeaceWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb1018NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSd1008HanayoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSPb1019GenkiZenkaiDayDayDayWorkflowHandlers();
 registerEmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLlBp6001KotoriDiaKosuzuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp3001HonokaWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -2502,6 +2516,9 @@ function enqueueLiveSuccessCardEffects(
 
     for (const abilityDefinition of abilityDefinitions) {
       const abilityId = abilityDefinition.abilityId;
+      if (isLiveAbilitySuppressed(state, sourceCardId, abilityId)) {
+        continue;
+      }
       if (
         abilityDefinition.skipQueueWhenTurnLimitReached === true &&
         !canUseAbilityThisTurn(state, sourceCard.ownerId, abilityId, sourceCardId)

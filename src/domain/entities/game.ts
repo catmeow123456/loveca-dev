@@ -257,6 +257,13 @@ export type LiveModifierState =
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
+      readonly kind: 'SUPPRESS_ABILITY';
+      readonly sourceCardId: string;
+      readonly suppressedAbilityId: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
     };
 
 export interface LiveResolutionState {

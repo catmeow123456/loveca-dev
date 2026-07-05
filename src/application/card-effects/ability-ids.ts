@@ -204,6 +204,14 @@ export const BP4_009_ON_ENTER_OPPONENT_WAIT_OWN_ACTIVE_MEMBER_ABILITY_ID =
   'PL!-bp4-009:on-enter-opponent-wait-own-active-member';
 export const BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID =
   'PL!-bp4-017-N:live-start-wait-self-center-muse-gain-blade';
+export const PL_PB1_002_ON_ENTER_WAIT_SELF_ONLY_BIBI_WAIT_OPPONENT_LOW_ORIGINAL_BLADE_ABILITY_ID =
+  'PL!-pb1-002:on-enter-wait-self-only-bibi-wait-opponent-low-original-blade';
+export const PL_PB1_002_LIVE_START_WAIT_SELF_ONLY_BIBI_WAIT_OPPONENT_LOW_ORIGINAL_BLADE_ABILITY_ID =
+  'PL!-pb1-002:live-start-wait-self-only-bibi-wait-opponent-low-original-blade';
+export const PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID =
+  'PL!-pb1-002:continuous-opponent-waiting-gain-purple-heart';
+export const PL_PB1_010_LIVE_START_DISCARD_HAND_OTHER_MEMBERS_GAIN_BLADE_ABILITY_ID =
+  'PL!-pb1-010:live-start-discard-hand-other-members-gain-blade';
 export const PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID =
   'PL!-pb1-011:on-enter-different-bibi-wait-opponent-low-cost-member';
 export const PL_N_BP5_003_ACTIVATED_DISCARD_PAY_SCORE_RECOVER_LIVE_ABILITY_ID =
@@ -576,6 +584,12 @@ export const BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_
   'PL!-bp5-004:auto-on-cheer-no-blade-member-three-gain-all-heart';
 export const BP5_011_LIVE_START_SUCCESS_COUNT_CHOOSE_GREEN_BLUE_PURPLE_HEART_ABILITY_ID =
   'PL!-bp5-011:live-start-success-count-choose-green-blue-purple-heart';
+export const PL_PB1_001_ACTIVATED_WAIT_SELF_DISCARD_REVEAL_UNTIL_CHOSEN_ABILITY_ID =
+  'PL!-pb1-001:activated-wait-self-discard-reveal-until-chosen';
+export const PL_S_PB1_019_LIVE_START_AQOURS_RED_HEART_SUPPRESS_SUCCESS_ABILITY_ID =
+  'PL!S-pb1-019-L:live-start-aqours-red-heart-suppress-success';
+export const PL_S_PB1_019_LIVE_SUCCESS_PLACE_OPPONENT_WAITING_ENERGY_ABILITY_ID =
+  'PL!S-pb1-019-L:live-success-place-opponent-waiting-energy';
 export const PB1_019_ACTIVATED_ABILITY_ID =
   'PL!-pb1-019-N:activated-send-self-to-waiting-room-add-member';
 export const HANAYO_ACTIVATED_ABILITY_ID = 'PL!-sd1-008-SD:activated-pay-two-mill-ten';
@@ -929,3 +943,13 @@ export const PB1_015_ON_ENTER_CENTER_WAIT_BIBI_MEMBER_OPPONENT_WAIT_ACTIVE_MEMBE
   'PL!-pb1-015:on-enter-center-wait-bibi-member-opponent-wait-active-member';
 export const PB1_015_LIVE_START_CENTER_WAIT_BIBI_MEMBER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID =
   'PL!-pb1-015:live-start-center-wait-bibi-member-opponent-wait-active-member';
+export const PL_PB1_028_LIVE_START_ACTIVATE_PRINTEMPS_MEMBERS_SCORE_ABILITY_ID =
+  'PL!-pb1-028-L:live-start-activate-printemps-members-score';
+export const PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID =
+  'PL!-pb1-029-L:live-start-no-success-only-lilywhite-score';
+export const PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID =
+  'PL!-pb1-030-L:live-start-opponent-waiting-reduce-requirement';
+export const PL_PB1_030_LIVE_SUCCESS_DIFFERENT_BIBI_RECOVER_MEMBER_ABILITY_ID =
+  'PL!-pb1-030-L:live-success-different-bibi-recover-member';
+export const PL_PB1_031_LIVE_SUCCESS_DISCARD_HAND_RECOVER_MUSE_MEMBER_CHEER_ABILITY_ID =
+  'PL!-pb1-031-L:live-success-discard-hand-recover-muse-member-cheer';
