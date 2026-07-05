@@ -16,6 +16,11 @@ import type {
   OnlineCommandResult,
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
+  OnlineSpectatorJoinView,
+  OnlineSpectatorLinkView,
+  OnlineSpectatorPresenceView,
+  OnlineSpectatorSessionView,
+  OnlineSpectatorSnapshotResponse,
   OnlineUndoView,
   PublicEventsResponse,
   Seat,
@@ -38,6 +43,8 @@ import {
 
 const MATCH_STALE_TTL_MS = 30 * 60 * 1000;
 const UNDO_REQUEST_TTL_MS = 60 * 1000;
+const SPECTATOR_LINK_TTL_MS = 12 * 60 * 60 * 1000;
+const SPECTATOR_SESSION_STALE_MS = 15 * 1000;
 const DEFAULT_AUTHORITY_CHECKPOINT_INTERVAL_FRAMES = 5;
 
 export interface OnlineMatchParticipant {
@@ -135,6 +142,29 @@ interface OnlineUndoGrantState {
   readonly expiresAt: number;
 }
 
+interface OnlineSpectatorLinkState {
+  readonly token: string;
+  readonly matchId: string;
+  readonly viewType: 'PLAYER';
+  readonly viewerSeat: Seat;
+  readonly createdByUserId: string;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+  revokedAt: number | null;
+}
+
+interface OnlineSpectatorSessionState {
+  readonly sessionId: string;
+  readonly token: string;
+  readonly clientId: string | null;
+  readonly matchId: string;
+  readonly viewType: 'PLAYER';
+  readonly viewerSeat: Seat;
+  readonly joinedAt: number;
+  displayName: string;
+  lastSeenAt: number;
+}
+
 export interface CreateUndoRequestInput extends RemoteUndoInput {}
 
 export interface RespondUndoRequestInput {
@@ -172,8 +202,22 @@ export class OnlineMatchServiceError extends Error {
   }
 }
 
+export class OnlineSpectatorServiceError extends Error {
+  readonly code: string;
+  readonly statusCode: number;
+
+  constructor(code: string, message: string, statusCode = 400) {
+    super(message);
+    this.name = 'OnlineSpectatorServiceError';
+    this.code = code;
+    this.statusCode = statusCode;
+  }
+}
+
 export class OnlineMatchService {
   private readonly matches = new Map<string, OnlineMatchState>();
+  private readonly spectatorLinks = new Map<string, OnlineSpectatorLinkState>();
+  private readonly spectatorSessions = new Map<string, OnlineSpectatorSessionState>();
   private readonly now: () => number;
   private readonly idGenerator: () => string;
   private readonly recorder: Pick<
@@ -415,6 +459,152 @@ export class OnlineMatchService {
       matchId: match.matchId,
       currentPublicSeq: match.session.getCurrentPublicEventSeq(),
       publicEvents: match.session.getPublicEventsSince(afterSeq),
+    };
+  }
+
+  async createPlayerViewSpectatorLink(
+    matchId: string,
+    userId: string
+  ): Promise<OnlineSpectatorLinkView | null> {
+    const match = this.matches.get(matchId);
+    if (!match || match.matchMode !== 'ONLINE') {
+      return null;
+    }
+
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant) {
+      return null;
+    }
+
+    const now = this.now();
+    this.cleanupExpiredSpectatorState(now);
+    const link: OnlineSpectatorLinkState = {
+      token: this.idGenerator(),
+      matchId: match.matchId,
+      viewType: 'PLAYER',
+      viewerSeat: participant.seat,
+      createdByUserId: userId,
+      createdAt: now,
+      expiresAt: now + SPECTATOR_LINK_TTL_MS,
+      revokedAt: null,
+    };
+    this.spectatorLinks.set(link.token, link);
+    touchMatch(match);
+
+    return buildSpectatorLinkView(link);
+  }
+
+  async joinSpectatorLink(
+    tokenInput: string,
+    input: { readonly displayName?: string | null; readonly clientId?: string | null } = {}
+  ): Promise<OnlineSpectatorJoinView> {
+    const now = this.now();
+    this.cleanupExpiredSpectatorState(now);
+    const { link, match } = this.requireActiveSpectatorLink(tokenInput, now);
+    const clientId = normalizeSpectatorClientId(input.clientId);
+    const displayName = normalizeSpectatorDisplayName(input.displayName);
+    const existingSession = clientId
+      ? this.findActiveSpectatorSessionByClientId(link.token, clientId, now)
+      : null;
+
+    if (existingSession) {
+      existingSession.lastSeenAt = now;
+      if (displayName) {
+        existingSession.displayName = displayName;
+      }
+      touchMatch(match);
+
+      return {
+        link: buildSpectatorLinkView(link),
+        session: buildSpectatorSessionView(existingSession),
+        snapshot: buildReadonlySpectatorSnapshot(match, link.viewerSeat),
+      };
+    }
+
+    const session: OnlineSpectatorSessionState = {
+      sessionId: this.idGenerator(),
+      token: link.token,
+      clientId,
+      matchId: link.matchId,
+      viewType: link.viewType,
+      viewerSeat: link.viewerSeat,
+      displayName: displayName ?? this.createGuestDisplayName(link.matchId, now),
+      joinedAt: now,
+      lastSeenAt: now,
+    };
+    this.spectatorSessions.set(session.sessionId, session);
+    touchMatch(match);
+
+    return {
+      link: buildSpectatorLinkView(link),
+      session: buildSpectatorSessionView(session),
+      snapshot: buildReadonlySpectatorSnapshot(match, link.viewerSeat),
+    };
+  }
+
+  async getSpectatorSnapshot(
+    tokenInput: string,
+    sessionId: string | null | undefined,
+    options: { readonly sinceSeq?: number } = {}
+  ): Promise<OnlineSpectatorSnapshotResponse> {
+    const now = this.now();
+    this.cleanupExpiredSpectatorState(now);
+    const { link, match } = this.requireActiveSpectatorLink(tokenInput, now);
+    this.touchSpectatorSession(link.token, sessionId, now);
+
+    await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expireActiveUndoGrantIfNeeded(match);
+    touchMatch(match);
+
+    const currentSeq = match.remoteRevision;
+    if (options.sinceSeq !== undefined && options.sinceSeq >= currentSeq) {
+      return {
+        matchId: match.matchId,
+        seq: currentSeq,
+        currentPublicSeq: match.session.getCurrentPublicEventSeq(),
+        modified: false,
+      };
+    }
+
+    return buildReadonlySpectatorSnapshot(match, link.viewerSeat);
+  }
+
+  async getSpectatorPublicEvents(
+    tokenInput: string,
+    sessionId: string | null | undefined,
+    options: { readonly afterSeq?: number } = {}
+  ): Promise<PublicEventsResponse> {
+    const now = this.now();
+    this.cleanupExpiredSpectatorState(now);
+    const { link, match } = this.requireActiveSpectatorLink(tokenInput, now);
+    this.touchSpectatorSession(link.token, sessionId, now);
+
+    await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expireActiveUndoGrantIfNeeded(match);
+    touchMatch(match);
+    const afterSeq = normalizePublicEventCursor(options.afterSeq);
+    return {
+      matchId: match.matchId,
+      currentPublicSeq: match.session.getCurrentPublicEventSeq(),
+      publicEvents: match.session.getPublicEventsSince(afterSeq),
+    };
+  }
+
+  getSpectatorPresenceForMatch(matchId: string): OnlineSpectatorPresenceView {
+    const now = this.now();
+    this.cleanupExpiredSpectatorState(now);
+    const viewers = [...this.spectatorSessions.values()]
+      .filter((session) => session.matchId === matchId)
+      .filter((session) => isSpectatorSessionActive(session, now))
+      .sort(
+        (left, right) =>
+          left.joinedAt - right.joinedAt || left.sessionId.localeCompare(right.sessionId)
+      )
+      .map(buildSpectatorSessionView);
+
+    return {
+      total: viewers.length,
+      viewers,
     };
   }
 
@@ -1012,6 +1202,16 @@ export class OnlineMatchService {
     }
 
     this.matches.delete(matchId);
+    for (const [token, link] of this.spectatorLinks) {
+      if (link.matchId === matchId) {
+        this.spectatorLinks.delete(token);
+      }
+    }
+    for (const [sessionId, session] of this.spectatorSessions) {
+      if (session.matchId === matchId) {
+        this.spectatorSessions.delete(sessionId);
+      }
+    }
     this.sealedMatchIds.delete(matchId);
     this.partialRecordMatchIds.delete(matchId);
     return true;
@@ -1033,12 +1233,122 @@ export class OnlineMatchService {
         });
       }
     }
+    this.cleanupExpiredSpectatorState(now);
   }
 
   clear(): void {
     this.matches.clear();
+    this.spectatorLinks.clear();
+    this.spectatorSessions.clear();
     this.sealedMatchIds.clear();
     this.partialRecordMatchIds.clear();
+  }
+
+  private requireActiveSpectatorLink(
+    tokenInput: string,
+    now: number
+  ): { readonly link: OnlineSpectatorLinkState; readonly match: OnlineMatchState } {
+    const token = normalizeSpectatorToken(tokenInput);
+    const link = token ? this.spectatorLinks.get(token) : undefined;
+    if (!link || link.revokedAt !== null) {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_LINK_NOT_FOUND',
+        '观战链接不存在或已被撤销',
+        404
+      );
+    }
+    if (link.expiresAt <= now) {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_LINK_EXPIRED',
+        '观战链接已过期',
+        410
+      );
+    }
+
+    const match = this.matches.get(link.matchId);
+    if (!match) {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_MATCH_NOT_FOUND',
+        '观战对局不存在或已失效',
+        404
+      );
+    }
+
+    return { link, match };
+  }
+
+  private touchSpectatorSession(
+    token: string,
+    sessionId: string | null | undefined,
+    now: number
+  ): void {
+    const normalizedSessionId = normalizeSpectatorToken(sessionId ?? '');
+    if (!normalizedSessionId) {
+      return;
+    }
+
+    const session = this.spectatorSessions.get(normalizedSessionId);
+    if (!session || session.token !== token) {
+      return;
+    }
+
+    session.lastSeenAt = now;
+  }
+
+  private cleanupExpiredSpectatorState(now: number): void {
+    for (const [sessionId, session] of this.spectatorSessions) {
+      if (!this.spectatorLinks.has(session.token) || !isSpectatorSessionActive(session, now)) {
+        this.spectatorSessions.delete(sessionId);
+      }
+    }
+
+    for (const [token, link] of this.spectatorLinks) {
+      if (link.expiresAt <= now || link.revokedAt !== null || !this.matches.has(link.matchId)) {
+        this.spectatorLinks.delete(token);
+        for (const [sessionId, session] of this.spectatorSessions) {
+          if (session.token === token) {
+            this.spectatorSessions.delete(sessionId);
+          }
+        }
+      }
+    }
+  }
+
+  private findActiveSpectatorSessionByClientId(
+    token: string,
+    clientId: string,
+    now: number
+  ): OnlineSpectatorSessionState | null {
+    for (const session of this.spectatorSessions.values()) {
+      if (
+        session.token === token &&
+        session.clientId === clientId &&
+        isSpectatorSessionActive(session, now)
+      ) {
+        return session;
+      }
+    }
+    return null;
+  }
+
+  private createGuestDisplayName(matchId: string, now: number): string {
+    const usedIndexes = new Set<number>();
+    for (const session of this.spectatorSessions.values()) {
+      if (session.matchId !== matchId || !isSpectatorSessionActive(session, now)) {
+        continue;
+      }
+      const match = /^游客\s+(\d+)$/.exec(session.displayName.trim());
+      const index = match ? Number.parseInt(match[1], 10) : 0;
+      if (Number.isSafeInteger(index) && index > 0) {
+        usedIndexes.add(index);
+      }
+    }
+
+    let nextIndex = 1;
+    while (usedIndexes.has(nextIndex)) {
+      nextIndex += 1;
+    }
+    return `游客 ${nextIndex}`;
   }
 
   private async expirePendingUndoRequestIfNeeded(match: OnlineMatchState): Promise<void> {
@@ -1372,7 +1682,8 @@ export const onlineMatchService = new OnlineMatchService();
 
 function buildSnapshot(
   match: OnlineMatchState,
-  participant: OnlineMatchParticipant
+  participant: OnlineMatchParticipant,
+  options: { readonly undoView?: OnlineUndoView } = {}
 ): OnlineMatchSnapshot {
   const projectedViewState = match.session.getPlayerViewState(participant.playerId, {
     seqOverride: match.remoteRevision,
@@ -1384,7 +1695,7 @@ function buildSnapshot(
     ...projectedViewState,
     match: {
       ...projectedViewState.match,
-      undo: buildOnlineUndoView(match, participant),
+      undo: options.undoView ?? buildOnlineUndoView(match, participant),
     },
   };
 
@@ -1395,6 +1706,49 @@ function buildSnapshot(
     seq: match.remoteRevision,
     currentPublicSeq: match.session.getCurrentPublicEventSeq(),
     playerViewState,
+  };
+}
+
+function buildReadonlySpectatorSnapshot(match: OnlineMatchState, viewerSeat: Seat): OnlineMatchSnapshot {
+  return buildSnapshot(match, match.participants[viewerSeat], {
+    undoView: buildReadonlyUndoView(),
+  });
+}
+
+function buildReadonlyUndoView(): OnlineUndoView {
+  return {
+    policy: 'NONE',
+    canUndoNow: false,
+    disabledReason: '观战模式为只读',
+    entry: null,
+    pendingRequest: null,
+    grant: null,
+  };
+}
+
+function buildSpectatorLinkView(link: OnlineSpectatorLinkState): OnlineSpectatorLinkView {
+  return {
+    token: link.token,
+    matchId: link.matchId,
+    viewType: link.viewType,
+    viewerSeat: link.viewerSeat,
+    createdAt: link.createdAt,
+    expiresAt: link.expiresAt,
+    revokedAt: link.revokedAt,
+    path: `/online/spectate/${encodeURIComponent(link.token)}`,
+  };
+}
+
+function buildSpectatorSessionView(
+  session: OnlineSpectatorSessionState
+): OnlineSpectatorSessionView {
+  return {
+    sessionId: session.sessionId,
+    displayName: session.displayName,
+    viewType: session.viewType,
+    viewerSeat: session.viewerSeat,
+    joinedAt: session.joinedAt,
+    lastSeenAt: session.lastSeenAt,
   };
 }
 
@@ -1641,6 +1995,31 @@ function buildUndoRequestSettlementKey(
 function normalizeOptionalKey(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function normalizeSpectatorToken(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeSpectatorDisplayName(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.slice(0, 24);
+}
+
+function normalizeSpectatorClientId(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.slice(0, 128);
+}
+
+function isSpectatorSessionActive(session: OnlineSpectatorSessionState, now: number): boolean {
+  return now - session.lastSeenAt <= SPECTATOR_SESSION_STALE_MS;
 }
 
 function buildRemoteFrameDedupeKey(

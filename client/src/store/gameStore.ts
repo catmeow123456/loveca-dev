@@ -239,6 +239,8 @@ export interface RemoteSessionState {
   readonly source: RemoteSessionSource;
   readonly seat?: Seat;
   readonly playerId: string | null;
+  readonly spectatorToken?: string;
+  readonly spectatorSessionId?: string;
 }
 
 export interface ReplayReadonlySessionState {
@@ -660,9 +662,12 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   const isReadonlyReplayMode = (): boolean => get().replaySession !== null;
 
-  const rejectReadonlyReplayCommand = (): CommandDispatchResult => ({
+  const isReadonlyBattleSurface = (): boolean =>
+    isReadonlyReplayMode() || get().remoteSession?.source === 'SPECTATOR';
+
+  const rejectReadonlyCommand = (): CommandDispatchResult => ({
     success: false,
-    error: '历史回放为只读模式，不能提交操作',
+    error: isReadonlyReplayMode() ? '历史回放为只读模式，不能提交操作' : '观战模式为只读，不能提交操作',
   });
 
   const applyCommandSuccessEffects = (
@@ -683,8 +688,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     command: GameCommand,
     options: StoreCommandOptions
   ): CommandDispatchResult => {
-    if (isReadonlyReplayMode()) {
-      return rejectReadonlyReplayCommand();
+    if (isReadonlyBattleSurface()) {
+      return rejectReadonlyCommand();
     }
 
     if (
@@ -717,8 +722,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     buildCommand: (playerId: string) => GameCommand,
     options: StoreCommandOptions
   ): CommandDispatchResult => {
-    if (isReadonlyReplayMode()) {
-      return rejectReadonlyReplayCommand();
+    if (isReadonlyBattleSurface()) {
+      return rejectReadonlyCommand();
     }
 
     const viewingPlayerId = get().viewingPlayerId;
@@ -732,7 +737,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   const runRemoteCommandSequence = (
     entries: readonly { readonly command: GameCommand; readonly options: StoreCommandOptions }[]
   ): boolean => {
-    if (isReadonlyReplayMode()) {
+    if (isReadonlyBattleSurface()) {
       warnReplayGuardBypass('runRemoteCommandSequence');
       return true;
     }
@@ -880,7 +885,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     advancePhase: () => {
-      if (isReadonlyReplayMode()) {
+      if (isReadonlyBattleSurface()) {
         return;
       }
 
@@ -907,7 +912,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     canUndoLastStep: () => {
-      if (isReadonlyReplayMode()) {
+      if (isReadonlyBattleSurface()) {
         return false;
       }
       const capabilities = get().getBattleSurfaceCapabilities();
@@ -924,8 +929,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     undoLastStep: () => {
-      if (isReadonlyReplayMode()) {
-        return rejectReadonlyReplayCommand();
+      if (isReadonlyBattleSurface()) {
+        return rejectReadonlyCommand();
       }
       const capabilities = get().getBattleSurfaceCapabilities();
       if (get().remoteSession) {
@@ -962,8 +967,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     respondRemoteUndoRequest: (requestId, accepted, options) => {
-      if (isReadonlyReplayMode()) {
-        return rejectReadonlyReplayCommand();
+      if (isReadonlyBattleSurface()) {
+        return rejectReadonlyCommand();
       }
       return dispatchRemoteUndoRequestResponse(requestId, accepted, options);
     },
@@ -1110,8 +1115,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     mulligan: (cardIdsToMulligan) => {
-      if (isReadonlyReplayMode()) {
-        return rejectReadonlyReplayCommand();
+      if (isReadonlyBattleSurface()) {
+        return rejectReadonlyCommand();
       }
 
       const { viewingPlayerId, gameSession } = get();
@@ -1192,7 +1197,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     setViewingPlayer: (playerId) => {
-      if (isReadonlyReplayMode()) {
+      if (isReadonlyBattleSurface()) {
         return;
       }
       if (get().remoteSession) {
@@ -1309,12 +1314,22 @@ export const useGameStore = create<GameStore>((set, get) => {
       }));
 
       try {
-        const response = await fetchRemotePublicEvents(
-          remoteSession.source,
-          remoteSession.matchId,
-          remoteSession.seat,
-          afterSeq
-        );
+        const response =
+          remoteSession.source === 'SPECTATOR'
+            ? await fetchRemotePublicEvents(
+                remoteSession.source,
+                remoteSession.matchId,
+                remoteSession.seat,
+                afterSeq,
+                remoteSession.spectatorToken,
+                remoteSession.spectatorSessionId
+              )
+            : await fetchRemotePublicEvents(
+                remoteSession.source,
+                remoteSession.matchId,
+                remoteSession.seat,
+                afterSeq
+              );
         if (!response) {
           settleStalePublicBattleLogLoad(remoteSession);
           return;
@@ -1429,7 +1444,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     setGameMode: (mode) => {
-      if (isReadonlyReplayMode()) {
+      if (isReadonlyBattleSurface()) {
         return;
       }
       if (get().remoteSession) {
@@ -1447,7 +1462,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     setFreePlayEnabled: (enabled) => {
-      if (isReadonlyReplayMode()) {
+      if (isReadonlyBattleSurface()) {
         return;
       }
       const { gameSession } = get();
@@ -1575,12 +1590,22 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      const snapshotResult = await fetchRemoteSnapshotSyncResult(
-        remoteSession.source,
-        remoteSession.matchId,
-        remoteSession.seat,
-        get().playerViewState?.match.seq
-      );
+      const snapshotResult =
+        remoteSession.source === 'SPECTATOR'
+          ? await fetchRemoteSnapshotSyncResult(
+              remoteSession.source,
+              remoteSession.matchId,
+              remoteSession.seat,
+              get().playerViewState?.match.seq,
+              remoteSession.spectatorToken,
+              remoteSession.spectatorSessionId
+            )
+          : await fetchRemoteSnapshotSyncResult(
+              remoteSession.source,
+              remoteSession.matchId,
+              remoteSession.seat,
+              get().playerViewState?.match.seq
+            );
       if (!isRemoteSessionStillCurrent(remoteSession)) {
         return;
       }
@@ -1677,7 +1702,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     getCommandHint: (command) => {
-      if (isReadonlyReplayMode()) {
+      if (isReadonlyBattleSurface()) {
         return null;
       }
       const permissionView = get().playerViewState?.permissions;
@@ -1690,7 +1715,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     canUseAction: (actionType) => {
-      if (isReadonlyReplayMode()) {
+      if (isReadonlyBattleSurface()) {
         return false;
       }
       return get().getCommandHint(actionType)?.enabled === true;
@@ -1988,8 +2013,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     acceptAutomaticJudgment: () => {
-      if (isReadonlyReplayMode()) {
-        return rejectReadonlyReplayCommand();
+      if (isReadonlyBattleSurface()) {
+        return rejectReadonlyCommand();
       }
 
       const viewingPlayerId = get().viewingPlayerId;
@@ -3055,7 +3080,14 @@ function enqueueRemoteSessionOperation(
 }
 
 function getRemoteSessionQueueKey(remoteSession: NonNullable<GameStore['remoteSession']>): string {
-  return `${remoteSession.source}:${remoteSession.matchId}:${remoteSession.seat}:${remoteSession.playerId ?? ''}`;
+  return [
+    remoteSession.source,
+    remoteSession.matchId,
+    remoteSession.seat ?? '',
+    remoteSession.playerId ?? '',
+    remoteSession.spectatorToken ?? '',
+    remoteSession.spectatorSessionId ?? '',
+  ].join(':');
 }
 
 function isRemoteSessionStillCurrent(
@@ -3067,7 +3099,9 @@ function isRemoteSessionStillCurrent(
     current.source === remoteSession.source &&
     current.matchId === remoteSession.matchId &&
     current.seat === remoteSession.seat &&
-    current.playerId === remoteSession.playerId
+    current.playerId === remoteSession.playerId &&
+    current.spectatorToken === remoteSession.spectatorToken &&
+    current.spectatorSessionId === remoteSession.spectatorSessionId
   );
 }
 

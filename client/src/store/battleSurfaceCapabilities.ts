@@ -8,13 +8,14 @@ export type BattleSurfaceKind =
   | 'SOLITAIRE'
   | 'ONLINE'
   | 'REMOTE_DEBUG'
+  | 'SPECTATOR_READONLY'
   | 'REPLAY_READONLY';
 
 export type FreePlayPolicy = 'SESSION_GLOBAL' | 'COMMAND_FLAG';
 
 export type ScoreConfirmPresentation = 'DEBUG_PASSTHROUGH' | 'STANDARD_MODAL';
 
-export type RemoteBattleSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE';
+export type RemoteBattleSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE' | 'SPECTATOR';
 
 export interface BattleSurfaceCapabilities {
   readonly authority: BattleAuthority;
@@ -61,6 +62,7 @@ export function deriveBattleSurfaceCapabilities(
   const authority: BattleAuthority = input.remoteSessionSource ? 'REMOTE' : 'LOCAL';
   const surface = deriveBattleSurfaceKind(input);
   const undoPolicy = deriveUndoPolicy(authority, surface);
+  const isSpectatorReadonly = surface === 'SPECTATOR_READONLY';
 
   return {
     authority,
@@ -70,11 +72,11 @@ export function deriveBattleSurfaceCapabilities(
     canShowDebugLog: surface === 'LOCAL_DEBUG',
     canUndo: undoPolicy !== 'NONE',
     undoPolicy,
-    showFreePlayControl: true,
+    showFreePlayControl: !isSpectatorReadonly,
     freePlayPolicy: authority === 'LOCAL' ? 'SESSION_GLOBAL' : 'COMMAND_FLAG',
     isSolitairePresentation: surface === 'SOLITAIRE',
     scoreConfirmPresentation: surface === 'LOCAL_DEBUG' ? 'DEBUG_PASSTHROUGH' : 'STANDARD_MODAL',
-    isReadOnly: false,
+    isReadOnly: isSpectatorReadonly,
   };
 }
 
@@ -100,6 +102,9 @@ function deriveBattleSurfaceKind(input: BattleSurfaceCapabilityInput): BattleSur
   }
   if (input.remoteSessionSource === 'SOLITAIRE') {
     return 'SOLITAIRE';
+  }
+  if (input.remoteSessionSource === 'SPECTATOR') {
+    return 'SPECTATOR_READONLY';
   }
   return input.gameMode === GameMode.SOLITAIRE ? 'SOLITAIRE' : 'LOCAL_DEBUG';
 }

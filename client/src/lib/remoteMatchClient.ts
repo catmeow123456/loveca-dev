@@ -20,6 +20,8 @@ import {
   fetchOnlineMatchPublicEvents,
   fetchOnlineMatchSnapshot,
   fetchOnlineMatchSnapshotResponse,
+  fetchOnlineSpectatorPublicEvents,
+  fetchOnlineSpectatorSnapshotResponse,
   rejectOnlineUndoRequest,
   undoOnlineMatch,
 } from './onlineClient';
@@ -32,7 +34,7 @@ import {
   undoSolitaireMatch,
 } from './solitaireMatchClient';
 
-export type RemoteSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE';
+export type RemoteSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE' | 'SPECTATOR';
 export type RemoteSnapshot = DebugMatchSnapshot | OnlineMatchSnapshot;
 export type RemoteCommandExecutionResult = DebugCommandResult | OnlineCommandResult;
 
@@ -47,7 +49,9 @@ export async function fetchRemoteSnapshot(
   source: RemoteSessionSource,
   matchId: string,
   seat?: DebugMatchSnapshot['seat'],
-  sinceSeq?: number
+  sinceSeq?: number,
+  spectatorToken?: string,
+  spectatorSessionId?: string
 ): Promise<RemoteSnapshot | null> {
   if (source === 'DEBUG') {
     if (!seat) {
@@ -58,6 +62,17 @@ export async function fetchRemoteSnapshot(
   if (source === 'SOLITAIRE') {
     return fetchSolitaireMatchSnapshot(matchId, sinceSeq);
   }
+  if (source === 'SPECTATOR') {
+    if (!spectatorToken) {
+      throw new Error('观战会话缺少 token');
+    }
+    const response = await fetchOnlineSpectatorSnapshotResponse(
+      spectatorToken,
+      spectatorSessionId,
+      sinceSeq
+    );
+    return isSnapshotNotModified(response) ? null : response;
+  }
 
   return fetchOnlineMatchSnapshot(matchId, sinceSeq);
 }
@@ -66,7 +81,9 @@ export async function fetchRemoteSnapshotSyncResult(
   source: RemoteSessionSource,
   matchId: string,
   seat?: DebugMatchSnapshot['seat'],
-  sinceSeq?: number
+  sinceSeq?: number,
+  spectatorToken?: string,
+  spectatorSessionId?: string
 ): Promise<RemoteSnapshotSyncResult> {
   if (source === 'DEBUG') {
     if (!seat) {
@@ -84,7 +101,13 @@ export async function fetchRemoteSnapshotSyncResult(
   const response =
     source === 'SOLITAIRE'
       ? await fetchSolitaireMatchSnapshotResponse(matchId, sinceSeq)
-      : await fetchOnlineMatchSnapshotResponse(matchId, sinceSeq);
+      : source === 'SPECTATOR'
+        ? await fetchOnlineSpectatorSnapshotResponse(
+            requireSpectatorToken(spectatorToken),
+            spectatorSessionId,
+            sinceSeq
+          )
+        : await fetchOnlineMatchSnapshotResponse(matchId, sinceSeq);
   const snapshot = isSnapshotNotModified(response) ? null : response;
   return {
     matchId: response.matchId,
@@ -104,7 +127,9 @@ export async function fetchRemotePublicEvents(
   source: RemoteSessionSource,
   matchId: string,
   seat?: DebugMatchSnapshot['seat'],
-  afterSeq?: number
+  afterSeq?: number,
+  spectatorToken?: string,
+  spectatorSessionId?: string
 ): Promise<PublicEventsResponse | null> {
   if (source === 'DEBUG') {
     if (!seat) {
@@ -119,6 +144,13 @@ export async function fetchRemotePublicEvents(
   }
   if (source === 'SOLITAIRE') {
     return fetchSolitaireMatchPublicEvents(matchId, afterSeq);
+  }
+  if (source === 'SPECTATOR') {
+    return fetchOnlineSpectatorPublicEvents(
+      requireSpectatorToken(spectatorToken),
+      spectatorSessionId,
+      afterSeq
+    );
   }
 
   return fetchOnlineMatchPublicEvents(matchId, afterSeq);
@@ -139,6 +171,9 @@ export async function executeRemoteCommand(
   if (source === 'SOLITAIRE') {
     return executeSolitaireMatchCommand(matchId, command);
   }
+  if (source === 'SPECTATOR') {
+    throw new Error('观战模式为只读，不能提交操作');
+  }
 
   return executeOnlineMatchCommand(matchId, command);
 }
@@ -156,6 +191,9 @@ export async function advanceRemotePhase(
   }
   if (source === 'SOLITAIRE') {
     return advanceSolitaireMatchPhase(matchId);
+  }
+  if (source === 'SPECTATOR') {
+    throw new Error('观战模式为只读，不能推进阶段');
   }
 
   return advanceOnlineMatchPhase(matchId);
@@ -177,6 +215,13 @@ export async function undoRemoteMatch(
     return undoOnlineMatch(matchId, input);
   }
   throw new Error('当前远程对局暂不支持撤销');
+}
+
+function requireSpectatorToken(token: string | undefined): string {
+  if (!token) {
+    throw new Error('观战会话缺少 token');
+  }
+  return token;
 }
 
 export async function createRemoteUndoRequest(

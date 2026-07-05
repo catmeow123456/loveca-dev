@@ -3,9 +3,12 @@ import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowLeft,
   Check,
+  ChevronDown,
   CircleDot,
+  Copy,
   Crown,
   DoorOpen,
+  Eye,
   Hand,
   HandFist,
   Loader2,
@@ -32,6 +35,7 @@ import { useGameStore } from '@/store/gameStore';
 import {
   acceptOnlineRoomRestart,
   cancelOnlineRoomRestart,
+  createOnlinePlayerSpectatorLink,
   createOnlineRoom,
   fetchOnlineMatchSnapshot,
   fetchOnlineRoom,
@@ -56,7 +60,12 @@ import {
   readLastUsedDeckId,
   writeLastUsedDeckId,
 } from '@/lib/deckSelectionPreferences';
-import type { OnlineRoomView, OpeningRpsGesture, OpeningTurnOrderChoice } from '@game/online';
+import type {
+  OnlineRoomView,
+  OpeningRpsGesture,
+  OpeningTurnOrderChoice,
+  Seat,
+} from '@game/online';
 
 const ROOM_POLL_INTERVAL_MS = 1200;
 const MATCH_POLL_INTERVAL_MS = 800;
@@ -111,6 +120,9 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBootstrappingMatch, setIsBootstrappingMatch] = useState(false);
   const [briefingAcknowledged, setBriefingAcknowledged] = useState(false);
+  const [isGeneratingSpectatorLink, setIsGeneratingSpectatorLink] = useState(false);
+  const [spectatorLinkMessage, setSpectatorLinkMessage] = useState<string | null>(null);
+  const [isRoomPanelOpen, setIsRoomPanelOpen] = useState(false);
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
     [cardDataRegistry]
@@ -322,6 +334,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const canRequestRestart = Boolean(
     room?.status === 'IN_GAME' && !restartRequest && opponentMember?.presence === 'ACTIVE'
   );
+  const spectatorPresence = room?.spectatorPresence ?? { total: 0, viewers: [] };
   const canLockDeck = Boolean(
     room && selectedDeck?.cloudDeck && room.status !== 'OPENING' && room.status !== 'IN_GAME'
   );
@@ -580,49 +593,75 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     }
   };
 
+  const handleCreateSpectatorLink = async () => {
+    if (!room?.matchId) {
+      return;
+    }
+
+    setIsGeneratingSpectatorLink(true);
+    setSpectatorLinkMessage(null);
+    setError(null);
+    try {
+      const link = await createOnlinePlayerSpectatorLink(room.matchId);
+      const url = `${window.location.origin}${link.path}`;
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(url);
+        copied = true;
+      } catch {
+        copied = false;
+      }
+      setSpectatorLinkMessage(copied ? '观战链接已复制' : `观战链接：${url}`);
+    } catch (spectatorError) {
+      setError(spectatorError instanceof Error ? spectatorError.message : '生成观战链接失败');
+    } finally {
+      setIsGeneratingSpectatorLink(false);
+    }
+  };
+
   if (room?.status === 'IN_GAME' && remoteSession?.matchId === room.matchId && matchView) {
     return (
       <div className="relative h-screen overflow-hidden">
         <div className="absolute left-4 top-4 z-[120] flex max-w-[calc(100vw-2rem)] flex-col items-start gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            {!restartRequest && (
-              <button
-                type="button"
-                onClick={handleRequestRestart}
-                disabled={!canRequestRestart || isSubmitting}
-                className={`button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl ${
-                  !canRequestRestart || isSubmitting ? 'cursor-not-allowed opacity-60' : ''
-                }`}
-                title={canRequestRestart ? '请求双方同意后重新开始' : '对手在线时可以请求重开'}
-              >
-                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
-                请求重开
-              </button>
-            )}
-            {restartRequest && isRestartRequester && (
-              <button
-                type="button"
-                onClick={handleCancelRestart}
-                disabled={isSubmitting}
-                className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
-              >
-                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
-                取消重开
-              </button>
-            )}
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleLeaveRoom}
-              disabled={isSubmitting}
-              className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
+              onClick={() => setIsRoomPanelOpen((open) => !open)}
+              aria-expanded={isRoomPanelOpen}
+              className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3.5 shadow-[var(--shadow-md)] backdrop-blur-xl sm:px-4"
+              title="打开房间操作"
             >
-              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <DoorOpen size={16} />}
-              离开房间
+              <Users size={16} />
+              <span className="hidden text-sm font-semibold sm:inline">房间 {room.roomCode}</span>
+              <span className="text-sm font-semibold sm:hidden">{room.roomCode}</span>
+              <span className="h-4 w-px bg-[var(--border-default)]" />
+              <Eye size={15} />
+              <span className="text-sm">{spectatorPresence.total}</span>
+              <ChevronDown
+                size={15}
+                className={`transition-transform ${isRoomPanelOpen ? 'rotate-180' : ''}`}
+              />
             </button>
             <div className="hidden md:block">
               <PublicBattleLogButton />
             </div>
           </div>
+          {isRoomPanelOpen && (
+            <RoomActionPanel
+              roomCode={room.roomCode}
+              presence={spectatorPresence}
+              spectatorLinkMessage={spectatorLinkMessage}
+              isGeneratingSpectatorLink={isGeneratingSpectatorLink}
+              isSubmitting={isSubmitting}
+              canRequestRestart={canRequestRestart}
+              restartRequest={restartRequest}
+              isRestartRequester={isRestartRequester}
+              onCreateSpectatorLink={handleCreateSpectatorLink}
+              onRequestRestart={handleRequestRestart}
+              onCancelRestart={handleCancelRestart}
+              onLeaveRoom={handleLeaveRoom}
+            />
+          )}
           {restartRequest && (
             <div className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-3 text-sm text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
               <div className="flex items-start justify-between gap-3">
@@ -641,6 +680,17 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                 </div>
                 <RotateCcw size={18} className="mt-0.5 shrink-0 text-[var(--accent-primary)]" />
               </div>
+              {isRestartRequester && (
+                <button
+                  type="button"
+                  onClick={handleCancelRestart}
+                  disabled={isSubmitting}
+                  className="button-ghost mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
+                >
+                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+                  取消重开
+                </button>
+              )}
               {isRestartResponder && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
@@ -1665,6 +1715,151 @@ function getRpsIcon(gesture: OpeningRpsGesture, size: number) {
     default:
       return <CircleDot size={size} />;
   }
+}
+
+function RoomActionPanel({
+  roomCode,
+  presence,
+  spectatorLinkMessage,
+  isGeneratingSpectatorLink,
+  isSubmitting,
+  canRequestRestart,
+  restartRequest,
+  isRestartRequester,
+  onCreateSpectatorLink,
+  onRequestRestart,
+  onCancelRestart,
+  onLeaveRoom,
+}: {
+  roomCode: string;
+  presence: OnlineRoomView['spectatorPresence'];
+  spectatorLinkMessage: string | null;
+  isGeneratingSpectatorLink: boolean;
+  isSubmitting: boolean;
+  canRequestRestart: boolean;
+  restartRequest: OnlineRoomView['restartRequest'];
+  isRestartRequester: boolean;
+  onCreateSpectatorLink: () => void;
+  onRequestRestart: () => void;
+  onCancelRestart: () => void;
+  onLeaveRoom: () => void;
+}) {
+  return (
+    <div className="w-[min(380px,calc(100vw-2rem))] rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-sm text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+      <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] pb-3">
+        <div>
+          <div className="text-[11px] uppercase text-[var(--text-muted)]">
+            正式联机房间
+          </div>
+          <div className="mt-1 font-semibold">Room {roomCode}</div>
+        </div>
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">
+          <Eye size={13} />
+          {presence.total}
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        <button
+          type="button"
+          onClick={onCreateSpectatorLink}
+          disabled={isGeneratingSpectatorLink}
+          className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm"
+        >
+          {isGeneratingSpectatorLink ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />}
+          复制观战链接
+        </button>
+        {!restartRequest && (
+          <button
+            type="button"
+            onClick={onRequestRestart}
+            disabled={!canRequestRestart || isSubmitting}
+            className={`button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm ${
+              !canRequestRestart || isSubmitting ? 'cursor-not-allowed opacity-60' : ''
+            }`}
+            title={canRequestRestart ? '请求双方同意后重新开始' : '对手在线时可以请求重开'}
+          >
+            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+            请求重开
+          </button>
+        )}
+        {restartRequest && isRestartRequester && (
+          <button
+            type="button"
+            onClick={onCancelRestart}
+            disabled={isSubmitting}
+            className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm"
+          >
+            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+            取消重开
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onLeaveRoom}
+          disabled={isSubmitting}
+          className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm text-[var(--semantic-error)]"
+        >
+          {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <DoorOpen size={16} />}
+          离开房间
+        </button>
+      </div>
+
+      {spectatorLinkMessage && (
+        <div className="mt-3 break-all rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_9%,transparent)] px-3 py-2 text-xs text-[var(--text-primary)]">
+          {spectatorLinkMessage}
+        </div>
+      )}
+
+      <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
+        <SpectatorPresencePanel presence={presence} embedded />
+      </div>
+    </div>
+  );
+}
+
+function SpectatorPresencePanel({
+  presence,
+  embedded = false,
+}: {
+  presence: OnlineRoomView['spectatorPresence'];
+  embedded?: boolean;
+}) {
+  const containerClassName = embedded
+    ? ''
+    : 'w-[min(360px,calc(100vw-2rem))] rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-3 text-sm text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl';
+
+  return (
+    <div className={containerClassName}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="font-semibold">当前观战者</div>
+        <div className="rounded-full border border-[var(--border-default)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">
+          {presence.total}
+        </div>
+      </div>
+      {presence.viewers.length === 0 ? (
+        <div className="mt-2 text-xs text-[var(--text-secondary)]">暂无活跃观战者</div>
+      ) : (
+        <div className="mt-3 flex max-h-48 flex-col gap-2 overflow-y-auto pr-1">
+          {presence.viewers.map((viewer) => (
+            <div
+              key={viewer.sessionId}
+              className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-3 py-2"
+            >
+              <div className="min-w-0 truncate font-medium">{viewer.displayName}</div>
+              <div className="shrink-0 text-xs text-[var(--text-secondary)]">
+                {getSpectatorViewLabel(viewer.viewerSeat)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getSpectatorViewLabel(seat: Seat): string {
+  return seat === 'FIRST' ? '先攻视角' : '后攻视角';
 }
 
 function getRoomStatusLabel(status: OnlineRoomView['status']): string {
