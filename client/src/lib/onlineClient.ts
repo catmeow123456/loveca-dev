@@ -15,7 +15,11 @@ import type {
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
   OnlineRoomView,
+  OnlineSpectatorJoinView,
+  OnlineSpectatorLinkView,
+  OnlineSpectatorSnapshotResponse,
   PublicEventsResponse,
+  Seat,
 } from '@game/online';
 import { toTransport } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
@@ -237,6 +241,108 @@ export async function fetchOnlineMatchPublicEvents(
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取公开对局日志失败');
+  }
+  return response.data;
+}
+
+export async function createOnlinePlayerSpectatorLink(
+  matchId: string
+): Promise<OnlineSpectatorLinkView> {
+  const response = await apiClient.post<OnlineSpectatorLinkView>(
+    `/api/online/matches/${encodeURIComponent(matchId)}/spectator-links/player-view`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '生成观战链接失败');
+  }
+  return response.data;
+}
+
+export async function createOnlineAdminPlayerSpectatorLink(
+  matchId: string,
+  viewerSeat: Seat
+): Promise<OnlineSpectatorLinkView> {
+  const response = await apiClient.post<OnlineSpectatorLinkView>(
+    `/api/online/admin/matches/${encodeURIComponent(matchId)}/spectator-links/player-view`,
+    { viewerSeat }
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '生成管理员观战链接失败');
+  }
+  return response.data;
+}
+
+interface JoinOnlineSpectatorLinkInput {
+  readonly displayName?: string;
+  readonly clientId?: string;
+}
+
+export async function joinOnlineSpectatorLink(
+  token: string,
+  input?: string | JoinOnlineSpectatorLinkInput
+): Promise<OnlineSpectatorJoinView> {
+  const payload =
+    typeof input === 'string'
+      ? { displayName: input.trim() }
+      : {
+          displayName: input?.displayName?.trim(),
+          clientId: input?.clientId?.trim(),
+        };
+  const response = await apiClient.post<OnlineSpectatorJoinView>(
+    `/api/online/spectator-links/${encodeURIComponent(token)}/sessions`,
+    Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => typeof value === 'string' && value.length > 0)
+    )
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '进入观战失败');
+  }
+  return response.data;
+}
+
+export async function fetchOnlineSpectatorSnapshotResponse(
+  token: string,
+  sessionId: string | undefined,
+  sinceSeq?: number
+): Promise<OnlineSpectatorSnapshotResponse> {
+  const params = new URLSearchParams();
+  if (sessionId) {
+    params.set('sessionId', sessionId);
+  }
+  if (sinceSeq !== undefined && Number.isSafeInteger(sinceSeq) && sinceSeq >= 0) {
+    params.set('sinceSeq', String(sinceSeq));
+  }
+  const search = params.toString();
+  const response = await apiClient.get<OnlineSpectatorSnapshotResponse>(
+    `/api/online/spectator-links/${encodeURIComponent(token)}/snapshot${
+      search ? `?${search}` : ''
+    }`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取观战快照失败');
+  }
+  return response.data;
+}
+
+export async function fetchOnlineSpectatorPublicEvents(
+  token: string,
+  sessionId: string | undefined,
+  afterSeq?: number
+): Promise<PublicEventsResponse> {
+  const params = new URLSearchParams();
+  if (sessionId) {
+    params.set('sessionId', sessionId);
+  }
+  if (afterSeq !== undefined && Number.isSafeInteger(afterSeq) && afterSeq >= 0) {
+    params.set('afterSeq', String(afterSeq));
+  }
+  const search = params.toString();
+  const response = await apiClient.get<PublicEventsResponse>(
+    `/api/online/spectator-links/${encodeURIComponent(token)}/public-events${
+      search ? `?${search}` : ''
+    }`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取观战公开日志失败');
   }
   return response.data;
 }

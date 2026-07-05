@@ -9,7 +9,10 @@ import {
   createDebugReplayBundle,
   debugReplayService,
 } from '../services/debug-replay-service.js';
-import { onlineMatchService } from '../services/online-match-service.js';
+import {
+  OnlineSpectatorServiceError,
+  onlineMatchService,
+} from '../services/online-match-service.js';
 import { OnlineRoomServiceError, onlineRoomService } from '../services/online-room-service.js';
 import {
   MatchReplayReadServiceError,
@@ -46,6 +49,15 @@ const undoRequestResponseSchema = z.object({
   grantContinuous: z.boolean().optional(),
 });
 
+const spectatorSessionSchema = z.object({
+  displayName: z.string().trim().min(1).max(24).optional(),
+  clientId: z.string().trim().min(1).max(128).optional(),
+});
+
+const adminPlayerViewSpectatorLinkSchema = z.object({
+  viewerSeat: z.enum(['FIRST', 'SECOND']),
+});
+
 onlineRouter.get('/admin/rooms', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const rooms = await onlineRoomService.listAdminRoomSummaries();
@@ -69,6 +81,44 @@ onlineRouter.post(
 
       const bundle = createDebugReplayBundle(match);
       res.json({ data: bundle, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
+  }
+);
+
+onlineRouter.post(
+  '/admin/matches/:matchId/spectator-links/player-view',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const parsed = adminPlayerViewSpectatorLinkSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ data: null, error: { code: 'INVALID_REQUEST', message: '观战视角参数非法' } });
+      return;
+    }
+
+    try {
+      const matchId = readPathParam(req.params.matchId);
+      const match = onlineMatchService.getMatch(matchId);
+      if (!match) {
+        respondMatchNotFound(res);
+        return;
+      }
+
+      const link = await onlineMatchService.createAdminPlayerViewSpectatorLink(
+        match.matchId,
+        req.user!.id,
+        parsed.data.viewerSeat
+      );
+      if (!link) {
+        respondPlayerViewSpectatorUnavailable(res);
+        return;
+      }
+
+      res.status(201).json({ data: link, error: null });
     } catch (error) {
       respondOnlineError(res, error);
     }
@@ -454,6 +504,85 @@ onlineRouter.get('/matches/:matchId/public-events', requireAuth, async (req, res
   }
 });
 
+onlineRouter.post(
+  '/matches/:matchId/spectator-links/player-view',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const matchId = readPathParam(req.params.matchId);
+      const match = onlineMatchService.getMatch(matchId);
+      if (!match) {
+        respondMatchNotFound(res);
+        return;
+      }
+
+      const link = await onlineMatchService.createPlayerViewSpectatorLink(
+        match.matchId,
+        req.user!.id
+      );
+      if (!link) {
+        respondMatchForbidden(res);
+        return;
+      }
+
+      onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
+      res.status(201).json({ data: link, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
+  }
+);
+
+onlineRouter.post('/spectator-links/:token/sessions', async (req, res) => {
+  const parsed = spectatorSessionSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '观战参数非法' } });
+    return;
+  }
+
+  try {
+    const joined = await onlineMatchService.joinSpectatorLink(
+      readPathParam(req.params.token),
+      parsed.data
+    );
+    res.status(201).json({ data: joined, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.get('/spectator-links/:token/snapshot', async (req, res) => {
+  try {
+    const snapshot = await onlineMatchService.getSpectatorSnapshot(
+      readPathParam(req.params.token),
+      readOptionalString(req.query?.sessionId),
+      {
+        sinceSeq: readOptionalSeq(req.query?.sinceSeq),
+      }
+    );
+    res.json({ data: snapshot, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.get('/spectator-links/:token/public-events', async (req, res) => {
+  try {
+    const events = await onlineMatchService.getSpectatorPublicEvents(
+      readPathParam(req.params.token),
+      readOptionalString(req.query?.sessionId),
+      {
+        afterSeq: readOptionalSeq(req.query?.afterSeq),
+      }
+    );
+    res.json({ data: events, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
 onlineRouter.post('/matches/:matchId/command', requireAuth, async (req, res) => {
   try {
     const body = req.body as Partial<{ command: unknown }> | undefined;
@@ -693,6 +822,13 @@ function respondMatchForbidden(res: Response): void {
   });
 }
 
+function respondPlayerViewSpectatorUnavailable(res: Response): void {
+  res.status(404).json({
+    data: null,
+    error: { code: 'ONLINE_PLAYER_VIEW_NOT_FOUND', message: '该对局没有可用的玩家视角' },
+  });
+}
+
 function respondMatchRecordNotFound(res: Response): void {
   res.status(404).json({
     data: null,
@@ -713,6 +849,17 @@ function respondOnlineError(res: Response, error: unknown): void {
   }
 
   if (error instanceof DebugReplayServiceError) {
+    res.status(error.statusCode).json({
+      data: null,
+      error: {
+        code: error.code,
+        message: error.message,
+      },
+    });
+    return;
+  }
+
+  if (error instanceof OnlineSpectatorServiceError) {
     res.status(error.statusCode).json({
       data: null,
       error: {
@@ -755,6 +902,16 @@ function readOptionalSeq(value: unknown): number | undefined {
 
   const seq = Number(raw);
   return Number.isSafeInteger(seq) && seq >= 0 ? seq : undefined;
+}
+
+function readOptionalString(value: unknown): string | null {
+  const raw = Array.isArray(value) ? (value[0] as unknown) : value;
+  if (typeof raw !== 'string') {
+    return null;
+  }
+
+  const trimmed = raw.trim();
+  return trimmed ? trimmed : null;
 }
 
 function readReplayCheckpointSeqQuery(query: unknown): number | undefined {

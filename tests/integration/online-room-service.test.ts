@@ -112,8 +112,10 @@ function assertNoTransportOnlyValues(value: unknown, path = 'value'): void {
   }
 }
 
-function createInMemoryMatchService(): OnlineMatchService {
-  return new OnlineMatchService({ recorder: null });
+function createInMemoryMatchService(
+  deps: ConstructorParameters<typeof OnlineMatchService>[0] = {}
+): OnlineMatchService {
+  return new OnlineMatchService({ recorder: null, ...deps });
 }
 
 async function startRoomThroughOpening(
@@ -300,6 +302,170 @@ describe('OnlineRoomService', () => {
     expect(commandRoundTrip.success).toBe(true);
     expect(commandRoundTrip.snapshot?.matchId).toBe(started.matchId);
     expect(commandRoundTrip.snapshot?.playerViewState.match.viewerSeat).toBe('FIRST');
+  });
+
+  it('玩家视角观战链接只读复用对应玩家投影并计入房间观战者', async () => {
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      matchService,
+      loadUserProfile: async (userId) => ({
+        userId,
+        displayName: userId === 'u1' ? 'Alpha' : 'Beta',
+      }),
+      loadOwnedDeck: async (userId, deckId) => ({
+        deckId,
+        deckName: `${userId}-${deckId}`,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('spec1', 'u1');
+    await service.joinRoom('spec1', 'u2');
+    await service.lockDeck('spec1', 'u1', 'deck-a');
+    await service.lockDeck('spec1', 'u2', 'deck-b');
+    const started = await startRoomThroughOpening(service, 'spec1', 'u1', 'u2', 'u2');
+    expect(started.currentUserSeat).toBe('FIRST');
+
+    const link = await matchService.createPlayerViewSpectatorLink(started.matchId!, 'u2');
+    expect(link).toMatchObject({
+      matchId: started.matchId,
+      viewType: 'PLAYER',
+      viewerSeat: 'FIRST',
+    });
+    expect(link?.path).toContain('/online/spectate/');
+
+    const forbiddenLink = await matchService.createPlayerViewSpectatorLink(
+      started.matchId!,
+      'outsider'
+    );
+    expect(forbiddenLink).toBeNull();
+
+    const adminLink = await matchService.createAdminPlayerViewSpectatorLink(
+      started.matchId!,
+      'admin',
+      'SECOND'
+    );
+    expect(adminLink).toMatchObject({
+      matchId: started.matchId,
+      viewType: 'PLAYER',
+      viewerSeat: 'SECOND',
+    });
+
+    const adminJoined = await matchService.joinSpectatorLink(adminLink!.token, {
+      displayName: '管理员',
+    });
+    expect(adminJoined.session).toMatchObject({
+      displayName: '管理员',
+      viewType: 'PLAYER',
+      viewerSeat: 'SECOND',
+    });
+    expect(adminJoined.snapshot.seat).toBe('SECOND');
+    expect(adminJoined.snapshot.playerViewState.match.viewerSeat).toBe('SECOND');
+
+    const roomAfterAdminJoin = await service.getRoomView('spec1', 'u1');
+    expect(roomAfterAdminJoin.spectatorPresence.total).toBe(0);
+    expect(roomAfterAdminJoin.spectatorPresence.viewers).toEqual([]);
+
+    const joined = await matchService.joinSpectatorLink(link!.token, {
+      displayName: '旁观者',
+    });
+    expect(joined.session).toMatchObject({
+      displayName: '旁观者',
+      viewType: 'PLAYER',
+      viewerSeat: 'FIRST',
+    });
+    expect(joined.snapshot.seat).toBe('FIRST');
+    expect(joined.snapshot.playerViewState.match.viewerSeat).toBe('FIRST');
+    expect(joined.snapshot.playerViewState.match.undo?.policy).toBe('NONE');
+    expect(joined.snapshot.playerViewState.match.undo?.canUndoNow).toBe(false);
+
+    const firstHandObjectId = joined.snapshot.playerViewState.table.zones.FIRST_HAND.objectIds?.[0];
+    expect(firstHandObjectId).toBeTruthy();
+    expect(joined.snapshot.playerViewState.objects[firstHandObjectId!]?.surface).toBe('FRONT');
+    expect(joined.snapshot.playerViewState.table.zones.SECOND_HAND.objectIds).toBeUndefined();
+
+    const unchangedSnapshot = await matchService.getSpectatorSnapshot(
+      link!.token,
+      joined.session.sessionId,
+      {
+        sinceSeq: joined.snapshot.seq,
+      }
+    );
+    expect(unchangedSnapshot).toEqual({
+      matchId: started.matchId,
+      seq: joined.snapshot.seq,
+      currentPublicSeq: joined.snapshot.currentPublicSeq,
+      modified: false,
+    });
+
+    const publicLog = await matchService.getSpectatorPublicEvents(
+      link!.token,
+      joined.session.sessionId,
+      {
+        afterSeq: 0,
+      }
+    );
+    expect(publicLog.matchId).toBe(started.matchId);
+    expect(publicLog.publicEvents.length).toBeGreaterThan(0);
+
+    const roomForPlayer = await service.getRoomView('spec1', 'u1');
+    expect(roomForPlayer.spectatorPresence.total).toBe(1);
+    expect(roomForPlayer.spectatorPresence.viewers[0]).toMatchObject({
+      displayName: '旁观者',
+      viewType: 'PLAYER',
+      viewerSeat: 'FIRST',
+    });
+    expect(roomForPlayer.members.map((member) => member.userId)).toEqual(['u1', 'u2']);
+  });
+
+  it('玩家视角观战默认游客编号按活跃观战者计算并复用同一客户端 session', async () => {
+    let now = 9_000_000;
+    const matchService = new OnlineMatchService({ now: () => now, recorder: null });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({
+        userId,
+        displayName: userId === 'u1' ? 'Alpha' : 'Beta',
+      }),
+      loadOwnedDeck: async (userId, deckId) => ({
+        deckId,
+        deckName: `${userId}-${deckId}`,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('spec2', 'u1');
+    await service.joinRoom('spec2', 'u2');
+    await service.lockDeck('spec2', 'u1', 'deck-a');
+    await service.lockDeck('spec2', 'u2', 'deck-b');
+    const started = await startRoomThroughOpening(service, 'spec2', 'u1', 'u2', 'u1');
+    const link = await matchService.createPlayerViewSpectatorLink(started.matchId!, 'u1');
+
+    const firstJoin = await matchService.joinSpectatorLink(link!.token, { clientId: 'tab-a' });
+    expect(firstJoin.session.displayName).toBe('游客 1');
+
+    now += 1_000;
+    const repeatedJoin = await matchService.joinSpectatorLink(link!.token, { clientId: 'tab-a' });
+    expect(repeatedJoin.session.sessionId).toBe(firstJoin.session.sessionId);
+    expect(repeatedJoin.session.displayName).toBe('游客 1');
+
+    const secondJoin = await matchService.joinSpectatorLink(link!.token, { clientId: 'tab-b' });
+    expect(secondJoin.session.displayName).toBe('游客 2');
+
+    const roomWithTwoViewers = await service.getRoomView('spec2', 'u1');
+    expect(roomWithTwoViewers.spectatorPresence.total).toBe(2);
+    expect(roomWithTwoViewers.spectatorPresence.viewers.map((viewer) => viewer.displayName)).toEqual([
+      '游客 1',
+      '游客 2',
+    ]);
+
+    now += 16_000;
+    const afterStaleJoin = await matchService.joinSpectatorLink(link!.token, { clientId: 'tab-c' });
+    expect(afterStaleJoin.session.displayName).toBe('游客 1');
+    const roomAfterStaleCleanup = await service.getRoomView('spec2', 'u1');
+    expect(roomAfterStaleCleanup.spectatorPresence.total).toBe(1);
+    expect(roomAfterStaleCleanup.spectatorPresence.viewers[0]?.displayName).toBe('游客 1');
   });
 
   it('双方准备开始后应进入开局猜拳，由胜者决定先后手后生成联机对局', async () => {

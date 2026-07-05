@@ -12,6 +12,7 @@ import {
   GameSetupPage,
   OnlineDebugPage,
   OnlineRoomPage,
+  OnlineSpectatorPage,
   MatchRecordsPage,
   SharedDeckPage,
 } from '@/components/pages';
@@ -280,6 +281,8 @@ function App() {
   const isAuthenticated = !!(user && profile) || (offlineMode && !!offlineUser);
   const shareMatch = window.location.pathname.match(/^\/decks\/share\/([^/]+)$/);
   const shareId = shareMatch?.[1] ?? null;
+  const spectatorMatch = window.location.pathname.match(/^\/online\/spectate\/([^/]+)$/);
+  const spectatorToken = spectatorMatch?.[1] ? decodeURIComponent(spectatorMatch[1]) : null;
   const shareLoginRequested = new URLSearchParams(window.location.search).get('login') === '1';
   const initialOpenDeckId = new URLSearchParams(window.location.search).get('openDeckId');
   const emailFeature = appConfig.features.email;
@@ -313,6 +316,17 @@ function App() {
         }}
         onRequestLogin={() => {
           window.location.href = `/decks/share/${encodeURIComponent(shareId)}?login=1`;
+        }}
+      />
+    );
+  }
+
+  if (spectatorToken) {
+    return (
+      <OnlineSpectatorPage
+        token={spectatorToken}
+        onBackHome={() => {
+          window.location.href = '/';
         }}
       />
     );

@@ -436,10 +436,10 @@ graph TD
 - 本地双人调试模式与对墙打模式
 - 认证、卡组、卡牌、图片管理 API
 - 云端卡组与离线模式并存
-- 正式联机房间闭环：创建/加入、云端卡组锁定、双方准备开始、开局猜拳与胜者决定先后手、服务端权威对局、轮询同步、请求式重开、离开/短暂恢复与管理员房间观测
+- 正式联机房间闭环：创建/加入、云端卡组锁定、双方准备开始、开局猜拳与胜者决定先后手、服务端权威对局、轮询同步、请求式重开、玩家视角只读观战链接、离开/短暂恢复与管理员房间观测；管理员房间监控可打开指定玩家视角只读观战页，且不计入公开观战人数
 - 服务端可记录对墙打：`src/server/services/solitaire-match-service.ts` 复用 recorded match 链路创建 `GameMode.SOLITAIRE` 权威对局，`src/server/routes/battle.ts` 提供对墙打创建、运行中快照/命令/推进/离开、公共事件增量读取，以及中性历史读取入口
 - 面向联机的 `PlayerViewState` 脱敏投影、可见性策略和命令权限投影
-- 运行中对局公共日志：`src/application/game-session.ts` 维护 `PublicEvent` 序列；正式联机 `/api/online/matches/:matchId/public-events` 与对墙打 `/api/battle/solitaire-matches/:matchId/public-events` 按 `afterSeq` 返回公共事件增量，运行中 snapshot 继续只承载当前玩家视图，并以 `currentPublicSeq` 暴露公共日志增量水位
+- 运行中对局公共日志：`src/application/game-session.ts` 维护 `PublicEvent` 序列；正式联机 `/api/online/matches/:matchId/public-events`、正式联机观战 `/api/online/spectator-links/:token/public-events` 与对墙打 `/api/battle/solitaire-matches/:matchId/public-events` 按 `afterSeq` 返回公共事件增量，运行中 snapshot 继续只承载当前玩家视图，并以 `currentPublicSeq` 暴露公共日志增量水位
 - 对局记录与回放阶段性闭环：`src/server/services/match-recorder-service.ts` 写入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 与部分 decision record；`src/server/services/match-replay-read-service.ts` 按参与者玩家视角读取正式联机与服务端可记录对墙打的历史列表、详情、timeline 与只读 checkpoint 投影；`client/src/components/pages/MatchRecordsPage.tsx` 可打开只读 `GameBoard` 回放节点
 
 ### 10.2 规划中

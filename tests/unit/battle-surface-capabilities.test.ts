@@ -109,6 +109,29 @@ describe('battle surface capabilities', () => {
     );
   });
 
+  it('派生玩家视角观战只读桌面能力', () => {
+    expectCapabilities(
+      deriveBattleSurfaceCapabilities({
+        gameMode: GameMode.DEBUG,
+        remoteSessionSource: 'SPECTATOR',
+      }),
+      {
+        authority: 'REMOTE',
+        surface: 'SPECTATOR_READONLY',
+        canSwitchPerspective: false,
+        canSwitchLocalMode: false,
+        canShowDebugLog: false,
+        canUndo: false,
+        undoPolicy: 'NONE',
+        showFreePlayControl: false,
+        freePlayPolicy: 'COMMAND_FLAG',
+        isSolitairePresentation: false,
+        scoreConfirmPresentation: 'STANDARD_MODAL',
+        isReadOnly: true,
+      }
+    );
+  });
+
   it('派生对墙打来源历史回放只读桌面能力', () => {
     expectCapabilities(
       deriveBattleSurfaceCapabilities({

@@ -711,6 +711,9 @@ export class OnlineRoomService {
       openingRps: buildOpeningRpsViewForViewer(room.openingRps, viewer.userId),
       restartRequest: room.restartRequest,
       matchId: room.matchId,
+      spectatorPresence: room.matchId
+        ? this.matchService.getSpectatorPresenceForMatch(room.matchId)
+        : { total: 0, viewers: [] },
       updatedAt: room.updatedAt,
     };
   }

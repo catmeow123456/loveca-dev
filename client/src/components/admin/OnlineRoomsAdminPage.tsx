@@ -8,6 +8,7 @@ import {
   Database,
   Download,
   Eye,
+  ExternalLink,
   FileText,
   ListTree,
   Pause,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react';
 import { PageHeader, ThemeToggle } from '@/components/common';
 import {
+  createOnlineAdminPlayerSpectatorLink,
   exportDebugReplayBundle,
   fetchDebugReplayCheckpoint,
   fetchDebugReplayTimeline,
@@ -57,6 +59,8 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
   const [importedReplay, setImportedReplay] = useState<DebugReplayImportSummary | null>(null);
   const [replayTimeline, setReplayTimeline] = useState<DebugReplayTimelineView | null>(null);
   const [checkpointView, setCheckpointView] = useState<DebugReplayCheckpointView | null>(null);
+  const [openingSpectatorKey, setOpeningSpectatorKey] = useState<string | null>(null);
+  const [spectatorError, setSpectatorError] = useState<string | null>(null);
   const [viewerSeat, setViewerSeat] = useState<Seat>('FIRST');
   const [selectedCheckpointSeq, setSelectedCheckpointSeq] = useState<number | null>(null);
 
@@ -131,6 +135,34 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
     },
     [loadReplayBundle]
   );
+
+  const handleOpenSpectatorView = useCallback(async (matchId: string, seat: Seat) => {
+    const key = `${matchId}:${seat}`;
+    const targetWindow = window.open('about:blank', '_blank');
+    if (targetWindow) {
+      targetWindow.opener = null;
+    }
+
+    setOpeningSpectatorKey(key);
+    setSpectatorError(null);
+    try {
+      const link = await createOnlineAdminPlayerSpectatorLink(matchId, seat);
+      const url = new URL(link.path, window.location.origin).toString();
+      if (targetWindow) {
+        targetWindow.location.href = url;
+      } else {
+        const opened = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!opened) {
+          setSpectatorError('浏览器阻止了观战页弹窗，请允许弹窗后重试');
+        }
+      }
+    } catch (openError) {
+      targetWindow?.close();
+      setSpectatorError(openError instanceof Error ? openError.message : '打开玩家视角观战失败');
+    } finally {
+      setOpeningSpectatorKey(null);
+    }
+  }, []);
 
   const handleImportReplayText = useCallback(async () => {
     if (!replayImportText.trim()) {
@@ -287,6 +319,11 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
             {error}
           </div>
         ) : null}
+        {spectatorError ? (
+          <div className="rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-4 py-3 text-sm text-[var(--semantic-error)]">
+            {spectatorError}
+          </div>
+        ) : null}
 
         <section className="surface-panel overflow-hidden">
           {isLoading ? (
@@ -312,7 +349,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
                     <th className="px-4 py-3 font-semibold">对局</th>
                     <th className="px-4 py-3 font-semibold">阶段</th>
                     <th className="px-4 py-3 font-semibold">最近活动</th>
-                    <th className="px-4 py-3 font-semibold">调试回放</th>
+                    <th className="px-4 py-3 font-semibold">观战 / 回放</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -386,32 +423,17 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        {room.match ? (
-                          <div className="flex flex-col gap-2">
-                            <button
-                              type="button"
-                              onClick={() => void handleExportReplay(room.match!.matchId, 'LOAD')}
-                              disabled={exportingMatchId === room.match.matchId}
-                              className="button-primary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold disabled:opacity-50"
-                            >
-                              <Eye size={14} />
-                              载入
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void handleExportReplay(room.match!.matchId, 'DOWNLOAD')
-                              }
-                              disabled={exportingMatchId === room.match.matchId}
-                              className="button-ghost inline-flex min-h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs disabled:opacity-50"
-                            >
-                              <Download size={14} />
-                              导出
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-[var(--text-muted)]">-</span>
-                        )}
+                        <RoomMatchOperations
+                          room={room}
+                          exportingMatchId={exportingMatchId}
+                          openingSpectatorKey={openingSpectatorKey}
+                          onOpenSpectatorView={(matchId, seat) =>
+                            void handleOpenSpectatorView(matchId, seat)
+                          }
+                          onExportReplay={(matchId, mode) =>
+                            void handleExportReplay(matchId, mode)
+                          }
+                        />
                       </td>
                     </motion.tr>
                   ))}
@@ -568,6 +590,89 @@ function StatTile({ icon, label, value }: { icon: ReactNode; label: string; valu
       <div className="min-w-0">
         <div className="text-xs text-[var(--text-muted)]">{label}</div>
         <div className="text-2xl font-bold leading-tight text-[var(--text-primary)]">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function RoomMatchOperations({
+  room,
+  exportingMatchId,
+  openingSpectatorKey,
+  onOpenSpectatorView,
+  onExportReplay,
+}: {
+  room: OnlineAdminRoomSummary;
+  exportingMatchId: string | null;
+  openingSpectatorKey: string | null;
+  onOpenSpectatorView: (matchId: string, seat: Seat) => void;
+  onExportReplay: (matchId: string, mode: 'DOWNLOAD' | 'LOAD') => void;
+}) {
+  if (!room.match) {
+    return <span className="text-sm text-[var(--text-muted)]">-</span>;
+  }
+
+  const matchId = room.match.matchId;
+
+  return (
+    <div className="grid min-w-48 gap-2">
+      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2">
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-muted)]">
+          <Eye size={13} />
+          玩家视角
+        </div>
+        <div className="grid gap-1.5">
+          {(['FIRST', 'SECOND'] as const).map((seat) => {
+            const member = room.members.find((candidate) => candidate.seat === seat);
+            const spectatorKey = `${matchId}:${seat}`;
+            const loading = openingSpectatorKey === spectatorKey;
+            return (
+              <button
+                key={seat}
+                type="button"
+                onClick={() => onOpenSpectatorView(matchId, seat)}
+                disabled={!member || openingSpectatorKey !== null}
+                title={
+                  member
+                    ? `以${formatSeatLabel(seat)} ${member.displayName} 视角观战，管理员不计入公开观战人数`
+                    : `未找到${formatSeatLabel(seat)}玩家`
+                }
+                className="button-ghost inline-flex min-h-9 min-w-0 items-center justify-center gap-1.5 border border-[var(--border-default)] px-2.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? (
+                  <RefreshCw size={14} className="animate-spin" />
+                ) : (
+                  <ExternalLink size={14} />
+                )}
+                <span className="min-w-0 truncate">
+                  {formatSeatLabel(seat)}
+                  {member ? ` · ${member.displayName}` : ''}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onExportReplay(matchId, 'LOAD')}
+          disabled={exportingMatchId === matchId}
+          className="button-primary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold disabled:opacity-50"
+        >
+          <Eye size={14} />
+          载入
+        </button>
+        <button
+          type="button"
+          onClick={() => onExportReplay(matchId, 'DOWNLOAD')}
+          disabled={exportingMatchId === matchId}
+          className="button-ghost inline-flex min-h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs disabled:opacity-50"
+        >
+          <Download size={14} />
+          导出
+        </button>
       </div>
     </div>
   );
@@ -751,6 +856,10 @@ function MemberRow({ member }: { member: OnlineAdminRoomMemberSummary }) {
       </div>
     </div>
   );
+}
+
+function formatSeatLabel(seat: Seat): string {
+  return seat === 'FIRST' ? '先攻' : '后攻';
 }
 
 function formatDateTime(value: number): string {

@@ -6,6 +6,7 @@ export type OnlineRoomMemberRole = 'HOST' | 'GUEST';
 export type OnlineRoomMemberPresence = 'ACTIVE' | 'LEFT';
 export type OpeningRpsGesture = 'ROCK' | 'PAPER' | 'SCISSORS';
 export type OpeningTurnOrderChoice = 'SELF_FIRST' | 'SELF_SECOND';
+export type OnlineSpectatorViewType = 'PLAYER';
 
 export interface OnlineOpeningRpsChoiceView {
   readonly userId: string;
@@ -55,12 +56,46 @@ export interface OnlineRoomView {
   readonly openingRps: OnlineOpeningRpsView | null;
   readonly restartRequest: OnlineRestartRequestView | null;
   readonly matchId: string | null;
+  readonly spectatorPresence: OnlineSpectatorPresenceView;
   readonly updatedAt: number;
 }
 
 export type OnlineMatchSnapshot = RemoteMatchSnapshot;
 
 export type OnlineCommandResult = RemoteCommandResult<OnlineMatchSnapshot>;
+
+export interface OnlineSpectatorLinkView {
+  readonly token: string;
+  readonly matchId: string;
+  readonly viewType: OnlineSpectatorViewType;
+  readonly viewerSeat: Seat;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+  readonly revokedAt: number | null;
+  readonly path: string;
+}
+
+export interface OnlineSpectatorSessionView {
+  readonly sessionId: string;
+  readonly displayName: string;
+  readonly viewType: OnlineSpectatorViewType;
+  readonly viewerSeat: Seat;
+  readonly joinedAt: number;
+  readonly lastSeenAt: number;
+}
+
+export interface OnlineSpectatorPresenceView {
+  readonly total: number;
+  readonly viewers: readonly OnlineSpectatorSessionView[];
+}
+
+export interface OnlineSpectatorJoinView {
+  readonly link: OnlineSpectatorLinkView;
+  readonly session: OnlineSpectatorSessionView;
+  readonly snapshot: OnlineMatchSnapshot;
+}
+
+export type OnlineSpectatorSnapshotResponse = OnlineMatchSnapshot | OnlineMatchSnapshotNotModified;
 
 export interface OnlineMatchSnapshotNotModified {
   readonly matchId: string;

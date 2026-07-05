@@ -37,6 +37,7 @@ export type BattleInteractionSurface =
   | 'SOLITAIRE'
   | 'ONLINE'
   | 'REMOTE_DEBUG'
+  | 'SPECTATOR_READONLY'
   | 'REPLAY_READONLY';
 
 export type BattleActionCommandPayload =

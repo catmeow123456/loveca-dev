@@ -1,6 +1,22 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-05
+更新时间：2026-07-06
+
+## 本次 2026-07-06 管理员联机房间玩家视角观战入口
+
+- 联机房间监控页在已开始对局的“观战 / 回放”列新增先攻/后攻玩家视角快捷入口，点击后以新标签页打开现有 `/online/spectate/:token` 只读观战页。
+- 服务端新增 admin-only 玩家视角观战链接创建路径，复用现有 `PlayerViewState` 脱敏投影；管理员链接与 session 标记为不计入公开观战人数。
+- 房间桌面观战信息文案收敛为“公开观战”：顶部房间胶囊保留眼睛图标与公开观战人数，展开面板不再重复显示同一数字，只保留公开观战列表。
+- 验证：`pnpm exec tsc --noEmit` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec vitest run tests/integration/online-room-service.test.ts` passed（1 file / 32 tests）；`pnpm exec vitest run tests/integration/online-route-error-handling.test.ts` passed（1 file / 11 tests）；`pnpm test:run` passed（289 files / 2350 tests，3 performance tests skipped）；`git diff --check` passed。
+
+## 本次 2026-07-05 正式联机玩家视角观战初版
+
+- `草稿需求文档.md` 的玩家视角观战方向合理：以现有 `PlayerViewState` 投影作为隐藏信息边界，观战者只读，先不实现上帝视角。
+- 服务端新增玩家视角观战链接与观战 session：参赛玩家只能生成自己 seat 的 PLAYER 视角链接；未登录观战者通过 token 加入，只能读取 snapshot / public-events，不能提交 command / advance / undo；观战快照将 undo 降为 `NONE`。
+- 房间视图新增活跃观战者摘要，正式联机桌面新增“复制观战链接”和观战者列表；新增 `/online/spectate/:token` 观战页，复用同一套 `GameBoard`，battle surface 新增 `SPECTATOR_READONLY`。
+- 正式联机桌面顶部控件压缩为“房间”胶囊 + 公共日志入口；复制观战链接、观战者列表、请求重开、离开房间收进房间面板，待处理重开请求仍保留独立协商条。
+- 修复默认观战昵称/人数虚高：观战页为同一标签页生成稳定 clientId，服务端同一 clientId 重复加入复用原 session；默认“游客 N”按当前活跃观战者分配，过期 session 清理后重新从可用编号开始。
+- 验证：`pnpm exec tsc --noEmit` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec vitest run tests/integration/online-room-service.test.ts` passed（1 file / 32 tests）；`pnpm exec vitest run tests/integration/online-route-error-handling.test.ts tests/unit/battle-surface-capabilities.test.ts tests/unit/game-store-remote-sync.test.ts` passed（3 files / 25 tests）；`git diff --check` passed。
 
 ## 本次 2026-07-05 休息室判心统计入口
 
