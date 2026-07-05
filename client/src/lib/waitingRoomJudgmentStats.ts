@@ -6,6 +6,7 @@ export interface WaitingRoomJudgmentStats {
   readonly totalHearts: number;
   readonly scoreBonus: number;
   readonly drawBonus: number;
+  readonly noJudgmentCount: number;
 }
 
 function createEmptyWaitingRoomHeartCounts(): Record<HeartColor, number> {
@@ -30,6 +31,20 @@ function addWaitingRoomHeart(
   stats.totalHearts += count;
 }
 
+function hasEffectiveBladeHeart(cardData: AnyCardData): boolean {
+  if (!('bladeHearts' in cardData) || !cardData.bladeHearts) return false;
+
+  return cardData.bladeHearts.some((bladeHeart) => {
+    switch (bladeHeart.effect) {
+      case BladeHeartEffect.HEART:
+        return bladeHeart.heartColor !== undefined;
+      case BladeHeartEffect.SCORE:
+      case BladeHeartEffect.DRAW:
+        return true;
+    }
+  });
+}
+
 export function collectWaitingRoomJudgmentStats(
   cardDataList: readonly AnyCardData[]
 ): WaitingRoomJudgmentStats {
@@ -38,9 +53,15 @@ export function collectWaitingRoomJudgmentStats(
     totalHearts: 0,
     scoreBonus: 0,
     drawBonus: 0,
+    noJudgmentCount: 0,
   };
 
   for (const cardData of cardDataList) {
+    if (!hasEffectiveBladeHeart(cardData)) {
+      stats.noJudgmentCount += 1;
+      continue;
+    }
+
     if (!('bladeHearts' in cardData) || !cardData.bladeHearts) continue;
 
     for (const bladeHeart of cardData.bladeHearts) {
@@ -64,5 +85,10 @@ export function collectWaitingRoomJudgmentStats(
 }
 
 export function hasWaitingRoomJudgmentStats(stats: WaitingRoomJudgmentStats): boolean {
-  return stats.totalHearts > 0 || stats.scoreBonus > 0 || stats.drawBonus > 0;
+  return (
+    stats.totalHearts > 0 ||
+    stats.scoreBonus > 0 ||
+    stats.drawBonus > 0 ||
+    stats.noJudgmentCount > 0
+  );
 }

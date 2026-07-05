@@ -9,15 +9,29 @@
  * 最终在 RESULT_SETTLEMENT 阶段统一清理到各自休息室。
  */
 
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { motion } from 'framer-motion';
 import { BarChart3, ChevronLeft, Mic } from 'lucide-react';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { GameCommandType } from '@game/application/game-commands';
-import { applyHeartRequirementModifiers } from '@game/domain/rules/live-requirement-modifiers';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import {
+  buildLiveJudgmentPreview,
+  getAdjustedLiveRequirements,
+  getRequirementEntriesForDisplay,
+  type HeartRequirementDisplayEntry,
+  type LiveJudgmentPreviewStatus,
+} from '@/lib/liveJudgmentPreview';
 import {
   HEART_ICON_SOURCE_BY_COLOR,
   HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR,
@@ -27,7 +41,6 @@ import {
   findEnabledBattleActionTargetByTargetId,
 } from '@/lib/battleActionIntent';
 import { executeBattleActionPayload } from '@/lib/battleActionExecutor';
-import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   SubPhase,
@@ -41,12 +54,7 @@ import { isSuccessEffectSubPhase } from '@game/shared/phase-config';
 import { useGameStore } from '@/store/gameStore';
 import { DroppableZone } from './interaction';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
-import type {
-  BladeHearts,
-  HeartRequirement,
-  MemberCardData,
-  LiveCardData,
-} from '@game/domain/entities/card';
+import type { BladeHearts, MemberCardData, LiveCardData } from '@game/domain/entities/card';
 
 interface JudgmentPanelProps {
   isOpen: boolean;
@@ -111,146 +119,224 @@ function HeartIconValue({
   );
 }
 
-function cloneHeartCounts(source: Map<HeartColor, number>): Map<HeartColor, number> {
-  const result = new Map<HeartColor, number>();
-  Object.values(HeartColor).forEach((color) => {
-    result.set(color, source.get(color) ?? 0);
-  });
-  return result;
-}
-
-function getRequirementTotal(
-  requirements: unknown,
-  entries: { color: HeartColor; count: number }[]
-): number {
-  const totalRequired =
-    typeof requirements === 'object' &&
-    requirements !== null &&
-    'totalRequired' in requirements &&
-    typeof (requirements as { totalRequired?: unknown }).totalRequired === 'number'
-      ? (requirements as { totalRequired: number }).totalRequired
-      : null;
-
-  return totalRequired ?? entries.reduce((total, req) => total + req.count, 0);
-}
-
-function judgeLiveWithHeartCounts(
-  hearts: Map<HeartColor, number>,
-  requirements: unknown
-): { success: boolean; remaining: Map<HeartColor, number> } {
-  const remaining = cloneHeartCounts(hearts);
-  const colorRequirements = (requirements as { colorRequirements?: unknown } | undefined)
-    ?.colorRequirements as Parameters<typeof getHeartRequirementEntries>[0];
-  const requiredHearts = getHeartRequirementEntries(colorRequirements).map(([color, count]) => ({
-    color,
-    count,
-  }));
-  const totalRequired = getRequirementTotal(requirements, requiredHearts);
-  let rainbowAvailable = remaining.get(HeartColor.RAINBOW) ?? 0;
-  let consumedCount = 0;
-
-  for (const req of requiredHearts) {
-    if (req.color === HeartColor.RAINBOW) {
-      continue;
-    }
-
-    const available = remaining.get(req.color) ?? 0;
-    const normalUsed = Math.min(available, req.count);
-    const rainbowUsed = req.count - normalUsed;
-    if (rainbowUsed > rainbowAvailable) {
-      return { success: false, remaining: hearts };
-    }
-
-    remaining.set(req.color, available - normalUsed);
-    rainbowAvailable -= rainbowUsed;
-    consumedCount += normalUsed + rainbowUsed;
-  }
-
-  if (consumedCount < totalRequired) {
-    let genericNeeded = totalRequired - consumedCount;
-    for (const color of Object.values(HeartColor)) {
-      if (genericNeeded <= 0 || color === HeartColor.RAINBOW) {
-        continue;
-      }
-      const available = remaining.get(color) ?? 0;
-      const used = Math.min(available, genericNeeded);
-      remaining.set(color, available - used);
-      genericNeeded -= used;
-    }
-    const rainbowUsed = Math.min(rainbowAvailable, genericNeeded);
-    rainbowAvailable -= rainbowUsed;
-    genericNeeded -= rainbowUsed;
-    if (genericNeeded > 0) {
-      return { success: false, remaining: hearts };
-    }
-  }
-
-  remaining.set(HeartColor.RAINBOW, rainbowAvailable);
-  return { success: true, remaining };
-}
-
-function mergeLiveRequirementsForPreview(requirementsList: unknown[]): unknown {
-  const colorRequirements = new Map<HeartColor, number>();
-  let totalRequired = 0;
-
-  for (const requirements of requirementsList) {
-    const source = requirements as
-      | { colorRequirements?: unknown; totalRequired?: unknown }
-      | null
-      | undefined;
-    const entries = getHeartRequirementEntries(
-      source?.colorRequirements as Parameters<typeof getHeartRequirementEntries>[0]
-    );
-    for (const [color, count] of entries) {
-      colorRequirements.set(color, (colorRequirements.get(color) ?? 0) + count);
-    }
-    totalRequired += getRequirementTotal(
-      requirements,
-      entries.map(([color, count]) => ({ color, count }))
-    );
-  }
-
-  return {
-    colorRequirements,
-    totalRequired,
-  };
-}
-
-function getAdjustedLiveRequirements(
-  requirements: unknown,
-  modifiers: readonly { color: HeartColor; countDelta: number }[]
-): unknown {
-  if (modifiers.length === 0) {
-    return requirements;
-  }
-
-  const source = requirements as
-    | { colorRequirements?: unknown; totalRequired?: unknown }
-    | null
-    | undefined;
-  const colorRequirements = source?.colorRequirements as
-    | Map<HeartColor, number>
-    | Partial<Record<HeartColor, number>>
-    | undefined;
-  const entries = getHeartRequirementEntries(colorRequirements);
-  const normalizedRequirement: HeartRequirement = {
-    colorRequirements: new Map(entries),
-    totalRequired: getRequirementTotal(
-      requirements,
-      entries.map(([color, count]) => ({ color, count }))
-    ),
-  };
-
-  return applyHeartRequirementModifiers(normalizedRequirement, modifiers);
-}
-
 function getPublicObjectId(cardId: string): string {
   return cardId.startsWith('obj_') ? cardId : `obj_${cardId}`;
+}
+
+const JUDGMENT_INFO_BLOCK_CLASS =
+  'rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_54%,transparent)] p-3';
+const JUDGMENT_CHIP_CLASS =
+  'inline-flex min-h-7 items-center gap-1 rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] px-2 py-1 text-xs';
+const JUDGMENT_DRAW_CHIP_CLASS = 'text-[var(--semantic-info)]';
+
+const HEART_LABEL_BY_COLOR: Record<HeartColor, string> = {
+  [HeartColor.PINK]: '粉',
+  [HeartColor.RED]: '红',
+  [HeartColor.YELLOW]: '黄',
+  [HeartColor.GREEN]: '绿',
+  [HeartColor.BLUE]: '蓝',
+  [HeartColor.PURPLE]: '紫',
+  [HeartColor.RAINBOW]: '无色',
+};
+
+function getPreviewStatusLabel(status: LiveJudgmentPreviewStatus): string {
+  switch (status) {
+    case 'SUCCESS':
+      return '判定成功';
+    case 'FAILURE':
+      return '判定失败';
+    case 'WAITING_LIVE':
+      return '等待 LIVE';
+    case 'UNKNOWN':
+      return '无法预览';
+  }
+}
+
+function getPreviewStatusClass(status: LiveJudgmentPreviewStatus): string {
+  switch (status) {
+    case 'SUCCESS':
+      return 'border-[color:color-mix(in_srgb,var(--semantic-success)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_13%,transparent)] text-[var(--semantic-success)]';
+    case 'FAILURE':
+      return 'border-[color:color-mix(in_srgb,var(--semantic-error)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_16%,transparent)] text-[var(--semantic-error)] ring-1 ring-[color:color-mix(in_srgb,var(--semantic-error)_24%,transparent)]';
+    case 'WAITING_LIVE':
+      return 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_74%,transparent)] text-[var(--text-secondary)]';
+    case 'UNKNOWN':
+      return 'border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_13%,transparent)] text-[var(--semantic-warning)]';
+  }
+}
+
+function getJudgmentPanelHint({
+  isPerformanceJudgment,
+  isResultScoreConfirm,
+  isResultAnimation,
+  isResultSettlement,
+  isLiveSuccessWindow,
+}: {
+  isPerformanceJudgment: boolean;
+  isResultScoreConfirm: boolean;
+  isResultAnimation: boolean;
+  isResultSettlement: boolean;
+  isLiveSuccessWindow: boolean;
+}): string {
+  if (isPerformanceJudgment) {
+    return '可调整判定区卡牌后接受自动判定。';
+  }
+  if (isResultScoreConfirm) {
+    return '分数最终确认在中央弹窗处理。';
+  }
+  if (isResultAnimation) {
+    return '当前正在播放本轮 Live 胜者动画。';
+  }
+  if (isResultSettlement) {
+    return '成功 Live 结算在中央弹窗处理。';
+  }
+  if (isLiveSuccessWindow) {
+    return '可继续查看和操作判定区卡牌。';
+  }
+  return '当前面板可用于查看和操作判定区卡牌。';
 }
 
 // ============================================
 // 子组件
 // ============================================
+
+function JudgmentInfoBlock({
+  title,
+  badge,
+  children,
+  className,
+}: {
+  title: string;
+  badge?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn(JUDGMENT_INFO_BLOCK_CLASS, className)}>
+      <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+        <div className="min-w-0 text-sm font-medium text-[var(--text-primary)]">{title}</div>
+        {badge ? (
+          <div className="shrink-0 text-[11px] text-[var(--text-secondary)]">{badge}</div>
+        ) : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function HeartRequirementIcons({
+  entries,
+  emptyText = '无需求',
+  iconClassName = 'h-3.5 w-3.5',
+}: {
+  entries: readonly HeartRequirementDisplayEntry[];
+  emptyText?: string;
+  iconClassName?: string;
+}) {
+  if (entries.length === 0) {
+    return <span className="text-[10px] text-[var(--text-muted)]">{emptyText}</span>;
+  }
+
+  return (
+    <>
+      {entries.map((req) => (
+        <span
+          key={req.color}
+          className="inline-flex items-center gap-0.5"
+          title={`${HEART_LABEL_BY_COLOR[req.color]}需求 ${req.count}`}
+          aria-label={`${HEART_LABEL_BY_COLOR[req.color]}需求 ${req.count}`}
+        >
+          <img
+            src={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[req.color]}
+            alt=""
+            className={cn('object-contain', iconClassName)}
+            draggable={false}
+          />
+          <span className="text-[10px] font-bold text-[var(--text-primary)]">{req.count}</span>
+        </span>
+      ))}
+    </>
+  );
+}
+
+function RequirementDeficitBadge({
+  entries,
+}: {
+  entries: readonly HeartRequirementDisplayEntry[];
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span>还差</span>
+      {entries.map((entry) => (
+        <span
+          key={entry.color}
+          className="inline-flex items-center gap-0.5 rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-1 py-0.5"
+          title={`${HEART_LABEL_BY_COLOR[entry.color]}需求还差 ${entry.count}`}
+          aria-label={`${HEART_LABEL_BY_COLOR[entry.color]}需求还差 ${entry.count}`}
+        >
+          <img
+            src={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[entry.color]}
+            alt=""
+            className="h-3 w-3 object-contain"
+            draggable={false}
+          />
+          <span className="font-bold text-[var(--text-primary)]">{entry.count}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function LiveRequirementCard({
+  card,
+  enableHover,
+}: {
+  card: {
+    readonly cardId: string;
+    readonly cardName: string | null;
+    readonly imagePath: string | null;
+    readonly isVisible: boolean;
+    readonly requiredHearts: readonly HeartRequirementDisplayEntry[];
+  } | null;
+  enableHover: boolean;
+}) {
+  if (!card) {
+    return <div className="min-h-[76px]" aria-hidden="true" />;
+  }
+
+  const canShowFront = card.isVisible && card.imagePath !== null;
+  const imagePath = canShowFront ? card.imagePath! : '/back.jpg';
+
+  return (
+    <div className="min-w-0">
+      <CardDetailPressTarget
+        cardId={canShowFront ? card.cardId : null}
+        disabled={!canShowFront}
+        enableHover={enableHover}
+        title={canShowFront ? (card.cardName ?? undefined) : undefined}
+        className="mx-auto block w-full max-w-[96px]"
+      >
+        <div className="relative mx-auto flex h-[56px] w-full max-w-[96px] items-center justify-center overflow-visible rounded-md border border-[color:color-mix(in_srgb,var(--border-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)] shadow-sm">
+          <div className="h-[82px] w-[58px] -rotate-90 overflow-hidden rounded-md">
+            <img
+              src={imagePath}
+              alt={canShowFront ? (card.cardName ?? '') : ''}
+              className="h-full w-full object-cover"
+              draggable={false}
+            />
+          </div>
+        </div>
+      </CardDetailPressTarget>
+      <div className="mt-1 flex min-h-[18px] flex-wrap items-center justify-center gap-0.5 text-center">
+        {canShowFront ? (
+          <HeartRequirementIcons entries={card.requiredHearts} iconClassName="h-3 w-3" />
+        ) : (
+          <span className="text-[10px] text-[var(--text-muted)]">需求不可见</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** 可排序的应援卡牌 */
 const SortableCheerCard = memo(function SortableCheerCard({
@@ -274,7 +360,7 @@ const SortableCheerCard = memo(function SortableCheerCard({
       fromZone: ZoneType.RESOLUTION_ZONE,
     },
   });
-  const style: React.CSSProperties = {
+  const style: CSSProperties = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     zIndex: isDragging ? 50 : undefined,
     position: 'relative' as const,
@@ -298,48 +384,6 @@ const SortableCheerCard = memo(function SortableCheerCard({
   );
 });
 
-/** Live 卡展示行（只读） */
-const LiveCardJudgmentRow = memo(function LiveCardJudgmentRow({
-  cardName,
-  requiredHearts,
-  score,
-  success,
-}: {
-  cardName: string;
-  requiredHearts: { color: HeartColor; count: number }[];
-  score?: number;
-  success?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-3 p-2 bg-slate-800/30 rounded-lg border border-slate-700/30">
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-white truncate">{cardName}</div>
-        <div className="flex gap-1 mt-0.5">
-          {requiredHearts.map((req, idx) => (
-            <HeartIconValue
-              key={idx}
-              color={req.color}
-              count={req.count}
-              iconSrc={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[req.color]}
-              iconClassName="h-3.5 w-3.5"
-            />
-          ))}
-        </div>
-      </div>
-      {typeof success === 'boolean' && (
-        <div
-          className={cn(
-            'shrink-0 rounded px-2 py-1 text-xs font-bold',
-            success ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'
-          )}
-        >
-          {success ? `成功｜分数 ${score ?? 0}` : '失败'}
-        </div>
-      )}
-    </div>
-  );
-});
-
 // ============================================
 // 主组件
 // ============================================
@@ -355,6 +399,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     s.canUseAction(GameCommandType.CONFIRM_PERFORMANCE_OUTCOME)
   );
   const canSubmitJudgment = useGameStore((s) => s.canUseAction(GameCommandType.SUBMIT_JUDGMENT));
+  const getCardViewObject = useGameStore((s) => s.getCardViewObject);
   const getCardFrontInfo = useGameStore((s) => s.getCardFrontInfo);
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
   const getSeatZone = useGameStore((s) => s.getSeatZone);
@@ -600,14 +645,16 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
 
   const liveJudgmentPreview = useMemo(() => {
     const rows = liveCardIds.map((cardId) => {
-      const frontInfo = getCardFrontInfo(cardId);
-      if (!frontInfo || frontInfo.cardType !== 'LIVE') {
+      const viewObject = getCardViewObject(cardId);
+      const frontInfo = viewObject?.surface === 'FRONT' ? getCardFrontInfo(cardId) : null;
+      if (!frontInfo || frontInfo.cardType !== CardType.LIVE) {
         return {
           cardId,
-          cardName: '里侧 Live',
+          cardName: null as string | null,
+          imagePath: null as string | null,
+          isVisible: false,
           score: 0,
-          success: false,
-          requiredHearts: [] as { color: HeartColor; count: number }[],
+          requiredHearts: [] as HeartRequirementDisplayEntry[],
           adjustedRequirements: null as unknown,
         };
       }
@@ -625,63 +672,43 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
         frontInfo.requiredHearts,
         adjustedRequirementModifiers
       );
-      const colorRequirements = (
-        adjustedRequirements as { colorRequirements?: unknown } | undefined
-      )?.colorRequirements as Parameters<typeof getHeartRequirementEntries>[0];
-      const requiredHearts = getHeartRequirementEntries(colorRequirements).map(
-        ([color, count]) => ({ color, count })
-      );
+      const requiredHearts = getRequirementEntriesForDisplay(adjustedRequirements);
       const scoreModifier =
         liveCardScoreModifiers[cardId] ?? liveCardScoreModifiers[getPublicObjectId(cardId)] ?? 0;
 
       return {
         cardId,
         cardName: getCardLocalizedInfo(frontInfo).title,
+        imagePath: getCardImagePath(frontInfo.cardCode),
+        isVisible: true,
         score: Math.max(0, (frontInfo.score ?? 0) + scoreModifier),
-        success: false,
         requiredHearts,
         adjustedRequirements,
       };
     });
 
     const totalLiveScoreModifier = activeSeat ? (liveScoreModifiers[activeSeat] ?? 0) : 0;
-    const faceUpLiveRows = rows.filter((row) => row.adjustedRequirements !== null);
-    const mergedRequirements = mergeLiveRequirementsForPreview(
-      faceUpLiveRows.map((row) => row.adjustedRequirements)
-    );
-    const isOverallSuccess =
-      faceUpLiveRows.length > 0 &&
-      judgeLiveWithHeartCounts(totalHearts, mergedRequirements).success;
-    const displayRows = isOverallSuccess
-      ? rows
-          .filter((row) => row.adjustedRequirements !== null)
-          .map((row) => ({
-            ...row,
-            success: true,
-          }))
-      : rows.map((row) => ({
-          ...row,
-          success: false,
-        }));
-    const liveScore = isOverallSuccess
-      ? faceUpLiveRows.reduce((total, row) => total + row.score, 0)
-      : 0;
-    const totalScore = isOverallSuccess
-      ? liveScore + totalCheerScoreBonus + totalLiveScoreModifier
-      : 0;
+    const preview = buildLiveJudgmentPreview({
+      liveCards: rows.map((row) => ({
+        cardId: row.cardId,
+        adjustedRequirements: row.adjustedRequirements,
+        score: row.score,
+      })),
+      hearts: totalHearts,
+      drawBonus: totalDrawBonus,
+      cheerScoreBonus: totalCheerScoreBonus,
+      effectScoreBonus: totalLiveScoreModifier,
+    });
 
     return {
-      rows: displayRows,
-      successCount: isOverallSuccess ? rows.length : 0,
-      failureCount: isOverallSuccess ? 0 : rows.length,
-      drawBonus: totalDrawBonus,
-      cheerScoreBonus: isOverallSuccess ? totalCheerScoreBonus : 0,
-      effectScoreBonus: isOverallSuccess ? totalLiveScoreModifier : 0,
-      totalScore,
+      rows,
+      ...preview,
     };
   }, [
     activeSeat,
+    getCardImagePath,
     getCardFrontInfo,
+    getCardViewObject,
     liveCardIds,
     liveRequirementModifiers,
     liveRequirementReductions,
@@ -759,6 +786,28 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   if (!isOpen || !currentPlayer) return null;
 
   const totalHeartsCount = Array.from(totalHearts.values()).reduce((s, c) => s + c, 0);
+  const hasJudgmentResources = totalHeartsCount > 0 || totalDrawBonus > 0;
+  const requirementSummary: ReactNode =
+    liveJudgmentPreview.status === 'WAITING_LIVE' ? (
+      '当前没有 LIVE 卡'
+    ) : liveJudgmentPreview.status === 'UNKNOWN' ? (
+      '完整需求不可见'
+    ) : liveJudgmentPreview.requirementDeficit &&
+      liveJudgmentPreview.requirementDeficit.length > 0 ? (
+      <RequirementDeficitBadge entries={liveJudgmentPreview.requirementDeficit} />
+    ) : (
+      '需求满足'
+    );
+  const previewStatusLabel = getPreviewStatusLabel(liveJudgmentPreview.status);
+  const previewScoreText =
+    liveJudgmentPreview.totalScore === null ? '--' : String(liveJudgmentPreview.totalScore);
+  const judgmentPanelHint = getJudgmentPanelHint({
+    isPerformanceJudgment,
+    isResultScoreConfirm,
+    isResultAnimation,
+    isResultSettlement,
+    isLiveSuccessWindow,
+  });
 
   return (
     <motion.aside
@@ -979,139 +1028,102 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
 
         {/* ======== 下方：Live 判定区 ======== */}
         <div className="border-t border-[var(--border-subtle)] pt-3">
-          <div className="mb-3 rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_54%,transparent)] p-3">
-            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-              <BarChart3 size={15} className="text-[var(--accent-primary)]" />
-              Live 所有心 (总计: {totalHeartsCount})
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {Array.from(totalHearts.entries()).map(([color, count]) => {
-                if (count === 0) return null;
-                const memberCount = memberHearts.get(color) ?? 0;
-                const bladeCount = bladeHearts.get(color) ?? 0;
-                return (
-                  <div
-                    key={color}
-                    className="flex items-center gap-1 rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] px-2 py-1"
-                  >
-                    <img
-                      src={HEART_ICON_SOURCE_BY_COLOR[color]}
-                      alt=""
-                      className="h-4 w-4 object-contain"
-                      draggable={false}
-                    />
-                    <span className="font-bold text-[var(--text-primary)]">{count}</span>
-                    {bladeCount > 0 && (
-                      <span className="text-[10px] text-[var(--accent-secondary)]">
-                        ({memberCount}+{bladeCount})
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-              {totalDrawBonus > 0 && (
-                <div className="flex items-center gap-1 px-2 py-1 bg-slate-700/50 rounded">
-                  <span className="text-sm text-cyan-400">📄 +{totalDrawBonus}</span>
+          <div className="space-y-3">
+            <JudgmentInfoBlock
+              title="判定 Heart"
+              badge={<span>成员心 + 判心 · 总计 {totalHeartsCount}</span>}
+            >
+              {hasJudgmentResources ? (
+                <div className="flex flex-wrap gap-2">
+                  {Array.from(totalHearts.entries()).map(([color, count]) => {
+                    if (count === 0) return null;
+                    const memberCount = memberHearts.get(color) ?? 0;
+                    const bladeCount = bladeHearts.get(color) ?? 0;
+                    const sourceLabel = `成员 ${memberCount} / 判心 ${bladeCount}`;
+                    const isRainbow = color === HeartColor.RAINBOW;
+                    return (
+                      <div
+                        key={color}
+                        className={JUDGMENT_CHIP_CLASS}
+                        title={
+                          isRainbow ? `All Heart，可作为任意颜色使用；${sourceLabel}` : sourceLabel
+                        }
+                        aria-label={`${HEART_LABEL_BY_COLOR[color]} Heart ${count}，${sourceLabel}`}
+                      >
+                        <img
+                          src={HEART_ICON_SOURCE_BY_COLOR[color]}
+                          alt=""
+                          className="h-4 w-4 object-contain"
+                          draggable={false}
+                        />
+                        <span className="font-bold text-[var(--text-primary)]">{count}</span>
+                        {bladeCount > 0 && (
+                          <span className="text-[10px] text-[var(--accent-secondary)]">
+                            成员 {memberCount} / 判心 {bladeCount}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {totalDrawBonus > 0 && (
+                    <div className={cn(JUDGMENT_CHIP_CLASS, JUDGMENT_DRAW_CHIP_CLASS)}>
+                      <span className="font-semibold">抽卡 +{totalDrawBonus}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="mt-1.5 flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-              <img
-                src={HEART_ICON_SOURCE_BY_COLOR[HeartColor.RAINBOW]}
-                alt=""
-                className="h-3 w-3 object-contain"
-                draggable={false}
-              />
-              All 心可视为任意颜色
-              {cheerCards.length > 0 && ' · 括号内为 (成员心 + 光棒心)'}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="text-sm font-medium text-[var(--text-primary)]">Live 卡判定结果</div>
-            {liveJudgmentPreview.rows.map((row) => {
-              return (
-                <LiveCardJudgmentRow
-                  key={row.cardId}
-                  cardName={row.cardName}
-                  requiredHearts={row.requiredHearts}
-                  score={row.score}
-                  success={row.success}
-                />
-              );
-            })}
-          </div>
-
-          <div className="mt-3 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_32%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] p-3">
-            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-              <BarChart3 size={15} className="text-[var(--accent-primary)]" />
-              接受后预计结果
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="rounded bg-[var(--bg-overlay)] px-2 py-2">
-                <div className="text-[var(--text-muted)]">Live</div>
-                <div className="font-bold text-[var(--text-primary)]">
-                  {liveJudgmentPreview.successCount} 成功 / {liveJudgmentPreview.failureCount} 失败
-                </div>
-              </div>
-              <div className="rounded bg-[var(--bg-overlay)] px-2 py-2">
-                <div className="text-[var(--text-muted)]">抽卡</div>
-                <div className="font-bold text-cyan-300">+{liveJudgmentPreview.drawBonus}</div>
-              </div>
-              <div className="rounded bg-[var(--bg-overlay)] px-2 py-2">
-                <div className="text-[var(--text-muted)]">分数</div>
-                <div className="font-bold text-amber-300">{liveJudgmentPreview.totalScore}</div>
-              </div>
-            </div>
-            {(liveJudgmentPreview.cheerScoreBonus > 0 ||
-              liveJudgmentPreview.effectScoreBonus > 0) && (
-              <div className="mt-2 text-[10px] text-[var(--text-secondary)]">
-                分数加成：
-                {liveJudgmentPreview.cheerScoreBonus > 0 &&
-                  ` 应援音符 +${liveJudgmentPreview.cheerScoreBonus}`}
-                {liveJudgmentPreview.effectScoreBonus > 0 &&
-                  ` 卡牌效果 +${liveJudgmentPreview.effectScoreBonus}`}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-3 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_12%,transparent)] p-2">
-            <div className="space-y-0.5 text-[10px] text-[var(--accent-secondary)]">
-              {isPerformanceJudgment ? (
-                <>
-                  <div>💡 系统已按当前光棒数翻开推荐应援牌，可先手动调整判定区</div>
-                  <div>💡 选择「接受自动判定」后，会按当前判定区计算成功、抽卡与分数草案</div>
-                </>
-              ) : isResultScoreConfirm ? (
-                <>
-                  <div>💡 分数最终确认已移到页面中央确认框</div>
-                  <div>💡 双方确认后将判定胜者，并进入胜者动画与 Live 结算</div>
-                </>
-              ) : isResultAnimation ? (
-                <>
-                  <div>💡 当前正在播放本轮 Live 胜者动画</div>
-                  <div>💡 动画结束后会进入成功 Live 结算阶段</div>
-                </>
-              ) : isResultSettlement ? (
-                <>
-                  <div>💡 当前为成功 Live 结算阶段</div>
-                  <div>💡 胜者请在弹窗中选择成功 Live</div>
-                </>
-              ) : isLiveSuccessWindow ? (
-                <>
-                  <div>💡 当前为 Live 成功效果发动窗口</div>
-                  <div>💡 本窗口仅用于查看和操作判定区卡牌</div>
-                </>
               ) : (
-                <>
-                  <div>💡 当前为辅助查看窗口，可随时操作判定区卡牌</div>
-                </>
+                <div className="text-xs text-[var(--text-muted)]">当前没有可用于判定的 Heart。</div>
               )}
-              <div>🎤 上方应援区可翻开卡组顶牌，悬停卡牌显示操作菜单</div>
-              {isLiveSuccessWindow && (
-                <div>🪄 当前窗口可继续发动 Live 成功效果，同时仍可操作主桌面的手牌/卡组/休息室</div>
-              )}
-            </div>
+            </JudgmentInfoBlock>
+
+            <JudgmentInfoBlock title="LIVE 需求" badge={requirementSummary}>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[0, 1, 2].map((slot) => (
+                  <LiveRequirementCard
+                    key={slot}
+                    card={liveJudgmentPreview.rows[slot] ?? null}
+                    enableHover={shouldUseHoverPreview}
+                  />
+                ))}
+              </div>
+            </JudgmentInfoBlock>
+
+            <JudgmentInfoBlock title="接受后预计" className="p-2.5">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div
+                  className={cn(
+                    'inline-flex min-h-7 items-center rounded border px-2.5 py-1 font-bold',
+                    getPreviewStatusClass(liveJudgmentPreview.status)
+                  )}
+                >
+                  {previewStatusLabel}
+                </div>
+                <div className={cn(JUDGMENT_CHIP_CLASS, JUDGMENT_DRAW_CHIP_CLASS)}>
+                  <span className="text-[var(--text-muted)]">抽卡</span>
+                  <span className="font-bold">+{liveJudgmentPreview.drawBonus}</span>
+                </div>
+                <div className={cn(JUDGMENT_CHIP_CLASS, 'text-[var(--accent-gold)]')}>
+                  <span className="text-[var(--text-muted)]">分数</span>
+                  <span className="font-bold">{previewScoreText}</span>
+                </div>
+                {(liveJudgmentPreview.cheerScoreBonus > 0 ||
+                  liveJudgmentPreview.effectScoreBonus > 0) && (
+                  <div className="inline-flex min-h-7 items-center rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-2 py-1 text-[10px] text-[var(--text-secondary)]">
+                    分数加成：
+                    {liveJudgmentPreview.cheerScoreBonus > 0 &&
+                      ` 应援音符 +${liveJudgmentPreview.cheerScoreBonus}`}
+                    {liveJudgmentPreview.effectScoreBonus > 0 &&
+                      ` 卡牌效果 +${liveJudgmentPreview.effectScoreBonus}`}
+                  </div>
+                )}
+              </div>
+            </JudgmentInfoBlock>
+
+            <JudgmentInfoBlock title="提示">
+              <div className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                {judgmentPanelHint}
+              </div>
+            </JudgmentInfoBlock>
           </div>
         </div>
 

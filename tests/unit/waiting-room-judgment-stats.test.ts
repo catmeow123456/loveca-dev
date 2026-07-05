@@ -29,5 +29,35 @@ describe('waiting room judgment stats', () => {
     expect(stats.totalHearts).toBe(1);
     expect(stats.scoreBonus).toBe(1);
     expect(stats.drawBonus).toBe(1);
+    expect(stats.noJudgmentCount).toBe(0);
+  });
+
+  it('counts cards without effective blade hearts as no-judgment cards', () => {
+    const memberWithoutBladeHearts = {
+      cardType: CardType.MEMBER,
+      hearts: [{ color: HeartColor.RED, count: 2 }],
+    } as AnyCardData;
+    const liveWithoutBladeHearts = {
+      cardType: CardType.LIVE,
+      bladeHearts: [],
+    } as AnyCardData;
+    const liveWithInvalidHeartBlade = {
+      cardType: CardType.LIVE,
+      bladeHearts: [{ effect: BladeHeartEffect.HEART }],
+    } as AnyCardData;
+    const liveWithDrawBlade = {
+      cardType: CardType.LIVE,
+      bladeHearts: [{ effect: BladeHeartEffect.DRAW }],
+    } as AnyCardData;
+
+    const stats = collectWaitingRoomJudgmentStats([
+      memberWithoutBladeHearts,
+      liveWithoutBladeHearts,
+      liveWithInvalidHeartBlade,
+      liveWithDrawBlade,
+    ]);
+
+    expect(stats.drawBonus).toBe(1);
+    expect(stats.noJudgmentCount).toBe(3);
   });
 });

@@ -81,7 +81,9 @@ function HeartIconGroup({
   compact?: boolean;
 }) {
   const resolvedIconSrc = iconSrc ?? HEART_ICON_SOURCE_BY_COLOR[color];
-  const repeatedCount = Math.max(0, Math.min(count, 8));
+  const maxDirectIconCount = compact ? 10 : 12;
+  const shouldShowEveryIcon = count <= maxDirectIconCount;
+  const repeatedCount = Math.max(0, shouldShowEveryIcon ? count : 1);
 
   return (
     <div
@@ -101,7 +103,7 @@ function HeartIconGroup({
           />
         ))}
       </span>
-      {count > repeatedCount && (
+      {!shouldShowEveryIcon && (
         <span className="text-xs font-bold text-[var(--text-primary)]">×{count}</span>
       )}
     </div>
