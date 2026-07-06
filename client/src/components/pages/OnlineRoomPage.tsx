@@ -338,6 +338,12 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const canLockDeck = Boolean(
     room && selectedDeck?.cloudDeck && room.status !== 'OPENING' && room.status !== 'IN_GAME'
   );
+  const selectedDeckCanReplaceLockedDeck = Boolean(
+    room &&
+      myMember?.ready &&
+      selectedDeck?.cloudDeck &&
+      selectedDeck.cloudDeck.id !== myMember.lockedDeckId
+  );
   const bothReady = Boolean(room && room.members.length === 2 && room.members.every((member) => member.ready));
   const canClearSavedRoom = Boolean(joinedRoomCode && !room);
   const actionState = getRoomActionState({
@@ -679,8 +685,8 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                   </div>
                   <div className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
                     {isRestartRequester
-                      ? '等待对手同意；同意后会创建一局新对局。'
-                      : '同意后会封存当前对局，并在同一房间创建新对局。'}
+                      ? '等待对手同意；同意后会回到准备页，可换卡组后重新开局。'
+                      : '同意后会封存当前对局，并回到准备页重新锁组或直接准备。'}
                   </div>
                 </div>
                 <RotateCcw size={18} className="mt-0.5 shrink-0 text-[var(--accent-primary)]" />
@@ -871,6 +877,19 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                   >
                     {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                     锁定这副卡组
+                  </motion.button>
+                )}
+
+                {room && selectedDeckCanReplaceLockedDeck && (
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={handleLockDeck}
+                    disabled={!canLockDeck || isSubmitting}
+                    className={`button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-5 ${!canLockDeck || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
+                  >
+                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                    更换为这副卡组
                   </motion.button>
                 )}
 

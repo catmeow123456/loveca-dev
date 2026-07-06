@@ -485,13 +485,13 @@ export class OnlineRoomService {
     room.matchId = null;
     room.seatAssignments = {};
     room.members.forEach((candidate) => {
-      candidate.startReady = true;
+      candidate.startReady = false;
       candidate.presence = 'ACTIVE';
       candidate.lastSeenAt = now;
     });
-    room.openingRps = createOpeningRpsState(room, 1, now);
+    room.openingRps = null;
     room.restartRequest = null;
-    room.status = 'OPENING';
+    room.status = 'PREPARING';
     member.presence = 'ACTIVE';
     member.lastSeenAt = now;
     touchRoom(room, now);

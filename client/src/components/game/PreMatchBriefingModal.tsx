@@ -382,7 +382,7 @@ function createEffectPage(mode: PreMatchBriefingMode): BriefingPage {
       icon: RotateCcw,
       items: [
         '正式联机的撤销需要对手同意。已经看见的信息不会因为撤销而变成没看见。',
-        '进入对局后可在左上角请求重开或离开房间；重开需要对手同意后才会创建新对局。',
+        '进入对局后可在左上角请求重开或离开房间；重开需要对手同意，同意后会回到准备页重新锁组或直接准备。',
       ],
     });
   }

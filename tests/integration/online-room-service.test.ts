@@ -580,7 +580,7 @@ describe('OnlineRoomService', () => {
     });
   });
 
-  it('重开请求应在对手同意后封存旧对局并回到开局猜拳', async () => {
+  it('重开请求应在对手同意后封存旧对局并回到可换卡组的准备阶段', async () => {
     let now = 4_000_000;
     const recorder = createTestRecorder();
     const matchService = new OnlineMatchService({ now: () => now, recorder });
@@ -620,15 +620,25 @@ describe('OnlineRoomService', () => {
       requested.restartRequest!.requestId
     );
 
-    expect(restarted.status).toBe('OPENING');
+    expect(restarted.status).toBe('PREPARING');
     expect(restarted.restartRequest).toBeNull();
     expect(restarted.matchId).toBeNull();
     expect(restarted.currentUserSeat).toBeUndefined();
-    expect(restarted.openingRps).toMatchObject({
-      round: 1,
-      revealed: false,
-      winnerUserId: null,
-    });
+    expect(restarted.openingRps).toBeNull();
+    expect(restarted.members).toEqual([
+      expect.objectContaining({
+        userId: 'u1',
+        lockedDeckId: 'deck-a',
+        ready: true,
+        startReady: false,
+      }),
+      expect.objectContaining({
+        userId: 'u2',
+        lockedDeckId: 'deck-b',
+        ready: true,
+        startReady: false,
+      }),
+    ]);
     expect(matchService.getMatch(previousMatchId)).toBeNull();
     expect(recorder.sealMatch).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -639,6 +649,32 @@ describe('OnlineRoomService', () => {
       })
     );
 
+    const relocked = await service.lockDeck('again1', 'u1', 'deck-c');
+    expect(relocked.status).toBe('PREPARING');
+    expect(relocked.members).toEqual([
+      expect.objectContaining({
+        userId: 'u1',
+        lockedDeckId: 'deck-c',
+        lockedDeckName: 'u1-deck-c',
+        ready: true,
+        startReady: false,
+      }),
+      expect.objectContaining({
+        userId: 'u2',
+        lockedDeckId: 'deck-b',
+        ready: true,
+        startReady: false,
+      }),
+    ]);
+
+    await service.markReadyToStart('again1', 'u1');
+    const opening = await service.markReadyToStart('again1', 'u2');
+    expect(opening.status).toBe('OPENING');
+    expect(opening.openingRps).toMatchObject({
+      round: 1,
+      revealed: false,
+      winnerUserId: null,
+    });
     await service.submitOpeningRps('again1', 'u1', 'ROCK');
     const rpsDone = await service.submitOpeningRps('again1', 'u2', 'SCISSORS');
     expect(rpsDone.openingRps?.winnerUserId).toBe('u1');
