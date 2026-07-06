@@ -41,8 +41,8 @@
 | `F01` | P0 | 抽N张牌 | effect step: `drawCards(n)` | `core_v1` | Stage 1F 已对当前 μ's 验证集收口：`drawCardsFromMainDeckToHand` 覆盖卡效步骤的主卡组顶抽牌到手牌；007 额外抽 1 已迁入，并覆盖翻到/未翻到 LIVE 两条路径。 |
 | `F02` | P0 | 抽N弃M | composed step: `drawThenDiscard(n,m)` | `core_v1` | Stage 1J 已起步：`PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」登场均复用 `drawCardsFromMainDeckToHand` 与手牌进休息室 helper；Stage 1P 已由 `PL!HS-pb1-009-R` 费用 15「日野下花帆」LIVE 开始 BLADE 阈值段复用同一抽 2 弃 1 流程。弃 M 张/抽牌刷新语义等继续等样例扩展。 |
 | `F03` | P0 | 看顶N，选任意/固定数量入手，其余进休息室 | look-top pipeline | `core_v1` | Stage 1C 已落地基础检视/选中入手其余入休息室原语，当前 `PL!-sd1-011/012/016-SD` 与 `PL!HS-PR-001-PR` 可验证；`PL!HS-bp6-001` 费用 4「日野下花帆」验证动态检视舞台成员数 + 2 并控顶。 |
-| `F04` | P0 | 看顶N，公开符合条件的卡入手，其余进休息室 | look-top select + reveal pipeline | `core_v1` | Stage 1C 已复用基础检视/清理/移动原语，当前 `PL!-sd1-004-SD`、`PL!-sd1-015-SD`、`PL!-bp3-010-N` 可验证；公开确认步骤仍在 runner。 |
-| `F05` | P0 | 看顶N，任意张按任意顺序放回卡组顶，其余进休息室 | look-top reorder pipeline | `core_v1` | Stage 1C 已复用看顶进入检视区原语，当前 019 可验证；排序完成步骤仍在 runner。 |
+| `F04` | P0 | 看顶N，公开符合条件的卡入手，其余进休息室 | look-top select + reveal pipeline | `core_v1` | Stage 1C 已复用基础检视/清理/移动原语，当前 `PL!-sd1-004-SD`、`PL!-sd1-015-SD`、`PL!-bp3-010-N` 可验证；公开确认步骤已由 `workflows/shared/look-top-select-to-hand.ts` 等 workflow 承载，尚未抽通用 reveal DSL。 |
+| `F05` | P0 | 看顶N，任意张按任意顺序放回卡组顶，其余进休息室 | look-top reorder pipeline | `core_v1` | Stage 1C 已复用看顶进入检视区原语，当前 019 可验证；排序完成步骤已由 `workflows/shared/arrange-inspected-deck-top.ts` 承载，尚未抽通用 steps DSL。 |
 | `F06` | P0 | 从卡组顶将N张置入休息室 | deck move: top -> waitingRoom | `core_v1` | Stage 1C 已落地检视牌入休息室与卡组顶 N 张直接入休息室原语；`PL!HS-bp5-001` 费用 11「日野下花帆」验证公开检视顶 4、点击继续处理后再放置入休息室并按其中是否存在 LIVE 获得 BLADE。 |
 | `F07` | P0 | 从休息室将卡加入手牌 | zone selection/move | `core_v1` | Stage 1A 第一版已落地到 `src/application/effects/zone-selection.ts`，当前覆盖 `WAITING_ROOM -> HAND` 单选路径；`PL!HS-bp5-001` 费用 11「日野下花帆」验证同名 LIVE 回收，`PL!HS-pb1-020` 费用 9「百生吟子」验证分组回收。 |
 | `F08` | P0 | 从休息室回收LIVE卡 | F07 specialization with selector `type=LIVE` | `core_v1` | Stage 1A 已用 `typeIs(LIVE)` 配置 001/005；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」起动段已验证 `typeIs(LIVE)` + 莲之空 group selector 回收 LIVE；`PL!HS-bp5-001` 费用 11「日野下花帆」验证按公开手牌卡名回收同名 LIVE，`PL!HS-pb1-020` 费用 9「百生吟子」验证莲之空 LIVE 分组回收。 |
@@ -96,7 +96,7 @@
 | `X10` | P2 | 发动/无效其他卡的能力 | referenced ability resolver | `special_hook` | 复杂度高，custom resolver 挂接。 |
 | `X11` | P1 | 手牌中成员/登场费用减少 | cost modifier | `core_v2` | Stage 1L 已起步：`cost-calculator.ts` 支持登场费用修正明细，`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」验证手牌中的自身按其他手牌数量每张 -1 费且自身不计入数量；`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」验证舞台存在待机状态『虹咲』成员时自身 -2 费；`PL!SP-bp5-003-AR` 费用 17「岚 千砂都」验证舞台来源使手牌中 10 费 Liella! 成员登场费用 -2，且先减费再换手。 |
 | `X12` | P2 | 无能力/能力类型筛选 | selector: ability presence/type | `core_v2` | 可纳入 selector AST。 |
-| `X13` | P2 | 按数量每N个/每1张换算效果 | scaling expression | `core_v1` | 001/022/花结这类按数量换算已出现；当前只把计数查询迁入 `conditions.ts`，倍率表达层仍在 runner。 |
+| `X13` | P2 | 按数量每N个/每1张换算效果 | scaling expression | `core_v1` | 001/022/花结这类按数量换算已出现；当前只把计数查询迁入 `conditions.ts`，倍率表达层由各 workflow / modifier registry 局部承载，尚未抽 typed formula builder。 |
 
 ## Coverage summary
 

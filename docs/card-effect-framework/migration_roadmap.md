@@ -22,8 +22,8 @@
 |---|---|---|---|
 | R-0 | done | 建立卡效框架总文档与权威关系。 | `README.md`、目标架构、模块边界、迁移路线和旧文档索引落地。 |
 | R-1 | partial | runtime action helpers。 | 抽牌、弃牌、回收等原子动作已有 runtime helper 和测试；看顶仍由 `src/application/effects/look-top.ts` 原语承接，更多区域移动/公开确认 helper 待真实 workflow 推动。 |
-| R-2 | partial | activeEffect step handler registry。 | `confirmActiveEffectStep` 已先查 step registry，未命中 fallback 旧分支；look-top、抽后弃、回收等 workflow 已迁入 registry，复杂旧分支仍在 runner。 |
-| R-3 | partial | pending / starter registry。 | `startPendingAbilityEffect` 已先查 starter registry，未命中 fallback 旧 switch；新增 queued workflow 应优先注册 starter。 |
+| R-2 | partial | activeEffect step handler registry。 | `confirmActiveEffectStep` 已先查 step registry，未命中时直接保持状态不变并返回；look-top、抽后弃、回收等 workflow 已迁入 registry，runner 不再承载完整卡效 fallback。 |
+| R-3 | partial | pending / starter registry。 | `startPendingAbilityEffect` 已先查 starter registry，未命中时直接保持状态不变并返回；新增 queued workflow 必须注册 starter。 |
 | R-4 | partial | workflow family 迁出。 | look-top、discard look-top、draw-then-discard、waiting-room recovery、自送回收、支付能量回收、BP4-002 弃手回收、grouped recovery、fixed pay-energy gain-BLADE、arrange-top、opponent wait target、conditional live modifier 与 revealed-cheer selection 已离开 runner；grouped recovery 独立 family，不混入普通 recovery family。 |
 | R-5 | partial | special card workflow 迁出。 | `HS_BP1_002`、`HS_BP5_001` activated、`HS_PB1_004`、`BP5_003`、`YOSHIKO`、`HANAYO` activated、`BP5_007` pending workflow 已迁出；`HS_BP5_003` 离场站位变换段与 LIVE 开始弃手加 Heart 段均已迁入 Rurino 单卡 workflow；runner 完整卡效 fallback 已清空，但仍保留若干 matcher / relay / trigger 条件胶水。 |
 | R-6 | planned | trigger matcher T-2。 | 在 enqueue 边界稳定后，用纯 matcher 替代部分旧 trigger 判定，并保留 shadow 一致性测试。 |
@@ -648,7 +648,7 @@ The workflow reuses `getAbilityEffectText`, `startPendingActiveEffect`, `finishS
 Not migrated in R-5B:
 
 - `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID` remained in runner at R-5B and was later migrated in R-5C.
-- `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID`, `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID`, and `MAKI_ON_ENTER_ABILITY_ID` remain deferred.
+- `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID`, `BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID`, and `MAKI_ON_ENTER_ABILITY_ID` remained deferred at R-5B; they were migrated in later R-5 slices.
 
 Test coverage added one GameSession regression in `sample-card-effect-runner.test.ts` that locks the `POSITION_CHANGE` action before `ON_MEMBER_SLOT_MOVED` trigger consumption and verifies the following pending effect continues.
 
@@ -668,9 +668,9 @@ New workflow files:
 
 Both workflows reuse `getAbilityEffectText` and `startPendingActiveEffect`; `EMMA` also reuses `activateWaitingEnergyCardsForPlayer` with an up-to-two waiting-energy count. `CHISATO` deliberately keeps `setEnergyOrientation(..., allEnergyCardIds, ACTIVE)` because the old effect activates all energy, not only waiting energy.
 
-Current candidates after R-5F:
+Current candidates after R-5F, before later R-5U cleanup:
 
-- keep `BP5_007` deferred; EMMA 0-target coverage remains a separate active-energy / EMMA follow-up;
+- `BP5_007` was still deferred at this checkpoint and later migrated in R-5U; EMMA 0-target coverage remains a separate active-energy / EMMA follow-up;
 - reveal / public-confirm helper cleanup only after another stable repeated axis appears.
 
 ## R-4Q-b SHIKI Workflow Outcome 2026-06-18
@@ -712,9 +712,9 @@ Covered effects:
 
 The shared workflow reuses `effects/cheer-selection.ts` for selecting cards that were revealed by the current cheer and are still in the processing zone, and `effects/cheer.ts` for additional cheer. It preserves old skip/no-target payload fields and does not change cheer context consumption, processing-zone cleanup, event-log timing, or pending continuation.
 
-Current candidates after R-5F:
+Current candidates after R-5F, before later R-5U cleanup:
 
-- keep `BP5_007` deferred; EMMA 0-target coverage remains a separate active-energy / EMMA follow-up;
+- `BP5_007` was still deferred at this checkpoint and later migrated in R-5U; EMMA 0-target coverage remains a separate active-energy / EMMA follow-up;
 - reveal / public-confirm helper cleanup only after another stable repeated axis appears.
 
 ## R-4I Family Audit Snapshot 2026-06-18
@@ -776,7 +776,7 @@ These effects may remain card-specific, but should leave runner only after a nar
 - `PL!HS-bp5-003` 费用 2「大泽瑠璃乃」：LIVE 开始弃手后同团成员获得桃 Heart 与离场站位变换均已迁入 Rurino 单卡 workflow。
 - `PL!-bp6-024-L` 分数 3「錯覚CROSSROADS」：成功区放置替代 hook 已迁入 BP6_024 单卡 hook 模块。
 - `MAKI_ON_ENTER_ABILITY_ID`：已迁入 MAKI 单卡 workflow，保留对 BP6_024 replacement hook 的调用。
-- `PL!-bp5-007` 费用 13「东条希」：换手登场后双方弃到 3 并各抽 3，继续暂缓。
+- `PL!-bp5-007` 费用 13「东条希」：换手登场后双方弃到 3 并各抽 3，已迁入 `workflows/cards/pl-bp5-007-nozomi.ts`；runner 仅保留 relay/有效费用触发门禁胶水。
 
 ## Guardrails
 

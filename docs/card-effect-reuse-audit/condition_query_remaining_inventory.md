@@ -49,7 +49,7 @@
 | `PL!HS-bp6-001` 费用 4「日野下花帆」 | 舞台成员数。 |
 | `PL!HS-bp6-031` 分数 8「ファンファーレ！！！」 | 等待室成员与 `みらくらぱーく！` 成员数。 |
 | `PL!HS-bp1-006` 费用 11「藤岛 慈」同型组 | 其他舞台成员存在性。 |
-| `LL-bp1-001` / `LL-bp2-001` 指定姓名 LIVE 开始段 | 手牌候选使用 `cardNameAliasAny` 收束多姓名 alias 判断；弃手流程与奖励公式仍留在 runner。 |
+| `LL-bp1-001` / `LL-bp2-001` 指定姓名 LIVE 开始段 | 手牌候选使用 `cardNameAliasAny` 收束多姓名 alias 判断；弃手流程与奖励写入已迁入 `workflows/shared/named-hand-discard-live-start.ts`，奖励公式尚未抽 typed builder。 |
 
 ## Status labels
 
@@ -58,7 +58,7 @@
 | `ready-query` | 纯读查询，当前可继续收束。 | 补小 helper + 单测，再做等价替换。 |
 | `needs-selector` | 查询形状清楚，但 selector 语义还散落或有别名/fallback 风险。 | 先扩 `card-selectors.ts` 并补 selector 测试，再迁 query。 |
 | `domain-blocked` | 位于 domain 层，不能 import application query。 | 暂不迁；未来决定是否下沉到 domain/shared query。 |
-| `formula-builder` | 查询已经能做，但“数量 -> 奖励/修正”的表达仍在 runner。 | 后续真实重复足够后再抽 typed builder；不要塞进 `conditions.ts`。 |
+| `formula-builder` | 查询已经能做，但“数量 -> 奖励/修正”的表达仍分散在 workflow / modifier registry。 | 后续真实重复足够后再抽 typed builder；不要塞进 `conditions.ts`。 |
 | `workflow-step` | 本质是流程/选择/移动/支付串联。 | 等 look-top/reveal-hand/grouped-selection/steps 配置化专题处理。 |
 
 ## Completed small batches
@@ -66,7 +66,7 @@
 - Batch A selector cleanup：已完成 application 层团体身份 selector、绿色 Heart 成员、BLADE HEART、印刷 BLADE 阈值，并替换 runner 中最直接的本地 selector。
 - Batch B zone/cardIds helper：已补 zone/cardIds convenience helper，并替换顶牌检视 any/all、等待室 LIVE count 等低风险读查询。
 - Batch C-1 application-local state query：已把 Liella! 舞台成员扫描、舞台成员/能量按朝向查询收束到 selector / `stage-targets.ts` / `energy.ts`。
-- Batch D-1 named discard selector：已补 `cardNameAliasAny` 并替换 `LL-bp1-001` / `LL-bp2-001` 指定姓名弃手候选。奖励公式、弃手流程、pending 顺序仍未迁移。
+- Batch D-1 named discard selector：已补 `cardNameAliasAny` 并替换 `LL-bp1-001` / `LL-bp2-001` 指定姓名弃手候选；后续 R-5F 已将弃手流程、pending 顺序与奖励写入迁入 `workflows/shared/named-hand-discard-live-start.ts`。奖励公式仍未抽 typed builder。
 - Batch E-1 low-cost waiting-room candidate query：已把 `PL!S-bp2-006` 费用 11「津岛善子」等待室低费成员候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, costLte(4))`。费用合计与登场流程仍留在 grouped selection / workflow。
 - Batch E-2 Maki exchange candidate query：已把 `PL!-sd1-006` 费用 8「西木野真姬」手牌 LIVE / 成功区 LIVE 候选改为 `getCardIdsInZoneMatching(..., ZoneType.HAND/SUCCESS_ZONE, typeIs(CardType.LIVE))`。公开手牌与区域交换流程仍留在 workflow。
 - Batch E-3 Hasunosora activated candidate query：已把 `PL!HS-bp1-004` 费用 15「夕雾缀理」/ `PL!HS-bp1-003` 费用 13「乙宗梢」/ `PL!HS-bp1-002` 费用 11「村野沙耶香」起动段等待室候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, selector)`。自送费用、能量费用、回收/登场流程仍留在 cost / workflow。
@@ -85,9 +85,9 @@
 | id | current location | current behavior | next action |
 |---|---|---|---|
 | RQ-01 | `card-effect-runner.ts` 中多处 `getCardIdsInZone(...)+getCardIdsMatchingSelector(...)` / `countCardsMatchingSelector(...)` | 区域 + selector 的 id 列表、数量、阈值查询。 | `getCardIdsInZoneMatching` / `countCardsInZoneMatching` / `hasCardInZoneMatching` 已补；已替换 `PL!HS-pb1-020` 等低风险点，剩余重复可随真实卡效小步继续迁。 |
-| RQ-02 | `PL!HS-bp5-001` 费用 11「日野下花帆」登场段 | 检视顶 4 后判断其中是否有 LIVE，决定是否给 BLADE +2。 | 已用 `hasCardIdsMatchingSelector(..., typeIs(CardType.LIVE))`；奖励写入仍留在 runner。 |
+| RQ-02 | `PL!HS-bp5-001` 费用 11「日野下花帆」登场段 | 检视顶 4 后判断其中是否有 LIVE，决定是否给 BLADE +2。 | 已用 `hasCardIdsMatchingSelector(..., typeIs(CardType.LIVE))`；奖励写入在 `workflows/cards/hs-bp5-001-kaho.ts`，后续可抽 any/condition reward builder。 |
 | RQ-03 | `PL!-sd1-007` 费用 7「东条希」 | 公开顶 5 后判断其中是否有 LIVE，决定是否抽 1。 | 已用 `hasCardIdsMatchingSelector(..., typeIs(CardType.LIVE))`；抽牌流程不迁。 |
-| RQ-04 | `PL!HS-PR-019` 费用 2「百生吟子」 | 公开顶 3 后判断 3 张是否全部为绿色 Heart 成员。 | 已用 `allCardIdsMatchingSelector(..., memberHasHeartColor(HeartColor.GREEN))`；奖励写入仍留在 runner。 |
+| RQ-04 | `PL!HS-PR-019` 费用 2「百生吟子」 | 公开顶 3 后判断 3 张是否全部为绿色 Heart 成员。 | 已用 `allCardIdsMatchingSelector(..., memberHasHeartColor(HeartColor.GREEN))`；奖励写入在 `workflows/shared/mill-top-gain-live-modifier.ts`，后续可抽 all/condition reward builder。 |
 | RQ-05 | `PL!-sd1-006` 费用 8「西木野真姬」 | 扫手牌 LIVE 与成功区 LIVE 作为交换候选。 | 候选查询已用 `getCardIdsInZoneMatching(..., ZoneType.HAND/SUCCESS_ZONE, typeIs(CardType.LIVE))` 收束；公开手牌、选择成功区 LIVE、交换区域与 skip 流程仍是 workflow-step。 |
 | RQ-06 | `PL!HS-pb1-012` 费用 15「百生吟子」 | 双方等待室成员数量合计、移动后成员数量合计，阈值 20。 | `getWaitingRoomMemberCardIds` 已改用 `getCardIdsInZoneMatching`；阈值后续仍是 formula/workflow。 |
 | RQ-07 | `PL!HS-bp6-031` / `PL!HS-pb1-012` 复用的 `shuffleWaitingRoomCardsToDeckBottomForPlayer` | caller 指定等待室成员洗切后放主卡组底，成员数量与 `みらくらぱーく！` 数量仍由 caller 统计。 | 查询部分已有部分 zone helper 复用；底层移动已下沉到 runtime action，但 selector、计数、奖励与后续流程不搬进 `conditions.ts`。 |
@@ -97,7 +97,7 @@
 | RQ-11 | `LL-bp1-001` / `LL-bp2-001` 指定姓名弃手 LIVE 开始段 | 手牌中按多个姓名 alias 匹配候选。 | 已用 `cardNameAliasAny` 收束候选 selector；奖励仍是 formula-builder。 |
 | RQ-12 | `PL!S-bp2-006` 费用 11「津岛善子」 | 等待室费用 <=4 成员候选、选择卡费用合计 <=4。 | 候选查询已用 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, costLte(4))` 收束；费用合计 <=4 与登场到空槽仍是 grouped selection / workflow constraint，不放进 `conditions.ts`。 |
 | RQ-13 | `PL!HS-bp1-004` / `PL!HS-bp1-003` / `PL!HS-bp1-002` 起动段 | 等待室「莲之空」LIVE、低费成员、费用 <=15 成员候选。 | 候选查询已用 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, selector)` 收束；`PL!HS-bp1-002` 仍在自送费用结算后使用 `costPayment.gameState` 扫等待室。自送费用、能量费用、回收/登场到原区域流程仍是 cost / workflow 逻辑。 |
-| RQ-14 | `PL!SP-bp5-003` 费用 17「岚 千砂都」LIVE 开始段 | 扫自己舞台 Liella! 成员并扫能量区全部能量。 | Liella! 成员扫描已用 `getStageMemberCardIdsMatching(..., groupAliasIs('Liella!'))`；能量批量活跃流程仍留在 runner。 |
+| RQ-14 | `PL!SP-bp5-003` 费用 17「岚 千砂都」LIVE 开始段 | 扫自己舞台 Liella! 成员并扫能量区全部能量。 | Liella! 成员扫描已用 `getStageMemberCardIdsMatching(..., groupAliasIs('Liella!'))`；能量批量活跃流程已迁入 `workflows/cards/sp-bp5-003-chisato.ts`，仍未抽 activation-energy shared family。 |
 | RQ-15 | `PL!N-pb1-008` 费用 17「艾玛·维尔德」登场段 | 查询待机成员、待机能量，并据此生成二选一。 | 已将按朝向查询放入 `stage-targets.ts` / `energy.ts`；二选一流程仍是 workflow-step。 |
 
 ### needs-selector
@@ -143,7 +143,7 @@
 |---|---|---|---|
 | FB-01 | `PL!-sd1-009` / `PL!HS-bp2-022` | `count >= N` 时写入 SCORE +1。 | 后续可抽 threshold score builder。 |
 | FB-02 | `PL!-sd1-022` / `PL!HS-bp5-019` | `count * 2` 转换为必要 Heart 减少。 | 后续可抽 scaling requirement builder。 |
-| FB-03 | `PL!HS-bp1-004` | LIVE 区数量转换为 BLADE 数。 | 后续可抽 count-to-blade builder；当前支付流程仍在 runner。 |
+| FB-03 | `PL!HS-bp1-004` | LIVE 区数量转换为 BLADE 数。 | 后续可抽 count-to-blade builder；当前支付与 BLADE 写入由 `workflows/shared/pay-energy-gain-blade.ts` 承载。 |
 | FB-04 | `PL!HS-pb1-009` | 来源有效 BLADE >= 8 时进入抽 2 弃 1。 | Query 已有；后续若抽 builder，要覆盖“满足条件才进入 workflow”。 |
 | FB-05 | `PL!HS-bp5-001` / `PL!-sd1-007` / `PL!HS-PR-019` | 检视结果满足条件后给 BLADE / 抽牌 / 给 Heart。 | Query 可抽 any/all；奖励和后续步骤属于 builder/workflow。 |
 | FB-06 | `LL-bp1-001` / `LL-bp2-001` | 指定姓名弃置后固定 SCORE 或按弃置数给 BLADE。 | named discard workflow 已有雏形；奖励 builder 可后续抽。 |
@@ -169,7 +169,7 @@
 
 Batch G identity migration 已完成。本文档后续只保留真实未完成方向：
 
-- `formula-builder`：数量 / 阈值到奖励或修正的表达仍在 runner，后续需要真实重复样例再抽 typed builder。
+- `formula-builder`：数量 / 阈值到奖励或修正的表达仍分散在 workflow / modifier registry 中，后续需要真实重复样例再抽 typed builder。
 - `workflow-step`：look-top、reveal-hand、grouped-selection、支付选项与移动流程仍未配置化。
 - `domain-blocked`：仍有 domain-local turn-state / continuous modifier 查询；这些不应反向依赖 application helper。
 - trigger matcher / steps / condition AST 尚未完成，也不是 Batch G identity migration 的成果。

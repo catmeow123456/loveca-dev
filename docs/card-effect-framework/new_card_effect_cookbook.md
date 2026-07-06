@@ -4,7 +4,7 @@
 > 适用范围：新增或扩展卡效前，快速判断应复用哪个 workflow/helper、何时写单卡 workflow、必须补哪些测试和文档
 > 当前状态：现行使用指南；不替代 `migration_roadmap.md`、`workflow_module_guide.md`、`active_effect_runtime.md` 或真实代码/测试
 
-本页只做开发入口。拿到新卡效后，先按效果形状找最接近的已迁 workflow/helper；若没有稳定 family，再写 `workflows/cards/` 单卡 workflow。runner 仍保留 registry-first fallback 旧逻辑，不能把本页理解为 runner 已完成、trigger matcher 已接入 runner 或 steps DSL 已落地。
+本页只做开发入口。拿到新卡效后，先按效果形状找最接近的已迁 workflow/helper；若没有稳定 family，再写 `workflows/cards/` 单卡 workflow。runner 已清空完整卡效 fallback；新增 queued / activated / activeEffect 流程必须注册到对应 registry。不能把本页理解为 trigger matcher 已接入 runner 或 steps DSL 已落地。
 
 ## Common Effect Routes
 

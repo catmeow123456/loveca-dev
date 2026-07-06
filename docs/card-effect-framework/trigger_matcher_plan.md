@@ -39,7 +39,7 @@
   - T-1 shadow test 已覆盖 `ON_ENTER_STAGE` / `ON_MEMBER_SLOT_MOVED` 的纯 matcher 输入、同基础编号 `PL!SP-bp4-011-P` / `PL!SP-bp4-011-SEC` 匹配，以及 source card、controller、sourceSlot、sourceZone、triggerCondition 误配不命中。
 - `PL!SP-bp4-008` 费用 13「若菜四季」证明 `requiredSourceSlots` 是 trigger matching 字段：左侧登场、右侧登场、LIVE 开始站位变换分别由定义上的 source slot 过滤。
 - `PL!HS-bp6-027` 分数 5「月夜見海月」证明 `ON_CHEER` 需要事件主体玩家、sourceZone `LIVE_CARD` 与事件 id；追加声援 `additional=true` 属于事件分支 guard。
-- `PL!N-bp4-018` 费用 7「近江彼方」与 `PL!-pb1-015` 费用 7「西木野真姬」证明状态变化触发不仅要看 `ON_MEMBER_STATE_CHANGED`，还要能表达事件主体、controller 关系、`ACTIVE -> WAITING` 方向与 cause 关系。第一版 matcher 只放入通用字段，phase、cost、目标与 selector 仍留在 runner/resolver。
+- `PL!N-bp4-018` 费用 7「近江彼方」与 `PL!-pb1-015` 费用 7「西木野真姬」证明状态变化触发不仅要看 `ON_MEMBER_STATE_CHANGED`，还要能表达事件主体、controller 关系、`ACTIVE -> WAITING` 方向与 cause 关系。第一版 matcher 只放入通用字段，phase、cost、目标与 selector 仍留在 workflow/resolver，不进入 matcher。
 - `PL!HS-bp6-001` 费用 4「日野下花帆」与 `PL!HS-cl1-009` 分数 1「水彩世界」证明 `ON_LIVE_SUCCESS` 同时存在舞台成员来源与 LIVE 卡来源。
 - `PL!HS-bp2-012` 费用 5「乙宗 梢」、`PL!HS-bp6-017` 费用 11「日野下花帆」与 `PL!HS-sd1-001` 费用 9「日野下花帆」证明离场触发需要 source card、from slot、controller 与可能的 replacing card 关系，但选择、弃手费用、回收移动仍不属于 matcher。
 

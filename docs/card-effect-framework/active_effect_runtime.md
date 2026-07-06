@@ -2,9 +2,9 @@
 
 > 文档类型：设计文档
 > 适用范围：activeEffect、stepId、metadata、可见性与 step handler registry
-> 当前状态：step handler registry 已落地；旧 runner 分支仍分批迁移中
+> 当前状态：step handler registry 已落地；runner 完整卡效 fallback 已清空，runner 仍保留 pending/trigger 胶水
 
-`activeEffect` 是多步卡效的运行时状态。runner 膨胀的核心原因之一，是每张卡都在 runner 中手写 activeEffect 创建、step 校验、候选可见性和 finish 分发。当前已建立 step handler registry，`confirmActiveEffectStep` 先查 registry，未命中再 fallback 旧分支。
+`activeEffect` 是多步卡效的运行时状态。runner 膨胀的核心原因之一，是每张卡都在 runner 中手写 activeEffect 创建、step 校验、候选可见性和 finish 分发。当前已建立 step handler registry，`confirmActiveEffectStep` 先查 registry；未命中 registry 时不再 fallback 到旧完整卡效分支，而是保持状态不变并返回。新增或迁移多步卡效必须注册 starter / step handler。
 
 ## Target Responsibilities
 

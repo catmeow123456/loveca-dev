@@ -60,7 +60,7 @@ Stage 1G 应包含：
 
 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」已完成 AUTO 段：此成员从舞台放置入休息室时检视顶 5，可以公开并加入手牌 1 张成员，其余放置入休息室。当前最小底座覆盖普通离场、换手替换离场，以及与新登场成员能力同事件排序。
 
-`PL!HS-bp6-017-N` 费用 11「日野下花帆」已完成 AUTO 段：此成员从舞台放置入休息室时，可以将 1 张手牌放置入休息室；如此做时，从休息室将 LIVE 卡和成员卡至多各 1 张加入手牌。当前复用离场 AUTO 入队、弃手费用与 `WAITING_ROOM -> HAND` 移动；LIVE/成员各至多 1 张的分组上限仍在 runner 校验，后续可抽 grouped zone selection config。
+`PL!HS-bp6-017-N` 费用 11「日野下花帆」已完成 AUTO 段：此成员从舞台放置入休息室时，可以将 1 张手牌放置入休息室；如此做时，从休息室将 LIVE 卡和成员卡至多各 1 张加入手牌。当前复用离场 AUTO 入队、弃手费用与 `WAITING_ROOM -> HAND` 移动，并已迁入 `workflows/shared/grouped-recovery.ts`；LIVE/成员各至多 1 张的分组上限由 runtime grouped-selection 校验。
 
 `PL!HS-pb1-009-R` 费用 15「日野下花帆」已完成两段：第一段为中心位监听己方「莲之空」成员登场，实例级每回合 2 次并获得 BLADE +2；第二段为 LIVE 开始时统计此成员有效 BLADE，达到 8 时抽 2 弃 1。当前复用 `ON_ENTER_STAGE` 入队、`ABILITY_USE` 实例级限制、`getMemberEffectiveBladeCount`、F02 抽弃流程与 confirm-only 无输入确认壳。
 

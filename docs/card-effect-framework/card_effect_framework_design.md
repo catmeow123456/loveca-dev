@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：卡效自动化框架形状、模块边界、事件/费用/选择/Live modifier 设计
 > 当前状态：设计草案与阶段性落地说明；卡牌完成状态以 `docs/card-effect-reuse-audit/existing_module_map.md` 为准
-> 最后更新：2026-06-16
+> 最后更新：2026-07-06
 
 状态摘要：Stage 1A-1S 已按真实卡效逐步落地 recovery/selector、费用、look-top、Live modifier、成员状态、抽弃、能量、登场费用修正、卡效登场、AUTO proving、舞台目标、公开手牌隐私投影与声援公开卡选择等边界。后续快速批处理已补齐 `LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」与 `PL!N-pb1-004` 费用 11「朝香果林」；新增验证指定姓名手牌多选弃置、换手禁止、登场不计入“移动”的成员区位置移动记录，以及未位置移动时 continuous BLADE。
 
@@ -420,15 +420,16 @@ P0/P1 覆盖：
 当前落地：
 
 - `src/application/effects/draw.ts` 已提供 `drawCardsFromMainDeckToHand`。
-- 当前 helper 定位为卡效步骤底座，表达“主卡组顶 -> 手牌”的抽牌移动；它不接管开局、阶段、LIVE 判定等规则流程抽牌，也不改变 `GameService.drawTopMainDeckCard` 的即时刷新语义。
-- `PL!-sd1-007-SD` 的额外抽 1 已迁入该 helper，action payload 仍保留单个 `drawnCardId` 以保持 golden behavior。
-- `tests/unit/draw.test.ts` 覆盖抽 N、牌库不足、空牌库与非法数量；007 focused tests 覆盖翻到 LIVE 抽 1 与未翻到 LIVE 不抽。
-- 对当前 μ's 预组验证集，F01 已完成最小模块化收口；`PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场已用 `startDrawThenDiscardOneEffect` / `finishDrawThenDiscardOneEffect` 打开 F02 抽 2 弃 1 组合步骤；`F12` 与抽牌刷新语义等待真实样例再扩展。
+- 当前 helper 定位为卡效步骤底座，表达“主卡组顶 -> 手牌”的抽牌移动；它不接管开局、阶段、LIVE 判定等规则流程抽牌，也不合并 `GameService.drawTopMainDeckCard` 的调试/规则流程入口。
+- 卡效抽 N 张按逐张抽牌处理，抽牌过程中会沿用主卡组更新规则：主卡组为空且休息室有卡时先刷新再继续抽；刷新后仍无可抽卡时只抽实际可抽数量。
+- `PL!-sd1-007-SD` 费用 7「东条希」的额外抽 1 已迁入该 helper，action payload 仍保留单个 `drawnCardId` 以保持 golden behavior。
+- `tests/unit/draw.test.ts` 覆盖抽 N、牌库不足、空牌库、刷新后继续抽与非法数量；007 focused tests 覆盖翻到 LIVE 抽 1 与未翻到 LIVE 不抽。
+- 对当前 μ's 预组验证集，F01 已完成最小模块化收口；`PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场已用 `startDrawThenDiscardOneEffect` / `finishDrawThenDiscardOneEffect` 打开 F02 抽 2 弃 1 组合步骤；`F12` 等抽后放回卡组顶/底语义等待真实样例再扩展。
 
 后续：
 
 1. 若后续出现弃 M 张或抽后放回卡组顶/底，先扩展现有抽弃壳的多选/目标区域配置，不要复制单卡流程。
-2. 若卡效文本要求抽牌时触发刷新，应先统一规则语义，再决定 helper 是否注入 refresh handler，而不是悄悄改变 007。
+2. 若后续卡效需要不同于当前逐张抽牌刷新规则的处理，先确认规则语义并补 focused tests，不要在单卡 workflow 中临时绕过抽牌 helper。
 3. 手动调试命令 `DRAW_CARD_TO_HAND` 与规则流程抽牌可暂时保留在 `GameSession` / `GameService`，等事件层明确后再考虑合流。
 
 ### Stage 1G: Event layer for AUTO
