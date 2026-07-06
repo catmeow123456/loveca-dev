@@ -1783,16 +1783,25 @@ export const GameBoard = memo(function GameBoard({
     currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase)?.display : null;
   const turnNumber = currentTurnCount ?? matchView.turnCount;
   const showMobileFreePlay = capabilities.showFreePlayControl;
+  const primaryMobileLogPanel: MobileBattlePanel | null = canShowPublicBattleLog
+    ? 'publicLog'
+    : canShowDebugLog
+      ? 'log'
+      : null;
+  const primaryMobileLogCount = canShowPublicBattleLog
+    ? publicLogUnreadCount > 0
+      ? publicLogUnreadCount
+      : publicLogCount
+    : logCount;
+  const primaryMobileLogBadge =
+    primaryMobileLogCount > 99 ? '99+' : primaryMobileLogCount.toString();
   const mobileActionCount =
     2 +
-    (canShowPublicBattleLog ? 1 : 0) +
-    (canShowDebugLog ? 1 : 0) +
+    (primaryMobileLogPanel ? 1 : 0) +
     (showMobileFreePlay ? 1 : 0) +
     (canShowUndo ? 1 : 0);
   const mobileActionGridClass =
-    mobileActionCount >= 6
-      ? 'grid-cols-6'
-      : mobileActionCount === 5
+    mobileActionCount >= 5
       ? 'grid-cols-5'
       : mobileActionCount === 4
         ? 'grid-cols-4'
@@ -1854,83 +1863,79 @@ export const GameBoard = memo(function GameBoard({
 
         {isMobileBattlefield ? (
           <div className="relative z-10 flex h-full min-h-0 flex-col overflow-hidden md:hidden">
-            <div className="safe-top shrink-0 px-3 pt-3">
-              <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_26%,transparent)] px-3 py-2 shadow-none backdrop-blur-[2px]">
+            <div className="safe-top shrink-0 px-2.5 pt-2.5">
+              <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]">
                 <div className="flex items-center justify-between gap-2">
                   {showLeaveLocalGameButton ? (
                     <button
                       type="button"
                       onClick={onLeaveLocalGame}
-                      className="button-ghost inline-flex h-10 shrink-0 items-center justify-center gap-1.5 px-2.5 text-xs"
+                      className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1.5 px-2.5 text-xs"
                       title={leaveLocalGameButtonTitle}
                     >
                       <DoorOpen size={15} />
                       离开
                     </button>
                   ) : (
-                    <div className="h-10 w-10 shrink-0" />
+                    <div className="h-9 w-9 shrink-0" />
                   )}
 
                   <div className="min-w-0 text-center">
-                    <div className="truncate text-sm font-bold text-[var(--text-primary)]">
+                    <div className="truncate text-[13px] font-bold text-[var(--text-primary)]">
                       {phaseInfo?.name ?? currentPhase}阶段
                     </div>
-                    <div className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
+                    <div className="truncate text-[10px] text-[var(--text-muted)]">
                       T{turnNumber}
                       {subPhaseInfo ? ` · ${subPhaseInfo.name}` : ''}
                     </div>
                   </div>
 
                   <div className="shrink-0">
-                    <ThemeToggle />
+                    <ThemeToggle className="h-9 w-9" />
                   </div>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setMobilePanel('opponent')}
-                className="mt-2 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-3 py-2 text-left shadow-none backdrop-blur-[2px]"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
-                    className={cn(
-                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border',
-                      resolvedActiveSeat === opponentSeat
-                        ? 'border-rose-300/50 bg-rose-500/20 text-rose-200'
-                        : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)]'
-                    )}
-                  >
-                    <UserRound size={15} />
+              <div className="mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]">
+                <button
+                  type="button"
+                  onClick={() => setMobilePanel('opponent')}
+                  className={cn(
+                    'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
+                    resolvedActiveSeat === opponentSeat
+                      ? 'border-rose-300/50 bg-rose-500/20 text-rose-100'
+                      : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)] text-[var(--text-secondary)]'
+                  )}
+                  title={isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}
+                >
+                  <UserRound size={14} className="shrink-0" />
+                  <span className="min-w-0 truncate text-[11px] font-semibold text-[var(--text-primary)]">
+                    {opponentIdentity?.name ?? '对手'}
                   </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-[var(--text-primary)]">
-                      {opponentIdentity?.name ?? '对手区域'}
-                    </span>
-                    <span className="block truncate text-[11px] text-[var(--text-muted)]">
-                      {isSolitaire ? '对墙打模式已弱化对手区' : '点按查看对手战场'}
-                    </span>
+                  <span className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                    Live {opponentLiveScore}
                   </span>
-                </span>
-                <span className="rounded-full border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-secondary)]">
-                  Live {opponentLiveScore}
-                </span>
-              </button>
+                </button>
+                <div
+                  className={cn(
+                    'flex min-w-0 items-center justify-end gap-1.5 rounded-lg border px-2 py-1.5',
+                    resolvedActiveSeat === selfSeat
+                      ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
+                      : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)]'
+                  )}
+                >
+                  <span className="min-w-0 truncate text-right text-[11px] font-semibold text-[var(--text-primary)]">
+                    {selfIdentity?.name ?? '己方'}
+                  </span>
+                  <span className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                    Live {viewerLiveScore}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div className="min-h-0 flex-1 px-2 pb-32 pt-2">
+            <div className="min-h-0 flex-1 px-2 pb-32 pt-1.5">
               <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_10%,transparent)] shadow-none">
-                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[color:color-mix(in_srgb,var(--border-subtle)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_14%,transparent)] px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
-                      {selfIdentity?.name ?? '己方主战场'}
-                    </div>
-                    <div className="text-[11px] text-[var(--text-muted)]">主战场</div>
-                  </div>
-                  <div className="rounded-full border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-secondary)]">
-                    Live {viewerLiveScore}
-                  </div>
-                </div>
                 <div className="min-h-0 flex-1 overflow-hidden">
                   <PlayerArea
                     playerSeat={selfSeat}
@@ -1944,81 +1949,87 @@ export const GameBoard = memo(function GameBoard({
 
             <div
               className={cn(
-                'safe-bottom fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-[65] grid gap-2 md:hidden',
+                'safe-bottom fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-[65] grid gap-1.5 md:hidden',
                 mobileActionGridClass
               )}
             >
               <button
                 type="button"
                 onClick={() => setMobilePanel('opponent')}
-                className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]"
+                className="relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]"
+                title={isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}
               >
-                <Swords size={15} />
-                对手
+                <Swords size={16} />
+                <span className="truncate">对手</span>
               </button>
-              {canShowPublicBattleLog && (
+
+              {primaryMobileLogPanel && (
                 <button
                   type="button"
-                  onClick={() => setMobilePanel('publicLog')}
-                  className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]"
+                  onClick={() => setMobilePanel(primaryMobileLogPanel)}
+                  className="relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]"
+                  title={canShowPublicBattleLog ? '查看公开对局日志' : '查看调试日志'}
                 >
-                  <ScrollText size={15} />
-                  对局 {publicLogUnreadCount > 0 ? publicLogUnreadCount : publicLogCount}
+                  <ScrollText size={16} />
+                  <span className="truncate">{canShowPublicBattleLog ? '对局' : '日志'}</span>
+                  {primaryMobileLogCount > 0 && (
+                    <span className="absolute right-1 top-1 min-w-4 rounded-full bg-[var(--accent-primary)] px-1 text-[10px] leading-4 text-white shadow-[var(--shadow-sm)]">
+                      {primaryMobileLogBadge}
+                    </span>
+                  )}
                 </button>
               )}
-              {canShowDebugLog && (
-                <button
-                  type="button"
-                  onClick={() => setMobilePanel('log')}
-                  className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]"
-                >
-                  <ScrollText size={15} />
-                  调试 {logCount}
-                </button>
-              )}
+
               {showMobileFreePlay && (
                 <button
                   type="button"
                   onClick={() => setFreePlayEnabled(!freePlayEnabled)}
                   aria-pressed={freePlayEnabled}
                   className={cn(
-                    'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-md)] border px-2 py-2 text-xs font-semibold transition shadow-none backdrop-blur-[2px]',
+                    'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-1.5 text-[10px] font-semibold shadow-none backdrop-blur-[2px] transition',
                     freePlayEnabled
-                      ? 'border-[color:color-mix(in_srgb,var(--semantic-warning)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_24%,var(--bg-frosted))] text-[var(--semantic-warning)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--semantic-warning)_22%,transparent),0_0_18px_color-mix(in_srgb,var(--semantic-warning)_20%,transparent)]'
-                      : 'button-secondary border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)]'
+                      ? 'border-[color:color-mix(in_srgb,var(--semantic-warning)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_20%,var(--bg-frosted))] text-[var(--semantic-warning)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--semantic-warning)_22%,transparent),0_0_18px_color-mix(in_srgb,var(--semantic-warning)_20%,transparent)]'
+                      : 'border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]'
                   )}
                   title={freePlayControlTitle}
                 >
-                  <Zap size={15} className={cn(freePlayEnabled && 'fill-current')} />
-                  免费
+                  <Zap size={16} className={cn(freePlayEnabled && 'fill-current')} />
+                  <span className="truncate">免费</span>
                 </button>
               )}
+
               {canShowUndo && (
                 <button
                   type="button"
                   onClick={undoLastStep}
                   disabled={!canUndoLastStep}
                   className={cn(
-                    'button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]',
-                    !canUndoLastStep && 'cursor-not-allowed opacity-50'
+                    'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]',
+                    !canUndoLastStep &&
+                      'cursor-not-allowed opacity-50 hover:border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] hover:text-[var(--text-secondary)]'
                   )}
                   title={undoButtonLabel}
                 >
-                  <Undo2 size={15} />
-                  {mobileUndoButtonLabel}
+                  <Undo2 size={16} />
+                  <span className="truncate">{mobileUndoButtonLabel}</span>
                 </button>
               )}
+
               <button
                 type="button"
                 onClick={handleOpenJudgmentPanel}
                 disabled={!isJudgmentPanelRelevant}
                 className={cn(
-                  'button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_24%,transparent)] px-2 py-2 text-xs shadow-none backdrop-blur-[2px]',
-                  !isJudgmentPanelRelevant && 'cursor-not-allowed opacity-50'
+                  'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]',
+                  isJudgmentPanelRelevant &&
+                    'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,var(--bg-frosted))] text-[var(--accent-primary)]',
+                  !isJudgmentPanelRelevant &&
+                    'cursor-not-allowed opacity-50 hover:border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] hover:text-[var(--text-secondary)]'
                 )}
+                title={isJudgmentPanelRelevant ? '打开判定区' : '当前没有可打开的判定区'}
               >
-                <ChevronRight size={15} />
-                判定
+                <ChevronRight size={16} />
+                <span className="truncate">判定</span>
               </button>
             </div>
 
@@ -2057,7 +2068,7 @@ export const GameBoard = memo(function GameBoard({
                               ? (opponentIdentity?.name ?? opponentSeat)
                               : mobilePanel === 'publicLog'
                                 ? `${publicLogCount} 条公开事件`
-                              : `${logCount} 条记录`}
+                                : `${logCount} 条记录`}
                           </div>
                         </div>
                         <button
@@ -2962,7 +2973,7 @@ export const GameBoard = memo(function GameBoard({
         )}
 
         {/* 左侧唤出按钮（判定区关闭时显示） */}
-        {isJudgmentPanelRelevant && !judgmentPanelOpen && (
+        {!isMobileBattlefield && isJudgmentPanelRelevant && !judgmentPanelOpen && (
           <button
             type="button"
             onClick={handleOpenJudgmentPanel}
