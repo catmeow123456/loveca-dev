@@ -68,6 +68,10 @@ const HS_SD1_005_CONTINUOUS_ABILITY_ID =
   'PL!HS-sd1-005-SD:continuous-stage-sayaka-ginko-hime-blade';
 const S_BP6_009_CONTINUOUS_ABILITY_ID =
   'PL!S-bp6-009:continuous-success-live-difference-gain-blade';
+const PL_S_PB1_005_CONTINUOUS_ABILITY_ID =
+  'PL!S-pb1-005:continuous-opponent-energy-more-gain-three-blade';
+const PL_N_PB1_007_CONTINUOUS_ABILITY_ID =
+  'PL!N-pb1-007:continuous-live-requirement-six-colors-gain-all-heart';
 const SP_PB2_023_CONTINUOUS_ABILITY_ID = 'PL!SP-pb2-023:continuous-energy-six-eight-gain-red-heart';
 const SP_PB2_026_CONTINUOUS_ABILITY_ID =
   'PL!SP-pb2-026:continuous-active-energy-gain-two-red-heart';
@@ -5209,6 +5213,312 @@ describe('live modifier helpers', () => {
     }));
 
     expect(hasHsBp1ContinuousScore(game)).toBe(false);
+  });
+});
+
+describe('PL!S-pb1-005 continuous opponent energy lead BLADE', () => {
+  function setupYouEnergyLeadScenario(
+    options: {
+      readonly ownEnergyCount?: number;
+      readonly opponentEnergyCount?: number;
+      readonly sourcePlacement?: 'STAGE' | 'MEMBER_BELOW' | 'OFF_STAGE';
+    } = {}
+  ) {
+    const you = createCardInstance(
+      {
+        cardCode: 'PL!S-pb1-005-R',
+        name: '渡辺 曜',
+        groupNames: ['Aqours'],
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'you'
+    );
+    const host = createCardInstance(
+      {
+        cardCode: 'HOST-MEMBER',
+        name: 'Host',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'host'
+    );
+    const ownEnergy = Array.from({ length: options.ownEnergyCount ?? 0 }, (_, index) =>
+      createCardInstance(
+        { cardCode: `OWN-ENE-${index}`, name: `Own Energy ${index}`, cardType: CardType.ENERGY },
+        'p1',
+        `own-energy-${index}`
+      )
+    );
+    const opponentEnergy = Array.from({ length: options.opponentEnergyCount ?? 0 }, (_, index) =>
+      createCardInstance(
+        { cardCode: `OPP-ENE-${index}`, name: `Opponent Energy ${index}`, cardType: CardType.ENERGY },
+        'p2',
+        `opponent-energy-${index}`
+      )
+    );
+    let game = createGameState('s-pb1-005-energy-lead', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [you, host, ...ownEnergy, ...opponentEnergy]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      if (options.sourcePlacement === 'MEMBER_BELOW') {
+        memberSlots = addMemberBelowMember(
+          placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          you.instanceId
+        );
+      } else if (options.sourcePlacement !== 'OFF_STAGE') {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, you.instanceId);
+      }
+      return {
+        ...player,
+        memberSlots,
+        energyZone: ownEnergy.reduce(
+          (zone, energy) => addCardToStatefulZone(zone, energy.instanceId),
+          player.energyZone
+        ),
+      };
+    });
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      energyZone: opponentEnergy.reduce(
+        (zone, energy) => addCardToStatefulZone(zone, energy.instanceId),
+        player.energyZone
+      ),
+    }));
+    return { game, you };
+  }
+
+  it('grants BLADE +3 when the opponent has more energy cards', () => {
+    const { game, you } = setupYouEnergyLeadScenario({
+      ownEnergyCount: 2,
+      opponentEnergyCount: 3,
+    });
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 3,
+      sourceCardId: you.instanceId,
+      abilityId: PL_S_PB1_005_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', you.instanceId)).toBe(4);
+  });
+
+  it('does not grant BLADE when energy counts are equal or own energy is greater', () => {
+    for (const scenario of [
+      setupYouEnergyLeadScenario({ ownEnergyCount: 2, opponentEnergyCount: 2 }),
+      setupYouEnergyLeadScenario({ ownEnergyCount: 3, opponentEnergyCount: 2 }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_005_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+      expect(getMemberEffectiveBladeCount(scenario.game, 'p1', scenario.you.instanceId)).toBe(1);
+    }
+  });
+
+  it('does not grant BLADE when the source is off stage or below another member', () => {
+    for (const scenario of [
+      setupYouEnergyLeadScenario({
+        ownEnergyCount: 2,
+        opponentEnergyCount: 3,
+        sourcePlacement: 'OFF_STAGE',
+      }),
+      setupYouEnergyLeadScenario({
+        ownEnergyCount: 2,
+        opponentEnergyCount: 3,
+        sourcePlacement: 'MEMBER_BELOW',
+      }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_005_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+});
+
+describe('PL!N-pb1-007 continuous six-color LIVE requirement ALL Heart', () => {
+  function createSetsunaPb1007() {
+    return createCardInstance(
+      {
+        cardCode: 'PL!N-pb1-007-R',
+        name: '優木せつ菜',
+        groupNames: ['虹ヶ咲'],
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.RED, 1)],
+      },
+      'p1',
+      'setsuna'
+    );
+  }
+
+  function createSixColorRequirementLive(
+    colorRequirements: Partial<Record<HeartColor, number>>,
+    instanceId = 'six-color-live'
+  ) {
+    return createCardInstance(
+      {
+        cardCode: `LIVE-${instanceId}`,
+        name: `Live ${instanceId}`,
+        cardType: CardType.LIVE,
+        score: 4,
+        requirements: createHeartRequirement(colorRequirements),
+      },
+      'p1',
+      instanceId
+    );
+  }
+
+  function setupSetsunaSixColorScenario(
+    options: {
+      readonly colorRequirements?: Partial<Record<HeartColor, number>>;
+      readonly sourcePlacement?: 'STAGE' | 'MEMBER_BELOW' | 'OFF_STAGE';
+      readonly requirementModifier?: LiveModifierState;
+    } = {}
+  ) {
+    const setsuna = createSetsunaPb1007();
+    const host = createCardInstance(
+      {
+        cardCode: 'HOST-MEMBER',
+        name: 'Host',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'setsuna-host'
+    );
+    const live = createSixColorRequirementLive(
+      options.colorRequirements ?? {
+        [HeartColor.PINK]: 1,
+        [HeartColor.RED]: 1,
+        [HeartColor.YELLOW]: 1,
+        [HeartColor.GREEN]: 1,
+        [HeartColor.BLUE]: 1,
+        [HeartColor.PURPLE]: 1,
+      }
+    );
+    let game = createGameState('n-pb1-007-six-color-requirement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [setsuna, host, live]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      if (options.sourcePlacement === 'MEMBER_BELOW') {
+        memberSlots = addMemberBelowMember(
+          placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          setsuna.instanceId
+        );
+      } else if (options.sourcePlacement !== 'OFF_STAGE') {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, setsuna.instanceId);
+      }
+      return {
+        ...player,
+        memberSlots,
+        liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+      };
+    });
+    if (options.requirementModifier) {
+      game = addLiveModifier(game, options.requirementModifier);
+    }
+    return { game, setsuna, live };
+  }
+
+  it('grants ALL Heart when the current LIVE requirement contains all six ordinary colors', () => {
+    const { game, setsuna } = setupSetsunaSixColorScenario();
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.RAINBOW, 1)],
+      sourceCardId: setsuna.instanceId,
+      abilityId: PL_N_PB1_007_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveHeartIcons(game, 'p1', setsuna.instanceId)).toEqual([
+      createHeartIcon(HeartColor.RED, 1),
+      createHeartIcon(HeartColor.RAINBOW, 1),
+    ]);
+  });
+
+  it('does not grant ALL Heart when any ordinary color is missing', () => {
+    const { game, setsuna } = setupSetsunaSixColorScenario({
+      colorRequirements: {
+        [HeartColor.PINK]: 1,
+        [HeartColor.RED]: 1,
+        [HeartColor.YELLOW]: 1,
+        [HeartColor.GREEN]: 1,
+        [HeartColor.BLUE]: 1,
+      },
+    });
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'HEART' && modifier.abilityId === PL_N_PB1_007_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(getMemberEffectiveHeartIcons(game, 'p1', setsuna.instanceId)).toEqual([
+      createHeartIcon(HeartColor.RED, 1),
+    ]);
+  });
+
+  it('does not grant ALL Heart when the source is off stage or below another member', () => {
+    for (const scenario of [
+      setupSetsunaSixColorScenario({ sourcePlacement: 'OFF_STAGE' }),
+      setupSetsunaSixColorScenario({ sourcePlacement: 'MEMBER_BELOW' }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'HEART' && modifier.abilityId === PL_N_PB1_007_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+
+  it('uses current effective LIVE requirements after requirement modifiers', () => {
+    const colorRequirements = {
+      [HeartColor.PINK]: 1,
+      [HeartColor.RED]: 1,
+      [HeartColor.YELLOW]: 1,
+      [HeartColor.GREEN]: 1,
+      [HeartColor.BLUE]: 1,
+    };
+    const { live } = setupSetsunaSixColorScenario({ colorRequirements });
+    const scenario = setupSetsunaSixColorScenario({
+      colorRequirements,
+      requirementModifier: {
+        kind: 'REQUIREMENT',
+        liveCardId: live.instanceId,
+        modifiers: [{ color: HeartColor.PURPLE, countDelta: 1 }],
+        sourceCardId: 'requirement-modifier-source',
+        abilityId: 'test-add-purple-requirement',
+      },
+    });
+
+    expect(collectLiveModifiers(scenario.game)).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.RAINBOW, 1)],
+      sourceCardId: scenario.setsuna.instanceId,
+      abilityId: PL_N_PB1_007_CONTINUOUS_ABILITY_ID,
+    });
   });
 });
 

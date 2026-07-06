@@ -141,6 +141,7 @@ import { registerNBp5030RyouranVictoryRoadWorkflowHandlers } from './card-effect
 import { registerNBp1026PoppinUpWorkflowHandlers } from './card-effects/workflows/cards/n-bp1-026-poppin-up.js';
 import { registerNBp3008EmmaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-008-emma.js';
 import { registerNBp3010ShiorikoWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-010-shioriko.js';
+import { registerNBp3025AwakeningPromiseWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-025-awakening-promise.js';
 import { registerNBp3027LaBellaPatriaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-027-la-bella-patria.js';
 import { registerNBp4004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-004-karin.js';
 import { registerNBp4010ShiorikoWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-010-shioriko.js';
@@ -165,6 +166,8 @@ import { registerPlPb1031KaguyaNoShiroDeOdoritaiWorkflowHandlers } from './card-
 import { registerPlBp3026OhLovePeaceWorkflowHandlers } from './card-effects/workflows/cards/pl-bp3-026-oh-love-peace.js';
 import { registerPlPb1018NicoWorkflowHandlers } from './card-effects/workflows/cards/pl-pb1-018-nico.js';
 import { registerSd1008HanayoWorkflowHandlers } from './card-effects/workflows/cards/pl-sd1-008-hanayo.js';
+import { registerSPb1002RikoWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-002-riko.js';
+import { registerSPb1003KananWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-003-kanan.js';
 import { registerSPb1019GenkiZenkaiDayDayDayWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-019-genki-zenkai-day-day-day.js';
 import {
   isHsSd1001HighCostHasunosoraRelayReplacement,
@@ -865,6 +868,7 @@ registerNBp5030RyouranVictoryRoadWorkflowHandlers();
 registerNBp1026PoppinUpWorkflowHandlers();
 registerNBp3008EmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3010ShiorikoWorkflowHandlers();
+registerNBp3025AwakeningPromiseWorkflowHandlers();
 registerNBp3027LaBellaPatriaWorkflowHandlers();
 registerNBp4004KarinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp4010ShiorikoWorkflowHandlers();
@@ -890,6 +894,8 @@ registerPlPb1031KaguyaNoShiroDeOdoritaiWorkflowHandlers({ enqueueTriggeredCardEf
 registerPlBp3026OhLovePeaceWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlPb1018NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSd1008HanayoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSPb1002RikoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSPb1003KananWorkflowHandlers();
 registerSPb1019GenkiZenkaiDayDayDayWorkflowHandlers();
 registerEmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLlBp6001KotoriDiaKosuzuWorkflowHandlers({ enqueueTriggeredCardEffects });

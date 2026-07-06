@@ -19,6 +19,7 @@ import {
 import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/slot-perspective.js';
 import { hasMemberPositionMovedThisTurn } from './member-turn-state.js';
 import { getMemberEffectiveCost } from './member-effective-cost.js';
+import { applyHeartRequirementModifiers } from './live-requirement-modifiers.js';
 import { sumSuccessfulLiveScore, successLiveScoreAtLeast } from './success-live-score.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
@@ -135,8 +136,12 @@ const PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID =
   'PL!-pb1-002:continuous-opponent-waiting-gain-purple-heart';
 const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
   'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
+const PL_N_PB1_007_CONTINUOUS_LIVE_REQUIREMENT_SIX_COLORS_GAIN_ALL_HEART_ABILITY_ID =
+  'PL!N-pb1-007:continuous-live-requirement-six-colors-gain-all-heart';
 const PL_N_PB1_011_CONTINUOUS_ENERGY_BELOW_GAIN_BLADE_ABILITY_ID =
   'PL!N-pb1-011:continuous-energy-below-gain-blade';
+const PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!S-pb1-005:continuous-opponent-energy-more-gain-three-blade';
 const SP_BP4_005_CONTINUOUS_ENERGY_TEN_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!SP-bp4-005:continuous-energy-ten-gain-three-blade';
 const SP_BP2_010_CONTINUOUS_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE_ABILITY_ID =
@@ -298,6 +303,26 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
           visibilityDependency,
         },
       ];
+    },
+  },
+  {
+    baseCardCodes: ['PL!N-pb1-007'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        !hasOwnLiveCardWithEffectiveRequirementAllSixOrdinaryColors(game, playerId)
+      ) {
+        return [];
+      }
+
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: PL_N_PB1_007_CONTINUOUS_LIVE_REQUIREMENT_SIX_COLORS_GAIN_ALL_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.RAINBOW, count: 1 }],
+      });
+      return modifier ? [modifier] : [];
     },
   },
   {
@@ -645,6 +670,22 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
           ]
         : [];
     },
+  },
+  {
+    baseCardCodes: ['PL!S-pb1-005'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceMainStageMember(game, playerId, sourceCardId) &&
+      countOpponentEnergyCards(game, playerId) > countPlayerEnergyCards(game, playerId)
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 3,
+              sourceCardId,
+              abilityId: PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
   },
   {
     baseCardCodes: ['PL!SP-bp4-005'],
@@ -1324,6 +1365,50 @@ function countEnergyBelowSourceMember(
 function countPlayerEnergyCards(game: GameState, playerId: string): number {
   const player = game.players.find((candidate) => candidate.id === playerId);
   return player?.energyZone.cardIds.length ?? 0;
+}
+
+function countOpponentEnergyCards(game: GameState, playerId: string): number {
+  const opponent = game.players.find((candidate) => candidate.id !== playerId);
+  return opponent?.energyZone.cardIds.length ?? 0;
+}
+
+const ORDINARY_HEART_COLORS: readonly HeartColor[] = [
+  HeartColor.PINK,
+  HeartColor.RED,
+  HeartColor.YELLOW,
+  HeartColor.GREEN,
+  HeartColor.BLUE,
+  HeartColor.PURPLE,
+];
+
+function hasOwnLiveCardWithEffectiveRequirementAllSixOrdinaryColors(
+  game: GameState,
+  playerId: string
+): boolean {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return false;
+  }
+
+  return player.liveZone.cardIds.some((liveCardId) => {
+    const card = getCardById(game, liveCardId);
+    if (!card || !isLiveCardData(card.data)) {
+      return false;
+    }
+
+    const effectiveRequirement = applyHeartRequirementModifiers(
+      card.data.requirements,
+      getLiveCardRequirementModifiers(
+        game.liveResolution,
+        liveCardId,
+        game.liveResolution.liveModifiers
+      )
+    );
+
+    return ORDINARY_HEART_COLORS.every(
+      (color) => (effectiveRequirement.colorRequirements.get(color) ?? 0) >= 1
+    );
+  });
 }
 
 function countTotalStageMembers(game: GameState): number {
