@@ -20,13 +20,13 @@ const LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_STEP_ID =
   'LIVE_START_SUCCESS_COUNT_CHOOSE_HEART';
 
 const HEART_COLOR_OPTION_LABELS: Readonly<Record<HeartColor, string>> = {
-  [HeartColor.PINK]: '桃Heart',
-  [HeartColor.RED]: '红Heart',
-  [HeartColor.YELLOW]: '黄Heart',
-  [HeartColor.GREEN]: '绿Heart',
-  [HeartColor.BLUE]: '蓝Heart',
-  [HeartColor.PURPLE]: '紫Heart',
-  [HeartColor.RAINBOW]: '虹Heart',
+  [HeartColor.PINK]: '[桃ハート]',
+  [HeartColor.RED]: '[赤ハート]',
+  [HeartColor.YELLOW]: '[黄ハート]',
+  [HeartColor.GREEN]: '[緑ハート]',
+  [HeartColor.BLUE]: '[青ハート]',
+  [HeartColor.PURPLE]: '[紫ハート]',
+  [HeartColor.RAINBOW]: '[虹ハート]',
 };
 
 interface LiveStartSuccessCountChooseHeartConfig {

@@ -2,13 +2,13 @@ import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
-  getFirstPlayer,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { CardType } from '../../../../shared/types/enums.js';
-import { and, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors.js';
+import { hasScoreBladeHeart } from '../../../effects/card-selectors.js';
+import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { SP_PB2_004_LIVE_SUCCESS_SCORE_CONDITION_DRAW_ABILITY_ID } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -126,19 +126,8 @@ function getOwnCheerRevealedScoreLiveCardIds(
   game: GameState,
   playerId: string
 ): readonly string[] {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return [];
-  }
-
-  const firstPlayer = getFirstPlayer(game);
-  const cheerCardIds =
-    player.id === firstPlayer.id
-      ? game.liveResolution.firstPlayerCheerCardIds
-      : game.liveResolution.secondPlayerCheerCardIds;
-  const isScoreLive = and(typeIs(CardType.LIVE), hasScoreBladeHeart());
-  return cheerCardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && card.ownerId === player.id && isScoreLive(card);
+  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    cardTypes: CardType.LIVE,
+    predicate: hasScoreBladeHeart(),
   });
 }

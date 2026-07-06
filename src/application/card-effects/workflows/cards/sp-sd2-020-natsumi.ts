@@ -71,8 +71,8 @@ function startSpSd2020NatsumiLiveStart(
     const confirmation = maybeStartNoInteractionConfirmation(game, ability, options, {
       energyCount,
       selectableCardIds,
-      resultText: '来源成员不在舞台，不写入 BLADE',
-      stepText: `当前能量 ${energyCount} 张，其他 Liella! 目标 ${selectableCardIds.length} 名。来源成员不在舞台，确认后此效果不写入 BLADE。`,
+      outcomeText: '来源成员不在舞台，不获得[BLADE]',
+      stepText: `当前能量 ${energyCount} 张，其他 Liella! 目标 ${selectableCardIds.length} 名。来源成员不在舞台，不获得[BLADE]。`,
     });
     if (confirmation) {
       return confirmation;
@@ -96,8 +96,8 @@ function startSpSd2020NatsumiLiveStart(
     const confirmation = maybeStartNoInteractionConfirmation(game, ability, options, {
       energyCount,
       selectableCardIds,
-      resultText: '能量不足 7 张，不写入 BLADE',
-      stepText: `当前能量 ${energyCount} 张，其他 Liella! 目标 ${selectableCardIds.length} 名。能量不足 7 张，确认后不写入 BLADE。`,
+      outcomeText: '能量不足 7 张，不获得[BLADE]',
+      stepText: `当前能量 ${energyCount} 张，其他 Liella! 目标 ${selectableCardIds.length} 名。能量不足 7 张，不获得[BLADE]。`,
     });
     if (confirmation) {
       return confirmation;
@@ -123,14 +123,14 @@ function startSpSd2020NatsumiLiveStart(
     const confirmation = maybeStartNoInteractionConfirmation(game, ability, options, {
       energyCount,
       selectableCardIds,
-      resultText:
+      outcomeText:
         targetCount === 1
-          ? '将给来源成员与 1 名其他 Liella! 成员各写入 BLADE +1'
-          : '没有其他 Liella! 目标，将只给来源成员写入 BLADE +1',
+          ? '来源成员与1名其他 Liella! 成员各获得[BLADE]'
+          : '来源成员获得[BLADE]',
       stepText:
         targetCount === 1
-          ? `当前能量 ${energyCount} 张，其他 Liella! 目标 1 名。确认后来源成员与该目标各获得 BLADE +1。`
-          : `当前能量 ${energyCount} 张，其他 Liella! 目标 0 名。确认后只给来源成员写入 BLADE +1，并消费此 pending。`,
+          ? `当前能量 ${energyCount} 张，其他 Liella! 目标 1 名。来源成员与该目标各获得[BLADE]。`
+          : `当前能量 ${energyCount} 张，其他 Liella! 目标 0 名。来源成员获得[BLADE]。`,
     });
     if (confirmation) {
       return confirmation;
@@ -196,12 +196,12 @@ function maybeStartNoInteractionConfirmation(
   context: {
     readonly energyCount: number;
     readonly selectableCardIds: readonly string[];
-    readonly resultText: string;
+    readonly outcomeText: string;
     readonly stepText: string;
   }
 ): GameState | null {
   return maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
-    effectText: `${getAbilityEffectText(ability.abilityId)}（当前能量 ${context.energyCount} 张，其他 Liella! 目标 ${context.selectableCardIds.length} 名，实际结算：${context.resultText}。）`,
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前能量 ${context.energyCount} 张，其他 Liella! 目标 ${context.selectableCardIds.length} 名，${context.outcomeText}。）`,
     stepText: context.stepText,
   });
 }

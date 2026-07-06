@@ -54,6 +54,14 @@ export const PL_N_PB1_011_ACTIVATED_STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_LIVE_A
   'PL!N-pb1-011:activated-stack-energy-below-recover-nijigasaki-live';
 export const PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!S-pb1-005:continuous-opponent-energy-more-gain-three-blade';
+export const PL_S_PB1_006_ACTIVATED_REVEAL_HAND_LIVE_OPPONENT_DISCARD_OR_GAIN_FOUR_BLADE_ABILITY_ID =
+  'PL!S-pb1-006:activated-reveal-hand-live-opponent-discard-or-gain-four-blade';
+export const PL_S_PB1_007_LIVE_SUCCESS_CHEER_LIVE_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!S-pb1-007:live-success-cheer-live-place-waiting-energy';
+export const PL_S_PB1_008_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID =
+  'PL!S-pb1-008:live-start-choose-player-look-top-two-arrange';
+export const PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!S-pb1-009:continuous-total-success-live-three-gain-three-blade';
 export const PL_N_PB1_007_CONTINUOUS_LIVE_REQUIREMENT_SIX_COLORS_GAIN_ALL_HEART_ABILITY_ID =
   'PL!N-pb1-007:continuous-live-requirement-six-colors-gain-all-heart';
 export const PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID =
@@ -604,6 +612,10 @@ export const PL_S_PB1_019_LIVE_START_AQOURS_RED_HEART_SUPPRESS_SUCCESS_ABILITY_I
   'PL!S-pb1-019-L:live-start-aqours-red-heart-suppress-success';
 export const PL_S_PB1_019_LIVE_SUCCESS_PLACE_OPPONENT_WAITING_ENERGY_ABILITY_ID =
   'PL!S-pb1-019-L:live-success-place-opponent-waiting-energy';
+export const PL_S_PB1_020_LIVE_START_AQOURS_GREEN_HEART_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!S-pb1-020-L:live-start-aqours-green-heart-this-live-score';
+export const PL_S_PB1_021_LIVE_SUCCESS_AQOURS_BLUE_HEART_OPPONENT_NO_SURPLUS_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!S-pb1-021-L:live-success-aqours-blue-heart-opponent-no-surplus-this-live-score';
 export const PB1_019_ACTIVATED_ABILITY_ID =
   'PL!-pb1-019-N:activated-send-self-to-waiting-room-add-member';
 export const HANAYO_ACTIVATED_ABILITY_ID = 'PL!-sd1-008-SD:activated-pay-two-mill-ten';

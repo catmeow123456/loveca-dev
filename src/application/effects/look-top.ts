@@ -11,6 +11,7 @@ export interface InspectTopCardsConfig {
   readonly count: number;
   readonly reveal?: boolean;
   readonly selectablePredicate?: InspectionCardPredicate;
+  readonly viewerPlayerId?: string;
 }
 
 export interface InspectTopCardsResult {
@@ -75,6 +76,7 @@ export function inspectTopCards(
       },
       inspectionContext: {
         ownerPlayerId: player.id,
+        ...(config.viewerPlayerId ? { viewerPlayerId: config.viewerPlayerId } : {}),
         sourceZone: ZoneType.MAIN_DECK,
       },
     },

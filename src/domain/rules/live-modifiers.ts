@@ -142,6 +142,8 @@ const PL_N_PB1_011_CONTINUOUS_ENERGY_BELOW_GAIN_BLADE_ABILITY_ID =
   'PL!N-pb1-011:continuous-energy-below-gain-blade';
 const PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!S-pb1-005:continuous-opponent-energy-more-gain-three-blade';
+const PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!S-pb1-009:continuous-total-success-live-three-gain-three-blade';
 const SP_BP4_005_CONTINUOUS_ENERGY_TEN_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!SP-bp4-005:continuous-energy-ten-gain-three-blade';
 const SP_BP2_010_CONTINUOUS_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE_ABILITY_ID =
@@ -683,6 +685,23 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
               countDelta: 3,
               sourceCardId,
               abilityId: PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
+    baseCardCodes: ['PL!S-pb1-009'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceMainStageMember(game, playerId, sourceCardId) &&
+      countTotalSuccessLiveCards(game, playerId) >= 3
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 3,
+              sourceCardId,
+              abilityId:
+                PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID,
             },
           ]
         : [],

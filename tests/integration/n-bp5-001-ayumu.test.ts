@@ -105,7 +105,22 @@ function enqueueCheer(
     automated: true,
     additional: options.additional,
   });
-  return enqueueTriggeredCardEffects(emitGameEvent(game, event), [TriggerCondition.ON_CHEER], {
+  const firstPlayerId = game.players[game.firstPlayerIndex]?.id ?? null;
+  const withCurrentCheerIds: GameState = {
+    ...game,
+    liveResolution: {
+      ...game.liveResolution,
+      firstPlayerCheerCardIds:
+        playerId === firstPlayerId
+          ? [...game.liveResolution.firstPlayerCheerCardIds, ...revealedCardIds]
+          : game.liveResolution.firstPlayerCheerCardIds,
+      secondPlayerCheerCardIds:
+        playerId === firstPlayerId
+          ? game.liveResolution.secondPlayerCheerCardIds
+          : [...game.liveResolution.secondPlayerCheerCardIds, ...revealedCardIds],
+    },
+  };
+  return enqueueTriggeredCardEffects(emitGameEvent(withCurrentCheerIds, event), [TriggerCondition.ON_CHEER], {
     cheerEvents: [event],
   });
 }

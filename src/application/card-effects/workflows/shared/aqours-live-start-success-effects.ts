@@ -13,12 +13,17 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
-import type { CheerEvent } from '../../../../domain/events/game-events.js';
-import { selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
+import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
+import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
 import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.js';
-import { CardType, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
+import {
+  CardType,
+  OrientationState,
+  SlotPosition,
+} from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
+  PL_S_PB1_007_LIVE_SUCCESS_CHEER_LIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
   S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
   S_BP6_020_GRANTED_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
@@ -65,6 +70,23 @@ export function registerSFutureWaterBatch3WorkflowHandlers(): void {
     (game, ability) => ({
       effectText: getMyMaiTonightLiveStartConfirmationEffectText(game, ability),
     })
+  );
+  registerPendingAbilityStarterHandler(
+    PL_S_PB1_007_LIVE_SUCCESS_CHEER_LIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
+    (game, ability, options, context) => {
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getPb1007LiveSuccessConfirmationEffectText(game, ability),
+      });
+      if (confirmation) {
+        return confirmation;
+      }
+      return resolvePb1007LiveSuccessPlaceWaitingEnergy(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      );
+    }
   );
   registerPendingAbilityStarterHandler(
     S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
@@ -146,6 +168,23 @@ export function registerSFutureWaterBatch3WorkflowHandlers(): void {
   );
 }
 
+function getPb1007LiveSuccessConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceOnStage = player ? isOwnMainStageMember(player, ability.sourceCardId) : false;
+  const liveCheerCardIds = player ? getPb1007LiveSuccessCheerLiveCardIds(game, player.id) : [];
+  const canPlaceEnergy = sourceOnStage && liveCheerCardIds.length > 0;
+  return `${getAbilityEffectText(ability.abilityId)}（本次自己声援公开 LIVE ${liveCheerCardIds.length}张，${
+    canPlaceEnergy
+      ? '满足条件，将放置1张待机能量'
+      : sourceOnStage
+        ? '未满足条件，不放置能量'
+        : '来源不在自己的舞台，不放置能量'
+  }）`;
+}
+
 function getRubyLiveSuccessConfirmationEffectText(
   game: GameState,
   ability: PendingAbilityState
@@ -211,6 +250,54 @@ function getOpponentRemainingHeartsLiveSuccessConfirmationEffectText(
   return `${getAbilityEffectText(ability.abilityId)}（对方余Heart ${opponentRemainingHeartTotalCount}个，${
     opponentRemainingHeartTotalCount >= 2 ? '清除并满足分数+1' : '清除但不增加分数'
   }）`;
+}
+
+function resolvePb1007LiveSuccessPlaceWaitingEnergy(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const sourceOnStage = isOwnMainStageMember(player, ability.sourceCardId);
+  const liveCheerCardIds = getPb1007LiveSuccessCheerLiveCardIds(game, player.id);
+  const conditionMet = sourceOnStage && liveCheerCardIds.length > 0;
+  const placement = conditionMet
+    ? placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.WAITING)
+    : null;
+  const stateAfterPlacement = placement?.gameState ?? game;
+  const stateWithoutPending: GameState = {
+    ...stateAfterPlacement,
+    pendingAbilities: stateAfterPlacement.pendingAbilities.filter(
+      (candidate) => candidate.id !== ability.id
+    ),
+  };
+
+  return continuePendingCardEffects(
+    addAction(stateWithoutPending, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: conditionMet
+        ? placement && placement.placedEnergyCardIds.length > 0
+          ? 'CHEER_LIVE_PLACE_WAITING_ENERGY'
+          : 'NO_OP_ENERGY_DECK_EMPTY'
+        : sourceOnStage
+          ? 'NO_OWN_CHEER_LIVE'
+          : 'SOURCE_NOT_ON_STAGE',
+      sourceOnStage,
+      conditionMet,
+      ownCheerLiveCardIds: liveCheerCardIds,
+      ownCheerLiveCardCount: liveCheerCardIds.length,
+      placedEnergyCardIds: placement?.placedEnergyCardIds ?? [],
+      orientation: OrientationState.WAITING,
+    }),
+    orderedResolution
+  );
 }
 
 function resolveMyMaiTonightLiveStart(
@@ -473,7 +560,7 @@ function resolveOwnCheerLiveCardLiveSuccessScore(
     return game;
   }
 
-  const ownCheerCardIds = selectRevealedCheerCardIds(game, player.id);
+  const ownCheerCardIds = selectCurrentLiveRevealedCheerCardIds(game, player.id);
   const matchingCardIds = getOwnLiveSuccessCheerLiveCardIds(game, player.id);
   const scoreBonus = matchingCardIds.length > 0 ? 1 : 0;
   let state: GameState = {
@@ -569,7 +656,16 @@ function getOwnLiveSuccessCheerLiveCardIds(
   game: GameState,
   playerId: string
 ): readonly string[] {
-  return selectRevealedCheerCardIds(game, playerId, (card) => isLiveCardData(card.data));
+  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    cardTypes: CardType.LIVE,
+  });
+}
+
+function getPb1007LiveSuccessCheerLiveCardIds(
+  game: GameState,
+  playerId: string
+): readonly string[] {
+  return getOwnLiveSuccessCheerLiveCardIds(game, playerId);
 }
 
 function getOwnStageMemberCardIds(game: GameState, playerId: string): readonly string[] {
@@ -586,37 +682,20 @@ function getOwnStageMemberCardIds(game: GameState, playerId: string): readonly s
   });
 }
 
+function isOwnMainStageMember(
+  player: NonNullable<ReturnType<typeof getPlayerById>>,
+  cardId: string
+): boolean {
+  return STAGE_SLOTS.some((slot) => player.memberSlots.slots[slot] === cardId);
+}
+
 function getOwnNonAdditionalCheerRevealedCardIds(
   game: GameState,
   playerId: string
 ): readonly string[] {
-  const latestCenterCheerEvent = game.eventLog
-    .map((entry) => entry.event)
-    .reverse()
-    .find(
-      (event): event is CheerEvent =>
-        event.eventType === TriggerCondition.ON_CHEER &&
-        'playerId' in event &&
-        event.playerId === playerId &&
-        event.additional !== true
-    );
-  if (!latestCenterCheerEvent) {
-    return [];
-  }
-
-  const currentCheerCardIds = getCurrentLiveCheerCardIds(game, playerId);
-  const currentCheerCardIdSet = new Set(currentCheerCardIds);
-  return latestCenterCheerEvent.revealedCardIds.filter((cardId) =>
-    currentCheerCardIdSet.has(cardId)
-  );
-}
-
-function getCurrentLiveCheerCardIds(game: GameState, playerId: string): readonly string[] {
-  const firstPlayerId = game.players[game.firstPlayerIndex]?.id ?? null;
-  if (playerId === firstPlayerId) {
-    return game.liveResolution.firstPlayerCheerCardIds;
-  }
-  return game.liveResolution.secondPlayerCheerCardIds;
+  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    eventScope: 'NON_ADDITIONAL',
+  });
 }
 
 function addScoreModifierAndRefresh(

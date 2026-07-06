@@ -3,12 +3,14 @@ import type { LiveCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartRequirement } from '../../src/domain/entities/card';
 import {
   createGameState,
+  emitGameEvent,
   registerCards,
   updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, addCardToZone } from '../../src/domain/entities/zone';
+import { createCheerEvent } from '../../src/domain/events/game-events';
 import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
@@ -63,6 +65,7 @@ function setupState(options: {
   readonly secondPlayerCheerCardIds?: readonly string[];
   readonly resolutionCardIds?: readonly string[];
   readonly revealedCardIds?: readonly string[];
+  readonly cheerEventRevealedCardIds?: readonly string[];
   readonly initialScore?: number;
 } = {}): {
   readonly game: GameState;
@@ -129,6 +132,17 @@ function setupState(options: {
       secondPlayerCheerCardIds: options.secondPlayerCheerCardIds ?? [],
     },
   };
+  if (options.cheerEventRevealedCardIds) {
+    game = emitGameEvent(
+      game,
+      createCheerEvent(
+        PLAYER1,
+        options.cheerEventRevealedCardIds,
+        options.cheerEventRevealedCardIds.length,
+        { automated: true }
+      )
+    );
+  }
 
   return {
     game,
@@ -326,5 +340,30 @@ describe('PL!SP-bp5-023-L Shooting Voice!! LIVE success workflow', () => {
       scoreCheerLiveCardIds: [validScoreLive.instanceId],
     });
     expect(shootingVoiceScoreModifiers(state)).toHaveLength(1);
+  });
+
+  it('counts a SCORE LIVE revealed by this cheer after it left the resolution zone', () => {
+    const scoreCheerLive = createCardInstance(
+      createLive('PL!SP-recovered-score-live', { hasScoreBladeHeart: true }),
+      PLAYER1,
+      'recovered-score-live'
+    );
+    const { game, sourceLiveId } = setupState({
+      ownSuccessCount: 2,
+      cheerCards: [scoreCheerLive],
+      resolutionCardIds: [],
+      revealedCardIds: [],
+      cheerEventRevealedCardIds: [scoreCheerLive.instanceId],
+    });
+
+    const state = startAbility(game, sourceLiveId);
+
+    expect(shootingVoiceScoreModifiers(state)).toHaveLength(1);
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+    expect(latestPayload(state)).toMatchObject({
+      conditionMet: true,
+      scoreCheerLiveCardIds: [scoreCheerLive.instanceId],
+      scoreBonus: 2,
+    });
   });
 });

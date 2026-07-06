@@ -3,12 +3,14 @@ import type { MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import {
   createGameState,
+  emitGameEvent,
   registerCards,
   updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import { createCheerEvent } from '../../src/domain/events/game-events';
 import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
@@ -63,6 +65,7 @@ function setupState(options: {
   readonly firstPlayerCheerCardIds?: readonly string[];
   readonly resolutionCardIds?: readonly string[];
   readonly revealedCardIds?: readonly string[];
+  readonly cheerEventRevealedCardIds?: readonly string[];
 }): {
   readonly game: GameState;
   readonly sourceId: string;
@@ -120,6 +123,17 @@ function setupState(options: {
       revealedCardIds: options.revealedCardIds ?? options.cheerCards.map((card) => card.instanceId),
     },
   };
+  if (options.cheerEventRevealedCardIds) {
+    game = emitGameEvent(
+      game,
+      createCheerEvent(
+        PLAYER1,
+        options.cheerEventRevealedCardIds,
+        options.cheerEventRevealedCardIds.length,
+        { automated: true }
+      )
+    );
+  }
 
   return { game, sourceId: source.instanceId, energyCardIds };
 }
@@ -256,6 +270,28 @@ describe('PL!SP-PR-018 Kanon live success waiting energy workflow', () => {
       qualifyingCheerCardIds: validCards.map((card) => card.instanceId),
       qualifyingCheerCardCount: 6,
       placedEnergyCardIds: [],
+    });
+  });
+
+  it('counts Liella cheer cards revealed by this cheer after they left the resolution zone', () => {
+    const cheerCards = Array.from({ length: 7 }, (_, index) =>
+      createMember(`PL!SP-PR-018-recovered-liella-${index + 1}`)
+    );
+    const scenario = setupState({
+      cheerCards,
+      resolutionCardIds: [],
+      revealedCardIds: [],
+      cheerEventRevealedCardIds: cheerCards.map((card) => card.instanceId),
+    });
+
+    const state = startAbility(scenario.game, scenario.sourceId);
+
+    expect(state.players[0].energyZone.cardIds).toEqual([scenario.energyCardIds[0]]);
+    expect(latestPayload(state)).toMatchObject({
+      conditionMet: true,
+      qualifyingCheerCardIds: cheerCards.map((card) => card.instanceId),
+      qualifyingCheerCardCount: 7,
+      placedEnergyCardIds: [scenario.energyCardIds[0]],
     });
   });
 

@@ -85,6 +85,7 @@ import { registerHsBp6029ProofWorkflowHandlers } from './card-effects/workflows/
 import { registerHsBp6003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-003-rurino.js';
 import { registerSFutureWaterBatch2LiveStartWorkflowHandlers } from './card-effects/workflows/shared/aqours-live-start-effects.js';
 import { registerSFutureWaterBatch3WorkflowHandlers } from './card-effects/workflows/shared/aqours-live-start-success-effects.js';
+import { registerAqoursHeartScoreBonusesWorkflowHandlers } from './card-effects/workflows/shared/aqours-heart-score-bonuses.js';
 import { registerSFutureWaterFinalWorkflowHandlers } from './card-effects/workflows/cards/s-bp6-002-riko.js';
 import { registerHsBp5003RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-003-rurino.js';
 import { registerHsBp5002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-bp5-002-sayaka.js';
@@ -274,6 +275,7 @@ import { registerSpSd2023HajimariWaKimiNoSoraWorkflowHandlers } from './card-eff
 import { registerSpSd2025AspireWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-025-aspire.js';
 import { registerYoshikoPlayLowCostMembersWorkflowHandlers } from './card-effects/workflows/cards/s-bp2-006-yoshiko.js';
 import { registerSBp3006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-bp3-006-yoshiko.js';
+import { registerSPb1006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-006-yoshiko.js';
 import { registerSBp6001ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-bp6-001-chika.js';
 import { registerSBp6003KananWorkflowHandlers } from './card-effects/workflows/cards/s-bp6-003-kanan.js';
 import { registerSBp6006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-bp6-006-yoshiko.js';
@@ -993,6 +995,7 @@ registerActivatedPayEnergySelfPositionChangeWorkflowHandlers({ enqueueTriggeredC
 registerActivatedWaitSelfDiscardDrawWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerOnMoveGainHeartWorkflowHandlers();
 registerOnMoveGainBladeWorkflowHandlers();
+registerAqoursHeartScoreBonusesWorkflowHandlers();
 registerSpSd2003ChisatoWorkflowHandlers();
 registerSpBp4MovedSideBladeWorkflowHandlers();
 registerSpSd2006KinakoWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1000,6 +1003,7 @@ registerSpSd2020NatsumiWorkflowHandlers();
 registerSpSd2023HajimariWaKimiNoSoraWorkflowHandlers();
 registerSpSd2025AspireWorkflowHandlers();
 registerYoshikoPlayLowCostMembersWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSPb1006YoshikoWorkflowHandlers({ enqueueTriggeredCardEffects });
 interface CardEffectRunnerResult {
   readonly gameState: GameState;
   readonly resolvedAbilityIds: readonly string[];

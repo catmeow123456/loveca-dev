@@ -64,18 +64,18 @@ function startOpponentDiscardLiveOrScore(
     return game;
   }
 
-  const opponentLiveCardIds = getPlayerHandLiveCardIds(game, opponent.id);
-  if (opponentLiveCardIds.length === 0) {
+  if (getSourceMemberSlot(game, player.id, ability.sourceCardId) === null) {
     return applyScoreOrNoOpAndContinue(
       consumePendingAbility(game, ability),
       ability,
       player.id,
       orderedResolution,
       continuePendingCardEffects,
-      'NO_OPPONENT_HAND_LIVE'
+      'SOURCE_NOT_ON_STAGE'
     );
   }
 
+  const opponentLiveCardIds = getPlayerHandLiveCardIds(game, opponent.id);
   return startPendingActiveEffect(game, {
     ability,
     playerId: opponent.id,

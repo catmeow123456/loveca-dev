@@ -1,14 +1,12 @@
 import {
   addAction,
-  getCardById,
-  getFirstPlayer,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { CardType } from '../../../../shared/types/enums.js';
-import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
+import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { HS_BP1_022_LIVE_SUCCESS_CHEER_HASUNOSORA_MEMBER_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { startConfirmOnlyPendingAbilityEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -130,21 +128,9 @@ function getOwnCheerRevealedHasunosoraMemberCardIds(
   game: GameState,
   playerId: string
 ): readonly string[] {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return [];
-  }
-
-  const firstPlayer = getFirstPlayer(game);
-  const cheerCardIds =
-    player.id === firstPlayer.id
-      ? game.liveResolution.firstPlayerCheerCardIds
-      : game.liveResolution.secondPlayerCheerCardIds;
-  const isHasunosoraMember = and(typeIs(CardType.MEMBER), groupAliasIs('蓮ノ空'));
-
-  return cheerCardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && card.ownerId === player.id && isHasunosoraMember(card);
+  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    cardTypes: CardType.MEMBER,
+    groupAliases: ['蓮ノ空'],
   });
 }
 

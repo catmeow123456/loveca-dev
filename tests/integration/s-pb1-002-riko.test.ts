@@ -166,7 +166,7 @@ describe('PL!S-pb1-002 桜内梨子', () => {
     ).toBe(true);
   });
 
-  it('adds SCORE +1 when the opponent declines or has no LIVE to discard', () => {
+  it('adds SCORE +1 when the opponent declines', () => {
     const { game, source } = setup();
     const started = startOnEnter(game, source.instanceId);
     const declined = sessionWithState(started).executeCommand(
@@ -174,13 +174,27 @@ describe('PL!S-pb1-002 桜内梨子', () => {
     );
     expect(declined.success, declined.error).toBe(true);
     expect(getPlayerLiveScoreModifier(declined.gameState.liveResolution, PLAYER1)).toBe(1);
+  });
 
+  it('still asks the opponent to decline when they have no LIVE, without revealing that hand fact', () => {
     const noLive = setup({
       opponentHandCards: [instance(member('opponent-member'), 'opponent-member', PLAYER2)],
     });
-    const resolved = startOnEnter(noLive.game, noLive.source.instanceId);
-    expect(resolved.activeEffect).toBeNull();
-    expect(getPlayerLiveScoreModifier(resolved.liveResolution, PLAYER1)).toBe(1);
+    const started = startOnEnter(noLive.game, noLive.source.instanceId);
+    expect(started.activeEffect).toMatchObject({
+      abilityId: PL_S_PB1_002_ON_ENTER_OPPONENT_DISCARD_LIVE_OR_SOURCE_SCORE_ABILITY_ID,
+      awaitingPlayerId: PLAYER2,
+      selectableCardIds: [],
+      canSkipSelection: true,
+      skipSelectionLabel: '不放置',
+    });
+    expect(getPlayerLiveScoreModifier(started.liveResolution, PLAYER1)).toBe(0);
+
+    const declined = sessionWithState(started).executeCommand(
+      createConfirmEffectStepCommand(PLAYER2, started.activeEffect!.id, null)
+    );
+    expect(declined.success, declined.error).toBe(true);
+    expect(getPlayerLiveScoreModifier(declined.gameState.liveResolution, PLAYER1)).toBe(1);
   });
 
   it('rejects non-LIVE, non-opponent-hand, and stale LIVE selections without moving cards', () => {

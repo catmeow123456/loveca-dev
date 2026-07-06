@@ -1,14 +1,12 @@
 import {
   addAction,
-  getCardById,
-  getFirstPlayer,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { OrientationState } from '../../../../shared/types/enums.js';
-import { unitAliasIs } from '../../../effects/card-selectors.js';
+import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
@@ -176,21 +174,8 @@ function getOwnCheerRevealedKaleidoscoreCardIds(
   game: GameState,
   playerId: string
 ): readonly string[] {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return [];
-  }
-
-  const firstPlayer = getFirstPlayer(game);
-  const cheerCardIds =
-    player.id === firstPlayer.id
-      ? game.liveResolution.firstPlayerCheerCardIds
-      : game.liveResolution.secondPlayerCheerCardIds;
-  const isKaleidoscore = unitAliasIs('KALEIDOSCORE');
-
-  return cheerCardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && card.ownerId === player.id && isKaleidoscore(card);
+  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    unitAliases: ['KALEIDOSCORE'],
   });
 }
 

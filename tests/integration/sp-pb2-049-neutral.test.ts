@@ -7,11 +7,13 @@ import {
 } from '../../src/domain/entities/card';
 import {
   createGameState,
+  emitGameEvent,
   registerCards,
   updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
+import { createCheerEvent } from '../../src/domain/events/game-events';
 import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
@@ -129,6 +131,15 @@ function setupNeutralState(options: {
       playerScores: new Map([[PLAYER1, options.initialScore ?? 5]]),
     },
   };
+  game = emitGameEvent(
+    game,
+    createCheerEvent(
+      PLAYER1,
+      cheerCards.map((card) => card.instanceId),
+      cheerCards.length,
+      { automated: true }
+    )
+  );
 
   return {
     game,

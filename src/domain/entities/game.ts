@@ -338,6 +338,8 @@ export function createEmptyLiveResolutionState(): LiveResolutionState {
 export interface InspectionContextState {
   /** 当前检视流程的拥有者 */
   readonly ownerPlayerId: string;
+  /** 当前检视流程中实际查看/操作检视牌的玩家；默认等同 ownerPlayerId */
+  readonly viewerPlayerId?: string;
   /** 检视来源区域 */
   readonly sourceZone: ZoneType.MAIN_DECK | ZoneType.ENERGY_DECK;
 }

@@ -70,6 +70,8 @@ const S_BP6_009_CONTINUOUS_ABILITY_ID =
   'PL!S-bp6-009:continuous-success-live-difference-gain-blade';
 const PL_S_PB1_005_CONTINUOUS_ABILITY_ID =
   'PL!S-pb1-005:continuous-opponent-energy-more-gain-three-blade';
+const PL_S_PB1_009_CONTINUOUS_ABILITY_ID =
+  'PL!S-pb1-009:continuous-total-success-live-three-gain-three-blade';
 const PL_N_PB1_007_CONTINUOUS_ABILITY_ID =
   'PL!N-pb1-007:continuous-live-requirement-six-colors-gain-all-heart';
 const SP_PB2_023_CONTINUOUS_ABILITY_ID = 'PL!SP-pb2-023:continuous-energy-six-eight-gain-red-heart';
@@ -5345,6 +5347,158 @@ describe('PL!S-pb1-005 continuous opponent energy lead BLADE', () => {
             modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_005_CONTINUOUS_ABILITY_ID
         )
       ).toBe(false);
+    }
+  });
+});
+
+describe('PL!S-pb1-009 continuous total success LIVE BLADE', () => {
+  function setupRubyTotalSuccessScenario(
+    options: {
+      readonly ownSuccessCount?: number;
+      readonly opponentSuccessCount?: number;
+      readonly sourcePlacement?: 'STAGE' | 'MEMBER_BELOW' | 'OFF_STAGE';
+    } = {}
+  ) {
+    const ruby = createCardInstance(
+      {
+        cardCode: 'PL!S-pb1-009-R',
+        name: '黒澤ルビィ',
+        groupNames: ['Aqours'],
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.RED, 1)],
+      },
+      'p1',
+      's-pb1-009-ruby'
+    );
+    const host = createCardInstance(
+      {
+        cardCode: 'HOST-MEMBER',
+        name: 'Host',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      's-pb1-009-host'
+    );
+    const ownSuccessCards = Array.from({ length: options.ownSuccessCount ?? 0 }, (_, index) =>
+      createCardInstance(
+        createAqoursLiveData(`PL!S-pb1-009-own-success-${index}`, `Own Success ${index}`),
+        'p1',
+        `s-pb1-009-own-success-${index}`
+      )
+    );
+    const opponentSuccessCards = Array.from(
+      { length: options.opponentSuccessCount ?? 0 },
+      (_, index) =>
+        createCardInstance(
+          createAqoursLiveData(
+            `PL!S-pb1-009-opponent-success-${index}`,
+            `Opponent Success ${index}`
+          ),
+          'p2',
+          `s-pb1-009-opponent-success-${index}`
+        )
+    );
+    let game = createGameState('s-pb1-009-total-success', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [ruby, host, ...ownSuccessCards, ...opponentSuccessCards]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      if (options.sourcePlacement === 'MEMBER_BELOW') {
+        memberSlots = addMemberBelowMember(
+          placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          ruby.instanceId
+        );
+      } else if (options.sourcePlacement !== 'OFF_STAGE') {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, ruby.instanceId);
+      }
+      return {
+        ...player,
+        memberSlots,
+        successZone: ownSuccessCards.reduce(
+          (zone, card) => addCardToZone(zone, card.instanceId),
+          player.successZone
+        ),
+      };
+    });
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      successZone: opponentSuccessCards.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.successZone
+      ),
+    }));
+    return { game, ruby };
+  }
+
+  it('grants BLADE +3 when both success LIVE zones contain at least three cards total', () => {
+    const { game, ruby } = setupRubyTotalSuccessScenario({
+      ownSuccessCount: 1,
+      opponentSuccessCount: 2,
+    });
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 3,
+      sourceCardId: ruby.instanceId,
+      abilityId: PL_S_PB1_009_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', ruby.instanceId)).toBe(4);
+  });
+
+  it('does not grant BLADE when the total success LIVE count is below three', () => {
+    const { game, ruby } = setupRubyTotalSuccessScenario({
+      ownSuccessCount: 1,
+      opponentSuccessCount: 1,
+    });
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_009_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(getMemberEffectiveBladeCount(game, 'p1', ruby.instanceId)).toBe(1);
+  });
+
+  it('does not grant BLADE when the source is off stage or below another member', () => {
+    for (const scenario of [
+      setupRubyTotalSuccessScenario({
+        ownSuccessCount: 1,
+        opponentSuccessCount: 2,
+        sourcePlacement: 'OFF_STAGE',
+      }),
+      setupRubyTotalSuccessScenario({
+        ownSuccessCount: 1,
+        opponentSuccessCount: 2,
+        sourcePlacement: 'MEMBER_BELOW',
+      }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_009_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+
+  it('counts either player successZone cards toward the total', () => {
+    for (const scenario of [
+      setupRubyTotalSuccessScenario({ ownSuccessCount: 3, opponentSuccessCount: 0 }),
+      setupRubyTotalSuccessScenario({ ownSuccessCount: 0, opponentSuccessCount: 3 }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_009_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(true);
     }
   });
 });

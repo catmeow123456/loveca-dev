@@ -39,6 +39,12 @@ import {
   PL_S_PB1_003_LIVE_START_PAY_TWO_ENERGY_ORIGINAL_HEART_GREEN_ABILITY_ID,
   PL_S_PB1_003_LIVE_SUCCESS_RECOVER_REVEALED_CHEER_LIVE_ABILITY_ID,
   PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID,
+  PL_S_PB1_006_ACTIVATED_REVEAL_HAND_LIVE_OPPONENT_DISCARD_OR_GAIN_FOUR_BLADE_ABILITY_ID,
+  PL_S_PB1_007_LIVE_SUCCESS_CHEER_LIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
+  PL_S_PB1_008_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
+  PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID,
+  PL_S_PB1_020_LIVE_START_AQOURS_GREEN_HEART_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_S_PB1_021_LIVE_SUCCESS_AQOURS_BLUE_HEART_OPPONENT_NO_SURPLUS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID,
   PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID,
   PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
@@ -563,7 +569,7 @@ const PL_N_BP3_025_LIVE_START_EFFECT_TEXT =
 const PL_N_BP3_027_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】此回合中，自己的剩余HEART中存在大于等于1个[緑ハート]，并且自己的舞台存在『虹咲』的成员的场合，从自己的能量卡组中将1张能量卡以待机状态放置。';
 const PL_N_BP3_030_LIVE_SUCCESS_EFFECT_TEXT =
-  '【LIVE成功时】因声援公开的自己的卡中存在持有 ALL BLADE 的卡时，此 LIVE 的分数+1。';
+  '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLハート]的卡1张以上时，此卡的分数+1。';
 const BP3_001_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将此成员变为待机状态：抽1张卡，将1张手牌放置入休息室。（待机状态成员持有的 BLADE 不会增加声援公开张数。）';
 const BP3_001_LIVE_START_EFFECT_TEXT = '【LIVE开始时】可以将自己舞台上的成员至多1名变为活跃状态。';
@@ -592,10 +598,22 @@ const PL_S_PB1_003_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】从因声援公开的自己的卡中，将1张LIVE卡加入手牌。';
 const PL_S_PB1_005_CONTINUOUS_EFFECT_TEXT =
   '【常时】对方的能量比自己多时，此成员获得[BLADE][BLADE][BLADE]。';
+const PL_S_PB1_006_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】公开手牌中的1张LIVE卡；对方可以将1张手牌放置入休息室；未如此做时，LIVE结束时为止，此成员获得[BLADE]x4。';
+const PL_S_PB1_007_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】因声援公开的自己的卡中有LIVE卡1张以上时，从自己的能量卡组将1张能量卡以待机状态放置。';
+const PL_S_PB1_008_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】选择自己或对方；自己查看该玩家卡组顶2张，将任意张按任意顺序放回该玩家卡组顶，其余置入该玩家的休息室。';
+const PL_S_PB1_009_CONTINUOUS_EFFECT_TEXT =
+  '【常时】自己与对方的成功LIVE卡放置区的卡合计3张以上的场合，获得[BLADE][BLADE][BLADE]。';
 const PL_S_PB1_019_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己舞台上『Aqours』成员持有的[赤ハート]合计6个以上的场合，使此卡的【LIVE成功时】能力无效。';
 const PL_S_PB1_019_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】对方从能量卡组将1张能量卡以待机状态放置。';
+const PL_S_PB1_020_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己舞台的『Aqours』成员持有的[緑ハート]合计10个以上的场合，此LIVE分数+2。';
+const PL_S_PB1_021_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】自己舞台的『Aqours』成员持有的[青ハート]合计4个以上，且本回合对方曾无余Heart成功LIVE的场合，此LIVE分数+2。';
 const PB1_011_ON_ENTER_EFFECT_TEXT =
   '【登场】自己的舞台上存在2名以上不同名的『BiBi』成员的场合，将对方舞台上1名费用4以下成员变为待机状态。';
 const PL_PB1_028_LIVE_START_EFFECT_TEXT =
@@ -1711,6 +1729,9 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'PL!S-PR-013',
       'PL!S-PR-019',
       'PL!S-bp2-005',
+      'PL!S-pb1-013',
+      'PL!S-pb1-014',
+      'PL!S-pb1-015',
       'PL!N-pb1-028',
       'PL!N-pb1-035',
       'PL!SP-bp1-005',
@@ -5886,6 +5907,62 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'continuous live modifier registry；来源成员位于自己的主舞台成员槽，且对方 energyZone 张数大于自己 energyZone 张数时，来源成员获得 BLADE +3。来源离场或成为 memberBelow 时不收集。',
   },
   {
+    abilityId:
+      PL_S_PB1_006_ACTIVATED_REVEAL_HAND_LIVE_OPPONENT_DISCARD_OR_GAIN_FOUR_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb1-006'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: PL_S_PB1_006_ACTIVATED_EFFECT_TEXT,
+    perTurnLimit: 1,
+    countPendingAsTurnUse: false,
+    activatedUi: {
+      abilityId:
+        PL_S_PB1_006_ACTIVATED_REVEAL_HAND_LIVE_OPPONENT_DISCARD_OR_GAIN_FOUR_BLADE_ABILITY_ID,
+      title: '起动效果',
+      text: PL_S_PB1_006_ACTIVATED_EFFECT_TEXT,
+    },
+    notes:
+      '单卡 activated workflow `s-pb1-006-yoshiko.ts`；自己主阶段、来源在己方舞台且手牌有 LIVE 时启动。先公开自己手牌1张 LIVE，公开成功后记录 turn1 使用；之后由对手选择是否将自己手牌任意1张放置入休息室。对手弃手走 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`，不放置或无手牌时重查来源仍在舞台后用 `addBladeLiveModifierForSourceMember` 写 BLADE +4；来源离场安全 no-op。',
+  },
+  {
+    abilityId: PL_S_PB1_007_LIVE_SUCCESS_CHEER_LIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb1-007'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_S_PB1_007_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '复用 `aqours-live-start-success-effects.ts` 的窄 LIVE_SUCCESS resolver；无交互 queued pending 走 confirm-only 语义并追加本次自己声援公开 LIVE 张数/实际结果。结算时复用 selectRevealedCheerCardIds(game, player.id, isLiveCardData)，只计本次己方声援公开、仍在 resolutionZone 且 revealed 的 LIVE 卡；条件满足且来源仍在自己的主舞台成员槽时，复用 placeEnergyFromDeckToZone(player, 1, WAITING)。无 LIVE、energyDeck 为空、来源离场均 no-op 并继续 pending。',
+  },
+  {
+    abilityId: PL_S_PB1_008_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb1-008'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_S_PB1_008_LIVE_START_EFFECT_TEXT,
+    notes:
+      '复用 arrange-inspected-deck-top shared workflow 的 target-player 轴；控制者先选择自己或对方，随后控制者查看所选玩家主卡组顶至多2张，任意张按选择顺序回该玩家卡组顶，其余从 MAIN_DECK 进入该玩家休息室并入队等待室触发。来源启动时必须仍在自己的主舞台。',
+  },
+  {
+    abilityId:
+      PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-pb1-009'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: PL_S_PB1_009_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      'continuous live modifier registry；来源成员位于自己的主舞台成员槽，且自己与对方 successZone.cardIds 合计 >=3 时，来源成员获得 BLADE +3。合计不足、来源离场或成为 memberBelow 时动态不生效。',
+  },
+  {
     abilityId: PL_S_PB1_019_LIVE_START_AQOURS_RED_HEART_SUPPRESS_SUCCESS_ABILITY_ID,
     cardCodes: ['PL!S-pb1-019-L'],
     category: CardAbilityCategory.LIVE_START,
@@ -5908,6 +5985,31 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: PL_S_PB1_019_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
       '单卡 LIVE_SUCCESS workflow `s-pb1-019-genki-zenkai-day-day-day.ts`；结算时重查来源仍在自己的 LIVE 区，未被 SUPPRESS_ABILITY modifier 抑制时复用 placeEnergyFromDeckToZone(opponent, 1, WAITING)。无对手、来源离场或对方 energyDeck 为空时安全 no-op 并继续 pending。',
+  },
+  {
+    abilityId: PL_S_PB1_020_LIVE_START_AQOURS_GREEN_HEART_THIS_LIVE_SCORE_ABILITY_ID,
+    cardCodes: ['PL!S-pb1-020-L'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_S_PB1_020_LIVE_START_EFFECT_TEXT,
+    notes:
+      'shared workflow `aqours-heart-score-bonuses.ts`；无交互 LIVE_START queued pending 走 confirm-only/manual confirmation 语义。结算时重查来源仍在自己的 LIVE 区，并用 `getStageMemberCardIdsMatching` + `groupAliasIs(Aqours)` + `collectLiveModifiers` + `getMemberEffectiveHeartIcons` 统计自己舞台 Aqours 成员有效 [緑ハート] 合计；达到10个以上时写此 LIVE SCORE +2 modifier 并刷新 playerScores。',
+  },
+  {
+    abilityId:
+      PL_S_PB1_021_LIVE_SUCCESS_AQOURS_BLUE_HEART_OPPONENT_NO_SURPLUS_THIS_LIVE_SCORE_ABILITY_ID,
+    cardCodes: ['PL!S-pb1-021-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_S_PB1_021_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      'shared workflow `aqours-heart-score-bonuses.ts`；无交互 LIVE_SUCCESS queued pending 走 confirm-only/manual confirmation 语义。结算时重查来源仍在自己的 LIVE 区，统计自己舞台 Aqours 成员有效 [青ハート] 合计，并通过当前 liveResolution.liveResults 与判定时 LIVE_JUDGMENT action payload 的 remainingHeartTotalCount 判断对方本回合是否已有无余Heart成功LIVE；条件均满足时写此 LIVE SCORE +2 modifier 并刷新 playerScores，不清除或消费任何余Heart。',
   },
   {
     abilityId: PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
@@ -7055,7 +7157,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP3_030_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '孤独雨第六批窄 LIVE_SUCCESS workflow；只读取本次 liveResolution 中自己的声援公开卡，且要求仍在 resolutionZone 并 revealed。ALL BLADE 用 BladeHeartEffect.HEART + HeartColor.RAINBOW 判定，满足时写此 LIVE SCORE +1 并刷新 playerScores。',
+      '孤独雨第六批窄 LIVE_SUCCESS workflow；只读取本次 liveResolution 中自己的声援公开卡，且要求仍在 resolutionZone 并 revealed。ALL Heart 用 BladeHeartEffect.HEART + HeartColor.RAINBOW 判定，满足时写此 LIVE SCORE +1 并刷新 playerScores。',
   },
   {
     abilityId: N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID,

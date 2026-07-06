@@ -150,9 +150,29 @@ export function memberHasHeartColor(color: HeartColor): CardSelector {
     card.data.hearts.some((heart) => heart.color === color && heart.count > 0);
 }
 
+export function memberHasPrintedHeartColorAtLeast(
+  color: HeartColor,
+  minCount: number
+): CardSelector {
+  return (card) =>
+    isMemberCardData(card.data) &&
+    card.data.hearts
+      .filter((heart) => heart.color === color)
+      .reduce((sum, heart) => sum + heart.count, 0) >= minCount;
+}
+
 export function liveRequiresHeartColor(color: HeartColor): CardSelector {
   return (card) =>
     isLiveCardData(card.data) && (card.data.requirements.colorRequirements.get(color) ?? 0) > 0;
+}
+
+export function liveRequiresPrintedHeartColorAtLeast(
+  color: HeartColor,
+  minCount: number
+): CardSelector {
+  return (card) =>
+    isLiveCardData(card.data) &&
+    (card.data.requirements.colorRequirements.get(color) ?? 0) >= minCount;
 }
 
 export function hasBladeHeart(): CardSelector {

@@ -486,6 +486,12 @@ import {
   PL_S_PB1_003_LIVE_START_PAY_TWO_ENERGY_ORIGINAL_HEART_GREEN_ABILITY_ID,
   PL_S_PB1_003_LIVE_SUCCESS_RECOVER_REVEALED_CHEER_LIVE_ABILITY_ID,
   PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID,
+  PL_S_PB1_006_ACTIVATED_REVEAL_HAND_LIVE_OPPONENT_DISCARD_OR_GAIN_FOUR_BLADE_ABILITY_ID,
+  PL_S_PB1_007_LIVE_SUCCESS_CHEER_LIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
+  PL_S_PB1_008_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
+  PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID,
+  PL_S_PB1_020_LIVE_START_AQOURS_GREEN_HEART_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_S_PB1_021_LIVE_SUCCESS_AQOURS_BLUE_HEART_OPPONENT_NO_SURPLUS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP3_025_LIVE_START_RETURN_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID,
   YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID,
 } from '../../src/application/card-effect-runner';
@@ -540,6 +546,9 @@ const GENERIC_DISCARD_LOOK_TOP_CARD_CODES = [
   'PL!S-bp2-005-SEC',
   'PL!S-bp3-004-P',
   'PL!S-bp3-004-R',
+  'PL!S-pb1-013-N',
+  'PL!S-pb1-014-N',
+  'PL!S-pb1-015-N',
   'PL!SP-bp1-005-P',
   'PL!SP-bp1-005-R',
   'PL!SP-bp2-007-P',
@@ -825,6 +834,86 @@ describe('card effect classification registry', () => {
       ).toMatchObject({
         abilityId: PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID,
         baseCardCodes: ['PL!S-pb1-005'],
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+      });
+    }
+
+    for (const cardCode of ['PL!S-pb1-006-R', 'PL!S-pb1-006-P＋']) {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(
+        definitions.find(
+          (ability) =>
+            ability.abilityId ===
+            PL_S_PB1_006_ACTIVATED_REVEAL_HAND_LIVE_OPPONENT_DISCARD_OR_GAIN_FOUR_BLADE_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId:
+          PL_S_PB1_006_ACTIVATED_REVEAL_HAND_LIVE_OPPONENT_DISCARD_OR_GAIN_FOUR_BLADE_ABILITY_ID,
+        baseCardCodes: ['PL!S-pb1-006'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 1,
+        activatedUi: {
+          abilityId:
+            PL_S_PB1_006_ACTIVATED_REVEAL_HAND_LIVE_OPPONENT_DISCARD_OR_GAIN_FOUR_BLADE_ABILITY_ID,
+        },
+      });
+    }
+
+    for (const cardCode of ['PL!S-pb1-007-R', 'PL!S-pb1-007-P＋']) {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(
+        definitions.find(
+          (ability) =>
+            ability.abilityId ===
+            PL_S_PB1_007_LIVE_SUCCESS_CHEER_LIVE_PLACE_WAITING_ENERGY_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId: PL_S_PB1_007_LIVE_SUCCESS_CHEER_LIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
+        baseCardCodes: ['PL!S-pb1-007'],
+        category: CardAbilityCategory.LIVE_SUCCESS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    for (const cardCode of ['PL!S-pb1-008-R', 'PL!S-pb1-008-P＋']) {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(
+        definitions.find(
+          (ability) =>
+            ability.abilityId ===
+            PL_S_PB1_008_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId: PL_S_PB1_008_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
+        baseCardCodes: ['PL!S-pb1-008'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    for (const cardCode of ['PL!S-pb1-009-R', 'PL!S-pb1-009-P＋']) {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(
+        definitions.find(
+          (ability) =>
+            ability.abilityId ===
+            PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId: PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID,
+        baseCardCodes: ['PL!S-pb1-009'],
         category: CardAbilityCategory.CONTINUOUS,
         sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
         queued: false,
@@ -2059,12 +2148,11 @@ describe('card effect classification registry', () => {
       });
     }
 
-    expect(
-      getCardAbilityDefinitions('PL!N-bp3-030-L').find(
-        (ability) =>
-          ability.abilityId === PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID
-      )
-    ).toMatchObject({
+    const loveUMyFriendsLiveSuccess = getCardAbilityDefinitions('PL!N-bp3-030-L').find(
+      (ability) =>
+        ability.abilityId === PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID
+    );
+    expect(loveUMyFriendsLiveSuccess).toMatchObject({
       abilityId: PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID,
       baseCardCodes: ['PL!N-bp3-030'],
       category: CardAbilityCategory.LIVE_SUCCESS,
@@ -2073,6 +2161,9 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+    expect(loveUMyFriendsLiveSuccess?.effectText).toBe(
+      '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLハート]的卡1张以上时，此卡的分数+1。'
+    );
 
     for (const cardCode of [
       'PL!N-bp5-001-R＋',
@@ -5126,6 +5217,39 @@ describe('card effect classification registry', () => {
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
       queued: true,
       implemented: true,
+    });
+
+    expect(
+      getCardAbilityDefinitions('PL!S-pb1-020-L').find(
+        (ability) =>
+          ability.abilityId ===
+          PL_S_PB1_020_LIVE_START_AQOURS_GREEN_HEART_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toMatchObject({
+      cardCodes: ['PL!S-pb1-020-L'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      implemented: true,
+      effectText:
+        '【LIVE开始时】自己舞台的『Aqours』成员持有的[緑ハート]合计10个以上的场合，此LIVE分数+2。',
+    });
+    expect(
+      getCardAbilityDefinitions('PL!S-pb1-021-L').find(
+        (ability) =>
+          ability.abilityId ===
+          PL_S_PB1_021_LIVE_SUCCESS_AQOURS_BLUE_HEART_OPPONENT_NO_SURPLUS_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toMatchObject({
+      cardCodes: ['PL!S-pb1-021-L'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+      effectText:
+        '【LIVE成功时】自己舞台的『Aqours』成员持有的[青ハート]合计4个以上，且本回合对方曾无余Heart成功LIVE的场合，此LIVE分数+2。',
     });
     for (const cardCode of ['PL!N-bp4-017-N', 'PL!N-bp4-020-N'] as const) {
       const activated = getCardAbilityDefinitions(cardCode).find(

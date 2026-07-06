@@ -74,7 +74,12 @@ function createEnergyCard(cardCode: string): EnergyCardData {
   };
 }
 
-function createLiveCard(cardCode: string, name = cardCode, unitName?: string): LiveCardData {
+function createLiveCard(
+  cardCode: string,
+  name = cardCode,
+  unitName?: string,
+  requirements = createHeartRequirement({ [HeartColor.PINK]: 1 })
+): LiveCardData {
   return {
     cardCode,
     name,
@@ -82,7 +87,7 @@ function createLiveCard(cardCode: string, name = cardCode, unitName?: string): L
     unitName,
     cardType: CardType.LIVE,
     score: 3,
-    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+    requirements,
   };
 }
 
@@ -2045,6 +2050,661 @@ describe('discard look top select to hand shared workflow', () => {
       topCards.map((card) => card.instanceId)
     );
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+  });
+
+  function setupAqoursPb1HeartCountScenario(options: {
+    readonly sourceCardCode: 'PL!S-pb1-013-N' | 'PL!S-pb1-014-N' | 'PL!S-pb1-015-N';
+    readonly sourceName: string;
+    readonly topCards: readonly ReturnType<typeof createCardInstance>[];
+  }): {
+    readonly session: ReturnType<typeof createGameSession>;
+    readonly source: ReturnType<typeof createCardInstance>;
+    readonly discardCard: ReturnType<typeof createCardInstance>;
+  } {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      `${options.sourceCardCode}-discard-look-top-heart-count`,
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard(options.sourceCardCode, options.sourceName, 4),
+      PLAYER1,
+      `${options.sourceCardCode}-source`
+    );
+    const discardCard = createCardInstance(
+      createMemberCard(`${options.sourceCardCode}-discard`, 'Discard target'),
+      PLAYER1,
+      `${options.sourceCardCode}-discard`
+    );
+
+    let state = registerCards(session.state!, [source, discardCard, ...options.topCards]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    clearPlayerZones(p1);
+    p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
+    p1.mainDeck.cardIds = options.topCards.map((card) => card.instanceId);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([discardCard.instanceId]);
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
+
+    return { session, source, discardCard };
+  }
+
+  it('lets PL!S-pb1-013 inspect four and reveal a green Heart-count member or LIVE', () => {
+    const topCards = [
+      createCardInstance(
+        createMemberCard(
+          'PL!S-pb1-013-green-member',
+          'Green two member',
+          1,
+          undefined,
+          [createHeartIcon(HeartColor.GREEN, 2)]
+        ),
+        PLAYER1,
+        's-pb1-013-top-green-member'
+      ),
+      createCardInstance(
+        createLiveCard(
+          'PL!S-pb1-013-green-live',
+          'Green two live',
+          undefined,
+          createHeartRequirement({ [HeartColor.GREEN]: 2 })
+        ),
+        PLAYER1,
+        's-pb1-013-top-green-live'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-013-red-member', 'Red two member', 1, undefined, [
+          createHeartIcon(HeartColor.RED, 2),
+        ]),
+        PLAYER1,
+        's-pb1-013-top-red-member'
+      ),
+      createCardInstance(createEnergyCard('PL!S-pb1-013-energy'), PLAYER1, 's-pb1-013-top-energy'),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-013-extra', 'Extra'),
+        PLAYER1,
+        's-pb1-013-extra'
+      ),
+    ];
+    const scenario = setupAqoursPb1HeartCountScenario({
+      sourceCardCode: 'PL!S-pb1-013-N',
+      sourceName: '黒澤ダイヤ',
+      topCards,
+    });
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          scenario.discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect?.inspectionCardIds).toEqual(
+      topCards.slice(0, 4).map((card) => card.instanceId)
+    );
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([
+      topCards[0]!.instanceId,
+      topCards[1]!.instanceId,
+    ]);
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          topCards[1]!.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.inspectionZone.revealedCardIds).toContain(
+      topCards[1]!.instanceId
+    );
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([topCards[1]!.instanceId]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      scenario.discardCard.instanceId,
+      topCards[0]!.instanceId,
+      topCards[2]!.instanceId,
+      topCards[3]!.instanceId,
+    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[4]!.instanceId,
+    ]);
+  });
+
+  it('lets PL!S-pb1-014 inspect four and reveal a red Heart-count member or LIVE', () => {
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!S-pb1-014-red-member', 'Red two member', 1, undefined, [
+          createHeartIcon(HeartColor.RED, 2),
+        ]),
+        PLAYER1,
+        's-pb1-014-top-red-member'
+      ),
+      createCardInstance(
+        createLiveCard(
+          'PL!S-pb1-014-red-live',
+          'Red two live',
+          undefined,
+          createHeartRequirement({ [HeartColor.RED]: 2 })
+        ),
+        PLAYER1,
+        's-pb1-014-top-red-live'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-014-green-member', 'Green two member', 1, undefined, [
+          createHeartIcon(HeartColor.GREEN, 2),
+        ]),
+        PLAYER1,
+        's-pb1-014-top-green-member'
+      ),
+      createCardInstance(createEnergyCard('PL!S-pb1-014-energy'), PLAYER1, 's-pb1-014-top-energy'),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-014-extra', 'Extra'),
+        PLAYER1,
+        's-pb1-014-extra'
+      ),
+    ];
+    const scenario = setupAqoursPb1HeartCountScenario({
+      sourceCardCode: 'PL!S-pb1-014-N',
+      sourceName: '渡辺 曜',
+      topCards,
+    });
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          scenario.discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([
+      topCards[0]!.instanceId,
+      topCards[1]!.instanceId,
+    ]);
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          topCards[0]!.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.inspectionZone.revealedCardIds).toContain(
+      topCards[0]!.instanceId
+    );
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([topCards[0]!.instanceId]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      scenario.discardCard.instanceId,
+      topCards[1]!.instanceId,
+      topCards[2]!.instanceId,
+      topCards[3]!.instanceId,
+    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[4]!.instanceId,
+    ]);
+  });
+
+  it('lets PL!S-pb1-015 inspect four and reveal a blue Heart-count member or LIVE', () => {
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!S-pb1-015-blue-member', 'Blue two member', 1, undefined, [
+          createHeartIcon(HeartColor.BLUE, 2),
+        ]),
+        PLAYER1,
+        's-pb1-015-top-blue-member'
+      ),
+      createCardInstance(
+        createLiveCard(
+          'PL!S-pb1-015-blue-live',
+          'Blue two live',
+          undefined,
+          createHeartRequirement({ [HeartColor.BLUE]: 2 })
+        ),
+        PLAYER1,
+        's-pb1-015-top-blue-live'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-015-red-member', 'Red two member', 1, undefined, [
+          createHeartIcon(HeartColor.RED, 2),
+        ]),
+        PLAYER1,
+        's-pb1-015-top-red-member'
+      ),
+      createCardInstance(createEnergyCard('PL!S-pb1-015-energy'), PLAYER1, 's-pb1-015-top-energy'),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-015-extra', 'Extra'),
+        PLAYER1,
+        's-pb1-015-extra'
+      ),
+    ];
+    const scenario = setupAqoursPb1HeartCountScenario({
+      sourceCardCode: 'PL!S-pb1-015-N',
+      sourceName: '津島善子',
+      topCards,
+    });
+
+    expect(scenario.session.state?.activeEffect?.effectText).toContain('[青ハート]');
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          scenario.discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect?.inspectionCardIds).toEqual(
+      topCards.slice(0, 4).map((card) => card.instanceId)
+    );
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([
+      topCards[0]!.instanceId,
+      topCards[1]!.instanceId,
+    ]);
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          topCards[1]!.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.inspectionZone.revealedCardIds).toContain(
+      topCards[1]!.instanceId
+    );
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([topCards[1]!.instanceId]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      scenario.discardCard.instanceId,
+      topCards[0]!.instanceId,
+      topCards[2]!.instanceId,
+      topCards[3]!.instanceId,
+    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[4]!.instanceId,
+    ]);
+  });
+
+  it('rejects a non-blue Heart-count target for PL!S-pb1-015', () => {
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!S-pb1-015-legal-blue-member', 'Blue two member', 1, undefined, [
+          createHeartIcon(HeartColor.BLUE, 2),
+        ]),
+        PLAYER1,
+        's-pb1-015-illegal-blue-member'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-015-illegal-red-member', 'Red two member', 1, undefined, [
+          createHeartIcon(HeartColor.RED, 2),
+        ]),
+        PLAYER1,
+        's-pb1-015-illegal-red-member'
+      ),
+      createCardInstance(
+        createLiveCard(
+          'PL!S-pb1-015-legal-blue-live',
+          'Blue two live',
+          undefined,
+          createHeartRequirement({ [HeartColor.BLUE]: 2 })
+        ),
+        PLAYER1,
+        's-pb1-015-illegal-blue-live'
+      ),
+      createCardInstance(createEnergyCard('PL!S-pb1-015-illegal-energy'), PLAYER1, 'energy-015'),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-015-illegal-extra', 'Extra'),
+        PLAYER1,
+        's-pb1-015-illegal-extra'
+      ),
+    ];
+    const scenario = setupAqoursPb1HeartCountScenario({
+      sourceCardCode: 'PL!S-pb1-015-N',
+      sourceName: '津島善子',
+      topCards,
+    });
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          scenario.discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([
+      topCards[0]!.instanceId,
+      topCards[2]!.instanceId,
+    ]);
+
+    const illegalResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        scenario.session.state!.activeEffect!.id,
+        topCards[1]!.instanceId
+      )
+    );
+
+    expect(illegalResult.success).toBe(false);
+    expect(illegalResult.error).toBe('选择的卡牌不能用于当前效果');
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([
+      topCards[0]!.instanceId,
+      topCards[2]!.instanceId,
+    ]);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      scenario.discardCard.instanceId,
+    ]);
+  });
+
+  it('moves all inspected cards to waiting room when PL!S-pb1-013 has no green legal target', () => {
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!S-pb1-013-one-green', 'One green member', 1, undefined, [
+          createHeartIcon(HeartColor.GREEN, 1),
+        ]),
+        PLAYER1,
+        's-pb1-013-no-target-one-green'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-013-two-red', 'Two red member', 1, undefined, [
+          createHeartIcon(HeartColor.RED, 2),
+        ]),
+        PLAYER1,
+        's-pb1-013-no-target-red'
+      ),
+      createCardInstance(
+        createLiveCard(
+          'PL!S-pb1-013-one-green-live',
+          'One green live',
+          undefined,
+          createHeartRequirement({ [HeartColor.GREEN]: 1 })
+        ),
+        PLAYER1,
+        's-pb1-013-no-target-live'
+      ),
+      createCardInstance(createEnergyCard('PL!S-pb1-013-no-target-energy'), PLAYER1, 'energy-013'),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-013-no-target-extra', 'Extra'),
+        PLAYER1,
+        's-pb1-013-no-target-extra'
+      ),
+    ];
+    const scenario = setupAqoursPb1HeartCountScenario({
+      sourceCardCode: 'PL!S-pb1-013-N',
+      sourceName: '黒澤ダイヤ',
+      topCards,
+    });
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          scenario.discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([]);
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      scenario.discardCard.instanceId,
+      ...topCards.slice(0, 4).map((card) => card.instanceId),
+    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[4]!.instanceId,
+    ]);
+  });
+
+  it('moves all inspected cards to waiting room when PL!S-pb1-014 has no red legal target', () => {
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!S-pb1-014-one-red', 'One red member', 1, undefined, [
+          createHeartIcon(HeartColor.RED, 1),
+        ]),
+        PLAYER1,
+        's-pb1-014-no-target-one-red'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-014-two-green', 'Two green member', 1, undefined, [
+          createHeartIcon(HeartColor.GREEN, 2),
+        ]),
+        PLAYER1,
+        's-pb1-014-no-target-green'
+      ),
+      createCardInstance(
+        createLiveCard(
+          'PL!S-pb1-014-one-red-live',
+          'One red live',
+          undefined,
+          createHeartRequirement({ [HeartColor.RED]: 1 })
+        ),
+        PLAYER1,
+        's-pb1-014-no-target-live'
+      ),
+      createCardInstance(createEnergyCard('PL!S-pb1-014-no-target-energy'), PLAYER1, 'energy-014'),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-014-no-target-extra', 'Extra'),
+        PLAYER1,
+        's-pb1-014-no-target-extra'
+      ),
+    ];
+    const scenario = setupAqoursPb1HeartCountScenario({
+      sourceCardCode: 'PL!S-pb1-014-N',
+      sourceName: '渡辺 曜',
+      topCards,
+    });
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          scenario.discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([]);
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      scenario.discardCard.instanceId,
+      ...topCards.slice(0, 4).map((card) => card.instanceId),
+    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[4]!.instanceId,
+    ]);
+  });
+
+  it('moves all inspected cards to waiting room when PL!S-pb1-015 has no blue legal target', () => {
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!S-pb1-015-one-blue', 'One blue member', 1, undefined, [
+          createHeartIcon(HeartColor.BLUE, 1),
+        ]),
+        PLAYER1,
+        's-pb1-015-no-target-one-blue'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-015-two-red', 'Two red member', 1, undefined, [
+          createHeartIcon(HeartColor.RED, 2),
+        ]),
+        PLAYER1,
+        's-pb1-015-no-target-red'
+      ),
+      createCardInstance(
+        createLiveCard(
+          'PL!S-pb1-015-one-blue-live',
+          'One blue live',
+          undefined,
+          createHeartRequirement({ [HeartColor.BLUE]: 1 })
+        ),
+        PLAYER1,
+        's-pb1-015-no-target-live'
+      ),
+      createCardInstance(createEnergyCard('PL!S-pb1-015-no-target-energy'), PLAYER1, 'energy-015'),
+      createCardInstance(
+        createMemberCard('PL!S-pb1-015-no-target-extra', 'Extra'),
+        PLAYER1,
+        's-pb1-015-no-target-extra'
+      ),
+    ];
+    const scenario = setupAqoursPb1HeartCountScenario({
+      sourceCardCode: 'PL!S-pb1-015-N',
+      sourceName: '津島善子',
+      topCards,
+    });
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          scenario.discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([]);
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      scenario.discardCard.instanceId,
+      ...topCards.slice(0, 4).map((card) => card.instanceId),
+    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[4]!.instanceId,
+    ]);
+  });
+
+  it('declines PL!S-pb1-013 before discarding or inspecting', () => {
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!S-pb1-013-decline-green', 'Green two member', 1, undefined, [
+          createHeartIcon(HeartColor.GREEN, 2),
+        ]),
+        PLAYER1,
+        's-pb1-013-decline-top'
+      ),
+    ];
+    const scenario = setupAqoursPb1HeartCountScenario({
+      sourceCardCode: 'PL!S-pb1-013-N',
+      sourceName: '黒澤ダイヤ',
+      topCards,
+    });
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([
+      scenario.discardCard.instanceId,
+    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[0]!.instanceId,
+    ]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+  });
+
+  it('declines PL!S-pb1-015 before discarding or inspecting', () => {
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!S-pb1-015-decline-blue', 'Blue two member', 1, undefined, [
+          createHeartIcon(HeartColor.BLUE, 2),
+        ]),
+        PLAYER1,
+        's-pb1-015-decline-top'
+      ),
+    ];
+    const scenario = setupAqoursPb1HeartCountScenario({
+      sourceCardCode: 'PL!S-pb1-015-N',
+      sourceName: '津島善子',
+      topCards,
+    });
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([
+      scenario.discardCard.instanceId,
+    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[0]!.instanceId,
+    ]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([]);
   });
 });
 

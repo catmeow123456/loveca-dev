@@ -5,9 +5,8 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { OrientationState } from '../../../../shared/types/enums.js';
-import { groupAliasIs } from '../../../effects/card-selectors.js';
-import { selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
+import { CardType, OrientationState } from '../../../../shared/types/enums.js';
+import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
 import { SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -46,7 +45,7 @@ function getSpPr018KanonConfirmationEffectText(
   const player = getPlayerById(game, ability.controllerId);
   const sourceOnStage = player ? findMemberSlot(player, ability.sourceCardId) !== null : false;
   const liellaCheerCardIds =
-    player && sourceOnStage ? selectRevealedCheerCardIds(game, player.id, groupAliasIs('Liella!')) : [];
+    player && sourceOnStage ? selectLiellaCheerCardIds(game, player.id) : [];
   const conditionMet = sourceOnStage && liellaCheerCardIds.length >= 7;
   return `${getAbilityEffectText(ability.abilityId)}（声援Liella!卡 ${liellaCheerCardIds.length}张，${conditionMet ? '满足条件，放置1张等待能量' : '未满足条件'}）`;
 }
@@ -63,9 +62,7 @@ function resolveSpPr018KanonLiveSuccess(
   }
 
   const sourceOnStage = findMemberSlot(player, ability.sourceCardId) !== null;
-  const liellaCheerCardIds = sourceOnStage
-    ? selectRevealedCheerCardIds(game, player.id, groupAliasIs('Liella!'))
-    : [];
+  const liellaCheerCardIds = sourceOnStage ? selectLiellaCheerCardIds(game, player.id) : [];
   const conditionMet = sourceOnStage && liellaCheerCardIds.length >= 7;
   const energyPlacement = conditionMet
     ? placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.WAITING)
@@ -92,4 +89,11 @@ function resolveSpPr018KanonLiveSuccess(
     }),
     orderedResolution
   );
+}
+
+function selectLiellaCheerCardIds(game: GameState, playerId: string): readonly string[] {
+  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    cardTypes: [CardType.MEMBER, CardType.LIVE],
+    groupAliases: ['Liella!'],
+  });
 }
