@@ -379,28 +379,46 @@ function revealTopCardsUntilHit(
   playerId: string,
   mode: RevealMode
 ): RevealUntilHitResult | null {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return null;
-  }
+  let state = game;
+  const inspectedCardIds: string[] = [];
 
-  const hitIndex = player.mainDeck.cardIds.findIndex((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && doesCardMatchRevealMode(game, playerId, card, mode);
-  });
-  const revealCount = hitIndex >= 0 ? hitIndex + 1 : player.mainDeck.cardIds.length;
-  const inspection = inspectTopCards(game, playerId, {
-    count: revealCount,
-    reveal: true,
-  });
-  if (!inspection) {
-    return null;
+  while (true) {
+    const player = getPlayerById(state, playerId);
+    if (!player) {
+      return null;
+    }
+    if (player.mainDeck.cardIds.length === 0 && player.waitingRoom.cardIds.length === 0) {
+      break;
+    }
+
+    const inspection = inspectTopCards(state, playerId, {
+      count: 1,
+      reveal: true,
+    });
+    const inspectedCardId = inspection?.inspectedCardIds[0] ?? null;
+    if (!inspection || inspectedCardId === null) {
+      break;
+    }
+
+    state = inspection.gameState;
+    inspectedCardIds.push(inspectedCardId);
+    const inspectedCard = getCardById(state, inspectedCardId);
+    if (
+      inspectedCard !== null &&
+      doesCardMatchRevealMode(state, playerId, inspectedCard, mode)
+    ) {
+      return {
+        gameState: state,
+        inspectedCardIds,
+        hitCardId: inspectedCardId,
+      };
+    }
   }
 
   return {
-    gameState: inspection.gameState,
-    inspectedCardIds: inspection.inspectedCardIds,
-    hitCardId: hitIndex >= 0 ? inspection.inspectedCardIds.at(-1) ?? null : null,
+    gameState: state,
+    inspectedCardIds,
+    hitCardId: null,
   };
 }
 

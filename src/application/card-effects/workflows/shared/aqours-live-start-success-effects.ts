@@ -1,4 +1,8 @@
-import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
+import {
+  isLiveCardData,
+  isMemberCardData,
+  type CardInstance,
+} from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
@@ -13,6 +17,7 @@ import type { CheerEvent } from '../../../../domain/events/game-events.js';
 import { selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.js';
 import { CardType, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
@@ -37,6 +42,8 @@ import { and, groupAliasIs, hasScoreBladeHeart, typeIs } from '../../../effects/
 
 const AQOURS = 'Aqours';
 const MY_MAI_TONIGHT = 'MY舞☆TONIGHT';
+const MY_MAI_TONIGHT_CN = '我的舞蹈☆今夜';
+const MY_MAI_TONIGHT_BASE_CARD_CODE = 'PL!S-bp2-023';
 const STAGE_SLOTS: readonly SlotPosition[] = [
   SlotPosition.LEFT,
   SlotPosition.CENTER,
@@ -157,9 +164,11 @@ function getMyMaiTonightLiveStartConfirmationEffectText(
   ability: PendingAbilityState
 ): string {
   const player = getPlayerById(game, ability.controllerId);
-  const otherAqoursLiveCardIds = player ? getOtherAqoursLiveCardIds(game, player.id) : [];
+  const otherAqoursLiveCardIds = player
+    ? getOtherAqoursLiveCardIds(game, player.id, ability.sourceCardId)
+    : [];
   const stageMemberCardIds = player ? getOwnStageMemberCardIds(game, player.id) : [];
-  return `${getAbilityEffectText(ability.abilityId)}（此卡以外Aqours LIVE ${otherAqoursLiveCardIds.length}张，舞台成员 ${stageMemberCardIds.length}名，${
+  return `${getAbilityEffectText(ability.abilityId)}（可计入的其他Aqours LIVE ${otherAqoursLiveCardIds.length}张，舞台成员 ${stageMemberCardIds.length}名，${
     otherAqoursLiveCardIds.length > 0 ? '满足条件，各获得[BLADE]+1' : '未满足条件，不获得[BLADE]'
   }）`;
 }
@@ -215,7 +224,11 @@ function resolveMyMaiTonightLiveStart(
     return game;
   }
 
-  const otherAqoursLiveCardIds = getOtherAqoursLiveCardIds(game, player.id);
+  const otherAqoursLiveCardIds = getOtherAqoursLiveCardIds(
+    game,
+    player.id,
+    ability.sourceCardId
+  );
   const conditionMet = otherAqoursLiveCardIds.length > 0;
   const targetMemberCardIds = conditionMet ? getOwnStageMemberCardIds(game, player.id) : [];
   let state: GameState = {
@@ -253,7 +266,11 @@ function resolveMyMaiTonightLiveStart(
   );
 }
 
-function getOtherAqoursLiveCardIds(game: GameState, playerId: string): readonly string[] {
+function getOtherAqoursLiveCardIds(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly string[] {
   const player = getPlayerById(game, playerId);
   if (!player) {
     return [];
@@ -262,12 +279,25 @@ function getOtherAqoursLiveCardIds(game: GameState, playerId: string): readonly 
     const card = getCardById(game, cardId);
     return (
       !!card &&
+      cardId !== sourceCardId &&
       card.ownerId === player.id &&
       isLiveCardData(card.data) &&
-      card.data.name !== MY_MAI_TONIGHT &&
+      !isMyMaiTonightLiveCard(card) &&
       groupAliasIs(AQOURS)(card)
     );
   });
+}
+
+function isMyMaiTonightLiveCard(card: CardInstance): boolean {
+  if (!isLiveCardData(card.data)) {
+    return false;
+  }
+  return (
+    cardCodeMatchesBase(card.data.cardCode, MY_MAI_TONIGHT_BASE_CARD_CODE) ||
+    card.data.name === MY_MAI_TONIGHT ||
+    card.data.nameJp === MY_MAI_TONIGHT ||
+    card.data.nameCn === MY_MAI_TONIGHT_CN
+  );
 }
 
 function resolveRubyLiveSuccessCenterCheerScore(

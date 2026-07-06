@@ -55,7 +55,7 @@ function startHsPb1005KosuzuLiveStart(
     return game;
   }
 
-  if (player.mainDeck.cardIds.length === 0) {
+  if (player.mainDeck.cardIds.length === 0 && player.waitingRoom.cardIds.length === 0) {
     return skipPendingAbilityWithoutActiveEffect(
       game,
       ability,

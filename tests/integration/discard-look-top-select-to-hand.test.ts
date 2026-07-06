@@ -1425,9 +1425,10 @@ describe('discard look top select to hand shared workflow', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
-      discardCard.instanceId,
       ...topCards.map((card) => card.instanceId),
+      discardCard.instanceId,
     ]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
   });
 
   it('does not inspect the deck when PL!S-bp2-005 optional discard is declined', () => {

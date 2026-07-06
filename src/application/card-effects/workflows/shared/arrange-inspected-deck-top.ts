@@ -254,7 +254,7 @@ export function startArrangeInspectedDeckTopWorkflow(
     );
   }
 
-  if (player.mainDeck.cardIds.length === 0) {
+  if (player.mainDeck.cardIds.length === 0 && player.waitingRoom.cardIds.length === 0) {
     const manualConfirmation = config.starterOptions
       ? maybeStartManualPendingAbilityConfirmation(game, config.ability, config.starterOptions)
       : null;

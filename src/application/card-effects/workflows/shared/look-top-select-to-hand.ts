@@ -331,7 +331,11 @@ export function startLookTopSelectToHandWorkflow(
     return game;
   }
 
-  if (player.mainDeck.cardIds.length === 0 && config.noCardsMode !== 'open-selection') {
+  if (
+    player.mainDeck.cardIds.length === 0 &&
+    player.waitingRoom.cardIds.length === 0 &&
+    config.noCardsMode !== 'open-selection'
+  ) {
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),

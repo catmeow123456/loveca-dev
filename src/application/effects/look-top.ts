@@ -3,7 +3,7 @@ import type { GameState } from '../../domain/entities/game.js';
 import { getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
 import { addCardToZone } from '../../domain/entities/zone.js';
 import { ZoneType } from '../../shared/types/enums.js';
-import { applyPendingRefreshForPlayer } from './refresh.js';
+import { applyCheckTopRefreshForPlayer, applyPendingRefreshForPlayer } from './refresh.js';
 
 export type InspectionCardPredicate = (card: CardInstance) => boolean;
 
@@ -39,7 +39,8 @@ export function inspectTopCards(
   playerId: string,
   config: InspectTopCardsConfig
 ): InspectTopCardsResult | null {
-  const player = getPlayerById(game, playerId);
+  let state = applyCheckTopRefreshForPlayer(game, playerId, config.count);
+  const player = getPlayerById(state, playerId);
   if (!player) {
     return null;
   }
@@ -52,13 +53,14 @@ export function inspectTopCards(
       })
     : inspectedCardIds;
 
-  const state = updatePlayer(game, player.id, (currentPlayer) => ({
+  state = updatePlayer(state, player.id, (currentPlayer) => ({
     ...currentPlayer,
     mainDeck: {
       ...currentPlayer.mainDeck,
       cardIds: currentPlayer.mainDeck.cardIds.slice(inspectedCardIds.length),
     },
   }));
+  state = applyPendingRefreshForPlayer(state, player.id);
 
   return {
     gameState: {

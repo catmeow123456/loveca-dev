@@ -88,7 +88,7 @@ function startKarinLiveStartInspection(
     return game;
   }
 
-  if (player.mainDeck.cardIds.length === 0) {
+  if (player.mainDeck.cardIds.length === 0 && player.waitingRoom.cardIds.length === 0) {
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),

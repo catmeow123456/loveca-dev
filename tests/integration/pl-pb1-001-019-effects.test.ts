@@ -250,12 +250,14 @@ function setup001(options: {
   readonly sourceOrientation?: OrientationState;
   readonly handCount?: number;
   readonly deckCards?: readonly CardInstance<AnyCardData>[];
+  readonly waitingRoomCards?: readonly CardInstance<AnyCardData>[];
   readonly activePlayerIndex?: number;
 } = {}): {
   readonly session: GameSession;
   readonly source: CardInstance<MemberCardData>;
   readonly handCards: readonly CardInstance<MemberCardData>[];
   readonly deckCards: readonly CardInstance<AnyCardData>[];
+  readonly waitingRoomCards: readonly CardInstance<AnyCardData>[];
 } {
   const source = instance(
     createMember(options.sourceCardCode ?? 'PL!-pb1-001-R', {
@@ -273,9 +275,10 @@ function setup001(options: {
       instance(createMember('low-member', { cost: 2 }), 'low-member'),
       instance(createLive('hit-live', 1, ["μ's"]), 'hit-live'),
     ];
+  const waitingRoomCards = options.waitingRoomCards ?? [];
 
   let game = createGameState('pl-pb1-001', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, [source, ...handCards, ...deckCards]);
+  game = registerCards(game, [source, ...handCards, ...deckCards, ...waitingRoomCards]);
   game = forceMainPhase(game, { activePlayerIndex: options.activePlayerIndex });
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
@@ -290,6 +293,10 @@ function setup001(options: {
     ),
     hand: handCards.reduce((zone, card) => addCardToZone(zone, card.instanceId), player.hand),
     mainDeck: deckCards.reduce((zone, card) => addCardToZone(zone, card.instanceId), player.mainDeck),
+    waitingRoom: waitingRoomCards.reduce(
+      (zone, card) => addCardToZone(zone, card.instanceId),
+      player.waitingRoom
+    ),
   }));
 
   return {
@@ -297,6 +304,7 @@ function setup001(options: {
     source,
     handCards,
     deckCards,
+    waitingRoomCards,
   };
 }
 
@@ -470,7 +478,7 @@ describe('PL!-pb1-001 and PL!S-pb1-019 workflows', () => {
     expect(resolved.players[0].waitingRoom.cardIds.indexOf(deckCards[0]!.instanceId)).toBeGreaterThan(
       resolved.players[0].waitingRoom.cardIds.indexOf(handCards[1]!.instanceId)
     );
-    expect(resolved.players[0].mainDeck.cardIds).toEqual([]);
+    expect(resolved.players[0].mainDeck.cardIds).toEqual([handCards[1]!.instanceId]);
     expect(resolved.inspectionZone.cardIds).toEqual([]);
     expect(
       resolved.eventLog.some(
@@ -506,6 +514,46 @@ describe('PL!-pb1-001 and PL!S-pb1-019 workflows', () => {
     expect(resolved.players[0].mainDeck.cardIds).toEqual([laterLive.instanceId]);
   });
 
+  it('PL!-pb1-001 continues reveal-until-hit across refresh without shuffling revealed cards back', () => {
+    const waitingHitLive = instance(createLive('waiting-hit-live', 1, ["μ's"]), 'waiting-hit-live');
+    const { session, source, handCards, deckCards } = setup001({
+      deckCards: [
+        instance(createMember('low-a', { cost: 1 }), 'low-a'),
+        instance(createMember('low-b', { cost: 9 }), 'low-b'),
+      ],
+      waitingRoomCards: [waitingHitLive],
+    });
+    expect(activate001(session, source.instanceId).success).toBe(true);
+    confirmActiveEffectCard(session, handCards[0]!.instanceId);
+
+    const afterReveal = confirmActiveEffect(session, 'LIVE_CARD');
+    const inspectedCardIds = afterReveal.activeEffect!.inspectionCardIds!;
+    expect(inspectedCardIds.slice(0, 2)).toEqual(deckCards.map((card) => card.instanceId));
+    expect(inspectedCardIds).toContain(waitingHitLive.instanceId);
+    expect(afterReveal.inspectionZone.cardIds).toEqual(inspectedCardIds);
+    expect(afterReveal.inspectionZone.revealedCardIds).toEqual(inspectedCardIds);
+    expect(afterReveal.players[0].mainDeck.cardIds).not.toEqual(
+      expect.arrayContaining(deckCards.map((card) => card.instanceId))
+    );
+    expect(
+      afterReveal.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.affectedPlayerId === PLAYER1 &&
+          action.payload.movedCount === 2 &&
+          action.payload.mainDeckCountAfter === 2
+      )
+    ).toBe(true);
+
+    const resolved = confirmActiveEffect(session);
+    expect(resolved.players[0].hand.cardIds).toContain(waitingHitLive.instanceId);
+    expect(resolved.players[0].waitingRoom.cardIds).toEqual(
+      expect.arrayContaining(deckCards.map((card) => card.instanceId))
+    );
+    expect(resolved.players[0].waitingRoom.cardIds).not.toContain(waitingHitLive.instanceId);
+  });
+
   it('PL!-pb1-001 reveals all cards to waiting room when no selected type is found', () => {
     const { session, source, handCards, deckCards } = setup001({
       deckCards: [
@@ -517,9 +565,12 @@ describe('PL!-pb1-001 and PL!S-pb1-019 workflows', () => {
     confirmActiveEffectCard(session, handCards[0]!.instanceId);
     const afterReveal = confirmActiveEffect(session, 'LIVE_CARD');
     expect(afterReveal.activeEffect?.stepText).toBe(
-      '已公开2张卡，未公开到LIVE卡。确认后将公开的卡全部放置入休息室。'
+      '已公开3张卡，未公开到LIVE卡。确认后将公开的卡全部放置入休息室。'
     );
-    expect(afterReveal.inspectionZone.cardIds).toEqual(deckCards.map((card) => card.instanceId));
+    expect(afterReveal.inspectionZone.cardIds).toEqual([
+      ...deckCards.map((card) => card.instanceId),
+      handCards[0]!.instanceId,
+    ]);
     expect(afterReveal.players[0].waitingRoom.cardIds).not.toEqual(
       expect.arrayContaining(deckCards.map((card) => card.instanceId))
     );
@@ -528,8 +579,12 @@ describe('PL!-pb1-001 and PL!S-pb1-019 workflows', () => {
     expect(resolved.players[0].mainDeck.cardIds).toEqual([]);
     expect(resolved.players[0].hand.cardIds).not.toContain(deckCards[0]!.instanceId);
     expect(resolved.players[0].hand.cardIds).not.toContain(deckCards[1]!.instanceId);
+    expect(resolved.players[0].hand.cardIds).not.toContain(handCards[0]!.instanceId);
     expect(resolved.players[0].waitingRoom.cardIds).toEqual(
-      expect.arrayContaining(deckCards.map((card) => card.instanceId))
+      expect.arrayContaining([
+        ...deckCards.map((card) => card.instanceId),
+        handCards[0]!.instanceId,
+      ])
     );
   });
 

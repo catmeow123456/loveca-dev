@@ -169,7 +169,8 @@ describe('look top select to hand shared workflow', () => {
     );
     expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topFiveCardIds);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual(selectableLiveCardIds);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([source.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([source.instanceId]);
     const startedSummary = session
       .getPublicEventsSince(beforeSeq)
       .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'STARTED');
@@ -204,13 +205,12 @@ describe('look top select to hand shared workflow', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([selectedLiveCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
-      source.instanceId,
       topCards[0]!.instanceId,
       topCards[1]!.instanceId,
       topCards[2]!.instanceId,
       topCards[4]!.instanceId,
     ]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([source.instanceId]);
     const completedSummary = session
       .getPublicEventsSince(beforeSeq)
       .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'COMPLETED');

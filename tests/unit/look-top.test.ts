@@ -133,6 +133,85 @@ describe('look-top helpers', () => {
     expect(result?.gameState.inspectionZone.revealedCardIds).toEqual(topCardIds);
   });
 
+  it('refreshes before main-deck inspection when the deck is short but waiting room can supply cards', () => {
+    const state = createMutableState();
+    const cardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.MEMBER)
+      .slice(0, 6)
+      .map((card) => card.instanceId);
+    const originalTopCardIds = cardIds.slice(0, 2);
+    const waitingRoomCardIds = cardIds.slice(2, 6);
+    setMainDeckForPlayer(state, originalTopCardIds);
+    const p1 = state.players[0] as unknown as {
+      waitingRoom: { cardIds: string[] };
+    };
+    p1.waitingRoom.cardIds = [...waitingRoomCardIds];
+
+    const result = inspectTopCards(state, PLAYER1, { count: 5, reveal: true });
+
+    expect(result).not.toBeNull();
+    expect(result!.inspectedCardIds).toHaveLength(5);
+    expect(result!.inspectedCardIds.slice(0, 2)).toEqual(originalTopCardIds);
+    expect(new Set(result!.inspectedCardIds.slice(2)).size).toBe(3);
+    expect(result!.inspectedCardIds.slice(2).every((cardId) => waitingRoomCardIds.includes(cardId)))
+      .toBe(true);
+    expect(result!.gameState.inspectionZone.cardIds).toEqual(result!.inspectedCardIds);
+    expect(result!.gameState.inspectionZone.revealedCardIds).toEqual(result!.inspectedCardIds);
+    expect(result!.gameState.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(result!.gameState.players[0].mainDeck.cardIds).toHaveLength(1);
+    expect(
+      result!.gameState.players[0].mainDeck.cardIds.every(
+        (cardId) =>
+          !result!.inspectedCardIds.includes(cardId) && waitingRoomCardIds.includes(cardId)
+      )
+    ).toBe(true);
+    expect(
+      result!.gameState.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.affectedPlayerId === PLAYER1 &&
+          action.payload.movedCount === 4 &&
+          action.payload.mainDeckCountAfter === 6
+      )
+    ).toBe(true);
+  });
+
+  it('refreshes after inspection exactly empties the main deck while waiting room still has cards', () => {
+    const state = createMutableState();
+    const cardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.MEMBER)
+      .slice(0, 6)
+      .map((card) => card.instanceId);
+    const originalTopCardIds = cardIds.slice(0, 2);
+    const waitingRoomCardIds = cardIds.slice(2, 6);
+    setMainDeckForPlayer(state, originalTopCardIds);
+    const p1 = state.players[0] as unknown as {
+      waitingRoom: { cardIds: string[] };
+    };
+    p1.waitingRoom.cardIds = [...waitingRoomCardIds];
+
+    const result = inspectTopCards(state, PLAYER1, { count: 2 });
+
+    expect(result).not.toBeNull();
+    expect(result!.inspectedCardIds).toEqual(originalTopCardIds);
+    expect(result!.gameState.inspectionZone.cardIds).toEqual(originalTopCardIds);
+    expect(result!.gameState.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(new Set(result!.gameState.players[0].mainDeck.cardIds)).toEqual(
+      new Set(waitingRoomCardIds)
+    );
+    expect(
+      result!.gameState.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.affectedPlayerId === PLAYER1 &&
+          action.payload.movedCount === 4 &&
+          action.payload.mainDeckCountAfter === 4
+      )
+    ).toBe(true);
+  });
+
   it('moves selected inspected card to hand, mills the rest, and clears inspection', () => {
     const state = createMutableState();
     const topCardIds = [...state.cardRegistry.values()]

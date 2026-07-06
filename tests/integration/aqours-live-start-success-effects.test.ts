@@ -195,6 +195,39 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
     }
   });
 
+  it('PL!S-bp2-023 does not give BLADE when the localized source LIVE is the only LIVE card', () => {
+    const sourceLive = createCardInstance(
+      createLiveCard('PL!S-bp2-023-L', { name: '我的舞蹈☆今夜' }),
+      PLAYER1,
+      'my-mai-tonight-cn'
+    );
+    const member = createCardInstance(
+      createMemberCard('PL!S-stage-member'),
+      PLAYER1,
+      'stage-member'
+    );
+    let game = registerCards(createGameState('bp2-023-cn-only', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      sourceLive,
+      member,
+    ]);
+    game = placeLiveZone(game, [sourceLive.instanceId]);
+    game = placeStageMembers(game, [{ cardId: member.instanceId, slot: SlotPosition.CENTER }]);
+    game = {
+      ...game,
+      pendingAbilities: [
+        createPendingAbility(
+          S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+          sourceLive.instanceId,
+          TriggerCondition.ON_LIVE_START
+        ),
+      ],
+    };
+
+    const resolved = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState);
+
+    expect(resolved.liveResolution.liveModifiers).toHaveLength(0);
+  });
+
   it('PL!S-bp2-023 does not give BLADE with only MY舞☆TONIGHT or non-Aqours LIVE cards', () => {
     const sourceLive = createCardInstance(
       createLiveCard('PL!S-bp2-023-L', { name: 'MY舞☆TONIGHT' }),
@@ -202,7 +235,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       'my-mai-only'
     );
     const sameNameLive = createCardInstance(
-      createLiveCard('PL!S-bp2-023-L', { name: 'MY舞☆TONIGHT' }),
+      createLiveCard('PL!S-bp2-023-L', { name: '我的舞蹈☆今夜' }),
       PLAYER1,
       'same-name-live'
     );

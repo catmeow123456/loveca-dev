@@ -5203,7 +5203,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_BP2_023_LIVE_START_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_START workflow；重新读取己方 liveZone，存在名称不是 MY舞☆TONIGHT 的 Aqours LIVE 时，给己方舞台所有成员各写 BLADE +1 modifier。',
+      '单卡 LIVE_START workflow；重新读取己方 liveZone，排除来源实例与 PL!S-bp2-023 同名/同 base 的 MY舞☆TONIGHT 后，存在其他 Aqours LIVE 时给己方舞台所有成员各写 BLADE +1 modifier。',
   },
   {
     abilityId: S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID,
@@ -5762,7 +5762,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     requiredSourceSlots: [SlotPosition.CENTER],
     perTurnLimit: 1,
     notes:
-      '单卡 activated workflow `pl-pb1-001-honoka.ts`；费用支付先检查主阶段、来源在 CENTER、可变 WAITING 且有手牌。成员状态变化与弃手分别走 trigger wrapper，费用成功后记录 turn use，再选择公开 LIVE 或费用10以上成员。逐张公开到 inspectionZone/revealed，命中入手，其余公开卡走 inspection-to-waiting trigger wrapper；不使用刷新。',
+      '单卡 activated workflow `pl-pb1-001-honoka.ts`；费用支付先检查主阶段、来源在 CENTER、可变 WAITING 且有手牌。成员状态变化与弃手分别走 trigger wrapper，费用成功后记录 turn use，再选择公开 LIVE 或费用10以上成员。逐张公开到 inspectionZone/revealed，跨空牌库刷新继续公开直到命中或总可用牌耗尽；命中入手，其余公开卡走 inspection-to-waiting trigger wrapper，已公开牌不会被洗回主卡组。',
     activatedUi: {
       abilityId: PL_PB1_001_ACTIVATED_WAIT_SELF_DISCARD_REVEAL_UNTIL_CHOSEN_ABILITY_ID,
       text: PL_PB1_001_ACTIVATED_EFFECT_TEXT,
