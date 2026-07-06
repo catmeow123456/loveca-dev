@@ -1070,8 +1070,8 @@ export const PlayerArea = memo(function PlayerArea({
     const isMainDeck = deckType === 'main';
     const deckZoneType = isMainDeck ? ZoneType.MAIN_DECK : ZoneType.ENERGY_DECK;
     const deckDroppableId = getDroppableId(deckZoneType);
-    // 获取能量卡组顶层卡牌（用于拖拽）
-    const topCardId = !isMainDeck && count > 0 ? energyDeckCardIds[0] : null;
+    const topCardId =
+      count > 0 ? (isMainDeck ? mainDeckCardIds[0] : energyDeckCardIds[0]) : null;
 
     // 点击主卡组：翻顶 1 张到检视区
     const handleClick = () => {
@@ -1090,7 +1090,10 @@ export const PlayerArea = memo(function PlayerArea({
           </div>
         )}
         {/* 顶层卡牌 */}
-        <div className="absolute inset-0 rounded overflow-hidden shadow-md">
+        <div
+          data-object-id={topCardId ? `obj_${topCardId}` : undefined}
+          className="absolute inset-0 rounded overflow-hidden shadow-md"
+        >
           <img src="/back.jpg" alt={label} className="w-full h-full object-cover" />
         </div>
       </>

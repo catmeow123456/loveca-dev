@@ -185,7 +185,7 @@ export function BattleAnimationLayer() {
   };
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[72]">
+    <div className="pointer-events-none fixed inset-0 z-[96]">
       <AnimatePresence>
         {events.map((event) => {
           if (event.kind === 'CARD_MOVE') {

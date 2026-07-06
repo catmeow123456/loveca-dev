@@ -83,12 +83,16 @@ export interface BattleObjectLocation {
 }
 
 const MAX_INDIVIDUAL_MOVES = 8;
+const IGNORED_ANIMATION_ANCHOR_SELECTOR = '[data-battle-animation-ignore="true"]';
 
 export function collectBattleAnimationAnchors(): BattleAnimationAnchorMaps {
   const cards = new Map<string, BattleAnimationCardAnchor>();
   const zones = new Map<string, BattleAnimationRect>();
 
   document.querySelectorAll<HTMLElement>('[data-object-id]').forEach((element) => {
+    if (isIgnoredAnimationAnchor(element)) {
+      return;
+    }
     const objectId = element.dataset.objectId;
     if (!objectId || cards.has(objectId)) {
       return;
@@ -100,6 +104,9 @@ export function collectBattleAnimationAnchors(): BattleAnimationAnchorMaps {
   });
 
   document.querySelectorAll<HTMLElement>('[data-zone-id]').forEach((element) => {
+    if (isIgnoredAnimationAnchor(element)) {
+      return;
+    }
     const zoneId = element.dataset.zoneId;
     if (zoneId && !zones.has(zoneId)) {
       zones.set(zoneId, rectFromDomRect(element.getBoundingClientRect()));
@@ -110,6 +117,9 @@ export function collectBattleAnimationAnchors(): BattleAnimationAnchorMaps {
   });
 
   document.querySelectorAll<HTMLElement>('[data-animation-zone-id]').forEach((element) => {
+    if (isIgnoredAnimationAnchor(element)) {
+      return;
+    }
     const zoneId = element.dataset.animationZoneId;
     if (!zoneId) {
       return;
@@ -118,6 +128,10 @@ export function collectBattleAnimationAnchors(): BattleAnimationAnchorMaps {
   });
 
   return { cards, zones };
+}
+
+function isIgnoredAnimationAnchor(element: HTMLElement): boolean {
+  return element.closest(IGNORED_ANIMATION_ANCHOR_SELECTOR) !== null;
 }
 
 export function prepareBattleAnimationLayoutForViewDiff({
@@ -235,7 +249,7 @@ export function createBattleAnimationEventsFromViewDiff({
 
       const fromRect = resolveAnimationRect(previousAnchors, objectId, previousLocation);
       const toRect = resolveAnimationRect(nextAnchors, objectId, nextLocation, {
-        preferZoneAnchor: nextLocation.zoneType === ZoneType.WAITING_ROOM,
+        preferZoneAnchor: shouldPreferDestinationZoneAnchor(nextLocation),
       });
       if (fromRect && toRect && !sameRect(fromRect, toRect)) {
         const render = createCardRender({
@@ -509,6 +523,14 @@ function shouldUseWaitingRoomRevealPresentation({
     getSeatFromZoneKey(nextLocation.zoneKey) !== null &&
     render.surface === 'FRONT' &&
     !!render.cardCode
+  );
+}
+
+function shouldPreferDestinationZoneAnchor(location: BattleObjectLocation): boolean {
+  return (
+    location.zoneType === ZoneType.WAITING_ROOM ||
+    location.zoneType === ZoneType.MAIN_DECK ||
+    location.zoneType === ZoneType.ENERGY_DECK
   );
 }
 

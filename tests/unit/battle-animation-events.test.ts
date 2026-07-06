@@ -117,18 +117,48 @@ function fakeAnchorElement({
   left,
   top,
   imageSrc,
+  ignored = false,
 }: {
   readonly objectId: string;
   readonly left: number;
   readonly top: number;
   readonly imageSrc?: string;
+  readonly ignored?: boolean;
 }): HTMLElement {
   return {
     dataset: { objectId },
     id: '',
     getBoundingClientRect: () => ({ left, top, width: 50, height: 70 }),
     matches: () => false,
+    closest: (selector: string) =>
+      ignored && selector === '[data-battle-animation-ignore="true"]'
+        ? ({} as Element)
+        : null,
     querySelector: () => (imageSrc ? { currentSrc: imageSrc, src: imageSrc } : null),
+  } as unknown as HTMLElement;
+}
+
+function fakeZoneElement({
+  zoneId,
+  animationZoneId,
+  left,
+  top,
+  ignored = false,
+}: {
+  readonly zoneId?: string;
+  readonly animationZoneId?: string;
+  readonly left: number;
+  readonly top: number;
+  readonly ignored?: boolean;
+}): HTMLElement {
+  return {
+    dataset: { zoneId, animationZoneId },
+    id: zoneId ?? animationZoneId ?? '',
+    getBoundingClientRect: () => ({ left, top, width: 50, height: 70 }),
+    closest: (selector: string) =>
+      ignored && selector === '[data-battle-animation-ignore="true"]'
+        ? ({} as Element)
+        : null,
   } as unknown as HTMLElement;
 }
 
@@ -225,6 +255,52 @@ describe('battle animation events', () => {
     expect(findBattleObjectLocation(state, objectId)?.key).toBe(`FIRST_HAND:list:0:${objectId}`);
   });
 
+  it('ignores control-surface card anchors when collecting animation anchors', () => {
+    const ignoredPanelCard = fakeAnchorElement({
+      objectId: 'obj_a',
+      left: 320,
+      top: 220,
+      ignored: true,
+    });
+    const tableCard = fakeAnchorElement({
+      objectId: 'obj_a',
+      left: 24,
+      top: 460,
+    });
+    const ignoredPanelZone = fakeZoneElement({
+      animationZoneId: 'seat-FIRST::main-deck',
+      left: 300,
+      top: 200,
+      ignored: true,
+    });
+    const tableZone = fakeZoneElement({
+      animationZoneId: 'seat-FIRST::main-deck',
+      left: 740,
+      top: 500,
+    });
+
+    const collectedAnchors = withFakeDocument(
+      {
+        querySelectorAll: (selector: string) => {
+          if (selector === '[data-object-id]') {
+            return [ignoredPanelCard, tableCard] as unknown as NodeListOf<HTMLElement>;
+          }
+          if (selector === '[data-animation-zone-id]') {
+            return [ignoredPanelZone, tableZone] as unknown as NodeListOf<HTMLElement>;
+          }
+          return [] as unknown as NodeListOf<HTMLElement>;
+        },
+      },
+      () => collectBattleAnimationAnchors()
+    );
+
+    expect(collectedAnchors.cards.get('obj_a')).toMatchObject({ left: 24, top: 460 });
+    expect(collectedAnchors.zones.get('seat-FIRST::main-deck')).toMatchObject({
+      left: 740,
+      top: 500,
+    });
+  });
+
   it('collects object locations across lists, slots, overlays, and memberBelow', () => {
     const state = viewState({
       zones: {
@@ -284,6 +360,123 @@ describe('battle animation events', () => {
       kind: 'CARD_MOVE',
       fromZoneType: ZoneType.HAND,
       toZoneType: ZoneType.MEMBER_SLOT,
+    });
+  });
+
+  it('creates a main-deck-to-hand move from the scoped deck anchor when the deck card is not rendered', () => {
+    const previous = viewState({
+      seq: 10,
+      zones: {
+        FIRST_MAIN_DECK: zone(ZoneType.MAIN_DECK, { objectIds: ['obj_drawn', 'obj_rest'] }),
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: [] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: {
+        obj_drawn: backCardObject('obj_drawn'),
+        obj_rest: backCardObject('obj_rest'),
+      },
+    });
+    const next = viewState({
+      seq: 11,
+      zones: {
+        FIRST_MAIN_DECK: zone(ZoneType.MAIN_DECK, { objectIds: ['obj_rest'] }),
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: ['obj_drawn'] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: {
+        obj_drawn: cardObject('obj_drawn'),
+        obj_rest: backCardObject('obj_rest'),
+      },
+    });
+
+    const deckRect = rect(720, 480);
+    const handRect = rect(360, 620);
+    const events = createBattleAnimationEventsFromViewDiff({
+      previousViewState: previous,
+      nextViewState: next,
+      previousAnchors: {
+        cards: new Map(),
+        zones: new Map([['seat-FIRST::main-deck', deckRect]]),
+      },
+      nextAnchors: {
+        cards: new Map([['obj_drawn', handRect]]),
+        zones: new Map(),
+      },
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: 'CARD_MOVE',
+      fromZoneType: ZoneType.MAIN_DECK,
+      toZoneType: ZoneType.HAND,
+      fromRect: deckRect,
+      toRect: handRect,
+      render: {
+        objectId: 'obj_drawn',
+        fromSurface: 'BACK',
+        toSurface: 'FRONT',
+        surface: 'FRONT',
+      },
+    });
+  });
+
+  it('creates a hand-to-main-deck move to the scoped deck anchor for deck-bottom placement', () => {
+    const previous = viewState({
+      seq: 12,
+      zones: {
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: ['obj_keep', 'obj_bottom'] }),
+        FIRST_MAIN_DECK: zone(ZoneType.MAIN_DECK, { objectIds: ['obj_top'] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: {
+        obj_keep: cardObject('obj_keep'),
+        obj_bottom: cardObject('obj_bottom'),
+        obj_top: backCardObject('obj_top'),
+      },
+    });
+    const next = viewState({
+      seq: 13,
+      zones: {
+        FIRST_HAND: zone(ZoneType.HAND, { objectIds: ['obj_keep'] }),
+        FIRST_MAIN_DECK: zone(ZoneType.MAIN_DECK, { objectIds: ['obj_top', 'obj_bottom'] }),
+      } as Record<ViewZoneKey, ViewZoneState>,
+      objects: {
+        obj_keep: cardObject('obj_keep'),
+        obj_bottom: backCardObject('obj_bottom'),
+        obj_top: backCardObject('obj_top'),
+      },
+    });
+
+    const handRect = rect(360, 620);
+    const deckRect = rect(720, 480);
+    const misleadingNextCardRect = rect(96, 128);
+    const events = createBattleAnimationEventsFromViewDiff({
+      previousViewState: previous,
+      nextViewState: next,
+      previousAnchors: {
+        cards: new Map([['obj_bottom', handRect]]),
+        zones: new Map(),
+      },
+      nextAnchors: {
+        cards: new Map([
+          ['obj_top', rect(724, 484)],
+          ['obj_bottom', misleadingNextCardRect],
+        ]),
+        zones: new Map([['seat-FIRST::main-deck', deckRect]]),
+      },
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: 'CARD_MOVE',
+      fromZoneType: ZoneType.HAND,
+      toZoneType: ZoneType.MAIN_DECK,
+      fromRect: handRect,
+      toRect: deckRect,
+      render: {
+        objectId: 'obj_bottom',
+        fromSurface: 'FRONT',
+        toSurface: 'BACK',
+        surface: 'BACK',
+        cardCode: undefined,
+      },
     });
   });
 
