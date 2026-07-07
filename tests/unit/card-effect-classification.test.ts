@@ -2224,7 +2224,7 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
     expect(loveUMyFriendsLiveSuccess?.effectText).toBe(
-      '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLBLADE]的卡1张以上时，此卡的分数+1。'
+      '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLハート]的卡1张以上时，此卡的分数+1。'
     );
 
     for (const cardCode of [

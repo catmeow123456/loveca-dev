@@ -203,24 +203,24 @@ function latestPayload(game: GameState) {
 }
 
 describe('PL!N-bp3-030 Love U my friends live success workflow', () => {
-  it('shows ALLBLADE condition status in the confirm-only preview', () => {
-    const allBladeCheer = createCardInstance(
-      createCheerMember('PL!N-test-all-blade-preview', allBladeHeart()),
+  it('shows ALL Heart condition status in the confirm-only preview', () => {
+    const allHeartCheer = createCardInstance(
+      createCheerMember('PL!N-test-all-heart-preview', allBladeHeart()),
       PLAYER1,
-      'own-all-blade-preview-cheer'
+      'own-all-heart-preview-cheer'
     );
     const result = new GameService().executeCheckTiming(
-      setupLiveSuccess({ ownCheerCards: [allBladeCheer] }),
+      setupLiveSuccess({ ownCheerCards: [allHeartCheer] }),
       [TriggerCondition.ON_LIVE_SUCCESS]
     );
 
     expect(result.success, result.error).toBe(true);
     expect(result.gameState.activeEffect?.effectText).toBe(
-      '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLBLADE]的卡1张以上时，此卡的分数+1。（声援[ALLBLADE]卡 1张，满足条件，分数+1）'
+      '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLハート]的卡1张以上时，此卡的分数+1。（声援[ALLハート]卡 1张，满足条件，分数+1）'
     );
   });
 
-  it('adds this-live SCORE +1 and refreshes playerScores when own cheer reveals ALLBLADE', () => {
+  it('adds this-live SCORE +1 and refreshes playerScores when own cheer reveals ALL Heart', () => {
     const sourceLive = createCardInstance(createLoveUMyFriends(), PLAYER1, 'love-u-live');
     const allBladeCheer = createCardInstance(
       createCheerMember('PL!N-test-all-blade', allBladeHeart()),

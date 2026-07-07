@@ -51,7 +51,7 @@ function getNLiveSuccessCheerAllBladeScoreConfirmationEffectText(
       ? selectAllBladeCheerCardIds(game, player.id)
       : [];
   const conditionMet = allBladeCheerCardIds.length > 0;
-  return `${getAbilityEffectText(ability.abilityId)}（声援[ALLBLADE]卡 ${allBladeCheerCardIds.length}张，${conditionMet ? '满足条件，分数+1' : '未满足条件'}）`;
+  return `${getAbilityEffectText(ability.abilityId)}（声援[ALLハート]卡 ${allBladeCheerCardIds.length}张，${conditionMet ? '满足条件，分数+1' : '未满足条件'}）`;
 }
 
 function resolveNLiveSuccessCheerAllBladeScore(

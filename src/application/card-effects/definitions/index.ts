@@ -592,7 +592,7 @@ const PL_N_BP3_025_LIVE_START_EFFECT_TEXT =
 const PL_N_BP3_027_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】此回合中，自己的剩余HEART中存在大于等于1个[緑ハート]，并且自己的舞台存在『虹咲』的成员的场合，从自己的能量卡组中将1张能量卡以待机状态放置。';
 const PL_N_BP3_030_LIVE_SUCCESS_EFFECT_TEXT =
-  '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLBLADE]的卡1张以上时，此卡的分数+1。';
+  '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLハート]的卡1张以上时，此卡的分数+1。';
 const BP3_001_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将此成员变为待机状态：抽1张卡，将1张手牌放置入休息室。（待机状态成员持有的 BLADE 不会增加声援公开张数。）';
 const BP3_001_LIVE_START_EFFECT_TEXT = '【LIVE开始时】可以将自己舞台上的成员至多1名变为活跃状态。';
