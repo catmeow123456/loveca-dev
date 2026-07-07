@@ -296,7 +296,12 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
     expect(
       session.state?.players[0].memberSlots.cardStates.get(source.instanceId)?.orientation
     ).toBe(OrientationState.WAITING);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discard.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.activeEffect?.inspectionCardIds).toEqual([
+      target.instanceId,
+      lowCost.instanceId,
+      discard.instanceId,
+    ]);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
     const startedSummary = session
       .getPublicEventsSince(beforeCostSeq)
@@ -308,11 +313,10 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
       expect(startedSummary.summaryStatus).toBe('STARTED');
       expect(startedSummary.sourceOrientationCost).toBe('WAITING');
       expect(startedSummary.sourceCard?.publicObjectId).toBe(`obj_${source.instanceId}`);
-      expect(startedSummary.discardedCostCards?.map((card) => card.publicObjectId)).toEqual([
-        `obj_${discard.instanceId}`,
-      ]);
+      expect(startedSummary.discardedCostCards).toEqual([]);
+      expect(startedSummary.hiddenDiscardedCostCardCount).toBe(1);
       expect(startedSummary.requestedInspectCount).toBe(5);
-      expect(startedSummary.actualInspectedCount).toBe(2);
+      expect(startedSummary.actualInspectedCount).toBe(3);
     }
 
     const reveal = session.executeCommand(
@@ -325,8 +329,8 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
     expect(finish.success, finish.error).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
-      discard.instanceId,
       lowCost.instanceId,
+      discard.instanceId,
     ]);
     const completedSummary = session
       .getPublicEventsSince(beforeCostSeq)
@@ -340,7 +344,7 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
       expect(completedSummary.selectedCards?.map((card) => card.publicObjectId)).toEqual([
         `obj_${target.instanceId}`,
       ]);
-      expect(completedSummary.waitingRoomCardCount).toBe(1);
+      expect(completedSummary.waitingRoomCardCount).toBe(2);
     }
   });
 
