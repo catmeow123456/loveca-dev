@@ -52,6 +52,18 @@
   --z-modal: 101;
   --z-card-detail: 200;
   --z-phase-banner: 1000;
+
+  --battle-viewport-width: 100vw;
+  --battle-viewport-height: 100vh;
+  --battle-viewport-height: 100dvh;
+  --battle-viewport-height-46: 46dvh;
+  --battle-viewport-height-52: 52dvh;
+  --battle-viewport-height-82: 82dvh;
+  --battle-viewport-height-86: 86dvh;
+  --battle-viewport-height-88: 88dvh;
+  --battle-viewport-offset-left: 0px;
+  --battle-viewport-offset-top: 0px;
+  --battle-viewport-scale: 1;
 }
 
 html[data-theme="dark"] {

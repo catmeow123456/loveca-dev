@@ -36,6 +36,19 @@ const HEIGHT_FRACTION_VARIABLES = [
   ['--battle-viewport-height-88', 0.88],
 ] as const;
 
+const BATTLE_VIEWPORT_VARIABLE_NAMES = [
+  '--battle-viewport-width',
+  '--battle-viewport-height',
+  '--battle-viewport-height-46',
+  '--battle-viewport-height-52',
+  '--battle-viewport-height-82',
+  '--battle-viewport-height-86',
+  '--battle-viewport-height-88',
+  '--battle-viewport-offset-left',
+  '--battle-viewport-offset-top',
+  '--battle-viewport-scale',
+] as const;
+
 interface BattleViewportShellProps {
   readonly children: ReactNode;
   readonly className?: string;
@@ -59,14 +72,25 @@ export const BattleViewportShell = memo(function BattleViewportShell({
       return;
     }
 
-    root.style.setProperty('--battle-viewport-width', `${signature.width}px`);
-    root.style.setProperty('--battle-viewport-height', `${signature.height}px`);
-    for (const [propertyName, fraction] of HEIGHT_FRACTION_VARIABLES) {
-      root.style.setProperty(propertyName, `${signature.height * fraction}px`);
+    const targets: HTMLElement[] = [root];
+    if (typeof document !== 'undefined') {
+      targets.push(document.documentElement);
     }
-    root.style.setProperty('--battle-viewport-offset-left', `${signature.offsetLeft}px`);
-    root.style.setProperty('--battle-viewport-offset-top', `${signature.offsetTop}px`);
-    root.style.setProperty('--battle-viewport-scale', String(signature.scale));
+
+    for (const target of targets) {
+      target.style.setProperty('--battle-viewport-width', `${signature.width}px`);
+      target.style.setProperty('--battle-viewport-height', `${signature.height}px`);
+    }
+    for (const [propertyName, fraction] of HEIGHT_FRACTION_VARIABLES) {
+      for (const target of targets) {
+        target.style.setProperty(propertyName, `${signature.height * fraction}px`);
+      }
+    }
+    for (const target of targets) {
+      target.style.setProperty('--battle-viewport-offset-left', `${signature.offsetLeft}px`);
+      target.style.setProperty('--battle-viewport-offset-top', `${signature.offsetTop}px`);
+      target.style.setProperty('--battle-viewport-scale', String(signature.scale));
+    }
   }, []);
 
   useLayoutEffect(() => {
@@ -88,6 +112,11 @@ export const BattleViewportShell = memo(function BattleViewportShell({
       if (frameRef.current !== null) {
         window.cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
+      }
+      if (typeof document !== 'undefined') {
+        for (const propertyName of BATTLE_VIEWPORT_VARIABLE_NAMES) {
+          document.documentElement.style.removeProperty(propertyName);
+        }
       }
     };
   }, [writeViewportVariables]);
