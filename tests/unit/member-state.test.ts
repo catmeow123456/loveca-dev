@@ -10,6 +10,7 @@ import {
   removeCardFromSlot,
 } from '../../src/domain/entities/zone';
 import {
+  getMovedToStageThisTurnStageMemberIdsMatching,
   getPositionMovedStageMemberIdsMatching,
   hasMemberPositionMovedThisTurn,
 } from '../../src/domain/rules/member-turn-state';
@@ -701,6 +702,9 @@ describe('member state effect helpers', () => {
 
     expect(hasMemberPositionMovedThisTurn(game, 'p1', member.instanceId)).toBe(false);
     expect(getPositionMovedStageMemberIdsMatching(game, 'p1', () => true)).toEqual([]);
+    expect(getMovedToStageThisTurnStageMemberIdsMatching(game, 'p1', () => true)).toEqual([
+      member.instanceId,
+    ]);
   });
 
   it('queries current stage members that position-moved this turn and match the selector', () => {
@@ -755,6 +759,57 @@ describe('member state effect helpers', () => {
 
     expect(getPositionMovedStageMemberIdsMatching(leftStageGame, 'p1', () => true)).toEqual([
       museMoved.instanceId,
+    ]);
+  });
+
+  it('queries current stage members that entered this turn without including position moves', () => {
+    const enteredLiella = createCardInstance(
+      { ...createMemberCard('MEM-A'), groupNames: ['Liella!'] },
+      'p1',
+      'entered-liella'
+    );
+    const movedLiella = createCardInstance(
+      { ...createMemberCard('MEM-B'), groupNames: ['Liella!'] },
+      'p1',
+      'position-moved-liella'
+    );
+    const enteredMuse = createCardInstance(
+      { ...createMemberCard('MEM-C'), groupNames: ["μ's"] },
+      'p1',
+      'entered-muse'
+    );
+    const enteredLeftStage = createCardInstance(
+      { ...createMemberCard('MEM-D'), groupNames: ['Liella!'] },
+      'p1',
+      'entered-left-stage'
+    );
+    let game = createGameState('member-turn-entered-stage-targets', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [enteredLiella, movedLiella, enteredMuse, enteredLeftStage]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.LEFT,
+        enteredLiella.instanceId
+      );
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, movedLiella.instanceId);
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.RIGHT, enteredMuse.instanceId);
+      let nextPlayer = recordMoveToStage(player, enteredLiella.instanceId);
+      nextPlayer = recordMoveToStage(nextPlayer, enteredMuse.instanceId);
+      nextPlayer = recordMoveToStage(nextPlayer, enteredLeftStage.instanceId);
+      nextPlayer = recordPositionMove(nextPlayer, movedLiella.instanceId);
+      return { ...nextPlayer, memberSlots };
+    });
+
+    expect(
+      getMovedToStageThisTurnStageMemberIdsMatching(
+        game,
+        'p1',
+        (card) => card.data.groupNames?.includes('Liella!') === true
+      )
+    ).toEqual([enteredLiella.instanceId]);
+    expect(getMovedToStageThisTurnStageMemberIdsMatching(game, 'p1', () => true)).toEqual([
+      enteredLiella.instanceId,
+      enteredMuse.instanceId,
     ]);
   });
 });

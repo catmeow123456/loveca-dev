@@ -1742,6 +1742,7 @@ export class GameService {
         playerHeartBonuses: new Map(),
         liveRequirementReductions: new Map(),
         liveRequirementModifiers: new Map(),
+        successLivePlacementRestrictions: [],
         liveModifiers: [],
         scoreConfirmedBy: [],
         liveWinnerIds: [],

@@ -73,6 +73,14 @@ describe('parseCardEffectText', () => {
     ]);
   });
 
+  it('parses the Chinese center slot token', () => {
+    expect(parseCardEffectText('【登场】【中央】抽1张。')).toEqual([
+      { kind: 'ability', raw: '【登场】', label: '登场' },
+      { kind: 'slot', raw: '【中央】', label: '中央' },
+      { kind: 'text', text: '抽1张。' },
+    ]);
+  });
+
   it('reports unknown placeholders for governance checks', () => {
     expect(
       getUnknownCardEffectPlaceholders('获得[BLADE][桃ハート]，但不要写[桃Heart]或[blade]。')

@@ -170,6 +170,7 @@ import { registerSd1008HanayoWorkflowHandlers } from './card-effects/workflows/c
 import { registerSPb1002RikoWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-002-riko.js';
 import { registerSPb1003KananWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-003-kanan.js';
 import { registerSPb1019GenkiZenkaiDayDayDayWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-019-genki-zenkai-day-day-day.js';
+import { registerSPb1022MobiusLoopWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-022-mobius-loop.js';
 import {
   isHsSd1001HighCostHasunosoraRelayReplacement,
   registerHsSd1001KahoWorkflowHandlers,
@@ -275,6 +276,12 @@ import { registerSpSd2023HajimariWaKimiNoSoraWorkflowHandlers } from './card-eff
 import { registerSpSd2025AspireWorkflowHandlers } from './card-effects/workflows/cards/sp-sd2-025-aspire.js';
 import { registerYoshikoPlayLowCostMembersWorkflowHandlers } from './card-effects/workflows/cards/s-bp2-006-yoshiko.js';
 import { registerSBp3006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-bp3-006-yoshiko.js';
+import { registerSBp5001ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-001-chika.js';
+import { registerSBp5002RikoWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-002-riko.js';
+import { registerSBp5003KananWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-003-kanan.js';
+import { registerSBp5004DiaWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-004-dia.js';
+import { registerSBp5005YouWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-005-you.js';
+import { registerSBp5009RubyWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-009-ruby.js';
 import { registerSPb1006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-006-yoshiko.js';
 import { registerSBp6001ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-bp6-001-chika.js';
 import { registerSBp6003KananWorkflowHandlers } from './card-effects/workflows/cards/s-bp6-003-kanan.js';
@@ -748,6 +755,12 @@ registerWaitDiscardLookTopSelectToHandWorkflowHandlers({ enqueueTriggeredCardEff
 registerHsBp6031FanfareWorkflowHandlers();
 registerSBp2024KimikokoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp3006YoshikoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSBp5001ChikaWorkflowHandlers();
+registerSBp5002RikoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSBp5003KananWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSBp5004DiaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSBp5005YouWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSBp5009RubyWorkflowHandlers();
 registerSBp6001ChikaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp6003KananWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp6006YoshikoWorkflowHandlers();
@@ -899,6 +912,7 @@ registerSd1008HanayoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSPb1002RikoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSPb1003KananWorkflowHandlers();
 registerSPb1019GenkiZenkaiDayDayDayWorkflowHandlers();
+registerSPb1022MobiusLoopWorkflowHandlers();
 registerEmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLlBp6001KotoriDiaKosuzuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPlBp3001HonokaWorkflowHandlers({ enqueueTriggeredCardEffects });

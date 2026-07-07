@@ -7,6 +7,7 @@ import {
   getNormalizedCardNameCandidates as getSharedNormalizedCardNameCandidates,
   normalizeCardName as normalizeSharedCardName,
 } from '../../shared/utils/card-identity.js';
+import { hasStrictNoAbilityCardText } from '../../shared/utils/card-text.js';
 
 export type CardSelector = (card: CardInstance) => boolean;
 
@@ -205,6 +206,10 @@ export function hasNoAbilityOrContinuousAbility(): CardSelector {
     const cardText = card.data.cardText?.trim() ?? '';
     return cardText.length === 0 || /【常[时時]】/.test(cardText);
   };
+}
+
+export function hasStrictNoAbility(): CardSelector {
+  return (card) => hasStrictNoAbilityCardText(card.data.cardText);
 }
 
 export function memberPrintedBladeLte(maxBlade: number): CardSelector {
