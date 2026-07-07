@@ -183,9 +183,15 @@ import {
   N_PR_026_LIVE_SUCCESS_DELEGATE_MEMBER_BELOW_LIVE_SUCCESS_ABILITIES_ABILITY_ID,
   SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP2_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+  S_BP5_019_LIVE_SUCCESS_SUCCESS_ZONE_TWO_REVEALED_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+  S_BP5_022_LIVE_START_MOVED_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  S_BP5_022_LIVE_SUCCESS_MORE_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+  S_BP5_023_LIVE_START_STAGE_AQOURS_SAINTSNOW_COST_STACK_LIVE_ABILITY_ID,
   S_BP5_020_LIVE_SUCCESS_LOSE_REMAINING_HEARTS_SCORE_ABILITY_ID,
   S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
   S_BP5_111_AUTO_ON_THIS_MEMBER_MOVED_WAIT_OPPONENT_LOW_PRINTED_BLADE_ABILITY_ID,
+  S_BP5_222_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
+  S_BP5_222_AUTO_ON_THIS_MEMBER_MOVED_ACTIVATE_TWO_ENERGY_ABILITY_ID,
   HS_BP6_002_CONTINUOUS_ALONE_GAIN_TWO_BLADE_ABILITY_ID,
   HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
   HS_BP6_028_LIVE_SUCCESS_REMAINING_HEART_LOOK_TOP_TWO_ABILITY_ID,
@@ -214,6 +220,9 @@ import {
   HS_PR_016_LIVE_START_DISCARD_SAME_UNIT_GAIN_GREEN_HEART_BLADE_ABILITY_ID,
   HS_PR_017_LIVE_START_DISCARD_SAME_UNIT_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
   HS_PR_020_LIVE_START_PAY_ENERGY_STACK_WAITING_MEMBERS_TO_DECK_TOP_ABILITY_ID,
+  S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID,
+  S_BP5_016_LIVE_START_HIGHER_COST_THAN_ALL_OPPONENT_STAGE_GAIN_TWO_BLADE_ABILITY_ID,
+  S_BP5_017_LIVE_START_BLUE_REQUIREMENT_GAIN_BLUE_HEART_ABILITY_ID,
   S_BP6_001_ON_ENTER_FROM_WAITING_WAIT_OPPONENT_SIDE_HIGH_COST_MEMBER_ABILITY_ID,
   S_BP6_003_ACTIVATED_UPGRADE_OTHER_AQOURS_MEMBER_ABILITY_ID,
   S_BP6_006_ON_ENTER_DRAW_TWO_FROM_WAITING_GAIN_THREE_BLADE_ABILITY_ID,
@@ -1011,12 +1020,24 @@ const N_PR_024_CONTINUOUS_EFFECT_TEXT =
 const SP_BP2_024_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己的手牌张数多于对方的场合，此卡的分数＋１。';
 const S_BP2_024_LIVE_SUCCESS_EFFECT_TEXT = '【LIVE成功时】抽2张卡，将1张手牌放置入休息室。';
+const S_BP5_019_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】自己或对方的成功LIVE卡置场有2张以上卡的场合，从因声援公开的自己的卡中，将最多2张成员卡加入手牌。';
+const S_BP5_022_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】直到LIVE结束时为止，自己舞台上本回合中移动过区域的成员获得[BLADE]。';
+const S_BP5_022_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】因声援公开的自己的LIVE卡数量多于因声援公开的对方LIVE卡数量的场合，此卡分数+1。';
+const S_BP5_023_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的舞台有『Aqours』成员和『SaintSnow』成员，且这些成员的费用合计20以上的场合，可以从自己的休息室将至多4张『Aqours』或『SaintSnow』LIVE卡按喜欢的顺序放置到卡组顶。';
 const S_BP5_020_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己余剩 HEART 合计 3 个以上的场合，失去全部余剩 HEART，此 LIVE 分数 +1。';
 const S_BP5_111_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】[E]：将此成员位置变换到有『Aqours』或『SaintSnow』成员的区域。';
 const S_BP5_111_AUTO_EFFECT_TEXT =
   '【自动】此成员移动区域时，将对方舞台上1名原本持有 BLADE 数小于等于2的成员变为待机状态。';
+const S_BP5_222_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】[E]：将此成员位置变换到有『Aqours』或『SaintSnow』成员的区域。';
+const S_BP5_222_AUTO_EFFECT_TEXT =
+  '【自动】【1回合1次】此成员移动区域时，将2张能量变为活跃状态。';
 const SP_BP4_004_ON_ENTER_EFFECT_TEXT =
   '【登场】【中央】从2名『Liella!』的成员换手登场的场合，抽2张卡，将1张存在于自己休息室的费用小于等于4的『Liella!』的成员卡登场至自己的舞台的不存在成员的区域。';
 const HS_BP2_014_ON_ENTER_EFFECT_TEXT = '【登场】抽1张卡。LIVE结束时为止，自己不能Live。';
@@ -1372,6 +1393,11 @@ const S_BP6_011_ON_ENTER_EFFECT_TEXT =
   '【登场】从休息室登场的场合，抽2张卡，将1张手牌放置入休息室。';
 const S_BP6_016_ON_ENTER_EFFECT_TEXT =
   '【登场】从休息室登场的场合，检视自己卡组顶的3张卡。从其中将1张加入手牌，其余的卡片放置入休息室。';
+const S_BP5_015_ON_ENTER_EFFECT_TEXT = '【登场】将自己卡组顶10张卡放置入休息室。';
+const S_BP5_016_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的舞台存在费用高于对方舞台所有成员各自费用的成员的场合，LIVE结束时为止，获得[BLADE][BLADE]。';
+const S_BP5_017_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的LIVE卡置场的卡片必要[青ハート]合计大于等于4的场合，LIVE结束时为止，获得[青ハート]。';
 const S_DRAW_ONE_PLACE_HAND_BOTTOM_EFFECT_TEXT = '【登场】抽1张卡，将1张手牌放置到卡组底。';
 const S_BP6_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的LIVE中的LIVE卡的必要Heart中红Heart合计大于等于4的场合，LIVE结束时为止，获得红Heart。';
@@ -2149,6 +2175,54 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'LIVE 成功时复用 draw-then-discard shared workflow，抽2后弃1手。常时不能放置入成功LIVE卡区由 success-live-placement 纯规则 helper 处理，不进 pending。',
   },
   {
+    abilityId: S_BP5_019_LIVE_SUCCESS_SUCCESS_ZONE_TWO_REVEALED_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+    cardCodes: ['PL!S-bp5-019-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_BP5_019_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_SUCCESS workflow `s-bp5-019-not-alone-not-hitori.ts`；先重查自己或对方成功LIVE区是否有2张以上卡，满足时选择本次声援公开、仍在 resolutionZone 且 revealed 的自己成员卡至多2张加入手牌。移动复用 selectRevealedCheerCardIds / moveRevealedCheerCards，允许选择0张，非法或 stale 目标不移动。',
+  },
+  {
+    abilityId: S_BP5_022_LIVE_START_MOVED_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+    cardCodes: ['PL!S-bp5-022-L'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP5_022_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow `s-bp5-022-self-control.ts`；无交互 queued pending 走 manual confirm-only，并实时展示本回合移动过且仍在自己舞台的成员数量与实际 [BLADE] 结果。结算时复用 getPositionMovedStageMemberIdsMatching 与 addBladeLiveModifierForSourceMember，为每名目标成员写 SOURCE_MEMBER BLADE +1。',
+  },
+  {
+    abilityId: S_BP5_022_LIVE_SUCCESS_MORE_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+    cardCodes: ['PL!S-bp5-022-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_BP5_022_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_SUCCESS workflow `s-bp5-022-self-control.ts`；无交互 queued pending 走 manual confirm-only，并实时展示双方本次声援公开 LIVE 数。自己数量多于对方时给当前 source LIVE 写 liveCardId 绑定的 SCORE +1 modifier，并刷新 liveResolution.playerScores。',
+  },
+  {
+    abilityId: S_BP5_023_LIVE_START_STAGE_AQOURS_SAINTSNOW_COST_STACK_LIVE_ABILITY_ID,
+    cardCodes: ['PL!S-bp5-023-L'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP5_023_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow `s-bp5-023-awaken-the-power.ts`；结算时重查来源仍在自己的 LIVE 区、舞台同时存在 Aqours/SaintSnow 身份成员且相关成员有效费用合计 >=20。合法时打开 ordered multi 选择自己的休息室中至多4张 Aqours 或 SaintSnow LIVE，复用 moveWaitingRoomCardsToDeckTopForPlayer 按选择顺序放置到卡组顶；可选0张，非法/重复/超量/stale 选择不移动。',
+  },
+  {
     abilityId: S_BP5_020_LIVE_SUCCESS_LOSE_REMAINING_HEARTS_SCORE_ABILITY_ID,
     cardCodes: ['PL!S-bp5-020-L'],
     category: CardAbilityCategory.LIVE_SUCCESS,
@@ -2177,7 +2251,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       text: S_BP5_111_ACTIVATED_EFFECT_TEXT,
     },
     notes:
-      '单卡 workflow `s-bp5-111-seira.ts`；主阶段支付1张 ACTIVE 能量后，将此成员移动/交换到已有 Aqours 或 SaintSnow 成员的其他区域。目标区域发动前预筛，无合法区域或无 ACTIVE 能量不支付、不记录 per-turn use。',
+      '起动段委托 shared workflow `pay-energy-position-change-to-group-member-area.ts`；主阶段、当前玩家、来源仍在己方舞台、有1张 ACTIVE 能量且已有合法目标区域时才支付 [E] 并记录 turn1 use。移动/交换复用 moveMemberBetweenSlotsAndEnqueueTriggers 保留 ON_MEMBER_SLOT_MOVED；自动段仍由单卡 workflow `s-bp5-111-seira.ts` 处理。',
   },
   {
     abilityId: S_BP5_111_AUTO_ON_THIS_MEMBER_MOVED_WAIT_OPPONENT_LOW_PRINTED_BLADE_ABILITY_ID,
@@ -2189,7 +2263,39 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_BP5_111_AUTO_EFFECT_TEXT,
     notes:
-      '同一单卡 workflow；消费 pending eventIds 对应的 ON_MEMBER_SLOT_MOVED，且移动卡必须是此成员本身。目标为对方舞台当前非 WAITING、印刷 BLADE <=2 的成员，变 WAITING 走成员状态变化 trigger wrapper。',
+      '单卡 workflow `s-bp5-111-seira.ts`；消费 pending eventIds 对应的 ON_MEMBER_SLOT_MOVED，且移动卡必须是此成员本身。目标为对方舞台当前非 WAITING、印刷 BLADE <=2 的成员，变 WAITING 走成员状态变化 trigger wrapper。',
+  },
+  {
+    abilityId:
+      S_BP5_222_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp5-222'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: S_BP5_222_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId:
+        S_BP5_222_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
+      title: '支付1张活跃能量，移动到 Aqours 或 SaintSnow 成员所在区域',
+      text: S_BP5_222_ACTIVATED_EFFECT_TEXT,
+    },
+    notes:
+      'shared activated workflow `pay-energy-position-change-to-group-member-area.ts`；与 PL!S-bp5-111 起动段同型。主阶段、当前玩家、来源仍在己方舞台、有1张 ACTIVE 能量且已有合法目标区域时才支付 [E] 并记录 turn1 use；移动/交换复用 moveMemberBetweenSlotsAndEnqueueTriggers 保留 ON_MEMBER_SLOT_MOVED。',
+  },
+  {
+    abilityId: S_BP5_222_AUTO_ON_THIS_MEMBER_MOVED_ACTIVATE_TWO_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp5-222'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: S_BP5_222_AUTO_EFFECT_TEXT,
+    notes:
+      '单卡 AUTO workflow `s-bp5-222-ria.ts`；只消费 pending eventIds 对应的此成员自身移动事件，来源离场或其他成员/对手移动均 no-op 并消费 pending。结算复用 activateWaitingEnergyCardsForPlayer，将至多2张 WAITING 能量变为 ACTIVE；0/1张 WAITING 能量也安全结算。',
   },
   {
     abilityId: SP_BP2_009_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
@@ -5142,6 +5248,43 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'shared workflow：抽1后私有选择1张手牌放置到卡组底；不进入休息室，不触发 enter-waiting-room。',
   },
   {
+    abilityId: S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID,
+    cardCodes: ['PL!S-bp5-015-N'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP5_015_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '扩展 shared direct-mill-top workflow；topCount=10，登场时经 moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers 将实际卡组顶10张放置入休息室，并显式入队 ON_ENTER_WAITING_ROOM。refresh 洗回卡组的牌不计入本次 movedCardIds。',
+  },
+  {
+    abilityId:
+      S_BP5_016_LIVE_START_HIGHER_COST_THAN_ALL_OPPONENT_STAGE_GAIN_TWO_BLADE_ABILITY_ID,
+    cardCodes: ['PL!S-bp5-016-N'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP5_016_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow `s-bp5-016-hanamaru.ts`；无交互 queued pending 走 manual confirm-only，并实时展示己方最高费用、对方舞台费用条件与实际是否获得 [BLADE][BLADE]。结算时重查来源仍在己方舞台，费用比较使用 getMemberEffectiveCost，满足时复用 addBladeLiveModifierForSourceMember 写 SOURCE_MEMBER BLADE +2。',
+  },
+  {
+    abilityId: S_BP5_017_LIVE_START_BLUE_REQUIREMENT_GAIN_BLUE_HEART_ABILITY_ID,
+    cardCodes: ['PL!S-bp5-017-N'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP5_017_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow `s-bp5-017-mari.ts`；无交互 queued pending 走 manual confirm-only，并实时展示当前 LIVE 卡区必要 [青ハート] 合计与实际是否获得 [青ハート]。结算时重查来源仍在己方舞台，只统计 LIVE 卡区卡牌的印刷必要 Heart，满足时复用 addHeartLiveModifierForMember 写 SOURCE_MEMBER 蓝 Heart +1。',
+  },
+  {
     abilityId: S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
     baseCardCodes: ['PL!S-bp6-010'],
     category: CardAbilityCategory.LIVE_START,
@@ -7731,7 +7874,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_S_BP5_001_ON_ENTER_EFFECT_TEXT,
     notes:
-      '单卡 ON_ENTER workflow `s-bp5-001-chika.ts`；只读取本次 pending metadata.relayReplacements。来源仍在舞台且至少1张被换下成员严格无能力（cardText 为空）时抽1且只抽1；无 relay、replacement 不合法、replacement 非严格无能力或来源离场均消费 pending no-op。',
+      '单卡 ON_ENTER workflow `s-bp5-001-chika.ts`；只读取本次 pending metadata.relayReplacements。来源仍在舞台且至少1张被换下成员严格无能力（cardText 为空或 "-" 占位符）时抽1且只抽1；无 relay、replacement 不合法、replacement 非严格无能力或来源离场均消费 pending no-op。',
   },
   {
     abilityId: PL_S_BP5_001_CONTINUOUS_PLAY_NO_ABILITY_MEMBER_COST_MINUS_ABILITY_ID,
@@ -7742,7 +7885,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_S_BP5_001_CONTINUOUS_EFFECT_TEXT,
     notes:
-      'cost-calculator.ts 的舞台来源手牌登场费用修正；来源必须是自己舞台上的 PL!S-bp5-001，目标必须从自己手牌登场且严格无能力（cardText 为空）的成员卡。每个合法来源各减少1费，非手牌登场、常时/登场等持有能力目标不适用。',
+      'cost-calculator.ts 的舞台来源手牌登场费用修正；来源必须是自己舞台上的 PL!S-bp5-001，目标必须从自己手牌登场且严格无能力（cardText 为空或 "-" 占位符）的成员卡。每个合法来源各减少1费，非手牌登场、常时/登场等持有能力目标不适用。',
   },
   {
     abilityId:

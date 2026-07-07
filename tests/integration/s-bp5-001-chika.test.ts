@@ -158,6 +158,20 @@ describe('PL!S-bp5-001 高海千歌', () => {
     expect(resolved.pendingAbilities).toEqual([]);
   });
 
+  it('treats dash placeholder card text as no ability for PL!S-bp2-014 style data', () => {
+    const { game, drawCardId, replacementCardIds } = setup({ replacementTexts: ['-'] });
+
+    const resolved = resolve(game);
+
+    expect(resolved.players[0].hand.cardIds).toEqual([drawCardId]);
+    expect(latestPayload(resolved)).toMatchObject({
+      step: 'DRAW_ONE_FROM_NO_ABILITY_RELAY_REPLACEMENT',
+      relayReplacementCardIds: replacementCardIds,
+      noAbilityRelayReplacementCardIds: replacementCardIds,
+      drawnCardIds: [drawCardId],
+    });
+  });
+
   it('does not draw for non-relay pending metadata', () => {
     const { game, drawCardId } = setup({ relayReplacementCardIds: [] });
 

@@ -640,6 +640,29 @@ describe('CostCalculator', () => {
       });
     });
 
+    it('PL!S-bp5-001 应该把中文卡表的 "-" 占位符视为无能力成员文本', () => {
+      const memberData = createMockMemberData(4, '渡辺 曜', 'PL!S-bp2-014-N', {
+        cardText: '-',
+      });
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 3 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chika-source', 10, SlotPosition.LEFT, {
+            cardCode: 'PL!S-bp5-001-P',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.modifiedCost).toBe(3);
+      expect(directPlan?.costModifierAmount).toBe(1);
+    });
+
     it('PL!S-bp5-001 不应该减少常时或登场能力成员的手牌登场费用', () => {
       const abilityTargets = [
         createMockMemberData(5, '常时成员', 'PL!S-test-continuous', {

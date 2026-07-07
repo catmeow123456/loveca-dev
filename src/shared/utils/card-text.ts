@@ -1,3 +1,4 @@
 export function hasStrictNoAbilityCardText(cardText: string | undefined | null): boolean {
-  return (cardText ?? '').trim().length === 0;
+  const normalized = (cardText ?? '').trim();
+  return normalized.length === 0 || /^[-ー－—−]+$/.test(normalized);
 }

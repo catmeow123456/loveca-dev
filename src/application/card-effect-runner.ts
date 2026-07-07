@@ -203,7 +203,9 @@ import { registerPr017NicoWorkflowHandlers } from './card-effects/workflows/card
 import { registerNBp5007SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp5-007-setsuna.js';
 import { registerSBp2024KimikokoWorkflowHandlers } from './card-effects/workflows/cards/s-bp2-024-kimikoko.js';
 import { registerSBp5020LandingActionYeahWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-020-landing-action-yeah.js';
+import { registerSBp5023AwakenThePowerWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-023-awaken-the-power.js';
 import { registerSBp5111SeiraWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-111-seira.js';
+import { registerSBp5222RiaWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-222-ria.js';
 import { registerSpBp2003ChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-003-chisato.js';
 import { registerSpBp2009NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-009-natsumi.js';
 import { registerSpBp2010MargareteWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-010-margarete.js';
@@ -282,6 +284,10 @@ import { registerSBp5003KananWorkflowHandlers } from './card-effects/workflows/c
 import { registerSBp5004DiaWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-004-dia.js';
 import { registerSBp5005YouWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-005-you.js';
 import { registerSBp5009RubyWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-009-ruby.js';
+import { registerSBp5016HanamaruWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-016-hanamaru.js';
+import { registerSBp5017MariWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-017-mari.js';
+import { registerSBp5019NotAloneNotHitoriWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-019-not-alone-not-hitori.js';
+import { registerSBp5022SelfControlWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-022-self-control.js';
 import { registerSPb1006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-006-yoshiko.js';
 import { registerSBp6001ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-bp6-001-chika.js';
 import { registerSBp6003KananWorkflowHandlers } from './card-effects/workflows/cards/s-bp6-003-kanan.js';
@@ -761,6 +767,11 @@ registerSBp5003KananWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp5004DiaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp5005YouWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp5009RubyWorkflowHandlers();
+registerSBp5016HanamaruWorkflowHandlers();
+registerSBp5017MariWorkflowHandlers();
+registerSBp5019NotAloneNotHitoriWorkflowHandlers();
+registerSBp5022SelfControlWorkflowHandlers();
+registerSBp5023AwakenThePowerWorkflowHandlers();
 registerSBp6001ChikaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp6003KananWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp6006YoshikoWorkflowHandlers();
@@ -938,6 +949,9 @@ registerSBp5020LandingActionYeahWorkflowHandlers();
 registerSBp5111SeiraWorkflowHandlers({
   enqueueMemberSlotMovedCardEffects: enqueueTriggeredCardEffects,
   enqueueMemberStateChangedCardEffects: enqueueTriggeredCardEffects,
+});
+registerSBp5222RiaWorkflowHandlers({
+  enqueueMemberSlotMovedCardEffects: enqueueTriggeredCardEffects,
 });
 registerSpBp1024TinyStarsWorkflowHandlers();
 registerSpBp2001KanonWorkflowHandlers();
