@@ -12,8 +12,12 @@ import type {
 } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { GameMode, CardType, HeartColor, GamePhase, ZoneType } from '../../src/shared/types/enums';
-import { OnlineMatchService } from '../../src/server/services/online-match-service';
+import {
+  OnlineMatchService,
+  type OnlineMatchState,
+} from '../../src/server/services/online-match-service';
 import { SolitaireMatchService } from '../../src/server/services/solitaire-match-service';
+import type { SolitaireRecoveredMatch } from '../../src/server/services/solitaire-runtime-recovery-service';
 
 vi.mock('../../src/server/db/pool.js', () => ({
   pool: {
@@ -67,7 +71,13 @@ function createRuntimeDeck(prefix: string): DeckConfig {
   return { mainDeck, energyDeck };
 }
 
-function createHarness() {
+function createHarness(
+  options: {
+    readonly recoveryService?: {
+      recoverMatch: (matchId: string, userId: string) => Promise<SolitaireRecoveredMatch | null>;
+    } | null;
+  } = {}
+) {
   const matchService = new OnlineMatchService({
     recorder: null,
     idGenerator: () => 'match-solitaire-service-1',
@@ -75,6 +85,7 @@ function createHarness() {
   const service = new SolitaireMatchService({
     now: () => 1_000,
     matchService,
+    recoveryService: options.recoveryService,
     idGenerator: () => 'room-solitaire-service-1',
     opponentDeckPath: 'assets/decks/test-opponent.yaml',
     loadUserProfile: async (userId) => ({
@@ -90,6 +101,42 @@ function createHarness() {
   });
 
   return { matchService, service };
+}
+
+async function prepareRecoveredMatch(matchService: OnlineMatchService, matchId: string) {
+  const match = matchService.getMatch(matchId);
+  expect(match).not.toBeNull();
+  const liveMatch = match as OnlineMatchState;
+  const authorityState = liveMatch.session.getAuthoritySnapshotForRecord();
+  const captureCursor = liveMatch.session.getRuntimeCaptureCursor();
+  expect(authorityState).not.toBeNull();
+  const publicEvents = liveMatch.session.getPublicEventsSince(0);
+  const currentPublicSeq = liveMatch.session.getCurrentPublicEventSeq();
+
+  liveMatch.session.restoreRuntimeState({
+    authorityState: authorityState!,
+    currentPublicSeq,
+    publicEvents,
+    retainedPublicEventFloorSeq: 0,
+    currentPrivateSeq: Math.max(
+      captureCursor.privateSeqBySeat.FIRST,
+      captureCursor.privateSeqBySeat.SECOND
+    ),
+    currentPrivateSeqBySeat: captureCursor.privateSeqBySeat,
+    currentAuditSeq: captureCursor.auditSeq,
+    currentCommandSeq: captureCursor.commandSeq,
+  });
+
+  liveMatch.recordCaptureCursor = liveMatch.session.getRuntimeCaptureCursor();
+  liveMatch.remoteRevision += 50;
+  liveMatch.updatedAt = 2_000;
+  liveMatch.lastActivityAt = 2_000;
+
+  return {
+    match: liveMatch,
+    currentPublicSeq,
+    publicEvents,
+  };
 }
 
 describe('SolitaireMatchService', () => {
@@ -148,8 +195,36 @@ describe('SolitaireMatchService', () => {
     await expect(
       service.advancePhase(result.matchId, 'system:solitaire-opponent')
     ).resolves.toBeNull();
-    await expect(service.leaveMatch(result.matchId, 'system:solitaire-opponent')).resolves.toBeNull();
+    await expect(
+      service.leaveMatch(result.matchId, 'system:solitaire-opponent')
+    ).resolves.toBeNull();
     expect(matchService.getMatch(result.matchId)).not.toBeNull();
+  });
+
+  it('共用 match cleanup 会释放过期的对墙打运行态', async () => {
+    const { matchService, service } = createHarness();
+    const result = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+    const match = matchService.getMatch(result.matchId);
+    expect(match).not.toBeNull();
+    match!.lastActivityAt = 1_000;
+
+    const beforeStats = matchService.getRuntimeStats(31 * 60 * 1000 + 1_000);
+    expect(beforeStats.matchCountByMode.SOLITAIRE).toBe(1);
+    expect(beforeStats.staleMatchCount).toBe(1);
+
+    const summary = await matchService.cleanupExpiredMatches(new Set(), 31 * 60 * 1000 + 1_000);
+
+    expect(summary).toMatchObject({
+      checkedMatchCount: 1,
+      staleMatchCount: 1,
+      deletedMatchCount: 1,
+      failedDeleteCount: 0,
+    });
+    expect(matchService.getMatch(result.matchId)).toBeNull();
+    expect(matchService.getRuntimeStats(31 * 60 * 1000 + 1_000).matchCount).toBe(0);
   });
 
   it('服务端可记录对墙打允许 FIRST 真实用户按 revision 撤销最近一步', async () => {
@@ -240,5 +315,293 @@ describe('SolitaireMatchService', () => {
         undoEntryId: undoEntry!.undoEntryId,
       })
     ).resolves.toBeNull();
+  });
+
+  it('运行态缺失时会从最近保存点恢复对墙打并重新注册运行态', async () => {
+    const recoveryService = {
+      recoverMatch:
+        vi.fn<(matchId: string, userId: string) => Promise<SolitaireRecoveredMatch | null>>(),
+    };
+    const { matchService, service } = createHarness({ recoveryService });
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+    const recovered = await prepareRecoveredMatch(matchService, created.matchId);
+    recovered.match.recoveryNotice = {
+      restoredAt: 2_000,
+      checkpointSeq: 3,
+      checkpointTimelineSeq: 7,
+      currentPublicSeq: recovered.currentPublicSeq,
+      rolledBackFromPublicSeq: null,
+      rolledBackFromTimelineSeq: null,
+      publicEvents: recovered.publicEvents,
+      truncated: false,
+      droppedEventCount: 0,
+    };
+    await matchService.deleteMatch(created.matchId, { reason: 'TEST_RUNTIME_EVICTED' });
+    recoveryService.recoverMatch.mockResolvedValueOnce({
+      match: recovered.match,
+      recovery: {
+        restoredAt: 2_000,
+        checkpointSeq: 3,
+        checkpointTimelineSeq: 7,
+        currentPublicSeq: recovered.currentPublicSeq,
+        rolledBackFromPublicSeq: null,
+        rolledBackFromTimelineSeq: null,
+      },
+    });
+
+    const snapshot = await service.getMatchSnapshot(created.matchId, 'user-1');
+
+    expect(recoveryService.recoverMatch).toHaveBeenCalledWith(created.matchId, 'user-1');
+    expect(snapshot).not.toBeNull();
+    expect(snapshot && 'modified' in snapshot).toBe(false);
+    if (!snapshot || 'modified' in snapshot) {
+      throw new Error('expected recovered snapshot');
+    }
+    expect(snapshot.recovery).toMatchObject({
+      checkpointSeq: 3,
+      checkpointTimelineSeq: 7,
+    });
+    expect(matchService.getMatch(created.matchId)).not.toBeNull();
+
+    const nextSnapshot = await service.getMatchSnapshot(created.matchId, 'user-1');
+    expect(nextSnapshot && 'modified' in nextSnapshot).toBe(false);
+    if (!nextSnapshot || 'modified' in nextSnapshot) {
+      throw new Error('expected restored runtime snapshot');
+    }
+    expect(nextSnapshot.recovery).toBeUndefined();
+  });
+
+  it('恢复通知待发送时即使 sinceSeq 未落后也返回完整快照', async () => {
+    const recoveryService = {
+      recoverMatch:
+        vi.fn<(matchId: string, userId: string) => Promise<SolitaireRecoveredMatch | null>>(),
+    };
+    const { matchService, service } = createHarness({ recoveryService });
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+    const recovered = await prepareRecoveredMatch(matchService, created.matchId);
+    recovered.match.remoteRevision = created.snapshot.seq;
+    recovered.match.recoveryNotice = {
+      restoredAt: 2_000,
+      checkpointSeq: 6,
+      checkpointTimelineSeq: 10,
+      currentPublicSeq: recovered.currentPublicSeq,
+      rolledBackFromPublicSeq: null,
+      rolledBackFromTimelineSeq: null,
+      publicEvents: recovered.publicEvents,
+      truncated: false,
+      droppedEventCount: 0,
+    };
+    await matchService.deleteMatch(created.matchId, { reason: 'TEST_RUNTIME_EVICTED' });
+    recoveryService.recoverMatch.mockResolvedValueOnce({
+      match: recovered.match,
+      recovery: {
+        restoredAt: 2_000,
+        checkpointSeq: 6,
+        checkpointTimelineSeq: 10,
+        currentPublicSeq: recovered.currentPublicSeq,
+        rolledBackFromPublicSeq: null,
+        rolledBackFromTimelineSeq: null,
+      },
+    });
+
+    const snapshot = await service.getMatchSnapshot(created.matchId, 'user-1', {
+      sinceSeq: created.snapshot.seq,
+    });
+
+    expect(snapshot).not.toBeNull();
+    expect(snapshot && 'modified' in snapshot).toBe(false);
+    if (!snapshot || 'modified' in snapshot) {
+      throw new Error('expected recovery snapshot despite matching sinceSeq');
+    }
+    expect(snapshot.seq).toBe(created.snapshot.seq);
+    expect(snapshot.recovery).toMatchObject({
+      checkpointSeq: 6,
+      checkpointTimelineSeq: 10,
+    });
+  });
+
+  it('恢复后若已回退到更早保存点，会拒绝旧写操作并返回恢复快照', async () => {
+    const recoveryService = {
+      recoverMatch:
+        vi.fn<(matchId: string, userId: string) => Promise<SolitaireRecoveredMatch | null>>(),
+    };
+    const { matchService, service } = createHarness({ recoveryService });
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+    const recovered = await prepareRecoveredMatch(matchService, created.matchId);
+    recovered.match.recoveryNotice = {
+      restoredAt: 2_000,
+      checkpointSeq: 4,
+      checkpointTimelineSeq: 8,
+      currentPublicSeq: recovered.currentPublicSeq,
+      rolledBackFromPublicSeq: recovered.currentPublicSeq + 3,
+      rolledBackFromTimelineSeq: 12,
+      publicEvents: recovered.publicEvents,
+      truncated: false,
+      droppedEventCount: 0,
+    };
+    await matchService.deleteMatch(created.matchId, { reason: 'TEST_RUNTIME_EVICTED' });
+    recoveryService.recoverMatch.mockResolvedValueOnce({
+      match: recovered.match,
+      recovery: {
+        restoredAt: 2_000,
+        checkpointSeq: 4,
+        checkpointTimelineSeq: 8,
+        currentPublicSeq: recovered.currentPublicSeq,
+        rolledBackFromPublicSeq: recovered.currentPublicSeq + 3,
+        rolledBackFromTimelineSeq: 12,
+      },
+    });
+    const executeSpy = vi.spyOn(matchService, 'executeCommand');
+
+    const result = await service.executeCommand(
+      created.matchId,
+      'user-1',
+      createMulliganCommand('ignored-player', [])
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      error: '对局已恢复到最近保存点，请刷新后重试',
+    });
+    expect(result?.snapshot?.recovery).toMatchObject({
+      checkpointSeq: 4,
+      rolledBackFromTimelineSeq: 12,
+    });
+    expect(executeSpy).not.toHaveBeenCalled();
+    expect(matchService.getMatch(created.matchId)).not.toBeNull();
+  });
+
+  it('公共事件读取先触发回退恢复时，后续写操作仍会被拒绝并返回恢复快照', async () => {
+    const recoveryService = {
+      recoverMatch:
+        vi.fn<(matchId: string, userId: string) => Promise<SolitaireRecoveredMatch | null>>(),
+    };
+    const { matchService, service } = createHarness({ recoveryService });
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+    const recovered = await prepareRecoveredMatch(matchService, created.matchId);
+    recovered.match.recoveryNotice = {
+      restoredAt: 2_000,
+      checkpointSeq: 7,
+      checkpointTimelineSeq: 11,
+      currentPublicSeq: recovered.currentPublicSeq,
+      rolledBackFromPublicSeq: recovered.currentPublicSeq + 4,
+      rolledBackFromTimelineSeq: 16,
+      publicEvents: recovered.publicEvents,
+      truncated: false,
+      droppedEventCount: 0,
+    };
+    await matchService.deleteMatch(created.matchId, { reason: 'TEST_RUNTIME_EVICTED' });
+    recoveryService.recoverMatch.mockResolvedValueOnce({
+      match: recovered.match,
+      recovery: {
+        restoredAt: 2_000,
+        checkpointSeq: 7,
+        checkpointTimelineSeq: 11,
+        currentPublicSeq: recovered.currentPublicSeq,
+        rolledBackFromPublicSeq: recovered.currentPublicSeq + 4,
+        rolledBackFromTimelineSeq: 16,
+      },
+    });
+    const executeSpy = vi.spyOn(matchService, 'executeCommand');
+
+    const publicEvents = await service.getMatchPublicEvents(created.matchId, 'user-1', {
+      afterSeq: 0,
+    });
+    expect(publicEvents).not.toBeNull();
+    expect(matchService.getMatch(created.matchId)?.recoveryNotice).not.toBeNull();
+
+    const result = await service.executeCommand(
+      created.matchId,
+      'user-1',
+      createMulliganCommand('ignored-player', [])
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      error: '对局已恢复到最近保存点，请刷新后重试',
+    });
+    expect(result?.snapshot?.recovery).toMatchObject({
+      checkpointSeq: 7,
+      rolledBackFromTimelineSeq: 16,
+    });
+    expect(executeSpy).not.toHaveBeenCalled();
+    expect(matchService.getMatch(created.matchId)?.recoveryNotice).toBeNull();
+  });
+
+  it('恢复后会拒绝旧撤销请求，并提示撤销历史已重置', async () => {
+    const recoveryService = {
+      recoverMatch:
+        vi.fn<(matchId: string, userId: string) => Promise<SolitaireRecoveredMatch | null>>(),
+    };
+    const { matchService, service } = createHarness({ recoveryService });
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+    const mainPhaseResult = await service.executeCommand(
+      created.matchId,
+      'user-1',
+      createMulliganCommand('ignored-player', [])
+    );
+    expect(mainPhaseResult?.success).toBe(true);
+    const commandResult = await service.executeCommand(
+      created.matchId,
+      'user-1',
+      createOpenInspectionCommand('ignored-player', ZoneType.MAIN_DECK, 1)
+    );
+    const undoEntry = commandResult?.snapshot?.playerViewState.match.undo?.entry;
+    expect(undoEntry).toBeTruthy();
+
+    const recovered = await prepareRecoveredMatch(matchService, created.matchId);
+    recovered.match.recoveryNotice = {
+      restoredAt: 2_000,
+      checkpointSeq: 5,
+      checkpointTimelineSeq: 9,
+      currentPublicSeq: recovered.currentPublicSeq,
+      rolledBackFromPublicSeq: null,
+      rolledBackFromTimelineSeq: null,
+      publicEvents: recovered.publicEvents,
+      truncated: false,
+      droppedEventCount: 0,
+    };
+    await matchService.deleteMatch(created.matchId, { reason: 'TEST_RUNTIME_EVICTED' });
+    recoveryService.recoverMatch.mockResolvedValueOnce({
+      match: recovered.match,
+      recovery: {
+        restoredAt: 2_000,
+        checkpointSeq: 5,
+        checkpointTimelineSeq: 9,
+        currentPublicSeq: recovered.currentPublicSeq,
+        rolledBackFromPublicSeq: null,
+        rolledBackFromTimelineSeq: null,
+      },
+    });
+
+    const result = await service.undoLatest(created.matchId, 'user-1', {
+      expectedRevision: commandResult!.snapshot!.seq,
+      undoEntryId: undoEntry!.undoEntryId,
+      idempotencyKey: 'undo-after-recovery',
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: '对局运行态已恢复，撤销历史已重置，请刷新后重试',
+    });
+    expect(result?.snapshot?.recovery).toMatchObject({
+      checkpointSeq: 5,
+      rolledBackFromTimelineSeq: null,
+    });
   });
 });

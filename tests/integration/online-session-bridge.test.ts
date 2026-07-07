@@ -9,8 +9,15 @@ import type {
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import type { DeckConfig } from '../../src/application/game-service';
 import { createMulliganAction } from '../../src/application/actions';
-import { GameCommandType, createOpenInspectionCommand } from '../../src/application/game-commands';
-import { createGameSession } from '../../src/application/game-session';
+import {
+  GameCommandType,
+  createDrawCardToHandCommand,
+  createOpenInspectionCommand,
+} from '../../src/application/game-commands';
+import {
+  MAX_AUTHORITY_SNAPSHOT_HISTORY,
+  createGameSession,
+} from '../../src/application/game-session';
 import { createPublicObjectId } from '../../src/online';
 
 const PLAYER1 = 'player1';
@@ -45,15 +52,15 @@ function createTestEnergyCard(cardCode: string): EnergyCardData {
   };
 }
 
-function createTestDeck(): DeckConfig {
+function createTestDeck(memberCount = 48, liveCount = 12): DeckConfig {
   const mainDeck: AnyCardData[] = [];
   const energyDeck: AnyCardData[] = [];
 
-  for (let i = 0; i < 48; i++) {
+  for (let i = 0; i < memberCount; i++) {
     mainDeck.push(createTestMemberCard(`MEM-${i}`, `成员 ${i}`));
   }
 
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < liveCount; i++) {
     mainDeck.push(createTestLiveCard(`LIVE-${i}`, `Live ${i}`));
     energyDeck.push(createTestEnergyCard(`ENE-${i}`));
   }
@@ -293,6 +300,94 @@ describe('GameSession 联机桥接层', () => {
 
     const snapshotAfterMutation = session.getAuthoritySnapshotAtOrBefore(beforeSeq);
     expect(snapshotAfterMutation).toEqual(snapshotBeforeMutation);
+  });
+
+  it('运行态权威快照保持有界，撤销不依赖完整恢复历史副本', () => {
+    const session = createGameSession();
+    const deck = createTestDeck(160, 20);
+
+    session.createGame('online-bridge-bounded-runtime', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    for (let index = 0; index < MAX_AUTHORITY_SNAPSHOT_HISTORY + 20; index += 1) {
+      const result = session.executeCommand(createDrawCardToHandCommand(PLAYER1));
+      expect(result.success).toBe(true);
+    }
+
+    const stats = session.getRuntimeStats();
+    expect(stats.authoritySnapshotCount).toBeLessThanOrEqual(MAX_AUTHORITY_SNAPSHOT_HISTORY);
+    expect(stats.snapshotHistoryCount).toBe(stats.authoritySnapshotCount);
+    expect(stats.newestAuthoritySnapshotSeq).toBe(session.getCurrentPublicEventSeq());
+    expect(stats.oldestAuthoritySnapshotSeq).not.toBeNull();
+    expect(
+      session.getAuthoritySnapshotAtOrBefore((stats.oldestAuthoritySnapshotSeq ?? 0) - 1)
+    ).toBeNull();
+    expect(
+      session.getAuthoritySnapshotAtOrBefore(session.getCurrentPublicEventSeq())
+    ).not.toBeNull();
+    const publicEventSlice = session.getPublicEventsSliceSince(0, 3);
+    expect(publicEventSlice.truncated).toBe(true);
+    expect(publicEventSlice.publicEvents).toHaveLength(3);
+    expect(publicEventSlice.publicEvents.at(-1)?.seq).toBe(session.getCurrentPublicEventSeq());
+    expect(publicEventSlice.droppedEventCount).toBeGreaterThan(0);
+
+    const undo = session.getUndoAvailability(PLAYER1);
+    expect(undo.canUndoNow).toBe(true);
+    const undoResult = session.undoLastStepForPlayer(PLAYER1, undo.entry!.undoEntryId);
+    expect(undoResult.success).toBe(true);
+
+    const afterUndoStats = session.getRuntimeStats();
+    expect(afterUndoStats.authoritySnapshotCount).toBeLessThanOrEqual(
+      MAX_AUTHORITY_SNAPSHOT_HISTORY
+    );
+    expect(afterUndoStats.newestAuthoritySnapshotSeq).toBe(session.getCurrentPublicEventSeq());
+    expect(
+      session.getAuthoritySnapshotAtOrBefore(session.getCurrentPublicEventSeq())
+    ).not.toBeNull();
+  });
+
+  it('可从保存点恢复运行态，并对旧 public cursor 返回截断标记', () => {
+    const source = createGameSession();
+    const restored = createGameSession();
+    const deck = createTestDeck();
+
+    source.createGame('online-bridge-runtime-restore', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    source.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(source);
+    expect(source.executeCommand(createDrawCardToHandCommand(PLAYER1)).success).toBe(true);
+    expect(source.executeCommand(createDrawCardToHandCommand(PLAYER1)).success).toBe(true);
+    expect(source.executeCommand(createDrawCardToHandCommand(PLAYER1)).success).toBe(true);
+
+    const authorityState = source.getAuthoritySnapshotForRecord();
+    const currentPublicSeq = source.getCurrentPublicEventSeq();
+    const retainedPublicEvents = source.getPublicEventsSince(Math.max(0, currentPublicSeq - 2));
+    expect(authorityState).not.toBeNull();
+    expect(retainedPublicEvents).toHaveLength(2);
+
+    restored.restoreRuntimeState({
+      authorityState: authorityState!,
+      currentPublicSeq,
+      publicEvents: retainedPublicEvents,
+      retainedPublicEventFloorSeq: currentPublicSeq - 2,
+      currentCommandSeq: source.getRuntimeCaptureCursor().commandSeq,
+      currentAuditSeq: source.getRuntimeCaptureCursor().auditSeq,
+      currentPrivateSeq: Math.max(
+        source.getRuntimeCaptureCursor().privateSeqBySeat.FIRST,
+        source.getRuntimeCaptureCursor().privateSeqBySeat.SECOND
+      ),
+      currentPrivateSeqBySeat: source.getRuntimeCaptureCursor().privateSeqBySeat,
+    });
+
+    expect(restored.getPlayerViewState(PLAYER1)?.match.seq).toBe(currentPublicSeq);
+    expect(restored.getAuthoritySnapshotAtOrBefore(currentPublicSeq)).not.toBeNull();
+
+    const slice = restored.getPublicEventsSliceSince(0, 10);
+    expect(slice.truncated).toBe(true);
+    expect(slice.droppedEventCount).toBe(currentPublicSeq - 2);
+    expect(slice.publicEvents.map((event) => event.seq)).toEqual(
+      retainedPublicEvents.map((event) => event.seq)
+    );
   });
 
   it('相同幂等键的命令重试不会重复改状态，而同键异载荷会被拒绝', () => {

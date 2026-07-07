@@ -21,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  ConfirmDialog,
   DeckSelector,
   DeckStatsRow,
   type DeckDisplayItem,
@@ -60,12 +61,8 @@ import {
   readLastUsedDeckId,
   writeLastUsedDeckId,
 } from '@/lib/deckSelectionPreferences';
-import type {
-  OnlineRoomView,
-  OpeningRpsGesture,
-  OpeningTurnOrderChoice,
-  Seat,
-} from '@game/online';
+import { getOnlineRoomLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
+import type { OnlineRoomView, OpeningRpsGesture, OpeningTurnOrderChoice, Seat } from '@game/online';
 
 const ROOM_POLL_INTERVAL_MS = 1200;
 const MATCH_POLL_INTERVAL_MS = 800;
@@ -116,6 +113,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const [lastUsedDeckId, setLastUsedDeckId] = useState(() =>
     readLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.onlineRoom)
   );
+  const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBootstrappingMatch, setIsBootstrappingMatch] = useState(false);
@@ -328,8 +326,8 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     restartRequest && restartRequest.responderUserId === room?.currentUserId
   );
   const restartRequesterName = restartRequest
-    ? room?.members.find((member) => member.userId === restartRequest.requesterUserId)
-        ?.displayName ?? '对手'
+    ? (room?.members.find((member) => member.userId === restartRequest.requesterUserId)
+        ?.displayName ?? '对手')
     : null;
   const canRequestRestart = Boolean(
     room?.status === 'IN_GAME' && !restartRequest && opponentMember?.presence === 'ACTIVE'
@@ -340,17 +338,23 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   );
   const selectedDeckCanReplaceLockedDeck = Boolean(
     room &&
-      myMember?.ready &&
-      selectedDeck?.cloudDeck &&
-      selectedDeck.cloudDeck.id !== myMember.lockedDeckId
+    myMember?.ready &&
+    selectedDeck?.cloudDeck &&
+    selectedDeck.cloudDeck.id !== myMember.lockedDeckId
   );
-  const bothReady = Boolean(room && room.members.length === 2 && room.members.every((member) => member.ready));
+  const bothReady = Boolean(
+    room && room.members.length === 2 && room.members.every((member) => member.ready)
+  );
   const canClearSavedRoom = Boolean(joinedRoomCode && !room);
   const actionState = getRoomActionState({
     room,
     myMember,
     bothReady,
   });
+  const leaveConfirmCopy = useMemo(
+    () => getOnlineRoomLeaveConfirmCopy(room?.status),
+    [room?.status]
+  );
 
   const handleCreateRoom = async () => {
     const nextRoomCode = normalizeRoomCode(roomCodeInput);
@@ -500,6 +504,14 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     }
   };
 
+  const handleRequestLeaveRoom = () => {
+    if (!room && !joinedRoomCode) {
+      return;
+    }
+
+    setIsLeaveConfirmOpen(true);
+  };
+
   const handleLeaveRoom = async () => {
     if (!room && !joinedRoomCode) {
       return;
@@ -509,6 +521,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     setError(null);
     try {
       await leaveOnlineRoom(room?.roomCode ?? joinedRoomCode!);
+      setIsLeaveConfirmOpen(false);
       clearOnlineRoomRecovery();
       disconnectRemoteSession();
       setRoom(null);
@@ -547,10 +560,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     setIsSubmitting(true);
     setError(null);
     try {
-      const nextRoom = await acceptOnlineRoomRestart(
-        room.roomCode,
-        room.restartRequest.requestId
-      );
+      const nextRoom = await acceptOnlineRoomRestart(room.roomCode, room.restartRequest.requestId);
       setRoom(nextRoom);
     } catch (restartError) {
       setError(restartError instanceof Error ? restartError.message : '同意重开失败');
@@ -567,10 +577,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     setIsSubmitting(true);
     setError(null);
     try {
-      const nextRoom = await rejectOnlineRoomRestart(
-        room.roomCode,
-        room.restartRequest.requestId
-      );
+      const nextRoom = await rejectOnlineRoomRestart(room.roomCode, room.restartRequest.requestId);
       setRoom(nextRoom);
     } catch (restartError) {
       setError(restartError instanceof Error ? restartError.message : '拒绝重开失败');
@@ -587,10 +594,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     setIsSubmitting(true);
     setError(null);
     try {
-      const nextRoom = await cancelOnlineRoomRestart(
-        room.roomCode,
-        room.restartRequest.requestId
-      );
+      const nextRoom = await cancelOnlineRoomRestart(room.roomCode, room.restartRequest.requestId);
       setRoom(nextRoom);
     } catch (restartError) {
       setError(restartError instanceof Error ? restartError.message : '取消重开失败');
@@ -670,7 +674,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
               onCreateSpectatorLink={handleCreateSpectatorLink}
               onRequestRestart={handleRequestRestart}
               onCancelRestart={handleCancelRestart}
-              onLeaveRoom={handleLeaveRoom}
+              onLeaveRoom={handleRequestLeaveRoom}
             />
           )}
           {restartRequest && (
@@ -731,21 +735,45 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
           mode="online"
           onClose={() => setBriefingAcknowledged(true)}
         />
+        <ConfirmDialog
+          isOpen={isLeaveConfirmOpen}
+          title={leaveConfirmCopy.title}
+          message={leaveConfirmCopy.message}
+          confirmLabel={leaveConfirmCopy.confirmLabel}
+          isConfirming={isSubmitting}
+          onCancel={() => setIsLeaveConfirmOpen(false)}
+          onConfirm={() => {
+            void handleLeaveRoom();
+          }}
+        />
       </BattleViewportShell>
     );
   }
 
   if (room?.status === 'OPENING') {
     return (
-      <OnlineOpeningStage
-        room={room}
-        error={error}
-        isSubmitting={isSubmitting}
-        onSubmitRps={handleSubmitOpeningRps}
-        onReplayRps={handleReplayOpeningRps}
-        onChooseTurnOrder={handleChooseOpeningTurnOrder}
-        onLeaveRoom={handleLeaveRoom}
-      />
+      <>
+        <OnlineOpeningStage
+          room={room}
+          error={error}
+          isSubmitting={isSubmitting}
+          onSubmitRps={handleSubmitOpeningRps}
+          onReplayRps={handleReplayOpeningRps}
+          onChooseTurnOrder={handleChooseOpeningTurnOrder}
+          onLeaveRoom={handleRequestLeaveRoom}
+        />
+        <ConfirmDialog
+          isOpen={isLeaveConfirmOpen}
+          title={leaveConfirmCopy.title}
+          message={leaveConfirmCopy.message}
+          confirmLabel={leaveConfirmCopy.confirmLabel}
+          isConfirming={isSubmitting}
+          onCancel={() => setIsLeaveConfirmOpen(false)}
+          onConfirm={() => {
+            void handleLeaveRoom();
+          }}
+        />
+      </>
     );
   }
 
@@ -765,12 +793,15 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
       <PageHeader
         title="正式联机"
         icon={<Swords size={20} />}
-        left={(
-          <button onClick={onBack} className="button-ghost inline-flex h-10 items-center gap-2 px-3">
+        left={
+          <button
+            onClick={onBack}
+            className="button-ghost inline-flex h-10 items-center gap-2 px-3"
+          >
             <ArrowLeft size={16} />
             返回
           </button>
-        )}
+        }
         right={<ThemeToggle />}
       />
 
@@ -797,7 +828,11 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                 disabled={isSubmitting}
                 className="button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5"
               >
-                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Users size={16} />}
+                {isSubmitting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Users size={16} />
+                )}
                 创建房间
               </button>
               <button
@@ -875,7 +910,11 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                     disabled={!canLockDeck || isSubmitting}
                     className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5 ${!canLockDeck || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
                   >
-                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    {isSubmitting ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Check size={16} />
+                    )}
                     锁定这副卡组
                   </motion.button>
                 )}
@@ -888,7 +927,11 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                     disabled={!canLockDeck || isSubmitting}
                     className={`button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-5 ${!canLockDeck || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
                   >
-                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                    {isSubmitting ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <RefreshCw size={16} />
+                    )}
                     更换为这副卡组
                   </motion.button>
                 )}
@@ -904,7 +947,11 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                       isSubmitting || myMember.startReady ? 'cursor-not-allowed opacity-60' : ''
                     }`}
                   >
-                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Swords size={16} />}
+                    {isSubmitting ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Swords size={16} />
+                    )}
                     {myMember.startReady ? '已准备开始' : '准备开始'}
                   </motion.button>
                 )}
@@ -912,7 +959,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                 {joinedRoomCode && (
                   <button
                     type="button"
-                    onClick={handleLeaveRoom}
+                    onClick={handleRequestLeaveRoom}
                     disabled={isSubmitting}
                     className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-5"
                   >
@@ -924,7 +971,11 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
 
               <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] p-2">
                 <ProgressPill label="进入房间" active={Boolean(room)} done={Boolean(room)} />
-                <ProgressPill label="锁定卡组" active={Boolean(room) && !bothReady} done={bothReady} />
+                <ProgressPill
+                  label="锁定卡组"
+                  active={Boolean(room) && !bothReady}
+                  done={bothReady}
+                />
                 <ProgressPill
                   label="正式开局"
                   active={Boolean(room) && bothReady}
@@ -939,10 +990,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                   isCurrentUser
                   selectedDeckName={selectedDeck?.name}
                 />
-                <RoomMemberCard
-                  title="对手"
-                  member={opponentMember}
-                />
+                <RoomMemberCard title="对手" member={opponentMember} />
               </div>
 
               {room && (
@@ -971,6 +1019,18 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
           </div>
         </div>
       </main>
+
+      <ConfirmDialog
+        isOpen={isLeaveConfirmOpen}
+        title={leaveConfirmCopy.title}
+        message={leaveConfirmCopy.message}
+        confirmLabel={leaveConfirmCopy.confirmLabel}
+        isConfirming={isSubmitting}
+        onCancel={() => setIsLeaveConfirmOpen(false)}
+        onConfirm={() => {
+          void handleLeaveRoom();
+        }}
+      />
     </div>
   );
 }
@@ -990,7 +1050,9 @@ function RoomMemberCard({
     <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="mb-1 text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">{title}</div>
+          <div className="mb-1 text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            {title}
+          </div>
           <div className="text-base font-semibold text-[var(--text-primary)]">
             {member?.displayName ?? '等待加入'}
           </div>
@@ -1006,7 +1068,15 @@ function RoomMemberCard({
       <div className="mt-3 flex flex-wrap gap-2">
         <StatusChip
           tone={member?.presence === 'LEFT' ? 'warning' : member ? 'success' : 'muted'}
-          label={member ? (member.presence === 'LEFT' ? '已离开' : isCurrentUser ? '已加入' : '在线') : '空位'}
+          label={
+            member
+              ? member.presence === 'LEFT'
+                ? '已离开'
+                : isCurrentUser
+                  ? '已加入'
+                  : '在线'
+              : '空位'
+          }
         />
         <StatusChip
           tone={member?.ready ? 'success' : 'muted'}
@@ -1018,12 +1088,15 @@ function RoomMemberCard({
             label={member.startReady ? '已准备' : '未准备'}
           />
         )}
-        {member?.seat && <StatusChip tone="muted" label={member.seat === 'FIRST' ? '先手位' : '后手位'} />}
+        {member?.seat && (
+          <StatusChip tone="muted" label={member.seat === 'FIRST' ? '先手位' : '后手位'} />
+        )}
       </div>
 
       {isCurrentUser && !member?.ready && selectedDeckName && (
         <div className="mt-3 rounded-xl border border-dashed border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-secondary)]">
-          当前选择：<span className="font-medium text-[var(--text-primary)]">{selectedDeckName}</span>
+          当前选择：
+          <span className="font-medium text-[var(--text-primary)]">{selectedDeckName}</span>
         </div>
       )}
 
@@ -1095,12 +1168,13 @@ function OnlineOpeningStage({
 }) {
   const opening = room.openingRps;
   const myMember = room.members.find((member) => member.userId === room.currentUserId) ?? null;
-  const opponentMember = room.members.find((member) => member.userId !== room.currentUserId) ?? null;
+  const opponentMember =
+    room.members.find((member) => member.userId !== room.currentUserId) ?? null;
   const myChoice = opening?.choices.find((choice) => choice.userId === room.currentUserId) ?? null;
   const opponentChoice =
     opening?.choices.find((choice) => choice.userId !== room.currentUserId) ?? null;
   const winnerName = opening?.winnerUserId
-    ? room.members.find((member) => member.userId === opening.winnerUserId)?.displayName ?? '胜者'
+    ? (room.members.find((member) => member.userId === opening.winnerUserId)?.displayName ?? '胜者')
     : null;
   const chooserIsMe = opening?.chooserUserId === room.currentUserId;
   const isDraw = Boolean(opening?.revealed && !opening.winnerUserId);
@@ -1148,8 +1222,8 @@ function OnlineOpeningStage({
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_84%,transparent)] px-2.5 py-1.5 text-xs font-semibold text-[var(--text-primary)] sm:gap-2 sm:px-3 sm:py-2 sm:text-sm">
-                    <CircleDot size={14} className="text-[var(--accent-primary)]" />
-                    第 {opening?.round ?? 1} 轮
+                    <CircleDot size={14} className="text-[var(--accent-primary)]" />第{' '}
+                    {opening?.round ?? 1} 轮
                   </div>
                   {opening?.revealed && winnerName && (
                     <div className="inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--semantic-success)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] px-2.5 py-1.5 text-xs font-semibold text-[var(--semantic-success)] sm:gap-2 sm:px-3 sm:py-2 sm:text-sm">
@@ -1263,12 +1337,14 @@ function OpeningPlayerPanel({
         className={`absolute inset-x-0 top-0 h-1 ${
           isWinner
             ? 'bg-[linear-gradient(90deg,var(--semantic-success),var(--heart-green))]'
-            : tone?.bar ?? 'bg-[color:color-mix(in_srgb,var(--border-default)_80%,transparent)]'
-          }`}
+            : (tone?.bar ?? 'bg-[color:color-mix(in_srgb,var(--border-default)_80%,transparent)]')
+        }`}
       />
       <div className="min-w-0">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] sm:text-xs lg:tracking-[0.16em]">{title}</div>
+          <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] sm:text-xs lg:tracking-[0.16em]">
+            {title}
+          </div>
           <div className="mt-0.5 truncate text-sm font-bold text-[var(--text-primary)] sm:text-base lg:mt-1 lg:text-lg">
             {member?.displayName ?? '等待玩家'}
           </div>
@@ -1304,7 +1380,9 @@ function OpeningPlayerPanel({
           </span>
         </div>
         <div className="min-w-0 text-right lg:text-center">
-          <div className="truncate text-sm font-black text-[var(--text-primary)] sm:text-base lg:text-lg">{label}</div>
+          <div className="truncate text-sm font-black text-[var(--text-primary)] sm:text-base lg:text-lg">
+            {label}
+          </div>
           <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)] lg:mt-1 lg:text-xs lg:tracking-[0.14em]">
             {status}
           </div>
@@ -1397,7 +1475,11 @@ function OpeningRpsControls({
               isSubmitting ? 'cursor-not-allowed opacity-60' : ''
             }`}
           >
-            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+            {isSubmitting ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <RotateCcw size={16} />
+            )}
             再来
           </motion.button>
         </div>
@@ -1437,7 +1519,9 @@ function OpeningRpsControls({
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
         <OpeningTurnOrderButton
           title="我先手"
-          icon={isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Swords size={18} />}
+          icon={
+            isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Swords size={18} />
+          }
           disabled={isSubmitting}
           reduceMotion={reduceMotion}
           tone="primary"
@@ -1481,9 +1565,15 @@ function OpeningGestureButton({
       aria-pressed={selected}
       aria-label={getRpsLabel(gesture)}
       className={`group relative flex min-h-[72px] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border px-2 py-2 text-center outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-deep)] sm:min-h-[104px] sm:flex-row sm:gap-4 sm:px-5 sm:py-4 sm:text-left ${
-        selected ? tone.selected : `border-transparent bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border-default)_56%,transparent)] ${tone.hover}`
+        selected
+          ? tone.selected
+          : `border-transparent bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border-default)_56%,transparent)] ${tone.hover}`
       } ${tone.focus} ${
-        disabled && !selected ? 'cursor-not-allowed opacity-55' : disabled ? 'cursor-default' : 'cursor-pointer'
+        disabled && !selected
+          ? 'cursor-not-allowed opacity-55'
+          : disabled
+            ? 'cursor-default'
+            : 'cursor-pointer'
       }`}
     >
       <div
@@ -1495,7 +1585,9 @@ function OpeningGestureButton({
         <span className="hidden sm:block">{getRpsIcon(gesture, 46)}</span>
       </div>
       <div className="min-w-0">
-        <div className="text-sm font-black leading-tight text-[var(--text-primary)] sm:text-lg">{getRpsLabel(gesture)}</div>
+        <div className="text-sm font-black leading-tight text-[var(--text-primary)] sm:text-lg">
+          {getRpsLabel(gesture)}
+        </div>
       </div>
       {selected && (
         <div className="absolute right-1.5 top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-black text-white shadow-[var(--shadow-md)] sm:right-2 sm:top-2 sm:h-6 sm:min-w-6">
@@ -1527,16 +1619,20 @@ function OpeningTurnOrderButton({
   const toneClass =
     tone === 'primary'
       ? {
-          border: 'border-[color:color-mix(in_srgb,var(--accent-primary)_42%,var(--border-default))]',
+          border:
+            'border-[color:color-mix(in_srgb,var(--accent-primary)_42%,var(--border-default))]',
           focus: 'focus-visible:ring-[var(--accent-primary)]',
-          hover: 'hover:-translate-y-1 hover:border-[color:color-mix(in_srgb,var(--accent-primary)_64%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,var(--bg-surface))] hover:shadow-[0_16px_36px_color-mix(in_srgb,var(--accent-primary)_18%,transparent)]',
+          hover:
+            'hover:-translate-y-1 hover:border-[color:color-mix(in_srgb,var(--accent-primary)_64%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,var(--bg-surface))] hover:shadow-[0_16px_36px_color-mix(in_srgb,var(--accent-primary)_18%,transparent)]',
           icon: 'border-[color:color-mix(in_srgb,var(--accent-primary)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,var(--bg-surface))] text-[var(--accent-primary)]',
           line: 'bg-[linear-gradient(180deg,var(--accent-primary),var(--accent-secondary))]',
         }
       : {
-          border: 'border-[color:color-mix(in_srgb,var(--semantic-info)_42%,var(--border-default))]',
+          border:
+            'border-[color:color-mix(in_srgb,var(--semantic-info)_42%,var(--border-default))]',
           focus: 'focus-visible:ring-[var(--semantic-info)]',
-          hover: 'hover:-translate-y-1 hover:border-[color:color-mix(in_srgb,var(--semantic-info)_64%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,var(--bg-surface))] hover:shadow-[0_16px_36px_color-mix(in_srgb,var(--semantic-info)_18%,transparent)]',
+          hover:
+            'hover:-translate-y-1 hover:border-[color:color-mix(in_srgb,var(--semantic-info)_64%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,var(--bg-surface))] hover:shadow-[0_16px_36px_color-mix(in_srgb,var(--semantic-info)_18%,transparent)]',
           icon: 'border-[color:color-mix(in_srgb,var(--semantic-info)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-info)_13%,var(--bg-surface))] text-[var(--semantic-info)]',
           line: 'bg-[linear-gradient(180deg,var(--semantic-info),var(--heart-blue))]',
         };
@@ -1553,13 +1649,17 @@ function OpeningTurnOrderButton({
       disabled={disabled}
       className={buttonClass}
     >
-      <div className={`absolute inset-y-2 left-0 w-1 rounded-r-full sm:inset-y-3 ${toneClass.line}`} />
+      <div
+        className={`absolute inset-y-2 left-0 w-1 rounded-r-full sm:inset-y-3 ${toneClass.line}`}
+      />
       <div className="flex items-center justify-between gap-2 sm:gap-4">
         <div>
           <div className="text-sm font-black text-[var(--text-primary)] sm:text-lg">{title}</div>
           {detail && <div className="mt-1 text-sm text-[var(--text-secondary)]">{detail}</div>}
         </div>
-        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-transform duration-200 group-hover:scale-105 sm:h-11 sm:w-11 sm:rounded-xl ${toneClass.icon}`}>
+        <div
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-transform duration-200 group-hover:scale-105 sm:h-11 sm:w-11 sm:rounded-xl ${toneClass.icon}`}
+        >
           {icon}
         </div>
       </div>
@@ -1604,15 +1704,7 @@ function getOpeningStatusText({
   return `${winnerName ?? '胜者'}选择中`;
 }
 
-function ProgressPill({
-  label,
-  active,
-  done,
-}: {
-  label: string;
-  active: boolean;
-  done: boolean;
-}) {
+function ProgressPill({ label, active, done }: { label: string; active: boolean; done: boolean }) {
   return (
     <div
       className={`rounded-xl px-3 py-2 text-center text-xs font-medium transition ${
@@ -1628,13 +1720,7 @@ function ProgressPill({
   );
 }
 
-function StatusChip({
-  label,
-  tone,
-}: {
-  label: string;
-  tone: 'success' | 'warning' | 'muted';
-}) {
+function StatusChip({ label, tone }: { label: string; tone: 'success' | 'warning' | 'muted' }) {
   const className =
     tone === 'success'
       ? 'border-[color:color-mix(in_srgb,var(--semantic-success)_32%,transparent)] text-[var(--semantic-success)]'
@@ -1643,7 +1729,9 @@ function StatusChip({
         : 'border-[var(--border-default)] text-[var(--text-muted)]';
 
   return (
-    <div className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] ${className}`}>
+    <div
+      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] ${className}`}
+    >
       <CircleDot size={10} />
       {label}
     </div>
@@ -1673,12 +1761,10 @@ function getRpsToneClasses(gesture: OpeningRpsGesture): RpsToneClasses {
         glow: 'shadow-[0_10px_24px_color-mix(in_srgb,var(--accent-primary)_22%,transparent)]',
         hover:
           'hover:-translate-y-0.5 hover:border-[color:color-mix(in_srgb,var(--accent-primary)_40%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_8%,var(--bg-surface))] hover:shadow-[0_12px_28px_color-mix(in_srgb,var(--accent-primary)_13%,transparent)]',
-        icon:
-          'bg-[color:color-mix(in_srgb,var(--accent-primary)_13%,var(--bg-surface))] text-[var(--accent-primary)]',
+        icon: 'bg-[color:color-mix(in_srgb,var(--accent-primary)_13%,var(--bg-surface))] text-[var(--accent-primary)]',
         selected:
           'border-[color:color-mix(in_srgb,var(--accent-primary)_48%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))] text-[var(--text-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_18%,transparent),0_14px_30px_color-mix(in_srgb,var(--accent-primary)_14%,transparent)]',
-        surface:
-          'bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))]',
+        surface: 'bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))]',
         text: 'text-[var(--accent-primary)]',
       };
     case 'SCISSORS':
@@ -1689,28 +1775,25 @@ function getRpsToneClasses(gesture: OpeningRpsGesture): RpsToneClasses {
         glow: 'shadow-[0_10px_24px_color-mix(in_srgb,var(--semantic-info)_22%,transparent)]',
         hover:
           'hover:-translate-y-0.5 hover:border-[color:color-mix(in_srgb,var(--semantic-info)_40%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--semantic-info)_8%,var(--bg-surface))] hover:shadow-[0_12px_28px_color-mix(in_srgb,var(--semantic-info)_13%,transparent)]',
-        icon:
-          'bg-[color:color-mix(in_srgb,var(--semantic-info)_13%,var(--bg-surface))] text-[var(--semantic-info)]',
+        icon: 'bg-[color:color-mix(in_srgb,var(--semantic-info)_13%,var(--bg-surface))] text-[var(--semantic-info)]',
         selected:
           'border-[color:color-mix(in_srgb,var(--semantic-info)_48%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,var(--bg-surface))] text-[var(--text-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--semantic-info)_18%,transparent),0_14px_30px_color-mix(in_srgb,var(--semantic-info)_14%,transparent)]',
-        surface:
-          'bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,var(--bg-surface))]',
+        surface: 'bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,var(--bg-surface))]',
         text: 'text-[var(--semantic-info)]',
       };
     case 'PAPER':
       return {
         bar: 'bg-[linear-gradient(90deg,var(--semantic-warning),var(--accent-gold))]',
-        border: 'border-[color:color-mix(in_srgb,var(--semantic-warning)_46%,var(--border-default))]',
+        border:
+          'border-[color:color-mix(in_srgb,var(--semantic-warning)_46%,var(--border-default))]',
         focus: 'focus-visible:ring-[var(--semantic-warning)]',
         glow: 'shadow-[0_10px_24px_color-mix(in_srgb,var(--semantic-warning)_22%,transparent)]',
         hover:
           'hover:-translate-y-0.5 hover:border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_9%,var(--bg-surface))] hover:shadow-[0_12px_28px_color-mix(in_srgb,var(--semantic-warning)_13%,transparent)]',
-        icon:
-          'bg-[color:color-mix(in_srgb,var(--semantic-warning)_14%,var(--bg-surface))] text-[var(--semantic-warning)]',
+        icon: 'bg-[color:color-mix(in_srgb,var(--semantic-warning)_14%,var(--bg-surface))] text-[var(--semantic-warning)]',
         selected:
           'border-[color:color-mix(in_srgb,var(--semantic-warning)_50%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-warning)_13%,var(--bg-surface))] text-[var(--text-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--semantic-warning)_18%,transparent),0_14px_30px_color-mix(in_srgb,var(--semantic-warning)_14%,transparent)]',
-        surface:
-          'bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,var(--bg-surface))]',
+        surface: 'bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,var(--bg-surface))]',
         text: 'text-[var(--semantic-warning)]',
       };
     default:
@@ -1772,9 +1855,7 @@ function RoomActionPanel({
     <div className="w-[min(380px,calc(100vw-2rem))] rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-sm text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
       <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] pb-3">
         <div>
-          <div className="text-[11px] uppercase text-[var(--text-muted)]">
-            正式联机房间
-          </div>
+          <div className="text-[11px] uppercase text-[var(--text-muted)]">正式联机房间</div>
           <div className="mt-1 font-semibold">Room {roomCode}</div>
         </div>
       </div>
@@ -1786,7 +1867,11 @@ function RoomActionPanel({
           disabled={isGeneratingSpectatorLink}
           className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm"
         >
-          {isGeneratingSpectatorLink ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />}
+          {isGeneratingSpectatorLink ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Copy size={16} />
+          )}
           复制观战链接
         </button>
         {!restartRequest && (
@@ -1799,7 +1884,11 @@ function RoomActionPanel({
             }`}
             title={canRequestRestart ? '请求双方同意后重新开始' : '对手在线时可以请求重开'}
           >
-            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+            {isSubmitting ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <RotateCcw size={16} />
+            )}
             请求重开
           </button>
         )}

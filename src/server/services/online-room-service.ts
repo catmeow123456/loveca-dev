@@ -21,6 +21,7 @@ import {
   OnlineMatchServiceError,
   onlineMatchService,
   type CreateOnlineMatchParams,
+  type OnlineMatchCleanupSummary,
   type OnlineMatchService,
 } from './online-match-service.js';
 
@@ -85,6 +86,12 @@ export class OnlineRoomServiceError extends Error {
     this.code = code;
     this.statusCode = statusCode;
   }
+}
+
+export interface OnlineRoomRuntimeCleanupSummary {
+  readonly checkedRoomCount: number;
+  readonly destroyedRoomCount: number;
+  readonly matchCleanup: OnlineMatchCleanupSummary;
 }
 
 export class OnlineRoomService {
@@ -258,11 +265,7 @@ export class OnlineRoomService {
 
     const room = this.getRoomState(roomCodeInput);
     if (room.status === 'OPENING' || room.status === 'IN_GAME') {
-      throw new OnlineRoomServiceError(
-        'ONLINE_READY_FORBIDDEN',
-        '对局已开始，不能重复准备',
-        409
-      );
+      throw new OnlineRoomServiceError('ONLINE_READY_FORBIDDEN', '对局已开始，不能重复准备', 409);
     }
 
     const member = this.requireMember(room, userId);
@@ -310,18 +313,12 @@ export class OnlineRoomService {
         return this.buildRoomView(room, member);
       }
 
-      throw new OnlineRoomServiceError(
-        'ONLINE_OPENING_FORBIDDEN',
-        '本轮猜拳手势已经锁定',
-        409
-      );
+      throw new OnlineRoomServiceError('ONLINE_OPENING_FORBIDDEN', '本轮猜拳手势已经锁定', 409);
     }
 
     const now = this.now();
     const choices = current.choices.map((choice) =>
-      choice.userId === userId
-        ? { userId, selected: true, gesture }
-        : choice
+      choice.userId === userId ? { userId, selected: true, gesture } : choice
     );
     const allSelected = choices.every((choice) => choice.selected && choice.gesture);
     room.openingRps = allSelected
@@ -385,11 +382,7 @@ export class OnlineRoomService {
     ensureOpeningRpsRoom(room);
     const opening = room.openingRps!;
     if (!opening.revealed || opening.winnerUserId) {
-      throw new OnlineRoomServiceError(
-        'ONLINE_OPENING_FORBIDDEN',
-        '当前猜拳结果不能重来',
-        409
-      );
+      throw new OnlineRoomServiceError('ONLINE_OPENING_FORBIDDEN', '当前猜拳结果不能重来', 409);
     }
 
     const now = this.now();
@@ -604,6 +597,10 @@ export class OnlineRoomService {
     };
   }
 
+  async cleanupExpiredRuntimeState(): Promise<OnlineRoomRuntimeCleanupSummary> {
+    return this.cleanupExpiredState();
+  }
+
   touchInGameMemberByMatch(matchId: string, userId: string): void {
     const room =
       [...this.rooms.values()].find((candidate) => candidate.matchId === matchId) ?? null;
@@ -814,10 +811,13 @@ export class OnlineRoomService {
     return match;
   }
 
-  private async cleanupExpiredState(): Promise<void> {
+  private async cleanupExpiredState(): Promise<OnlineRoomRuntimeCleanupSummary> {
     const now = this.now();
+    let checkedRoomCount = 0;
+    let destroyedRoomCount = 0;
 
     for (const [roomCode, room] of this.rooms) {
+      checkedRoomCount += 1;
       this.refreshMemberPresence(room, now);
       this.expireRestartRequestIfNeeded(room, now);
       this.clearRestartRequestIfParticipantInactive(room);
@@ -834,6 +834,7 @@ export class OnlineRoomService {
             }
           }
           this.rooms.delete(roomCode);
+          destroyedRoomCount += 1;
         }
         continue;
       }
@@ -841,6 +842,7 @@ export class OnlineRoomService {
       this.removeExpiredPreparingMembers(room, now);
       if (room.members.length === 0) {
         this.rooms.delete(roomCode);
+        destroyedRoomCount += 1;
       }
     }
 
@@ -850,7 +852,12 @@ export class OnlineRoomService {
         activeMatchIds.add(room.matchId);
       }
     }
-    await this.matchService.cleanupExpiredMatches(activeMatchIds, now);
+    const matchCleanup = await this.matchService.cleanupExpiredMatches(activeMatchIds, now);
+    return {
+      checkedRoomCount,
+      destroyedRoomCount,
+      matchCleanup,
+    };
   }
 
   private refreshMemberPresence(room: OnlineRoomState, now: number): void {
@@ -1070,11 +1077,7 @@ function buildOpeningRpsViewForViewer(
 
 function ensureOpeningRpsRoom(room: OnlineRoomState): void {
   if (room.status !== 'OPENING' || !room.openingRps) {
-    throw new OnlineRoomServiceError(
-      'ONLINE_OPENING_FORBIDDEN',
-      '当前不在开局猜拳流程中',
-      409
-    );
+    throw new OnlineRoomServiceError('ONLINE_OPENING_FORBIDDEN', '当前不在开局猜拳流程中', 409);
   }
   if (room.members.length !== 2) {
     throw new OnlineRoomServiceError(
@@ -1131,11 +1134,7 @@ function ensureBothDecksLocked(room: OnlineRoomState): void {
 
 function ensureBothMembersActive(room: OnlineRoomState): void {
   if (room.members.length !== 2 || room.members.some((member) => member.presence !== 'ACTIVE')) {
-    throw new OnlineRoomServiceError(
-      'ONLINE_READY_FORBIDDEN',
-      '双方都在线时才能开始对局',
-      409
-    );
+    throw new OnlineRoomServiceError('ONLINE_READY_FORBIDDEN', '双方都在线时才能开始对局', 409);
   }
 }
 

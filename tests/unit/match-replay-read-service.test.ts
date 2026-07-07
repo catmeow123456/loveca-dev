@@ -12,6 +12,9 @@ import { createHeartIcon, createHeartRequirement } from '../../src/domain/entiti
 import { createPublicObjectId } from '../../src/online/projector';
 import { CardType, GameMode, HeartColor } from '../../src/shared/types/enums';
 import {
+  MATCH_REPLAY_EXPORT_ROW_LIMIT,
+  MATCH_REPLAY_TIMELINE_ROW_LIMIT,
+  MATCH_REPLAY_VISIBLE_ROW_LIMIT,
   MatchReplayReadService,
   type MatchReplayReadQueryClient,
 } from '../../src/server/services/match-replay-read-service';
@@ -491,6 +494,15 @@ function createCardSummaries(cards: readonly AnyCardData[]): Record<string, unkn
   );
 }
 
+async function withMutedReplayReadWarnings<T>(run: () => Promise<T>): Promise<T> {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  try {
+    return await run();
+  } finally {
+    warn.mockRestore();
+  }
+}
+
 describe('MatchReplayReadService P1b', () => {
   it('列出当前用户历史对局，并只返回脱敏的不完整原因摘要', async () => {
     const { service } = createHarness();
@@ -638,6 +650,46 @@ describe('MatchReplayReadService P1b', () => {
     expect(JSON.stringify(replay)).not.toContain('opponent-secret-candidate');
   });
 
+  it('时间线记录过大时拒绝一次性读取', async () => {
+    await withMutedReplayReadWarnings(async () => {
+      const { service, calls } = createHarness({
+        accessOverrides: { last_timeline_seq: MATCH_REPLAY_TIMELINE_ROW_LIMIT + 1 },
+      });
+
+      await expect(service.getMatchRecordTimeline('match-read-1', 'u1')).rejects.toMatchObject({
+        code: 'MATCH_RECORD_TIMELINE_TOO_LARGE',
+        statusCode: 413,
+      });
+      expect(
+        calls.some(
+          (call) =>
+            call.text.includes('FROM match_timeline_entries') &&
+            !call.text.includes('timeline_seq = $2')
+        )
+      ).toBe(false);
+    });
+  });
+
+  it('回放节点过大时拒绝读取 checkpoint 之前的全部事件', async () => {
+    await withMutedReplayReadWarnings(async () => {
+      const { service, calls } = createHarness({
+        checkpointOverrides: { timeline_seq: MATCH_REPLAY_VISIBLE_ROW_LIMIT + 1 },
+      });
+
+      await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
+        code: 'MATCH_RECORD_REPLAY_WINDOW_TOO_LARGE',
+        statusCode: 413,
+      });
+      expect(calls.some((call) => call.text.includes('FROM match_record_public_events'))).toBe(
+        false
+      );
+      expect(calls.some((call) => call.text.includes('FROM match_record_private_events'))).toBe(
+        false
+      );
+      expect(calls.some((call) => call.text.includes('FROM match_decision_records'))).toBe(false);
+    });
+  });
+
   it('非参与者不能读取历史详情', async () => {
     const { service } = createHarness();
 
@@ -659,13 +711,7 @@ describe('MatchReplayReadService P1b', () => {
       expect.objectContaining({ seat: 'SECOND', displayName: 'Beta' }),
     ]);
     const listCall = calls.find((call) => call.text.includes('ILIKE'));
-    expect(listCall?.values).toEqual([
-      '%Alpha%',
-      new Date(1_000),
-      new Date(9_000),
-      50,
-      0,
-    ]);
+    expect(listCall?.values).toEqual(['%Alpha%', new Date(1_000), new Date(9_000), 50, 0]);
   });
 
   it('管理员可导出历史对局 replay bundle，并可重新导入读取 checkpoint 投影', () => {
@@ -714,6 +760,33 @@ describe('MatchReplayReadService P1b', () => {
         checkpointView.playerViewState.objects[createPublicObjectId(opponentHiddenCardId)]
       ).toBeUndefined();
       expect(JSON.stringify(checkpointView)).not.toContain('payloadEnvelope');
+    });
+  });
+
+  it('管理员导出估算行数过大时拒绝一次性导出全量 bundle', async () => {
+    await withMutedReplayReadWarnings(async () => {
+      const { service, calls } = createHarness({
+        accessOverrides: {
+          last_timeline_seq: MATCH_REPLAY_EXPORT_ROW_LIMIT + 1,
+          last_checkpoint_seq: 0,
+          last_public_seq: 0,
+          last_game_event_seq: 0,
+        },
+      });
+
+      await expect(service.exportMatchRecordBundleForAdmin('match-read-1')).rejects.toMatchObject({
+        code: 'MATCH_RECORD_EXPORT_TOO_LARGE',
+        statusCode: 413,
+      });
+      expect(
+        calls.some(
+          (call) =>
+            call.text.includes('FROM match_timeline_entries') ||
+            call.text.includes('FROM match_record_public_events') ||
+            call.text.includes('FROM match_record_private_events') ||
+            call.text.includes('FROM match_decision_records')
+        )
+      ).toBe(false);
     });
   });
 

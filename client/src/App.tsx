@@ -6,6 +6,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { BattleViewportShell, GameBoard } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
+import { ConfirmDialog } from '@/components/common';
 import { DeckManager } from '@/components/deck/DeckManager';
 import {
   HomePage,
@@ -26,6 +27,12 @@ import {
   VerifyEmailPage,
 } from '@/components/auth';
 import { DEFAULT_APP_CONFIG, loadPublicAppConfig, type PublicAppConfig } from '@/lib/appConfig';
+import { getSolitaireLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
+import { fetchSolitaireMatchSnapshot } from '@/lib/solitaireMatchClient';
+import {
+  clearStoredSolitaireMatchId,
+  readStoredSolitaireMatchId,
+} from '@/lib/solitaireMatchRecovery';
 import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
@@ -139,9 +146,14 @@ function App() {
   const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
   const loadCardData = useGameStore((s) => s.loadCardData);
   const leaveCurrentGame = useGameStore((s) => s.leaveCurrentGame);
+  const connectRemoteSession = useGameStore((s) => s.connectRemoteSession);
+  const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
   const initDeckStore = useDeckStore((s) => s.init);
   const [gameBriefingAcknowledged, setGameBriefingAcknowledged] = useState(false);
+  const [isLeaveCurrentGameConfirmOpen, setIsLeaveCurrentGameConfirmOpen] = useState(false);
+  const [isLeavingCurrentGame, setIsLeavingCurrentGame] = useState(false);
   const gameBriefingKeyRef = useRef<string | null>(null);
+  const solitaireRestoreAttemptedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -207,9 +219,17 @@ function App() {
 
   // 计算实际显示的页面（游戏结束后自动回到首页）
   const effectivePage: AppPage = currentPage === 'game' && !matchView ? 'home' : currentPage;
-  const gameBriefingKey = matchView
-    ? `${capabilities.surface}:${matchView.matchId}`
-    : null;
+  const gameBriefingKey = matchView ? `${capabilities.surface}:${matchView.matchId}` : null;
+  const currentGameLeaveConfirmCopy =
+    capabilities.surface === 'SOLITAIRE' ? getSolitaireLeaveConfirmCopy() : null;
+  const isAuthenticated = !!(user && profile) || (offlineMode && !!offlineUser);
+  const shareMatch = window.location.pathname.match(/^\/decks\/share\/([^/]+)$/);
+  const shareId = shareMatch?.[1] ?? null;
+  const spectatorMatch = window.location.pathname.match(/^\/online\/spectate\/([^/]+)$/);
+  const spectatorToken = spectatorMatch?.[1] ? decodeURIComponent(spectatorMatch[1]) : null;
+  const shareLoginRequested = new URLSearchParams(window.location.search).get('login') === '1';
+  const initialOpenDeckId = new URLSearchParams(window.location.search).get('openDeckId');
+  const emailFeature = appConfig.features.email;
 
   useEffect(() => {
     if (!gameBriefingKey) {
@@ -224,6 +244,87 @@ function App() {
     gameBriefingKeyRef.current = gameBriefingKey;
     setGameBriefingAcknowledged(false);
   }, [gameBriefingKey]);
+
+  useEffect(() => {
+    if (solitaireRestoreAttemptedRef.current) {
+      return;
+    }
+
+    if (!configInitialized || !authInitialized || isLoading || error) {
+      return;
+    }
+
+    if (authPage === 'reset-password' || authPage === 'verify-email') {
+      return;
+    }
+
+    if (!user || !profile || offlineMode || shareId || spectatorToken) {
+      return;
+    }
+
+    const gameStoreState = useGameStore.getState();
+    if (gameStoreState.getMatchView() || gameStoreState.remoteSession) {
+      return;
+    }
+
+    const storedMatchId = readStoredSolitaireMatchId();
+    if (!storedMatchId) {
+      solitaireRestoreAttemptedRef.current = true;
+      return;
+    }
+
+    solitaireRestoreAttemptedRef.current = true;
+    let cancelled = false;
+
+    const restoreSolitaireMatch = async () => {
+      try {
+        const snapshot = await fetchSolitaireMatchSnapshot(storedMatchId);
+        if (!snapshot) {
+          clearStoredSolitaireMatchId(storedMatchId);
+          return;
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        connectRemoteSession({
+          source: 'SOLITAIRE',
+          matchId: snapshot.matchId,
+          seat: snapshot.seat,
+          playerId: snapshot.playerId,
+        });
+        await applyRemoteSnapshot(snapshot);
+
+        if (!cancelled) {
+          setCurrentPage('game');
+        }
+      } catch (restoreError) {
+        if (import.meta.env.DEV) {
+          console.warn('[App] 对墙打刷新恢复失败，将在下次刷新时重试:', restoreError);
+        }
+      }
+    };
+
+    void restoreSolitaireMatch();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    applyRemoteSnapshot,
+    authInitialized,
+    authPage,
+    configInitialized,
+    connectRemoteSession,
+    error,
+    isLoading,
+    offlineMode,
+    profile,
+    shareId,
+    spectatorToken,
+    user,
+  ]);
 
   // 等待认证初始化
   if (!configInitialized || !authInitialized) {
@@ -278,14 +379,6 @@ function App() {
   }
 
   // 未登录且不是离线模式，显示登录/注册页面
-  const isAuthenticated = !!(user && profile) || (offlineMode && !!offlineUser);
-  const shareMatch = window.location.pathname.match(/^\/decks\/share\/([^/]+)$/);
-  const shareId = shareMatch?.[1] ?? null;
-  const spectatorMatch = window.location.pathname.match(/^\/online\/spectate\/([^/]+)$/);
-  const spectatorToken = spectatorMatch?.[1] ? decodeURIComponent(spectatorMatch[1]) : null;
-  const shareLoginRequested = new URLSearchParams(window.location.search).get('login') === '1';
-  const initialOpenDeckId = new URLSearchParams(window.location.search).get('openDeckId');
-  const emailFeature = appConfig.features.email;
   const switchToLogin = () => {
     setAuthPage('login');
     setAuthToken(null);
@@ -370,6 +463,11 @@ function App() {
       <BattleViewportShell>
         <GameBoard
           onLeaveLocalGame={() => {
+            if (currentGameLeaveConfirmCopy) {
+              setIsLeaveCurrentGameConfirmOpen(true);
+              return;
+            }
+
             void leaveCurrentGame().finally(() => {
               setCurrentPage('game-setup');
             });
@@ -380,6 +478,24 @@ function App() {
             isOpen={!gameBriefingAcknowledged}
             mode={gameBriefingMode}
             onClose={() => setGameBriefingAcknowledged(true)}
+          />
+        )}
+        {currentGameLeaveConfirmCopy && (
+          <ConfirmDialog
+            isOpen={isLeaveCurrentGameConfirmOpen}
+            title={currentGameLeaveConfirmCopy.title}
+            message={currentGameLeaveConfirmCopy.message}
+            confirmLabel={currentGameLeaveConfirmCopy.confirmLabel}
+            isConfirming={isLeavingCurrentGame}
+            onCancel={() => setIsLeaveCurrentGameConfirmOpen(false)}
+            onConfirm={() => {
+              setIsLeavingCurrentGame(true);
+              void leaveCurrentGame().finally(() => {
+                setIsLeavingCurrentGame(false);
+                setIsLeaveCurrentGameConfirmOpen(false);
+                setCurrentPage('game-setup');
+              });
+            }}
           />
         )}
       </BattleViewportShell>

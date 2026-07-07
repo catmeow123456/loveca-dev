@@ -6,6 +6,15 @@ import type {
   Seat,
 } from './types.js';
 
+export interface RuntimeRecoveryInfo {
+  readonly restoredAt: number;
+  readonly checkpointSeq: number;
+  readonly checkpointTimelineSeq: number;
+  readonly currentPublicSeq: number;
+  readonly rolledBackFromPublicSeq: number | null;
+  readonly rolledBackFromTimelineSeq: number | null;
+}
+
 export interface RemoteMatchSnapshot {
   readonly matchId: string;
   readonly seat: Seat;
@@ -15,6 +24,10 @@ export interface RemoteMatchSnapshot {
   /** Current public event cursor. This is intentionally separate from seq. */
   readonly currentPublicSeq: number;
   readonly playerViewState: PlayerViewState;
+  readonly publicEvents?: readonly PublicEvent[];
+  readonly truncated?: boolean;
+  readonly droppedEventCount?: number;
+  readonly recovery?: RuntimeRecoveryInfo;
 }
 
 export interface RemoteMatchHistorySnapshot extends RemoteMatchSnapshot {
@@ -27,6 +40,8 @@ export interface PublicEventsResponse {
   readonly matchId: string;
   readonly currentPublicSeq: number;
   readonly publicEvents: readonly PublicEvent[];
+  readonly truncated?: boolean;
+  readonly droppedEventCount?: number;
 }
 
 export interface RemoteCommandResult<TSnapshot extends RemoteMatchSnapshot = RemoteMatchSnapshot> {

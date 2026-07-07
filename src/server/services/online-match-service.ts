@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { createGameSession, type GameSession } from '../../application/game-session.js';
+import {
+  createGameSession,
+  type GameSession,
+  type GameSessionRuntimeStats,
+} from '../../application/game-session.js';
 import { GameCommandType, type GameCommand } from '../../application/game-commands.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
@@ -22,7 +26,9 @@ import type {
   OnlineSpectatorSessionView,
   OnlineSpectatorSnapshotResponse,
   OnlineUndoView,
+  PublicEvent,
   PublicEventsResponse,
+  RuntimeRecoveryInfo,
   Seat,
   UndoEntrySummary,
   UndoPolicy,
@@ -46,6 +52,7 @@ const UNDO_REQUEST_TTL_MS = 60 * 1000;
 const SPECTATOR_LINK_TTL_MS = 12 * 60 * 60 * 1000;
 const SPECTATOR_SESSION_STALE_MS = 15 * 1000;
 const DEFAULT_AUTHORITY_CHECKPOINT_INTERVAL_FRAMES = 5;
+export const PUBLIC_EVENTS_RESPONSE_MAX = readPositiveIntEnv('ONLINE_PUBLIC_EVENTS_MAX_BATCH', 500);
 
 export interface OnlineMatchParticipant {
   readonly userId: string;
@@ -107,8 +114,38 @@ export interface OnlineMatchState {
   pendingUndoRequest: OnlineUndoRequestState | null;
   activeUndoGrant: OnlineUndoGrantState | null;
   readonly appliedUndoKeys: Set<string>;
+  recoveryNotice:
+    | (RuntimeRecoveryInfo & {
+        readonly publicEvents: readonly PublicEvent[];
+        readonly truncated: boolean;
+        readonly droppedEventCount: number;
+      })
+    | null;
   updatedAt: number;
   lastActivityAt: number;
+}
+
+export interface OnlineMatchCleanupSummary {
+  readonly checkedMatchCount: number;
+  readonly staleMatchCount: number;
+  readonly deletedMatchCount: number;
+  readonly failedDeleteCount: number;
+}
+
+export interface OnlineMatchRuntimeStats {
+  readonly now: number;
+  readonly matchCount: number;
+  readonly matchCountByMode: Readonly<Record<MatchMode, number>>;
+  readonly staleMatchCount: number;
+  readonly oldestLastActivityAgeMs: number | null;
+  readonly spectatorLinkCount: number;
+  readonly spectatorSessionCount: number;
+  readonly maxSessionStats: {
+    readonly matchId: string;
+    readonly matchMode: MatchMode;
+    readonly lastActivityAgeMs: number;
+    readonly session: GameSessionRuntimeStats;
+  } | null;
 }
 
 export interface RemoteUndoInput {
@@ -291,6 +328,7 @@ export class OnlineMatchService {
       pendingUndoRequest: null,
       activeUndoGrant: null,
       appliedUndoKeys: new Set<string>(),
+      recoveryNotice: null,
       updatedAt: now,
       lastActivityAt: now,
     };
@@ -376,6 +414,78 @@ export class OnlineMatchService {
     return this.matches.get(matchId) ?? null;
   }
 
+  async restoreMatch(match: OnlineMatchState): Promise<OnlineMatchState> {
+    const existing = this.matches.get(match.matchId);
+    if (existing) {
+      return existing;
+    }
+
+    this.sealedMatchIds.delete(match.matchId);
+    this.matches.set(match.matchId, match);
+    if (match.recoveryNotice) {
+      await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
+        summary: buildRecoverySummary(match.recoveryNotice),
+        force: true,
+        writeAuthorityCheckpoint: true,
+        dedupeKey: buildRecoveryDedupeKey(match, match.recoveryNotice),
+      });
+    }
+
+    return match;
+  }
+
+  getRuntimeStats(
+    now = this.now(),
+    activeMatchIds: ReadonlySet<string> = new Set()
+  ): OnlineMatchRuntimeStats {
+    const matchCountByMode: Record<MatchMode, number> = {
+      ONLINE: 0,
+      SOLITAIRE: 0,
+    };
+    let staleMatchCount = 0;
+    let oldestLastActivityAgeMs: number | null = null;
+    let maxSessionStats: OnlineMatchRuntimeStats['maxSessionStats'] = null;
+
+    for (const [matchId, match] of this.matches) {
+      matchCountByMode[match.matchMode] += 1;
+      const lastActivityAgeMs = Math.max(0, now - match.lastActivityAt);
+      oldestLastActivityAgeMs =
+        oldestLastActivityAgeMs === null
+          ? lastActivityAgeMs
+          : Math.max(oldestLastActivityAgeMs, lastActivityAgeMs);
+      if (!activeMatchIds.has(matchId) && lastActivityAgeMs > MATCH_STALE_TTL_MS) {
+        staleMatchCount += 1;
+      }
+
+      const session = match.session.getRuntimeStats();
+      const currentMax = maxSessionStats?.session;
+      if (
+        !currentMax ||
+        session.authoritySnapshotCount > currentMax.authoritySnapshotCount ||
+        session.publicEventCount > currentMax.publicEventCount ||
+        session.commandLogCount > currentMax.commandLogCount
+      ) {
+        maxSessionStats = {
+          matchId,
+          matchMode: match.matchMode,
+          lastActivityAgeMs,
+          session,
+        };
+      }
+    }
+
+    return {
+      now,
+      matchCount: this.matches.size,
+      matchCountByMode,
+      staleMatchCount,
+      oldestLastActivityAgeMs,
+      spectatorLinkCount: this.spectatorLinks.size,
+      spectatorSessionCount: this.spectatorSessions.size,
+      maxSessionStats,
+    };
+  }
+
   getAdminMatchSummary(matchId: string, now = Date.now()): OnlineAdminMatchSummary | null {
     const match = this.matches.get(matchId);
     if (!match) {
@@ -426,7 +536,13 @@ export class OnlineMatchService {
     await this.expireActiveUndoGrantIfNeeded(match);
     touchMatch(match);
     const currentSeq = match.remoteRevision;
-    if (options.sinceSeq !== undefined && options.sinceSeq >= currentSeq) {
+    const hasPendingRecoveryNotice =
+      participant.seat === 'FIRST' && match.recoveryNotice !== null;
+    if (
+      !hasPendingRecoveryNotice &&
+      options.sinceSeq !== undefined &&
+      options.sinceSeq >= currentSeq
+    ) {
       return {
         matchId: match.matchId,
         seq: currentSeq,
@@ -435,7 +551,7 @@ export class OnlineMatchService {
       };
     }
 
-    return buildSnapshot(match, participant);
+    return this.buildSnapshotForParticipant(match, participant);
   }
 
   async getMatchPublicEvents(
@@ -457,11 +573,36 @@ export class OnlineMatchService {
     await this.expireActiveUndoGrantIfNeeded(match);
     touchMatch(match);
     const afterSeq = normalizePublicEventCursor(options.afterSeq);
-    return {
-      matchId: match.matchId,
-      currentPublicSeq: match.session.getCurrentPublicEventSeq(),
-      publicEvents: match.session.getPublicEventsSince(afterSeq),
-    };
+    return buildPublicEventsResponse(match, afterSeq, 'PARTICIPANT');
+  }
+
+  private buildSnapshotForParticipant(
+    match: OnlineMatchState,
+    participant: OnlineMatchParticipant,
+    options: { readonly undoView?: OnlineUndoView } = {}
+  ): OnlineMatchSnapshot {
+    const recoveryNotice = participant.seat === 'FIRST' ? match.recoveryNotice : null;
+    const recovery = recoveryNotice
+      ? {
+          restoredAt: recoveryNotice.restoredAt,
+          checkpointSeq: recoveryNotice.checkpointSeq,
+          checkpointTimelineSeq: recoveryNotice.checkpointTimelineSeq,
+          currentPublicSeq: recoveryNotice.currentPublicSeq,
+          rolledBackFromPublicSeq: recoveryNotice.rolledBackFromPublicSeq,
+          rolledBackFromTimelineSeq: recoveryNotice.rolledBackFromTimelineSeq,
+        }
+      : undefined;
+    const snapshot = buildSnapshot(match, participant, {
+      ...options,
+      publicEvents: recoveryNotice?.publicEvents,
+      truncated: recoveryNotice?.truncated,
+      droppedEventCount: recoveryNotice?.droppedEventCount,
+      recovery,
+    });
+    if (recoveryNotice) {
+      match.recoveryNotice = null;
+    }
+    return snapshot;
   }
 
   async createPlayerViewSpectatorLink(
@@ -613,11 +754,7 @@ export class OnlineMatchService {
     await this.expireActiveUndoGrantIfNeeded(match);
     touchMatch(match);
     const afterSeq = normalizePublicEventCursor(options.afterSeq);
-    return {
-      matchId: match.matchId,
-      currentPublicSeq: match.session.getCurrentPublicEventSeq(),
-      publicEvents: match.session.getPublicEventsSince(afterSeq),
-    };
+    return buildPublicEventsResponse(match, afterSeq, 'SPECTATOR');
   }
 
   getSpectatorPresenceForMatch(matchId: string): OnlineSpectatorPresenceView {
@@ -712,7 +849,7 @@ export class OnlineMatchService {
 
     return {
       success: true,
-      snapshot: buildSnapshot(match, participant),
+      snapshot: this.buildSnapshotForParticipant(match, participant),
     };
   }
 
@@ -783,7 +920,7 @@ export class OnlineMatchService {
 
     return {
       success: true,
-      snapshot: buildSnapshot(match, participant),
+      snapshot: this.buildSnapshotForParticipant(match, participant),
     };
   }
 
@@ -827,7 +964,7 @@ export class OnlineMatchService {
       touchMatch(match);
       return {
         success: true,
-        snapshot: buildSnapshot(match, participant),
+        snapshot: this.buildSnapshotForParticipant(match, participant),
       };
     }
 
@@ -900,7 +1037,7 @@ export class OnlineMatchService {
 
     return {
       success: true,
-      snapshot: buildSnapshot(match, participant),
+      snapshot: this.buildSnapshotForParticipant(match, participant),
     };
   }
 
@@ -931,7 +1068,7 @@ export class OnlineMatchService {
       touchMatch(match);
       return {
         success: true,
-        snapshot: buildSnapshot(match, participant),
+        snapshot: this.buildSnapshotForParticipant(match, participant),
       };
     }
 
@@ -1008,7 +1145,7 @@ export class OnlineMatchService {
 
     return {
       success: true,
-      snapshot: buildSnapshot(match, participant),
+      snapshot: this.buildSnapshotForParticipant(match, participant),
     };
   }
 
@@ -1038,7 +1175,7 @@ export class OnlineMatchService {
       touchMatch(match);
       return {
         success: true,
-        snapshot: buildSnapshot(match, participant),
+        snapshot: this.buildSnapshotForParticipant(match, participant),
       };
     }
 
@@ -1141,7 +1278,7 @@ export class OnlineMatchService {
 
     return {
       success: true,
-      snapshot: buildSnapshot(match, participant),
+      snapshot: this.buildSnapshotForParticipant(match, participant),
     };
   }
 
@@ -1171,7 +1308,7 @@ export class OnlineMatchService {
       touchMatch(match);
       return {
         success: true,
-        snapshot: buildSnapshot(match, participant),
+        snapshot: this.buildSnapshotForParticipant(match, participant),
       };
     }
 
@@ -1213,7 +1350,7 @@ export class OnlineMatchService {
 
     return {
       success: true,
-      snapshot: buildSnapshot(match, participant),
+      snapshot: this.buildSnapshotForParticipant(match, participant),
     };
   }
 
@@ -1251,20 +1388,39 @@ export class OnlineMatchService {
   async cleanupExpiredMatches(
     activeMatchIds: ReadonlySet<string>,
     now = Date.now()
-  ): Promise<void> {
+  ): Promise<OnlineMatchCleanupSummary> {
+    let checkedMatchCount = 0;
+    let staleMatchCount = 0;
+    let deletedMatchCount = 0;
+    let failedDeleteCount = 0;
+
     for (const [matchId, match] of this.matches) {
+      checkedMatchCount += 1;
       if (activeMatchIds.has(matchId)) {
         continue;
       }
 
       if (now - match.lastActivityAt > MATCH_STALE_TTL_MS) {
-        await this.deleteMatch(matchId, {
+        staleMatchCount += 1;
+        const deleted = await this.deleteMatch(matchId, {
           reason: 'STALE_MATCH_CLEANUP',
           now,
         });
+        if (deleted) {
+          deletedMatchCount += 1;
+        } else {
+          failedDeleteCount += 1;
+        }
       }
     }
     this.cleanupExpiredSpectatorState(now);
+
+    return {
+      checkedMatchCount,
+      staleMatchCount,
+      deletedMatchCount,
+      failedDeleteCount,
+    };
   }
 
   clear(): void {
@@ -1289,11 +1445,7 @@ export class OnlineMatchService {
       );
     }
     if (link.expiresAt <= now) {
-      throw new OnlineSpectatorServiceError(
-        'ONLINE_SPECTATOR_LINK_EXPIRED',
-        '观战链接已过期',
-        410
-      );
+      throw new OnlineSpectatorServiceError('ONLINE_SPECTATOR_LINK_EXPIRED', '观战链接已过期', 410);
     }
 
     const match = this.matches.get(link.matchId);
@@ -1718,7 +1870,13 @@ export const onlineMatchService = new OnlineMatchService();
 function buildSnapshot(
   match: OnlineMatchState,
   participant: OnlineMatchParticipant,
-  options: { readonly undoView?: OnlineUndoView } = {}
+  options: {
+    readonly undoView?: OnlineUndoView;
+    readonly publicEvents?: readonly PublicEvent[];
+    readonly truncated?: boolean;
+    readonly droppedEventCount?: number;
+    readonly recovery?: RuntimeRecoveryInfo;
+  } = {}
 ): OnlineMatchSnapshot {
   const projectedViewState = match.session.getPlayerViewState(participant.playerId, {
     seqOverride: match.remoteRevision,
@@ -1741,10 +1899,49 @@ function buildSnapshot(
     seq: match.remoteRevision,
     currentPublicSeq: match.session.getCurrentPublicEventSeq(),
     playerViewState,
+    ...(options.publicEvents !== undefined ? { publicEvents: options.publicEvents } : {}),
+    ...(options.truncated !== undefined ? { truncated: options.truncated } : {}),
+    ...(options.droppedEventCount !== undefined
+      ? { droppedEventCount: options.droppedEventCount }
+      : {}),
+    ...(options.recovery !== undefined ? { recovery: options.recovery } : {}),
   };
 }
 
-function buildReadonlySpectatorSnapshot(match: OnlineMatchState, viewerSeat: Seat): OnlineMatchSnapshot {
+function buildRecoverySummary(recovery: RuntimeRecoveryInfo): string {
+  const rolledBackSegments: string[] = [];
+  if (recovery.rolledBackFromTimelineSeq !== null) {
+    rolledBackSegments.push(
+      `timeline ${recovery.rolledBackFromTimelineSeq}->${recovery.checkpointTimelineSeq}`
+    );
+  }
+  if (recovery.rolledBackFromPublicSeq !== null) {
+    rolledBackSegments.push(
+      `public ${recovery.rolledBackFromPublicSeq}->${recovery.currentPublicSeq}`
+    );
+  }
+  const rollbackSummary =
+    rolledBackSegments.length > 0 ? `；回退 ${rolledBackSegments.join('，')}` : '';
+  return `对局运行态恢复到 checkpoint#${recovery.checkpointSeq}${rollbackSummary}`;
+}
+
+function buildRecoveryDedupeKey(match: OnlineMatchState, recovery: RuntimeRecoveryInfo): string {
+  return [
+    match.recordBranchId,
+    'runtime-recovery',
+    recovery.checkpointSeq,
+    recovery.checkpointTimelineSeq,
+    recovery.currentPublicSeq,
+    recovery.rolledBackFromTimelineSeq ?? 'none',
+    recovery.rolledBackFromPublicSeq ?? 'none',
+    recovery.restoredAt,
+  ].join(':');
+}
+
+function buildReadonlySpectatorSnapshot(
+  match: OnlineMatchState,
+  viewerSeat: Seat
+): OnlineMatchSnapshot {
   return buildSnapshot(match, match.participants[viewerSeat], {
     undoView: buildReadonlyUndoView(),
   });
@@ -1935,6 +2132,51 @@ function incrementRemoteRevision(match: OnlineMatchState): void {
 
 function normalizePublicEventCursor(value: number | undefined): number {
   return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const rawValue = process.env[name];
+  if (!rawValue) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(rawValue, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function buildPublicEventsResponse(
+  match: OnlineMatchState,
+  afterSeq: number,
+  requestKind: 'PARTICIPANT' | 'SPECTATOR'
+): PublicEventsResponse {
+  const currentPublicSeq = match.session.getCurrentPublicEventSeq();
+  const slice = match.session.getPublicEventsSliceSince(afterSeq, PUBLIC_EVENTS_RESPONSE_MAX);
+  if (slice.truncated) {
+    console.warn(
+      JSON.stringify({
+        event: 'online-public-events-truncated',
+        matchId: match.matchId,
+        matchMode: match.matchMode,
+        requestKind,
+        afterSeq,
+        currentPublicSeq,
+        returnedEventCount: slice.publicEvents.length,
+        droppedEventCount: slice.droppedEventCount,
+        maxBatch: PUBLIC_EVENTS_RESPONSE_MAX,
+      })
+    );
+  }
+
+  return {
+    matchId: match.matchId,
+    currentPublicSeq,
+    publicEvents: slice.publicEvents,
+    ...(slice.truncated
+      ? {
+          truncated: true,
+          droppedEventCount: slice.droppedEventCount,
+        }
+      : {}),
+  };
 }
 
 function deriveRemoteUndoPolicy(

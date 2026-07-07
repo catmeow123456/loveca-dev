@@ -34,6 +34,7 @@ import {
   type MatchMode,
   type PublicEvent,
   type PublicEventsResponse,
+  type RuntimeRecoveryInfo,
 } from '@game/online';
 import {
   GameCommandType,
@@ -101,10 +102,12 @@ import {
   fetchRemoteSnapshotSyncResult,
   rejectRemoteUndoRequest,
   undoRemoteMatch,
+  type RemoteCommandExecutionResult,
   type RemoteSessionSource,
   type RemoteSnapshot,
 } from '@/lib/remoteMatchClient';
 import { leaveSolitaireMatch } from '@/lib/solitaireMatchClient';
+import { clearStoredSolitaireMatchId } from '@/lib/solitaireMatchRecovery';
 import {
   deriveBattleSurfaceCapabilities,
   type BattleSurfaceCapabilities,
@@ -329,10 +332,7 @@ export interface GameStore {
   movePublicCardToHand: (
     cardId: string,
     fromZone:
-      | ZoneType.MEMBER_SLOT
-      | ZoneType.LIVE_ZONE
-      | ZoneType.SUCCESS_ZONE
-      | ZoneType.WAITING_ROOM,
+      ZoneType.MEMBER_SLOT | ZoneType.LIVE_ZONE | ZoneType.SUCCESS_ZONE | ZoneType.WAITING_ROOM,
     sourceSlot?: SlotPosition
   ) => CommandDispatchResult;
   /** 将公开的能量牌移回能量卡组 */
@@ -667,7 +667,9 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   const rejectReadonlyCommand = (): CommandDispatchResult => ({
     success: false,
-    error: isReadonlyReplayMode() ? '历史回放为只读模式，不能提交操作' : '观战模式为只读，不能提交操作',
+    error: isReadonlyReplayMode()
+      ? '历史回放为只读模式，不能提交操作'
+      : '观战模式为只读，不能提交操作',
   });
 
   const applyCommandSuccessEffects = (
@@ -878,6 +880,8 @@ export const useGameStore = create<GameStore>((set, get) => {
             `离开对墙打失败: ${error instanceof Error ? error.message : String(error)}`,
             'error'
           );
+        } finally {
+          clearStoredSolitaireMatchId(remoteSession.matchId);
         }
       }
 
@@ -2358,9 +2362,7 @@ function resolveSelectedCardDetail(
     return detail;
   }
 
-  return resolveHoveredCardId(detail.cardId, playerViewState)
-    ? detail
-    : null;
+  return resolveHoveredCardId(detail.cardId, playerViewState) ? detail : null;
 }
 
 function buildFallbackCardData(frontInfo: ViewFrontCardInfo): AnyCardData {
@@ -2512,7 +2514,9 @@ function applyRemoteSnapshot(
   const normalizedSnapshotViewState = normalizePlayerViewState(snapshot.playerViewState);
   let applied = false;
   set((state) => {
+    const isRecoverySnapshot = 'recovery' in snapshot && Boolean(snapshot.recovery);
     if (
+      !isRecoverySnapshot &&
       normalizedSnapshotViewState !== null &&
       shouldIgnoreRemoteSnapshotBySeq({
         currentMatchId: state.playerViewState?.match.matchId,
@@ -2588,7 +2592,13 @@ function applyRemoteSnapshotThenPreload(
   }
 
   scheduleFrontTransitionPreload(previousViewState, nextViewState, cardDataRegistry, latencyProbe);
+  if (snapshot.recovery) {
+    resetPublicBattleLogForRecoveredSnapshot(snapshot.matchId);
+  }
   mergePublicEventsFromSnapshot(snapshot);
+  if (snapshot.recovery) {
+    notifyRemoteRuntimeRecovery(snapshot.recovery);
+  }
   void syncPublicBattleLogIfNeeded(snapshot.matchId, snapshot.currentPublicSeq);
 }
 
@@ -2601,9 +2611,36 @@ function mergePublicEventsFromSnapshot(snapshot: RemoteSnapshot): void {
     publicBattleLog: mergePublicBattleLogResponse(state.publicBattleLog, {
       matchId: snapshot.matchId,
       currentPublicSeq: snapshot.currentPublicSeq,
-      publicEvents: snapshot.publicEvents,
+      publicEvents: snapshot.publicEvents ?? [],
+      truncated: snapshot.truncated,
+      droppedEventCount: snapshot.droppedEventCount,
     }),
   }));
+}
+
+function resetPublicBattleLogForRecoveredSnapshot(matchId: string): void {
+  useGameStore.setState((state) => ({
+    publicBattleLog: {
+      ...EMPTY_PUBLIC_BATTLE_LOG,
+      matchId,
+      isPanelOpen: state.publicBattleLog.matchId === matchId && state.publicBattleLog.isPanelOpen,
+    },
+  }));
+}
+
+function notifyRemoteRuntimeRecovery(recovery: RuntimeRecoveryInfo): void {
+  const rolledBack =
+    recovery.rolledBackFromPublicSeq !== null || recovery.rolledBackFromTimelineSeq !== null;
+  const detail = rolledBack
+    ? '已回退到最近保存点，最近操作可能需要重做'
+    : '已从最近保存点恢复运行态';
+  const store = useGameStore.getState();
+  store.addLog(`对局已恢复：${detail}`, rolledBack ? 'error' : 'info');
+  store.pushBattleFeedback({
+    tone: rolledBack ? 'error' : 'info',
+    label: '对局已恢复',
+    detail,
+  });
 }
 
 async function syncPublicBattleLogIfNeeded(
@@ -2664,7 +2701,9 @@ function mergePublicBattleLogResponse(
     previous.matchId === response.matchId
       ? previous
       : { ...EMPTY_PUBLIC_BATTLE_LOG, matchId: response.matchId };
-  const retainedEvents = base.events.filter((event) => event.seq <= response.currentPublicSeq);
+  const retainedEvents = response.truncated
+    ? []
+    : base.events.filter((event) => event.seq <= response.currentPublicSeq);
   const bySeq = new Map<number, PublicEvent>();
   for (const event of retainedEvents) {
     bySeq.set(event.seq, event);
@@ -3116,6 +3155,16 @@ function ensureRemoteCommandIdempotencyKey(command: GameCommand): GameCommand {
   };
 }
 
+function applyRemoteFailureSnapshotIfPresent(
+  result: RemoteCommandExecutionResult,
+  context: string
+): void {
+  if (!result.snapshot) {
+    return;
+  }
+  applyRemoteSnapshotThenPreload(result.snapshot, useGameStore.setState, context);
+}
+
 function dispatchRemoteCommand(
   command: GameCommand,
   failureMessage: string,
@@ -3142,7 +3191,19 @@ function dispatchRemoteCommand(
     if (!isRemoteSessionStillCurrent(remoteSession)) {
       return;
     }
-    if (!result.success || !result.snapshot) {
+    if (!result.success) {
+      applyRemoteFailureSnapshotIfPresent(result, 'remoteCommandRejected');
+      useGameStore
+        .getState()
+        .addLog(`${failureMessage}: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+      useGameStore.getState().pushBattleFeedback({
+        tone: 'error',
+        label: failureMessage,
+        detail: result.error ?? '服务端拒绝了该操作',
+      });
+      return;
+    }
+    if (!result.snapshot) {
       useGameStore
         .getState()
         .addLog(`${failureMessage}: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
@@ -3193,7 +3254,14 @@ function dispatchRemoteAdvancePhase(): boolean {
     if (!isRemoteSessionStillCurrent(remoteSession)) {
       return;
     }
-    if (!result.success || !result.snapshot) {
+    if (!result.success) {
+      applyRemoteFailureSnapshotIfPresent(result, 'remoteAdvancePhaseRejected');
+      useGameStore
+        .getState()
+        .addLog(`阶段推进失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+      return;
+    }
+    if (!result.snapshot) {
       useGameStore
         .getState()
         .addLog(`阶段推进失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
@@ -3246,7 +3314,12 @@ function dispatchRemoteUndoLastStep(): CommandDispatchResult {
     if (!isRemoteSessionStillCurrent(remoteSession)) {
       return;
     }
-    if (!result.success || !result.snapshot) {
+    if (!result.success) {
+      applyRemoteFailureSnapshotIfPresent(result, 'remoteUndoRejected');
+      useGameStore.getState().addLog(`撤销失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+      return;
+    }
+    if (!result.snapshot) {
       useGameStore.getState().addLog(`撤销失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
       return;
     }

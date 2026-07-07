@@ -56,6 +56,18 @@ import {
 } from './replay-payload-serialization.js';
 
 const REPLAY_READ_SEATS: readonly Seat[] = ['FIRST', 'SECOND'];
+export const MATCH_REPLAY_TIMELINE_ROW_LIMIT = readPositiveIntEnv(
+  'MATCH_REPLAY_TIMELINE_ROW_LIMIT',
+  10_000
+);
+export const MATCH_REPLAY_VISIBLE_ROW_LIMIT = readPositiveIntEnv(
+  'MATCH_REPLAY_VISIBLE_ROW_LIMIT',
+  10_000
+);
+export const MATCH_REPLAY_EXPORT_ROW_LIMIT = readPositiveIntEnv(
+  'MATCH_REPLAY_EXPORT_ROW_LIMIT',
+  25_000
+);
 
 interface MatchReplayReadQueryResult<T> {
   readonly rows: T[];
@@ -294,6 +306,115 @@ export class MatchReplayReadServiceError extends Error {
   }
 }
 
+type ReplayReadGuardOperation =
+  'USER_TIMELINE' | 'ADMIN_TIMELINE' | 'USER_REPLAY' | 'ADMIN_REPLAY' | 'ADMIN_EXPORT';
+
+interface ReplayRecordSizeSource {
+  readonly match_id: string;
+  readonly last_timeline_seq: number;
+  readonly last_checkpoint_seq?: number;
+  readonly last_public_seq?: number;
+  readonly last_game_event_seq?: number;
+}
+
+function assertTimelineWithinLimit(
+  record: ReplayRecordSizeSource,
+  operation: ReplayReadGuardOperation
+): void {
+  const estimatedRowCount = normalizeReplayRowCount(record.last_timeline_seq);
+  if (estimatedRowCount <= MATCH_REPLAY_TIMELINE_ROW_LIMIT) {
+    return;
+  }
+
+  logReplayReadBlocked({
+    matchId: record.match_id,
+    operation,
+    estimatedRowCount,
+    limit: MATCH_REPLAY_TIMELINE_ROW_LIMIT,
+  });
+  throw new MatchReplayReadServiceError(
+    'MATCH_RECORD_TIMELINE_TOO_LARGE',
+    '历史对局时间线过大，请使用分页读取',
+    413
+  );
+}
+
+function assertReplayWindowWithinLimit(
+  matchId: string,
+  timelineSeq: number,
+  operation: ReplayReadGuardOperation
+): void {
+  const estimatedRowCount = normalizeReplayRowCount(timelineSeq);
+  if (estimatedRowCount <= MATCH_REPLAY_VISIBLE_ROW_LIMIT) {
+    return;
+  }
+
+  logReplayReadBlocked({
+    matchId,
+    operation,
+    estimatedRowCount,
+    limit: MATCH_REPLAY_VISIBLE_ROW_LIMIT,
+  });
+  throw new MatchReplayReadServiceError(
+    'MATCH_RECORD_REPLAY_WINDOW_TOO_LARGE',
+    '历史回放节点过大，请选择更近的检查点或分页读取',
+    413
+  );
+}
+
+function assertExportWithinLimit(record: ReplayRecordSizeSource): void {
+  const estimatedRowCount =
+    normalizeReplayRowCount(record.last_timeline_seq) +
+    normalizeReplayRowCount(record.last_checkpoint_seq) +
+    normalizeReplayRowCount(record.last_public_seq) +
+    normalizeReplayRowCount(record.last_game_event_seq);
+  if (estimatedRowCount <= MATCH_REPLAY_EXPORT_ROW_LIMIT) {
+    return;
+  }
+
+  logReplayReadBlocked({
+    matchId: record.match_id,
+    operation: 'ADMIN_EXPORT',
+    estimatedRowCount,
+    limit: MATCH_REPLAY_EXPORT_ROW_LIMIT,
+  });
+  throw new MatchReplayReadServiceError(
+    'MATCH_RECORD_EXPORT_TOO_LARGE',
+    '历史对局导出数据过大，请使用离线导出或提高服务器阈值',
+    413
+  );
+}
+
+function normalizeReplayRowCount(value: number | undefined): number {
+  return value !== undefined && Number.isSafeInteger(value) && value > 0 ? value : 0;
+}
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const rawValue = process.env[name];
+  if (!rawValue) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(rawValue, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function logReplayReadBlocked(input: {
+  readonly matchId: string;
+  readonly operation: ReplayReadGuardOperation;
+  readonly estimatedRowCount: number;
+  readonly limit: number;
+}): void {
+  console.warn(
+    JSON.stringify({
+      event: 'match-replay-read-blocked',
+      matchId: input.matchId,
+      operation: input.operation,
+      estimatedRowCount: input.estimatedRowCount,
+      limit: input.limit,
+    })
+  );
+}
+
 export class MatchReplayReadService {
   private readonly queryClient: MatchReplayReadQueryClient;
 
@@ -345,18 +466,26 @@ export class MatchReplayReadService {
       return null;
     }
     validateAdminRecordCompatibility(record);
+    assertExportWithinLimit(record);
 
-    const [participants, deckSnapshots, timeline, checkpoints, publicEvents, privateEvents, decisions] =
-      await Promise.all([
-        this.queryClient.query<ParticipantRow>(
-          `SELECT seat, user_id, display_name, player_id, participant_kind, owner_user_id
+    const [
+      participants,
+      deckSnapshots,
+      timeline,
+      checkpoints,
+      publicEvents,
+      privateEvents,
+      decisions,
+    ] = await Promise.all([
+      this.queryClient.query<ParticipantRow>(
+        `SELECT seat, user_id, display_name, player_id, participant_kind, owner_user_id
           FROM match_participants
           WHERE match_id = $1
           ORDER BY seat`,
-          [matchId]
-        ),
-        this.queryClient.query<DeckSnapshotRow>(
-          `SELECT
+        [matchId]
+      ),
+      this.queryClient.query<DeckSnapshotRow>(
+        `SELECT
             seat,
             source_deck_id,
             source_deck_name,
@@ -371,14 +500,14 @@ export class MatchReplayReadService {
           FROM match_deck_snapshots
           WHERE match_id = $1
           ORDER BY seat`,
-          [matchId]
-        ),
-        this.getAllTimelineRowsForExport(matchId),
-        this.getAllAuthorityCheckpointRowsForExport(matchId),
-        this.getAllPublicEventRowsForExport(matchId),
-        this.getAllPrivateEventRowsForExport(matchId),
-        this.getAllDecisionRecordRowsForExport(matchId),
-      ]);
+        [matchId]
+      ),
+      this.getAllTimelineRowsForExport(matchId),
+      this.getAllAuthorityCheckpointRowsForExport(matchId),
+      this.getAllPublicEventRowsForExport(matchId),
+      this.getAllPrivateEventRowsForExport(matchId),
+      this.getAllDecisionRecordRowsForExport(matchId),
+    ]);
 
     if (checkpoints.length === 0) {
       throw new MatchReplayReadServiceError(
@@ -561,6 +690,7 @@ export class MatchReplayReadService {
     if (!access) {
       return null;
     }
+    assertTimelineWithinLimit(access, 'USER_TIMELINE');
 
     const timeline = await this.queryClient.query<TimelineRow>(
       `SELECT
@@ -613,6 +743,7 @@ export class MatchReplayReadService {
     if (!record) {
       return null;
     }
+    assertTimelineWithinLimit(record, 'ADMIN_TIMELINE');
 
     const timeline = await this.getAllTimelineRowsForExport(matchId);
 
@@ -650,6 +781,7 @@ export class MatchReplayReadService {
         404
       );
     }
+    assertReplayWindowWithinLimit(matchId, checkpoint.timeline_seq, 'USER_REPLAY');
     validateCheckpointStorageEnvelope(checkpoint);
     validateCheckpointCompatibility(checkpoint);
 
@@ -741,6 +873,7 @@ export class MatchReplayReadService {
         404
       );
     }
+    assertReplayWindowWithinLimit(matchId, checkpoint.timeline_seq, 'ADMIN_REPLAY');
     validateCheckpointStorageEnvelope(checkpoint);
     validateCheckpointCompatibility(checkpoint);
 
@@ -1305,10 +1438,7 @@ function validateRecordCompatibility(access: RecordAccessRow): void {
 }
 
 function validateAdminRecordCompatibility(
-  access: Pick<
-    AdminRecordRow,
-    'record_version' | 'rules_version' | 'card_data_version'
-  >
+  access: Pick<AdminRecordRow, 'record_version' | 'rules_version' | 'card_data_version'>
 ): void {
   if (access.record_version !== REPLAY_RECORD_SCHEMA_VERSION) {
     throw new MatchReplayReadServiceError(
@@ -1572,7 +1702,9 @@ function mapParticipantRow(row: ParticipantRow): MatchRecordParticipantView {
   };
 }
 
-function normalizeParticipantView(participant: MatchRecordParticipantView): MatchRecordParticipantView {
+function normalizeParticipantView(
+  participant: MatchRecordParticipantView
+): MatchRecordParticipantView {
   return {
     seat: participant.seat,
     userId: participant.userId,

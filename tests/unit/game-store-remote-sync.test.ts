@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameMode } from '../../src/shared/types/enums';
-import type { PlayerViewState, PublicEventsResponse } from '../../src/online/types';
+import type {
+  PlayerViewState,
+  PublicEvent,
+  PublicEventsResponse,
+  RuntimeRecoveryInfo,
+} from '../../src/online/types';
 import type { RemoteSnapshot } from '@/lib/remoteMatchClient';
 
 vi.mock('@/lib/imageService', () => ({
@@ -21,6 +26,7 @@ vi.mock('@/lib/remoteMatchClient', () => ({
 
 import { useGameStore } from '../../client/src/store/gameStore';
 import {
+  advanceRemotePhase,
   fetchRemotePublicEvents,
   fetchRemoteSnapshotSyncResult,
 } from '@/lib/remoteMatchClient';
@@ -66,7 +72,13 @@ function createViewState(matchId: string, seq: number): PlayerViewState {
 function createSnapshot(
   matchId: string,
   seq: number,
-  currentPublicSeq: number
+  currentPublicSeq: number,
+  options: {
+    readonly publicEvents?: readonly PublicEvent[];
+    readonly truncated?: boolean;
+    readonly droppedEventCount?: number;
+    readonly recovery?: RuntimeRecoveryInfo;
+  } = {}
 ): RemoteSnapshot {
   return {
     matchId,
@@ -75,17 +87,49 @@ function createSnapshot(
     seq,
     currentPublicSeq,
     playerViewState: createViewState(matchId, seq),
+    ...options,
   };
 }
 
 function createPublicEventsResponse(
   matchId: string,
-  currentPublicSeq: number
+  currentPublicSeq: number,
+  publicEvents: readonly PublicEvent[] = [],
+  options: { readonly truncated?: boolean; readonly droppedEventCount?: number } = {}
 ): PublicEventsResponse {
   return {
     matchId,
     currentPublicSeq,
-    publicEvents: [],
+    publicEvents,
+    ...options,
+  };
+}
+
+function createPublicEvent(matchId: string, seq: number): PublicEvent {
+  return {
+    type: 'PhaseStarted',
+    eventId: `public-event-${seq}`,
+    matchId,
+    seq,
+    timestamp: 1_000 + seq,
+    source: 'SYSTEM',
+    phase: 'MAIN_PHASE',
+    activeSeat: 'FIRST',
+  };
+}
+
+function createRecoveryInfo(
+  currentPublicSeq: number,
+  overrides: Partial<RuntimeRecoveryInfo> = {}
+): RuntimeRecoveryInfo {
+  return {
+    restoredAt: 2_000,
+    checkpointSeq: 3,
+    checkpointTimelineSeq: 7,
+    currentPublicSeq,
+    rolledBackFromPublicSeq: null,
+    rolledBackFromTimelineSeq: null,
+    ...overrides,
   };
 }
 
@@ -200,13 +244,162 @@ describe('gameStore remote snapshot sync', () => {
       currentPublicSeq: 8,
       snapshot: createSnapshot('match-1', 6, 8),
     });
-    vi.mocked(fetchRemotePublicEvents).mockResolvedValueOnce(createPublicEventsResponse('match-1', 8));
+    vi.mocked(fetchRemotePublicEvents).mockResolvedValueOnce(
+      createPublicEventsResponse('match-1', 8)
+    );
 
     await useGameStore.getState().syncRemoteState();
     await vi.waitFor(() => {
       expect(fetchRemotePublicEvents).toHaveBeenCalledWith('ONLINE', 'match-1', 'FIRST', 5);
     });
     expect(useGameStore.getState().publicBattleLog.currentPublicSeq).toBe(8);
+  });
+
+  it('resets retained public events when the server truncates an old cursor', async () => {
+    const staleEvent = createPublicEvent('match-1', 1);
+    const latestEvent = createPublicEvent('match-1', 20);
+    setRemoteSession('match-1');
+    useGameStore.setState({
+      playerViewState: createViewState('match-1', 4),
+      publicBattleLog: {
+        ...EMPTY_PUBLIC_BATTLE_LOG,
+        matchId: 'match-1',
+        events: [staleEvent],
+        cursorSeq: 1,
+        currentPublicSeq: 1,
+      },
+    });
+    vi.mocked(fetchRemoteSnapshotSyncResult).mockResolvedValueOnce({
+      matchId: 'match-1',
+      seq: 4,
+      currentPublicSeq: 20,
+      snapshot: null,
+    });
+    vi.mocked(fetchRemotePublicEvents).mockResolvedValueOnce(
+      createPublicEventsResponse('match-1', 20, [latestEvent], {
+        truncated: true,
+        droppedEventCount: 18,
+      })
+    );
+
+    await useGameStore.getState().syncRemoteState();
+    await vi.waitFor(() => {
+      expect(fetchRemotePublicEvents).toHaveBeenCalledWith('ONLINE', 'match-1', 'FIRST', 1);
+    });
+
+    const log = useGameStore.getState().publicBattleLog;
+    expect(log.events.map((event) => event.seq)).toEqual([20]);
+    expect(log.cursorSeq).toBe(20);
+    expect(log.currentPublicSeq).toBe(20);
+  });
+
+  it('resets local public log from a recovery snapshot before merging restored events', async () => {
+    const staleEvent = createPublicEvent('match-1', 30);
+    const restoredEvent = createPublicEvent('match-1', 12);
+    setRemoteSession('match-1');
+    useGameStore.setState({
+      playerViewState: createViewState('match-1', 4),
+      publicBattleLog: {
+        ...EMPTY_PUBLIC_BATTLE_LOG,
+        matchId: 'match-1',
+        events: [staleEvent],
+        cursorSeq: 30,
+        currentPublicSeq: 30,
+      },
+    });
+    vi.mocked(fetchRemoteSnapshotSyncResult).mockResolvedValueOnce({
+      matchId: 'match-1',
+      seq: 40,
+      currentPublicSeq: 12,
+      snapshot: createSnapshot('match-1', 40, 12, {
+        publicEvents: [restoredEvent],
+        truncated: true,
+        droppedEventCount: 11,
+        recovery: createRecoveryInfo(12, {
+          rolledBackFromPublicSeq: 30,
+          rolledBackFromTimelineSeq: 18,
+        }),
+      }),
+    });
+
+    await useGameStore.getState().syncRemoteState();
+
+    const log = useGameStore.getState().publicBattleLog;
+    expect(log.events.map((event) => event.seq)).toEqual([12]);
+    expect(log.currentPublicSeq).toBe(12);
+    expect(log.cursorSeq).toBe(12);
+  });
+
+  it('accepts a recovery snapshot even when its seq is not newer than the local view', async () => {
+    const restoredEvent = createPublicEvent('match-1', 12);
+    setRemoteSession('match-1');
+    useGameStore.setState({
+      viewingPlayerId: 'match-1:FIRST:user-1',
+      playerViewState: createViewState('match-1', 40),
+      publicBattleLog: {
+        ...EMPTY_PUBLIC_BATTLE_LOG,
+        matchId: 'match-1',
+        events: [createPublicEvent('match-1', 30)],
+        cursorSeq: 30,
+        currentPublicSeq: 30,
+      },
+    });
+    vi.mocked(fetchRemoteSnapshotSyncResult).mockResolvedValueOnce({
+      matchId: 'match-1',
+      seq: 40,
+      currentPublicSeq: 12,
+      snapshot: createSnapshot('match-1', 40, 12, {
+        publicEvents: [restoredEvent],
+        truncated: true,
+        droppedEventCount: 11,
+        recovery: createRecoveryInfo(12),
+      }),
+    });
+
+    await useGameStore.getState().syncRemoteState();
+
+    const log = useGameStore.getState().publicBattleLog;
+    expect(log.events.map((event) => event.seq)).toEqual([12]);
+    expect(log.currentPublicSeq).toBe(12);
+    expect(useGameStore.getState().playerViewState?.match.seq).toBe(40);
+  });
+
+  it('applies recovery snapshots from failed remote phase advances before surfacing the error', async () => {
+    const restoredEvent = createPublicEvent('match-1', 9);
+    setRemoteSession('match-1');
+    useGameStore.setState({
+      playerViewState: createViewState('match-1', 4),
+      publicBattleLog: {
+        ...EMPTY_PUBLIC_BATTLE_LOG,
+        matchId: 'match-1',
+        events: [createPublicEvent('match-1', 20)],
+        cursorSeq: 20,
+        currentPublicSeq: 20,
+      },
+    });
+    vi.mocked(advanceRemotePhase).mockResolvedValueOnce({
+      success: false,
+      error: '对局已恢复到最近保存点，请刷新后重试',
+      snapshot: createSnapshot('match-1', 50, 9, {
+        publicEvents: [restoredEvent],
+        truncated: true,
+        droppedEventCount: 8,
+        recovery: createRecoveryInfo(9, {
+          rolledBackFromPublicSeq: 20,
+          rolledBackFromTimelineSeq: 14,
+        }),
+      }),
+    } as never);
+
+    useGameStore.getState().advancePhase();
+
+    await vi.waitFor(() => {
+      expect(useGameStore.getState().playerViewState?.match.seq).toBe(50);
+    });
+
+    const log = useGameStore.getState().publicBattleLog;
+    expect(log.events.map((event) => event.seq)).toEqual([9]);
+    expect(log.currentPublicSeq).toBe(9);
   });
 
   it('keeps a public event card detail pinned while visible cards are hovered', () => {

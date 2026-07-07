@@ -56,6 +56,7 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { isApiConfigured } from '@/lib/apiClient';
 import { createSolitaireMatch } from '@/lib/solitaireMatchClient';
+import { writeStoredSolitaireMatchId } from '@/lib/solitaireMatchRecovery';
 
 type SetupStep = 0 | 1 | 2 | 3;
 type SetupMode = 'ONLINE' | GameMode.DEBUG | GameMode.SOLITAIRE;
@@ -277,6 +278,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
           throw new Error('卡组数据无效');
         }
         const created = await createSolitaireMatch(deckId);
+        writeStoredSolitaireMatchId(created.matchId);
         connectRemoteSession({
           source: 'SOLITAIRE',
           matchId: created.matchId,

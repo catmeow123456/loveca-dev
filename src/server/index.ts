@@ -2,8 +2,15 @@ import { config } from './config.js';
 import { createApp } from './app.js';
 import { pool } from './db/pool.js';
 import { ensureBucket } from './services/minio-service.js';
+import { onlineMatchService } from './services/online-match-service.js';
+import { onlineRoomService } from './services/online-room-service.js';
 
 const TOKEN_CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
+const RUNTIME_CLEANUP_INTERVAL = readPositiveIntEnv('API_RUNTIME_CLEANUP_INTERVAL_MS', 60 * 1000);
+const RUNTIME_STATS_LOG_INTERVAL = readPositiveIntEnv(
+  'API_RUNTIME_STATS_LOG_INTERVAL_MS',
+  60 * 1000
+);
 
 async function cleanupExpiredTokens() {
   try {
@@ -14,6 +21,34 @@ async function cleanupExpiredTokens() {
     }
   } catch (err) {
     console.error('Token cleanup failed:', err);
+  }
+}
+
+async function cleanupExpiredRuntimeState() {
+  try {
+    const summary = await onlineRoomService.cleanupExpiredRuntimeState();
+    console.log(
+      JSON.stringify({
+        event: 'api-runtime-cleanup',
+        summary,
+      })
+    );
+  } catch (err) {
+    console.error('Runtime cleanup failed:', err);
+  }
+}
+
+function logRuntimeStats() {
+  try {
+    console.log(
+      JSON.stringify({
+        event: 'api-runtime-stats',
+        memory: process.memoryUsage(),
+        matches: onlineMatchService.getRuntimeStats(),
+      })
+    );
+  } catch (err) {
+    console.error('Runtime stats logging failed:', err);
   }
 }
 
@@ -37,13 +72,24 @@ async function main() {
   }
 
   // Schedule periodic token cleanup
-  setInterval(cleanupExpiredTokens, TOKEN_CLEANUP_INTERVAL);
+  setInterval(cleanupExpiredTokens, TOKEN_CLEANUP_INTERVAL).unref();
+  setInterval(cleanupExpiredRuntimeState, RUNTIME_CLEANUP_INTERVAL).unref();
+  setInterval(logRuntimeStats, RUNTIME_STATS_LOG_INTERVAL).unref();
 
   const app = createApp();
 
   app.listen(config.port, () => {
     console.log(`API server listening on port ${config.port} (${config.nodeEnv})`);
   });
+}
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const rawValue = process.env[name];
+  if (!rawValue) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(rawValue, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 main().catch((err) => {

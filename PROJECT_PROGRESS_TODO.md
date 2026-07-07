@@ -1,6 +1,22 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-07
+更新时间：2026-07-08
+
+## 本次 2026-07-08 生产 API OOM P0 运行态治理
+
+- `GameSession` 运行态新增 stats，并将 `authoritySnapshots` / `snapshotHistory` 改为最近 64 个 public seq 有界保留；极旧恢复 seq 不再回退到最早保留快照，避免为了旧 cursor 常驻完整历史。
+- 撤销快照不再复制 `publicEvents`、`privateEventsBySeat`、`sealedAuditRecords`、`commandLog`、`snapshotHistory` 与整张 `authoritySnapshots` Map；现在只保存撤销所需权威状态与日志游标，恢复时按游标截断运行态数组并重建当前恢复快照。
+- `OnlineMatchService` 新增运行态 stats 与 cleanup summary；`OnlineRoomService` 暴露全局 runtime cleanup 入口；API 进程启动后每分钟执行房间/对墙打共用 cleanup，并输出 `api-runtime-cleanup` 摘要与 `api-runtime-stats` 内存 / match 摘要日志。
+- public-events 增加 `ONLINE_PUBLIC_EVENTS_MAX_BATCH` 截断保护，参与者与观战者旧 cursor 只返回最近尾部事件并输出 `online-public-events-truncated`；前端 public battle log 收到 `truncated` 后重置本地旧事件，避免展示不连续历史。
+- 历史读取增加 `MATCH_REPLAY_TIMELINE_ROW_LIMIT` / `MATCH_REPLAY_VISIBLE_ROW_LIMIT` / `MATCH_REPLAY_EXPORT_ROW_LIMIT` 保护；timeline、replay 节点、admin export 在全量读取前按记录 seq 估算规模，超限直接 413 并输出 `match-replay-read-blocked`。
+- 新增 `src/server/services/solitaire-runtime-recovery-service.ts`：对墙打运行态缺失时可从最新 AUTHORITY checkpoint + public-events 尾部重建 `GameSession`；`SolitaireMatchService` 读路径会自动恢复并重新注册运行态，写路径在 checkpoint 已回退时返回恢复快照并拒绝旧操作；撤销路径即使未回退也会提示恢复后撤销历史已重置。
+- `OnlineMatchService` 快照新增一次性 `recovery/publicEvents/truncated/droppedEventCount` 恢复载荷；前端 `gameStore` 收到恢复快照会先清空旧 public battle log，再合并恢复尾部事件；若远程 command / advance / undo 失败但附带恢复快照，也会先落本地状态再提示错误。
+- 提交前补修恢复快照边界：恢复通知待发送时服务端不再因 `sinceSeq >= currentSeq` 返回未修改；前端允许带 `recovery` 的权威恢复快照穿过普通 seq 去重，避免恢复 revision 与旧客户端 revision 持平时丢失恢复载荷；若 `public-events` 先触发对墙打回退恢复，后续写操作仍会读取待发送 recovery notice 并拒绝旧操作。
+- 联机房间与对墙打新增离开确认提示：准备阶段提示可重新加入，联机进行中提示“稍后可回来继续 / 双方离开太久会结束本局”，对墙打提示离开后本局直接结束，避免用户误以为所有离开都能无损恢复。
+- 前端补齐对墙打刷新恢复入口：创建服务端可记录对墙打后在同一标签页 `sessionStorage` 保存 matchId；应用启动完成认证与卡牌数据加载后自动拉取 snapshot、接回远程 session 并进入桌面；用户明确离开对墙打时清理该恢复记录。
+- 验证：`pnpm exec vitest run tests/integration/online-session-bridge.test.ts tests/unit/solitaire-match-service.test.ts` passed；`pnpm exec vitest run tests/integration/online-session-bridge.test.ts tests/unit/solitaire-match-service.test.ts tests/integration/online-room-service.test.ts tests/integration/online-route-error-handling.test.ts` passed；`pnpm exec tsc --noEmit` passed；`pnpm exec tsc -p tsconfig.server.json --noEmit` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec vitest run tests/integration/online-session-bridge.test.ts tests/unit/game-store-remote-sync.test.ts tests/unit/match-replay-read-service.test.ts tests/unit/solitaire-match-service.test.ts tests/integration/online-route-error-handling.test.ts` passed；`pnpm exec vitest run tests/unit/solitaire-match-service.test.ts tests/unit/game-store-remote-sync.test.ts tests/integration/online-session-bridge.test.ts` passed；`pnpm exec vitest run tests/unit/solitaire-match-service.test.ts tests/unit/game-store-remote-sync.test.ts` passed；`pnpm exec vitest run tests/integration/online-room-service.test.ts tests/unit/solitaire-match-service.test.ts tests/unit/game-store-remote-sync.test.ts tests/integration/online-session-bridge.test.ts tests/unit/match-replay-read-service.test.ts` passed；`pnpm test:run` passed（320 files / 2576 tests，3 performance tests skipped）；`git diff --check` passed。
+- 追加验证：`pnpm exec vitest run tests/unit/solitaire-match-service.test.ts` passed；`pnpm exec vitest run tests/unit/solitaire-match-recovery.test.ts tests/unit/game-store-remote-sync.test.ts tests/unit/solitaire-match-service.test.ts` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec tsc --noEmit` passed；`pnpm exec tsc -p tsconfig.server.json --noEmit` passed；`pnpm test:run` passed（321 files / 2581 tests，3 performance tests skipped）；Playwright smoke 在已运行的 `http://localhost:5173/` 登录测试账号创建对墙打，刷新后仍回到同一 matchId 桌面，并已调用离开接口清理测试局；`git diff --check` passed。
+- 后续：public-events 真分页协议与历史回放分页 UI 仍属于下一批 P1 follow-up；若生产还存在 checkpoint 间隔过大导致恢复回退过多，再评估缩短 authority checkpoint 周期。
 
 ## 本次 2026-07-07 移动端对局 viewport 命中兜底
 

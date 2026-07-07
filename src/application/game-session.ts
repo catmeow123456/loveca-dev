@@ -215,6 +215,7 @@ const MAX_AUTO_ADVANCE_ITERATIONS = 20;
  */
 const MAX_MODE_AUTOMATION_ITERATIONS = 20;
 const MAX_UNDO_HISTORY = 50;
+export const MAX_AUTHORITY_SNAPSHOT_HISTORY = 64;
 
 /**
  * 游戏会话事件类型
@@ -258,16 +259,48 @@ interface CommandExecutionResult {
 
 interface GameSessionUndoSnapshot {
   readonly authorityState: GameState;
-  readonly publicEvents: PublicEvent[];
   readonly publicEventSeq: number;
-  readonly privateEventsBySeat: Record<Seat, PrivateEvent[]>;
   readonly privateEventSeq: number;
-  readonly sealedAuditRecords: SealedAuditRecord[];
   readonly sealedAuditSeq: number;
-  readonly commandLog: MatchCommandRecord[];
   readonly commandSeq: number;
-  readonly snapshotHistory: MatchSnapshotSummary[];
-  readonly authoritySnapshots: Map<number, GameState>;
+}
+
+export interface GameSessionRuntimeStats {
+  readonly currentPublicSeq: number;
+  readonly currentPrivateSeq: number;
+  readonly currentAuditSeq: number;
+  readonly currentCommandSeq: number;
+  readonly currentGameEventSeq: number;
+  readonly publicEventCount: number;
+  readonly privateEventCountBySeat: Readonly<Record<Seat, number>>;
+  readonly privateEventCount: number;
+  readonly sealedAuditRecordCount: number;
+  readonly commandLogCount: number;
+  readonly gameEventCount: number;
+  readonly snapshotHistoryCount: number;
+  readonly authoritySnapshotCount: number;
+  readonly authoritySnapshotLimit: number;
+  readonly oldestAuthoritySnapshotSeq: number | null;
+  readonly newestAuthoritySnapshotSeq: number | null;
+  readonly undoHistoryCount: number;
+  readonly undoHistoryLimit: number;
+}
+
+export interface PublicEventsSlice {
+  readonly publicEvents: readonly PublicEvent[];
+  readonly truncated: boolean;
+  readonly droppedEventCount: number;
+}
+
+export interface RestoreRuntimeStateInput {
+  readonly authorityState: GameState;
+  readonly currentPublicSeq: number;
+  readonly publicEvents?: readonly PublicEvent[];
+  readonly retainedPublicEventFloorSeq?: number;
+  readonly currentPrivateSeq?: number;
+  readonly currentPrivateSeqBySeat?: Partial<Record<Seat, number>>;
+  readonly currentAuditSeq?: number;
+  readonly currentCommandSeq?: number;
 }
 
 interface GameSessionUndoDraft {
@@ -310,6 +343,7 @@ export class GameSession {
   private options: GameSessionOptions;
   private publicEvents: PublicEvent[] = [];
   private publicEventSeq = 0;
+  private retainedPublicEventFloorSeq = 0;
   private privateEventsBySeat: Record<Seat, PrivateEvent[]> = { FIRST: [], SECOND: [] };
   private privateEventSeq = 0;
   private sealedAuditRecords: SealedAuditRecord[] = [];
@@ -384,6 +418,7 @@ export class GameSession {
   ): GameState {
     this.publicEvents = [];
     this.publicEventSeq = 0;
+    this.retainedPublicEventFloorSeq = 0;
     this.privateEventsBySeat = { FIRST: [], SECOND: [] };
     this.privateEventSeq = 0;
     this.sealedAuditRecords = [];
@@ -778,6 +813,41 @@ export class GameSession {
     };
   }
 
+  restoreRuntimeState(input: RestoreRuntimeStateInput): void {
+    const authorityState = this.cloneForUndo(input.authorityState);
+    const retainedPublicEvents = this.cloneForUndo([
+      ...((input.publicEvents ?? []) as PublicEvent[]),
+    ]);
+    const defaultPublicFloorSeq = retainedPublicEvents[0]
+      ? Math.max(0, retainedPublicEvents[0].seq - 1)
+      : input.currentPublicSeq;
+    const maxPrivateSeq = Math.max(
+      input.currentPrivateSeq ?? 0,
+      input.currentPrivateSeqBySeat?.FIRST ?? 0,
+      input.currentPrivateSeqBySeat?.SECOND ?? 0
+    );
+
+    assertInspectionStateInvariant(authorityState);
+    this.authorityState = authorityState;
+    this.publicEvents = retainedPublicEvents;
+    this.publicEventSeq = input.currentPublicSeq;
+    this.retainedPublicEventFloorSeq = Math.max(
+      0,
+      input.retainedPublicEventFloorSeq ?? defaultPublicFloorSeq
+    );
+    this.privateEventsBySeat = { FIRST: [], SECOND: [] };
+    this.privateEventSeq = maxPrivateSeq;
+    this.sealedAuditRecords = [];
+    this.sealedAuditSeq = input.currentAuditSeq ?? 0;
+    this.commandLog = [];
+    this.commandSeq = input.currentCommandSeq ?? 0;
+    this.snapshotHistory = [];
+    this.authoritySnapshots = new Map();
+    this.undoHistory = [];
+    this.undoEntrySeq = 0;
+    this.recordAuthoritySnapshot(authorityState);
+  }
+
   private captureUndoSnapshot(): GameSessionUndoSnapshot {
     if (!this.authorityState) {
       throw new Error('Cannot capture undo snapshot before game starts');
@@ -785,21 +855,10 @@ export class GameSession {
 
     return {
       authorityState: this.cloneForUndo(this.authorityState),
-      publicEvents: this.cloneForUndo(this.publicEvents),
       publicEventSeq: this.publicEventSeq,
-      privateEventsBySeat: this.cloneForUndo(this.privateEventsBySeat),
       privateEventSeq: this.privateEventSeq,
-      sealedAuditRecords: this.cloneForUndo(this.sealedAuditRecords),
       sealedAuditSeq: this.sealedAuditSeq,
-      commandLog: this.cloneForUndo(this.commandLog),
       commandSeq: this.commandSeq,
-      snapshotHistory: this.cloneForUndo(this.snapshotHistory),
-      authoritySnapshots: new Map(
-        [...this.authoritySnapshots.entries()].map(([seq, state]) => [
-          seq,
-          this.cloneForUndo(state),
-        ])
-      ),
     };
   }
 
@@ -876,21 +935,25 @@ export class GameSession {
 
   private restoreUndoSnapshot(snapshot: GameSessionUndoSnapshot): void {
     this.authorityState = this.cloneForUndo(snapshot.authorityState);
-    this.publicEvents = this.cloneForUndo(snapshot.publicEvents);
+    this.publicEvents = this.publicEvents.filter((event) => event.seq <= snapshot.publicEventSeq);
     this.publicEventSeq = snapshot.publicEventSeq;
-    this.privateEventsBySeat = this.cloneForUndo(snapshot.privateEventsBySeat);
+    this.privateEventsBySeat = {
+      FIRST: this.privateEventsBySeat.FIRST.filter(
+        (event) => event.seq <= snapshot.privateEventSeq
+      ),
+      SECOND: this.privateEventsBySeat.SECOND.filter(
+        (event) => event.seq <= snapshot.privateEventSeq
+      ),
+    };
     this.privateEventSeq = snapshot.privateEventSeq;
-    this.sealedAuditRecords = this.cloneForUndo(snapshot.sealedAuditRecords);
-    this.sealedAuditSeq = snapshot.sealedAuditSeq;
-    this.commandLog = this.cloneForUndo(snapshot.commandLog);
-    this.commandSeq = snapshot.commandSeq;
-    this.snapshotHistory = this.cloneForUndo(snapshot.snapshotHistory);
-    this.authoritySnapshots = new Map(
-      [...snapshot.authoritySnapshots.entries()].map(([seq, state]) => [
-        seq,
-        this.cloneForUndo(state),
-      ])
+    this.sealedAuditRecords = this.sealedAuditRecords.filter(
+      (record) => record.seq <= snapshot.sealedAuditSeq
     );
+    this.sealedAuditSeq = snapshot.sealedAuditSeq;
+    this.commandLog = this.commandLog.filter((record) => record.seq <= snapshot.commandSeq);
+    this.commandSeq = snapshot.commandSeq;
+    this.discardAuthoritySnapshotsAfter(snapshot.publicEventSeq);
+    this.recordAuthoritySnapshot(this.authorityState);
   }
 
   private getUndoBoundaryKey(state: GameState): string {
@@ -1061,6 +1124,43 @@ export class GameSession {
     return this.publicEvents.filter((event) => event.seq > seq);
   }
 
+  getPublicEventsSliceSince(seq: number, maxEvents: number): PublicEventsSlice {
+    if (!Number.isSafeInteger(maxEvents) || maxEvents <= 0) {
+      return {
+        publicEvents: this.getPublicEventsSince(seq),
+        truncated: seq < this.retainedPublicEventFloorSeq,
+        droppedEventCount:
+          seq < this.retainedPublicEventFloorSeq ? this.retainedPublicEventFloorSeq - seq : 0,
+      };
+    }
+
+    const selected: PublicEvent[] = [];
+    let matchedCount = 0;
+    for (let index = this.publicEvents.length - 1; index >= 0; index -= 1) {
+      const event = this.publicEvents[index];
+      if (!event || event.seq <= seq) {
+        break;
+      }
+      matchedCount += 1;
+      if (selected.length < maxEvents) {
+        selected.push(event);
+      }
+    }
+
+    selected.reverse();
+    const omittedBeforeRetainedWindow =
+      seq < this.retainedPublicEventFloorSeq ? this.retainedPublicEventFloorSeq - seq : 0;
+    const droppedEventCount = Math.max(
+      0,
+      omittedBeforeRetainedWindow + matchedCount - selected.length
+    );
+    return {
+      publicEvents: selected,
+      truncated: droppedEventCount > 0,
+      droppedEventCount,
+    };
+  }
+
   getPrivateEventsSince(playerId: string, seq: number): readonly PrivateEvent[] {
     if (!this.authorityState) {
       return [];
@@ -1098,6 +1198,35 @@ export class GameSession {
 
   getSnapshotHistory(): readonly MatchSnapshotSummary[] {
     return this.snapshotHistory;
+  }
+
+  getRuntimeStats(): GameSessionRuntimeStats {
+    const snapshotSeqs = [...this.authoritySnapshots.keys()].sort((left, right) => left - right);
+    const privateEventCountBySeat = {
+      FIRST: this.privateEventsBySeat.FIRST.length,
+      SECOND: this.privateEventsBySeat.SECOND.length,
+    } satisfies Record<Seat, number>;
+
+    return {
+      currentPublicSeq: this.publicEventSeq,
+      currentPrivateSeq: this.privateEventSeq,
+      currentAuditSeq: this.sealedAuditSeq,
+      currentCommandSeq: this.commandSeq,
+      currentGameEventSeq: this.getCurrentGameEventSeq(),
+      publicEventCount: this.publicEvents.length,
+      privateEventCountBySeat,
+      privateEventCount: privateEventCountBySeat.FIRST + privateEventCountBySeat.SECOND,
+      sealedAuditRecordCount: this.sealedAuditRecords.length,
+      commandLogCount: this.commandLog.length,
+      gameEventCount: this.authorityState?.eventLog.length ?? 0,
+      snapshotHistoryCount: this.snapshotHistory.length,
+      authoritySnapshotCount: this.authoritySnapshots.size,
+      authoritySnapshotLimit: MAX_AUTHORITY_SNAPSHOT_HISTORY,
+      oldestAuthoritySnapshotSeq: snapshotSeqs[0] ?? null,
+      newestAuthoritySnapshotSeq: snapshotSeqs.at(-1) ?? null,
+      undoHistoryCount: this.undoHistory.length,
+      undoHistoryLimit: MAX_UNDO_HISTORY,
+    };
   }
 
   getAuthoritySnapshotForRecord(): GameState | null {
@@ -1186,7 +1315,7 @@ export class GameSession {
       return undefined;
     }
 
-    return snapshotSeqs.filter((seq) => seq <= publicSeq).at(-1) ?? snapshotSeqs[0];
+    return snapshotSeqs.filter((seq) => seq <= publicSeq).at(-1);
   }
 
   /**
@@ -4529,11 +4658,46 @@ export class GameSession {
   private recordAuthoritySnapshot(state: GameState): void {
     const publicSeq = this.publicEventSeq;
     this.authoritySnapshots.set(publicSeq, cloneGameState(state));
+    this.snapshotHistory = this.snapshotHistory.filter(
+      (snapshot) => snapshot.publicSeq !== publicSeq
+    );
     this.snapshotHistory.push({
       matchId: state.gameId,
       publicSeq,
       createdAt: Date.now(),
     });
+    this.pruneAuthoritySnapshots();
+  }
+
+  private discardAuthoritySnapshotsAfter(publicSeq: number): void {
+    for (const seq of this.authoritySnapshots.keys()) {
+      if (seq > publicSeq) {
+        this.authoritySnapshots.delete(seq);
+      }
+    }
+    this.snapshotHistory = this.snapshotHistory.filter(
+      (snapshot) => snapshot.publicSeq <= publicSeq
+    );
+  }
+
+  private pruneAuthoritySnapshots(): void {
+    const orderedSeqs = [...this.authoritySnapshots.keys()].sort((left, right) => left - right);
+    if (
+      orderedSeqs.length <= MAX_AUTHORITY_SNAPSHOT_HISTORY &&
+      this.snapshotHistory.length <= MAX_AUTHORITY_SNAPSHOT_HISTORY
+    ) {
+      return;
+    }
+
+    const retainedSeqs = new Set(orderedSeqs.slice(-MAX_AUTHORITY_SNAPSHOT_HISTORY));
+    for (const seq of orderedSeqs) {
+      if (!retainedSeqs.has(seq)) {
+        this.authoritySnapshots.delete(seq);
+      }
+    }
+    this.snapshotHistory = this.snapshotHistory.filter((snapshot) =>
+      retainedSeqs.has(snapshot.publicSeq)
+    );
   }
 
   /**
