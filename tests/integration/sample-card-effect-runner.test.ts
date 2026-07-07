@@ -2896,7 +2896,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect).toBeNull();
   });
 
-  it("finishes PL!-bp5-003-AR μ's discard branch when no top cards can be inspected", () => {
+  it("refreshes the discarded μ's cost into PL!-bp5-003-AR top inspection when the deck is empty", () => {
     const session = createGameSession();
     const deck = createDeck();
 
@@ -2975,9 +2975,24 @@ describe('sample card effect runner', () => {
     );
 
     expect(discardResult.success).toBe(true);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([discardCardId]);
+
+    const selectResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        null,
+        undefined,
+        null,
+        [discardCardId!]
+      )
+    );
+    expect(selectResult.success).toBe(true);
+
     expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.players[0].hand.cardIds).toEqual([]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardCardId]);
+    expect(session.state?.players[0].hand.cardIds).toEqual([discardCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
     expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[0])?.orientation).toBe(
       OrientationState.WAITING
@@ -2990,7 +3005,7 @@ describe('sample card effect runner', () => {
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.abilityId === BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID &&
-          action.payload.step === 'NO_TOP_CARDS_TO_INSPECT' &&
+          action.payload.step === 'TAKE_TWO_FROM_TOP_FOUR' &&
           action.payload.discardCardId === discardCardId &&
           Array.isArray(action.payload.paidEnergyCardIds) &&
           action.payload.paidEnergyCardIds.length === 2
@@ -4041,7 +4056,8 @@ describe('sample card effect runner', () => {
     ).toBe(OrientationState.WAITING);
     expect(session.state?.inspectionZone.cardIds).toEqual(inspectedCardIds);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([highCostHasunosora.instanceId]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discard.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([discard.instanceId]);
 
     const revealResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -4062,12 +4078,12 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([highCostHasunosora.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
-      discard.instanceId,
       lowCostHasunosora.instanceId,
       highCostOther.instanceId,
       liveCard.instanceId,
       restMember.instanceId,
     ]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([discard.instanceId]);
   });
 
   it('starts PL!N-bp3-022-N on-enter with an optional activation choice', () => {
@@ -6315,7 +6331,8 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect).not.toBeNull();
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([selectedLiveCardId]);
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([discardCardId]);
 
     const revealFinishResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -6328,7 +6345,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
       expect.arrayContaining(topVisibleCardIds.filter((cardId) => cardId !== selectedLiveCardId))
     );
-    expect(session.state?.players[0].waitingRoom.cardIds).toContain(discardCardId!);
+    expect(session.state?.players[0].mainDeck.cardIds).toContain(discardCardId!);
   });
 
   it('executes PL!-bp5-005-AR on-enter to place active energy when success Live score is at least six', () => {
@@ -14574,7 +14591,8 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topFiveCardIds);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual(memberCardIds);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([kosuzuCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([kosuzuCardId]);
 
     const revealResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, selectedMemberCardId)
@@ -14594,13 +14612,12 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([selectedMemberCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
-      kosuzuCardId,
       topFiveCardIds[0],
       topFiveCardIds[1],
       topFiveCardIds[3],
       topFiveCardIds[4],
     ]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([kosuzuCardId]);
   });
 
   it('lets the player order PL!HS-bp2-012-N leave-stage AUTO with the replacing member on-enter ability', () => {
@@ -14708,7 +14725,8 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.activeEffect?.sourceCardId).toBe(kosuzuCardId);
     expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topMemberCardIds);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([kosuzuCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([kosuzuCardId]);
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(megumiCardId);
   });
 

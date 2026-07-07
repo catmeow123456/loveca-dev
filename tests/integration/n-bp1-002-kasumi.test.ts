@@ -372,7 +372,8 @@ describe('PL!N-bp1-002 Kasumi workflow', () => {
 
     const player = scenario.session.state!.players[0];
     expect(player.waitingRoom.cardIds).not.toContain(scenario.sourceId);
-    expect(player.waitingRoom.cardIds).toContain(scenario.handCardIds[0]);
+    expect(player.waitingRoom.cardIds).not.toContain(scenario.handCardIds[0]);
+    expect(player.mainDeck.cardIds).toContain(scenario.handCardIds[0]);
     expect(player.memberSlots.slots[SlotPosition.CENTER]).toBe(scenario.sourceId);
     expect(player.memberSlots.cardStates.get(scenario.sourceId)?.orientation).toBe(
       OrientationState.ACTIVE
@@ -410,9 +411,9 @@ describe('PL!N-bp1-002 Kasumi workflow', () => {
       selectedTopOrder
     );
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
-      scenario.handCardIds[0],
       scenario.mainDeckCardIds[1],
     ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toContain(scenario.handCardIds[0]);
   });
 
   it('can replace an occupied member slot after paying costs', () => {
@@ -436,8 +437,10 @@ describe('PL!N-bp1-002 Kasumi workflow', () => {
     const player = scenario.session.state!.players[0];
     expect(player.memberSlots.slots[SlotPosition.LEFT]).toBe(scenario.sourceId);
     expect(player.waitingRoom.cardIds).not.toContain(scenario.sourceId);
-    expect(player.waitingRoom.cardIds).toContain(scenario.handCardIds[0]);
-    expect(player.waitingRoom.cardIds).toContain(scenario.fillerMemberIds[0]);
+    expect(player.waitingRoom.cardIds).toEqual([]);
+    expect(player.mainDeck.cardIds).toEqual(
+      expect.arrayContaining([scenario.handCardIds[0], scenario.fillerMemberIds[0]])
+    );
 
     const leaveStageEvent = scenario.session.state?.eventLog.find(
       (entry) =>

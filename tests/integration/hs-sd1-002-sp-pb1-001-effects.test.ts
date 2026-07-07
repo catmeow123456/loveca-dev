@@ -280,10 +280,11 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
       const resolved = chooseCard(afterDiscard, selected.instanceId);
 
       expect(resolved.players[0]!.hand.cardIds).toEqual([selected.instanceId]);
-      expect(resolved.players[0]!.waitingRoom.cardIds).toEqual([
-        ...hand.map((card) => card.instanceId),
-        ...rest.map((card) => card.instanceId),
-      ]);
+      expect(resolved.players[0]!.waitingRoom.cardIds).toEqual(rest.map((card) => card.instanceId));
+      expect(resolved.players[0]!.mainDeck.cardIds).toHaveLength(hand.length);
+      expect(resolved.players[0]!.mainDeck.cardIds).toEqual(
+        expect.arrayContaining(hand.map((card) => card.instanceId))
+      );
       expect(resolved.inspectionZone.cardIds).toEqual([]);
       expect(hasWaitingEvent(resolved, ZoneType.HAND, hand.map((card) => card.instanceId))).toBe(true);
       expect(hasWaitingEvent(resolved, ZoneType.MAIN_DECK, rest.map((card) => card.instanceId))).toBe(true);
@@ -364,10 +365,13 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
       const resolved = chooseCard(chooseCards(state, hand.map((card) => card.instanceId)), null);
 
       expect(resolved.players[0]!.hand.cardIds).toEqual([]);
-      expect(resolved.players[0]!.waitingRoom.cardIds).toEqual([
-        ...hand.map((card) => card.instanceId),
-        ...topCards.map((card) => card.instanceId),
-      ]);
+      expect(resolved.players[0]!.waitingRoom.cardIds.slice(0, topCards.length)).toEqual(
+        topCards.map((card) => card.instanceId)
+      );
+      expect(resolved.players[0]!.waitingRoom.cardIds.slice(topCards.length)).toHaveLength(hand.length);
+      expect(resolved.players[0]!.waitingRoom.cardIds.slice(topCards.length)).toEqual(
+        expect.arrayContaining(hand.map((card) => card.instanceId))
+      );
       expect(hasWaitingEvent(resolved, ZoneType.MAIN_DECK, topCards.map((card) => card.instanceId))).toBe(true);
       expect(resolved.liveResolution.liveModifiers).toEqual([]);
     });

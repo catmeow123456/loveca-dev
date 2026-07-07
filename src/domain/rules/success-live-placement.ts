@@ -94,7 +94,7 @@ export function isSuccessLivePlacementRestrictedByTiedScore(game: GameState): bo
   const tieState = getLiveScoreTieState(game);
   return (
     tieState?.scoresTied === true &&
-    game.liveResolution.successLivePlacementRestrictions.some(
+    (game.liveResolution.successLivePlacementRestrictions ?? []).some(
       (restriction) =>
         restriction.appliesWhen === 'TIED_LIVE_SCORE' && restriction.expiresAt === 'LIVE_END'
     )

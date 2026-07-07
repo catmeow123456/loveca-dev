@@ -8,6 +8,7 @@ import {
 import {
   createGameState,
   registerCards,
+  updateLiveResolution,
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
@@ -183,6 +184,47 @@ describe('PL!S-bp5-017-N Mari live-start workflow', () => {
           modifier.abilityId === S_BP5_017_LIVE_START_BLUE_REQUIREMENT_GAIN_BLUE_HEART_ABILITY_ID
       )
     ).toBe(false);
+  });
+
+  it('counts effective LIVE requirements after requirement modifiers', () => {
+    const liveCards = [
+      createCardInstance(
+        createLive('PL!S-test-live-blue-3-modified', 'Blue 3 Modified', 3),
+        PLAYER1,
+        'mari-live-blue-3-modified'
+      ),
+    ];
+    const { game } = setupMariState({
+      liveCards,
+      mutateBeforeLiveStart: (state) =>
+        updateLiveResolution(state, (liveResolution) => ({
+          ...liveResolution,
+          liveModifiers: [
+            ...liveResolution.liveModifiers,
+            {
+              kind: 'REQUIREMENT',
+              liveCardId: liveCards[0]!.instanceId,
+              modifiers: [{ color: HeartColor.BLUE, countDelta: 1 }],
+              sourceCardId: 'test-blue-requirement-source',
+              abilityId: 'test:blue-requirement-plus-one',
+            },
+          ],
+        })),
+    });
+
+    const preview = runLiveStart(game);
+    expect(preview.activeEffect?.effectText).toContain('必要[青ハート]合计4');
+    expect(preview.activeEffect?.effectText).toContain('实际获得[青ハート]');
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+
+    expect(resolved.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      playerId: PLAYER1,
+      target: 'SOURCE_MEMBER',
+      hearts: [{ color: HeartColor.BLUE, count: 1 }],
+      sourceCardId: 'mari-source',
+      abilityId: S_BP5_017_LIVE_START_BLUE_REQUIREMENT_GAIN_BLUE_HEART_ABILITY_ID,
+    });
   });
 
   it('rechecks source liveness after the confirm-only bridge before applying blue Heart', () => {

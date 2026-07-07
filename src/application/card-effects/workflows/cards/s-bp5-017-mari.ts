@@ -7,7 +7,11 @@ import {
 } from '../../../../domain/entities/game.js';
 import { getAllMemberCardIds } from '../../../../domain/entities/zone.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import {
+  addHeartLiveModifierForMember,
+  getLiveCardRequirementModifiers,
+} from '../../../../domain/rules/live-modifiers.js';
+import { applyHeartRequirementModifiers } from '../../../../domain/rules/live-requirement-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { S_BP5_017_LIVE_START_BLUE_REQUIREMENT_GAIN_BLUE_HEART_ABILITY_ID } from '../../ability-ids.js';
 import {
@@ -105,7 +109,11 @@ function getSBp5017Context(game: GameState, ability: PendingAbilityState): MariC
     if (!card || !isLiveCardData(card.data)) {
       return total;
     }
-    return total + (card.data.requirements.colorRequirements.get(HeartColor.BLUE) ?? 0);
+    const effectiveRequirement = applyHeartRequirementModifiers(
+      card.data.requirements,
+      getLiveCardRequirementModifiers(game.liveResolution, liveCardId)
+    );
+    return total + (effectiveRequirement.colorRequirements.get(HeartColor.BLUE) ?? 0);
   }, 0);
 
   return {
