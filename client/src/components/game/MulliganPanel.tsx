@@ -4,7 +4,7 @@
  * 选中的牌洗入牌库，然后重新抽取相同数量的牌
  */
 
-import { memo, useState, useCallback, useMemo, useRef } from 'react';
+import { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRightLeft, Check, Sparkles } from 'lucide-react';
 import { GameCommandType } from '@game/application/game-commands';
@@ -14,6 +14,12 @@ import { GamePhase, SubPhase } from '@game/shared/types/enums';
 import { useGameStore } from '@/store/gameStore';
 import { Card } from '@/components/card/Card';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import {
+  hasBattleViewportSignatureChanged,
+  readBattleViewportSignature,
+  subscribeToBattleViewportChanges,
+  type BattleViewportSignature,
+} from '@/lib/battleViewport';
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { ViewZoneKey } from '@game/online';
 
@@ -58,6 +64,8 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
   // 选中要换的卡牌 ID
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const longPressTimerRef = useRef<number | null>(null);
+  const longPressViewportStartRef = useRef<BattleViewportSignature | null>(null);
+  const longPressViewportInvalidatedRef = useRef(false);
   const longPressTriggeredRef = useRef(false);
   const suppressNextClickRef = useRef(false);
 
@@ -91,6 +99,27 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
     }
   }, []);
 
+  const cancelLongPressForViewportChange = useCallback(() => {
+    const startSignature = longPressViewportStartRef.current;
+    if (!startSignature) {
+      return;
+    }
+
+    if (!hasBattleViewportSignatureChanged(startSignature, readBattleViewportSignature())) {
+      return;
+    }
+
+    clearLongPressTimer();
+    longPressViewportStartRef.current = null;
+    longPressViewportInvalidatedRef.current = true;
+    longPressTriggeredRef.current = false;
+    suppressNextClickRef.current = true;
+  }, [clearLongPressTimer]);
+
+  useEffect(() => subscribeToBattleViewportChanges(cancelLongPressForViewportChange), [
+    cancelLongPressForViewportChange,
+  ]);
+
   const startLongPressDetail = useCallback(
     (cardId: string) => {
       if (!shouldUseTapDetail) {
@@ -98,6 +127,8 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
       }
 
       clearLongPressTimer();
+      longPressViewportStartRef.current = readBattleViewportSignature();
+      longPressViewportInvalidatedRef.current = false;
       longPressTriggeredRef.current = false;
       longPressTimerRef.current = window.setTimeout(() => {
         longPressTriggeredRef.current = true;
@@ -110,6 +141,12 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
   const finishCardPress = useCallback(
     (cardId: string) => {
       clearLongPressTimer();
+      longPressViewportStartRef.current = null;
+      if (longPressViewportInvalidatedRef.current) {
+        longPressViewportInvalidatedRef.current = false;
+        longPressTriggeredRef.current = false;
+        return;
+      }
       if (longPressTriggeredRef.current) {
         longPressTriggeredRef.current = false;
         return;
@@ -167,7 +204,7 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               className="w-full max-w-[980px]"
             >
-              <div className="modal-surface modal-accent-amber flex max-h-[88dvh] flex-col">
+              <div className="modal-surface modal-accent-amber flex max-h-[var(--battle-viewport-height-88)] flex-col">
                 <div className="modal-header shrink-0 px-4 py-4 sm:px-6">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -233,12 +270,15 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
                           }}
                           onPointerUp={(event) => {
                             if (event.pointerType !== 'mouse') {
+                              cancelLongPressForViewportChange();
                               suppressNextClickRef.current = true;
                               finishCardPress(cardId);
                             }
                           }}
                           onPointerCancel={() => {
                             clearLongPressTimer();
+                            longPressViewportStartRef.current = null;
+                            longPressViewportInvalidatedRef.current = false;
                             longPressTriggeredRef.current = false;
                             suppressNextClickRef.current = true;
                           }}

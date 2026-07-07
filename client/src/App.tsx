@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { GameBoard } from '@/components/game';
+import { BattleViewportShell, GameBoard } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { DeckManager } from '@/components/deck/DeckManager';
 import {
@@ -367,7 +367,7 @@ function App() {
     const gameBriefingMode = capabilities.surface === 'SOLITAIRE' ? 'solitaire' : null;
 
     return (
-      <div className="h-screen overflow-hidden">
+      <BattleViewportShell>
         <GameBoard
           onLeaveLocalGame={() => {
             void leaveCurrentGame().finally(() => {
@@ -382,7 +382,7 @@ function App() {
             onClose={() => setGameBriefingAcknowledged(true)}
           />
         )}
-      </div>
+      </BattleViewportShell>
     );
   }
 

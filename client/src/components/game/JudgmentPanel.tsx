@@ -811,7 +811,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
 
   return (
     <motion.aside
-      className="safe-bottom safe-top fixed inset-0 z-[90] h-dvh w-full max-w-none overflow-hidden border-[var(--border-default)] bg-[var(--bg-frosted)] p-3 shadow-[var(--shadow-lg)] backdrop-blur-xl md:left-0 md:top-0 md:h-full md:max-w-[420px] md:overflow-visible md:border-r md:p-4"
+      className="safe-bottom safe-top fixed inset-0 z-[90] h-[var(--battle-viewport-height)] w-full max-w-none overflow-hidden border-[var(--border-default)] bg-[var(--bg-frosted)] p-3 shadow-[var(--shadow-lg)] backdrop-blur-xl md:left-0 md:top-0 md:h-full md:max-w-[420px] md:overflow-visible md:border-r md:p-4"
       initial={{ x: -460, opacity: 0.8 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: -460, opacity: 0.8 }}

@@ -343,7 +343,7 @@ const scenarios: Scenario[] = [
     path: '/',
     authenticated: false,
     ready: async (page) => {
-      await expect(page.getByText('欢迎回来')).toBeVisible();
+      await expect(page.getByRole('heading', { name: '进入 Loveca' })).toBeVisible();
     },
   },
   {
@@ -351,7 +351,7 @@ const scenarios: Scenario[] = [
     path: '/',
     authenticated: true,
     ready: async (page) => {
-      await expect(page.getByRole('heading', { name: 'Loveca Card Game' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Loveca' })).toBeVisible();
     },
   },
   {

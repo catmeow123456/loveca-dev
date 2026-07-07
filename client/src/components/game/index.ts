@@ -3,6 +3,7 @@
  */
 
 export { GameBoard } from './GameBoard';
+export { BattleViewportShell } from './BattleViewportShell';
 export { PlayerArea } from './PlayerArea';
 export { GameLog } from './GameLog';
 export { PhaseIndicator } from './PhaseIndicator';

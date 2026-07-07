@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Link2, Loader2, RefreshCw, Swords, Users } from 'lucide-react';
 import { PageHeader, DeckSelector, DeckStatsRow, type DeckDisplayItem } from '@/components/common';
 import { ThemeToggle } from '@/components/common';
-import { GameBoard } from '@/components/game';
+import { BattleViewportShell, GameBoard } from '@/components/game';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
@@ -304,9 +304,9 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
 
   if (isMatchStarted && matchView) {
     return (
-      <div className="h-screen overflow-hidden">
+      <BattleViewportShell>
         <GameBoard onLeaveLocalGame={handleLeaveDebugRoom} />
-      </div>
+      </BattleViewportShell>
     );
   }
 

@@ -211,6 +211,25 @@ select {
   color: var(--text-primary);
 }
 
+.battle-viewport-shell {
+  --battle-viewport-width: 100vw;
+  --battle-viewport-height: 100vh;
+  --battle-viewport-height: 100dvh;
+  --battle-viewport-height-46: 46dvh;
+  --battle-viewport-height-52: 52dvh;
+  --battle-viewport-height-82: 82dvh;
+  --battle-viewport-height-86: 86dvh;
+  --battle-viewport-height-88: 88dvh;
+  --battle-viewport-offset-left: 0px;
+  --battle-viewport-offset-top: 0px;
+  --battle-viewport-scale: 1;
+  width: 100vw;
+  height: var(--battle-viewport-height);
+  min-height: var(--battle-viewport-height);
+  max-height: var(--battle-viewport-height);
+  color: var(--text-primary);
+}
+
 .app-shell::before,
 .app-shell::after {
   position: absolute;

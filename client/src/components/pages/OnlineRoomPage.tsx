@@ -27,7 +27,7 @@ import {
   PageHeader,
   ThemeToggle,
 } from '@/components/common';
-import { GameBoard } from '@/components/game';
+import { BattleViewportShell, GameBoard } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { useDeckStore } from '@/store/deckStore';
@@ -627,7 +627,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
 
   if (room?.status === 'IN_GAME' && remoteSession?.matchId === room.matchId && matchView) {
     return (
-      <div className="relative h-screen overflow-hidden">
+      <BattleViewportShell>
         <div className="absolute left-4 top-4 z-[120] flex max-w-[calc(100vw-2rem)] flex-col items-start gap-2">
           <div className="flex items-center gap-2">
             <button
@@ -731,7 +731,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
           mode="online"
           onClose={() => setBriefingAcknowledged(true)}
         />
-      </div>
+      </BattleViewportShell>
     );
   }
 

@@ -2,6 +2,12 @@ import { memo, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useGameStore } from '@/store/gameStore';
+import {
+  hasBattleViewportSignatureChanged,
+  readBattleViewportSignature,
+  subscribeToBattleViewportChanges,
+  type BattleViewportSignature,
+} from '@/lib/battleViewport';
 
 const LONG_PRESS_DETAIL_MS = 420;
 const LONG_PRESS_MOVE_CANCEL_PX = 10;
@@ -29,6 +35,7 @@ export const CardDetailPressTarget = memo(function CardDetailPressTarget({
   const shouldUseHoverPreview = useMediaQuery('(min-width: 1024px)');
   const timerRef = useRef<number | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const viewportStartRef = useRef<BattleViewportSignature | null>(null);
   const longPressTriggeredRef = useRef(false);
   const suppressNextClickRef = useRef(false);
 
@@ -45,6 +52,26 @@ export const CardDetailPressTarget = memo(function CardDetailPressTarget({
   }, [cardId, disabled, setHoveredCard]);
 
   useEffect(() => clearTimer, [clearTimer]);
+
+  const cancelLongPressForViewportChange = useCallback(() => {
+    const startSignature = viewportStartRef.current;
+    if (!startSignature) {
+      return;
+    }
+
+    if (!hasBattleViewportSignatureChanged(startSignature, readBattleViewportSignature())) {
+      return;
+    }
+
+    clearTimer();
+    viewportStartRef.current = null;
+    pointerStartRef.current = null;
+    suppressNextClickRef.current = true;
+  }, [clearTimer]);
+
+  useEffect(() => subscribeToBattleViewportChanges(cancelLongPressForViewportChange), [
+    cancelLongPressForViewportChange,
+  ]);
 
   const canOpen = !!cardId && !disabled;
   const canHoverOpen = canOpen && enableHover && shouldUseHoverPreview;
@@ -67,6 +94,7 @@ export const CardDetailPressTarget = memo(function CardDetailPressTarget({
         if (!canOpen || !enableLongPress || event.pointerType === 'mouse') return;
         clearTimer();
         pointerStartRef.current = { x: event.clientX, y: event.clientY };
+        viewportStartRef.current = readBattleViewportSignature();
         longPressTriggeredRef.current = false;
         timerRef.current = window.setTimeout(() => {
           longPressTriggeredRef.current = true;
@@ -75,6 +103,7 @@ export const CardDetailPressTarget = memo(function CardDetailPressTarget({
         }, LONG_PRESS_DETAIL_MS);
       }}
       onPointerMove={(event) => {
+        cancelLongPressForViewportChange();
         if (!pointerStartRef.current || timerRef.current === null) return;
         const deltaX = event.clientX - pointerStartRef.current.x;
         const deltaY = event.clientY - pointerStartRef.current.y;
@@ -85,6 +114,7 @@ export const CardDetailPressTarget = memo(function CardDetailPressTarget({
       onPointerUp={(event) => {
         clearTimer();
         pointerStartRef.current = null;
+        viewportStartRef.current = null;
         if (longPressTriggeredRef.current) {
           longPressTriggeredRef.current = false;
           suppressNextClickRef.current = true;
@@ -95,6 +125,7 @@ export const CardDetailPressTarget = memo(function CardDetailPressTarget({
       onPointerCancel={() => {
         clearTimer();
         pointerStartRef.current = null;
+        viewportStartRef.current = null;
         if (longPressTriggeredRef.current) {
           suppressNextClickRef.current = true;
         }

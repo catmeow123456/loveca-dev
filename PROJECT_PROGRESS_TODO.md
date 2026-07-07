@@ -1,6 +1,33 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-06
+更新时间：2026-07-07
+
+## 本次 2026-07-07 移动端对局 viewport 命中兜底
+
+- 新增 `BattleViewportShell` 与 `battleViewport` helper：本地对局、正式联机、联机调试、玩家视角观战进行中页面统一写入 `--battle-viewport-height` / fraction / offset 变量；移动端 bottom sheet、判定面板、卡牌详情、active effect 与成功 LIVE 选择面板改读同一高度事实。
+- 拖拽开始记录 viewport signature；visual viewport / window resize / orientation 变化后清理拖拽提示，drop 前直接拒绝并提示“视口已变化，请重新拖拽”，不提交任何规则命令。`CardDetailPressTarget` 与 `MulliganPanel` 长按计时也会在 viewport 变化时取消并只 suppress 当前 click 流程。
+- 开发期诊断：`BattleViewportShell` 在 DEV 下暴露 `window.__lovecaBattleViewport()` 与 `window.__lovecaBattleHitTest(x, y)`，只返回 viewport、DOM 命中栈、几何与层级摘要，不输出卡名/卡图 URL/私有手牌文本。
+- 同步修复 `mobile-layout.spec.ts` 中登录页与首页的过期 ready 文案断言，改为等待当前页面 `h1`，避免移动端布局回归被旧入口文案误报。
+- 验证：`pnpm exec vitest run tests/unit/battle-viewport.test.ts` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec tsc --noEmit` passed；`pnpm --dir client exec playwright test client/tests/e2e/mobile-layout.spec.ts --project=mobile-390x844 -g "game-setup|online-room"` passed；`pnpm --dir client exec playwright test client/tests/e2e/mobile-layout.spec.ts --project=mobile-390x844` passed（11/11）；`git diff --check` passed。
+- 浏览器 smoke：`pnpm test-env:start --no-db-rebuild` 后在 390x844 移动视口登录 `test_admin`，进入对墙打桌面；确认 shell 高度变量为 844px，`__lovecaBattleHitTest` 可返回命中栈；对手 bottom sheet top 358 / bottom 844，`maxHeight` 692.08px、`minHeight` 438.88px，来自新 viewport fraction 变量。
+
+## 本次 2026-07-06 联机重开后换卡组
+
+- 修复正式联机“请求重开”同意后直接进入开局猜拳、导致无法换卡组的问题：服务端现在封存旧 match 后回到准备阶段，保留双方已锁定卡组但清空开始准备状态。
+- 准备页在玩家已锁组时，若选择了另一副合法云端卡组，会显示“更换为这副卡组”，方便重开后或开局前重新锁组；重开协商条与联机提示文案同步为“回到准备页重新锁组或直接准备”。
+- 验证：`pnpm exec vitest run tests/integration/online-room-service.test.ts` passed；`pnpm exec tsc --noEmit` passed；`pnpm --dir client exec tsc -b` passed；`git diff --check` passed。
+
+## 本次 2026-07-06 主卡组/手牌飞行动画修正
+
+- 修复 `PL!S-sd1-018-SD` 费用 4「黑泽露比」这类“抽 1 张，再将 1 张手牌放置到卡组底”效果的桌面飞行动画表现：卡组顶牌提供真实动画锚点，卡效/成功 LIVE 选择面板不再污染移动锚点，飞行动画层高于卡效面板避免被遮挡，进入主卡组/能量卡组时强制使用牌库区域锚点而不是下一帧对象锚点。
+- 补充 `battle-animation-events` 单测覆盖面板锚点忽略、`MAIN_DECK -> HAND` 与 `HAND -> MAIN_DECK` 的 scoped deck anchor 路径，并锁定“下一帧同一张牌存在对象锚点时也不能抢占卡组底终点”；浏览器验证对墙打桌面 1600x900 下己方主卡组锚点、顶牌对象锚点、动画层 z-index 与普通抽牌移动代理出现/清理。
+- 验证：`pnpm exec vitest run tests/unit/battle-animation-events.test.ts` passed；`pnpm exec vitest run tests/integration/draw-then-discard.test.ts` passed；`pnpm exec vitest run tests/integration/sp-pr-live-start-discard-gain-blade-draw-if-live.test.ts` passed；`pnpm exec vitest run tests/integration/s-future-water-batch1.test.ts` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+
+## 本次 2026-07-06 卡效框架文档一致性修正
+
+- 修正卡效框架与审计文档中已过期的 runner fallback / runner orchestration 表述：当前 registry 未命中不再 fallback 旧完整卡效分支，runner 仍只保留 pending、trigger、relay 等胶水。
+- 同步 `PL!-sd1-003` 费用 7「南琴梨」、`PL!-sd1-004` 费用 11「园田海未」、`PL!-sd1-007` 费用 7「东条希」、`PL!-sd1-019` 分数 4「START:DASH!!」、`PL!-bp5-007` 费用 13「东条希」等已迁 workflow 的登记、coverage、gap 与 condition inventory 口径。
+- 验证：`git diff --check` passed。本窗口仅改文档，未运行测试。
 
 ## 本次 2026-07-06 管理员联机房间玩家视角观战入口
 
@@ -127,7 +154,7 @@
 
 当前分支基线：
 
-- `effect_new_card` @ `4aabb3b feat(effect): 修正效果显示并更新en卡组卡效-1`
+- `main` @ `d573c59 优化移动端对局与游戏准备页布局`
 
 当前本地测试页面：
 
@@ -135,7 +162,7 @@
 
 当前分支：
 
-- `effect_new_card`
+- `main`
 
 ## 本次 2026-06-27 3.4.3 发布准备
 

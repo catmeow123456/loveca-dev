@@ -54,6 +54,13 @@ import { parseZoneId } from '@/lib/zoneUtils';
 import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
 import { ENTER_EFFECT_SURFACE_SUSPEND_MS } from '@/lib/battleAnimationSequencing';
 import {
+  hasBattleViewportSignatureChanged,
+  isBattleViewportInteractionInvalidated,
+  readBattleViewportSignature,
+  subscribeToBattleViewportChanges,
+  type BattleViewportSignature,
+} from '@/lib/battleViewport';
+import {
   buildBattleActionIntents,
   findEnabledBattleActionTargetByTargetId,
   findEnabledBattleActionTargetForZoneDrop,
@@ -294,6 +301,8 @@ export const GameBoard = memo(function GameBoard({
   const lastNonActiveEffectViewStateRef = useRef<PlayerViewState | null>(null);
   const entryEffectSuspendedIdsRef = useRef(new Set<string>());
   const dragBattleActionIntentCacheRef = useRef<DragBattleActionIntentCache | null>(null);
+  const dragStartViewportSignatureRef = useRef<BattleViewportSignature | null>(null);
+  const dragViewportInvalidatedRef = useRef(false);
 
   // 方法选择器（使用 useShallow 保持引用稳定）
   const {
@@ -407,6 +416,33 @@ export const GameBoard = memo(function GameBoard({
     readonly cardId: string;
     readonly selectedSlots: readonly SlotPosition[];
   } | null>(null);
+
+  const clearDragInteractionState = useCallback(() => {
+    setActiveCardId(null);
+    setActiveDragFromZone(null);
+    setDragHints(false);
+    setBattleDragActionHint(null);
+    dragBattleActionIntentCacheRef.current = null;
+    dragStartViewportSignatureRef.current = null;
+    dragViewportInvalidatedRef.current = false;
+  }, [setBattleDragActionHint, setDragHints]);
+
+  const invalidateDragForViewportChange = useCallback(() => {
+    const startSignature = dragStartViewportSignatureRef.current;
+    if (!startSignature || dragViewportInvalidatedRef.current) {
+      return;
+    }
+
+    if (hasBattleViewportSignatureChanged(startSignature, readBattleViewportSignature())) {
+      dragViewportInvalidatedRef.current = true;
+      setDragHints(false);
+      setBattleDragActionHint(null);
+    }
+  }, [setBattleDragActionHint, setDragHints]);
+
+  useEffect(() => subscribeToBattleViewportChanges(invalidateDragForViewportChange), [
+    invalidateDragForViewportChange,
+  ]);
 
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
   const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
@@ -1165,13 +1201,12 @@ export const GameBoard = memo(function GameBoard({
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       if (isReadOnly) {
-        setActiveCardId(null);
-        setActiveDragFromZone(null);
-        setDragHints(false);
-        dragBattleActionIntentCacheRef.current = null;
+        clearDragInteractionState();
         return;
       }
 
+      dragStartViewportSignatureRef.current = readBattleViewportSignature();
+      dragViewportInvalidatedRef.current = false;
       const cardId = event.active.id as string;
       setActiveCardId(cardId);
 
@@ -1222,6 +1257,7 @@ export const GameBoard = memo(function GameBoard({
     [
       currentPhase,
       currentSubPhase,
+      clearDragInteractionState,
       isActiveEffectInspectionWindow,
       isReadOnly,
       matchView?.window?.windowType,
@@ -1235,7 +1271,7 @@ export const GameBoard = memo(function GameBoard({
 
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
-      if (isReadOnly || !event.over) {
+      if (isReadOnly || dragViewportInvalidatedRef.current || !event.over) {
         setBattleDragActionHint(null);
         return;
       }
@@ -1317,23 +1353,37 @@ export const GameBoard = memo(function GameBoard({
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
-      setActiveCardId(null);
-      setActiveDragFromZone(null);
-      setDragHints(false);
-      setBattleDragActionHint(null);
+      const cardId = active.id as string;
+      const dropTargetId = over ? String(over.id) : undefined;
+      const dropInvalidatedByViewport = isBattleViewportInteractionInvalidated(
+        dragStartViewportSignatureRef.current,
+        readBattleViewportSignature(),
+        dragViewportInvalidatedRef.current
+      );
+      clearDragInteractionState();
 
       if (isReadOnly) return;
+      if (dropInvalidatedByViewport) {
+        addLog('视口已变化，请重新拖拽', 'error');
+        pushBattleFeedback({
+          tone: 'error',
+          label: '视口已变化',
+          detail: '请重新拖拽',
+          anchor: { targetId: dropTargetId, cardId },
+        });
+        return;
+      }
       if (!over) return;
 
-      const cardId = active.id as string;
-      const targetId = over.id as string;
+      const resolvedTargetId = String(over.id);
+      const targetId = resolvedTargetId;
       const pushDropError = (label: string, detail?: string) => {
         addLog(detail ? `${label}: ${detail}` : label, 'error');
         pushBattleFeedback({
           tone: 'error',
           label,
           detail,
-          anchor: { targetId, cardId },
+          anchor: { targetId: resolvedTargetId, cardId },
         });
       };
 
@@ -1346,11 +1396,12 @@ export const GameBoard = memo(function GameBoard({
           }
         | undefined;
 
-      const specialTarget = resolveSpecialDragTarget(targetId);
+      const specialTarget = resolveSpecialDragTarget(resolvedTargetId);
 
       // 解析目标区域
       const parsedTarget =
-        (!specialTarget ? parseZoneId(targetId) : null) ?? resolveCardDropTarget(targetId);
+        (!specialTarget ? parseZoneId(resolvedTargetId) : null) ??
+        resolveCardDropTarget(resolvedTargetId);
       if (!parsedTarget && !specialTarget) {
         // 无法识别的目标区域
         return;
@@ -1728,10 +1779,9 @@ export const GameBoard = memo(function GameBoard({
       drawEnergyToZone,
       setLiveCard,
       addLog,
+      clearDragInteractionState,
       pushBattleFeedback,
       viewerSeat,
-      setDragHints,
-      setBattleDragActionHint,
       getZoneCardIds,
       currentPhase,
       currentSubPhase,
@@ -1820,12 +1870,7 @@ export const GameBoard = memo(function GameBoard({
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => {
-        setActiveCardId(null);
-        setActiveDragFromZone(null);
-        setDragHints(false);
-        setBattleDragActionHint(null);
-      }}
+      onDragCancel={clearDragInteractionState}
     >
       <div
         className="h-full flex flex-col relative overflow-hidden"
@@ -2048,7 +2093,7 @@ export const GameBoard = memo(function GameBoard({
                     animate={{ y: 0 }}
                     exit={{ y: '100%' }}
                     transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-                    className="safe-bottom fixed inset-x-0 bottom-0 z-[90] flex max-h-[82dvh] min-h-[52dvh] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
+                    className="safe-bottom fixed inset-x-0 bottom-0 z-[90] flex max-h-[var(--battle-viewport-height-82)] min-h-[var(--battle-viewport-height-52)] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] md:hidden"
                   >
                     <div className="shrink-0 px-4 pb-2 pt-3">
                       <div className="mb-3 flex justify-center">
@@ -2330,7 +2375,7 @@ export const GameBoard = memo(function GameBoard({
                 隐藏
               </button>
             </div>
-            <div className="grid max-h-[52vh] grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
+            <div className="grid max-h-[var(--battle-viewport-height-52)] grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-3">
               {successLiveSelectionCardIds.map((cardId) => {
                 const presentation = getVisibleCardPresentation(cardId);
                 const cardData = presentation?.cardData;
@@ -2432,7 +2477,7 @@ export const GameBoard = memo(function GameBoard({
             className="pointer-events-auto fixed inset-x-2 bottom-[max(0.75rem,env(safe-area-inset-bottom))] top-[max(0.75rem,env(safe-area-inset-top))] z-[95] flex items-end justify-center sm:inset-x-4 md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[min(94vw,900px)] md:-translate-x-1/2 md:-translate-y-1/2"
           >
             <motion.div
-              className="flex max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4"
+              className="flex max-h-[calc(var(--battle-viewport-height)_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:max-h-[88vh] md:p-4"
               initial={{ opacity: 0, y: 12, scale: 0.985 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 6, scale: 0.99 }}

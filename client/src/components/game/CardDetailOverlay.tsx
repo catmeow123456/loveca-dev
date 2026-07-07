@@ -345,7 +345,7 @@ function MobileCardDetailDrawer({
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-        className="safe-bottom fixed inset-x-0 bottom-0 z-[120] flex max-h-[86dvh] min-h-[46dvh] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)]"
+        className="safe-bottom fixed inset-x-0 bottom-0 z-[120] flex max-h-[var(--battle-viewport-height-86)] min-h-[var(--battle-viewport-height-46)] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)]"
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >

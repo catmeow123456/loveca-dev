@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Eye, Loader2, ScrollText } from 'lucide-react';
-import { GameBoard } from '@/components/game';
+import { BattleViewportShell, GameBoard } from '@/components/game';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { ThemeToggle } from '@/components/common';
 import { joinOnlineSpectatorLink } from '@/lib/onlineClient';
@@ -154,7 +154,7 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
       : null;
 
   return (
-    <div className="relative h-screen overflow-hidden">
+    <BattleViewportShell>
       <div className="absolute left-4 top-4 z-[120] flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2">
         <button
           type="button"
@@ -189,7 +189,7 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
         <ScrollText size={14} />
         只读观战
       </div>
-    </div>
+    </BattleViewportShell>
   );
 }
 
