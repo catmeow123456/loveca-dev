@@ -143,13 +143,9 @@ function finishPendingAbility(
     activeEffect: null,
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
   };
-  const stateWithUseRecord = recordAbilityUseForContext(stateWithoutPending, playerId, {
-    abilityId: ability.abilityId,
-    sourceCardId: ability.sourceCardId,
-  });
   return continuePendingCardEffects(
     addAction(
-      stateWithUseRecord,
+      stateWithoutPending,
       'RESOLVE_ABILITY',
       playerId,
       {

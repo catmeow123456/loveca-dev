@@ -67,7 +67,10 @@ function createPendingAbility(sourceCardId: string): PendingAbilityState {
   };
 }
 
-function resolveNozomi(topCardData: MemberCardData | LiveCardData | null): {
+function resolveNozomi(
+  topCardData: MemberCardData | LiveCardData | null,
+  options: { readonly waitingRoomCardData?: MemberCardData | LiveCardData } = {}
+): {
   readonly state: GameState;
   readonly sourceCardId: string;
   readonly topCardId: string | null;
@@ -76,9 +79,16 @@ function resolveNozomi(topCardData: MemberCardData | LiveCardData | null): {
   const topCard = topCardData
     ? createCardInstance(topCardData, PLAYER1, 'top-card')
     : null;
+  const waitingRoomCard = options.waitingRoomCardData
+    ? createCardInstance(options.waitingRoomCardData, PLAYER1, 'waiting-card')
+    : null;
 
   let game = createGameState('pl-bp6-007-nozomi', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, topCard ? [source, topCard] : [source]);
+  game = registerCards(game, [
+    source,
+    ...(topCard ? [topCard] : []),
+    ...(waitingRoomCard ? [waitingRoomCard] : []),
+  ]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
@@ -91,6 +101,12 @@ function resolveNozomi(topCardData: MemberCardData | LiveCardData | null): {
           cardIds: [topCard.instanceId],
         }
       : player.mainDeck,
+    waitingRoom: waitingRoomCard
+      ? {
+          ...player.waitingRoom,
+          cardIds: [waitingRoomCard.instanceId],
+        }
+      : player.waitingRoom,
   }));
 
   const state = confirmIfConfirmOnly(resolvePendingCardEffects({
@@ -105,7 +121,7 @@ function resolveNozomi(topCardData: MemberCardData | LiveCardData | null): {
   return {
     state,
     sourceCardId: source.instanceId,
-    topCardId: topCard?.instanceId ?? null,
+    topCardId: topCard?.instanceId ?? waitingRoomCard?.instanceId ?? null,
   };
 }
 
@@ -166,6 +182,24 @@ describe('PL!-bp6-007 Nozomi LIVE success reveal top to hand', () => {
           action.payload.step === 'NO_TOP_CARD' &&
           action.payload.revealedCardId === null &&
           action.payload.movedToHand === false
+      )
+    ).toBe(true);
+  });
+
+  it('refreshes the waiting room before revealing when the main deck is empty', () => {
+    const { state, topCardId } = resolveNozomi(null, {
+      waitingRoomCardData: createMember('PL!-waiting-no-blade-member'),
+    });
+
+    expect(state.players[0]?.hand.cardIds).toContain(topCardId);
+    expect(state.players[0]?.waitingRoom.cardIds).toEqual([]);
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(1);
+    expect(
+      state.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.affectedPlayerId === PLAYER1
       )
     ).toBe(true);
   });

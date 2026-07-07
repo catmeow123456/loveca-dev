@@ -394,6 +394,51 @@ describe('PL!S-bp5-222 Ria activated and moved-auto workflows', () => {
     expect(resolvedAutoActions(moved)).toEqual([]);
   });
 
+  it('does not consume the AUTO turn limit when a stale non-source move pending no-ops', () => {
+    const scenario = setupScenario({ energyCount: 4, activeEnergyCount: 0 });
+    const staleMoveEvent = createMemberSlotMovedEvent(
+      scenario.otherOwnId,
+      PLAYER1,
+      SlotPosition.LEFT,
+      SlotPosition.RIGHT
+    );
+    const stalePending = {
+      id: 'stale-ria-auto',
+      abilityId: S_BP5_222_AUTO_ON_THIS_MEMBER_MOVED_ACTIVATE_TWO_ENERGY_ABILITY_ID,
+      sourceCardId: scenario.sourceId,
+      controllerId: PLAYER1,
+      mandatory: true,
+      timingId: TriggerCondition.ON_MEMBER_SLOT_MOVED,
+      eventIds: [staleMoveEvent.eventId],
+    };
+
+    const afterStaleNoOp = resolvePendingCardEffects({
+      ...emitGameEvent(scenario.session.state!, staleMoveEvent),
+      pendingAbilities: [stalePending],
+    }).gameState;
+
+    expect(resolvedAutoActions(afterStaleNoOp).at(-1)?.payload).toMatchObject({
+      step: 'CONDITION_NOT_MET',
+      conditionMet: false,
+      movedCardId: scenario.otherOwnId,
+    });
+
+    const afterRealMove = resolvePendingCardEffects(
+      enqueueMove(
+        afterStaleNoOp,
+        PLAYER1,
+        scenario.sourceId,
+        SlotPosition.CENTER,
+        SlotPosition.RIGHT
+      )
+    ).gameState;
+
+    expect(resolvedAutoActions(afterRealMove).at(-1)?.payload).toMatchObject({
+      step: 'ACTIVATE_TWO_ENERGY_AFTER_THIS_MEMBER_MOVED',
+      activatedEnergyCardIds: [scenario.energyIds[0], scenario.energyIds[1]],
+    });
+  });
+
   it('does not resolve the reward again after this source already used the AUTO this turn', () => {
     const scenario = setupScenario({ energyCount: 4, activeEnergyCount: 0 });
     const firstResolved = resolvePendingCardEffects(

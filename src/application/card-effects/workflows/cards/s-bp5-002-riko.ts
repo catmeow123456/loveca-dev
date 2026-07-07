@@ -5,7 +5,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { CardType, OrientationState, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
+import { CardType, OrientationState, SlotPosition } from '../../../../shared/types/enums.js';
 import { and, memberPrintedBladeLte, typeIs } from '../../../effects/card-selectors.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 import { setMembersOrientation } from '../../../effects/member-state.js';
