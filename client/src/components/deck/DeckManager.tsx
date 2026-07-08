@@ -535,7 +535,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   };
 
   return (
-    <div className="app-shell flex h-screen flex-col">
+    <div className="app-shell app-viewport-shell flex flex-col">
       <PageHeader
         title={viewMode === 'list' ? '卡组管理' : editingDeckId ? '编辑卡组' : '创建卡组'}
         left={

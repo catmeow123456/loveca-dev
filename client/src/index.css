@@ -223,6 +223,29 @@ select {
   color: var(--text-primary);
 }
 
+.app-viewport-shell {
+  height: 100vh;
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
+@supports (height: 100svh) {
+  .app-viewport-shell {
+    height: 100svh;
+    min-height: 100svh;
+    max-height: 100svh;
+  }
+}
+
+@supports (height: 100dvh) {
+  .app-viewport-shell {
+    height: 100dvh;
+    min-height: 100dvh;
+    max-height: 100dvh;
+  }
+}
+
 .battle-viewport-shell {
   --battle-viewport-width: 100vw;
   --battle-viewport-height: 100vh;

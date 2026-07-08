@@ -5,7 +5,8 @@
  *   行2：成员卡 / Live卡 / 能量卡 类型筛选（全宽，侧边栏不覆盖）
  *   行3起：
  *     >= 960px：卡牌库 + 侧边栏左右并排（侧边栏常驻，不可折叠）
- *     < 960px ：侧边栏悬浮覆盖于卡牌库之上，可折叠
+ *     768px-959px：侧边栏悬浮覆盖于卡牌库之上，可折叠
+ *     < 768px：侧边栏通过底部抽屉打开
  */
 
 import { useEffect, useState } from 'react';
@@ -56,7 +57,7 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="relative flex-1 flex overflow-hidden">
+      <div className="relative flex-1 flex min-h-0 overflow-hidden">
         <div className="flex-1 flex flex-col min-h-0">
           <div className={`workspace-toolbar ${isMobile ? 'p-1.5' : 'p-3'}`}>
             <div className={`grid gap-2 ${isMobile ? '' : 'xl:grid-cols-[340px_minmax(0,1fr)]'}`}>
@@ -91,7 +92,11 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
               <div className="mt-1 flex items-center justify-between gap-2 px-0.5">
                 <div className="flex min-w-0 items-center gap-1.5 text-[10px] text-[var(--text-muted)]">
                   <span className="inline-flex items-center rounded-full border border-[var(--border-subtle)] px-2 py-0.5 text-[var(--text-secondary)]">
-                    {filters.selectedCardType === 'MEMBER' ? '成员卡' : filters.selectedCardType === 'LIVE' ? 'Live 卡' : '能量卡'}
+                    {filters.selectedCardType === 'MEMBER'
+                      ? '成员卡'
+                      : filters.selectedCardType === 'LIVE'
+                        ? 'Live 卡'
+                        : '能量卡'}
                   </span>
                   <span>{filters.sortedCards.length} 张卡</span>
                   {filters.hasActiveFilters && (
@@ -118,9 +123,7 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
           />
         </div>
 
-        {isDesktop && (
-          <DeckSidebar {...sidebarProps} />
-        )}
+        {isDesktop && <DeckSidebar {...sidebarProps} />}
 
         {!isDesktop && !isMobile && (
           <motion.div
@@ -144,12 +147,12 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
       </div>
 
       {isMobile && !sidebarOpen && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-3 pb-3">
+        <div className="relative z-20 shrink-0 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2 backdrop-blur-xl">
           <div className="flex justify-end">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="pointer-events-auto inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 py-2 text-xs font-medium text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
+              className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 py-2 text-xs font-medium text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
             >
               <PanelRightOpen size={14} />
               <span>查看卡组</span>
@@ -232,10 +235,7 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
         </>
       )}
 
-      <CardDetailDrawer
-        card={selectedCard}
-        onClose={() => setSelectedCard(null)}
-      />
+      <CardDetailDrawer card={selectedCard} onClose={() => setSelectedCard(null)} />
     </div>
   );
 }

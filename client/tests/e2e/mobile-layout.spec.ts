@@ -323,6 +323,49 @@ async function expectNoGlobalHorizontalOverflow(page: Page, label: string) {
   ).toBeLessThanOrEqual(allowed);
 }
 
+async function expectElementWithinVisualViewport(page: Page, selector: string, label: string) {
+  const metrics = await page.locator(selector).evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const visualViewport = window.visualViewport;
+    const viewportLeft = visualViewport?.offsetLeft ?? 0;
+    const viewportTop = visualViewport?.offsetTop ?? 0;
+    const viewportWidth = visualViewport?.width ?? window.innerWidth;
+    const viewportHeight = visualViewport?.height ?? window.innerHeight;
+
+    return {
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+      },
+      viewport: {
+        left: viewportLeft,
+        top: viewportTop,
+        right: viewportLeft + viewportWidth,
+        bottom: viewportTop + viewportHeight,
+      },
+    };
+  });
+
+  expect(
+    metrics.rect.left,
+    `${label} left edge is outside visual viewport: ${JSON.stringify(metrics)}`
+  ).toBeGreaterThanOrEqual(metrics.viewport.left - 1);
+  expect(
+    metrics.rect.top,
+    `${label} top edge is outside visual viewport: ${JSON.stringify(metrics)}`
+  ).toBeGreaterThanOrEqual(metrics.viewport.top - 1);
+  expect(
+    metrics.rect.right,
+    `${label} right edge is outside visual viewport: ${JSON.stringify(metrics)}`
+  ).toBeLessThanOrEqual(metrics.viewport.right + 1);
+  expect(
+    metrics.rect.bottom,
+    `${label} bottom edge is outside visual viewport: ${JSON.stringify(metrics)}`
+  ).toBeLessThanOrEqual(metrics.viewport.bottom + 1);
+}
+
 async function attachScreenshot(page: Page, testInfo: TestInfo, name: string) {
   const screenshotPath = testInfo.outputPath(`${name}.png`);
   await page.screenshot({ path: screenshotPath, fullPage: true, animations: 'disabled' });
@@ -388,6 +431,14 @@ const scenarios: Scenario[] = [
     authenticated: true,
     ready: async (page) => {
       await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
+    },
+    action: async (page) => {
+      await expect(page.getByRole('button', { name: /查看卡组/ })).toBeVisible();
+      await expectElementWithinVisualViewport(
+        page,
+        'button:has-text("查看卡组")',
+        'deck editor view-deck button'
+      );
     },
   },
   {
