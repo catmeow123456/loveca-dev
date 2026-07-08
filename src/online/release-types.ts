@@ -56,6 +56,7 @@ export interface OnlineRoomView {
   readonly openingRps: OnlineOpeningRpsView | null;
   readonly restartRequest: OnlineRestartRequestView | null;
   readonly matchId: string | null;
+  readonly spectatorRoomEntry: OnlineRoomSpectatorEntryView | null;
   readonly spectatorPresence: OnlineSpectatorPresenceView;
   readonly updatedAt: number;
 }
@@ -93,6 +94,19 @@ export interface OnlineSpectatorJoinView {
   readonly link: OnlineSpectatorLinkView;
   readonly session: OnlineSpectatorSessionView;
   readonly snapshot: OnlineMatchSnapshot;
+}
+
+export interface OnlineRoomSpectatorSeatView {
+  readonly seat: Seat;
+  readonly displayName: string;
+  readonly enabled: boolean;
+}
+
+export interface OnlineRoomSpectatorEntryView {
+  readonly roomCode: string;
+  readonly status: OnlineRoomStatus;
+  readonly matchId: string | null;
+  readonly seats: readonly OnlineRoomSpectatorSeatView[];
 }
 
 export type OnlineSpectatorSnapshotResponse = OnlineMatchSnapshot | OnlineMatchSnapshotNotModified;

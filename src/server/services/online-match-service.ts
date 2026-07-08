@@ -185,6 +185,7 @@ interface OnlineSpectatorLinkState {
   readonly viewType: 'PLAYER';
   readonly viewerSeat: Seat;
   readonly createdByUserId: string;
+  readonly source: 'PLAYER_LINK' | 'ADMIN_LINK' | 'ROOM_CODE';
   readonly countsInPresence: boolean;
   readonly createdAt: number;
   readonly expiresAt: number;
@@ -536,8 +537,7 @@ export class OnlineMatchService {
     await this.expireActiveUndoGrantIfNeeded(match);
     touchMatch(match);
     const currentSeq = match.remoteRevision;
-    const hasPendingRecoveryNotice =
-      participant.seat === 'FIRST' && match.recoveryNotice !== null;
+    const hasPendingRecoveryNotice = participant.seat === 'FIRST' && match.recoveryNotice !== null;
     if (
       !hasPendingRecoveryNotice &&
       options.sinceSeq !== undefined &&
@@ -620,6 +620,7 @@ export class OnlineMatchService {
     }
 
     return this.createPlayerViewSpectatorLinkForSeat(match, participant.seat, userId, {
+      source: 'PLAYER_LINK',
       countsInPresence: true,
     });
   }
@@ -635,15 +636,80 @@ export class OnlineMatchService {
     }
 
     return this.createPlayerViewSpectatorLinkForSeat(match, viewerSeat, adminUserId, {
+      source: 'ADMIN_LINK',
       countsInPresence: false,
     });
+  }
+
+  createRoomCodePlayerViewSpectatorLink(
+    matchId: string,
+    viewerSeat: Seat
+  ): OnlineSpectatorLinkView | null {
+    const match = this.matches.get(matchId);
+    if (!match || match.matchMode !== 'ONLINE' || !match.participants[viewerSeat]) {
+      return null;
+    }
+
+    const now = this.now();
+    this.cleanupExpiredSpectatorState(now);
+    const existingLink = [...this.spectatorLinks.values()].find(
+      (link) =>
+        link.source === 'ROOM_CODE' &&
+        link.matchId === match.matchId &&
+        link.viewerSeat === viewerSeat &&
+        link.revokedAt === null &&
+        link.expiresAt > now
+    );
+    if (existingLink) {
+      touchMatch(match);
+      return buildSpectatorLinkView(existingLink);
+    }
+
+    return this.createPlayerViewSpectatorLinkForSeat(match, viewerSeat, 'room-code-entry', {
+      source: 'ROOM_CODE',
+      countsInPresence: true,
+    });
+  }
+
+  revokeRoomCodeSpectatorAccess(matchId: string, viewerSeat: Seat): void {
+    const now = this.now();
+    const revokedTokens = new Set<string>();
+    for (const link of this.spectatorLinks.values()) {
+      if (
+        link.source === 'ROOM_CODE' &&
+        link.matchId === matchId &&
+        link.viewerSeat === viewerSeat &&
+        link.revokedAt === null
+      ) {
+        link.revokedAt = now;
+        revokedTokens.add(link.token);
+      }
+    }
+
+    if (revokedTokens.size === 0) {
+      return;
+    }
+
+    for (const [sessionId, session] of this.spectatorSessions) {
+      if (revokedTokens.has(session.token)) {
+        this.spectatorSessions.delete(sessionId);
+      }
+    }
+
+    const match = this.matches.get(matchId);
+    if (match) {
+      touchMatch(match);
+    }
   }
 
   private createPlayerViewSpectatorLinkForSeat(
     match: OnlineMatchState,
     viewerSeat: Seat,
     createdByUserId: string,
-    options: { readonly countsInPresence: boolean }
+    options: {
+      readonly source: OnlineSpectatorLinkState['source'];
+      readonly countsInPresence: boolean;
+    }
   ): OnlineSpectatorLinkView {
     const now = this.now();
     this.cleanupExpiredSpectatorState(now);
@@ -653,6 +719,7 @@ export class OnlineMatchService {
       viewType: 'PLAYER',
       viewerSeat,
       createdByUserId,
+      source: options.source,
       countsInPresence: options.countsInPresence,
       createdAt: now,
       expiresAt: now + SPECTATOR_LINK_TTL_MS,

@@ -14,6 +14,7 @@ import {
   Cloud,
   Database,
   DoorOpen,
+  Eye,
   Gamepad2,
   Globe2,
   History,
@@ -70,6 +71,7 @@ interface HomePageProps {
   onNavigateToDeckManager: () => void;
   onNavigateToGameSetup: () => void;
   onNavigateToOnlineRoom: () => void;
+  onNavigateToOnlineSpectator: () => void;
   onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToCardAdmin: () => void;
@@ -122,6 +124,7 @@ export function HomePage({
   onNavigateToDeckManager,
   onNavigateToGameSetup,
   onNavigateToOnlineRoom,
+  onNavigateToOnlineSpectator,
   onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
   onNavigateToCardAdmin,
@@ -340,6 +343,20 @@ export function HomePage({
           ? '连接后可用'
           : '服务未配置',
       tone: canUseOnlineRoom ? 'blue' : 'muted',
+    },
+    {
+      title: '输入房间号观战',
+      description: canUseOnlineRoom
+        ? '直接选择已开放的玩家视角。'
+        : deckSourceStatus === 'offline'
+          ? '连接服务后可通过房间号观战。'
+          : 'API 服务可用后可通过房间号观战。',
+      icon: Eye,
+      onClick: onNavigateToOnlineSpectator,
+      disabled: !canUseOnlineRoom,
+      compact: !canUseOnlineRoom,
+      status: canUseOnlineRoom ? '只读观战' : '连接后可用',
+      tone: canUseOnlineRoom ? 'green' : 'muted',
     },
     {
       title: '历史对局',

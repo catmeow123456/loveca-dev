@@ -14,6 +14,7 @@ import {
   OnlineDebugPage,
   OnlineRoomPage,
   OnlineSpectatorPage,
+  OnlineSpectatorLobbyPage,
   MatchRecordsPage,
   SharedDeckPage,
 } from '@/components/pages';
@@ -56,6 +57,7 @@ type AppPage =
   | 'deck-manager'
   | 'game-setup'
   | 'online-room'
+  | 'online-spectator'
   | 'match-records'
   | 'online-debug'
   | 'game'
@@ -110,6 +112,7 @@ function getInitialPage(): AppPage {
     page === 'deck-manager' ||
     page === 'game-setup' ||
     page === 'online-room' ||
+    page === 'online-spectator' ||
     page === 'match-records' ||
     page === 'online-debug' ||
     page === 'game' ||
@@ -356,6 +359,8 @@ function App() {
   const shareId = shareMatch?.[1] ?? null;
   const spectatorMatch = window.location.pathname.match(/^\/online\/spectate\/([^/]+)$/);
   const spectatorToken = spectatorMatch?.[1] ? decodeURIComponent(spectatorMatch[1]) : null;
+  const spectatorLobbyRequested =
+    window.location.pathname.replace(/\/+$/, '') === '/online/spectate';
   const shareLoginRequested = new URLSearchParams(window.location.search).get('login') === '1';
   const initialOpenDeckId = new URLSearchParams(window.location.search).get('openDeckId');
   const emailFeature = appConfig.features.email;
@@ -531,6 +536,16 @@ function App() {
     );
   }
 
+  if (spectatorLobbyRequested) {
+    return (
+      <OnlineSpectatorLobbyPage
+        onBackHome={() => {
+          window.location.href = '/';
+        }}
+      />
+    );
+  }
+
   if (!isAuthenticated) {
     switch (authPage) {
       case 'register':
@@ -623,6 +638,10 @@ function App() {
     return <OnlineRoomPage onBack={() => setCurrentPage('home')} />;
   }
 
+  if (effectivePage === 'online-spectator') {
+    return <OnlineSpectatorLobbyPage onBackHome={() => setCurrentPage('home')} />;
+  }
+
   if (effectivePage === 'match-records') {
     return <MatchRecordsPage onBack={() => setCurrentPage('home')} />;
   }
@@ -663,6 +682,7 @@ function App() {
       onNavigateToDeckManager={() => setCurrentPage('deck-manager')}
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
+      onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
       onNavigateToMatchRecords={() => setCurrentPage('match-records')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToCardAdmin={() => setCurrentPage('card-admin')}

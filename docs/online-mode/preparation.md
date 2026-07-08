@@ -22,7 +22,7 @@
 
 ## 2. 当前实现事实
 
-当前代码已经具备正式双人联机的基础产品闭环：房间、卡组锁定、先后手确认、服务端权威对局、轮询同步、运行期玩家视角 snapshot、离开房间、短暂恢复和管理员观测。正式联机响应侧已改为 JSON-native DTO 热路径，并继续优化了服务端投影、客户端 snapshot 应用和 recorder checkpoint 写入策略；相关性能边界见 `docs/online-mode/transport-serde-performance.md`。历史记录与回放已经具备阶段性闭环：正式联机与服务端可记录对墙打会写入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 明细和部分 decision record，普通玩家可以按自己的历史视角读取详情、timeline 和只读 checkpoint 桌面；服务端可记录对墙打运行态缺失时，可从最新 authority checkpoint 与公共事件尾部恢复到最近保存点。卡效自动化第一阶段已经接入普通成员登场费用、Live 判定与修正、部分触发/起动/自动能力和第一批登记卡效。剩余缺口主要集中在实时传输、正式联机进程重启后恢复运行中对局、完整随机记录、完整决策覆盖、确定性重演、全卡池完整自动裁判和完整重放恢复语义。
+当前代码已经具备正式双人联机的基础产品闭环：房间、卡组锁定、先后手确认、服务端权威对局、轮询同步、运行期玩家视角 snapshot、玩家视角观战链接、房间号观战入口、离开房间、短暂恢复和管理员观测。正式联机响应侧已改为 JSON-native DTO 热路径，并继续优化了服务端投影、客户端 snapshot 应用和 recorder checkpoint 写入策略；相关性能边界见 `docs/online-mode/transport-serde-performance.md`。历史记录与回放已经具备阶段性闭环：正式联机与服务端可记录对墙打会写入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 明细和部分 decision record，普通玩家可以按自己的历史视角读取详情、timeline 和只读 checkpoint 桌面；服务端可记录对墙打运行态缺失时，可从最新 authority checkpoint 与公共事件尾部恢复到最近保存点。卡效自动化第一阶段已经接入普通成员登场费用、Live 判定与修正、部分触发/起动/自动能力和第一批登记卡效。剩余缺口主要集中在实时传输、正式联机进程重启后恢复运行中对局、完整随机记录、完整决策覆盖、确定性重演、全卡池完整自动裁判和完整重放恢复语义。
 
 相关代码路径：
 

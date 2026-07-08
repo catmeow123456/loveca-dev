@@ -15,6 +15,7 @@ import type {
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
   OnlineRoomView,
+  OnlineRoomSpectatorEntryView,
   OnlineSpectatorJoinView,
   OnlineSpectatorLinkView,
   OnlineSpectatorSnapshotResponse,
@@ -48,6 +49,47 @@ export async function fetchOnlineRoom(roomCode: string): Promise<OnlineRoomView>
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取房间状态失败');
+  }
+  return response.data;
+}
+
+export async function fetchOnlineRoomSpectatorEntry(
+  roomCode: string
+): Promise<OnlineRoomSpectatorEntryView> {
+  const response = await apiClient.get<OnlineRoomSpectatorEntryView>(
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/spectator-entry`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '读取房间号观战入口失败');
+  }
+  return response.data;
+}
+
+export async function createOnlineRoomSpectatorEntryLink(
+  roomCode: string,
+  viewerSeat: Seat
+): Promise<OnlineSpectatorLinkView> {
+  const response = await apiClient.post<OnlineSpectatorLinkView>(
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/spectator-entry/${encodeURIComponent(
+      viewerSeat
+    )}/link`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '进入房间号观战失败');
+  }
+  return response.data;
+}
+
+export async function updateOnlineRoomSpectatorEntry(
+  roomCode: string,
+  enabled: boolean
+): Promise<OnlineRoomView> {
+  const response = await apiClient.put<OnlineRoomView>(
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/spectator-entry`,
+    { enabled }
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '更新房间号观战设置失败');
   }
   return response.data;
 }
@@ -313,9 +355,7 @@ export async function fetchOnlineSpectatorSnapshotResponse(
   }
   const search = params.toString();
   const response = await apiClient.get<OnlineSpectatorSnapshotResponse>(
-    `/api/online/spectator-links/${encodeURIComponent(token)}/snapshot${
-      search ? `?${search}` : ''
-    }`
+    `/api/online/spectator-links/${encodeURIComponent(token)}/snapshot${search ? `?${search}` : ''}`
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取观战快照失败');
@@ -490,9 +530,7 @@ export async function fetchMatchRecordDetail(matchId: string): Promise<MatchReco
   return response.data;
 }
 
-export async function fetchAdminMatchRecordDetail(
-  matchId: string
-): Promise<MatchRecordDetailView> {
+export async function fetchAdminMatchRecordDetail(matchId: string): Promise<MatchRecordDetailView> {
   const response = await apiClient.get<MatchRecordDetailView>(
     `/api/battle/admin/match-records/${encodeURIComponent(matchId)}`
   );

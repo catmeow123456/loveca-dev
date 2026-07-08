@@ -6,10 +6,12 @@ import type {
   OnlineAdminRoomSummary,
   OnlineOpeningRpsView,
   OnlineRestartRequestView,
+  OnlineRoomSpectatorEntryView,
   OnlineRoomMemberPresence,
   OnlineRoomMemberRole,
   OnlineRoomStatus,
   OnlineRoomView,
+  OnlineSpectatorLinkView,
 } from '../../online/release-types.js';
 import type { Seat } from '../../online/types.js';
 import { pool } from '../db/pool.js';
@@ -55,6 +57,7 @@ interface OnlineRoomState {
   restartRequest: OnlineRestartRequestState | null;
   matchId: string | null;
   seatAssignments: Partial<Record<Seat, string>>;
+  spectatorRoomEntryEnabled: Partial<Record<Seat, boolean>>;
   updatedAt: number;
 }
 
@@ -151,6 +154,7 @@ export class OnlineRoomService {
       restartRequest: null,
       matchId: null,
       seatAssignments: {},
+      spectatorRoomEntryEnabled: {},
       updatedAt: now,
     };
 
@@ -477,6 +481,7 @@ export class OnlineRoomService {
 
     room.matchId = null;
     room.seatAssignments = {};
+    room.spectatorRoomEntryEnabled = {};
     room.members.forEach((candidate) => {
       candidate.startReady = false;
       candidate.presence = 'ACTIVE';
@@ -631,6 +636,96 @@ export class OnlineRoomService {
     return this.buildRoomView(room, room.members[0]);
   }
 
+  async getRoomSpectatorEntry(roomCodeInput: string): Promise<OnlineRoomSpectatorEntryView | null> {
+    await this.cleanupExpiredState();
+
+    const roomCode = normalizeRoomCode(roomCodeInput);
+    const room = this.rooms.get(roomCode);
+    if (!room || room.members.length === 0) {
+      return null;
+    }
+
+    return buildSpectatorRoomEntryView(room, { onlyEnabledSeats: true });
+  }
+
+  async createRoomCodeSpectatorLink(
+    roomCodeInput: string,
+    viewerSeat: Seat
+  ): Promise<OnlineSpectatorLinkView> {
+    await this.cleanupExpiredState();
+
+    const room = this.getRoomState(roomCodeInput);
+    if (room.status !== 'IN_GAME' || !room.matchId) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_ROOM_SPECTATOR_UNAVAILABLE',
+        '该房间当前不能通过房间号观战',
+        404
+      );
+    }
+    if (!room.seatAssignments[viewerSeat]) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_ROOM_SPECTATOR_UNAVAILABLE',
+        '该玩家视角当前不可观战',
+        404
+      );
+    }
+    if (room.spectatorRoomEntryEnabled[viewerSeat] !== true) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_ROOM_SPECTATOR_CLOSED',
+        '该玩家已关闭房间号观战',
+        403
+      );
+    }
+
+    const link = this.matchService.createRoomCodePlayerViewSpectatorLink(room.matchId, viewerSeat);
+    if (!link) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_ROOM_SPECTATOR_UNAVAILABLE',
+        '该玩家视角当前不可观战',
+        404
+      );
+    }
+    touchRoom(room, this.now());
+    return link;
+  }
+
+  async setOwnRoomSpectatorEntry(
+    roomCodeInput: string,
+    userId: string,
+    enabled: boolean
+  ): Promise<OnlineRoomView> {
+    await this.cleanupExpiredState();
+
+    const room = this.getRoomState(roomCodeInput);
+    const member = this.requireMember(room, userId);
+    if (room.status !== 'IN_GAME' || !room.matchId) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_ROOM_SPECTATOR_FORBIDDEN',
+        '只有进行中的对局可以调整房间号观战',
+        409
+      );
+    }
+    const seat = getAssignedSeat(room, userId);
+    if (!seat) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_ROOM_SPECTATOR_FORBIDDEN',
+        '当前用户没有可调整的玩家视角',
+        403
+      );
+    }
+
+    room.spectatorRoomEntryEnabled[seat] = enabled;
+    if (!enabled) {
+      this.matchService.revokeRoomCodeSpectatorAccess(room.matchId, seat);
+    }
+
+    const now = this.now();
+    member.presence = 'ACTIVE';
+    member.lastSeenAt = now;
+    touchRoom(room, now);
+    return this.buildRoomView(room, member);
+  }
+
   async listAdminRoomSummaries(): Promise<readonly OnlineAdminRoomSummary[]> {
     await this.cleanupExpiredState();
 
@@ -708,6 +803,7 @@ export class OnlineRoomService {
       openingRps: buildOpeningRpsViewForViewer(room.openingRps, viewer.userId),
       restartRequest: room.restartRequest,
       matchId: room.matchId,
+      spectatorRoomEntry: buildSpectatorRoomEntryView(room),
       spectatorPresence: room.matchId
         ? this.matchService.getSpectatorPresenceForMatch(room.matchId)
         : { total: 0, viewers: [] },
@@ -806,6 +902,10 @@ export class OnlineRoomService {
     room.openingRps = null;
     room.restartRequest = null;
     room.status = 'IN_GAME';
+    room.spectatorRoomEntryEnabled = {
+      FIRST: true,
+      SECOND: true,
+    };
     touchRoom(room, now);
 
     return match;
@@ -986,6 +1086,41 @@ function getAssignedSeat(room: OnlineRoomState, userId: string): Seat | null {
     return 'SECOND';
   }
   return null;
+}
+
+function buildSpectatorRoomEntryView(
+  room: OnlineRoomState,
+  options: { readonly onlyEnabledSeats?: boolean } = {}
+): OnlineRoomSpectatorEntryView | null {
+  if (room.status !== 'IN_GAME' || !room.matchId) {
+    return null;
+  }
+
+  const seats: OnlineRoomSpectatorEntryView['seats'] = (['FIRST', 'SECOND'] as const)
+    .map((seat) => {
+      const userId = room.seatAssignments[seat];
+      const member = userId ? findMember(room, userId) : undefined;
+      if (!member) {
+        return null;
+      }
+      const enabled = room.spectatorRoomEntryEnabled[seat] === true;
+      if (options.onlyEnabledSeats && !enabled) {
+        return null;
+      }
+      return {
+        seat,
+        displayName: member.displayName,
+        enabled,
+      };
+    })
+    .filter((seat): seat is OnlineRoomSpectatorEntryView['seats'][number] => seat !== null);
+
+  return {
+    roomCode: room.roomCode,
+    status: room.status,
+    matchId: room.matchId,
+    seats,
+  };
 }
 
 function getHostUserId(room: OnlineRoomState): string | null {

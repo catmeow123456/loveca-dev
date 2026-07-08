@@ -5,6 +5,12 @@ description: git commit操作的前期准备，包括代码规范检查，以及
 
 提示：需要启动开发测试环境时，使用 `bash scripts/start-test-env.sh` 来干净地启动开发测试。
 
+提示：运行全量 unit / integration 测试时，`pnpm test:run` 需要显式传测试环境变量，否则部分服务端路由测试会因缺少 `DATABASE_URL` 等配置失败：
+
+```bash
+env DATABASE_URL=postgres://loveca:loveca_dev@localhost:5432/loveca JWT_SECRET=test JWT_REFRESH_SECRET=test MINIO_ENDPOINT=localhost MINIO_ACCESS_KEY=test MINIO_SECRET_KEY=test FRONTEND_URL=http://localhost:5173 pnpm test:run
+```
+
 步骤：
 
 1. 检查代码、文档和配置是否引入 bug，整体实现是否合理无误。

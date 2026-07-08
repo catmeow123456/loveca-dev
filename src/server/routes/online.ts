@@ -59,6 +59,10 @@ const adminPlayerViewSpectatorLinkSchema = z.object({
   viewerSeat: z.enum(['FIRST', 'SECOND']),
 });
 
+const roomSpectatorEntrySchema = z.object({
+  enabled: z.boolean(),
+});
+
 onlineRouter.get('/admin/rooms', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const rooms = await onlineRoomService.listAdminRoomSummaries();
@@ -296,6 +300,68 @@ onlineRouter.get('/rooms/:roomCode', requireAuth, async (req, res) => {
     const room = await onlineRoomService.getRoomView(
       readPathParam(req.params.roomCode),
       req.user!.id
+    );
+    res.json({ data: room, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.get('/rooms/:roomCode/spectator-entry', async (req, res) => {
+  try {
+    const entry = await onlineRoomService.getRoomSpectatorEntry(readPathParam(req.params.roomCode));
+    if (!entry || !entry.matchId || entry.seats.length === 0) {
+      res.status(404).json({
+        data: null,
+        error: {
+          code: 'ONLINE_ROOM_SPECTATOR_UNAVAILABLE',
+          message: '该房间当前不能通过房间号观战',
+        },
+      });
+      return;
+    }
+
+    res.json({ data: entry, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.post('/rooms/:roomCode/spectator-entry/:viewerSeat/link', async (req, res) => {
+  const viewerSeat = readSeatPath(req.params.viewerSeat);
+  if (!viewerSeat) {
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '观战视角参数非法' } });
+    return;
+  }
+
+  try {
+    const link = await onlineRoomService.createRoomCodeSpectatorLink(
+      readPathParam(req.params.roomCode),
+      viewerSeat
+    );
+    res.status(201).json({ data: link, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.put('/rooms/:roomCode/spectator-entry', requireAuth, async (req, res) => {
+  const parsed = roomSpectatorEntrySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({
+      data: null,
+      error: { code: 'INVALID_REQUEST', message: '房间号观战设置参数非法' },
+    });
+    return;
+  }
+
+  try {
+    const room = await onlineRoomService.setOwnRoomSpectatorEntry(
+      readPathParam(req.params.roomCode),
+      req.user!.id,
+      parsed.data.enabled
     );
     res.json({ data: room, error: null });
   } catch (error) {
@@ -973,5 +1039,10 @@ function readRequiredSeq(value: unknown): number | null {
 
 function readSeatQuery(value: unknown): 'FIRST' | 'SECOND' | null {
   const raw = Array.isArray(value) ? (value[0] as unknown) : value;
+  return raw === 'FIRST' || raw === 'SECOND' ? raw : null;
+}
+
+function readSeatPath(value: string | string[] | undefined): 'FIRST' | 'SECOND' | null {
+  const raw = readPathParam(value);
   return raw === 'FIRST' || raw === 'SECOND' ? raw : null;
 }

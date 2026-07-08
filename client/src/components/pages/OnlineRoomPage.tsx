@@ -49,6 +49,7 @@ import {
   rejectOnlineRoomRestart,
   requestOnlineRoomRestart,
   submitOnlineOpeningRps,
+  updateOnlineRoomSpectatorEntry,
 } from '@/lib/onlineClient';
 import {
   createDeckRecordCardTypeResolver,
@@ -119,6 +120,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const [isBootstrappingMatch, setIsBootstrappingMatch] = useState(false);
   const [briefingAcknowledged, setBriefingAcknowledged] = useState(false);
   const [isGeneratingSpectatorLink, setIsGeneratingSpectatorLink] = useState(false);
+  const [isUpdatingSpectatorEntry, setIsUpdatingSpectatorEntry] = useState(false);
   const [spectatorLinkMessage, setSpectatorLinkMessage] = useState<string | null>(null);
   const [isRoomPanelOpen, setIsRoomPanelOpen] = useState(false);
   const resolveDeckRecordCardType = useMemo(
@@ -333,6 +335,8 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     room?.status === 'IN_GAME' && !restartRequest && opponentMember?.presence === 'ACTIVE'
   );
   const spectatorPresence = room?.spectatorPresence ?? { total: 0, viewers: [] };
+  const mySpectatorRoomEntry =
+    room?.spectatorRoomEntry?.seats.find((seat) => seat.seat === room.currentUserSeat) ?? null;
   const canLockDeck = Boolean(
     room && selectedDeck?.cloudDeck && room.status !== 'OPENING' && room.status !== 'IN_GAME'
   );
@@ -629,6 +633,26 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     }
   };
 
+  const handleToggleSpectatorRoomEntry = async () => {
+    if (!room?.matchId || !mySpectatorRoomEntry) {
+      return;
+    }
+
+    setIsUpdatingSpectatorEntry(true);
+    setError(null);
+    try {
+      const nextRoom = await updateOnlineRoomSpectatorEntry(
+        room.roomCode,
+        !mySpectatorRoomEntry.enabled
+      );
+      setRoom(nextRoom);
+    } catch (toggleError) {
+      setError(toggleError instanceof Error ? toggleError.message : '更新房间号观战设置失败');
+    } finally {
+      setIsUpdatingSpectatorEntry(false);
+    }
+  };
+
   if (room?.status === 'IN_GAME' && remoteSession?.matchId === room.matchId && matchView) {
     return (
       <BattleViewportShell>
@@ -667,11 +691,14 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
               presence={spectatorPresence}
               spectatorLinkMessage={spectatorLinkMessage}
               isGeneratingSpectatorLink={isGeneratingSpectatorLink}
+              spectatorRoomEntry={mySpectatorRoomEntry}
+              isUpdatingSpectatorEntry={isUpdatingSpectatorEntry}
               isSubmitting={isSubmitting}
               canRequestRestart={canRequestRestart}
               restartRequest={restartRequest}
               isRestartRequester={isRestartRequester}
               onCreateSpectatorLink={handleCreateSpectatorLink}
+              onToggleSpectatorRoomEntry={handleToggleSpectatorRoomEntry}
               onRequestRestart={handleRequestRestart}
               onCancelRestart={handleCancelRestart}
               onLeaveRoom={handleRequestLeaveRoom}
@@ -1829,11 +1856,14 @@ function RoomActionPanel({
   presence,
   spectatorLinkMessage,
   isGeneratingSpectatorLink,
+  spectatorRoomEntry,
+  isUpdatingSpectatorEntry,
   isSubmitting,
   canRequestRestart,
   restartRequest,
   isRestartRequester,
   onCreateSpectatorLink,
+  onToggleSpectatorRoomEntry,
   onRequestRestart,
   onCancelRestart,
   onLeaveRoom,
@@ -1842,11 +1872,14 @@ function RoomActionPanel({
   presence: OnlineRoomView['spectatorPresence'];
   spectatorLinkMessage: string | null;
   isGeneratingSpectatorLink: boolean;
+  spectatorRoomEntry: NonNullable<OnlineRoomView['spectatorRoomEntry']>['seats'][number] | null;
+  isUpdatingSpectatorEntry: boolean;
   isSubmitting: boolean;
   canRequestRestart: boolean;
   restartRequest: OnlineRoomView['restartRequest'];
   isRestartRequester: boolean;
   onCreateSpectatorLink: () => void;
+  onToggleSpectatorRoomEntry: () => void;
   onRequestRestart: () => void;
   onCancelRestart: () => void;
   onLeaveRoom: () => void;
@@ -1861,6 +1894,40 @@ function RoomActionPanel({
       </div>
 
       <div className="mt-3 grid gap-2">
+        {spectatorRoomEntry ? (
+          <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                  房间号观战
+                </div>
+                <div className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                  {spectatorRoomEntry.enabled
+                    ? '知道房间号的观战者可进入你的视角。'
+                    : '你的视角已从房间号入口关闭。'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onToggleSpectatorRoomEntry}
+                disabled={isUpdatingSpectatorEntry}
+                aria-pressed={spectatorRoomEntry.enabled}
+                className={`inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${
+                  spectatorRoomEntry.enabled
+                    ? 'border-[color:color-mix(in_srgb,var(--semantic-success)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_10%,transparent)] text-[var(--semantic-success)]'
+                    : 'border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)]'
+                } ${isUpdatingSpectatorEntry ? 'cursor-wait opacity-70' : ''}`}
+              >
+                {isUpdatingSpectatorEntry ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Eye size={14} />
+                )}
+                {spectatorRoomEntry.enabled ? '开启' : '关闭'}
+              </button>
+            </div>
+          </div>
+        ) : null}
         <button
           type="button"
           onClick={onCreateSpectatorLink}
