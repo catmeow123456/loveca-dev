@@ -61,6 +61,7 @@ import {
   ArrowUpToLine,
   BarChart3,
   Check,
+  Hand,
   Layers3,
   Megaphone,
   Trash2,
@@ -1164,6 +1165,19 @@ export const PlayerArea = memo(function PlayerArea({
       (isMobileBoard
         ? waitingRoomStatsExpanded
         : waitingRoomStatsExpanded || waitingRoomStatsHover);
+    const canMoveWaitingRoomCardToHandFromModal =
+      !isReadOnly &&
+      !isOpponent &&
+      viewerSeat === playerSeat &&
+      allowGeneralOwnZoneInteraction &&
+      canMovePublicCardToHand &&
+      !visibleActiveEffect;
+    const selectedWaitingRoomCard = canMoveWaitingRoomCardToHandFromModal
+      ? (waitingRoomCards.find(({ card }) => card.instanceId === selectedCardId) ?? null)
+      : null;
+    const selectedWaitingRoomCardTitle = selectedWaitingRoomCard
+      ? getCardLocalizedInfo(selectedWaitingRoomCard.card.cardData).title
+      : null;
 
     return (
       <DroppableZone
@@ -1231,7 +1245,7 @@ export const PlayerArea = memo(function PlayerArea({
 
                     <div className="fixed inset-0 z-[100] flex items-end justify-center p-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-4 md:items-center">
                       <motion.div
-                        className="modal-surface modal-accent-amber flex max-h-[calc(var(--battle-viewport-height)_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden md:max-h-[82vh] md:w-[min(92vw,720px)]"
+                        className="modal-surface modal-accent-amber relative flex max-h-[calc(var(--battle-viewport-height)_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1.5rem)] w-full flex-col overflow-hidden md:max-h-[82vh] md:w-[min(92vw,720px)]"
                         initial={{ opacity: 0, scale: 0.94 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.94 }}
@@ -1306,7 +1320,14 @@ export const PlayerArea = memo(function PlayerArea({
                           </div>
                         )}
 
-                        <div className="touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
+                        <div
+                          className={cn(
+                            'touch-scroll cute-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pt-3 md:px-5 md:pt-5',
+                            canMoveWaitingRoomCardToHandFromModal
+                              ? 'pb-20 md:pb-20'
+                              : 'pb-3 md:pb-5'
+                          )}
+                        >
                           <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 sm:grid-cols-5 md:grid-cols-6 md:gap-3">
                             {waitingRoomCards.map(({ cardId, card }) => {
                               const isWaitingRoomCardSelected = selectedCardId === card.instanceId;
@@ -1320,53 +1341,44 @@ export const PlayerArea = memo(function PlayerArea({
                                 viewerSeat === playerSeat &&
                                 canActivateAbilityCommand &&
                                 isWaitingRoomCardSelected;
+                              const waitingRoomCardContent = (
+                                <CardDetailPressTarget
+                                  cardId={card.instanceId}
+                                  title={getCardLocalizedInfo(card.cardData).title}
+                                >
+                                  <Card
+                                    cardData={card.cardData as AnyCardData}
+                                    instanceId={card.instanceId}
+                                    imagePath={card.imagePath}
+                                    size="sm"
+                                    faceUp={true}
+                                    selected={isWaitingRoomCardSelected}
+                                    effectVisualState={getEffectVisualState(card, {
+                                      isActionableNow: canActivateWaitingRoomAbility,
+                                    })}
+                                    onClick={() => {
+                                      if (confirmActiveEffectCardFromTable(card.instanceId)) {
+                                        return;
+                                      }
+                                      if (allowGeneralOwnZoneInteraction) {
+                                        toggleSelectedCard(card.instanceId);
+                                      }
+                                    }}
+                                    showHover={true}
+                                    className={cn(
+                                      'h-[90px] w-[64px] md:h-[105px] md:w-[75px]',
+                                      getActiveEffectTaskCardClass(card.instanceId)
+                                    )}
+                                  />
+                                </CardDetailPressTarget>
+                              );
 
                               return (
-                                <div key={cardId} className="relative">
-                                  <DraggableCard
-                                    id={cardId}
-                                    disabled={
-                                      isReadOnly ||
-                                      (!allowGeneralOwnZoneInteraction &&
-                                        !canReceiveInspectionDrop &&
-                                        card.cardData.cardType !== CardType.LIVE)
-                                    }
-                                    data={{
-                                      cardId,
-                                      cardCode: card.cardCode,
-                                      fromZone: ZoneType.WAITING_ROOM,
-                                    }}
-                                  >
-                                    <CardDetailPressTarget
-                                      cardId={card.instanceId}
-                                      title={getCardLocalizedInfo(card.cardData).title}
-                                    >
-                                      <Card
-                                        cardData={card.cardData as AnyCardData}
-                                        instanceId={card.instanceId}
-                                        imagePath={card.imagePath}
-                                        size="sm"
-                                        faceUp={true}
-                                        selected={isWaitingRoomCardSelected}
-                                        effectVisualState={getEffectVisualState(card, {
-                                          isActionableNow: canActivateWaitingRoomAbility,
-                                        })}
-                                        onClick={() => {
-                                          if (confirmActiveEffectCardFromTable(card.instanceId)) {
-                                            return;
-                                          }
-                                          if (allowGeneralOwnZoneInteraction) {
-                                            toggleSelectedCard(card.instanceId);
-                                          }
-                                        }}
-                                        showHover={true}
-                                        className={cn(
-                                          'h-[90px] w-[64px] md:h-[105px] md:w-[75px]',
-                                          getActiveEffectTaskCardClass(card.instanceId)
-                                        )}
-                                      />
-                                    </CardDetailPressTarget>
-                                  </DraggableCard>
+                                <div
+                                  key={cardId}
+                                  className="relative flex min-w-0 flex-col items-center"
+                                >
+                                  {waitingRoomCardContent}
                                   {canActivateWaitingRoomAbility && activatedAbilityConfig && (
                                     <button
                                       type="button"
@@ -1394,6 +1406,48 @@ export const PlayerArea = memo(function PlayerArea({
                             })}
                           </div>
                         </div>
+                        {selectedWaitingRoomCard && (
+                          <div className="absolute inset-x-0 bottom-0 z-20 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_94%,transparent)] px-3 py-2 shadow-[0_-10px_22px_rgba(15,23,42,0.22)] backdrop-blur-xl md:px-5">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <div className="flex h-12 w-[34px] shrink-0 items-center justify-center overflow-hidden rounded border border-[var(--border-default)] bg-[var(--bg-overlay)] shadow-[var(--shadow-sm)]">
+                                {selectedWaitingRoomCard.card.imagePath ? (
+                                  <img
+                                    src={selectedWaitingRoomCard.card.imagePath}
+                                    alt=""
+                                    className="h-full w-full object-cover"
+                                    draggable={false}
+                                  />
+                                ) : (
+                                  <span className="text-[10px] text-[var(--text-muted)]">♪</span>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                                  已选卡牌
+                                </div>
+                                <div className="truncate text-xs font-semibold text-[var(--text-primary)]">
+                                  {selectedWaitingRoomCardTitle}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="button-primary inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  movePublicCardToHand(
+                                    selectedWaitingRoomCard.card.instanceId,
+                                    ZoneType.WAITING_ROOM
+                                  );
+                                }}
+                                title="加入手牌"
+                                aria-label="将选中的休息室卡牌加入手牌"
+                              >
+                                <Hand size={14} className="shrink-0" />
+                                加入手牌
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </motion.div>
                     </div>
                   </>
