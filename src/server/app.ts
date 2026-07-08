@@ -15,6 +15,7 @@ import { debugOnlineRouter } from './routes/debug-online.js';
 import { onlineRouter } from './routes/online.js';
 import { battleRouter } from './routes/battle.js';
 import { appConfigRouter } from './routes/app-config.js';
+import { siteAnnouncementsRouter } from './routes/site-announcements.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -65,6 +66,7 @@ export function createApp(): express.Express {
   app.use('/api/decks', decksRouter);
   app.use('/api/profiles', profilesRouter);
   app.use('/api/images', imagesRouter);
+  app.use('/api/site-announcements', siteAnnouncementsRouter);
   app.use('/api/online', onlineRouter);
   app.use('/api/battle', battleRouter);
   if (config.isDev) {

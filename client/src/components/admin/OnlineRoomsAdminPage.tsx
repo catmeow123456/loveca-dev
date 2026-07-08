@@ -90,31 +90,32 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
     }
   }, []);
 
-  const loadReplayBundle = useCallback(
-    async (bundle: unknown) => {
-      setIsImportingReplay(true);
-      setReplayError(null);
-      try {
-        const imported = await importDebugReplayBundle(bundle);
-        const timeline = await fetchDebugReplayTimeline(imported.bundleId);
-        const checkpointSeq = findFirstCheckpointSeq(timeline.recordFrames);
-        const nextCheckpointView =
-          checkpointSeq !== null
-            ? await fetchDebugReplayCheckpoint(imported.bundleId, checkpointSeq, viewerSeatRef.current)
-            : null;
+  const loadReplayBundle = useCallback(async (bundle: unknown) => {
+    setIsImportingReplay(true);
+    setReplayError(null);
+    try {
+      const imported = await importDebugReplayBundle(bundle);
+      const timeline = await fetchDebugReplayTimeline(imported.bundleId);
+      const checkpointSeq = findFirstCheckpointSeq(timeline.recordFrames);
+      const nextCheckpointView =
+        checkpointSeq !== null
+          ? await fetchDebugReplayCheckpoint(
+              imported.bundleId,
+              checkpointSeq,
+              viewerSeatRef.current
+            )
+          : null;
 
-        setImportedReplay(imported);
-        setReplayTimeline(timeline);
-        setSelectedCheckpointSeq(checkpointSeq);
-        setCheckpointView(nextCheckpointView);
-      } catch (loadError) {
-        setReplayError(loadError instanceof Error ? loadError.message : '导入调试回放包失败');
-      } finally {
-        setIsImportingReplay(false);
-      }
-    },
-    []
-  );
+      setImportedReplay(imported);
+      setReplayTimeline(timeline);
+      setSelectedCheckpointSeq(checkpointSeq);
+      setCheckpointView(nextCheckpointView);
+    } catch (loadError) {
+      setReplayError(loadError instanceof Error ? loadError.message : '导入调试回放包失败');
+    } finally {
+      setIsImportingReplay(false);
+    }
+  }, []);
 
   const handleExportReplay = useCallback(
     async (matchId: string, mode: 'DOWNLOAD' | 'LOAD') => {
@@ -430,9 +431,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
                           onOpenSpectatorView={(matchId, seat) =>
                             void handleOpenSpectatorView(matchId, seat)
                           }
-                          onExportReplay={(matchId, mode) =>
-                            void handleExportReplay(matchId, mode)
-                          }
+                          onExportReplay={(matchId, mode) => void handleExportReplay(matchId, mode)}
                         />
                       </td>
                     </motion.tr>
@@ -803,9 +802,9 @@ function StatusBadge({ status }: { status: OnlineRoomStatus }) {
       ? 'border-[color:var(--semantic-success)]/40 bg-[color:var(--semantic-success)]/10 text-[var(--semantic-success)]'
       : status === 'OPENING'
         ? 'border-[color:var(--accent-primary)]/40 bg-[color:var(--accent-primary)]/10 text-[var(--accent-primary)]'
-      : status === 'READY'
-        ? 'border-[color:var(--semantic-warning)]/40 bg-[color:var(--semantic-warning)]/10 text-[var(--semantic-warning)]'
-        : 'border-[color:var(--semantic-info)]/40 bg-[color:var(--semantic-info)]/10 text-[var(--semantic-info)]';
+        : status === 'READY'
+          ? 'border-[color:var(--semantic-warning)]/40 bg-[color:var(--semantic-warning)]/10 text-[var(--semantic-warning)]'
+          : 'border-[color:var(--semantic-info)]/40 bg-[color:var(--semantic-info)]/10 text-[var(--semantic-info)]';
   const label =
     status === 'IN_GAME'
       ? '对局中'

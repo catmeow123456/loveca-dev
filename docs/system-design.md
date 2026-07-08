@@ -349,12 +349,16 @@ graph LR
     App --> DecksR[Decks Route]
     App --> ProfilesR[Profiles Route]
     App --> ImagesR[Images Route]
+    App --> ConfigR[App Config Route]
+    App --> SiteAnnouncementsR[Site Announcements Route]
     App --> OnlineR[Online Route]
     App --> BattleR[Battle Route]
 
     AuthR --> AuthSvc[auth-service + mail-service]
     DecksR --> Scraper[decklog-scraper]
     ImagesR --> MinioSvc[minio-service]
+    ConfigR --> OpsSvc[site-announcement-service + site-status]
+    SiteAnnouncementsR --> OpsSvc
     OnlineR --> OnlineSvc[online-room-service + online-match-service]
     BattleR --> OnlineSvc
 ```
@@ -367,8 +371,13 @@ graph LR
 - `src/server/routes/decks.ts`
 - `src/server/routes/profiles.ts`
 - `src/server/routes/images.ts`
+- `src/server/routes/app-config.ts`
+- `src/server/routes/site-announcements.ts`
 - `src/server/routes/online.ts`
 - `src/server/routes/battle.ts`
+- `src/server/site-status.ts`
+- `src/server/services/site-announcement-service.ts`
+- `src/server/middleware/require-gameplay-available.ts`
 - `src/server/services/`
 
 ### 8.2 数据模型设计
@@ -435,8 +444,10 @@ graph TD
 - Live 结算主流程、手动判定确认与分数确认链路
 - 本地双人调试模式与对墙打模式
 - 认证、卡组、卡牌、图片管理 API
+- 平台状态与公告配置：`src/server/site-status.ts` 定义公开站点状态契约，`src/server/services/site-announcement-service.ts` 组装数据库优先、环境变量兜底的维护状态和公告，`src/server/routes/site-announcements.ts` 提供管理员维护开关与公告管理 API，`src/server/routes/app-config.ts` 通过 `/api/config` 暴露公开 `siteStatus`
 - 云端卡组与离线模式并存
 - 正式联机房间闭环：创建/加入、云端卡组锁定、双方准备开始、开局猜拳与胜者决定先后手、服务端权威对局、轮询同步、请求式重开、玩家视角只读观战链接、离开/短暂恢复与管理员房间观测；管理员房间监控可打开指定玩家视角只读观战页，且不计入公开观战人数
+- 维护期间新对局限制：`src/server/middleware/require-gameplay-available.ts` 会在维护或限制新开局状态下拦截新建/加入房间、准备开局、开局流程、重开接受和服务端对墙打创建；进行中对局的快照、命令、观战、回放和离开入口不被主动中断
 - 服务端可记录对墙打：`src/server/services/solitaire-match-service.ts` 复用 recorded match 链路创建 `GameMode.SOLITAIRE` 权威对局，`client/src/lib/solitaireMatchRecovery.ts` 在同一浏览器标签页保存当前对墙打 matchId 并在刷新后自动拉取最新 snapshot 恢复桌面，`src/server/services/solitaire-runtime-recovery-service.ts` 可在运行态缺失时从最新 authority checkpoint 和公共事件尾部恢复运行中对墙打，`src/server/routes/battle.ts` 提供对墙打创建、运行中快照/命令/推进/离开、公共事件增量读取，以及中性历史读取入口
 - 面向联机的 `PlayerViewState` 脱敏投影、可见性策略和命令权限投影
 - 运行中对局公共日志：`src/application/game-session.ts` 维护 `PublicEvent` 序列；正式联机 `/api/online/matches/:matchId/public-events`、正式联机观战 `/api/online/spectator-links/:token/public-events` 与对墙打 `/api/battle/solitaire-matches/:matchId/public-events` 按 `afterSeq` 返回公共事件增量，单次响应受 `ONLINE_PUBLIC_EVENTS_MAX_BATCH` 保护并在截断时返回 `truncated/droppedEventCount`，运行中 snapshot 继续只承载当前玩家视图，并以 `currentPublicSeq` 暴露公共日志增量水位

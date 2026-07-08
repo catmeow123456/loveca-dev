@@ -74,11 +74,12 @@ src/
 │   ├── db/drizzle.ts        # Drizzle ORM instance (wraps pool)
 │   ├── db/schema.ts         # Drizzle table definitions; keep docker/init.sql aligned for deployment
 │   ├── middleware/           # authenticate, require-auth, require-admin, validate, error-handler
-│   ├── routes/              # app-config, auth, cards, decks, profiles, images, online, debug-online(dev)
+│   ├── routes/              # app-config, auth, cards, decks, profiles, images, site-announcements, online, debug-online(dev)
 │   └── services/            # auth-service, mail-service, minio-service,
 │                            # online-room-service, online-match-service, debug-match-service,
 │                            # card-registry-service (published-cards cache for online decks),
 │                            # deck-storage-service (cloud deck normalization + validation),
+│                            # site-announcement-service (public site status + admin announcements),
 │                            # match-recorder/read/debug-replay services for replay records
 └── shared/
     ├── types/enums.ts       # All game enums

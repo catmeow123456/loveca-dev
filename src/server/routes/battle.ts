@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { GameCommand } from '../../application/game-commands.js';
 import { fromTransport } from '../../online/serde.js';
 import { requireAuth } from '../middleware/require-auth.js';
+import { requireGameplayAvailable } from '../middleware/require-gameplay-available.js';
 import {
   MatchReplayReadServiceError,
   matchReplayReadService,
@@ -25,7 +26,7 @@ const remoteUndoSchema = z.object({
   idempotencyKey: z.string().min(1).optional(),
 });
 
-battleRouter.post('/solitaire-matches', requireAuth, async (req, res) => {
+battleRouter.post('/solitaire-matches', requireAuth, requireGameplayAvailable, async (req, res) => {
   const parsed = deckSelectionSchema.safeParse(req.body);
   if (!parsed.success) {
     res
@@ -155,9 +156,7 @@ battleRouter.post('/solitaire-matches/:matchId/undo', requireAuth, async (req, r
 
     res.json({
       data: result,
-      error: result.success
-        ? null
-        : { code: 'UNDO_REJECTED', message: result.error ?? '撤销失败' },
+      error: result.success ? null : { code: 'UNDO_REJECTED', message: result.error ?? '撤销失败' },
     });
   } catch (error) {
     respondBattleError(res, error);

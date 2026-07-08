@@ -4,6 +4,7 @@ import { fromTransport } from '../../online/serde.js';
 import type { GameCommand } from '../../application/game-commands.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
+import { requireGameplayAvailable } from '../middleware/require-gameplay-available.js';
 import {
   DebugReplayServiceError,
   createDebugReplayBundle,
@@ -256,7 +257,7 @@ onlineRouter.get('/match-records/:matchId', requireAuth, async (req, res) => {
   }
 });
 
-onlineRouter.post('/rooms', requireAuth, async (req, res) => {
+onlineRouter.post('/rooms', requireAuth, requireGameplayAvailable, async (req, res) => {
   const parsed = roomCodeSchema.safeParse(req.body);
   if (!parsed.success) {
     res
@@ -273,14 +274,22 @@ onlineRouter.post('/rooms', requireAuth, async (req, res) => {
   }
 });
 
-onlineRouter.post('/rooms/:roomCode/join', requireAuth, async (req, res) => {
-  try {
-    const room = await onlineRoomService.joinRoom(readPathParam(req.params.roomCode), req.user!.id);
-    res.json({ data: room, error: null });
-  } catch (error) {
-    respondOnlineError(res, error);
+onlineRouter.post(
+  '/rooms/:roomCode/join',
+  requireAuth,
+  requireGameplayAvailable,
+  async (req, res) => {
+    try {
+      const room = await onlineRoomService.joinRoom(
+        readPathParam(req.params.roomCode),
+        req.user!.id
+      );
+      res.json({ data: room, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
   }
-});
+);
 
 onlineRouter.get('/rooms/:roomCode', requireAuth, async (req, res) => {
   try {
@@ -294,92 +303,117 @@ onlineRouter.get('/rooms/:roomCode', requireAuth, async (req, res) => {
   }
 });
 
-onlineRouter.post('/rooms/:roomCode/deck', requireAuth, async (req, res) => {
-  const parsed = deckSelectionSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res
-      .status(400)
-      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '卡组参数非法' } });
-    return;
-  }
+onlineRouter.post(
+  '/rooms/:roomCode/deck',
+  requireAuth,
+  requireGameplayAvailable,
+  async (req, res) => {
+    const parsed = deckSelectionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ data: null, error: { code: 'INVALID_REQUEST', message: '卡组参数非法' } });
+      return;
+    }
 
-  try {
-    const room = await onlineRoomService.lockDeck(
-      readPathParam(req.params.roomCode),
-      req.user!.id,
-      parsed.data.deckId
-    );
-    res.json({ data: room, error: null });
-  } catch (error) {
-    respondOnlineError(res, error);
+    try {
+      const room = await onlineRoomService.lockDeck(
+        readPathParam(req.params.roomCode),
+        req.user!.id,
+        parsed.data.deckId
+      );
+      res.json({ data: room, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
   }
-});
+);
 
-onlineRouter.post('/rooms/:roomCode/ready-start', requireAuth, async (req, res) => {
-  try {
-    const room = await onlineRoomService.markReadyToStart(
-      readPathParam(req.params.roomCode),
-      req.user!.id
-    );
-    res.json({ data: room, error: null });
-  } catch (error) {
-    respondOnlineError(res, error);
+onlineRouter.post(
+  '/rooms/:roomCode/ready-start',
+  requireAuth,
+  requireGameplayAvailable,
+  async (req, res) => {
+    try {
+      const room = await onlineRoomService.markReadyToStart(
+        readPathParam(req.params.roomCode),
+        req.user!.id
+      );
+      res.json({ data: room, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
   }
-});
+);
 
-onlineRouter.post('/rooms/:roomCode/opening-rps', requireAuth, async (req, res) => {
-  const parsed = openingRpsSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res
-      .status(400)
-      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '猜拳手势参数非法' } });
-    return;
-  }
+onlineRouter.post(
+  '/rooms/:roomCode/opening-rps',
+  requireAuth,
+  requireGameplayAvailable,
+  async (req, res) => {
+    const parsed = openingRpsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ data: null, error: { code: 'INVALID_REQUEST', message: '猜拳手势参数非法' } });
+      return;
+    }
 
-  try {
-    const room = await onlineRoomService.submitOpeningRps(
-      readPathParam(req.params.roomCode),
-      req.user!.id,
-      parsed.data.gesture
-    );
-    res.json({ data: room, error: null });
-  } catch (error) {
-    respondOnlineError(res, error);
+    try {
+      const room = await onlineRoomService.submitOpeningRps(
+        readPathParam(req.params.roomCode),
+        req.user!.id,
+        parsed.data.gesture
+      );
+      res.json({ data: room, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
   }
-});
+);
 
-onlineRouter.post('/rooms/:roomCode/opening-rps/replay', requireAuth, async (req, res) => {
-  try {
-    const room = await onlineRoomService.replayOpeningRps(
-      readPathParam(req.params.roomCode),
-      req.user!.id
-    );
-    res.json({ data: room, error: null });
-  } catch (error) {
-    respondOnlineError(res, error);
+onlineRouter.post(
+  '/rooms/:roomCode/opening-rps/replay',
+  requireAuth,
+  requireGameplayAvailable,
+  async (req, res) => {
+    try {
+      const room = await onlineRoomService.replayOpeningRps(
+        readPathParam(req.params.roomCode),
+        req.user!.id
+      );
+      res.json({ data: room, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
   }
-});
+);
 
-onlineRouter.post('/rooms/:roomCode/opening-turn-order', requireAuth, async (req, res) => {
-  const parsed = openingTurnOrderSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res
-      .status(400)
-      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '先后手选择参数非法' } });
-    return;
-  }
+onlineRouter.post(
+  '/rooms/:roomCode/opening-turn-order',
+  requireAuth,
+  requireGameplayAvailable,
+  async (req, res) => {
+    const parsed = openingTurnOrderSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ data: null, error: { code: 'INVALID_REQUEST', message: '先后手选择参数非法' } });
+      return;
+    }
 
-  try {
-    const room = await onlineRoomService.chooseOpeningTurnOrder(
-      readPathParam(req.params.roomCode),
-      req.user!.id,
-      parsed.data.choice
-    );
-    res.json({ data: room, error: null });
-  } catch (error) {
-    respondOnlineError(res, error);
+    try {
+      const room = await onlineRoomService.chooseOpeningTurnOrder(
+        readPathParam(req.params.roomCode),
+        req.user!.id,
+        parsed.data.choice
+      );
+      res.json({ data: room, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
   }
-});
+);
 
 onlineRouter.post('/rooms/:roomCode/leave', requireAuth, async (req, res) => {
   try {
@@ -393,21 +427,27 @@ onlineRouter.post('/rooms/:roomCode/leave', requireAuth, async (req, res) => {
   }
 });
 
-onlineRouter.post('/rooms/:roomCode/restart-request', requireAuth, async (req, res) => {
-  try {
-    const room = await onlineRoomService.requestRestart(
-      readPathParam(req.params.roomCode),
-      req.user!.id
-    );
-    res.json({ data: room, error: null });
-  } catch (error) {
-    respondOnlineError(res, error);
+onlineRouter.post(
+  '/rooms/:roomCode/restart-request',
+  requireAuth,
+  requireGameplayAvailable,
+  async (req, res) => {
+    try {
+      const room = await onlineRoomService.requestRestart(
+        readPathParam(req.params.roomCode),
+        req.user!.id
+      );
+      res.json({ data: room, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
   }
-});
+);
 
 onlineRouter.post(
   '/rooms/:roomCode/restart-request/:requestId/accept',
   requireAuth,
+  requireGameplayAvailable,
   async (req, res) => {
     try {
       const room = await onlineRoomService.acceptRestartRequest(
@@ -672,9 +712,7 @@ onlineRouter.post('/matches/:matchId/undo', requireAuth, async (req, res) => {
     onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({
       data: result,
-      error: result.success
-        ? null
-        : { code: 'UNDO_REJECTED', message: result.error ?? '撤销失败' },
+      error: result.success ? null : { code: 'UNDO_REJECTED', message: result.error ?? '撤销失败' },
     });
   } catch (error) {
     respondOnlineError(res, error);

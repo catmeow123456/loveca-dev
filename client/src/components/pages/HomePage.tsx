@@ -3,11 +3,13 @@
  * 登录后的主界面，突出开始入口、卡组准备状态和联机入口。
  */
 
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
-import { motion } from 'framer-motion';
+import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowRight,
+  Bell,
   BookOpen,
+  CalendarClock,
   CheckCircle2,
   Cloud,
   Database,
@@ -23,6 +25,7 @@ import {
   Swords,
   TriangleAlert,
   WifiOff,
+  X,
 } from 'lucide-react';
 import { AppCredits, ThemeToggle, DeckStatsRow, formatRelativeTime } from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
@@ -34,8 +37,33 @@ import {
   isDeckRecordValidForCurrentCardPool,
 } from '@/lib/deckRecordUtils';
 import { buildDeckDisplayItems, type DeckDisplayItem } from '@/lib/deckDisplay';
+import type {
+  PublicSiteAnnouncement,
+  PublicSiteMaintenanceStatus,
+  PublicSiteStatus,
+  SiteAnnouncementType,
+  SiteStatusLifecycle,
+} from '@/lib/appConfig';
 
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
+const ANNOUNCEMENT_SEEN_STORAGE_KEY = 'loveca.home.announcements.seen.v1';
+const ANNOUNCEMENT_AUTO_OPEN_DELAY_MS = 720;
+
+const LIFECYCLE_LABELS: Record<SiteStatusLifecycle, string> = {
+  NORMAL: '正常',
+  SCHEDULED: '计划维护',
+  RESTRICTING_NEW_GAMES: '限制新开局',
+  MAINTENANCE: '维护中',
+  COMPLETED: '已完成',
+  POSTPONED: '已延期',
+  CANCELLED: '已取消',
+};
+
+const ANNOUNCEMENT_TYPE_LABELS: Record<SiteAnnouncementType, string> = {
+  MAINTENANCE: '维护',
+  UPDATE: '更新',
+  NEWS: '动态',
+};
 
 interface HomePageProps {
   onNavigateToDeckManager: () => void;
@@ -45,6 +73,8 @@ interface HomePageProps {
   onNavigateToOnlineDebug: () => void;
   onNavigateToCardAdmin: () => void;
   onNavigateToOnlineAdmin: () => void;
+  onNavigateToAnnouncementAdmin: () => void;
+  siteStatus: PublicSiteStatus;
 }
 
 interface ActionTileProps {
@@ -73,6 +103,20 @@ interface PrimaryActionConfig {
   notice?: string;
 }
 
+interface AnnouncementDisplayItem {
+  id: string;
+  label: string;
+  title: string;
+  summary: string;
+  detail: string | null;
+  timestamp: string | null;
+  timestampLabel: '开始' | '发布';
+  endsAt: string | null;
+  impactScopes: readonly string[];
+  action: string | null;
+  tone: 'default' | 'info' | 'warning';
+}
+
 export function HomePage({
   onNavigateToDeckManager,
   onNavigateToGameSetup,
@@ -81,6 +125,8 @@ export function HomePage({
   onNavigateToOnlineDebug,
   onNavigateToCardAdmin,
   onNavigateToOnlineAdmin,
+  onNavigateToAnnouncementAdmin,
+  siteStatus,
 }: HomePageProps) {
   const { profile, offlineMode, offlineUser, signOut } = useAuthStore();
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
@@ -100,6 +146,10 @@ export function HomePage({
   const canUseCloudDecks = deckSourceStatus === 'online';
   const canUseOnlineRoom = canUseCloudDecks;
   const canReturnSavedRoom = Boolean(savedRoomCode && canUseOnlineRoom);
+  const announcementItems = useMemo(() => buildAnnouncementDisplayItems(siteStatus), [siteStatus]);
+  const announcementSeenKey = useMemo(() => buildAnnouncementSeenKey(siteStatus), [siteStatus]);
+  const [isAnnouncementsOpen, setIsAnnouncementsOpen] = useState(false);
+  const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
 
   useEffect(() => {
     if (!canUseCloudDecks) {
@@ -108,6 +158,47 @@ export function HomePage({
 
     void fetchCloudDecks();
   }, [canUseCloudDecks, fetchCloudDecks]);
+
+  useEffect(() => {
+    if (!announcementSeenKey || announcementItems.length === 0) {
+      setHasUnreadAnnouncements(false);
+      return;
+    }
+
+    setHasUnreadAnnouncements(readAnnouncementSeenKey() !== announcementSeenKey);
+  }, [announcementItems.length, announcementSeenKey]);
+
+  const markCurrentAnnouncementsSeen = useCallback(() => {
+    if (!announcementSeenKey) {
+      return;
+    }
+
+    writeAnnouncementSeenKey(announcementSeenKey);
+    setHasUnreadAnnouncements(false);
+  }, [announcementSeenKey]);
+
+  const openAnnouncements = useCallback(() => {
+    setIsAnnouncementsOpen(true);
+    markCurrentAnnouncementsSeen();
+  }, [markCurrentAnnouncementsSeen]);
+
+  const closeAnnouncements = useCallback(() => {
+    setIsAnnouncementsOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!hasUnreadAnnouncements || !announcementSeenKey || announcementItems.length === 0) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsAnnouncementsOpen(true);
+      writeAnnouncementSeenKey(announcementSeenKey);
+      setHasUnreadAnnouncements(false);
+    }, ANNOUNCEMENT_AUTO_OPEN_DELAY_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [announcementItems.length, announcementSeenKey, hasUnreadAnnouncements]);
 
   const displayUsername = offlineMode
     ? offlineUser?.displayName || 'Guest'
@@ -276,6 +367,9 @@ export function HomePage({
       <EntryPageHeader
         displayUsername={displayUsername}
         connectionStatus={connectionStatus}
+        announcementCount={announcementItems.length}
+        hasUnreadAnnouncements={hasUnreadAnnouncements}
+        onOpenAnnouncements={openAnnouncements}
         onSignOut={signOut}
       />
 
@@ -286,6 +380,7 @@ export function HomePage({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
           >
+            <SiteStatusBanner siteStatus={siteStatus} />
             <HomeActionBar
               title={primaryAction.title}
               description={primaryAction.description}
@@ -317,7 +412,12 @@ export function HomePage({
               onManageDecks={onNavigateToDeckManager}
             />
 
-            <SecondaryEntryPanel actions={secondaryActions} />
+            <div className="grid gap-4">
+              <SecondaryEntryPanel actions={secondaryActions} />
+              <div className="hidden md:block">
+                <SiteAnnouncementsPanel siteStatus={siteStatus} />
+              </div>
+            </div>
           </motion.section>
 
           {isAdmin && (
@@ -331,7 +431,7 @@ export function HomePage({
                 <ShieldAlert size={16} className="text-[var(--accent-secondary)]" />
                 管理工具
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3 md:grid-cols-3">
                 <ActionTile
                   title="卡牌数据管理"
                   description="维护卡牌数据、发布状态和资源信息。"
@@ -339,6 +439,15 @@ export function HomePage({
                   onClick={onNavigateToCardAdmin}
                   status="管理员"
                   tone="warning"
+                  compact
+                />
+                <ActionTile
+                  title="平台配置"
+                  description="打开维护开关，管理维护公告与更新通知。"
+                  icon={Bell}
+                  onClick={onNavigateToAnnouncementAdmin}
+                  status="管理员"
+                  tone="green"
                   compact
                 />
                 <ActionTile
@@ -356,6 +465,12 @@ export function HomePage({
         </div>
       </main>
 
+      <AnnouncementCenterDrawer
+        isOpen={isAnnouncementsOpen}
+        items={announcementItems}
+        onClose={closeAnnouncements}
+      />
+
       <footer className="safe-bottom relative z-10 border-t border-[var(--border-subtle)] px-4 py-3">
         <AppCredits version={__APP_VERSION__} />
       </footer>
@@ -363,9 +478,471 @@ export function HomePage({
   );
 }
 
+function AnnouncementCenterDrawer({
+  isOpen,
+  items,
+  onClose,
+}: {
+  isOpen: boolean;
+  items: readonly AnnouncementDisplayItem[];
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  return (
+    <AnimatePresence>
+      {isOpen ? (
+        <motion.div
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 px-0 backdrop-blur-[2px] sm:items-center sm:px-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              onClose();
+            }
+          }}
+        >
+          <motion.section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="announcement-center-title"
+            className="safe-bottom flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] sm:max-w-2xl sm:rounded-lg sm:border"
+            initial={{ y: 42, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 28, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 360, damping: 34 }}
+          >
+            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_58%,transparent)] px-4 py-3 sm:px-5">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--accent-primary)]">
+                  <Bell size={18} />
+                </div>
+                <div className="min-w-0">
+                  <h2
+                    id="announcement-center-title"
+                    className="text-base font-bold text-[var(--text-primary)]"
+                  >
+                    公告栏
+                  </h2>
+                  <p className="mt-0.5 text-xs leading-5 text-[var(--text-muted)]">
+                    {items.length > 0
+                      ? `${items.length} 条维护、更新与动态`
+                      : `当前版本 ${__APP_VERSION__}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="button-icon h-9 w-9 shrink-0"
+                onClick={onClose}
+                aria-label="关闭公告栏"
+                title="关闭公告栏"
+              >
+                <X size={16} />
+              </button>
+            </header>
+
+            <div className="touch-scroll max-h-[calc(88dvh-5.25rem)] overflow-y-auto px-4 py-3 sm:max-h-[64vh] sm:px-5">
+              {items.length > 0 ? (
+                <div className="grid gap-3">
+                  {items.map((item) => (
+                    <AnnouncementDetailCard key={item.id} item={item} />
+                  ))}
+                </div>
+              ) : (
+                <InlineEmptyState
+                  icon={Bell}
+                  title="暂无公告"
+                  detail="可正常进入对局；新的维护、更新和动态会显示在这里。"
+                  tone="muted"
+                />
+              )}
+            </div>
+          </motion.section>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
+function AnnouncementDetailCard({ item }: { item: AnnouncementDisplayItem }) {
+  const metaParts = [
+    item.timestamp ? `${item.timestampLabel} ${formatStatusDateTime(item.timestamp)}` : null,
+    item.endsAt ? `结束 ${formatStatusDateTime(item.endsAt)}` : null,
+    item.impactScopes.length > 0 ? `影响 ${item.impactScopes.join('、')}` : null,
+  ].filter((part): part is string => part !== null);
+  const toneClass = {
+    default: 'text-[var(--accent-primary)]',
+    info: 'text-[var(--semantic-info)]',
+    warning: 'text-[var(--semantic-warning)]',
+  }[item.tone];
+
+  return (
+    <article className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3.5 py-3 shadow-[var(--shadow-sm)]">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span
+              className={`shrink-0 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-0.5 text-[11px] font-semibold ${toneClass}`}
+            >
+              {item.label}
+            </span>
+            <h3 className="min-w-0 text-sm font-bold leading-5 text-[var(--text-primary)]">
+              {item.title}
+            </h3>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{item.summary}</p>
+          {item.detail ? (
+            <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[var(--text-muted)]">
+              {item.detail}
+            </p>
+          ) : null}
+        </div>
+        {item.action ? (
+          <span className="shrink-0 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] font-semibold text-[var(--text-primary)]">
+            {item.action}
+          </span>
+        ) : null}
+      </div>
+      {metaParts.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 border-t border-[var(--border-subtle)] pt-2 text-[11px] leading-5 text-[var(--text-muted)]">
+          {metaParts.map((part) => (
+            <span key={part}>{part}</span>
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function SiteStatusBanner({ siteStatus }: { siteStatus: PublicSiteStatus }) {
+  const maintenance = siteStatus.maintenance;
+  if (!maintenance || !shouldHighlightSiteStatus(siteStatus.lifecycle)) {
+    return null;
+  }
+
+  const isCritical =
+    siteStatus.lifecycle === 'MAINTENANCE' || siteStatus.lifecycle === 'RESTRICTING_NEW_GAMES';
+
+  return (
+    <div
+      className={`mb-4 rounded-lg border px-4 py-3 ${
+        isCritical
+          ? 'border-[color:var(--semantic-warning)]/50 bg-[color:var(--semantic-warning)]/12'
+          : 'border-[color:var(--semantic-info)]/45 bg-[color:var(--semantic-info)]/10'
+      }`}
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <CalendarClock
+            size={18}
+            className={`mt-0.5 shrink-0 ${
+              isCritical ? 'text-[var(--semantic-warning)]' : 'text-[var(--semantic-info)]'
+            }`}
+          />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-0.5 text-xs font-semibold text-[var(--text-secondary)]">
+                {LIFECYCLE_LABELS[siteStatus.lifecycle]}
+              </span>
+              <h2 className="text-sm font-bold text-[var(--text-primary)]">{maintenance.title}</h2>
+            </div>
+            <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
+              {maintenance.summary}
+            </p>
+            <MaintenanceMeta maintenance={maintenance} compact />
+          </div>
+        </div>
+        {maintenance.action ? (
+          <div className="shrink-0 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)]">
+            {maintenance.action}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SiteAnnouncementsPanel({ siteStatus }: { siteStatus: PublicSiteStatus }) {
+  const announcements = siteStatus.announcements.slice(0, 3);
+  const maintenance = siteStatus.maintenance;
+
+  return (
+    <aside className="surface-panel rounded-lg p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Bell size={16} className="text-[var(--accent-primary)]" />
+            <h3 className="text-sm font-bold text-[var(--text-primary)]">公告 / 更新</h3>
+          </div>
+          <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+            {maintenance ? '维护状态与近期更新' : `当前版本 ${__APP_VERSION__}`}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        {maintenance ? (
+          <AnnouncementRow
+            label={LIFECYCLE_LABELS[siteStatus.lifecycle]}
+            title={maintenance.title}
+            summary={maintenance.summary}
+            startsAt={maintenance.startsAt}
+            tone={siteStatus.lifecycle === 'MAINTENANCE' ? 'warning' : 'info'}
+          />
+        ) : null}
+
+        {announcements.map((announcement) => (
+          <AnnouncementRow
+            key={announcement.id}
+            label={ANNOUNCEMENT_TYPE_LABELS[announcement.type]}
+            title={announcement.title}
+            summary={announcement.summary}
+            startsAt={announcement.startsAt ?? announcement.publishedAt}
+            tone={announcement.type === 'MAINTENANCE' ? 'warning' : 'default'}
+          />
+        ))}
+
+        {!maintenance && announcements.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-3 py-3">
+            <div className="text-sm font-semibold text-[var(--text-primary)]">暂无新的维护通知</div>
+            <div className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+              可正常进入对局；近期版本与发布摘要会在这里显示。
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
+function AnnouncementRow({
+  label,
+  title,
+  summary,
+  startsAt,
+  tone,
+}: {
+  label: string;
+  title: string;
+  summary: string;
+  startsAt: string | null;
+  tone: 'default' | 'info' | 'warning';
+}) {
+  const toneClass = {
+    default: 'text-[var(--accent-primary)]',
+    info: 'text-[var(--semantic-info)]',
+    warning: 'text-[var(--semantic-warning)]',
+  }[tone];
+
+  return (
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <span
+          className={`shrink-0 rounded-md border border-[var(--border-subtle)] px-2 py-0.5 text-[11px] font-semibold ${toneClass}`}
+        >
+          {label}
+        </span>
+        <h4 className="min-w-0 truncate text-sm font-bold text-[var(--text-primary)]">{title}</h4>
+      </div>
+      <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">{summary}</p>
+      {startsAt ? (
+        <div className="mt-1 text-[11px] text-[var(--text-muted)]">
+          {formatStatusDateTime(startsAt)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MaintenanceMeta({
+  maintenance,
+  compact = false,
+}: {
+  maintenance: PublicSiteMaintenanceStatus;
+  compact?: boolean;
+}) {
+  const parts = [
+    maintenance.startsAt ? `开始 ${formatStatusDateTime(maintenance.startsAt)}` : null,
+    maintenance.estimatedEndsAt
+      ? `预计结束 ${formatStatusDateTime(maintenance.estimatedEndsAt)}`
+      : null,
+    maintenance.restrictsNewGamesAt
+      ? `限制新开局 ${formatStatusDateTime(maintenance.restrictsNewGamesAt)}`
+      : null,
+    maintenance.impactScopes.length > 0 ? `影响 ${maintenance.impactScopes.join('、')}` : null,
+  ].filter((part): part is string => part !== null);
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      className={`mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-[var(--text-muted)] ${
+        compact ? '' : 'pt-1'
+      }`}
+    >
+      {parts.map((part) => (
+        <span key={part}>{part}</span>
+      ))}
+    </div>
+  );
+}
+
+function shouldHighlightSiteStatus(lifecycle: SiteStatusLifecycle): boolean {
+  return (
+    lifecycle === 'SCHEDULED' ||
+    lifecycle === 'RESTRICTING_NEW_GAMES' ||
+    lifecycle === 'MAINTENANCE'
+  );
+}
+
+function formatStatusDateTime(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return value;
+  }
+
+  const date = new Date(timestamp);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  const timezoneOffsetMinutes = -date.getTimezoneOffset();
+  const offsetSign = timezoneOffsetMinutes >= 0 ? '+' : '-';
+  const absoluteOffset = Math.abs(timezoneOffsetMinutes);
+  const offsetHours = Math.floor(absoluteOffset / 60);
+  const offsetMinutes = absoluteOffset % 60;
+  const offset =
+    offsetMinutes === 0
+      ? `UTC${offsetSign}${offsetHours}`
+      : `UTC${offsetSign}${offsetHours}:${pad(offsetMinutes)}`;
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())} ${offset}`;
+}
+
+function buildAnnouncementDisplayItems(siteStatus: PublicSiteStatus): AnnouncementDisplayItem[] {
+  const items: AnnouncementDisplayItem[] = [];
+  const maintenance = siteStatus.maintenance;
+
+  if (maintenance) {
+    const isWarning =
+      siteStatus.lifecycle === 'MAINTENANCE' || siteStatus.lifecycle === 'RESTRICTING_NEW_GAMES';
+    items.push({
+      id: `maintenance:${maintenance.id}`,
+      label: LIFECYCLE_LABELS[siteStatus.lifecycle],
+      title: maintenance.title,
+      summary: maintenance.summary,
+      detail: maintenance.detail,
+      timestamp: maintenance.startsAt,
+      timestampLabel: '开始',
+      endsAt: maintenance.estimatedEndsAt,
+      impactScopes: maintenance.impactScopes,
+      action: maintenance.action,
+      tone: isWarning ? 'warning' : 'info',
+    });
+  }
+
+  for (const announcement of siteStatus.announcements) {
+    items.push(buildAnnouncementDisplayItem(announcement));
+  }
+
+  return items;
+}
+
+function buildAnnouncementDisplayItem(
+  announcement: PublicSiteAnnouncement
+): AnnouncementDisplayItem {
+  return {
+    id: `announcement:${announcement.id}`,
+    label: ANNOUNCEMENT_TYPE_LABELS[announcement.type],
+    title: announcement.title,
+    summary: announcement.summary,
+    detail: announcement.detail,
+    timestamp: announcement.startsAt ?? announcement.publishedAt,
+    timestampLabel: announcement.startsAt ? '开始' : '发布',
+    endsAt: announcement.endsAt,
+    impactScopes: announcement.impactScopes,
+    action: null,
+    tone: announcement.type === 'MAINTENANCE' ? 'warning' : 'default',
+  };
+}
+
+function buildAnnouncementSeenKey(siteStatus: PublicSiteStatus): string | null {
+  const maintenance = siteStatus.maintenance
+    ? {
+        id: siteStatus.maintenance.id,
+        lifecycle: siteStatus.lifecycle,
+        title: siteStatus.maintenance.title,
+        summary: siteStatus.maintenance.summary,
+        startsAt: siteStatus.maintenance.startsAt,
+        estimatedEndsAt: siteStatus.maintenance.estimatedEndsAt,
+        restrictsNewGamesAt: siteStatus.maintenance.restrictsNewGamesAt,
+        updatedAt: siteStatus.maintenance.updatedAt,
+      }
+    : null;
+  const announcements = siteStatus.announcements.map((announcement) => ({
+    id: announcement.id,
+    type: announcement.type,
+    title: announcement.title,
+    summary: announcement.summary,
+    publishedAt: announcement.publishedAt,
+    startsAt: announcement.startsAt,
+    endsAt: announcement.endsAt,
+    priority: announcement.priority,
+  }));
+
+  if (!maintenance && announcements.length === 0) {
+    return null;
+  }
+
+  return JSON.stringify({ maintenance, announcements });
+}
+
+function readAnnouncementSeenKey(): string | null {
+  try {
+    return window.localStorage.getItem(ANNOUNCEMENT_SEEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeAnnouncementSeenKey(value: string): void {
+  try {
+    window.localStorage.setItem(ANNOUNCEMENT_SEEN_STORAGE_KEY, value);
+  } catch {
+    // localStorage can be unavailable in private or restricted contexts.
+  }
+}
+
 function EntryPageHeader({
   displayUsername,
   connectionStatus,
+  announcementCount,
+  hasUnreadAnnouncements,
+  onOpenAnnouncements,
   onSignOut,
 }: {
   displayUsername: string;
@@ -375,6 +952,9 @@ function EntryPageHeader({
     detail?: string;
     tone: string;
   };
+  announcementCount: number;
+  hasUnreadAnnouncements: boolean;
+  onOpenAnnouncements: () => void;
   onSignOut: () => void;
 }) {
   return (
@@ -407,6 +987,22 @@ function EntryPageHeader({
           <span className="hidden max-w-36 truncate text-xs font-medium text-[var(--text-secondary)] sm:block">
             {displayUsername}
           </span>
+          <button
+            type="button"
+            onClick={onOpenAnnouncements}
+            className="button-icon relative"
+            title="公告栏"
+            aria-label={
+              hasUnreadAnnouncements
+                ? `公告栏，${announcementCount} 条未读公告`
+                : `公告栏，${announcementCount} 条公告`
+            }
+          >
+            <Bell size={16} />
+            {hasUnreadAnnouncements ? (
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-[var(--bg-surface)] bg-[var(--semantic-warning)]" />
+            ) : null}
+          </button>
           <ThemeToggle />
           <button
             type="button"

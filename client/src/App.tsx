@@ -2,7 +2,7 @@
  * Loveca Card Game - Main Application
  */
 
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { BattleViewportShell, GameBoard } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
@@ -19,6 +19,7 @@ import {
 } from '@/components/pages';
 import { CardAdminPage } from '@/components/admin/CardAdminPage';
 import { OnlineRoomsAdminPage } from '@/components/admin/OnlineRoomsAdminPage';
+import { SiteAnnouncementsAdminPage } from '@/components/admin/SiteAnnouncementsAdminPage';
 import {
   LoginPage,
   RegisterPage,
@@ -27,6 +28,7 @@ import {
   VerifyEmailPage,
 } from '@/components/auth';
 import { DEFAULT_APP_CONFIG, loadPublicAppConfig, type PublicAppConfig } from '@/lib/appConfig';
+import type { PublicSiteStatus, SiteStatusLifecycle } from '@/lib/appConfig';
 import { getSolitaireLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
 import { fetchSolitaireMatchSnapshot } from '@/lib/solitaireMatchClient';
 import {
@@ -48,7 +50,8 @@ type AppPage =
   | 'online-debug'
   | 'game'
   | 'card-admin'
-  | 'online-admin';
+  | 'online-admin'
+  | 'announcement-admin';
 
 interface InitialAuthRequest {
   page: AuthPage;
@@ -101,9 +104,11 @@ function getInitialPage(): AppPage {
     page === 'online-debug' ||
     page === 'game' ||
     page === 'card-admin' ||
-    page === 'online-admin'
+    page === 'online-admin' ||
+    page === 'announcement-admin' ||
+    page === 'platform-config'
   ) {
-    return page;
+    return page === 'platform-config' ? 'announcement-admin' : page;
   }
   return 'home';
 }
@@ -119,6 +124,10 @@ function App() {
   const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
   const [appConfig, setAppConfig] = useState<PublicAppConfig>(DEFAULT_APP_CONFIG);
   const [configInitialized, setConfigInitialized] = useState(false);
+  const refreshAppConfig = useCallback(async () => {
+    const config = await loadPublicAppConfig();
+    setAppConfig(config);
+  }, []);
 
   // 防止 React 19 Strict Mode 下重复初始化
   const authInitRef = useRef(false);
@@ -162,6 +171,11 @@ function App() {
       .then((config) => {
         if (!cancelled) {
           setAppConfig(config);
+        }
+      })
+      .catch((configError) => {
+        if (import.meta.env.DEV) {
+          console.warn('[App] 公开配置加载失败，使用默认配置:', configError);
         }
       })
       .finally(() => {
@@ -352,30 +366,7 @@ function App() {
 
   // 显示错误状态
   if (error) {
-    const errorLines = error.split('\n');
-    return (
-      <div className="h-screen flex items-center justify-center bg-slate-900 p-4">
-        <div className="surface-panel max-w-2xl p-6 text-center">
-          <h2 className="mb-4 text-xl font-bold text-[var(--semantic-error)]">卡牌数据加载错误</h2>
-          <div className="mb-4 max-h-96 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
-            {errorLines.length > 1 ? (
-              <ul className="space-y-2 text-left text-sm text-[var(--semantic-error)]">
-                {errorLines.map((line, index) => (
-                  <li key={index} className="break-all">
-                    • {line}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-[var(--semantic-error)]">{error}</p>
-            )}
-          </div>
-          <button onClick={() => window.location.reload()} className="button-primary px-4 py-2">
-            重新加载
-          </button>
-        </div>
-      </div>
-    );
+    return <StartupErrorPage error={error} siteStatus={appConfig.siteStatus} />;
   }
 
   // 未登录且不是离线模式，显示登录/注册页面
@@ -541,6 +532,16 @@ function App() {
     return <OnlineRoomsAdminPage onBack={() => setCurrentPage('home')} />;
   }
 
+  if (effectivePage === 'announcement-admin' && profile?.role === 'admin') {
+    return (
+      <SiteAnnouncementsAdminPage
+        onBack={() => setCurrentPage('home')}
+        siteStatus={appConfig.siteStatus}
+        onSiteStatusChanged={refreshAppConfig}
+      />
+    );
+  }
+
   // 主页
   return (
     <HomePage
@@ -551,8 +552,90 @@ function App() {
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToCardAdmin={() => setCurrentPage('card-admin')}
       onNavigateToOnlineAdmin={() => setCurrentPage('online-admin')}
+      onNavigateToAnnouncementAdmin={() => setCurrentPage('announcement-admin')}
+      siteStatus={appConfig.siteStatus}
     />
   );
+}
+
+function StartupErrorPage({ error, siteStatus }: { error: string; siteStatus: PublicSiteStatus }) {
+  const errorLines = error.split('\n');
+  const maintenance = siteStatus.maintenance;
+  const visibleMaintenance =
+    maintenance &&
+    (siteStatus.lifecycle === 'MAINTENANCE' ||
+      siteStatus.lifecycle === 'RESTRICTING_NEW_GAMES' ||
+      siteStatus.lifecycle === 'SCHEDULED')
+      ? maintenance
+      : null;
+
+  return (
+    <div className="app-shell flex min-h-screen items-center justify-center p-4">
+      <div className="surface-panel w-full max-w-2xl p-6 text-center">
+        {visibleMaintenance ? (
+          <div className="mb-4 rounded-lg border border-[color:var(--semantic-warning)]/45 bg-[color:var(--semantic-warning)]/10 p-4 text-left">
+            <div className="text-sm font-bold text-[var(--text-primary)]">
+              {SITE_STATUS_LABELS[siteStatus.lifecycle]}：{visibleMaintenance.title}
+            </div>
+            <div className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
+              {visibleMaintenance.summary}
+            </div>
+            {visibleMaintenance.startsAt || visibleMaintenance.estimatedEndsAt ? (
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
+                {visibleMaintenance.startsAt ? (
+                  <span>开始 {formatStartupDateTime(visibleMaintenance.startsAt)}</span>
+                ) : null}
+                {visibleMaintenance.estimatedEndsAt ? (
+                  <span>预计结束 {formatStartupDateTime(visibleMaintenance.estimatedEndsAt)}</span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <h2 className="mb-4 text-xl font-bold text-[var(--semantic-error)]">服务暂时不可用</h2>
+        <div className="mb-4 max-h-96 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+          {errorLines.length > 1 ? (
+            <ul className="space-y-2 text-left text-sm text-[var(--semantic-error)]">
+              {errorLines.map((line, index) => (
+                <li key={index} className="break-all">
+                  • {line}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-[var(--semantic-error)]">{error}</p>
+          )}
+        </div>
+        <button onClick={() => window.location.reload()} className="button-primary px-4 py-2">
+          重新加载
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const SITE_STATUS_LABELS: Record<SiteStatusLifecycle, string> = {
+  NORMAL: '正常',
+  SCHEDULED: '计划维护',
+  RESTRICTING_NEW_GAMES: '限制新开局',
+  MAINTENANCE: '维护中',
+  COMPLETED: '已完成',
+  POSTPONED: '已延期',
+  CANCELLED: '已取消',
+};
+
+function formatStartupDateTime(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return value;
+  }
+
+  const date = new Date(timestamp);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`;
 }
 
 export default App;

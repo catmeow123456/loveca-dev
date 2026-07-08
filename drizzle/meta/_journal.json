@@ -43,6 +43,20 @@
       "when": 1782459685957,
       "tag": "0005_add_card_multilingual_excel_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783498129444,
+      "tag": "0006_add_site_announcements",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783500767032,
+      "tag": "0007_add_site_status_config",
+      "breakpoints": true
     }
   ]
 }

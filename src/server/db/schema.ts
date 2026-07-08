@@ -39,6 +39,16 @@ import type { PrivateEvent, PublicEvent, Seat } from '../../online/types.js';
 export type UserRole = 'user' | 'admin';
 export type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
 export type CardStatus = 'DRAFT' | 'PUBLISHED';
+export type SiteStatusLifecycle =
+  | 'NORMAL'
+  | 'SCHEDULED'
+  | 'RESTRICTING_NEW_GAMES'
+  | 'MAINTENANCE'
+  | 'COMPLETED'
+  | 'POSTPONED'
+  | 'CANCELLED';
+export type SiteAnnouncementType = 'MAINTENANCE' | 'UPDATE' | 'NEWS';
+export type SiteAnnouncementStatus = 'DRAFT' | 'PUBLISHED';
 
 export type DeckEntry = {
   card_code: string;
@@ -261,6 +271,75 @@ export const cards = pgTable(
       sql`(${table.nameJp} IS NOT NULL AND btrim(${table.nameJp}) <> '') OR (${table.nameCn} IS NOT NULL AND btrim(${table.nameCn}) <> '')`
     ),
     check('cards_status_check', sql`${table.status} IN ('DRAFT', 'PUBLISHED')`),
+  ]
+);
+
+export const siteAnnouncements = pgTable(
+  'site_announcements',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    type: text('type').$type<SiteAnnouncementType>().notNull(),
+    title: text('title').notNull(),
+    summary: text('summary').notNull(),
+    detail: text('detail'),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    priority: integer('priority').notNull().default(0),
+    impactScopes: jsonb('impact_scopes')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    status: text('status').$type<SiteAnnouncementStatus>().notNull().default('DRAFT'),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_site_announcements_status').on(table.status),
+    index('idx_site_announcements_published_at').on(table.publishedAt),
+    index('idx_site_announcements_ends_at').on(table.endsAt),
+    check('site_announcements_type_check', sql`${table.type} IN ('MAINTENANCE', 'UPDATE', 'NEWS')`),
+    check('site_announcements_status_check', sql`${table.status} IN ('DRAFT', 'PUBLISHED')`),
+    check('site_announcements_title_check', sql`btrim(${table.title}) <> ''`),
+    check('site_announcements_summary_check', sql`btrim(${table.summary}) <> ''`),
+  ]
+);
+
+export const siteStatusConfig = pgTable(
+  'site_status_config',
+  {
+    id: text('id').primaryKey().default('default'),
+    lifecycle: text('lifecycle').$type<SiteStatusLifecycle>().notNull().default('NORMAL'),
+    title: text('title'),
+    summary: text('summary'),
+    detail: text('detail'),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    estimatedEndsAt: timestamp('estimated_ends_at', { withTimezone: true }),
+    restrictsNewGamesAt: timestamp('restricts_new_games_at', { withTimezone: true }),
+    impactScopes: jsonb('impact_scopes')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    restrictions: jsonb('restrictions')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    action: text('action'),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_site_status_config_lifecycle').on(table.lifecycle),
+    check(
+      'site_status_config_lifecycle_check',
+      sql`${table.lifecycle} IN ('NORMAL', 'SCHEDULED', 'RESTRICTING_NEW_GAMES', 'MAINTENANCE', 'COMPLETED', 'POSTPONED', 'CANCELLED')`
+    ),
+    check('site_status_config_id_check', sql`${table.id} = 'default'`),
   ]
 );
 
