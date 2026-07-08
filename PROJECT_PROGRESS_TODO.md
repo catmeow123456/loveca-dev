@@ -2,6 +2,14 @@
 
 更新时间：2026-07-08
 
+## 本次 2026-07-08 3.7.1 发布准备
+
+- 产品版本已同步到 `3.7.1`：`VERSION`、根 `package.json`、`client/package.json` 三处一致；`client/dist/version.json` 构建产物显示 `version: 3.7.1`。
+- 新增 `drizzle/migration-notes/3.7.0-to-3.7.1.md`：本次无 Drizzle schema migration、不重跑卡牌同步；发布注意点集中在 API 运行态 cleanup/stats、对墙打运行态恢复、public-events 截断、历史回放读取上限及新增可调环境变量。
+- 发布检查中首次 `pnpm test:run` 暴露 `tests/integration/online-command-pipeline.test.ts` 的随机手牌 fixture 不稳定；已修正该用例显式从主卡组补足 3 张成员，再复跑 focused 与全量测试通过。
+- 验证：`pnpm install --frozen-lockfile` passed；`pnpm --dir client install --frozen-lockfile` passed；`pnpm version:check` passed；`pnpm typecheck:all` passed；`pnpm exec vitest run tests/integration/online-command-pipeline.test.ts` passed（68 tests）；`pnpm test:run` passed（344 files / 2768 tests，3 performance tests skipped）；`pnpm build:server` passed；`pnpm --dir client build` passed（保留既有 chunk size warning）；`git diff --check` passed。
+- 收尾检查：`assets/card` 与 `assets/images` 无 diff；本次未构建 Android TWA 包、未构建 Docker API 镜像、未打/推 `v3.7.1` tag。工作树仍有用户已有未跟踪草稿/计划文档，发布提交前需确认是否纳入或保持未跟踪。
+
 ## 本次 2026-07-08 生产 API OOM P0 运行态治理
 
 - `GameSession` 运行态新增 stats，并将 `authoritySnapshots` / `snapshotHistory` 改为最近 64 个 public seq 有界保留；极旧恢复 seq 不再回退到最早保留快照，避免为了旧 cursor 常驻完整历史。

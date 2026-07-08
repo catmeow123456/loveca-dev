@@ -1899,15 +1899,27 @@ describe('GameSession command pipeline', () => {
     const state = session.state!;
     const player = state.players[0] as unknown as {
       hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
       memberSlots: {
         slots: Record<SlotPosition, string | null>;
         memberBelow: Record<SlotPosition, string[]>;
       };
     };
 
-    const memberCardIds = player.hand.cardIds.filter(
+    let memberCardIds = player.hand.cardIds.filter(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
     );
+    if (memberCardIds.length < 3) {
+      const additionalMemberIds = player.mainDeck.cardIds
+        .filter((cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER)
+        .slice(0, 3 - memberCardIds.length);
+      const additionalMemberIdSet = new Set(additionalMemberIds);
+      player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+        (cardId) => !additionalMemberIdSet.has(cardId)
+      );
+      player.hand.cardIds = [...player.hand.cardIds, ...additionalMemberIds];
+      memberCardIds = [...memberCardIds, ...additionalMemberIds];
+    }
     const [stackingCardId, normalHostId, specialHostId] = memberCardIds;
 
     expect(stackingCardId).toBeTruthy();
