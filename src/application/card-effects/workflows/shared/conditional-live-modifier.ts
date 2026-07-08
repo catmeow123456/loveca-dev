@@ -3,6 +3,7 @@ import {
   GamePhase,
   HeartColor,
   OrientationState,
+  SlotPosition,
   ZoneType,
 } from '../../../../shared/types/enums.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
@@ -14,9 +15,15 @@ import {
   type GameAction,
   type GameState,
   type LiveModifierState,
+  type LiveRequirementModifierState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addLiveModifier, replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
+import {
+  addLiveModifier,
+  collectLiveModifiers,
+  getMemberEffectiveHeartIcons,
+  replaceLiveModifier,
+} from '../../../../domain/rules/live-modifiers.js';
 import {
   and,
   cardNameContains,
@@ -51,6 +58,9 @@ import {
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
+  PL_BP5_020_LIVE_START_CENTER_MUSE_YELLOW_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
+  PL_BP5_022_LIVE_START_SUCCESS_ZONE_SCORE_AND_REQUIREMENT_ABILITY_ID,
+  PL_BP5_023_LIVE_START_STAGE_NON_PINK_PURPLE_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
   PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID,
   PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
@@ -64,6 +74,12 @@ import {
 
 const NICO_SCORE_BONUS_STEP_ID = 'NICO_SCORE_BONUS';
 const BOKUIMA_REQUIREMENT_REDUCTION_STEP_ID = 'BOKUIMA_REQUIREMENT_REDUCTION';
+const PL_BP5_020_CENTER_MUSE_YELLOW_REQUIREMENT_STEP_ID =
+  'PL_BP5_020_CENTER_MUSE_YELLOW_REQUIREMENT';
+const PL_BP5_022_SUCCESS_ZONE_SCORE_REQUIREMENT_STEP_ID =
+  'PL_BP5_022_SUCCESS_ZONE_SCORE_REQUIREMENT';
+const PL_BP5_023_STAGE_NON_PINK_PURPLE_REQUIREMENT_STEP_ID =
+  'PL_BP5_023_STAGE_NON_PINK_PURPLE_REQUIREMENT';
 const HS_BP5_019_REQUIREMENT_REDUCTION_STEP_ID = 'HS_BP5_019_REQUIREMENT_REDUCTION';
 const HS_BP2_021_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
   'HS_BP2_021_RELAY_ENTERED_REQUIREMENT_REDUCTION';
@@ -147,6 +163,24 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
       };
     },
     finish: finishBokuimaLiveStartRequirementReduction,
+  },
+  {
+    abilityId: PL_BP5_020_LIVE_START_CENTER_MUSE_YELLOW_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
+    stepId: PL_BP5_020_CENTER_MUSE_YELLOW_REQUIREMENT_STEP_ID,
+    getStartContext: getPlBp5020WonderZoneStartContext,
+    finish: finishPlBp5020WonderZoneRequirementReduction,
+  },
+  {
+    abilityId: PL_BP5_022_LIVE_START_SUCCESS_ZONE_SCORE_AND_REQUIREMENT_ABILITY_ID,
+    stepId: PL_BP5_022_SUCCESS_ZONE_SCORE_REQUIREMENT_STEP_ID,
+    getStartContext: getPlBp5022ASongForYouStartContext,
+    finish: finishPlBp5022ASongForYouScoreRequirement,
+  },
+  {
+    abilityId: PL_BP5_023_LIVE_START_STAGE_NON_PINK_PURPLE_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
+    stepId: PL_BP5_023_STAGE_NON_PINK_PURPLE_REQUIREMENT_STEP_ID,
+    getStartContext: getPlBp5023OtohimeStartContext,
+    finish: finishPlBp5023OtohimeRequirementReduction,
   },
   {
     abilityId: HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
@@ -571,6 +605,204 @@ function finishBokuimaLiveStartRequirementReduction(
       step: 'APPLY_REQUIREMENT_REDUCTION',
       successLiveCount,
       requirementReduction: reduction,
+    },
+  };
+}
+
+function getPlBp5020WonderZoneStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getPlBp5020WonderZoneContext(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(
+      PL_BP5_020_LIVE_START_CENTER_MUSE_YELLOW_HEART_REDUCE_REQUIREMENT_ABILITY_ID
+    )}（来源${context.sourceInLiveZone ? '仍在LIVE区' : '不在LIVE区'}，中心${
+      context.centerMuseMemberCardId ? "为 μ's 成员" : "不是 μ's 成员"
+    }，当前[黄ハート] ${context.yellowHeartCount}个，实际减少${context.requirementReduction}个[無ハート]）`,
+    actionPayload: {
+      sourceInLiveZone: context.sourceInLiveZone,
+      centerMuseMemberCardId: context.centerMuseMemberCardId,
+      yellowHeartCount: context.yellowHeartCount,
+      requirementReduction: context.requirementReduction,
+    },
+  };
+}
+
+function finishPlBp5020WonderZoneRequirementReduction(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getPlBp5020WonderZoneContext(game, effect, playerId);
+  const state = replaceSourceRequirementModifier(
+    {
+      ...game,
+      activeEffect: null,
+    },
+    effect,
+    context.requirementReduction > 0
+      ? {
+          kind: 'REQUIREMENT',
+          liveCardId: effect.sourceCardId,
+          modifiers: [{ color: HeartColor.RAINBOW, countDelta: -context.requirementReduction }],
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_CENTER_MUSE_YELLOW_HEART_REQUIREMENT_REDUCTION',
+      sourceInLiveZone: context.sourceInLiveZone,
+      centerMuseMemberCardId: context.centerMuseMemberCardId,
+      yellowHeartCount: context.yellowHeartCount,
+      requirementReduction: context.requirementReduction,
+    },
+  };
+}
+
+function getPlBp5022ASongForYouStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getPlBp5022ASongForYouContext(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(
+      PL_BP5_022_LIVE_START_SUCCESS_ZONE_SCORE_AND_REQUIREMENT_ABILITY_ID
+    )}（来源${context.sourceInLiveZone ? '仍在LIVE区' : '不在LIVE区'}，成功LIVE ${
+      context.successLiveCount
+    }张，实际分数+${context.scoreBonus}，必要[桃ハート]/[黄ハート]/[紫ハート]/[無ハート]各增加${
+      context.requirementIncrease
+    }个）`,
+    actionPayload: {
+      sourceInLiveZone: context.sourceInLiveZone,
+      successLiveCount: context.successLiveCount,
+      scoreBonus: context.scoreBonus,
+      requirementIncrease: context.requirementIncrease,
+    },
+  };
+}
+
+function finishPlBp5022ASongForYouScoreRequirement(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getPlBp5022ASongForYouContext(game, effect, playerId);
+  let state: GameState = {
+    ...game,
+    activeEffect: null,
+  };
+
+  state = replaceSourceRequirementModifier(
+    state,
+    effect,
+    context.requirementIncrease > 0
+      ? {
+          kind: 'REQUIREMENT',
+          liveCardId: effect.sourceCardId,
+          modifiers: createPlBp5022RequirementModifiers(context.requirementIncrease),
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+
+  state = replaceLiveModifier(
+    state,
+    {
+      kind: 'SCORE',
+      liveCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+    },
+    context.scoreBonus > 0
+      ? {
+          kind: 'SCORE',
+          playerId,
+          countDelta: context.scoreBonus,
+          liveCardId: effect.sourceCardId,
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+
+  if (context.scoreBonus > 0) {
+    state = refreshPlayerScoreDraft(state, playerId, context.scoreBonus);
+  }
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_SUCCESS_ZONE_SCORE_AND_REQUIREMENT',
+      sourceInLiveZone: context.sourceInLiveZone,
+      successLiveCount: context.successLiveCount,
+      scoreBonus: context.scoreBonus,
+      requirementIncrease: context.requirementIncrease,
+      requirementModifiers:
+        context.requirementIncrease > 0
+          ? createPlBp5022RequirementModifiers(context.requirementIncrease)
+          : [],
+    },
+  };
+}
+
+function getPlBp5023OtohimeStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getPlBp5023OtohimeContext(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(
+      PL_BP5_023_LIVE_START_STAGE_NON_PINK_PURPLE_HEART_REDUCE_REQUIREMENT_ABILITY_ID
+    )}（来源${context.sourceInLiveZone ? '仍在LIVE区' : '不在LIVE区'}，符合条件成员 ${
+      context.qualifiedMemberCardIds.length
+    }名，实际减少${context.requirementReduction}个[無ハート]）`,
+    actionPayload: {
+      sourceInLiveZone: context.sourceInLiveZone,
+      qualifiedMemberCardIds: context.qualifiedMemberCardIds,
+      requirementReduction: context.requirementReduction,
+    },
+  };
+}
+
+function finishPlBp5023OtohimeRequirementReduction(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getPlBp5023OtohimeContext(game, effect, playerId);
+  const state = replaceSourceRequirementModifier(
+    {
+      ...game,
+      activeEffect: null,
+    },
+    effect,
+    context.requirementReduction > 0
+      ? {
+          kind: 'REQUIREMENT',
+          liveCardId: effect.sourceCardId,
+          modifiers: [{ color: HeartColor.RAINBOW, countDelta: -context.requirementReduction }],
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_STAGE_NON_PINK_PURPLE_HEART_REQUIREMENT_REDUCTION',
+      sourceInLiveZone: context.sourceInLiveZone,
+      qualifiedMemberCardIds: context.qualifiedMemberCardIds,
+      requirementReduction: context.requirementReduction,
     },
   };
 }
@@ -1340,6 +1572,131 @@ function getKosuzuSayakaHigherCostCondition(
     kosuzuMemberIds,
     sayakaMemberIds,
   };
+}
+
+function getPlBp5020WonderZoneContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly centerMuseMemberCardId: string | null;
+  readonly yellowHeartCount: number;
+  readonly requirementReduction: number;
+} {
+  const player = getPlayerById(game, playerId);
+  const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
+  const centerCardId = player?.memberSlots.slots[SlotPosition.CENTER] ?? null;
+  const centerCard = centerCardId ? getCardById(game, centerCardId) : null;
+  const centerMuseMemberCardId =
+    centerCard && isMemberCardData(centerCard.data) && groupIs("μ's")(centerCard)
+      ? centerCardId
+      : null;
+  const yellowHeartCount =
+    sourceInLiveZone && centerMuseMemberCardId
+      ? countEffectiveMemberHearts(game, playerId, centerMuseMemberCardId, HeartColor.YELLOW)
+      : 0;
+  return {
+    sourceInLiveZone,
+    centerMuseMemberCardId,
+    yellowHeartCount,
+    requirementReduction: Math.min(3, Math.floor(yellowHeartCount / 2)),
+  };
+}
+
+function getPlBp5022ASongForYouContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly successLiveCount: number;
+  readonly scoreBonus: number;
+  readonly requirementIncrease: number;
+} {
+  const player = getPlayerById(game, playerId);
+  const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
+  const successLiveCount = player?.successZone.cardIds.length ?? 0;
+  return {
+    sourceInLiveZone,
+    successLiveCount,
+    scoreBonus: sourceInLiveZone ? successLiveCount * 2 : 0,
+    requirementIncrease: sourceInLiveZone ? successLiveCount : 0,
+  };
+}
+
+function getPlBp5023OtohimeContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly qualifiedMemberCardIds: readonly string[];
+  readonly requirementReduction: number;
+} {
+  const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
+  const qualifiedMemberCardIds = sourceInLiveZone
+    ? getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER)).filter((memberCardId) =>
+        hasEffectiveHeartOtherThanPinkOrPurple(game, playerId, memberCardId)
+      )
+    : [];
+  return {
+    sourceInLiveZone,
+    qualifiedMemberCardIds,
+    requirementReduction: qualifiedMemberCardIds.length,
+  };
+}
+
+function isSourceLiveInOwnLiveZone(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  const player = getPlayerById(game, playerId);
+  const source = getCardById(game, sourceCardId);
+  return (
+    player !== null &&
+    source !== null &&
+    isLiveCardData(source.data) &&
+    player.liveZone.cardIds.includes(sourceCardId)
+  );
+}
+
+function countEffectiveMemberHearts(
+  game: GameState,
+  playerId: string,
+  memberCardId: string,
+  color: HeartColor
+): number {
+  const liveModifiers = collectLiveModifiers(game);
+  return getMemberEffectiveHeartIcons(game, playerId, memberCardId, liveModifiers)
+    .filter((heart) => heart.color === color)
+    .reduce((total, heart) => total + heart.count, 0);
+}
+
+function hasEffectiveHeartOtherThanPinkOrPurple(
+  game: GameState,
+  playerId: string,
+  memberCardId: string
+): boolean {
+  const liveModifiers = collectLiveModifiers(game);
+  return getMemberEffectiveHeartIcons(game, playerId, memberCardId, liveModifiers).some(
+    (heart) =>
+      heart.count > 0 && heart.color !== HeartColor.PINK && heart.color !== HeartColor.PURPLE
+  );
+}
+
+function createPlBp5022RequirementModifiers(
+  requirementIncrease: number
+): readonly LiveRequirementModifierState[] {
+  return requirementIncrease > 0
+    ? [
+        { color: HeartColor.PINK, countDelta: requirementIncrease },
+        { color: HeartColor.YELLOW, countDelta: requirementIncrease },
+        { color: HeartColor.PURPLE, countDelta: requirementIncrease },
+        { color: HeartColor.RAINBOW, countDelta: requirementIncrease },
+      ]
+    : [];
 }
 
 function getStageMemberCardIdsMatching(

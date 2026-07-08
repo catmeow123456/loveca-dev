@@ -7,7 +7,7 @@ import type {
   LiveRequirementModifierState,
   LiveResolutionState,
 } from '../entities/game.js';
-import { getCardById } from '../entities/game.js';
+import { getCardById, getPlayerById } from '../entities/game.js';
 import { findMemberSlot } from '../entities/player.js';
 import { getAllMemberCardIds } from '../entities/zone.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
@@ -234,6 +234,44 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         sourceCardId,
         abilityId: BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.YELLOW, count: 2 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
+    baseCardCodes: ['PL!-bp5-111'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const otherAriseMemberCount = countOtherStageMembersBelongingToGroup(
+        game,
+        playerId,
+        sourceCardId,
+        'A-RISE'
+      );
+      if (otherAriseMemberCount <= 0) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: PL_BP5_111_CONTINUOUS_OTHER_ARISE_BLUE_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.BLUE, count: otherAriseMemberCount }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
+    baseCardCodes: ['PL!-bp5-333'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!sourceStageMemberHasOrientation(game, playerId, sourceCardId, OrientationState.WAITING)) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: PL_BP5_333_CONTINUOUS_WAITING_BLUE_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.BLUE, count: 1 }],
       });
       return modifier ? [modifier] : [];
     },
@@ -937,6 +975,10 @@ const HS_BP1_003_CONTINUOUS_SCORE_ABILITY_ID =
   'PL!HS-bp1-003-SEC:continuous-three-different-hasunosora-score';
 const BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID =
   'PL!-bp5-008:continuous-success-score-yellow-heart';
+const PL_BP5_111_CONTINUOUS_OTHER_ARISE_BLUE_HEART_ABILITY_ID =
+  'PL!-bp5-111:continuous-other-arise-blue-heart';
+const PL_BP5_333_CONTINUOUS_WAITING_BLUE_HEART_ABILITY_ID =
+  'PL!-bp5-333:continuous-waiting-blue-heart';
 const BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID =
   'PL!-bp4-002:continuous-live-without-timing-purple-heart';
 const BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID =
@@ -1782,6 +1824,39 @@ function isSourceCenterStageMember(
 ): boolean {
   const player = game.players.find((candidate) => candidate.id === playerId);
   return player ? findMemberSlot(player, sourceCardId) === SlotPosition.CENTER : false;
+}
+
+function sourceStageMemberHasOrientation(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  orientation: OrientationState
+): boolean {
+  const player = getPlayerById(game, playerId);
+  return player?.memberSlots.cardStates.get(sourceCardId)?.orientation === orientation;
+}
+
+function countOtherStageMembersBelongingToGroup(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  groupName: string
+): number {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return 0;
+  }
+
+  return MEMBER_SLOT_ORDER.reduce((count, slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    if (!cardId || cardId === sourceCardId) {
+      return count;
+    }
+    const card = getCardById(game, cardId);
+    return card && isMemberCard(card) && cardBelongsToGroup(card.data, groupName)
+      ? count + 1
+      : count;
+  }, 0);
 }
 
 function hasAtLeastDifferentNamedStageMembers(

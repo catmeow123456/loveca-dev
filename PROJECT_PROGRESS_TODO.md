@@ -26,6 +26,16 @@
 - 追加验证：`pnpm exec vitest run tests/unit/solitaire-match-service.test.ts` passed；`pnpm exec vitest run tests/unit/solitaire-match-recovery.test.ts tests/unit/game-store-remote-sync.test.ts tests/unit/solitaire-match-service.test.ts` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec tsc --noEmit` passed；`pnpm exec tsc -p tsconfig.server.json --noEmit` passed；`pnpm test:run` passed（321 files / 2581 tests，3 performance tests skipped）；Playwright smoke 在已运行的 `http://localhost:5173/` 登录测试账号创建对墙打，刷新后仍回到同一 matchId 桌面，并已调用离开接口清理测试局；`git diff --check` passed。
 - 后续：public-events 真分页协议与历史回放分页 UI 仍属于下一批 P1 follow-up；若生产还存在 checkpoint 间隔过大导致恢复回退过多，再评估缩短 authority checkpoint 周期。
 
+## 本次 2026-07-07 水团 bp5 第一批卡效
+
+- 已实现 `PL!S-bp5-015-N` 费用 9「津島善子」：扩展 shared `direct-mill-top`，新增 `topCount=10` 配置，direct mill 继续走 refresh-aware `moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers`，只将实际从主卡组顶进入休息室的卡写入本次 `ON_ENTER_WAITING_ROOM` 事件与 `movedCardIds`。
+- 已实现 `PL!S-bp5-016-N` 费用 9「国木田花丸」：新增窄 LIVE_START workflow，使用 `getMemberEffectiveCost` 比较己方舞台最高有效费用是否严格高于对方舞台所有成员有效费用；对方舞台为空时按条件满足处理，费用相等不满足，来源离场 no-op，满足时写 SOURCE_MEMBER `[BLADE][BLADE]`。
+- 已实现 `PL!S-bp5-017-N` 费用 4「小原鞠莉」：新增窄 LIVE_START workflow，只统计己方 LIVE 卡区卡牌印刷必要 `[青ハート]` 合计，满足 >=4 且来源仍在舞台时写 SOURCE_MEMBER `[青ハート]` +1，不统计成员持有 Heart 或临时 Heart modifier。
+- 已实现 `PL!S-bp5-222-R / P＋` 费用 11「鹿角理亞」：起动段与 `PL!S-bp5-111` 抽到 shared `pay-energy-position-change-to-group-member-area`，支付 `[E]` 后强制移动到已有『Aqours』或『SaintSnow』成员的其他区域并保留 `ON_MEMBER_SLOT_MOVED`；自动段保留单卡 workflow，自身移动后活跃至多 2 张 WAITING 能量，0/1 张也安全消费 pending，并显式记录 once-per-turn use。
+- 016/017 均为无交互 queued pending：单 pending 与手动点选多 pending 时打开 confirm-only 并追加实时条件说明；顺序发动多 pending 时自动连续结算，不逐个弹确认。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录 4 张卡的实现状态、复用模块和 focused tests；222 新增一个窄 shared 起动 workflow，不改变 runner 业务边界。
+- 验证：`vitest run tests/unit/card-effect-classification.test.ts tests/integration/direct-mill-top.test.ts tests/integration/s-bp5-016-hanamaru.test.ts tests/integration/s-bp5-017-mari.test.ts` passed（4 files / 22 tests）；`vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-bp5-222-ria.test.ts tests/integration/s-bp5-111-seira.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（5 files / 28 tests）；`git diff --check` passed。
+
 ## 本次 2026-07-07 移动端对局 viewport 命中兜底
 
 - 新增 `BattleViewportShell` 与 `battleViewport` helper：本地对局、正式联机、联机调试、玩家视角观战进行中页面统一写入 `--battle-viewport-height` / fraction / offset 变量；移动端 bottom sheet、判定面板、卡牌详情、active effect 与成功 LIVE 选择面板改读同一高度事实。

@@ -6,8 +6,10 @@ import {
 } from '../../../../domain/entities/game.js';
 import {
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
+  PL_BP5_015_ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
 } from '../../ability-ids.js';
+import { successLiveScoreAtLeast, sumSuccessfulLiveScore } from '../../../effects/conditions.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
@@ -19,6 +21,7 @@ interface MemberOnEnterDrawConfig {
   readonly drawCount: number;
   readonly actionStep: string;
   readonly minEnergyCount?: number;
+  readonly minSuccessLiveScore?: number;
 }
 
 const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
@@ -32,6 +35,12 @@ const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
     drawCount: 1,
     actionStep: 'ON_ENTER_ENERGY_SEVEN_DRAW_ONE',
     minEnergyCount: 7,
+  },
+  {
+    abilityId: PL_BP5_015_ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ABILITY_ID,
+    drawCount: 1,
+    actionStep: 'ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ONE',
+    minSuccessLiveScore: 3,
   },
 ];
 
@@ -84,6 +93,24 @@ function resolveMemberOnEnterDraw(
       orderedResolution
     );
   }
+  const successLiveScore = sumSuccessfulLiveScore(game, player.id);
+  if (
+    config.minSuccessLiveScore !== undefined &&
+    !successLiveScoreAtLeast(game, player.id, config.minSuccessLiveScore)
+  ) {
+    return continuePendingCardEffects(
+      addAction(stateAfterUseRecord, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'SUCCESS_LIVE_SCORE_CONDITION_NOT_MET',
+        sourceSlot: ability.sourceSlot,
+        successLiveScore,
+        requiredSuccessLiveScore: config.minSuccessLiveScore,
+      }),
+      orderedResolution
+    );
+  }
 
   const drawResult = drawCardsForPlayer(stateAfterUseRecord, player.id, config.drawCount);
   if (!drawResult) {
@@ -99,6 +126,8 @@ function resolveMemberOnEnterDraw(
       sourceSlot: ability.sourceSlot,
       energyCount,
       requiredEnergyCount: config.minEnergyCount,
+      successLiveScore,
+      requiredSuccessLiveScore: config.minSuccessLiveScore,
       drawnCardIds: drawResult.drawnCardIds,
       drawCount: drawResult.drawnCardIds.length,
     }),

@@ -69,6 +69,8 @@ export interface WaitingRoomToHandWorkflowConfig {
   readonly optional: boolean;
   readonly orderedResolution: boolean;
   readonly stepText?: string;
+  readonly selectionLabel?: string;
+  readonly confirmSelectionLabel?: string;
   readonly selectionRequiredWhenHasTargets?: boolean;
   readonly canStart?: (game: GameState, playerId: string) => boolean;
   readonly conditionNotMetActionStep?: string;
@@ -180,6 +182,8 @@ export function registerWaitingRoomToHandWorkflowHandlers(): void {
         effectText: getAbilityEffectText(config.abilityId),
         stepId: config.stepId,
         stepText: config.stepText,
+        selectionLabel: config.selectionLabel,
+        confirmSelectionLabel: config.confirmSelectionLabel,
         candidateBuilder: () => selectableCardIds,
         countRule: config.countRule,
         optional: config.optional,
@@ -227,6 +231,8 @@ export function startWaitingRoomToHandWorkflow(
         effectText: config.effectText,
         stepId: config.stepId,
         stepText: config.stepText,
+        selectionLabel: config.selectionLabel,
+        confirmSelectionLabel: config.confirmSelectionLabel,
         awaitingPlayerId: player.id,
         selectableCardIds,
         metadata: {

@@ -102,6 +102,12 @@ export const KOTORI_LIVE_START_HEART_ABILITY_ID = 'PL!-sd1-003-SD:live-start-dis
 export const NICO_LIVE_START_SCORE_ABILITY_ID = 'PL!-sd1-009-SD:live-start-score-plus-if-25-muse';
 export const BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID =
   'PL!-sd1-022-SD:live-start-reduce-requirement-by-success-live';
+export const PL_BP5_020_LIVE_START_CENTER_MUSE_YELLOW_HEART_REDUCE_REQUIREMENT_ABILITY_ID =
+  'PL!-bp5-020-L:live-start-center-muse-yellow-heart-reduce-requirement';
+export const PL_BP5_022_LIVE_START_SUCCESS_ZONE_SCORE_AND_REQUIREMENT_ABILITY_ID =
+  'PL!-bp5-022-L:live-start-success-zone-score-and-requirement';
+export const PL_BP5_023_LIVE_START_STAGE_NON_PINK_PURPLE_HEART_REDUCE_REQUIREMENT_ABILITY_ID =
+  'PL!-bp5-023-L:live-start-stage-non-pink-purple-heart-reduce-requirement';
 export const HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID =
   'PL!HS-bp5-019-L:live-start-reduce-green-requirement-by-live-zone';
 export const HS_BP2_021_LIVE_START_RELAY_ENTERED_HASUNOSORA_GREEN_REQUIREMENT_ABILITY_ID =
@@ -182,6 +188,10 @@ export const N_BP5_008_ACTIVATED_STACK_ENERGY_BELOW_ACTIVATE_TWO_ENERGY_ABILITY_
   'PL!N-bp5-008:activated-stack-energy-below-activate-two-energy';
 export const N_BP5_009_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID =
   'PL!N-bp5-009:on-enter-wait-discard-look-top-nijigasaki-cost-nine-member';
+export const PL_BP5_002_ON_ENTER_WAIT_DISCARD_LOOK_TOP_HIGH_COST_MUSE_MEMBER_ABILITY_ID =
+  'PL!-bp5-002:on-enter-wait-discard-look-top-high-cost-muse-member';
+export const PL_BP5_222_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ANY_CARD_ABILITY_ID =
+  'PL!-bp5-222:on-enter-wait-discard-look-top-any-card';
 export const N_BP5_010_LIVE_SUCCESS_REMAINING_HEART_SCORE_ABILITY_ID =
   'PL!N-bp5-010:live-success-remaining-heart-score';
 export const N_BP5_011_ON_ENTER_CHOOSE_DISTINCT_LIVE_RECOVERY_ABILITY_ID =
@@ -194,6 +204,12 @@ export const N_BP5_013_LIVE_START_ENERGY_BELOW_MEMBER_GAIN_PINK_HEART_ABILITY_ID
   'PL!N-bp5-013-N:live-start-energy-below-member-gain-pink-heart';
 export const N_BP5_014_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID =
   'PL!N-bp5-014-N:activated-pay-two-energy-discard-recover-nijigasaki-live';
+export const PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_ABILITY_ID =
+  'PL!-bp5-014:on-enter-discard-look-top-blue-or-purple-heart-member';
+export const PL_BP5_015_ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ABILITY_ID =
+  'PL!-bp5-015:on-enter-success-live-score-three-draw';
+export const PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID =
+  'PL!-bp5-024-L:live-start-private-wars-choice';
 export const N_BP5_015_LIVE_START_ALL_SIX_STAGE_HEARTS_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!N-bp5-015-N:live-start-all-six-stage-hearts-gain-two-blade';
 export const N_BP5_026_LIVE_START_STAGE_SIX_HEARTS_THIS_LIVE_SCORE_ABILITY_ID =
@@ -212,6 +228,24 @@ export const PL_N_BP5_007_LIVE_START_EQUAL_SUCCESS_ZONES_GAIN_RED_HEART_ABILITY_
   'PL!N-bp5-007:live-start-equal-success-zones-gain-red-heart';
 export const PL_N_BP5_007_LIVE_SUCCESS_REMAINING_HEART_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
   'PL!N-bp5-007:live-success-remaining-heart-draw-two-discard-one';
+export const PL_BP5_111_CONTINUOUS_OTHER_ARISE_BLUE_HEART_ABILITY_ID =
+  'PL!-bp5-111:continuous-other-arise-blue-heart';
+export const PL_BP5_111_ACTIVATED_DISCARD_ACTIVATE_WAITING_MEMBER_RECOVER_LIVE_ABILITY_ID =
+  'PL!-bp5-111:activated-discard-activate-waiting-member-recover-live';
+export const PL_BP5_333_ON_ENTER_WAIT_SELF_WAIT_OPPONENT_LOW_COST_ABILITY_ID =
+  'PL!-bp5-333:on-enter-wait-self-wait-opponent-low-cost';
+export const PL_BP5_333_CONTINUOUS_WAITING_BLUE_HEART_ABILITY_ID =
+  'PL!-bp5-333:continuous-waiting-blue-heart';
+export const PL_BP5_001_LIVE_SUCCESS_DISCARD_LOOK_TOP_BY_LIVE_SCORE_ABILITY_ID =
+  'PL!-bp5-001:live-success-discard-look-top-by-live-score';
+export const PL_BP5_021_LIVE_START_SUNNY_DAY_SONG_ABILITY_ID =
+  'PL!-bp5-021-L:live-start-sunny-day-song';
+export const LL_BP5_001_LIVE_SUCCESS_CHEER_LIVE_OR_STAGE_HEARTS_OR_MOVED_SCORE_ABILITY_ID =
+  'LL-bp5-001-L:live-success-cheer-live-or-stage-hearts-or-moved-score';
+export const LL_BP5_002_LIVE_START_THREE_DIFFERENT_GROUPS_CENTER_ALL_HEART_ABILITY_ID =
+  'LL-bp5-002-L:live-start-three-different-groups-center-all-heart';
+export const LL_BP5_002_LIVE_SUCCESS_RECOVER_DIFFERENT_GROUP_CARD_ABILITY_ID =
+  'LL-bp5-002-L:live-success-recover-different-group-card';
 export const BP4_005_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID =
   'PL!-bp4-005:on-enter-recover-low-cost-member';
 export const BP4_005_CONTINUOUS_CENTER_SCORE_ABILITY_ID =
@@ -685,6 +719,10 @@ export const BP4_008_CONTINUOUS_SUCCESS_SCORE_STAGE_COST_ABILITY_ID =
   'PL!-bp4-008:continuous-success-score-stage-cost-plus-three';
 export const BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID =
   'PL!-bp5-008:continuous-success-score-yellow-heart';
+export const BP5_009_ACTIVATED_DISCARD_TWO_RECOVER_PURPLE_REQUIREMENT_LIVE_ABILITY_ID =
+  'PL!-bp5-009:activated-discard-two-recover-purple-requirement-live';
+export const BP5_010_LIVE_START_DISCARD_MILL_RECOVER_ARISE_MEMBER_ABILITY_ID =
+  'PL!-bp5-010:live-start-discard-mill-three-recover-arise-member';
 export const SP_BP5_012_CONTINUOUS_LIELLA_LIVE_REQUIREMENT_EIGHT_YELLOW_HEART_ABILITY_ID =
   'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart';
 export const SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_ABILITY_ID =
