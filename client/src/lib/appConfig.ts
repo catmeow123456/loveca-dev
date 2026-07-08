@@ -56,6 +56,10 @@ export interface PublicAppConfig {
   siteStatus: PublicSiteStatus;
 }
 
+interface LoadPublicAppConfigOptions {
+  fallbackOnFailure?: boolean;
+}
+
 const DEFAULT_SITE_STATUS: PublicSiteStatus = {
   lifecycle: 'NORMAL',
   generatedAt: null,
@@ -103,10 +107,18 @@ export function normalizeAppConfig(
   };
 }
 
-export async function loadPublicAppConfig(): Promise<PublicAppConfig> {
+export async function loadPublicAppConfig(
+  options: LoadPublicAppConfigOptions = {}
+): Promise<PublicAppConfig> {
+  const fallbackOnFailure = options.fallbackOnFailure ?? true;
   const result = await apiClient.get<PublicAppConfig>('/api/config');
 
   if (!result.data) {
+    const errorMessage = result.error?.message ?? '公开配置响应缺少 data';
+    if (!fallbackOnFailure) {
+      throw new Error(errorMessage);
+    }
+
     if (result.error) {
       console.warn('[AppConfig] Failed to load public config:', result.error.message);
     }
@@ -117,6 +129,112 @@ export async function loadPublicAppConfig(): Promise<PublicAppConfig> {
   }
 
   return normalizeAppConfig(result.data);
+}
+
+export async function refreshPublicAppConfigStrict(): Promise<PublicAppConfig | null> {
+  try {
+    return await loadPublicAppConfig({ fallbackOnFailure: false });
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[AppConfig] Background public config refresh failed:', error);
+    }
+    return null;
+  }
+}
+
+export function buildPublicAppConfigRenderKey(config: PublicAppConfig): string {
+  const normalized = normalizeAppConfig(config);
+  return JSON.stringify({
+    features: {
+      email: {
+        enabled: normalized.features.email.enabled,
+        verificationRequired: normalized.features.email.verificationRequired,
+        passwordResetEnabled: normalized.features.email.passwordResetEnabled,
+      },
+    },
+    siteStatus: {
+      lifecycle: normalized.siteStatus.lifecycle,
+      maintenance: normalized.siteStatus.maintenance
+        ? buildMaintenanceFingerprint(normalized.siteStatus.maintenance)
+        : null,
+      announcements: normalized.siteStatus.announcements.map((announcement) => ({
+        id: announcement.id,
+        type: announcement.type,
+        title: announcement.title,
+        summary: announcement.summary,
+        detail: announcement.detail,
+        publishedAt: announcement.publishedAt,
+        startsAt: announcement.startsAt,
+        endsAt: announcement.endsAt,
+        priority: announcement.priority,
+        impactScopes: announcement.impactScopes,
+      })),
+    },
+  });
+}
+
+export function buildAnnouncementUnreadKey(siteStatus: PublicSiteStatus): string | null {
+  const normalized = normalizeSiteStatus(siteStatus);
+  const maintenance = normalized.maintenance
+    ? {
+        lifecycle: normalized.lifecycle,
+        ...buildMaintenanceFingerprint(normalized.maintenance),
+      }
+    : null;
+  const announcements = normalized.announcements
+    .map((announcement) => ({
+      id: announcement.id,
+      type: announcement.type,
+      title: announcement.title,
+      summary: announcement.summary,
+      detail: announcement.detail,
+      publishedAt: announcement.publishedAt,
+      startsAt: announcement.startsAt,
+      endsAt: announcement.endsAt,
+      impactScopes: announcement.impactScopes,
+    }))
+    .sort(compareAnnouncementUnreadEntries);
+
+  if (!maintenance && announcements.length === 0) {
+    return null;
+  }
+
+  return JSON.stringify({ maintenance, announcements });
+}
+
+function buildMaintenanceFingerprint(maintenance: PublicSiteMaintenanceStatus) {
+  return {
+    id: maintenance.id,
+    title: maintenance.title,
+    summary: maintenance.summary,
+    detail: maintenance.detail,
+    startsAt: maintenance.startsAt,
+    estimatedEndsAt: maintenance.estimatedEndsAt,
+    restrictsNewGamesAt: maintenance.restrictsNewGamesAt,
+    impactScopes: maintenance.impactScopes,
+    restrictions: maintenance.restrictions,
+    action: maintenance.action,
+    updatedAt: maintenance.updatedAt,
+  };
+}
+
+type AnnouncementUnreadEntry = {
+  id: string;
+  type: SiteAnnouncementType;
+  title: string;
+  summary: string;
+  detail: string | null;
+  publishedAt: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  impactScopes: readonly string[];
+};
+
+function compareAnnouncementUnreadEntries(
+  left: AnnouncementUnreadEntry,
+  right: AnnouncementUnreadEntry
+): number {
+  return `${left.id}\u0000${left.type}`.localeCompare(`${right.id}\u0000${right.type}`);
 }
 
 function normalizeSiteStatus(value: unknown): PublicSiteStatus {

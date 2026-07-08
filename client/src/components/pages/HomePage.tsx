@@ -3,7 +3,7 @@
  * 登录后的主界面，突出开始入口、卡组准备状态和联机入口。
  */
 
-import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -44,6 +44,7 @@ import type {
   SiteAnnouncementType,
   SiteStatusLifecycle,
 } from '@/lib/appConfig';
+import { buildAnnouncementUnreadKey } from '@/lib/appConfig';
 
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 const ANNOUNCEMENT_SEEN_STORAGE_KEY = 'loveca.home.announcements.seen.v1';
@@ -147,9 +148,10 @@ export function HomePage({
   const canUseOnlineRoom = canUseCloudDecks;
   const canReturnSavedRoom = Boolean(savedRoomCode && canUseOnlineRoom);
   const announcementItems = useMemo(() => buildAnnouncementDisplayItems(siteStatus), [siteStatus]);
-  const announcementSeenKey = useMemo(() => buildAnnouncementSeenKey(siteStatus), [siteStatus]);
+  const announcementSeenKey = useMemo(() => buildAnnouncementUnreadKey(siteStatus), [siteStatus]);
   const [isAnnouncementsOpen, setIsAnnouncementsOpen] = useState(false);
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
+  const [announcementStatusMessage, setAnnouncementStatusMessage] = useState('');
 
   useEffect(() => {
     if (!canUseCloudDecks) {
@@ -167,6 +169,10 @@ export function HomePage({
 
     setHasUnreadAnnouncements(readAnnouncementSeenKey() !== announcementSeenKey);
   }, [announcementItems.length, announcementSeenKey]);
+
+  useEffect(() => {
+    setAnnouncementStatusMessage(hasUnreadAnnouncements ? '公告已更新' : '');
+  }, [announcementSeenKey, hasUnreadAnnouncements]);
 
   const markCurrentAnnouncementsSeen = useCallback(() => {
     if (!announcementSeenKey) {
@@ -470,6 +476,9 @@ export function HomePage({
         items={announcementItems}
         onClose={closeAnnouncements}
       />
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {announcementStatusMessage}
+      </div>
 
       <footer className="safe-bottom relative z-10 border-t border-[var(--border-subtle)] px-4 py-3">
         <AppCredits version={__APP_VERSION__} />
@@ -487,25 +496,45 @@ function AnnouncementCenterDrawer({
   items: readonly AnnouncementDisplayItem[];
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!isOpen) {
       return;
     }
 
     const previousOverflow = document.body.style.overflow;
+    previouslyFocusedElementRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = 'hidden';
+    const focusFrame = window.requestAnimationFrame(() => {
+      closeButtonRef.current?.focus();
+    });
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose();
+        return;
+      }
+
+      if (event.key === 'Tab' && dialogRef.current) {
+        trapFocusInDialog(event, dialogRef.current);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      window.cancelAnimationFrame(focusFrame);
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
+      const previousElement = previouslyFocusedElementRef.current;
+      previouslyFocusedElementRef.current = null;
+      if (previousElement && document.contains(previousElement)) {
+        previousElement.focus();
+      }
     };
   }, [isOpen, onClose]);
 
@@ -525,9 +554,11 @@ function AnnouncementCenterDrawer({
           }}
         >
           <motion.section
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="announcement-center-title"
+            tabIndex={-1}
             className="safe-bottom flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] sm:max-w-2xl sm:rounded-lg sm:border"
             initial={{ y: 42, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -554,6 +585,7 @@ function AnnouncementCenterDrawer({
                 </div>
               </div>
               <button
+                ref={closeButtonRef}
                 type="button"
                 className="button-icon h-9 w-9 shrink-0"
                 onClick={onClose}
@@ -890,37 +922,6 @@ function buildAnnouncementDisplayItem(
   };
 }
 
-function buildAnnouncementSeenKey(siteStatus: PublicSiteStatus): string | null {
-  const maintenance = siteStatus.maintenance
-    ? {
-        id: siteStatus.maintenance.id,
-        lifecycle: siteStatus.lifecycle,
-        title: siteStatus.maintenance.title,
-        summary: siteStatus.maintenance.summary,
-        startsAt: siteStatus.maintenance.startsAt,
-        estimatedEndsAt: siteStatus.maintenance.estimatedEndsAt,
-        restrictsNewGamesAt: siteStatus.maintenance.restrictsNewGamesAt,
-        updatedAt: siteStatus.maintenance.updatedAt,
-      }
-    : null;
-  const announcements = siteStatus.announcements.map((announcement) => ({
-    id: announcement.id,
-    type: announcement.type,
-    title: announcement.title,
-    summary: announcement.summary,
-    publishedAt: announcement.publishedAt,
-    startsAt: announcement.startsAt,
-    endsAt: announcement.endsAt,
-    priority: announcement.priority,
-  }));
-
-  if (!maintenance && announcements.length === 0) {
-    return null;
-  }
-
-  return JSON.stringify({ maintenance, announcements });
-}
-
 function readAnnouncementSeenKey(): string | null {
   try {
     return window.localStorage.getItem(ANNOUNCEMENT_SEEN_STORAGE_KEY);
@@ -934,6 +935,44 @@ function writeAnnouncementSeenKey(value: string): void {
     window.localStorage.setItem(ANNOUNCEMENT_SEEN_STORAGE_KEY, value);
   } catch {
     // localStorage can be unavailable in private or restricted contexts.
+  }
+}
+
+const DIALOG_FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+function trapFocusInDialog(event: KeyboardEvent, dialog: HTMLElement): void {
+  const focusableElements = Array.from(
+    dialog.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE_SELECTOR)
+  ).filter(
+    (element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true'
+  );
+
+  if (focusableElements.length === 0) {
+    event.preventDefault();
+    dialog.focus();
+    return;
+  }
+
+  const firstElement = focusableElements[0];
+  const lastElement = focusableElements[focusableElements.length - 1];
+  const activeElement = document.activeElement;
+
+  if (event.shiftKey && activeElement === firstElement) {
+    event.preventDefault();
+    lastElement.focus();
+    return;
+  }
+
+  if (!event.shiftKey && activeElement === lastElement) {
+    event.preventDefault();
+    firstElement.focus();
   }
 }
 

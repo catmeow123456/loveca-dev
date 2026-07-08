@@ -27,9 +27,19 @@ import {
   ResetPasswordPage,
   VerifyEmailPage,
 } from '@/components/auth';
-import { DEFAULT_APP_CONFIG, loadPublicAppConfig, type PublicAppConfig } from '@/lib/appConfig';
+import {
+  DEFAULT_APP_CONFIG,
+  buildPublicAppConfigRenderKey,
+  loadPublicAppConfig,
+  refreshPublicAppConfigStrict,
+  type PublicAppConfig,
+} from '@/lib/appConfig';
 import type { PublicSiteStatus, SiteStatusLifecycle } from '@/lib/appConfig';
 import { getSolitaireLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
+import {
+  getPublicConfigRefreshDelay,
+  shouldRunFocusPublicConfigRefresh,
+} from '@/lib/publicConfigRefresh';
 import { fetchSolitaireMatchSnapshot } from '@/lib/solitaireMatchClient';
 import {
   clearStoredSolitaireMatchId,
@@ -124,10 +134,48 @@ function App() {
   const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
   const [appConfig, setAppConfig] = useState<PublicAppConfig>(DEFAULT_APP_CONFIG);
   const [configInitialized, setConfigInitialized] = useState(false);
-  const refreshAppConfig = useCallback(async () => {
-    const config = await loadPublicAppConfig();
+  const appConfigRenderKeyRef = useRef(buildPublicAppConfigRenderKey(DEFAULT_APP_CONFIG));
+  const publicConfigRefreshInFlightRef = useRef<Promise<boolean> | null>(null);
+  const publicConfigLastAttemptAtRef = useRef<number | null>(null);
+  const publicConfigRefreshFailureCountRef = useRef(0);
+
+  const setAppConfigIfChanged = useCallback((config: PublicAppConfig): boolean => {
+    const nextKey = buildPublicAppConfigRenderKey(config);
+    if (nextKey === appConfigRenderKeyRef.current) {
+      return false;
+    }
+
+    appConfigRenderKeyRef.current = nextKey;
     setAppConfig(config);
+    return true;
   }, []);
+
+  const refreshPublicConfigInBackground = useCallback(async (): Promise<boolean> => {
+    if (publicConfigRefreshInFlightRef.current) {
+      return publicConfigRefreshInFlightRef.current;
+    }
+
+    const refreshPromise = (async () => {
+      publicConfigLastAttemptAtRef.current = Date.now();
+      const config = await refreshPublicAppConfigStrict();
+      if (!config) {
+        publicConfigRefreshFailureCountRef.current += 1;
+        return false;
+      }
+
+      publicConfigRefreshFailureCountRef.current = 0;
+      return setAppConfigIfChanged(config);
+    })().finally(() => {
+      publicConfigRefreshInFlightRef.current = null;
+    });
+
+    publicConfigRefreshInFlightRef.current = refreshPromise;
+    return refreshPromise;
+  }, [setAppConfigIfChanged]);
+
+  const refreshAppConfig = useCallback(async () => {
+    await refreshPublicConfigInBackground();
+  }, [refreshPublicConfigInBackground]);
 
   // 防止 React 19 Strict Mode 下重复初始化
   const authInitRef = useRef(false);
@@ -170,7 +218,7 @@ function App() {
     loadPublicAppConfig()
       .then((config) => {
         if (!cancelled) {
-          setAppConfig(config);
+          setAppConfigIfChanged(config);
         }
       })
       .catch((configError) => {
@@ -187,7 +235,74 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setAppConfigIfChanged]);
+
+  useEffect(() => {
+    if (!configInitialized) {
+      return;
+    }
+
+    let disposed = false;
+    let timeoutId: number | null = null;
+
+    const clearScheduledRefresh = () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+
+    const scheduleNextRefresh = () => {
+      if (disposed) {
+        return;
+      }
+
+      const delay = getPublicConfigRefreshDelay(publicConfigRefreshFailureCountRef.current);
+      timeoutId = window.setTimeout(() => {
+        timeoutId = null;
+        if (document.visibilityState === 'hidden') {
+          scheduleNextRefresh();
+          return;
+        }
+
+        void refreshPublicConfigInBackground().finally(scheduleNextRefresh);
+      }, delay);
+    };
+
+    const requestVisibleRefresh = () => {
+      if (document.visibilityState === 'hidden') {
+        return;
+      }
+
+      void refreshPublicConfigInBackground();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        requestVisibleRefresh();
+      }
+    };
+
+    const handleFocus = () => {
+      const now = Date.now();
+      if (!shouldRunFocusPublicConfigRefresh(publicConfigLastAttemptAtRef.current, now)) {
+        return;
+      }
+
+      requestVisibleRefresh();
+    };
+
+    scheduleNextRefresh();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      disposed = true;
+      clearScheduledRefresh();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [configInitialized, refreshPublicConfigInBackground]);
 
   useEffect(() => {
     if (!configInitialized || authInitRef.current) return;

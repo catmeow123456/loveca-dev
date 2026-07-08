@@ -89,8 +89,9 @@
 - 桌面端首页保留右侧公告摘要。
 - 移动端首页顶栏提供“公告栏”按钮，避免首屏被公告摘要挤占；公告详情以底部抽屉展示。
 - 本机未看过当前公告集合时，移动端和桌面端都会自动打开公告抽屉一次。
+- 应用启动后会在页面可见时后台刷新 `/api/config`：周期刷新带少量抖动，失败后逐步退避；窗口重新获得焦点时会节流触发刷新。后台刷新失败保留旧配置，不使用静态 fallback 覆盖当前页面状态。
 
-已读状态存储在浏览器 `localStorage`，key 为 `loveca.home.announcements.seen.v1`。已读指纹由维护状态和公开公告的 id、类型、标题、摘要、时间与优先级生成；公告内容变化后会重新视为未读。当前没有服务端级别的已读状态，也没有推送通道；已经停留在页面内的用户需要刷新或重新加载配置后看到最新公开状态。
+已读状态存储在浏览器 `localStorage`，key 为 `loveca.home.announcements.seen.v1`。已读指纹由维护状态、维护详情、影响范围、限制说明、行动提示，以及公开公告的 id、类型、标题、摘要、详情、时间与影响范围生成；公告优先级只影响展示顺序，不单独制造未读。公告内容变化后会重新视为未读。当前没有服务端级别的已读状态，也没有推送通道；已经停留在页面内的用户依赖后台刷新看到最新公开状态。
 
 ## 管理员公告管理
 
@@ -124,6 +125,8 @@
 | 服务端对墙打限制接入           | `src/server/routes/battle.ts`                                |
 | 数据库 schema                  | `src/server/db/schema.ts`                                    |
 | 管理员平台配置页               | `client/src/components/admin/SiteAnnouncementsAdminPage.tsx` |
+| 公开配置加载与指纹             | `client/src/lib/appConfig.ts`                                |
+| 公开配置后台刷新调度           | `client/src/lib/publicConfigRefresh.ts`                      |
 | 首页公告与维护提示             | `client/src/components/pages/HomePage.tsx`                   |
 | 前端公告管理客户端             | `client/src/lib/siteAnnouncementClient.ts`                   |
 

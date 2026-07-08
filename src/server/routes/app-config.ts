@@ -5,6 +5,7 @@ import { siteAnnouncementService } from '../services/site-announcement-service.j
 export const appConfigRouter = Router();
 
 appConfigRouter.get('/', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
   const emailEnabled = config.isEmailFeatureEnabled;
   const siteStatus = await siteAnnouncementService.getPublicSiteStatus(process.env);
 
