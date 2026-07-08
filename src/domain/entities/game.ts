@@ -225,6 +225,15 @@ export type LiveModifierState =
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }
   | {
+      readonly kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT';
+      readonly playerId: string;
+      readonly fromColors: readonly HeartColor[];
+      readonly toColor: HeartColor;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
       readonly kind: 'BLADE';
       readonly playerId: string;
       readonly countDelta: number;

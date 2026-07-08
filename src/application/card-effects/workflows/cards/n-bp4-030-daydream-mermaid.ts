@@ -9,7 +9,7 @@ import {
 import { OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { PL_N_BP4_030_LIVE_SUCCESS_CHOOSE_ENERGY_OR_MEMBER_RECOVERY_ABILITY_ID } from '../../ability-ids.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -174,7 +174,19 @@ function finishOptionSelection(
   let state = game;
   let placedEnergyCardIds: readonly string[] = [];
   if (selectedOptionIds.includes(ENERGY_OPTION_ID)) {
-    const energyResult = placeEnergyFromDeckToZone(state, player.id, 1, OrientationState.WAITING);
+    const energyResult = placeEnergyFromDeckToZoneByCardEffect(
+      state,
+      player.id,
+      1,
+      OrientationState.WAITING,
+      {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      }
+    );
     if (!energyResult || energyResult.placedEnergyCardIds.length === 0) {
       return game;
     }

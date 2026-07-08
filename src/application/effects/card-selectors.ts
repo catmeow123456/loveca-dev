@@ -176,6 +176,10 @@ export function liveRequiresPrintedHeartColorAtLeast(
     (card.data.requirements.colorRequirements.get(color) ?? 0) >= minCount;
 }
 
+export function liveTotalRequiredHeartGte(minCount: number): CardSelector {
+  return (card) => isLiveCardData(card.data) && card.data.requirements.totalRequired >= minCount;
+}
+
 export function hasBladeHeart(): CardSelector {
   return (card) =>
     (((card.data as { readonly bladeHearts?: readonly unknown[] }).bladeHearts?.length ?? 0) > 0);

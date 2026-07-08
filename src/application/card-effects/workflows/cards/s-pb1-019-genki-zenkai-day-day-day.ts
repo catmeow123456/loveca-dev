@@ -12,7 +12,7 @@ import {
   suppressLiveAbility,
 } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, OrientationState } from '../../../../shared/types/enums.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import {
@@ -142,11 +142,18 @@ function resolveLiveSuccessWaitingEnergy(
     );
   }
 
-  const placeResult = placeEnergyFromDeckToZone(
+  const placeResult = placeEnergyFromDeckToZoneByCardEffect(
     stateWithoutPending,
     opponent.id,
     1,
-    OrientationState.WAITING
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: ability.sourceCardId,
+      abilityId: ability.abilityId,
+      pendingAbilityId: ability.id,
+    }
   );
   if (!placeResult) {
     return continuePendingCardEffects(

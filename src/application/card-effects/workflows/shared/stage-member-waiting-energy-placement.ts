@@ -10,7 +10,7 @@ import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { GamePhase, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import {
@@ -105,7 +105,12 @@ function startBp5021SelfSacrificeEnergyPlacement(
   const energyCountAfterCost = getPlayerById(state, player.id)?.energyZone.cardIds.length ?? 0;
   const conditionMet = energyCountAfterCost >= BP5_021_ENERGY_THRESHOLD;
   const energyPlacement = conditionMet
-    ? placeEnergyFromDeckToZone(state, player.id, 1, OrientationState.WAITING)
+    ? placeEnergyFromDeckToZoneByCardEffect(state, player.id, 1, OrientationState.WAITING, {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: cardId,
+        abilityId: SP_BP5_021_ACTIVATED_SELF_SACRIFICE_ENERGY_SIX_PLACE_WAITING_ENERGY_ABILITY_ID,
+      })
     : null;
   state = energyPlacement?.gameState ?? state;
 
@@ -192,7 +197,18 @@ function startBp4010PayEnergyWaitSelfPlaceEnergy(
     abilityId: SP_BP4_010_ACTIVATED_PAY_ENERGY_WAIT_SELF_PLACE_WAITING_ENERGY_ABILITY_ID,
     sourceCardId: cardId,
   });
-  const energyPlacement = placeEnergyFromDeckToZone(state, player.id, 1, OrientationState.WAITING);
+  const energyPlacement = placeEnergyFromDeckToZoneByCardEffect(
+    state,
+    player.id,
+    1,
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: cardId,
+      abilityId: SP_BP4_010_ACTIVATED_PAY_ENERGY_WAIT_SELF_PLACE_WAITING_ENERGY_ABILITY_ID,
+    }
+  );
   state = energyPlacement?.gameState ?? state;
 
   return addAction(state, 'RESOLVE_ABILITY', player.id, {
@@ -230,7 +246,13 @@ function resolveBp4005RelayEnergyPlacement(
   const conditionMet =
     validLiellaReplacementCardIds.length > 0 && energyCount >= BP4_005_ENERGY_THRESHOLD;
   const energyPlacement = conditionMet
-    ? placeEnergyFromDeckToZone(game, player.id, 2, OrientationState.WAITING)
+    ? placeEnergyFromDeckToZoneByCardEffect(game, player.id, 2, OrientationState.WAITING, {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        pendingAbilityId: ability.id,
+      })
     : null;
   const state = {
     ...(energyPlacement?.gameState ?? game),

@@ -8,7 +8,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { OrientationState, SlotPosition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { SP_BP5_222_LIVE_START_PAY_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
@@ -151,7 +151,19 @@ function finishPayEnergyDecision(
     energyCardIds: costPayment.paidEnergyCardIds,
     amount: costPayment.paidEnergyCardIds.length,
   });
-  const energyResult = placeEnergyFromDeckToZone(state, player.id, 1, OrientationState.WAITING);
+  const energyResult = placeEnergyFromDeckToZoneByCardEffect(
+    state,
+    player.id,
+    1,
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    }
+  );
   state = energyResult?.gameState ?? state;
 
   return continuePendingCardEffects(

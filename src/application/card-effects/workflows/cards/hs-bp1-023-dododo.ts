@@ -7,7 +7,7 @@ import {
 import { OrientationState } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { hasStageMemberMatching } from '../../../effects/conditions.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
@@ -69,7 +69,13 @@ function resolveHsBp1023DododoLiveSuccess(
   const hasHasunosoraStageMember = hasStageMemberMatching(game, player.id, groupAliasIs('蓮ノ空'));
   const conditionMet = ownScore > opponentScore && hasHasunosoraStageMember;
   const energyPlacement = conditionMet
-    ? placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.WAITING)
+    ? placeEnergyFromDeckToZoneByCardEffect(game, player.id, 1, OrientationState.WAITING, {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        pendingAbilityId: ability.id,
+      })
     : null;
   const stateAfterPlacement = energyPlacement?.gameState ?? game;
   const state = {

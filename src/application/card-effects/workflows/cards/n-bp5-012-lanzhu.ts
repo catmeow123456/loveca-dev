@@ -11,7 +11,7 @@ import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-mod
 import { GamePhase, HeartColor, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { stackEnergyFromEnergyZoneBelowMember } from '../../../effects/energy-below.js';
 import {
   N_BP5_012_ACTIVATED_STACK_ENERGY_BELOW_DRAW_GAIN_PINK_HEART_ABILITY_ID,
@@ -151,11 +151,18 @@ function resolveLanzhuLiveSuccessEnergyPlacement(
   let placedEnergyCardIds: readonly string[] = [];
 
   if (context.conditionMet && context.requestedEnergyCount > 0) {
-    const placementResult = placeEnergyFromDeckToZone(
+    const placementResult = placeEnergyFromDeckToZoneByCardEffect(
       state,
       player.id,
       context.requestedEnergyCount,
-      OrientationState.WAITING
+      OrientationState.WAITING,
+      {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        pendingAbilityId: ability.id,
+      }
     );
     if (!placementResult) {
       return game;

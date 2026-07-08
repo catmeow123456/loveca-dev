@@ -264,6 +264,22 @@ export interface PayCostEvent extends BaseGameEvent {
   readonly energyCardIds: readonly string[];
 }
 
+export interface CardEffectCause {
+  readonly kind: 'CARD_EFFECT';
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId?: string;
+  readonly pendingAbilityId?: string;
+}
+
+export interface EnergyPlacedByCardEffectEvent extends BaseGameEvent {
+  readonly eventType: TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT;
+  readonly targetPlayerId: string;
+  readonly placedEnergyCardIds: readonly string[];
+  readonly orientation: OrientationState;
+  readonly cause: CardEffectCause;
+}
+
 // ============================================
 // 状态触发事件
 // ============================================
@@ -365,6 +381,7 @@ export type GameEvent =
   | RelayEvent
   | DrawEvent
   | PayCostEvent
+  | EnergyPlacedByCardEffectEvent
   | MemberStateChangedEvent
   | MemberSlotMovedEvent
   | HandEmptyEvent
@@ -619,6 +636,24 @@ export function createDrawEvent(
     drawnCardIds,
     count,
     triggerPlayerId: playerId,
+  };
+}
+
+export function createEnergyPlacedByCardEffectEvent(
+  targetPlayerId: string,
+  placedEnergyCardIds: readonly string[],
+  orientation: OrientationState,
+  cause: CardEffectCause
+): EnergyPlacedByCardEffectEvent {
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT,
+    timestamp: Date.now(),
+    targetPlayerId,
+    placedEnergyCardIds: [...placedEnergyCardIds],
+    orientation,
+    cause,
+    triggerPlayerId: targetPlayerId,
   };
 }
 

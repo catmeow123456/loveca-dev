@@ -11,7 +11,7 @@ import {
   successLiveScoreAtLeast,
   sumSuccessfulLiveScore,
 } from '../../../effects/conditions.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -42,7 +42,13 @@ function resolveBp5RinOnEnterSuccessScorePlaceActiveEnergy(
   const successLiveScore = sumSuccessfulLiveScore(game, player.id);
   const conditionMet = successLiveScoreAtLeast(game, player.id, 6);
   const energyPlacement = conditionMet
-    ? placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.ACTIVE)
+    ? placeEnergyFromDeckToZoneByCardEffect(game, player.id, 1, OrientationState.ACTIVE, {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        pendingAbilityId: ability.id,
+      })
     : null;
   const state = {
     ...(energyPlacement?.gameState ?? game),

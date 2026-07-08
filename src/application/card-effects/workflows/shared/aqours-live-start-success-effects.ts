@@ -14,7 +14,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.js';
 import {
   CardType,
@@ -267,7 +267,13 @@ function resolvePb1007LiveSuccessPlaceWaitingEnergy(
   const liveCheerCardIds = getPb1007LiveSuccessCheerLiveCardIds(game, player.id);
   const conditionMet = sourceOnStage && liveCheerCardIds.length > 0;
   const placement = conditionMet
-    ? placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.WAITING)
+    ? placeEnergyFromDeckToZoneByCardEffect(game, player.id, 1, OrientationState.WAITING, {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        pendingAbilityId: ability.id,
+      })
     : null;
   const stateAfterPlacement = placement?.gameState ?? game;
   const stateWithoutPending: GameState = {

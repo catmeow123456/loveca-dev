@@ -7,7 +7,7 @@ import {
 import { OrientationState, HeartColor } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { hasStageMemberMatching } from '../../../effects/conditions.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import {
   getRemainingHeartCount,
   getRemainingHeartTotalCount,
@@ -98,7 +98,19 @@ function resolveNBp3027LaBellaPatriaLiveSuccess(
   );
   const conditionMet = hasGreenRemainingHeart && hasNijigasakiStageMember;
   const energyPlacement = conditionMet
-    ? placeEnergyFromDeckToZone(stateAfterRebalance, player.id, 1, OrientationState.WAITING)
+    ? placeEnergyFromDeckToZoneByCardEffect(
+        stateAfterRebalance,
+        player.id,
+        1,
+        OrientationState.WAITING,
+        {
+          kind: 'CARD_EFFECT',
+          playerId: player.id,
+          sourceCardId: ability.sourceCardId,
+          abilityId: ability.abilityId,
+          pendingAbilityId: ability.id,
+        }
+      )
     : null;
   const stateAfterPlacement = energyPlacement?.gameState ?? stateAfterRebalance;
   const state = {

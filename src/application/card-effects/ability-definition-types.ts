@@ -38,6 +38,7 @@ export interface CardAbilityDefinition {
   readonly requiredSourceSlots?: readonly SlotPosition[];
   readonly triggerFromZones?: readonly ZoneType[];
   readonly triggerToZones?: readonly ZoneType[];
+  readonly energyPlacementCause?: 'ANY_CARD_EFFECT' | 'OWN_CARD_EFFECT';
   readonly perTurnLimit?: number;
   readonly countPendingAsTurnUse?: boolean;
   readonly observerOnly?: boolean;

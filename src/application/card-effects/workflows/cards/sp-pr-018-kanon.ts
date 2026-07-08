@@ -7,7 +7,7 @@ import {
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
@@ -65,7 +65,13 @@ function resolveSpPr018KanonLiveSuccess(
   const liellaCheerCardIds = sourceOnStage ? selectLiellaCheerCardIds(game, player.id) : [];
   const conditionMet = sourceOnStage && liellaCheerCardIds.length >= 7;
   const energyPlacement = conditionMet
-    ? placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.WAITING)
+    ? placeEnergyFromDeckToZoneByCardEffect(game, player.id, 1, OrientationState.WAITING, {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        pendingAbilityId: ability.id,
+      })
     : null;
   const stateAfterPlacement = energyPlacement?.gameState ?? game;
   const stateWithoutPending: GameState = {

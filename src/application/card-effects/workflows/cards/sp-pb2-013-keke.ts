@@ -7,7 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { OrientationState } from '../../../../shared/types/enums.js';
 import { unitAliasIs, hasBladeHeart } from '../../../effects/card-selectors.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import {
   drawCardsForPlayer,
 } from '../../runtime/actions.js';
@@ -152,7 +152,19 @@ function finishSpPb2013DiscardKaleidoscore(
     discardedHandCardIds: discardResult.discardedCardIds,
   });
 
-  const energyPlacement = placeEnergyFromDeckToZone(state, player.id, 1, OrientationState.WAITING);
+  const energyPlacement = placeEnergyFromDeckToZoneByCardEffect(
+    state,
+    player.id,
+    1,
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    }
+  );
   if (!energyPlacement) {
     return game;
   }

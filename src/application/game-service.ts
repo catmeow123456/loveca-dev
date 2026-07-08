@@ -138,6 +138,7 @@ import { applyHeartRequirementModifiers } from '../domain/rules/live-requirement
 import {
   collectLiveModifiers,
   getEffectivePerformanceCheerCount,
+  getCheerCardEffectiveBladeHearts,
   getLiveCardRequirementModifiers,
   getLiveCardScoreModifier,
   getMemberEffectiveBladeCount,
@@ -1172,7 +1173,7 @@ export class GameService {
     const cheerCardIds = this.getCurrentPerformanceCheerCardIds(game, playerId);
     const cheerCards = cheerCardIds.map((cardId) => ({
       cardId,
-      bladeHearts: this.getCardBladeHearts(game, cardId),
+      bladeHearts: this.getCardBladeHearts(game, playerId, cardId, liveModifiers),
     }));
     const performance = liveResolver.performLive(playerId, stageMemberCards, liveCards, cheerCards);
 
@@ -1383,13 +1384,13 @@ export class GameService {
         };
   }
 
-  private getCardBladeHearts(game: GameState, cardId: string): readonly BladeHeartItem[] {
-    const card = getCardById(game, cardId);
-    if (!card || !('bladeHearts' in card.data)) {
-      return [];
-    }
-
-    return (card.data as { bladeHearts?: readonly BladeHeartItem[] }).bladeHearts ?? [];
+  private getCardBladeHearts(
+    game: GameState,
+    playerId: string,
+    cardId: string,
+    liveModifiers: readonly LiveModifierState[] = collectLiveModifiers(game)
+  ): readonly BladeHeartItem[] {
+    return getCheerCardEffectiveBladeHearts(game, playerId, cardId, liveModifiers);
   }
 
   /**

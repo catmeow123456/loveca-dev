@@ -64,6 +64,7 @@ import {
   PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
   PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID,
   PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
+  SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_ABILITY_ID,
   PL_S_BP5_013_LIVE_START_GREEN_REQUIREMENT_GAIN_GREEN_HEART_ABILITY_ID,
   S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -99,6 +100,7 @@ const HS_SD1_018_DREAM_BELIEVERS_SCORE_STEP_ID = 'HS_SD1_018_DREAM_BELIEVERS_SCO
 const PL_PB1_029_LILYWHITE_SCORE_STEP_ID = 'PL_PB1_029_LILYWHITE_SCORE';
 const PL_PB1_030_OPPONENT_WAITING_REQUIREMENT_STEP_ID =
   'PL_PB1_030_OPPONENT_WAITING_REQUIREMENT';
+const SP_BP4_028_ACTIVE_ENERGY_SCORE_STEP_ID = 'SP_BP4_028_ACTIVE_ENERGY_SCORE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -318,6 +320,12 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
       };
     },
     finish: finishBp4021HeartbeatLiveStartSuccessScoreModifier,
+  },
+  {
+    abilityId: SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_ABILITY_ID,
+    stepId: SP_BP4_028_ACTIVE_ENERGY_SCORE_STEP_ID,
+    getStartContext: getSpBp4028DaisukiFullPowerStartContext,
+    finish: finishSpBp4028DaisukiFullPowerScoreBonus,
   },
   createLiveRequirementGainHeartWorkflow({
     abilityId: S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
@@ -1317,6 +1325,99 @@ function finishBp4021HeartbeatLiveStartSuccessScoreModifier(
       requirementReduction: reducesRequirement ? 1 : 0,
       scoreBonus: gainsScore ? 1 : 0,
     },
+  };
+}
+
+function getSpBp4028DaisukiFullPowerStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getSpBp4028DaisukiFullPowerContext(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(
+      SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_ABILITY_ID
+    )}（当前活跃能量 ${context.activeEnergyCount}张，${
+      context.sourceInLiveZone ? '来源在LIVE区' : '来源不在LIVE区'
+    }，${
+      context.conditionMet
+        ? '满足条件，实际[スコア]+1'
+        : '未满足条件，实际不增加[スコア]'
+    }）`,
+    actionPayload: {
+      activeEnergyCount: context.activeEnergyCount,
+      sourceInLiveZone: context.sourceInLiveZone,
+      scoreBonus: context.conditionMet ? 1 : 0,
+    },
+  };
+}
+
+function finishSpBp4028DaisukiFullPowerScoreBonus(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getSpBp4028DaisukiFullPowerContext(game, effect, playerId);
+  let state: GameState = {
+    ...game,
+    activeEffect: null,
+  };
+  state = replaceLiveModifier(
+    state,
+    {
+      kind: 'SCORE',
+      liveCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+    },
+    context.conditionMet
+      ? {
+          kind: 'SCORE',
+          playerId,
+          countDelta: 1,
+          liveCardId: effect.sourceCardId,
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+  if (context.conditionMet) {
+    state = refreshPlayerScoreDraft(state, playerId, 1);
+  }
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_ACTIVE_ENERGY_SCORE_BONUS',
+      activeEnergyCount: context.activeEnergyCount,
+      sourceInLiveZone: context.sourceInLiveZone,
+      conditionMet: context.conditionMet,
+      scoreBonus: context.conditionMet ? 1 : 0,
+    },
+  };
+}
+
+function getSpBp4028DaisukiFullPowerContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): {
+  readonly activeEnergyCount: number;
+  readonly sourceInLiveZone: boolean;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return { activeEnergyCount: 0, sourceInLiveZone: false, conditionMet: false };
+  }
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const activeEnergyCount = player.energyZone.cardIds.filter(
+    (cardId) => player.energyZone.cardStates.get(cardId)?.orientation === OrientationState.ACTIVE
+  ).length;
+  return {
+    activeEnergyCount,
+    sourceInLiveZone,
+    conditionMet: sourceInLiveZone && activeEnergyCount > 0,
   };
 }
 

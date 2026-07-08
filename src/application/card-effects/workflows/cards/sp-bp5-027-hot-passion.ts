@@ -8,7 +8,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { SP_BP5_027_LIVE_SUCCESS_PLACE_WAITING_ENERGY_OPPONENT_DRAW_ABILITY_ID } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
@@ -127,7 +127,19 @@ function finishPlaceWaitingEnergyDecision(
     });
   }
 
-  const energyResult = placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.WAITING);
+  const energyResult = placeEnergyFromDeckToZoneByCardEffect(
+    game,
+    player.id,
+    1,
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    }
+  );
   if (!energyResult || energyResult.placedEnergyCardIds.length === 0) {
     return finishActiveEffectNoop(game, player.id, effect, continuePendingCardEffects, {
       step: 'NO_ENERGY_DECK_CANDIDATE_AFTER_CHOICE',

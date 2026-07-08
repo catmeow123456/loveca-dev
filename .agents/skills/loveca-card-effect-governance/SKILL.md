@@ -216,6 +216,7 @@ git diff -- src/application/card-effect-runner.ts
 - 检视 / 查看 / 公开卡组顶后，inspected cards 从检视区进入休息室必须走统一 inspection-to-waiting helper；事件事实按卡组顶移动处理，`fromZone` 为 `MAIN_DECK`、`toZone` 为 `WAITING_ROOM`，同一次检视进入休息室的一组卡作为同一个 `movedCardIds`。
 - workflow 不允许裸写 `waitingRoom.cardIds` + `clearInspectionCards` 来处理 inspected remainder；若只是 direct mill 或不进入休息室，应在实现/审查中明确说明不属于 inspection-to-waiting helper 范围。
 - 牌组顶直接进入休息室（不经过检视区的 direct mill）默认使用 `moveTopDeckCardsToWaitingRoomAndEnqueueTriggers` / `moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers` 或 `enqueueMainDeckCardsEnteredWaitingRoom`；事件事实为 `MAIN_DECK -> WAITING_ROOM`，同一次实际进入休息室的顶牌作为同一个 `movedCardIds`。`WithRefresh` 只记录实际从刷新后的主卡组顶进入休息室的卡，不把 refresh 洗回卡组的牌算入本次事件；无刷新费用路径不能偷偷改成 refresh 语义。
+- 声援公开卡相关效果要区分“条件计数”和“目标移动”。凡是卡文写“エールにより公開されたカードの中に/中から N 张/以上/有某类卡”这类条件，条件计数默认基于本次声援公开事件事实，已被前序效果从 `resolutionZone` / 声援公开区移走的卡仍要计入；优先使用 `selectCurrentLiveRevealedCheerCardIds` 或等价 event-inclusive query。实际把声援公开卡加入手牌、回顶或入休息室时，目标集合才应限制为当前仍在 `resolutionZone` 且 revealed、可被 `moveRevealedCheerCards` 移动的卡。不要用只检查当前可移动区域的 `selectRevealedCheerCardIds` 来判断“曾经因本次声援公开”的条件是否满足。
 - 成员区移动默认使用 `moveMemberBetweenSlotsAndEnqueueTriggers` 或当前 stage-formation wrapper。
 - 成员状态变化默认使用 state-change trigger wrapper。
 - 来源成员自送或离场费用默认使用 leave-stage trigger wrapper。
@@ -229,6 +230,7 @@ git diff -- src/application/card-effect-runner.ts
 - application/effects/conditions.ts 可 re-export domain query 作为卡效入口。
 - 不让各卡自己读 `positionMovedThisTurn`、`groupName`、`eventLog` 等底层字段解释规则。
 - 团体判断优先用 `cardBelongsToGroup`、`groupAliasIs` 等既有身份 helper。
+- 声援公开条件 query 必须说明自己读取的是“本次已公开事实”还是“当前仍可移动目标”。前者应包含匹配的 `CheerEvent.revealedCardIds`，用于数量、不同名、颜色、类型等条件；后者用于实际选择/移动，不能反过来驱动条件成立与否。
 
 ### Ability definition
 
@@ -292,6 +294,7 @@ git diff -- src/application/card-effect-runner.ts
   4. 已有真实交互 workflow 不出现双弹窗。
 - domain query/helper unit 覆盖纯函数正反例。
 - event wrapper 覆盖事件产生、事件入队、0 张/无事件不触发。
+- 声援公开条件测试必须覆盖“本次声援公开过的卡已被前序效果移出 `resolutionZone` 但仍应计入条件”的回归；若同一效果还要移动声援公开卡，另测 stale target 不能被移动。
 - 高风险旧路径补 regression。
 
 常用验证：
