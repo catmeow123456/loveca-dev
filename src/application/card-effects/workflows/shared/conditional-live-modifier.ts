@@ -61,6 +61,7 @@ import {
   PL_BP5_020_LIVE_START_CENTER_MUSE_YELLOW_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_BP5_022_LIVE_START_SUCCESS_ZONE_SCORE_AND_REQUIREMENT_ABILITY_ID,
   PL_BP5_023_LIVE_START_STAGE_NON_PINK_PURPLE_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
+  PL_N_BP4_028_LIVE_START_DIFFERENT_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
   PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
   PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID,
   PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
@@ -101,6 +102,8 @@ const PL_PB1_029_LILYWHITE_SCORE_STEP_ID = 'PL_PB1_029_LILYWHITE_SCORE';
 const PL_PB1_030_OPPONENT_WAITING_REQUIREMENT_STEP_ID =
   'PL_PB1_030_OPPONENT_WAITING_REQUIREMENT';
 const SP_BP4_028_ACTIVE_ENERGY_SCORE_STEP_ID = 'SP_BP4_028_ACTIVE_ENERGY_SCORE';
+const PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE_STEP_ID =
+  'PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -326,6 +329,12 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
     stepId: SP_BP4_028_ACTIVE_ENERGY_SCORE_STEP_ID,
     getStartContext: getSpBp4028DaisukiFullPowerStartContext,
     finish: finishSpBp4028DaisukiFullPowerScoreBonus,
+  },
+  {
+    abilityId: PL_N_BP4_028_LIVE_START_DIFFERENT_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
+    stepId: PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE_STEP_ID,
+    getStartContext: getPlNBp4028StarsWeChaseStartContext,
+    finish: finishPlNBp4028StarsWeChaseScoreBonus,
   },
   createLiveRequirementGainHeartWorkflow({
     abilityId: S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
@@ -626,7 +635,7 @@ function getPlBp5020WonderZoneStartContext(
   return {
     effectText: `${getAbilityEffectText(
       PL_BP5_020_LIVE_START_CENTER_MUSE_YELLOW_HEART_REDUCE_REQUIREMENT_ABILITY_ID
-    )}（来源${context.sourceInLiveZone ? '仍在LIVE区' : '不在LIVE区'}，中心${
+    )}（中心${
       context.centerMuseMemberCardId ? "为 μ's 成员" : "不是 μ's 成员"
     }，当前[黄ハート] ${context.yellowHeartCount}个，实际减少${context.requirementReduction}个[無ハート]）`,
     actionPayload: {
@@ -682,9 +691,7 @@ function getPlBp5022ASongForYouStartContext(
   return {
     effectText: `${getAbilityEffectText(
       PL_BP5_022_LIVE_START_SUCCESS_ZONE_SCORE_AND_REQUIREMENT_ABILITY_ID
-    )}（来源${context.sourceInLiveZone ? '仍在LIVE区' : '不在LIVE区'}，成功LIVE ${
-      context.successLiveCount
-    }张，实际分数+${context.scoreBonus}，必要[桃ハート]/[黄ハート]/[紫ハート]/[無ハート]各增加${
+    )}（成功LIVE ${context.successLiveCount}张，实际分数+${context.scoreBonus}，必要[桃ハート]/[黄ハート]/[紫ハート]/[無ハート]各增加${
       context.requirementIncrease
     }个）`,
     actionPayload: {
@@ -770,9 +777,7 @@ function getPlBp5023OtohimeStartContext(
   return {
     effectText: `${getAbilityEffectText(
       PL_BP5_023_LIVE_START_STAGE_NON_PINK_PURPLE_HEART_REDUCE_REQUIREMENT_ABILITY_ID
-    )}（来源${context.sourceInLiveZone ? '仍在LIVE区' : '不在LIVE区'}，符合条件成员 ${
-      context.qualifiedMemberCardIds.length
-    }名，实际减少${context.requirementReduction}个[無ハート]）`,
+    )}（符合条件成员 ${context.qualifiedMemberCardIds.length}名，实际减少${context.requirementReduction}个[無ハート]）`,
     actionPayload: {
       sourceInLiveZone: context.sourceInLiveZone,
       qualifiedMemberCardIds: context.qualifiedMemberCardIds,
@@ -1338,8 +1343,6 @@ function getSpBp4028DaisukiFullPowerStartContext(
     effectText: `${getAbilityEffectText(
       SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_ABILITY_ID
     )}（当前活跃能量 ${context.activeEnergyCount}张，${
-      context.sourceInLiveZone ? '来源在LIVE区' : '来源不在LIVE区'
-    }，${
       context.conditionMet
         ? '满足条件，实际[スコア]+1'
         : '未满足条件，实际不增加[スコア]'
@@ -1418,6 +1421,112 @@ function getSpBp4028DaisukiFullPowerContext(
     activeEnergyCount,
     sourceInLiveZone,
     conditionMet: sourceInLiveZone && activeEnergyCount > 0,
+  };
+}
+
+function getPlNBp4028StarsWeChaseStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getPlNBp4028StarsWeChaseContext(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(
+      PL_N_BP4_028_LIVE_START_DIFFERENT_NIJIGASAKI_LIVE_SCORE_ABILITY_ID
+    )}（当前休息室不同名『虹ヶ咲』LIVE ${context.differentNijigasakiLiveNameCount}种，${
+      context.sourceInLiveZone ? '来源在LIVE区' : '来源不在LIVE区'
+    }，${
+      context.scoreBonus > 0
+        ? `满足条件，实际[スコア]+${context.scoreBonus}`
+        : '未满足条件，实际不增加[スコア]'
+    }）`,
+    actionPayload: {
+      differentNijigasakiLiveNameCount: context.differentNijigasakiLiveNameCount,
+      sourceInLiveZone: context.sourceInLiveZone,
+      scoreBonus: context.scoreBonus,
+    },
+  };
+}
+
+function finishPlNBp4028StarsWeChaseScoreBonus(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getPlNBp4028StarsWeChaseContext(game, effect, playerId);
+  let state: GameState = {
+    ...game,
+    activeEffect: null,
+  };
+  state = replaceLiveModifier(
+    state,
+    {
+      kind: 'SCORE',
+      liveCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+    },
+    context.scoreBonus > 0
+      ? {
+          kind: 'SCORE',
+          playerId,
+          countDelta: context.scoreBonus,
+          liveCardId: effect.sourceCardId,
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+  if (context.scoreBonus > 0) {
+    state = refreshPlayerScoreDraft(state, playerId, context.scoreBonus);
+  }
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_DIFFERENT_NIJIGASAKI_LIVE_SCORE_BONUS',
+      sourceInLiveZone: context.sourceInLiveZone,
+      differentNijigasakiLiveNameCount: context.differentNijigasakiLiveNameCount,
+      conditionMet: context.scoreBonus > 0,
+      scoreBonus: context.scoreBonus,
+    },
+  };
+}
+
+function getPlNBp4028StarsWeChaseContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly differentNijigasakiLiveNameCount: number;
+  readonly scoreBonus: number;
+} {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return { sourceInLiveZone: false, differentNijigasakiLiveNameCount: 0, scoreBonus: 0 };
+  }
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const differentNijigasakiLiveNames = new Set<string>();
+  for (const cardId of player.waitingRoom.cardIds) {
+    const card = getCardById(game, cardId);
+    if (card === null || !isLiveCardData(card.data) || !groupAliasIs('虹ヶ咲')(card)) {
+      continue;
+    }
+    differentNijigasakiLiveNames.add(card.data.name.trim());
+  }
+  const differentNijigasakiLiveNameCount = differentNijigasakiLiveNames.size;
+  const scoreBonus = !sourceInLiveZone
+    ? 0
+    : differentNijigasakiLiveNameCount >= 6
+      ? 2
+      : differentNijigasakiLiveNameCount >= 4
+        ? 1
+        : 0;
+  return {
+    sourceInLiveZone,
+    differentNijigasakiLiveNameCount,
+    scoreBonus,
   };
 }
 

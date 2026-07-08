@@ -76,13 +76,13 @@ function startBp5001HonokaLiveSuccess(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  if (!player || !player.liveZone.cardIds.includes(ability.sourceCardId)) {
+  if (!player || !Object.values(player.memberSlots.slots).includes(ability.sourceCardId)) {
     return consumePendingWithoutEffect(
       game,
       ability,
       orderedResolution,
       continuePendingCardEffects,
-      'SOURCE_LIVE_NOT_IN_LIVE_ZONE'
+      'SOURCE_MEMBER_NOT_ON_STAGE'
     );
   }
   if (player.hand.cardIds.length === 0) {

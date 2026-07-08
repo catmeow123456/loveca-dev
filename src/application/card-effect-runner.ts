@@ -154,7 +154,14 @@ import { registerNBp3010ShiorikoWorkflowHandlers } from './card-effects/workflow
 import { registerNBp3025AwakeningPromiseWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-025-awakening-promise.js';
 import { registerNBp3027LaBellaPatriaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-027-la-bella-patria.js';
 import { registerNBp4004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-004-karin.js';
+import { registerNBp4001AyumuWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-001-ayumu.js';
+import { registerNBp4002KasumiWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-002-kasumi.js';
+import { registerNBp4003ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-003-shizuku.js';
+import { registerNBp4009RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-009-rina.js';
+import { registerNBp4005AiWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-005-ai.js';
+import { registerNBp4008EmmaWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-008-emma.js';
 import { registerNBp4010ShiorikoWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-010-shioriko.js';
+import { registerNBp4021RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-021-rina.js';
 import { registerNBp4027EmotionWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-027-emotion.js';
 import { registerNBp4029RiseUpHighWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-029-rise-up-high.js';
 import { registerNBp4030DaydreamMermaidWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-030-daydream-mermaid.js';
@@ -926,8 +933,15 @@ registerNBp3008EmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3010ShiorikoWorkflowHandlers();
 registerNBp3025AwakeningPromiseWorkflowHandlers();
 registerNBp3027LaBellaPatriaWorkflowHandlers();
+registerNBp4001AyumuWorkflowHandlers();
+registerNBp4002KasumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp4003ShizukuWorkflowHandlers();
 registerNBp4004KarinWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp4005AiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp4008EmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp4009RinaWorkflowHandlers();
 registerNBp4010ShiorikoWorkflowHandlers();
+registerNBp4021RinaWorkflowHandlers();
 registerNBp4027EmotionWorkflowHandlers();
 registerNBp4029RiseUpHighWorkflowHandlers();
 registerNBp4030DaydreamMermaidWorkflowHandlers();
@@ -3082,6 +3096,11 @@ function getAbilityOrderOptionLabel(
 function continuePendingCardEffects(game: GameState, orderedResolution: boolean): GameState {
   if (game.activeEffect) {
     return game;
+  }
+
+  const stateWithEnergyPlacedTriggers = enqueueLatestResolvedEnergyPlacedByCardEffectTriggers(game);
+  if (stateWithEnergyPlacedTriggers !== game) {
+    return continuePendingCardEffects(stateWithEnergyPlacedTriggers, orderedResolution);
   }
 
   const stateWithResolvedAbilityObservers = enqueueResolvedAbilityObserverCardEffects(game);

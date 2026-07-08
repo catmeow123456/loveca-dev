@@ -15,6 +15,7 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
+  ABILITY_ORDER_SELECTION_ID,
   confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
@@ -23,6 +24,7 @@ import {
   SP_BP4_023_LIVE_START_SELECT_NAMED_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { GameService } from '../../src/application/game-service';
+import { projectPlayerViewState } from '../../src/online/projector';
 import {
   addLiveModifier,
   getCheerCardEffectiveBladeHearts,
@@ -261,6 +263,62 @@ function setupCheerJudgmentState(options: { readonly opponentPerforms?: boolean 
   return { game, live, bladeSource, cheerCards, owner };
 }
 
+function setupFullLiveStartState() {
+  const live = createCardInstance(createDazzlingGame(HeartColor.PURPLE, 6), PLAYER1, 'full-live');
+  const named = createCardInstance(
+    createMember({ cardCode: 'LIELLA-KANON', name: '澁谷かのん', blade: 6, hearts: [] }),
+    PLAYER1,
+    'full-kanon'
+  );
+  const otherLiella = createCardInstance(
+    createMember({ cardCode: 'LIELLA-KEKE', name: '唐 可可', blade: 0, hearts: [] }),
+    PLAYER1,
+    'full-keke'
+  );
+  const cheerColors = [
+    HeartColor.PINK,
+    HeartColor.RED,
+    HeartColor.YELLOW,
+    HeartColor.GREEN,
+    HeartColor.BLUE,
+    HeartColor.RAINBOW,
+  ];
+  const cheerCards = cheerColors.map((color, index) =>
+    createCheerMember(`FULL-CHEER-${color}`, color, PLAYER1, `full-cheer-${index}`)
+  );
+  let game = createGameState('sp-bp4-023-full-live-start', PLAYER1, 'P1', PLAYER2, 'P2');
+  game = registerCards(game, [live, named, otherLiella, ...cheerCards]);
+  game = updatePlayer(game, PLAYER1, (player) => ({
+    ...player,
+    liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    memberSlots: placeCardInSlot(
+      placeCardInSlot(player.memberSlots, SlotPosition.CENTER, named.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+      SlotPosition.RIGHT,
+      otherLiella.instanceId,
+      {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }
+    ),
+    mainDeck: {
+      ...player.mainDeck,
+      cardIds: cheerCards.map((card) => card.instanceId),
+    },
+  }));
+  game = {
+    ...game,
+    liveResolution: {
+      ...game.liveResolution,
+      isInLive: true,
+      performingPlayerId: PLAYER1,
+    },
+  };
+  return { game, live, named, otherLiella, cheerCards };
+}
+
 function performAutomaticJudgment(game: GameState, playerId: string): GameState {
   const service = new GameService() as unknown as PerformanceService;
   return service.finalizeAutomaticPerformanceJudgment(
@@ -379,12 +437,89 @@ describe('PL!SP-bp4-023 Dazzling Game', () => {
     });
   });
 
+  it('projects the cheer Heart color replacement for the judgment panel', () => {
+    const scenario = setupCheerJudgmentState();
+    const resolved = resolveCheerReplacementAbility(scenario.game, scenario.live.instanceId);
+    const view = projectPlayerViewState(resolved, PLAYER1);
+
+    expect(view.match.liveResult?.cheerHeartColorReplacements.FIRST).toEqual({
+      fromColors: [
+        HeartColor.PINK,
+        HeartColor.RED,
+        HeartColor.YELLOW,
+        HeartColor.GREEN,
+        HeartColor.BLUE,
+        HeartColor.RAINBOW,
+      ],
+      toColor: HeartColor.PURPLE,
+    });
+  });
+
   it('treats own cheer pink/red/yellow/green/blue/ALL Hearts as purple for live judgment', () => {
     const scenario = setupCheerJudgmentState();
     const modified = resolveCheerReplacementAbility(scenario.game, scenario.live.instanceId);
     const judged = performAutomaticJudgment(modified, PLAYER1);
 
     expect(judged.liveResolution.firstPlayerCheerCardIds).toHaveLength(6);
+    expect(judged.liveResolution.liveResults.get(scenario.live.instanceId)).toBe(true);
+    expect(judged.liveResolution.playerLiveJudgmentHearts.get(PLAYER1)).toEqual([
+      createHeartIcon(HeartColor.PURPLE, 6),
+    ]);
+  });
+
+  it('keeps the purple cheer replacement effective when both LIVE start abilities resolve in order', () => {
+    const scenario = setupFullLiveStartState();
+    const stateWithPending: GameState = {
+      ...scenario.game,
+      pendingAbilities: [
+        pendingAbility(
+          SP_BP4_023_LIVE_START_SELECT_NAMED_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID,
+          scenario.live.instanceId
+        ),
+        pendingAbility(
+          SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_ABILITY_ID,
+          scenario.live.instanceId
+        ),
+      ],
+    };
+    const orderSelection = resolvePendingCardEffects(stateWithPending).gameState;
+    expect(orderSelection.activeEffect?.abilityId).toBe(ABILITY_ORDER_SELECTION_ID);
+
+    const firstStarted = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      null,
+      null,
+      true
+    );
+    expect(firstStarted.activeEffect).toMatchObject({
+      abilityId: SP_BP4_023_LIVE_START_SELECT_NAMED_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID,
+      stepText: '请选择自己舞台上1名「涩谷香音」「薇恩・玛格丽特」「鬼冢冬毬」获得[BLADE]。',
+    });
+
+    const secondStep = confirmActiveEffectStep(
+      firstStarted,
+      PLAYER1,
+      firstStarted.activeEffect!.id,
+      scenario.named.instanceId
+    );
+    const bothResolved = confirmActiveEffectStep(
+      secondStep,
+      PLAYER1,
+      secondStep.activeEffect!.id,
+      scenario.otherLiella.instanceId
+    );
+
+    expect(bothResolved.liveResolution.liveModifiers).toContainEqual(
+      expect.objectContaining({
+        kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT',
+        playerId: PLAYER1,
+        toColor: HeartColor.PURPLE,
+      })
+    );
+
+    const judged = performAutomaticJudgment(bothResolved, PLAYER1);
     expect(judged.liveResolution.liveResults.get(scenario.live.instanceId)).toBe(true);
     expect(judged.liveResolution.playerLiveJudgmentHearts.get(PLAYER1)).toEqual([
       createHeartIcon(HeartColor.PURPLE, 6),

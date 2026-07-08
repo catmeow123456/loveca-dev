@@ -15,7 +15,10 @@ import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
-import { SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_DRAW_RED_HEART_ABILITY_ID,
+  SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -154,6 +157,22 @@ function startAbility(game: GameState, sourceCardId: string): GameState {
   );
 }
 
+function createSpPr018PendingAbility(
+  sourceCardId: string,
+  id = `sp-pr-018-pending:${sourceCardId}`
+): PendingAbilityState {
+  return {
+    id,
+    abilityId: SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID,
+    sourceCardId,
+    controllerId: PLAYER1,
+    mandatory: true,
+    timingId: TriggerCondition.ON_LIVE_SUCCESS,
+    eventIds: ['live-success'],
+    sourceSlot: SlotPosition.CENTER,
+  };
+}
+
 function confirmIfConfirmOnly(game: GameState): GameState {
   return game.activeEffect?.metadata?.confirmOnlyPendingAbility === true
     ? confirmActiveEffectStep(game, PLAYER1, game.activeEffect.id)
@@ -169,6 +188,26 @@ function latestPayload(game: GameState) {
           SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID
     )
     .at(-1)?.payload;
+}
+
+function redHeartModifierCount(game: GameState, memberCardId: string): number {
+  return game.liveResolution.liveModifiers.filter(
+    (modifier) =>
+      modifier.kind === 'HEART' &&
+      modifier.target === 'SOURCE_MEMBER' &&
+      modifier.sourceCardId === memberCardId &&
+      modifier.hearts.some((heart) => heart.color === HeartColor.RED && heart.count === 1)
+  ).length;
+}
+
+function hasResolvedBp5004(game: GameState): boolean {
+  return game.actionHistory.some(
+    (action) =>
+      action.type === 'RESOLVE_ABILITY' &&
+      action.payload.abilityId ===
+        SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_DRAW_RED_HEART_ABILITY_ID &&
+      action.payload.step !== 'ABILITY_USE'
+  );
 }
 
 describe('PL!SP-PR-018 Kanon live success waiting energy workflow', () => {
@@ -192,6 +231,52 @@ describe('PL!SP-PR-018 Kanon live success waiting energy workflow', () => {
       qualifyingCheerCardCount: 7,
       placedEnergyCardIds: [scenario.energyCardIds[0]],
     });
+  });
+
+  it('triggers PL!SP-bp5-004 when this card effect places energy', () => {
+    const cheerCards = Array.from({ length: 7 }, (_, index) =>
+      createMember(`PL!SP-PR-018-liella-${index + 1}`)
+    );
+    const scenario = setupState({ cheerCards });
+    const sumire = createMember('PL!SP-bp5-004-P', {
+      instanceId: 'sp-bp5-004-sumire',
+    });
+    const drawCard = createMember('PL!SP-PR-018-draw-card', {
+      instanceId: 'sp-pr-018-draw-card',
+    });
+    let game = registerCards(scenario.game, [sumire, drawCard]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: addCardToZone(player.mainDeck, drawCard.instanceId),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, sumire.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+
+    const state = startAbility(game, scenario.sourceId);
+
+    expect(state.players[0].energyZone.cardIds).toEqual([scenario.energyCardIds[0]]);
+    expect(state.players[0].hand.cardIds).toContain(drawCard.instanceId);
+    expect(redHeartModifierCount(state, sumire.instanceId)).toBe(1);
+    expect(hasResolvedBp5004(state)).toBe(true);
+  });
+
+  it('shows the actual Liella cheer count and standby energy wording in confirmation text', () => {
+    const cheerCards = Array.from({ length: 8 }, (_, index) =>
+      createMember(`PL!SP-PR-018-liella-${index + 1}`)
+    );
+    const scenario = setupState({ cheerCards });
+    const preview = resolvePendingCardEffects({
+      ...scenario.game,
+      pendingAbilities: [createSpPr018PendingAbility(scenario.sourceId)],
+    }).gameState;
+
+    expect(preview.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
+    expect(preview.activeEffect?.effectText).toContain('声援Liella!卡 8张');
+    expect(preview.activeEffect?.effectText).toContain('放置1张待机能量');
+    expect(preview.activeEffect?.effectText).not.toContain('声援Liella!卡 7张');
+    expect(preview.activeEffect?.effectText).not.toContain('等待能量');
   });
 
   it('consumes pending as no-op when revealed Liella cheer cards are fewer than seven', () => {

@@ -115,7 +115,7 @@ function startBp5009NicoActivated(game: GameState, playerId: string, cardId: str
         minSelectableCards: DISCARD_COUNT,
         maxSelectableCards: DISCARD_COUNT,
         selectionLabel: '选择要放置入休息室的2张手牌',
-        confirmSelectionLabel: '支付费用',
+        confirmSelectionLabel: '放置入休息室',
         canSkipSelection: false,
         metadata: {
           sourceSlot,

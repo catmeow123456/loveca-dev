@@ -322,6 +322,7 @@ describe('PL!SP-bp4 first batch effects', () => {
     expect(started.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
     expect(started.activeEffect?.effectText).toContain('当前活跃能量 1张');
     expect(started.activeEffect?.effectText).toContain('满足条件，实际[スコア]+1');
+    expect(started.activeEffect?.effectText).not.toContain('来源');
 
     const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
     expect(scoreModifiers(resolved)).toEqual([
@@ -346,6 +347,7 @@ describe('PL!SP-bp4 first batch effects', () => {
 
     expect(started.activeEffect?.effectText).toContain('当前活跃能量 0张');
     expect(started.activeEffect?.effectText).toContain('未满足条件，实际不增加[スコア]');
+    expect(started.activeEffect?.effectText).not.toContain('来源');
 
     const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
     expect(scoreModifiers(resolved)).toEqual([]);

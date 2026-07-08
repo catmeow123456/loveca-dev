@@ -118,7 +118,7 @@ function startTsubasaActivatedWorkflow(
       selectableCardIds: player.hand.cardIds,
       selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
       selectionLabel: '选择要放置入休息室的手牌',
-      confirmSelectionLabel: '支付费用',
+      confirmSelectionLabel: '放置入休息室',
       canSkipSelection: false,
       metadata: {
         sourceSlot,

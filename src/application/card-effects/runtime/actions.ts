@@ -137,6 +137,16 @@ export interface MoveWaitingRoomCardToDeckPositionForPlayerResult {
   readonly remainingCandidateIds: readonly string[];
 }
 
+export interface MoveHandCardToDeckTopForPlayerOptions {
+  readonly candidateCardIds: readonly string[];
+}
+
+export interface MoveHandCardToDeckTopForPlayerResult {
+  readonly gameState: GameState;
+  readonly movedCardId: string;
+  readonly remainingCandidateIds: readonly string[];
+}
+
 export interface StackMemberCardBelowSpecialMemberOptions {
   readonly playerId: string;
   readonly sourceZone: ZoneType.HAND | ZoneType.WAITING_ROOM;
@@ -631,6 +641,41 @@ export function moveWaitingRoomCardToDeckPositionForPlayer(
     movedCardId: selectedCardId,
     insertIndex,
     positionFromTop,
+    remainingCandidateIds: options.candidateCardIds.filter((cardId) => cardId !== selectedCardId),
+  };
+}
+
+export function moveHandCardToDeckTopForPlayer(
+  game: GameState,
+  playerId: string,
+  selectedCardId: string,
+  options: MoveHandCardToDeckTopForPlayerOptions
+): MoveHandCardToDeckTopForPlayerResult | null {
+  const player = getPlayerById(game, playerId);
+  const candidateCardIdSet = new Set(options.candidateCardIds);
+  if (
+    !player ||
+    !candidateCardIdSet.has(selectedCardId) ||
+    !player.hand.cardIds.includes(selectedCardId)
+  ) {
+    return null;
+  }
+
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    hand: {
+      ...currentPlayer.hand,
+      cardIds: currentPlayer.hand.cardIds.filter((cardId) => cardId !== selectedCardId),
+    },
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: [selectedCardId, ...currentPlayer.mainDeck.cardIds],
+    },
+  }));
+
+  return {
+    gameState,
+    movedCardId: selectedCardId,
     remainingCandidateIds: options.candidateCardIds.filter((cardId) => cardId !== selectedCardId),
   };
 }

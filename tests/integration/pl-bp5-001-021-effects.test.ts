@@ -16,6 +16,7 @@ import {
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import {
@@ -86,15 +87,24 @@ function addPendingAbility(
   };
 }
 
-function setupBp5001(options: { readonly withHand?: boolean } = {}): {
+function setupBp5001(
+  options: { readonly withHand?: boolean; readonly withPending?: boolean } = {}
+): {
   readonly game: GameState;
+  readonly sourceMember: CardInstance<MemberCardData>;
+  readonly live: CardInstance<LiveCardData>;
   readonly handCost: CardInstance<MemberCardData>;
   readonly deckCards: readonly CardInstance[];
 } {
-  const live = createCardInstance(
-    createLiveCard('PL!-bp5-001-AR', 2),
+  const sourceMember = createCardInstance(
+    createMemberCard('PL!-bp5-001-AR', { name: '高坂穂乃果', cost: 4 }),
     PLAYER1,
-    'bp5-001-live'
+    'bp5-001-source'
+  );
+  const live = createCardInstance(
+    createLiveCard('PL!-bp5-020-L', 3),
+    PLAYER1,
+    'bp5-001-success-live'
   );
   const handCost = createCardInstance(
     createMemberCard('PL!-bp5-001-hand-cost'),
@@ -110,9 +120,13 @@ function setupBp5001(options: { readonly withHand?: boolean } = {}): {
   );
 
   let game = createGameState('pl-bp5-001', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, [live, handCost, ...deckCards]);
+  game = registerCards(game, [sourceMember, live, handCost, ...deckCards]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
+    memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, sourceMember.instanceId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    }),
     liveZone: addCardToZone(player.liveZone, live.instanceId),
     hand: options.withHand === false ? player.hand : addCardToZone(player.hand, handCost.instanceId),
     mainDeck: deckCards.reduce((zone, card) => addCardToZone(zone, card.instanceId), player.mainDeck),
@@ -123,16 +137,28 @@ function setupBp5001(options: { readonly withHand?: boolean } = {}): {
       ...game.liveResolution,
       isInLive: true,
       performingPlayerId: PLAYER1,
+      liveResults: new Map([[live.instanceId, true]]),
       playerScores: new Map([[PLAYER1, 3]]),
     },
   };
+  if (options.withPending === false) {
+    return {
+      game,
+      sourceMember,
+      live,
+      handCost,
+      deckCards,
+    };
+  }
   return {
     game: addPendingAbility(
       game,
       PL_BP5_001_LIVE_SUCCESS_DISCARD_LOOK_TOP_BY_LIVE_SCORE_ABILITY_ID,
-      live.instanceId,
+      sourceMember.instanceId,
       TriggerCondition.ON_LIVE_SUCCESS
     ),
+    sourceMember,
+    live,
     handCost,
     deckCards,
   };
@@ -278,11 +304,35 @@ function resolveSunnyDaySongThroughDiscards(
 }
 
 describe('PL!-bp5-001 高坂穂乃果 LIVE success', () => {
+  it('queues from the stage member when a LIVE succeeds', () => {
+    const setup = setupBp5001({ withPending: false });
+
+    const queued = enqueueTriggeredCardEffects(setup.game, [TriggerCondition.ON_LIVE_SUCCESS]);
+
+    expect(queued.pendingAbilities).toEqual([
+      expect.objectContaining({
+        abilityId: PL_BP5_001_LIVE_SUCCESS_DISCARD_LOOK_TOP_BY_LIVE_SCORE_ABILITY_ID,
+        sourceCardId: setup.sourceMember.instanceId,
+        controllerId: PLAYER1,
+        timingId: TriggerCondition.ON_LIVE_SUCCESS,
+      }),
+    ]);
+
+    const started = resolvePendingCardEffects(queued).gameState;
+    expect(started.activeEffect).toMatchObject({
+      abilityId: PL_BP5_001_LIVE_SUCCESS_DISCARD_LOOK_TOP_BY_LIVE_SCORE_ABILITY_ID,
+      sourceCardId: setup.sourceMember.instanceId,
+      confirmSelectionLabel: '放置入休息室',
+      canSkipSelection: true,
+    });
+  });
+
   it('uses a real optional discard cost, then looks at current LIVE score + 2 cards', () => {
     const setup = setupBp5001();
     const started = resolvePendingCardEffects(setup.game).gameState;
     expect(started.activeEffect).toMatchObject({
       abilityId: PL_BP5_001_LIVE_SUCCESS_DISCARD_LOOK_TOP_BY_LIVE_SCORE_ABILITY_ID,
+      confirmSelectionLabel: '放置入休息室',
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
     });

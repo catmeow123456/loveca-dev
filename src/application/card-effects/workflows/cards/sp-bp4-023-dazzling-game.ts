@@ -28,7 +28,15 @@ import {
 
 const SELECT_NAMED_MEMBER_STEP_ID = 'SP_BP4_023_SELECT_NAMED_MEMBER_GAIN_BLADE';
 const SELECT_OTHER_LIELLA_MEMBER_STEP_ID = 'SP_BP4_023_SELECT_OTHER_LIELLA_MEMBER_GAIN_BLADE';
-const NAMED_MEMBER_NAMES = ['澁谷かのん', 'ウィーン・マルガレーテ', '鬼塚冬毬'] as const;
+const NAMED_MEMBER_NAMES = [
+  '澁谷かのん',
+  '涩谷香音',
+  'ウィーン・マルガレーテ',
+  '薇恩・玛格丽特',
+  '鬼塚冬毬',
+  '鬼冢冬毬',
+] as const;
+const NAMED_MEMBER_DISPLAY_TEXT = '「涩谷香音」「薇恩・玛格丽特」「鬼冢冬毬」';
 const HEART_REPLACEMENT_FROM_COLORS = [
   HeartColor.PINK,
   HeartColor.RED,
@@ -130,8 +138,7 @@ function startSelectNamedAndOtherLiellaBlade(
         controllerId: ability.controllerId,
         effectText: getAbilityEffectText(ability.abilityId),
         stepId: SELECT_NAMED_MEMBER_STEP_ID,
-        stepText:
-          '请选择自己舞台上1名「澁谷かのん」「ウィーン・マルガレーテ」「鬼塚冬毬」获得[BLADE]。',
+        stepText: `请选择自己舞台上1名${NAMED_MEMBER_DISPLAY_TEXT}获得[BLADE]。`,
         awaitingPlayerId: player.id,
         selectableCardIds: context.selectableNamedMemberCardIds,
         selectableCardVisibility: 'PUBLIC',

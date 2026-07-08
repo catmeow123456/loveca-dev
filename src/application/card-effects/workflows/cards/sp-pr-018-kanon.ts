@@ -47,7 +47,7 @@ function getSpPr018KanonConfirmationEffectText(
   const liellaCheerCardIds =
     player && sourceOnStage ? selectLiellaCheerCardIds(game, player.id) : [];
   const conditionMet = sourceOnStage && liellaCheerCardIds.length >= 7;
-  return `${getAbilityEffectText(ability.abilityId)}（声援Liella!卡 ${liellaCheerCardIds.length}张，${conditionMet ? '满足条件，放置1张等待能量' : '未满足条件'}）`;
+  return `${getAbilityEffectText(ability.abilityId)}（声援Liella!卡 ${liellaCheerCardIds.length}张，${conditionMet ? '满足条件，放置1张待机能量' : '未满足条件'}）`;
 }
 
 function resolveSpPr018KanonLiveSuccess(

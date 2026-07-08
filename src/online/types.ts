@@ -116,6 +116,16 @@ export interface LiveResultViewState {
   readonly scores: Readonly<Record<Seat, number>>;
   readonly scoreModifiers: Readonly<Record<Seat, number>>;
   readonly heartBonuses: Readonly<Record<Seat, readonly HeartIcon[]>>;
+  readonly cheerHeartColorReplacements: Readonly<
+    Record<
+      Seat,
+      | {
+          readonly fromColors: readonly HeartColor[];
+          readonly toColor: HeartColor;
+        }
+      | null
+    >
+  >;
   /** 当前仅投影无色/All 必要 Heart 减少；彩色/增加修正应升级为 modifier 列表 */
   readonly requirementReductions: Readonly<Record<string, number>>;
   readonly requirementModifiers: Readonly<

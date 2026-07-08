@@ -9,7 +9,10 @@ import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
-import { SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+  SP_BP4_016_AUTO_CARD_EFFECT_PLACE_ENERGY_GAIN_PURPLE_HEART_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -258,6 +261,66 @@ describe('PL!SP-bp4-016 Ren card-effect energy placement auto workflow', () => {
     const state = resolveEnergyPlacedEvent(scenario);
 
     expect(purpleHeartModifierCount(state, scenario.sourceId)).toBe(1);
+  });
+
+  it('resolves immediately after a queued card effect places energy', () => {
+    const scenario = setupScenario();
+    const player = scenario.game.players[0] as unknown as {
+      energyDeck: { cardIds: string[] };
+      energyZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    const placedEnergyCardId = player.energyDeck.cardIds[0]!;
+    const startingEnergyCardIds = player.energyDeck.cardIds.slice(1, 8);
+    player.energyDeck.cardIds = [placedEnergyCardId, ...player.energyDeck.cardIds.slice(8)];
+    player.energyZone.cardIds = startingEnergyCardIds;
+    player.energyZone.cardStates = new Map(
+      startingEnergyCardIds.map(
+        (cardId) =>
+          [cardId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }] as const
+      )
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = scenario.effectSourceId;
+    player.memberSlots.cardStates.set(scenario.effectSourceId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+
+    const stateWithPending: GameState = {
+      ...scenario.game,
+      pendingAbilities: [
+        ...scenario.game.pendingAbilities,
+        {
+          id: 'test:sp-bp4-001-on-enter',
+          abilityId: SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+          sourceCardId: scenario.effectSourceId,
+          controllerId: PLAYER1,
+          mandatory: true,
+          timingId: TriggerCondition.ON_ENTER_STAGE,
+          eventIds: ['test:on-enter'],
+          sourceSlot: SlotPosition.CENTER,
+        },
+      ],
+    };
+
+    const state = resolvePendingCardEffects(stateWithPending).gameState;
+
+    expect(state.players[0]?.energyZone.cardIds).toContain(placedEnergyCardId);
+    expect(purpleHeartModifierCount(state, scenario.sourceId)).toBe(1);
+    expect(
+      state.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            SP_BP4_016_AUTO_CARD_EFFECT_PLACE_ENERGY_GAIN_PURPLE_HEART_ABILITY_ID
+      )
+    ).toBe(true);
   });
 
   it('also triggers when opponent card effect places energy into own energy zone', () => {

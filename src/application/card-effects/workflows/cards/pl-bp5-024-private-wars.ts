@@ -498,7 +498,7 @@ function getPrivateWarsRealtimeStepText(game: GameState, ability: PendingAbility
 
 function formatPrivateWarsContext(context: PrivateWarsContext): string {
   if (!context.sourceLiveInOwnLiveZone) {
-    return '来源LIVE不在自己的LIVE区';
+    return '当前无法处理此效果';
   }
   if (!context.hasOwnAriseMember) {
     return '自己舞台没有『A-RISE』成员';
