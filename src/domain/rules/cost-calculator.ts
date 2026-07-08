@@ -7,6 +7,7 @@ import type { LiveCardData, MemberCardData } from '../entities/card.js';
 import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
+import { hasStrictNoAbilityCardText } from '../../shared/utils/card-text.js';
 import { canUseDoubleRelay } from '../../shared/rules/double-relay.js';
 
 // ============================================
@@ -279,6 +280,19 @@ export class CostCalculator {
           id: `${stageMember.data.cardCode}:stage-source-cost-minus-cost10-liella`,
           label: '舞台上的岚 千砂都使10费Liella!成员登场费用减少2',
           amount: Math.min(memberData.cost, 2),
+          sourceCardId: stageMember.cardId,
+        });
+      }
+
+      if (
+        isSBp5001ChikaCostReducer(stageMember.data) &&
+        isStrictNoAbilityMember(memberData) &&
+        isSourceCardBeingPlayedFromHand(resources)
+      ) {
+        modifiers.push({
+          id: `${stageMember.data.cardCode}:stage-source-cost-minus-no-ability-member`,
+          label: '舞台上的高海千歌使不持有能力的成员卡从手牌登场费用减少1',
+          amount: Math.min(memberData.cost, 1),
           sourceCardId: stageMember.cardId,
         });
       }
@@ -652,6 +666,14 @@ function isSourceCardBeingPlayedFromHand(resources: AvailableResources): boolean
     resources.sourceCardId !== undefined &&
     (resources.handCardIds?.includes(resources.sourceCardId) ?? false)
   );
+}
+
+function isStrictNoAbilityMember(memberData: MemberCardData): boolean {
+  return hasStrictNoAbilityCardText(memberData.cardText);
+}
+
+function isSBp5001ChikaCostReducer(memberData: MemberCardData): boolean {
+  return cardCodeMatchesBase(memberData.cardCode, 'PL!S-bp5-001');
 }
 
 function isMiraCraMember(memberData: MemberCardData): boolean {

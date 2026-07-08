@@ -622,7 +622,7 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
     });
   });
 
-  it('can decline a discard-cost event and still prompt for the following look-top remainder event', () => {
+  it('skips a refreshed discard-cost event and still prompts for the following look-top remainder event', () => {
     const scenario = setupScenario();
     const searchSource = createCardInstance(
       createMemberCard('PL!SP-bp1-005-P', 'Search Ren', 2),
@@ -715,18 +715,16 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
       createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
     );
     expect(revealConfirmResult.success).toBe(true);
-    expect(scenario.session.state?.activeEffect).toMatchObject({
-      abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
-      metadata: { movedCardIds: [discardCard.instanceId] },
-    });
-
-    declineAuto(scenario);
     const remainderCardIds = topCards.slice(1).map((card) => card.instanceId);
     expect(scenario.session.state?.activeEffect).toMatchObject({
       abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
       metadata: { movedCardIds: remainderCardIds },
       selectableCardIds: remainderCardIds,
     });
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([discardCard.instanceId]);
+
+    declineAuto(scenario);
+    expect(scenario.session.state?.activeEffect).toBeNull();
   });
 
   it('after paying energy, the auto turn limit blocks another event from the same source', () => {

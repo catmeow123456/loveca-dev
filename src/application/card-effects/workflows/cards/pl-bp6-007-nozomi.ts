@@ -57,7 +57,7 @@ function resolvePlBp6007NozomiLiveSuccess(
     );
   }
 
-  if (player.mainDeck.cardIds.length === 0) {
+  if (player.mainDeck.cardIds.length === 0 && player.waitingRoom.cardIds.length === 0) {
     return continuePendingCardEffects(
       addAction(removePendingAbility(game, ability.id), 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: ability.id,

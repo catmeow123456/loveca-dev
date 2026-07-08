@@ -24,6 +24,7 @@ import {
   createGameState,
   registerCards,
   updatePlayer,
+  type GameState,
   type LiveModifierState,
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, addCardToZone } from '../../src/domain/entities/zone';
@@ -937,6 +938,49 @@ describe('PlayerViewState projector', () => {
     expect(player1View.match.window?.context?.sourceZone).toBe(ZoneType.MAIN_DECK);
     expect(hasEnabledCommand(player1View, GameCommandType.OPEN_INSPECTION)).toBe(true);
     expect(hasEnabledCommand(player1View, GameCommandType.MOVE_INSPECTED_CARD_TO_TOP)).toBe(true);
+  });
+
+  it('检视区 viewer 与 owner 不同时，viewer 看正面且 owner 看背面', () => {
+    const { state, p2MainDeckCard } = createProjectedState();
+    const mutableState = state as unknown as {
+      activeEffect: GameState['activeEffect'];
+      inspectionZone: { cardIds: string[]; revealedCardIds: string[] };
+      inspectionContext: {
+        ownerPlayerId: string;
+        viewerPlayerId?: string;
+        sourceZone: ZoneType.MAIN_DECK;
+      } | null;
+    };
+    mutableState.activeEffect = {
+      id: 'cross-player-inspection',
+      abilityId: 'test:cross-player-inspection',
+      sourceCardId: 'source',
+      controllerId: PLAYER1,
+      effectText: '测试查看对方卡组',
+      stepId: 'ARRANGE',
+      stepText: '整理卡组顶',
+      awaitingPlayerId: PLAYER1,
+      inspectionCardIds: [p2MainDeckCard.instanceId],
+      selectableCardIds: [p2MainDeckCard.instanceId],
+      selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+    };
+    mutableState.inspectionZone.cardIds = [p2MainDeckCard.instanceId];
+    mutableState.inspectionZone.revealedCardIds = [];
+    mutableState.inspectionContext = {
+      ownerPlayerId: PLAYER2,
+      viewerPlayerId: PLAYER1,
+      sourceZone: ZoneType.MAIN_DECK,
+    };
+
+    const player1View = projectPlayerViewState(state, PLAYER1);
+    const player2View = projectPlayerViewState(state, PLAYER2);
+    const inspectionObjectId = createPublicObjectId(p2MainDeckCard.instanceId);
+
+    expect(player1View.activeEffect?.selectableObjectIds).toEqual([inspectionObjectId]);
+    expect(player1View.objects[inspectionObjectId]?.surface).toBe('FRONT');
+    expect(player2View.activeEffect?.selectableObjectIds).toBeUndefined();
+    expect(player2View.objects[inspectionObjectId]?.surface).toBe('BACK');
+    expect(player1View.match.window?.waitingSeats).toEqual(['FIRST']);
   });
 
   it('检视区已公开的对象对双方都显示 FRONT', () => {

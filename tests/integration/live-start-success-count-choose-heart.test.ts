@@ -168,9 +168,9 @@ describe('LIVE start success-count choose Heart workflow', () => {
     expect(session.state?.activeEffect).toMatchObject({
       abilityId: BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
       selectableOptions: [
-        expect.objectContaining({ id: HeartColor.PINK }),
-        expect.objectContaining({ id: HeartColor.YELLOW }),
-        expect.objectContaining({ id: HeartColor.PURPLE }),
+        expect.objectContaining({ id: HeartColor.PINK, label: '[桃ハート]' }),
+        expect.objectContaining({ id: HeartColor.YELLOW, label: '[黄ハート]' }),
+        expect.objectContaining({ id: HeartColor.PURPLE, label: '[紫ハート]' }),
       ],
       canSkipSelection: false,
     });
@@ -197,6 +197,11 @@ describe('LIVE start success-count choose Heart workflow', () => {
       HeartColor.GREEN,
       HeartColor.BLUE,
       HeartColor.PURPLE,
+    ]);
+    expect(session.state?.activeEffect?.selectableOptions?.map((option) => option.label)).toEqual([
+      '[緑ハート]',
+      '[青ハート]',
+      '[紫ハート]',
     ]);
 
     expect(chooseColor(session, HeartColor.BLUE).success).toBe(true);
@@ -235,9 +240,9 @@ describe('LIVE start success-count choose Heart workflow', () => {
     expect(session.state?.activeEffect).toMatchObject({
       abilityId: BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
       selectableOptions: [
-        expect.objectContaining({ id: HeartColor.PINK }),
-        expect.objectContaining({ id: HeartColor.YELLOW }),
-        expect.objectContaining({ id: HeartColor.PURPLE }),
+        expect.objectContaining({ id: HeartColor.PINK, label: '[桃ハート]' }),
+        expect.objectContaining({ id: HeartColor.YELLOW, label: '[黄ハート]' }),
+        expect.objectContaining({ id: HeartColor.PURPLE, label: '[紫ハート]' }),
       ],
       canSkipSelection: false,
     });

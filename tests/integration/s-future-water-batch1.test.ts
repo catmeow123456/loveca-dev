@@ -25,6 +25,7 @@ import { createGameSession } from '../../src/application/game-session';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import {
   S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+  PL_S_BP5_013_LIVE_START_GREEN_REQUIREMENT_GAIN_GREEN_HEART_ABILITY_ID,
   S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
   S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
   S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
@@ -72,18 +73,24 @@ function createLiveCard(
   options: {
     readonly groupNames?: readonly string[];
     readonly redRequirement?: number;
+    readonly greenRequirement?: number;
     readonly hasScore?: boolean;
   } = {}
 ): LiveCardData {
+  const colorRequirements: Partial<Record<HeartColor, number>> = {
+    [HeartColor.RED]: options.redRequirement ?? 1,
+  };
+  if (options.greenRequirement !== undefined) {
+    colorRequirements[HeartColor.GREEN] = options.greenRequirement;
+  }
+
   return {
     cardCode,
     name: cardCode,
     groupNames: options.groupNames ?? ['Aqours'],
     cardType: CardType.LIVE,
     score: 3,
-    requirements: createHeartRequirement({
-      [HeartColor.RED]: options.redRequirement ?? 1,
-    }),
+    requirements: createHeartRequirement(colorRequirements),
     bladeHearts: options.hasScore ? [{ effect: BladeHeartEffect.SCORE }] : [],
   };
 }
@@ -289,7 +296,12 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
     expect(
       session.state?.players[0].memberSlots.cardStates.get(source.instanceId)?.orientation
     ).toBe(OrientationState.WAITING);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discard.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.activeEffect?.inspectionCardIds).toEqual([
+      target.instanceId,
+      lowCost.instanceId,
+      discard.instanceId,
+    ]);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
     const startedSummary = session
       .getPublicEventsSince(beforeCostSeq)
@@ -301,11 +313,10 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
       expect(startedSummary.summaryStatus).toBe('STARTED');
       expect(startedSummary.sourceOrientationCost).toBe('WAITING');
       expect(startedSummary.sourceCard?.publicObjectId).toBe(`obj_${source.instanceId}`);
-      expect(startedSummary.discardedCostCards?.map((card) => card.publicObjectId)).toEqual([
-        `obj_${discard.instanceId}`,
-      ]);
+      expect(startedSummary.discardedCostCards).toEqual([]);
+      expect(startedSummary.hiddenDiscardedCostCardCount).toBe(1);
       expect(startedSummary.requestedInspectCount).toBe(5);
-      expect(startedSummary.actualInspectedCount).toBe(2);
+      expect(startedSummary.actualInspectedCount).toBe(3);
     }
 
     const reveal = session.executeCommand(
@@ -318,8 +329,8 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
     expect(finish.success, finish.error).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
-      discard.instanceId,
       lowCost.instanceId,
+      discard.instanceId,
     ]);
     const completedSummary = session
       .getPublicEventsSince(beforeCostSeq)
@@ -333,7 +344,7 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
       expect(completedSummary.selectedCards?.map((card) => card.publicObjectId)).toEqual([
         `obj_${target.instanceId}`,
       ]);
-      expect(completedSummary.waitingRoomCardCount).toBe(1);
+      expect(completedSummary.waitingRoomCardCount).toBe(2);
     }
   });
 
@@ -542,6 +553,132 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
     );
     expect(finish.success, finish.error).toBe(true);
+    expect(session.state?.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it('PL!S-bp5-013 gives source member green Heart when own live green requirement total is at least four', () => {
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp5-013-N', {
+        name: '黒澤ダイヤ',
+        hearts: [HeartColor.GREEN],
+      }),
+      PLAYER1,
+      's-bp5-013-source'
+    );
+    const live = createCardInstance(
+      createLiveCard('PL!S-live-green-four', { greenRequirement: 4 }),
+      PLAYER1,
+      'green-four-live'
+    );
+    let game = registerCards(createGameState('s-bp5-013', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      source,
+      live,
+    ]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardIds: [live.instanceId],
+        cardStates: new Map([
+          [live.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
+        ]),
+      },
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+    game = {
+      ...game,
+      pendingAbilities: [
+        createPendingAbility(
+          PL_S_BP5_013_LIVE_START_GREEN_REQUIREMENT_GAIN_GREEN_HEART_ABILITY_ID,
+          source.instanceId,
+          TriggerCondition.ON_LIVE_START
+        ),
+      ],
+    };
+    const session = createSessionFromGame(resolvePendingCardEffects(game).gameState, 's-bp5-013');
+
+    expect(session.state?.activeEffect?.effectText).toContain(
+      '当前[緑ハート]必要数合计 4'
+    );
+    expect(session.state?.activeEffect?.effectText).toContain('满足条件，实际获得[緑ハート]');
+
+    const finish = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+    expect(finish.success, finish.error).toBe(true);
+    expect(session.state?.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: PLAYER1,
+      hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      sourceCardId: source.instanceId,
+      abilityId: PL_S_BP5_013_LIVE_START_GREEN_REQUIREMENT_GAIN_GREEN_HEART_ABILITY_ID,
+    });
+  });
+
+  it('PL!S-bp5-013 resolves with no modifier when green requirement total is below four', () => {
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp5-013-N', {
+        name: '黒澤ダイヤ',
+        hearts: [HeartColor.GREEN],
+      }),
+      PLAYER1,
+      'bp5-013-low'
+    );
+    const live = createCardInstance(
+      createLiveCard('PL!S-live-green-three', { greenRequirement: 3 }),
+      PLAYER1,
+      'green-three-live'
+    );
+    let game = registerCards(createGameState('s-bp5-013-low', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      source,
+      live,
+    ]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardIds: [live.instanceId],
+        cardStates: new Map([
+          [live.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
+        ]),
+      },
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+    game = {
+      ...game,
+      pendingAbilities: [
+        createPendingAbility(
+          PL_S_BP5_013_LIVE_START_GREEN_REQUIREMENT_GAIN_GREEN_HEART_ABILITY_ID,
+          source.instanceId,
+          TriggerCondition.ON_LIVE_START
+        ),
+      ],
+    };
+    const session = createSessionFromGame(
+      resolvePendingCardEffects(game).gameState,
+      's-bp5-013-low'
+    );
+
+    expect(session.state?.activeEffect?.effectText).toContain(
+      '当前[緑ハート]必要数合计 3'
+    );
+    expect(session.state?.activeEffect?.effectText).toContain(
+      '未满足条件，实际不获得[緑ハート]'
+    );
+
+    const finish = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+    expect(finish.success, finish.error).toBe(true);
+    expect(session.state?.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
     expect(session.state?.liveResolution.liveModifiers).toEqual([]);
   });
 

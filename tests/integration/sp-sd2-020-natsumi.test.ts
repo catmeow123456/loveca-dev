@@ -182,7 +182,7 @@ describe('PL!SP-sd2-020 鬼塚夏美 LIVE start workflow', () => {
       targets: [{ id: 'target', slot: SlotPosition.LEFT }],
     });
 
-    expectConfirmOnlyPreview(session, '当前能量 6 张，其他 Liella! 目标 1 名');
+    expectConfirmOnlyPreview(session, '能量不足 7 张，不获得[BLADE]');
     expect(bladeModifierCardIds(session.state)).toEqual([]);
     confirmCurrentEffect(session);
 
@@ -204,7 +204,7 @@ describe('PL!SP-sd2-020 鬼塚夏美 LIVE start workflow', () => {
       targets: [{ id: 'target', slot: SlotPosition.LEFT }],
     });
 
-    expectConfirmOnlyPreview(session, '实际结算：将给来源成员与 1 名其他 Liella! 成员各写入 BLADE +1');
+    expectConfirmOnlyPreview(session, '来源成员与1名其他 Liella! 成员各获得[BLADE]');
     expect(bladeModifierCardIds(session.state)).toEqual([]);
     confirmCurrentEffect(session);
 
@@ -248,7 +248,7 @@ describe('PL!SP-sd2-020 鬼塚夏美 LIVE start workflow', () => {
       targets: [{ id: 'aqours-target', slot: SlotPosition.LEFT, groupNames: ['Aqours'] }],
     });
 
-    expectConfirmOnlyPreview(session, '实际结算：没有其他 Liella! 目标，将只给来源成员写入 BLADE +1');
+    expectConfirmOnlyPreview(session, '来源成员获得[BLADE]');
     expect(bladeModifierCardIds(session.state)).toEqual([]);
     confirmCurrentEffect(session);
 
@@ -271,7 +271,7 @@ describe('PL!SP-sd2-020 鬼塚夏美 LIVE start workflow', () => {
       targets: [{ id: 'target', slot: SlotPosition.LEFT }],
     });
 
-    expectConfirmOnlyPreview(session, '实际结算：来源成员不在舞台，不写入 BLADE');
+    expectConfirmOnlyPreview(session, '来源成员不在舞台，不获得[BLADE]');
     confirmCurrentEffect(session);
 
     expect(session.state?.activeEffect).toBeNull();

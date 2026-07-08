@@ -15,6 +15,7 @@ import {
   addHeartLiveModifierForMember,
   addLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
+import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import {
   BladeHeartEffect,
   HeartColor,
@@ -155,7 +156,11 @@ function collectBladeHeartColorsFromCheerEvent(
   cheerEvent: CheerEvent
 ): ReadonlySet<HeartColor> {
   const colors = new Set<HeartColor>();
-  for (const cardId of cheerEvent.revealedCardIds) {
+  const revealedCardIds = selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    eventIds: [cheerEvent.eventId],
+    eventScope: 'NON_ADDITIONAL',
+  });
+  for (const cardId of revealedCardIds) {
     const card = getCardById(game, cardId);
     if (!card || card.ownerId !== playerId) {
       continue;

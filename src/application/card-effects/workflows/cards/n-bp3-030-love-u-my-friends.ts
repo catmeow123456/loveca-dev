@@ -6,8 +6,9 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
+import { CardType } from '../../../../shared/types/enums.js';
 import { hasAllBladeHeart } from '../../../effects/card-selectors.js';
-import { selectRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
+import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
@@ -47,10 +48,10 @@ function getNLiveSuccessCheerAllBladeScoreConfirmationEffectText(
   const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
   const allBladeCheerCardIds =
     player && sourceInLiveZone
-      ? selectRevealedCheerCardIds(game, player.id, hasAllBladeHeart())
+      ? selectAllBladeCheerCardIds(game, player.id)
       : [];
   const conditionMet = allBladeCheerCardIds.length > 0;
-  return `${getAbilityEffectText(ability.abilityId)}（声援[ALLブレード]卡 ${allBladeCheerCardIds.length}张，${conditionMet ? '满足条件，分数+1' : '未满足条件'}）`;
+  return `${getAbilityEffectText(ability.abilityId)}（声援[ALLハート]卡 ${allBladeCheerCardIds.length}张，${conditionMet ? '满足条件，分数+1' : '未满足条件'}）`;
 }
 
 function resolveNLiveSuccessCheerAllBladeScore(
@@ -67,7 +68,7 @@ function resolveNLiveSuccessCheerAllBladeScore(
   const stateWithoutPending = consumePendingAbility(game, ability);
   const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
   const allBladeCheerCardIds = sourceInLiveZone
-    ? selectRevealedCheerCardIds(stateWithoutPending, player.id, hasAllBladeHeart())
+    ? selectAllBladeCheerCardIds(stateWithoutPending, player.id)
     : [];
   const conditionMet = allBladeCheerCardIds.length > 0;
   const stateAfterScore = conditionMet
@@ -99,6 +100,13 @@ function consumePendingAbility(game: GameState, ability: PendingAbilityState): G
     ...game,
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
   };
+}
+
+function selectAllBladeCheerCardIds(game: GameState, playerId: string): readonly string[] {
+  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    cardTypes: [CardType.MEMBER, CardType.LIVE],
+    predicate: hasAllBladeHeart(),
+  });
 }
 
 function addScoreModifierAndRefresh(

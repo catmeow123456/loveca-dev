@@ -7,40 +7,27 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { findMemberSlot } from '../../../../domain/entities/player.js';
 import type { MemberSlotMovedEvent } from '../../../../domain/events/game-events.js';
-import { GamePhase, OrientationState, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { groupAliasIs } from '../../../effects/card-selectors.js';
-import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
+import { OrientationState, TriggerCondition } from '../../../../shared/types/enums.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { resolveStageMemberOrientationTargetSelection } from '../../../effects/stage-member-target-selection.js';
 import {
   S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
   S_BP5_111_AUTO_ON_THIS_MEMBER_MOVED_WAIT_OPPONENT_LOW_PRINTED_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import {
-  moveMemberBetweenSlotsAndEnqueueTriggers,
-  type EnqueueTriggeredCardEffectsForMemberSlotMoved,
-} from '../../runtime/member-slot-moved-triggers.js';
+import type { EnqueueTriggeredCardEffectsForMemberSlotMoved } from '../../runtime/member-slot-moved-triggers.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
 } from '../../runtime/member-state-changed-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import {
-  getAbilityEffectText,
-  recordAbilityUseForContext,
-  recordPayCostAction,
-} from '../../runtime/workflow-helpers.js';
+import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import { registerPayEnergyPositionChangeToGroupMemberAreaWorkflowHandlers } from '../shared/pay-energy-position-change-to-group-member-area.js';
 
 const POSITION_CHANGE_STEP_ID = 'S_BP5_111_SELECT_AQOURS_OR_SAINTSNOW_MEMBER_SLOT';
 const SELECT_OPPONENT_MEMBER_STEP_ID = 'S_BP5_111_SELECT_OPPONENT_LOW_BLADE_MEMBER_TO_WAIT';
-const isAqoursMember = groupAliasIs('Aqours');
-const isSaintSnowMember = groupAliasIs('SaintSnow');
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -48,21 +35,18 @@ export function registerSBp5111SeiraWorkflowHandlers(deps: {
   readonly enqueueMemberSlotMovedCardEffects: EnqueueTriggeredCardEffectsForMemberSlotMoved;
   readonly enqueueMemberStateChangedCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged;
 }): void {
-  registerActivatedAbilityHandler(
-    S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
-    (game, playerId, cardId) =>
-      startSeiraActivatedPositionChange(game, playerId, cardId, deps.enqueueMemberSlotMovedCardEffects)
-  );
-  registerActiveEffectStepHandler(
-    S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
-    POSITION_CHANGE_STEP_ID,
-    (game, input, context) =>
-      finishSeiraActivatedPositionChange(
-        game,
-        input.selectedSlot ?? null,
-        context.continuePendingCardEffects,
-        deps.enqueueMemberSlotMovedCardEffects
-      )
+  registerPayEnergyPositionChangeToGroupMemberAreaWorkflowHandlers(
+    {
+      abilityId:
+        S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
+      baseCardCode: 'PL!S-bp5-111',
+      stepId: POSITION_CHANGE_STEP_ID,
+      targetGroupAliases: ['Aqours', 'SaintSnow'],
+      stepText: '请选择有『Aqours』或『SaintSnow』成员的其他区域进行站位变换。',
+      selectionLabel: '选择移动区域',
+      confirmSelectionLabel: '站位变换',
+    },
+    { enqueueMemberSlotMovedCardEffects: deps.enqueueMemberSlotMovedCardEffects }
   );
 
   registerPendingAbilityStarterHandler(
@@ -86,171 +70,6 @@ export function registerSBp5111SeiraWorkflowHandlers(deps: {
         deps.enqueueMemberStateChangedCardEffects
       )
   );
-}
-
-function startSeiraActivatedPositionChange(
-  game: GameState,
-  playerId: string,
-  cardId: string,
-  enqueueMemberSlotMovedCardEffects: EnqueueTriggeredCardEffectsForMemberSlotMoved
-): GameState {
-  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
-    return game;
-  }
-
-  const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
-  const player = getPlayerById(game, playerId);
-  const sourceCard = getCardById(game, cardId);
-  const sourceSlot = player ? findMemberSlot(player, cardId) : null;
-  if (
-    activePlayerId !== playerId ||
-    !player ||
-    !sourceCard ||
-    sourceCard.ownerId !== playerId ||
-    !isMemberCardData(sourceCard.data) ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!S-bp5-111') ||
-    sourceSlot === null
-  ) {
-    return game;
-  }
-
-  const targetSlots = getLegalPositionChangeTargetSlots(game, player.id, sourceSlot);
-  if (targetSlots.length === 0) {
-    return game;
-  }
-
-  const canPayCost = payImmediateEffectCosts(game, player.id, cardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
-  ]);
-  if (!canPayCost) {
-    return game;
-  }
-
-  let state = recordAbilityUseForContext(game, player.id, {
-    abilityId: S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
-    sourceCardId: cardId,
-  });
-  const costPayment = payImmediateEffectCosts(state, player.id, cardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
-  ]);
-  if (!costPayment) {
-    return game;
-  }
-
-  state = recordPayCostAction(costPayment.gameState, player.id, {
-    abilityId: S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
-    sourceCardId: cardId,
-    energyCardIds: costPayment.paidEnergyCardIds,
-    amount: costPayment.paidEnergyCardIds.length,
-  });
-
-  return addAction(
-    {
-      ...state,
-      activeEffect: {
-        id: `${S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID}:${cardId}:turn-${state.turnCount}:action-${state.actionHistory.length}`,
-        abilityId:
-          S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
-        sourceCardId: cardId,
-        controllerId: player.id,
-        effectText: getAbilityEffectText(
-          S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID
-        ),
-        stepId: POSITION_CHANGE_STEP_ID,
-        stepText: '请选择有『Aqours』或『SaintSnow』成员的其他区域进行站位变换。',
-        awaitingPlayerId: player.id,
-        selectableSlots: targetSlots,
-        selectionLabel: '选择移动区域',
-        confirmSelectionLabel: '站位变换',
-        canSkipSelection: false,
-        metadata: {
-          sourceSlot,
-          paidEnergyCardIds: costPayment.paidEnergyCardIds,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      abilityId: S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID,
-      sourceCardId: cardId,
-      step: 'PAY_ENERGY_SELECT_POSITION_CHANGE_TARGET',
-      sourceSlot,
-      selectableSlots: targetSlots,
-      paidEnergyCardIds: costPayment.paidEnergyCardIds,
-    }
-  );
-}
-
-function finishSeiraActivatedPositionChange(
-  game: GameState,
-  selectedSlot: SlotPosition | null,
-  continuePendingCardEffects: ContinuePendingCardEffects,
-  enqueueMemberSlotMovedCardEffects: EnqueueTriggeredCardEffectsForMemberSlotMoved
-): GameState {
-  const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !==
-      S_BP5_111_ACTIVATED_PAY_ENERGY_POSITION_CHANGE_TO_AQOURS_OR_SAINTSNOW_MEMBER_ABILITY_ID ||
-    effect.stepId !== POSITION_CHANGE_STEP_ID ||
-    selectedSlot === null ||
-    effect.selectableSlots?.includes(selectedSlot) !== true
-  ) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  const sourceSlot = player ? findMemberSlot(player, effect.sourceCardId) : null;
-  if (
-    !player ||
-    sourceSlot === null ||
-    sourceSlot === selectedSlot ||
-    !getLegalPositionChangeTargetSlots(game, player.id, sourceSlot).includes(selectedSlot)
-  ) {
-    return game;
-  }
-
-  const moveResult = moveMemberBetweenSlotsAndEnqueueTriggers(
-    game,
-    player.id,
-    effect.sourceCardId,
-    selectedSlot,
-    enqueueMemberSlotMovedCardEffects,
-    {
-      cause: {
-        kind: 'CARD_EFFECT',
-        playerId: player.id,
-        sourceCardId: effect.sourceCardId,
-        abilityId: effect.abilityId,
-        pendingAbilityId: effect.id,
-      },
-      prepareGameStateBeforeEnqueue: (state, result) =>
-        addAction(
-          {
-            ...state,
-            activeEffect: null,
-          },
-          'RESOLVE_ABILITY',
-          player.id,
-          {
-            pendingAbilityId: effect.id,
-            abilityId: effect.abilityId,
-            sourceCardId: effect.sourceCardId,
-            step: 'POSITION_CHANGE',
-            fromSlot: result.fromSlot,
-            toSlot: result.toSlot,
-            swappedCardId: result.swappedCardId,
-            paidEnergyCardIds: effect.metadata?.paidEnergyCardIds,
-          }
-        ),
-    }
-  );
-  if (!moveResult) {
-    return game;
-  }
-
-  return continuePendingCardEffects(moveResult.gameState, false);
 }
 
 function startSeiraMovedAuto(
@@ -481,30 +300,6 @@ function finishActiveEffect(
     ),
     effect.metadata?.orderedResolution === true
   );
-}
-
-function getLegalPositionChangeTargetSlots(
-  game: GameState,
-  playerId: string,
-  sourceSlot: SlotPosition
-): readonly SlotPosition[] {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return [];
-  }
-  return (Object.values(SlotPosition) as SlotPosition[]).filter((slot) => {
-    if (slot === sourceSlot) {
-      return false;
-    }
-    const cardId = player.memberSlots.slots[slot];
-    const card = cardId ? getCardById(game, cardId) : null;
-    return (
-      card !== null &&
-      card.ownerId === playerId &&
-      isMemberCardData(card.data) &&
-      (isAqoursMember(card) || isSaintSnowMember(card))
-    );
-  });
 }
 
 function getPendingMoveEvent(

@@ -6,6 +6,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { ZoneType } from '../../../../shared/types/enums.js';
 import {
+  S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID,
   S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_BP6_017_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -26,6 +27,12 @@ interface DirectMillTopConfig {
 }
 
 const DIRECT_MILL_TOP_CONFIGS: readonly DirectMillTopConfig[] = [
+  {
+    abilityId: S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID,
+    stepId: 'S_BP5_015_REVEAL_MILLED_TOP_TEN',
+    topCount: 10,
+    finishStep: 'FINISH_MILL_TOP_TEN',
+  },
   {
     abilityId: S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
     stepId: 'S_BP6_012_REVEAL_MILLED_TOP_FIVE',

@@ -177,7 +177,10 @@ function buildWindowDescriptor(game: GameState): WindowDescriptor | null {
     .filter((seat): seat is Seat => seat !== null);
 
   if (game.inspectionContext) {
-    const inspectionSeat = getSeatForPlayer(game, game.inspectionContext.ownerPlayerId);
+    const inspectionSeat = getSeatForPlayer(
+      game,
+      game.inspectionContext.viewerPlayerId ?? game.inspectionContext.ownerPlayerId
+    );
     return {
       windowType: 'INSPECTION',
       actingSeat: inspectionSeat,
@@ -751,6 +754,9 @@ function projectInspectionZones(
   zones: Partial<Record<ViewZoneKey, ViewZoneState>>
 ): void {
   const inspectionOwnerId = game.inspectionContext?.ownerPlayerId ?? null;
+  const inspectionViewerId =
+    game.inspectionContext?.viewerPlayerId ?? game.inspectionContext?.ownerPlayerId ?? null;
+  const inspectionViewerSeat = inspectionViewerId ? getSeatForPlayer(game, inspectionViewerId) : null;
   for (const seat of ['FIRST', 'SECOND'] as const) {
     const ownerPlayerId = getPlayerIdForSeat(game, seat);
     const ownedCardIds =
@@ -777,7 +783,7 @@ function projectInspectionZones(
 
       const surface = getViewerSurfaceForCard({
         zone: ZoneType.INSPECTION_ZONE,
-        ownerSeat: seat,
+        ownerSeat: inspectionViewerSeat ?? seat,
         viewerSeat,
         isInspectionCardRevealed: game.inspectionZone.revealedCardIds.includes(cardId),
       });
@@ -1113,7 +1119,10 @@ function buildPermissionViewState(
     };
   }
 
-  const inspectionSeat = getSeatForPlayer(game, game.inspectionContext.ownerPlayerId);
+  const inspectionSeat = getSeatForPlayer(
+    game,
+    game.inspectionContext.viewerPlayerId ?? game.inspectionContext.ownerPlayerId
+  );
   if (inspectionSeat !== viewerSeat) {
     // 检视期间不支持并发检视，非检视所有者不应看到 OPEN_INSPECTION 为可用命令
     return {
@@ -1290,10 +1299,11 @@ function buildInspectionCommandHints(
   viewerSeat: Seat,
   options: { readonly skipOpenInspection?: boolean } = {}
 ): readonly ViewCommandHint[] {
+  const inspectionOwnerId = game.inspectionContext?.ownerPlayerId ?? viewerPlayerId;
   const ownedCardCount = game.inspectionZone.cardIds.filter(
-    (cardId) => game.cardRegistry.get(cardId)?.ownerId === viewerPlayerId
+    (cardId) => game.cardRegistry.get(cardId)?.ownerId === inspectionOwnerId
   ).length;
-  const ownedCardIds = getOwnedCardIds(game.inspectionZone.cardIds, game, viewerPlayerId);
+  const ownedCardIds = getOwnedCardIds(game.inspectionZone.cardIds, game, inspectionOwnerId);
   const unrevealedOwnedCardIds = ownedCardIds.filter(
     (cardId) => !game.inspectionZone.revealedCardIds.includes(cardId)
   );

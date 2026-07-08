@@ -272,12 +272,12 @@ describe('PL!-bp6-006 Maki workflow', () => {
     const player = getPlayerById(session.state!, PLAYER1)!;
     expect(player.hand.cardIds).toEqual([revealedCards[0]!.instanceId]);
     expect(player.waitingRoom.cardIds).toEqual([
-      cost.instanceId,
       revealedCards[1]!.instanceId,
       revealedCards[2]!.instanceId,
       revealedCards[3]!.instanceId,
       revealedCards[4]!.instanceId,
     ]);
+    expect(player.mainDeck.cardIds).toEqual([cost.instanceId]);
     expect(session.state!.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
       playerId: PLAYER1,
@@ -299,7 +299,124 @@ describe('PL!-bp6-006 Maki workflow', () => {
     ]);
   });
 
-  it('PL!-bp6-006 sends all revealed cards to waiting room when the color condition is not met or the deck is short', () => {
+  it('PL!-bp6-006 refreshes a short deck from waiting room, takes a μ’s card, and gains BLADE +3', () => {
+    const maki = createCardInstance(
+      createMemberCard('PL!-bp6-006-R＋', { name: '西木野真姫', cost: 17 }),
+      PLAYER1,
+      'maki-short-refresh'
+    );
+    const cost = createCardInstance(
+      createMemberCard('cost-card', { hearts: [createHeartIcon(HeartColor.RED, 1)] }),
+      PLAYER1,
+      'cost-card'
+    );
+    const mainDeckCards = [
+      createCardInstance(
+        createMemberCard('PL!-main-red-member-1', {
+          hearts: [createHeartIcon(HeartColor.RED, 1)],
+        }),
+        PLAYER1,
+        'main-red-1'
+      ),
+      createCardInstance(
+        createLiveCard('PL!-main-red-live', { requirements: { [HeartColor.RED]: 1 } }),
+        PLAYER1,
+        'main-red-live'
+      ),
+    ];
+    const waitingRoomCards = [
+      createCardInstance(
+        createMemberCard('PL!-waiting-red-member-1', {
+          hearts: [createHeartIcon(HeartColor.RED, 1)],
+        }),
+        PLAYER1,
+        'waiting-red-1'
+      ),
+      createCardInstance(
+        createMemberCard('PL!-waiting-red-member-2', {
+          hearts: [createHeartIcon(HeartColor.RED, 1)],
+        }),
+        PLAYER1,
+        'waiting-red-2'
+      ),
+      createCardInstance(
+        createLiveCard('PL!-waiting-red-live', { requirements: { [HeartColor.RED]: 1 } }),
+        PLAYER1,
+        'waiting-red-live'
+      ),
+    ];
+    let game = registerCards(
+      createGameState('bp6-006-short-refresh', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [maki, cost, ...mainDeckCards, ...waitingRoomCards]
+    );
+    game = placeStageMember(game, maki.instanceId);
+    game = setPlayerZones(game, {
+      hand: [cost.instanceId],
+      mainDeck: mainDeckCards.map((card) => card.instanceId),
+      waitingRoom: waitingRoomCards.map((card) => card.instanceId),
+    });
+    const session = createMainPhaseSession(game);
+
+    session.executeCommand(
+      createActivateAbilityCommand(
+        PLAYER1,
+        maki.instanceId,
+        BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID
+      )
+    );
+    session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, cost.instanceId)
+    );
+    session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        HeartColor.RED
+      )
+    );
+
+    const inspectedCardIds = session.state!.activeEffect!.inspectionCardIds!;
+    const selectedCardId = session.state!.activeEffect!.selectableCardIds![0]!;
+    expect(inspectedCardIds).toHaveLength(5);
+    expect(inspectedCardIds.slice(0, 2)).toEqual(mainDeckCards.map((card) => card.instanceId));
+    expect(session.state!.activeEffect!.selectableCardIds).toHaveLength(5);
+    expect(
+      session.state!.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.affectedPlayerId === PLAYER1 &&
+          action.payload.movedCount === 4 &&
+          action.payload.mainDeckCountAfter === 6
+      )
+    ).toBe(true);
+
+    session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, selectedCardId)
+    );
+
+    const player = getPlayerById(session.state!, PLAYER1)!;
+    expect(player.hand.cardIds).toEqual([selectedCardId]);
+    expect(player.waitingRoom.cardIds).toEqual(
+      inspectedCardIds.filter((cardId) => cardId !== selectedCardId)
+    );
+    expect(player.mainDeck.cardIds).toHaveLength(1);
+    expect(player.mainDeck.cardIds.every((cardId) => !inspectedCardIds.includes(cardId))).toBe(
+      true
+    );
+    expect(session.state!.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 3,
+      sourceCardId: maki.instanceId,
+      abilityId: BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
+    });
+  });
+
+  it('PL!-bp6-006 sends all revealed cards to waiting room when the color condition is not met or total available cards are fewer than five', () => {
     const maki = createCardInstance(createMemberCard('PL!-bp6-006-P'), PLAYER1, 'maki-miss');
     const cost = createCardInstance(createMemberCard('cost-card'), PLAYER1, 'cost-card');
     const revealedCards = [
@@ -351,7 +468,10 @@ describe('PL!-bp6-006 Maki workflow', () => {
     const player = getPlayerById(session.state!, PLAYER1)!;
     expect(session.state?.activeEffect).toBeNull();
     expect(player.hand.cardIds).toEqual([]);
-    expect(player.waitingRoom.cardIds).toEqual([cost.instanceId, ...revealedCards.map((card) => card.instanceId)]);
+    expect(player.waitingRoom.cardIds).toEqual([
+      ...revealedCards.map((card) => card.instanceId),
+      cost.instanceId,
+    ]);
     expect(session.state!.liveResolution.liveModifiers).toEqual([]);
   });
 

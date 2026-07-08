@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
-import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
+import { createGameState, emitGameEvent, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { addCardToStatefulZone } from '../../src/domain/entities/zone';
+import { createCheerEvent } from '../../src/domain/events/game-events';
 import { GameService } from '../../src/application/game-service';
 import { HS_BP1_022_LIVE_SUCCESS_CHEER_HASUNOSORA_MEMBER_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
@@ -78,6 +79,7 @@ function createHasunosoraLive(cardCode: string): LiveCardData {
 function setupAwokeLiveSuccess(options: {
   readonly cheerCards: readonly ReturnType<typeof createCardInstance>[];
   readonly resolutionCardIds?: readonly string[];
+  readonly cheerEventRevealedCardIds?: readonly string[];
 }) {
   const sourceLive = createCardInstance(createAwokeLive(), PLAYER1, 'awoke-live');
   const opponentLive = createCardInstance(createOpponentLive(), PLAYER2, 'opponent-live');
@@ -121,6 +123,15 @@ function setupAwokeLiveSuccess(options: {
       performingPlayerId: PLAYER1,
     },
   };
+  game = emitGameEvent(
+    game,
+    createCheerEvent(
+      PLAYER1,
+      options.cheerEventRevealedCardIds ?? options.cheerCards.map((card) => card.instanceId),
+      options.cheerCards.length,
+      { automated: true }
+    )
+  );
 
   const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_SUCCESS]);
   expect(result.success).toBe(true);

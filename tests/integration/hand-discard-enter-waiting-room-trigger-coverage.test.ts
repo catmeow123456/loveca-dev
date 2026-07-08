@@ -576,9 +576,8 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
       expect(startedSummary.summaryStatus).toBe('STARTED');
       expect(startedSummary.sourceOrientationCost).toBe('WAITING');
       expect(startedSummary.sourceCard?.publicObjectId).toBe(`obj_${source.instanceId}`);
-      expect(startedSummary.discardedCostCards?.map((card) => card.publicObjectId)).toEqual([
-        `obj_${discardCard.instanceId}`,
-      ]);
+      expect(startedSummary.discardedCostCards).toEqual([]);
+      expect(startedSummary.hiddenDiscardedCostCardCount).toBe(1);
       expect(startedSummary.requestedInspectCount).toBe(5);
       expect(startedSummary.actualInspectedCount).toBe(5);
     }
@@ -602,6 +601,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
       expect(completedSummary.noSelectedCards).toBe(true);
       expect(completedSummary.waitingRoomCardCount).toBe(5);
     }
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([discardCard.instanceId]);
 
     expectPb1003AutoResolvedOnce(session.state, pb1003Source.instanceId);
   });

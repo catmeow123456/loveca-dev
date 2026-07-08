@@ -488,10 +488,26 @@ describe('PL!S-bp6 LIVE_SUCCESS focused effects', () => {
         },
       },
       {
-        label: 'stale not in resolution',
+        label: 'old event not current cheer',
         configure: (game) => {
           const staleLive = createCardInstance(createLiveCard('PL!S-stale-live', 1), PLAYER1, 'stale-live');
-          return setOwnCheerResolution(registerCards(game, [staleLive]), [staleLive.instanceId], []);
+          const registered = registerCards(game, [staleLive]);
+          const withOldEvent = emitGameEvent(
+            registered,
+            createCheerEvent(PLAYER1, [staleLive.instanceId], 1)
+          );
+          return {
+            ...withOldEvent,
+            resolutionZone: {
+              ...withOldEvent.resolutionZone,
+              cardIds: [staleLive.instanceId],
+              revealedCardIds: [staleLive.instanceId],
+            },
+            liveResolution: {
+              ...withOldEvent.liveResolution,
+              firstPlayerCheerCardIds: [],
+            },
+          };
         },
       },
       {
@@ -502,12 +518,19 @@ describe('PL!S-bp6 LIVE_SUCCESS focused effects', () => {
             PLAYER1,
             'unrevealed-live'
           );
-          return setOwnCheerResolution(
-            registerCards(game, [unrevealedLive]),
-            [unrevealedLive.instanceId],
-            [unrevealedLive.instanceId],
-            []
-          );
+          const registered = registerCards(game, [unrevealedLive]);
+          return {
+            ...registered,
+            resolutionZone: {
+              ...registered.resolutionZone,
+              cardIds: [unrevealedLive.instanceId],
+              revealedCardIds: [],
+            },
+            liveResolution: {
+              ...registered.liveResolution,
+              firstPlayerCheerCardIds: [unrevealedLive.instanceId],
+            },
+          };
         },
       },
     ];

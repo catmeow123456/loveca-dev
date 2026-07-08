@@ -19,6 +19,7 @@ const TERMINOLOGY_RULES: readonly {
   readonly issue: string;
   readonly pattern: RegExp;
 }[] = [
+  { issue: 'use 【中央】 instead of 【センター】', pattern: /【センター】/ },
   { issue: 'use 中央声援 instead of 中心声援', pattern: /中心声援/ },
   { issue: 'use 成功LIVE卡区 instead of 成功LIVE区', pattern: /成功LIVE区/ },
   { issue: 'use 小队名 instead of unit 名 / unit成员', pattern: /unit\s*名|unit成员|不同unit/ },

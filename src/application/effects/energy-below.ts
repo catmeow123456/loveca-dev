@@ -20,6 +20,11 @@ export interface ReturnEnergyBelowResult {
   readonly returnedEnergyCardIds: readonly string[];
 }
 
+export interface ReturnSelectedEnergyBelowResult {
+  readonly gameState: GameState;
+  readonly returnedEnergyCardIds: readonly string[];
+}
+
 export interface ReturnEnergyBelowPlayerResult {
   readonly playerState: PlayerState;
   readonly returnedEnergyCardIds: readonly string[];
@@ -76,6 +81,49 @@ export function returnEnergyBelowMemberToEnergyDeck(
     return result.playerState;
   });
   return { gameState, returnedEnergyCardIds };
+}
+
+export function returnSelectedEnergyBelowMemberToEnergyDeck(
+  game: GameState,
+  playerId: string,
+  targetSlot: SlotPosition,
+  selectedEnergyCardIds: readonly string[]
+): ReturnSelectedEnergyBelowResult | null {
+  const uniqueSelectedEnergyCardIds = new Set(selectedEnergyCardIds);
+  if (uniqueSelectedEnergyCardIds.size !== selectedEnergyCardIds.length) {
+    return null;
+  }
+  const player = getPlayerById(game, playerId);
+  if (!player || !getCardInSlot(player.memberSlots, targetSlot)) {
+    return null;
+  }
+  const energyBelow = player.memberSlots.energyBelow[targetSlot] ?? [];
+  if (selectedEnergyCardIds.some((cardId) => !energyBelow.includes(cardId))) {
+    return null;
+  }
+  if (selectedEnergyCardIds.length === 0) {
+    return { gameState: game, returnedEnergyCardIds: [] };
+  }
+
+  const selectedSet = new Set(selectedEnergyCardIds);
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    memberSlots: {
+      ...currentPlayer.memberSlots,
+      energyBelow: {
+        ...currentPlayer.memberSlots.energyBelow,
+        [targetSlot]: (currentPlayer.memberSlots.energyBelow[targetSlot] ?? []).filter(
+          (cardId) => !selectedSet.has(cardId)
+        ),
+      },
+    },
+    energyDeck: selectedEnergyCardIds.reduce(
+      (energyDeck, energyCardId) => addCardToZone(energyDeck, energyCardId),
+      currentPlayer.energyDeck
+    ),
+  }));
+
+  return { gameState, returnedEnergyCardIds: selectedEnergyCardIds };
 }
 
 export function returnEnergyBelowMemberToEnergyDeckForPlayer(

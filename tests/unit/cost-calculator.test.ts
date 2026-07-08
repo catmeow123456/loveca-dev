@@ -615,6 +615,137 @@ describe('CostCalculator', () => {
       expect(directPlan?.actualEnergyCost).toBe(8);
     });
 
+    it('应该让舞台上的 PL!S-bp5-001 只使手牌中严格无能力成员登场费用减少1', () => {
+      const memberData = createMockMemberData(5, '无能力成员', 'PL!S-test-no-ability');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 4 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chika-source', 10, SlotPosition.LEFT, {
+            cardCode: 'PL!S-bp5-001-SEC',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.modifiedCost).toBe(4);
+      expect(directPlan?.costModifierAmount).toBe(1);
+      expect(directPlan?.costModifiers[0]).toMatchObject({
+        id: 'PL!S-bp5-001-SEC:stage-source-cost-minus-no-ability-member',
+        sourceCardId: 'chika-source',
+      });
+    });
+
+    it('PL!S-bp5-001 应该把中文卡表的 "-" 占位符视为无能力成员文本', () => {
+      const memberData = createMockMemberData(4, '渡辺 曜', 'PL!S-bp2-014-N', {
+        cardText: '-',
+      });
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 3 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chika-source', 10, SlotPosition.LEFT, {
+            cardCode: 'PL!S-bp5-001-P',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.modifiedCost).toBe(3);
+      expect(directPlan?.costModifierAmount).toBe(1);
+    });
+
+    it('PL!S-bp5-001 不应该减少常时或登场能力成员的手牌登场费用', () => {
+      const abilityTargets = [
+        createMockMemberData(5, '常时成员', 'PL!S-test-continuous', {
+          cardText: '【常时】此成员获得[BLADE]。',
+        }),
+        createMockMemberData(5, '登场成员', 'PL!S-test-on-enter', {
+          cardText: '【登场】抽1张卡。',
+        }),
+      ];
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 4 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chika-source', 10, SlotPosition.LEFT, {
+            cardCode: 'PL!S-bp5-001-P',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      for (const memberData of abilityTargets) {
+        const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+        expect(result.canPay).toBe(false);
+        expect(result.reason).toContain('需要 5 能量');
+      }
+    });
+
+    it('PL!S-bp5-001 减费必须来自舞台且目标必须从手牌登场', () => {
+      const memberData = createMockMemberData(5, '无能力成员', 'PL!S-test-no-ability');
+      const sourceLeftStage: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 4 }, (_, index) => `e${index}`),
+        stageMembers: [],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+      const notFromHand: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 4 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chika-source', 10, SlotPosition.LEFT, {
+            cardCode: 'PL!S-bp5-001-R＋',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: [],
+      };
+
+      for (const resources of [sourceLeftStage, notFromHand]) {
+        const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+        expect(result.canPay).toBe(false);
+        expect(result.reason).toContain('需要 5 能量');
+      }
+    });
+
+    it('当前 PL!S-bp5-001 多来源按既有 cost modifier 规则叠加', () => {
+      const memberData = createMockMemberData(5, '无能力成员', 'PL!S-test-no-ability');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 3 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('chika-source-a', 10, SlotPosition.LEFT, {
+            cardCode: 'PL!S-bp5-001-AR',
+          }),
+          createStageMemberInfo('chika-source-b', 10, SlotPosition.RIGHT, {
+            cardCode: 'PL!S-bp5-001-P',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      const directPlan = result.availablePlans.find((plan) => !plan.isRelay);
+      expect(result.canPay).toBe(true);
+      expect(directPlan?.modifiedCost).toBe(3);
+      expect(directPlan?.costModifierAmount).toBe(2);
+      expect(directPlan?.costModifiers.map((modifier) => modifier.sourceCardId)).toEqual([
+        'chika-source-a',
+        'chika-source-b',
+      ]);
+    });
+
     it('应该让 PL!SP-bp5-003-SEC 同编号罕度同样作为舞台来源减费', () => {
       const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10', {
         groupNames: ['Liella!'],

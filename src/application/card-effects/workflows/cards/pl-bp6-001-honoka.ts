@@ -8,6 +8,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { CardType, SlotPosition } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, hasBladeHeart, not, typeIs } from '../../../effects/card-selectors.js';
+import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import {
   BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   BP6_001_LIVE_SUCCESS_CHEER_NO_BLADE_MUSE_MEMBER_DRAW_DISCARD_ABILITY_ID,
@@ -147,7 +148,7 @@ function startHonokaLiveSuccessDrawDiscard(
     return game;
   }
 
-  const currentCheerCardIds = getCurrentOwnCheerCardIds(game, player.id);
+  const currentCheerCardIds = selectCurrentLiveRevealedCheerCardIds(game, player.id);
   const matchingCheerCardIds = getCurrentOwnRevealedCheerNoBladeMuseMemberCardIds(game, player.id);
   if (matchingCheerCardIds.length === 0) {
     const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options, {
@@ -222,28 +223,16 @@ function getCurrentOwnRevealedCheerNoBladeMuseMemberCardIds(
   game: GameState,
   playerId: string
 ): readonly string[] {
-  const currentCheerCardIds = getCurrentOwnCheerCardIds(game, playerId);
-  const resolutionCardIdSet = new Set(game.resolutionZone.cardIds);
-  const revealedCardIdSet = new Set(game.resolutionZone.revealedCardIds);
   const isNoBladeMuseMember = and(
     typeIs(CardType.MEMBER),
     groupAliasIs(MUSE),
     not(hasBladeHeart())
   );
-  return currentCheerCardIds.filter((cardId) => {
-    if (!resolutionCardIdSet.has(cardId) || !revealedCardIdSet.has(cardId)) {
-      return false;
-    }
-    const card = getCardById(game, cardId);
-    return card !== null && card.ownerId === playerId && isNoBladeMuseMember(card);
+  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    cardTypes: CardType.MEMBER,
+    groupAliases: [MUSE],
+    predicate: isNoBladeMuseMember,
   });
-}
-
-function getCurrentOwnCheerCardIds(game: GameState, playerId: string): readonly string[] {
-  const firstPlayerId = game.players[game.firstPlayerIndex]?.id ?? null;
-  return playerId === firstPlayerId
-    ? game.liveResolution.firstPlayerCheerCardIds
-    : game.liveResolution.secondPlayerCheerCardIds;
 }
 
 function getHonokaLiveStartConfirmationConfig(

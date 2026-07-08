@@ -7,6 +7,7 @@ import {
 } from '../../src/domain/entities/card';
 import {
   createGameState,
+  emitGameEvent,
   getPlayerById,
   registerCards,
   updatePlayer,
@@ -14,6 +15,7 @@ import {
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import { createCheerEvent } from '../../src/domain/events/game-events';
 import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
@@ -163,9 +165,10 @@ function setCheerResolution(
     readonly secondPlayerCheerCardIds?: readonly string[];
     readonly resolutionCardIds?: readonly string[];
     readonly revealedCardIds?: readonly string[];
+    readonly cheerEventRevealedCardIds?: readonly string[];
   }
 ): GameState {
-  return {
+  const state: GameState = {
     ...game,
     resolutionZone: {
       ...game.resolutionZone,
@@ -178,6 +181,17 @@ function setCheerResolution(
       secondPlayerCheerCardIds: [...(options.secondPlayerCheerCardIds ?? [])],
     },
   };
+  return options.cheerEventRevealedCardIds
+    ? emitGameEvent(
+        state,
+        createCheerEvent(
+          PLAYER1,
+          options.cheerEventRevealedCardIds,
+          options.cheerEventRevealedCardIds.length,
+          { automated: true }
+        )
+      )
+    : state;
 }
 
 describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
@@ -588,6 +602,64 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
 
     expect(resolved.activeEffect).toBeNull();
     expect(getPlayerById(resolved, PLAYER1)!.mainDeck.cardIds).toEqual([drawCard.instanceId]);
+  });
+
+  it('LIVE_SUCCESS counts a matching cheer member revealed by this cheer after it left resolutionZone', () => {
+    const honoka = createCardInstance(
+      createMemberCard('PL!-bp6-001-R＋'),
+      PLAYER1,
+      'honoka-recovered-cheer'
+    );
+    const recoveredMuseMember = createCardInstance(
+      createMemberCard('PL!-recovered-muse-member'),
+      PLAYER1,
+      'recovered-muse-member'
+    );
+    const oldHand = createCardInstance(createMemberCard('PL!-old-hand'), PLAYER1, 'old-hand');
+    const drawCard = createCardInstance(createMemberCard('PL!-draw-card'), PLAYER1, 'draw-card');
+    let game = registerCards(
+      createGameState('bp6-001-live-success-recovered', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [honoka, recoveredMuseMember, oldHand, drawCard]
+    );
+    game = placeStageMembers(game, [{ cardId: honoka.instanceId, slot: SlotPosition.CENTER }]);
+    game = setPlayerZones(game, {
+      hand: [oldHand.instanceId],
+      mainDeck: [drawCard.instanceId],
+    });
+    game = setCheerResolution(game, {
+      firstPlayerCheerCardIds: [recoveredMuseMember.instanceId],
+      resolutionCardIds: [],
+      revealedCardIds: [],
+      cheerEventRevealedCardIds: [recoveredMuseMember.instanceId],
+    });
+    game = {
+      ...game,
+      pendingAbilities: [
+        createPendingAbility(
+          BP6_001_LIVE_SUCCESS_CHEER_NO_BLADE_MUSE_MEMBER_DRAW_DISCARD_ABILITY_ID,
+          honoka.instanceId,
+          TriggerCondition.ON_LIVE_SUCCESS
+        ),
+      ],
+    };
+
+    let resolved = resolvePendingCardEffects(game).gameState;
+    expect(resolved.activeEffect?.selectableCardIds).toEqual([
+      oldHand.instanceId,
+      drawCard.instanceId,
+    ]);
+
+    resolved = confirmActiveEffectStep(
+      resolved,
+      PLAYER1,
+      resolved.activeEffect!.id,
+      oldHand.instanceId
+    );
+
+    const player = getPlayerById(resolved, PLAYER1)!;
+    expect(player.hand.cardIds).toEqual([drawCard.instanceId]);
+    expect(player.waitingRoom.cardIds).toContain(oldHand.instanceId);
+    expect(resolved.activeEffect).toBeNull();
   });
 
   it('LIVE_SUCCESS keeps draw/discard helper semantics when no card can be drawn and no hand can be discarded', () => {

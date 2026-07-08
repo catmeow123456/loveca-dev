@@ -7,11 +7,13 @@ import {
 } from '../../src/domain/entities/card';
 import {
   createGameState,
+  emitGameEvent,
   registerCards,
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone } from '../../src/domain/entities/zone';
+import { createCheerEvent } from '../../src/domain/events/game-events';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
@@ -76,6 +78,7 @@ function setupLiveSuccess(options: {
   readonly resolutionOnlyCards?: readonly ReturnType<typeof createCardInstance>[];
   readonly resolutionCardIds?: readonly string[];
   readonly revealedCardIds?: readonly string[];
+  readonly cheerEventRevealedCardIds?: readonly string[];
   readonly initialScore?: number;
 }): GameState {
   const sourceLives =
@@ -113,7 +116,7 @@ function setupLiveSuccess(options: {
     liveZone: addCardToStatefulZone(player.liveZone, opponentLive.instanceId),
   }));
 
-  return {
+  let state: GameState = {
     ...game,
     currentPhase: GamePhase.LIVE_RESULT_PHASE,
     currentSubPhase: SubPhase.RESULT_FIRST_SUCCESS_EFFECTS,
@@ -139,6 +142,18 @@ function setupLiveSuccess(options: {
       performingPlayerId: PLAYER1,
     },
   };
+  if (options.cheerEventRevealedCardIds) {
+    state = emitGameEvent(
+      state,
+      createCheerEvent(
+        PLAYER1,
+        options.cheerEventRevealedCardIds,
+        options.cheerEventRevealedCardIds.length,
+        { automated: true }
+      )
+    );
+  }
+  return state;
 }
 
 function resolveLiveSuccess(game: GameState): GameState {
@@ -188,7 +203,24 @@ function latestPayload(game: GameState) {
 }
 
 describe('PL!N-bp3-030 Love U my friends live success workflow', () => {
-  it('adds this-live SCORE +1 and refreshes playerScores when own cheer reveals ALL BLADE', () => {
+  it('shows ALL Heart condition status in the confirm-only preview', () => {
+    const allHeartCheer = createCardInstance(
+      createCheerMember('PL!N-test-all-heart-preview', allBladeHeart()),
+      PLAYER1,
+      'own-all-heart-preview-cheer'
+    );
+    const result = new GameService().executeCheckTiming(
+      setupLiveSuccess({ ownCheerCards: [allHeartCheer] }),
+      [TriggerCondition.ON_LIVE_SUCCESS]
+    );
+
+    expect(result.success, result.error).toBe(true);
+    expect(result.gameState.activeEffect?.effectText).toBe(
+      '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLハート]的卡1张以上时，此卡的分数+1。（声援[ALLハート]卡 1张，满足条件，分数+1）'
+    );
+  });
+
+  it('adds this-live SCORE +1 and refreshes playerScores when own cheer reveals ALL Heart', () => {
     const sourceLive = createCardInstance(createLoveUMyFriends(), PLAYER1, 'love-u-live');
     const allBladeCheer = createCardInstance(
       createCheerMember('PL!N-test-all-blade', allBladeHeart()),
@@ -253,7 +285,7 @@ describe('PL!N-bp3-030 Love U my friends live success workflow', () => {
     });
   });
 
-  it('does not count opponent cheer cards with ALL BLADE', () => {
+  it('does not count opponent cheer cards with ALL Heart', () => {
     const opponentAllBlade = createCardInstance(
       createCheerMember('PL!N-test-opponent-all-blade', allBladeHeart()),
       PLAYER2,
@@ -308,6 +340,30 @@ describe('PL!N-bp3-030 Love U my friends live success workflow', () => {
     expect(latestPayload(state)).toMatchObject({
       allBladeCheerCardIds: [],
       conditionMet: false,
+    });
+  });
+
+  it('counts an ALL Heart cheer card revealed by this cheer even after it left the resolution zone', () => {
+    const allBladeCheer = createCardInstance(
+      createCheerMember('PL!N-test-recovered-all-blade', allBladeHeart()),
+      PLAYER1,
+      'recovered-all-blade'
+    );
+    const game = setupLiveSuccess({
+      ownCheerCards: [allBladeCheer],
+      resolutionCardIds: [],
+      revealedCardIds: [],
+      cheerEventRevealedCardIds: [allBladeCheer.instanceId],
+    });
+
+    const state = resolveLiveSuccess(game);
+
+    expect(loveUScoreModifiers(state)).toHaveLength(1);
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+    expect(latestPayload(state)).toMatchObject({
+      allBladeCheerCardIds: [allBladeCheer.instanceId],
+      conditionMet: true,
+      scoreBonus: 1,
     });
   });
 

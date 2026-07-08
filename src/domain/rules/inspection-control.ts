@@ -12,7 +12,7 @@ export function isActiveEffectControlledInspection(state: GameState, playerId: s
   if (
     !effect ||
     !inspectionContext ||
-    inspectionContext.ownerPlayerId !== playerId ||
+    (inspectionContext.viewerPlayerId ?? inspectionContext.ownerPlayerId) !== playerId ||
     effect.awaitingPlayerId !== playerId
   ) {
     return false;
@@ -24,7 +24,7 @@ export function isActiveEffectControlledInspection(state: GameState, playerId: s
     return false;
   }
 
-  const ownedInspectionCardIds = getOwnedInspectionCardIds(state, playerId);
+  const ownedInspectionCardIds = getOwnedInspectionCardIds(state, inspectionContext.ownerPlayerId);
   return [...effectInspectionCardIds, ...effectSelectableCardIds].some((cardId) =>
     ownedInspectionCardIds.includes(cardId)
   );

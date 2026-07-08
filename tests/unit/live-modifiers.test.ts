@@ -7,6 +7,7 @@ import {
 import {
   createGameState,
   registerCards,
+  updateLiveResolution,
   updatePlayer,
   type LiveModifierState,
 } from '../../src/domain/entities/game';
@@ -68,6 +69,12 @@ const HS_SD1_005_CONTINUOUS_ABILITY_ID =
   'PL!HS-sd1-005-SD:continuous-stage-sayaka-ginko-hime-blade';
 const S_BP6_009_CONTINUOUS_ABILITY_ID =
   'PL!S-bp6-009:continuous-success-live-difference-gain-blade';
+const PL_S_PB1_005_CONTINUOUS_ABILITY_ID =
+  'PL!S-pb1-005:continuous-opponent-energy-more-gain-three-blade';
+const PL_S_PB1_009_CONTINUOUS_ABILITY_ID =
+  'PL!S-pb1-009:continuous-total-success-live-three-gain-three-blade';
+const PL_N_PB1_007_CONTINUOUS_ABILITY_ID =
+  'PL!N-pb1-007:continuous-live-requirement-six-colors-gain-all-heart';
 const SP_PB2_023_CONTINUOUS_ABILITY_ID = 'PL!SP-pb2-023:continuous-energy-six-eight-gain-red-heart';
 const SP_PB2_026_CONTINUOUS_ABILITY_ID =
   'PL!SP-pb2-026:continuous-active-energy-gain-two-red-heart';
@@ -108,6 +115,12 @@ const SP_BP2_010_CONTINUOUS_REQUIREMENT_ABILITY_ID =
   'PL!SP-bp2-010:continuous-opponent-live-requirement-plus-one';
 const N_BP5_002_CONTINUOUS_ABILITY_ID =
   'PL!N-bp5-002:continuous-stage-most-hearts-live-score';
+const S_BP5_008_CONTINUOUS_ABILITY_ID =
+  'PL!S-bp5-008:continuous-opponent-remaining-heart-score';
+const S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID =
+  'PL!S-bp5-010:continuous-red-heart-five-opponent-live-requirement-plus-one';
+const S_BP5_011_CONTINUOUS_REQUIREMENT_ABILITY_ID =
+  'PL!S-bp5-011:continuous-blue-heart-five-opponent-live-requirement-plus-one';
 
 function createStageMember(
   cardCode: string,
@@ -143,6 +156,24 @@ function placeMemberOnStage(
       face: FaceState.FACE_UP,
     }),
   }));
+}
+
+function setRemainingHeartTotal(
+  game: ReturnType<typeof createGameState>,
+  playerId: string,
+  count: number
+) {
+  return updateLiveResolution(game, (liveResolution) => {
+    const playerRemainingHearts = new Map(liveResolution.playerRemainingHearts);
+    playerRemainingHearts.set(
+      playerId,
+      count > 0 ? [createHeartIcon(HeartColor.GREEN, count)] : []
+    );
+    return {
+      ...liveResolution,
+      playerRemainingHearts,
+    };
+  });
 }
 
 describe('live modifier helpers', () => {
@@ -212,6 +243,65 @@ describe('live modifier helpers', () => {
       sourceCardId: source.instanceId,
       abilityId: N_BP5_002_CONTINUOUS_ABILITY_ID,
     });
+  });
+
+  it('adds SCORE +1 for PL!S-bp5-008 when opponent has at least two remaining Hearts', () => {
+    const source = createStageMember('PL!S-bp5-008-R', 'p1', 's-bp5-008-source', 1);
+    let game = createGameState('s-bp5-008-opponent-remaining-heart-score', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source]);
+    game = placeMemberOnStage(game, 'p1', SlotPosition.CENTER, source.instanceId);
+    game = setRemainingHeartTotal(game, 'p2', 2);
+
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'SCORE',
+      playerId: 'p1',
+      countDelta: 1,
+      sourceCardId: source.instanceId,
+      abilityId: S_BP5_008_CONTINUOUS_ABILITY_ID,
+    });
+    expect(
+      modifiers.some(
+        (modifier) =>
+          modifier.kind === 'SCORE' &&
+          modifier.playerId === 'p2' &&
+          modifier.abilityId === S_BP5_008_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(game.liveResolution.playerRemainingHearts.get('p2')).toEqual([
+      createHeartIcon(HeartColor.GREEN, 2),
+    ]);
+  });
+
+  it('does not add PL!S-bp5-008 score when opponent has zero or one remaining Heart', () => {
+    for (const remainingHeartCount of [0, 1]) {
+      const source = createStageMember('PL!S-bp5-008-R', 'p1', 's-bp5-008-source', 1);
+      let game = createGameState(
+        `s-bp5-008-opponent-remaining-heart-${remainingHeartCount}`,
+        'p1',
+        'P1',
+        'p2',
+        'P2'
+      );
+      game = registerCards(game, [source]);
+      game = placeMemberOnStage(game, 'p1', SlotPosition.CENTER, source.instanceId);
+      game = setRemainingHeartTotal(game, 'p2', remainingHeartCount);
+
+      const modifiers = collectLiveModifiers(game);
+
+      expect(
+        modifiers.some(
+          (modifier) =>
+            modifier.kind === 'SCORE' &&
+            modifier.sourceCardId === source.instanceId &&
+            modifier.abilityId === S_BP5_008_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+      expect(game.liveResolution.playerRemainingHearts.get('p2')).toEqual(
+        remainingHeartCount > 0 ? [createHeartIcon(HeartColor.GREEN, remainingHeartCount)] : []
+      );
+    }
   });
 
   it('creates source-member Heart modifiers when the member is the source card', () => {
@@ -5212,6 +5302,464 @@ describe('live modifier helpers', () => {
   });
 });
 
+describe('PL!S-pb1-005 continuous opponent energy lead BLADE', () => {
+  function setupYouEnergyLeadScenario(
+    options: {
+      readonly ownEnergyCount?: number;
+      readonly opponentEnergyCount?: number;
+      readonly sourcePlacement?: 'STAGE' | 'MEMBER_BELOW' | 'OFF_STAGE';
+    } = {}
+  ) {
+    const you = createCardInstance(
+      {
+        cardCode: 'PL!S-pb1-005-R',
+        name: '渡辺 曜',
+        groupNames: ['Aqours'],
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+      },
+      'p1',
+      'you'
+    );
+    const host = createCardInstance(
+      {
+        cardCode: 'HOST-MEMBER',
+        name: 'Host',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'host'
+    );
+    const ownEnergy = Array.from({ length: options.ownEnergyCount ?? 0 }, (_, index) =>
+      createCardInstance(
+        { cardCode: `OWN-ENE-${index}`, name: `Own Energy ${index}`, cardType: CardType.ENERGY },
+        'p1',
+        `own-energy-${index}`
+      )
+    );
+    const opponentEnergy = Array.from({ length: options.opponentEnergyCount ?? 0 }, (_, index) =>
+      createCardInstance(
+        { cardCode: `OPP-ENE-${index}`, name: `Opponent Energy ${index}`, cardType: CardType.ENERGY },
+        'p2',
+        `opponent-energy-${index}`
+      )
+    );
+    let game = createGameState('s-pb1-005-energy-lead', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [you, host, ...ownEnergy, ...opponentEnergy]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      if (options.sourcePlacement === 'MEMBER_BELOW') {
+        memberSlots = addMemberBelowMember(
+          placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          you.instanceId
+        );
+      } else if (options.sourcePlacement !== 'OFF_STAGE') {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, you.instanceId);
+      }
+      return {
+        ...player,
+        memberSlots,
+        energyZone: ownEnergy.reduce(
+          (zone, energy) => addCardToStatefulZone(zone, energy.instanceId),
+          player.energyZone
+        ),
+      };
+    });
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      energyZone: opponentEnergy.reduce(
+        (zone, energy) => addCardToStatefulZone(zone, energy.instanceId),
+        player.energyZone
+      ),
+    }));
+    return { game, you };
+  }
+
+  it('grants BLADE +3 when the opponent has more energy cards', () => {
+    const { game, you } = setupYouEnergyLeadScenario({
+      ownEnergyCount: 2,
+      opponentEnergyCount: 3,
+    });
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 3,
+      sourceCardId: you.instanceId,
+      abilityId: PL_S_PB1_005_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', you.instanceId)).toBe(4);
+  });
+
+  it('does not grant BLADE when energy counts are equal or own energy is greater', () => {
+    for (const scenario of [
+      setupYouEnergyLeadScenario({ ownEnergyCount: 2, opponentEnergyCount: 2 }),
+      setupYouEnergyLeadScenario({ ownEnergyCount: 3, opponentEnergyCount: 2 }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_005_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+      expect(getMemberEffectiveBladeCount(scenario.game, 'p1', scenario.you.instanceId)).toBe(1);
+    }
+  });
+
+  it('does not grant BLADE when the source is off stage or below another member', () => {
+    for (const scenario of [
+      setupYouEnergyLeadScenario({
+        ownEnergyCount: 2,
+        opponentEnergyCount: 3,
+        sourcePlacement: 'OFF_STAGE',
+      }),
+      setupYouEnergyLeadScenario({
+        ownEnergyCount: 2,
+        opponentEnergyCount: 3,
+        sourcePlacement: 'MEMBER_BELOW',
+      }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_005_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+});
+
+describe('PL!S-pb1-009 continuous total success LIVE BLADE', () => {
+  function setupRubyTotalSuccessScenario(
+    options: {
+      readonly ownSuccessCount?: number;
+      readonly opponentSuccessCount?: number;
+      readonly sourcePlacement?: 'STAGE' | 'MEMBER_BELOW' | 'OFF_STAGE';
+    } = {}
+  ) {
+    const ruby = createCardInstance(
+      {
+        cardCode: 'PL!S-pb1-009-R',
+        name: '黒澤ルビィ',
+        groupNames: ['Aqours'],
+        cardType: CardType.MEMBER,
+        cost: 11,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.RED, 1)],
+      },
+      'p1',
+      's-pb1-009-ruby'
+    );
+    const host = createCardInstance(
+      {
+        cardCode: 'HOST-MEMBER',
+        name: 'Host',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      's-pb1-009-host'
+    );
+    const ownSuccessCards = Array.from({ length: options.ownSuccessCount ?? 0 }, (_, index) =>
+      createCardInstance(
+        createAqoursLiveData(`PL!S-pb1-009-own-success-${index}`, `Own Success ${index}`),
+        'p1',
+        `s-pb1-009-own-success-${index}`
+      )
+    );
+    const opponentSuccessCards = Array.from(
+      { length: options.opponentSuccessCount ?? 0 },
+      (_, index) =>
+        createCardInstance(
+          createAqoursLiveData(
+            `PL!S-pb1-009-opponent-success-${index}`,
+            `Opponent Success ${index}`
+          ),
+          'p2',
+          `s-pb1-009-opponent-success-${index}`
+        )
+    );
+    let game = createGameState('s-pb1-009-total-success', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [ruby, host, ...ownSuccessCards, ...opponentSuccessCards]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      if (options.sourcePlacement === 'MEMBER_BELOW') {
+        memberSlots = addMemberBelowMember(
+          placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          ruby.instanceId
+        );
+      } else if (options.sourcePlacement !== 'OFF_STAGE') {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, ruby.instanceId);
+      }
+      return {
+        ...player,
+        memberSlots,
+        successZone: ownSuccessCards.reduce(
+          (zone, card) => addCardToZone(zone, card.instanceId),
+          player.successZone
+        ),
+      };
+    });
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      successZone: opponentSuccessCards.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.successZone
+      ),
+    }));
+    return { game, ruby };
+  }
+
+  it('grants BLADE +3 when both success LIVE zones contain at least three cards total', () => {
+    const { game, ruby } = setupRubyTotalSuccessScenario({
+      ownSuccessCount: 1,
+      opponentSuccessCount: 2,
+    });
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      countDelta: 3,
+      sourceCardId: ruby.instanceId,
+      abilityId: PL_S_PB1_009_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', ruby.instanceId)).toBe(4);
+  });
+
+  it('does not grant BLADE when the total success LIVE count is below three', () => {
+    const { game, ruby } = setupRubyTotalSuccessScenario({
+      ownSuccessCount: 1,
+      opponentSuccessCount: 1,
+    });
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_009_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(getMemberEffectiveBladeCount(game, 'p1', ruby.instanceId)).toBe(1);
+  });
+
+  it('does not grant BLADE when the source is off stage or below another member', () => {
+    for (const scenario of [
+      setupRubyTotalSuccessScenario({
+        ownSuccessCount: 1,
+        opponentSuccessCount: 2,
+        sourcePlacement: 'OFF_STAGE',
+      }),
+      setupRubyTotalSuccessScenario({
+        ownSuccessCount: 1,
+        opponentSuccessCount: 2,
+        sourcePlacement: 'MEMBER_BELOW',
+      }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_009_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+
+  it('counts either player successZone cards toward the total', () => {
+    for (const scenario of [
+      setupRubyTotalSuccessScenario({ ownSuccessCount: 3, opponentSuccessCount: 0 }),
+      setupRubyTotalSuccessScenario({ ownSuccessCount: 0, opponentSuccessCount: 3 }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_009_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(true);
+    }
+  });
+});
+
+describe('PL!N-pb1-007 continuous six-color LIVE requirement ALL Heart', () => {
+  function createSetsunaPb1007() {
+    return createCardInstance(
+      {
+        cardCode: 'PL!N-pb1-007-R',
+        name: '優木せつ菜',
+        groupNames: ['虹ヶ咲'],
+        cardType: CardType.MEMBER,
+        cost: 15,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.RED, 1)],
+      },
+      'p1',
+      'setsuna'
+    );
+  }
+
+  function createSixColorRequirementLive(
+    colorRequirements: Partial<Record<HeartColor, number>>,
+    instanceId = 'six-color-live'
+  ) {
+    return createCardInstance(
+      {
+        cardCode: `LIVE-${instanceId}`,
+        name: `Live ${instanceId}`,
+        cardType: CardType.LIVE,
+        score: 4,
+        requirements: createHeartRequirement(colorRequirements),
+      },
+      'p1',
+      instanceId
+    );
+  }
+
+  function setupSetsunaSixColorScenario(
+    options: {
+      readonly colorRequirements?: Partial<Record<HeartColor, number>>;
+      readonly sourcePlacement?: 'STAGE' | 'MEMBER_BELOW' | 'OFF_STAGE';
+      readonly requirementModifier?: LiveModifierState;
+    } = {}
+  ) {
+    const setsuna = createSetsunaPb1007();
+    const host = createCardInstance(
+      {
+        cardCode: 'HOST-MEMBER',
+        name: 'Host',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'setsuna-host'
+    );
+    const live = createSixColorRequirementLive(
+      options.colorRequirements ?? {
+        [HeartColor.PINK]: 1,
+        [HeartColor.RED]: 1,
+        [HeartColor.YELLOW]: 1,
+        [HeartColor.GREEN]: 1,
+        [HeartColor.BLUE]: 1,
+        [HeartColor.PURPLE]: 1,
+      }
+    );
+    let game = createGameState('n-pb1-007-six-color-requirement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [setsuna, host, live]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      if (options.sourcePlacement === 'MEMBER_BELOW') {
+        memberSlots = addMemberBelowMember(
+          placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          setsuna.instanceId
+        );
+      } else if (options.sourcePlacement !== 'OFF_STAGE') {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, setsuna.instanceId);
+      }
+      return {
+        ...player,
+        memberSlots,
+        liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+      };
+    });
+    if (options.requirementModifier) {
+      game = addLiveModifier(game, options.requirementModifier);
+    }
+    return { game, setsuna, live };
+  }
+
+  it('grants ALL Heart when the current LIVE requirement contains all six ordinary colors', () => {
+    const { game, setsuna } = setupSetsunaSixColorScenario();
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.RAINBOW, 1)],
+      sourceCardId: setsuna.instanceId,
+      abilityId: PL_N_PB1_007_CONTINUOUS_ABILITY_ID,
+    });
+    expect(getMemberEffectiveHeartIcons(game, 'p1', setsuna.instanceId)).toEqual([
+      createHeartIcon(HeartColor.RED, 1),
+      createHeartIcon(HeartColor.RAINBOW, 1),
+    ]);
+  });
+
+  it('does not grant ALL Heart when any ordinary color is missing', () => {
+    const { game, setsuna } = setupSetsunaSixColorScenario({
+      colorRequirements: {
+        [HeartColor.PINK]: 1,
+        [HeartColor.RED]: 1,
+        [HeartColor.YELLOW]: 1,
+        [HeartColor.GREEN]: 1,
+        [HeartColor.BLUE]: 1,
+      },
+    });
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'HEART' && modifier.abilityId === PL_N_PB1_007_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(getMemberEffectiveHeartIcons(game, 'p1', setsuna.instanceId)).toEqual([
+      createHeartIcon(HeartColor.RED, 1),
+    ]);
+  });
+
+  it('does not grant ALL Heart when the source is off stage or below another member', () => {
+    for (const scenario of [
+      setupSetsunaSixColorScenario({ sourcePlacement: 'OFF_STAGE' }),
+      setupSetsunaSixColorScenario({ sourcePlacement: 'MEMBER_BELOW' }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'HEART' && modifier.abilityId === PL_N_PB1_007_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+
+  it('uses current effective LIVE requirements after requirement modifiers', () => {
+    const colorRequirements = {
+      [HeartColor.PINK]: 1,
+      [HeartColor.RED]: 1,
+      [HeartColor.YELLOW]: 1,
+      [HeartColor.GREEN]: 1,
+      [HeartColor.BLUE]: 1,
+    };
+    const { live } = setupSetsunaSixColorScenario({ colorRequirements });
+    const scenario = setupSetsunaSixColorScenario({
+      colorRequirements,
+      requirementModifier: {
+        kind: 'REQUIREMENT',
+        liveCardId: live.instanceId,
+        modifiers: [{ color: HeartColor.PURPLE, countDelta: 1 }],
+        sourceCardId: 'requirement-modifier-source',
+        abilityId: 'test-add-purple-requirement',
+      },
+    });
+
+    expect(collectLiveModifiers(scenario.game)).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.RAINBOW, 1)],
+      sourceCardId: scenario.setsuna.instanceId,
+      abilityId: PL_N_PB1_007_CONTINUOUS_ABILITY_ID,
+    });
+  });
+});
+
 function hasHsBp1ContinuousScore(game: ReturnType<typeof createGameState>): boolean {
   return collectLiveModifiers(game).some(
     (modifier) =>
@@ -6050,6 +6598,294 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
       instanceId
     );
   }
+
+  function createSbp5RequirementSource(
+    cardCode: 'PL!S-bp5-010-N' | 'PL!S-bp5-011-N',
+    instanceId: string,
+    heartColor: HeartColor,
+    heartCount: number,
+    ownerId = 'p1'
+  ) {
+    return createCardInstance(
+      {
+        cardCode,
+        name: cardCode === 'PL!S-bp5-010-N' ? '高海千歌' : '桜内梨子',
+        groupNames: ['Aqours'],
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(heartColor, heartCount)],
+      },
+      ownerId,
+      instanceId
+    );
+  }
+
+  function setupSbp5RequirementScenario(options: {
+    readonly sourceCardCode: 'PL!S-bp5-010-N' | 'PL!S-bp5-011-N';
+    readonly sourceHeartColor: HeartColor;
+    readonly sourceHeartCount: number;
+    readonly sourcePlacement?: 'STAGE' | 'WAITING_ROOM' | 'MEMBER_BELOW';
+    readonly secondSource?: boolean;
+    readonly includeOwnLive?: boolean;
+    readonly opponentLiveCount?: 1 | 2;
+  }) {
+    const source = createSbp5RequirementSource(
+      options.sourceCardCode,
+      's-bp5-requirement-source',
+      options.sourceHeartColor,
+      options.sourceHeartCount
+    );
+    const secondSource = options.secondSource
+      ? createSbp5RequirementSource(
+          options.sourceCardCode,
+          's-bp5-requirement-second-source',
+          options.sourceHeartColor,
+          options.sourceHeartCount
+        )
+      : null;
+    const host = createStageMember('HOST-MEMBER', 'p1', 's-bp5-member-below-host', 0);
+    const ownLive = createRequirementLive('own-live', 'p1');
+    const opponentLive = createRequirementLive('opponent-live', 'p2');
+    const secondOpponentLive = createRequirementLive('second-opponent-live', 'p2');
+    let game = createGameState('s-bp5-requirement', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [
+      source,
+      ...(secondSource ? [secondSource] : []),
+      host,
+      ownLive,
+      opponentLive,
+      secondOpponentLive,
+    ]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      let waitingRoom = player.waitingRoom;
+      if (options.sourcePlacement === 'WAITING_ROOM') {
+        waitingRoom = addCardToZone(waitingRoom, source.instanceId);
+      } else if (options.sourcePlacement === 'MEMBER_BELOW') {
+        memberSlots = addMemberBelowMember(
+          placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          source.instanceId
+        );
+      } else {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, source.instanceId);
+      }
+      if (secondSource) {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, secondSource.instanceId);
+      }
+      return {
+        ...player,
+        memberSlots,
+        waitingRoom,
+        liveZone:
+          options.includeOwnLive === true
+            ? addCardToStatefulZone(player.liveZone, ownLive.instanceId)
+            : player.liveZone,
+      };
+    });
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      liveZone:
+        options.opponentLiveCount === 2
+          ? addCardToStatefulZone(
+              addCardToStatefulZone(player.liveZone, opponentLive.instanceId),
+              secondOpponentLive.instanceId
+            )
+          : addCardToStatefulZone(player.liveZone, opponentLive.instanceId),
+    }));
+    return { game, source, secondSource, ownLive, opponentLive, secondOpponentLive };
+  }
+
+  it('adds necessary 無 Heart +1 to one opponent LIVE when PL!S-bp5-010 sees five red Hearts', () => {
+    const { game, source, opponentLive } = setupSbp5RequirementScenario({
+      sourceCardCode: 'PL!S-bp5-010-N',
+      sourceHeartColor: HeartColor.RED,
+      sourceHeartCount: 5,
+    });
+    const modifiers = collectLiveModifiers(game);
+
+    expect(modifiers).toContainEqual({
+      kind: 'REQUIREMENT',
+      liveCardId: opponentLive.instanceId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: 1 }],
+      sourceCardId: source.instanceId,
+      abilityId: S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID,
+    });
+    expect(
+      applyHeartRequirementModifiers(
+        opponentLive.data.requirements,
+        getLiveCardRequirementModifiers(game.liveResolution, opponentLive.instanceId, modifiers)
+      ).totalRequired
+    ).toBe(3);
+  });
+
+  it('adds necessary 無 Heart +1 to one opponent LIVE when PL!S-bp5-011 sees five blue Hearts', () => {
+    const { game, source, opponentLive } = setupSbp5RequirementScenario({
+      sourceCardCode: 'PL!S-bp5-011-N',
+      sourceHeartColor: HeartColor.BLUE,
+      sourceHeartCount: 5,
+    });
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'REQUIREMENT',
+      liveCardId: opponentLive.instanceId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: 1 }],
+      sourceCardId: source.instanceId,
+      abilityId: S_BP5_011_CONTINUOUS_REQUIREMENT_ABILITY_ID,
+    });
+  });
+
+  it('does not add PL!S-bp5-010 requirement when the matching Heart total is below five', () => {
+    const { game } = setupSbp5RequirementScenario({
+      sourceCardCode: 'PL!S-bp5-010-N',
+      sourceHeartColor: HeartColor.RED,
+      sourceHeartCount: 4,
+    });
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId === S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('does not add PL!S-bp5-010 requirement when the source is off stage or memberBelow', () => {
+    for (const scenario of [
+      setupSbp5RequirementScenario({
+        sourceCardCode: 'PL!S-bp5-010-N',
+        sourceHeartColor: HeartColor.RED,
+        sourceHeartCount: 5,
+        sourcePlacement: 'WAITING_ROOM',
+      }),
+      setupSbp5RequirementScenario({
+        sourceCardCode: 'PL!S-bp5-010-N',
+        sourceHeartColor: HeartColor.RED,
+        sourceHeartCount: 5,
+        sourcePlacement: 'MEMBER_BELOW',
+      }),
+    ]) {
+      expect(
+        collectLiveModifiers(scenario.game).some(
+          (modifier) =>
+            modifier.kind === 'REQUIREMENT' &&
+            modifier.abilityId === S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+
+  it('does not count memberBelow Hearts toward the PL!S-bp5-010 threshold', () => {
+    const source = createSbp5RequirementSource('PL!S-bp5-010-N', 'source', HeartColor.RED, 1);
+    const host = createStageMember('HOST-MEMBER', 'p1', 'host', 0);
+    const below = createSbp5RequirementSource('PL!S-bp5-010-N', 'below', HeartColor.RED, 4);
+    const opponentLive = createRequirementLive('opponent-live', 'p2');
+    let game = createGameState('s-bp5-member-below-hearts', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [source, host, below, opponentLive]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: addMemberBelowMember(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+          SlotPosition.LEFT,
+          host.instanceId
+        ),
+        SlotPosition.LEFT,
+        below.instanceId
+      ),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, opponentLive.instanceId),
+    }));
+
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId === S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('does not affect own live zone for PL!S-bp5-010', () => {
+    const { game, ownLive } = setupSbp5RequirementScenario({
+      sourceCardCode: 'PL!S-bp5-010-N',
+      sourceHeartColor: HeartColor.RED,
+      sourceHeartCount: 5,
+      includeOwnLive: true,
+    });
+
+    expect(
+      collectLiveModifiers(game).filter(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.liveCardId === ownLive.instanceId &&
+          modifier.abilityId === S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID
+      )
+    ).toEqual([]);
+  });
+
+  it('stacks multiple legal PL!S-bp5-010 sources on the same opponent LIVE', () => {
+    const { game, opponentLive } = setupSbp5RequirementScenario({
+      sourceCardCode: 'PL!S-bp5-010-N',
+      sourceHeartColor: HeartColor.RED,
+      sourceHeartCount: 5,
+      secondSource: true,
+    });
+
+    const modifiers = collectLiveModifiers(game).filter(
+      (modifier) =>
+        modifier.kind === 'REQUIREMENT' &&
+        modifier.liveCardId === opponentLive.instanceId &&
+        modifier.abilityId === S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID
+    );
+
+    expect(modifiers).toHaveLength(2);
+  });
+
+  it('uses existing liveResolution.liveModifiers for PL!S-bp5-010 effective Hearts without recursive collection', () => {
+    const { game, source, opponentLive } = setupSbp5RequirementScenario({
+      sourceCardCode: 'PL!S-bp5-010-N',
+      sourceHeartColor: HeartColor.RED,
+      sourceHeartCount: 4,
+    });
+    const stateWithExistingHeart = addLiveModifier(game, {
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      hearts: [createHeartIcon(HeartColor.RED, 1)],
+      sourceCardId: source.instanceId,
+      abilityId: 'test-existing-red-heart',
+    });
+
+    expect(collectLiveModifiers(stateWithExistingHeart)).toContainEqual({
+      kind: 'REQUIREMENT',
+      liveCardId: opponentLive.instanceId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: 1 }],
+      sourceCardId: source.instanceId,
+      abilityId: S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID,
+    });
+  });
+
+  it('targets only one opponent LIVE card for PL!S-bp5-010 even when multiple opponent LIVE cards exist', () => {
+    const { game } = setupSbp5RequirementScenario({
+      sourceCardCode: 'PL!S-bp5-010-N',
+      sourceHeartColor: HeartColor.RED,
+      sourceHeartCount: 5,
+      opponentLiveCount: 2,
+    });
+
+    const modifiers = collectLiveModifiers(game).filter(
+      (modifier) =>
+        modifier.kind === 'REQUIREMENT' &&
+        modifier.abilityId === S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID
+    );
+
+    expect(modifiers).toHaveLength(1);
+  });
 
   function setupSpBp2010RequirementScenario(options: {
     readonly sourceOnStage: boolean;

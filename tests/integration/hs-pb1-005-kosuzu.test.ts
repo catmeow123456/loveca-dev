@@ -108,6 +108,7 @@ function advanceToLiveStartEffects(session: ReturnType<typeof createGameSession>
 function setupKosuzuLiveStart(options: {
   readonly sourceCardCode?: string;
   readonly topCard?: ReturnType<typeof createCardInstance>;
+  readonly waitingRoomCards?: readonly ReturnType<typeof createCardInstance>[];
   readonly emptyMainDeck?: boolean;
 }): ReturnType<typeof createGameSession> {
   const session = createGameSession();
@@ -125,7 +126,12 @@ function setupKosuzuLiveStart(options: {
     PLAYER1,
     'kosuzu-current-live'
   );
-  const cards = options.topCard ? [source, currentLive, options.topCard] : [source, currentLive];
+  const cards = [
+    source,
+    currentLive,
+    ...(options.topCard ? [options.topCard] : []),
+    ...(options.waitingRoomCards ?? []),
+  ];
   const state = registerCards(session.state!, cards);
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
@@ -147,7 +153,7 @@ function setupKosuzuLiveStart(options: {
   p1.hand.cardIds = [];
   p1.mainDeck.cardIds =
     options.emptyMainDeck === true ? [] : options.topCard ? [options.topCard.instanceId] : [];
-  p1.waitingRoom.cardIds = [];
+  p1.waitingRoom.cardIds = (options.waitingRoomCards ?? []).map((card) => card.instanceId);
   p1.successZone.cardIds = [];
   p1.memberSlots.slots[SlotPosition.CENTER] = source.instanceId;
   p1.memberSlots.cardStates = new Map([
@@ -273,6 +279,37 @@ describe('PL!HS-pb1-005 Kosuzu live-start workflow', () => {
           action.payload.step === 'NO_TOP_CARD'
       )
     ).toBe(true);
+  });
+
+  it('refreshes the waiting room before revealing when the main deck is empty', () => {
+    const waitingMember = createCardInstance(
+      createMemberCard('PL!HS-waiting-member', 2),
+      PLAYER1,
+      'waiting-member'
+    );
+    const session = setupKosuzuLiveStart({
+      emptyMainDeck: true,
+      waitingRoomCards: [waitingMember],
+    });
+
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID
+    );
+
+    expect(submitNumber(session, 2).success).toBe(true);
+    expect(session.state?.activeEffect?.inspectionCardIds).toEqual([waitingMember.instanceId]);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.affectedPlayerId === PLAYER1
+      )
+    ).toBe(true);
+
+    expect(confirmRevealedTop(session).success).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toEqual([waitingMember.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
   });
 
   it('rejects invalid numeric input before revealing the top card', () => {

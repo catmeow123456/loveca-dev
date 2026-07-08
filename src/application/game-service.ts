@@ -1227,6 +1227,12 @@ export class GameService {
       scoreDraft,
       bonusScore: performance.bonusScore,
       effectScoreBonus: appliedScoreBonus,
+      remainingHearts: performance.remainingHearts,
+      remainingHeartTotalCount: performance.remainingHearts.reduce(
+        (total, heart) => total + heart.count,
+        0
+      ),
+      liveJudgmentHearts: performance.liveJudgmentHearts,
       drawCount: performance.cheerResult.drawCount,
       automated: true,
     });
@@ -1736,6 +1742,7 @@ export class GameService {
         playerHeartBonuses: new Map(),
         liveRequirementReductions: new Map(),
         liveRequirementModifiers: new Map(),
+        successLivePlacementRestrictions: [],
         liveModifiers: [],
         scoreConfirmedBy: [],
         liveWinnerIds: [],

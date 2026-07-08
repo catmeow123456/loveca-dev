@@ -22,6 +22,7 @@ import {
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
   MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+  PL_S_PB1_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import {
@@ -623,6 +624,212 @@ describe('draw-then-discard shared workflow', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+  });
+
+  it('handles PL!S-pb1-024-L live-success draw two discard two with enter-waiting-room triggers', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('s-pb1-024-live-success-draw-two-discard-two', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+
+    const sourceLive = createCardInstance(
+      createLiveCard('PL!S-pb1-024-L', '僕らの走ってきた道は・・・'),
+      PLAYER1,
+      'p1-s-pb1-024-live'
+    );
+    const triggerSource = createCardInstance(
+      createMemberCard('PL!HS-pb1-003-R', '大沢瑠璃乃', 15),
+      PLAYER1,
+      'p1-s-pb1-024-trigger-source'
+    );
+    const handCards = [0, 1].map((index) =>
+      createCardInstance(
+        createMemberCard(`PL!S-pb1-024-hand-${index}`, `Hand ${index}`),
+        PLAYER1,
+        `p1-s-pb1-024-hand-${index}`
+      )
+    );
+    const drawCards = [0, 1].map((index) =>
+      createCardInstance(
+        createMemberCard(`PL!S-pb1-024-draw-${index}`, `Draw ${index}`),
+        PLAYER1,
+        `p1-s-pb1-024-draw-${index}`
+      )
+    );
+
+    let state = registerCards(session.state!, [
+      sourceLive,
+      triggerSource,
+      ...handCards,
+      ...drawCards,
+    ]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    removeFromPlayerZones(p1);
+    p1.hand.cardIds = handCards.map((card) => card.instanceId);
+    p1.mainDeck.cardIds = drawCards.map((card) => card.instanceId);
+    p1.liveZone.cardIds = [sourceLive.instanceId];
+    p1.memberSlots.slots[SlotPosition.RIGHT] = triggerSource.instanceId;
+    p1.memberSlots.cardStates = new Map([
+      [triggerSource.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    state = {
+      ...state,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_FIRST_SUCCESS_EFFECTS,
+      firstPlayerIndex: 0,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...state.liveResolution,
+        liveResults: new Map([[sourceLive.instanceId, true]]),
+        playerScores: new Map([[PLAYER1, 3]]),
+        performingPlayerId: PLAYER1,
+      },
+    };
+
+    const timingResult = new GameService().executeCheckTiming(state, [
+      TriggerCondition.ON_LIVE_SUCCESS,
+    ]);
+    expect(timingResult.success).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState = timingResult.gameState;
+
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      PL_S_PB1_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_TWO_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.sourceCardId).toBe(sourceLive.instanceId);
+    expect(session.state?.activeEffect?.metadata?.drawCount).toBe(2);
+    expect(session.state?.activeEffect?.metadata?.discardCount).toBe(2);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+      ...handCards.map((card) => card.instanceId),
+      ...drawCards.map((card) => card.instanceId),
+    ]);
+
+    const selectedDiscardIds = [handCards[0]!.instanceId, drawCards[0]!.instanceId];
+    const discardResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        selectedDiscardIds
+      )
+    );
+
+    expect(discardResult.success, discardResult.error).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(selectedDiscardIds);
+    expect(session.state?.players[0].hand.cardIds).toEqual([
+      handCards[1]!.instanceId,
+      drawCards[1]!.instanceId,
+    ]);
+    expect(
+      session.state?.eventLog.filter(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          selectedDiscardIds.every((cardId) =>
+            (entry.event.cardInstanceIds ?? [entry.event.cardInstanceId]).includes(cardId)
+          )
+      )
+    ).toHaveLength(1);
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === triggerSource.instanceId &&
+          action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
+      )
+    ).toHaveLength(1);
+  });
+
+  it('allows PL!S-pb1-024-L to discard only available hand cards after drawing', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('s-pb1-024-live-success-one-card-edge', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+
+    const sourceLive = createCardInstance(
+      createLiveCard('PL!S-pb1-024-L', '僕らの走ってきた道は・・・'),
+      PLAYER1,
+      'p1-s-pb1-024-edge-live'
+    );
+    const drawCard = createCardInstance(
+      createMemberCard('PL!S-pb1-024-edge-draw', 'Only Draw'),
+      PLAYER1,
+      'p1-s-pb1-024-edge-draw'
+    );
+    let state = registerCards(session.state!, [sourceLive, drawCard]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+    };
+    removeFromPlayerZones(p1);
+    p1.mainDeck.cardIds = [drawCard.instanceId];
+    p1.liveZone.cardIds = [sourceLive.instanceId];
+    state = {
+      ...state,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_FIRST_SUCCESS_EFFECTS,
+      firstPlayerIndex: 0,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...state.liveResolution,
+        liveResults: new Map([[sourceLive.instanceId, true]]),
+        playerScores: new Map([[PLAYER1, 3]]),
+        performingPlayerId: PLAYER1,
+      },
+    };
+
+    const timingResult = new GameService().executeCheckTiming(state, [
+      TriggerCondition.ON_LIVE_SUCCESS,
+    ]);
+    expect(timingResult.success).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState = timingResult.gameState;
+
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      PL_S_PB1_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_TWO_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([drawCard.instanceId]);
+    expect(session.state?.activeEffect?.minSelectableCards).toBe(1);
+    expect(session.state?.activeEffect?.maxSelectableCards).toBe(1);
+
+    const discardResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [drawCard.instanceId]
+      )
+    );
+
+    expect(discardResult.success, discardResult.error).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([drawCard.instanceId]);
   });
 
   it('continues to the next member live-success pending after draw one discard one', () => {

@@ -154,6 +154,14 @@ export interface LiveRequirementModifierState {
   readonly countDelta: number;
 }
 
+export interface SuccessLivePlacementRestrictionState {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly appliesWhen: 'TIED_LIVE_SCORE';
+  readonly expiresAt: 'LIVE_END';
+}
+
 export interface LiveModifierVisibilityDependency {
   readonly kind: 'PLAYER_LIVE_ZONE_CONTENTS';
   readonly playerId: string;
@@ -291,6 +299,8 @@ export interface LiveResolutionState {
   readonly liveRequirementReductions: ReadonlyMap<string, number>;
   /** 兼容投影：本次 Live 中各 Live 卡的必要 Heart 修正列表 */
   readonly liveRequirementModifiers: ReadonlyMap<string, readonly LiveRequirementModifierState[]>;
+  /** 本次 Live 结束前的成功 LIVE 卡区放置限制 */
+  readonly successLivePlacementRestrictions: readonly SuccessLivePlacementRestrictionState[];
   /** 本次 Live 结束前的统一临时修正流水线；旧 Map 字段仅作为兼容投影保留 */
   readonly liveModifiers: readonly LiveModifierState[];
   /** 已确认分数的玩家 ID 列表 */
@@ -326,6 +336,7 @@ export function createEmptyLiveResolutionState(): LiveResolutionState {
     playerHeartBonuses: new Map(),
     liveRequirementReductions: new Map(),
     liveRequirementModifiers: new Map(),
+    successLivePlacementRestrictions: [],
     liveModifiers: [],
     scoreConfirmedBy: [],
     liveWinnerIds: [],
@@ -338,6 +349,8 @@ export function createEmptyLiveResolutionState(): LiveResolutionState {
 export interface InspectionContextState {
   /** 当前检视流程的拥有者 */
   readonly ownerPlayerId: string;
+  /** 当前检视流程中实际查看/操作检视牌的玩家；默认等同 ownerPlayerId */
+  readonly viewerPlayerId?: string;
   /** 检视来源区域 */
   readonly sourceZone: ZoneType.MAIN_DECK | ZoneType.ENERGY_DECK;
 }

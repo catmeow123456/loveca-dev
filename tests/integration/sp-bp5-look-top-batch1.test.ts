@@ -159,11 +159,10 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
       expect(startedSummary.summaryStatus).toBe('STARTED');
       expect(startedSummary.sourceOrientationCost).toBe('WAITING');
       expect(startedSummary.sourceCard?.publicObjectId).toBe(`obj_${source.instanceId}`);
-      expect(startedSummary.discardedCostCards?.map((card) => card.publicObjectId)).toEqual([
-        `obj_${discard.instanceId}`,
-      ]);
+      expect(startedSummary.discardedCostCards).toEqual([]);
+      expect(startedSummary.hiddenDiscardedCostCardCount).toBe(1);
       expect(startedSummary.requestedInspectCount).toBe(5);
-      expect(startedSummary.actualInspectedCount).toBe(3);
+      expect(startedSummary.actualInspectedCount).toBe(4);
     }
 
     expect(
@@ -178,9 +177,9 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
     ).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
-      discard.instanceId,
       lowLiella.instanceId,
       highAqours.instanceId,
+      discard.instanceId,
     ]);
     const completedSummary = session
       .getPublicEventsSince(beforeCostSeq)
@@ -196,7 +195,7 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
       expect(completedSummary.selectedCards?.map((card) => card.publicObjectId)).toEqual([
         `obj_${target.instanceId}`,
       ]);
-      expect(completedSummary.waitingRoomCardCount).toBe(2);
+      expect(completedSummary.waitingRoomCardCount).toBe(3);
     }
   });
 
@@ -283,9 +282,9 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
     ).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toEqual([bladeHeartLiella.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
-      discard.instanceId,
       plainLiella.instanceId,
       sunny.instanceId,
+      discard.instanceId,
     ]);
   });
 
@@ -429,9 +428,9 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
       arise.instanceId,
     ]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
-      discard.instanceId,
       liellaOne.instanceId,
       saintSnow.instanceId,
     ]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([discard.instanceId]);
   });
 });

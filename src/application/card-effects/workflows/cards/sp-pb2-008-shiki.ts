@@ -1,7 +1,5 @@
 import {
   addAction,
-  getCardById,
-  getFirstPlayer,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
@@ -9,6 +7,7 @@ import {
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { CardType } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, hasBladeHeart, not, typeIs } from '../../../effects/card-selectors.js';
+import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { SP_PB2_008_LIVE_SUCCESS_CHEER_NO_BLADE_HEART_LIELLA_MEMBER_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
@@ -100,25 +99,16 @@ function getOwnCheerNoBladeHeartLiellaMemberIds(
   game: GameState,
   playerId: string
 ): readonly string[] {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return [];
-  }
-
-  const firstPlayer = getFirstPlayer(game);
-  const cheerCardIds =
-    player.id === firstPlayer.id
-      ? game.liveResolution.firstPlayerCheerCardIds
-      : game.liveResolution.secondPlayerCheerCardIds;
   const isNoBladeHeartLiellaMember = and(
     typeIs(CardType.MEMBER),
     groupAliasIs('Liella!'),
     not(hasBladeHeart())
   );
 
-  return cheerCardIds.filter((cardId) => {
-    const card = getCardById(game, cardId);
-    return card !== null && card.ownerId === player.id && isNoBladeHeartLiellaMember(card);
+  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    cardTypes: CardType.MEMBER,
+    groupAliases: ['Liella!'],
+    predicate: isNoBladeHeartLiellaMember,
   });
 }
 

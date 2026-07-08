@@ -7,6 +7,7 @@ import {
   getNormalizedCardNameCandidates as getSharedNormalizedCardNameCandidates,
   normalizeCardName as normalizeSharedCardName,
 } from '../../shared/utils/card-identity.js';
+import { hasStrictNoAbilityCardText } from '../../shared/utils/card-text.js';
 
 export type CardSelector = (card: CardInstance) => boolean;
 
@@ -150,9 +151,29 @@ export function memberHasHeartColor(color: HeartColor): CardSelector {
     card.data.hearts.some((heart) => heart.color === color && heart.count > 0);
 }
 
+export function memberHasPrintedHeartColorAtLeast(
+  color: HeartColor,
+  minCount: number
+): CardSelector {
+  return (card) =>
+    isMemberCardData(card.data) &&
+    card.data.hearts
+      .filter((heart) => heart.color === color)
+      .reduce((sum, heart) => sum + heart.count, 0) >= minCount;
+}
+
 export function liveRequiresHeartColor(color: HeartColor): CardSelector {
   return (card) =>
     isLiveCardData(card.data) && (card.data.requirements.colorRequirements.get(color) ?? 0) > 0;
+}
+
+export function liveRequiresPrintedHeartColorAtLeast(
+  color: HeartColor,
+  minCount: number
+): CardSelector {
+  return (card) =>
+    isLiveCardData(card.data) &&
+    (card.data.requirements.colorRequirements.get(color) ?? 0) >= minCount;
 }
 
 export function hasBladeHeart(): CardSelector {
@@ -185,6 +206,10 @@ export function hasNoAbilityOrContinuousAbility(): CardSelector {
     const cardText = card.data.cardText?.trim() ?? '';
     return cardText.length === 0 || /【常[时時]】/.test(cardText);
   };
+}
+
+export function hasStrictNoAbility(): CardSelector {
+  return (card) => hasStrictNoAbilityCardText(card.data.cardText);
 }
 
 export function memberPrintedBladeLte(maxBlade: number): CardSelector {

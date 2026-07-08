@@ -9,6 +9,7 @@ import {
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
+  S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID,
   S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_BP6_017_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
@@ -158,6 +159,73 @@ function prepareDirectMillSession(params: {
 }
 
 describe('direct mill top shared workflow', () => {
+  it('mills top ten for PL!S-bp5-015-N through the shared refresh-aware direct-mill workflow', () => {
+    const topCards = Array.from({ length: 10 }, (_, index) =>
+      createCardInstance(
+        createMemberCard(`PL!S-bp5-015-top-${index}`, `Top ${index}`),
+        PLAYER1,
+        `p1-s-bp5-015-top-${index}`
+      )
+    );
+    const observer = createCardInstance(
+      createMemberCard('PL!SP-bp5-005-AR', '嵐 千砂都', 17),
+      PLAYER1,
+      'p1-s-bp5-015-observer'
+    );
+
+    const session = prepareDirectMillSession({
+      testId: 's-bp5-015-direct-mill',
+      sourceCardCode: 'PL!S-bp5-015-N',
+      sourceName: '津島善子',
+      sourceCost: 9,
+      topCards,
+      stageObserver: observer,
+    });
+    const topCardIds = topCards.map((card) => card.instanceId);
+
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.stepId).toBe('S_BP5_015_REVEAL_MILLED_TOP_TEN');
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
+    expect(
+      session.state?.eventLog.some((entry) => {
+        const event = entry.event;
+        return (
+          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          event.fromZone === ZoneType.MAIN_DECK &&
+          event.toZone === ZoneType.WAITING_ROOM &&
+          event.cardInstanceIds?.join(',') === topCardIds.join(',')
+        );
+      })
+    ).toBe(true);
+    expect(
+      session.state?.pendingAbilities.some(
+        (ability) =>
+          ability.abilityId ===
+            SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID &&
+          (ability.metadata?.movedCardIds as readonly string[] | undefined)?.join(',') ===
+            topCardIds.join(',')
+      )
+    ).toBe(true);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+    expect(confirmResult.success, confirmResult.error).toBe(true);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID &&
+          action.payload.step === 'FINISH_MILL_TOP_TEN' &&
+          Array.isArray(action.payload.milledCardIds) &&
+          action.payload.milledCardIds.join(',') === topCardIds.join(',')
+      )
+    ).toBe(true);
+  });
+
   it('mills top five for PL!S-bp6-012-N and enqueues main-deck enter-waiting-room triggers', () => {
     const topCards = [0, 1, 2, 3, 4].map((index) =>
       createCardInstance(
