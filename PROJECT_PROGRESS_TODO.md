@@ -2,6 +2,10 @@
 
 更新时间：2026-07-09
 
+## 本次 2026-07-09 余Heart实时口径修正
+
+- 修正 `PL!S-pb1-021-L` 分数 1「Strawberry Trapper」：对方“无余Heart成功LIVE”条件改为读取当前 `playerRemainingHearts`，不再回看 `LIVE_JUDGMENT.remainingHeartTotalCount`；因此 `PL!S-bp6-024-L`「コワレヤスキ」等效果先清空对方余Heart后，本卡可正常满足条件。其余已实现余Heart相关卡效仍保持当前余Heart口径，无需迁移。
+
 ## 本次 2026-07-09 水团 sd1 第一批卡效
 
 - 已实现 `PL!S-sd1-001-SD` 费用 17「高海千歌」：新增窄 workflow `s-sd1-001-chika.ts`，ON_CHEER / turn1 按 pending 绑定的普通自己声援 `CheerEvent.revealedCardIds` 事实统计自己公开 LIVE 卡，最多获得 3 个 [赤ハート]，不依赖当前 `resolutionZone`；0 张也记录使用，来源离场安全 no-op，additional cheer 不二次触发。

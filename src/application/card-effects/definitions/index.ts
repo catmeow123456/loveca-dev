@@ -6751,7 +6751,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_S_PB1_021_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      'shared workflow `aqours-heart-score-bonuses.ts`；无交互 LIVE_SUCCESS queued pending 走 confirm-only/manual confirmation 语义。结算时重查来源仍在自己的 LIVE 区，统计自己舞台 Aqours 成员有效 [青ハート] 合计，并通过当前 liveResolution.liveResults 与判定时 LIVE_JUDGMENT action payload 的 remainingHeartTotalCount 判断对方本回合是否已有无余Heart成功LIVE；条件均满足时写此 LIVE SCORE +2 modifier 并刷新 playerScores，不清除或消费任何余Heart。',
+      'shared workflow `aqours-heart-score-bonuses.ts`；无交互 LIVE_SUCCESS queued pending 走 confirm-only/manual confirmation 语义。结算时重查来源仍在自己的 LIVE 区，统计自己舞台 Aqours 成员有效 [青ハート] 合计，并通过当前 liveResolution.liveResults 判断对方本回合是否已有成功 LIVE、通过 getRemainingHeartTotalCount 读取对方当前余Heart是否为0；条件均满足时写此 LIVE SCORE +2 modifier 并刷新 playerScores，不清除或消费任何余Heart。',
   },
   {
     abilityId: PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
