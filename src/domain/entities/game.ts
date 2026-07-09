@@ -1376,7 +1376,7 @@ export function clearOperationHistory(game: GameState): GameState {
  * 更新 Live 设置阶段盖牌数量
  */
 export function setLiveSetCardCount(game: GameState, playerId: string, count: number): GameState {
-  const newCounts = new Map(game.liveSetCardCounts);
+  const newCounts = new Map(game.liveSetCardCounts ?? []);
   newCounts.set(playerId, count);
   return {
     ...game,
@@ -1385,7 +1385,14 @@ export function setLiveSetCardCount(game: GameState, playerId: string, count: nu
 }
 
 export function getLiveSetCardCountForPlayer(game: GameState, playerId: string): number {
-  return game.liveSetCardCounts.get(playerId) ?? 0;
+  const count = game.liveSetCardCounts?.get(playerId);
+  if (count !== undefined) {
+    return count;
+  }
+  if (game.liveSetCardCounts || game.currentPhase !== GamePhase.LIVE_SET_PHASE) {
+    return 0;
+  }
+  return getPlayerById(game, playerId)?.liveZone.cardIds.length ?? 0;
 }
 
 export function incrementLiveSetCardCountForPlayer(
@@ -1400,7 +1407,7 @@ export function incrementLiveSetCardCountForPlayer(
 }
 
 export function clearLiveSetCardCountForPlayer(game: GameState, playerId: string): GameState {
-  if (!game.liveSetCardCounts.has(playerId)) {
+  if (!game.liveSetCardCounts?.has(playerId)) {
     return game;
   }
   const newCounts = new Map(game.liveSetCardCounts);
@@ -1430,12 +1437,12 @@ export function addLiveSetLimitReduction(
   }
   return {
     ...game,
-    liveSetLimitReductions: [...game.liveSetLimitReductions, reduction],
+    liveSetLimitReductions: [...(game.liveSetLimitReductions ?? []), reduction],
   };
 }
 
 export function getLiveSetCardLimitForPlayer(game: GameState, playerId: string): number {
-  const reduction = game.liveSetLimitReductions
+  const reduction = (game.liveSetLimitReductions ?? [])
     .filter((entry) => entry.playerId === playerId)
     .reduce((total, entry) => total + Math.max(0, Math.floor(entry.amount)), 0);
   return Math.max(0, GAME_CONFIG.MAX_LIVE_CARDS_PER_PHASE - reduction);
@@ -1445,14 +1452,13 @@ export function consumeLiveSetLimitReductionsForPlayer(
   game: GameState,
   playerId: string
 ): GameState {
-  if (!game.liveSetLimitReductions.some((entry) => entry.playerId === playerId)) {
+  const liveSetLimitReductions = game.liveSetLimitReductions ?? [];
+  if (!liveSetLimitReductions.some((entry) => entry.playerId === playerId)) {
     return game;
   }
   return {
     ...game,
-    liveSetLimitReductions: game.liveSetLimitReductions.filter(
-      (entry) => entry.playerId !== playerId
-    ),
+    liveSetLimitReductions: liveSetLimitReductions.filter((entry) => entry.playerId !== playerId),
   };
 }
 

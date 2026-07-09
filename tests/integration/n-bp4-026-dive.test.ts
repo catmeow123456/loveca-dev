@@ -346,6 +346,81 @@ describe('PL!N-bp4-026-L DIVE! AUTO effects', () => {
     expect(getLiveSetCardLimitForPlayer(reducedToZero, PLAYER1)).toBe(0);
   });
 
+  it('keeps legacy Live Set checkpoints safe when live-set tracking fields are absent', () => {
+    const lives = [createOtherLive('legacy-set-1'), createOtherLive('legacy-set-2')];
+    let game = createGameState('n-bp4-026-legacy-live-set', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, lives);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      liveZone: lives.reduce(
+        (zone, card) =>
+          addCardToStatefulZone(zone, card.instanceId, {
+            orientation: OrientationState.ACTIVE,
+            face: FaceState.FACE_DOWN,
+          }),
+        player.liveZone
+      ),
+    }));
+    const {
+      liveSetCardCounts: _legacyLiveSetCardCounts,
+      liveSetLimitReductions: _legacyLiveSetLimitReductions,
+      ...legacyCheckpoint
+    } = {
+      ...game,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_FIRST_PLAYER_DRAW,
+    };
+
+    expect(getLiveSetCardCountForPlayer(legacyCheckpoint as GameState, PLAYER1)).toBe(2);
+    expect(getLiveSetCardLimitForPlayer(legacyCheckpoint as GameState, PLAYER1)).toBe(3);
+  });
+
+  it('natural face-up SET_LIVE_CARD emits ON_ENTER_LIVE_ZONE and starts the DIVE! BLADE selection', () => {
+    const dive = createDiveLive('set-dive');
+    const target = createMember('set-dive-target');
+    let game = createGameState('n-bp4-026-set-live-trigger', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [dive, target]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      hand: addCardToZone(player.hand, dive.instanceId),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, target.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_FIRST_PLAYER,
+    };
+
+    const setResult = new GameService().processAction(
+      game,
+      createSetLiveCardAction(PLAYER1, dive.instanceId, false)
+    );
+    expect(setResult.success).toBe(true);
+    expect(setResult.gameState.activeEffect).toMatchObject({
+      abilityId: PL_N_BP4_026_AUTO_FACE_UP_LIVE_ZONE_NIJIGASAKI_MEMBER_BLADE_ABILITY_ID,
+      selectableCardIds: [target.instanceId],
+    });
+
+    const resolved = confirmActiveEffectStep(
+      setResult.gameState,
+      PLAYER1,
+      setResult.gameState.activeEffect!.id,
+      target.instanceId
+    );
+    expect(resolved.liveResolution.liveModifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'BLADE',
+          sourceCardId: target.instanceId,
+          countDelta: 2,
+        }),
+      ])
+    );
+  });
+
   it('face-up LIVE zone trigger lets a Nijigasaki stage member gain two BLADE and face-down/source-left/no-target paths no-op', () => {
     const dive = createDiveLive('dive-source');
     const target = createMember('niji-target');

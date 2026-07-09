@@ -12,6 +12,8 @@ export default defineConfig({
     },
   },
   test: {
+    setupFiles: ['./tests/setup/env.ts'],
+
     // 测试文件匹配模式
     include: ['tests/**/*.test.ts', 'tests/**/*.spec.ts'],
     
