@@ -4,7 +4,6 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import {
   and,
@@ -23,8 +22,8 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import {
   getAbilityEffectText,
   maybeStartConfirmablePendingAbilityConfirmation,
-  registerManualConfirmablePendingAbilityStarterHandler,
 } from '../../runtime/workflow-helpers.js';
+import { registerCheerCardHeartColorReplacementWorkflowHandlers } from '../shared/cheer-card-heart-color-replacement.js';
 
 const SELECT_NAMED_MEMBER_STEP_ID = 'SP_BP4_023_SELECT_NAMED_MEMBER_GAIN_BLADE';
 const SELECT_OTHER_LIELLA_MEMBER_STEP_ID = 'SP_BP4_023_SELECT_OTHER_LIELLA_MEMBER_GAIN_BLADE';
@@ -77,20 +76,17 @@ export function registerSpBp4023DazzlingGameWorkflowHandlers(): void {
         context.continuePendingCardEffects
       )
   );
-  registerManualConfirmablePendingAbilityStarterHandler(
-    SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveCheerHeartColorsToPurple(
-        game,
-        ability,
-        options.orderedResolution === true,
-        context.continuePendingCardEffects
-      ),
-    (game, ability) => ({
-      effectText: getCheerHeartReplacementConfirmationText(game, ability),
-      stepText: '确认后，本次 LIVE 中自己的声援公开卡 Heart 会按[紫ハート]处理。',
-    })
-  );
+  registerCheerCardHeartColorReplacementWorkflowHandlers([
+    {
+      abilityId: SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_ABILITY_ID,
+      fromColors: HEART_REPLACEMENT_FROM_COLORS,
+      toColor: HeartColor.PURPLE,
+      actionStep: 'CHEER_HEART_COLORS_TO_PURPLE',
+      getConfirmationEffectText: (_game, ability, _context) =>
+        getAbilityEffectText(ability.abilityId),
+      getConfirmationStepText: () => '确认后结算此效果。',
+    },
+  ]);
 }
 
 function startSelectNamedAndOtherLiellaBlade(
@@ -328,45 +324,6 @@ function finishSelectOtherLiellaMember(
   );
 }
 
-function resolveCheerHeartColorsToPurple(
-  game: GameState,
-  ability: PendingAbilityState,
-  orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
-  const stateWithoutPending = consumePendingAbility(game, ability.id);
-  const stateAfterModifier = sourceInLiveZone
-    ? addLiveModifier(stateWithoutPending, {
-        kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT',
-        playerId: player.id,
-        fromColors: HEART_REPLACEMENT_FROM_COLORS,
-        toColor: HeartColor.PURPLE,
-        sourceCardId: ability.sourceCardId,
-        abilityId: ability.abilityId,
-      })
-    : stateWithoutPending;
-
-  return continuePendingCardEffects(
-    addAction(stateAfterModifier, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step: 'CHEER_HEART_COLORS_TO_PURPLE',
-      sourceInLiveZone,
-      fromColors: HEART_REPLACEMENT_FROM_COLORS,
-      toColor: HeartColor.PURPLE,
-      applied: sourceInLiveZone,
-    }),
-    orderedResolution
-  );
-}
-
 function resolveBladeNoOp(
   game: GameState,
   ability: PendingAbilityState,
@@ -456,17 +413,6 @@ function getBladeNoOpConfirmationText(context: BladeSelectionContext): string {
       ? '确认后可选择成员获得[BLADE]'
       : '确认后不会获得[BLADE]'
   }。）`;
-}
-
-function getCheerHeartReplacementConfirmationText(
-  game: GameState,
-  ability: Pick<PendingAbilityState, 'abilityId' | 'controllerId' | 'sourceCardId'>
-): string {
-  const player = getPlayerById(game, ability.controllerId);
-  const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
-  return `${getAbilityEffectText(
-    ability.abilityId
-  )}（${sourceInLiveZone ? '本次 LIVE 中自己的声援公开卡 Heart 会改为[紫ハート]' : '来源LIVE不在LIVE区，不写入Heart替换'}。）`;
 }
 
 function consumePendingAbility(game: GameState, pendingAbilityId: string): GameState {

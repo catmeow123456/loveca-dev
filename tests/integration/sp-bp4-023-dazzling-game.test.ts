@@ -418,7 +418,21 @@ describe('PL!SP-bp4-023 Dazzling Game', () => {
 
   it('writes a this-live own cheer Heart color replacement modifier', () => {
     const scenario = setupCheerJudgmentState();
-    const resolved = resolveCheerReplacementAbility(scenario.game, scenario.live.instanceId);
+    const started = resolvePendingCardEffects({
+      ...scenario.game,
+      pendingAbilities: [
+        pendingAbility(
+          SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_ABILITY_ID,
+          scenario.live.instanceId
+        ),
+      ],
+    }).gameState;
+    expect(started.activeEffect?.effectText).toContain('全部视为[紫ハート]');
+    expect(started.activeEffect?.effectText).not.toContain('本次 LIVE 中自己的声援公开卡 Heart');
+    expect(started.activeEffect?.effectText).not.toContain('来源LIVE');
+    expect(started.activeEffect?.effectText).not.toContain('确认后');
+
+    const resolved = confirmIfConfirmOnly(started, PLAYER1);
 
     expect(resolved.liveResolution.liveModifiers).toContainEqual({
       kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT',

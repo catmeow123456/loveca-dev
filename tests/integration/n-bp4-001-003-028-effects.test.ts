@@ -433,6 +433,8 @@ describe('PL!N-bp4 001 / 003 / 028 effects', () => {
       expect(started.activeEffect?.effectText).toContain(
         `不同名『虹ヶ咲』LIVE ${differentLiveNames}种`
       );
+      expect(started.activeEffect?.effectText).not.toContain('来源在LIVE区');
+      expect(started.activeEffect?.effectText).not.toContain('来源不在LIVE区');
       expect(
         scoreModifiers(
           started,

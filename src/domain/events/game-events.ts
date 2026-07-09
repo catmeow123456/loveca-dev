@@ -4,6 +4,7 @@
  */
 
 import {
+  FaceState,
   TriggerCondition,
   ZoneType,
   GamePhase,
@@ -151,6 +152,16 @@ export interface LeaveStageEvent extends CardMoveEvent {
 export interface EnterHandEvent extends CardMoveEvent {
   readonly eventType: TriggerCondition.ON_ENTER_HAND;
   readonly toZone: ZoneType.HAND;
+  readonly cardInstanceIds?: readonly string[];
+}
+
+/**
+ * 卡牌进入 LIVE 卡置场事件
+ */
+export interface EnterLiveZoneEvent extends CardMoveEvent {
+  readonly eventType: TriggerCondition.ON_ENTER_LIVE_ZONE;
+  readonly toZone: ZoneType.LIVE_ZONE;
+  readonly face: FaceState;
 }
 
 /**
@@ -373,6 +384,7 @@ export type GameEvent =
   | EnterStageEvent
   | LeaveStageEvent
   | EnterHandEvent
+  | EnterLiveZoneEvent
   | EnterWaitingRoomEvent
   | LiveStartEvent
   | LiveSuccessEvent
@@ -399,6 +411,7 @@ export function isCardMoveEvent(event: GameEvent): event is CardMoveEvent {
     event.eventType === TriggerCondition.ON_ENTER_STAGE ||
     event.eventType === TriggerCondition.ON_LEAVE_STAGE ||
     event.eventType === TriggerCondition.ON_ENTER_HAND ||
+    event.eventType === TriggerCondition.ON_ENTER_LIVE_ZONE ||
     event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
   );
 }
@@ -586,6 +599,58 @@ export function createLeaveStageEvent(
     controllerId,
     triggerPlayerId: controllerId,
     replacingCardId,
+  };
+}
+
+/**
+ * 创建卡牌进入手牌事件。
+ */
+export function createEnterHandEvent(
+  cardInstanceIds: readonly string[],
+  fromZone: ZoneType,
+  ownerId: string,
+  controllerId: string
+): EnterHandEvent {
+  const firstCardId = cardInstanceIds[0];
+  if (!firstCardId) {
+    throw new Error('createEnterHandEvent requires at least one card instance id');
+  }
+
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_ENTER_HAND,
+    timestamp: Date.now(),
+    cardInstanceId: firstCardId,
+    cardInstanceIds: [...cardInstanceIds],
+    fromZone,
+    toZone: ZoneType.HAND,
+    ownerId,
+    controllerId,
+    triggerPlayerId: controllerId,
+  };
+}
+
+/**
+ * 创建卡牌进入 LIVE 卡置场事件。
+ */
+export function createEnterLiveZoneEvent(
+  cardInstanceId: string,
+  fromZone: ZoneType,
+  ownerId: string,
+  controllerId: string,
+  face: FaceState
+): EnterLiveZoneEvent {
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_ENTER_LIVE_ZONE,
+    timestamp: Date.now(),
+    cardInstanceId,
+    fromZone,
+    toZone: ZoneType.LIVE_ZONE,
+    ownerId,
+    controllerId,
+    triggerPlayerId: controllerId,
+    face,
   };
 }
 

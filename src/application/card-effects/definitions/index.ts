@@ -123,10 +123,23 @@ import {
   PL_N_BP4_004_LIVE_START_DRAW_WAIT_LOW_COST_OPPONENT_MEMBER_ABILITY_ID,
   PL_N_BP4_004_LIVE_START_STACK_NIJIGASAKI_MEMBERS_BY_OPPONENT_WAIT_COUNT_ABILITY_ID,
   PL_N_BP4_005_ON_ENTER_DISCARD_WAIT_OPPONENT_LOW_COST_MEMBERS_ABILITY_ID,
+  PL_N_BP4_006_ON_ENTER_PAY_TWO_PLAY_LOW_COST_NIJIGASAKI_MEMBER_ABILITY_ID,
+  PL_N_BP4_007_ON_ENTER_EACH_PLAYER_RECOVER_LIVE_ABILITY_ID,
+  PL_N_BP4_007_CONTINUOUS_TOTAL_ENERGY_FIFTEEN_GAIN_TWO_RED_HEART_ABILITY_ID,
+  PL_N_BP4_007_LIVE_SUCCESS_EACH_PLAYER_PLACE_WAITING_ENERGY_ABILITY_ID,
   PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID,
   PL_N_BP4_009_LIVE_START_DRAW_TWO_HAND_TO_DECK_TOP_LOW_STAGE_COST_ABILITY_ID,
+  PL_N_BP4_011_LIVE_START_DISCARD_LIVE_GAIN_CHOSEN_HEART_ABILITY_ID,
+  PL_N_BP4_011_LIVE_SUCCESS_MILL_FIVE_RECOVER_DISTINCT_NIJIGASAKI_LIVE_ABILITY_ID,
+  PL_N_BP4_012_CONTINUOUS_OPPONENT_SUCCESS_SCORE_SIX_LIVE_SCORE_ABILITY_ID,
   PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID,
+  PL_N_BP4_023_ON_ENTER_WAIT_NIJIGASAKI_MEMBER_DRAW_DISCARD_ABILITY_ID,
+  PL_N_BP4_025_LIVE_START_CHEER_HEART_COLORS_TO_BLUE_ABILITY_ID,
+  PL_N_BP4_025_LIVE_SUCCESS_NIJIGASAKI_CHEER_PRINTED_SIX_HEART_COLORS_SCORE_ABILITY_ID,
+  PL_N_BP4_026_AUTO_FACE_UP_LIVE_ZONE_NIJIGASAKI_MEMBER_BLADE_ABILITY_ID,
+  PL_N_BP4_026_AUTO_WAITING_TO_HAND_PLACE_DIVE_LIVE_ABILITY_ID,
   PL_N_BP4_029_LIVE_START_TURN_ONE_SCORE_TARGET_NIJIGASAKI_BLADE_ABILITY_ID,
+  PL_N_BP4_031_LIVE_START_NIJIGASAKI_STAGE_COST_DRAW_THREE_HAND_TO_TOP_ABILITY_ID,
   N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID,
   N_BP5_002_CONTINUOUS_STAGE_MOST_HEARTS_LIVE_SCORE_ABILITY_ID,
   N_BP5_005_AUTO_RELAY_REPLACED_NIJIGASAKI_NO_BLADE_HEART_ACTIVATE_ENERGY_DRAW_ABILITY_ID,
@@ -642,8 +655,24 @@ const PL_N_BP4_003_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】LIVE的合计[スコア]比对方高的场合，抽1张卡。';
 const PL_N_BP4_009_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己舞台成员的费用合计比对方低的场合，抽2张卡，将1张手牌放置于卡组顶。';
+const PL_N_BP4_011_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将手牌中的1张LIVE卡放置入休息室：选择任意1种Heart颜色，LIVE结束时为止，获得1个选择了的Heart。';
+const PL_N_BP4_011_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】将自己卡组顶5张放置入休息室。之后，自己休息室有3张以上卡名不同的『虹ヶ咲』LIVE卡的场合，从自己休息室将1张『虹ヶ咲』LIVE卡加入手牌。';
+const PL_N_BP4_012_CONTINUOUS_EFFECT_TEXT =
+  '【常时】对方成功LIVE卡区卡片的[スコア]合计为6以上期间，LIVE的合计[スコア]+1。';
 const PL_N_BP4_021_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将自己休息室的1张卡放置于卡组顶。';
+const PL_N_BP4_025_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】LIVE结束时为止，因声援公开的自己的卡持有的[桃ハート]、[赤ハート]、[黄ハート]、[緑ハート]、[紫ハート]、[ALLハート]全部视为[青ハート]。';
+const PL_N_BP4_025_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】因声援公开的自己的『虹ヶ咲』成员卡持有的Heart中有[桃ハート]、[赤ハート]、[黄ハート]、[緑ハート]、[青ハート]、[紫ハート]的场合，此卡的[スコア]+1。';
+const PL_N_BP4_026_WAITING_TO_HAND_EFFECT_TEXT =
+  '【自动】自己的主要阶段中，此卡从休息室加入手牌时，可以将自己手牌中1张卡名为「DIVE!」的LIVE卡正面放置到LIVE卡置场。如此做时，下一次自己的LIVE卡设置阶段可放置卡数上限-1。';
+const PL_N_BP4_026_FACE_UP_LIVE_ZONE_EFFECT_TEXT =
+  '【自动】此卡正面放置到LIVE卡置场时，LIVE结束时为止，自己舞台上1名『虹ヶ咲』成员获得[BLADE][BLADE]。';
+const PL_N_BP4_031_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己舞台的3个成员区都有『虹ヶ咲』成员，且这些成员的费用合计为20以上的场合，抽3张卡，将3张手牌按喜欢的顺序放置于卡组顶。';
 const PL_N_BP4_028_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的休息室有4张以上卡名不同的『虹ヶ咲』LIVE卡的场合，此卡的[スコア]+1。6张以上的场合，改为[スコア]+2。';
 const BP3_001_ACTIVATED_EFFECT_TEXT =
@@ -782,8 +811,18 @@ const PL_N_BP5_003_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将1张手牌放置入休息室：选择自己休息室1张LIVE卡。可以支付等同于该卡分数的能量；如此做时将该LIVE加入手牌。';
 const PL_N_BP4_005_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：将对方舞台上费用4以下的成员至多2人变为待机状态。（待机状态成员持有的[BLADE]不会增加声援公开张数。）';
+const PL_N_BP4_006_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以支付[E][E]：从自己的手牌将1张费用4以下的『虹ヶ咲』成员卡登场到舞台。若因此登场的成员持有 BLADE HEART，将此成员变为待机状态。';
+const PL_N_BP4_007_ON_ENTER_EFFECT_TEXT =
+  '【登场】自己和对方各自从自己的休息室将1张LIVE卡加入手牌。';
+const PL_N_BP4_007_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要自己和对方的能量合计为15张以上，获得[赤ハート][赤ハート]。';
+const PL_N_BP4_007_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】自己和对方各自从自己的能量卡组顶将1张能量以待机状态放置到能量区。';
 const PL_N_BP4_008_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将1张手牌放置入休息室：将1张能量或1名『虹ヶ咲』成员变为活跃状态。';
+const PL_N_BP4_023_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将1名「虹ヶ咲」成员变为待机状态：抽1张卡，将1张手牌放置入休息室。';
 const PL_N_BP5_021_ON_ENTER_EFFECT_TEXT =
   '【登场】将自己卡组顶2张放置入休息室。之后，可以将自己休息室1张LIVE卡放置于自己卡组顶第4张；不足3张时置于能放置的最下方。';
 const MEMBER_ON_ENTER_ACTIVATE_TWO_WAITING_ENERGY_EFFECT_TEXT = '【登场】将2张能量变为活跃状态。';
@@ -7851,6 +7890,53 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 ON_ENTER workflow `n-bp4-005-ai.ts`；真实交互效果不套额外 confirm-only。启动时若无手牌或来源离场则消费 pending no-op；否则开可选弃1手窗口，选择不发动不移动。弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室并入队触发；支付后重新扫描对方舞台费用<=4且当前非 WAITING 的成员，费用读取 getMemberEffectiveCost，选择0-2名后通过 member-state changed wrapper 变 WAITING。',
   },
   {
+    abilityId: PL_N_BP4_006_ON_ENTER_PAY_TWO_PLAY_LOW_COST_NIJIGASAKI_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp4-006'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP4_006_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 ON_ENTER workflow `n-bp4-006-kanata.ts`；真实交互效果不套额外 confirm-only。启动时要求可支付2张活跃能量、有费用<=4的虹ヶ咲手牌成员且有空成员区；选择手牌成员后用 TAP_ACTIVE_ENERGY 支付[E][E]，再选择空成员区登场。登场移动复用 playMemberFromZoneToEmptySlot 并显式入队该成员 ON_ENTER；若因此登场成员持有 BLADE HEART，来源近江彼方通过 member-state changed wrapper 变 WAITING。无能量、无目标、无空位或选择不发动均消费 pending/no-op。',
+  },
+  {
+    abilityId: PL_N_BP4_007_ON_ENTER_EACH_PLAYER_RECOVER_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp4-007'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP4_007_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 ON_ENTER workflow `n-bp4-007-setsuna.ts`；真实交互效果不套额外 confirm-only。按 controller -> opponent 顺序，各玩家从自己的休息室强制选择1张LIVE加入手牌，回收移动复用 recoverCardsFromWaitingRoomToHandForPlayer；某一方无LIVE目标时跳过该方，双方都无目标时消费 pending no-op，非法/陈旧选择不推进。',
+  },
+  {
+    abilityId: PL_N_BP4_007_CONTINUOUS_TOTAL_ENERGY_FIFTEEN_GAIN_TWO_RED_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp4-007'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: PL_N_BP4_007_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      'continuous live modifier registry；来源成员仍在自己的主舞台成员槽，且自己与对方 energyZone 合计 >=15 时，通过 createHeartLiveModifierForMember 动态收集 SOURCE_MEMBER [赤ハート]x2。来源离场或合计不足时动态不生效，不进 pending。',
+  },
+  {
+    abilityId: PL_N_BP4_007_LIVE_SUCCESS_EACH_PLAYER_PLACE_WAITING_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp4-007'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP4_007_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_SUCCESS workflow `n-bp4-007-setsuna.ts`；无交互 queued pending 走 confirm-only/manual confirmation 语义，确认文案实时展示双方 energyDeck 是否有牌与实际放置方。确认后来源仍在舞台时按 controller -> opponent 顺序对各自能量卡组非空玩家复用 placeEnergyFromDeckToZoneByCardEffect(..., WAITING) 放置1张待机能量；空能量卡组或来源离场安全 no-op，RESOLVE_ABILITY payload 记录 placedEnergyCardIdsByPlayer。',
+  },
+  {
     abilityId: PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID,
     baseCardCodes: ['PL!N-bp4-008'],
     category: CardAbilityCategory.ACTIVATED,
@@ -7880,6 +7966,41 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 LIVE_START workflow `n-bp4-009-rina.ts`；真实交互效果不套额外 confirm-only。启动时用 getMemberEffectiveCost 汇总双方舞台成员有效费用，自己合计严格低于对方时复用 drawCardsForPlayer 抽2张，再让玩家从当前手牌选择1张，通过 moveHandCardToDeckTopForPlayer 放到卡组顶；条件不满足或来源离场时消费 pending no-op。',
   },
   {
+    abilityId: PL_N_BP4_011_LIVE_START_DISCARD_LIVE_GAIN_CHOSEN_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp4-011'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP4_011_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow `n-bp4-011-mia-taylor.ts`；真实交互效果不套额外 confirm-only。启动时只允许选择手牌 LIVE 作为可选弃置成本，弃置通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入队手牌进休息室触发；支付后选择任意 Heart 颜色，并通过 addHeartLiveModifierForMember 写 SOURCE_MEMBER Heart。无手牌 LIVE、选择不发动、来源离场或来源无法获得 Heart 均安全消费/继续 pending。',
+  },
+  {
+    abilityId: PL_N_BP4_011_LIVE_SUCCESS_MILL_FIVE_RECOVER_DISTINCT_NIJIGASAKI_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp4-011'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP4_011_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_SUCCESS workflow `n-bp4-011-mia-taylor.ts`；来源仍在舞台时先用 moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers 将卡组顶5张放置入休息室，只把实际进入休息室的卡作为本次 ON_ENTER_WAITING_ROOM 事件入队。之后重新扫描自己休息室『虹ヶ咲』LIVE，卡名不同3种以上时打开强制回收1张窗口，回收复用 recoverCardsFromWaitingRoomToHandForPlayer；刚 mill 的 LIVE 会参与条件和候选。不同名不足3、无目标、非法/陈旧目标均安全 no-op 或保持窗口。',
+  },
+  {
+    abilityId: PL_N_BP4_012_CONTINUOUS_OPPONENT_SUCCESS_SCORE_SIX_LIVE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp4-012'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: PL_N_BP4_012_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      'continuous live modifier registry；来源成员仍在自己的主舞台成员槽，且对方成功 LIVE 卡区分数合计 >=6 时，写玩家 LIVE 合计 SCORE +1。条件读取复用 successLiveScoreAtLeast / sumSuccessfulLiveScore，来源离场动态不生效。',
+  },
+  {
     abilityId: PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID,
     baseCardCodes: ['PL!N-bp4-021'],
     category: CardAbilityCategory.ON_ENTER,
@@ -7890,6 +8011,82 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: PL_N_BP4_021_ON_ENTER_EFFECT_TEXT,
     notes:
       '单卡 ON_ENTER workflow `n-bp4-021-rina.ts`；有休息室目标时打开可选选择窗口，选择1张后复用 moveWaitingRoomCardsToDeckTopForPlayer 放到卡组顶。选择不发动不移动但消费 pending；休息室为空时直接消费 pending no-op。',
+  },
+  {
+    abilityId: PL_N_BP4_023_ON_ENTER_WAIT_NIJIGASAKI_MEMBER_DRAW_DISCARD_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp4-023'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP4_023_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 ON_ENTER workflow `n-bp4-023-mia-taylor.ts`；「『虹ヶ咲」のメンバー1人」沿用现有语境解释为自己舞台上的虹ヶ咲成员。真实交互效果不套额外 confirm-only；选择1名当前非 WAITING 的己方虹ヶ咲舞台成员后，通过 member-state changed wrapper 变 WAITING，成功后复用 drawCardsForPlayer 抽1张，再由玩家选择1张手牌并通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 放置入休息室。选择不发动、无合法目标或目标陈旧均不抽弃。',
+  },
+  {
+    abilityId: PL_N_BP4_025_LIVE_START_CHEER_HEART_COLORS_TO_BLUE_ABILITY_ID,
+    cardCodes: ['PL!N-bp4-025-L'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP4_025_LIVE_START_EFFECT_TEXT,
+    notes:
+      '扩展 shared `cheer-card-heart-color-replacement.ts`；cards.json 第一段存在 Heart 被占位成 Blade 文本的数据异常，本实现按规则语义写入 CHEER_CARD_HEART_COLOR_REPLACEMENT，将本次 LIVE 中自己的声援公开卡的桃/赤/黄/绿/紫/ALL Heart 在判定读取时替换为[青ハート]。来源 LIVE 不在自己 LIVE 区时 no-op；不扩大到 PL!N-bp4-026。',
+  },
+  {
+    abilityId:
+      PL_N_BP4_025_LIVE_SUCCESS_NIJIGASAKI_CHEER_PRINTED_SIX_HEART_COLORS_SCORE_ABILITY_ID,
+    cardCodes: ['PL!N-bp4-025-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP4_025_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '单卡 workflow `n-bp4-025-vivid-world.ts`；声援条件复用 selectCurrentLiveRevealedCheerCardIds 读取本次 LIVE 自己声援公开事实，已离开 resolutionZone 的本次公开卡仍计入。只统计『虹ヶ咲』成员卡印刷 hearts 的桃/赤/黄/绿/青/紫六色，不读取 BLADE HEART、LIVE 卡、非虹咲、LIVE 必要 Heart 或临时 Heart modifier；满足时写绑定此 LIVE 的 SCORE +1 并刷新 playerScores。',
+  },
+  {
+    abilityId: PL_N_BP4_026_AUTO_WAITING_TO_HAND_PLACE_DIVE_LIVE_ABILITY_ID,
+    cardCodes: ['PL!N-bp4-026-L'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.HAND,
+    triggerCondition: TriggerCondition.ON_ENTER_HAND,
+    triggerFromZones: [ZoneType.WAITING_ROOM],
+    triggerToZones: [ZoneType.HAND],
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP4_026_WAITING_TO_HAND_EFFECT_TEXT,
+    notes:
+      '单卡 workflow `n-bp4-026-dive.ts` 第一段；recoverCardsFromWaitingRoomToHandForPlayer 记录 WAITING_ROOM -> HAND 的 ON_ENTER_HAND 事件，runner 以 HAND 来源卡入队。自己的主要阶段中打开真实选择窗口，可选择当前手牌中卡名为「DIVE!」且类型为 LIVE 的卡（包括刚回手的此卡）正面放置到 LIVE 区；成功放置才记录下一次自己的 LIVE 卡设置阶段可放置上限 -1，并通过 ON_ENTER_LIVE_ZONE 事件继续触发第二段。',
+  },
+  {
+    abilityId: PL_N_BP4_026_AUTO_FACE_UP_LIVE_ZONE_NIJIGASAKI_MEMBER_BLADE_ABILITY_ID,
+    cardCodes: ['PL!N-bp4-026-L'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_ENTER_LIVE_ZONE,
+    triggerToZones: [ZoneType.LIVE_ZONE],
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP4_026_FACE_UP_LIVE_ZONE_EFFECT_TEXT,
+    notes:
+      '单卡 workflow `n-bp4-026-dive.ts` 第二段；ON_ENTER_LIVE_ZONE 只对 FACE_UP 入队，结算时仍重查来源仍在自己的 LIVE 区且正面。选择自己舞台上1名『虹ヶ咲』成员并复用 addBladeLiveModifierForSourceMember 写目标成员 [BLADE][BLADE]；face-down、来源离开 LIVE 区、无目标或非法/陈旧目标安全 no-op/保持窗口。',
+  },
+  {
+    abilityId: PL_N_BP4_031_LIVE_START_NIJIGASAKI_STAGE_COST_DRAW_THREE_HAND_TO_TOP_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp4-031'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_BP4_031_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow `n-bp4-031-neo-sky-neo-map.ts`；真实交互效果不套额外 confirm-only。来源 LIVE 必须仍在自己 LIVE 区，三个成员区都存在虹ヶ咲成员，且这些成员有效费用合计 >=20 时，复用 drawCardsForPlayer 抽3，再让玩家从当前手牌 exactly 选择3张按选择顺序通过 moveHandCardsToDeckTopForPlayer 放到卡组顶。条件不满足、来源离开 LIVE 区或抽后手牌不足3张均安全消费/no-op。',
   },
   {
     abilityId: PL_N_BP4_028_LIVE_START_DIFFERENT_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,

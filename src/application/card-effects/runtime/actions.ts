@@ -9,11 +9,15 @@ import {
   type LiveModifierState,
 } from '../../../domain/entities/game.js';
 import {
+  createEnterHandEvent,
+  createEnterLiveZoneEvent,
   createEnterWaitingRoomEvent,
+  type EnterHandEvent,
+  type EnterLiveZoneEvent,
   type EnterWaitingRoomEvent,
 } from '../../../domain/events/game-events.js';
 import { addLiveModifier } from '../../../domain/rules/live-modifiers.js';
-import { OrientationState, ZoneType } from '../../../shared/types/enums.js';
+import { CardType, FaceState, OrientationState, ZoneType } from '../../../shared/types/enums.js';
 import { paySelectedDiscardHandCost } from '../../effects/effect-costs.js';
 import { drawCardsFromMainDeckToHand, type DrawCardsResult } from '../../effects/draw.js';
 import { shuffleZone } from '../../../domain/entities/zone.js';
@@ -21,7 +25,11 @@ import {
   setFirstEnergyCardsOrientation,
   type EnergyOrientationChange,
 } from '../../effects/energy.js';
-import { addMemberBelowMember, removeCardFromZone } from '../../../domain/entities/zone.js';
+import {
+  addCardToStatefulZone,
+  addMemberBelowMember,
+  removeCardFromZone,
+} from '../../../domain/entities/zone.js';
 import { isSpecialMemberCard } from '../../../shared/utils/card-code.js';
 import type { SlotPosition } from '../../../shared/types/enums.js';
 
@@ -64,6 +72,19 @@ export interface RecoverCardsFromWaitingRoomToHandResult {
   readonly movedCardIds: readonly string[];
   readonly selectedCardIds: readonly string[];
   readonly remainingCandidateIds: readonly string[];
+  readonly enterHandEvents: readonly EnterHandEvent[];
+}
+
+export interface PlaceHandLiveCardInLiveZoneOptions {
+  readonly candidateCardIds: readonly string[];
+  readonly face: FaceState;
+}
+
+export interface PlaceHandLiveCardInLiveZoneResult {
+  readonly gameState: GameState;
+  readonly movedCardId: string;
+  readonly remainingCandidateIds: readonly string[];
+  readonly enterLiveZoneEvent: EnterLiveZoneEvent;
 }
 
 export interface ActivateWaitingEnergyCardsForPlayerResult {
@@ -144,6 +165,18 @@ export interface MoveHandCardToDeckTopForPlayerOptions {
 export interface MoveHandCardToDeckTopForPlayerResult {
   readonly gameState: GameState;
   readonly movedCardId: string;
+  readonly remainingCandidateIds: readonly string[];
+}
+
+export interface MoveHandCardsToDeckTopForPlayerOptions {
+  readonly candidateCardIds: readonly string[];
+  readonly exactCount: number;
+}
+
+export interface MoveHandCardsToDeckTopForPlayerResult {
+  readonly gameState: GameState;
+  readonly movedCardIds: readonly string[];
+  readonly selectedCardIds: readonly string[];
   readonly remainingCandidateIds: readonly string[];
 }
 
@@ -321,10 +354,11 @@ export function recoverCardsFromWaitingRoomToHandForPlayer(
       movedCardIds: [],
       selectedCardIds,
       remainingCandidateIds,
+      enterHandEvents: [],
     };
   }
 
-  const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
+  const gameStateBeforeEvent = updatePlayer(game, playerId, (currentPlayer) => ({
     ...currentPlayer,
     waitingRoom: {
       ...currentPlayer.waitingRoom,
@@ -337,12 +371,69 @@ export function recoverCardsFromWaitingRoomToHandForPlayer(
       cardIds: [...currentPlayer.hand.cardIds, ...selectedCardIds],
     },
   }));
+  const enterHandEvents = selectedCardIds.map((cardId) =>
+    createEnterHandEvent([cardId], ZoneType.WAITING_ROOM, playerId, playerId)
+  );
+  const gameState = enterHandEvents.reduce(
+    (state, event) => emitGameEvent(state, event),
+    gameStateBeforeEvent
+  );
 
   return {
     gameState,
     movedCardIds: selectedCardIds,
     selectedCardIds,
     remainingCandidateIds,
+    enterHandEvents,
+  };
+}
+
+export function placeHandLiveCardInLiveZoneForPlayer(
+  game: GameState,
+  playerId: string,
+  selectedCardId: string,
+  options: PlaceHandLiveCardInLiveZoneOptions
+): PlaceHandLiveCardInLiveZoneResult | null {
+  if (!options.candidateCardIds.includes(selectedCardId)) {
+    return null;
+  }
+
+  const player = getPlayerById(game, playerId);
+  const card = getCardById(game, selectedCardId);
+  if (
+    !player ||
+    !card ||
+    card.ownerId !== playerId ||
+    card.data.cardType !== CardType.LIVE ||
+    !player.hand.cardIds.includes(selectedCardId)
+  ) {
+    return null;
+  }
+
+  const remainingCandidateIds = options.candidateCardIds.filter(
+    (cardId) => cardId !== selectedCardId
+  );
+  const gameStateBeforeEvent = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    hand: removeCardFromZone(currentPlayer.hand, selectedCardId),
+    liveZone: addCardToStatefulZone(currentPlayer.liveZone, selectedCardId, {
+      orientation: OrientationState.ACTIVE,
+      face: options.face,
+    }),
+  }));
+  const enterLiveZoneEvent = createEnterLiveZoneEvent(
+    selectedCardId,
+    ZoneType.HAND,
+    playerId,
+    playerId,
+    options.face
+  );
+
+  return {
+    gameState: emitGameEvent(gameStateBeforeEvent, enterLiveZoneEvent),
+    movedCardId: selectedCardId,
+    remainingCandidateIds,
+    enterLiveZoneEvent,
   };
 }
 
@@ -677,6 +768,60 @@ export function moveHandCardToDeckTopForPlayer(
     gameState,
     movedCardId: selectedCardId,
     remainingCandidateIds: options.candidateCardIds.filter((cardId) => cardId !== selectedCardId),
+  };
+}
+
+export function moveHandCardsToDeckTopForPlayer(
+  game: GameState,
+  playerId: string,
+  selectedCardIds: readonly string[],
+  options: MoveHandCardsToDeckTopForPlayerOptions
+): MoveHandCardsToDeckTopForPlayerResult | null {
+  const player = getPlayerById(game, playerId);
+  const exactCount = Math.floor(options.exactCount);
+  const uniqueSelectedCardIds = new Set(selectedCardIds);
+  const candidateCardIdSet = new Set(options.candidateCardIds);
+  if (
+    !player ||
+    !Number.isInteger(options.exactCount) ||
+    exactCount < 0 ||
+    selectedCardIds.length !== exactCount ||
+    uniqueSelectedCardIds.size !== selectedCardIds.length ||
+    selectedCardIds.some(
+      (cardId) => !candidateCardIdSet.has(cardId) || !player.hand.cardIds.includes(cardId)
+    )
+  ) {
+    return null;
+  }
+
+  if (selectedCardIds.length === 0) {
+    return {
+      gameState: game,
+      movedCardIds: [],
+      selectedCardIds: [],
+      remainingCandidateIds: options.candidateCardIds,
+    };
+  }
+
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    hand: {
+      ...currentPlayer.hand,
+      cardIds: currentPlayer.hand.cardIds.filter((cardId) => !uniqueSelectedCardIds.has(cardId)),
+    },
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: [...selectedCardIds, ...currentPlayer.mainDeck.cardIds],
+    },
+  }));
+
+  return {
+    gameState,
+    movedCardIds: selectedCardIds,
+    selectedCardIds,
+    remainingCandidateIds: options.candidateCardIds.filter(
+      (cardId) => !uniqueSelectedCardIds.has(cardId)
+    ),
   };
 }
 

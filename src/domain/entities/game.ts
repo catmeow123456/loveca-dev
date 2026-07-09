@@ -128,6 +128,14 @@ export interface MemberActivePhaseSkipState {
   readonly abilityId: string;
 }
 
+export interface LiveSetLimitReductionState {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly amount: number;
+  readonly expiresAt: 'NEXT_LIVE_SET_PHASE';
+}
+
 /**
  * 权威规则事件日志条目。
  *
@@ -733,6 +741,10 @@ export interface GameState {
    * 卡效造成的“下次自己的活跃阶段不变为活跃状态”临时标记。
    */
   readonly memberActivePhaseSkips: readonly MemberActivePhaseSkipState[];
+  /**
+   * 卡效造成的“下一次 LIVE 卡设置阶段可放置张数上限减少”标记。
+   */
+  readonly liveSetLimitReductions: readonly LiveSetLimitReductionState[];
 
   // ---- 游戏进程状态 ----
 
@@ -860,6 +872,7 @@ export function createGameState(
     liveProhibitions: [],
     liveStartSuppressions: [],
     memberActivePhaseSkips: [],
+    liveSetLimitReductions: [],
 
     isStarted: false,
     isEnded: false,
@@ -1371,6 +1384,33 @@ export function setLiveSetCardCount(game: GameState, playerId: string, count: nu
   };
 }
 
+export function getLiveSetCardCountForPlayer(game: GameState, playerId: string): number {
+  return game.liveSetCardCounts.get(playerId) ?? 0;
+}
+
+export function incrementLiveSetCardCountForPlayer(
+  game: GameState,
+  playerId: string,
+  amount = 1
+): GameState {
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return game;
+  }
+  return setLiveSetCardCount(game, playerId, getLiveSetCardCountForPlayer(game, playerId) + amount);
+}
+
+export function clearLiveSetCardCountForPlayer(game: GameState, playerId: string): GameState {
+  if (!game.liveSetCardCounts.has(playerId)) {
+    return game;
+  }
+  const newCounts = new Map(game.liveSetCardCounts);
+  newCounts.delete(playerId);
+  return {
+    ...game,
+    liveSetCardCounts: newCounts,
+  };
+}
+
 /**
  * 清空 Live 设置阶段盖牌数量
  */
@@ -1378,6 +1418,41 @@ export function clearLiveSetCardCounts(game: GameState): GameState {
   return {
     ...game,
     liveSetCardCounts: new Map(),
+  };
+}
+
+export function addLiveSetLimitReduction(
+  game: GameState,
+  reduction: LiveSetLimitReductionState
+): GameState {
+  if (!Number.isInteger(reduction.amount) || reduction.amount <= 0) {
+    return game;
+  }
+  return {
+    ...game,
+    liveSetLimitReductions: [...game.liveSetLimitReductions, reduction],
+  };
+}
+
+export function getLiveSetCardLimitForPlayer(game: GameState, playerId: string): number {
+  const reduction = game.liveSetLimitReductions
+    .filter((entry) => entry.playerId === playerId)
+    .reduce((total, entry) => total + Math.max(0, Math.floor(entry.amount)), 0);
+  return Math.max(0, GAME_CONFIG.MAX_LIVE_CARDS_PER_PHASE - reduction);
+}
+
+export function consumeLiveSetLimitReductionsForPlayer(
+  game: GameState,
+  playerId: string
+): GameState {
+  if (!game.liveSetLimitReductions.some((entry) => entry.playerId === playerId)) {
+    return game;
+  }
+  return {
+    ...game,
+    liveSetLimitReductions: game.liveSetLimitReductions.filter(
+      (entry) => entry.playerId !== playerId
+    ),
   };
 }
 

@@ -17,7 +17,7 @@ import type {
   LiveRequirementModifierState,
   LiveResolutionState,
 } from '../entities/game.js';
-import { getCardById, getPlayerById } from '../entities/game.js';
+import { getCardById, getOpponent, getPlayerById } from '../entities/game.js';
 import { findMemberSlot } from '../entities/player.js';
 import { getAllMemberCardIds } from '../entities/zone.js';
 import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
@@ -152,6 +152,10 @@ const BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID =
 const BP4_005_CONTINUOUS_CENTER_SCORE_ABILITY_ID = 'PL!-bp4-005:continuous-center-score-plus-one';
 const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
+const PL_N_BP4_007_CONTINUOUS_TOTAL_ENERGY_FIFTEEN_GAIN_TWO_RED_HEART_ABILITY_ID =
+  'PL!N-bp4-007:continuous-total-energy-fifteen-gain-two-red-heart';
+const PL_N_BP4_012_CONTINUOUS_OPPONENT_SUCCESS_SCORE_SIX_LIVE_SCORE_ABILITY_ID =
+  'PL!N-bp4-012:continuous-opponent-success-score-six-live-score';
 const PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID =
   'PL!-pb1-002:continuous-opponent-waiting-gain-purple-heart';
 const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
@@ -323,6 +327,41 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
               countDelta: 2,
               sourceCardId,
               abilityId: BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
+    baseCardCodes: ['PL!N-bp4-007'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        getTotalEnergyZoneCount(game, playerId) < 15
+      ) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId:
+          PL_N_BP4_007_CONTINUOUS_TOTAL_ENERGY_FIFTEEN_GAIN_TWO_RED_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.RED, count: 2 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
+    baseCardCodes: ['PL!N-bp4-012'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      opponentSuccessLiveScoreAtLeast(game, playerId, 6)
+        ? [
+            {
+              kind: 'SCORE',
+              playerId,
+              countDelta: 1,
+              sourceCardId,
+              abilityId: PL_N_BP4_012_CONTINUOUS_OPPONENT_SUCCESS_SCORE_SIX_LIVE_SCORE_ABILITY_ID,
             },
           ]
         : [],
@@ -1337,6 +1376,22 @@ function hasSuccessfulLiveScoreLead(game: GameState, playerId: string): boolean 
     return false;
   }
   return sumSuccessfulLiveScore(game, playerId) > sumSuccessfulLiveScore(game, opponent.id);
+}
+
+function opponentSuccessLiveScoreAtLeast(
+  game: GameState,
+  playerId: string,
+  threshold: number
+): boolean {
+  const player = getPlayerById(game, playerId);
+  const opponent = player ? getOpponent(game, player.id) : null;
+  return opponent ? successLiveScoreAtLeast(game, opponent.id, threshold) : false;
+}
+
+function getTotalEnergyZoneCount(game: GameState, playerId: string): number {
+  const player = getPlayerById(game, playerId);
+  const opponent = player ? getOpponent(game, player.id) : null;
+  return (player?.energyZone.cardIds.length ?? 0) + (opponent?.energyZone.cardIds.length ?? 0);
 }
 
 function countTotalSuccessLiveCards(game: GameState, playerId: string): number {

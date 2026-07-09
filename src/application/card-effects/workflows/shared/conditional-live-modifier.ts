@@ -1434,8 +1434,6 @@ function getPlNBp4028StarsWeChaseStartContext(
     effectText: `${getAbilityEffectText(
       PL_N_BP4_028_LIVE_START_DIFFERENT_NIJIGASAKI_LIVE_SCORE_ABILITY_ID
     )}（当前休息室不同名『虹ヶ咲』LIVE ${context.differentNijigasakiLiveNameCount}种，${
-      context.sourceInLiveZone ? '来源在LIVE区' : '来源不在LIVE区'
-    }，${
       context.scoreBonus > 0
         ? `满足条件，实际[スコア]+${context.scoreBonus}`
         : '未满足条件，实际不增加[スコア]'

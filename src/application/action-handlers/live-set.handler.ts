@@ -10,9 +10,23 @@ import type { GameState } from '../../domain/entities/game.js';
 import type { SetLiveCardAction } from '../actions.js';
 import type { ActionHandler, ActionHandlerContext } from './types.js';
 import { success, failure } from './types.js';
-import { GamePhase, OrientationState, FaceState } from '../../shared/types/enums.js';
-import { GAME_CONFIG, addAction, updatePlayer } from '../../domain/entities/game.js';
+import {
+  FaceState,
+  GamePhase,
+  OrientationState,
+  TriggerCondition,
+  ZoneType,
+} from '../../shared/types/enums.js';
+import {
+  addAction,
+  emitGameEvent,
+  getLiveSetCardCountForPlayer,
+  getLiveSetCardLimitForPlayer,
+  incrementLiveSetCardCountForPlayer,
+  updatePlayer,
+} from '../../domain/entities/game.js';
 import { removeCardFromZone, addCardToStatefulZone } from '../../domain/entities/zone.js';
+import { createEnterLiveZoneEvent } from '../../domain/events/game-events.js';
 
 /**
  * 处理放置 Live 卡动作
@@ -41,8 +55,8 @@ export const handleSetLiveCard: ActionHandler<SetLiveCardAction> = (
     return failure(game, '只能在 Live 设置阶段放置 Live 卡');
   }
 
-  // 检查已放置的 Live 卡数量
-  if (player.liveZone.cardIds.length >= GAME_CONFIG.MAX_LIVE_CARDS_PER_PHASE) {
+  // 检查本次 Live 设置阶段已经由 SET_LIVE_CARD 放置的 Live 卡数量。
+  if (getLiveSetCardCountForPlayer(game, playerId) >= getLiveSetCardLimitForPlayer(game, playerId)) {
     return failure(game, '已达到 Live 卡放置上限');
   }
 
@@ -61,6 +75,15 @@ export const handleSetLiveCard: ActionHandler<SetLiveCardAction> = (
 
   // 记录动作
   state = addAction(state, 'SET_LIVE_CARD', playerId, { cardId, faceDown });
+  state = incrementLiveSetCardCountForPlayer(state, playerId);
+  const enterLiveZoneEvent = createEnterLiveZoneEvent(
+    cardId,
+    ZoneType.HAND,
+    playerId,
+    playerId,
+    faceDown ? FaceState.FACE_DOWN : FaceState.FACE_UP
+  );
+  state = emitGameEvent(state, enterLiveZoneEvent);
 
-  return success(state);
+  return success(state, { triggeredEvents: [TriggerCondition.ON_ENTER_LIVE_ZONE] });
 };

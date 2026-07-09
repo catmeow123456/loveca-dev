@@ -36,6 +36,7 @@ import {
   GAME_CONFIG,
   addAction,
   getActivePlayer,
+  getLiveSetCardLimitForPlayer,
   getPlayerById,
   hasPendingAbilityOrChoice,
   updatePlayer,
@@ -1680,7 +1681,7 @@ export class GameSession {
           if (!player) {
             return '玩家不存在';
           }
-          if (player.liveZone.cardIds.length >= GAME_CONFIG.MAX_LIVE_CARDS_PER_PHASE) {
+          if (player.liveZone.cardIds.length >= getLiveSetCardLimitForPlayer(state, command.playerId)) {
             return '已达到 Live 卡放置上限';
           }
           const card = state.cardRegistry.get(command.cardId);

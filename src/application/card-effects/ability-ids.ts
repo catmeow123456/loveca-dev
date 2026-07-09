@@ -178,10 +178,30 @@ export const PL_N_BP4_004_LIVE_START_STACK_NIJIGASAKI_MEMBERS_BY_OPPONENT_WAIT_C
   'PL!N-bp4-004:live-start-stack-nijigasaki-members-by-opponent-wait-count';
 export const PL_N_BP4_005_ON_ENTER_DISCARD_WAIT_OPPONENT_LOW_COST_MEMBERS_ABILITY_ID =
   'PL!N-bp4-005:on-enter-discard-wait-opponent-low-cost-members';
+export const PL_N_BP4_006_ON_ENTER_PAY_TWO_PLAY_LOW_COST_NIJIGASAKI_MEMBER_ABILITY_ID =
+  'PL!N-bp4-006:on-enter-pay-two-play-low-cost-nijigasaki-member';
 export const PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID =
   'PL!N-bp4-008:activated-discard-activate-energy-or-nijigasaki-member';
 export const PL_N_BP4_009_LIVE_START_DRAW_TWO_HAND_TO_DECK_TOP_LOW_STAGE_COST_ABILITY_ID =
   'PL!N-bp4-009:live-start-draw-two-hand-to-deck-top-if-lower-stage-cost';
+export const PL_N_BP4_011_LIVE_START_DISCARD_LIVE_GAIN_CHOSEN_HEART_ABILITY_ID =
+  'PL!N-bp4-011:live-start-discard-live-gain-chosen-heart';
+export const PL_N_BP4_011_LIVE_SUCCESS_MILL_FIVE_RECOVER_DISTINCT_NIJIGASAKI_LIVE_ABILITY_ID =
+  'PL!N-bp4-011:live-success-mill-five-recover-distinct-nijigasaki-live';
+export const PL_N_BP4_012_CONTINUOUS_OPPONENT_SUCCESS_SCORE_SIX_LIVE_SCORE_ABILITY_ID =
+  'PL!N-bp4-012:continuous-opponent-success-score-six-live-score';
+export const PL_N_BP4_023_ON_ENTER_WAIT_NIJIGASAKI_MEMBER_DRAW_DISCARD_ABILITY_ID =
+  'PL!N-bp4-023:on-enter-wait-nijigasaki-member-draw-discard';
+export const PL_N_BP4_025_LIVE_START_CHEER_HEART_COLORS_TO_BLUE_ABILITY_ID =
+  'PL!N-bp4-025-L:live-start-cheer-heart-colors-to-blue';
+export const PL_N_BP4_025_LIVE_SUCCESS_NIJIGASAKI_CHEER_PRINTED_SIX_HEART_COLORS_SCORE_ABILITY_ID =
+  'PL!N-bp4-025-L:live-success-nijigasaki-cheer-printed-six-heart-colors-score';
+export const PL_N_BP4_026_AUTO_WAITING_TO_HAND_PLACE_DIVE_LIVE_ABILITY_ID =
+  'PL!N-bp4-026-L:auto-waiting-to-hand-place-dive-live';
+export const PL_N_BP4_026_AUTO_FACE_UP_LIVE_ZONE_NIJIGASAKI_MEMBER_BLADE_ABILITY_ID =
+  'PL!N-bp4-026-L:auto-face-up-live-zone-nijigasaki-member-blade';
+export const PL_N_BP4_031_LIVE_START_NIJIGASAKI_STAGE_COST_DRAW_THREE_HAND_TO_TOP_ABILITY_ID =
+  'PL!N-bp4-031:live-start-nijigasaki-stage-cost-draw-three-hand-to-top';
 export const N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID =
   'PL!N-bp5-001:auto-on-cheer-blade-heart-types-gain-pink-heart-score';
 export const N_BP5_002_CONTINUOUS_STAGE_MOST_HEARTS_LIVE_SCORE_ABILITY_ID =
@@ -853,6 +873,12 @@ export const SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER_ABILITY_ID 
   'PL!SP-bp4-011-P:auto-enter-or-move-wait-opponent-low-blade-member';
 export const SP_BP4_007_AUTO_ON_MOVE_RECOVER_LOW_SCORE_LIELLA_LIVE_ABILITY_ID =
   'PL!SP-bp4-007:auto-on-move-recover-low-score-liella-live';
+export const PL_N_BP4_007_ON_ENTER_EACH_PLAYER_RECOVER_LIVE_ABILITY_ID =
+  'PL!N-bp4-007:on-enter-each-player-recover-live';
+export const PL_N_BP4_007_CONTINUOUS_TOTAL_ENERGY_FIFTEEN_GAIN_TWO_RED_HEART_ABILITY_ID =
+  'PL!N-bp4-007:continuous-total-energy-fifteen-gain-two-red-heart';
+export const PL_N_BP4_007_LIVE_SUCCESS_EACH_PLAYER_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!N-bp4-007:live-success-each-player-place-waiting-energy';
 export const HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID =
   'PL!HS-bp2-002-P:on-enter-take-up-to-two-low-cost-members';
 export const HS_BP2_002_CONTINUOUS_OTHER_HIGHER_COST_GAIN_THREE_BLADE_ABILITY_ID =

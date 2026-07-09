@@ -50,6 +50,15 @@ import {
 } from './card-effects/runtime/active-effect.js';
 import { resolveActivatedAbilityWithRegistry } from './card-effects/runtime/activated-registry.js';
 import { isLiveStartAbilitySuppressed } from './card-effects/runtime/live-start-suppression-gates.js';
+import {
+  enqueueEnterHandCardEffects,
+  enqueueEnterLiveZoneCardEffects,
+  enqueueUntriggeredEnterHandAndLiveZoneCardEffects,
+  getEnterHandEventsFromLog,
+  getEnterLiveZoneEventsFromLog,
+  getLatestEnterHandEventsFromLog,
+  getLatestEnterLiveZoneEventsFromLog,
+} from './card-effects/runtime/enter-card-zone-triggers.js';
 import { enqueueMemberSlotMovedObserverCardEffects } from './card-effects/runtime/member-slot-moved-observers.js';
 import { enqueueResolvedAbilityObserverCardEffects } from './card-effects/runtime/resolved-ability-observers.js';
 import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime/starter-registry.js';
@@ -159,12 +168,19 @@ import { registerNBp4002KasumiWorkflowHandlers } from './card-effects/workflows/
 import { registerNBp4003ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-003-shizuku.js';
 import { registerNBp4009RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-009-rina.js';
 import { registerNBp4005AiWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-005-ai.js';
+import { registerNBp4006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-006-kanata.js';
+import { registerNBp4007SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-007-setsuna.js';
 import { registerNBp4008EmmaWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-008-emma.js';
 import { registerNBp4010ShiorikoWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-010-shioriko.js';
+import { registerNBp4011MiaTaylorWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-011-mia-taylor.js';
 import { registerNBp4021RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-021-rina.js';
+import { registerNBp4023MiaTaylorWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-023-mia-taylor.js';
+import { registerNBp4025VividWorldWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-025-vivid-world.js';
+import { registerNBp4026DiveWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-026-dive.js';
 import { registerNBp4027EmotionWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-027-emotion.js';
 import { registerNBp4029RiseUpHighWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-029-rise-up-high.js';
 import { registerNBp4030DaydreamMermaidWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-030-daydream-mermaid.js';
+import { registerNBp4031NeoSkyNeoMapWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-031-neo-sky-neo-map.js';
 import { registerNDiscardRecoverAndBladeWorkflowHandlers } from './card-effects/workflows/shared/discard-cost-recover-live-or-gain-blade.js';
 import { registerNBp5003ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-bp5-003-shizuku.js';
 import { registerNBp5021RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp5-021-rina.js';
@@ -357,6 +373,8 @@ import {
 import type {
   CheerEvent,
   EnergyPlacedByCardEffectEvent,
+  EnterHandEvent,
+  EnterLiveZoneEvent,
   EnterStageEvent,
   EnterWaitingRoomEvent,
   LeaveStageEvent,
@@ -480,6 +498,8 @@ interface EnergyPlacedByCardEffectAbilitySource {
 interface EnqueueTriggeredCardEffectsOptions {
   readonly onEnterSources?: readonly OnEnterAbilitySource[];
   readonly enterStageEvents?: readonly EnterStageEvent[];
+  readonly enterHandEvents?: readonly EnterHandEvent[];
+  readonly enterLiveZoneEvents?: readonly EnterLiveZoneEvent[];
   readonly enterWaitingRoomEvents?: readonly EnterWaitingRoomEvent[];
   readonly triggerEventLogStartIndex?: number;
   readonly onLeaveStageSources?: readonly OnLeaveStageAbilitySource[];
@@ -938,13 +958,20 @@ registerNBp4002KasumiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp4003ShizukuWorkflowHandlers();
 registerNBp4004KarinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp4005AiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp4006KanataWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp4007SetsunaWorkflowHandlers();
 registerNBp4008EmmaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp4009RinaWorkflowHandlers();
 registerNBp4010ShiorikoWorkflowHandlers();
+registerNBp4011MiaTaylorWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp4021RinaWorkflowHandlers();
+registerNBp4023MiaTaylorWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp4025VividWorldWorkflowHandlers();
+registerNBp4026DiveWorkflowHandlers();
 registerNBp4027EmotionWorkflowHandlers();
 registerNBp4029RiseUpHighWorkflowHandlers();
 registerNBp4030DaydreamMermaidWorkflowHandlers();
+registerNBp4031NeoSkyNeoMapWorkflowHandlers();
 registerNBp5003ShizukuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp5021RinaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerOnEnterActivateWaitingEnergyWorkflowHandlers();
@@ -1155,6 +1182,24 @@ export function enqueueTriggeredCardEffects(
       state,
       enterWaitingRoomEvents
     );
+  }
+
+  if (triggerConditions.includes(TriggerCondition.ON_ENTER_HAND)) {
+    const enterHandEvents =
+      options.enterHandEvents ??
+      (options.triggerEventLogStartIndex === undefined
+        ? getLatestEnterHandEventsFromLog(state)
+        : getEnterHandEventsFromLog(state, options.triggerEventLogStartIndex));
+    state = enqueueEnterHandCardEffects(state, enterHandEvents);
+  }
+
+  if (triggerConditions.includes(TriggerCondition.ON_ENTER_LIVE_ZONE)) {
+    const enterLiveZoneEvents =
+      options.enterLiveZoneEvents ??
+      (options.triggerEventLogStartIndex === undefined
+        ? getLatestEnterLiveZoneEventsFromLog(state)
+        : getEnterLiveZoneEventsFromLog(state, options.triggerEventLogStartIndex));
+    state = enqueueEnterLiveZoneCardEffects(state, enterLiveZoneEvents);
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT)) {
@@ -2984,12 +3029,7 @@ function enqueueLatestResolvedEnergyPlacedByCardEffectTriggers(game: GameState):
     return game;
   }
 
-  const alreadyTriggeredEventIds = new Set(
-    game.actionHistory
-      .filter((action) => action.type === 'TRIGGER_ABILITY')
-      .map((action) => action.payload.eventId)
-      .filter((eventId): eventId is string => typeof eventId === 'string')
-  );
+  const alreadyTriggeredEventIds = getAlreadyTriggeredEventIds(game);
   const events = getEnergyPlacedByCardEffectEventsFromLog(game).filter(
     (event) =>
       event.cause.abilityId === resolvedAbilityId &&
@@ -3003,6 +3043,15 @@ function enqueueLatestResolvedEnergyPlacedByCardEffectTriggers(game: GameState):
   return enqueueTriggeredCardEffects(game, [TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT], {
     energyPlacedByCardEffectEvents: events,
   });
+}
+
+function getAlreadyTriggeredEventIds(game: GameState): ReadonlySet<string> {
+  return new Set(
+    game.actionHistory
+      .filter((action) => action.type === 'TRIGGER_ABILITY')
+      .map((action) => action.payload.eventId)
+      .filter((eventId): eventId is string => typeof eventId === 'string')
+  );
 }
 
 function getSupportedPendingAbilities(game: GameState): readonly PendingAbilityState[] {
@@ -3101,6 +3150,11 @@ function continuePendingCardEffects(game: GameState, orderedResolution: boolean)
   const stateWithEnergyPlacedTriggers = enqueueLatestResolvedEnergyPlacedByCardEffectTriggers(game);
   if (stateWithEnergyPlacedTriggers !== game) {
     return continuePendingCardEffects(stateWithEnergyPlacedTriggers, orderedResolution);
+  }
+
+  const stateWithMoveTriggers = enqueueUntriggeredEnterHandAndLiveZoneCardEffects(game);
+  if (stateWithMoveTriggers !== game) {
+    return continuePendingCardEffects(stateWithMoveTriggers, orderedResolution);
   }
 
   const stateWithResolvedAbilityObservers = enqueueResolvedAbilityObserverCardEffects(game);

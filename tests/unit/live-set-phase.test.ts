@@ -39,7 +39,12 @@ import {
   createConfirmSubPhaseAction,
 } from '../../src/application/actions';
 import type { GameState } from '../../src/domain/entities/game';
-import { getPlayerById, getCardById, updatePlayer } from '../../src/domain/entities/game';
+import {
+  getPlayerById,
+  getCardById,
+  setLiveSetCardCount,
+  updatePlayer,
+} from '../../src/domain/entities/game';
 
 // ============================================
 // 测试用卡牌数据工厂
@@ -467,6 +472,7 @@ describe('Live 卡设置阶段测试', () => {
           cardIds: [...refreshCards],
         },
       }));
+      stateInLiveSet = setLiveSetCardCount(stateInLiveSet, 'player1', stagedCardIds.length);
 
       const handCountBefore = getPlayerById(stateInLiveSet, 'player1')!.hand.cardIds.length;
       const confirmResult = gameService.processAction(
