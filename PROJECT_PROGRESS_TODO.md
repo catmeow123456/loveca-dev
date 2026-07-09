@@ -1,6 +1,21 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-08
+更新时间：2026-07-09
+
+## 本次 2026-07-09 水团 sd1 第一批卡效
+
+- 已实现 `PL!S-sd1-001-SD` 费用 17「高海千歌」：新增窄 workflow `s-sd1-001-chika.ts`，ON_CHEER / turn1 按 pending 绑定的普通自己声援 `CheerEvent.revealedCardIds` 事实统计自己公开 LIVE 卡，最多获得 3 个 [赤ハート]，不依赖当前 `resolutionZone`；0 张也记录使用，来源离场安全 no-op，additional cheer 不二次触发。
+- 已实现 `PL!S-sd1-006-SD` 费用 5「津島善子」：新增窄 workflow `s-sd1-006-yoshiko.ts`，ON_ENTER queued 真实可选弃 1 手牌交互不套 confirm-only；弃手走 hand -> waiting room trigger wrapper，支付后重扫休息室与空成员区，刚弃置的费用 2 以下 Aqours 成员可登场，休息室登场显式入队 `ON_ENTER_STAGE`。括号文“该区域本回合不能登场成员”暂按底层通用规则治理，单卡 workflow 不写静态锁、不记录特殊 `movedToStageThisTurn`。
+- 已实现 `PL!S-sd1-003-SD` 费用 11「松浦果南」：扩展 shared `look-top-select-to-hand`，查看顶 5，selector 为 Aqours LIVE，公开后入手，其余 inspected cards 通过 inspection-to-waiting wrapper 进入休息室并保留 `MAIN_DECK -> WAITING_ROOM` 事件语义。
+- 已实现 `PL!S-sd1-013-SD` 费用 4「黒澤ダイヤ」：扩展 shared `direct-mill-top`，`topCount=5`，继续使用 `moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers`，refresh 洗回卡组的牌不计入本次 `movedCardIds`。
+- 已实现 `PL!S-sd1-019-SD` 分数 1「未来の僕らは知ってるよ」：扩展 shared `revealed-cheer-selection`，LIVE 成功时强制选择本次自己声援公开、仍在处理区且 revealed 的 Aqours LIVE 加入手牌，移动复用 `moveRevealedCheerCards(..., HAND)`，保留真实选择窗口。
+- 已实现 `PL!S-sd1-022-SD` 分数 6「Jump up HIGH!!」：扩展 shared `aqours-live-start-success-effects.ts` 的 Aqours LIVE_START BLADE 路径；无交互 queued pending 走 confirm-only / manual confirmation，动态文案展示当前自己舞台 Aqours 成员数与实际获得 [BLADE] 的成员数，结算时重查来源 LIVE 仍在自己的 LIVE 区并只给自己舞台 Aqours 成员逐个写 BLADE +1。
+- 已实现 `PL!S-sd1-002-SD` 费用 15「桜内梨子」：扩展 shared `on-enter-discard-recover-unit-card`，登场 queued 真实交互可不发动；弃 1 手牌走 hand -> waiting room trigger wrapper，支付后重扫休息室并强制回收 1 张 Aqours 任意类型卡，刚弃置的 Aqours 卡可回收。
+- 已实现 `PL!S-sd1-005-SD` 费用 5「渡辺 曜」：新增窄 workflow `s-sd1-005-you.ts`，起动 turn1 支付 2 活跃能量并弃 1 手牌，弃手走 wrapper；支付后重扫休息室强制回收 1 张 Aqours LIVE，刚弃置的 Aqours LIVE 可回收，支付后无目标费用保留 no-op。
+- 已实现 `PL!S-sd1-004-SD` 费用 13「黒澤ダイヤ」：新增窄 workflow `s-sd1-004-dia.ts`，LIVE_START 真实可选交互不套 confirm-only；来源成员开始结算与回顶选择时均重查仍在己方舞台，选择发动后抽 1，再按当前手牌 ordered multi 选择正好 2 张按顺序放到卡组顶，抽到的卡可回顶；无法抽、手牌不足、陈旧/非法选择均安全继续 pending，回顶不触发进休息室事件。
+- 已实现 `PL!S-sd1-020-SD` 分数 2「JIMO-AI Dash!」：新增窄 workflow `s-sd1-020-jimo-ai-dash.ts`，LIVE_SUCCESS 真实弃手交互不套 confirm-only；结算时重查来源 LIVE 仍在自己的 LIVE 区与当前己方舞台 Aqours 成员数，按成员数抽牌，弃手数量等于实际因此抽到的张数，0 抽不弹弃手选择；弃手走 hand -> waiting room trigger wrapper，陈旧/非法弃手选择安全继续 pending。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录上述 sd1 卡的实现状态、复用 workflow/helper 与 focused tests。
+- 验证：前 3 张的既有记录为 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/look-top-select-to-hand.test.ts tests/integration/direct-mill-top.test.ts tests/integration/s-sd1-019-revealed-cheer-selection.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（6 files / 26 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-002-SD` / `PL!S-sd1-005-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-002-005-aqours-recovery.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（4 files / 26 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-001-SD` / `PL!S-sd1-022-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-001-chika.test.ts tests/integration/aqours-live-start-success-effects.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（5 files / 35 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-004-SD` / `PL!S-sd1-020-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-004-dia.test.ts tests/integration/s-sd1-020-jimo-ai-dash.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（5 files / 22 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-006-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-006-yoshiko.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（4 files / 24 tests）、`tsc --noEmit` passed、`git diff --check` passed。
 
 ## 本次 2026-07-08 3.7.1 发布准备
 

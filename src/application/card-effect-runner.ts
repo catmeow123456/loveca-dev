@@ -34,6 +34,7 @@ import {
   not,
   or,
   typeIs,
+  unitAliasIs,
 } from './effects/card-selectors.js';
 import {
   countCardsMatchingSelector,
@@ -119,6 +120,7 @@ import { registerWaitDiscardLookTopSelectToHandWorkflowHandlers } from './card-e
 import { registerHsPb1004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-004-ginko.js';
 import { registerHsPb1002SayakaWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-002-sayaka.js';
 import { registerHsPb1012GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-012-ginko.js';
+import { registerHsPb1001KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-001-kaho.js';
 import { registerHsPb1009KahoWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-009-kaho.js';
 import { registerHsPb1007SerasWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-007-seras.js';
 import { registerHsPb1006HimeWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-006-hime.js';
@@ -126,6 +128,7 @@ import { registerHsPb1014HimeWorkflowHandlers } from './card-effects/workflows/c
 import { registerHsPb1021KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-021-kosuzu.js';
 import { registerHsPb1005KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-005-kosuzu.js';
 import { registerHsPb1013KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-013-kosuzu.js';
+import { registerHsPb1025DakishimeruHanabiraWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-025-dakishimeru-hanabira.js';
 import { registerHsPb1029ZenhouiKyunWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-029-zenhoui-kyun.js';
 import { registerHsPb1030EdeliedWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-030-edelied.js';
 import { registerHsPb1028CompassWorkflowHandlers } from './card-effects/workflows/cards/hs-pb1-028-compass.js';
@@ -324,6 +327,11 @@ import { registerSBp5016HanamaruWorkflowHandlers } from './card-effects/workflow
 import { registerSBp5017MariWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-017-mari.js';
 import { registerSBp5019NotAloneNotHitoriWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-019-not-alone-not-hitori.js';
 import { registerSBp5022SelfControlWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-022-self-control.js';
+import { registerSSd1001ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-sd1-001-chika.js';
+import { registerSSd1004DiaWorkflowHandlers } from './card-effects/workflows/cards/s-sd1-004-dia.js';
+import { registerSSd1005YouWorkflowHandlers } from './card-effects/workflows/cards/s-sd1-005-you.js';
+import { registerSSd1006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-sd1-006-yoshiko.js';
+import { registerSSd1020JimoAiDashWorkflowHandlers } from './card-effects/workflows/cards/s-sd1-020-jimo-ai-dash.js';
 import { registerSPb1006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-pb1-006-yoshiko.js';
 import { registerSBp6001ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-bp6-001-chika.js';
 import { registerSBp6003KananWorkflowHandlers } from './card-effects/workflows/cards/s-bp6-003-kanan.js';
@@ -458,6 +466,7 @@ interface OnEnterStageAutoSource {
   readonly controllerId: string;
   readonly sourceSlot: SlotPosition;
   readonly enteredCardId: string;
+  readonly enteredControllerId: string;
   readonly eventId: string;
 }
 interface OnLeaveStageAbilitySource {
@@ -841,6 +850,7 @@ registerLiveStartSuccessCountChooseHeartWorkflowHandlers();
 registerBp5007NozomiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp6003KotoriWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerBp6020DancingStarsWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerHsPb1001KahoWorkflowHandlers();
 registerHsPb1006HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1009KahoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1007SerasWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -848,6 +858,7 @@ registerHsPb1014HimeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1021KosuzuWorkflowHandlers();
 registerHsPb1005KosuzuWorkflowHandlers();
 registerHsPb1013KosuzuWorkflowHandlers();
+registerHsPb1025DakishimeruHanabiraWorkflowHandlers();
 registerHsPb1028CompassWorkflowHandlers();
 registerHsPb1029ZenhouiKyunWorkflowHandlers();
 registerHsPb1030EdeliedWorkflowHandlers();
@@ -1093,6 +1104,11 @@ registerSpPb2047WelcomeToBokuraNoSekaiWorkflowHandlers({ enqueueTriggeredCardEff
 registerSpPb2048DistortionWorkflowHandlers();
 registerSpPb2049NeutralWorkflowHandlers();
 registerOnEnterDiscardRecoverUnitCardWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSSd1001ChikaWorkflowHandlers();
+registerSSd1004DiaWorkflowHandlers();
+registerSSd1005YouWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSSd1006YoshikoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSSd1020JimoAiDashWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerChisatoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerActivatedPayEnergySelfPositionChangeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerActivatedWaitSelfDiscardDrawWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -2233,6 +2249,7 @@ function createOnEnterStageAutoSources(
         controllerId: player.id,
         sourceSlot,
         enteredCardId: event.cardInstanceId,
+        enteredControllerId: event.controllerId,
         eventId: event.eventId,
       });
     }
@@ -2427,7 +2444,11 @@ function enqueueSingleOnEnterStageAutoCardEffect(
     CardAbilityCategory.AUTO,
     CardAbilitySourceZone.STAGE_MEMBER,
     source.sourceSlot
-  ).filter((ability) => ability.triggerCondition === TriggerCondition.ON_ENTER_STAGE);
+  ).filter(
+    (ability) =>
+      ability.triggerCondition === TriggerCondition.ON_ENTER_STAGE &&
+      doesOnEnterStageAutoTriggerMatchAbilityDefinition(game, source, ability)
+  );
   if (abilityDefinitions.length === 0) {
     return game;
   }
@@ -2474,6 +2495,44 @@ function enqueueSingleOnEnterStageAutoCardEffect(
   }
 
   return state;
+}
+
+function doesOnEnterStageAutoTriggerMatchAbilityDefinition(
+  game: GameState,
+  source: OnEnterStageAutoSource,
+  ability: CardAbilityDefinition
+): boolean {
+  const filter = ability.onEnterStageTriggerFilter;
+  if (!filter) {
+    return true;
+  }
+
+  if (filter.enteredController === 'SELF' && source.enteredControllerId !== source.controllerId) {
+    return false;
+  }
+  if (filter.enteredController === 'OPPONENT' && source.enteredControllerId === source.controllerId) {
+    return false;
+  }
+  if (filter.excludeEnteredCardAsSource === true && source.enteredCardId === source.sourceCardId) {
+    return false;
+  }
+
+  const enteredCard = getCardById(game, source.enteredCardId);
+  if (!enteredCard) {
+    return false;
+  }
+  if (filter.enteredCardType && enteredCard.data.cardType !== filter.enteredCardType) {
+    return false;
+  }
+  if (
+    filter.enteredUnitAliases &&
+    filter.enteredUnitAliases.length > 0 &&
+    !filter.enteredUnitAliases.some((unitAlias) => unitAliasIs(unitAlias)(enteredCard))
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function enqueueLiveStartCardEffects(

@@ -168,6 +168,10 @@ const PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!S-pb1-005:continuous-opponent-energy-more-gain-three-blade';
 const PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!S-pb1-009:continuous-total-success-live-three-gain-three-blade';
+const HS_PB1_022_CONTINUOUS_RURINO_GAIN_TWO_PINK_HEART_ABILITY_ID =
+  'PL!HS-pb1-022:continuous-rurino-stage-gain-two-pink-heart';
+const HS_PB1_022_CONTINUOUS_MEGU_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!HS-pb1-022:continuous-megu-stage-gain-two-blade';
 const SP_BP4_005_CONTINUOUS_ENERGY_TEN_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!SP-bp4-005:continuous-energy-ten-gain-three-blade';
 const SP_BP4_003_CONTINUOUS_CENTER_GAIN_TWO_BLADE_ABILITY_ID =
@@ -826,6 +830,42 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
               sourceCardId,
               abilityId:
                 PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
+    baseCardCodes: ['PL!HS-pb1-022'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        !hasStageMemberNamedAny(game, playerId, ['大沢瑠璃乃', '大泽瑠璃乃', '大泽琉璃乃'])
+      ) {
+        return [];
+      }
+
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: HS_PB1_022_CONTINUOUS_RURINO_GAIN_TWO_PINK_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.PINK, count: 2 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
+    baseCardCodes: ['PL!HS-pb1-022'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceMainStageMember(game, playerId, sourceCardId) &&
+      hasStageMemberNamedAny(game, playerId, ['藤島慈', '藤岛慈'])
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 2,
+              sourceCardId,
+              abilityId: HS_PB1_022_CONTINUOUS_MEGU_GAIN_TWO_BLADE_ABILITY_ID,
             },
           ]
         : [],
@@ -1977,6 +2017,19 @@ function sourceStageMemberHasOrientation(
 ): boolean {
   const player = getPlayerById(game, playerId);
   return player?.memberSlots.cardStates.get(sourceCardId)?.orientation === orientation;
+}
+
+function hasStageMemberNamedAny(game: GameState, playerId: string, names: readonly string[]): boolean {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return false;
+  }
+  const normalizedNames = new Set(names.map(normalizeContinuousMemberName));
+  return MEMBER_SLOT_ORDER.some((slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    const card = cardId ? getCardById(game, cardId) : null;
+    return card !== null && normalizedNames.has(normalizeContinuousMemberName(card.data.name));
+  });
 }
 
 function countOtherStageMembersBelongingToGroup(

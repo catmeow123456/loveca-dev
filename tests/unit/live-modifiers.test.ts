@@ -65,6 +65,10 @@ const HS_BP5_016_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-016-N:continuous-opponent-two-waiting-purple-heart';
 const HS_PB1_007_CONTINUOUS_ABILITY_ID =
   'PL!HS-pb1-007:continuous-exact-two-own-opponent-three-purple-heart';
+const HS_PB1_022_CONTINUOUS_RURINO_ABILITY_ID =
+  'PL!HS-pb1-022:continuous-rurino-stage-gain-two-pink-heart';
+const HS_PB1_022_CONTINUOUS_MEGU_ABILITY_ID =
+  'PL!HS-pb1-022:continuous-megu-stage-gain-two-blade';
 const HS_SD1_004_CONTINUOUS_ABILITY_ID =
   'PL!HS-sd1-004-SD:continuous-stage-kaho-kosuzu-hime-green-heart';
 const HS_SD1_005_CONTINUOUS_ABILITY_ID =
@@ -5739,6 +5743,139 @@ describe('PL!S-pb1-009 continuous total success LIVE BLADE', () => {
             modifier.kind === 'BLADE' && modifier.abilityId === PL_S_PB1_009_CONTINUOUS_ABILITY_ID
         )
       ).toBe(true);
+    }
+  });
+});
+
+describe('PL!HS-pb1-022 continuous Rurino/Megu stage bonuses', () => {
+  function setupHimeStageScenario(options: {
+    readonly includeRurino?: boolean;
+    readonly includeMegu?: boolean;
+    readonly sourcePlacement?: 'STAGE' | 'OFF_STAGE' | 'MEMBER_BELOW';
+  }) {
+    const hime = createCardInstance(
+      {
+        cardCode: 'PL!HS-pb1-022-N',
+        name: '安養寺姫芽',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+        unitName: 'みらくらぱーく！',
+        cardType: CardType.MEMBER,
+        cost: 5,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'hs-pb1-022-hime'
+    );
+    const host = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-host',
+        name: 'Host',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'hs-pb1-022-host'
+    );
+    const rurino = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-rurino',
+        name: '大沢瑠璃乃',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+        unitName: 'みらくらぱーく！',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'hs-pb1-022-rurino'
+    );
+    const megu = createCardInstance(
+      {
+        cardCode: 'PL!HS-test-megu',
+        name: '藤島慈',
+        groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+        unitName: 'みらくらぱーく！',
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'hs-pb1-022-megu'
+    );
+
+    let game = createGameState('hs-pb1-022-continuous', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hime, host, rurino, megu]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      if (options.sourcePlacement === 'MEMBER_BELOW') {
+        memberSlots = addMemberBelowMember(
+          placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          hime.instanceId
+        );
+      } else if (options.sourcePlacement !== 'OFF_STAGE') {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, hime.instanceId);
+      }
+      if (options.includeRurino) {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, rurino.instanceId);
+      }
+      if (options.includeMegu) {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.RIGHT, megu.instanceId);
+      }
+      return { ...player, memberSlots };
+    });
+    return { game, hime };
+  }
+
+  it('grants pink Heart x2 while Rurino is on stage', () => {
+    const { game, hime } = setupHimeStageScenario({ includeRurino: true });
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      sourceCardId: hime.instanceId,
+      abilityId: HS_PB1_022_CONTINUOUS_RURINO_ABILITY_ID,
+      hearts: [{ color: HeartColor.PINK, count: 2 }],
+    });
+    expect(getMemberEffectiveHeartIcons(game, 'p1', hime.instanceId)).toContainEqual({
+      color: HeartColor.PINK,
+      count: 2,
+    });
+  });
+
+  it('grants BLADE +2 while Megu is on stage and stacks with the Rurino bonus', () => {
+    const { game, hime } = setupHimeStageScenario({ includeRurino: true, includeMegu: true });
+
+    expect(collectLiveModifiers(game)).toContainEqual({
+      kind: 'BLADE',
+      playerId: 'p1',
+      sourceCardId: hime.instanceId,
+      abilityId: HS_PB1_022_CONTINUOUS_MEGU_ABILITY_ID,
+      countDelta: 2,
+    });
+    expect(getMemberEffectiveBladeCount(game, 'p1', hime.instanceId)).toBe(3);
+  });
+
+  it('does not apply either bonus when the source is not a main stage member', () => {
+    for (const sourcePlacement of ['OFF_STAGE', 'MEMBER_BELOW'] as const) {
+      const { game } = setupHimeStageScenario({
+        includeRurino: true,
+        includeMegu: true,
+        sourcePlacement,
+      });
+      expect(
+        collectLiveModifiers(game).some(
+          (modifier) =>
+            modifier.abilityId === HS_PB1_022_CONTINUOUS_RURINO_ABILITY_ID ||
+            modifier.abilityId === HS_PB1_022_CONTINUOUS_MEGU_ABILITY_ID
+        )
+      ).toBe(false);
     }
   });
 });

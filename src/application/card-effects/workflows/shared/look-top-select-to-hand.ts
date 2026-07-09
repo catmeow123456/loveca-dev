@@ -6,13 +6,19 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { CardType, HeartColor, OrientationState, ZoneType } from '../../../../shared/types/enums.js';
+import {
+  CardType,
+  HeartColor,
+  OrientationState,
+  ZoneType,
+} from '../../../../shared/types/enums.js';
 import {
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
   HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
   PL_S_BP5_007_LIVE_SUCCESS_LOOK_TOP_GREEN_HEART_MEMBER_ABILITY_ID,
   S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
+  S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID,
   SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
   UMI_ON_ENTER_ABILITY_ID,
@@ -23,10 +29,7 @@ import {
 } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import {
-  getAbilityEffectText,
-  recordPayCostAction,
-} from '../../runtime/workflow-helpers.js';
+import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
@@ -151,13 +154,14 @@ const HS_BP2_013_REVEAL_SELECTED_STEP_ID = 'HS_BP2_013_REVEAL_SELECTED_LIVE';
 const S_BP6_005_SELECT_THREE_COLOR_MEMBER_STEP_ID =
   'S_BP6_005_SELECT_THREE_COLOR_MEMBER_FROM_TOP_TWO';
 const S_BP6_005_REVEAL_THREE_COLOR_MEMBER_STEP_ID = 'S_BP6_005_REVEAL_SELECTED_THREE_COLOR_MEMBER';
+const S_SD1_003_SELECT_AQOURS_LIVE_STEP_ID = 'S_SD1_003_SELECT_AQOURS_LIVE_FROM_TOP_FIVE';
+const S_SD1_003_REVEAL_AQOURS_LIVE_STEP_ID = 'S_SD1_003_REVEAL_SELECTED_AQOURS_LIVE';
 const PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_STEP_ID =
   'PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_FROM_TOP_FOUR';
 const PL_S_BP5_007_REVEAL_GREEN_HEART_MEMBER_STEP_ID =
   'PL_S_BP5_007_REVEAL_SELECTED_GREEN_HEART_MEMBER';
 const SP_BP4_002_OPTION_STEP_ID = 'SP_BP4_002_WAIT_OPTION';
-const SP_BP4_002_SELECT_LIELLA_LIVE_STEP_ID =
-  'SP_BP4_002_SELECT_HIGH_REQUIREMENT_LIELLA_LIVE';
+const SP_BP4_002_SELECT_LIELLA_LIVE_STEP_ID = 'SP_BP4_002_SELECT_HIGH_REQUIREMENT_LIELLA_LIVE';
 const SP_BP4_002_REVEAL_LIELLA_LIVE_STEP_ID =
   'SP_BP4_002_REVEAL_SELECTED_HIGH_REQUIREMENT_LIELLA_LIVE';
 
@@ -165,11 +169,7 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
   {
     abilityId: SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
     topCount: 4,
-    selector: and(
-      typeIs(CardType.LIVE),
-      groupAliasIs('Liella!'),
-      liveTotalRequiredHeartGte(8)
-    ),
+    selector: and(typeIs(CardType.LIVE), groupAliasIs('Liella!'), liveTotalRequiredHeartGte(8)),
     countRule: { minCount: 0, maxCount: 1 },
     revealSelectedBeforeHand: true,
     optionStepId: SP_BP4_002_OPTION_STEP_ID,
@@ -236,6 +236,30 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
       sourceActionLabel: '登场',
       inspectSourceZone: ZoneType.MAIN_DECK,
       requestedInspectCount: 3,
+    },
+  },
+  {
+    abilityId: S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID,
+    topCount: 5,
+    selector: and(typeIs(CardType.LIVE), groupAliasIs('Aqours')),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    selectStepId: S_SD1_003_SELECT_AQOURS_LIVE_STEP_ID,
+    revealStepId: S_SD1_003_REVEAL_AQOURS_LIVE_STEP_ID,
+    selectStepText: getAbilityEffectText(S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID),
+    noTargetStepText: getAbilityEffectText(S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID),
+    selectionLabel: '选择要公开并加入手牌的 Aqours LIVE',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '不加入',
+    revealStepText: getAbilityEffectText(S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID),
+    revealActionStep: 'REVEAL_SELECTED_AQOURS_LIVE',
+    noCardsMode: 'open-selection',
+    includeInspectedCardIdsInFinishAction: true,
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 5,
     },
   },
   {
@@ -343,15 +367,12 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     revealSelectedBeforeHand: true,
     selectStepId: PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_STEP_ID,
     revealStepId: PL_S_BP5_007_REVEAL_GREEN_HEART_MEMBER_STEP_ID,
-    selectStepText:
-      '请选择至多1张持有2个以上[緑ハート]的成员卡公开并加入手牌。也可以不加入。',
-    noTargetStepText:
-      '没有可加入手牌的持有2个以上[緑ハート]的成员卡。确认后其余卡片放置入休息室。',
+    selectStepText: '请选择至多1张持有2个以上[緑ハート]的成员卡公开并加入手牌。也可以不加入。',
+    noTargetStepText: '没有可加入手牌的持有2个以上[緑ハート]的成员卡。确认后其余卡片放置入休息室。',
     selectionLabel: '选择要公开并加入手牌的绿Heart成员',
     confirmSelectionLabel: '公开并加入手牌',
     skipSelectionLabel: '不加入',
-    revealStepText:
-      '选择的成员卡已公开。确认后加入手牌，其余卡片放置入休息室。',
+    revealStepText: '选择的成员卡已公开。确认后加入手牌，其余卡片放置入休息室。',
     revealActionStep: 'REVEAL_SELECTED_GREEN_HEART_MEMBER',
     publicEffectSummaryContext: {
       effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',

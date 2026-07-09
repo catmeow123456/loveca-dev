@@ -31,6 +31,7 @@ import {
   S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_023_LIVE_SUCCESS_OWN_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_024_LIVE_SUCCESS_OPPONENT_LOSE_REMAINING_HEARTS_THIS_LIVE_SCORE_ABILITY_ID,
+  S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   addBladeLiveModifierForSourceMember,
@@ -69,6 +70,19 @@ export function registerSFutureWaterBatch3WorkflowHandlers(): void {
       ),
     (game, ability) => ({
       effectText: getMyMaiTonightLiveStartConfirmationEffectText(game, ability),
+    })
+  );
+  registerManualConfirmablePendingAbilityStarterHandler(
+    S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveJumpUpHighLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    (game, ability) => ({
+      effectText: getJumpUpHighLiveStartConfirmationEffectText(game, ability),
     })
   );
   registerPendingAbilityStarterHandler(
@@ -210,6 +224,16 @@ function getMyMaiTonightLiveStartConfirmationEffectText(
   return `${getAbilityEffectText(ability.abilityId)}（可计入的其他Aqours LIVE ${otherAqoursLiveCardIds.length}张，舞台成员 ${stageMemberCardIds.length}名，${
     otherAqoursLiveCardIds.length > 0 ? '满足条件，各获得[BLADE]+1' : '未满足条件，不获得[BLADE]'
   }）`;
+}
+
+function getJumpUpHighLiveStartConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const context = getJumpUpHighLiveStartContext(game, ability);
+  return `${getAbilityEffectText(ability.abilityId)}（当前自己舞台 Aqours 成员 ${
+    context.aqoursStageMemberCardIds.length
+  }名，实际获得[BLADE]的成员 ${context.applies ? context.aqoursStageMemberCardIds.length : 0}名。）`;
 }
 
 function getEnergyLeadLiveSuccessConfirmationEffectText(
@@ -354,6 +378,56 @@ function resolveMyMaiTonightLiveStart(
       targetMemberCardIds,
       appliedTargetMemberCardIds,
       bladeBonusPerMember: conditionMet ? 1 : 0,
+    }),
+    orderedResolution
+  );
+}
+
+function resolveJumpUpHighLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const context = getJumpUpHighLiveStartContext(game, ability);
+  const targetMemberCardIds = context.applies ? context.aqoursStageMemberCardIds : [];
+  let state: GameState = {
+    ...game,
+    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+  };
+  const appliedTargetMemberCardIds: string[] = [];
+
+  for (const targetMemberCardId of targetMemberCardIds) {
+    const bladeResult = addBladeLiveModifierForSourceMember(state, {
+      playerId: player.id,
+      sourceCardId: targetMemberCardId,
+      abilityId: ability.abilityId,
+      amount: 1,
+    });
+    if (!bladeResult) {
+      continue;
+    }
+    state = bladeResult.gameState;
+    appliedTargetMemberCardIds.push(targetMemberCardId);
+  }
+
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: context.sourceLiveInOwnLiveZone
+        ? 'AQOURS_STAGE_MEMBERS_GAIN_BLADE'
+        : 'SOURCE_LIVE_NOT_IN_OWN_LIVE_ZONE',
+      sourceLiveInOwnLiveZone: context.sourceLiveInOwnLiveZone,
+      targetMemberCardIds,
+      appliedTargetMemberCardIds,
+      bladeBonusPerMember: context.sourceLiveInOwnLiveZone ? 1 : 0,
     }),
     orderedResolution
   );
@@ -686,6 +760,43 @@ function getOwnStageMemberCardIds(game: GameState, playerId: string): readonly s
       ? [cardId]
       : [];
   });
+}
+
+function getOwnAqoursStageMemberCardIds(game: GameState, playerId: string): readonly string[] {
+  return getOwnStageMemberCardIds(game, playerId).filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return card !== null && groupAliasIs(AQOURS)(card);
+  });
+}
+
+function getJumpUpHighLiveStartContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceLiveInOwnLiveZone: boolean;
+  readonly aqoursStageMemberCardIds: readonly string[];
+  readonly applies: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return {
+      sourceLiveInOwnLiveZone: false,
+      aqoursStageMemberCardIds: [],
+      applies: false,
+    };
+  }
+  const sourceCard = getCardById(game, ability.sourceCardId);
+  const sourceLiveInOwnLiveZone =
+    sourceCard !== null &&
+    sourceCard.ownerId === player.id &&
+    isLiveCardData(sourceCard.data) &&
+    player.liveZone.cardIds.includes(ability.sourceCardId);
+  const aqoursStageMemberCardIds = getOwnAqoursStageMemberCardIds(game, player.id);
+  return {
+    sourceLiveInOwnLiveZone,
+    aqoursStageMemberCardIds,
+    applies: sourceLiveInOwnLiveZone && aqoursStageMemberCardIds.length > 0,
+  };
 }
 
 function isOwnMainStageMember(

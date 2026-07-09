@@ -24,6 +24,7 @@ import {
   S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID,
   S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
+  S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   BladeHeartEffect,
@@ -106,6 +107,22 @@ function placeStageMembers(
   members: readonly { readonly cardId: string; readonly slot: SlotPosition }[]
 ): GameState {
   return updatePlayer(game, PLAYER1, (player) => {
+    let memberSlots = player.memberSlots;
+    for (const member of members) {
+      memberSlots = placeCardInSlot(memberSlots, member.slot, member.cardId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      });
+    }
+    return { ...player, memberSlots };
+  });
+}
+
+function placeOpponentStageMembers(
+  game: GameState,
+  members: readonly { readonly cardId: string; readonly slot: SlotPosition }[]
+): GameState {
+  return updatePlayer(game, PLAYER2, (player) => {
     let memberSlots = player.memberSlots;
     for (const member of members) {
       memberSlots = placeCardInSlot(memberSlots, member.slot, member.cardId, {
@@ -267,6 +284,203 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
     const resolved = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState);
 
     expect(resolved.liveResolution.liveModifiers).toHaveLength(0);
+  });
+
+  it.each([
+    { ownAqoursCount: 0, expectedBladeCount: 0 },
+    { ownAqoursCount: 1, expectedBladeCount: 1 },
+    { ownAqoursCount: 3, expectedBladeCount: 3 },
+  ])(
+    'PL!S-sd1-022 gives BLADE to current own Aqours stage members: $ownAqoursCount',
+    ({ ownAqoursCount, expectedBladeCount }) => {
+      const sourceLive = createCardInstance(
+        createLiveCard('PL!S-sd1-022-SD', { name: 'Jump up HIGH!!' }),
+        PLAYER1,
+        `jump-up-high-${ownAqoursCount}`
+      );
+      const aqoursMembers = Array.from({ length: ownAqoursCount }, (_, index) =>
+        createCardInstance(createMemberCard(`PL!S-aqours-member-${index}`), PLAYER1, `aqours-${index}`)
+      );
+      const nonAqoursMember = createCardInstance(
+        createMemberCard('PL!SP-liella-member', { groupNames: ['Liella!'] }),
+        PLAYER1,
+        'own-non-aqours'
+      );
+      const opponentAqoursMember = createCardInstance(
+        createMemberCard('PL!S-opponent-aqours-member'),
+        PLAYER2,
+        'opponent-aqours'
+      );
+      let game = registerCards(
+        createGameState(`sd1-022-${ownAqoursCount}`, PLAYER1, 'P1', PLAYER2, 'P2'),
+        [sourceLive, ...aqoursMembers, nonAqoursMember, opponentAqoursMember]
+      );
+      game = placeLiveZone(game, [sourceLive.instanceId]);
+      game = placeStageMembers(game, [
+        ...aqoursMembers.map((card, index) => ({
+          cardId: card.instanceId,
+          slot: [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][index]!,
+        })),
+        ...(ownAqoursCount < 3
+          ? [{ cardId: nonAqoursMember.instanceId, slot: SlotPosition.RIGHT }]
+          : []),
+      ]);
+      game = placeOpponentStageMembers(game, [
+        { cardId: opponentAqoursMember.instanceId, slot: SlotPosition.CENTER },
+      ]);
+      game = {
+        ...game,
+        pendingAbilities: [
+          createPendingAbility(
+            S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+            sourceLive.instanceId,
+            TriggerCondition.ON_LIVE_START
+          ),
+        ],
+      };
+
+      const preview = resolvePendingCardEffects(game).gameState;
+      expect(preview.activeEffect).toMatchObject({
+        abilityId: S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+        metadata: { confirmOnlyPendingAbility: true },
+      });
+      expect(preview.activeEffect?.effectText).toContain(
+        `当前自己舞台 Aqours 成员 ${ownAqoursCount}名`
+      );
+      expect(preview.activeEffect?.effectText).toContain(
+        `实际获得[BLADE]的成员 ${expectedBladeCount}名`
+      );
+
+      const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+      const bladeModifiers = resolved.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId === S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID
+      );
+      expect(bladeModifiers).toHaveLength(expectedBladeCount);
+      for (const aqoursMember of aqoursMembers) {
+        expect(bladeModifiers).toContainEqual({
+          kind: 'BLADE',
+          playerId: PLAYER1,
+          countDelta: 1,
+          sourceCardId: aqoursMember.instanceId,
+          abilityId: S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+        });
+      }
+      expect(bladeModifiers.some((modifier) => modifier.sourceCardId === nonAqoursMember.instanceId)).toBe(false);
+      expect(
+        bladeModifiers.some((modifier) => modifier.sourceCardId === opponentAqoursMember.instanceId)
+      ).toBe(false);
+    }
+  );
+
+  it('PL!S-sd1-022 rechecks the source LIVE and no-ops if it left own liveZone before confirmation', () => {
+    const sourceLive = createCardInstance(
+      createLiveCard('PL!S-sd1-022-SD', { name: 'Jump up HIGH!!' }),
+      PLAYER1,
+      'jump-up-high-left'
+    );
+    const aqoursMember = createCardInstance(
+      createMemberCard('PL!S-aqours-member-left'),
+      PLAYER1,
+      'aqours-left'
+    );
+    let game = registerCards(createGameState('sd1-022-left', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      sourceLive,
+      aqoursMember,
+    ]);
+    game = placeLiveZone(game, [sourceLive.instanceId]);
+    game = placeStageMembers(game, [{ cardId: aqoursMember.instanceId, slot: SlotPosition.CENTER }]);
+    game = {
+      ...game,
+      pendingAbilities: [
+        createPendingAbility(
+          S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+          sourceLive.instanceId,
+          TriggerCondition.ON_LIVE_START
+        ),
+      ],
+    };
+
+    const preview = resolvePendingCardEffects(game).gameState;
+    const sourceLeft = updatePlayer(preview, PLAYER1, (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardIds: [],
+        cardStates: new Map(),
+      },
+    }));
+    const resolved = confirmActiveEffectStep(sourceLeft, PLAYER1, sourceLeft.activeEffect!.id);
+
+    expect(
+      resolved.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.abilityId === S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(resolved.pendingAbilities).toEqual([]);
+  });
+
+  it('PL!S-sd1-022 resolves multiple pending abilities in order without confirm-only bridges', () => {
+    const sourceLives = [
+      createCardInstance(
+        createLiveCard('PL!S-sd1-022-SD', { name: 'Jump up HIGH!! A' }),
+        PLAYER1,
+        'jump-up-high-order-a'
+      ),
+      createCardInstance(
+        createLiveCard('PL!S-sd1-022-SD', { name: 'Jump up HIGH!! B' }),
+        PLAYER1,
+        'jump-up-high-order-b'
+      ),
+    ];
+    const aqoursMember = createCardInstance(
+      createMemberCard('PL!S-order-aqours-member'),
+      PLAYER1,
+      'order-aqours-member'
+    );
+    let game = registerCards(createGameState('sd1-022-order', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      ...sourceLives,
+      aqoursMember,
+    ]);
+    game = placeLiveZone(
+      game,
+      sourceLives.map((card) => card.instanceId)
+    );
+    game = placeStageMembers(game, [{ cardId: aqoursMember.instanceId, slot: SlotPosition.CENTER }]);
+    game = {
+      ...game,
+      pendingAbilities: sourceLives.map((sourceLive, index) =>
+        createPendingAbility(
+          S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+          sourceLive.instanceId,
+          TriggerCondition.ON_LIVE_START,
+          index === 0 ? SlotPosition.LEFT : SlotPosition.RIGHT
+        )
+      ),
+    };
+
+    const orderSelection = resolvePendingCardEffects(game).gameState;
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+    const resolved = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+
+    expect(resolved.activeEffect).toBeNull();
+    expect(
+      resolved.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId === S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID &&
+          modifier.sourceCardId === aqoursMember.instanceId
+      )
+    ).toHaveLength(2);
   });
 
   it('PL!S-bp6-009 continuous BLADE equals the opponent success Live count lead', () => {
