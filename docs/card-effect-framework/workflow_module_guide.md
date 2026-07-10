@@ -101,6 +101,8 @@ Original Blade count replacement uses `MEMBER_ORIGINAL_BLADE_REPLACEMENT` as a L
 
 Revealed-cheer selection is a shared family when the operation is "choose cards revealed by the current cheer and still in the processing zone, then move them or perform additional cheer". Keep selector differences, destination, min/max count, optional/skip behavior, additional-cheer count calculation, whether a successful move records a turn-once ability use, and payload field names in config. Reuse `effects/cheer-selection.ts` for current-cheer eligibility and `effects/cheer.ts` for additional cheer; do not reimplement resolution-zone movement, cheer context checks, or the non-recursive additional-cheer guard inside a workflow.
 
+Cheer reroll is not part of that shared selection family. `PL!S-bp2-004` 费用 11「黒澤ダイヤ」 is the first narrow sample: its card workflow must read the pending-linked normal `CheerEvent` fact, recheck only the original cards still movable in the resolution zone, record turn1 before creating the replacement cheer, and explicitly enqueue the replacement `additional=false` event through the normal `ON_CHEER` path. `replaceCurrentCheerCards=true` in `effects/cheer.ts` replaces only the acting player's current cheer IDs; default/false remains additive registration, the opponent IDs remain unchanged, and Q107 queries therefore see only the second cheer. Do not promote this to a general cheer loop, replacement-effect DSL, or universal cheer-reset workflow without more samples.
+
 Cheer-card Heart color replacement is a shared no-input LIVE_START family for effects that say cards revealed by your own cheer have specific Heart colors treated as another Heart color until LIVE end. Real samples are `PL!SP-bp4-023` and `PL!N-bp4-025`. Keep the stable axes to `abilityId`, definition-owned card coverage, `fromColors`, `toColor`, confirm/preview text, and action step label. The workflow owns manual confirm-only versus ordered-resolution behavior, source LIVE still being in the controller's liveZone, writing `CHEER_CARD_HEART_COLOR_REPLACEMENT`, `RESOLVE_ABILITY` payload, and `continuePendingCardEffects`. Do not fold in VIVID WORLD's LIVE_SUCCESS score check, Dazzling Game's member BLADE selection, or other LIVE_START modifier families.
 
 Success-zone placement prohibitions are not workflow families by themselves. Keep pure "can this LIVE enter SUCCESS_ZONE" rules in `domain/rules/success-live-placement.ts`, and call them from the natural success Live selection, replacement candidates, exchange candidates, and manual move validation. If the same card also has a LIVE_SUCCESS reward, implement that reward as a normal workflow wrapper, as `PL!S-bp2-024` does with draw-then-discard.
@@ -147,6 +149,15 @@ Rules:
 - 不为了 family 化把参数塞爆；特殊卡独立文件是可接受目标态。
 
 ## Runner Dispatch
+
+## LIVE_SUCCESS availability gate
+
+`runtime/live-success-ability-availability-gates.ts` 是只作用于入队前的窄 registry：按
+`abilityId` 注册 predicate，未注册的能力默认允许。runner 只在 LIVE_SUCCESS 循环中调用通用
+查询；gate 为 false 时不构造 pending，也不记录 `TRIGGER_ABILITY`。它不结算效果、不构造
+pending、不推进队列，也不承载卡牌专属条件。当前真实样本是 `PL!S-bp2-008`：其单卡 workflow
+用该 gate 判断自己 LEFT/CENTER/RIGHT 顶层成员是否均为不同名 Aqours，再决定授予的 pseudo
+LIVE_SUCCESS ability 是否入队。
 
 Target start dispatch:
 

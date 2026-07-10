@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
-import { createGameState, emitGameEvent, registerCards } from '../../src/domain/entities/game';
+import { createGameState, emitGameEvent, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { createCheerEvent } from '../../src/domain/events/game-events';
 import {
   evaluateCurrentLiveRevealedCheerCardCondition,
+  moveRevealedCheerCards,
   selectCurrentLiveRevealedCheerCardIds,
 } from '../../src/application/effects/cheer-selection';
+import { revealCheerCardsFromMainDeck } from '../../src/application/effects/cheer';
 import { CardType, HeartColor } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -100,5 +102,134 @@ describe('current live revealed cheer selection', () => {
       matchingCount: 1,
       conditionMet: true,
     });
+  });
+});
+
+describe('revealed cheer card movement', () => {
+  it('appends movable revealed cards to the bottom of the main deck and clears both resolution lists', () => {
+    const deckTop = createCardInstance(live('PL!S-test-deck-top', ['Aqours']), PLAYER1, 'deck-top');
+    const deckBottom = createCardInstance(
+      live('PL!S-test-deck-bottom', ['Aqours']),
+      PLAYER1,
+      'deck-bottom'
+    );
+    const revealedLive = createCardInstance(
+      live('PL!S-test-revealed-live', ['Aqours']),
+      PLAYER1,
+      'revealed-live'
+    );
+    let game = registerCards(
+      createGameState('cheer-selection-bottom', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [deckTop, deckBottom, revealedLive]
+    );
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: [deckTop.instanceId, deckBottom.instanceId] },
+    }));
+    game = {
+      ...game,
+      resolutionZone: {
+        ...game.resolutionZone,
+        cardIds: [revealedLive.instanceId],
+        revealedCardIds: [revealedLive.instanceId],
+      },
+    };
+
+    const result = moveRevealedCheerCards(game, PLAYER1, [revealedLive.instanceId], 'MAIN_DECK_BOTTOM');
+
+    expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([
+      deckTop.instanceId,
+      deckBottom.instanceId,
+      revealedLive.instanceId,
+    ]);
+    expect(result?.gameState.resolutionZone.cardIds).toEqual([]);
+    expect(result?.gameState.resolutionZone.revealedCardIds).toEqual([]);
+  });
+
+  it('rejects duplicate, unrevealed, departed, and opponent cards without moving any card', () => {
+    const ownLive = createCardInstance(live('PL!S-test-own-live', ['Aqours']), PLAYER1, 'own-live');
+    const opponentLive = createCardInstance(
+      live('PL!S-test-opponent-live', ['Aqours']),
+      PLAYER2,
+      'opponent-live'
+    );
+    let game = registerCards(
+      createGameState('cheer-selection-invalid', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [ownLive, opponentLive]
+    );
+    game = {
+      ...game,
+      resolutionZone: {
+        ...game.resolutionZone,
+        cardIds: [ownLive.instanceId, opponentLive.instanceId],
+        revealedCardIds: [ownLive.instanceId, opponentLive.instanceId],
+      },
+    };
+
+    expect(
+      moveRevealedCheerCards(game, PLAYER1, [ownLive.instanceId, ownLive.instanceId], 'MAIN_DECK_BOTTOM')
+    ).toBeNull();
+    expect(moveRevealedCheerCards(game, PLAYER1, [opponentLive.instanceId], 'MAIN_DECK_BOTTOM')).toBeNull();
+    expect(
+      moveRevealedCheerCards(
+        { ...game, resolutionZone: { ...game.resolutionZone, revealedCardIds: [] } },
+        PLAYER1,
+        [ownLive.instanceId],
+        'MAIN_DECK_BOTTOM'
+      )
+    ).toBeNull();
+    expect(
+      moveRevealedCheerCards(
+        { ...game, resolutionZone: { ...game.resolutionZone, cardIds: [] } },
+        PLAYER1,
+        [ownLive.instanceId],
+        'MAIN_DECK_BOTTOM'
+      )
+    ).toBeNull();
+  });
+});
+
+describe('reveal cheer current facts', () => {
+  it('appends by default but replaceCurrentCheerCards replaces only the acting player and returns the exact new event', () => {
+    const oldFirst = createCardInstance(live('OLD-FIRST', ['Aqours']), PLAYER1, 'old-first');
+    const oldSecond = createCardInstance(live('OLD-SECOND', ['Aqours']), PLAYER2, 'old-second');
+    const newFirst = createCardInstance(live('NEW-FIRST', ['Aqours']), PLAYER1, 'new-first');
+    const appendedFirst = createCardInstance(live('APPENDED-FIRST', ['Aqours']), PLAYER1, 'appended-first');
+    let game = registerCards(
+      createGameState('cheer-replace-current', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [oldFirst, oldSecond, newFirst, appendedFirst]
+    );
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: [newFirst.instanceId, appendedFirst.instanceId] },
+    }));
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        firstPlayerCheerCardIds: [oldFirst.instanceId],
+        secondPlayerCheerCardIds: [oldSecond.instanceId],
+      },
+    };
+
+    const replaced = revealCheerCardsFromMainDeck(game, PLAYER1, 1, {
+      automated: true,
+      replaceCurrentCheerCards: true,
+    });
+    expect(replaced.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([newFirst.instanceId]);
+    expect(replaced.gameState.liveResolution.secondPlayerCheerCardIds).toEqual([oldSecond.instanceId]);
+    expect(replaced.cheerEvent).toMatchObject({
+      playerId: PLAYER1,
+      revealedCardIds: [newFirst.instanceId],
+      automated: true,
+      additional: false,
+    });
+
+    const appended = revealCheerCardsFromMainDeck(replaced.gameState, PLAYER1, 1);
+    expect(appended.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([
+      newFirst.instanceId,
+      appendedFirst.instanceId,
+    ]);
+    expect(appended.gameState.liveResolution.secondPlayerCheerCardIds).toEqual([oldSecond.instanceId]);
   });
 });

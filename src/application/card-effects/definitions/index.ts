@@ -559,10 +559,22 @@ import {
   S_BP6_019_LIVE_START_ALL_AQOURS_SCORE_DRAW_HAND_TOP_BOTTOM_ABILITY_ID,
   S_BP6_020_GRANTED_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
   S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID,
+  S_BP2_008_CONTINUOUS_FULL_DISTINCT_AQOURS_STAGE_GRANT_LIVE_SUCCESS_ABILITY_ID,
+  S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID,
+  S_BP2_008_ON_ENTER_WAITING_ROOM_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
   S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  S_BP2_002_ON_LEAVE_STAGE_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID,
+  S_BP2_003_AUTO_ON_CHEER_LIVE_GAIN_GREEN_HEART_ABILITY_ID,
+  S_BP2_004_AUTO_ON_CHEER_NO_LIVE_REROLL_ABILITY_ID,
+  S_BP2_007_AUTO_ON_CHEER_LIVE_HAND_SEVEN_OR_LESS_DRAW_ONE_ABILITY_ID,
+  S_BP2_007_LIVE_START_REVEAL_HAND_LIVE_BOTTOM_ARRANGE_TOP_TWO_ABILITY_ID,
+  S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
+  S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
+  S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
   S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   S_SD1_020_LIVE_SUCCESS_DRAW_AQOURS_STAGE_COUNT_DISCARD_DRAWN_COUNT_ABILITY_ID,
   S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID,
+  S_BP2_001_CONTINUOUS_OWN_NO_SUCCESS_OPPONENT_HAS_SUCCESS_GAIN_THREE_BLADE_ABILITY_ID,
   S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
   S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_023_LIVE_SUCCESS_OWN_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
@@ -1654,6 +1666,30 @@ const S_BP6_019_LIVE_START_EFFECT_TEXT =
 const S_BP6_020_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】从以下选择1个。\n・此卡获得「【LIVE成功时】抽1张卡。」\n・LIVE结束时为止，本回合因换手登场的1名『Aqours』成员获得[赤ハート]。\n・自己的成功LIVE卡置场有2张以上时，此卡的分数+1。';
 const S_BP6_020_GRANTED_LIVE_SUCCESS_EFFECT_TEXT = '【LIVE成功时】抽1张卡。';
+const S_BP2_008_ON_ENTER_EFFECT_TEXT =
+  '【登场】从自己的休息室将至多1张的LIVE卡放置入卡组的最下方。';
+const S_BP2_008_CONTINUOUS_EFFECT_TEXT =
+  '【常时】所有自己的舞台的区域均有『Aqours』的成员登场，且名称不同的场合，获得「【LIVE成功时】从因声援被公开的自己的卡片中存在大于等于1张的LIVE卡的场合, LIVE的合计分数+1。LIVE卡大于等于3张的场合, 作为代替合计分数+2。」。';
+const S_BP2_008_GRANTED_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】从因声援被公开的自己的卡片中存在大于等于1张的LIVE卡的场合, LIVE的合计分数+1。LIVE卡大于等于3张的场合, 作为代替合计分数+2。';
+const S_BP2_001_CONTINUOUS_EFFECT_TEXT =
+  '【常时】存在于自己的成功LIVE卡区的卡片为0张，且存在于对手的成功LIVE卡区的卡片大于等于1张的场合，获得[BLADE][BLADE][BLADE]。';
+const S_BP2_002_AUTO_EFFECT_TEXT =
+  '【自动】此成员从舞台被放置入休息室时，可以将1张手牌放置入休息室。如此做的场合，从自己的休息室将1张『Aqours』的LIVE卡加入手牌。';
+const S_BP2_003_AUTO_EFFECT_TEXT =
+  '【自动】【1回合1次】因声援被公开的自己的卡片中存在大于等于1张的LIVE卡时, LIVE结束时为止，获得[緑ハート]。';
+const S_BP2_004_AUTO_ON_CHEER_REROLL_EFFECT_TEXT =
+  '【自动】【1回合1次】声援被公开的自己的卡片中不存在LIVE卡时, 可以将那些卡片全部放置入休息室。因此放置入休息室的卡片大于等于1张的场合, 失去该声援获得的BLADE HEART, 再确认一次声援。';
+const S_BP2_007_AUTO_EFFECT_TEXT =
+  '【自动】【1回合1次】因声援被公开的自己的卡片中存在大于等于1张的LIVE卡时, 自己的手牌小于等于7张的场合，抽1张卡。';
+const S_BP2_007_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将1张从手牌公开的LIVE卡放置入卡组最下方：检视自己卡组顶的2张卡。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的卡片放置入休息室。';
+const S_BP2_021_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】从因声援被公开的自己的卡片中，将至多1张LIVE卡放置于入卡组底。';
+const S_BP2_022_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】此回合中，自己的卡组更新的场合、此卡的分数+2。';
+const S_BP2_025_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的成功LIVE卡区的卡片大于等于2张的场合，LIVE结束时为止，存在于自己的舞台的成员1名获得[BLADE][BLADE]。';
 const S_BP2_023_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的LIVE区有「MY舞☆TONIGHT」以外的『Aqours』LIVE卡的场合，LIVE结束时为止，自己舞台上的成员获得 BLADE。';
 const S_SD1_022_LIVE_START_EFFECT_TEXT =
@@ -5952,7 +5988,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: S_SD1_001_AUTO_EFFECT_TEXT,
     perTurnLimit: 1,
     notes:
-      '窄单卡 ON_CHEER workflow `s-sd1-001-chika.ts`；入队使用普通自己声援事件，结算按 pending eventIds 回读 CheerEvent.revealedCardIds 事实，统计本次自己声援公开的自己 LIVE 卡数量并上限3。来源成员仍在己方舞台时写 SOURCE_MEMBER [赤ハート]；0张也记录 turn1 使用并消费 pending，追加声援不二次触发。',
+      'shared on-cheer-live-count-gain-heart workflow；入队使用普通自己声援事件，结算按 pending eventIds 回读 CheerEvent.revealedCardIds 事实，统计本次自己声援公开的自己 LIVE 卡数量并上限3。来源成员仍在己方舞台时写 SOURCE_MEMBER [赤ハート]；0张也记录 turn1 使用并消费 pending，追加声援不二次触发。',
   },
   {
     abilityId: S_SD1_002_ON_ENTER_DISCARD_RECOVER_AQOURS_CARD_ABILITY_ID,
@@ -6226,6 +6262,41 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: S_BP6_020_GRANTED_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
       '受守卫的 pseudo LIVE_SUCCESS ability；仅在本卡 LIVE_START 选择“获得 LIVE成功时抽1”后，对同一 sourceCardId、同一 turnCount 且本次 LIVE 成功的 pending 抽1。未选择或 guard 不满足时直接 no-op 消费，不弹确认、不抽牌。',
+  },
+  {
+    abilityId: S_BP2_008_ON_ENTER_WAITING_ROOM_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp2-008'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP2_008_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 ON_ENTER workflow；实时筛自己的休息室 LIVE，真实公开 0–1 选择复用 moveWaitingRoomCardsToDeckBottomForPlayer，不洗切。',
+  },
+  {
+    abilityId: S_BP2_008_CONTINUOUS_FULL_DISTINCT_AQOURS_STAGE_GRANT_LIVE_SUCCESS_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp2-008'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: S_BP2_008_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      '常时段表达满足三区 Aqours 不同名时获得下列 pseudo LIVE_SUCCESS ability；实际可用性由 LIVE_SUCCESS 入队前 registry gate 判定，不作为 HEART/BLADE/SCORE continuous modifier。',
+  },
+  {
+    abilityId: S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp2-008'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_BP2_008_GRANTED_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '授予的 pseudo LIVE_SUCCESS ability；仅在入队时三主区域均为不同名 Aqours 顶层成员才创建 pending。结算复用 Aqours shared workflow，按本次自己声援公开 LIVE 数为玩家 LIVE 合计分数写 +0/+1/+2。',
   },
   {
     abilityId: S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
@@ -9505,5 +9576,118 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: KARIN_EFFECT_TEXT,
     notes: '测试用虹咲样例卡，保留在同一分类表中验证 LIVE开始队列共性。',
+  },
+  {
+    abilityId:
+      S_BP2_001_CONTINUOUS_OWN_NO_SUCCESS_OPPONENT_HAS_SUCCESS_GAIN_THREE_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp2-001'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: S_BP2_001_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      'P / R 同文通过 baseCardCodes 同步；continuous live modifier registry 只在来源成员仍位于自己的主舞台、自己成功LIVE卡区恰为0张且对方成功LIVE卡区至少1张时收集固定 BLADE +3，不创建 pending 或状态型临时 modifier。',
+  },
+  {
+    abilityId: S_BP2_002_ON_LEAVE_STAGE_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp2-002'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+    triggerToZones: [ZoneType.WAITING_ROOM],
+    queued: true,
+    implemented: true,
+    effectText: S_BP2_002_AUTO_EFFECT_TEXT,
+    notes:
+      '扩展 shared grouped-recovery；可选弃1手走 discardOneHandCardToWaitingRoomAndEnqueueTriggers，支付后重扫休息室并强制回收1张 Aqours LIVE；支付后无目标保留弃手成本并继续队列。',
+  },
+  {
+    abilityId: S_BP2_003_AUTO_ON_CHEER_LIVE_GAIN_GREEN_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp2-003'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    countPendingAsTurnUse: false,
+    effectText: S_BP2_003_AUTO_EFFECT_TEXT,
+    notes:
+      '复用 shared on-cheer-live-count-gain-heart；只回读 pending eventIds 对应的自己普通 CheerEvent.revealedCardIds，按公开事实统计自己 LIVE。匹配至少1张时来源仍在己方舞台则写 SOURCE_MEMBER [緑ハート] +1 并记录 turn1；pending 不预占 turn1，故0张、additional 或陈旧事件安全消费 pending但不记录使用后，同回合后续普通声援仍可入队。',
+  },
+  {
+    abilityId: S_BP2_004_AUTO_ON_CHEER_NO_LIVE_REROLL_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp2-004'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: S_BP2_004_AUTO_ON_CHEER_REROLL_EFFECT_TEXT,
+    notes:
+      '单卡 workflow：只以 pending eventIds 对应的自己普通 CheerEvent.revealedCardIds 判断无 LIVE，并在发动时重扫当前仍在 resolutionZone 的原公开卡。移动后先记录 turn1，再以原 totalBlade 重做普通声援；cheer.ts 的 replaceCurrentCheerCards 窄选项替换当前玩家声援事实，满足 Q107 且不影响对手或 additional 声援。',
+  },
+  {
+    abilityId: S_BP2_007_AUTO_ON_CHEER_LIVE_HAND_SEVEN_OR_LESS_DRAW_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp2-007'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: S_BP2_007_AUTO_EFFECT_TEXT,
+    notes:
+      '单卡花丸 workflow 复用 event-inclusive selectCurrentLiveRevealedCheerCardIds，只统计 pending eventIds 对应的自己非 additional 声援公开事实；来源仍在己方舞台且当前手牌不超过7张时抽1并记录 turn1，牌库与休息室皆空时仍记录发动。',
+  },
+  {
+    abilityId: S_BP2_007_LIVE_START_REVEAL_HAND_LIVE_BOTTOM_ARRANGE_TOP_TWO_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp2-007'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP2_007_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡花丸 workflow：真实选择公开手牌 LIVE，窄 moveHandCardToDeckBottomForPlayer 置底后复用 arrange-inspected-deck-top 检视顶2并按顺序回顶；检视余牌通过 inspection-to-waiting trigger wrapper 进入休息室。',
+  },
+  {
+    abilityId: S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
+    cardCodes: ['PL!S-bp2-021-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_BP2_021_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '扩展 shared revealed-cheer-selection 与 cheer-selection 的 MAIN_DECK_BOTTOM destination；只允许本次自己声援公开、当前仍在处理区且 revealed 的 LIVE，至多1张放置于自己卡组底，不套 confirm-only。',
+  },
+  {
+    abilityId: S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
+    cardCodes: ['PL!S-bp2-022-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_BP2_022_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '扩展 shared aqours-live-start-success-effects；结算时通过 hasPlayerRefreshedDeckThisTurn 重查控制者本回合是否刷新自己的卡组，并确认来源 LIVE 仍在自己的 LIVE 区。满足时仅为来源 LIVE 写 SCORE +2 并刷新 playerScores；单 pending confirm-only 显示实时条件，顺序发动自动连续。',
+  },
+  {
+    abilityId: S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+    cardCodes: ['PL!S-bp2-025-L'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP2_025_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow `s-bp2-025-aozora-jumping-heart.ts`；结算时重查来源 LIVE 仍在自己的 LIVE 区与成功LIVE卡区数量，真实选择自己舞台成员并通过 BLADE live modifier 写入目标成员。条件不足、无目标、来源离区或 stale 选择均安全消费 pending 并继续队列；不套 confirm-only。',
   },
 ];

@@ -24,6 +24,7 @@ import {
   discardOneHandCardToWaitingRoomForPlayer,
   drawCardsForEachPlayer,
   drawCardsForPlayer,
+  moveHandCardToDeckBottomForPlayer,
   moveWaitingRoomCardsToDeckBottomForPlayer,
   recoverCardsFromWaitingRoomToHandForPlayer,
   shuffleWaitingRoomCardsToDeckBottomForPlayer,
@@ -260,6 +261,56 @@ describe('card effect runtime actions', () => {
           action.payload.mainDeckCountAfter === 3
       )
     ).toBe(true);
+  });
+
+  it('moves one candidate hand card to the deck bottom without shuffling', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 4);
+    setPlayerZones(state, 0, {
+      handCardIds: [cardIds[2], cardIds[3]],
+      mainDeckCardIds: [cardIds[0], cardIds[1]],
+    });
+
+    const result = moveHandCardToDeckBottomForPlayer(state, PLAYER1, cardIds[2], {
+      candidateCardIds: [cardIds[2], cardIds[3]],
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.movedCardId).toBe(cardIds[2]);
+    expect(result?.remainingCandidateIds).toEqual([cardIds[3]]);
+    expect(result?.gameState.players[0].hand.cardIds).toEqual([cardIds[3]]);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([
+      cardIds[0],
+      cardIds[1],
+      cardIds[2],
+    ]);
+  });
+
+  it('rejects hand-to-bottom candidates outside the supplied set or no longer in hand', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 3);
+    setPlayerZones(state, 0, {
+      handCardIds: [cardIds[0]],
+      mainDeckCardIds: [cardIds[1]],
+    });
+
+    expect(
+      moveHandCardToDeckBottomForPlayer(state, PLAYER1, cardIds[0], {
+        candidateCardIds: [cardIds[2]],
+      })
+    ).toBeNull();
+    expect(
+      moveHandCardToDeckBottomForPlayer(state, PLAYER1, cardIds[2], {
+        candidateCardIds: [cardIds[2]],
+      })
+    ).toBeNull();
+    expect(
+      moveHandCardToDeckBottomForPlayer(state, 'missing-player', cardIds[0], {
+        candidateCardIds: [cardIds[0]],
+      })
+    ).toBeNull();
+    expect(state.players[0].hand.cardIds).toEqual([cardIds[0]]);
+    expect(state.players[0].mainDeck.cardIds).toEqual([cardIds[1]]);
   });
 
   it('draws for each player in order and records drawn card ids by player', () => {

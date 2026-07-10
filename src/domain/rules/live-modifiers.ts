@@ -748,6 +748,29 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    baseCardCodes: ['PL!S-bp2-001'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const player = game.players.find((candidate) => candidate.id === playerId);
+      const opponent = game.players.find((candidate) => candidate.id !== playerId);
+      return player &&
+        opponent &&
+        isSourceMainStageMember(game, playerId, sourceCardId) &&
+        player.successZone.cardIds.length === 0 &&
+        opponent.successZone.cardIds.length >= 1
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 3,
+              sourceCardId,
+              abilityId:
+                S_BP2_001_CONTINUOUS_OWN_NO_SUCCESS_OPPONENT_HAS_SUCCESS_GAIN_THREE_BLADE_ABILITY_ID,
+            },
+          ]
+        : [];
+    },
+  },
+  {
     baseCardCodes: ['PL!-bp6-009'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasCenterNicoWithSideOriginalBladeTwoMembers(game, playerId, sourceCardId)
@@ -1169,6 +1192,8 @@ const HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID =
   'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart';
 const S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID =
   'PL!S-bp6-009:continuous-success-live-difference-gain-blade';
+const S_BP2_001_CONTINUOUS_OWN_NO_SUCCESS_OPPONENT_HAS_SUCCESS_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!S-bp2-001:continuous-own-no-success-opponent-has-success-gain-three-blade';
 const PL_S_BP5_008_CONTINUOUS_OPPONENT_REMAINING_HEART_SCORE_ABILITY_ID =
   'PL!S-bp5-008:continuous-opponent-remaining-heart-score';
 const HS_PB1_007_CONTINUOUS_EXACT_TWO_OWN_OPPONENT_THREE_PURPLE_HEART_ABILITY_ID =

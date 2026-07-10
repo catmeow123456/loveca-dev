@@ -5776,6 +5776,124 @@ describe('PL!S-pb1-009 continuous total success LIVE BLADE', () => {
   });
 });
 
+describe('PL!S-bp2-001 continuous own-empty opponent-success BLADE', () => {
+  function setupChikaSuccessScenario(options: {
+    readonly cardCode: 'PL!S-bp2-001-P' | 'PL!S-bp2-001-R';
+    readonly ownSuccessCount: number;
+    readonly opponentSuccessCount: number;
+    readonly sourceOnStage?: boolean;
+  }) {
+    const chika = createCardInstance(
+      {
+        cardCode: options.cardCode,
+        name: '高海千歌',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      `bp2-001-${options.cardCode.endsWith('-P') ? 'p' : 'r'}`
+    );
+    const ownSuccess = Array.from({ length: options.ownSuccessCount }, (_, index) =>
+      createCardInstance(
+        createMuseLiveData(`PL!-bp2-001-own-${index}`, `Own ${index}`, 1),
+        'p1',
+        `bp2-001-own-${index}`
+      )
+    );
+    const opponentSuccess = Array.from({ length: options.opponentSuccessCount }, (_, index) =>
+      createCardInstance(
+        createMuseLiveData(`PL!-bp2-001-opponent-${index}`, `Opponent ${index}`, 1),
+        'p2',
+        `bp2-001-opponent-${index}`
+      )
+    );
+    let game = createGameState('s-bp2-001-continuous', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [chika, ...ownSuccess, ...opponentSuccess]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots:
+        options.sourceOnStage === false
+          ? player.memberSlots
+          : placeCardInSlot(player.memberSlots, SlotPosition.CENTER, chika.instanceId),
+      successZone: ownSuccess.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.successZone
+      ),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      successZone: opponentSuccess.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.successZone
+      ),
+    }));
+    return { game, chika };
+  }
+
+  function hasChikaBladeModifier(game: ReturnType<typeof setupChikaSuccessScenario>['game']) {
+    return collectLiveModifiers(game).find(
+      (modifier) =>
+        modifier.kind === 'BLADE' &&
+        modifier.abilityId ===
+          'PL!S-bp2-001:continuous-own-no-success-opponent-has-success-gain-three-blade'
+    );
+  }
+
+  it('grants fixed BLADE +3 to both P and R when own success zone is empty and opponent has one', () => {
+    for (const cardCode of ['PL!S-bp2-001-P', 'PL!S-bp2-001-R'] as const) {
+      const scenario = setupChikaSuccessScenario({
+        cardCode,
+        ownSuccessCount: 0,
+        opponentSuccessCount: 1,
+      });
+      expect(hasChikaBladeModifier(scenario.game)).toMatchObject({
+        playerId: 'p1',
+        countDelta: 3,
+        sourceCardId: scenario.chika.instanceId,
+      });
+      expect(getMemberEffectiveBladeCount(scenario.game, 'p1', scenario.chika.instanceId)).toBe(4);
+    }
+  });
+
+  it('remains fixed at BLADE +3 when the opponent has more than one success LIVE', () => {
+    const scenario = setupChikaSuccessScenario({
+      cardCode: 'PL!S-bp2-001-P',
+      ownSuccessCount: 0,
+      opponentSuccessCount: 3,
+    });
+    expect(hasChikaBladeModifier(scenario.game)).toMatchObject({ countDelta: 3 });
+  });
+
+  it('does not grant BLADE when both success zones are empty or own success zone has a card', () => {
+    for (const scenario of [
+      setupChikaSuccessScenario({
+        cardCode: 'PL!S-bp2-001-P',
+        ownSuccessCount: 0,
+        opponentSuccessCount: 0,
+      }),
+      setupChikaSuccessScenario({
+        cardCode: 'PL!S-bp2-001-R',
+        ownSuccessCount: 1,
+        opponentSuccessCount: 2,
+      }),
+    ]) {
+      expect(hasChikaBladeModifier(scenario.game)).toBeUndefined();
+    }
+  });
+
+  it('does not grant BLADE while the source member is not on its owner\'s main stage', () => {
+    const scenario = setupChikaSuccessScenario({
+      cardCode: 'PL!S-bp2-001-R',
+      ownSuccessCount: 0,
+      opponentSuccessCount: 1,
+      sourceOnStage: false,
+    });
+    expect(hasChikaBladeModifier(scenario.game)).toBeUndefined();
+  });
+});
+
 describe('PL!HS-pb1-022 continuous Rurino/Megu stage bonuses', () => {
   function setupHimeStageScenario(options: {
     readonly includeRurino?: boolean;

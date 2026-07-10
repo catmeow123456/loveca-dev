@@ -1,5 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import {
+  S_BP2_008_CONTINUOUS_FULL_DISTINCT_AQOURS_STAGE_GRANT_LIVE_SUCCESS_ABILITY_ID,
+  S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID,
+  S_BP2_008_ON_ENTER_WAITING_ROOM_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import { CardType, SlotPosition, TriggerCondition, ZoneType } from '../../src/shared/types/enums';
 import {
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
@@ -613,6 +618,15 @@ import {
   PL_S_BP5_010_CONTINUOUS_RED_HEART_FIVE_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE_ABILITY_ID,
   PL_S_BP5_011_CONTINUOUS_BLUE_HEART_FIVE_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE_ABILITY_ID,
   PL_S_BP5_013_LIVE_START_GREEN_REQUIREMENT_GAIN_GREEN_HEART_ABILITY_ID,
+  S_BP2_001_CONTINUOUS_OWN_NO_SUCCESS_OPPONENT_HAS_SUCCESS_GAIN_THREE_BLADE_ABILITY_ID,
+  S_BP2_002_ON_LEAVE_STAGE_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID,
+  S_BP2_003_AUTO_ON_CHEER_LIVE_GAIN_GREEN_HEART_ABILITY_ID,
+  S_BP2_004_AUTO_ON_CHEER_NO_LIVE_REROLL_ABILITY_ID,
+  S_BP2_007_AUTO_ON_CHEER_LIVE_HAND_SEVEN_OR_LESS_DRAW_ONE_ABILITY_ID,
+  S_BP2_007_LIVE_START_REVEAL_HAND_LIVE_BOTTOM_ARRANGE_TOP_TWO_ABILITY_ID,
+  S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
+  S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
+  S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 
 const PB1_019_LIKE_MEMBER_ACTIVATION_CARD_CODES = [
@@ -7692,6 +7706,24 @@ describe('card effect classification registry', () => {
     expect(sSd1001Auto?.effectText).toContain('[赤ハート]');
     expect(sSd1001Auto?.effectText).not.toMatch(/heart0[1-6]/i);
 
+    for (const cardCode of ['PL!S-bp2-003-P', 'PL!S-bp2-003-R']) {
+      const sBp2003Auto = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === S_BP2_003_AUTO_ON_CHEER_LIVE_GAIN_GREEN_HEART_ABILITY_ID
+      );
+      expect(sBp2003Auto).toMatchObject({
+        baseCardCodes: ['PL!S-bp2-003'],
+        category: CardAbilityCategory.AUTO,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_CHEER,
+        queued: true,
+        implemented: true,
+        perTurnLimit: 1,
+      });
+      expect(sBp2003Auto?.effectText).toBe(
+        '【自动】【1回合1次】因声援被公开的自己的卡片中存在大于等于1张的LIVE卡时, LIVE结束时为止，获得[緑ハート]。'
+      );
+    }
+
     const sSd1005Activated = getCardAbilityDefinitions('PL!S-sd1-005-SD').find(
       (ability) =>
         ability.abilityId === S_SD1_005_ACTIVATED_PAY_ENERGY_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID
@@ -10480,6 +10512,206 @@ describe('card effect classification registry', () => {
     expect(isSupportedActivatedAbilityForCard(RIN_ACTIVATED_ABILITY_ID, 'PL!HS-bp2-002-P')).toBe(
       false
     );
+  });
+});
+
+describe('PL!S-bp2-001 and PL!S-bp2-025 classifications', () => {
+  it('synchronizes both 高海千歌 rarities through one continuous definition', () => {
+    for (const cardCode of ['PL!S-bp2-001-P', 'PL!S-bp2-001-R']) {
+      expect(getCardAbilityDefinitions(cardCode)).toContainEqual(
+        expect.objectContaining({
+          abilityId:
+            S_BP2_001_CONTINUOUS_OWN_NO_SUCCESS_OPPONENT_HAS_SUCCESS_GAIN_THREE_BLADE_ABILITY_ID,
+          baseCardCodes: ['PL!S-bp2-001'],
+          category: CardAbilityCategory.CONTINUOUS,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          queued: false,
+          implemented: true,
+        })
+      );
+    }
+  });
+
+  it('classifies 青空Jumping Heart as the current exact-L LIVE_START ability', () => {
+    expect(getCardAbilityDefinitions('PL!S-bp2-025-L')).toContainEqual(
+      expect.objectContaining({
+        abilityId: S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+        cardCodes: ['PL!S-bp2-025-L'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      })
+    );
+  });
+});
+
+describe('PL!S-bp2-004 黒澤ダイヤ classifications', () => {
+  it.each(['PL!S-bp2-004-P', 'PL!S-bp2-004-R'])(
+    'synchronizes the one implemented ability for %s through the base card code',
+    (cardCode) => {
+      const definition = getCardAbilityDefinitions(cardCode).find(
+        (ability) => ability.abilityId === S_BP2_004_AUTO_ON_CHEER_NO_LIVE_REROLL_ABILITY_ID
+      );
+      expect(definition).toMatchObject({
+        baseCardCodes: ['PL!S-bp2-004'],
+        category: CardAbilityCategory.AUTO,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_CHEER,
+        queued: true,
+        implemented: true,
+        perTurnLimit: 1,
+        effectText:
+          '【自动】【1回合1次】声援被公开的自己的卡片中不存在LIVE卡时, 可以将那些卡片全部放置入休息室。因此放置入休息室的卡片大于等于1张的场合, 失去该声援获得的BLADE HEART, 再确认一次声援。',
+      });
+    }
+  );
+});
+
+describe('PL!S-bp2-007 国木田花丸 classifications', () => {
+  it.each(['PL!S-bp2-007-P', 'PL!S-bp2-007-P＋', 'PL!S-bp2-007-R＋', 'PL!S-bp2-007-SEC'])(
+    'synchronizes exactly the two implemented abilities for %s through the base card code',
+    (cardCode) => {
+      const definitions = getCardAbilityDefinitions(cardCode).filter(
+        (definition) =>
+          definition.abilityId === S_BP2_007_AUTO_ON_CHEER_LIVE_HAND_SEVEN_OR_LESS_DRAW_ONE_ABILITY_ID ||
+          definition.abilityId === S_BP2_007_LIVE_START_REVEAL_HAND_LIVE_BOTTOM_ARRANGE_TOP_TWO_ABILITY_ID
+      );
+      expect(definitions).toHaveLength(2);
+      expect(definitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            abilityId: S_BP2_007_AUTO_ON_CHEER_LIVE_HAND_SEVEN_OR_LESS_DRAW_ONE_ABILITY_ID,
+            baseCardCodes: ['PL!S-bp2-007'],
+            category: CardAbilityCategory.AUTO,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            triggerCondition: TriggerCondition.ON_CHEER,
+            queued: true,
+            perTurnLimit: 1,
+            implemented: true,
+            effectText:
+              '【自动】【1回合1次】因声援被公开的自己的卡片中存在大于等于1张的LIVE卡时, 自己的手牌小于等于7张的场合，抽1张卡。',
+          }),
+          expect.objectContaining({
+            abilityId: S_BP2_007_LIVE_START_REVEAL_HAND_LIVE_BOTTOM_ARRANGE_TOP_TWO_ABILITY_ID,
+            baseCardCodes: ['PL!S-bp2-007'],
+            category: CardAbilityCategory.LIVE_START,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            triggerCondition: TriggerCondition.ON_LIVE_START,
+            queued: true,
+            implemented: true,
+            effectText:
+              '【LIVE开始时】可以将1张从手牌公开的LIVE卡放置入卡组最下方：检视自己卡组顶的2张卡。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的卡片放置入休息室。',
+          }),
+        ])
+      );
+      expect(definitions.some((definition) => definition.cardCodes !== undefined)).toBe(false);
+    }
+  );
+});
+
+describe('PL!S-bp2-008 小原鞠莉 classifications', () => {
+  it.each(['PL!S-bp2-008-P', 'PL!S-bp2-008-P＋', 'PL!S-bp2-008-R＋', 'PL!S-bp2-008-SEC'])(
+    'synchronizes all three definitions for %s through the base card code',
+    (cardCode) => {
+      const definitions = getCardAbilityDefinitions(cardCode).filter((definition) =>
+        [
+          S_BP2_008_ON_ENTER_WAITING_ROOM_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
+          S_BP2_008_CONTINUOUS_FULL_DISTINCT_AQOURS_STAGE_GRANT_LIVE_SUCCESS_ABILITY_ID,
+          S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID,
+        ].includes(definition.abilityId)
+      );
+      expect(definitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            abilityId: S_BP2_008_ON_ENTER_WAITING_ROOM_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
+            baseCardCodes: ['PL!S-bp2-008'],
+            category: CardAbilityCategory.ON_ENTER,
+            sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+            triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+            queued: true,
+            implemented: true,
+            effectText: '【登场】从自己的休息室将至多1张的LIVE卡放置入卡组的最下方。',
+          }),
+          expect.objectContaining({
+            abilityId: S_BP2_008_CONTINUOUS_FULL_DISTINCT_AQOURS_STAGE_GRANT_LIVE_SUCCESS_ABILITY_ID,
+            baseCardCodes: ['PL!S-bp2-008'],
+            category: CardAbilityCategory.CONTINUOUS,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            queued: false,
+            implemented: true,
+            effectText:
+              '【常时】所有自己的舞台的区域均有『Aqours』的成员登场，且名称不同的场合，获得「【LIVE成功时】从因声援被公开的自己的卡片中存在大于等于1张的LIVE卡的场合, LIVE的合计分数+1。LIVE卡大于等于3张的场合, 作为代替合计分数+2。」。',
+          }),
+          expect.objectContaining({
+            abilityId: S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID,
+            baseCardCodes: ['PL!S-bp2-008'],
+            category: CardAbilityCategory.LIVE_SUCCESS,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+            queued: true,
+            implemented: true,
+            effectText:
+              '【LIVE成功时】从因声援被公开的自己的卡片中存在大于等于1张的LIVE卡的场合, LIVE的合计分数+1。LIVE卡大于等于3张的场合, 作为代替合计分数+2。',
+          }),
+        ])
+      );
+      expect(definitions).toHaveLength(3);
+    }
+  );
+});
+
+describe('PL!S-bp2-002 and PL!S-bp2-021 classifications', () => {
+  it.each(['PL!S-bp2-002-P', 'PL!S-bp2-002-R'])(
+    'synchronizes %s through the leave-stage Aqours LIVE recovery definition',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toContainEqual(
+        expect.objectContaining({
+          abilityId: S_BP2_002_ON_LEAVE_STAGE_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID,
+          baseCardCodes: ['PL!S-bp2-002'],
+          category: CardAbilityCategory.AUTO,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+          triggerToZones: [ZoneType.WAITING_ROOM],
+          queued: true,
+          implemented: true,
+        })
+      );
+    }
+  );
+
+  it('classifies 未体験HORIZON as the current exact-L LIVE_SUCCESS ability', () => {
+    expect(getCardAbilityDefinitions('PL!S-bp2-021-L')).toContainEqual(
+      expect.objectContaining({
+        abilityId: S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
+        cardCodes: ['PL!S-bp2-021-L'],
+        category: CardAbilityCategory.LIVE_SUCCESS,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        queued: true,
+        implemented: true,
+      })
+    );
+  });
+
+  it('classifies 未熟DREAMER as a unique exact-L LIVE_SUCCESS ability', () => {
+    const definitions = getCardAbilityDefinitions('PL!S-bp2-022-L').filter(
+      (ability) =>
+        ability.abilityId ===
+        S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID
+    );
+    expect(definitions).toHaveLength(1);
+    expect(definitions[0]).toMatchObject({
+      cardCodes: ['PL!S-bp2-022-L'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+      effectText: '【LIVE成功时】此回合中，自己的卡组更新的场合、此卡的分数+2。',
+    });
+    expect(getCardAbilityDefinitions('PL!S-bp2-022')).toEqual([]);
   });
 });
 

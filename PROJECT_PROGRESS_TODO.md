@@ -2,6 +2,12 @@
 
 更新时间：2026-07-10
 
+## 本次 2026-07-11 水团 BP2 声援重做收尾
+
+- `PL!S-bp2-004-R / P` 费用 11「黒澤ダイヤ」完成 P/R 收束：无 LIVE 的原普通声援可选移动原公开卡后，先记录 turn1、按原 BLADE 重做 normal `CheerEvent` 并显式重新入队；`replaceCurrentCheerCards` 仅替换当前玩家 current cheer IDs，满足 Q107，未扩成通用 cheer loop。
+- 新增窄只读 `runtime/cheer-events.ts` query，供 004、`PL!S-bp2-003` 费用 9「松浦果南」与 `PL!SP-PR-024-PR` 费用 4「平安名すみれ」按 pending eventIds 读取最后一个己方普通 CheerEvent。
+- focused 验证覆盖真实多 pending 的手动选择与顺序发动：第一次 003/004 同时入队，004 重做后旧 003 条件失败不占 turn1，第二次普通声援的新 003 正常结算；并覆盖 query 单测与既有三调用方回归。
+
 ## 本次 2026-07-10 莲 HS-bp2 018 休息室 LIVE 正面放置
 
 - 已实现 `PL!HS-bp2-018-N` 费用 7「安養寺 姫芽」：自己的主要阶段登场时，存在2张 ACTIVE 能量和休息室 LIVE 目标才打开可选支付窗口；不发动、费用不足、无目标或非己方主要阶段均不支付并安全 no-op。
@@ -56,7 +62,7 @@
 
 ## 本次 2026-07-09 水团 sd1 第一批卡效
 
-- 已实现 `PL!S-sd1-001-SD` 费用 17「高海千歌」：新增窄 workflow `s-sd1-001-chika.ts`，ON_CHEER / turn1 按 pending 绑定的普通自己声援 `CheerEvent.revealedCardIds` 事实统计自己公开 LIVE 卡，最多获得 3 个 [赤ハート]，不依赖当前 `resolutionZone`；0 张也记录使用，来源离场安全 no-op，additional cheer 不二次触发。
+- 已实现 `PL!S-sd1-001-SD` 费用 17「高海千歌」：现由 shared `on-cheer-live-count-gain-heart.ts` 处理，ON_CHEER / turn1 按 pending 绑定的普通自己声援 `CheerEvent.revealedCardIds` 事实统计自己公开 LIVE 卡，最多获得 3 个 [赤ハート]，不依赖当前 `resolutionZone`；0 张也记录使用，来源离场安全 no-op，additional cheer 不二次触发。
 - 已实现 `PL!S-sd1-006-SD` 费用 5「津島善子」：新增窄 workflow `s-sd1-006-yoshiko.ts`，ON_ENTER queued 真实可选弃 1 手牌交互不套 confirm-only；弃手走 hand -> waiting room trigger wrapper，支付后重扫休息室与空成员区，刚弃置的费用 2 以下 Aqours 成员可登场，休息室登场显式入队 `ON_ENTER_STAGE`。括号文“该区域本回合不能登场成员”暂按底层通用规则治理，单卡 workflow 不写静态锁、不记录特殊 `movedToStageThisTurn`。
 - 已实现 `PL!S-sd1-003-SD` 费用 11「松浦果南」：扩展 shared `look-top-select-to-hand`，查看顶 5，selector 为 Aqours LIVE，公开后入手，其余 inspected cards 通过 inspection-to-waiting wrapper 进入休息室并保留 `MAIN_DECK -> WAITING_ROOM` 事件语义。
 - 已实现 `PL!S-sd1-013-SD` 费用 4「黒澤ダイヤ」：扩展 shared `direct-mill-top`，`topCount=5`，继续使用 `moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers`，refresh 洗回卡组的牌不计入本次 `movedCardIds`。
@@ -67,7 +73,7 @@
 - 已实现 `PL!S-sd1-004-SD` 费用 13「黒澤ダイヤ」：新增窄 workflow `s-sd1-004-dia.ts`，LIVE_START 真实可选交互不套 confirm-only；来源成员开始结算与回顶选择时均重查仍在己方舞台，选择发动后抽 1，再按当前手牌 ordered multi 选择正好 2 张按顺序放到卡组顶，抽到的卡可回顶；无法抽、手牌不足、陈旧/非法选择均安全继续 pending，回顶不触发进休息室事件。
 - 已实现 `PL!S-sd1-020-SD` 分数 2「JIMO-AI Dash!」：新增窄 workflow `s-sd1-020-jimo-ai-dash.ts`，LIVE_SUCCESS 真实弃手交互不套 confirm-only；结算时重查来源 LIVE 仍在自己的 LIVE 区与当前己方舞台 Aqours 成员数，按成员数抽牌，弃手数量等于实际因此抽到的张数，0 抽不弹弃手选择；弃手走 hand -> waiting room trigger wrapper，陈旧/非法弃手选择安全继续 pending。
 - 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录上述 sd1 卡的实现状态、复用 workflow/helper 与 focused tests。
-- 验证：前 3 张的既有记录为 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/look-top-select-to-hand.test.ts tests/integration/direct-mill-top.test.ts tests/integration/s-sd1-019-revealed-cheer-selection.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（6 files / 26 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-002-SD` / `PL!S-sd1-005-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-002-005-aqours-recovery.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（4 files / 26 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-001-SD` / `PL!S-sd1-022-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-001-chika.test.ts tests/integration/aqours-live-start-success-effects.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（5 files / 35 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-004-SD` / `PL!S-sd1-020-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-004-dia.test.ts tests/integration/s-sd1-020-jimo-ai-dash.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（5 files / 22 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-006-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-006-yoshiko.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（4 files / 24 tests）、`tsc --noEmit` passed、`git diff --check` passed。
+- 验证：前 3 张的既有记录为 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/look-top-select-to-hand.test.ts tests/integration/direct-mill-top.test.ts tests/integration/s-sd1-019-revealed-cheer-selection.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（6 files / 26 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-002-SD` / `PL!S-sd1-005-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-002-005-aqours-recovery.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（4 files / 26 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-001-SD` / `PL!S-sd1-022-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/on-cheer-live-count-gain-heart.test.ts tests/integration/aqours-live-start-success-effects.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（5 files / 35 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-004-SD` / `PL!S-sd1-020-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-004-dia.test.ts tests/integration/s-sd1-020-jimo-ai-dash.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（5 files / 22 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-006-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-006-yoshiko.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（4 files / 24 tests）、`tsc --noEmit` passed、`git diff --check` passed。
 
 ## 本次 2026-07-08 3.7.1 发布准备
 

@@ -1057,12 +1057,36 @@ export const S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID =
   'PL!S-bp6-020-L:live-start-choose-adventure-type';
 export const S_BP6_020_GRANTED_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID =
   'PL!S-bp6-020-L:granted-live-success-draw-one';
+export const S_BP2_008_ON_ENTER_WAITING_ROOM_LIVE_TO_DECK_BOTTOM_ABILITY_ID =
+  'PL!S-bp2-008:on-enter-waiting-room-live-to-deck-bottom';
+export const S_BP2_008_CONTINUOUS_FULL_DISTINCT_AQOURS_STAGE_GRANT_LIVE_SUCCESS_ABILITY_ID =
+  'PL!S-bp2-008:continuous-full-distinct-aqours-stage-grant-live-success';
+export const S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID =
+  'PL!S-bp2-008:granted-live-success-cheer-live-score';
 export const S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID =
   'PL!S-bp2-023-L:live-start-other-aqours-live-stage-members-gain-blade';
+export const S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!S-bp2-025-L:live-start-success-two-target-member-gain-two-blade';
+export const S_BP2_002_ON_LEAVE_STAGE_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID =
+  'PL!S-bp2-002:on-leave-stage-discard-recover-aqours-live';
+export const S_BP2_003_AUTO_ON_CHEER_LIVE_GAIN_GREEN_HEART_ABILITY_ID =
+  'PL!S-bp2-003:auto-on-cheer-live-gain-green-heart';
+export const S_BP2_004_AUTO_ON_CHEER_NO_LIVE_REROLL_ABILITY_ID =
+  'PL!S-bp2-004:auto-on-cheer-no-live-reroll';
+export const S_BP2_007_AUTO_ON_CHEER_LIVE_HAND_SEVEN_OR_LESS_DRAW_ONE_ABILITY_ID =
+  'PL!S-bp2-007:auto-on-cheer-live-hand-seven-or-less-draw-one';
+export const S_BP2_007_LIVE_START_REVEAL_HAND_LIVE_BOTTOM_ARRANGE_TOP_TWO_ABILITY_ID =
+  'PL!S-bp2-007:live-start-reveal-hand-live-bottom-arrange-top-two';
+export const S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID =
+  'PL!S-bp2-021-L:live-success-revealed-cheer-live-to-deck-bottom';
+export const S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!S-bp2-022-L:live-success-deck-refreshed-this-turn-this-live-score';
 export const S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID =
   'PL!S-sd1-022-SD:live-start-aqours-stage-members-gain-blade';
 export const S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID =
   'PL!S-bp6-009:continuous-success-live-difference-gain-blade';
+export const S_BP2_001_CONTINUOUS_OWN_NO_SUCCESS_OPPONENT_HAS_SUCCESS_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!S-bp2-001:continuous-own-no-success-opponent-has-success-gain-three-blade';
 export const S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID =
   'PL!S-bp6-009:live-success-center-cheer-score-aqours-live-score';
 export const S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID =

@@ -30,7 +30,7 @@ import {
 } from '../../shared/types/enums.js';
 import {
   addAction,
-  clearLiveSetCardCountForPlayer,
+  clearLiveSetCardsForPlayer,
   consumeLiveSetLimitReductionsForPlayer,
   emitGameEvent,
   getLiveSetCardCountForPlayer,
@@ -255,7 +255,7 @@ function executeSubPhaseAutoAction(
         state = ctx.drawCard(state, autoAction.playerId);
       }
       state = liveProhibitedPlayerLiveZoneToWaitingRoom(state, autoAction.playerId);
-      state = clearLiveSetCardCountForPlayer(state, autoAction.playerId);
+      state = clearLiveSetCardsForPlayer(state, autoAction.playerId);
       state = consumeLiveSetLimitReductionsForPlayer(state, autoAction.playerId);
       return state;
     }

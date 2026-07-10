@@ -2959,7 +2959,7 @@ export const GameBoard = memo(function GameBoard({
                         canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
                       }`}
                     >
-                      继续处理
+                      {activeEffect.confirmSelectionLabel ?? '继续处理'}
                     </button>
                   )}
                 {activeEffectSelectableCardIds.length === 0 &&

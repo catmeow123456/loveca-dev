@@ -180,6 +180,16 @@ export interface MoveHandCardToDeckTopForPlayerResult {
   readonly remainingCandidateIds: readonly string[];
 }
 
+export interface MoveHandCardToDeckBottomForPlayerOptions {
+  readonly candidateCardIds: readonly string[];
+}
+
+export interface MoveHandCardToDeckBottomForPlayerResult {
+  readonly gameState: GameState;
+  readonly movedCardId: string;
+  readonly remainingCandidateIds: readonly string[];
+}
+
 export interface MoveHandCardsToDeckTopForPlayerOptions {
   readonly candidateCardIds: readonly string[];
   readonly exactCount: number;
@@ -214,6 +224,35 @@ export function drawCardsForPlayer(
   count: number
 ): DrawCardsResult | null {
   return drawCardsFromMainDeckToHand(game, playerId, count);
+}
+
+export function moveHandCardToDeckBottomForPlayer(
+  game: GameState,
+  playerId: string,
+  selectedCardId: string,
+  options: MoveHandCardToDeckBottomForPlayerOptions
+): MoveHandCardToDeckBottomForPlayerResult | null {
+  if (!options.candidateCardIds.includes(selectedCardId)) {
+    return null;
+  }
+
+  const player = getPlayerById(game, playerId);
+  if (!player || !player.hand.cardIds.includes(selectedCardId)) {
+    return null;
+  }
+
+  return {
+    gameState: updatePlayer(game, playerId, (currentPlayer) => ({
+      ...currentPlayer,
+      hand: removeCardFromZone(currentPlayer.hand, selectedCardId),
+      mainDeck: {
+        ...currentPlayer.mainDeck,
+        cardIds: [...currentPlayer.mainDeck.cardIds, selectedCardId],
+      },
+    })),
+    movedCardId: selectedCardId,
+    remainingCandidateIds: options.candidateCardIds.filter((cardId) => cardId !== selectedCardId),
+  };
 }
 
 export function drawCardsForEachPlayer(

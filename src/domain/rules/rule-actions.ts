@@ -545,6 +545,7 @@ export function applyRuleActionResult(
 
           return {
             ...player,
+            lastDeckRefreshTurnCount: game.turnCount,
             waitingRoom: {
               ...player.waitingRoom,
               cardIds: [],

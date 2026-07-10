@@ -14,6 +14,7 @@ import {
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import { clearTurnMoveRecords } from '../../src/domain/entities/player';
 import { createCheerEvent } from '../../src/domain/events/game-events';
 import { collectLiveModifiers } from '../../src/domain/rules/live-modifiers';
 import {
@@ -22,6 +23,7 @@ import {
 } from '../../src/application/card-effect-runner';
 import {
   S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID,
   S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
   S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
@@ -88,13 +90,14 @@ function createPendingAbility(
   abilityId: string,
   sourceCardId: string,
   triggerCondition: TriggerCondition,
-  sourceSlot = SlotPosition.CENTER
+  sourceSlot = SlotPosition.CENTER,
+  controllerId = PLAYER1
 ): PendingAbilityState {
   return {
     id: `${abilityId}:${sourceCardId}:pending`,
     abilityId,
     sourceCardId,
-    controllerId: PLAYER1,
+    controllerId,
     mandatory: true,
     timingId: triggerCondition,
     eventIds: [`${abilityId}:event`],
@@ -134,8 +137,12 @@ function placeOpponentStageMembers(
   });
 }
 
-function placeLiveZone(game: GameState, liveCardIds: readonly string[]): GameState {
-  return updatePlayer(game, PLAYER1, (player) => ({
+function placeLiveZone(
+  game: GameState,
+  liveCardIds: readonly string[],
+  playerId = PLAYER1
+): GameState {
+  return updatePlayer(game, playerId, (player) => ({
     ...player,
     liveZone: {
       ...player.liveZone,
@@ -674,5 +681,194 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
 
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBeUndefined();
     expect(resolved.liveResolution.liveModifiers).toHaveLength(0);
+  });
+});
+
+describe('PL!S-bp2-022-L 未熟DREAMER', () => {
+  function createDreamerGame(options: {
+    readonly refreshed?: boolean;
+    readonly opponentRefreshed?: boolean;
+    readonly previousTurnRefreshed?: boolean;
+    readonly controllerId?: string;
+    readonly sourceIds?: readonly string[];
+  } = {}): { readonly game: GameState; readonly sourceIds: readonly string[] } {
+    const controllerId = options.controllerId ?? PLAYER1;
+    const opponentId = controllerId === PLAYER1 ? PLAYER2 : PLAYER1;
+    const sourceIds = options.sourceIds ?? ['dreamer-live'];
+    const sourceLives = sourceIds.map((instanceId) =>
+      createCardInstance(
+        createLiveCard('PL!S-bp2-022-L', { name: '未熟DREAMER' }),
+        controllerId,
+        instanceId
+      )
+    );
+    let game: GameState = {
+      ...registerCards(
+        createGameState('bp2-022-dreamer', PLAYER1, 'P1', PLAYER2, 'P2'),
+        sourceLives
+      ),
+      turnCount: 1,
+    };
+    game = placeLiveZone(game, sourceIds, controllerId);
+    game = updatePlayer(game, controllerId, (player) => ({
+      ...player,
+      ...(options.refreshed === true
+        ? { lastDeckRefreshTurnCount: game.turnCount }
+        : options.previousTurnRefreshed === true
+          ? { lastDeckRefreshTurnCount: game.turnCount - 1 }
+          : {}),
+    }));
+    game = updatePlayer(game, opponentId, (player) => ({
+      ...player,
+      ...(options.opponentRefreshed === true
+        ? { lastDeckRefreshTurnCount: game.turnCount }
+        : {}),
+    }));
+    return {
+      game: {
+        ...game,
+        pendingAbilities: sourceIds.map((sourceCardId) =>
+          createPendingAbility(
+            S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
+            sourceCardId,
+            TriggerCondition.ON_LIVE_SUCCESS,
+            SlotPosition.CENTER,
+            controllerId
+          )
+        ),
+      },
+      sourceIds,
+    };
+  }
+
+  it('shows a single confirm-only preview and gives only the source LIVE +2 after confirmation', () => {
+    const { game, sourceIds } = createDreamerGame({ refreshed: true });
+    const preview = resolvePendingCardEffects(game).gameState;
+
+    expect(preview.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
+    expect(preview.activeEffect?.effectText).toBe(
+      '【LIVE成功时】此回合中，自己的卡组更新的场合、此卡的分数+2。（本回合自己的卡组已更新，满足条件，实际分数+2。）'
+    );
+    expect(preview.liveResolution.playerScores.get(PLAYER1)).toBeUndefined();
+    expect(preview.liveResolution.liveModifiers).toHaveLength(0);
+
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(2);
+    expect(resolved.liveResolution.liveModifiers).toContainEqual(
+      expect.objectContaining({
+        kind: 'SCORE',
+        abilityId: S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
+        liveCardId: sourceIds[0],
+        countDelta: 2,
+      })
+    );
+    expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+      sourceCardId: sourceIds[0],
+      deckRefreshedThisTurn: true,
+      scoreBonus: 2,
+      step: 'DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE',
+    });
+  });
+
+  it('does not add score when only the opponent refreshed or the controller refreshed last global turn', () => {
+    for (const options of [
+      { opponentRefreshed: true },
+      { previousTurnRefreshed: true },
+    ]) {
+      const { game } = createDreamerGame(options);
+      const preview = resolvePendingCardEffects(game).gameState;
+      expect(preview.activeEffect?.effectText).toContain(
+        '本回合自己的卡组未更新，未满足条件，实际分数+0。'
+      );
+      const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+      expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBeUndefined();
+      expect(resolved.liveResolution.liveModifiers).toHaveLength(0);
+      expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+        deckRefreshedThisTurn: false,
+        scoreBonus: 0,
+      });
+    }
+  });
+
+  it('keeps a later player refresh valid across that player ACTIVE cleanup in the same global turn', () => {
+    const { game } = createDreamerGame({ controllerId: PLAYER2, refreshed: true });
+    const afterSecondPlayerActive = updatePlayer(game, PLAYER2, clearTurnMoveRecords);
+    const preview = resolvePendingCardEffects(afterSecondPlayerActive).gameState;
+
+    expect(preview.activeEffect?.effectText).toContain(
+      '本回合自己的卡组已更新，满足条件，实际分数+2。'
+    );
+    const resolved = confirmActiveEffectStep(preview, PLAYER2, preview.activeEffect!.id);
+    expect(resolved.liveResolution.playerScores.get(PLAYER2)).toBe(2);
+  });
+
+  it('does not write a modifier when the source LIVE is stale at final confirmation', () => {
+    const { game } = createDreamerGame({ refreshed: true });
+    const preview = resolvePendingCardEffects(game).gameState;
+    const stale = updatePlayer(preview, PLAYER1, (player) => ({
+      ...player,
+      liveZone: { ...player.liveZone, cardIds: [], cardStates: new Map() },
+    }));
+
+    const resolved = confirmActiveEffectStep(stale, PLAYER1, stale.activeEffect!.id);
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBeUndefined();
+    expect(resolved.liveResolution.liveModifiers).toHaveLength(0);
+    expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+      deckRefreshedThisTurn: true,
+      scoreBonus: 0,
+      step: 'SOURCE_LIVE_NOT_IN_OWN_LIVE_ZONE',
+    });
+  });
+
+  it('resolves multiple pending abilities in order without confirm-only bridges', () => {
+    const { game, sourceIds } = createDreamerGame({
+      refreshed: true,
+      sourceIds: ['dreamer-order-a', 'dreamer-order-b'],
+    });
+    const orderSelection = resolvePendingCardEffects(game).gameState;
+    const resolved = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      null,
+      null,
+      true
+    );
+
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+    expect(
+      resolved.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.abilityId ===
+          S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toHaveLength(2);
+    expect(resolved.liveResolution.liveModifiers.map((modifier) => modifier.liveCardId)).toEqual(
+      sourceIds
+    );
+  });
+
+  it('opens confirm-only after manually selecting one ability from multiple pending abilities', () => {
+    const { game, sourceIds } = createDreamerGame({
+      refreshed: true,
+      sourceIds: ['dreamer-manual-a', 'dreamer-manual-b'],
+    });
+    const orderSelection = resolvePendingCardEffects(game).gameState;
+    const confirmation = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      sourceIds[1]
+    );
+
+    expect(confirmation.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
+    expect(confirmation.liveResolution.playerScores.get(PLAYER1)).toBeUndefined();
+    const resolved = confirmActiveEffectStep(confirmation, PLAYER1, confirmation.activeEffect!.id);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(2);
+    expect(resolved.liveResolution.liveModifiers).toContainEqual(
+      expect.objectContaining({ liveCardId: sourceIds[1], countDelta: 2 })
+    );
   });
 });
