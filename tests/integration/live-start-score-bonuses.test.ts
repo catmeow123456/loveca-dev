@@ -13,12 +13,15 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { addHeartLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
+import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import {
   PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
+  HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
+  HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -55,6 +58,28 @@ function createEutopia(): LiveCardData {
   };
 }
 
+function createLinkToTheFuture(): LiveCardData {
+  return {
+    cardCode: 'PL!HS-bp2-020-L',
+    name: 'Link to the FUTURE',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+    cardType: CardType.LIVE,
+    score: 0,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+  };
+}
+
+function createMiraCreation(cardCode = 'PL!HS-bp2-026-L'): LiveCardData {
+  return {
+    cardCode,
+    name: 'みらくりえーしょん',
+    groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+    cardType: CardType.LIVE,
+    score: 5,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+  };
+}
+
 function createDummyLive(cardCode: string, score = 1): LiveCardData {
   return {
     cardCode,
@@ -68,12 +93,13 @@ function createDummyLive(cardCode: string, score = 1): LiveCardData {
 
 function createMember(options: {
   readonly cardCode: string;
+  readonly name?: string;
   readonly groupNames?: readonly string[];
   readonly hearts: readonly HeartColor[];
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
-    name: options.cardCode,
+    name: options.name ?? options.cardCode,
     groupNames: options.groupNames ?? ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost: 4,
@@ -85,6 +111,7 @@ function createMember(options: {
 function setupState(options: {
   readonly lives: readonly ReturnType<typeof createCardInstance>[];
   readonly members?: Partial<Record<SlotPosition, ReturnType<typeof createCardInstance>>>;
+  readonly opponentMembers?: Partial<Record<SlotPosition, ReturnType<typeof createCardInstance>>>;
   readonly initialScore?: number;
   readonly mutateBeforeTrigger?: (game: GameState) => GameState;
 }): GameState {
@@ -93,7 +120,15 @@ function setupState(options: {
     SlotPosition,
     ReturnType<typeof createCardInstance>,
   ][];
-  game = registerCards(game, [...options.lives, ...members.map(([, card]) => card)]);
+  const opponentMembers = Object.entries(options.opponentMembers ?? {}) as [
+    SlotPosition,
+    ReturnType<typeof createCardInstance>,
+  ][];
+  game = registerCards(game, [
+    ...options.lives,
+    ...members.map(([, card]) => card),
+    ...opponentMembers.map(([, card]) => card),
+  ]);
   game = updatePlayer(game, PLAYER1, (player) => {
     const liveZone = options.lives.reduce(
       (zone, live) => addCardToStatefulZone(zone, live.instanceId),
@@ -113,6 +148,17 @@ function setupState(options: {
       memberSlots,
     };
   });
+  game = updatePlayer(game, PLAYER2, (player) => ({
+    ...player,
+    memberSlots: opponentMembers.reduce(
+      (slots, [slot, member]) =>
+        placeCardInSlot(slots, slot, member.instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
+      player.memberSlots
+    ),
+  }));
   game = {
     ...game,
     liveResolution: {
@@ -180,6 +226,25 @@ function eutopiaScoreModifiers(game: GameState) {
     (modifier) =>
       modifier.kind === 'SCORE' &&
       modifier.abilityId === PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID
+  );
+}
+
+function scoreModifiersForAbility(game: GameState, abilityId: string) {
+  return game.liveResolution.liveModifiers.filter(
+    (modifier) => modifier.kind === 'SCORE' && modifier.abilityId === abilityId
+  );
+}
+
+function createHasunosoraMemberInstance(id: string, name: string, groupNames = ['蓮ノ空女学院スクールアイドルクラブ']) {
+  return createCardInstance(
+    createMember({
+      cardCode: `PL!HS-test-${id}`,
+      name,
+      groupNames,
+      hearts: [],
+    }),
+    PLAYER1,
+    id
   );
 }
 
@@ -433,5 +498,155 @@ describe('Nijigasaki live-start score bonus LIVE cards', () => {
               PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID)
       )
     ).toHaveLength(2);
+  });
+});
+
+describe('Hasunosora live-start score bonus LIVE cards', () => {
+  it('PL!HS-bp2-020-L confirms before counting own different named Hasunosora members and refreshing score', () => {
+    const live = createCardInstance(createLinkToTheFuture(), PLAYER1, 'link-future');
+    const game = setupState({
+      lives: [live],
+      members: {
+        [SlotPosition.LEFT]: createHasunosoraMemberInstance('rurino', '大沢瑠璃乃'),
+        [SlotPosition.CENTER]: createHasunosoraMemberInstance('hime', '安养寺姬芽'),
+        [SlotPosition.RIGHT]: createHasunosoraMemberInstance('other', '高坂穂乃果', ['μ\'s']),
+      },
+      initialScore: 4,
+    });
+
+    const checkResult = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    expect(checkResult.success).toBe(true);
+    expect(checkResult.gameState.activeEffect).toMatchObject({
+      abilityId: HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(checkResult.gameState.activeEffect?.effectText).toContain("不同名『莲之空』成员2名");
+    expect(checkResult.gameState.activeEffect?.effectText).toContain('实际[スコア]+4');
+    expect(checkResult.gameState.activeEffect?.effectText).not.toMatch(/source|pending|LIVE区/);
+    expect(scoreModifiersForAbility(checkResult.gameState, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+
+    const state = confirmIfConfirmOnly(checkResult.gameState, PLAYER1);
+    expect(scoreModifiersForAbility(state, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toContainEqual(
+      expect.objectContaining({ liveCardId: live.instanceId, countDelta: 4 })
+    );
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(8);
+  });
+
+  it('PL!HS-bp2-020-L uses shared name identity, excludes non-Hasunosora members, and consumes a zero-count no-op', () => {
+    const live = createCardInstance(createLinkToTheFuture(), PLAYER1, 'link-future-zero');
+    const game = setupState({
+      lives: [live],
+      members: {
+        [SlotPosition.LEFT]: createHasunosoraMemberInstance('same-jp', '大沢瑠璃乃'),
+        [SlotPosition.CENTER]: createHasunosoraMemberInstance('same-spaced', '大沢 瑠璃乃'),
+        [SlotPosition.RIGHT]: createHasunosoraMemberInstance('non-hs', '高坂穂乃果', ['μ\'s']),
+      },
+      opponentMembers: {
+        [SlotPosition.CENTER]: createHasunosoraMemberInstance('opponent-hime', '安養寺姫芽'),
+      },
+    });
+    const state = resolveLiveStart(game);
+    expect(scoreModifiersForAbility(state, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toContainEqual(
+      expect.objectContaining({ countDelta: 2 })
+    );
+
+    const noMemberState = resolveLiveStart(
+      setupState({ lives: [createCardInstance(createLinkToTheFuture(), PLAYER1, 'link-no-members')] })
+    );
+    expect(scoreModifiersForAbility(noMemberState, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(latestPayload(noMemberState, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toMatchObject({ scoreBonus: 0 });
+
+    const departureLive = createCardInstance(createLinkToTheFuture(), PLAYER1, 'link-departed');
+    const departureCheck = new GameService().executeCheckTiming(
+      setupState({
+        lives: [departureLive],
+        members: { [SlotPosition.CENTER]: createHasunosoraMemberInstance('departure-hime', '安養寺姫芽') },
+      }),
+      [TriggerCondition.ON_LIVE_START]
+    );
+    const departedBeforeConfirmation = updatePlayer(departureCheck.gameState, PLAYER1, (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardIds: player.liveZone.cardIds.filter((cardId) => cardId !== departureLive.instanceId),
+      },
+    }));
+    const departedState = confirmIfConfirmOnly(departedBeforeConfirmation, PLAYER1);
+    expect(scoreModifiersForAbility(departedState, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+  });
+
+  it.each([
+    ['PL!HS-bp2-026-L', '大泽瑠璃乃', '安养寺姬芽', '藤岛 慈'],
+    ['PL!HS-bp2-026-L＋', '大沢瑠璃乃', '安養寺姫芽', '藤島慈'],
+  ])('covers %s and adds SCORE +2 only for the printed Mira-Cra formation', (cardCode, rurino, hime, megu) => {
+    const live = createCardInstance(createMiraCreation(cardCode), PLAYER1, `${cardCode}-source`);
+    const game = setupState({
+      lives: [live],
+      members: {
+        [SlotPosition.LEFT]: createHasunosoraMemberInstance('hime', hime),
+        [SlotPosition.CENTER]: createHasunosoraMemberInstance('megu', megu),
+        [SlotPosition.RIGHT]: createHasunosoraMemberInstance('rurino', rurino),
+      },
+      initialScore: 5,
+    });
+    const state = resolveLiveStart(game);
+    expect(scoreModifiersForAbility(state, HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID)).toContainEqual(
+      expect.objectContaining({ liveCardId: live.instanceId, countDelta: 2 })
+    );
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+  });
+
+  it.each([
+    ['an empty printed slot', null, '安養寺姫芽', '藤島慈'],
+    ['a wrong printed name', '藤島慈', '安養寺姫芽', '藤島慈'],
+    ['the three members in swapped slots', '大沢瑠璃乃', '藤島慈', '安養寺姫芽'],
+  ])('PL!HS-bp2-026-L consumes a no-op for %s', (_label, rurino, hime, megu) => {
+    const live = createCardInstance(createMiraCreation(), PLAYER1, `mira-noop-${String(_label)}`);
+    const members: Partial<Record<SlotPosition, ReturnType<typeof createCardInstance>>> = {};
+    if (rurino) members[SlotPosition.RIGHT] = createHasunosoraMemberInstance('right', rurino);
+    if (hime) members[SlotPosition.LEFT] = createHasunosoraMemberInstance('left', hime);
+    if (megu) members[SlotPosition.CENTER] = createHasunosoraMemberInstance('center', megu);
+    const state = resolveLiveStart(setupState({ lives: [live], members, initialScore: 5 }));
+    expect(scoreModifiersForAbility(state, HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+  });
+
+  it('resolves ordered pending automatically and shows a confirmation bridge before a manually selected 020 pending', () => {
+    const first = createCardInstance(createLinkToTheFuture(), PLAYER1, 'link-ordered-first');
+    const second = createCardInstance(createLinkToTheFuture(), PLAYER1, 'link-ordered-second');
+    const game = setupState({
+      lives: [first, second],
+      members: {
+        [SlotPosition.LEFT]: createHasunosoraMemberInstance('ordered-rurino', '大沢瑠璃乃'),
+      },
+    });
+    const checkResult = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    expect(checkResult.success).toBe(true);
+    expect(checkResult.gameState.activeEffect?.canResolveInOrder).toBe(true);
+
+    const ordered = confirmActiveEffectStep(
+      checkResult.gameState,
+      PLAYER1,
+      checkResult.gameState.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+    expect(ordered.activeEffect).toBeNull();
+    expect(scoreModifiersForAbility(ordered, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toHaveLength(2);
+
+    const preview = confirmActiveEffectStep(
+      checkResult.gameState,
+      PLAYER1,
+      checkResult.gameState.activeEffect!.id,
+      first.instanceId
+    );
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(scoreModifiersForAbility(preview, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+    const confirmed = confirmIfConfirmOnly(preview, PLAYER1);
+    expect(scoreModifiersForAbility(confirmed, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toHaveLength(1);
   });
 });

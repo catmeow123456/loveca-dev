@@ -58,6 +58,8 @@ const HS_BP5_007_CONTINUOUS_ABILITY_ID = 'PL!HS-bp5-007:continuous-other-edelnot
 const HS_BP2_006_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp2-006:continuous-other-miracra-stage-member-blade';
 const HS_BP6_002_CONTINUOUS_ABILITY_ID = 'PL!HS-bp6-002:continuous-alone-gain-two-blade';
+const HS_PB1_015_CONTINUOUS_ABILITY_ID =
+  'PL!HS-pb1-015-R:continuous-alone-lose-three-blade';
 const PL_N_PB1_011_CONTINUOUS_ABILITY_ID = 'PL!N-pb1-011:continuous-energy-below-gain-blade';
 const PL_PB1_002_CONTINUOUS_ABILITY_ID =
   'PL!-pb1-002:continuous-opponent-waiting-gain-purple-heart';
@@ -3900,6 +3902,33 @@ describe('live modifier helpers', () => {
         abilityId: HS_BP6_002_CONTINUOUS_ABILITY_ID,
       });
     }
+  });
+
+  it('collects PL!HS-pb1-015 BLADE -3 only while alone, covers R/P+, and clamps effective BLADE at zero', () => {
+    for (const cardCode of ['PL!HS-pb1-015-R', 'PL!HS-pb1-015-P+']) {
+      const { game, sourceId } = setupHsBp6002ContinuousGame(cardCode);
+      const modifiers = collectLiveModifiers(game);
+      expect(modifiers).toContainEqual({
+        kind: 'BLADE',
+        playerId: 'p1',
+        countDelta: -3,
+        sourceCardId: sourceId,
+        abilityId: HS_PB1_015_CONTINUOUS_ABILITY_ID,
+      });
+      expect(getMemberEffectiveBladeCount(game, 'p1', sourceId, modifiers)).toBe(0);
+    }
+
+    const { game, sourceId } = setupHsBp6002ContinuousGame('PL!HS-pb1-015-R', {
+      withOtherMember: true,
+    });
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.sourceCardId === sourceId &&
+          modifier.abilityId === HS_PB1_015_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
   });
 
   it('does not collect PL!-bp6-009 SCORE when Nico is not center', () => {

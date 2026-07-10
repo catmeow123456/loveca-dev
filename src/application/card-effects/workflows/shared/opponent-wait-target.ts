@@ -15,6 +15,8 @@ import {
   HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_BP6_013_LIVE_START_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
   HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
+  HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+  HS_PB1_010_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
   S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
@@ -39,6 +41,7 @@ import {
 } from '../../runtime/workflow-helpers.js';
 import {
   and,
+  costGte,
   costLte,
   memberPrintedBladeLte,
   not,
@@ -64,6 +67,8 @@ const SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_STEP_ID =
   'SP_BP4_011_SELECT_OPPONENT_LOW_BLADE_MEMBER_TO_WAIT';
 const HS_BP6_013_SELECT_OPPONENT_LOW_BLADE_NON_DOLLCHESTRA_MEMBER_STEP_ID =
   'HS_BP6_013_SELECT_OPPONENT_LOW_BLADE_NON_DOLLCHESTRA_MEMBER_TO_WAIT';
+const HS_PB1_010_SELECT_OPPONENT_COST_FOUR_MEMBER_STEP_ID =
+  'HS_PB1_010_SELECT_OPPONENT_COST_FOUR_MEMBER_TO_WAIT';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -78,6 +83,7 @@ interface OpponentWaitTargetWorkflowConfig {
   readonly startActionStep: string;
   readonly minOwnStageHeartTotal?: number;
   readonly minOwnStageDifferentBiBiMemberNameCount?: number;
+  readonly minOwnStagePrintedCost?: number;
   readonly confirmNoTargetWithRealtimeText?: boolean;
 }
 
@@ -91,6 +97,27 @@ const lowBladeNonDollchestraOpponentMemberSelector = and(
 );
 
 const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[] = [
+  {
+    abilityId: HS_PB1_010_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+    effectTextAbilityId: HS_PB1_010_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+    stepId: HS_PB1_010_SELECT_OPPONENT_COST_FOUR_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名费用小于等于4的成员变为待机状态。',
+    selectionLabel: '选择对方舞台上费用小于等于4的成员',
+    selector: costLteFourOpponentMemberSelector,
+    startActionStep: 'START_SELECT_OPPONENT_COST_FOUR_MEMBER',
+    minOwnStagePrintedCost: 10,
+  },
+  {
+    abilityId: HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+    effectTextAbilityId: HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+    stepId: HS_PB1_010_SELECT_OPPONENT_COST_FOUR_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名费用小于等于4的成员变为待机状态。',
+    selectionLabel: '选择对方舞台上费用小于等于4的成员',
+    selector: costLteFourOpponentMemberSelector,
+    startActionStep: 'START_SELECT_OPPONENT_COST_FOUR_MEMBER',
+    minOwnStagePrintedCost: 10,
+    confirmNoTargetWithRealtimeText: true,
+  },
   {
     abilityId: S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
     effectTextAbilityId: S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
@@ -243,6 +270,53 @@ function startOpponentWaitTargetWorkflow(
   }
   const orderedResolution = options.orderedResolution === true;
 
+  const ownStageHighPrintedCostMemberCount =
+    config.minOwnStagePrintedCost === undefined
+      ? 0
+      : getStageMemberCardIdsMatching(
+          game,
+          player.id,
+          and(typeIs(CardType.MEMBER), costGte(config.minOwnStagePrintedCost))
+        ).length;
+  if (
+    config.minOwnStagePrintedCost !== undefined &&
+    ownStageHighPrintedCostMemberCount === 0
+  ) {
+    const selectableTargetCount = getOpponentWaitTargetCount(game, opponent.id, config.selector);
+    const confirmation =
+      config.confirmNoTargetWithRealtimeText === true
+        ? maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+            effectText: getOpponentWaitNoOpConfirmationText(
+              config,
+              ownStageHighPrintedCostMemberCount,
+              selectableTargetCount,
+              false
+            ),
+            stepText: '确认后不处理。',
+          })
+        : null;
+    if (confirmation) {
+      return confirmation;
+    }
+    const state = {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+    };
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'SKIP_CONDITION_NOT_MET',
+        sourceSlot: ability.sourceSlot,
+        ownStageHighPrintedCostMemberCount,
+        requiredOwnStagePrintedCost: config.minOwnStagePrintedCost,
+        selectableTargetCount,
+      }),
+      orderedResolution
+    );
+  }
+
   const ownStageHeartTotal = getOwnStageEffectiveHeartTotal(game, player.id);
   if (
     config.minOwnStageHeartTotal !== undefined &&
@@ -311,15 +385,13 @@ function startOpponentWaitTargetWorkflow(
 
   if (targetSelection.activeEffect === null) {
     if (config.confirmNoTargetWithRealtimeText === true) {
-      const opponentStageMemberCount = getStageMemberCardIdsMatching(
-        game,
-        opponent.id,
-        typeIs(CardType.MEMBER)
-      ).length;
       const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
-        effectText: `${getAbilityEffectText(
-          config.effectTextAbilityId
-        )}（当前对方舞台成员${opponentStageMemberCount}名，符合“原本[BLADE]≤3、非DOLLCHESTRA、当前非待机”的目标${targetSelection.selectableCardIds.length}名；未满足目标条件，不会将成员变为待机状态。）`,
+        effectText: getOpponentWaitNoOpConfirmationText(
+          config,
+          ownStageHighPrintedCostMemberCount,
+          targetSelection.selectableCardIds.length,
+          true
+        ),
         stepText: `当前合法目标${targetSelection.selectableCardIds.length}名，确认后不处理。`,
       });
       if (confirmation) {
@@ -439,4 +511,46 @@ function getOwnStageDifferentBiBiMemberNameCount(game: GameState, playerId: stri
     (cardId) => game.cardRegistry.get(cardId)?.data,
     { minCount: 1 }
   ).length;
+}
+
+function getOpponentWaitTargetCount(
+  game: GameState,
+  opponentId: string,
+  selector: CardSelector
+): number {
+  const opponent = getPlayerById(game, opponentId);
+  return getStageMemberCardIdsMatching(game, opponentId, selector).filter(
+    (cardId) => opponent?.memberSlots.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
+  ).length;
+}
+
+function getOpponentWaitNoOpConfirmationText(
+  config: OpponentWaitTargetWorkflowConfig,
+  ownStageHighPrintedCostMemberCount: number,
+  selectableTargetCount: number,
+  conditionMet: boolean
+): string {
+  if (config.minOwnStagePrintedCost !== undefined) {
+    return (
+      getAbilityEffectText(config.effectTextAbilityId) +
+      '（当前己方舞台费用大于等于' +
+      config.minOwnStagePrintedCost +
+      '的成员' +
+      ownStageHighPrintedCostMemberCount +
+      '名，对方可选择目标' +
+      selectableTargetCount +
+      '名；' +
+      (conditionMet
+        ? '没有可选择的目标，不会将成员变为待机状态。'
+        : '条件未满足，不会将成员变为待机状态。') +
+      '）'
+    );
+  }
+
+  return (
+    getAbilityEffectText(config.effectTextAbilityId) +
+    '（当前合法目标' +
+    selectableTargetCount +
+    '名；未满足目标条件，不会将成员变为待机状态。）'
+  );
 }

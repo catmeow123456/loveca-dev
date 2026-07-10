@@ -10,6 +10,7 @@ import {
   S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_BP6_017_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_SD1_013_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+  HS_BP2_011_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   HS_PB1_027_LIVE_SUCCESS_OPTIONAL_MILL_TOP_FOUR_IF_CERISE_MEMBER_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
@@ -61,6 +62,12 @@ const DIRECT_MILL_TOP_CONFIGS: readonly DirectMillTopConfig[] = [
     stepId: 'S_BP6_017_REVEAL_MILLED_TOP_FIVE',
     topCount: 5,
     finishStep: 'FINISH_MILL_TOP_FIVE',
+  },
+  {
+    abilityId: HS_BP2_011_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+    stepId: 'HS_BP2_011_REVEAL_MILLED_TOP_FIVE',
+    topCount: 5,
+    finishStep: 'FINISH_HS_BP2_011_MILL_TOP_FIVE',
   },
   {
     abilityId: HS_PB1_027_LIVE_SUCCESS_OPTIONAL_MILL_TOP_FOUR_IF_CERISE_MEMBER_ABILITY_ID,

@@ -307,4 +307,91 @@ describe('member active phase skips', () => {
       result.gameState.players[1].energyZone.cardStates.get(opponentEnergy.instanceId)?.orientation
     ).toBe(OrientationState.ACTIVE);
   });
+
+  it('keeps all active player members waiting when opponent stage has PL!HS-pb1-008 while energy activates', () => {
+    const izumi = createCardInstance(createMember('PL!HS-pb1-008-R'), PLAYER2, 'opponent-izumi');
+    const ownFirst = createCardInstance(createMember('OWN-FIRST'), PLAYER1, 'own-first');
+    const ownSecond = createCardInstance(createMember('OWN-SECOND'), PLAYER1, 'own-second');
+    const energy = createCardInstance(createEnergy('ENERGY'), PLAYER1, 'energy-card');
+    let game = createGameState('hs-pb1-008-opponent-active-phase-skip', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [izumi, ownFirst, ownSecond, energy]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      energyZone: addCardToStatefulZone(player.energyZone, energy.instanceId, {
+        orientation: OrientationState.WAITING,
+        face: FaceState.FACE_UP,
+      }),
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ownFirst.instanceId, {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }),
+        SlotPosition.LEFT,
+        ownSecond.instanceId,
+        {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }
+      ),
+    }));
+    game = updatePlayer(game, PLAYER2, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, izumi.instanceId, {
+        orientation: OrientationState.WAITING,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+
+    const result = new GameService().advancePhase(prepareActivePhaseAdvance(game));
+
+    expect(result.success).toBe(true);
+    expect(result.gameState.players[0].memberSlots.cardStates.get(ownFirst.instanceId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(result.gameState.players[0].memberSlots.cardStates.get(ownSecond.instanceId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(result.gameState.players[0].energyZone.cardStates.get(energy.instanceId)?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+    expect(
+      result.gameState.eventLog.some(
+        (entry) =>
+          entry.event.eventType === 'ON_MEMBER_STATE_CHANGED' &&
+          (entry.event.cardInstanceId === ownFirst.instanceId ||
+            entry.event.cardInstanceId === ownSecond.instanceId)
+      )
+    ).toBe(false);
+  });
+
+  it('restores normal active phase behavior after PL!HS-pb1-008 leaves opponent stage', () => {
+    const izumi = createCardInstance(createMember('PL!HS-pb1-008-P＋'), PLAYER2, 'opponent-izumi');
+    const ownMember = createCardInstance(createMember('OWN-MEMBER'), PLAYER1, 'own-member');
+    let game = createGameState('hs-pb1-008-left-stage-active-phase', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [izumi, ownMember]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ownMember.instanceId, {
+        orientation: OrientationState.WAITING,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+    game = updatePlayer(game, PLAYER2, (player) => {
+      const withIzumi = placeCardInSlot(player.memberSlots, SlotPosition.CENTER, izumi.instanceId, {
+        orientation: OrientationState.WAITING,
+        face: FaceState.FACE_UP,
+      });
+      return {
+        ...player,
+        memberSlots: removeCardFromSlot(withIzumi, SlotPosition.CENTER),
+      };
+    });
+
+    const result = new GameService().advancePhase(prepareActivePhaseAdvance(game));
+
+    expect(result.success).toBe(true);
+    expect(result.gameState.players[0].memberSlots.cardStates.get(ownMember.instanceId)?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+  });
 });

@@ -645,6 +645,21 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    baseCardCodes: ['PL!HS-pb1-015'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasNoOtherStageMembers(game, playerId, sourceCardId)
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: -3,
+              sourceCardId,
+              abilityId: HS_PB1_015_CONTINUOUS_ALONE_LOSE_THREE_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
     baseCardCodes: ['PL!S-bp5-008'],
     collect: ({ game, playerId, sourceCardId }) => {
       const opponent = game.players.find((candidate) => candidate.id !== playerId);
@@ -1170,6 +1185,8 @@ const HS_BP2_006_CONTINUOUS_OTHER_MIRACRA_STAGE_MEMBER_BLADE_ABILITY_ID =
   'PL!HS-bp2-006:continuous-other-miracra-stage-member-blade';
 const HS_BP6_002_CONTINUOUS_ALONE_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!HS-bp6-002:continuous-alone-gain-two-blade';
+const HS_PB1_015_CONTINUOUS_ALONE_LOSE_THREE_BLADE_ABILITY_ID =
+  'PL!HS-pb1-015-R:continuous-alone-lose-three-blade';
 const HS_BP5_016_CONTINUOUS_OPPONENT_TWO_WAITING_PURPLE_HEART_ABILITY_ID =
   'PL!HS-bp5-016-N:continuous-opponent-two-waiting-purple-heart';
 const HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GREEN_HEART_ABILITY_ID =

@@ -2681,7 +2681,7 @@ export const GameBoard = memo(function GameBoard({
                 {activeEffectSelectableCardIds.length > 0 && (
                   <div className="mt-3 md:mt-4">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--text-secondary)]">
-                      <span>{activeEffectSelectionLabel}</span>
+                      <CardEffectText as="span" text={activeEffectSelectionLabel} />
                       <span className="rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
                         {activeEffectSelectableBadgeLabel}
                       </span>

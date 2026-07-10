@@ -47,6 +47,7 @@ interface ArrangeInspectedDeckTopPublicSummaryContext {
   readonly sourceOrientationCost?: 'WAITING';
   readonly inspectSourceZone: ZoneType.MAIN_DECK;
   readonly requestedInspectCount: number;
+  readonly discardedCostCardIds: readonly string[];
 }
 
 interface RegisteredArrangeInspectedDeckTopConfig {
@@ -77,10 +78,7 @@ interface RegisteredArrangeInspectedDeckTopConfig {
 }
 
 export interface ArrangeInspectedDeckTopConfig {
-  readonly ability: Pick<
-    PendingAbilityState,
-    'id' | 'abilityId' | 'sourceCardId' | 'controllerId'
-  >;
+  readonly ability: Pick<PendingAbilityState, 'id' | 'abilityId' | 'sourceCardId' | 'controllerId'>;
   readonly playerId: string;
   readonly deckOwnerId?: string;
   readonly effectText: string;
@@ -93,6 +91,7 @@ export interface ArrangeInspectedDeckTopConfig {
   readonly requestedInspectCount?: number;
   readonly sourceActionLabel?: ArrangeInspectedDeckTopSourceActionLabel;
   readonly sourceOrientationCost?: 'WAITING';
+  readonly discardedCostCardIds?: readonly string[];
   readonly selectedDestination: InspectedCardDestination;
   readonly unselectedDestination: InspectedCardDestination;
   readonly requireAllInspected?: boolean;
@@ -132,8 +131,7 @@ const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedD
     inspectCount: 3,
     sourceActionLabel: '登场',
     stepId: 'PL_N_BP1_002_ARRANGE_TOP_THREE',
-    stepText:
-      '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
+    stepText: '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
     selectionLabel: '按卡组顶从上到下的顺序选择卡牌',
     selectMin: 0,
     selectMax: 3,
@@ -143,8 +141,7 @@ const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedD
     inspectCount: 2,
     sourceActionLabel: 'LIVE成功',
     stepId: 'HS_BP6_028_ARRANGE_TOP_TWO',
-    stepText:
-      '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
+    stepText: '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
     selectionLabel: '按卡组顶从上到下的顺序选择卡牌',
     selectMin: 0,
     selectMax: 2,
@@ -175,8 +172,7 @@ const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedD
     inspectCount: 2,
     sourceActionLabel: 'LIVE开始',
     stepId: 'HS_PB1_013_ARRANGE_TOP_TWO',
-    stepText:
-      '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
+    stepText: '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
     selectionLabel: '按卡组顶从上到下的顺序选择卡牌',
     selectMin: 0,
     selectMax: 2,
@@ -186,8 +182,7 @@ const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedD
     inspectCount: 2,
     sourceActionLabel: '登场',
     stepId: 'HS_PB1_024_ARRANGE_TOP_TWO',
-    stepText:
-      '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
+    stepText: '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
     selectionLabel: '按卡组顶从上到下的顺序选择卡牌',
     selectMin: 0,
     selectMax: 2,
@@ -291,10 +286,15 @@ export function startArrangeInspectedDeckTopWorkflow(
   const condition = config.condition?.(game, player.id);
   if (condition && !condition.met) {
     const manualConfirmation = config.starterOptions
-      ? maybeStartConfirmablePendingAbilityConfirmation(game, config.ability, config.starterOptions, {
-          effectText: `${config.effectText}（${condition.stepText}）`,
-          stepText: condition.stepText,
-        })
+      ? maybeStartConfirmablePendingAbilityConfirmation(
+          game,
+          config.ability,
+          config.starterOptions,
+          {
+            effectText: `${config.effectText}（${condition.stepText}）`,
+            stepText: condition.stepText,
+          }
+        )
       : null;
     if (manualConfirmation) {
       return manualConfirmation;
@@ -436,6 +436,7 @@ export function startArrangeInspectedDeckTopWorkflow(
                   : {}),
                 inspectSourceZone: ZoneType.MAIN_DECK,
                 requestedInspectCount: config.requestedInspectCount,
+                discardedCostCardIds: config.discardedCostCardIds ?? [],
               },
             }
           : {}),
@@ -461,7 +462,7 @@ export function startArrangeInspectedDeckTopWorkflow(
               ? { sourceOrientationCost: config.sourceOrientationCost }
               : {}),
             recoveredCardIds: [],
-            discardedCostCardIds: [],
+            discardedCostCardIds: config.discardedCostCardIds ?? [],
             inspectSourceZone: ZoneType.MAIN_DECK,
             requestedInspectCount: config.requestedInspectCount,
             actualInspectedCount: inspectedCardIds.length,
@@ -488,8 +489,7 @@ function finishArrangeInspectedDeckTopTargetPlayerSelection(
   if (!controller) {
     return game;
   }
-  const targetPlayer =
-    selectedOptionId === 'self' ? controller : getOpponent(game, controller.id);
+  const targetPlayer = selectedOptionId === 'self' ? controller : getOpponent(game, controller.id);
   if (!targetPlayer) {
     return game;
   }
@@ -615,7 +615,7 @@ export function finishArrangeInspectedDeckTopWorkflow(
                 ? { sourceOrientationCost: publicEffectSummaryContext.sourceOrientationCost }
                 : {}),
               recoveredCardIds: [],
-              discardedCostCardIds: [],
+              discardedCostCardIds: publicEffectSummaryContext.discardedCostCardIds,
               inspectSourceZone: publicEffectSummaryContext.inspectSourceZone,
               requestedInspectCount: publicEffectSummaryContext.requestedInspectCount,
               actualInspectedCount: inspectedCardIds.length,
@@ -640,7 +640,9 @@ function consumeArrangePendingAsNoOp(
   const state = {
     ...game,
     activeEffect: null,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== config.ability.id),
+    pendingAbilities: game.pendingAbilities.filter(
+      (candidate) => candidate.id !== config.ability.id
+    ),
   };
   return continuePendingCardEffects(
     addAction(state, 'RESOLVE_ABILITY', playerId, {
@@ -670,10 +672,7 @@ function getArrangeInspectedDeckTopPublicSummaryContext(
   ) {
     return undefined;
   }
-  if (
-    context.sourceOrientationCost !== undefined &&
-    context.sourceOrientationCost !== 'WAITING'
-  ) {
+  if (context.sourceOrientationCost !== undefined && context.sourceOrientationCost !== 'WAITING') {
     return undefined;
   }
   if (context.inspectSourceZone !== ZoneType.MAIN_DECK) {
@@ -682,11 +681,17 @@ function getArrangeInspectedDeckTopPublicSummaryContext(
   if (typeof context.requestedInspectCount !== 'number') {
     return undefined;
   }
+  const discardedCostCardIds = Array.isArray(context.discardedCostCardIds)
+    ? context.discardedCostCardIds.filter((cardId): cardId is string => typeof cardId === 'string')
+    : [];
   return {
     effectKind: 'ARRANGE_INSPECTED_DECK_TOP',
     sourceActionLabel: context.sourceActionLabel,
-    ...(context.sourceOrientationCost ? { sourceOrientationCost: context.sourceOrientationCost } : {}),
+    ...(context.sourceOrientationCost
+      ? { sourceOrientationCost: context.sourceOrientationCost }
+      : {}),
     inspectSourceZone: context.inspectSourceZone,
     requestedInspectCount: context.requestedInspectCount,
+    discardedCostCardIds,
   };
 }

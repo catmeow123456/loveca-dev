@@ -1,4 +1,8 @@
-import { isMemberCardData, type CardInstance } from '../../../../domain/entities/card.js';
+import {
+  isLiveCardData,
+  isMemberCardData,
+  type CardInstance,
+} from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
@@ -11,6 +15,7 @@ import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID,
   HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
+  HS_BP2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
   PL_N_BP1_012_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
@@ -33,6 +38,8 @@ const HS_BP1_003_SELECT_WAITING_ROOM_MEMBER_STEP_ID =
   'HS_BP1_003_SELECT_WAITING_ROOM_LOW_COST_MEMBER';
 const HS_BP1_004_SELECT_WAITING_ROOM_LIVE_STEP_ID =
   'HS_BP1_004_SELECT_HASUNOSORA_LIVE_FROM_WAITING_ROOM';
+const HS_BP2_001_SELECT_WAITING_ROOM_LIVE_STEP_ID =
+  'HS_BP2_001_SELECT_LOW_SCORE_HASUNOSORA_LIVE_FROM_WAITING_ROOM';
 
 interface PayEnergyWaitingRoomToHandWorkflowConfig {
   readonly abilityId: string;
@@ -72,6 +79,25 @@ const PAY_ENERGY_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly PayEnergyWaitingRoomTo
       selector: and(typeIs(CardType.LIVE), groupAliasIs('蓮ノ空')),
       zoneSelection: createWaitingRoomToHandSelectionConfig(),
       actionStep: 'PAY_COST_SELECT_WAITING_ROOM_LIVE',
+    },
+    {
+      abilityId: HS_BP2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!HS-bp2-001'],
+      energyCost: 2,
+      stepId: HS_BP2_001_SELECT_WAITING_ROOM_LIVE_STEP_ID,
+      stepText: '请选择自己的休息室中1张分数小于等于3的『莲之空』LIVE卡加入手牌。',
+      selector: and(
+        typeIs(CardType.LIVE),
+        groupAliasIs('蓮ノ空'),
+        (card) => isLiveCardData(card.data) && card.data.score <= 3
+      ),
+      zoneSelection: createWaitingRoomToHandSelectionConfig({
+        minCount: 1,
+        maxCount: 1,
+        optional: false,
+      }),
+      canSkipSelection: false,
+      actionStep: 'PAY_COST_SELECT_LOW_SCORE_HASUNOSORA_LIVE',
     },
     {
       abilityId: PL_N_BP1_012_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,

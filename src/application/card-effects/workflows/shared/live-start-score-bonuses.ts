@@ -13,13 +13,16 @@ import {
   collectLiveModifiers,
   getMemberEffectiveHeartIcons,
 } from '../../../../domain/rules/live-modifiers.js';
-import { HeartColor } from '../../../../shared/types/enums.js';
+import { HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
 import {
   cardBelongsToGroup,
   selectDifferentNamedCards,
 } from '../../../../shared/utils/card-identity.js';
+import { cardNameAliasIs } from '../../../effects/card-selectors.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 import {
+  HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
+  HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP5_018_LIVE_START_DIFFERENT_NAMES_AND_COSTS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
@@ -44,6 +47,28 @@ const NORMAL_HEART_COLORS: readonly HeartColor[] = [
 const EUTOPIA_SCORE_BONUS = 2;
 
 export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
+  registerManualConfirmablePendingAbilityStarterHandler(
+    HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveLinkToTheFutureLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getLinkToTheFutureConfirmationConfig
+  );
+  registerManualConfirmablePendingAbilityStarterHandler(
+    HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveMiraCreationLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getMiraCreationConfirmationConfig
+  );
   registerManualConfirmablePendingAbilityStarterHandler(
     PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
@@ -88,6 +113,27 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
       ),
     getAuroraFlowerConfirmationConfig
   );
+}
+
+function getLinkToTheFutureConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getLinkToTheFutureContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己舞台不同名『莲之空』成员${context.differentNamedHasunosoraStageMembers.length}名，实际[スコア]+${context.scoreBonus}。）`,
+  };
+}
+
+function getMiraCreationConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getMiraCreationContext(game, ability);
+  const formationText = `右侧大泽瑠璃乃：${context.rightRurino ? '符合' : '不符合'}，左侧安养寺姬芽：${context.leftHime ? '符合' : '不符合'}，中央藤岛 慈：${context.centerMegu ? '符合' : '不符合'}`;
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（${formationText}。${context.conditionMet ? '满足条件，实际[スコア]+2。' : '未满足条件，不增加分数。'}）`,
+  };
 }
 
 function getSolitudeRainConfirmationConfig(
@@ -163,6 +209,92 @@ function resolveSolitudeRainLiveStart(
       sourceInLiveZone,
       nijigasakiStageMemberIds,
       effectiveHeartColors,
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
+function resolveLinkToTheFutureLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const { sourceInLiveZone, differentNamedHasunosoraStageMembers, scoreBonus } =
+    getLinkToTheFutureContext(stateWithoutPending, ability);
+  const stateAfterScore =
+    scoreBonus > 0
+      ? addScoreModifierAndRefresh(stateWithoutPending, {
+          playerId: player.id,
+          sourceCardId: ability.sourceCardId,
+          abilityId: ability.abilityId,
+          scoreBonus,
+        })
+      : stateWithoutPending;
+
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step:
+        scoreBonus > 0
+          ? 'DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE'
+          : 'NO_DIFFERENT_HASUNOSORA_MEMBER_NAMES',
+      sourceInLiveZone,
+      differentNamedHasunosoraStageMemberCardIds: differentNamedHasunosoraStageMembers.map(
+        (member) => member.cardId
+      ),
+      differentNamedHasunosoraStageMemberNames: differentNamedHasunosoraStageMembers.map(
+        (member) => member.name
+      ),
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
+function resolveMiraCreationLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const { sourceInLiveZone, rightRurino, leftHime, centerMegu, conditionMet } =
+    getMiraCreationContext(stateWithoutPending, ability);
+  const scoreBonus = conditionMet ? 2 : 0;
+  const stateAfterScore = conditionMet
+    ? addScoreModifierAndRefresh(stateWithoutPending, {
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        scoreBonus,
+      })
+    : stateWithoutPending;
+
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: conditionMet ? 'MIRACRA_FORMATION_THIS_LIVE_SCORE' : 'NO_MIRACRA_FORMATION',
+      sourceInLiveZone,
+      rightRurino,
+      leftHime,
+      centerMegu,
       scoreBonus,
     }),
     orderedResolution
@@ -342,6 +474,85 @@ function getSolitudeRainContext(
   };
 }
 
+function getLinkToTheFutureContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly differentNamedHasunosoraStageMembers: readonly {
+    readonly cardId: string;
+    readonly name: string;
+  }[];
+  readonly scoreBonus: number;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return {
+      sourceInLiveZone: false,
+      differentNamedHasunosoraStageMembers: [],
+      scoreBonus: 0,
+    };
+  }
+
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const differentNamedHasunosoraStageMembers = sourceInLiveZone
+    ? selectDifferentNamedCards(
+        getAllMemberCardIds(player.memberSlots),
+        (cardId) => {
+          const card = getCardById(game, cardId);
+          return card && isMemberCardData(card.data) && cardBelongsToGroup(card.data, '蓮ノ空')
+            ? card.data
+            : null;
+        },
+        { minCount: 1 }
+      ).map((match) => ({ cardId: match.item, name: match.name }))
+    : [];
+  return {
+    sourceInLiveZone,
+    differentNamedHasunosoraStageMembers,
+    scoreBonus: differentNamedHasunosoraStageMembers.length * 2,
+  };
+}
+
+function getMiraCreationContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly rightRurino: boolean;
+  readonly leftHime: boolean;
+  readonly centerMegu: boolean;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return {
+      sourceInLiveZone: false,
+      rightRurino: false,
+      leftHime: false,
+      centerMegu: false,
+      conditionMet: false,
+    };
+  }
+
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const rightRurino = stageSlotHasMemberName(
+    game,
+    player.id,
+    SlotPosition.RIGHT,
+    '大沢瑠璃乃'
+  );
+  const leftHime = stageSlotHasMemberName(game, player.id, SlotPosition.LEFT, '安養寺姫芽');
+  const centerMegu = stageSlotHasMemberName(game, player.id, SlotPosition.CENTER, '藤島慈');
+  return {
+    sourceInLiveZone,
+    rightRurino,
+    leftHime,
+    centerMegu,
+    conditionMet: sourceInLiveZone && rightRurino && leftHime && centerMegu,
+  };
+}
+
 function getEutopiaContext(
   game: GameState,
   ability: PendingAbilityState
@@ -470,6 +681,18 @@ function getDifferentNamedStageMembers(
     },
     { minCount: 1 }
   ).map((match) => ({ cardId: match.item, name: match.name }));
+}
+
+function stageSlotHasMemberName(
+  game: GameState,
+  playerId: string,
+  slot: SlotPosition,
+  name: string
+): boolean {
+  const player = getPlayerById(game, playerId);
+  const cardId = player?.memberSlots.slots[slot] ?? null;
+  const card = cardId ? getCardById(game, cardId) : null;
+  return card !== null && isMemberCardData(card.data) && cardNameAliasIs(name)(card);
 }
 
 function getDifferentNamedAndEffectiveCostStageMembers(

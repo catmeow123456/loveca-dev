@@ -7,6 +7,7 @@ import {
 import {
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
   PL_BP5_015_ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ABILITY_ID,
+  HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
 } from '../../ability-ids.js';
 import { successLiveScoreAtLeast, sumSuccessfulLiveScore } from '../../../effects/conditions.js';
@@ -22,6 +23,7 @@ interface MemberOnEnterDrawConfig {
   readonly actionStep: string;
   readonly minEnergyCount?: number;
   readonly minSuccessLiveScore?: number;
+  readonly minWaitingRoomCount?: number;
 }
 
 const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
@@ -41,6 +43,12 @@ const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
     drawCount: 1,
     actionStep: 'ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ONE',
     minSuccessLiveScore: 3,
+  },
+  {
+    abilityId: HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
+    drawCount: 1,
+    actionStep: 'ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE',
+    minWaitingRoomCount: 10,
   },
 ];
 
@@ -93,6 +101,21 @@ function resolveMemberOnEnterDraw(
       orderedResolution
     );
   }
+  const waitingRoomCount = player.waitingRoom.cardIds.length;
+  if (config.minWaitingRoomCount !== undefined && waitingRoomCount < config.minWaitingRoomCount) {
+    return continuePendingCardEffects(
+      addAction(stateAfterUseRecord, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'WAITING_ROOM_COUNT_CONDITION_NOT_MET',
+        sourceSlot: ability.sourceSlot,
+        waitingRoomCount,
+        requiredWaitingRoomCount: config.minWaitingRoomCount,
+      }),
+      orderedResolution
+    );
+  }
   const successLiveScore = sumSuccessfulLiveScore(game, player.id);
   if (
     config.minSuccessLiveScore !== undefined &&
@@ -126,6 +149,8 @@ function resolveMemberOnEnterDraw(
       sourceSlot: ability.sourceSlot,
       energyCount,
       requiredEnergyCount: config.minEnergyCount,
+      waitingRoomCount,
+      requiredWaitingRoomCount: config.minWaitingRoomCount,
       successLiveScore,
       requiredSuccessLiveScore: config.minSuccessLiveScore,
       drawnCardIds: drawResult.drawnCardIds,

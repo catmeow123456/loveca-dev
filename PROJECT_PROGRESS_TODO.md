@@ -1,6 +1,54 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-09
+更新时间：2026-07-10
+
+## 本次 2026-07-10 莲 HS-bp2 018 休息室 LIVE 正面放置
+
+- 已实现 `PL!HS-bp2-018-N` 费用 7「安養寺 姫芽」：自己的主要阶段登场时，存在2张 ACTIVE 能量和休息室 LIVE 目标才打开可选支付窗口；不发动、费用不足、无目标或非己方主要阶段均不支付并安全 no-op。
+- 支付后强制选择1张当前仍在自己休息室的 LIVE 卡，通过 `placeWaitingRoomLiveCardInLiveZoneForPlayer` 正面放入 LIVE 区并记录 `WAITING_ROOM -> LIVE_ZONE` 的 `ON_ENTER_LIVE_ZONE` 事件；非法或陈旧选择由命令/动作层拒绝，不移动卡也不登记跨阶段限制。
+- 成功放置后复用既有 `liveSetLimitReductions`：下一次自己的 LIVE 卡设置阶段上限 -1，对手完成阶段不消费，自己完成该阶段时消费一次，之后恢复。单卡 workflow `hs-bp2-018-hime.ts`；runner 仅新增1组 import/register 薄胶水。
+
+## 本次 2026-07-10 莲 HS-bp2 019 必要 Heart 三选一
+
+- 已实现 `PL!HS-bp2-019-L` 分数 1「Bloom the smile, Bloom the dream!」：来源仍在自己的 LIVE 区且己方舞台存在莲之空成员时，打开桃2+无1、绿2+无1、蓝2+无1三种必要 Heart 形状的真实选择窗口，并可选择不改变。
+- 单卡 workflow `hs-bp2-019-bloom-the-smile-bloom-the-dream.ts` 通过印刷必要 Heart 计算自身 REQUIREMENT delta，并用 `replaceLiveModifier` 只替换本 ability/source 的 modifier；`getLiveCardRequirementModifiers` + `applyHeartRequirementModifiers` 验证最终形状。FAQ Q127 等外部无色 +1 modifier 保留叠加，选择形状后会得到选中色2+无色2。
+- 本批不扩无输入 `conditional-live-modifier`，不新增 helper/DSL；runner 仅新增1组 import/register 薄胶水。
+
+## 本次 2026-07-10 莲 HS-bp2 007 换手回收与同名成员强化
+
+- 已实现 `PL!HS-bp2-007-R＋ / P / P＋ / SEC` 费用 11「百生 吟子」两段能力：从费用严格更低的 Cerise Bouquet 成员换手登场时，强制从休息室回收1张莲之空 LIVE；LIVE开始时可弃1手，若弃置成员卡则选择己方舞台持有相同名称的1名成员，获得绿色 Heart +1 与 BLADE +1。
+- 登场段复用 `relay-enter-lower-cost-unit` 与 `waiting-room-to-hand`；LIVE开始段复用 optional discard shell 与 HAND -> WAITING_ROOM trigger wrapper，支付后通过共享 `getCardNameCandidates` / `cardNameAliasAny` 识别多名称成员。`LL-bp1-001-R＋`「上原歩夢&澁谷かのん&日野下花帆」可因弃置「日野下花帆」成为目标，目标 Heart 写 `TARGET_MEMBER`，BLADE 沿用目标成员 cardId 约定。
+- 本批新增单卡 workflow `hs-bp2-007-ginko.ts`，runner 仅新增1组 import/register 薄胶水；未修改 trigger matcher、cost calculator、steps DSL 或共享 identity/helper 语义。
+
+## 本次 2026-07-10 莲 HS-bp2 003 可选弃手控顶
+
+- 已实现 `PL!HS-bp2-003-R / P` 费用 7「乙宗 梢」：LIVE开始时可弃1手；支付后检视卡组顶3张，将任意张按任意顺序放回卡组顶，其余放置入休息室。
+- 新增单卡薄 wrapper `hs-bp2-003-kozue.ts`；弃手选择复用 optional discard activeEffect shell，弃手移动走 HAND -> WAITING_ROOM trigger wrapper，随后委托 shared `arrange-inspected-deck-top` 处理私密检视、有序回顶、余牌入休息室、refresh 与 pending continuation。
+- shared arrange public summary 新增可选 `discardedCostCardIds` 上下文：003 的 STARTED/COMPLETED summary 均携带真实费用卡；旧无费用调用保持空数组。本批 runner 仅新增1组 import/register 薄胶水。
+
+## 本次 2026-07-10 莲 HS-bp2 换手登场奖励
+
+- 已实现 `PL!HS-bp2-008-R / P` 费用 4「徒町 小鈴」：从费用严格更低的 DOLLCHESTRA 成员换手登场时，来源成员获得 BLADE +2。
+- 已实现 `PL!HS-bp2-009-R / P` 费用 13「安養寺 姫芽」：登场可支付1张 ACTIVE 能量；支付后若从费用严格更低的 Mira-Cra Park! 成员换手登场，来源成员获得2个桃 Heart。支付选项不按换手条件前置隐藏，条件失败时保留已支付费用。
+- 两张保持独立 card workflow，只共用窄纯条件 helper `relay-enter-lower-cost-unit.ts`：replacement 费用读取本次事件捕获 `relayReplacements.effectiveCost`，来源费用读取结算时有效费用，并以结构化小队 alias 判断；不扩成 relay DSL。本批 runner 只新增两组 import/register 薄胶水。
+
+## 本次 2026-07-10 莲 HS-bp2 起动回收与登场抽卡
+
+- 已实现 `PL!HS-bp2-001-R / P` 费用 13「日野下花帆」：扩展 shared `pay-energy-waiting-room-to-hand`，起动1回合1次支付 [E][E]，强制回收1张印刷分数小于等于3的莲之空 LIVE；无合法目标或活跃能量不足时不支付也不消耗次数。Excel 中文源将「分数」误译为「费用」，实现与 definition 按 `cards.json` / Excel 日文权威文本修正为分数。
+- 已实现 `PL!HS-bp2-017-N` 费用 7「徒町 小鈴」：扩展 shared `member-on-enter-draw` 的休息室数量阈值配置，登场 pending 结算时重算己方休息室，10张以上抽1，否则 no-op 并继续后续 pending。
+- 本批未新增卡牌维度 workflow、未修改 runner。focused integration 覆盖 R/P、费用/目标门禁、合法筛选、turn1、非法/陈旧选择、休息室9/10张、结算时重算与 pending continuation。
+
+## 本次 2026-07-10 莲 HS-bp2 LIVE 开始分数修正
+
+- 已实现 `PL!HS-bp2-020-L` 分数 0「Link to the FUTURE」的 LIVE 开始段：保留既有 exact-code 三小队常时身份 definition，扩展 `live-start-score-bonuses`，以 `cardBelongsToGroup` 与 `selectDifferentNamedCards` 统计自己主舞台不同名『莲之空』成员，每名使来源 LIVE [スコア]+2。
+- 已实现 `PL!HS-bp2-026-L / L＋` 分数 5「みらくりえーしょん」：通过 `baseCardCodes` 同步 L / L＋，以 `cardNameAliasIs` 复核自己的右侧大沢瑠璃乃、左侧安養寺姫芽、中央藤島慈；三槽均符合时来源 LIVE [スコア]+2。
+- 两张均复用 shared 无交互 manual-confirmation 路径：单 pending/手动点选先确认，顺序发动自动连续结算；确认文案实时显示不同名数量或三槽条件与实际分数结果。本批未修改 runner、未新增 helper 或卡牌 workflow。
+
+## 本次 2026-07-10 莲 HS-bp2 第一批卡效
+
+- 已实现 `PL!HS-bp2-011-N / PR` 费用 2「村野さやか」：扩展 shared `direct-mill-top`，登场将卡组顶5张放置入休息室，继续使用 refresh-aware main-deck-to-waiting trigger wrapper，refresh 洗回卡组的牌不计入本次 movedCardIds。
+- 已实现 `PL!HS-bp2-016-N` 费用 4「百生 吟子」：与 `PL!HS-pb1-024-N` 同型，复用 `HS_PB1_024_ON_ENTER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID` 与 `arrange-inspected-deck-top`，通过 baseCardCodes 同时覆盖；未选择的 inspected cards 继续走 inspection-to-waiting wrapper。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录 direct mill 与 inspection-to-waiting 两种事件边界。本批未新增卡牌维度 workflow、未新增 helper、未修改 runner。
 
 ## 本次 2026-07-09 余Heart实时口径修正
 

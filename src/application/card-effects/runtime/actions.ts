@@ -87,6 +87,18 @@ export interface PlaceHandLiveCardInLiveZoneResult {
   readonly enterLiveZoneEvent: EnterLiveZoneEvent;
 }
 
+export interface PlaceWaitingRoomLiveCardInLiveZoneOptions {
+  readonly candidateCardIds: readonly string[];
+  readonly face: FaceState;
+}
+
+export interface PlaceWaitingRoomLiveCardInLiveZoneResult {
+  readonly gameState: GameState;
+  readonly movedCardId: string;
+  readonly remainingCandidateIds: readonly string[];
+  readonly enterLiveZoneEvent: EnterLiveZoneEvent;
+}
+
 export interface ActivateWaitingEnergyCardsForPlayerResult {
   readonly gameState: GameState;
   readonly activatedEnergyCardIds: readonly string[];
@@ -394,18 +406,51 @@ export function placeHandLiveCardInLiveZoneForPlayer(
   selectedCardId: string,
   options: PlaceHandLiveCardInLiveZoneOptions
 ): PlaceHandLiveCardInLiveZoneResult | null {
+  return placeOwnedLiveCardInLiveZoneForPlayer(
+    game,
+    playerId,
+    selectedCardId,
+    ZoneType.HAND,
+    options
+  );
+}
+
+export function placeWaitingRoomLiveCardInLiveZoneForPlayer(
+  game: GameState,
+  playerId: string,
+  selectedCardId: string,
+  options: PlaceWaitingRoomLiveCardInLiveZoneOptions
+): PlaceWaitingRoomLiveCardInLiveZoneResult | null {
+  return placeOwnedLiveCardInLiveZoneForPlayer(
+    game,
+    playerId,
+    selectedCardId,
+    ZoneType.WAITING_ROOM,
+    options
+  );
+}
+
+function placeOwnedLiveCardInLiveZoneForPlayer(
+  game: GameState,
+  playerId: string,
+  selectedCardId: string,
+  sourceZone: ZoneType.HAND | ZoneType.WAITING_ROOM,
+  options: PlaceHandLiveCardInLiveZoneOptions | PlaceWaitingRoomLiveCardInLiveZoneOptions
+): PlaceHandLiveCardInLiveZoneResult | PlaceWaitingRoomLiveCardInLiveZoneResult | null {
   if (!options.candidateCardIds.includes(selectedCardId)) {
     return null;
   }
 
   const player = getPlayerById(game, playerId);
   const card = getCardById(game, selectedCardId);
+  const sourceCardIds =
+    sourceZone === ZoneType.HAND ? player?.hand.cardIds : player?.waitingRoom.cardIds;
   if (
     !player ||
     !card ||
     card.ownerId !== playerId ||
     card.data.cardType !== CardType.LIVE ||
-    !player.hand.cardIds.includes(selectedCardId)
+    sourceCardIds?.includes(selectedCardId) !== true
   ) {
     return null;
   }
@@ -415,7 +460,9 @@ export function placeHandLiveCardInLiveZoneForPlayer(
   );
   const gameStateBeforeEvent = updatePlayer(game, playerId, (currentPlayer) => ({
     ...currentPlayer,
-    hand: removeCardFromZone(currentPlayer.hand, selectedCardId),
+    ...(sourceZone === ZoneType.HAND
+      ? { hand: removeCardFromZone(currentPlayer.hand, selectedCardId) }
+      : { waitingRoom: removeCardFromZone(currentPlayer.waitingRoom, selectedCardId) }),
     liveZone: addCardToStatefulZone(currentPlayer.liveZone, selectedCardId, {
       orientation: OrientationState.ACTIVE,
       face: options.face,
@@ -423,7 +470,7 @@ export function placeHandLiveCardInLiveZoneForPlayer(
   }));
   const enterLiveZoneEvent = createEnterLiveZoneEvent(
     selectedCardId,
-    ZoneType.HAND,
+    sourceZone,
     playerId,
     playerId,
     options.face

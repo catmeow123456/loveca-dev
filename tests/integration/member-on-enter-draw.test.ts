@@ -17,6 +17,7 @@ import {
 } from '../../src/application/card-effect-runner';
 import { GameService } from '../../src/application/game-service';
 import {
+  HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -57,16 +58,27 @@ function runOnEnterDrawOne(
   readonly drawCardId: string;
 } {
   const source = createCardInstance(createMember(cardCode, name), PLAYER1, `${cardCode}-source`);
-  const drawCard = createCardInstance(createMember(`${cardCode}-draw`), PLAYER1, `${cardCode}-draw`);
+  const drawCard = createCardInstance(
+    createMember(`${cardCode}-draw`),
+    PLAYER1,
+    `${cardCode}-draw`
+  );
   const energyCards = Array.from({ length: options.energyCount ?? 0 }, (_, index) =>
-    createCardInstance(createMember(`${cardCode}-energy-${index}`), PLAYER1, `${cardCode}-energy-${index}`)
+    createCardInstance(
+      createMember(`${cardCode}-energy-${index}`),
+      PLAYER1,
+      `${cardCode}-energy-${index}`
+    )
   );
   let game = createGameState(`member-on-enter-draw-${cardCode}`, PLAYER1, 'P1', PLAYER2, 'P2');
   game = registerCards(game, [source, drawCard, ...energyCards]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     mainDeck: { ...player.mainDeck, cardIds: [drawCard.instanceId] },
-    energyZone: energyCards.reduce((zone, card) => addCardToZone(zone, card.instanceId), player.energyZone),
+    energyZone: energyCards.reduce(
+      (zone, card) => addCardToZone(zone, card.instanceId),
+      player.energyZone
+    ),
     memberSlots: placeCardInSlot(player.memberSlots, sourceSlot, source.instanceId, {
       orientation: OrientationState.ACTIVE,
       face: FaceState.FACE_UP,
@@ -87,7 +99,9 @@ function runOnEnterDrawOne(
     createEnterStageEvent(source.instanceId, ZoneType.HAND, sourceSlot, PLAYER1, PLAYER1)
   );
 
-  const result = new GameService().executeCheckTiming(stateWithEvent, [TriggerCondition.ON_ENTER_STAGE]);
+  const result = new GameService().executeCheckTiming(stateWithEvent, [
+    TriggerCondition.ON_ENTER_STAGE,
+  ]);
   expect(result.success).toBe(true);
   return { state: result.gameState, sourceId: source.instanceId, drawCardId: drawCard.instanceId };
 }
@@ -177,7 +191,11 @@ describe('member on-enter draw shared workflow', () => {
   });
 
   it('continues ordered pending after resolving SP PR on-enter energy-seven draw effects', () => {
-    const first = createCardInstance(createMember('PL!SP-PR-003-PR', '澁谷かのん'), PLAYER1, 'first');
+    const first = createCardInstance(
+      createMember('PL!SP-PR-003-PR', '澁谷かのん'),
+      PLAYER1,
+      'first'
+    );
     const second = createCardInstance(
       createMember('PL!SP-PR-007-PR', '葉月 恋'),
       PLAYER1,
@@ -193,7 +211,10 @@ describe('member on-enter draw shared workflow', () => {
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
       mainDeck: { ...player.mainDeck, cardIds: [firstDraw.instanceId, secondDraw.instanceId] },
-      energyZone: energyCards.reduce((zone, card) => addCardToZone(zone, card.instanceId), player.energyZone),
+      energyZone: energyCards.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.energyZone
+      ),
       memberSlots: placeCardInSlot(
         placeCardInSlot(player.memberSlots, SlotPosition.LEFT, first.instanceId),
         SlotPosition.RIGHT,
@@ -241,5 +262,210 @@ describe('member on-enter draw shared workflow', () => {
           action.payload.step === 'ON_ENTER_ENERGY_SEVEN_DRAW_ONE'
       )
     ).toHaveLength(2);
+  });
+
+  it('draws one for PL!HS-bp2-017-N when the waiting room has ten cards', () => {
+    const source = createCardInstance(
+      createMember('PL!HS-bp2-017-N', '徒町 小鈴', 7),
+      PLAYER1,
+      'hs-bp2-017-source'
+    );
+    const drawCard = createCardInstance(createMember('DRAW'), PLAYER1, 'draw');
+    const waitingCards = Array.from({ length: 10 }, (_, index) =>
+      createCardInstance(createMember(`WAITING-${index}`), PLAYER1, `waiting-${index}`)
+    );
+    let game = createGameState('hs-bp2-017-ten', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [source, drawCard, ...waitingCards]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: [drawCard.instanceId] },
+      waitingRoom: { ...player.waitingRoom, cardIds: waitingCards.map((card) => card.instanceId) },
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+    }));
+    game = {
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          'hs-bp2-017-pending',
+          source.instanceId,
+          SlotPosition.CENTER,
+          HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID
+        ),
+      ],
+    };
+
+    const resolved = resolvePendingCardEffects(game).gameState;
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.players[0].hand.cardIds).toContain(drawCard.instanceId);
+    expect(
+      resolved.actionHistory.some(
+        (action) =>
+          action.payload.abilityId === HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID &&
+          action.payload.step === 'ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE' &&
+          action.payload.waitingRoomCount === 10
+      )
+    ).toBe(true);
+  });
+
+  it('consumes PL!HS-bp2-017-N pending without drawing at nine waiting-room cards', () => {
+    const source = createCardInstance(
+      createMember('PL!HS-bp2-017-N', '徒町 小鈴', 7),
+      PLAYER1,
+      'hs-bp2-017-source'
+    );
+    const drawCard = createCardInstance(createMember('DRAW'), PLAYER1, 'draw');
+    const waitingCards = Array.from({ length: 9 }, (_, index) =>
+      createCardInstance(createMember(`WAITING-${index}`), PLAYER1, `waiting-${index}`)
+    );
+    let game = createGameState('hs-bp2-017-nine', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [source, drawCard, ...waitingCards]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: [drawCard.instanceId] },
+      waitingRoom: { ...player.waitingRoom, cardIds: waitingCards.map((card) => card.instanceId) },
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+    }));
+    game = {
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          'hs-bp2-017-pending',
+          source.instanceId,
+          SlotPosition.CENTER,
+          HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID
+        ),
+      ],
+    };
+
+    const resolved = resolvePendingCardEffects(game).gameState;
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.players[0].hand.cardIds).not.toContain(drawCard.instanceId);
+    expect(
+      resolved.actionHistory.some(
+        (action) =>
+          action.payload.abilityId === HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID &&
+          action.payload.step === 'WAITING_ROOM_COUNT_CONDITION_NOT_MET' &&
+          action.payload.waitingRoomCount === 9
+      )
+    ).toBe(true);
+  });
+
+  it('uses the current waiting-room count when PL!HS-bp2-017-N resolves', () => {
+    const source = createCardInstance(
+      createMember('PL!HS-bp2-017-N', '徒町 小鈴', 7),
+      PLAYER1,
+      'hs-bp2-017-source'
+    );
+    const drawCard = createCardInstance(createMember('DRAW'), PLAYER1, 'draw');
+    const waitingCards = Array.from({ length: 10 }, (_, index) =>
+      createCardInstance(createMember(`WAITING-${index}`), PLAYER1, `waiting-${index}`)
+    );
+    let game = createGameState('hs-bp2-017-recompute', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [source, drawCard, ...waitingCards]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: [drawCard.instanceId] },
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: waitingCards.slice(0, 9).map((card) => card.instanceId),
+      },
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+    }));
+    game = {
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          'hs-bp2-017-pending',
+          source.instanceId,
+          SlotPosition.CENTER,
+          HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID
+        ),
+      ],
+    };
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [...player.waitingRoom.cardIds, waitingCards[9]!.instanceId],
+      },
+    }));
+
+    const resolved = resolvePendingCardEffects(game).gameState;
+    expect(resolved.players[0].hand.cardIds).toContain(drawCard.instanceId);
+  });
+
+  it('continues ordered pending after PL!HS-bp2-017-N no-op', () => {
+    const first = createCardInstance(
+      createMember('PL!HS-bp2-017-N', '徒町 小鈴', 7),
+      PLAYER1,
+      'first'
+    );
+    const second = createCardInstance(
+      createMember('PL!HS-bp2-017-N', '徒町 小鈴', 7),
+      PLAYER1,
+      'second'
+    );
+    const drawCard = createCardInstance(createMember('DRAW'), PLAYER1, 'draw');
+    const waitingCards = Array.from({ length: 9 }, (_, index) =>
+      createCardInstance(createMember(`WAITING-${index}`), PLAYER1, `waiting-${index}`)
+    );
+    let game = createGameState('hs-bp2-017-ordered', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [first, second, drawCard, ...waitingCards]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: [drawCard.instanceId] },
+      waitingRoom: { ...player.waitingRoom, cardIds: waitingCards.map((card) => card.instanceId) },
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, first.instanceId),
+        SlotPosition.RIGHT,
+        second.instanceId
+      ),
+    }));
+    game = {
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          'first-pending',
+          first.instanceId,
+          SlotPosition.LEFT,
+          HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID
+        ),
+        pendingAbility(
+          'second-pending',
+          second.instanceId,
+          SlotPosition.RIGHT,
+          MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID
+        ),
+      ],
+    };
+
+    const orderSelection = resolvePendingCardEffects(game).gameState;
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+    const resolved = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      null,
+      null,
+      true
+    );
+
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.players[0].hand.cardIds).toEqual([drawCard.instanceId]);
+    expect(
+      resolved.actionHistory.some(
+        (action) =>
+          action.payload.abilityId === HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID &&
+          action.payload.step === 'WAITING_ROOM_COUNT_CONDITION_NOT_MET'
+      )
+    ).toBe(true);
+    expect(
+      resolved.actionHistory.some(
+        (action) =>
+          action.payload.abilityId === MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID &&
+          action.payload.step === 'ON_ENTER_DRAW_ONE'
+      )
+    ).toBe(true);
   });
 });

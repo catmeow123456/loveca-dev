@@ -9,6 +9,7 @@ import {
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
+  HS_BP2_011_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID,
   S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_BP6_017_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
@@ -350,6 +351,125 @@ describe('direct mill top shared workflow', () => {
     );
     expect(confirmResult.success, confirmResult.error).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
+  });
+
+  it('mills top five for PL!HS-bp2-011-N and opens the shared public confirmation window', () => {
+    const topCards = [0, 1, 2, 3, 4].map((index) =>
+      createCardInstance(
+        createMemberCard(`PL!HS-bp2-011-top-${index}`, `Top ${index}`),
+        PLAYER1,
+        `p1-hs-bp2-011-top-${index}`
+      )
+    );
+    const observer = createCardInstance(
+      createMemberCard('PL!SP-bp5-005-AR', '嵐 千砂都', 17),
+      PLAYER1,
+      'p1-hs-bp2-011-observer'
+    );
+
+    const session = prepareDirectMillSession({
+      testId: 'hs-bp2-011-direct-mill',
+      sourceCardCode: 'PL!HS-bp2-011-N',
+      sourceName: '村野さやか',
+      sourceCost: 2,
+      topCards,
+      stageObserver: observer,
+    });
+    const topCardIds = topCards.map((card) => card.instanceId);
+
+    expect(session.state?.activeEffect).toMatchObject({
+      abilityId: HS_BP2_011_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+      stepId: 'HS_BP2_011_REVEAL_MILLED_TOP_FIVE',
+      revealedCardIds: topCardIds,
+    });
+    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
+    expect(
+      session.state?.eventLog.some((entry) => {
+        const event = entry.event;
+        return (
+          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          event.fromZone === ZoneType.MAIN_DECK &&
+          event.toZone === ZoneType.WAITING_ROOM &&
+          event.cardInstanceIds?.join(',') === topCardIds.join(',')
+        );
+      })
+    ).toBe(true);
+    expect(
+      session.state?.pendingAbilities.some(
+        (ability) =>
+          ability.abilityId ===
+            SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID &&
+          ability.metadata?.fromZone === ZoneType.MAIN_DECK &&
+          ability.metadata?.toZone === ZoneType.WAITING_ROOM &&
+          (ability.metadata?.movedCardIds as readonly string[] | undefined)?.join(',') ===
+            topCardIds.join(',')
+      )
+    ).toBe(true);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+    expect(confirmResult.success, confirmResult.error).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).not.toBe(
+      HS_BP2_011_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID
+    );
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === HS_BP2_011_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID &&
+          action.payload.step === 'FINISH_HS_BP2_011_MILL_TOP_FIVE' &&
+          Array.isArray(action.payload.milledCardIds) &&
+          action.payload.milledCardIds.join(',') === topCardIds.join(',')
+      )
+    ).toBe(true);
+  });
+
+  it('records only actually milled PL!HS-bp2-011 cards when refresh happens', () => {
+    const topCards = [0, 1].map((index) =>
+      createCardInstance(
+        createMemberCard(`PL!HS-bp2-011-refresh-top-${index}`, `Top ${index}`),
+        PLAYER1,
+        `p1-hs-bp2-011-refresh-top-${index}`
+      )
+    );
+    const refreshCards = [0, 1, 2, 3].map((index) =>
+      createCardInstance(
+        createMemberCard(`PL!HS-bp2-011-refresh-waiting-${index}`, `Refresh ${index}`),
+        PLAYER1,
+        `p1-hs-bp2-011-refresh-waiting-${index}`
+      )
+    );
+
+    const session = prepareDirectMillSession({
+      testId: 'hs-bp2-011-direct-mill-refresh',
+      sourceCardCode: 'PL!HS-bp2-011-PR',
+      sourceName: '村野さやか',
+      sourceCost: 2,
+      topCards,
+      waitingRoomCards: refreshCards,
+    });
+    const milledCardIds = session.state!.activeEffect!.metadata!.milledCardIds as readonly string[];
+    const refreshCardIds = refreshCards.map((card) => card.instanceId);
+
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_BP2_011_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID
+    );
+    expect(milledCardIds).toHaveLength(5);
+    expect(milledCardIds.slice(0, 2)).toEqual(topCards.map((card) => card.instanceId));
+    expect(session.state?.activeEffect?.metadata?.refreshCount).toBe(1);
+    expect(milledCardIds).not.toEqual(expect.arrayContaining(refreshCardIds));
+    expect(
+      session.state?.eventLog.some((entry) => {
+        const event = entry.event;
+        return (
+          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          event.fromZone === ZoneType.MAIN_DECK &&
+          event.toZone === ZoneType.WAITING_ROOM &&
+          event.cardInstanceIds?.join(',') === milledCardIds.join(',')
+        );
+      })
+    ).toBe(true);
   });
 
   it('mills top five for PL!S-sd1-013-SD and preserves refresh movedCardIds semantics', () => {
