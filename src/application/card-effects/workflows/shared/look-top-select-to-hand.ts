@@ -5,20 +5,36 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
+import { findMemberSlot } from '../../../../domain/entities/player.js';
+import {
+  CardType,
+  HeartColor,
+  OrientationState,
+  ZoneType,
+} from '../../../../shared/types/enums.js';
 import {
   BP6_002_ON_ENTER_LOOK_NO_ABILITY_OR_CONTINUOUS_MUSE_CARD_ABILITY_ID,
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
   HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
   PL_S_BP5_007_LIVE_SUCCESS_LOOK_TOP_GREEN_HEART_MEMBER_ABILITY_ID,
   S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
+  S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID,
+  SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
   UMI_ON_ENTER_ABILITY_ID,
 } from '../../ability-ids.js';
+import {
+  finishSkippedActiveEffect,
+  startPendingActiveEffect,
+} from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import {
+  enqueueMemberStateChangedTriggersFromOrientationResult,
+  type EnqueueTriggeredCardEffectsForMemberStateChanged,
+} from '../../runtime/member-state-changed-triggers.js';
 import { moveInspectedCardsToHandRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
 import {
   and,
@@ -26,11 +42,13 @@ import {
   groupAliasIs,
   groupIs,
   hasNoAbilityOrContinuousAbility,
+  liveTotalRequiredHeartGte,
   memberHasPrintedHeartColorAtLeast,
   memberHasHeartColor,
   typeIs,
 } from '../../../effects/card-selectors.js';
 import { inspectTopCards } from '../../../effects/look-top.js';
+import { setMemberOrientation } from '../../../effects/member-state.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 export type LookTopSelectSelectionValidator = (
@@ -81,6 +99,8 @@ export interface LookTopSelectToHandWorkflowConfig {
   readonly selectionRequiredWhenHasTargets?: boolean;
   readonly includeInspectedCardIdsInFinishAction?: boolean;
   readonly clampExactCountToInspectedCount?: boolean;
+  readonly optionalSourceOrientationCost?: 'WAITING';
+  readonly optionStepId?: string;
   readonly publicEffectSummaryContext?: LookTopSelectToHandPublicSummaryContext;
 }
 
@@ -134,12 +154,45 @@ const HS_BP2_013_REVEAL_SELECTED_STEP_ID = 'HS_BP2_013_REVEAL_SELECTED_LIVE';
 const S_BP6_005_SELECT_THREE_COLOR_MEMBER_STEP_ID =
   'S_BP6_005_SELECT_THREE_COLOR_MEMBER_FROM_TOP_TWO';
 const S_BP6_005_REVEAL_THREE_COLOR_MEMBER_STEP_ID = 'S_BP6_005_REVEAL_SELECTED_THREE_COLOR_MEMBER';
+const S_SD1_003_SELECT_AQOURS_LIVE_STEP_ID = 'S_SD1_003_SELECT_AQOURS_LIVE_FROM_TOP_FIVE';
+const S_SD1_003_REVEAL_AQOURS_LIVE_STEP_ID = 'S_SD1_003_REVEAL_SELECTED_AQOURS_LIVE';
 const PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_STEP_ID =
   'PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_FROM_TOP_FOUR';
 const PL_S_BP5_007_REVEAL_GREEN_HEART_MEMBER_STEP_ID =
   'PL_S_BP5_007_REVEAL_SELECTED_GREEN_HEART_MEMBER';
+const SP_BP4_002_OPTION_STEP_ID = 'SP_BP4_002_WAIT_OPTION';
+const SP_BP4_002_SELECT_LIELLA_LIVE_STEP_ID = 'SP_BP4_002_SELECT_HIGH_REQUIREMENT_LIELLA_LIVE';
+const SP_BP4_002_REVEAL_LIELLA_LIVE_STEP_ID =
+  'SP_BP4_002_REVEAL_SELECTED_HIGH_REQUIREMENT_LIELLA_LIVE';
 
 const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandWorkflowConfig[] = [
+  {
+    abilityId: SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
+    topCount: 4,
+    selector: and(typeIs(CardType.LIVE), groupAliasIs('Liella!'), liveTotalRequiredHeartGte(8)),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    optionStepId: SP_BP4_002_OPTION_STEP_ID,
+    optionalSourceOrientationCost: 'WAITING',
+    selectStepId: SP_BP4_002_SELECT_LIELLA_LIVE_STEP_ID,
+    revealStepId: SP_BP4_002_REVEAL_LIELLA_LIVE_STEP_ID,
+    selectStepText:
+      '请选择至多1张必要Heart合计大于等于8的『Liella!』LIVE卡公开并加入手牌。也可以不加入。',
+    noTargetStepText:
+      '没有可加入手牌的必要Heart合计大于等于8的『Liella!』LIVE卡。确认后其余卡片放置入休息室。',
+    selectionLabel: '选择要公开并加入手牌的高必要Heart Liella! LIVE',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '不加入',
+    revealStepText: '选择的LIVE卡已公开。确认后加入手牌，其余卡片放置入休息室。',
+    revealActionStep: 'REVEAL_SELECTED_HIGH_REQUIREMENT_LIELLA_LIVE',
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 4,
+      sourceOrientationCost: 'WAITING',
+    },
+  },
   {
     abilityId: UMI_ON_ENTER_ABILITY_ID,
     topCount: 5,
@@ -183,6 +236,30 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
       sourceActionLabel: '登场',
       inspectSourceZone: ZoneType.MAIN_DECK,
       requestedInspectCount: 3,
+    },
+  },
+  {
+    abilityId: S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID,
+    topCount: 5,
+    selector: and(typeIs(CardType.LIVE), groupAliasIs('Aqours')),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    selectStepId: S_SD1_003_SELECT_AQOURS_LIVE_STEP_ID,
+    revealStepId: S_SD1_003_REVEAL_AQOURS_LIVE_STEP_ID,
+    selectStepText: getAbilityEffectText(S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID),
+    noTargetStepText: getAbilityEffectText(S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID),
+    selectionLabel: '选择要公开并加入手牌的 Aqours LIVE',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '不加入',
+    revealStepText: getAbilityEffectText(S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID),
+    revealActionStep: 'REVEAL_SELECTED_AQOURS_LIVE',
+    noCardsMode: 'open-selection',
+    includeInspectedCardIdsInFinishAction: true,
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 5,
     },
   },
   {
@@ -290,15 +367,12 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     revealSelectedBeforeHand: true,
     selectStepId: PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_STEP_ID,
     revealStepId: PL_S_BP5_007_REVEAL_GREEN_HEART_MEMBER_STEP_ID,
-    selectStepText:
-      '请选择至多1张持有2个以上[緑ハート]的成员卡公开并加入手牌。也可以不加入。',
-    noTargetStepText:
-      '没有可加入手牌的持有2个以上[緑ハート]的成员卡。确认后其余卡片放置入休息室。',
+    selectStepText: '请选择至多1张持有2个以上[緑ハート]的成员卡公开并加入手牌。也可以不加入。',
+    noTargetStepText: '没有可加入手牌的持有2个以上[緑ハート]的成员卡。确认后其余卡片放置入休息室。',
     selectionLabel: '选择要公开并加入手牌的绿Heart成员',
     confirmSelectionLabel: '公开并加入手牌',
     skipSelectionLabel: '不加入',
-    revealStepText:
-      '选择的成员卡已公开。确认后加入手牌，其余卡片放置入休息室。',
+    revealStepText: '选择的成员卡已公开。确认后加入手牌，其余卡片放置入休息室。',
     revealActionStep: 'REVEAL_SELECTED_GREEN_HEART_MEMBER',
     publicEffectSummaryContext: {
       effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
@@ -310,25 +384,55 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
 ];
 
 export function registerLookTopSelectToHandWorkflowHandlers(deps: {
-  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom &
+    EnqueueTriggeredCardEffectsForMemberStateChanged;
 }): void {
   for (const config of LOOK_TOP_SELECT_TO_HAND_WORKFLOWS) {
     const { abilityId, ...workflowConfig } = config;
     registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) =>
-      startLookTopSelectToHandWorkflow(
-        game,
-        ability,
-        {
-          ...workflowConfig,
-          effectText: getAbilityEffectText(abilityId),
-        },
-        {
-          orderedResolution: options.orderedResolution,
-          continuePendingCardEffects: context.continuePendingCardEffects,
-          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
-        }
-      )
+      workflowConfig.optionalSourceOrientationCost
+        ? startOptionalSourceOrientationLookTopWorkflow(
+            game,
+            ability,
+            {
+              ...workflowConfig,
+              effectText: getAbilityEffectText(abilityId),
+            },
+            options.orderedResolution === true
+          )
+        : startLookTopSelectToHandWorkflow(
+            game,
+            ability,
+            {
+              ...workflowConfig,
+              effectText: getAbilityEffectText(abilityId),
+            },
+            {
+              orderedResolution: options.orderedResolution,
+              continuePendingCardEffects: context.continuePendingCardEffects,
+              enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+            }
+          )
     );
+    if (config.optionalSourceOrientationCost && config.optionStepId) {
+      registerActiveEffectStepHandler(abilityId, config.optionStepId, (game, input, context) =>
+        input.selectedOptionId === 'activate'
+          ? finishOptionalSourceOrientationLookTopWorkflow(
+              game,
+              {
+                ...workflowConfig,
+                effectText: getAbilityEffectText(abilityId),
+              },
+              {
+                orderedResolution: game.activeEffect?.metadata?.orderedResolution === true,
+                continuePendingCardEffects: context.continuePendingCardEffects,
+                enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+                enqueueMemberStateChangedCardEffects: deps.enqueueTriggeredCardEffects,
+              }
+            )
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+      );
+    }
     registerActiveEffectStepHandler(abilityId, config.selectStepId, (game, input, context) =>
       resolveLookTopSelectToHandSelection(
         game,
@@ -349,6 +453,128 @@ export function registerLookTopSelectToHandWorkflowHandlers(deps: {
       );
     }
   }
+}
+
+function startOptionalSourceOrientationLookTopWorkflow(
+  game: GameState,
+  ability: LookTopSelectToHandAbilityContext,
+  config: LookTopSelectToHandWorkflowConfig,
+  orderedResolution: boolean
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceSlot = player ? findMemberSlot(player, ability.sourceCardId) : null;
+  const sourceState = player?.memberSlots.cardStates.get(ability.sourceCardId);
+  const canPay =
+    config.optionalSourceOrientationCost === 'WAITING' &&
+    sourceSlot !== null &&
+    sourceState?.orientation !== OrientationState.WAITING;
+  const optionStepId = config.optionStepId;
+  if (!player || !optionStepId) {
+    return game;
+  }
+
+  return startPendingActiveEffect(game, {
+    ability,
+    playerId: player.id,
+    activeEffect: {
+      id: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      controllerId: ability.controllerId,
+      effectText: config.effectText,
+      stepId: optionStepId,
+      stepText: canPay
+        ? '可以将此成员变为待机状态：检视卡组顶4张。'
+        : '当前无法支付“将此成员变为待机状态”的费用，可以不发动。',
+      awaitingPlayerId: player.id,
+      selectableOptions: canPay
+        ? [
+            { id: 'activate', label: '发动' },
+            { id: 'decline', label: '不发动' },
+          ]
+        : [{ id: 'decline', label: '不发动' }],
+      metadata: {
+        orderedResolution,
+      },
+    },
+    actionPayload: {
+      sourceCardId: ability.sourceCardId,
+      step: 'START_SOURCE_ORIENTATION_OPTION',
+      sourceSlot,
+      sourceOrientationCost: config.optionalSourceOrientationCost,
+    },
+  });
+}
+
+function finishOptionalSourceOrientationLookTopWorkflow(
+  game: GameState,
+  config: LookTopSelectToHandWorkflowConfig,
+  options: LookTopSelectToHandWorkflowOptions & {
+    readonly enqueueMemberStateChangedCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged;
+  }
+): GameState {
+  const effect = game.activeEffect;
+  const player = effect ? getPlayerById(game, effect.controllerId) : null;
+  if (
+    !effect ||
+    !player ||
+    !config.optionStepId ||
+    effect.stepId !== config.optionStepId ||
+    config.optionalSourceOrientationCost !== 'WAITING'
+  ) {
+    return game;
+  }
+
+  const sourceSlot = findMemberSlot(player, effect.sourceCardId);
+  if (!sourceSlot) {
+    return game;
+  }
+  const waitResult = setMemberOrientation(
+    game,
+    player.id,
+    effect.sourceCardId,
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    }
+  );
+  if (!waitResult || waitResult.previousOrientation === OrientationState.WAITING) {
+    return game;
+  }
+
+  const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
+    game,
+    waitResult,
+    options.enqueueMemberStateChangedCardEffects,
+    {
+      prepareGameStateBeforeEnqueue: (stateAfterWait, result, memberStateChangedEvents) =>
+        recordPayCostAction(stateAfterWait, player.id, {
+          pendingAbilityId: effect.id,
+          abilityId: effect.abilityId,
+          sourceCardId: effect.sourceCardId,
+          sourceSlot,
+          orientedMemberCardIds: [effect.sourceCardId],
+          previousOrientation: result.previousOrientation,
+          nextOrientation: result.nextOrientation,
+          memberStateChangedEventIds: memberStateChangedEvents.map((event) => event.eventId),
+        }),
+    }
+  );
+
+  return startLookTopSelectToHandWorkflow(
+    { ...stateWithMemberStateTriggers.gameState, activeEffect: null },
+    {
+      id: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      controllerId: effect.controllerId,
+    },
+    config,
+    options
+  );
 }
 
 export function startLookTopSelectToHandWorkflow(

@@ -1,5 +1,10 @@
 import type { GameState } from '../../domain/entities/game.js';
-import { getPlayerById, updatePlayer } from '../../domain/entities/game.js';
+import { emitGameEvent, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
+import {
+  createEnergyPlacedByCardEffectEvent,
+  type CardEffectCause,
+  type EnergyPlacedByCardEffectEvent,
+} from '../../domain/events/game-events.js';
 import {
   addCardToStatefulZone,
   addCardToZone,
@@ -10,6 +15,10 @@ import { FaceState, OrientationState } from '../../shared/types/enums.js';
 export interface PlaceEnergyFromDeckResult {
   readonly gameState: GameState;
   readonly placedEnergyCardIds: readonly string[];
+}
+
+export interface PlaceEnergyByCardEffectResult extends PlaceEnergyFromDeckResult {
+  readonly energyPlacedEvent?: EnergyPlacedByCardEffectEvent;
 }
 
 export interface EnergyOrientationChange {
@@ -82,6 +91,31 @@ export function placeEnergyFromDeckToZone(
   return {
     gameState,
     placedEnergyCardIds,
+  };
+}
+
+export function placeEnergyFromDeckToZoneByCardEffect(
+  game: GameState,
+  playerId: string,
+  count: number,
+  orientation: OrientationState,
+  cause: CardEffectCause
+): PlaceEnergyByCardEffectResult | null {
+  const placement = placeEnergyFromDeckToZone(game, playerId, count, orientation);
+  if (!placement || placement.placedEnergyCardIds.length === 0) {
+    return placement;
+  }
+
+  const energyPlacedEvent = createEnergyPlacedByCardEffectEvent(
+    playerId,
+    placement.placedEnergyCardIds,
+    orientation,
+    cause
+  );
+  return {
+    gameState: emitGameEvent(placement.gameState, energyPlacedEvent),
+    placedEnergyCardIds: placement.placedEnergyCardIds,
+    energyPlacedEvent,
   };
 }
 

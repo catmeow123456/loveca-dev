@@ -3,7 +3,6 @@ import {
   getCardById,
   getOpponent,
   getPlayerById,
-  type GameAction,
   type GameState,
   type LiveModifierState,
   type PendingAbilityState,
@@ -215,46 +214,7 @@ function hasOpponentNoSurplusSuccessfulLiveThisTurn(game: GameState, playerId: s
     return false;
   }
 
-  const judgmentRemainingHeartTotal = getJudgmentRemainingHeartTotalForSuccessfulLive(
-    game,
-    opponent.id,
-    successfulOpponentLiveCardIds
-  );
-  return (judgmentRemainingHeartTotal ?? getRemainingHeartTotalCount(game, opponent.id)) === 0;
-}
-
-function getJudgmentRemainingHeartTotalForSuccessfulLive(
-  game: GameState,
-  playerId: string,
-  successfulLiveCardIds: readonly string[]
-): number | null {
-  const successfulLiveCardIdSet = new Set(successfulLiveCardIds);
-  const judgmentAction = [...game.actionHistory]
-    .reverse()
-    .find((action) => isMatchingPerformanceJudgmentAction(action, playerId, successfulLiveCardIdSet));
-  const total = judgmentAction?.payload.remainingHeartTotalCount;
-  return typeof total === 'number' ? total : null;
-}
-
-function isMatchingPerformanceJudgmentAction(
-  action: GameAction,
-  playerId: string,
-  successfulLiveCardIds: ReadonlySet<string>
-): boolean {
-  if (
-    action.type !== 'LIVE_JUDGMENT' ||
-    action.playerId !== playerId ||
-    action.payload.action !== 'AUTO_PERFORMANCE_JUDGMENT'
-  ) {
-    return false;
-  }
-  const liveResults = action.payload.liveResults;
-  if (!liveResults || typeof liveResults !== 'object' || Array.isArray(liveResults)) {
-    return false;
-  }
-  return Object.entries(liveResults as Record<string, unknown>).some(
-    ([liveCardId, succeeded]) => succeeded === true && successfulLiveCardIds.has(liveCardId)
-  );
+  return getRemainingHeartTotalCount(game, opponent.id) === 0;
 }
 
 function formatDynamicText(
@@ -265,7 +225,7 @@ function formatDynamicText(
   const opponentText =
     context.opponentNoSurplusSuccessfulLiveThisTurn === null
       ? ''
-      : `对方本回合无余Heart成功LIVE：${
+      : `对方当前无余Heart且本回合有成功LIVE：${
           context.opponentNoSurplusSuccessfulLiveThisTurn ? '是' : '否'
         }，`;
   return `（${sourceText}Aqours成员 ${context.aqoursMemberCardIds.length}名，${config.heartToken}合计${context.heartTotal}个，${opponentText}${

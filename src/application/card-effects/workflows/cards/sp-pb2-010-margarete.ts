@@ -7,7 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addCardToZone, removeCardFromStatefulZone } from '../../../../domain/entities/zone.js';
 import { OrientationState, TriggerCondition } from '../../../../shared/types/enums.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import {
   SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
   SP_PB2_010_LIVE_SUCCESS_DRAW_TWO_OR_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -374,7 +374,19 @@ function finishLiveSuccessOption(
   }
 
   if (selectedOptionId === PLACE_WAITING_ENERGY_OPTION_ID) {
-    const energyResult = placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.WAITING);
+    const energyResult = placeEnergyFromDeckToZoneByCardEffect(
+      game,
+      player.id,
+      1,
+      OrientationState.WAITING,
+      {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      }
+    );
     if (!energyResult || energyResult.placedEnergyCardIds.length === 0) {
       return game;
     }

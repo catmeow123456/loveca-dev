@@ -15,6 +15,7 @@ import {
   PL_S_PB1_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   HS_SD1_008_ON_ENTER_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
   SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
+  SP_BP4_003_ON_ENTER_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   SP_PB2_036_ON_ENTER_RIGHT_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   SP_PB2_037_ON_ENTER_LEFT_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -49,6 +50,7 @@ export interface DrawThenDiscardCardsWorkflowConfig {
   readonly continuePendingCardEffects?: ContinuePendingCardEffects;
   readonly recordAbilityUseOnStart?: boolean;
   readonly requiredSourceSlot?: SlotPosition;
+  readonly requiredSourceSlots?: readonly SlotPosition[];
   readonly requiresLeaveStageToWaitingRoom?: boolean;
   readonly requiredStageMemberGroup?: string;
 }
@@ -69,6 +71,7 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
   readonly stepId: string;
   readonly recordAbilityUseOnStart?: boolean;
   readonly requiredSourceSlot?: SlotPosition;
+  readonly requiredSourceSlots?: readonly SlotPosition[];
   readonly requiresLeaveStageToWaitingRoom?: boolean;
   readonly requiredStageMemberGroup?: string;
 }[] = [
@@ -141,6 +144,13 @@ const DRAW_THEN_DISCARD_WORKFLOWS: readonly {
     requiredSourceSlot: SlotPosition.RIGHT,
   },
   {
+    abilityId: SP_BP4_003_ON_ENTER_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
+    drawCount: 2,
+    discardCount: 2,
+    stepId: HS_BP1_006_ON_ENTER_SELECT_DISCARD_STEP_ID,
+    requiredSourceSlots: [SlotPosition.LEFT, SlotPosition.RIGHT],
+  },
+  {
     abilityId: SP_PB2_037_ON_ENTER_LEFT_SIDE_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
     drawCount: 2,
     discardCount: 2,
@@ -187,6 +197,7 @@ export function registerDrawThenDiscardWorkflowHandlers(deps: {
         continuePendingCardEffects: context.continuePendingCardEffects,
         recordAbilityUseOnStart: config.recordAbilityUseOnStart,
         requiredSourceSlot: config.requiredSourceSlot,
+        requiredSourceSlots: config.requiredSourceSlots,
         requiresLeaveStageToWaitingRoom: config.requiresLeaveStageToWaitingRoom,
         requiredStageMemberGroup: config.requiredStageMemberGroup,
       })
@@ -237,7 +248,9 @@ export function startDrawThenDiscardCardsWorkflow(
 
   const sourceSlot =
     config.ability.sourceSlot ?? findMemberSlot(player, config.ability.sourceCardId);
-  if (config.requiredSourceSlot && sourceSlot !== config.requiredSourceSlot) {
+  const allowedSourceSlots =
+    config.requiredSourceSlots ?? (config.requiredSourceSlot ? [config.requiredSourceSlot] : []);
+  if (allowedSourceSlots.length > 0 && !allowedSourceSlots.includes(sourceSlot as SlotPosition)) {
     const state = {
       ...game,
       pendingAbilities: game.pendingAbilities.filter(
@@ -251,6 +264,7 @@ export function startDrawThenDiscardCardsWorkflow(
       step: 'DRAW_DISCARD_SOURCE_SLOT_CONDITION_NOT_MET',
       sourceSlot,
       requiredSourceSlot: config.requiredSourceSlot,
+      requiredSourceSlots: config.requiredSourceSlots,
     });
     return config.continuePendingCardEffects
       ? config.continuePendingCardEffects(stateWithAction, config.orderedResolution)
@@ -336,6 +350,7 @@ export function startDrawThenDiscardCardsWorkflow(
           orderedResolution: config.orderedResolution,
           sourceSlot,
           requiredSourceSlot: config.requiredSourceSlot,
+          requiredSourceSlots: config.requiredSourceSlots,
           requiredStageMemberGroup: config.requiredStageMemberGroup,
           drawCount: config.drawCount,
           discardCount: config.discardCount,
@@ -352,6 +367,7 @@ export function startDrawThenDiscardCardsWorkflow(
       step: 'DRAW_CARDS_START_DISCARD',
       sourceSlot,
       requiredSourceSlot: config.requiredSourceSlot,
+      requiredSourceSlots: config.requiredSourceSlots,
       requiredStageMemberGroup: config.requiredStageMemberGroup,
       drawCount: config.drawCount,
       discardCount: config.discardCount,

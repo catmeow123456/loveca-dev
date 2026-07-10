@@ -25,6 +25,8 @@ export interface WaitingRoomToHandEffectStateConfig {
   readonly awaitingPlayerId: string;
   readonly selectableCardIds: readonly string[];
   readonly stepText?: string;
+  readonly selectionLabel?: string;
+  readonly confirmSelectionLabel?: string;
   readonly canSkipSelection?: boolean;
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly zoneSelection?: ZoneCardSelectionConfig;
@@ -74,6 +76,8 @@ export function createWaitingRoomToHandEffectState(
     stepText: config.stepText ?? config.effectText,
     awaitingPlayerId: config.awaitingPlayerId,
     selectableCardIds: config.selectableCardIds,
+    selectionLabel: config.selectionLabel,
+    confirmSelectionLabel: config.confirmSelectionLabel,
     canSkipSelection: config.canSkipSelection ?? zoneSelection.optional,
     selectableCardMode: shouldUseOrderedMulti ? 'ORDERED_MULTI' : undefined,
     minSelectableCards: shouldUseOrderedMulti ? zoneSelection.minCount : undefined,

@@ -15,6 +15,7 @@ import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.j
 import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
+  PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   and,
@@ -57,6 +58,7 @@ const N_PB1_DISCARD_LOOK_TOP_TWO_BASE_CARD_CODES = ['PL!N-pb1-028', 'PL!N-pb1-03
 const DISCARD_LOOK_TOP_FIVE_MEMBER_BASE_CARD_CODES = ['PL!-sd1-015', 'PL!HS-bp2-010'] as const;
 const DISCARD_LOOK_TOP_FOUR_MEMBER_BASE_CARD_CODES = ['PL!S-bp3-004'] as const;
 const S_BP2_005_RED_GREEN_BLUE_HEART_MEMBER_BASE_CARD_CODE = 'PL!S-bp2-005';
+const PL_BP5_014_BLUE_OR_PURPLE_HEART_MEMBER_BASE_CARD_CODE = 'PL!-bp5-014';
 const DISCARD_LOOK_TOP_PRINTED_HEART_COUNT_CARD_CONFIGS: readonly {
   readonly baseCardCode: string;
   readonly heartColor: HeartColor;
@@ -119,6 +121,7 @@ interface DiscardLookTopMetadata {
   readonly cardSelectorAlias?: string;
   readonly cardSelectorKind?: DiscardLookTopAliasSelectorKind;
   readonly redGreenBlueHeartMemberOnly: boolean;
+  readonly blueOrPurpleHeartMemberOnly: boolean;
   readonly printedHeartCountColor?: HeartColor;
   readonly printedHeartCountLabel?: string;
   readonly maxSelectCount: number;
@@ -133,6 +136,7 @@ export function registerDiscardLookTopSelectToHandWorkflowHandlers(deps: {
   for (const abilityId of [
     GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
     BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
+    PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_ABILITY_ID,
   ]) {
     registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) =>
       startDiscardLookTopSelectToHandWorkflow(game, ability, {
@@ -207,12 +211,14 @@ function startDiscardLookTopSelectToHandWorkflow(
     redGreenBlueHeartMemberOnly: isSBp2005RedGreenBlueHeartMemberCard(cardCode),
     printedHeartCountColor: printedHeartCountConfig?.heartColor,
     printedHeartCountLabel: printedHeartCountConfig?.heartLabel,
+    blueOrPurpleHeartMemberOnly: isPlBp5014BlueOrPurpleHeartMemberCard(cardCode),
     maxSelectCount: getDiscardLookTopMaxSelectCount(cardCode),
     selectionRequired: isDiscardLookTopSelectionRequired(cardCode),
     revealSelectedBeforeHand:
       isDiscardLookTopMemberCard(cardCode) ||
       isDiscardLookTopFiveLiveCard(cardCode) ||
       isSBp2005RedGreenBlueHeartMemberCard(cardCode) ||
+      isPlBp5014BlueOrPurpleHeartMemberCard(cardCode) ||
       printedHeartCountConfig !== undefined ||
       aliasCardConfig !== undefined,
     orderedResolution: options.orderedResolution,
@@ -338,12 +344,15 @@ function createLookTopConfig(
       (metadata.memberOnly ||
         metadata.liveOnly ||
         metadata.redGreenBlueHeartMemberOnly ||
+        metadata.blueOrPurpleHeartMemberOnly ||
         metadata.printedHeartCountColor !== undefined ||
         metadata.cardSelectorAlias !== undefined),
     selectStepId: DISCARD_LOOK_SELECT_TAKE_STEP_ID,
     revealStepId: DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
     selectStepText: metadata.printedHeartCountLabel
       ? `请选择至多1张持有2个以上${metadata.printedHeartCountLabel}的成员卡，或必要Heart包含2个以上${metadata.printedHeartCountLabel}的LIVE卡，公开并加入手牌。其余放置入休息室。`
+      : metadata.blueOrPurpleHeartMemberOnly
+      ? '请选择至多1张持有[青ハート]或[紫ハート]的成员卡公开并加入手牌。其余放置入休息室。'
       : metadata.redGreenBlueHeartMemberOnly
       ? '请选择至多3张持有赤/绿/蓝 HEART 的成员卡公开并加入手牌。其余放置入休息室。'
       : metadata.liveOnly
@@ -357,6 +366,8 @@ function createLookTopConfig(
               : '请选择其中1张卡加入手牌，其余放置入休息室。',
     noTargetStepText: metadata.printedHeartCountLabel
       ? `没有可加入手牌的持有2个以上${metadata.printedHeartCountLabel}的成员卡或必要Heart包含2个以上${metadata.printedHeartCountLabel}的LIVE卡。确认后其余卡片放置入休息室。`
+      : metadata.blueOrPurpleHeartMemberOnly
+      ? '没有可加入手牌的持有[青ハート]或[紫ハート]的成员卡。确认后其余卡片放置入休息室。'
       : metadata.redGreenBlueHeartMemberOnly
       ? '没有可加入手牌的持有赤/绿/蓝 HEART 的成员卡。确认后其余卡片放置入休息室。'
       : metadata.liveOnly
@@ -371,8 +382,10 @@ function createLookTopConfig(
     selectionLabel: metadata.selectionRequired
       ? '请选择要加入手牌的卡牌'
       : metadata.printedHeartCountLabel
-        ? `请选择要公开并加入手牌的${metadata.printedHeartCountLabel}条件卡`
-        : metadata.redGreenBlueHeartMemberOnly
+      ? `请选择要公开并加入手牌的${metadata.printedHeartCountLabel}条件卡`
+      : metadata.blueOrPurpleHeartMemberOnly
+        ? '请选择要公开并加入手牌的青/紫 Heart 成员卡'
+      : metadata.redGreenBlueHeartMemberOnly
         ? '请选择要公开并加入手牌的赤/绿/蓝 HEART 成员卡'
         : metadata.liveOnly
           ? '请选择要加入手牌的LIVE卡'
@@ -402,6 +415,12 @@ function createDiscardLookTopSelector(
         memberHasHeartColor(HeartColor.GREEN),
         memberHasHeartColor(HeartColor.BLUE)
       )
+    );
+  }
+  if (metadata.blueOrPurpleHeartMemberOnly) {
+    return and(
+      typeIs(CardType.MEMBER),
+      or(memberHasHeartColor(HeartColor.BLUE), memberHasHeartColor(HeartColor.PURPLE))
     );
   }
   if (metadata.printedHeartCountColor) {
@@ -441,6 +460,7 @@ function getDiscardLookTopMetadata(
       typeof metadata?.cardSelectorAlias === 'string' ? metadata.cardSelectorAlias : undefined,
     cardSelectorKind: getDiscardLookTopAliasSelectorKind(metadata?.cardSelectorKind),
     redGreenBlueHeartMemberOnly: metadata?.redGreenBlueHeartMemberOnly === true,
+    blueOrPurpleHeartMemberOnly: metadata?.blueOrPurpleHeartMemberOnly === true,
     printedHeartCountColor: getHeartColorFromMetadata(metadata?.printedHeartCountColor),
     printedHeartCountLabel:
       typeof metadata?.printedHeartCountLabel === 'string'
@@ -491,6 +511,9 @@ function getDiscardLookTopCount(cardCode: string | undefined): number {
   }
   if (isSBp2005RedGreenBlueHeartMemberCard(cardCode)) {
     return 7;
+  }
+  if (isPlBp5014BlueOrPurpleHeartMemberCard(cardCode)) {
+    return 4;
   }
   if (getDiscardLookTopPrintedHeartCountCardConfig(cardCode)) {
     return 4;
@@ -556,6 +579,9 @@ function getDiscardLookTopEffectText(cardCode: string | undefined): string {
   }
   if (isSBp2005RedGreenBlueHeartMemberCard(cardCode)) {
     return '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的7张卡。可以将至多3张其中的持有[赤ハート]或[緑ハート]或[青ハート]的成员卡公开并加入手牌。其余的卡片放置入休息室。';
+  }
+  if (isPlBp5014BlueOrPurpleHeartMemberCard(cardCode)) {
+    return '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的4张卡。可以将1张其中持有[青ハート]或[紫ハート]的成员卡公开并加入手牌。其余的卡片放置入休息室。';
   }
   const printedHeartCountConfig = getDiscardLookTopPrintedHeartCountCardConfig(cardCode);
   if (printedHeartCountConfig) {
@@ -624,6 +650,13 @@ function isSBp2005RedGreenBlueHeartMemberCard(cardCode: string | undefined): boo
   return (
     cardCode !== undefined &&
     cardCodeMatchesBase(cardCode, S_BP2_005_RED_GREEN_BLUE_HEART_MEMBER_BASE_CARD_CODE)
+  );
+}
+
+function isPlBp5014BlueOrPurpleHeartMemberCard(cardCode: string | undefined): boolean {
+  return (
+    cardCode !== undefined &&
+    cardCodeMatchesBase(cardCode, PL_BP5_014_BLUE_OR_PURPLE_HEART_MEMBER_BASE_CARD_CODE)
   );
 }
 

@@ -11,6 +11,7 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 
 const DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL = '请选择要放置入休息室的卡牌';
 const DISCARD_HAND_TO_ACTIVATE_STEP_TEXT = '请选择要放置入休息室的手牌。也可以选择不发动此效果。';
+const DISCARD_HAND_TO_WAITING_ROOM_CONFIRM_LABEL = '放置入休息室';
 const DECLINE_OPTION_LABEL = '不发动';
 
 export const CONFIRM_ONLY_PENDING_ABILITY_STEP_ID = 'CONFIRM_ONLY_EFFECT';
@@ -74,6 +75,7 @@ export interface CreateOptionalDiscardHandToWaitingRoomActiveEffectConfig {
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly stepText?: string;
   readonly selectionLabel?: string;
+  readonly confirmSelectionLabel?: string;
   readonly skipSelectionLabel?: string;
 }
 
@@ -168,6 +170,8 @@ export function createOptionalDiscardHandToWaitingRoomActiveEffect(
     selectableCardIds: config.selectableCardIds,
     selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
     selectionLabel: config.selectionLabel ?? DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL,
+    confirmSelectionLabel:
+      config.confirmSelectionLabel ?? DISCARD_HAND_TO_WAITING_ROOM_CONFIRM_LABEL,
     canSkipSelection: true,
     skipSelectionLabel: config.skipSelectionLabel ?? DECLINE_OPTION_LABEL,
     metadata: {

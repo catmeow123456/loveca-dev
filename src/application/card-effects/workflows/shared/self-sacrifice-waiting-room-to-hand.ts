@@ -13,6 +13,7 @@ import {
   HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
   PB1_019_ACTIVATED_ABILITY_ID,
   RIN_ACTIVATED_ABILITY_ID,
+  SP_BP4_018_ACTIVATED_SELF_SACRIFICE_RECOVER_LIELLA_CARD_ABILITY_ID,
 } from '../../ability-ids.js';
 import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
@@ -41,6 +42,8 @@ const BP4_003_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'BP4_003_SELECT_WAITING_ROOM_LI
 const PB1_019_SELECT_WAITING_ROOM_MEMBER_STEP_ID = 'PB1_019_SELECT_WAITING_ROOM_MEMBER';
 const HS_CL1_008_SELECT_WAITING_ROOM_HASUNOSORA_CARD_STEP_ID =
   'HS_CL1_008_SELECT_WAITING_ROOM_HASUNOSORA_CARD';
+const SP_BP4_018_SELECT_WAITING_ROOM_LIELLA_CARD_STEP_ID =
+  'SP_BP4_018_SELECT_WAITING_ROOM_LIELLA_CARD';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForLeaveStage;
@@ -90,6 +93,15 @@ const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaiti
       ),
       stepId: HS_CL1_008_SELECT_WAITING_ROOM_HASUNOSORA_CARD_STEP_ID,
       selectablePredicate: groupAliasIs('蓮ノ空'),
+      selectionRequiredWhenHasTargets: true,
+    },
+    {
+      abilityId: SP_BP4_018_ACTIVATED_SELF_SACRIFICE_RECOVER_LIELLA_CARD_ABILITY_ID,
+      expectedBaseCardCodes: getCardAbilityBaseCardCodes(
+        SP_BP4_018_ACTIVATED_SELF_SACRIFICE_RECOVER_LIELLA_CARD_ABILITY_ID
+      ),
+      stepId: SP_BP4_018_SELECT_WAITING_ROOM_LIELLA_CARD_STEP_ID,
+      selectablePredicate: groupAliasIs('Liella!'),
       selectionRequiredWhenHasTargets: true,
     },
   ];

@@ -30,7 +30,7 @@ import {
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import { groupAliasIs, hasBladeHeart, not, typeIs } from '../../../effects/card-selectors.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 
 const SELECT_DISCARD_LIELLA_STEP_ID = 'SP_PB2_002_SELECT_DISCARD_LIELLA';
 const SELECT_RESOLUTION_OPTION_STEP_ID = 'SP_PB2_002_SELECT_RESOLUTION_OPTION';
@@ -314,7 +314,19 @@ function resolveSelectedOption(
   let state = game;
   let placedEnergyCardIds: readonly string[] = [];
   if (selectedOptionIds.includes(ENERGY_OPTION_ID)) {
-    const energyResult = placeEnergyFromDeckToZone(state, player.id, 1, OrientationState.WAITING);
+    const energyResult = placeEnergyFromDeckToZoneByCardEffect(
+      state,
+      player.id,
+      1,
+      OrientationState.WAITING,
+      {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      }
+    );
     if (!energyResult || energyResult.placedEnergyCardIds.length === 0) {
       return game;
     }

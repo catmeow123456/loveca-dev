@@ -3,6 +3,8 @@ import { CardType, OrientationState, ZoneType } from '../../../../shared/types/e
 import {
   HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   N_BP5_009_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
+  PL_BP5_002_ON_ENTER_WAIT_DISCARD_LOOK_TOP_HIGH_COST_MUSE_MEMBER_ABILITY_ID,
+  PL_BP5_222_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ANY_CARD_ABILITY_ID,
   SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -15,7 +17,13 @@ import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import { and, costGte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
+import {
+  and,
+  costGte,
+  groupAliasIs,
+  type CardSelector,
+  typeIs,
+} from '../../../effects/card-selectors.js';
 import {
   payImmediateEffectCosts,
   type EffectCostDefinition,
@@ -37,40 +45,89 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 
 interface WaitDiscardLookTopSelectToHandConfig {
   readonly abilityId: string;
+  readonly topCount: number;
+  readonly selector: CardSelector;
+  readonly memberOnly?: boolean;
+  readonly selectionRequiredWhenHasTargets?: boolean;
+  readonly revealSelectedBeforeHand: boolean;
+  readonly selectStepText: string;
+  readonly noTargetStepText: string;
+  readonly selectionLabel: string;
+  readonly confirmSelectionLabel: string;
+  readonly skipSelectionLabel?: string;
+}
+
+function createHighCostGroupMemberConfig(options: {
+  readonly abilityId: string;
   readonly groupAlias: string;
   readonly groupLabel: string;
   readonly topCount: number;
   readonly costGte: number;
+}): WaitDiscardLookTopSelectToHandConfig {
+  return {
+    abilityId: options.abilityId,
+    topCount: options.topCount,
+    selector: and(
+      typeIs(CardType.MEMBER),
+      costGte(options.costGte),
+      groupAliasIs(options.groupAlias)
+    ),
+    memberOnly: true,
+    revealSelectedBeforeHand: true,
+    selectStepText: `请选择其中1张费用大于等于${options.costGte}的『${options.groupLabel}』成员卡公开并加入手牌，其余放置入休息室。`,
+    noTargetStepText: `没有可加入手牌的费用大于等于${options.costGte}的『${options.groupLabel}』成员卡。确认后其余卡片放置入休息室。`,
+    selectionLabel: '请选择要公开并加入手牌的成员卡',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '不加入',
+  };
 }
 
 const WAIT_DISCARD_LOOK_TOP_WORKFLOWS: readonly WaitDiscardLookTopSelectToHandConfig[] = [
-  {
+  createHighCostGroupMemberConfig({
     abilityId: HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
     groupAlias: '蓮ノ空',
     groupLabel: '莲之空',
     topCount: 5,
     costGte: 9,
-  },
-  {
+  }),
+  createHighCostGroupMemberConfig({
     abilityId: S_BP5_006_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
     groupAlias: 'Aqours',
     groupLabel: 'Aqours',
     topCount: 5,
     costGte: 9,
-  },
-  {
+  }),
+  createHighCostGroupMemberConfig({
     abilityId: SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
     groupAlias: 'Liella!',
     groupLabel: 'Liella!',
     topCount: 5,
     costGte: 9,
-  },
-  {
+  }),
+  createHighCostGroupMemberConfig({
     abilityId: N_BP5_009_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
     groupAlias: '虹ヶ咲',
     groupLabel: '虹ヶ咲',
     topCount: 5,
     costGte: 9,
+  }),
+  createHighCostGroupMemberConfig({
+    abilityId: PL_BP5_002_ON_ENTER_WAIT_DISCARD_LOOK_TOP_HIGH_COST_MUSE_MEMBER_ABILITY_ID,
+    groupAlias: "μ's",
+    groupLabel: "μ's",
+    topCount: 5,
+    costGte: 9,
+  }),
+  {
+    abilityId: PL_BP5_222_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ANY_CARD_ABILITY_ID,
+    topCount: 3,
+    selector: () => true,
+    selectionRequiredWhenHasTargets: true,
+    revealSelectedBeforeHand: false,
+    selectStepText: '请选择其中1张卡加入手牌，其余放置入休息室。',
+    noTargetStepText: '没有可加入手牌的卡片。确认后其余卡片放置入休息室。',
+    selectionLabel: '请选择要加入手牌的卡牌',
+    confirmSelectionLabel: '加入手牌',
   },
 ];
 
@@ -174,9 +231,9 @@ function startWaitDiscardLookTopSelectToHand(
         metadata: {
           orderedResolution,
           topCount: config.topCount,
-          memberOnly: true,
+          memberOnly: config.memberOnly === true,
           selectionRequired: false,
-          revealSelectedBeforeHand: true,
+          revealSelectedBeforeHand: config.revealSelectedBeforeHand,
           sourceSlot,
           effectCosts: [sourceWaitCost, discardCost],
           handToWaitingRoomCost: {
@@ -259,20 +316,17 @@ function startInspectionAfterWaitDiscardCost(
     {
       effectText: getAbilityEffectText(config.abilityId),
       topCount: config.topCount,
-      selector: and(
-        typeIs(CardType.MEMBER),
-        costGte(config.costGte),
-        groupAliasIs(config.groupAlias)
-      ),
+      selector: config.selector,
       countRule: { minCount: 0, maxCount: 1 },
-      revealSelectedBeforeHand: true,
+      revealSelectedBeforeHand: config.revealSelectedBeforeHand,
+      selectionRequiredWhenHasTargets: config.selectionRequiredWhenHasTargets,
       selectStepId: DISCARD_LOOK_SELECT_TAKE_STEP_ID,
       revealStepId: DISCARD_LOOK_REVEAL_SELECTED_STEP_ID,
-      selectStepText: `请选择其中1张费用大于等于${config.costGte}的『${config.groupLabel}』成员卡公开并加入手牌，其余放置入休息室。`,
-      noTargetStepText: `没有可加入手牌的费用大于等于${config.costGte}的『${config.groupLabel}』成员卡。确认后其余卡片放置入休息室。`,
-      selectionLabel: '请选择要公开并加入手牌的成员卡',
-      confirmSelectionLabel: '公开并加入手牌',
-      skipSelectionLabel: '不加入',
+      selectStepText: config.selectStepText,
+      noTargetStepText: config.noTargetStepText,
+      selectionLabel: config.selectionLabel,
+      confirmSelectionLabel: config.confirmSelectionLabel,
+      skipSelectionLabel: config.skipSelectionLabel,
       revealStepText: getAbilityEffectText(config.abilityId),
       revealActionStep: 'REVEAL_SELECTED',
       startActionPayload: { discardCardId },

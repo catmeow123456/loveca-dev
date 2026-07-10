@@ -7,7 +7,7 @@ import {
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { OrientationState } from '../../../../shared/types/enums.js';
 import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
   getAbilityEffectText,
@@ -97,7 +97,13 @@ function resolveCheerKaleidoscorePlaceWaitingEnergy(
   const kaleidoscoreCheerCardIds = getOwnCheerRevealedKaleidoscoreCardIds(game, player.id);
   const conditionMet = kaleidoscoreCheerCardIds.length >= 5;
   const energyResult = conditionMet
-    ? placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.WAITING)
+    ? placeEnergyFromDeckToZoneByCardEffect(game, player.id, 1, OrientationState.WAITING, {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        pendingAbilityId: ability.id,
+      })
     : null;
   const stateAfterEffect = energyResult?.gameState ?? game;
   const stateWithoutPending: GameState = {

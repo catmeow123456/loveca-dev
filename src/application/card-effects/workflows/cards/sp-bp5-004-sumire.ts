@@ -2,12 +2,14 @@ import {
   addAction,
   getCardById,
   getPlayerById,
-  type GameAction,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import type { MemberSlotMovedEvent } from '../../../../domain/events/game-events.js';
+import type {
+  EnergyPlacedByCardEffectEvent,
+  MemberSlotMovedEvent,
+} from '../../../../domain/events/game-events.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
 import { CardAbilityCategory, CardAbilitySourceZone } from '../../ability-definition-types.js';
@@ -15,7 +17,6 @@ import { SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_DRAW_RED_HEART_ABILITY_
 import { getCardAbilityDefinitionsForCardCode } from '../../definitions/lookup.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerMemberSlotMovedObserver } from '../../runtime/member-slot-moved-observers.js';
-import { registerResolvedAbilityObserver } from '../../runtime/resolved-ability-observers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
 
@@ -24,9 +25,6 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 export function registerSpBp5004SumireWorkflowHandlers(): void {
   registerMemberSlotMovedObserver((game, context) =>
     enqueueSpBp5004MemberSlotMovedObserver(game, context.events)
-  );
-  registerResolvedAbilityObserver((game, context) =>
-    enqueueSpBp5004PlacedEnergyResolvedAbilityObserver(game, context.resolvedAction)
   );
   registerPendingAbilityStarterHandler(
     SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_DRAW_RED_HEART_ABILITY_ID,
@@ -129,108 +127,6 @@ function enqueueSpBp5004MemberSlotMovedObserver(
   return state;
 }
 
-function enqueueSpBp5004PlacedEnergyResolvedAbilityObserver(
-  game: GameState,
-  resolvedAction: GameAction
-): GameState {
-  const placedEnergyCardIds = getMetadataStringArray(resolvedAction.payload.placedEnergyCardIds);
-  const resolvedAbilityId =
-    typeof resolvedAction.payload.abilityId === 'string' ? resolvedAction.payload.abilityId : null;
-  const resolvedSourceCardId =
-    typeof resolvedAction.payload.sourceCardId === 'string'
-      ? resolvedAction.payload.sourceCardId
-      : null;
-  const playerId = typeof resolvedAction.playerId === 'string' ? resolvedAction.playerId : null;
-  if (
-    placedEnergyCardIds.length === 0 ||
-    !resolvedAbilityId ||
-    !resolvedSourceCardId ||
-    !playerId
-  ) {
-    return game;
-  }
-
-  const player = getPlayerById(game, playerId);
-  const resolvedSourceCard = getCardById(game, resolvedSourceCardId);
-  if (!player || !resolvedSourceCard || resolvedSourceCard.ownerId !== player.id) {
-    return game;
-  }
-  if (!placedEnergyCardIds.every((cardId) => player.energyZone.cardIds.includes(cardId))) {
-    return game;
-  }
-
-  let state = game;
-  for (const sourceSlot of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const) {
-    const sourceCardId = player.memberSlots.slots[sourceSlot];
-    const sourceCard = sourceCardId ? getCardById(state, sourceCardId) : null;
-    if (!sourceCardId || !sourceCard) {
-      continue;
-    }
-
-    const hasSumireObserverAbility = getCardAbilityDefinitionsForCardCode(
-      sourceCard.data.cardCode
-    ).some(
-      (definition) =>
-        definition.abilityId ===
-          SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_DRAW_RED_HEART_ABILITY_ID &&
-        definition.sourceZone === CardAbilitySourceZone.STAGE_MEMBER &&
-        definition.category === CardAbilityCategory.AUTO
-    );
-    const abilityId = SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_DRAW_RED_HEART_ABILITY_ID;
-    if (
-      !hasSumireObserverAbility ||
-      hasUsedAbilityThisTurn(state, player.id, abilityId, sourceCardId)
-    ) {
-      continue;
-    }
-
-    const pendingAbilityId = `${abilityId}:${sourceCardId}:placed-energy-${resolvedAction.id}`;
-    if (hasAbilityInstance(state, pendingAbilityId)) {
-      continue;
-    }
-
-    const pendingAbility: PendingAbilityState = {
-      id: pendingAbilityId,
-      abilityId,
-      sourceCardId,
-      controllerId: player.id,
-      mandatory: true,
-      timingId: TriggerCondition.ON_MEMBER_SLOT_MOVED,
-      eventIds: [resolvedAction.id],
-      sourceSlot,
-      metadata: {
-        triggerKind: 'ENERGY_PLACED_BY_OWN_CARD_EFFECT',
-        resolvedActionId: resolvedAction.id,
-        resolvedAbilityId,
-        resolvedSourceCardId,
-        placedEnergyCardIds,
-      },
-    };
-
-    state = addAction(
-      {
-        ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
-      },
-      'TRIGGER_ABILITY',
-      player.id,
-      {
-        pendingAbilityId,
-        abilityId,
-        sourceCardId,
-        timingId: pendingAbility.timingId,
-        sourceSlot,
-        resolvedActionId: resolvedAction.id,
-        resolvedAbilityId,
-        resolvedSourceCardId,
-        placedEnergyCardIds,
-      }
-    );
-  }
-
-  return state;
-}
-
 function resolveSpBp5004SumireAuto(
   game: GameState,
   ability: PendingAbilityState,
@@ -318,16 +214,20 @@ function getTriggerCheck(
   const triggerKind =
     typeof ability.metadata?.triggerKind === 'string' ? ability.metadata.triggerKind : null;
 
-  if (triggerKind === 'ENERGY_PLACED_BY_OWN_CARD_EFFECT') {
-    const placedEnergyCardIds = getMetadataStringArray(ability.metadata?.placedEnergyCardIds);
+  if (triggerKind === 'ENERGY_PLACED_BY_CARD_EFFECT') {
     const player = getPlayerById(game, playerId);
+    const event = getPendingEnergyPlacedEvent(game, ability);
+    const placedEnergyCardIds = event?.placedEnergyCardIds ?? [];
     const cardsAreInOwnEnergyZone =
       player !== null &&
+      event !== null &&
+      event.targetPlayerId === player.id &&
+      event.cause.playerId === player.id &&
       placedEnergyCardIds.length > 0 &&
       placedEnergyCardIds.every((cardId) => player.energyZone.cardIds.includes(cardId));
     return {
       conditionMet: cardsAreInOwnEnergyZone,
-      triggerKind,
+      triggerKind: 'ENERGY_PLACED_BY_OWN_CARD_EFFECT',
       moveEvent: null,
       placedEnergyCardIds,
     };
@@ -347,6 +247,23 @@ function getTriggerCheck(
     moveEvent,
     placedEnergyCardIds: [],
   };
+}
+
+function getPendingEnergyPlacedEvent(
+  game: GameState,
+  ability: PendingAbilityState
+): EnergyPlacedByCardEffectEvent | null {
+  const eventIds = new Set(ability.eventIds);
+  for (const entry of game.eventLog) {
+    const event = entry.event;
+    if (
+      event.eventType === TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT &&
+      eventIds.has(event.eventId)
+    ) {
+      return event as EnergyPlacedByCardEffectEvent;
+    }
+  }
+  return null;
 }
 
 function getPendingMoveEvent(

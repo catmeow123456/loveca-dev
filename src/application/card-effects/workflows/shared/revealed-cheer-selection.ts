@@ -21,11 +21,13 @@ import {
 import { revealCheerCardsFromMainDeck } from '../../../effects/cheer.js';
 import {
   moveRevealedCheerCards,
+  evaluateCurrentLiveRevealedCheerCardCondition,
   selectRevealedCheerCardIds,
   type CheerCardPredicate,
   type RevealedCheerCardDestination,
 } from '../../../effects/cheer-selection.js';
 import {
+  HS_BP1_021_LIVE_SUCCESS_HASUNOSORA_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   HS_BP6_005_LIVE_SUCCESS_DOLLCHESTRA_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   HS_BP6_032_LIVE_SUCCESS_LOW_COST_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
@@ -33,6 +35,7 @@ import {
   HS_CL1_012_LIVE_SUCCESS_EQUAL_SCORE_REVEALED_CHEER_HIGH_COST_MEMBER_TO_HAND_ABILITY_ID,
   HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
   S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID,
+  S_SD1_019_LIVE_SUCCESS_AQOURS_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   CardAbilityCategory,
@@ -52,8 +55,7 @@ import {
 } from '../../runtime/workflow-helpers.js';
 import { CardType } from '../../../../shared/types/enums.js';
 
-export const HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID =
-  'HS_BP6_001_SELECT_REVEALED_CHEER_TO_TOP';
+export const HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID = 'HS_BP6_001_SELECT_REVEALED_CHEER_TO_TOP';
 export const HS_CL1_009_SELECT_CHEER_MEMBER_TO_HAND_STEP_ID =
   'HS_CL1_009_SELECT_REVEALED_CHEER_MEMBER_TO_HAND';
 export const HS_BP6_032_SELECT_LOW_COST_CHEER_MEMBER_TO_HAND_STEP_ID =
@@ -66,6 +68,8 @@ export const HS_BP6_027_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID =
   'HS_BP6_027_SELECT_REVEALED_CHEER_TO_WAITING_ROOM';
 export const S_BP6_021_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID =
   'S_BP6_021_SELECT_REVEALED_CHEER_TO_WAITING_ROOM';
+export const S_SD1_019_SELECT_AQOURS_LIVE_CHEER_TO_HAND_STEP_ID =
+  'S_SD1_019_SELECT_REVEALED_CHEER_AQOURS_LIVE_TO_HAND';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -121,6 +125,38 @@ export interface SyncHsBp6027ManualCheerAdjustmentDependencies {
 }
 
 const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflowConfig[] = [
+  {
+    abilityId: S_SD1_019_LIVE_SUCCESS_AQOURS_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+    stepId: S_SD1_019_SELECT_AQOURS_LIVE_CHEER_TO_HAND_STEP_ID,
+    stepText: '请选择1张因声援被公开的『Aqours』LIVE卡加入手牌。',
+    selectionLabel: '选择要加入手牌的声援公开 Aqours LIVE',
+    predicate: and(typeIs(CardType.LIVE), groupAliasIs('Aqours')),
+    destination: 'HAND',
+    optional: false,
+  },
+  {
+    abilityId: HS_BP1_021_LIVE_SUCCESS_HASUNOSORA_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+    stepId: 'HS_BP1_021_SELECT_HASUNOSORA_LIVE_CHEER_TO_HAND',
+    stepText: '请选择1张因声援被公开的自己的『莲之空』LIVE卡加入手牌。',
+    selectionLabel: '选择要加入手牌的声援公开莲之空 LIVE',
+    predicate: and(typeIs(CardType.LIVE), groupAliasIs('蓮ノ空')),
+    destination: 'HAND',
+    optional: false,
+    startCondition: (game, playerId, ability) => {
+      const condition = evaluateCurrentLiveRevealedCheerCardCondition(game, playerId, {
+        minCount: 1,
+        cardTypes: CardType.LIVE,
+        groupAliases: ['蓮ノ空'],
+      });
+      return {
+        conditionMet: condition.conditionMet,
+        payload: {
+          revealedCheerFactCardIds: condition.matchingCardIds,
+          revealedCheerFactCount: condition.matchingCount,
+        },
+      };
+    },
+  },
   {
     abilityId: HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
     stepId: HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID,
@@ -501,15 +537,10 @@ function finishRevealedCheerSelectionWorkflow(
     (effect.metadata?.additionalCheerEqualToMoved === true ? moveResult.movedCardIds.length : 0);
   let additionalCheerCardIds: readonly string[] = [];
   if (additionalCheerCount > 0) {
-    const cheerResult = revealCheerCardsFromMainDeck(
-      state,
-      player.id,
-      additionalCheerCount,
-      {
-        automated: true,
-        additional: true,
-      }
-    );
+    const cheerResult = revealCheerCardsFromMainDeck(state, player.id, additionalCheerCount, {
+      automated: true,
+      additional: true,
+    });
     state = cheerResult.gameState;
     additionalCheerCardIds = cheerResult.cheerCardIds;
   }
@@ -608,10 +639,7 @@ function selectSBp6021CheerCard(card: Parameters<CheerCardPredicate>[0]): boolea
   return and(typeIs(CardType.MEMBER), groupAliasIs('Aqours'), not(hasBladeHeart()))(card);
 }
 
-function countSBp6021AdditionalCheer(
-  game: GameState,
-  movedCardIds: readonly string[]
-): number {
+function countSBp6021AdditionalCheer(game: GameState, movedCardIds: readonly string[]): number {
   const cheerCount = movedCardIds.reduce((total, cardId) => {
     const card = getCardById(game, cardId);
     if (!card || !isMemberCardData(card.data)) {
@@ -638,9 +666,7 @@ function liveScoresAreEqual(
   };
 }
 
-function isMultiSelectRevealedCheerConfig(
-  config: RevealedCheerSelectionWorkflowConfig
-): boolean {
+function isMultiSelectRevealedCheerConfig(config: RevealedCheerSelectionWorkflowConfig): boolean {
   return config.selectMin !== undefined || config.selectMax !== undefined;
 }
 

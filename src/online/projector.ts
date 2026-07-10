@@ -914,6 +914,7 @@ function buildLiveResultView(game: GameState, viewerSeat: Seat): LiveResultViewS
       FIRST: firstPlayerId ? (playerHeartBonuses.get(firstPlayerId) ?? []) : [],
       SECOND: secondPlayerId ? (playerHeartBonuses.get(secondPlayerId) ?? []) : [],
     },
+    cheerHeartColorReplacements: buildCheerHeartColorReplacementView(game, liveModifiers),
     requirementReductions: Object.fromEntries(
       [...liveRequirementReductions.entries()].map(([cardId, reduction]) => [
         createPublicObjectId(cardId),
@@ -942,6 +943,33 @@ function buildLiveResultView(game: GameState, viewerSeat: Seat): LiveResultViewS
           }
         : null,
   };
+}
+
+function buildCheerHeartColorReplacementView(
+  game: GameState,
+  liveModifiers: readonly LiveModifierState[]
+): LiveResultViewState['cheerHeartColorReplacements'] {
+  const replacements: Record<
+    Seat,
+    LiveResultViewState['cheerHeartColorReplacements'][Seat]
+  > = {
+    FIRST: null,
+    SECOND: null,
+  };
+  for (const modifier of liveModifiers) {
+    if (modifier.kind !== 'CHEER_CARD_HEART_COLOR_REPLACEMENT') {
+      continue;
+    }
+    const seat = getSeatForPlayer(game, modifier.playerId);
+    if (!seat) {
+      continue;
+    }
+    replacements[seat] = {
+      fromColors: [...modifier.fromColors],
+      toColor: modifier.toColor,
+    };
+  }
+  return replacements;
 }
 
 function buildLiveCardScoreModifierView(

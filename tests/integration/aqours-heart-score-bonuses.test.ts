@@ -87,7 +87,6 @@ function setupAqoursHeartScoreGame(options: {
   readonly sourceInLiveZone?: boolean;
   readonly opponentLiveSucceeded?: boolean;
   readonly opponentRemainingHeartCount?: number;
-  readonly opponentJudgmentRemainingHeartCount?: number;
   readonly activePlayerIndex?: number;
   readonly secondSource?: boolean;
 }): {
@@ -181,16 +180,14 @@ function setupAqoursHeartScoreGame(options: {
     ],
   };
   if (options.opponentLiveSucceeded === true) {
-    const judgmentRemainingHeartCount =
-      options.opponentJudgmentRemainingHeartCount ?? options.opponentRemainingHeartCount ?? 0;
     game = addAction(game, 'LIVE_JUDGMENT', PLAYER2, {
       action: 'AUTO_PERFORMANCE_JUDGMENT',
       liveResults: { [opponentLive.instanceId]: true },
       remainingHearts:
-        judgmentRemainingHeartCount > 0
-          ? [createHeartIcon(HeartColor.RED, judgmentRemainingHeartCount)]
+        options.opponentRemainingHeartCount && options.opponentRemainingHeartCount > 0
+          ? [createHeartIcon(HeartColor.RED, options.opponentRemainingHeartCount)]
           : [],
-      remainingHeartTotalCount: judgmentRemainingHeartCount,
+      remainingHeartTotalCount: options.opponentRemainingHeartCount ?? 0,
       automated: true,
     });
   }
@@ -409,7 +406,7 @@ describe('Aqours Heart score bonus LIVE cards', () => {
     });
   });
 
-  it('PL!S-pb1-021-L uses judgment-time surplus even if an earlier LIVE_SUCCESS effect clears current surplus', () => {
+  it('PL!S-pb1-021-L uses current surplus after an earlier LIVE_SUCCESS effect clears opponent surplus', () => {
     const { game } = setupAqoursHeartScoreGame({
       abilityId:
         PL_S_PB1_021_LIVE_SUCCESS_AQOURS_BLUE_HEART_OPPONENT_NO_SURPLUS_THIS_LIVE_SCORE_ABILITY_ID,
@@ -419,7 +416,6 @@ describe('Aqours Heart score bonus LIVE cards', () => {
       memberHearts: [{ color: HeartColor.BLUE, count: 4 }],
       opponentLiveSucceeded: true,
       opponentRemainingHeartCount: 1,
-      opponentJudgmentRemainingHeartCount: 1,
     });
     const clearOpponentSurplusLive = createCardInstance(
       createLive('PL!S-bp6-024-L', 5),
@@ -459,15 +455,15 @@ describe('Aqours Heart score bonus LIVE cards', () => {
     );
 
     expect(resolved.liveResolution.playerRemainingHearts.get(PLAYER2)).toEqual([]);
-    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(3);
     expect(
       latestPayload(
         resolved,
         PL_S_PB1_021_LIVE_SUCCESS_AQOURS_BLUE_HEART_OPPONENT_NO_SURPLUS_THIS_LIVE_SCORE_ABILITY_ID
       )
     ).toMatchObject({
-      opponentNoSurplusSuccessfulLiveThisTurn: false,
-      scoreBonus: 0,
+      opponentNoSurplusSuccessfulLiveThisTurn: true,
+      scoreBonus: 2,
     });
   });
 

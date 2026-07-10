@@ -12,6 +12,7 @@ import {
   S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID,
   S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_BP6_017_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
+  S_SD1_013_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
@@ -183,9 +184,7 @@ describe('direct mill top shared workflow', () => {
     });
     const topCardIds = topCards.map((card) => card.instanceId);
 
-    expect(session.state?.activeEffect?.abilityId).toBe(
-      S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID
-    );
+    expect(session.state?.activeEffect?.abilityId).toBe(S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID);
     expect(session.state?.activeEffect?.stepId).toBe('S_BP5_015_REVEAL_MILLED_TOP_TEN');
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
     expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
@@ -351,6 +350,85 @@ describe('direct mill top shared workflow', () => {
     );
     expect(confirmResult.success, confirmResult.error).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
+  });
+
+  it('mills top five for PL!S-sd1-013-SD and preserves refresh movedCardIds semantics', () => {
+    const topCards = [0, 1].map((index) =>
+      createCardInstance(
+        createMemberCard(`PL!S-sd1-013-refresh-top-${index}`, `Top ${index}`),
+        PLAYER1,
+        `p1-s-sd1-013-refresh-top-${index}`
+      )
+    );
+    const refreshCards = [0, 1, 2, 3].map((index) =>
+      createCardInstance(
+        createMemberCard(`PL!S-sd1-013-refresh-waiting-${index}`, `Refresh ${index}`),
+        PLAYER1,
+        `p1-s-sd1-013-refresh-waiting-${index}`
+      )
+    );
+    const observer = createCardInstance(
+      createMemberCard('PL!SP-bp5-005-AR', '嵐 千砂都', 17),
+      PLAYER1,
+      'p1-s-sd1-013-observer'
+    );
+
+    const session = prepareDirectMillSession({
+      testId: 's-sd1-013-direct-mill-refresh',
+      sourceCardCode: 'PL!S-sd1-013-SD',
+      sourceName: '黒澤ダイヤ',
+      sourceCost: 4,
+      topCards,
+      waitingRoomCards: refreshCards,
+      stageObserver: observer,
+    });
+    const topCardIds = topCards.map((card) => card.instanceId);
+    const refreshCardIds = refreshCards.map((card) => card.instanceId);
+    const milledCardIds = session.state!.activeEffect!.metadata!.milledCardIds as readonly string[];
+
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      S_SD1_013_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.stepId).toBe('S_SD1_013_REVEAL_MILLED_TOP_FIVE');
+    expect(milledCardIds).toHaveLength(5);
+    expect(milledCardIds.slice(0, 2)).toEqual(topCardIds);
+    expect(milledCardIds).not.toEqual(expect.arrayContaining(refreshCardIds));
+    expect(
+      session.state?.eventLog.some((entry) => {
+        const event = entry.event;
+        return (
+          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          event.fromZone === ZoneType.MAIN_DECK &&
+          event.toZone === ZoneType.WAITING_ROOM &&
+          event.cardInstanceIds?.join(',') === milledCardIds.join(',')
+        );
+      })
+    ).toBe(true);
+    expect(
+      session.state?.pendingAbilities.some(
+        (ability) =>
+          ability.abilityId ===
+            SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID &&
+          (ability.metadata?.movedCardIds as readonly string[] | undefined)?.join(',') ===
+            milledCardIds.join(',')
+      )
+    ).toBe(true);
+
+    const confirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+    expect(confirmResult.success, confirmResult.error).toBe(true);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === S_SD1_013_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID &&
+          action.payload.step === 'FINISH_MILL_TOP_FIVE' &&
+          action.payload.refreshCount === 1 &&
+          Array.isArray(action.payload.milledCardIds) &&
+          action.payload.milledCardIds.join(',') === milledCardIds.join(',')
+      )
+    ).toBe(true);
   });
 
   it('uses refresh-aware top milling without treating all refresh cards as movedCardIds', () => {

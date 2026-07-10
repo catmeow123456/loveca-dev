@@ -55,6 +55,7 @@ import { useGameStore } from '@/store/gameStore';
 import { DroppableZone } from './interaction';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
 import type { BladeHearts, MemberCardData, LiveCardData } from '@game/domain/entities/card';
+import type { LiveResultViewState, Seat } from '@game/online';
 
 interface JudgmentPanelProps {
   isOpen: boolean;
@@ -93,6 +94,24 @@ function calculateCheerEffects(bladeHearts?: BladeHearts): {
     }
   }
   return { penLightHearts, drawBonus, scoreBonus };
+}
+
+function applyCheerHeartColorReplacement(
+  bladeHearts: BladeHearts | undefined,
+  replacement: LiveResultViewState['cheerHeartColorReplacements'][Seat] | null
+): BladeHearts | undefined {
+  if (!bladeHearts || !replacement) {
+    return bladeHearts;
+  }
+
+  const fromColors = new Set(replacement.fromColors);
+  return bladeHearts.map((item) =>
+    item.effect === BladeHeartEffect.HEART &&
+    item.heartColor !== undefined &&
+    fromColors.has(item.heartColor)
+      ? { ...item, heartColor: replacement.toColor }
+      : item
+  );
 }
 
 function HeartIconValue({
@@ -411,6 +430,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     const active = s.getActiveSeatView();
     return active ? (s.playerViewState?.match.liveResult?.heartBonuses[active] ?? []) : [];
   });
+  const cheerHeartColorReplacement = useGameStore((s) => {
+    const active = s.getActiveSeatView();
+    return active
+      ? (s.playerViewState?.match.liveResult?.cheerHeartColorReplacements?.[active] ?? null)
+      : null;
+  });
   const liveRequirementReductions = useGameStore(
     (s) => s.playerViewState?.match.liveResult?.requirementReductions ?? {}
   );
@@ -607,7 +632,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       if (!frontInfo) {
         continue;
       }
-      const effects = calculateCheerEffects(frontInfo.bladeHearts as BladeHearts | undefined);
+      const effects = calculateCheerEffects(
+        applyCheerHeartColorReplacement(
+          frontInfo.bladeHearts as BladeHearts | undefined,
+          cheerHeartColorReplacement
+        )
+      );
       for (const heart of effects.penLightHearts) {
         blades.set(heart.color, (blades.get(heart.color) ?? 0) + heart.count);
       }
@@ -623,7 +653,14 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     });
 
     return { memberHearts: members, bladeHearts: blades, totalHearts: total };
-  }, [activeSeat, getCardFrontInfo, getSeatMemberSlotCardId, cheerCards, liveHeartBonuses]);
+  }, [
+    activeSeat,
+    getCardFrontInfo,
+    getSeatMemberSlotCardId,
+    cheerCards,
+    cheerHeartColorReplacement,
+    liveHeartBonuses,
+  ]);
 
   // 光棒心抽卡加成和分数加成（包括应援牌和 Live 区的 Live 卡）
   const { totalDrawBonus, totalCheerScoreBonus } = useMemo(() => {
@@ -635,13 +672,18 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       if (!frontInfo) {
         continue;
       }
-      const effects = calculateCheerEffects(frontInfo.bladeHearts as BladeHearts | undefined);
+      const effects = calculateCheerEffects(
+        applyCheerHeartColorReplacement(
+          frontInfo.bladeHearts as BladeHearts | undefined,
+          cheerHeartColorReplacement
+        )
+      );
       drawBonus += effects.drawBonus;
       scoreBonus += effects.scoreBonus;
     }
 
     return { totalDrawBonus: drawBonus, totalCheerScoreBonus: scoreBonus };
-  }, [cheerCards]);
+  }, [cheerCards, cheerHeartColorReplacement]);
 
   const liveJudgmentPreview = useMemo(() => {
     const rows = liveCardIds.map((cardId) => {
@@ -933,7 +975,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                 <div className="flex gap-2 items-start" style={{ minWidth: 'min-content' }}>
                   {cheerCards.map(({ id, frontInfo, viewObject }) => {
                     const effects = frontInfo
-                      ? calculateCheerEffects(frontInfo.bladeHearts as BladeHearts | undefined)
+                      ? calculateCheerEffects(
+                          applyCheerHeartColorReplacement(
+                            frontInfo.bladeHearts as BladeHearts | undefined,
+                            cheerHeartColorReplacement
+                          )
+                        )
                       : {
                           penLightHearts: [],
                           drawBonus: 0,

@@ -318,8 +318,12 @@ export enum TriggerCondition {
   ON_LEAVE_STAGE = 'ON_LEAVE_STAGE',
   /** 进入手牌 */
   ON_ENTER_HAND = 'ON_ENTER_HAND',
+  /** 进入 LIVE 卡置场 */
+  ON_ENTER_LIVE_ZONE = 'ON_ENTER_LIVE_ZONE',
   /** 进入休息室 */
   ON_ENTER_WAITING_ROOM = 'ON_ENTER_WAITING_ROOM',
+  /** 卡片效果将能量从能量卡组放置入能量区 */
+  ON_ENERGY_PLACED_BY_CARD_EFFECT = 'ON_ENERGY_PLACED_BY_CARD_EFFECT',
 
   // ---- Live 相关触发 ----
   /** Live 开始时 */

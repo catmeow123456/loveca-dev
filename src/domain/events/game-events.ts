@@ -4,6 +4,7 @@
  */
 
 import {
+  FaceState,
   TriggerCondition,
   ZoneType,
   GamePhase,
@@ -151,6 +152,16 @@ export interface LeaveStageEvent extends CardMoveEvent {
 export interface EnterHandEvent extends CardMoveEvent {
   readonly eventType: TriggerCondition.ON_ENTER_HAND;
   readonly toZone: ZoneType.HAND;
+  readonly cardInstanceIds?: readonly string[];
+}
+
+/**
+ * 卡牌进入 LIVE 卡置场事件
+ */
+export interface EnterLiveZoneEvent extends CardMoveEvent {
+  readonly eventType: TriggerCondition.ON_ENTER_LIVE_ZONE;
+  readonly toZone: ZoneType.LIVE_ZONE;
+  readonly face: FaceState;
 }
 
 /**
@@ -264,6 +275,22 @@ export interface PayCostEvent extends BaseGameEvent {
   readonly energyCardIds: readonly string[];
 }
 
+export interface CardEffectCause {
+  readonly kind: 'CARD_EFFECT';
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId?: string;
+  readonly pendingAbilityId?: string;
+}
+
+export interface EnergyPlacedByCardEffectEvent extends BaseGameEvent {
+  readonly eventType: TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT;
+  readonly targetPlayerId: string;
+  readonly placedEnergyCardIds: readonly string[];
+  readonly orientation: OrientationState;
+  readonly cause: CardEffectCause;
+}
+
 // ============================================
 // 状态触发事件
 // ============================================
@@ -357,6 +384,7 @@ export type GameEvent =
   | EnterStageEvent
   | LeaveStageEvent
   | EnterHandEvent
+  | EnterLiveZoneEvent
   | EnterWaitingRoomEvent
   | LiveStartEvent
   | LiveSuccessEvent
@@ -365,6 +393,7 @@ export type GameEvent =
   | RelayEvent
   | DrawEvent
   | PayCostEvent
+  | EnergyPlacedByCardEffectEvent
   | MemberStateChangedEvent
   | MemberSlotMovedEvent
   | HandEmptyEvent
@@ -382,6 +411,7 @@ export function isCardMoveEvent(event: GameEvent): event is CardMoveEvent {
     event.eventType === TriggerCondition.ON_ENTER_STAGE ||
     event.eventType === TriggerCondition.ON_LEAVE_STAGE ||
     event.eventType === TriggerCondition.ON_ENTER_HAND ||
+    event.eventType === TriggerCondition.ON_ENTER_LIVE_ZONE ||
     event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
   );
 }
@@ -573,6 +603,58 @@ export function createLeaveStageEvent(
 }
 
 /**
+ * 创建卡牌进入手牌事件。
+ */
+export function createEnterHandEvent(
+  cardInstanceIds: readonly string[],
+  fromZone: ZoneType,
+  ownerId: string,
+  controllerId: string
+): EnterHandEvent {
+  const firstCardId = cardInstanceIds[0];
+  if (!firstCardId) {
+    throw new Error('createEnterHandEvent requires at least one card instance id');
+  }
+
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_ENTER_HAND,
+    timestamp: Date.now(),
+    cardInstanceId: firstCardId,
+    cardInstanceIds: [...cardInstanceIds],
+    fromZone,
+    toZone: ZoneType.HAND,
+    ownerId,
+    controllerId,
+    triggerPlayerId: controllerId,
+  };
+}
+
+/**
+ * 创建卡牌进入 LIVE 卡置场事件。
+ */
+export function createEnterLiveZoneEvent(
+  cardInstanceId: string,
+  fromZone: ZoneType,
+  ownerId: string,
+  controllerId: string,
+  face: FaceState
+): EnterLiveZoneEvent {
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_ENTER_LIVE_ZONE,
+    timestamp: Date.now(),
+    cardInstanceId,
+    fromZone,
+    toZone: ZoneType.LIVE_ZONE,
+    ownerId,
+    controllerId,
+    triggerPlayerId: controllerId,
+    face,
+  };
+}
+
+/**
  * 创建卡牌进入休息室事件。
  *
  * 多张手牌同批放入休息室时使用 cardInstanceIds 表示同一事件组，避免“1张以上”
@@ -619,6 +701,24 @@ export function createDrawEvent(
     drawnCardIds,
     count,
     triggerPlayerId: playerId,
+  };
+}
+
+export function createEnergyPlacedByCardEffectEvent(
+  targetPlayerId: string,
+  placedEnergyCardIds: readonly string[],
+  orientation: OrientationState,
+  cause: CardEffectCause
+): EnergyPlacedByCardEffectEvent {
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT,
+    timestamp: Date.now(),
+    targetPlayerId,
+    placedEnergyCardIds: [...placedEnergyCardIds],
+    orientation,
+    cause,
+    triggerPlayerId: targetPlayerId,
   };
 }
 

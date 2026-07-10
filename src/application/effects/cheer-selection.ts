@@ -10,7 +10,11 @@ import {
 import type { CheerEvent } from '../../domain/events/game-events.js';
 import { addCardToZone } from '../../domain/entities/zone.js';
 import { TriggerCondition, type CardType } from '../../shared/types/enums.js';
-import { cardBelongsToGroup, cardBelongsToUnit } from '../../shared/utils/card-identity.js';
+import {
+  cardBelongsToGroup,
+  cardBelongsToUnit,
+  getNormalizedCardNameCandidates,
+} from '../../shared/utils/card-identity.js';
 
 export type CheerCardPredicate = (card: CardInstance) => boolean;
 export type CurrentLiveRevealedCheerEventScope = 'ALL' | 'NON_ADDITIONAL' | 'ADDITIONAL_ONLY';
@@ -34,6 +38,12 @@ export interface CurrentLiveRevealedCheerCardConditionResult {
   readonly matchingCardIds: readonly string[];
   readonly matchingCount: number;
   readonly conditionMet: boolean;
+}
+
+export interface CurrentLiveRevealedDifferentNameCheerCardResult {
+  readonly matchingCardIds: readonly string[];
+  readonly differentNameCount: number;
+  readonly normalizedNames: readonly string[];
 }
 
 export interface MoveRevealedCheerCardsResult {
@@ -111,6 +121,34 @@ export function evaluateCurrentLiveRevealedCheerCardCondition(
     matchingCardIds,
     matchingCount: matchingCardIds.length,
     conditionMet: matchingCardIds.length >= options.minCount,
+  };
+}
+
+export function countCurrentLiveRevealedDifferentNamedCheerCards(
+  game: GameState,
+  playerId: string,
+  options: CurrentLiveRevealedCheerCardSelectionOptions = {}
+): CurrentLiveRevealedDifferentNameCheerCardResult {
+  const matchingCardIds = selectCurrentLiveRevealedCheerCardIds(game, playerId, options);
+  const normalizedNameSet = new Set<string>();
+
+  for (const cardId of matchingCardIds) {
+    const card = getCardById(game, cardId);
+    if (!card) {
+      continue;
+    }
+    const normalizedName = getNormalizedCardNameCandidates(card.data, {
+      groupName: options.groupAliases?.[0],
+    })[0];
+    if (normalizedName) {
+      normalizedNameSet.add(normalizedName);
+    }
+  }
+
+  return {
+    matchingCardIds,
+    differentNameCount: normalizedNameSet.size,
+    normalizedNames: [...normalizedNameSet],
   };
 }
 

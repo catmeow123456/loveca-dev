@@ -5,7 +5,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { OrientationState } from '../../../../shared/types/enums.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { SP_BP2_003_AUTO_ON_MOVE_PLACE_WAITING_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
@@ -36,7 +36,19 @@ function resolveSpBp2003ChisatoOnMove(
     return game;
   }
 
-  const placement = placeEnergyFromDeckToZone(game, player.id, 1, OrientationState.WAITING);
+  const placement = placeEnergyFromDeckToZoneByCardEffect(
+    game,
+    player.id,
+    1,
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: ability.sourceCardId,
+      abilityId: ability.abilityId,
+      pendingAbilityId: ability.id,
+    }
+  );
   if (!placement) {
     return game;
   }

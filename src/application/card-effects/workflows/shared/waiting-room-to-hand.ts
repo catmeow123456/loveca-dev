@@ -10,6 +10,7 @@ import { CardType } from '../../../../shared/types/enums.js';
 import {
   HONOKA_ON_ENTER_ABILITY_ID,
   HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID,
+  HS_PB1_025_LIVE_SUCCESS_HAND_SIX_RECOVER_MEMBER_ABILITY_ID,
   KOTORI_ON_ENTER_ABILITY_ID,
   LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
   PL_S_PB1_001_ON_ENTER_OPPONENT_HAND_TWO_MORE_RECOVER_LIVE_ABILITY_ID,
@@ -69,6 +70,8 @@ export interface WaitingRoomToHandWorkflowConfig {
   readonly optional: boolean;
   readonly orderedResolution: boolean;
   readonly stepText?: string;
+  readonly selectionLabel?: string;
+  readonly confirmSelectionLabel?: string;
   readonly selectionRequiredWhenHasTargets?: boolean;
   readonly canStart?: (game: GameState, playerId: string) => boolean;
   readonly conditionNotMetActionStep?: string;
@@ -142,6 +145,22 @@ const WAITING_ROOM_TO_HAND_WORKFLOWS: readonly RegisteredWaitingRoomToHandWorkfl
     optional: true,
     selectionRequiredWhenHasTargets: true,
   },
+  {
+    abilityId: HS_PB1_025_LIVE_SUCCESS_HAND_SIX_RECOVER_MEMBER_ABILITY_ID,
+    stepId: 'HS_PB1_025_SELECT_WAITING_ROOM_MEMBER',
+    stepText: '请选择自己休息室中1张成员卡加入手牌。',
+    canStart: (game, playerId) => {
+      const player = getPlayerById(game, playerId);
+      return player !== null && player.hand.cardIds.length <= 6;
+    },
+    conditionNotMetActionStep: 'SKIP_HAND_MORE_THAN_SIX',
+    noCandidatesActionStep: 'NO_WAITING_ROOM_MEMBER_TARGET',
+    candidateBuilder: (game, playerId) =>
+      selectWaitingRoomCardIds(game, playerId, typeIs(CardType.MEMBER)),
+    countRule: { minCount: 0, maxCount: 1 },
+    optional: true,
+    selectionRequiredWhenHasTargets: true,
+  },
 ];
 
 export function registerWaitingRoomToHandWorkflowHandlers(): void {
@@ -180,6 +199,8 @@ export function registerWaitingRoomToHandWorkflowHandlers(): void {
         effectText: getAbilityEffectText(config.abilityId),
         stepId: config.stepId,
         stepText: config.stepText,
+        selectionLabel: config.selectionLabel,
+        confirmSelectionLabel: config.confirmSelectionLabel,
         candidateBuilder: () => selectableCardIds,
         countRule: config.countRule,
         optional: config.optional,
@@ -227,6 +248,8 @@ export function startWaitingRoomToHandWorkflow(
         effectText: config.effectText,
         stepId: config.stepId,
         stepText: config.stepText,
+        selectionLabel: config.selectionLabel,
+        confirmSelectionLabel: config.confirmSelectionLabel,
         awaitingPlayerId: player.id,
         selectableCardIds,
         metadata: {

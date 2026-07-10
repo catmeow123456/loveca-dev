@@ -18,7 +18,7 @@ import {
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import { placeEnergyFromDeckToZone } from '../../../effects/energy.js';
+import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 
 const KEKE_SELECT_DISCARD_STEP_ID = 'KEKE_SELECT_DISCARD_FOR_WAITING_ENERGY';
 
@@ -112,11 +112,18 @@ function finishKekeOnEnterPlaceWaitingEnergy(
     return game;
   }
 
-  const energyPlacement = placeEnergyFromDeckToZone(
+  const energyPlacement = placeEnergyFromDeckToZoneByCardEffect(
     discardResult.gameState,
     player.id,
     1,
-    OrientationState.WAITING
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    }
   );
   if (!energyPlacement) {
     return game;

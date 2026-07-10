@@ -7,7 +7,10 @@ import {
   registerCards,
   type GameState,
 } from '../../src/domain/entities/game';
-import { createMemberSlotMovedEvent } from '../../src/domain/events/game-events';
+import {
+  createEnergyPlacedByCardEffectEvent,
+  createMemberSlotMovedEvent,
+} from '../../src/domain/events/game-events';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
@@ -215,6 +218,8 @@ function resolvePlacedEnergy(
   options: {
     readonly placedEnergyCardIds?: readonly string[];
     readonly payloadKind?: 'placed' | 'empty' | 'paid';
+    readonly causePlayerId?: string;
+    readonly addToEnergyZone?: boolean;
   } = {}
 ): GameState {
   const placedEnergyCardIds = options.placedEnergyCardIds ?? [scenario.energyCardIds[0]!];
@@ -224,7 +229,11 @@ function resolvePlacedEnergy(
       cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
     };
   };
-  if (options.payloadKind !== 'empty' && options.payloadKind !== 'paid') {
+  if (
+    options.payloadKind !== 'empty' &&
+    options.payloadKind !== 'paid' &&
+    options.addToEnergyZone !== false
+  ) {
     mutablePlayer.energyZone.cardIds = [
       ...new Set([...mutablePlayer.energyZone.cardIds, ...placedEnergyCardIds]),
     ];
@@ -237,19 +246,34 @@ function resolvePlacedEnergy(
     ]);
   }
 
-  const payload =
-    options.payloadKind === 'paid'
-      ? { energyCardIds: placedEnergyCardIds }
-      : {
-          placedEnergyCardIds: options.payloadKind === 'empty' ? [] : placedEnergyCardIds,
-        };
-  const stateWithResolvedPlacement = addAction(game, 'RESOLVE_ABILITY', PLAYER1, {
-    abilityId: SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
-    sourceCardId: scenario.effectSourceId,
-    step: 'TEST_PLACE_ENERGY',
-    ...payload,
-  });
-  return resolvePendingCardEffects(stateWithResolvedPlacement).gameState;
+  if (options.payloadKind === 'paid') {
+    const stateWithPaidPayload = addAction(game, 'RESOLVE_ABILITY', PLAYER1, {
+      abilityId: SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+      sourceCardId: scenario.effectSourceId,
+      step: 'TEST_PAY_ENERGY',
+      energyCardIds: placedEnergyCardIds,
+    });
+    return resolvePendingCardEffects(stateWithPaidPayload).gameState;
+  }
+
+  const event = createEnergyPlacedByCardEffectEvent(
+    PLAYER1,
+    options.payloadKind === 'empty' ? [] : placedEnergyCardIds,
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: options.causePlayerId ?? PLAYER1,
+      sourceCardId: scenario.effectSourceId,
+      abilityId: SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+    }
+  );
+  const stateWithEvent = emitGameEvent(game, event);
+  const stateWithPending = enqueueTriggeredCardEffects(
+    stateWithEvent,
+    [TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT],
+    { energyPlacedByCardEffectEvents: [event] }
+  );
+  return resolvePendingCardEffects(stateWithPending).gameState;
 }
 
 function latestSumirePayload(game: GameState) {
@@ -361,14 +385,21 @@ describe('PL!SP-bp5-004 Sumire own-effect move or energy placement auto workflow
     expect(sumireResolveCount(afterPaid)).toBe(0);
 
     const notInZone = setupScenario();
-    const stateWithResolvedPlacement = addAction(notInZone.game, 'RESOLVE_ABILITY', PLAYER1, {
-      abilityId: SP_BP4_001_ON_ENTER_LIELLA_STAGE_SEVEN_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
-      sourceCardId: notInZone.effectSourceId,
-      step: 'TEST_PLACE_ENERGY_NOT_IN_ZONE',
-      placedEnergyCardIds: [notInZone.energyCardIds[2]],
+    const afterNotInZone = resolvePlacedEnergy(notInZone.game, notInZone, {
+      placedEnergyCardIds: [notInZone.energyCardIds[2]!],
+      payloadKind: 'placed',
+      addToEnergyZone: false,
     });
-    const afterNotInZone = resolvePendingCardEffects(stateWithResolvedPlacement).gameState;
     expect(sumireResolveCount(afterNotInZone)).toBe(0);
+  });
+
+  it('does not trigger when an opponent card effect places energy into this player energy zone', () => {
+    const scenario = setupScenario();
+
+    const state = resolvePlacedEnergy(scenario.game, scenario, { causePlayerId: PLAYER2 });
+
+    expect(sumireResolveCount(state)).toBe(0);
+    expect(state.players[0].hand.cardIds).toEqual([]);
   });
 
   it('uses cardInstanceId precisely when multiple same-name Sumire cards are on stage', () => {

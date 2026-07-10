@@ -14,10 +14,14 @@ import { registerCards, updatePlayer, type GameState } from '../../src/domain/en
 import {
   createConfirmEffectStepCommand,
   createMovePublicCardToWaitingRoomCommand,
+  createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
-import { HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
+  S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -34,11 +38,16 @@ import {
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 
-function createMemberCard(cardCode: string, name = cardCode, cost = 1): MemberCardData {
+function createMemberCard(
+  cardCode: string,
+  name = cardCode,
+  cost = 1,
+  groupName = '莲之空女学院学园偶像俱乐部'
+): MemberCardData {
   return {
     cardCode,
     name,
-    groupNames: ['莲之空女学院学园偶像俱乐部'],
+    groupNames: [groupName],
     cardType: CardType.MEMBER,
     cost,
     blade: 1,
@@ -46,11 +55,15 @@ function createMemberCard(cardCode: string, name = cardCode, cost = 1): MemberCa
   };
 }
 
-function createLiveCard(cardCode: string, name = cardCode): LiveCardData {
+function createLiveCard(
+  cardCode: string,
+  name = cardCode,
+  groupName = '莲之空女学院学园偶像俱乐部'
+): LiveCardData {
   return {
     cardCode,
     name,
-    groupNames: ['莲之空女学院学园偶像俱乐部'],
+    groupNames: [groupName],
     cardType: CardType.LIVE,
     score: 3,
     requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),
@@ -90,6 +103,115 @@ function forceMainPhaseForPlayer(session: ReturnType<typeof createGameSession>):
 }
 
 describe('look top select to hand shared workflow', () => {
+  it('executes PL!S-sd1-003-SD on-enter to reveal one Aqours LIVE and move the rest to waiting room', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('s-sd1-003-kanaan-look-top', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard('PL!S-sd1-003-SD', '松浦果南', 11, 'Aqours'),
+      PLAYER1,
+      'p1-s-sd1-003-source'
+    );
+    const topCards = [
+      createCardInstance(
+        createMemberCard('PL!S-test-member-0', 'Member 0', 1, 'Aqours'),
+        PLAYER1,
+        's-sd1-003-top-0'
+      ),
+      createCardInstance(
+        createLiveCard('PL!S-test-live-aqours', 'Aqours Live', 'Aqours'),
+        PLAYER1,
+        's-sd1-003-live-aqours'
+      ),
+      createCardInstance(
+        createLiveCard('PL!S-test-live-other', 'Other Live', 'Other'),
+        PLAYER1,
+        's-sd1-003-live-other'
+      ),
+      createCardInstance(
+        createMemberCard('PL!S-test-member-3', 'Member 3', 1, 'Aqours'),
+        PLAYER1,
+        's-sd1-003-top-3'
+      ),
+      createCardInstance(
+        createLiveCard('PL!S-test-live-aqours-2', 'Aqours Live 2', 'Aqours'),
+        PLAYER1,
+        's-sd1-003-live-aqours-2'
+      ),
+    ];
+    const state = registerCards(session.state!, [source, ...topCards]);
+    const inspectedCardIds = topCards.map((card) => card.instanceId);
+    const selectedLiveCardId = topCards[1]!.instanceId;
+    const otherAqoursLiveCardId = topCards[4]!.instanceId;
+
+    const preparedState = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      hand: { ...player.hand, cardIds: [source.instanceId] },
+      mainDeck: { ...player.mainDeck, cardIds: inspectedCardIds },
+      waitingRoom: { ...player.waitingRoom, cardIds: [] },
+      successZone: { ...player.successZone, cardIds: [] },
+      liveZone: { ...player.liveZone, cardIds: [] },
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          [SlotPosition.LEFT]: null,
+          [SlotPosition.CENTER]: null,
+          [SlotPosition.RIGHT]: null,
+        },
+        cardStates: new Map(),
+      },
+    }));
+    (session as unknown as { authorityState: GameState }).authorityState = preparedState;
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    );
+
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID
+    );
+    expect(session.state?.activeEffect?.inspectionCardIds).toEqual(inspectedCardIds);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+      selectedLiveCardId,
+      otherAqoursLiveCardId,
+    ]);
+
+    const revealResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, selectedLiveCardId)
+    );
+    expect(revealResult.success, revealResult.error).toBe(true);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([selectedLiveCardId]);
+
+    const finishResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+    expect(finishResult.success, finishResult.error).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toEqual([selectedLiveCardId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+      inspectedCardIds.filter((cardId) => cardId !== selectedLiveCardId)
+    );
+    expect(
+      session.state?.eventLog.some((entry) => {
+        const event = entry.event;
+        return (
+          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          event.fromZone === ZoneType.MAIN_DECK &&
+          event.toZone === ZoneType.WAITING_ROOM &&
+          event.cardInstanceIds?.join(',') ===
+            inspectedCardIds.filter((cardId) => cardId !== selectedLiveCardId).join(',')
+        );
+      })
+    ).toBe(true);
+  });
+
   it('executes PL!HS-bp2-013-N leave-stage AUTO to reveal one top-five LIVE card', () => {
     const session = createGameSession();
     const deck = createDeck();
