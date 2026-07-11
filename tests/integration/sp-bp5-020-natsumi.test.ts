@@ -63,13 +63,13 @@ function setMainPhase(game: GameState): GameState {
   };
 }
 
-function setup(options: { readonly activeEnergyCount: number }): {
+function setup(options: { readonly activeEnergyCount: number; readonly sourceCardCode?: string }): {
   readonly game: GameState;
   readonly sourceId: string;
   readonly drawCardId: string;
   readonly energyIds: readonly string[];
 } {
-  const source = createCardInstance(member('PL!SP-bp5-020-N', 4), PLAYER1, 'natsumi-source');
+  const source = createCardInstance(member(options.sourceCardCode ?? 'PL!SP-bp5-020-N', 4), PLAYER1, 'natsumi-source');
   const drawCard = createCardInstance(member('PL!SP-test-draw', 2), PLAYER1, 'draw-card');
   const energies = Array.from({ length: 3 }, (_, index) =>
     createCardInstance(energy(`PL!E-${index}`), PLAYER1, `energy-${index}`)
@@ -117,6 +117,21 @@ function abilityUseCount(game: GameState): number {
 }
 
 describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
+  it.each(['PL!HS-bp1-007-P', 'PL!HS-bp1-007-R'])(
+    '%s reuses the SP activated ability without receiving its LIVE success ability',
+    (sourceCardCode) => {
+      const { game, sourceId, drawCardId } = setup({ activeEnergyCount: 2, sourceCardCode });
+      const session = createGameSession();
+      session.createGame(`hs-bp1-007-${sourceCardCode}`, PLAYER1, 'P1', PLAYER2, 'P2');
+      (session as unknown as { authorityState: GameState }).authorityState = game;
+      expect(session.executeCommand(createActivateAbilityCommand(
+        PLAYER1,
+        sourceId,
+        SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+      )).success).toBe(true);
+      expect(session.state?.players[0].hand.cardIds).toContain(drawCardId);
+    }
+  );
   it('activated ability pays two active energy and draws one', () => {
     const { game, sourceId, drawCardId, energyIds } = setup({ activeEnergyCount: 2 });
     const session = createGameSession();
@@ -160,6 +175,45 @@ describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
     expect(session.state?.players[0].energyZone.cardStates.get(energyIds[0])?.orientation).toBe(
       OrientationState.ACTIVE
     );
+    expect(abilityUseCount(session.state!)).toBe(0);
+  });
+
+  it('rejects a second activation from the same source in the same turn', () => {
+    const { game, sourceId } = setup({ activeEnergyCount: 3 });
+    const session = createGameSession();
+    session.createGame('sp-bp5-020-twice', PLAYER1, 'P1', PLAYER2, 'P2');
+    (session as unknown as { authorityState: GameState }).authorityState = game;
+    expect(session.executeCommand(createActivateAbilityCommand(PLAYER1, sourceId, SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID)).success).toBe(true);
+    expect(session.executeCommand(createActivateAbilityCommand(PLAYER1, sourceId, SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID)).success).toBe(false);
+    expect(abilityUseCount(session.state!)).toBe(1);
+  });
+
+  it('rejects activation outside the current player main phase or while another effect is active', () => {
+    const scenario = setup({ activeEnergyCount: 2 });
+    const run = (game: GameState, playerId = PLAYER1) => {
+      const session = createGameSession();
+      session.createGame('sp-bp5-020-illegal-timing', PLAYER1, 'P1', PLAYER2, 'P2');
+      (session as unknown as { authorityState: GameState }).authorityState = game;
+      return session.executeCommand(createActivateAbilityCommand(playerId, scenario.sourceId, SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID));
+    };
+    expect(run({ ...scenario.game, currentPhase: GamePhase.LIVE_PHASE }).success).toBe(false);
+    expect(run({ ...scenario.game, activePlayerIndex: 1 }).success).toBe(false);
+    expect(run({ ...scenario.game, activeEffect: {
+      id: 'busy', abilityId: 'busy', sourceCardId: scenario.sourceId, controllerId: PLAYER1,
+      effectText: 'busy', stepId: 'busy', stepText: 'busy', awaitingPlayerId: PLAYER1,
+    } }).success).toBe(false);
+  });
+
+  it('rejects activation when the source is no longer on its controller stage', () => {
+    const scenario = setup({ activeEnergyCount: 2 });
+    const offStage = updatePlayer(scenario.game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: { ...player.memberSlots, slots: { ...player.memberSlots.slots, [SlotPosition.CENTER]: null } },
+    }));
+    const session = createGameSession();
+    session.createGame('sp-bp5-020-off-stage', PLAYER1, 'P1', PLAYER2, 'P2');
+    (session as unknown as { authorityState: GameState }).authorityState = offStage;
+    expect(session.executeCommand(createActivateAbilityCommand(PLAYER1, scenario.sourceId, SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID)).success).toBe(false);
     expect(abilityUseCount(session.state!)).toBe(0);
   });
 

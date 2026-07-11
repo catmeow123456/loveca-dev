@@ -8,6 +8,7 @@ import {
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, OrientationState } from '../../../../shared/types/enums.js';
 import {
+  HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
   N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
   SP_BP4_012_LIVE_START_PAY_ENERGY_GAIN_RED_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -23,9 +24,9 @@ import {
 } from '../../runtime/workflow-helpers.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 
-const DECLINE_OPTION_LABEL = '不发动';
 const N_SD1_010_LIVE_START_PAY_ENERGY_STEP_ID = 'N_SD1_010_LIVE_START_PAY_ENERGY';
 const SP_BP4_012_LIVE_START_PAY_ENERGY_STEP_ID = 'SP_BP4_012_LIVE_START_PAY_ENERGY';
+const HS_PR_029_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_PR_029_LIVE_START_PAY_ENERGY';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -54,6 +55,14 @@ const PAY_ENERGY_GAIN_HEART_WORKFLOWS: readonly PayEnergyGainHeartWorkflowConfig
     heartColor: HeartColor.RED,
     heartCount: 1,
     heartLabel: '红色Heart',
+  },
+  {
+    abilityId: HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
+    stepId: HS_PR_029_LIVE_START_PAY_ENERGY_STEP_ID,
+    energyCostCount: 1,
+    heartColor: HeartColor.PINK,
+    heartCount: 1,
+    heartLabel: '[桃ハート]',
   },
 ];
 
@@ -98,12 +107,9 @@ function startPayEnergyGainHeartWorkflow(
         ? `可以支付${config.energyCostCount}张活跃能量，获得${config.heartCount}个${config.heartLabel}。`
         : '当前没有足够可支付的活跃能量，可以不发动。',
       awaitingPlayerId: player.id,
-      selectableOptions: canPay
-        ? [
-            { id: 'pay', label: `支付${config.energyCostCount}能量` },
-            { id: 'decline', label: DECLINE_OPTION_LABEL },
-          ]
-        : [{ id: 'decline', label: DECLINE_OPTION_LABEL }],
+      selectableOptions: canPay ? [{ id: 'pay', label: `支付${config.energyCostCount}[E]` }] : [],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
       metadata: {
         orderedResolution,
         activeEnergyCardIds,

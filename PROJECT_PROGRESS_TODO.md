@@ -2,6 +2,32 @@
 
 更新时间：2026-07-11
 
+## 本次 2026-07-11 莲之空 PR-035 卡效
+
+- 实现 `PL!HS-PR-035-PR` 费用 11「百生吟子」的单卡 ON_ENTER workflow：第一段以 PUBLIC `ORDERED_MULTI` 可选对方休息室恰好3张成员，按提交顺序置于对方卡组底；只有实际成功移动3张才进入第二段。
+- 第二段复用舞台成员方向目标 helper、`memberPrintedBladeLte(3)` 与成员状态变化事件 wrapper，按 printed/original BLADE 选择对方非待机成员；无合法目标时保留第一段移动并安全继续 pending。
+- 最新本地 `loveca_20260626015115.xlsx` 与 `cards_cn.json` 均无此卡，definition 前台文本采用基于 `cards.json` 日文权威卡文的忠实中文翻译；未新建 shared family，runner 仅 import/register。
+
+## 本次 2026-07-11 莲之空 bp1-007 / PR-028 卡效
+
+- `PL!HS-bp1-007-P / R` 费用 2「百生吟子」不新增 abilityId，复用 `SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID`；原 SP 起动段晋升 `workflows/shared/activated-pay-energy-draw.ts`，SP 的 LIVE_SUCCESS 可选支付段继续留在单卡 workflow。
+- `PL!HS-PR-028-PR` 分数 5「Echoes Beyond」新增单卡 LIVE_SUCCESS workflow；通过纯 domain query `memberHasMoreEffectiveHeartsThanPrinted` 判断己方舞台成员有效 Heart 总数是否高于印刷总数，满足时抽1。旧 `PL!HS-pb1-029-L` 分数 6「全方位キュン♡」保留 Mira-Cra 过滤并改为复用该 query。
+- PR-028 单 pending 使用实时 confirm-only，ordered resolution 自动连续；focused classification、Heart query、activated/旧 SP、PR-028 与旧 pb1-029 测试及类型检查结果见本窗口收尾。
+- 修正 PR-028 来源 LIVE 已失效但舞台条件成立时的实时文案：保留“满足条件”，实际结果改为“不抽牌”，确认文案与 resolver 共用同一最小判断，且不暴露内部来源校验。
+
+## 本次 2026-07-11 莲之空弃手后抽牌 shared family
+
+- 实现 `PL!HS-bp1-005-P / R / PR` 费用 9「大沢瑠璃乃」与 `PL!HS-PR-031-PR` 费用 11「日野下花帆」；前者弃至多3张后等量抽牌，后者可弃恰好2张后按弃置后的手牌数抽至5张，未登记同文范围外 `PL!N-PR-028-PR`。
+- 新增 `workflows/shared/discard-then-draw.ts`，稳定轴为 selector、选择上下限/跳过文案与 `discarded count + offset` / `until hand size` draw policy；多张弃手统一走 trigger-safe wrapper。`PL!HS-pb1-003` 费用 15「大沢瑠璃乃」仅将登场段晋升 shared，AUTO 段继续留在原单卡 workflow。
+- 验证：focused shared/旧卡/classification/rarity/token/text/hand-discard trigger、服务端与客户端 tsc、`git diff --check`；结果见本窗口收尾。下一步仅在用户确认后进入提交窗口。
+
+## 本次 2026-07-11 莲之空 PR 027 / 029 卡效
+
+- `PL!HS-PR-027-PR` 费用 7「徒町小鈴」通过既有 N_PR_021 ability definition 的 `baseCardCodes` 共用 LIVE 成功弃1手回收低费用成员/低分 LIVE 的 shared workflow；`PL!HS-PR-029-PR` 费用 5「大沢瑠璃乃」扩展 `pay-energy-gain-heart.ts`，支付1能量后写 `SOURCE_MEMBER` 桃 Heart +1。
+- `pay-energy-gain-heart.ts` 的“不发动”从 selectable option 收敛为唯一 skip 入口，保留正向支付选项，并覆盖既有 `PL!N-sd1-010` / `PL!SP-bp4-012` 回归。
+- 验证：focused classification / 同文 shared / Heart family / token / text governance 共 7 个文件、86 tests 通过；`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 均通过。下一步仅在用户确认后进入提交窗口。
+- 后续补齐双 pending continuation / ordered-resolution 覆盖：2 个 focused 文件、14 tests 通过；两项均在第一项结算后停留于第二项真实交互窗口，不插入 confirm-only。
+
 ## 本次 2026-07-11 缪斯 PB1 第四批卡效
 
 - 新增 `PL!-pb1-008-R / P＋` 费用 11「小泉花陽」：自己的主舞台成员可选0至3名变为 WAITING，逐名通过成员状态变化 wrapper 入队，并按实际成功人数抽牌。

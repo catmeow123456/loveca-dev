@@ -15,6 +15,7 @@ import { createConfirmEffectStepCommand } from '../../src/application/game-comma
 import { createGameSession } from '../../src/application/game-session';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import {
+  HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
   N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
   SP_BP4_012_LIVE_START_PAY_ENERGY_GAIN_RED_HEART_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -117,9 +118,11 @@ function setupLiveStartScenario(options: {
   readonly cardName: string;
   readonly abilityId: string;
   readonly activeEnergyCount: number;
+  readonly sourceCount?: number;
 }): {
   readonly session: ReturnType<typeof createGameSession>;
   readonly sourceId: string;
+  readonly sourceIds: readonly string[];
   readonly energyCardIds: readonly string[];
 } {
   const session = createGameSession();
@@ -134,17 +137,19 @@ function setupLiveStartScenario(options: {
   );
   session.initializeGame(deck, deck);
 
-  const source = createCardInstance(
-    createMemberCard(options.cardCode, options.cardName, 4),
-    PLAYER1,
-    'p1-pay-energy-heart-source'
+  const sources = Array.from({ length: options.sourceCount ?? 1 }, (_, index) =>
+    createCardInstance(
+      createMemberCard(options.cardCode, options.cardName, 4),
+      PLAYER1,
+      `p1-pay-energy-heart-source-${index + 1}`
+    )
   );
   const liveCard = createCardInstance(
     createLiveCard('PL!SP-test-live', 'Live Start'),
     PLAYER1,
     'p1-pay-energy-heart-live'
   );
-  let state = registerCards(session.state!, [source, liveCard]);
+  let state = registerCards(session.state!, [...sources, liveCard]);
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
   const p1 = state.players[0] as unknown as {
@@ -171,10 +176,15 @@ function setupLiveStartScenario(options: {
   p1.mainDeck.cardIds = [];
   p1.waitingRoom.cardIds = [];
   p1.successZone.cardIds = [];
-  p1.memberSlots.slots[SlotPosition.CENTER] = source.instanceId;
-  p1.memberSlots.cardStates = new Map([
-    [source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
-  ]);
+  sources.forEach((source, index) => {
+    p1.memberSlots.slots[index === 0 ? SlotPosition.CENTER : SlotPosition.LEFT] = source.instanceId;
+  });
+  p1.memberSlots.cardStates = new Map(
+    sources.map((source) => [
+      source.instanceId,
+      { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+    ])
+  );
   p1.liveZone.cardIds = [liveCard.instanceId];
   p1.liveZone.cardStates = new Map([
     [liveCard.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
@@ -182,9 +192,21 @@ function setupLiveStartScenario(options: {
   setActiveEnergy(p1, energyCardIds);
 
   advanceToLiveStartEffects(session);
-  expect(session.state?.activeEffect?.abilityId).toBe(options.abilityId);
+  if ((options.sourceCount ?? 1) === 1) {
+    expect(session.state?.activeEffect?.abilityId).toBe(options.abilityId);
+  } else {
+    expect(session.state?.activeEffect).toMatchObject({
+      abilityId: 'system:select-pending-card-effect',
+      canResolveInOrder: true,
+    });
+  }
 
-  return { session, sourceId: source.instanceId, energyCardIds };
+  return {
+    session,
+    sourceId: sources[0]!.instanceId,
+    sourceIds: sources.map((source) => source.instanceId),
+    energyCardIds,
+  };
 }
 
 describe('pay energy gain Heart shared workflow', () => {
@@ -196,10 +218,11 @@ describe('pay energy gain Heart shared workflow', () => {
       activeEnergyCount: 1,
     });
 
-    expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay', label: '支付1能量' },
-      { id: 'decline', label: '不发动' },
-    ]);
+    expect(session.state?.activeEffect).toMatchObject({
+      selectableOptions: [{ id: 'pay', label: '支付1[E]' }],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
 
     const payResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -240,10 +263,7 @@ describe('pay energy gain Heart shared workflow', () => {
       createConfirmEffectStepCommand(
         PLAYER1,
         session.state!.activeEffect!.id,
-        undefined,
-        undefined,
-        undefined,
-        'decline'
+        null
       )
     );
 
@@ -270,18 +290,17 @@ describe('pay energy gain Heart shared workflow', () => {
       activeEnergyCount: 0,
     });
 
-    expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'decline', label: '不发动' },
-    ]);
+    expect(session.state?.activeEffect).toMatchObject({
+      selectableOptions: [],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
 
     const declineResult = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
         session.state!.activeEffect!.id,
-        undefined,
-        undefined,
-        undefined,
-        'decline'
+        null
       )
     );
 
@@ -331,5 +350,166 @@ describe('pay energy gain Heart shared workflow', () => {
       sourceCardId: sourceId,
       abilityId: N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID,
     });
+  });
+
+  it('lets PL!HS-PR-029 pay one active energy for one source-member pink Heart', () => {
+    const { session, sourceId, energyCardIds } = setupLiveStartScenario({
+      cardCode: 'PL!HS-PR-029-PR',
+      cardName: '大沢瑠璃乃',
+      abilityId: HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
+      activeEnergyCount: 1,
+    });
+
+    expect(session.state?.activeEffect).toMatchObject({
+      selectableOptions: [{ id: 'pay', label: '支付1[E]' }],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
+    expect(session.state?.activeEffect?.effectText).toBe(
+      '【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[桃ハート]。'
+    );
+
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          undefined,
+          undefined,
+          undefined,
+          'pay'
+        )
+      ).success
+    ).toBe(true);
+
+    expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[0]!)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(session.state?.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: PLAYER1,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      sourceCardId: sourceId,
+      abilityId: HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
+    });
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'PAY_COST' &&
+          action.payload.abilityId === HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID
+      )
+    ).toBe(true);
+  });
+
+  it('lets PL!HS-PR-029 safely decline, including when energy is insufficient', () => {
+    for (const activeEnergyCount of [1, 0]) {
+      const { session } = setupLiveStartScenario({
+        cardCode: 'PL!HS-PR-029-PR',
+        cardName: '大沢瑠璃乃',
+        abilityId: HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
+        activeEnergyCount,
+      });
+      const visibleText = [
+        session.state?.activeEffect?.effectText,
+        session.state?.activeEffect?.stepText,
+        session.state?.activeEffect?.skipSelectionLabel,
+        ...(session.state?.activeEffect?.selectableOptions?.map((option) => option.label) ?? []),
+      ].join(' ');
+      expect(visibleText).not.toMatch(/source|pending|payload|stale|eventId|trigger/i);
+      expect(session.state?.activeEffect?.selectableOptions).toHaveLength(activeEnergyCount);
+
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, null)
+        ).success
+      ).toBe(true);
+      expect(session.state?.activeEffect).toBeNull();
+      expect(session.state?.liveResolution.liveModifiers).toEqual([]);
+      expect(
+        session.state?.actionHistory.some(
+          (action) =>
+            action.type === 'PAY_COST' &&
+            action.payload.abilityId === HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+
+  it('continues ordered PL!HS-PR-029 pending resolution through both real payment interactions', () => {
+    const { session, sourceIds, energyCardIds } = setupLiveStartScenario({
+      cardCode: 'PL!HS-PR-029-PR',
+      cardName: '大沢瑠璃乃',
+      abilityId: HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
+      activeEnergyCount: 2,
+      sourceCount: 2,
+    });
+
+    expect(session.state?.activeEffect).toMatchObject({ canResolveInOrder: true });
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          undefined,
+          undefined,
+          true
+        )
+      ).success
+    ).toBe(true);
+
+    const firstSourceId = session.state!.activeEffect!.sourceCardId;
+    const secondSourceId = sourceIds.find((sourceId) => sourceId !== firstSourceId)!;
+    expect(sourceIds).toContain(firstSourceId);
+    expect(session.state?.activeEffect).toMatchObject({
+      sourceCardId: firstSourceId,
+      abilityId: HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
+      selectableOptions: [{ id: 'pay', label: '支付1[E]' }],
+      metadata: expect.objectContaining({ orderedResolution: true }),
+    });
+    expect(session.state?.activeEffect?.metadata?.confirmOnlyPendingAbility).not.toBe(true);
+
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          undefined,
+          undefined,
+          undefined,
+          'pay'
+        )
+      ).success
+    ).toBe(true);
+    expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[0]!)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: PLAYER1,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      sourceCardId: firstSourceId,
+      abilityId: HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
+    });
+
+    expect(session.state?.activeEffect).toMatchObject({
+      sourceCardId: secondSourceId,
+      abilityId: HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
+      selectableOptions: [{ id: 'pay', label: '支付1[E]' }],
+      metadata: expect.objectContaining({ orderedResolution: true }),
+    });
+    expect(session.state?.activeEffect?.metadata?.confirmOnlyPendingAbility).not.toBe(true);
+    expect(session.state?.pendingAbilities).toEqual([]);
+
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, null)
+      ).success
+    ).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.pendingAbilities).toEqual([]);
+    expect(session.state?.liveResolution.liveModifiers).toHaveLength(1);
   });
 });

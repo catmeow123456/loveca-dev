@@ -24,7 +24,7 @@
 | R-1 | partial | runtime action helpers。 | 抽牌、弃牌、回收等原子动作已有 runtime helper 和测试；看顶仍由 `src/application/effects/look-top.ts` 原语承接，更多区域移动/公开确认 helper 待真实 workflow 推动。 |
 | R-2 | partial | activeEffect step handler registry。 | `confirmActiveEffectStep` 已先查 step registry，未命中时直接保持状态不变并返回；look-top、抽后弃、回收等 workflow 已迁入 registry，runner 不再承载完整卡效 fallback。 |
 | R-3 | partial | pending / starter registry。 | `startPendingAbilityEffect` 已先查 starter registry，未命中时直接保持状态不变并返回；新增 queued workflow 必须注册 starter。 |
-| R-4 | partial | workflow family 迁出。 | look-top、discard look-top、draw-then-discard、waiting-room recovery、自送回收、支付能量回收、BP4-002 弃手回收、grouped recovery、fixed pay-energy gain-BLADE、arrange-top、opponent wait target、conditional live modifier 与 revealed-cheer selection 已离开 runner；grouped recovery 独立 family，不混入普通 recovery family。 |
+| R-4 | partial | workflow family 迁出。 | look-top、discard look-top、draw-then-discard、waiting-room recovery、自送回收、支付能量回收、activated pay-energy draw、BP4-002 弃手回收、grouped recovery、fixed pay-energy gain-BLADE、arrange-top、opponent wait target、conditional live modifier 与 revealed-cheer selection 已离开 runner；grouped recovery 独立 family，不混入普通 recovery family。 |
 | R-5 | partial | special card workflow 迁出。 | `HS_BP1_002`、`HS_BP5_001` activated、`HS_PB1_004`、`BP5_003`、`YOSHIKO`、`HANAYO` activated、`BP5_007` pending workflow 已迁出；`HS_BP5_003` 离场站位变换段与 LIVE 开始弃手加 Heart 段均已迁入 Rurino 单卡 workflow；runner 完整卡效 fallback 已清空，但仍保留若干 matcher / relay / trigger 条件胶水。 |
 | R-6 | planned | trigger matcher T-2。 | 在 enqueue 边界稳定后，用纯 matcher 替代部分旧 trigger 判定，并保留 shadow 一致性测试。 |
 | R-7 | planned | steps-lite。 | 只对 proven workflow family 建 typed builder；不做完整 DSL。 |
@@ -67,11 +67,15 @@ They are registry-first / fallback-old-runner entry points. Remaining work is to
 
 Current migrated workflow modules:
 
+- `workflows/shared/activated-pay-energy-draw.ts`：由 `PL!SP-bp5-020` 起动段与 `PL!HS-bp1-007` 第二个真实样本证明；SP 的 LIVE_SUCCESS 段仍归单卡 workflow。
+- `domain/rules/live-modifiers.ts#memberHasMoreEffectiveHeartsThanPrinted`：`PL!HS-pb1-029` / `PL!HS-PR-028` 共用的有效 Heart 数量纯 query，不承载结算。
+
 - `workflows/shared/look-top-select-to-hand.ts`
 - `workflows/shared/discard-look-top-select-to-hand.ts`
 - `workflows/shared/named-hand-discard-live-start.ts`
 - `workflows/shared/live-start-discard-gain-heart.ts`
 - `workflows/shared/draw-then-discard.ts`
+- `workflows/shared/discard-then-draw.ts`
 - `workflows/shared/waiting-room-to-hand.ts`
 - `workflows/shared/self-sacrifice-waiting-room-to-hand.ts`
 - `workflows/shared/pay-energy-waiting-room-to-hand.ts`
@@ -109,6 +113,8 @@ Current migrated workflow modules:
 - `workflows/cards/s-bp2-024-kimikoko.ts`
 - `workflows/cards/sp-bp5-003-chisato.ts`
 - `workflows/cards/s-bp2-006-yoshiko.ts`
+
+`discard-then-draw.ts` now owns the proven hand-discard-before-draw family for `PL!HS-pb1-003`, `PL!HS-bp1-005`, and `PL!HS-PR-031`. Its stable axes are selector, selection bounds/decline copy, and the narrow draw-policy union. Only the ON_ENTER segment moved out of `hs-pb1-003-rurino.ts`; that card's hand-to-waiting AUTO remains card-local.
 
 Recent helper modules added outside `actions.ts`:
 

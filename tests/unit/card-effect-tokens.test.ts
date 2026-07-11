@@ -5,6 +5,11 @@ import {
 } from '../../client/src/lib/cardEffectTokens';
 
 describe('parseCardEffectText', () => {
+  it('accepts the bp1-007 and PR-028 Chinese effect texts without unknown tokens', () => {
+    expect(getUnknownCardEffectPlaceholders('【起动】【1回合1次】[E][E]：抽1张卡。')).toEqual([]);
+    expect(getUnknownCardEffectPlaceholders('【LIVE成功时】自己的舞台中，存在持有的HEART数量比原本持有的HEART数量多的成员的场合，抽1张卡。')).toEqual([]);
+  });
+
   it('parses Loveca timing and modifier placeholders', () => {
     const parts = parseCardEffectText('【LIVE开始时】可以支付[E]：获得[紫ハート][ブレード]。');
 

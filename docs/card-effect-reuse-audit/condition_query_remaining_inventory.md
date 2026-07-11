@@ -70,6 +70,7 @@
 - Batch E-1 low-cost waiting-room candidate query：已把 `PL!S-bp2-006` 费用 11「津岛善子」等待室低费成员候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, costLte(4))`。费用合计与登场流程仍留在 grouped selection / workflow。
 - Batch E-2 Maki exchange candidate query：已把 `PL!-sd1-006` 费用 8「西木野真姬」手牌 LIVE / 成功区 LIVE 候选改为 `getCardIdsInZoneMatching(..., ZoneType.HAND/SUCCESS_ZONE, typeIs(CardType.LIVE))`。公开手牌与区域交换流程仍留在 workflow。
 - Batch E-3 Hasunosora activated candidate query：已把 `PL!HS-bp1-004` 费用 15「夕雾缀理」/ `PL!HS-bp1-003` 费用 13「乙宗梢」/ `PL!HS-bp1-002` 费用 11「村野沙耶香」起动段等待室候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, selector)`。自送费用、能量费用、回收/登场流程仍留在 cost / workflow。
+- 有效 Heart 高于印刷 Heart：`memberHasMoreEffectiveHeartsThanPrinted` 已作为纯 domain query 落地，`PL!HS-pb1-029` 与 `PL!HS-PR-028` 共用；同一次判断复用单次 `collectLiveModifiers` 结果，颜色替换不改变数量时不成立。
 - Batch E-4 same-name LIVE candidate query：已把 `PL!HS-bp5-001` 费用 11「日野下花帆」起动段等待室“同名 LIVE”候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, and(typeIs(CardType.LIVE), cardNameContains(revealedName)))`。`cardNameContains` 只做 normalize 后包含判断，不做 alias；公开手牌、选择与后续处理仍留在 workflow。
 - Batch F-1 selected ids selector group count：已补 `countCardIdsMatchingSelectors`，并在 `PL!HS-bp6-017` 费用 11「日野下花帆」的已选 LIVE / 成员各至多 1 张校验中复用。选择上限、activeEffect、移动与确认流程仍留在 workflow。
 - Batch F-2 selected ids selector group count：`PL!HS-pb1-020` 费用 9「百生吟子」的 finish 校验已用 `countCardIdsMatchingSelectors` 计算已选 Cerise Bouquet 成员 / 「莲之空」LIVE 数量。强制各 1、activeEffect metadata、选择与移动流程仍留在 workflow。

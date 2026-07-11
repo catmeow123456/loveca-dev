@@ -2812,6 +2812,32 @@ export function getMemberEffectiveHeartIcons(
   return [...baseHearts, ...modifierHearts];
 }
 
+export function memberHasMoreEffectiveHeartsThanPrinted(
+  game: GameState,
+  playerId: string,
+  memberCardId: string,
+  liveModifiers: readonly LiveModifierState[] = collectLiveModifiers(game)
+): boolean {
+  const player = getPlayerById(game, playerId);
+  const card = getCardById(game, memberCardId);
+  if (
+    !player ||
+    !card ||
+    card.ownerId !== playerId ||
+    !isMemberCardData(card.data) ||
+    findMemberSlot(player, memberCardId) === null
+  ) {
+    return false;
+  }
+
+  const countHearts = (hearts: readonly HeartIcon[]): number =>
+    hearts.reduce((total, heart) => total + heart.count, 0);
+  return (
+    countHearts(getMemberEffectiveHeartIcons(game, playerId, memberCardId, liveModifiers)) >
+    countHearts(card.data.hearts)
+  );
+}
+
 export function getCheerCardEffectiveBladeHearts(
   game: GameState,
   playerId: string,

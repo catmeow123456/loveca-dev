@@ -79,6 +79,15 @@ function formatViolations(violations: readonly GovernanceViolation[]): string {
 }
 
 describe('card effect display text governance', () => {
+  it('keeps the shared activated and Echoes Beyond texts at their Excel Chinese source', () => {
+    expect(CARD_ABILITY_DEFINITIONS.find(
+      (ability) => ability.abilityId === 'PL!SP-bp5-020:activated-pay-two-energy-draw-one'
+    )?.effectText).toBe('【起动】【1回合1次】[E][E]：抽1张卡。');
+    expect(CARD_ABILITY_DEFINITIONS.find(
+      (ability) => ability.abilityId === 'PL!HS-PR-028:live-success-extra-effective-heart-member-draw-one'
+    )?.effectText).toBe('【LIVE成功时】自己的舞台中，存在持有的HEART数量比原本持有的HEART数量多的成员的场合，抽1张卡。');
+  });
+
   it('uses only mapped card effect placeholders in registry display text', () => {
     const violations = collectRegistryDisplayTexts().flatMap((source) =>
       getUnknownCardEffectPlaceholders(source.text).map((placeholder) => ({

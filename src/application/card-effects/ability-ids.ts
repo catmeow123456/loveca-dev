@@ -444,6 +444,10 @@ export const HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_I
   'PL!HS-pb1-003-R:on-enter-discard-miracra-members-draw-plus-one';
 export const HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID =
   'PL!HS-pb1-003-R:auto-hand-to-waiting-gain-pink-heart-blade';
+export const HS_BP1_005_ON_ENTER_DISCARD_UP_TO_THREE_DRAW_SAME_COUNT_ABILITY_ID =
+  'PL!HS-bp1-005:on-enter-discard-up-to-three-draw-same-count';
+export const HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID =
+  'PL!HS-PR-031:on-enter-discard-two-draw-to-five';
 export const HS_SD1_002_LIVE_START_DISCARD_TWO_LOOK_TOP_MEMBER_HAND_GAIN_HEART_BLADE_ABILITY_ID =
   'PL!HS-sd1-002-SD:live-start-discard-two-look-top-member-hand-gain-heart-blade';
 export const HS_SD1_004_ON_ENTER_DISCARD_HASUNOSORA_RECOVER_MEMBER_ABILITY_ID =
@@ -486,6 +490,10 @@ export const HS_PR_017_LIVE_START_DISCARD_SAME_UNIT_GAIN_BLUE_HEART_BLADE_ABILIT
   'PL!HS-PR-017:live-start-discard-same-unit-gain-blue-heart-blade';
 export const HS_PR_020_LIVE_START_PAY_ENERGY_STACK_WAITING_MEMBERS_TO_DECK_TOP_ABILITY_ID =
   'PL!HS-PR-020:live-start-pay-energy-stack-waiting-members-to-deck-top';
+export const HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID =
+  'PL!HS-PR-029:live-start-pay-one-gain-pink-heart';
+export const HS_PR_028_LIVE_SUCCESS_EXTRA_EFFECTIVE_HEART_MEMBER_DRAW_ONE_ABILITY_ID =
+  'PL!HS-PR-028:live-success-extra-effective-heart-member-draw-one';
 export const S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!S-PR-013:live-start-pay-two-gain-two-blade';
 export const S_PR_016_ON_ENTER_GAIN_ONE_BLADE_ABILITY_ID = 'PL!S-PR-016:on-enter-gain-one-blade';
@@ -1287,3 +1295,5 @@ export const PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID =
   'PL!-pb1-005:on-enter-has-success-live-draw-one';
 export const PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID =
   'PL!-pb1-032-L:live-success-has-muse-success-live-draw-one';
+export const HS_PR_035_ON_ENTER_BOTTOM_THREE_OPPONENT_WAITING_MEMBERS_WAIT_LOW_BLADE_ABILITY_ID =
+  'PL!HS-PR-035-PR:on-enter-bottom-three-opponent-waiting-members-wait-low-blade';
