@@ -5,6 +5,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
+import { isMemberEffectActivationProhibited } from '../../../../domain/rules/member-effect-activation-prohibitions.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import { and, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { setMembersOrientation } from '../../../effects/member-state.js';
@@ -129,9 +130,7 @@ function resolveWaoWaoPowerfulDayLiveStart(
     );
   }
 
-  const actualActivationCount = orientationResult.previousOrientations.filter(
-    (entry) => entry.orientation === OrientationState.WAITING
-  ).length;
+  const actualActivationCount = orientationResult.updatedMemberCardIds.length;
   const scoreBonus = actualActivationCount >= 3 ? 1 : 0;
   const stateWithScore = replaceScoreModifier(orientationResult.gameState, ability, player.id, scoreBonus);
   const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
@@ -185,7 +184,10 @@ function getPrintempsActivationContext(
   const waitingPrintempsMemberCardIds = printempsMemberCardIds.filter(
     (cardId) => player.memberSlots.cardStates.get(cardId)?.orientation === OrientationState.WAITING
   );
-  const actualActivationCount = sourceInLiveZone ? waitingPrintempsMemberCardIds.length : 0;
+  const actualActivationCount =
+    sourceInLiveZone && !isMemberEffectActivationProhibited(game, player.id)
+      ? waitingPrintempsMemberCardIds.length
+      : 0;
 
   return {
     sourceInLiveZone,

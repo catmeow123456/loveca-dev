@@ -17,6 +17,8 @@
 | runner | 发现、入队、调度、继续 pending。 | 写具体卡牌 start/finish 逻辑。 |
 | domain rule | 纯规则计算或 domain 级状态投影。 | 反向依赖 application workflow。 |
 
+本回合成员卡效活跃限制属于窄 domain rule：状态只记录受影响玩家、来源、能力与创建回合，query 只回答当前回合是否有效；具体卡牌 workflow 只负责建立状态，公共成员状态 action 负责执行门禁。该边界不是任意条件或限制 DSL。
+
 ## Selector / Query
 
 Typical locations:

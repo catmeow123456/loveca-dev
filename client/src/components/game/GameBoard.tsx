@@ -470,6 +470,8 @@ export const GameBoard = memo(function GameBoard({
   const hasActiveEffectOriginalText = !!activeEffectOriginalTextCn || !!activeEffectOriginalTextJp;
   const activeEffectSelectableCardIds =
     activeEffect?.selectableObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
+  const activeEffectSelectableObjectsFaceDown =
+    activeEffect?.selectableObjectsFaceDown === true;
   const isActiveEffectOrderSelectionWindow = activeEffect?.abilityId === ABILITY_ORDER_SELECTION_ID;
   const activeEffectTitle = isActiveEffectOrderSelectionWindow
     ? '选择效果发动顺序'
@@ -2687,20 +2689,24 @@ export const GameBoard = memo(function GameBoard({
                       </span>
                     </div>
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[46vh] md:grid-cols-[repeat(auto-fill,minmax(76px,1fr))] md:gap-3 md:overflow-y-auto md:p-3">
-                      {activeEffectSelectableCardIds.map((cardId) => {
+                      {activeEffectSelectableCardIds.map((cardId, candidateIndex) => {
                         const presentation = getVisibleCardPresentation(cardId);
                         const cardData = presentation?.cardData;
+                        const candidateCanBeSelected =
+                          activeEffectSelectableObjectsFaceDown || presentation !== null;
                         const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
                         const isOrderedSelected = selectedOrderIndex >= 0;
                         const isSingleSelected = activeEffectSelectedCardId === cardId;
-                        const label = cardData
-                          ? formatCardCompactLabel(cardData as AnyCardData)
-                          : '选择此卡';
+                        const label = activeEffectSelectableObjectsFaceDown
+                          ? `第${candidateIndex + 1}张手牌`
+                          : cardData
+                            ? formatCardCompactLabel(cardData as AnyCardData)
+                            : '选择此卡';
                         return (
                           <button
                             key={cardId}
                             type="button"
-                            disabled={!canConfirmActiveEffect || !presentation}
+                            disabled={!canConfirmActiveEffect || !candidateCanBeSelected}
                             onClick={() => {
                               setHoveredCard(null);
                               if (activeEffectUsesOrderedMultiSelect) {
@@ -2733,7 +2739,7 @@ export const GameBoard = memo(function GameBoard({
                                 ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)]'
                                 : 'border-transparent'
                             } ${
-                              canConfirmActiveEffect && presentation
+                              canConfirmActiveEffect && candidateCanBeSelected
                                 ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
                                 : 'cursor-not-allowed opacity-50'
                             }`}
@@ -2749,7 +2755,15 @@ export const GameBoard = memo(function GameBoard({
                                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
                               </span>
                             )}
-                            {presentation ? (
+                            {activeEffectSelectableObjectsFaceDown ? (
+                              <div className="h-[90px] w-[64px] overflow-hidden rounded-lg shadow md:h-[105px] md:w-[75px]">
+                                <img
+                                  src="/back.jpg"
+                                  alt="不可见的手牌"
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                            ) : presentation ? (
                               <CardDetailPressTarget cardId={presentation.instanceId} title={label}>
                                 <Card
                                   cardData={presentation.cardData as AnyCardData}

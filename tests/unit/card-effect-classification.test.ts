@@ -78,8 +78,19 @@ import {
   PL_PB1_002_ON_ENTER_WAIT_SELF_ONLY_BIBI_WAIT_OPPONENT_LOW_ORIGINAL_BLADE_ABILITY_ID,
   PL_PB1_002_LIVE_START_WAIT_SELF_ONLY_BIBI_WAIT_OPPONENT_LOW_ORIGINAL_BLADE_ABILITY_ID,
   PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID,
+  PL_PB1_003_ON_ENTER_WAIT_SELF_ACTIVATE_PRINTEMPS_COUNT_ENERGY_ABILITY_ID,
+  PL_PB1_004_ON_ENTER_CENTER_SUCCESS_MUSE_SCORE_ABILITY_ID,
+  PL_PB1_008_ON_ENTER_WAIT_UP_TO_THREE_MEMBERS_DRAW_PER_WAITED_ABILITY_ID,
+  PL_PB1_009_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_ONE_ABILITY_ID,
+  PL_PB1_009_ON_ENTER_PREVENT_EFFECT_MEMBER_ACTIVATION_THIS_TURN_ABILITY_ID,
+  PL_PB1_017_ON_ENTER_WAIT_SELF_DRAW_DISCARD_UNLESS_PRINTEMPS_RELAY_ABILITY_ID,
+  PL_PB1_006_ON_ENTER_STACK_MUSE_LIVE_DRAW_IF_OPPONENT_WAITING_ABILITY_ID,
+  PL_PB1_007_ACTIVATED_SUCCESS_COUNT_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
   PL_PB1_001_ACTIVATED_WAIT_SELF_DISCARD_REVEAL_UNTIL_CHOSEN_ABILITY_ID,
   PL_PB1_010_LIVE_START_DISCARD_HAND_OTHER_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  PL_PB1_012_ON_ENTER_ACTIVATE_PRINTEMPS_MEMBER_ABILITY_ID,
+  PL_PB1_013_ACTIVATED_PAY_TWO_ENERGY_REVEAL_HAND_LIVE_SCORE_ABILITY_ID,
+  PL_PB1_014_CONTINUOUS_SUCCESS_LILYWHITE_HAND_COST_REDUCTION_ABILITY_ID,
   PL_S_PB1_019_LIVE_START_AQOURS_RED_HEART_SUPPRESS_SUCCESS_ABILITY_ID,
   PL_S_PB1_019_LIVE_SUCCESS_PLACE_OPPONENT_WAITING_ENERGY_ABILITY_ID,
   PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
@@ -88,6 +99,8 @@ import {
   PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_PB1_030_LIVE_SUCCESS_DIFFERENT_BIBI_RECOVER_MEMBER_ABILITY_ID,
   PL_PB1_031_LIVE_SUCCESS_DISCARD_HAND_RECOVER_MUSE_MEMBER_CHEER_ABILITY_ID,
+  PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+  PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_ABILITY_ID,
   BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
   BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID,
@@ -924,8 +937,7 @@ describe('card effect classification registry', () => {
       expect(
         getCardAbilityDefinitions(cardCode).find(
           (ability) =>
-            ability.abilityId ===
-            PL_BP3_007_LIVE_START_DISCARD_TWO_PARTITION_TOP_THREE_ABILITY_ID
+            ability.abilityId === PL_BP3_007_LIVE_START_DISCARD_TWO_PARTITION_TOP_THREE_ABILITY_ID
         )
       ).toMatchObject({
         abilityId: PL_BP3_007_LIVE_START_DISCARD_TWO_PARTITION_TOP_THREE_ABILITY_ID,
@@ -942,7 +954,12 @@ describe('card effect classification registry', () => {
   });
 
   it('classifies every PL!-bp3-008 rarity as activated recovery plus optional LIVE-start Heart', () => {
-    for (const cardCode of ['PL!-bp3-008-R＋', 'PL!-bp3-008-P', 'PL!-bp3-008-P＋', 'PL!-bp3-008-SEC']) {
+    for (const cardCode of [
+      'PL!-bp3-008-R＋',
+      'PL!-bp3-008-P',
+      'PL!-bp3-008-P＋',
+      'PL!-bp3-008-SEC',
+    ]) {
       expect(getCardAbilityDefinitions(cardCode)).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -8961,6 +8978,23 @@ describe('card effect classification registry', () => {
       });
     }
 
+    for (const cardCode of ['PL!-pb1-005-R', 'PL!-pb1-005-P＋'] as const) {
+      expect(
+        getCardAbilityDefinitions(cardCode).find(
+          (ability) =>
+            ability.abilityId === PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId: PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+        baseCardCodes: ['PL!-pb1-005'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
+
     for (const cardCode of ['PL!-pb1-002-R', 'PL!-pb1-002-P＋'] as const) {
       const eliAbilities = getCardAbilityDefinitions(cardCode);
       expect(
@@ -9011,6 +9045,102 @@ describe('card effect classification registry', () => {
       });
     }
 
+    for (const cardCode of ['PL!-pb1-003-R', 'PL!-pb1-003-P＋'] as const) {
+      expect(
+        getCardAbilityDefinitions(cardCode).find(
+          (ability) =>
+            ability.abilityId ===
+            PL_PB1_003_ON_ENTER_WAIT_SELF_ACTIVATE_PRINTEMPS_COUNT_ENERGY_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId: PL_PB1_003_ON_ENTER_WAIT_SELF_ACTIVATE_PRINTEMPS_COUNT_ENERGY_ABILITY_ID,
+        baseCardCodes: ['PL!-pb1-003'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+    for (const cardCode of ['PL!-pb1-004-R', 'PL!-pb1-004-P＋'] as const) {
+      expect(getCardAbilityDefinitions(cardCode)).toContainEqual(
+        expect.objectContaining({
+          abilityId: PL_PB1_004_ON_ENTER_CENTER_SUCCESS_MUSE_SCORE_ABILITY_ID,
+          baseCardCodes: ['PL!-pb1-004'],
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          requiredSourceSlots: [SlotPosition.CENTER],
+          implemented: true,
+        })
+      );
+    }
+
+    for (const cardCode of ['PL!-pb1-008-R', 'PL!-pb1-008-P＋'] as const) {
+      expect(
+        getCardAbilityDefinitions(cardCode).find(
+          (ability) => ability.abilityId === PL_PB1_008_ON_ENTER_WAIT_UP_TO_THREE_MEMBERS_DRAW_PER_WAITED_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId: PL_PB1_008_ON_ENTER_WAIT_UP_TO_THREE_MEMBERS_DRAW_PER_WAITED_ABILITY_ID,
+        baseCardCodes: ['PL!-pb1-008'], category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER, triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true, implemented: true,
+        effectText: '【登场】可以将至多3名成员变为待机状态：每存在1名因此变为待机状态的成员，抽1张卡。',
+      });
+    }
+
+    for (const cardCode of ['PL!-pb1-017-R', 'PL!-pb1-017-P＋'] as const) {
+      expect(
+        getCardAbilityDefinitions(cardCode).find(
+          (ability) => ability.abilityId === PL_PB1_017_ON_ENTER_WAIT_SELF_DRAW_DISCARD_UNLESS_PRINTEMPS_RELAY_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId: PL_PB1_017_ON_ENTER_WAIT_SELF_DRAW_DISCARD_UNLESS_PRINTEMPS_RELAY_ABILITY_ID,
+        baseCardCodes: ['PL!-pb1-017'], category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER, triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true, implemented: true,
+        effectText: '【登场】可以将此成员变为待机状态：抽1张卡。之后，只要此成员没有从『Printemps』的成员换手登场，将1张手牌放置入休息室。',
+      });
+    }
+
+    for (const cardCode of ['PL!-pb1-006-R', 'PL!-pb1-006-P＋'] as const) {
+      expect(getCardAbilityDefinitions(cardCode)).toContainEqual(
+        expect.objectContaining({
+          abilityId: PL_PB1_006_ON_ENTER_STACK_MUSE_LIVE_DRAW_IF_OPPONENT_WAITING_ABILITY_ID,
+          baseCardCodes: ['PL!-pb1-006'],
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+          effectText: "【登场】从自己的休息室将至多1张『μ's』的LIVE卡放置于卡组顶。之后，对方的舞台存在待机状态的成员的场合，抽1张卡。",
+        })
+      );
+    }
+
+    for (const cardCode of ['PL!-pb1-007-R', 'PL!-pb1-007-P＋'] as const) {
+      expect(getCardAbilityDefinitions(cardCode)).toContainEqual(
+        expect.objectContaining({
+          abilityId: PL_PB1_007_ACTIVATED_SUCCESS_COUNT_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
+          baseCardCodes: ['PL!-pb1-007'],
+          category: CardAbilityCategory.ACTIVATED,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          queued: false,
+          implemented: true,
+          perTurnLimit: 1,
+          effectText: "【起动】【1回合1次】将3张手牌放置入休息室：自己的舞台上存在其他的『lily white』的成员的场合，从自己的休息室将1张『μ's』的LIVE卡加入手牌。起动此能力的费用，每存在1张自己的成功LIVE卡区中的卡片，放置入休息室的手牌的数量减少1张。",
+          activatedUi: {
+            abilityId: PL_PB1_007_ACTIVATED_SUCCESS_COUNT_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
+            text: "【起动】【1回合1次】将3张手牌放置入休息室：自己的舞台上存在其他的『lily white』的成员的场合，从自己的休息室将1张『μ's』的LIVE卡加入手牌。起动此能力的费用，每存在1张自己的成功LIVE卡区中的卡片，放置入休息室的手牌的数量减少1张。",
+            title: '起动能力',
+          },
+        })
+      );
+    }
+
     for (const cardCode of ['PL!-pb1-010-R', 'PL!-pb1-010-P＋'] as const) {
       expect(
         getCardAbilityDefinitions(cardCode).find(
@@ -9027,6 +9157,36 @@ describe('card effect classification registry', () => {
         queued: true,
         implemented: true,
       });
+    }
+
+    for (const cardCode of ['PL!-pb1-012-R', 'PL!-pb1-012-P＋'] as const) {
+      expect(
+        getCardAbilityDefinitions(cardCode).find(
+          (ability) => ability.abilityId === PL_PB1_012_ON_ENTER_ACTIVATE_PRINTEMPS_MEMBER_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId: PL_PB1_012_ON_ENTER_ACTIVATE_PRINTEMPS_MEMBER_ABILITY_ID,
+        baseCardCodes: ['PL!-pb1-012'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
+
+
+    for (const cardCode of ['PL!-pb1-014-R', 'PL!-pb1-014-P＋'] as const) {
+      expect(getCardAbilityDefinitions(cardCode)).toContainEqual(
+        expect.objectContaining({
+          abilityId: PL_PB1_014_CONTINUOUS_SUCCESS_LILYWHITE_HAND_COST_REDUCTION_ABILITY_ID,
+          baseCardCodes: ['PL!-pb1-014'],
+          category: CardAbilityCategory.CONTINUOUS,
+          sourceZone: CardAbilitySourceZone.HAND,
+          queued: false,
+          implemented: true,
+        })
+      );
     }
 
     for (const cardCode of ['PL!-pb1-011-R', 'PL!-pb1-011-P＋'] as const) {
@@ -9116,6 +9276,21 @@ describe('card effect classification registry', () => {
     ).toMatchObject({
       abilityId: PL_PB1_031_LIVE_SUCCESS_DISCARD_HAND_RECOVER_MUSE_MEMBER_CHEER_ABILITY_ID,
       baseCardCodes: ['PL!-pb1-031'],
+      category: CardAbilityCategory.LIVE_SUCCESS,
+      sourceZone: CardAbilitySourceZone.LIVE_CARD,
+      triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+      queued: true,
+      implemented: true,
+    });
+
+    expect(
+      getCardAbilityDefinitions('PL!-pb1-032-L').find(
+        (ability) =>
+          ability.abilityId === PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID
+      )
+    ).toMatchObject({
+      abilityId: PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+      baseCardCodes: ['PL!-pb1-032'],
       category: CardAbilityCategory.LIVE_SUCCESS,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -10516,6 +10691,8 @@ describe('card effect classification registry', () => {
   it('enforces common metadata for queued timing abilities and activated abilities', () => {
     const onEnterStageMemberSourceAbilityIds = new Set([
       PL_PB1_002_ON_ENTER_WAIT_SELF_ONLY_BIBI_WAIT_OPPONENT_LOW_ORIGINAL_BLADE_ABILITY_ID,
+      PL_PB1_003_ON_ENTER_WAIT_SELF_ACTIVATE_PRINTEMPS_COUNT_ENERGY_ABILITY_ID,
+      PL_PB1_017_ON_ENTER_WAIT_SELF_DRAW_DISCARD_UNLESS_PRINTEMPS_RELAY_ABILITY_ID,
       PL_S_PB1_001_ON_ENTER_OPPONENT_HAND_TWO_MORE_RECOVER_LIVE_ABILITY_ID,
       PL_S_PB1_002_ON_ENTER_OPPONENT_DISCARD_LIVE_OR_SOURCE_SCORE_ABILITY_ID,
       PL_S_BP5_001_ON_ENTER_RELAY_FROM_NO_ABILITY_DRAW_ABILITY_ID,
@@ -10828,6 +11005,25 @@ describe('card effect classification registry', () => {
     expect(isSupportedActivatedAbilityForCard(RIN_ACTIVATED_ABILITY_ID, 'PL!HS-bp2-002-P')).toBe(
       false
     );
+  });
+});
+
+describe('PL!-pb1-013 園田海未 classification', () => {
+  it.each(['PL!-pb1-013-R', 'PL!-pb1-013-P＋'])('covers %s with one activated definition', (cardCode) => {
+    expect(getCardAbilityDefinitions(cardCode)).toContainEqual(expect.objectContaining({
+      abilityId: PL_PB1_013_ACTIVATED_PAY_TWO_ENERGY_REVEAL_HAND_LIVE_SCORE_ABILITY_ID,
+      baseCardCodes: ['PL!-pb1-013'],
+      category: CardAbilityCategory.ACTIVATED,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      queued: false,
+      implemented: true,
+      perTurnLimit: 1,
+      activatedUi: expect.objectContaining({
+        abilityId: PL_PB1_013_ACTIVATED_PAY_TWO_ENERGY_REVEAL_HAND_LIVE_SCORE_ABILITY_ID,
+        text: expect.stringContaining('[E][E]'),
+        title: expect.stringContaining('自己的手牌'),
+      }),
+    }));
   });
 });
 
@@ -11264,5 +11460,28 @@ describe('HS pb1 newly implemented card classifications', () => {
         implemented: true,
       })
     );
+  });
+
+  it('registers both PL!-pb1-009 ON_ENTER abilities for R and P＋ with distinct text', () => {
+    for (const cardCode of ['PL!-pb1-009-R', 'PL!-pb1-009-P＋']) {
+      const definitions = getCardAbilityDefinitions(cardCode).filter((definition) =>
+        [
+          PL_PB1_009_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_ONE_ABILITY_ID,
+          PL_PB1_009_ON_ENTER_PREVENT_EFFECT_MEMBER_ACTIVATION_THIS_TURN_ABILITY_ID,
+        ].includes(definition.abilityId)
+      );
+      expect(definitions).toHaveLength(2);
+      for (const definition of definitions) {
+        expect(definition).toMatchObject({
+          baseCardCodes: ['PL!-pb1-009'],
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+        });
+      }
+      expect(new Set(definitions.map((definition) => definition.effectText)).size).toBe(2);
+    }
   });
 });

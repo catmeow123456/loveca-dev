@@ -21,6 +21,7 @@ import {
   EffectWindowType,
 } from '../shared/types/enums.js';
 import type { GameState } from '../domain/entities/game.js';
+import { clearExpiredMemberEffectActivationProhibitions } from '../domain/rules/member-effect-activation-prohibitions.js';
 import {
   getPhaseConfig,
   getPhaseTransitions,
@@ -280,6 +281,7 @@ export class PhaseManager {
         ...newState,
         turnCount: game.turnCount + 1,
       };
+      newState = clearExpiredMemberEffectActivationProhibitions(newState);
     }
 
     return newState;

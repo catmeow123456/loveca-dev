@@ -6,11 +6,16 @@ import {
 } from '../../../../domain/entities/game.js';
 import {
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
+  PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   PL_BP5_015_ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ABILITY_ID,
   HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
 } from '../../ability-ids.js';
-import { successLiveScoreAtLeast, sumSuccessfulLiveScore } from '../../../effects/conditions.js';
+import {
+  countSuccessfulLiveCards,
+  successLiveScoreAtLeast,
+  sumSuccessfulLiveScore,
+} from '../../../effects/conditions.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
@@ -22,11 +27,18 @@ interface MemberOnEnterDrawConfig {
   readonly drawCount: number;
   readonly actionStep: string;
   readonly minEnergyCount?: number;
+  readonly minSuccessLiveCardCount?: number;
   readonly minSuccessLiveScore?: number;
   readonly minWaitingRoomCount?: number;
 }
 
 const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
+  {
+    abilityId: PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+    drawCount: 1,
+    actionStep: 'ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE',
+    minSuccessLiveCardCount: 1,
+  },
   {
     abilityId: MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
     drawCount: 1,
@@ -117,6 +129,24 @@ function resolveMemberOnEnterDraw(
     );
   }
   const successLiveScore = sumSuccessfulLiveScore(game, player.id);
+  const successLiveCardCount = countSuccessfulLiveCards(game, player.id);
+  if (
+    config.minSuccessLiveCardCount !== undefined &&
+    successLiveCardCount < config.minSuccessLiveCardCount
+  ) {
+    return continuePendingCardEffects(
+      addAction(stateAfterUseRecord, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'SUCCESS_LIVE_CARD_COUNT_CONDITION_NOT_MET',
+        sourceSlot: ability.sourceSlot,
+        successLiveCardCount,
+        requiredSuccessLiveCardCount: config.minSuccessLiveCardCount,
+      }),
+      orderedResolution
+    );
+  }
   if (
     config.minSuccessLiveScore !== undefined &&
     !successLiveScoreAtLeast(game, player.id, config.minSuccessLiveScore)
@@ -153,6 +183,8 @@ function resolveMemberOnEnterDraw(
       requiredWaitingRoomCount: config.minWaitingRoomCount,
       successLiveScore,
       requiredSuccessLiveScore: config.minSuccessLiveScore,
+      successLiveCardCount,
+      requiredSuccessLiveCardCount: config.minSuccessLiveCardCount,
       drawnCardIds: drawResult.drawnCardIds,
       drawCount: drawResult.drawnCardIds.length,
     }),

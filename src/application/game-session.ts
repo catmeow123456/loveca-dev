@@ -27,6 +27,7 @@ import {
   TriggerCondition,
   ZoneType,
 } from '../shared/types/enums.js';
+import { resolveBlindCardSelectionToken } from '../shared/utils/blind-card-selection.js';
 import type {
   GameEventLogEntry,
   GameState,
@@ -1810,10 +1811,14 @@ export class GameSession {
         if (state.activeEffect.awaitingPlayerId !== command.playerId) {
           return '当前不是该玩家确认卡牌效果';
         }
-        if (
-          command.selectedCardId &&
-          !state.activeEffect.selectableCardIds?.includes(command.selectedCardId)
-        ) {
+        const isSelectableCardReference = (selectedCardId: string): boolean =>
+          state.activeEffect?.selectableCardVisibility === 'AWAITING_PLAYER_BLIND'
+            ? resolveBlindCardSelectionToken(
+                state.activeEffect.selectableCardIds ?? [],
+                selectedCardId
+              ) !== null
+            : state.activeEffect?.selectableCardIds?.includes(selectedCardId) === true;
+        if (command.selectedCardId && !isSelectableCardReference(command.selectedCardId)) {
           return '选择的卡牌不能用于当前效果';
         }
         if (command.selectedCardIds) {
@@ -1836,7 +1841,7 @@ export class GameSession {
             return '选择的卡牌数量不符合当前效果';
           }
           for (const cardId of command.selectedCardIds) {
-            if (!state.activeEffect.selectableCardIds?.includes(cardId)) {
+            if (!isSelectableCardReference(cardId)) {
               return '选择的卡牌不能用于当前效果';
             }
           }

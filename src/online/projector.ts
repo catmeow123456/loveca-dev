@@ -75,6 +75,7 @@ import {
   getZoneOrderedForViewer,
   isZoneOccupancyVisibleToViewer,
 } from './visibility.js';
+import { createBlindCardSelectionToken } from '../shared/utils/blind-card-selection.js';
 
 interface ProjectPlayerViewStateOptions {
   readonly seq?: number;
@@ -86,6 +87,7 @@ type WindowDescriptor = Omit<ViewWindowState, 'status'>;
 
 interface ActiveEffectCardSelectionProjection {
   readonly selectableObjectIds?: readonly string[];
+  readonly selectableObjectsFaceDown?: boolean;
   readonly selectableObjectMode?: 'SINGLE' | 'ORDERED_MULTI';
   readonly minSelectableObjects?: number;
   readonly maxSelectableObjects?: number;
@@ -433,7 +435,7 @@ function projectActiveEffectStageFormation(game: GameState) {
 function projectActiveEffectCardSelection(
   game: GameState,
   viewerSeat: Seat,
-  objects: Readonly<Record<string, ViewCardObject>>
+  objects: Record<string, ViewCardObject>
 ): ActiveEffectCardSelectionProjection {
   const effect = game.activeEffect;
   if (!effect) {
@@ -445,8 +447,38 @@ function projectActiveEffectCardSelection(
     ? getSeatForPlayer(game, effect.awaitingPlayerId)
     : null;
   const isWaitingPlayerView = waitingSeat === viewerSeat;
+  const blindForWaitingPlayer =
+    effect.selectableCardVisibility === 'AWAITING_PLAYER_BLIND' && isWaitingPlayerView;
   const explicitlyPrivate =
-    effect.selectableCardVisibility === 'AWAITING_PLAYER_ONLY' && !isWaitingPlayerView;
+    (effect.selectableCardVisibility === 'AWAITING_PLAYER_ONLY' ||
+      effect.selectableCardVisibility === 'AWAITING_PLAYER_BLIND') &&
+    !isWaitingPlayerView;
+
+  if (blindForWaitingPlayer) {
+    const selectableObjectIds = (selectableCardIds ?? []).map((_, index) => {
+      const token = createBlindCardSelectionToken(index);
+      const publicObjectId = createPublicObjectId(token);
+      objects[publicObjectId] = {
+        publicObjectId,
+        ownerSeat: getSeatForPlayer(game, effect.controllerId) ?? viewerSeat,
+        controllerSeat: getSeatForPlayer(game, effect.controllerId) ?? viewerSeat,
+        surface: 'BACK',
+      };
+      return publicObjectId;
+    });
+
+    return {
+      selectableObjectIds,
+      selectableObjectsFaceDown: true,
+      selectableObjectMode: effect.selectableCardMode,
+      minSelectableObjects: effect.minSelectableCards,
+      maxSelectableObjects: effect.maxSelectableCards,
+      selectionLabel: effect.selectionLabel,
+      confirmSelectionLabel: effect.confirmSelectionLabel,
+      canSkipSelection: effect.canSkipSelection,
+      skipSelectionLabel: effect.skipSelectionLabel,
+    };
+  }
   const allSelectableCardsVisible =
     selectableCardIds === undefined ||
     selectableCardIds.every((cardId) => {

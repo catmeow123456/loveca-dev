@@ -11,17 +11,21 @@ import {
 } from '../../domain/events/game-events.js';
 import type { MemberStateChangeCause } from '../../domain/events/game-events.js';
 import { FaceState, OrientationState, SlotPosition, ZoneType } from '../../shared/types/enums.js';
+import { isMemberEffectActivationProhibited } from '../../domain/rules/member-effect-activation-prohibitions.js';
 
 export interface SetMemberOrientationResult {
   readonly gameState: GameState;
   readonly cardId: string;
   readonly previousOrientation: OrientationState;
   readonly nextOrientation: OrientationState;
+  readonly changed: boolean;
+  readonly blockedByEffectActivationProhibition: boolean;
 }
 
 export interface SetMembersOrientationResult {
   readonly gameState: GameState;
   readonly updatedMemberCardIds: readonly string[];
+  readonly blockedMemberCardIds?: readonly string[];
   readonly previousOrientations: readonly {
     readonly cardId: string;
     readonly orientation: OrientationState;
@@ -103,6 +107,24 @@ export function setMemberOrientation(
       cardId,
       previousOrientation: currentState.orientation,
       nextOrientation: orientation,
+      changed: false,
+      blockedByEffectActivationProhibition: false,
+    };
+  }
+
+  if (
+    currentState.orientation === OrientationState.WAITING &&
+    orientation === OrientationState.ACTIVE &&
+    cause?.kind === 'CARD_EFFECT' &&
+    isMemberEffectActivationProhibited(game, playerId)
+  ) {
+    return {
+      gameState: game,
+      cardId,
+      previousOrientation: currentState.orientation,
+      nextOrientation: currentState.orientation,
+      changed: false,
+      blockedByEffectActivationProhibition: true,
     };
   }
 
@@ -135,6 +157,8 @@ export function setMemberOrientation(
     cardId,
     previousOrientation: currentState.orientation,
     nextOrientation: orientation,
+    changed: true,
+    blockedByEffectActivationProhibition: false,
   };
 }
 
@@ -167,14 +191,31 @@ export function setMembersOrientation(
     return {
       gameState: game,
       updatedMemberCardIds: [],
+      blockedMemberCardIds: [],
       previousOrientations: [],
       nextOrientation: orientation,
     };
   }
 
+
+  const blockedMemberCardIds =
+    orientation === OrientationState.ACTIVE &&
+    cause?.kind === 'CARD_EFFECT' &&
+    isMemberEffectActivationProhibited(game, playerId)
+      ? previousOrientations
+          .filter((entry) => entry.orientation === OrientationState.WAITING)
+          .map((entry) => entry.cardId)
+      : [];
+  const blockedMemberCardIdSet = new Set(blockedMemberCardIds);
+  const updatedMemberCardIds = previousOrientations
+    .filter(
+      (entry) => entry.orientation !== orientation && !blockedMemberCardIdSet.has(entry.cardId)
+    )
+    .map((entry) => entry.cardId);
+
   let gameState = updatePlayer(game, playerId, (currentPlayer) => {
     const cardStates = new Map(currentPlayer.memberSlots.cardStates);
-    for (const cardId of uniqueCardIds) {
+    for (const cardId of updatedMemberCardIds) {
       const currentState = cardStates.get(cardId);
       if (currentState && currentState.orientation !== orientation) {
         cardStates.set(cardId, {
@@ -193,7 +234,7 @@ export function setMembersOrientation(
     };
   });
   for (const previous of previousOrientations) {
-    if (previous.orientation === orientation) {
+    if (!updatedMemberCardIds.includes(previous.cardId)) {
       continue;
     }
     const slot = findMemberSlotByCardId(player.memberSlots.slots, previous.cardId);
@@ -215,7 +256,8 @@ export function setMembersOrientation(
 
   return {
     gameState,
-    updatedMemberCardIds: uniqueCardIds,
+    updatedMemberCardIds,
+    blockedMemberCardIds,
     previousOrientations,
     nextOrientation: orientation,
   };

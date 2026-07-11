@@ -78,9 +78,7 @@ export function resolvePlBp3005RinOnEnter(
     );
   }
 
-  const activatedMemberCardIds = orientationResult.previousOrientations
-    .filter((entry) => entry.orientation === OrientationState.WAITING)
-    .map((entry) => entry.cardId);
+  const activatedMemberCardIds = orientationResult.updatedMemberCardIds;
   const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
     stateWithoutPending,
     orientationResult,

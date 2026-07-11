@@ -252,6 +252,8 @@ export interface ActiveEffectViewState {
   readonly revealedObjectIds?: readonly string[];
   readonly inspectionObjectIds?: readonly string[];
   readonly selectableObjectIds?: readonly string[];
+  /** 候选对象只以匿名牌背展示，不含可关联到真实卡牌实例的对象 ID。 */
+  readonly selectableObjectsFaceDown?: boolean;
   readonly selectableObjectMode?: 'SINGLE' | 'ORDERED_MULTI';
   readonly minSelectableObjects?: number;
   readonly maxSelectableObjects?: number;

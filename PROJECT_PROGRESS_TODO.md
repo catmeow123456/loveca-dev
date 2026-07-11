@@ -2,6 +2,26 @@
 
 更新时间：2026-07-11
 
+## 本次 2026-07-11 缪斯 PB1 第四批卡效
+
+- 新增 `PL!-pb1-008-R / P＋` 费用 11「小泉花陽」：自己的主舞台成员可选0至3名变为 WAITING，逐名通过成员状态变化 wrapper 入队，并按实际成功人数抽牌。
+- 新增 `PL!-pb1-017-R / P＋` 费用 7「小泉花陽」：可选自身 WAITING 后抽1；只读取本次 relayReplacements 的 Printemps 身份，Printemps 换手免弃，其他情况抽后弃1并保留状态变化/弃手触发 continuation。
+- 验证：focused classification/008/017 共58 tests、003/relay/弃手 trigger/runtime/text/token regression 共72 tests、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 均通过。
+
+## 本次 2026-07-11 缪斯 PB1 第三批卡效
+
+- 已实现 `PL!-pb1-006-R / P＋` 费用 11「西木野真姫」与 `PL!-pb1-007-R / P＋` 费用 13「東條 希」：006 为可选休息室 μ's LIVE 置顶后实时检查对方 WAITING 并抽1；007 为按成功 LIVE 张数动态减免弃手、0费用直达、支付后重查其他 lily white 与 μ's LIVE 回收。
+- 两者均为独立窄单卡 workflow，只复用既有 selector/runtime/activeEffect helper；runner 仅新增 import/register。focused classification/integration 共 62 tests 通过，完整 regression 与类型检查结果见本窗口收尾。
+
+## 本次 2026-07-11 缪斯 PB1 第二批卡效
+
+- 已实现 `PL!-pb1-003-R / P＋` 费用 13「南ことり」与 `PL!-pb1-012-R / P＋` 费用 2「南ことり」：分别为可选自身待机后按 Printemps 舞台人数活跃能量，以及可选活跃自己舞台至多1名 WAITING Printemps 成员；均为窄单卡 workflow，复用成员状态变化 trigger wrapper，012 同时复用舞台成员目标选择。
+
+## 本次 2026-07-11 缪斯 PB1 第一批卡效
+
+- 已实现 `PL!-pb1-005-R / P＋` 费用 2「星空 凛」与 `PL!-pb1-032-L` 分数 2「SENTIMENTAL StepS」：前者扩展 shared `member-on-enter-draw` 的成功LIVE卡区张数条件轴；后者扩展 `success-zone-conditional-recovery-draw` 的条件抽牌结果配置，未满足时抽0。
+- `PL!-pb1-032-L` 沿用无交互 LIVE_SUCCESS 的 confirm-only / 顺序发动桥接，确认窗口实时显示自己的成功LIVE卡区 μ's 卡数量、条件和实际抽牌结果；runner 无改动。focused classification/integration、token/text governance、`tsc --noEmit`、`tsc -b client` 与 diff check 已通过。
+
 ## 本次 2026-07-11 缪斯 BP3 第九批卡效
 
 - 已实现 `PL!-bp3-007-P / R` 费用 9「東條 希」：LIVE 开始时可选弃2手，之后检视自己卡组顶3张，并强制分配为入手1张、回顶1张、入休息室1张。

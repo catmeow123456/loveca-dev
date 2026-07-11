@@ -73,7 +73,7 @@ Important fields:
 | `selectableSlotPositions` | 可选槽位候选。 |
 | `selectableOptions` | 颜色、模式、分支等选项。 |
 | `revealedCardIds` | 已公开给双方的隐藏区卡。 |
-| `selectableCardVisibility` | 候选对谁可见。 |
+| `selectableCardVisibility` | 候选投影模式：`PUBLIC`、`AWAITING_PLAYER_ONLY` 或 `AWAITING_PLAYER_BLIND`。 |
 | `metadata` | workflow 私有上下文。 |
 
 ## Metadata Rule
@@ -91,6 +91,16 @@ Rules:
 - metadata 不应替代权威 zone/card 状态。
 - step handler 必须重新校验目标仍合法。
 - 跨玩家可见性不能仅靠 metadata 控制，必须配合投影字段。
+
+### Blind Card Selection
+
+`AWAITING_PLAYER_BLIND` 用于“等待玩家从自己看不到内容的卡牌中选择”这一窄交互：
+
+- 权威状态中的 `selectableCardIds` 保留真实候选，供 workflow 在选择后重新校验区域与初始候选快照。
+- 在线投影只向 `awaitingPlayerId` 提供匿名牌背；非等待玩家不接收候选标记。
+- 匿名候选使用 `shared/utils/blind-card-selection.ts` 的位置 token，不投影真实实例 ID、`frontInfo` 或 `cardType`，避免通过历史公开对象关联身份。
+- GameSession 只接受能映射到当前候选快照的位置 token；workflow 解析后仍必须确认真实卡当前位于规则要求的区域。
+- 选择完成并公开时，继续使用 `revealedCardIds` / `revealHandCardForActiveEffect`，此后双方才可看到正面。
 
 ## Continue Pending
 

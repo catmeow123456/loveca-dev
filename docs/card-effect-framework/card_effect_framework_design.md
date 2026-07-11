@@ -204,6 +204,8 @@ P0/P1 覆盖：
 
 2026-06-14 补充：公开手牌、弃手费用、私有检视区选择等步骤若在确定公开前使用 `activeEffect.selectableCardIds`，必须通过 `selectableCardVisibility: 'AWAITING_PLAYER_ONLY'` 标明候选只投影给当前等待玩家。在线投影层同时保留兜底：若候选牌对象对当前视角不存在或不是正面可见，则不投影 `selectableObjectIds`、选择标题与跳过按钮，避免对手通过占位数量读出隐藏区候选数。已公开给双方的隐藏区卡牌使用 `activeEffect.revealedCardIds` 承载，投影为 `revealedObjectIds` 并强制正面可见，用于公开手牌等“公开后继续处理”的确认窗口。公开区候选（休息室、舞台等）继续按 `PUBLIC` 或默认正面可见规则投影给双方。
 
+2026-07-11 补充：卡文明确要求等待玩家从自己不可见的隐藏区卡牌中选择时，使用 `selectableCardVisibility: 'AWAITING_PLAYER_BLIND'`。该模式只向等待玩家投影匿名牌背与不可关联真实实例的位置 token，不提供 `frontInfo`、`cardType` 或稳定真实对象 ID；非等待玩家不接收候选标记。选择提交经过 GameSession token 校验后，由具体 workflow 映射回权威候选并重查当前区域，公开阶段再转入 `revealedCardIds`。不要用普通 `AWAITING_PLAYER_ONLY` 暴露真实对象 ID，也不要把盲选替换为随机自动选择。
+
 ### 4.4 Selector and condition layer
 
 职责：

@@ -19,6 +19,7 @@ import { GameService } from '../../src/application/game-service';
 import {
   HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
+  PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
@@ -51,7 +52,11 @@ function runOnEnterDrawOne(
   cardCode: string,
   name: string,
   sourceSlot: SlotPosition,
-  options: { readonly energyCount?: number; readonly abilityId?: string } = {}
+  options: {
+    readonly energyCount?: number;
+    readonly successLiveCardCount?: number;
+    readonly abilityId?: string;
+  } = {}
 ): {
   readonly state: GameState;
   readonly sourceId: string;
@@ -70,8 +75,15 @@ function runOnEnterDrawOne(
       `${cardCode}-energy-${index}`
     )
   );
+  const successLiveCards = Array.from({ length: options.successLiveCardCount ?? 0 }, (_, index) =>
+    createCardInstance(
+      createMember(`${cardCode}-success-live-${index}`),
+      PLAYER1,
+      `${cardCode}-success-live-${index}`
+    )
+  );
   let game = createGameState(`member-on-enter-draw-${cardCode}`, PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, [source, drawCard, ...energyCards]);
+  game = registerCards(game, [source, drawCard, ...energyCards, ...successLiveCards]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     mainDeck: { ...player.mainDeck, cardIds: [drawCard.instanceId] },
@@ -79,6 +91,10 @@ function runOnEnterDrawOne(
       (zone, card) => addCardToZone(zone, card.instanceId),
       player.energyZone
     ),
+    successZone: {
+      ...player.successZone,
+      cardIds: successLiveCards.map((card) => card.instanceId),
+    },
     memberSlots: placeCardInSlot(player.memberSlots, sourceSlot, source.instanceId, {
       orientation: OrientationState.ACTIVE,
       face: FaceState.FACE_UP,
@@ -140,6 +156,75 @@ describe('member on-enter draw shared workflow', () => {
           action.payload.sourceCardId === sourceId &&
           action.payload.step === 'ON_ENTER_DRAW_ONE' &&
           action.payload.drawnCardIds?.[0] === drawCardId
+      )
+    ).toBe(true);
+  });
+
+  it.each([
+    ['PL!-pb1-005-R', '星空 凛'],
+    ['PL!-pb1-005-P＋', '星空 凛'],
+  ] as const)('draws one for %s when own success LIVE zone has a card', (cardCode, name) => {
+    const { state, drawCardId } = runOnEnterDrawOne(cardCode, name, SlotPosition.CENTER, {
+      abilityId: PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+      successLiveCardCount: 1,
+    });
+
+    expect(state.players[0].hand.cardIds).toContain(drawCardId);
+    expect(
+      state.actionHistory.some(
+        (action) =>
+          action.payload.abilityId === PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID &&
+          action.payload.step === 'ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE' &&
+          action.payload.successLiveCardCount === 1
+      )
+    ).toBe(true);
+  });
+
+  it('PL!-pb1-005 consumes its pending without drawing when success LIVE zone is empty and continues later pending', () => {
+    const first = createCardInstance(createMember('PL!-pb1-005-R', '星空 凛', 2), PLAYER1, 'rin');
+    const second = createCardInstance(createMember('DRAW-SOURCE'), PLAYER1, 'draw-source');
+    const drawCard = createCardInstance(createMember('DRAW'), PLAYER1, 'draw');
+    let game = createGameState('pl-pb1-005-no-success-live', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [first, second, drawCard]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: [drawCard.instanceId] },
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, first.instanceId),
+        SlotPosition.RIGHT,
+        second.instanceId
+      ),
+    }));
+    const orderSelection = resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          'rin-pending',
+          first.instanceId,
+          SlotPosition.LEFT,
+          PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID
+        ),
+        pendingAbility('draw-pending', second.instanceId, SlotPosition.RIGHT),
+      ],
+    }).gameState;
+
+    const resolved = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      null,
+      null,
+      true
+    );
+
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.players[0].hand.cardIds).toEqual([drawCard.instanceId]);
+    expect(
+      resolved.actionHistory.some(
+        (action) =>
+          action.payload.abilityId === PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID &&
+          action.payload.step === 'SUCCESS_LIVE_CARD_COUNT_CONDITION_NOT_MET' &&
+          action.payload.successLiveCardCount === 0
       )
     ).toBe(true);
   });

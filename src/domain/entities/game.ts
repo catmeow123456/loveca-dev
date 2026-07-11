@@ -129,6 +129,14 @@ export interface MemberActivePhaseSkipState {
   readonly abilityId: string;
 }
 
+export interface MemberEffectActivationProhibitionState {
+  readonly affectedPlayerIds: readonly string[];
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly createdTurnCount: number;
+  readonly expiresAt: 'TURN_END';
+}
+
 export interface LiveSetLimitReductionState {
   readonly playerId: string;
   readonly sourceCardId: string;
@@ -492,7 +500,10 @@ export interface PendingChoiceState {
   readonly maxCount?: number;
 }
 
-export type ActiveEffectSelectableCardVisibility = 'PUBLIC' | 'AWAITING_PLAYER_ONLY';
+export type ActiveEffectSelectableCardVisibility =
+  | 'PUBLIC'
+  | 'AWAITING_PLAYER_ONLY'
+  | 'AWAITING_PLAYER_BLIND';
 
 export interface ActiveEffectNumericInputState {
   readonly min?: number;
@@ -746,6 +757,8 @@ export interface GameState {
    * 卡效造成的“下次自己的活跃阶段不变为活跃状态”临时标记。
    */
   readonly memberActivePhaseSkips: readonly MemberActivePhaseSkipState[];
+  /** 本回合内禁止卡牌效果使指定玩家的待机成员变为活跃。 */
+  readonly memberEffectActivationProhibitions?: readonly MemberEffectActivationProhibitionState[];
   /**
    * 卡效造成的“下一次 LIVE 卡设置阶段可放置张数上限减少”标记。
    */
@@ -877,6 +890,7 @@ export function createGameState(
     liveProhibitions: [],
     liveStartSuppressions: [],
     memberActivePhaseSkips: [],
+    memberEffectActivationProhibitions: [],
     liveSetLimitReductions: [],
 
     isStarted: false,

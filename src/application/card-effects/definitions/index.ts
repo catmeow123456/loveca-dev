@@ -72,8 +72,19 @@ import {
   PL_PB1_002_ON_ENTER_WAIT_SELF_ONLY_BIBI_WAIT_OPPONENT_LOW_ORIGINAL_BLADE_ABILITY_ID,
   PL_PB1_002_LIVE_START_WAIT_SELF_ONLY_BIBI_WAIT_OPPONENT_LOW_ORIGINAL_BLADE_ABILITY_ID,
   PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID,
+  PL_PB1_003_ON_ENTER_WAIT_SELF_ACTIVATE_PRINTEMPS_COUNT_ENERGY_ABILITY_ID,
+  PL_PB1_004_ON_ENTER_CENTER_SUCCESS_MUSE_SCORE_ABILITY_ID,
+  PL_PB1_008_ON_ENTER_WAIT_UP_TO_THREE_MEMBERS_DRAW_PER_WAITED_ABILITY_ID,
+  PL_PB1_009_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_ONE_ABILITY_ID,
+  PL_PB1_009_ON_ENTER_PREVENT_EFFECT_MEMBER_ACTIVATION_THIS_TURN_ABILITY_ID,
+  PL_PB1_017_ON_ENTER_WAIT_SELF_DRAW_DISCARD_UNLESS_PRINTEMPS_RELAY_ABILITY_ID,
+  PL_PB1_006_ON_ENTER_STACK_MUSE_LIVE_DRAW_IF_OPPONENT_WAITING_ABILITY_ID,
+  PL_PB1_007_ACTIVATED_SUCCESS_COUNT_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
   PL_PB1_001_ACTIVATED_WAIT_SELF_DISCARD_REVEAL_UNTIL_CHOSEN_ABILITY_ID,
   PL_PB1_010_LIVE_START_DISCARD_HAND_OTHER_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  PL_PB1_012_ON_ENTER_ACTIVATE_PRINTEMPS_MEMBER_ABILITY_ID,
+  PL_PB1_013_ACTIVATED_PAY_TWO_ENERGY_REVEAL_HAND_LIVE_SCORE_ABILITY_ID,
+  PL_PB1_014_CONTINUOUS_SUCCESS_LILYWHITE_HAND_COST_REDUCTION_ABILITY_ID,
   PL_S_PB1_019_LIVE_START_AQOURS_RED_HEART_SUPPRESS_SUCCESS_ABILITY_ID,
   PL_S_PB1_019_LIVE_SUCCESS_PLACE_OPPONENT_WAITING_ENERGY_ABILITY_ID,
   PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
@@ -82,6 +93,8 @@ import {
   PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_PB1_030_LIVE_SUCCESS_DIFFERENT_BIBI_RECOVER_MEMBER_ABILITY_ID,
   PL_PB1_031_LIVE_SUCCESS_DISCARD_HAND_RECOVER_MUSE_MEMBER_CHEER_ABILITY_ID,
+  PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+  PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_ABILITY_ID,
   BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
   PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID,
@@ -770,10 +783,32 @@ const PL_PB1_002_WAIT_SELF_WAIT_OPPONENT_EFFECT_TEXT =
   '【登场】/【LIVE开始时】可以将此成员变为待机状态：自己的舞台上的成员只有『BiBi』时，将对方舞台上1名原本持有的[BLADE]数小于等于3个的成员变为待机状态。';
 const PL_PB1_002_CONTINUOUS_EFFECT_TEXT =
   '【常时】对方舞台上每有1名待机状态的成员，此成员获得[紫ハート]。';
+const PL_PB1_003_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将此成员变为待机状态：每有1名存在于自己的舞台的『Printemps』的成员，将1张能量变为活跃状态。';
+const PL_PB1_004_ON_ENTER_EFFECT_TEXT =
+  "【登场】【中央】自己的成功LIVE卡区中有1张持有[スコア]的『μ's』卡时，直到LIVE结束，获得“【常时】LIVE合计[スコア]+1”。有2张以上时，改为获得“【常时】LIVE合计[スコア]+2”。（此能力仅在登场至中央区域时发动。）";
+const PL_PB1_008_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将至多3名成员变为待机状态：每存在1名因此变为待机状态的成员，抽1张卡。';
+const PL_PB1_009_WAIT_OPPONENT_EFFECT_TEXT =
+  '【登场】将对方舞台上1名原本持有的[BLADE]数量小于等于1的成员变为待机状态。';
+const PL_PB1_009_PREVENT_EFFECT_ACTIVATION_EFFECT_TEXT =
+  '【登场】本回合中，自己和对方舞台上的成员不能因卡牌效果变为活跃状态。';
+const PL_PB1_017_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以将此成员变为待机状态：抽1张卡。之后，只要此成员没有从『Printemps』的成员换手登场，将1张手牌放置入休息室。';
+const PL_PB1_006_ON_ENTER_EFFECT_TEXT =
+  "【登场】从自己的休息室将至多1张『μ's』的LIVE卡放置于卡组顶。之后，对方的舞台存在待机状态的成员的场合，抽1张卡。";
+const PL_PB1_007_ACTIVATED_EFFECT_TEXT =
+  "【起动】【1回合1次】将3张手牌放置入休息室：自己的舞台上存在其他的『lily white』的成员的场合，从自己的休息室将1张『μ's』的LIVE卡加入手牌。起动此能力的费用，每存在1张自己的成功LIVE卡区中的卡片，放置入休息室的手牌的数量减少1张。";
 const PL_PB1_001_ACTIVATED_EFFECT_TEXT =
   '【起动】【中央】【1回合1次】将此成员变为待机状态，将1张手牌放置入休息室：选择“LIVE卡”或“费用10以上的成员卡”之一。逐张公开自己卡组顶的卡，直到公开所选类型的卡。将那张卡加入手牌，其余因此公开的卡放置入休息室。';
 const PL_PB1_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，自己舞台上其他成员获得[BLADE]。';
+const PL_PB1_012_ON_ENTER_EFFECT_TEXT =
+  '【登场】将至多1名存在于自己的舞台的『Printemps』的成员变为活跃状态。';
+const PL_PB1_013_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】[E][E]：由对方在不查看内容的情况下，从自己的手牌中选择1张并公开。若公开的是LIVE卡，直到LIVE结束，此成员使LIVE合计[スコア]+1。';
+const PL_PB1_014_CONTINUOUS_EFFECT_TEXT =
+  '【常时】自己的成功LIVE卡区中有『lilywhite』卡时，手牌中此成员卡的费用减少2。';
 const PL_S_PB1_001_ON_ENTER_EFFECT_TEXT =
   '【登场】对方手牌数量比自己多2张以上时，从自己的休息室将1张LIVE卡加入手牌。';
 const PL_S_PB1_002_ON_ENTER_EFFECT_TEXT =
@@ -815,6 +850,9 @@ const PL_PB1_030_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己的舞台有2名以上名字不同的『BiBi』成员时，从自己的休息室将1张『BiBi』成员卡加入手牌。';
 const PL_PB1_031_LIVE_SUCCESS_EFFECT_TEXT =
   "【LIVE成功时】可以将1张手牌放置入休息室：从因声援公开的自己的卡中，将1张『μ's』成员卡加入手牌。";
+const PL_PB1_005_ON_ENTER_EFFECT_TEXT = '【登场】自己的成功LIVE卡区存在卡片的场合，抽1张卡。';
+const PL_PB1_032_LIVE_SUCCESS_EFFECT_TEXT =
+  "【LIVE成功时】自己的成功LIVE卡区存在『μ's』的卡片的场合，抽1张卡。";
 const N_BP5_001_AUTO_ON_CHEER_EFFECT_TEXT =
   '【自动】【1回合1次】自己进行声援时，因声援公开的自己的卡所持有的 BLADE HEART 中，普通六色与 ALL Heart 合计存在3种以上的场合，LIVE结束时为止，获得[桃ハート]。存在6种以上的场合，进一步获得「【常时】LIVE的合计分数+1」。';
 const N_BP5_002_CONTINUOUS_EFFECT_TEXT =
@@ -6966,6 +7004,104 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '常时由 live-modifiers continuous registry 收集；来源在自己的主舞台成员槽时，按对方主舞台 WAITING 成员数量给来源成员 [紫ハート] xN。对方0名 WAITING、来源离场或 memberBelow 均不写 modifier。',
   },
   {
+    abilityId: PL_PB1_003_ON_ENTER_WAIT_SELF_ACTIVATE_PRINTEMPS_COUNT_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-003'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB1_003_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '窄单卡 ON_ENTER workflow `pl-pb1-003-kotori.ts`；真实可选发动，来源仍在自己的主舞台且为 ACTIVE 时才可支付 WAITING 费用。支付走 member-state trigger wrapper 并记录 PAY_COST；支付后重扫自己的 Printemps 主舞台成员（含已 WAITING 的来源），自动活跃至多该数量的 WAITING 能量。',
+  },
+  {
+    abilityId: PL_PB1_004_ON_ENTER_CENTER_SUCCESS_MUSE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-004'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    requiredSourceSlots: [SlotPosition.CENTER],
+    effectText: PL_PB1_004_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '单卡 workflow `pl-pb1-004-umi.ts`；结算时只统计自己成功 LIVE 卡区中实际带 score 的 μ\'s LIVE，按0/1/2+档写本次 LIVE 的 SCORE modifier并刷新 playerScores。',
+  },
+  {
+    abilityId: PL_PB1_008_ON_ENTER_WAIT_UP_TO_THREE_MEMBERS_DRAW_PER_WAITED_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-008'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB1_008_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '窄单卡 ON_ENTER workflow `pl-pb1-008-hanayo.ts`；“成员”沿当前项目语境只列自己的主舞台成员（不含对方、memberBelow 或其他区域），可选择0至3名。每次实际 ACTIVE -> WAITING 都通过 member-state trigger wrapper 入队，最终按实际成功 WAITING 人数复用 drawCardsForPlayer 抽牌。',
+  },
+  {
+    abilityId: PL_PB1_009_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-009'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB1_009_WAIT_OPPONENT_EFFECT_TEXT,
+    notes: '复用 opponent-wait-target shared workflow 与 memberPrintedBladeLte(1)。',
+  },
+  {
+    abilityId: PL_PB1_009_ON_ENTER_PREVENT_EFFECT_MEMBER_ACTIVATION_THIS_TURN_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-009'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB1_009_PREVENT_EFFECT_ACTIVATION_EFFECT_TEXT,
+    notes: '单卡 workflow 建立本回合双方 CARD_EFFECT 成员 WAITING -> ACTIVE 限制；RULE_ACTION 不受影响。',
+  },
+  {
+    abilityId: PL_PB1_017_ON_ENTER_WAIT_SELF_DRAW_DISCARD_UNLESS_PRINTEMPS_RELAY_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-017'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB1_017_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '窄单卡 ON_ENTER workflow `pl-pb1-017-hanayo.ts`；可选支付来源 ACTIVE -> WAITING，支付走 member-state trigger wrapper 并记录 PAY_COST。只读取本次 pending 的 relayReplacements，以被换下成员的结构化 Printemps unit identity 判断：Printemps 换手只抽1；普通登场或其他换手抽1后复用 draw-then-discard 原语弃1，弃手走 enter-waiting-room trigger wrapper。',
+  },
+  {
+    abilityId: PL_PB1_006_ON_ENTER_STACK_MUSE_LIVE_DRAW_IF_OPPONENT_WAITING_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-006'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB1_006_ON_ENTER_EFFECT_TEXT,
+    notes: '单卡 workflow `pl-pb1-006-maki.ts`；可选休息室 μ\'s LIVE 置顶后实时重查对方 WAITING 成员并抽1。',
+  },
+  {
+    abilityId: PL_PB1_007_ACTIVATED_SUCCESS_COUNT_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-007'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: PL_PB1_007_ACTIVATED_EFFECT_TEXT,
+    perTurnLimit: 1,
+    notes: '单卡 workflow `pl-pb1-007-nozomi.ts`；按成功 LIVE 卡数动态降低弃手费用，支付后重查其他 lily white 成员与休息室 μ\'s LIVE。',
+    activatedUi: {
+      abilityId: PL_PB1_007_ACTIVATED_SUCCESS_COUNT_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
+      text: PL_PB1_007_ACTIVATED_EFFECT_TEXT,
+      title: '起动能力',
+    },
+  },
+  {
     abilityId: PL_PB1_001_ACTIVATED_WAIT_SELF_DISCARD_REVEAL_UNTIL_CHOSEN_ABILITY_ID,
     baseCardCodes: ['PL!-pb1-001'],
     category: CardAbilityCategory.ACTIVATED,
@@ -6994,6 +7130,46 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: PL_PB1_010_LIVE_START_EFFECT_TEXT,
     notes:
       '单卡 LIVE_START workflow `pl-pb1-010-honoka.ts`；有真实交互的可选弃1手 pending，不套额外 confirm-only。弃手通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入休息室并入队触发，支付后重扫自己舞台其他成员并逐个写入本次 LIVE 有效的 [BLADE]+1 modifier。',
+  },
+  {
+    abilityId: PL_PB1_012_ON_ENTER_ACTIVATE_PRINTEMPS_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-012'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB1_012_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '窄单卡 ON_ENTER workflow `pl-pb1-012-kotori.ts`；复用 stage-member orientation target selection，只列自己的主舞台 WAITING Printemps 成员。可选择0名；无目标、跳过或选择已失效目标均安全消费 pending，成功状态变化通过 member-state trigger wrapper 入队。',
+  },
+  {
+    abilityId: PL_PB1_013_ACTIVATED_PAY_TWO_ENERGY_REVEAL_HAND_LIVE_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-013'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: PL_PB1_013_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: PL_PB1_013_ACTIVATED_PAY_TWO_ENERGY_REVEAL_HAND_LIVE_SCORE_ABILITY_ID,
+      text: PL_PB1_013_ACTIVATED_EFFECT_TEXT,
+      title: '支付[E][E]，由对方盲选并公开1张自己的手牌',
+    },
+    notes:
+      '单卡 workflow `pl-pb1-013-umi.ts`；支付2张活跃能量成功后记录本回合使用，由对方从不公开身份的匿名牌背中强制选择自己手牌的1张并公开。公开LIVE时写入本次LIVE SCORE +1 modifier并刷新 playerScores。',
+  },
+  {
+    abilityId: PL_PB1_014_CONTINUOUS_SUCCESS_LILYWHITE_HAND_COST_REDUCTION_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-014'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.HAND,
+    queued: false,
+    implemented: true,
+    effectText: PL_PB1_014_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      'cost-calculator-only；从自己手牌登场此卡时，自己的成功 LIVE 卡区存在结构化 lilywhite 卡即固定减费2，不按数量叠加，并在换手减免前进入 modified play cost。',
   },
   {
     abilityId: PL_S_PB1_001_ON_ENTER_OPPONENT_HAND_TWO_MORE_RECOVER_LIVE_ABILITY_ID,
@@ -7183,6 +7359,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'shared workflow `aqours-heart-score-bonuses.ts`；无交互 LIVE_SUCCESS queued pending 走 confirm-only/manual confirmation 语义。结算时重查来源仍在自己的 LIVE 区，统计自己舞台 Aqours 成员有效 [青ハート] 合计，并通过当前 liveResolution.liveResults 判断对方本回合是否已有成功 LIVE、通过 getRemainingHeartTotalCount 读取对方当前余Heart是否为0；条件均满足时写此 LIVE SCORE +2 modifier 并刷新 playerScores，不清除或消费任何余Heart。',
   },
   {
+    abilityId: PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-005'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB1_005_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '扩展 shared member-on-enter-draw workflow 的 minSuccessLiveCardCount=1 窄配置轴；结算时重查自己的成功LIVE卡区，至少1张时抽1，否则消费 pending no-op 并继续后续效果。',
+  },
+  {
     abilityId: PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
     baseCardCodes: ['PL!-pb1-011'],
     category: CardAbilityCategory.ON_ENTER,
@@ -7241,6 +7429,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: PL_PB1_030_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
       '单卡 LIVE_SUCCESS workflow `pl-pb1-030-cutie-panther.ts`；用 unitAliasIs + selectDifferentNamedCards 统计自己主舞台不同名 BiBi 成员，条件满足且休息室有 BiBi 成员卡时复用 waiting-room-to-hand zone-selection 强制回收1张。条件不满足或无目标时消费 pending no-op。',
+  },
+  {
+    abilityId: PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!-pb1-032'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_PB1_032_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      "扩展 shared success-zone-conditional-recovery-draw workflow 的条件抽牌结果配置；结算时只检查当前自己的成功LIVE卡区是否已有『μ's』卡，满足抽1、不满足抽0并消费 pending。无交互 LIVE_SUCCESS pending 走 confirm-only / ordered resolution bridge，确认窗口实时显示『μ's』卡数量、条件和实际抽牌结果。",
   },
   {
     abilityId: PL_PB1_031_LIVE_SUCCESS_DISCARD_HAND_RECOVER_MUSE_MEMBER_CHEER_ABILITY_ID,

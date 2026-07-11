@@ -392,6 +392,7 @@ It deliberately does not remove pending abilities, write action history, discard
 ### 成员横置/竖置 + `ON_MEMBER_STATE_CHANGED` 触发
 
 - 现状模式：当前卡效 workflow 中的 `setMemberOrientation` / `setMembersOrientation` / `resolveStageMemberOrientationTargetSelection` 方向变化，已复用 `enqueueMemberStateChangedTriggersFromOrientationResult` 显式入队。
+- 公共状态边界：当目标玩家存在本回合成员卡效活跃限制时，仅阻止 `CARD_EFFECT` 造成的成员 `WAITING -> ACTIVE`；活跃阶段 `RULE_ACTION` 不受影响，能量状态变化不在此范围。单成员结果用 `changed` / `blockedByEffectActivationProhibition`，批量结果用实际 `updatedMemberCardIds` / `blockedMemberCardIds` 表达真实变化，禁止把请求状态伪报为已发生状态。
 - 建议候选：若后续普通操作、费用支付或更多底层路径也需要统一收束，再审查是否需要 `setMemberOrientationAndEnqueueTriggers` / `setMembersOrientationAndEnqueueTriggers`，或更窄命名。
 - 优先级：中。
 - 原因：普通操作、费用支付、卡效 cause 边界较复杂，要先盘点调用点。

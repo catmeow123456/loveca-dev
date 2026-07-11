@@ -628,7 +628,9 @@ function summarizeVisibleContext(
     selectableCardCount,
     selectableSlotCount: effect.selectableSlots?.length ?? 0,
     selectableOptionCount,
-    hasPrivateCandidates: effect.selectableCardVisibility === 'AWAITING_PLAYER_ONLY',
+    hasPrivateCandidates:
+      effect.selectableCardVisibility === 'AWAITING_PLAYER_ONLY' ||
+      effect.selectableCardVisibility === 'AWAITING_PLAYER_BLIND',
   };
 }
 
