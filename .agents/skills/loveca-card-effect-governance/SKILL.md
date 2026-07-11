@@ -77,6 +77,8 @@ git diff -- src/application/card-effect-runner.ts
 
 普通新卡效开发可先读精简集合：`AGENTS.md`、`README.md`、`new_card_effect_cookbook.md`、`module_boundaries.md`、`runtime_action_helpers.md`、`active_effect_runtime.md`、`workflow_module_guide.md`、`existing_module_map.md`，再按效果形状补读最近代码和测试。
 
+凡新增或修改 `activeEffect` 的按钮、选项、步骤提示或选择说明，必须同时阅读 [`references/player-visible-action-copy.md`](references/player-visible-action-copy.md)，并先搜索同类既有 workflow 的稳定文案。
+
 ## 当前框架立场
 
 - `card-effect-runner.ts` 去中心化的主要迁移已经完成，完整卡效 fallback 不应回流。
@@ -128,6 +130,8 @@ git diff -- src/application/card-effect-runner.ts
 - 无交互且有条件触发、条件分支或动态计数影响结算结果的 `LIVE开始` / `LIVE成功` 效果，必须在 confirm-only 展示的 `effectText` 后追加实时条件说明，例如当前计数、关键布尔条件、满足/未满足以及实际结算结果。若评估后决定不追加，必须在审查结论、执行窗口提示词或收尾说明中明确写出原因；不要默默省略。
 
 ## 玩家可见确认文案
+
+- 按钮与操作文本的分类词表、字段职责和禁用写法见 [`references/player-visible-action-copy.md`](references/player-visible-action-copy.md)。涉及 `confirmSelectionLabel`、`skipSelectionLabel`、`selectableOptions`、`selectionLabel` 或 `stepText` 时必须读取并遵循，不要临时发明“确定分配”“选择”“继续处理”等机械文案。
 
 - `activeEffect.effectText` 默认只展示卡文；不要为了 confirm-only 额外追加运行时资源数量、结算预告或调试说明。
 - 只有卡文本身存在条件，且无交互 confirm-only 结算时结果可能因当前状态不同而变化时，才允许在 `effectText` 后追加括号说明。说明应使用玩家语言，包含与卡文条件直接相关的当前计数/状态、满足或未满足、实际结算结果。
@@ -263,6 +267,7 @@ git diff -- src/application/card-effect-runner.ts
 - `activeEffect` 的前端可见操作文案也按中文处理，包括 `stepText`、`selectionLabel`、`confirmSelectionLabel`、`skipSelectionLabel`、`selectableOptions[].label`、`numericInput.confirmLabel` 等。除“查看原卡文”等明确展示日文原文的入口外，不要把日文按钮或日文步骤提示混入中文 UI。
 - `selectableOptions[].label` 可以使用 `client/src/lib/cardEffectTokens.ts` 已支持的 token（如 `[E]`、`[BLADE]`、`[桃ハート]`、`[赤ハート]`、`[紫ハート]`），由前端统一渲染成图标；不要用 emoji 或手写图片替代，也不要写未映射 token。
 - 可选发动窗口若使用 `selectableOptions` 展示“支付/放置/选择能力”等正向选项，跳过动作应建模为 `canSkipSelection: true` + 明确的 `skipSelectionLabel`（例如 `不发动`、`不放置`），不要同时在 `selectableOptions` 里放 `不发动` / `不处理`，否则前端会同时出现两个跳过按钮；也不要依赖默认 `不加入`，除非真实语义就是“不加入手牌”。
+- 可选效果的成本或动作若固定指向来源自身（例如“可以将此成员变为待机状态”），来源成员不是玩家要选择的对象，禁止用 `selectableCardIds: [sourceCardId]` 制造单卡选择窗口。应使用正向 `selectableOptions`（按钮文案通常为 `发动`）配合 `canSkipSelection: true` + `skipSelectionLabel: '不发动'`；玩家选择发动后，再按 `activeEffect.sourceCardId` 重新校验来源并直接支付。focused 测试必须断言该窗口没有 `selectableCardIds`、存在正向发动选项，并覆盖发动、不发动和确认时来源失效。
 - 多步骤 activeEffect 从“选择”进入“公开/确认/继续处理”阶段时，必须清理上一阶段专属字段（例如 `selectableCardMode`、`minSelectableCards`、`maxSelectableCards`、`confirmSelectionLabel`、`canSkipSelection`），避免前端同时渲染旧按钮和新步骤按钮。
 - 遇到 BLADE、Heart、费用、分数等会显示为图标的内容时，先查现有映射。例如 BLADE 应使用已映射的 `[BLADE]` / `[ブレード]` 等形式，Heart 应使用已映射的 `[赤ハート]`、`[黄ハート]`、`[紫HEART]` 等形式；不要把应图标化的文本写成未映射的 `[红Heart]`、`[blade]`、`[heart]` 或混用大小写/语言导致前端无法识别。
 - 如果真实新卡需要的图标 token 当前没有映射，先明确这是前端 token 覆盖缺口：要么改用已有等价 token，要么在同一执行窗口同步扩展 `cardEffectTokens.ts` 与对应 token 测试；不要只在 `definitions/index.ts` 写一个无法转换的临时文本。

@@ -24,6 +24,7 @@ import { createGameSession } from '../../src/application/game-session';
 import {
   PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID,
@@ -61,6 +62,10 @@ function createEutopia(): LiveCardData {
     score: 5,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
   };
+}
+
+function createPsychoHeart(): LiveCardData {
+  return { cardCode: 'PL!N-bp3-026-L', name: 'サイコーハート', groupNames: ['虹ヶ咲'], cardType: CardType.LIVE, score: 3, requirements: createHeartRequirement({ [HeartColor.RED]: 1 }) };
 }
 
 function createLinkToTheFuture(): LiveCardData {
@@ -130,6 +135,7 @@ function createMember(options: {
 
 function setupState(options: {
   readonly lives: readonly ReturnType<typeof createCardInstance>[];
+  readonly successLives?: readonly ReturnType<typeof createCardInstance>[];
   readonly members?: Partial<Record<SlotPosition, ReturnType<typeof createCardInstance>>>;
   readonly opponentMembers?: Partial<Record<SlotPosition, ReturnType<typeof createCardInstance>>>;
   readonly initialScore?: number;
@@ -146,6 +152,7 @@ function setupState(options: {
   ][];
   game = registerCards(game, [
     ...options.lives,
+    ...(options.successLives ?? []),
     ...members.map(([, card]) => card),
     ...opponentMembers.map(([, card]) => card),
   ]);
@@ -153,6 +160,10 @@ function setupState(options: {
     const liveZone = options.lives.reduce(
       (zone, live) => addCardToStatefulZone(zone, live.instanceId),
       player.liveZone
+    );
+    const successZone = (options.successLives ?? []).reduce(
+      (zone, live) => addCardToStatefulZone(zone, live.instanceId),
+      player.successZone
     );
     const memberSlots = members.reduce(
       (slots, [slot, member]) =>
@@ -165,6 +176,7 @@ function setupState(options: {
     return {
       ...player,
       liveZone,
+      successZone,
       memberSlots,
     };
   });
@@ -451,6 +463,64 @@ describe("PL!-bp3 μ's live-start score bonus LIVE cards", () => {
         PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID
       )
     ).toContainEqual(expect.objectContaining({ sourceCardId: manualScenario.second.instanceId }));
+  });
+});
+
+describe('PL!N-bp3-026-L Psycho Heart live-start score bonus', () => {
+  function scenario(scores: readonly number[], sourceId = 'psycho-source') {
+    const source = createCardInstance(createPsychoHeart(), PLAYER1, sourceId);
+    const successLives = scores.map((score, index) => createCardInstance(createDummyLive(`success-${score}-${index}`, score), PLAYER1, `success-${score}-${index}`));
+    return { source, game: setupState({ lives: [source], successLives, initialScore: 3 }) };
+  }
+
+  it.each([
+    [[], 0], [[1], 1], [[5], 1], [[1, 5], 2], [[1, 1], 1], [[5, 5], 1],
+  ] as const)('uses printed success-zone scores %j for SCORE +%i', (scores, expected) => {
+    const { game } = scenario(scores);
+    const state = resolveLiveStart(game);
+    expect(scoreModifiersForAbility(state, PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID)).toHaveLength(expected > 0 ? 1 : 0);
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(3 + expected);
+  });
+
+  it('opens confirm-only before resolving, with realtime player text and no internal terms', () => {
+    const { game } = scenario([1, 5]);
+    const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    expect(result.success).toBe(true);
+    expect(result.gameState.activeEffect).toMatchObject({ abilityId: PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID, metadata: { confirmOnlyPendingAbility: true } });
+    expect(result.gameState.activeEffect?.effectText).toContain('存在分数1的LIVE，存在分数5的LIVE');
+    expect(result.gameState.activeEffect?.effectText).toContain('实际[スコア]+2');
+    expect(result.gameState.activeEffect?.effectText).not.toMatch(/source|pending|stale|来源.*LIVE区/);
+    expect(scoreModifiersForAbility(result.gameState, PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(confirmIfConfirmOnly(result.gameState, PLAYER1).liveResolution.playerScores.get(PLAYER1)).toBe(5);
+  });
+
+  it('ordered resolution auto-resolves and manual selection opens the confirm bridge', () => {
+    const first = createCardInstance(createPsychoHeart(), PLAYER1, 'psycho-first');
+    const second = createCardInstance(createPsychoHeart(), PLAYER1, 'psycho-second');
+    const success = createCardInstance(createDummyLive('success-five', 5), PLAYER1, 'success-five');
+    const checked = new GameService().executeCheckTiming(setupState({ lives: [first, second], successLives: [success], initialScore: 6 }), [TriggerCondition.ON_LIVE_START]).gameState;
+    const ordered = confirmActiveEffectStep(checked, PLAYER1, checked.activeEffect!.id, undefined, undefined, true);
+    expect(ordered.activeEffect).toBeNull();
+    expect(ordered.liveResolution.playerScores.get(PLAYER1)).toBe(8);
+    const manual = confirmActiveEffectStep(checked, PLAYER1, checked.activeEffect!.id, first.instanceId);
+    expect(manual.activeEffect?.metadata).toMatchObject({ confirmOnlyPendingAbility: true });
+    expect(scoreModifiersForAbility(manual, PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+  });
+
+  it('rechecks source validity and replaces an existing source/ability modifier without stacking', () => {
+    const { source, game } = scenario([1, 5], 'psycho-dedupe');
+    const checked = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]).gameState;
+    const departed = updatePlayer(checked, PLAYER1, (player) => ({ ...player, liveZone: removeCardFromStatefulZone(player.liveZone, source.instanceId) }));
+    const noOp = confirmIfConfirmOnly(departed, PLAYER1);
+    expect(noOp.liveResolution.playerScores.get(PLAYER1)).toBe(3);
+    expect(noOp.activeEffect).toBeNull();
+
+    const resolved = resolveLiveStart(game);
+    const ability = latestPayload(resolved, PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID);
+    const repeated = resolveLiveStart({ ...resolved, pendingAbilities: [{ id: 'repeat', abilityId: PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID, sourceCardId: source.instanceId, controllerId: PLAYER1, triggerCondition: TriggerCondition.ON_LIVE_START }] });
+    expect(ability).toBeTruthy();
+    expect(scoreModifiersForAbility(repeated, PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID)).toHaveLength(1);
+    expect(repeated.liveResolution.playerScores.get(PLAYER1)).toBe(5);
   });
 });
 

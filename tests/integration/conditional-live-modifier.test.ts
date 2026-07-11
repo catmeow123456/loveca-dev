@@ -7,11 +7,13 @@ import {
 } from '../../src/domain/entities/card';
 import {
   createGameState,
+  emitGameEvent,
   registerCards,
   updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
+import { createEnterStageEvent } from '../../src/domain/events/game-events';
 import {
   addCardToStatefulZone,
   addCardToZone,
@@ -36,6 +38,7 @@ import {
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
+  PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -47,6 +50,7 @@ import {
   SubPhase,
   TriggerCondition,
   TurnType,
+  ZoneType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -1303,5 +1307,29 @@ describe('conditional live modifier workflow', () => {
         abilityId: PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
       })
     );
+  });
+  it('confirms and applies PL!N-bp3-005 player SCORE from current member-entry events', () => {
+    const ai = createCardInstance(createMember({ cardCode: 'PL!N-bp3-005-P', name: '宮下 愛', cost: 15 }), PLAYER1, 'ai');
+    let game = registerCards(createGameState('n-bp3-005-live-start', PLAYER1, 'P1', PLAYER2, 'P2'), [ai]);
+    game = updatePlayer(game, PLAYER1, (player) => ({ ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ai.instanceId) }));
+    game = emitGameEvent(game, createEnterStageEvent('first', ZoneType.HAND, SlotPosition.LEFT, PLAYER1, PLAYER1));
+    game = emitGameEvent(game, createEnterStageEvent('second', ZoneType.WAITING_ROOM, SlotPosition.RIGHT, PLAYER1, PLAYER1));
+    const pending: PendingAbilityState = {
+      id: 'ai-live-start', abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
+      sourceCardId: ai.instanceId, controllerId: PLAYER1, mandatory: true,
+      timingId: TriggerCondition.ON_LIVE_START, eventIds: ['live-start'],
+    };
+    game = { ...game, pendingAbilities: [pending] };
+    const preview = resolvePendingCardEffects(game).gameState;
+    expect(preview.liveResolution.playerScores.get(PLAYER1) ?? 0).toBe(0);
+    expect(preview.activeEffect?.effectText).toContain('已登场2次，满足条件');
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
+    expect(resolved.liveResolution.liveModifiers).toContainEqual(expect.objectContaining({
+      kind: 'SCORE', playerId: PLAYER1, sourceCardId: ai.instanceId,
+      abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID, countDelta: 1,
+    }));
+    expect(resolved.liveResolution.liveModifiers.at(-1)?.liveCardId).toBeUndefined();
   });
 });

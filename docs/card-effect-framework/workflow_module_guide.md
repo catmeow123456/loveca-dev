@@ -99,6 +99,8 @@ Activated pay-energy self position-change is a shared family only for the proven
 
 Activated wait-self discard-draw is a shared family when the stable operation is "source member ACTIVE -> WAITING, discard exactly one hand card to waiting room, then draw N cards". Keep the axes narrow to ability id, base card codes, and draw count. The source orientation cost must use member-state event enqueue, the hand discard must use the enter-waiting-room trigger wrapper, and no-hand / non-active source failures must happen before paying costs or consuming the turn-once limit.
 
+Wait-self opponent-wait is a shared ON_ENTER / LIVE_START family proven by `PL!N-bp5-004` and the identical-text pair `PL!N-bp3-017` / `PL!N-bp3-023`. The source must still be the controller's ACTIVE main-stage member before it may become WAITING as an optional cost; after payment, the workflow rescans the opponent's main-stage targets and uses the configured selector (`memberPrintedBladeEquals(4)` or `typeIs(MEMBER) + costLte(4)`). Source and target changes both enqueue `ON_MEMBER_STATE_CHANGED`, and a no-target result after payment keeps the paid cost. Keep the family axes to ability ids, target selector, and player-facing target copy; do not expand it into an arbitrary cost/target DSL or merge it into the direct-target `opponent-wait-target` family.
+
 Energy-below effects should first reuse the atomic helpers in `src/application/effects/energy-below.ts`: `stackEnergyFromEnergyZoneBelowMember` for automatic "put N energy from energy zone below this member" costs/effects, and `returnEnergyBelowMemberToEnergyDeck` / `returnEnergyBelowMemberToEnergyDeckForPlayer` for the leave-stage invariant. Do not promote a full shared workflow family until real cards prove stable axes for timing, optional payment, follow-up reward, and no-target behavior.
 
 Original Heart color replacement uses `MEMBER_ORIGINAL_HEART_REPLACEMENT` as a Live modifier for "this member's printed original Heart becomes the chosen color". `getMemberEffectiveHeartIcons` applies that replacement to the printed Heart total before appending normal member Heart bonuses; it is not a PLAYER Heart write or a member "gain Heart" bonus.
@@ -207,3 +209,12 @@ Preferred tests:
 - Keep ability registration tests in `tests/unit/card-effect-classification.test.ts`.
 
 Workflow extraction should preserve existing tests. If behavior changes are intended, they must be a separate, explicitly reviewed change.
+# conditional-live-modifier 的成员登场次数配置
+
+- `PL!N-bp3-005` 是该 family 的 player-level SCORE 样本：manual confirm-only 预览与最终 finish 均实时调用成员登场事件 query；modifier key 由 `kind + playerId + sourceCardId + abilityId` 区分，不绑定 `liveCardId`。
+- replacement 后以旧值和新值的 delta 刷新 `liveResolution.playerScores`，保证 resolver 重入不重复累计、不同来源实例可以叠加。
+# Waiting-room ON_ENTER delegation
+
+`activate-waiting-room-member-on-enter-ability.ts` 是窄 shared family，不是 ability DSL。它只委托显式审计并 opt-in 的已实现、queued、`ON_ENTER`/`PLAYED_MEMBER` definition；目标留在休息室，来源槽位为空，不创建真实登场事件，费用仍由原 workflow 支付。
+
+该范围默认拒绝且并不覆盖所有历史/未来合法成员。后续新增费用4以下的虹ヶ咲或 Liella! 成员及新的已实现 ON_ENTER workflow 形状时，维护者应单独审计来源费用、槽位和 continuation，再决定是否 opt-in；普通 ON_ENTER workflow 无需感知本特殊机制。

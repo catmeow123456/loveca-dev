@@ -10,12 +10,14 @@ import {
   createHeartIcon,
   createHeartRequirement,
 } from '../../src/domain/entities/card';
-import { registerCards, type GameState } from '../../src/domain/entities/game';
+import { createGameState, registerCards, updatePlayer, type GameState } from '../../src/domain/entities/game';
+import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import { HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID } from '../../src/application/card-effect-runner';
-import { HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { confirmActiveEffectStep, resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import { HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID, PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID as KASUMI_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -24,6 +26,7 @@ import {
   OrientationState,
   SlotPosition,
   SubPhase,
+  TriggerCondition,
   TurnType,
 } from '../../src/shared/types/enums';
 
@@ -230,5 +233,99 @@ describe('live-start discard gain Heart workflow', () => {
           action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
       )
     ).toHaveLength(1);
+  });
+});
+
+function setupKasumi(rarity: 'R' | 'P' = 'R', withHand = true, withSecondTarget = false) {
+  const kasumi = createCardInstance(createMemberCard(`PL!N-bp3-002-${rarity}`, '中須かすみ', 4), PLAYER1, 'kasumi');
+  const target = createCardInstance({ ...createMemberCard('PL!N-target', '上原歩夢', 5), groupNames: ['虹ヶ咲'] }, PLAYER1, 'target');
+  const secondTarget = createCardInstance({ ...createMemberCard('PL!N-second-target', '桜坂しずく', 5), groupNames: ['虹ヶ咲'] }, PLAYER1, 'second-target');
+  const memberBelow = createCardInstance({ ...createMemberCard('PL!N-member-below', '天王寺璃奈', 5), groupNames: ['虹ヶ咲'] }, PLAYER1, 'member-below');
+  const nonNiji = createCardInstance({ ...createMemberCard('PL!HS-pb1-003-P＋', '大沢瑠璃乃', 15), groupNames: ['蓮ノ空'] }, PLAYER1, 'non-niji');
+  const opponent = createCardInstance({ ...createMemberCard('PL!N-opponent', '優木せつ菜', 5), groupNames: ['虹ヶ咲'] }, PLAYER2, 'opponent');
+  const discard = createCardInstance(createMemberCard('DISCARD', 'discard', 1), PLAYER1, 'discard');
+  let game = registerCards(createGameState('n-bp3-002', PLAYER1, 'P1', PLAYER2, 'P2'), [kasumi, target, secondTarget, memberBelow, nonNiji, opponent, discard]);
+  game = updatePlayer(game, PLAYER1, (p) => ({ ...p, memberSlots: { ...placeCardInSlot(placeCardInSlot(placeCardInSlot(p.memberSlots, SlotPosition.LEFT, target.instanceId), SlotPosition.CENTER, kasumi.instanceId), SlotPosition.RIGHT, withSecondTarget ? secondTarget.instanceId : nonNiji.instanceId), memberBelow: new Map([[target.instanceId, [memberBelow.instanceId]]]) }, hand: { ...p.hand, cardIds: withHand ? [discard.instanceId] : [] } }));
+  game = updatePlayer(game, PLAYER2, (p) => ({ ...p, memberSlots: placeCardInSlot(p.memberSlots, SlotPosition.LEFT, opponent.instanceId) }));
+  game = { ...game, pendingAbilities: [{ id: 'kasumi-pending', abilityId: KASUMI_ABILITY_ID, sourceCardId: kasumi.instanceId, controllerId: PLAYER1, mandatory: false, timingId: TriggerCondition.ON_LIVE_START, eventIds: ['live-start'], sourceSlot: SlotPosition.CENTER }] };
+  return { game, kasumi, target, secondTarget, memberBelow, nonNiji, opponent, discard };
+}
+
+describe('PL!N-bp3-002 中須かすみ shared recipient mode', () => {
+  const start = (game: GameState) => resolvePendingCardEffects(game).gameState;
+  const confirm = (game: GameState, cardId?: string, optionId?: string) => confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id, cardId, null, false, optionId);
+
+  it.each(['R', 'P'] as const)('R/P 共用；可跳过且无手牌时也能结束：%s', (rarity) => {
+    const window = start(setupKasumi(rarity).game);
+    const skipped = confirm(window);
+    expect(skipped.activeEffect).toBeNull();
+    expect(skipped.liveResolution.liveModifiers).toEqual([]);
+    expect(confirm(start(setupKasumi(rarity, false).game)).activeEffect).toBeNull();
+  });
+
+  it('弃牌后只展示六种普通颜色，再强制选择其他虹咲成员并写 TARGET_MEMBER', () => {
+    const { game, discard, target, kasumi } = setupKasumi();
+    const colorWindow = confirm(start(game), discard.instanceId);
+    expect(colorWindow.players[0]!.waitingRoom.cardIds).toContain(discard.instanceId);
+    expect(colorWindow.activeEffect?.selectableOptions?.map((o) => o.id)).toEqual([HeartColor.PINK, HeartColor.RED, HeartColor.YELLOW, HeartColor.GREEN, HeartColor.BLUE, HeartColor.PURPLE]);
+    expect(colorWindow.activeEffect?.selectableOptions?.map((o) => o.id)).not.toContain(HeartColor.RAINBOW);
+    const targetWindow = confirm(colorWindow, undefined, HeartColor.BLUE);
+    expect(targetWindow.activeEffect).toMatchObject({ selectableCardIds: [target.instanceId], canSkipSelection: false, confirmSelectionLabel: '获得所选Heart' });
+    expect(targetWindow.pendingAbilities).toContainEqual(expect.objectContaining({ abilityId: HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID }));
+    expect(targetWindow.liveResolution.liveModifiers.some((m) => m.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID)).toBe(false);
+    const done = confirm(targetWindow, target.instanceId);
+    expect(done.liveResolution.liveModifiers).toContainEqual({ kind: 'HEART', target: 'TARGET_MEMBER', playerId: PLAYER1, hearts: [{ color: HeartColor.BLUE, count: 1 }], sourceCardId: kasumi.instanceId, abilityId: KASUMI_ABILITY_ID, targetMemberCardId: target.instanceId });
+    expect(done.liveResolution.liveModifiers.some((m) => m.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID)).toBe(true);
+  });
+
+  it('非候选、对方、非虹咲、来源与 memberBelow 均不能选择', () => {
+    const { game, discard, nonNiji, opponent, kasumi, memberBelow } = setupKasumi();
+    const colorWindow = confirm(start(game), discard.instanceId);
+    expect(confirm(colorWindow, undefined, HeartColor.RAINBOW)).toBe(colorWindow);
+    const targetWindow = confirm(colorWindow, undefined, HeartColor.RED);
+    expect(confirm(targetWindow, nonNiji.instanceId)).toBe(targetWindow);
+    expect(confirm(targetWindow, opponent.instanceId)).toBe(targetWindow);
+    expect(confirm(targetWindow, kasumi.instanceId)).toBe(targetWindow);
+    expect(confirm(targetWindow, memberBelow.instanceId)).toBe(targetWindow);
+    expect(targetWindow.activeEffect?.selectableCardIds).not.toContain(memberBelow.instanceId);
+  });
+
+  it('进入选成员窗口后唯一目标离场，安全结束并继续下游 pending', () => {
+    const scenario = setupKasumi();
+    const targetWindow = confirm(confirm(start(scenario.game), scenario.discard.instanceId), undefined, HeartColor.GREEN);
+    const targetGone = updatePlayer(targetWindow, PLAYER1, (p) => ({ ...p, memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.LEFT) }));
+    const finished = confirm(targetGone, scenario.target.instanceId);
+    expect(finished.activeEffect).toBeNull();
+    expect(finished.pendingAbilities.some((ability) => ability.abilityId === KASUMI_ABILITY_ID)).toBe(false);
+    expect(finished.liveResolution.liveModifiers.some((m) => m.abilityId === KASUMI_ABILITY_ID)).toBe(false);
+    expect(finished.players[0]!.waitingRoom.cardIds).toContain(scenario.discard.instanceId);
+    expect(finished.liveResolution.liveModifiers.some((m) => m.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID)).toBe(true);
+  });
+
+  it('进入选成员窗口后来源离场，安全结束且不留下强制窗口', () => {
+    const scenario = setupKasumi();
+    const targetWindow = confirm(confirm(start(scenario.game), scenario.discard.instanceId), undefined, HeartColor.PURPLE);
+    const sourceGone = updatePlayer(targetWindow, PLAYER1, (p) => ({ ...p, memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.CENTER) }));
+    const finished = confirm(sourceGone, scenario.target.instanceId);
+    expect(finished.activeEffect).toBeNull();
+    expect(finished.pendingAbilities.some((ability) => ability.abilityId === KASUMI_ABILITY_ID)).toBe(false);
+    expect(finished.liveResolution.liveModifiers.some((m) => m.abilityId === KASUMI_ABILITY_ID)).toBe(false);
+    expect(finished.players[0]!.waitingRoom.cardIds).toContain(scenario.discard.instanceId);
+  });
+
+  it('两个合法目标之一 stale 时刷新候选，并可选择剩余目标完成且不能重复确认', () => {
+    const scenario = setupKasumi('R', true, true);
+    const targetWindow = confirm(confirm(start(scenario.game), scenario.discard.instanceId), undefined, HeartColor.BLUE);
+    expect(targetWindow.activeEffect?.selectableCardIds).toEqual([scenario.target.instanceId, scenario.secondTarget.instanceId]);
+    const firstGone = updatePlayer(targetWindow, PLAYER1, (p) => ({ ...p, memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.LEFT) }));
+    const refreshed = confirm(firstGone, scenario.target.instanceId);
+    expect(refreshed.activeEffect?.selectableCardIds).toEqual([scenario.secondTarget.instanceId]);
+    expect(refreshed.liveResolution.liveModifiers.some((m) => m.abilityId === KASUMI_ABILITY_ID)).toBe(false);
+    const done = confirm(refreshed, scenario.secondTarget.instanceId);
+    expect(done.activeEffect).toBeNull();
+    expect(done.liveResolution.liveModifiers.filter((m) => m.abilityId === KASUMI_ABILITY_ID)).toHaveLength(1);
+    const repeated = confirmActiveEffectStep(done, PLAYER1, refreshed.activeEffect!.id, scenario.secondTarget.instanceId);
+    expect(repeated).toBe(done);
+    expect(repeated.liveResolution.liveModifiers.filter((m) => m.abilityId === KASUMI_ABILITY_ID)).toHaveLength(1);
   });
 });

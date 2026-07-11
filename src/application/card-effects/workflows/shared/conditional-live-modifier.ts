@@ -37,6 +37,7 @@ import {
 } from '../../../effects/card-selectors.js';
 import {
   countCardsMatchingSelector,
+  countMemberEntriesThisTurn,
   countOtherLiveZoneCardsMatching,
   countSuccessfulLiveCards,
   getCardIdsInZone,
@@ -66,6 +67,7 @@ import {
   PL_BP5_022_LIVE_START_SUCCESS_ZONE_SCORE_AND_REQUIREMENT_ABILITY_ID,
   PL_BP5_023_LIVE_START_STAGE_NON_PINK_PURPLE_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_N_BP4_028_LIVE_START_DIFFERENT_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
+  PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
   PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
   PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID,
   PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
@@ -109,6 +111,7 @@ const PL_PB1_030_OPPONENT_WAITING_REQUIREMENT_STEP_ID =
 const SP_BP4_028_ACTIVE_ENERGY_SCORE_STEP_ID = 'SP_BP4_028_ACTIVE_ENERGY_SCORE';
 const PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE_STEP_ID =
   'PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE';
+const PL_N_BP3_005_MEMBER_ENTRIES_SCORE_STEP_ID = 'PL_N_BP3_005_MEMBER_ENTRIES_SCORE';
 const HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_STEP_ID =
   'HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT';
 
@@ -154,6 +157,19 @@ interface LiveRequirementGainHeartConfig {
 }
 
 const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkflowConfig[] = [
+  {
+    abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
+    stepId: PL_N_BP3_005_MEMBER_ENTRIES_SCORE_STEP_ID,
+    getStartContext: (game, _ability, playerId) => {
+      const entryCount = countMemberEntriesThisTurn(game, playerId);
+      const conditionMet = entryCount >= 2;
+      return {
+        effectText: `${getAbilityEffectText(PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID)}（本回合自己的成员已登场${entryCount}次，${conditionMet ? '满足条件，实际LIVE合计[スコア]+1' : '未满足条件，不增加LIVE合计[スコア]'}。）`,
+        actionPayload: { entryCount, conditionMet, scoreBonus: conditionMet ? 1 : 0 },
+      };
+    },
+    finish: finishPlNBp3005MemberEntriesScore,
+  },
   {
     abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
     stepId: HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_STEP_ID,
@@ -456,6 +472,34 @@ function resolveConditionalLiveModifierWorkflow(
     }),
     orderedResolution
   );
+}
+
+function finishPlNBp3005MemberEntriesScore(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const entryCount = countMemberEntriesThisTurn(game, playerId);
+  const scoreBonus = entryCount >= 2 ? 1 : 0;
+  const previous = game.liveResolution.liveModifiers.find(
+    (modifier) => modifier.kind === 'SCORE' && modifier.playerId === playerId &&
+      modifier.sourceCardId === effect.sourceCardId && modifier.abilityId === effect.abilityId &&
+      modifier.liveCardId === undefined
+  );
+  const previousBonus = previous?.kind === 'SCORE' ? previous.countDelta : 0;
+  let state = replaceLiveModifier(
+    { ...game, activeEffect: null },
+    { kind: 'SCORE', playerId, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId },
+    scoreBonus > 0
+      ? { kind: 'SCORE', playerId, countDelta: 1, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId }
+      : null
+  );
+  const scoreDelta = scoreBonus - previousBonus;
+  if (scoreDelta !== 0) state = refreshPlayerScoreDraft(state, playerId, scoreDelta);
+  return {
+    gameState: state,
+    actionPayload: { step: 'APPLY_MEMBER_ENTRIES_SCORE', entryCount, conditionMet: scoreBonus > 0, scoreBonus, scoreDelta },
+  };
 }
 
 function finishNicoLiveStartScoreBonus(

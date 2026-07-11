@@ -16079,6 +16079,16 @@ describe('sample card effect runner', () => {
     const nonHasuResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, nonHasuCardId!, SlotPosition.RIGHT)
     );
+    expect(nonHasuResult.success).toBe(true);
+    expect(session.state?.pendingAbilities).toEqual([]);
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.type === 'TRIGGER_ABILITY' &&
+          action.payload.abilityId === HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === kahoCardId
+      )
+    ).toHaveLength(1);
     const secondHasuResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, hasuCardIds[1]!, SlotPosition.RIGHT)
     );

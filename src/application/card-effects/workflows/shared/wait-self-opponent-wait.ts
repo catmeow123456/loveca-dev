@@ -8,11 +8,19 @@ import {
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { CardType, OrientationState, type SlotPosition } from '../../../../shared/types/enums.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
-import { and, memberPrintedBladeEquals, typeIs } from '../../../effects/card-selectors.js';
+import {
+  and,
+  costLte,
+  memberPrintedBladeEquals,
+  type CardSelector,
+  typeIs,
+} from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import {
   PL_N_BP5_004_LIVE_START_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
   PL_N_BP5_004_ON_ENTER_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
+  PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+  PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
@@ -25,23 +33,82 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
 
-const SOURCE_WAIT_COST_STEP_ID = 'N_BP5_004_SELECT_SOURCE_WAIT_COST';
-const OPPONENT_ORIGINAL_BLADE_FOUR_TARGET_STEP_ID =
-  'N_BP5_004_SELECT_OPPONENT_ORIGINAL_BLADE_FOUR_MEMBER_TO_WAIT';
-
-const KARIN_ABILITY_IDS = [
-  PL_N_BP5_004_ON_ENTER_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
-  PL_N_BP5_004_LIVE_START_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
-] as const;
+const SOURCE_WAIT_COST_STEP_ID = 'WAIT_SELF_OPPONENT_WAIT_CHOOSE_ACTIVATION';
+const OPPONENT_TARGET_STEP_ID = 'WAIT_SELF_OPPONENT_WAIT_SELECT_TARGET';
+const ACTIVATE_SOURCE_WAIT_COST_OPTION_ID = 'activate';
 
 const printedBladeFourMember = and(typeIs(CardType.MEMBER), memberPrintedBladeEquals(4));
+const costLteFourMember = and(typeIs(CardType.MEMBER), costLte(4));
 
-export function registerNBp5004KarinWorkflowHandlers(deps: {
+interface WaitSelfOpponentWaitConfig {
+  readonly selector: CardSelector;
+  readonly sourceStepText: string;
+  readonly targetStepText: string;
+  readonly selectionLabel: string;
+  readonly targetKind: 'ORIGINAL_BLADE_FOUR' | 'COST_LTE_FOUR';
+  readonly noTargetAfterCostStep: string;
+  readonly staleNoTargetStep: string;
+  readonly startTargetStep: string;
+  readonly waitTargetStep: string;
+  readonly targetSelectionPayload: Readonly<Record<string, unknown>>;
+  readonly resolvedTargetPayload: Readonly<Record<string, unknown>>;
+}
+
+const CONFIGS = new Map<string, WaitSelfOpponentWaitConfig>([
+  ...[
+    PL_N_BP5_004_ON_ENTER_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
+    PL_N_BP5_004_LIVE_START_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
+  ].map(
+    (abilityId) =>
+      [
+        abilityId,
+        {
+          selector: printedBladeFourMember,
+          sourceStepText:
+            '可以将此成员变为待机状态。如此做后，选择对方舞台上1名原本BLADE正好4个且当前非待机的成员变为待机状态。',
+          targetStepText: '请选择对方舞台上1名原本BLADE正好4个且当前非待机的成员变为待机状态。',
+          selectionLabel: '选择对方舞台上原本BLADE正好4个的成员',
+          targetKind: 'ORIGINAL_BLADE_FOUR' as const,
+          noTargetAfterCostStep: 'NO_OPPONENT_ORIGINAL_BLADE_FOUR_TARGET_AFTER_COST',
+          staleNoTargetStep: 'STALE_NO_OPPONENT_ORIGINAL_BLADE_FOUR_TARGET',
+          startTargetStep: 'START_SELECT_OPPONENT_ORIGINAL_BLADE_FOUR_MEMBER',
+          waitTargetStep: 'WAIT_OPPONENT_ORIGINAL_BLADE_FOUR_MEMBER',
+          targetSelectionPayload: {},
+          resolvedTargetPayload: { targetPrintedBlade: 4 },
+        },
+      ] as const
+  ),
+  ...[
+    PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+    PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+  ].map(
+    (abilityId) =>
+      [
+        abilityId,
+        {
+          selector: costLteFourMember,
+          sourceStepText:
+            '可以将此成员变为待机状态。如此做后，选择对方舞台上1名费用小于等于4且当前非待机的成员变为待机状态。',
+          targetStepText: '请选择对方舞台上1名费用小于等于4且当前非待机的成员变为待机状态。',
+          selectionLabel: '选择对方舞台上费用小于等于4的成员',
+          targetKind: 'COST_LTE_FOUR' as const,
+          noTargetAfterCostStep: 'NO_OPPONENT_COST_LTE_FOUR_TARGET_AFTER_COST',
+          staleNoTargetStep: 'STALE_NO_OPPONENT_COST_LTE_FOUR_TARGET',
+          startTargetStep: 'START_SELECT_OPPONENT_COST_LTE_FOUR_MEMBER',
+          waitTargetStep: 'WAIT_OPPONENT_COST_LTE_FOUR_MEMBER',
+          targetSelectionPayload: { targetKind: 'COST_LTE_FOUR', targetMaxCost: 4 },
+          resolvedTargetPayload: { targetKind: 'COST_LTE_FOUR', targetMaxCost: 4 },
+        },
+      ] as const
+  ),
+]);
+
+export function registerWaitSelfOpponentWaitWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
 }): void {
-  for (const abilityId of KARIN_ABILITY_IDS) {
+  for (const abilityId of CONFIGS.keys()) {
     registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) =>
-      startKarinWaitCostEffect(
+      startWaitSelfOpponentWaitEffect(
         game,
         ability,
         options.orderedResolution === true,
@@ -49,35 +116,33 @@ export function registerNBp5004KarinWorkflowHandlers(deps: {
       )
     );
     registerActiveEffectStepHandler(abilityId, SOURCE_WAIT_COST_STEP_ID, (game, input, context) =>
-      finishKarinSourceWaitCost(
+      finishSourceWaitCost(
+        game,
+        input.selectedOptionId ?? null,
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
+      )
+    );
+    registerActiveEffectStepHandler(abilityId, OPPONENT_TARGET_STEP_ID, (game, input, context) =>
+      finishOpponentWaitTarget(
         game,
         input.selectedCardId ?? null,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
       )
     );
-    registerActiveEffectStepHandler(
-      abilityId,
-      OPPONENT_ORIGINAL_BLADE_FOUR_TARGET_STEP_ID,
-      (game, input, context) =>
-        finishKarinOpponentWaitTarget(
-          game,
-          input.selectedCardId ?? null,
-          context.continuePendingCardEffects,
-          deps.enqueueTriggeredCardEffects
-        )
-    );
   }
 }
 
-function startKarinWaitCostEffect(
+function startWaitSelfOpponentWaitEffect(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
+  const config = CONFIGS.get(ability.abilityId);
   const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
+  if (!player || !config) {
     return game;
   }
 
@@ -111,11 +176,9 @@ function startKarinWaitCostEffect(
         controllerId: ability.controllerId,
         effectText: getAbilityEffectText(ability.abilityId),
         stepId: SOURCE_WAIT_COST_STEP_ID,
-        stepText: '可以将此成员变为待机状态。如此做后，选择对方舞台上1名原本BLADE正好4个且当前非待机的成员变为待机状态。',
+        stepText: config.sourceStepText,
         awaitingPlayerId: player.id,
-        selectableCardIds: [ability.sourceCardId],
-        selectionLabel: '选择此成员支付待机成本',
-        confirmSelectionLabel: '变为待机',
+        selectableOptions: [{ id: ACTIVATE_SOURCE_WAIT_COST_OPTION_ID, label: '发动' }],
         canSkipSelection: true,
         skipSelectionLabel: '不发动',
         metadata: {
@@ -132,20 +195,21 @@ function startKarinWaitCostEffect(
       pendingAbilityId: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
-      step: 'START_SELECT_SOURCE_WAIT_COST',
+      step: 'START_CHOOSE_SOURCE_WAIT_COST',
       sourceSlot: sourceState.sourceSlot,
     }
   );
 }
 
-function finishKarinSourceWaitCost(
+function finishSourceWaitCost(
   game: GameState,
-  selectedCardId: string | null,
+  selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
   const effect = game.activeEffect;
-  if (!effect || !isKarinAbilityId(effect.abilityId)) {
+  const config = effect ? CONFIGS.get(effect.abilityId) : undefined;
+  if (!effect || !config) {
     return game;
   }
   const player = getPlayerById(game, effect.controllerId);
@@ -155,7 +219,7 @@ function finishKarinSourceWaitCost(
   }
 
   const orderedResolution = effect.metadata?.orderedResolution === true;
-  if (selectedCardId === null) {
+  if (selectedOptionId === null) {
     return continuePendingCardEffects(
       addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: effect.id,
@@ -168,7 +232,10 @@ function finishKarinSourceWaitCost(
     );
   }
 
-  if (selectedCardId !== effect.sourceCardId || effect.selectableCardIds?.includes(selectedCardId) !== true) {
+  if (
+    selectedOptionId !== ACTIVATE_SOURCE_WAIT_COST_OPTION_ID ||
+    effect.selectableOptions?.some((option) => option.id === selectedOptionId) !== true
+  ) {
     return game;
   }
 
@@ -221,9 +288,10 @@ function finishKarinSourceWaitCost(
     }
   );
 
-  const targetCardIds = getOpponentOriginalBladeFourActiveMemberIds(
+  const targetCardIds = getEligibleOpponentMemberIds(
     stateWithCostTriggers.gameState,
-    opponent.id
+    opponent.id,
+    config.selector
   );
   if (targetCardIds.length === 0) {
     return continuePendingCardEffects(
@@ -238,10 +306,11 @@ function finishKarinSourceWaitCost(
           pendingAbilityId: effect.id,
           abilityId: effect.abilityId,
           sourceCardId: effect.sourceCardId,
-          step: 'NO_OPPONENT_ORIGINAL_BLADE_FOUR_TARGET_AFTER_COST',
+          step: config.noTargetAfterCostStep,
           sourceSlot: sourceState.sourceSlot,
           paidCostCardId: effect.sourceCardId,
           targetPlayerId: opponent.id,
+          ...config.targetSelectionPayload,
         }
       ),
       orderedResolution
@@ -257,17 +326,18 @@ function finishKarinSourceWaitCost(
         sourceCardId: effect.sourceCardId,
         controllerId: effect.controllerId,
         effectText: effect.effectText,
-        stepId: OPPONENT_ORIGINAL_BLADE_FOUR_TARGET_STEP_ID,
-        stepText: '请选择对方舞台上1名原本BLADE正好4个且当前非待机的成员变为待机状态。',
+        stepId: OPPONENT_TARGET_STEP_ID,
+        stepText: config.targetStepText,
         awaitingPlayerId: player.id,
         selectableCardIds: targetCardIds,
-        selectionLabel: '选择对方舞台上原本BLADE正好4个的成员',
+        selectionLabel: config.selectionLabel,
         confirmSelectionLabel: '变为待机',
         metadata: {
           orderedResolution,
           sourceSlot: sourceState.sourceSlot,
           paidCostCardId: effect.sourceCardId,
           targetPlayerId: opponent.id,
+          targetKind: config.targetKind,
         },
       },
     },
@@ -277,23 +347,25 @@ function finishKarinSourceWaitCost(
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
-      step: 'START_SELECT_OPPONENT_ORIGINAL_BLADE_FOUR_MEMBER',
+      step: config.startTargetStep,
       sourceSlot: sourceState.sourceSlot,
       paidCostCardId: effect.sourceCardId,
       targetPlayerId: opponent.id,
       selectableCardIds: targetCardIds,
+      ...config.targetSelectionPayload,
     }
   );
 }
 
-function finishKarinOpponentWaitTarget(
+function finishOpponentWaitTarget(
   game: GameState,
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
   const effect = game.activeEffect;
-  if (!effect || !isKarinAbilityId(effect.abilityId)) {
+  const config = effect ? CONFIGS.get(effect.abilityId) : undefined;
+  if (!effect || !config) {
     return game;
   }
   const player = getPlayerById(game, effect.controllerId);
@@ -303,11 +375,38 @@ function finishKarinOpponentWaitTarget(
     return game;
   }
 
-  if (
-    effect.selectableCardIds?.includes(selectedCardId) !== true ||
-    !getOpponentOriginalBladeFourActiveMemberIds(game, targetPlayerId).includes(selectedCardId)
-  ) {
+  if (effect.selectableCardIds?.includes(selectedCardId) !== true) {
     return game;
+  }
+
+  const currentTargetCardIds = getEligibleOpponentMemberIds(game, targetPlayerId, config.selector);
+  if (!currentTargetCardIds.includes(selectedCardId)) {
+    if (currentTargetCardIds.length > 0) {
+      return {
+        ...game,
+        activeEffect: {
+          ...effect,
+          selectableCardIds: currentTargetCardIds,
+        },
+      };
+    }
+    return continuePendingCardEffects(
+      addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: config.staleNoTargetStep,
+        sourceSlot: effect.metadata?.sourceSlot,
+        paidCostCardId:
+          typeof effect.metadata?.paidCostCardId === 'string'
+            ? effect.metadata.paidCostCardId
+            : undefined,
+        targetPlayerId,
+        staleTargetCardId: selectedCardId,
+        ...config.resolvedTargetPayload,
+      }),
+      effect.metadata?.orderedResolution === true
+    );
   }
 
   const orientationChange = setMemberOrientation(
@@ -344,7 +443,7 @@ function finishKarinOpponentWaitTarget(
             pendingAbilityId: effect.id,
             abilityId: effect.abilityId,
             sourceCardId: effect.sourceCardId,
-            step: 'WAIT_OPPONENT_ORIGINAL_BLADE_FOUR_MEMBER',
+            step: config.waitTargetStep,
             sourceSlot: effect.metadata?.sourceSlot,
             paidCostCardId:
               typeof effect.metadata?.paidCostCardId === 'string'
@@ -352,7 +451,7 @@ function finishKarinOpponentWaitTarget(
                 : undefined,
             targetPlayerId,
             targetCardId: selectedCardId,
-            targetPrintedBlade: 4,
+            ...config.resolvedTargetPayload,
             previousOrientation: result.previousOrientation,
             nextOrientation: result.nextOrientation,
           }
@@ -382,21 +481,20 @@ function getOwnSourceState(
   const sourceSlot = findMemberSlot(player, sourceCardId);
   return {
     sourceSlot,
-    orientation: sourceSlot ? player.memberSlots.cardStates.get(sourceCardId)?.orientation ?? null : null,
+    orientation: sourceSlot
+      ? (player.memberSlots.cardStates.get(sourceCardId)?.orientation ?? null)
+      : null,
   };
 }
 
-function getOpponentOriginalBladeFourActiveMemberIds(
+function getEligibleOpponentMemberIds(
   game: GameState,
-  opponentId: string
+  opponentId: string,
+  selector: CardSelector
 ): readonly string[] {
   const opponent = getPlayerById(game, opponentId);
-  return getStageMemberCardIdsMatching(game, opponentId, printedBladeFourMember).filter(
+  return getStageMemberCardIdsMatching(game, opponentId, selector).filter(
     (cardId) =>
       opponent?.memberSlots.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
   );
-}
-
-function isKarinAbilityId(abilityId: string): abilityId is (typeof KARIN_ABILITY_IDS)[number] {
-  return KARIN_ABILITY_IDS.includes(abilityId as (typeof KARIN_ABILITY_IDS)[number]);
 }

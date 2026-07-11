@@ -150,3 +150,6 @@ Priority:
 2. 迁出特殊卡 workflow。
 3. 收窄重复 activeEffect 创建/finish 样板。
 4. runner 最终只保留 registry dispatch 与旧逻辑 fallback 被移除后的生命周期入口。
+# Waiting-room delegated ON_ENTER selection
+
+休息室虚拟登场能力选择使用玩家语言展示 `发动：${effectText}`。synthetic pending 的内部 metadata 记录 parent、target、原区域；这些字段不进入 `effectText`/`stepText`。多能力才创建能力选择 step，单能力直接进入原 workflow。

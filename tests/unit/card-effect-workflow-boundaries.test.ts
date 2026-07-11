@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const workflowsRoot = fileURLToPath(
@@ -109,6 +110,86 @@ function formatViolations(violations: readonly BoundaryViolation[]): string {
 }
 
 describe('card effect workflow boundaries', () => {
+  it('does not duplicate a negative selectable option with the skip action', () => {
+    const violations = collectTypeScriptFiles(workflowsRoot).flatMap((filePath) => {
+      const source = readFileSync(filePath, 'utf8');
+      const sourceFile = ts.createSourceFile(
+        filePath,
+        source,
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.TS
+      );
+      const fileViolations: string[] = [];
+
+      const visit = (node: ts.Node): void => {
+        if (ts.isObjectLiteralExpression(node)) {
+          const property = (name: string): ts.PropertyAssignment | undefined =>
+            node.properties.find(
+              (candidate): candidate is ts.PropertyAssignment =>
+                ts.isPropertyAssignment(candidate) && candidate.name.getText(sourceFile) === name
+            );
+          const canSkipSelection = property('canSkipSelection');
+          const selectableOptions = property('selectableOptions');
+          if (
+            canSkipSelection?.initializer.kind === ts.SyntaxKind.TrueKeyword &&
+            selectableOptions &&
+            ts.isArrayLiteralExpression(selectableOptions.initializer)
+          ) {
+            for (const option of selectableOptions.initializer.elements) {
+              if (!ts.isObjectLiteralExpression(option)) {
+                continue;
+              }
+              const label = option.properties.find(
+                (candidate): candidate is ts.PropertyAssignment =>
+                  ts.isPropertyAssignment(candidate) &&
+                  candidate.name.getText(sourceFile) === 'label'
+              );
+              if (label && ts.isStringLiteralLike(label.initializer) && label.initializer.text.startsWith('不')) {
+                const line = sourceFile.getLineAndCharacterOfPosition(label.getStart(sourceFile)).line + 1;
+                fileViolations.push(
+                  `${path.relative(repoRoot, filePath)}:${line} (${label.initializer.text})`
+                );
+              }
+            }
+          }
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(sourceFile);
+      return fileViolations;
+    });
+
+    expect(
+      violations,
+      [
+        'Do not put a negative action in selectableOptions when canSkipSelection already renders the skip action.',
+        'Keep selectableOptions positive and provide an explicit skipSelectionLabel.',
+        ...violations.map((violation) => `- ${violation}`),
+      ].join('\n')
+    ).toEqual([]);
+  });
+
+  it('does not model a predetermined source card as a selectable card', () => {
+    const violations = collectTypeScriptFiles(workflowsRoot).flatMap((filePath) => {
+      const source = readFileSync(filePath, 'utf8');
+      return Array.from(
+        source.matchAll(/selectableCardIds:\s*\[\s*(?:ability|effect)\.sourceCardId\s*\]/g),
+        (match) =>
+          `${path.relative(repoRoot, filePath)}:${source.slice(0, match.index).split('\n').length}`
+      );
+    });
+
+    expect(
+      violations,
+      [
+        'A predetermined source card is not a player choice.',
+        'Use a positive selectableOptions action plus canSkipSelection/skipSelectionLabel for optional activation, then revalidate and pay the fixed source directly.',
+        ...violations.map((violation) => `- ${violation}`),
+      ].join('\n')
+    ).toEqual([]);
+  });
+
   it('keeps raw event helper call sites out of workflow modules', () => {
     const violations = collectTypeScriptFiles(workflowsRoot).flatMap((filePath) => {
       const source = readFileSync(filePath, 'utf8');

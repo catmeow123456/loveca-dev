@@ -9,6 +9,8 @@ export {
   successLiveScoreAtLeast,
 } from '../../domain/rules/success-live-score.js';
 export {
+  countMemberEntriesThisTurn,
+  getMemberEntryOrdinalForEvent,
   getMovedToStageThisTurnStageMemberIdsMatching,
   getMovedToStageOrPositionMovedStageMemberIdsMatching,
   getPositionMovedStageMemberIdsMatching,

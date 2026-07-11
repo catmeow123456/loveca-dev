@@ -1,4 +1,4 @@
-import { isMemberCardData } from '../../../../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
@@ -12,6 +12,7 @@ import {
   addLiveModifier,
   collectLiveModifiers,
   getMemberEffectiveHeartIcons,
+  replaceLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
 import {
@@ -28,6 +29,7 @@ import {
   PL_BP3_024_LIVE_START_SUCCESS_TWO_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
@@ -49,6 +51,17 @@ const NORMAL_HEART_COLORS: readonly HeartColor[] = [
 const EUTOPIA_SCORE_BONUS = 2;
 
 export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
+  registerManualConfirmablePendingAbilityStarterHandler(
+    PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolvePsychoHeartLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getPsychoHeartConfirmationConfig
+  );
   registerManualConfirmablePendingAbilityStarterHandler(
     PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
@@ -137,6 +150,20 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
       ),
     getAuroraFlowerConfirmationConfig
   );
+}
+
+function getPsychoHeartConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getPsychoHeartContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己的成功LIVE卡区${
+      context.hasPrintedScoreOne ? '存在' : '不存在'
+    }分数1的LIVE，${context.hasPrintedScoreFive ? '存在' : '不存在'}分数5的LIVE，实际[スコア]+${
+      context.scoreBonus
+    }。）`,
+  };
 }
 
 function getBokuraNoLiveKimiToNoLifeConfirmationConfig(
@@ -339,6 +366,37 @@ function resolveNatsuiroEgaoLiveStartScore(
       successLiveCount,
       conditionMet,
       scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
+function resolvePsychoHeartLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) return game;
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const context = getPsychoHeartContext(stateWithoutPending, ability);
+  const scoreUpdate = replaceScoreModifierAndRefresh(stateWithoutPending, {
+    playerId: player.id,
+    sourceCardId: ability.sourceCardId,
+    abilityId: ability.abilityId,
+    scoreBonus: context.scoreBonus,
+  });
+  return continuePendingCardEffects(
+    addAction(scoreUpdate, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'SUCCESS_PRINTED_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE',
+      sourceInLiveZone: context.sourceInLiveZone,
+      hasPrintedScoreOne: context.hasPrintedScoreOne,
+      hasPrintedScoreFive: context.hasPrintedScoreFive,
+      scoreBonus: context.scoreBonus,
     }),
     orderedResolution
   );
@@ -749,6 +807,33 @@ function getNatsuiroEgaoScoreContext(
   };
 }
 
+function getPsychoHeartContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly hasPrintedScoreOne: boolean;
+  readonly hasPrintedScoreFive: boolean;
+  readonly scoreBonus: number;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
+  const printedScores = sourceInLiveZone
+    ? (player?.successZone.cardIds ?? []).flatMap((cardId) => {
+        const card = getCardById(game, cardId);
+        return card && isLiveCardData(card.data) ? [card.data.score] : [];
+      })
+    : [];
+  const hasPrintedScoreOne = printedScores.includes(1);
+  const hasPrintedScoreFive = printedScores.includes(5);
+  return {
+    sourceInLiveZone,
+    hasPrintedScoreOne,
+    hasPrintedScoreFive,
+    scoreBonus: hasPrintedScoreOne && hasPrintedScoreFive ? 2 : hasPrintedScoreOne || hasPrintedScoreFive ? 1 : 0,
+  };
+}
+
 function getMiracleStayTuneContext(
   game: GameState,
   ability: PendingAbilityState
@@ -937,6 +1022,21 @@ function addScoreModifierAndRefresh(
     options.playerId,
     options.scoreBonus
   );
+}
+
+function replaceScoreModifierAndRefresh(
+  game: GameState,
+  options: { readonly playerId: string; readonly sourceCardId: string; readonly abilityId: string; readonly scoreBonus: number }
+): GameState {
+  const previous = game.liveResolution.liveModifiers
+    .filter((modifier) => modifier.kind === 'SCORE' && modifier.playerId === options.playerId && modifier.liveCardId === options.sourceCardId && modifier.sourceCardId === options.sourceCardId && modifier.abilityId === options.abilityId)
+    .reduce((sum, modifier) => sum + (modifier.kind === 'SCORE' ? modifier.countDelta : 0), 0);
+  const replacement: Extract<LiveModifierState, { readonly kind: 'SCORE' }> | null = options.scoreBonus > 0 ? {
+    kind: 'SCORE', playerId: options.playerId, countDelta: options.scoreBonus,
+    liveCardId: options.sourceCardId, sourceCardId: options.sourceCardId, abilityId: options.abilityId,
+  } : null;
+  const state = replaceLiveModifier(game, { kind: 'SCORE', playerId: options.playerId, liveCardId: options.sourceCardId, sourceCardId: options.sourceCardId, abilityId: options.abilityId }, replacement);
+  return refreshPlayerScoreDraft(state, options.playerId, options.scoreBonus - previous);
 }
 
 function refreshPlayerScoreDraft(game: GameState, playerId: string, scoreBonus: number): GameState {

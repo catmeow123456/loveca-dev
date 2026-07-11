@@ -831,7 +831,9 @@ function finishLookTopSelectToHandWorkflow(
     return game;
   }
 
-  const inspectedCardIds = effect.inspectionCardIds ?? [];
+  const inspectedCardIds = (effect.inspectionCardIds ?? []).filter((cardId) =>
+    game.inspectionZone.cardIds.includes(cardId)
+  );
   const moveResult = moveInspectedCardsToHandRestToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
@@ -888,6 +890,9 @@ function validateLookTopSelection(
     return false;
   }
   if (selectedCardIds.some((cardId) => !effect.inspectionCardIds?.includes(cardId))) {
+    return false;
+  }
+  if (selectedCardIds.some((cardId) => !game.inspectionZone.cardIds.includes(cardId))) {
     return false;
   }
 

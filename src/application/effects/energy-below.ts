@@ -8,7 +8,7 @@ import {
   popEnergyBelowMember,
   removeCardFromStatefulZone,
 } from '../../domain/entities/zone.js';
-import type { SlotPosition } from '../../shared/types/enums.js';
+import { OrientationState, type SlotPosition } from '../../shared/types/enums.js';
 
 export interface StackEnergyBelowResult {
   readonly gameState: GameState;
@@ -47,7 +47,13 @@ export function stackEnergyFromEnergyZoneBelowMember(
     return { gameState: game, stackedEnergyCardIds: [] };
   }
 
-  const stackedEnergyCardIds = player.energyZone.cardIds.slice(0, count);
+  const waitingEnergyCardIds = player.energyZone.cardIds.filter(
+    (cardId) => player.energyZone.cardStates.get(cardId)?.orientation === OrientationState.WAITING
+  );
+  const activeEnergyCardIds = player.energyZone.cardIds.filter(
+    (cardId) => player.energyZone.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
+  );
+  const stackedEnergyCardIds = [...waitingEnergyCardIds, ...activeEnergyCardIds].slice(0, count);
   if (stackedEnergyCardIds.length < count) {
     return null;
   }

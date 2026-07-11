@@ -190,3 +190,7 @@ git diff --check
 ```bash
 pnpm test:run tests/integration/live-start-timing.test.ts tests/unit/live-modifiers.test.ts tests/unit/cost-calculator.test.ts
 ```
+# 本回合成员登场事件次数（已落地）
+
+- `countMemberEntriesThisTurn(game, playerId)` 与 `getMemberEntryOrdinalForEvent(game, playerId, eventId)` 已归属 `domain/rules/member-turn-state.ts`，并从 `application/effects/conditions.ts` re-export。
+- 数据源是权威 `GameState.eventLog` 中当前回合的 `ON_ENTER_STAGE` 事件；不读取当前舞台人数、不对实例去重、不读取 `movedToStageThisTurn`，因此离场、同实例再次登场与同批第3/第4事件均保持正确语义。

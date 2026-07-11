@@ -77,3 +77,8 @@ src/application/card-effects/workflows/cards/<card-slug>.ts
 - 新增卡效或完成同型扩展时同步 `docs/card-effect-reuse-audit/existing_module_map.md`。
 - 迁出 runner 或新增 shared family 时同步 `docs/card-effect-framework/migration_roadmap.md` 和/或 `workflow_module_guide.md`。
 - 执行范围内测试、`tsc --noEmit` 和 `git diff --check` 按当前任务要求通过。
+# 从休息室发动成员的登场能力
+
+只使用 `getWaitingRoomDelegatableOnEnterDefinitions` 的显式 opt-in。不得解析卡文/notes，不得先启动后探测失败，不得伪造 `ON_ENTER_STAGE`，也不得把宿主槽位传给目标。来源成员费用或槽位发动前提默认不可委托；玩家资源费用由原 workflow 处理。
+
+新增费用4以下的虹ヶ咲/Liella! 成员或新的 ON_ENTER workflow 形状时，应把是否支持休息室委托作为独立审计项；没有明确测试与 opt-in 时继续默认拒绝，不要求普通 ON_ENTER workflow 主动声明或依赖本 family。

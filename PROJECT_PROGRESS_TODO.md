@@ -2,6 +2,39 @@
 
 更新时间：2026-07-11
 
+## 本次 2026-07-11 虹咲 bp3 第四批卡效
+
+- 实现 `PL!N-bp3-009-R＋ / P / P＋ / SEC` 费用 10「天王寺璃奈」与 `PL!N-bp3-028-L / SECL` 分数 1「ツナガルコネクト」，definition 使用最新本地 Excel 中文原文并按同基础编号覆盖。
+- 009 为薄单卡有序置底 workflow：己方休息室恰好2张成员，按印刷费用 exact 6/8/25 互斥结算抽牌、SOURCE_MEMBER ALL Heart 或不带 liveCardId 的玩家 LIVE 总分 SCORE。
+- 028 为薄单卡 inspection/reveal workflow：动态虹咲舞台计数、至多1张回顶、余牌走 inspection-to-waiting 事件 wrapper，随后公开顶卡确认并以来源 LIVE SCORE modifier 加分；未扩 arrange shared family。
+- runner 仅新增两条 import/register；focused、classification、rarity、token/text、inspection/modifier 与类型验证结果见本窗口收尾，未触碰三份启动前已有框架文档 WIP。
+
+## 本次 2026-07-11 虹咲 bp3 第三批卡效
+
+- 实现 `PL!N-bp3-002-R / P` 费用 4「中須かすみ」与 `PL!N-bp3-011-R / P` 费用 7「ミア・テイラー」同文能力；definition 前台文本采用最新本地 Excel 中文。
+- 002 扩展 `live-start-discard-gain-heart.ts` 的判别式 recipient 轴，仅表达来源成员与“其他指定团体主舞台成员”两种稳定模式；弃手、六色选择、虹咲目标选择、`TARGET_MEMBER` Heart 与下游 pending continuation 保持 shared family 边界。
+- 011 保留薄单卡 compare workflow：有效 Heart 精确同色、双方上下文 effective cost、original Blade 三项各贡献 BLADE +1；未抽比较 DSL，runner 仅新增该 workflow 的 import/register。
+- focused、classification、same-base rarity、token/text、modifier 与 server/client typecheck 的真实结果见本窗口收尾；未触碰三份启动前已有框架文档 WIP，也未清理其他脏树。
+
+## 本次 2026-07-11 虹咲 bp3-012 卡效
+
+- 实现 `PL!N-bp3-012-R / P` 费用 4「鐘 嵐珠」同文 ON_ENTER；独立 abilityId / definition 使处理窗口精确使用 Excel 中文原文。
+- 仅扩展 `workflows/shared/discard-look-top-select-to-hand.ts`：弃1手后检视顶4，可选0～1张结构化『虹ヶ咲』成员或LIVE，先公开再入手，其余继续走 inspection-to-waiting 事件 wrapper；未新增单卡 workflow，runner 不变。
+- 按 Q85/Q73 现有 refresh-aware 语义覆盖牌库不足：先检视剩余牌，再用休息室更新后补足，已支付的弃牌可被洗回并再次检视。同时补齐 shared stale 合同：选择时重查当前 inspectionZone，跳过时不为 stale 牌伪造公开、入手或入休息室事件。
+- focused classification / shared workflow 及 token/text/rarity/type/diff 验证结果见本窗口收尾；未处理或改写既有 017/023、001/013、WAITING-first energy-below 及其他脏树内容。
+
+## 本次 2026-07-11 虹咲 bp3-001 / 013 卡效与 energy-below 选择规则
+
+- 实现 `PL!N-bp3-001-R＋ / P / P＋ / SEC` 费用 15「上原歩夢」LIVE_START 与 `PL!N-bp3-013-N` 费用 9「上原歩夢」ON_ENTER：分别保留单卡 workflow，共用既有 energy-below / draw 原子动作；001 另复用舞台 selector 与 BLADE helper 给当前己方主舞台成员（含来源）各加 BLADE +2。
+- `stackEnergyFromEnergyZoneBelowMember` 从单纯能量区顺序改为统一 WAITING-first 自动选择；仍不让玩家选择具体能量，数量不足不部分移动，既有调用点自然继承。
+- 验证：focused 001/013、energy-below 与 classification 已通过；rarity/token-text、server/client tsc 与 diff-check 结果见本窗口收尾。未改上一批 017/023 workflow、测试或登记语义。
+
+## 本次 2026-07-11 虹咲 bp3-017 / 023 卡效
+
+- 实现 `PL!N-bp3-017-N` 费用 4「宮下 愛」与 `PL!N-bp3-023-N` 费用 4「ミア・テイラー」的同文 ON_ENTER / LIVE_START 卡效；两张共用同一组 abilityId、definition 与 baseCardCodes，目标使用印刷费用 <=4。
+- 原 `n-bp5-004-karin.ts` 晋升为 `workflows/shared/wait-self-opponent-wait.ts`；保留来源 WAITING 可选费用、支付后重扫、无目标不退款、成员状态变化事件与 pending continuation，未扩 `opponent-wait-target.ts` 或 cost DSL。
+- 验证：focused shared workflow / classification / rarity / token-text governance、服务端与客户端 tsc、diff-check；真实结果见本窗口收尾。下一步仅在用户确认后进入提交窗口。
+
 ## 本次 2026-07-11 莲之空 PR-035 卡效
 
 - 实现 `PL!HS-PR-035-PR` 费用 11「百生吟子」的单卡 ON_ENTER workflow：第一段以 PUBLIC `ORDERED_MULTI` 可选对方休息室恰好3张成员，按提交顺序置于对方卡组底；只有实际成功移动3张才进入第二段。
@@ -1263,6 +1296,18 @@ git diff --check
 费用修正器已由 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」与 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」起步。后续同类卡继续扩展 `cost-calculator.ts` 的 cost modifier 条件与来源，不要写 UI 层特例。
 
 ## 已知注意点
+
+### 2026-07-11 虹咲三弹 LIVE 卡第一批
+
+- 完成 `PL!N-bp3-026-L` 分数 3「サイコーハート」与 `PL!N-bp3-031-L` 分数 6「MONSTER GIRLS」：分别扩展 shared LIVE_START 分数 workflow 与新增薄 LIVE_SUCCESS 单卡 workflow。
+- 两张均接入 confirm-only / ordered resolution / manual point 三态，SCORE modifier 使用来源与 ability 维度替换并同步刷新 `playerScores`。
+- focused classification/integration、effectText token/governance、服务端与客户端类型检查及 `git diff --check` 结果见本窗口验证记录；下一步按确认继续后续批次。
+
+### 2026-07-11 虹咲三弹新卡第二批
+
+- 完成 `PL!N-bp3-006-R / P` 费用 9「近江彼方」与 `PL!N-bp3-004-R / P` 费用 13「朝香果林」；前者强制来源 WAITING 并写入成员状态事件，后者依次支付 WAITING、强制弃1手牌，弃置成功后记录 turn1，再强制回收1张虹咲 LIVE。
+- 两张均保留独立单卡 workflow，只复用既有状态变化、弃手与休息室回收底层；未新增 shared family，未改变通用声援 BLADE 规则或框架边界。
+- focused classification/integration、rarity、token/text governance、服务端与客户端类型检查及 `git diff --check` 结果见本窗口收尾；下一步候选继续按虹咲三弹既定批次筛选。
 
 - 子模块 `llocg_db` 里可能有本地未跟踪 `.DS_Store`，不要提交。
 - 旧日期进度文档只作为 git 历史中的施工日志保留；新窗口应以本文件为当前事实。

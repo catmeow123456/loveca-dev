@@ -770,6 +770,8 @@ Tests now cover existing success paths plus HS_BP6_017 empty-hand skip, HS_PB1_0
 
 ### Other Audit Candidates
 
+- Wait-self opponent-wait family: the former single-card `workflows/cards/n-bp5-004-karin.ts` moved to `workflows/shared/wait-self-opponent-wait.ts` when `PL!N-bp3-017` / `PL!N-bp3-023` supplied the next real same-flow samples. The migration only parameterizes target selector and player-facing target copy, preserving optional source WAITING payment, post-payment rescan, event-wrapper timing, no-target cost retention, and pending continuation; it does not claim a general cost DSL or change `opponent-wait-target.ts`.
+
 - Opponent wait target family: R-4M migrated `HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER`, `HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER`, and `SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER` into `src/application/card-effects/workflows/shared/opponent-wait-target.ts`. The config axes are target selector, start action step, step text, and selection label; the workflow preserves `SKIP_NO_TARGET`, `WAIT_OPPONENT_MEMBER`, member-state event enqueue timing, and source/target payload fields.
 - Fixed pay-energy gain-BLADE family: R-4K migrated `HS_SD1_006`, `BP4_010`, and `HS_PR_001` into `src/application/card-effects/workflows/shared/pay-energy-gain-blade.ts`. The config axes are energy cost count and fixed BLADE bonus. `recordPayCostAction` now lives in `runtime/workflow-helpers.ts` and is also used by `workflows/cards/hs-bp5-001-kaho.ts`.
 - Arrange top family: R-4L migrated `START_DASH` and `HS_BP6_001` into `src/application/card-effects/workflows/shared/arrange-inspected-deck-top.ts`, with `PL_BP3_014` handled by the thin wrapper `src/application/card-effects/workflows/shared/on-enter-wait-look-top-two-arrange.ts`. The shared core owns inspection, ordered deck-top return, unselected waiting-room movement, and inspection cleanup; the wrapper owns only the source-wait option and PAY_COST action before entering the shared core.
@@ -801,3 +803,10 @@ Do not:
 - introduce full steps DSL
 - change card text behavior while moving code
 - clean or include long-term untracked asset/database directories
+# PL!N-bp3-005 event-ordinal query/filter
+
+- `src/domain/rules/member-turn-state.ts` 新增只读的本回合成员登场次数与指定 `ON_ENTER_STAGE` 事件 ordinal query；以最近 `ON_TURN_START`（缺失时最近 `ON_TURN_END`，再缺失时完整测试事件流）作为稳定回合边界。
+- `OnEnterStageTriggerFilter.enteredOrdinalThisTurn` 是无卡号的通用入队前过滤轴；runner 仅调用 query 做薄 matcher 胶水，不接 T-2 matcher，也不改变 pending 顺序。
+# Waiting-room ON_ENTER delegation boundary
+
+已由 `PL!N-bp3-003` 与 `PL!SP-bp2-006` 建立窄 family：definition 显式 opt-in、休息室来源、空 source slot、无真实登场事件。当前不扩展为通用 timing delegation 或 steps DSL。

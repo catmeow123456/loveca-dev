@@ -15,6 +15,7 @@ import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.j
 import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
+  PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,
   PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
@@ -79,6 +80,7 @@ const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
   readonly selectorKind: DiscardLookTopAliasSelectorKind;
   readonly topCount: number;
   readonly memberOnly?: boolean;
+  readonly effectTextAbilityId?: string;
 }[] = [
   { baseCardCode: 'PL!HS-bp1-009', alias: 'みらくらぱーく！', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!HS-pb1-018', alias: 'DOLLCHESTRA', selectorKind: 'UNIT', topCount: 5 },
@@ -108,6 +110,14 @@ const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
   { baseCardCode: 'PL!SP-pb1-016', alias: 'KALEIDOSCORE', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!SP-pb1-017', alias: '5yncri5e!', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!-pb1-016', alias: 'lilywhite', selectorKind: 'UNIT', topCount: 4 },
+  {
+    baseCardCode: 'PL!N-bp3-012',
+    alias: '虹ヶ咲',
+    selectorKind: 'GROUP',
+    topCount: 4,
+    memberOnly: false,
+    effectTextAbilityId: PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,
+  },
 ] as const;
 
 type DiscardLookTopAliasSelectorKind = 'UNIT' | 'GROUP';
@@ -136,6 +146,7 @@ export function registerDiscardLookTopSelectToHandWorkflowHandlers(deps: {
   for (const abilityId of [
     GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
     BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
+    PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,
     PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_ABILITY_ID,
   ]) {
     registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) =>
@@ -606,6 +617,9 @@ function getDiscardLookTopEffectText(cardCode: string | undefined): string {
   }
   const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
   if (aliasCardConfig) {
+    if (aliasCardConfig.effectTextAbilityId) {
+      return getAbilityEffectText(aliasCardConfig.effectTextAbilityId);
+    }
     const topCount = getDiscardLookTopCount(cardCode);
     if (aliasCardConfig.memberOnly === true) {
       return `【登场】可以将1张手牌放置入休息室：检视自己卡组顶的${topCount}张卡。可以将1张其中的『${aliasCardConfig.alias}』成员卡公开并加入手牌。其余的卡片放置入休息室。`;

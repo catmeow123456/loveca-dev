@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { MemberCardData, EnergyCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
-import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
+import { createGameState, emitGameEvent, registerCards, updatePlayer } from '../../src/domain/entities/game';
+import { createEnterStageEvent, createTurnEndEvent, createTurnStartEvent } from '../../src/domain/events/game-events';
 import { recordMoveToStage, recordPositionMove } from '../../src/domain/entities/player';
 import {
   addEnergyBelowMember,
@@ -11,6 +12,8 @@ import {
 } from '../../src/domain/entities/zone';
 import {
   getMovedToStageThisTurnStageMemberIdsMatching,
+  countMemberEntriesThisTurn,
+  getMemberEntryOrdinalForEvent,
   getPositionMovedStageMemberIdsMatching,
   hasMemberPositionMovedThisTurn,
 } from '../../src/domain/rules/member-turn-state';
@@ -55,6 +58,23 @@ function createEnergyCard(cardCode: string): EnergyCardData {
 }
 
 describe('member state effect helpers', () => {
+  it('counts authoritative member entry events and returns their current-turn ordinal', () => {
+    let game = createGameState('member-entry-ordinal', 'p1', 'P1', 'p2', 'P2');
+    game = emitGameEvent(game, createEnterStageEvent('old', ZoneType.HAND, SlotPosition.LEFT, 'p1', 'p1'));
+    game = emitGameEvent(game, createTurnEndEvent(1, 'p1'));
+    game = emitGameEvent(game, createTurnStartEvent(2, 'p2'));
+    const events = [
+      createEnterStageEvent('a', ZoneType.HAND, SlotPosition.LEFT, 'p1', 'p1'),
+      createEnterStageEvent('opponent', ZoneType.HAND, SlotPosition.LEFT, 'p2', 'p2'),
+      createEnterStageEvent('a', ZoneType.WAITING_ROOM, SlotPosition.CENTER, 'p1', 'p1'),
+      createEnterStageEvent('c', ZoneType.INSPECTION_ZONE, SlotPosition.RIGHT, 'p1', 'p1'),
+      createEnterStageEvent('d', ZoneType.HAND, SlotPosition.LEFT, 'p1', 'p1'),
+    ];
+    for (const event of events) game = emitGameEvent(game, event);
+    expect(countMemberEntriesThisTurn(game, 'p1')).toBe(4);
+    expect(events.map((event) => getMemberEntryOrdinalForEvent(game, 'p1', event.eventId))).toEqual([1, null, 2, 3, 4]);
+    expect(getMemberEntryOrdinalForEvent(game, 'p1', 'unknown')).toBeNull();
+  });
   it('sets a stage member orientation without toggling unrelated members', () => {
     const memberA = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
     const memberB = createCardInstance(createMemberCard('MEM-B'), 'p1', 'member-b');

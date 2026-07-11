@@ -44,16 +44,16 @@ function resolveSpPb2000ChisatoNatsumiOnEnter(
   }
 
   const relayReplacementCardIds = getRelayReplacementCardIds(ability.metadata?.relayReplacements);
-  if (relayReplacementCardIds.length !== 2) {
+  if (relayReplacementCardIds.length === 0) {
     return finishPendingAbility(
       game,
       ability,
       player.id,
       orderedResolution,
       {
-        step: 'CHECK_DOUBLE_RELAY_DRAW_AND_GAIN_BLADE',
+        step: 'CHECK_RELAY_DRAW_AND_GAIN_BLADE',
         conditionMet: false,
-        reason: 'NOT_DOUBLE_RELAY',
+        reason: 'NOT_RELAY',
         relayReplacementCardIds,
       },
       continuePendingCardEffects
@@ -106,7 +106,7 @@ function resolveSpPb2000ChisatoNatsumiOnEnter(
       pendingAbilityId: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
-      step: 'DOUBLE_RELAY_DRAW_AND_GAIN_BLADE',
+      step: 'RELAY_DRAW_AND_GAIN_BLADE',
       conditionMet: true,
       relayReplacementCardIds,
       checkedReplacements,

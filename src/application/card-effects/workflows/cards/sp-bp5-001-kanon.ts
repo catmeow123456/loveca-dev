@@ -57,7 +57,6 @@ const ACTIVATED_COST_STEP_ID = 'SP_BP5_001_SELECT_ACTIVATED_COST';
 const ACTIVATED_DISCARD_STEP_ID = 'SP_BP5_001_SELECT_HAND_DISCARD_COST';
 
 const PAY_OPTION_ID = 'pay';
-const DECLINE_OPTION_ID = 'decline';
 const DRAW_OPTION_ID = 'draw';
 const WAIT_OPPONENT_OPTION_ID = 'wait-opponent';
 const WAIT_SELF_COST_OPTION_ID = 'wait-self';
@@ -207,11 +206,9 @@ function startPayEnergyChoice(
         stepId: PAY_DECISION_STEP_ID,
         stepText: '可以支付1张能量发动此效果。',
         awaitingPlayerId: player.id,
-        selectableOptions: [
-          { id: PAY_OPTION_ID, label: '支付1张能量' },
-          { id: DECLINE_OPTION_ID, label: '不发动' },
-        ],
+        selectableOptions: [{ id: PAY_OPTION_ID, label: '支付1张能量' }],
         canSkipSelection: true,
+        skipSelectionLabel: '不发动',
         metadata: {
           orderedResolution,
           sourceSlot,
@@ -244,7 +241,7 @@ function finishPayEnergyDecision(
   if (!player) {
     return game;
   }
-  if (selectedOptionId === DECLINE_OPTION_ID || selectedOptionId === null) {
+  if (selectedOptionId === null) {
     return continuePendingCardEffects(
       addAction(
         {
