@@ -393,8 +393,7 @@ describe('PL!HS-bp6-013 Kosuzu workflow', () => {
     );
 
     expect(state.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
-    expect(state.activeEffect?.effectText).toContain('当前对方舞台成员3名');
-    expect(state.activeEffect?.effectText).toContain('目标0名');
+    expect(state.activeEffect?.effectText).toContain('当前合法目标0名');
     expect(state.activeEffect?.effectText).toContain('不会将成员变为待机状态');
 
     state = confirm(state);

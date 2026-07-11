@@ -13,6 +13,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
+import { hasPlayerRefreshedDeckThisTurn } from '../../../../domain/rules/deck-turn-state.js';
 import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.js';
@@ -25,6 +26,8 @@ import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   PL_S_PB1_007_LIVE_SUCCESS_CHEER_LIVE_PLACE_WAITING_ENERGY_ABILITY_ID,
   S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID,
+  S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
   S_BP6_020_GRANTED_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
   S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID,
@@ -120,6 +123,23 @@ export function registerSFutureWaterBatch3WorkflowHandlers(): void {
     }
   );
   registerPendingAbilityStarterHandler(
+    S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) => {
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getBp2008GrantedLiveSuccessConfirmationEffectText(game, ability),
+      });
+      if (confirmation) {
+        return confirmation;
+      }
+      return resolveBp2008GrantedLiveSuccessCheerLiveScore(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      );
+    }
+  );
+  registerPendingAbilityStarterHandler(
     S_BP6_020_GRANTED_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
     (game, ability, options, context) =>
       resolveBp6020GrantedLiveSuccessDrawOne(
@@ -128,6 +148,23 @@ export function registerSFutureWaterBatch3WorkflowHandlers(): void {
         options.orderedResolution === true,
         context.continuePendingCardEffects
       )
+  );
+  registerPendingAbilityStarterHandler(
+    S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) => {
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
+        effectText: getDeckRefreshedLiveSuccessConfirmationEffectText(game, ability),
+      });
+      if (confirmation) {
+        return confirmation;
+      }
+      return resolveDeckRefreshedLiveSuccessScore(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      );
+    }
   );
   registerPendingAbilityStarterHandler(
     S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID,
@@ -249,6 +286,16 @@ function getEnergyLeadLiveSuccessConfirmationEffectText(
   }）`;
 }
 
+function getDeckRefreshedLiveSuccessConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const refreshed = hasPlayerRefreshedDeckThisTurn(game, ability.controllerId);
+  return `${getAbilityEffectText(ability.abilityId)}（本回合自己的卡组${
+    refreshed ? '已更新，满足条件，实际分数+2。' : '未更新，未满足条件，实际分数+0。'
+  }）`;
+}
+
 function getOwnCheerLiveCardLiveSuccessConfirmationEffectText(
   game: GameState,
   ability: PendingAbilityState
@@ -260,6 +307,18 @@ function getOwnCheerLiveCardLiveSuccessConfirmationEffectText(
   return `${getAbilityEffectText(ability.abilityId)}（本次自己声援公开 LIVE ${matchingCardCount}张，${
     matchingCardCount > 0 ? '满足条件，分数+1' : '未满足条件，不增加分数'
   }）`;
+}
+
+function getBp2008GrantedLiveSuccessConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const matchingLiveCardCount = player
+    ? getOwnLiveSuccessCheerLiveCardIds(game, player.id).length
+    : 0;
+  const scoreBonus = matchingLiveCardCount >= 3 ? 2 : matchingLiveCardCount >= 1 ? 1 : 0;
+  return `${getAbilityEffectText(ability.abilityId)}（本次自己声援公开 LIVE ${matchingLiveCardCount}张，实际分数+${scoreBonus}。）`;
 }
 
 function getOpponentRemainingHeartsLiveSuccessConfirmationEffectText(
@@ -629,6 +688,58 @@ function resolveEnergyLeadLiveSuccessScore(
   );
 }
 
+function resolveDeckRefreshedLiveSuccessScore(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceCard = getCardById(game, ability.sourceCardId);
+  const sourceLiveInOwnLiveZone =
+    player !== null &&
+    sourceCard !== null &&
+    sourceCard.ownerId === player.id &&
+    isLiveCardData(sourceCard.data) &&
+    player.liveZone.cardIds.includes(ability.sourceCardId);
+  const deckRefreshedThisTurn = player
+    ? hasPlayerRefreshedDeckThisTurn(game, player.id)
+    : false;
+  const scoreBonus = sourceLiveInOwnLiveZone && deckRefreshedThisTurn ? 2 : 0;
+  let state: GameState = {
+    ...game,
+    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+  };
+  if (player && scoreBonus > 0) {
+    state = addScoreModifierAndRefresh(
+      state,
+      player.id,
+      ability.sourceCardId,
+      ability.abilityId,
+      scoreBonus,
+      ability.sourceCardId
+    );
+  }
+
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', ability.controllerId, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: !player
+        ? 'CONTROLLER_NOT_FOUND'
+        : !sourceLiveInOwnLiveZone
+          ? 'SOURCE_LIVE_NOT_IN_OWN_LIVE_ZONE'
+          : scoreBonus > 0
+            ? 'DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE'
+            : 'DECK_NOT_REFRESHED_THIS_TURN',
+      deckRefreshedThisTurn,
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
 function resolveOwnCheerLiveCardLiveSuccessScore(
   game: GameState,
   ability: PendingAbilityState,
@@ -666,6 +777,45 @@ function resolveOwnCheerLiveCardLiveSuccessScore(
       step: scoreBonus > 0 ? 'OWN_CHEER_LIVE_THIS_LIVE_SCORE' : 'NO_OWN_CHEER_LIVE',
       ownCheerCardIds,
       matchingCardIds,
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
+function resolveBp2008GrantedLiveSuccessCheerLiveScore(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+  const matchingLiveCardIds = getOwnLiveSuccessCheerLiveCardIds(game, player.id);
+  const scoreBonus =
+    matchingLiveCardIds.length >= 3 ? 2 : matchingLiveCardIds.length >= 1 ? 1 : 0;
+  let state: GameState = {
+    ...game,
+    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+  };
+  if (scoreBonus > 0) {
+    state = addScoreModifierAndRefresh(
+      state,
+      player.id,
+      ability.sourceCardId,
+      ability.abilityId,
+      scoreBonus
+    );
+  }
+  return continuePendingCardEffects(
+    addAction(state, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'OWN_CHEER_LIVE_COUNT_SCORE',
+      matchingLiveCardIds,
       scoreBonus,
     }),
     orderedResolution

@@ -5,12 +5,12 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import type { CheerEvent } from '../../../../domain/events/game-events.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, TriggerCondition } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors.js';
 import { SP_PR_024_AUTO_ON_CHEER_SCORE_LIELLA_LIVE_GAIN_PURPLE_HEART_ABILITY_ID } from '../../ability-ids.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import { getLatestOwnNormalCheerEventByIds } from '../../runtime/cheer-events.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
 
@@ -53,7 +53,7 @@ function resolveSpPr024SumireOnCheer(
     );
   }
 
-  const cheerEvent = getOwnNormalCheerEventForAbility(game, ability, player.id);
+  const cheerEvent = getLatestOwnNormalCheerEventByIds(game, player.id, ability.eventIds);
   if (!cheerEvent) {
     return finishPendingAbility(
       game,
@@ -109,26 +109,6 @@ function resolveSpPr024SumireOnCheer(
     }),
     orderedResolution
   );
-}
-
-function getOwnNormalCheerEventForAbility(
-  game: GameState,
-  ability: PendingAbilityState,
-  playerId: string
-): CheerEvent | null {
-  const eventIds = new Set(ability.eventIds);
-  const events = game.eventLog
-    .map((entry) => entry.event)
-    .filter(
-      (event): event is CheerEvent =>
-        event.eventType === TriggerCondition.ON_CHEER &&
-        'playerId' in event &&
-        'additional' in event &&
-        event.playerId === playerId &&
-        event.additional !== true &&
-        eventIds.has(event.eventId)
-    );
-  return events.at(-1) ?? null;
 }
 
 function finishPendingAbility(

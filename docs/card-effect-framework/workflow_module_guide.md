@@ -55,11 +55,15 @@ Member-on-enter draw is a shared family when the whole operation is "this played
 
 Arrange-top workflows may share a core when they inspect the deck top, let the player choose an ordered subset for deck top, and move unselected inspected cards to waiting room. The shared summary label can describe 登场, LIVE开始, or LIVE成功 sources, but the workflow must still own only the inspection / ordered deck-top / inspected-to-waiting-room flow. Keep card-specific opt-in costs, such as waiting the source member before inspection, in a thin card wrapper that calls the shared core after the cost has fully resolved.
 
+When such a thin wrapper pays a discard cost before delegating, it may pass the narrow optional `discardedCostCardIds` summary context so STARTED and COMPLETED public summaries report the real cost. The shared arrange core does not select or pay that cost; callers without a discard cost continue to report an empty list.
+
 `CardAbilitySourceZone.WAITING_ROOM` is a narrow source-zone marker for real activated abilities whose source card is in its owner's waiting room. Keep support source-zone-aware in definitions, command validation, and UI entry points; do not broaden it into a generic DSL or trigger matcher surface.
 
 `CardAbilitySourceZone.HAND` is the matching narrow marker for real activated abilities printed as usable only while the source card is in hand. Definitions, command validation, and hand-zone UI entry points should carry the source zone explicitly; the workflow still owns card-specific cost payment, post-cost target checks, and no-target no-op semantics.
 
 Relay-enter draw/discard is a shared on-enter family when the operation is "if this member entered by relay from a named member, draw N then discard M". Keep the relay condition bound to the current pending ability's `relayReplacements` metadata, use `cardNameAliasIs` for the named replacement check, consume the pending ability as a no-op when the condition fails, and delegate the actual draw/discard step to the existing draw-then-discard workflow so hand discards continue to enqueue enter-waiting-room triggers.
+
+`workflows/shared/relay-enter-lower-cost-unit.ts` is only a pure condition helper. It reads the current pending ability's `relayReplacements` event-snapshot costs, the source member's effective cost at resolution, and the replaced cards' structured unit aliases. Payment, modifiers, skip behavior, and pending continuation remain in each card workflow; this helper is not a relay DSL and must not become a runner gate.
 
 Draw-then-discard may also carry a narrow `requiredSourceSlot` axis for real side-locked on-enter cards. Check the current authoritative source slot before drawing; when the side condition fails, consume the pending ability as a no-op and do not open the discard window.
 
@@ -70,6 +74,8 @@ Opponent wait target is a shared family when the operation is "choose one oppone
 Stage formation change is a shared family when the operation is "let the player move/swap current own main stage members, then commit the final stage atomically". Keep trigger timing, source zone, pre-draw, condition predicate, unit/group predicates such as "only 5yncri5e! stage members", and action step names in config. The workflow should expose `stageFormation` activeEffect state instead of enumerating `selectableOptions`, consume decline/skip without moving, and apply confirmed `moveHistory` through `rearrangeStageMembersByMoveHistoryAndEnqueueTriggers` so `RESOLVE_ABILITY` is recorded before all `ON_MEMBER_SLOT_MOVED` triggers are enqueued. Do not trust frontend `movedCardIds`: replay history from the current authoritative stage state, ignore same-slot moves, treat swaps as moving both members, and emit at most one moved event per member while preserving the full `moveHistory` in action payloads.
 
 Conditional live modifier is a shared Live-start family when the operation is "open a confirm-only effect window, recompute a condition on confirm, then add/replace/clear Live modifiers". Keep the stable axes in config or local finish functions: counted zone, count threshold, requirement color, modifier target, add/replace/null behavior, start payload fields, and finish payload fields. Reuse activeEffect start glue for the window itself, but do not move card-specific condition checks or modifier strategy into the runtime helper.
+
+Opponent wait target is a shared member-target family for "select one opponent stage member matching a printed selector and change it to WAITING". Stable axes are ability id, target selector, UI labels, start action label, and narrow own-stage gates proven by card text: minimum effective Heart total, minimum different named BiBi members, or minimum printed member cost. Do not add arbitrary predicates, a DSL, or effective-cost semantics. The target must use the stage orientation selection and member-state trigger wrapper; already WAITING or stale targets must not create a state-change event. For no-input LIVE_START no-op branches, the single pending confirmation must show real-time rule counts and result, while ordered resolution continues automatically.
 
 On-move self Heart is a shared AUTO family when the operation is "this moved source member gains one fixed Heart color until Live end". Keep the stable axes to ability id, base card code, Heart color, and action payload labels. The workflow should consume the current `ON_MEMBER_SLOT_MOVED` pending, rely on definition-level `perTurnLimit`, write `SOURCE_MEMBER` Heart through `addHeartLiveModifierForMember`, and avoid filtering out movement caused by an opponent card effect. Do not merge BLADE or conditional movement rewards into this family.
 
@@ -94,6 +100,8 @@ Original Heart color replacement uses `MEMBER_ORIGINAL_HEART_REPLACEMENT` as a L
 Original Blade count replacement uses `MEMBER_ORIGINAL_BLADE_REPLACEMENT` as a Live modifier for "this member's printed original Blade count becomes N". `getMemberEffectiveBladeCount` applies the latest replacement as the original Blade count first, then appends normal member Blade bonuses; it is not equivalent to adding or subtracting a BLADE modifier, because printed Blade counts above the replacement value must also be overwritten.
 
 Revealed-cheer selection is a shared family when the operation is "choose cards revealed by the current cheer and still in the processing zone, then move them or perform additional cheer". Keep selector differences, destination, min/max count, optional/skip behavior, additional-cheer count calculation, whether a successful move records a turn-once ability use, and payload field names in config. Reuse `effects/cheer-selection.ts` for current-cheer eligibility and `effects/cheer.ts` for additional cheer; do not reimplement resolution-zone movement, cheer context checks, or the non-recursive additional-cheer guard inside a workflow.
+
+Cheer reroll is not part of that shared selection family. `PL!S-bp2-004` 费用 11「黒澤ダイヤ」 is the first narrow sample: its card workflow must read the pending-linked normal `CheerEvent` fact, recheck only the original cards still movable in the resolution zone, record turn1 before creating the replacement cheer, and explicitly enqueue the replacement `additional=false` event through the normal `ON_CHEER` path. `replaceCurrentCheerCards=true` in `effects/cheer.ts` replaces only the acting player's current cheer IDs; default/false remains additive registration, the opponent IDs remain unchanged, and Q107 queries therefore see only the second cheer. Do not promote this to a general cheer loop, replacement-effect DSL, or universal cheer-reset workflow without more samples.
 
 Cheer-card Heart color replacement is a shared no-input LIVE_START family for effects that say cards revealed by your own cheer have specific Heart colors treated as another Heart color until LIVE end. Real samples are `PL!SP-bp4-023` and `PL!N-bp4-025`. Keep the stable axes to `abilityId`, definition-owned card coverage, `fromColors`, `toColor`, confirm/preview text, and action step label. The workflow owns manual confirm-only versus ordered-resolution behavior, source LIVE still being in the controller's liveZone, writing `CHEER_CARD_HEART_COLOR_REPLACEMENT`, `RESOLVE_ABILITY` payload, and `continuePendingCardEffects`. Do not fold in VIVID WORLD's LIVE_SUCCESS score check, Dazzling Game's member BLADE selection, or other LIVE_START modifier families.
 
@@ -141,6 +149,15 @@ Rules:
 - 不为了 family 化把参数塞爆；特殊卡独立文件是可接受目标态。
 
 ## Runner Dispatch
+
+### LIVE_SUCCESS availability gate
+
+`runtime/live-success-ability-availability-gates.ts` 是只作用于入队前的窄 registry：按
+`abilityId` 注册 predicate，未注册的能力默认允许。runner 只在 LIVE_SUCCESS 循环中调用通用
+查询；gate 为 false 时不构造 pending，也不记录 `TRIGGER_ABILITY`。它不结算效果、不构造
+pending、不推进队列，也不承载卡牌专属条件。当前真实样本是 `PL!S-bp2-008`：其单卡 workflow
+用该 gate 判断自己 LEFT/CENTER/RIGHT 顶层成员是否均为不同名 Aqours，再决定授予的 pseudo
+LIVE_SUCCESS ability 是否入队。
 
 Target start dispatch:
 

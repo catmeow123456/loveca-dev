@@ -1557,7 +1557,7 @@ function isLegacyLiveSetTrackingReplayMismatch(mismatch: {
   const allowedPaths = new Set([
     '$.eventLog.length',
     '$.eventSequence',
-    '$.liveSetCardCounts.length',
+    '$.liveSetCardIds.length',
   ]);
   return mismatch.diffs.every((diff) => {
     const record = asRecord(diff);
@@ -2142,7 +2142,7 @@ function normalizeEngineState(state: GameState): unknown {
           payableEnergyCardIds: [...state.pendingCostPayment.payableEnergyCardIds],
         }
       : null,
-    liveSetCardCounts: sortedMapEntries(state.liveSetCardCounts),
+    liveSetCardIds: sortedMapEntries(state.liveSetCardIds ?? new Map()),
     resolutionZone: {
       cardIds: [...state.resolutionZone.cardIds],
       revealedCardIds: [...state.resolutionZone.revealedCardIds],

@@ -35,6 +35,7 @@ import {
   HS_CL1_012_LIVE_SUCCESS_EQUAL_SCORE_REVEALED_CHEER_HIGH_COST_MEMBER_TO_HAND_ABILITY_ID,
   HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
   S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID,
+  S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
   S_SD1_019_LIVE_SUCCESS_AQOURS_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
@@ -50,7 +51,7 @@ import {
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
-  maybeStartManualPendingAbilityConfirmation,
+  maybeStartConfirmablePendingAbilityConfirmation,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import { CardType } from '../../../../shared/types/enums.js';
@@ -70,6 +71,8 @@ export const S_BP6_021_SELECT_CHEER_TO_WAITING_ROOM_STEP_ID =
   'S_BP6_021_SELECT_REVEALED_CHEER_TO_WAITING_ROOM';
 export const S_SD1_019_SELECT_AQOURS_LIVE_CHEER_TO_HAND_STEP_ID =
   'S_SD1_019_SELECT_REVEALED_CHEER_AQOURS_LIVE_TO_HAND';
+export const S_BP2_021_SELECT_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_STEP_ID =
+  'S_BP2_021_SELECT_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -88,6 +91,7 @@ interface RevealedCheerSelectionWorkflowConfig {
   readonly predicate?: CheerCardPredicate;
   readonly destination: RevealedCheerCardDestination;
   readonly optional: boolean;
+  readonly confirmWhenNoTargets?: boolean;
   readonly startCondition?: (
     game: GameState,
     playerId: string,
@@ -125,6 +129,19 @@ export interface SyncHsBp6027ManualCheerAdjustmentDependencies {
 }
 
 const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflowConfig[] = [
+  {
+    abilityId: S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
+    stepId: S_BP2_021_SELECT_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_STEP_ID,
+    stepText: '请选择至多1张因声援被公开的自己的LIVE卡放置于入卡组底。',
+    selectionLabel: '选择要放置于入卡组底的声援公开 LIVE',
+    predicate: typeIs(CardType.LIVE),
+    destination: 'MAIN_DECK_BOTTOM',
+    optional: true,
+    confirmWhenNoTargets: true,
+    selectMin: 0,
+    selectMax: 1,
+    skipSelectionLabel: '不放置',
+  },
   {
     abilityId: S_SD1_019_LIVE_SUCCESS_AQOURS_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
     stepId: S_SD1_019_SELECT_AQOURS_LIVE_CHEER_TO_HAND_STEP_ID,
@@ -379,13 +396,15 @@ function startRevealedCheerSelectionWorkflow(
 
   const selectableCardIds = selectRevealedCheerCardIds(game, player.id, config.predicate);
   if (selectableCardIds.length === 0) {
-    const manualConfirmation = maybeStartManualPendingAbilityConfirmation(
-      game,
-      context.ability,
-      context.options
-    );
-    if (manualConfirmation) {
-      return manualConfirmation;
+    if (config.confirmWhenNoTargets === true) {
+      const manualConfirmation = maybeStartConfirmablePendingAbilityConfirmation(
+        game,
+        context.ability,
+        context.options
+      );
+      if (manualConfirmation) {
+        return manualConfirmation;
+      }
     }
     const state = {
       ...game,
@@ -673,6 +692,7 @@ function isMultiSelectRevealedCheerConfig(config: RevealedCheerSelectionWorkflow
 function getEffectDestination(effect: ActiveEffectState): RevealedCheerCardDestination | null {
   return effect.metadata?.destination === 'HAND' ||
     effect.metadata?.destination === 'MAIN_DECK_TOP' ||
+    effect.metadata?.destination === 'MAIN_DECK_BOTTOM' ||
     effect.metadata?.destination === 'WAITING_ROOM'
     ? effect.metadata.destination
     : null;
@@ -684,6 +704,9 @@ function getConfirmSelectionLabel(destination: RevealedCheerCardDestination): st
   }
   if (destination === 'WAITING_ROOM') {
     return '放置入休息室';
+  }
+  if (destination === 'MAIN_DECK_BOTTOM') {
+    return '放置于入卡组底';
   }
   return '放回卡组顶';
 }

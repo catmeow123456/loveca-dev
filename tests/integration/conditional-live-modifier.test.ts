@@ -32,6 +32,7 @@ import {
   HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID,
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
+  HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -136,6 +137,70 @@ function setupLiveStartState(options: {
       ...game.liveResolution,
       performingPlayerId: PLAYER1,
     },
+  };
+}
+
+function setupPb1026LiveStartPending(memberNames: readonly string[]): {
+  readonly game: GameState;
+  readonly live: ReturnType<typeof createCardInstance>;
+  readonly members: readonly ReturnType<typeof createCardInstance>[];
+} {
+  const live = createCardInstance(
+    createLive('PL!HS-pb1-026-L', '雪舞う空と二秒の永远', 4),
+    PLAYER1,
+    'pb1-026-live'
+  );
+  const members = memberNames.map((name, index) =>
+    createCardInstance(
+      createMember({ cardCode: `PL!HS-test-pb1-026-${index}`, name, cost: index + 1 }),
+      PLAYER1,
+      `pb1-026-member-${index}`
+    )
+  );
+  let game = createGameState('conditional-live-modifier-pb1-026', PLAYER1, 'P1', PLAYER2, 'P2');
+  game = registerCards(game, [live, ...members]);
+  game = updatePlayer(game, PLAYER1, (player) => {
+    let memberSlots = player.memberSlots;
+    for (const [index, slot] of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].entries()) {
+      const member = members[index];
+      if (!member) {
+        continue;
+      }
+      memberSlots = placeCardInSlot(memberSlots, slot, member.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      });
+    }
+    return {
+      ...player,
+      memberSlots,
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+      waitingRoom: members.slice(3).reduce(
+        (zone, member) => addCardToZone(zone, member.instanceId),
+        player.waitingRoom
+      ),
+    };
+  });
+  return {
+    game: {
+      ...game,
+      pendingAbilities: [
+        {
+          id: 'pb1-026-pending',
+          abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+          sourceCardId: live.instanceId,
+          controllerId: PLAYER1,
+          mandatory: true,
+          timingId: TriggerCondition.ON_LIVE_START,
+        },
+      ],
+      liveResolution: { ...game.liveResolution, performingPlayerId: PLAYER1 },
+    },
+    live,
+    members,
   };
 }
 
@@ -354,6 +419,207 @@ function setupRelayEnteredLiveStartState(options: {
 }
 
 describe('conditional live modifier workflow', () => {
+  it('recomputes PL!HS-pb1-026 different Hasunosora members across stage and waiting room before writing RAINBOW -2', () => {
+    const live = createCardInstance(createLive('PL!HS-pb1-026-L', '雪舞う空と二秒の永遠', 4), PLAYER1, 'pb1-026-live');
+    const members = Array.from({ length: 6 }, (_, index) =>
+      createCardInstance(
+        createMember({ cardCode: `PL!HS-test-pb1-026-${index}`, name: `成员${index}`, cost: index + 1 }),
+        PLAYER1,
+        `pb1-026-member-${index}`
+      )
+    );
+    let game = createGameState('conditional-live-modifier-pb1-026', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [live, ...members]);
+    game = updatePlayer(game, PLAYER1, (player) => {
+      let memberSlots = player.memberSlots;
+      for (const [index, slot] of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].entries()) {
+        memberSlots = placeCardInSlot(memberSlots, slot, members[index]!.instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        });
+      }
+      return {
+        ...player,
+        memberSlots,
+        liveZone: addCardToStatefulZone(player.liveZone, live.instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
+        waitingRoom: members.slice(3).reduce(
+          (zone, member) => addCardToZone(zone, member.instanceId),
+          player.waitingRoom
+        ),
+      };
+    });
+    game = {
+      ...game,
+      pendingAbilities: [
+        {
+          id: 'pb1-026-pending',
+          abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+          sourceCardId: live.instanceId,
+          controllerId: PLAYER1,
+          mandatory: true,
+          timingId: TriggerCondition.ON_LIVE_START,
+        },
+      ],
+      liveResolution: { ...game.liveResolution, performingPlayerId: PLAYER1 },
+    };
+
+    const preview = resolvePendingCardEffects(game).gameState;
+    expect(preview.activeEffect?.effectText).toContain('不同名『莲之空』成员6名');
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(resolved.liveResolution.liveModifiers).toContainEqual({
+      kind: 'REQUIREMENT',
+      liveCardId: live.instanceId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+      sourceCardId: live.instanceId,
+      abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+    });
+  });
+
+  it('shows the actual distinct count when extra duplicate Hasunosora members are present', () => {
+    const { game } = setupPb1026LiveStartPending([
+      '成员甲',
+      '成员乙',
+      '成员丙',
+      '成员丁',
+      '成员戊',
+      '成员己',
+      '成员甲',
+    ]);
+    const preview = resolvePendingCardEffects(game).gameState;
+
+    expect(preview.activeEffect?.effectText).toContain('不同名『莲之空』成员6名');
+    expect(preview.activeEffect?.effectText).toContain('满足条件');
+    expect(preview.activeEffect?.effectText).not.toContain('成员0名');
+  });
+
+  it.each([
+    ['only five different names', ['成员甲', '成员乙', '成员丙', '成员丁', '成员戊'], 5],
+    [
+      'a duplicate across stage and waiting room',
+      ['成员甲', '成员乙', '成员丙', '成员丁', '成员戊', '成员甲'],
+      5,
+    ],
+  ])('does not reduce PL!HS-pb1-026 with %s', (_label, memberNames, expectedCount) => {
+    const { game, live } = setupPb1026LiveStartPending(memberNames);
+    const preview = resolvePendingCardEffects(game).gameState;
+    expect(preview.activeEffect?.effectText).toContain(`不同名『莲之空』成员${expectedCount}名`);
+    expect(preview.activeEffect?.effectText).toContain('未满足条件');
+
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(
+      resolved.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.liveCardId === live.instanceId &&
+          modifier.abilityId ===
+            HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('recomputes PL!HS-pb1-026 at confirmation after its LIVE source or sixth distinct member leaves', () => {
+    const names = ['成员甲', '成员乙', '成员丙', '成员丁', '成员戊', '成员己'];
+    const sourceScenario = setupPb1026LiveStartPending(names);
+    const sourcePreview = resolvePendingCardEffects(sourceScenario.game).gameState;
+    expect(sourcePreview.activeEffect?.effectText).toContain('满足条件');
+    const sourceRemoved = updatePlayer(sourcePreview, PLAYER1, (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardIds: player.liveZone.cardIds.filter((cardId) => cardId !== sourceScenario.live.instanceId),
+        cardStates: new Map(
+          [...player.liveZone.cardStates].filter(
+            ([cardId]) => cardId !== sourceScenario.live.instanceId
+          )
+        ),
+      },
+    }));
+    const sourceResolved = confirmActiveEffectStep(
+      sourceRemoved,
+      PLAYER1,
+      sourceRemoved.activeEffect!.id
+    );
+    expect(sourceResolved.liveResolution.liveModifiers).toEqual([]);
+
+    const countScenario = setupPb1026LiveStartPending(names);
+    const countPreview = resolvePendingCardEffects(countScenario.game).gameState;
+    const sixthMemberId = countScenario.members[5]!.instanceId;
+    const sixthRemoved = updatePlayer(countPreview, PLAYER1, (player) => ({
+      ...player,
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: player.waitingRoom.cardIds.filter((cardId) => cardId !== sixthMemberId),
+      },
+    }));
+    const countResolved = confirmActiveEffectStep(
+      sixthRemoved,
+      PLAYER1,
+      sixthRemoved.activeEffect!.id
+    );
+    expect(countResolved.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it('auto-resolves ordered PL!HS-pb1-026 pendings without opening confirm-only and writes both RAINBOW reductions', () => {
+    const scenario = setupPb1026LiveStartPending([
+      '成员甲',
+      '成员乙',
+      '成员丙',
+      '成员丁',
+      '成员戊',
+      '成员己',
+    ]);
+    const secondLive = createCardInstance(
+      createLive('PL!HS-pb1-026-L', '雪舞う空と二秒の永远', 4),
+      PLAYER1,
+      'pb1-026-second-live'
+    );
+    let game = registerCards(scenario.game, [secondLive]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, secondLive.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+    game = {
+      ...game,
+      pendingAbilities: [
+        ...game.pendingAbilities,
+        {
+          id: 'pb1-026-second-pending',
+          abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+          sourceCardId: secondLive.instanceId,
+          controllerId: PLAYER1,
+          mandatory: true,
+          timingId: TriggerCondition.ON_LIVE_START,
+        },
+      ],
+    };
+    const orderSelection = resolvePendingCardEffects(game).gameState;
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+    const resolved = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.pendingAbilities).toEqual([]);
+    for (const liveCardId of [scenario.live.instanceId, secondLive.instanceId]) {
+      expect(resolved.liveResolution.liveModifiers).toContainEqual({
+        kind: 'REQUIREMENT',
+        liveCardId,
+        modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+        sourceCardId: liveCardId,
+        abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+      });
+    }
+  });
   it('shows a confirm-only bridge before resolving PL!HS-bp5-019 Hanamusubi when it is the only pending ability', () => {
     const { game, sourceLives } = setupHanamusubiPendingState({
       sourceCount: 1,

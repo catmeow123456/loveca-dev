@@ -10,6 +10,7 @@ import {
   BP6_005_ON_ENTER_DISCARD_TWO_RECOVER_YELLOW_HEART_CARDS_ABILITY_ID,
   HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID,
   HS_PB1_020_ON_ENTER_DISCARD_TWO_RECOVER_CERISE_MEMBER_AND_HASUNOSORA_LIVE_ABILITY_ID,
+  S_BP2_002_ON_LEAVE_STAGE_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
@@ -84,7 +85,15 @@ interface GroupedRecoveryWorkflowConfig {
         readonly ok: false;
         readonly step: string;
         readonly payload?: Readonly<Record<string, unknown>>;
-      };
+  };
+}
+
+interface GroupedRecoverySelectionState {
+  readonly selectableCardIds: readonly string[];
+  readonly requiredGroupKeys: readonly string[];
+  readonly requiredRecoveryCount: number;
+  readonly minSelectableCards: number;
+  readonly maxSelectableCards: number;
 }
 
 const liveGroup = typeIs(CardType.LIVE);
@@ -93,8 +102,31 @@ const ceriseBouquetMember = and(typeIs(CardType.MEMBER), unitAliasIs('Cerise Bou
 const hasunosoraLive = and(typeIs(CardType.LIVE), groupAliasIs('蓮ノ空'));
 const yellowHeartMember = memberHasHeartColor(HeartColor.YELLOW);
 const yellowRequirementLive = liveRequiresHeartColor(HeartColor.YELLOW);
+const aqoursLive = and(typeIs(CardType.LIVE), groupAliasIs('Aqours'));
 
 const GROUPED_RECOVERY_CONFIGS: readonly GroupedRecoveryWorkflowConfig[] = [
+  {
+    abilityId: S_BP2_002_ON_LEAVE_STAGE_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID,
+    discardStepId: 'S_BP2_002_SELECT_DISCARD_FOR_AQOURS_LIVE_RECOVERY',
+    recoveryStepId: 'S_BP2_002_SELECT_AQOURS_LIVE_FROM_WAITING_ROOM',
+    discardCount: 1,
+    startActionStep: 'START_SELECT_DISCARD',
+    recoveryActionStep: 'RECOVER_AQOURS_LIVE',
+    discardActionType: 'RESOLVE_ABILITY',
+    discardActionStep: 'DISCARD_HAND_CARD',
+    noTargetActionStep: 'DISCARD_HAND_NO_AQOURS_LIVE_RECOVERY_TARGET',
+    recoveryStepText: '请选择休息室中的1张『Aqours』LIVE卡加入手牌。',
+    selectionLabel: '选择要加入手牌的 Aqours LIVE',
+    confirmSelectionLabel: '加入手牌',
+    groups: [
+      {
+        key: 'aqoursLive',
+        selector: aqoursLive,
+        requiredIfAvailable: true,
+        payloadField: 'aqoursLiveCardIds',
+      },
+    ],
+  },
   {
     abilityId: HS_BP6_017_LEAVE_STAGE_RECOVER_LIVE_AND_MEMBER_ABILITY_ID,
     discardStepId: HS_BP6_017_SELECT_DISCARD_STEP_ID,
@@ -385,22 +417,9 @@ function startGroupedRecoveryAfterDiscard(
     return game;
   }
 
-  const selectableCardIds = selectWaitingRoomCardIds(discardResult.gameState, player.id, (card) =>
-    config.groups.some((group) => group.selector(card))
-  );
-  const requiredGroupKeys = config.groups
-    .filter(
-      (group) =>
-        group.requiredIfAvailable &&
-        selectableCardIds.some((cardId) => {
-          const card = discardResult.gameState.cardRegistry.get(cardId);
-          return card ? group.selector(card) : false;
-        })
-    )
-    .map((group) => group.key);
-  const requiredRecoveryCount = requiredGroupKeys.length;
+  const selection = getGroupedRecoverySelectionState(discardResult.gameState, player.id, config);
 
-  if (selectableCardIds.length === 0 && config.noTargetActionStep) {
+  if (selection.selectableCardIds.length === 0 && config.noTargetActionStep) {
     return continuePendingCardEffects(
       addAction({ ...discardResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: effect.id,
@@ -413,12 +432,6 @@ function startGroupedRecoveryAfterDiscard(
     );
   }
 
-  const minSelectableCards = requiredRecoveryCount;
-  const maxSelectableCards =
-    requiredRecoveryCount > 0
-      ? requiredRecoveryCount
-      : Math.min(config.groups.length, selectableCardIds.length);
-
   return addAction(
     {
       ...discardResult.gameState,
@@ -427,21 +440,22 @@ function startGroupedRecoveryAfterDiscard(
         stepId: config.recoveryStepId,
         stepText: config.recoveryStepText,
         awaitingPlayerId: player.id,
-        selectableCardIds,
+        selectableCardIds: selection.selectableCardIds,
         selectableCardVisibility: 'PUBLIC',
         selectableCardMode: 'ORDERED_MULTI',
-        minSelectableCards,
-        maxSelectableCards,
+        minSelectableCards: selection.minSelectableCards,
+        maxSelectableCards: selection.maxSelectableCards,
         selectionLabel: config.selectionLabel,
         confirmSelectionLabel: config.confirmSelectionLabel,
-        canSkipSelection: requiredRecoveryCount === 0,
-        skipSelectionLabel: requiredRecoveryCount === 0 ? config.skipRecoveryLabel : undefined,
+        canSkipSelection: selection.requiredRecoveryCount === 0,
+        skipSelectionLabel:
+          selection.requiredRecoveryCount === 0 ? config.skipRecoveryLabel : undefined,
         metadata: {
           ...effect.metadata,
           discardCardId: discardResult.discardedCardIds[0],
           discardedHandCardIds: discardResult.discardedCardIds,
-          requiredRecoveryCount,
-          requiredGroupKeys,
+          requiredRecoveryCount: selection.requiredRecoveryCount,
+          requiredGroupKeys: selection.requiredGroupKeys,
         },
       },
     },
@@ -455,8 +469,10 @@ function startGroupedRecoveryAfterDiscard(
         ? { discardCardId: discardResult.discardedCardIds[0] }
         : { discardedHandCardIds: discardResult.discardedCardIds }),
       ...(config.discardActionStep ? { step: config.discardActionStep } : {}),
-      selectableCardIds,
-      ...(requiredRecoveryCount > 0 ? { requiredRecoveryCount } : {}),
+      selectableCardIds: selection.selectableCardIds,
+      ...(selection.requiredRecoveryCount > 0
+        ? { requiredRecoveryCount: selection.requiredRecoveryCount }
+        : {}),
     }
   );
 }
@@ -478,13 +494,19 @@ function finishGroupedRecoveryWorkflow(
     uniqueSelectedCardIds.length !== selectedCardIds.length ||
     uniqueSelectedCardIds.length < (effect.minSelectableCards ?? 0) ||
     uniqueSelectedCardIds.length > (effect.maxSelectableCards ?? config.groups.length) ||
-    !uniqueSelectedCardIds.every(
-      (cardId) =>
-        effect.selectableCardIds?.includes(cardId) === true &&
-        player.waitingRoom.cardIds.includes(cardId)
-    )
+    !uniqueSelectedCardIds.every((cardId) => effect.selectableCardIds?.includes(cardId) === true)
   ) {
     return game;
+  }
+
+  if (!uniqueSelectedCardIds.every((cardId) => player.waitingRoom.cardIds.includes(cardId))) {
+    return refreshGroupedRecoverySelectionAfterStaleTarget(
+      game,
+      player.id,
+      effect,
+      config,
+      continuePendingCardEffects
+    );
   }
 
   const requiredGroupKeys = getStringArrayMetadata(effect.metadata?.requiredGroupKeys);
@@ -549,6 +571,91 @@ function finishGroupedRecoveryWorkflow(
         : { discardedHandCardIds: effect.metadata?.discardedHandCardIds ?? [] }),
     }),
     effect.metadata?.orderedResolution === true
+  );
+}
+
+function getGroupedRecoverySelectionState(
+  game: GameState,
+  playerId: string,
+  config: GroupedRecoveryWorkflowConfig
+): GroupedRecoverySelectionState {
+  const selectableCardIds = selectWaitingRoomCardIds(game, playerId, (card) =>
+    config.groups.some((group) => group.selector(card))
+  );
+  const requiredGroupKeys = config.groups
+    .filter(
+      (group) =>
+        group.requiredIfAvailable &&
+        selectableCardIds.some((cardId) => {
+          const card = game.cardRegistry.get(cardId);
+          return card ? group.selector(card) : false;
+        })
+    )
+    .map((group) => group.key);
+  const requiredRecoveryCount = requiredGroupKeys.length;
+  return {
+    selectableCardIds,
+    requiredGroupKeys,
+    requiredRecoveryCount,
+    minSelectableCards: requiredRecoveryCount,
+    maxSelectableCards:
+      requiredRecoveryCount > 0
+        ? requiredRecoveryCount
+        : Math.min(config.groups.length, selectableCardIds.length),
+  };
+}
+
+function refreshGroupedRecoverySelectionAfterStaleTarget(
+  game: GameState,
+  playerId: string,
+  effect: NonNullable<GameState['activeEffect']>,
+  config: GroupedRecoveryWorkflowConfig,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const selection = getGroupedRecoverySelectionState(game, playerId, config);
+  if (selection.selectableCardIds.length === 0 && config.noTargetActionStep) {
+    return continuePendingCardEffects(
+      addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', playerId, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: config.noTargetActionStep,
+        discardedHandCardIds: getStringArrayMetadata(effect.metadata?.discardedHandCardIds),
+      }),
+      effect.metadata?.orderedResolution === true
+    );
+  }
+
+  return addAction(
+    {
+      ...game,
+      activeEffect: {
+        ...effect,
+        selectableCardIds: selection.selectableCardIds,
+        minSelectableCards: selection.minSelectableCards,
+        maxSelectableCards: selection.maxSelectableCards,
+        canSkipSelection: selection.requiredRecoveryCount === 0,
+        skipSelectionLabel:
+          selection.requiredRecoveryCount === 0 ? config.skipRecoveryLabel : undefined,
+        metadata: {
+          ...effect.metadata,
+          requiredRecoveryCount: selection.requiredRecoveryCount,
+          requiredGroupKeys: selection.requiredGroupKeys,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    playerId,
+    {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'REFRESH_RECOVERY_TARGETS',
+      selectableCardIds: selection.selectableCardIds,
+      ...(selection.requiredRecoveryCount > 0
+        ? { requiredRecoveryCount: selection.requiredRecoveryCount }
+        : {}),
+    }
   );
 }
 

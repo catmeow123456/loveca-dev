@@ -645,6 +645,21 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    baseCardCodes: ['PL!HS-pb1-015'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      hasNoOtherStageMembers(game, playerId, sourceCardId)
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: -3,
+              sourceCardId,
+              abilityId: HS_PB1_015_CONTINUOUS_ALONE_LOSE_THREE_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
+  },
+  {
     baseCardCodes: ['PL!S-bp5-008'],
     collect: ({ game, playerId, sourceCardId }) => {
       const opponent = game.players.find((candidate) => candidate.id !== playerId);
@@ -727,6 +742,29 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
               countDelta: successLiveDifference,
               sourceCardId,
               abilityId: S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID,
+            },
+          ]
+        : [];
+    },
+  },
+  {
+    baseCardCodes: ['PL!S-bp2-001'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const player = game.players.find((candidate) => candidate.id === playerId);
+      const opponent = game.players.find((candidate) => candidate.id !== playerId);
+      return player &&
+        opponent &&
+        isSourceMainStageMember(game, playerId, sourceCardId) &&
+        player.successZone.cardIds.length === 0 &&
+        opponent.successZone.cardIds.length >= 1
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 3,
+              sourceCardId,
+              abilityId:
+                S_BP2_001_CONTINUOUS_OWN_NO_SUCCESS_OPPONENT_HAS_SUCCESS_GAIN_THREE_BLADE_ABILITY_ID,
             },
           ]
         : [];
@@ -1154,6 +1192,8 @@ const HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID =
   'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart';
 const S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID =
   'PL!S-bp6-009:continuous-success-live-difference-gain-blade';
+const S_BP2_001_CONTINUOUS_OWN_NO_SUCCESS_OPPONENT_HAS_SUCCESS_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!S-bp2-001:continuous-own-no-success-opponent-has-success-gain-three-blade';
 const PL_S_BP5_008_CONTINUOUS_OPPONENT_REMAINING_HEART_SCORE_ABILITY_ID =
   'PL!S-bp5-008:continuous-opponent-remaining-heart-score';
 const HS_PB1_007_CONTINUOUS_EXACT_TWO_OWN_OPPONENT_THREE_PURPLE_HEART_ABILITY_ID =
@@ -1170,6 +1210,8 @@ const HS_BP2_006_CONTINUOUS_OTHER_MIRACRA_STAGE_MEMBER_BLADE_ABILITY_ID =
   'PL!HS-bp2-006:continuous-other-miracra-stage-member-blade';
 const HS_BP6_002_CONTINUOUS_ALONE_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!HS-bp6-002:continuous-alone-gain-two-blade';
+const HS_PB1_015_CONTINUOUS_ALONE_LOSE_THREE_BLADE_ABILITY_ID =
+  'PL!HS-pb1-015-R:continuous-alone-lose-three-blade';
 const HS_BP5_016_CONTINUOUS_OPPONENT_TWO_WAITING_PURPLE_HEART_ABILITY_ID =
   'PL!HS-bp5-016-N:continuous-opponent-two-waiting-purple-heart';
 const HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GREEN_HEART_ABILITY_ID =

@@ -1,6 +1,60 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-09
+更新时间：2026-07-10
+
+## 本次 2026-07-11 水团 BP2 声援重做收尾
+
+- `PL!S-bp2-004-R / P` 费用 11「黒澤ダイヤ」完成 P/R 收束：无 LIVE 的原普通声援可选移动原公开卡后，先记录 turn1、按原 BLADE 重做 normal `CheerEvent` 并显式重新入队；`replaceCurrentCheerCards` 仅替换当前玩家 current cheer IDs，满足 Q107，未扩成通用 cheer loop。
+- 新增窄只读 `runtime/cheer-events.ts` query，供 004、`PL!S-bp2-003` 费用 9「松浦果南」与 `PL!SP-PR-024-PR` 费用 4「平安名すみれ」按 pending eventIds 读取最后一个己方普通 CheerEvent。
+- focused 验证覆盖真实多 pending 的手动选择与顺序发动：第一次 003/004 同时入队，004 重做后旧 003 条件失败不占 turn1，第二次普通声援的新 003 正常结算；并覆盖 query 单测与既有三调用方回归。
+
+## 本次 2026-07-10 莲 HS-bp2 018 休息室 LIVE 正面放置
+
+- 已实现 `PL!HS-bp2-018-N` 费用 7「安養寺 姫芽」：自己的主要阶段登场时，存在2张 ACTIVE 能量和休息室 LIVE 目标才打开可选支付窗口；不发动、费用不足、无目标或非己方主要阶段均不支付并安全 no-op。
+- 支付后强制选择1张当前仍在自己休息室的 LIVE 卡，通过 `placeWaitingRoomLiveCardInLiveZoneForPlayer` 正面放入 LIVE 区并记录 `WAITING_ROOM -> LIVE_ZONE` 的 `ON_ENTER_LIVE_ZONE` 事件；非法或陈旧选择由命令/动作层拒绝，不移动卡也不登记跨阶段限制。
+- 成功放置后复用既有 `liveSetLimitReductions`：下一次自己的 LIVE 卡设置阶段上限 -1，对手完成阶段不消费，自己完成该阶段时消费一次，之后恢复。单卡 workflow `hs-bp2-018-hime.ts`；runner 仅新增1组 import/register 薄胶水。
+
+## 本次 2026-07-10 莲 HS-bp2 019 必要 Heart 三选一
+
+- 已实现 `PL!HS-bp2-019-L` 分数 1「Bloom the smile, Bloom the dream!」：来源仍在自己的 LIVE 区且己方舞台存在莲之空成员时，打开桃2+无1、绿2+无1、蓝2+无1三种必要 Heart 形状的真实选择窗口，并可选择不改变。
+- 单卡 workflow `hs-bp2-019-bloom-the-smile-bloom-the-dream.ts` 通过印刷必要 Heart 计算自身 REQUIREMENT delta，并用 `replaceLiveModifier` 只替换本 ability/source 的 modifier；`getLiveCardRequirementModifiers` + `applyHeartRequirementModifiers` 验证最终形状。FAQ Q127 等外部无色 +1 modifier 保留叠加，选择形状后会得到选中色2+无色2。
+- 本批不扩无输入 `conditional-live-modifier`，不新增 helper/DSL；runner 仅新增1组 import/register 薄胶水。
+
+## 本次 2026-07-10 莲 HS-bp2 007 换手回收与同名成员强化
+
+- 已实现 `PL!HS-bp2-007-R＋ / P / P＋ / SEC` 费用 11「百生 吟子」两段能力：从费用严格更低的 Cerise Bouquet 成员换手登场时，强制从休息室回收1张莲之空 LIVE；LIVE开始时可弃1手，若弃置成员卡则选择己方舞台持有相同名称的1名成员，获得绿色 Heart +1 与 BLADE +1。
+- 登场段复用 `relay-enter-lower-cost-unit` 与 `waiting-room-to-hand`；LIVE开始段复用 optional discard shell 与 HAND -> WAITING_ROOM trigger wrapper，支付后通过共享 `getCardNameCandidates` / `cardNameAliasAny` 识别多名称成员。`LL-bp1-001-R＋`「上原歩夢&澁谷かのん&日野下花帆」可因弃置「日野下花帆」成为目标，目标 Heart 写 `TARGET_MEMBER`，BLADE 沿用目标成员 cardId 约定。
+- 本批新增单卡 workflow `hs-bp2-007-ginko.ts`，runner 仅新增1组 import/register 薄胶水；未修改 trigger matcher、cost calculator、steps DSL 或共享 identity/helper 语义。
+
+## 本次 2026-07-10 莲 HS-bp2 003 可选弃手控顶
+
+- 已实现 `PL!HS-bp2-003-R / P` 费用 7「乙宗 梢」：LIVE开始时可弃1手；支付后检视卡组顶3张，将任意张按任意顺序放回卡组顶，其余放置入休息室。
+- 新增单卡薄 wrapper `hs-bp2-003-kozue.ts`；弃手选择复用 optional discard activeEffect shell，弃手移动走 HAND -> WAITING_ROOM trigger wrapper，随后委托 shared `arrange-inspected-deck-top` 处理私密检视、有序回顶、余牌入休息室、refresh 与 pending continuation。
+- shared arrange public summary 新增可选 `discardedCostCardIds` 上下文：003 的 STARTED/COMPLETED summary 均携带真实费用卡；旧无费用调用保持空数组。本批 runner 仅新增1组 import/register 薄胶水。
+
+## 本次 2026-07-10 莲 HS-bp2 换手登场奖励
+
+- 已实现 `PL!HS-bp2-008-R / P` 费用 4「徒町 小鈴」：从费用严格更低的 DOLLCHESTRA 成员换手登场时，来源成员获得 BLADE +2。
+- 已实现 `PL!HS-bp2-009-R / P` 费用 13「安養寺 姫芽」：登场可支付1张 ACTIVE 能量；支付后若从费用严格更低的 Mira-Cra Park! 成员换手登场，来源成员获得2个桃 Heart。支付选项不按换手条件前置隐藏，条件失败时保留已支付费用。
+- 两张保持独立 card workflow，只共用窄纯条件 helper `relay-enter-lower-cost-unit.ts`：replacement 费用读取本次事件捕获 `relayReplacements.effectiveCost`，来源费用读取结算时有效费用，并以结构化小队 alias 判断；不扩成 relay DSL。本批 runner 只新增两组 import/register 薄胶水。
+
+## 本次 2026-07-10 莲 HS-bp2 起动回收与登场抽卡
+
+- 已实现 `PL!HS-bp2-001-R / P` 费用 13「日野下花帆」：扩展 shared `pay-energy-waiting-room-to-hand`，起动1回合1次支付 [E][E]，强制回收1张印刷分数小于等于3的莲之空 LIVE；无合法目标或活跃能量不足时不支付也不消耗次数。Excel 中文源将「分数」误译为「费用」，实现与 definition 按 `cards.json` / Excel 日文权威文本修正为分数。
+- 已实现 `PL!HS-bp2-017-N` 费用 7「徒町 小鈴」：扩展 shared `member-on-enter-draw` 的休息室数量阈值配置，登场 pending 结算时重算己方休息室，10张以上抽1，否则 no-op 并继续后续 pending。
+- 本批未新增卡牌维度 workflow、未修改 runner。focused integration 覆盖 R/P、费用/目标门禁、合法筛选、turn1、非法/陈旧选择、休息室9/10张、结算时重算与 pending continuation。
+
+## 本次 2026-07-10 莲 HS-bp2 LIVE 开始分数修正
+
+- 已实现 `PL!HS-bp2-020-L` 分数 0「Link to the FUTURE」的 LIVE 开始段：保留既有 exact-code 三小队常时身份 definition，扩展 `live-start-score-bonuses`，以 `cardBelongsToGroup` 与 `selectDifferentNamedCards` 统计自己主舞台不同名『莲之空』成员，每名使来源 LIVE [スコア]+2。
+- 已实现 `PL!HS-bp2-026-L / L＋` 分数 5「みらくりえーしょん」：通过 `baseCardCodes` 同步 L / L＋，以 `cardNameAliasIs` 复核自己的右侧大沢瑠璃乃、左侧安養寺姫芽、中央藤島慈；三槽均符合时来源 LIVE [スコア]+2。
+- 两张均复用 shared 无交互 manual-confirmation 路径：单 pending/手动点选先确认，顺序发动自动连续结算；确认文案实时显示不同名数量或三槽条件与实际分数结果。本批未修改 runner、未新增 helper 或卡牌 workflow。
+
+## 本次 2026-07-10 莲 HS-bp2 第一批卡效
+
+- 已实现 `PL!HS-bp2-011-N / PR` 费用 2「村野さやか」：扩展 shared `direct-mill-top`，登场将卡组顶5张放置入休息室，继续使用 refresh-aware main-deck-to-waiting trigger wrapper，refresh 洗回卡组的牌不计入本次 movedCardIds。
+- 已实现 `PL!HS-bp2-016-N` 费用 4「百生 吟子」：与 `PL!HS-pb1-024-N` 同型，复用 `HS_PB1_024_ON_ENTER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID` 与 `arrange-inspected-deck-top`，通过 baseCardCodes 同时覆盖；未选择的 inspected cards 继续走 inspection-to-waiting wrapper。
+- 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录 direct mill 与 inspection-to-waiting 两种事件边界。本批未新增卡牌维度 workflow、未新增 helper、未修改 runner。
 
 ## 本次 2026-07-09 余Heart实时口径修正
 
@@ -8,7 +62,7 @@
 
 ## 本次 2026-07-09 水团 sd1 第一批卡效
 
-- 已实现 `PL!S-sd1-001-SD` 费用 17「高海千歌」：新增窄 workflow `s-sd1-001-chika.ts`，ON_CHEER / turn1 按 pending 绑定的普通自己声援 `CheerEvent.revealedCardIds` 事实统计自己公开 LIVE 卡，最多获得 3 个 [赤ハート]，不依赖当前 `resolutionZone`；0 张也记录使用，来源离场安全 no-op，additional cheer 不二次触发。
+- 已实现 `PL!S-sd1-001-SD` 费用 17「高海千歌」：现由 shared `on-cheer-live-count-gain-heart.ts` 处理，ON_CHEER / turn1 按 pending 绑定的普通自己声援 `CheerEvent.revealedCardIds` 事实统计自己公开 LIVE 卡，最多获得 3 个 [赤ハート]，不依赖当前 `resolutionZone`；0 张也记录使用，来源离场安全 no-op，additional cheer 不二次触发。
 - 已实现 `PL!S-sd1-006-SD` 费用 5「津島善子」：新增窄 workflow `s-sd1-006-yoshiko.ts`，ON_ENTER queued 真实可选弃 1 手牌交互不套 confirm-only；弃手走 hand -> waiting room trigger wrapper，支付后重扫休息室与空成员区，刚弃置的费用 2 以下 Aqours 成员可登场，休息室登场显式入队 `ON_ENTER_STAGE`。括号文“该区域本回合不能登场成员”暂按底层通用规则治理，单卡 workflow 不写静态锁、不记录特殊 `movedToStageThisTurn`。
 - 已实现 `PL!S-sd1-003-SD` 费用 11「松浦果南」：扩展 shared `look-top-select-to-hand`，查看顶 5，selector 为 Aqours LIVE，公开后入手，其余 inspected cards 通过 inspection-to-waiting wrapper 进入休息室并保留 `MAIN_DECK -> WAITING_ROOM` 事件语义。
 - 已实现 `PL!S-sd1-013-SD` 费用 4「黒澤ダイヤ」：扩展 shared `direct-mill-top`，`topCount=5`，继续使用 `moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers`，refresh 洗回卡组的牌不计入本次 `movedCardIds`。
@@ -19,7 +73,7 @@
 - 已实现 `PL!S-sd1-004-SD` 费用 13「黒澤ダイヤ」：新增窄 workflow `s-sd1-004-dia.ts`，LIVE_START 真实可选交互不套 confirm-only；来源成员开始结算与回顶选择时均重查仍在己方舞台，选择发动后抽 1，再按当前手牌 ordered multi 选择正好 2 张按顺序放到卡组顶，抽到的卡可回顶；无法抽、手牌不足、陈旧/非法选择均安全继续 pending，回顶不触发进休息室事件。
 - 已实现 `PL!S-sd1-020-SD` 分数 2「JIMO-AI Dash!」：新增窄 workflow `s-sd1-020-jimo-ai-dash.ts`，LIVE_SUCCESS 真实弃手交互不套 confirm-only；结算时重查来源 LIVE 仍在自己的 LIVE 区与当前己方舞台 Aqours 成员数，按成员数抽牌，弃手数量等于实际因此抽到的张数，0 抽不弹弃手选择；弃手走 hand -> waiting room trigger wrapper，陈旧/非法弃手选择安全继续 pending。
 - 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录上述 sd1 卡的实现状态、复用 workflow/helper 与 focused tests。
-- 验证：前 3 张的既有记录为 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/look-top-select-to-hand.test.ts tests/integration/direct-mill-top.test.ts tests/integration/s-sd1-019-revealed-cheer-selection.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（6 files / 26 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-002-SD` / `PL!S-sd1-005-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-002-005-aqours-recovery.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（4 files / 26 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-001-SD` / `PL!S-sd1-022-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-001-chika.test.ts tests/integration/aqours-live-start-success-effects.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（5 files / 35 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-004-SD` / `PL!S-sd1-020-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-004-dia.test.ts tests/integration/s-sd1-020-jimo-ai-dash.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（5 files / 22 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-006-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-006-yoshiko.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（4 files / 24 tests）、`tsc --noEmit` passed、`git diff --check` passed。
+- 验证：前 3 张的既有记录为 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/look-top-select-to-hand.test.ts tests/integration/direct-mill-top.test.ts tests/integration/s-sd1-019-revealed-cheer-selection.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（6 files / 26 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-002-SD` / `PL!S-sd1-005-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-002-005-aqours-recovery.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（4 files / 26 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-001-SD` / `PL!S-sd1-022-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/on-cheer-live-count-gain-heart.test.ts tests/integration/aqours-live-start-success-effects.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（5 files / 35 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-004-SD` / `PL!S-sd1-020-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-004-dia.test.ts tests/integration/s-sd1-020-jimo-ai-dash.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（5 files / 22 tests）、`tsc --noEmit` passed、`git diff --check` passed。本次追加 `PL!S-sd1-006-SD` 后，已验证 `vitest run tests/unit/card-effect-classification.test.ts tests/integration/s-sd1-006-yoshiko.test.ts tests/unit/card-effect-tokens.test.ts tests/unit/card-effect-text-governance.test.ts` passed（4 files / 24 tests）、`tsc --noEmit` passed、`git diff --check` passed。
 
 ## 本次 2026-07-08 3.7.1 发布准备
 

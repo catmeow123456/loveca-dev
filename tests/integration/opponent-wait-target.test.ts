@@ -11,9 +11,15 @@ import {
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import {
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
+  HS_PB1_010_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+  HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -90,7 +96,225 @@ function clearPlayerZones(player: {
   player.liveZone.cardIds = [];
 }
 
+function setupPb1010LiveStartPending(options: {
+  readonly hasHighCostOwnMember: boolean;
+  readonly targetOrientation: OrientationState | null;
+  readonly pendingCount?: 1 | 2;
+}): {
+  readonly game: GameState;
+  readonly sourceCardIds: readonly string[];
+  readonly targetCardId: string | null;
+} {
+  const session = createGameSession();
+  const deck = createDeck();
+  session.createGame('opponent-wait-target-hs-pb1-010-live-start', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+  session.initializeGame(deck, deck);
+  const pendingCount = options.pendingCount ?? 1;
+  const sources = Array.from({ length: pendingCount }, (_, index) =>
+    createCardInstance(
+      createMemberCard('PL!HS-pb1-010-R', `村野さやか${index}`, 2),
+      PLAYER1,
+      `p1-hs-pb1-010-live-start-source-${index}`
+    )
+  );
+  const highCostOwnMember = options.hasHighCostOwnMember
+    ? createCardInstance(
+        createMemberCard('PL!HS-test-live-start-cost-10', 'Cost 10', 10),
+        PLAYER1,
+        'p1-hs-pb1-010-live-start-high-cost'
+      )
+    : null;
+  const target =
+    options.targetOrientation === null
+      ? null
+      : createCardInstance(
+          createMemberCard('PL!HS-test-live-start-cost-4', 'Cost 4', 4),
+          PLAYER2,
+          'p2-hs-pb1-010-live-start-target'
+        );
+  const game = registerCards(session.state!, [
+    ...sources,
+    ...(highCostOwnMember ? [highCostOwnMember] : []),
+    ...(target ? [target] : []),
+  ]);
+  const p1 = game.players[0] as unknown as {
+    hand: { cardIds: string[] };
+    mainDeck: { cardIds: string[] };
+    waitingRoom: { cardIds: string[] };
+    successZone: { cardIds: string[] };
+    liveZone: { cardIds: string[] };
+    memberSlots: {
+      slots: Record<SlotPosition, string | null>;
+      cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+    };
+  };
+  const p2 = game.players[1] as unknown as typeof p1;
+  clearPlayerZones(p1);
+  clearPlayerZones(p2);
+  const slots = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
+  p1.memberSlots.cardStates = new Map();
+  for (const [index, source] of sources.entries()) {
+    const slot = slots[index]!;
+    p1.memberSlots.slots[slot] = source.instanceId;
+    p1.memberSlots.cardStates.set(source.instanceId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+  }
+  if (highCostOwnMember) {
+    const slot = slots[sources.length]!;
+    p1.memberSlots.slots[slot] = highCostOwnMember.instanceId;
+    p1.memberSlots.cardStates.set(highCostOwnMember.instanceId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+  }
+  if (target && options.targetOrientation) {
+    p2.memberSlots.slots[SlotPosition.CENTER] = target.instanceId;
+    p2.memberSlots.cardStates = new Map([
+      [target.instanceId, { orientation: options.targetOrientation, face: FaceState.FACE_UP }],
+    ]);
+  }
+  return {
+    game: {
+      ...game,
+      pendingAbilities: sources.map((source, index) => ({
+        id: `hs-pb1-010-live-start-pending-${index}`,
+        abilityId: HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+        sourceCardId: source.instanceId,
+        controllerId: PLAYER1,
+        mandatory: true,
+        timingId: TriggerCondition.ON_LIVE_START,
+        sourceSlot: slots[index],
+      })),
+    },
+    sourceCardIds: sources.map((source) => source.instanceId),
+    targetCardId: target?.instanceId ?? null,
+  };
+}
+
 describe('opponent wait target shared workflow', () => {
+  it('uses PL!HS-pb1-010 printed cost gates and waits a cost-four target through the state-change wrapper', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+    session.createGame('opponent-wait-target-hs-pb1-010', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(
+      createMemberCard('PL!HS-pb1-010-R', '村野さやか', 2),
+      PLAYER1,
+      'p1-hs-pb1-010-source'
+    );
+    const highCostOwnMember = createCardInstance(
+      createMemberCard('PL!HS-test-cost-10', 'Cost 10', 10),
+      PLAYER1,
+      'p1-hs-pb1-010-high-cost'
+    );
+    const target = createCardInstance(
+      createMemberCard('PL!HS-test-cost-4', 'Cost 4', 4),
+      PLAYER2,
+      'p2-hs-pb1-010-target'
+    );
+    const state = registerCards(session.state!, [source, highCostOwnMember, target]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
+      memberSlots: { slots: Record<SlotPosition, string | null>; cardStates: Map<string, { orientation: OrientationState; face: FaceState }> };
+    };
+    const p2 = state.players[1] as unknown as typeof p1;
+    clearPlayerZones(p1);
+    clearPlayerZones(p2);
+    p1.hand.cardIds = [source.instanceId];
+    p1.memberSlots.slots[SlotPosition.LEFT] = highCostOwnMember.instanceId;
+    p1.memberSlots.cardStates = new Map([[highCostOwnMember.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }]]);
+    p2.memberSlots.slots[SlotPosition.CENTER] = target.instanceId;
+    p2.memberSlots.cardStates = new Map([[target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }]]);
+
+    expect(session.executeCommand(createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, { freePlay: true })).success).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(HS_PB1_010_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
+    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, target.instanceId)).success).toBe(true);
+    expect(session.state?.players[1].memberSlots.cardStates.get(target.instanceId)?.orientation).toBe(OrientationState.WAITING);
+    expect(session.state?.eventLog.some((entry) => entry.event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED && entry.event.cardInstanceId === target.instanceId)).toBe(true);
+  });
+
+  it('shows a confirm-only no-op for PL!HS-pb1-010 LIVE_START when no own cost-ten member exists', () => {
+    const { game, targetCardId } = setupPb1010LiveStartPending({
+      hasHighCostOwnMember: false,
+      targetOrientation: OrientationState.ACTIVE,
+    });
+    const preview = resolvePendingCardEffects(game).gameState;
+
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(preview.activeEffect?.effectText).toContain('费用大于等于10的成员0名');
+    expect(preview.activeEffect?.effectText).toContain('可选择目标1名');
+    expect(preview.activeEffect?.stepText).toContain('不处理');
+
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(
+      resolved.players[1].memberSlots.cardStates.get(targetCardId!)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+  });
+
+  it('shows a confirm-only no-op for PL!HS-pb1-010 LIVE_START when no legal opponent target exists', () => {
+    const { game, targetCardId } = setupPb1010LiveStartPending({
+      hasHighCostOwnMember: true,
+      targetOrientation: OrientationState.WAITING,
+    });
+    const preview = resolvePendingCardEffects(game).gameState;
+
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(preview.activeEffect?.effectText).toContain('费用大于等于10的成员1名');
+    expect(preview.activeEffect?.effectText).toContain('可选择目标0名');
+    expect(preview.activeEffect?.stepText).toContain('不处理');
+
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(resolved.activeEffect).toBeNull();
+    expect(
+      resolved.players[1].memberSlots.cardStates.get(targetCardId!)?.orientation
+    ).toBe(OrientationState.WAITING);
+  });
+
+  it('auto-resolves ordered PL!HS-pb1-010 LIVE_START no-op pendings without opening confirm-only', () => {
+    const { game } = setupPb1010LiveStartPending({
+      hasHighCostOwnMember: false,
+      targetOrientation: OrientationState.ACTIVE,
+      pendingCount: 2,
+    });
+    const orderSelection = resolvePendingCardEffects(game).gameState;
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+
+    const resolved = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(
+      resolved.actionHistory.filter(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID
+      )
+    ).toHaveLength(2);
+  });
   it('waits only an opponent stage member with cost less than or equal to four for PL!-bp5-013', () => {
     const session = createGameSession();
     const deck = createDeck();

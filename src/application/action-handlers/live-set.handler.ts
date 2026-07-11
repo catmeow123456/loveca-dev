@@ -22,7 +22,7 @@ import {
   emitGameEvent,
   getLiveSetCardCountForPlayer,
   getLiveSetCardLimitForPlayer,
-  incrementLiveSetCardCountForPlayer,
+  recordLiveSetCardForPlayer,
   updatePlayer,
 } from '../../domain/entities/game.js';
 import { removeCardFromZone, addCardToStatefulZone } from '../../domain/entities/zone.js';
@@ -75,7 +75,7 @@ export const handleSetLiveCard: ActionHandler<SetLiveCardAction> = (
 
   // 记录动作
   state = addAction(state, 'SET_LIVE_CARD', playerId, { cardId, faceDown });
-  state = incrementLiveSetCardCountForPlayer(state, playerId);
+  state = recordLiveSetCardForPlayer(state, playerId, cardId);
   const enterLiveZoneEvent = createEnterLiveZoneEvent(
     cardId,
     ZoneType.HAND,

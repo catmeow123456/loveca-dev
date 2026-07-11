@@ -18,7 +18,11 @@ import {
 
 export type CheerCardPredicate = (card: CardInstance) => boolean;
 export type CurrentLiveRevealedCheerEventScope = 'ALL' | 'NON_ADDITIONAL' | 'ADDITIONAL_ONLY';
-export type RevealedCheerCardDestination = 'HAND' | 'MAIN_DECK_TOP' | 'WAITING_ROOM';
+export type RevealedCheerCardDestination =
+  | 'HAND'
+  | 'MAIN_DECK_TOP'
+  | 'MAIN_DECK_BOTTOM'
+  | 'WAITING_ROOM';
 
 export interface CurrentLiveRevealedCheerCardSelectionOptions {
   readonly predicate?: CheerCardPredicate;
@@ -169,7 +173,8 @@ export function moveRevealedCheerCards(
     uniqueCardIds.some(
       (cardId) =>
         !game.resolutionZone.cardIds.includes(cardId) ||
-        !game.resolutionZone.revealedCardIds.includes(cardId)
+        !game.resolutionZone.revealedCardIds.includes(cardId) ||
+        getCardById(game, cardId)?.ownerId !== player.id
     )
   ) {
     return null;
@@ -199,6 +204,16 @@ export function moveRevealedCheerCards(
           (waitingRoom, cardId) => addCardToZone(waitingRoom, cardId),
           currentPlayer.waitingRoom
         ),
+      };
+    }
+
+    if (destination === 'MAIN_DECK_BOTTOM') {
+      return {
+        ...currentPlayer,
+        mainDeck: {
+          ...currentPlayer.mainDeck,
+          cardIds: [...currentPlayer.mainDeck.cardIds, ...uniqueCardIds],
+        },
       };
     }
 

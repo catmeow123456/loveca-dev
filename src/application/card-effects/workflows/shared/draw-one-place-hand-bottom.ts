@@ -1,12 +1,10 @@
 import {
   addAction,
   getPlayerById,
-  updatePlayer,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import { addCardToZone } from '../../../../domain/entities/zone.js';
 import { S_DRAW_ONE_PLACE_HAND_BOTTOM_ABILITY_ID } from '../../ability-ids.js';
-import { drawCardsForPlayer } from '../../runtime/actions.js';
+import { drawCardsForPlayer, moveHandCardToDeckBottomForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -139,23 +137,21 @@ function finishDrawOnePlaceHandBottomWorkflow(
     return game;
   }
 
-  const state = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    hand: {
-      ...currentPlayer.hand,
-      cardIds: currentPlayer.hand.cardIds.filter((cardId) => cardId !== selectedCardId),
-    },
-    mainDeck: addCardToZone(currentPlayer.mainDeck, selectedCardId),
-  }));
+  const moveResult = moveHandCardToDeckBottomForPlayer(game, player.id, selectedCardId, {
+    candidateCardIds: selectableCardIds,
+  });
+  if (!moveResult) {
+    return game;
+  }
 
   return continuePendingCardEffects(
-    addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+    addAction({ ...moveResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: 'PLACE_HAND_CARD_TO_DECK_BOTTOM',
       selectedCardId,
-      movedCardIds: [selectedCardId],
+      movedCardIds: [moveResult.movedCardId],
     }),
     effect.metadata?.orderedResolution === true
   );

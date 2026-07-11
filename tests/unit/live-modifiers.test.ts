@@ -58,6 +58,8 @@ const HS_BP5_007_CONTINUOUS_ABILITY_ID = 'PL!HS-bp5-007:continuous-other-edelnot
 const HS_BP2_006_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp2-006:continuous-other-miracra-stage-member-blade';
 const HS_BP6_002_CONTINUOUS_ABILITY_ID = 'PL!HS-bp6-002:continuous-alone-gain-two-blade';
+const HS_PB1_015_CONTINUOUS_ABILITY_ID =
+  'PL!HS-pb1-015-R:continuous-alone-lose-three-blade';
 const PL_N_PB1_011_CONTINUOUS_ABILITY_ID = 'PL!N-pb1-011:continuous-energy-below-gain-blade';
 const PL_PB1_002_CONTINUOUS_ABILITY_ID =
   'PL!-pb1-002:continuous-opponent-waiting-gain-purple-heart';
@@ -3902,6 +3904,33 @@ describe('live modifier helpers', () => {
     }
   });
 
+  it('collects PL!HS-pb1-015 BLADE -3 only while alone, covers R/P+, and clamps effective BLADE at zero', () => {
+    for (const cardCode of ['PL!HS-pb1-015-R', 'PL!HS-pb1-015-P+']) {
+      const { game, sourceId } = setupHsBp6002ContinuousGame(cardCode);
+      const modifiers = collectLiveModifiers(game);
+      expect(modifiers).toContainEqual({
+        kind: 'BLADE',
+        playerId: 'p1',
+        countDelta: -3,
+        sourceCardId: sourceId,
+        abilityId: HS_PB1_015_CONTINUOUS_ABILITY_ID,
+      });
+      expect(getMemberEffectiveBladeCount(game, 'p1', sourceId, modifiers)).toBe(0);
+    }
+
+    const { game, sourceId } = setupHsBp6002ContinuousGame('PL!HS-pb1-015-R', {
+      withOtherMember: true,
+    });
+    expect(
+      collectLiveModifiers(game).some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.sourceCardId === sourceId &&
+          modifier.abilityId === HS_PB1_015_CONTINUOUS_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
   it('does not collect PL!-bp6-009 SCORE when Nico is not center', () => {
     const { game, sourceId } = setupBp6009ContinuousGame({ nicoSlot: SlotPosition.LEFT });
 
@@ -5744,6 +5773,124 @@ describe('PL!S-pb1-009 continuous total success LIVE BLADE', () => {
         )
       ).toBe(true);
     }
+  });
+});
+
+describe('PL!S-bp2-001 continuous own-empty opponent-success BLADE', () => {
+  function setupChikaSuccessScenario(options: {
+    readonly cardCode: 'PL!S-bp2-001-P' | 'PL!S-bp2-001-R';
+    readonly ownSuccessCount: number;
+    readonly opponentSuccessCount: number;
+    readonly sourceOnStage?: boolean;
+  }) {
+    const chika = createCardInstance(
+      {
+        cardCode: options.cardCode,
+        name: '高海千歌',
+        cardType: CardType.MEMBER,
+        cost: 9,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      `bp2-001-${options.cardCode.endsWith('-P') ? 'p' : 'r'}`
+    );
+    const ownSuccess = Array.from({ length: options.ownSuccessCount }, (_, index) =>
+      createCardInstance(
+        createMuseLiveData(`PL!-bp2-001-own-${index}`, `Own ${index}`, 1),
+        'p1',
+        `bp2-001-own-${index}`
+      )
+    );
+    const opponentSuccess = Array.from({ length: options.opponentSuccessCount }, (_, index) =>
+      createCardInstance(
+        createMuseLiveData(`PL!-bp2-001-opponent-${index}`, `Opponent ${index}`, 1),
+        'p2',
+        `bp2-001-opponent-${index}`
+      )
+    );
+    let game = createGameState('s-bp2-001-continuous', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [chika, ...ownSuccess, ...opponentSuccess]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots:
+        options.sourceOnStage === false
+          ? player.memberSlots
+          : placeCardInSlot(player.memberSlots, SlotPosition.CENTER, chika.instanceId),
+      successZone: ownSuccess.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.successZone
+      ),
+    }));
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      successZone: opponentSuccess.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.successZone
+      ),
+    }));
+    return { game, chika };
+  }
+
+  function hasChikaBladeModifier(game: ReturnType<typeof setupChikaSuccessScenario>['game']) {
+    return collectLiveModifiers(game).find(
+      (modifier) =>
+        modifier.kind === 'BLADE' &&
+        modifier.abilityId ===
+          'PL!S-bp2-001:continuous-own-no-success-opponent-has-success-gain-three-blade'
+    );
+  }
+
+  it('grants fixed BLADE +3 to both P and R when own success zone is empty and opponent has one', () => {
+    for (const cardCode of ['PL!S-bp2-001-P', 'PL!S-bp2-001-R'] as const) {
+      const scenario = setupChikaSuccessScenario({
+        cardCode,
+        ownSuccessCount: 0,
+        opponentSuccessCount: 1,
+      });
+      expect(hasChikaBladeModifier(scenario.game)).toMatchObject({
+        playerId: 'p1',
+        countDelta: 3,
+        sourceCardId: scenario.chika.instanceId,
+      });
+      expect(getMemberEffectiveBladeCount(scenario.game, 'p1', scenario.chika.instanceId)).toBe(4);
+    }
+  });
+
+  it('remains fixed at BLADE +3 when the opponent has more than one success LIVE', () => {
+    const scenario = setupChikaSuccessScenario({
+      cardCode: 'PL!S-bp2-001-P',
+      ownSuccessCount: 0,
+      opponentSuccessCount: 3,
+    });
+    expect(hasChikaBladeModifier(scenario.game)).toMatchObject({ countDelta: 3 });
+  });
+
+  it('does not grant BLADE when both success zones are empty or own success zone has a card', () => {
+    for (const scenario of [
+      setupChikaSuccessScenario({
+        cardCode: 'PL!S-bp2-001-P',
+        ownSuccessCount: 0,
+        opponentSuccessCount: 0,
+      }),
+      setupChikaSuccessScenario({
+        cardCode: 'PL!S-bp2-001-R',
+        ownSuccessCount: 1,
+        opponentSuccessCount: 2,
+      }),
+    ]) {
+      expect(hasChikaBladeModifier(scenario.game)).toBeUndefined();
+    }
+  });
+
+  it('does not grant BLADE while the source member is not on its owner\'s main stage', () => {
+    const scenario = setupChikaSuccessScenario({
+      cardCode: 'PL!S-bp2-001-R',
+      ownSuccessCount: 0,
+      opponentSuccessCount: 1,
+      sourceOnStage: false,
+    });
+    expect(hasChikaBladeModifier(scenario.game)).toBeUndefined();
   });
 });
 

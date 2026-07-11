@@ -162,7 +162,7 @@
 | WF-04 | `PL!S-bp2-006` | 从等待室选择至多 2 名成员，费用合计 <=4，并登场到空槽。 |
 | WF-05 | `PL!-sd1-004` / `PL!HS-bp2-012` / generic discard-look-top / `PL!HS-bp5-008` | look-top 检视、可选公开、入手、其余入休息室的 workflow config。 |
 | WF-06 | `PL!-sd1-003` / `PL!HS-bp1-006` / `PL!HS-bp1-004` | Heart color / pay-or-decline option step。 |
-| WF-07 | `PL!HS-bp6-001` / `PL!HS-cl1-009` / `PL!HS-bp6-027` | 声援公开卡选择已复用 cheer-selection；卡组底/重做声援仍待真实样例。 |
+| WF-07 | `PL!HS-bp6-001` / `PL!HS-cl1-009` / `PL!HS-bp6-027` / `PL!S-bp2-021` / `PL!S-bp2-004` | 声援公开卡选择已复用 cheer-selection，021 已验证卡组底；004 的重做声援复用窄 CheerEvent query、原公开卡移动与 cheer helper，但仍保留单卡决定/重验/continuation，不扩成通用 cheer loop 或 workflow DSL。 |
 | WF-08 | `PL!SP-bp5-003` / `PL!N-pb1-008` | 批量成员/能量 orientation 目标查询与二选一流程。 |
 
 ## Remaining Future Directions

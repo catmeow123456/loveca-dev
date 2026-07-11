@@ -4,6 +4,7 @@ import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
 
 const CONTINUOUS_ACTIVE_PHASE_NOT_ACTIVE_BASE_CARD_CODES = ['PL!N-bp5-006'] as const;
+const CONTINUOUS_OPPONENT_ACTIVE_PHASE_NOT_ACTIVE_BASE_CARD_CODES = ['PL!HS-pb1-008'] as const;
 
 export interface AddMemberActivePhaseSkipOptions {
   readonly playerId: string;
@@ -74,8 +75,9 @@ export function collectContinuousActivePhaseSkippedMemberCardIds(
   if (!player) {
     return [];
   }
+  const opponent = game.players.find((candidate) => candidate.id !== playerId);
 
-  return Object.values(SlotPosition).flatMap((slot) => {
+  const ownStageSkippedMemberCardIds = Object.values(SlotPosition).flatMap((slot) => {
     const cardId = player.memberSlots.slots[slot];
     const cardState = cardId ? player.memberSlots.cardStates.get(cardId) : undefined;
     const card = cardId ? getCardById(game, cardId) : null;
@@ -90,4 +92,26 @@ export function collectContinuousActivePhaseSkippedMemberCardIds(
     }
     return [];
   });
+
+  const opponentHasStageSkipSource =
+    opponent !== undefined &&
+    Object.values(SlotPosition).some((slot) => {
+      const cardId = opponent.memberSlots.slots[slot];
+      const card = cardId ? getCardById(game, cardId) : null;
+      return CONTINUOUS_OPPONENT_ACTIVE_PHASE_NOT_ACTIVE_BASE_CARD_CODES.some((baseCardCode) =>
+        cardCodeMatchesBase(card?.data.cardCode ?? '', baseCardCode)
+      );
+    });
+
+  if (!opponentHasStageSkipSource) {
+    return ownStageSkippedMemberCardIds;
+  }
+
+  const opponentEffectSkippedMemberCardIds = Object.values(SlotPosition).flatMap((slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    const cardState = cardId ? player.memberSlots.cardStates.get(cardId) : undefined;
+    return cardId && cardState?.orientation === OrientationState.WAITING ? [cardId] : [];
+  });
+
+  return [...new Set([...ownStageSkippedMemberCardIds, ...opponentEffectSkippedMemberCardIds])];
 }

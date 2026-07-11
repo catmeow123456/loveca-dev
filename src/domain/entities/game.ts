@@ -11,6 +11,7 @@ import {
   ZoneType,
   SubPhase,
   EffectWindowType,
+  FaceState,
   SlotPosition,
   HeartColor,
 } from '../../shared/types/enums.js';
@@ -703,9 +704,13 @@ export interface GameState {
   readonly operationHistory: readonly UserOperation[];
 
   /**
-   * Live 设置阶段：各玩家盖牌数量（用于后续抽卡）
+   * Live 设置阶段：各玩家通过 SET_LIVE_CARD 放置、且仍在 Live 区的卡牌追踪。
    */
-  readonly liveSetCardCounts: ReadonlyMap<string, number>;
+  readonly liveSetCardIds: ReadonlyMap<string, readonly string[]>;
+  /**
+   * 旧检查点兼容：数字计数无法感知卡牌离开 Live 区，只在尚未迁移的在途状态中读取。
+   */
+  readonly liveSetCardCounts?: ReadonlyMap<string, number>;
 
   // ---- 共享区域 ----
 
@@ -863,7 +868,7 @@ export function createGameState(
     activeEffect: null,
     pendingCostPayment: null,
     operationHistory: [],
-    liveSetCardCounts: new Map(),
+    liveSetCardIds: new Map(),
 
     resolutionZone: createEmptyResolutionZone(),
     inspectionZone: createEmptyInspectionZone(),
@@ -1372,59 +1377,84 @@ export function clearOperationHistory(game: GameState): GameState {
   };
 }
 
-/**
- * 更新 Live 设置阶段盖牌数量
- */
-export function setLiveSetCardCount(game: GameState, playerId: string, count: number): GameState {
-  const newCounts = new Map(game.liveSetCardCounts ?? []);
-  newCounts.set(playerId, count);
+export function setLiveSetCardIdsForPlayer(
+  game: GameState,
+  playerId: string,
+  cardIds: readonly string[]
+): GameState {
+  const newCardIds = new Map(game.liveSetCardIds ?? []);
+  newCardIds.set(playerId, [...new Set(cardIds)]);
   return {
     ...game,
-    liveSetCardCounts: newCounts,
+    liveSetCardIds: newCardIds,
   };
+}
+
+export function getLiveSetCardIdsForPlayer(game: GameState, playerId: string): readonly string[] {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return [];
+  }
+
+  const trackedCardIds = game.liveSetCardIds?.get(playerId);
+  if (trackedCardIds !== undefined) {
+    const liveCardIds = new Set(player.liveZone.cardIds);
+    return trackedCardIds.filter((cardId) => liveCardIds.has(cardId));
+  }
+
+  const legacyCount = game.liveSetCardCounts?.get(playerId);
+  if (legacyCount !== undefined) {
+    const faceDownLiveCardIds = player.liveZone.cardIds.filter(
+      (cardId) => player.liveZone.cardStates.get(cardId)?.face === FaceState.FACE_DOWN
+    );
+    const eligibleCardIds =
+      faceDownLiveCardIds.length > 0 ? faceDownLiveCardIds : player.liveZone.cardIds;
+    return eligibleCardIds.slice(0, Math.max(0, legacyCount));
+  }
+
+  if (
+    game.liveSetCardIds ||
+    game.liveSetCardCounts ||
+    game.currentPhase !== GamePhase.LIVE_SET_PHASE
+  ) {
+    return [];
+  }
+  return player.liveZone.cardIds;
 }
 
 export function getLiveSetCardCountForPlayer(game: GameState, playerId: string): number {
-  const count = game.liveSetCardCounts?.get(playerId);
-  if (count !== undefined) {
-    return count;
-  }
-  if (game.liveSetCardCounts || game.currentPhase !== GamePhase.LIVE_SET_PHASE) {
-    return 0;
-  }
-  return getPlayerById(game, playerId)?.liveZone.cardIds.length ?? 0;
+  return getLiveSetCardIdsForPlayer(game, playerId).length;
 }
 
-export function incrementLiveSetCardCountForPlayer(
+export function recordLiveSetCardForPlayer(
   game: GameState,
   playerId: string,
-  amount = 1
+  cardId: string
 ): GameState {
-  if (!Number.isInteger(amount) || amount <= 0) {
+  if (!cardId) {
     return game;
   }
-  return setLiveSetCardCount(game, playerId, getLiveSetCardCountForPlayer(game, playerId) + amount);
+  return setLiveSetCardIdsForPlayer(game, playerId, [
+    ...getLiveSetCardIdsForPlayer(game, playerId),
+    cardId,
+  ]);
 }
 
-export function clearLiveSetCardCountForPlayer(game: GameState, playerId: string): GameState {
-  if (!game.liveSetCardCounts?.has(playerId)) {
+export function clearLiveSetCardsForPlayer(game: GameState, playerId: string): GameState {
+  const hasTrackedCardIds = game.liveSetCardIds?.has(playerId) === true;
+  const hasLegacyCount = game.liveSetCardCounts?.has(playerId) === true;
+  if (!hasTrackedCardIds && !hasLegacyCount) {
     return game;
   }
-  const newCounts = new Map(game.liveSetCardCounts);
-  newCounts.delete(playerId);
-  return {
-    ...game,
-    liveSetCardCounts: newCounts,
-  };
-}
 
-/**
- * 清空 Live 设置阶段盖牌数量
- */
-export function clearLiveSetCardCounts(game: GameState): GameState {
+  const newCardIds = new Map(game.liveSetCardIds ?? []);
+  newCardIds.delete(playerId);
+  const newLegacyCounts = new Map(game.liveSetCardCounts ?? []);
+  newLegacyCounts.delete(playerId);
   return {
     ...game,
-    liveSetCardCounts: new Map(),
+    liveSetCardIds: newCardIds,
+    ...(game.liveSetCardCounts ? { liveSetCardCounts: newLegacyCounts } : {}),
   };
 }
 

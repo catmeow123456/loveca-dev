@@ -42,7 +42,7 @@ import type { GameState } from '../../src/domain/entities/game';
 import {
   getPlayerById,
   getCardById,
-  setLiveSetCardCount,
+  setLiveSetCardIdsForPlayer,
   updatePlayer,
 } from '../../src/domain/entities/game';
 
@@ -472,7 +472,7 @@ describe('Live 卡设置阶段测试', () => {
           cardIds: [...refreshCards],
         },
       }));
-      stateInLiveSet = setLiveSetCardCount(stateInLiveSet, 'player1', stagedCardIds.length);
+      stateInLiveSet = setLiveSetCardIdsForPlayer(stateInLiveSet, 'player1', stagedCardIds);
 
       const handCountBefore = getPlayerById(stateInLiveSet, 'player1')!.hand.cardIds.length;
       const confirmResult = gameService.processAction(

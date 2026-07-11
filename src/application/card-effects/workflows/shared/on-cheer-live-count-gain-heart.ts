@@ -6,34 +6,65 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import type { CheerEvent } from '../../../../domain/events/game-events.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, TriggerCondition } from '../../../../shared/types/enums.js';
-import { S_SD1_001_AUTO_ON_CHEER_LIVE_COUNT_GAIN_RED_HEART_ABILITY_ID } from '../../ability-ids.js';
+import {
+  S_BP2_003_AUTO_ON_CHEER_LIVE_GAIN_GREEN_HEART_ABILITY_ID,
+  S_SD1_001_AUTO_ON_CHEER_LIVE_COUNT_GAIN_RED_HEART_ABILITY_ID,
+} from '../../ability-ids.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import { getLatestOwnNormalCheerEventByIds } from '../../runtime/cheer-events.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
 
-const MAX_RED_HEART_COUNT = 3;
+interface OnCheerLiveCountGainHeartWorkflowConfig {
+  readonly abilityId: string;
+  readonly heartColor: HeartColor;
+  readonly maxHeartCount: number;
+  readonly minimumMatchingLiveCount: number;
+  readonly conditionFailedConsumesTurnUse: boolean;
+  readonly actionStep: string;
+}
+
+const ON_CHEER_LIVE_COUNT_GAIN_HEART_WORKFLOW_CONFIGS: readonly OnCheerLiveCountGainHeartWorkflowConfig[] = [
+  {
+    abilityId: S_SD1_001_AUTO_ON_CHEER_LIVE_COUNT_GAIN_RED_HEART_ABILITY_ID,
+    heartColor: HeartColor.RED,
+    maxHeartCount: 3,
+    minimumMatchingLiveCount: 0,
+    conditionFailedConsumesTurnUse: true,
+    actionStep: 'COUNT_OWN_CHEER_LIVE_CARDS_GAIN_RED_HEART',
+  },
+  {
+    abilityId: S_BP2_003_AUTO_ON_CHEER_LIVE_GAIN_GREEN_HEART_ABILITY_ID,
+    heartColor: HeartColor.GREEN,
+    maxHeartCount: 1,
+    minimumMatchingLiveCount: 1,
+    conditionFailedConsumesTurnUse: false,
+    actionStep: 'OWN_CHEER_LIVE_CONDITION_GAIN_GREEN_HEART',
+  },
+];
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerSSd1001ChikaWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
-    S_SD1_001_AUTO_ON_CHEER_LIVE_COUNT_GAIN_RED_HEART_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveSSd1001ChikaOnCheer(
+export function registerOnCheerLiveCountGainHeartWorkflowHandlers(): void {
+  for (const config of ON_CHEER_LIVE_COUNT_GAIN_HEART_WORKFLOW_CONFIGS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
+      resolveOnCheerLiveCountGainHeart(
         game,
         ability,
+        config,
         options.orderedResolution === true,
         context.continuePendingCardEffects
       )
-  );
+    );
+  }
 }
 
-function resolveSSd1001ChikaOnCheer(
+function resolveOnCheerLiveCountGainHeart(
   game: GameState,
   ability: PendingAbilityState,
+  config: OnCheerLiveCountGainHeartWorkflowConfig,
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
@@ -53,7 +84,7 @@ function resolveSSd1001ChikaOnCheer(
     );
   }
 
-  const cheerEvent = getOwnNormalCheerEventForAbility(game, ability, player.id);
+  const cheerEvent = getLatestOwnNormalCheerEventByIds(game, player.id, ability.eventIds);
   if (!cheerEvent) {
     return finishPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
       step: 'NO_MATCHING_OWN_NORMAL_CHEER_EVENT',
@@ -65,13 +96,18 @@ function resolveSSd1001ChikaOnCheer(
     const card = getCardById(game, cardId);
     return card !== null && card.ownerId === player.id && isLiveCardData(card.data);
   });
-  const gainedHeartCount = Math.min(matchingLiveCardIds.length, MAX_RED_HEART_COUNT);
+  const conditionMet = matchingLiveCardIds.length >= config.minimumMatchingLiveCount;
+  const gainedHeartCount = conditionMet
+    ? Math.min(matchingLiveCardIds.length, config.maxHeartCount)
+    : 0;
 
   let state = removePendingAbility(game, ability.id);
-  state = recordAbilityUseForContext(state, player.id, {
-    abilityId: ability.abilityId,
-    sourceCardId: ability.sourceCardId,
-  });
+  if (conditionMet || config.conditionFailedConsumesTurnUse) {
+    state = recordAbilityUseForContext(state, player.id, {
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+    });
+  }
 
   if (gainedHeartCount > 0) {
     const heartResult = addHeartLiveModifierForMember(state, {
@@ -79,7 +115,7 @@ function resolveSSd1001ChikaOnCheer(
       memberCardId: ability.sourceCardId,
       sourceCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
-      hearts: [{ color: HeartColor.RED, count: gainedHeartCount }],
+      hearts: [{ color: config.heartColor, count: gainedHeartCount }],
     });
     if (heartResult) {
       state = heartResult.gameState;
@@ -92,34 +128,15 @@ function resolveSSd1001ChikaOnCheer(
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
       sourceSlot,
-      step: 'COUNT_OWN_CHEER_LIVE_CARDS_GAIN_RED_HEART',
+      step: config.actionStep,
       cheerEventId: cheerEvent.eventId,
       revealedCardIds: cheerEvent.revealedCardIds,
       matchingLiveCardIds,
-      gainedHearts: [{ color: HeartColor.RED, count: gainedHeartCount }],
+      conditionMet,
+      gainedHearts: gainedHeartCount > 0 ? [{ color: config.heartColor, count: gainedHeartCount }] : [],
     }),
     orderedResolution
   );
-}
-
-function getOwnNormalCheerEventForAbility(
-  game: GameState,
-  ability: PendingAbilityState,
-  playerId: string
-): CheerEvent | null {
-  const eventIds = new Set(ability.eventIds);
-  const events = game.eventLog
-    .map((entry) => entry.event)
-    .filter(
-      (event): event is CheerEvent =>
-        event.eventType === TriggerCondition.ON_CHEER &&
-        'playerId' in event &&
-        'additional' in event &&
-        event.playerId === playerId &&
-        event.additional !== true &&
-        eventIds.has(event.eventId)
-    );
-  return events.at(-1) ?? null;
 }
 
 function finishPendingAbility(

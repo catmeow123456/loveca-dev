@@ -46,6 +46,7 @@ import {
   sumSuccessfulLiveScore,
 } from '../../../effects/conditions.js';
 import { getRelayEnteredStageMemberCardIdsThisTurn } from '../../../effects/relay-entered-members.js';
+import { selectDifferentNamedCards } from '../../../../shared/utils/card-identity.js';
 import {
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
@@ -56,6 +57,7 @@ import {
   HS_BP2_022_LIVE_START_SCORE_ABILITY_ID,
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
+  HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
   HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
   PL_BP5_020_LIVE_START_CENTER_MUSE_YELLOW_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
@@ -104,6 +106,8 @@ const PL_PB1_030_OPPONENT_WAITING_REQUIREMENT_STEP_ID =
 const SP_BP4_028_ACTIVE_ENERGY_SCORE_STEP_ID = 'SP_BP4_028_ACTIVE_ENERGY_SCORE';
 const PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE_STEP_ID =
   'PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE';
+const HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_STEP_ID =
+  'HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -147,6 +151,12 @@ interface LiveRequirementGainHeartConfig {
 }
 
 const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkflowConfig[] = [
+  {
+    abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+    stepId: HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_STEP_ID,
+    getStartContext: getHsPb1026DifferentHasunosoraMemberStartContext,
+    finish: finishHsPb1026DifferentHasunosoraMemberRequirementReduction,
+  },
   {
     abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
     stepId: NICO_SCORE_BONUS_STEP_ID,
@@ -1852,6 +1862,94 @@ function getPlBp5023OtohimeContext(
     sourceInLiveZone,
     qualifiedMemberCardIds,
     requirementReduction: qualifiedMemberCardIds.length,
+  };
+}
+
+function getHsPb1026DifferentHasunosoraMemberStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getHsPb1026DifferentHasunosoraMemberContext(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(
+      HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID
+    )}（当前不同名『莲之空』成员${context.differentHasunosoraMemberNameCount}名，${
+      context.conditionMet
+        ? '满足条件，实际减少2个[無ハート]'
+        : '未满足条件，实际不减少[無ハート]'
+    }）`,
+    actionPayload: {
+      differentHasunosoraMemberNameCount: context.differentHasunosoraMemberNameCount,
+      conditionMet: context.conditionMet,
+      requirementReduction: context.requirementReduction,
+    },
+  };
+}
+
+function finishHsPb1026DifferentHasunosoraMemberRequirementReduction(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getHsPb1026DifferentHasunosoraMemberContext(game, effect, playerId);
+  const state = replaceSourceRequirementModifier(
+    {
+      ...game,
+      activeEffect: null,
+    },
+    effect,
+    context.conditionMet
+      ? {
+          kind: 'REQUIREMENT',
+          liveCardId: effect.sourceCardId,
+          modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_REDUCTION',
+      differentHasunosoraMemberNameCount: context.differentHasunosoraMemberNameCount,
+      conditionMet: context.conditionMet,
+      requirementReduction: context.requirementReduction,
+    },
+  };
+}
+
+function getHsPb1026DifferentHasunosoraMemberContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): {
+  readonly differentHasunosoraMemberNameCount: number;
+  readonly conditionMet: boolean;
+  readonly requirementReduction: number;
+} {
+  const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
+  const memberCardIds = [
+    ...getStageMemberCardIdsMatching(game, playerId, and(typeIs(CardType.MEMBER), groupAliasIs('蓮ノ空'))),
+    ...getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM).filter((cardId) => {
+      const card = getCardById(game, cardId);
+      return card !== null && isMemberCardData(card.data) && groupAliasIs('蓮ノ空')(card);
+    }),
+  ];
+  const differentHasunosoraMemberNameCount = selectDifferentNamedCards(
+    memberCardIds,
+    (cardId) => getCardById(game, cardId)?.data ?? null,
+    {
+      groupName: '蓮ノ空',
+      minCount: 0,
+    }
+  ).length;
+  const conditionMet = sourceInLiveZone && differentHasunosoraMemberNameCount >= 6;
+  return {
+    differentHasunosoraMemberNameCount,
+    conditionMet,
+    requirementReduction: conditionMet ? 2 : 0,
   };
 }
 

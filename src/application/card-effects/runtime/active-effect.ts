@@ -90,6 +90,7 @@ export interface RevealHandCardForActiveEffectOptions {
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly selectableCardIds?: readonly string[];
   readonly selectableCardVisibility?: ActiveEffectState['selectableCardVisibility'];
+  readonly selectableCardMode?: ActiveEffectState['selectableCardMode'];
   readonly selectableOptions?: ActiveEffectState['selectableOptions'];
   readonly selectionLabel?: string;
   readonly confirmSelectionLabel?: string;
@@ -222,6 +223,7 @@ export function revealHandCardForActiveEffect(
         revealedCardIds,
         selectableCardIds: options.selectableCardIds,
         selectableCardVisibility: options.selectableCardVisibility ?? 'PUBLIC',
+        selectableCardMode: options.selectableCardMode,
         selectableOptions: options.selectableOptions,
         selectionLabel: options.selectionLabel,
         confirmSelectionLabel: options.confirmSelectionLabel,

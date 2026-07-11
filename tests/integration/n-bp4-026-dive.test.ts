@@ -346,6 +346,64 @@ describe('PL!N-bp4-026-L DIVE! AUTO effects', () => {
     expect(getLiveSetCardLimitForPlayer(reducedToZero, PLAYER1)).toBe(0);
   });
 
+  it('reclaims a Live Set slot when a set card leaves the Live zone before confirmation', () => {
+    const lives = [
+      createOtherLive('set-live-1', 'Song 1'),
+      createOtherLive('set-live-2', 'Song 2'),
+      createOtherLive('set-live-3', 'Song 3'),
+      createOtherLive('set-live-4', 'Song 4'),
+    ];
+    const drawCards = [
+      createMember('draw-card-1'),
+      createMember('draw-card-2'),
+      createMember('draw-card-3'),
+    ];
+    let game = createGameState('n-bp4-026-live-set-replace', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [...lives, ...drawCards]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      hand: lives.reduce((hand, card) => addCardToZone(hand, card.instanceId), player.hand),
+      mainDeck: drawCards.reduce((deck, card) => addCardToZone(deck, card.instanceId), player.mainDeck),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_FIRST_PLAYER,
+    };
+
+    const service = new GameService();
+    let setState = game;
+    for (const live of lives.slice(0, 3)) {
+      const result = service.processAction(
+        setState,
+        createSetLiveCardAction(PLAYER1, live.instanceId)
+      );
+      expect(result.success).toBe(true);
+      setState = result.gameState;
+    }
+
+    setState = updatePlayer(setState, PLAYER1, (player) => ({
+      ...player,
+      hand: addCardToZone(player.hand, lives[1]!.instanceId),
+      liveZone: removeCardFromStatefulZone(player.liveZone, lives[1]!.instanceId),
+    }));
+    expect(getLiveSetCardCountForPlayer(setState, PLAYER1)).toBe(2);
+
+    const replacement = service.processAction(
+      setState,
+      createSetLiveCardAction(PLAYER1, lives[3]!.instanceId)
+    );
+    expect(replacement.success).toBe(true);
+    expect(getLiveSetCardCountForPlayer(replacement.gameState, PLAYER1)).toBe(3);
+
+    const completed = service.processAction(
+      replacement.gameState,
+      createConfirmSubPhaseAction(PLAYER1, SubPhase.LIVE_SET_FIRST_PLAYER)
+    );
+    expect(completed.success).toBe(true);
+    expect(completed.gameState.players[0]!.hand.cardIds).toHaveLength(4);
+  });
+
   it('keeps legacy Live Set checkpoints safe when live-set tracking fields are absent', () => {
     const lives = [createOtherLive('legacy-set-1'), createOtherLive('legacy-set-2')];
     let game = createGameState('n-bp4-026-legacy-live-set', PLAYER1, 'P1', PLAYER2, 'P2');
@@ -362,6 +420,7 @@ describe('PL!N-bp4-026-L DIVE! AUTO effects', () => {
       ),
     }));
     const {
+      liveSetCardIds: _legacyLiveSetCardIds,
       liveSetCardCounts: _legacyLiveSetCardCounts,
       liveSetLimitReductions: _legacyLiveSetLimitReductions,
       ...legacyCheckpoint
@@ -373,6 +432,32 @@ describe('PL!N-bp4-026-L DIVE! AUTO effects', () => {
 
     expect(getLiveSetCardCountForPlayer(legacyCheckpoint as GameState, PLAYER1)).toBe(2);
     expect(getLiveSetCardLimitForPlayer(legacyCheckpoint as GameState, PLAYER1)).toBe(3);
+  });
+
+  it('reconciles legacy numeric tracking with the remaining face-down Live cards', () => {
+    const lives = [createOtherLive('legacy-live-1'), createOtherLive('legacy-live-2')];
+    let game = createGameState('n-bp4-026-legacy-live-set-reconcile', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, lives);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      liveZone: lives.reduce(
+        (zone, card) =>
+          addCardToStatefulZone(zone, card.instanceId, {
+            orientation: OrientationState.ACTIVE,
+            face: FaceState.FACE_DOWN,
+          }),
+        player.liveZone
+      ),
+    }));
+    const legacyCheckpoint = {
+      ...game,
+      liveSetCardIds: undefined,
+      liveSetCardCounts: new Map([[PLAYER1, 3]]),
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_FIRST_PLAYER,
+    } as unknown as GameState;
+
+    expect(getLiveSetCardCountForPlayer(legacyCheckpoint, PLAYER1)).toBe(2);
   });
 
   it('natural face-up SET_LIVE_CARD emits ON_ENTER_LIVE_ZONE and starts the DIVE! BLADE selection', () => {

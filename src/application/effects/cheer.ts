@@ -6,7 +6,7 @@ import {
   getFirstPlayer,
   updatePlayer,
 } from '../../domain/entities/game.js';
-import { createCheerEvent } from '../../domain/events/game-events.js';
+import { createCheerEvent, type CheerEvent } from '../../domain/events/game-events.js';
 import { drawFromTop } from '../../domain/entities/zone.js';
 import {
   RuleActionType,
@@ -19,11 +19,14 @@ import type { CardType } from '../../shared/types/enums.js';
 export interface RevealCheerCardsOptions {
   readonly automated?: boolean;
   readonly additional?: boolean;
+  /** Replaces only this player's current LIVE cheer facts. */
+  readonly replaceCurrentCheerCards?: boolean;
 }
 
 export interface RevealCheerCardsResult {
   readonly gameState: GameState;
   readonly cheerCardIds: readonly string[];
+  readonly cheerEvent: CheerEvent;
 }
 
 export function revealCheerCardsFromMainDeck(
@@ -62,19 +65,24 @@ export function revealCheerCardsFromMainDeck(
       isInLive: true,
       performingPlayerId: playerId,
       firstPlayerCheerCardIds: isFirstPlayer
-        ? [...state.liveResolution.firstPlayerCheerCardIds, ...cheerCardIds]
+        ? options.replaceCurrentCheerCards === true
+          ? cheerCardIds
+          : [...state.liveResolution.firstPlayerCheerCardIds, ...cheerCardIds]
         : state.liveResolution.firstPlayerCheerCardIds,
       secondPlayerCheerCardIds: isFirstPlayer
         ? state.liveResolution.secondPlayerCheerCardIds
-        : [...state.liveResolution.secondPlayerCheerCardIds, ...cheerCardIds],
+        : options.replaceCurrentCheerCards === true
+          ? cheerCardIds
+          : [...state.liveResolution.secondPlayerCheerCardIds, ...cheerCardIds],
     },
   };
+  const cheerEvent = createCheerEvent(playerId, cheerCardIds, cheerCount, {
+    automated: options.automated === true,
+    additional: options.additional === true,
+  });
   state = emitGameEvent(
     state,
-    createCheerEvent(playerId, cheerCardIds, cheerCount, {
-      automated: options.automated === true,
-      additional: options.additional === true,
-    })
+    cheerEvent
   );
 
   state = addAction(state, 'CHEER', playerId, {
@@ -87,6 +95,7 @@ export function revealCheerCardsFromMainDeck(
   return {
     gameState: state,
     cheerCardIds,
+    cheerEvent,
   };
 }
 

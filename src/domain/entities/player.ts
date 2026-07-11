@@ -110,6 +110,12 @@ export interface PlayerState {
   readonly positionMovedThisTurn: readonly string[];
 
   /**
+   * 最近一次自己的主卡组刷新发生时的全局回合编号。
+   * 旧回放缺失此字段时按未在当前回合刷新处理。
+   */
+  readonly lastDeckRefreshTurnCount?: number;
+
+  /**
    * 待命中的自动能力 ID 列表
    * 参考规则 9.7.2
    */
