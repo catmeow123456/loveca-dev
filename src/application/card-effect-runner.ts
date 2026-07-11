@@ -66,6 +66,8 @@ import { enqueueMemberSlotMovedObserverCardEffects } from './card-effects/runtim
 import { enqueueResolvedAbilityObserverCardEffects } from './card-effects/runtime/resolved-ability-observers.js';
 import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime/starter-registry.js';
 import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step-registry.js';
+import { enqueueEnergyMovedToDeckCardEffects, getLatestEnergyMovedToDeckEvents } from './card-effects/runtime/energy-moved-to-deck-triggers.js';
+import { hasAbilityInstance } from './card-effects/runtime/ability-instance.js';
 import { registerBp5003KotoriWorkflowHandlers } from './card-effects/workflows/cards/pl-bp5-003-kotori.js';
 import { registerBp5004UmiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp5-004-umi.js';
 import { registerWaitSelfOpponentWaitWorkflowHandlers } from './card-effects/workflows/shared/wait-self-opponent-wait.js';
@@ -310,6 +312,9 @@ import { registerSpBp4026WishSongWorkflowHandlers } from './card-effects/workflo
 import { registerShikiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp4-008-shiki.js';
 import { registerSpBp5001KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-001-kanon.js';
 import { registerSpBp5004SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-004-sumire.js';
+import { registerSpBp7005RenWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-005-ren.js';
+import { registerSpBp7006KinakoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-006-kinako.js';
+import { registerSpBp7007MeiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-007-mei.js';
 import { registerSpBp5005RenWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-005-ren.js';
 import { registerSpBp5009NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-009-natsumi.js';
 import { registerSpBp5010MargareteWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-010-margarete.js';
@@ -430,6 +435,7 @@ import {
 import type {
   CheerEvent,
   EnergyPlacedByCardEffectEvent,
+  EnergyMovedToDeckEvent,
   EnterHandEvent,
   EnterLiveZoneEvent,
   EnterStageEvent,
@@ -568,6 +574,7 @@ interface EnqueueTriggeredCardEffectsOptions {
   readonly memberStateChangedEvents?: readonly MemberStateChangedEvent[];
   readonly memberSlotMovedEvents?: readonly MemberSlotMovedEvent[];
   readonly energyPlacedByCardEffectEvents?: readonly EnergyPlacedByCardEffectEvent[];
+  readonly energyMovedToDeckEvents?: readonly EnergyMovedToDeckEvent[];
 }
 interface StartPendingAbilityEffectOptions {
   readonly orderedResolution?: boolean;
@@ -1149,6 +1156,9 @@ registerSpBp4026WishSongWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5001KanonWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5004SumireWorkflowHandlers();
+registerSpBp7005RenWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp7006KinakoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp7007MeiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5005RenWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5009NatsumiWorkflowHandlers({
   enqueueTriggeredCardEffectsForEnterWaitingRoom: enqueueTriggeredCardEffects,
@@ -1165,7 +1175,7 @@ registerSpBp5024MiracleNewStoryWorkflowHandlers();
 registerSpBp5025TokonatsuSunshineWorkflowHandlers();
 registerSpBp5026LetsBeOneWorkflowHandlers();
 registerSpBp5027HotPassionWorkflowHandlers();
-registerSpBp5111MaoWorkflowHandlers();
+registerSpBp5111MaoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5222YuunaWorkflowHandlers();
 registerSpBp5002KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5006KinakoWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1318,6 +1328,12 @@ export function enqueueTriggeredCardEffects(
     state = enqueueEnergyPlacedByCardEffectCardEffects(
       state,
       options.energyPlacedByCardEffectEvents ?? getLatestEnergyPlacedByCardEffectEventsFromLog(state)
+    );
+  }
+  if (triggerConditions.includes(TriggerCondition.ON_ENERGY_MOVED_TO_DECK)) {
+    state = enqueueEnergyMovedToDeckCardEffects(
+      state,
+      options.energyMovedToDeckEvents ?? getLatestEnergyMovedToDeckEvents(state)
     );
   }
 
@@ -3042,17 +3058,6 @@ function getLiveSuccessEffectPlayerId(game: GameState): string | null {
   return game.liveResolution.performingPlayerId ?? game.players[game.activePlayerIndex]?.id ?? null;
 }
 
-function hasAbilityInstance(game: GameState, pendingAbilityId: string): boolean {
-  const alreadyPending = game.pendingAbilities.some((ability) => ability.id === pendingAbilityId);
-  const alreadyActive = game.activeEffect?.id === pendingAbilityId;
-  const alreadyResolved = game.actionHistory.some(
-    (historyAction) =>
-      historyAction.type === 'RESOLVE_ABILITY' &&
-      historyAction.payload.pendingAbilityId === pendingAbilityId
-  );
-  return alreadyPending || alreadyActive || alreadyResolved;
-}
-
 export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResult {
   if (game.activeEffect) {
     return {
@@ -3165,7 +3170,16 @@ export function confirmActiveEffectStep(
       stageFormationMoveHistory,
       stageFormationPlacements,
     },
-    { continuePendingCardEffects, delegatePendingAbility }
+    {
+      continuePendingCardEffects,
+      delegatePendingAbility,
+      resolveActivatedAbility: resolveActivatedAbilityWithRegistry,
+      resolvePendingAbilityStarter: (state, ability, options) =>
+        resolvePendingAbilityStarterWithRegistry(state, ability, options, {
+          continuePendingCardEffects,
+          delegatePendingAbility,
+        }),
+    }
   );
   if (registryResult) {
     return registryResult;

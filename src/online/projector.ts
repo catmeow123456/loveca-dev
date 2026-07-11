@@ -333,12 +333,16 @@ export function projectPlayerViewState(
     const ownerSeat = getSeatByPlayerIndex(playerIndex);
     projectPlayerZones(game, player, ownerSeat, viewerSeat, objects, zones);
   }
-
   projectResolutionAndInspectionZones(game, viewerSeat, objects, zones);
   projectActiveEffectRevealedCards(game, objects);
 
   const permissions = buildPermissionViewState(game, viewerPlayerId, viewerSeat);
   const activeEffectCardSelection = projectActiveEffectCardSelection(game, viewerSeat, objects);
+  for (const skip of game.energyActivePhaseSkips ?? []) {
+    const publicObjectId = createPublicObjectId(skip.energyCardId);
+    const object = objects[publicObjectId];
+    if (object) objects[publicObjectId] = { ...object, skipsNextActivePhase: true };
+  }
   const activeEffect = game.activeEffect
     ? {
         id: game.activeEffect.id,

@@ -2,6 +2,9 @@ import type {
   GameState,
   PendingAbilityState,
 } from '../../../domain/entities/game.js';
+import { EnergySelectionRequiredError } from '../../effects/energy-selection.js';
+import { createPendingAbilityEnergySelectionWindow } from './energy-operation-selection.js';
+import { getAbilityEffectText } from './workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -46,5 +49,17 @@ export function resolvePendingAbilityStarterWithRegistry(
   context: PendingAbilityStarterContext
 ): GameState | null {
   const handler = pendingAbilityStarterHandlers.get(ability.abilityId);
-  return handler ? handler(game, ability, options, context) : null;
+  if (!handler) return null;
+  try {
+    return handler(game, ability, options, context);
+  } catch (error) {
+    if (!(error instanceof EnergySelectionRequiredError)) throw error;
+    return createPendingAbilityEnergySelectionWindow(
+      game,
+      ability,
+      options,
+      getAbilityEffectText(ability.abilityId),
+      error
+    );
+  }
 }

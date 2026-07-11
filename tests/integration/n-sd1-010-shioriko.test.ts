@@ -364,9 +364,10 @@ describe('N-sd1-010 Shioriko card effects', () => {
       N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID
     );
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay', label: '支付2能量' },
-      { id: 'decline', label: '不发动' },
+      { id: 'pay', label: '支付2[E]' },
     ]);
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
 
     const payResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -411,18 +412,15 @@ describe('N-sd1-010 Shioriko card effects', () => {
   it('does not pay cost or add Heart when active energy is insufficient', () => {
     const { session } = setupLiveStartScenario(1);
 
-    expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'decline', label: '不发动' },
-    ]);
+    expect(session.state?.activeEffect?.selectableOptions).toEqual([]);
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
 
     const declineResult = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
         session.state!.activeEffect!.id,
-        undefined,
-        undefined,
-        undefined,
-        'decline'
+        null
       )
     );
 
@@ -442,14 +440,14 @@ describe('N-sd1-010 Shioriko card effects', () => {
   it('does not pay cost or add Heart when declined', () => {
     const { session, energyCardIds } = setupLiveStartScenario(2);
 
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
+
     const declineResult = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
         session.state!.activeEffect!.id,
-        undefined,
-        undefined,
-        undefined,
-        'decline'
+        null
       )
     );
 

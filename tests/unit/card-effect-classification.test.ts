@@ -24,6 +24,15 @@ import {
 } from '../../src/application/card-effects/ability-ids';
 import { CardType, SlotPosition, TriggerCondition, ZoneType } from '../../src/shared/types/enums';
 import {
+  SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
+  SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID,
+  SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID,
+  SP_BP7_006_ON_ENTER_RETURN_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
+  SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
+  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+  SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
+import {
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
   BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
   BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID,
@@ -11841,5 +11850,47 @@ describe('HS pb1 newly implemented card classifications', () => {
       }
       expect(new Set(definitions.map((definition) => definition.effectText)).size).toBe(2);
     }
+  });
+
+  it('registers all seven bp7 SEC abilities with exact card codes', () => {
+    const expectedByCard = new Map<string, readonly string[]>([
+      [
+        'PL!SP-bp7-005-SEC',
+        [
+          SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
+          SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID,
+        ],
+      ],
+      [
+        'PL!SP-bp7-006-SEC',
+        [
+          SP_BP7_006_ON_ENTER_RETURN_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
+          SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID,
+        ],
+      ],
+      [
+        'PL!SP-bp7-007-SEC',
+        [
+          SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
+          SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID,
+          SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+        ],
+      ],
+    ]);
+    const definitions = [...expectedByCard].flatMap(([cardCode, abilityIds]) => {
+      const cardDefinitions = getCardAbilityDefinitions(cardCode).filter((definition) =>
+        abilityIds.includes(definition.abilityId)
+      );
+      expect(new Set(cardDefinitions.map((definition) => definition.abilityId))).toEqual(
+        new Set(abilityIds)
+      );
+      for (const definition of cardDefinitions) {
+        expect(definition.cardCodes).toEqual([cardCode]);
+        expect(definition.baseCardCodes).toBeUndefined();
+        expect(definition.implemented).toBe(true);
+      }
+      return cardDefinitions;
+    });
+    expect(definitions).toHaveLength(8);
   });
 });

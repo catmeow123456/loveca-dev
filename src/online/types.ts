@@ -204,6 +204,7 @@ export interface ViewCardObject {
   readonly publiclyRevealed?: boolean;
   readonly judgmentResult?: boolean;
   readonly enteredStageThisTurn?: boolean;
+  readonly skipsNextActivePhase?: boolean;
   readonly frontInfo?: ViewFrontCardInfo;
   readonly activatedAbilityUiConfig?: ActivatedAbilityUiConfig;
 }

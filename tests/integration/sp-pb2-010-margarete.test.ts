@@ -349,6 +349,38 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
     ).toBe(true);
   });
 
+  it('opens a concrete energy choice only when ordinary and marked energy are both candidates', () => {
+    const scenario = setupMargareteScenario({ handCount: 1, energyZoneCount: 2 });
+    (scenario.session as unknown as { authorityState: GameState }).authorityState = {
+      ...scenario.session.state!,
+      energyActivePhaseSkips: [
+        {
+          playerId: PLAYER1,
+          energyCardId: scenario.energyZoneCardIds[1],
+          sourceCardId: scenario.sourceId,
+          abilityId: 'marker',
+        },
+      ],
+    };
+    startPending(
+      scenario.session,
+      pendingAbility(
+        SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
+        scenario.sourceId,
+        TriggerCondition.ON_LIVE_START
+      )
+    );
+    confirmOption(scenario.session, 'decline-discard');
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual(
+      scenario.energyZoneCardIds
+    );
+    confirmCard(scenario.session, scenario.energyZoneCardIds[1]);
+    expect(scenario.session.state?.players[0].energyDeck.cardIds).toContain(
+      scenario.energyZoneCardIds[1]
+    );
+    expect(scenario.session.state?.energyActivePhaseSkips).toEqual([]);
+  });
+
   it('automatically returns the first energy at LIVE start when there is no hand', () => {
     const scenario = setupMargareteScenario({ handCount: 0, energyZoneCount: 1 });
     startPending(

@@ -22,9 +22,10 @@ import { paySelectedDiscardHandCost } from '../../effects/effect-costs.js';
 import { drawCardsFromMainDeckToHand, type DrawCardsResult } from '../../effects/draw.js';
 import { shuffleZone } from '../../../domain/entities/zone.js';
 import {
-  setFirstEnergyCardsOrientation,
+  setEnergyOrientation,
   type EnergyOrientationChange,
 } from '../../effects/energy.js';
+import { resolveEnergySelectionForOperation } from '../../effects/energy-selection.js';
 import {
   addCardToStatefulZone,
   addMemberBelowMember,
@@ -544,12 +545,18 @@ export function activateWaitingEnergyCardsForPlayer(
       : null;
   }
 
-  const orientationResult = setFirstEnergyCardsOrientation(
+  const selection = resolveEnergySelectionForOperation(
     game,
     playerId,
-    count,
-    OrientationState.ACTIVE,
-    { fromOrientation: OrientationState.WAITING }
+    'ACTIVATE_WAITING_ENERGY',
+    count
+  );
+  if (!selection) return null;
+  const orientationResult = setEnergyOrientation(
+    selection.gameState,
+    playerId,
+    selection.selectedEnergyCardIds,
+    OrientationState.ACTIVE
   );
   if (!orientationResult || orientationResult.updatedEnergyCardIds.length !== count) {
     return null;

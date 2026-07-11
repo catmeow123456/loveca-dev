@@ -10,6 +10,7 @@ import { GamePhase, SlotPosition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
+import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -90,10 +91,7 @@ function startPayEnergyPositionChangeToGroupMemberArea(
     return game;
   }
 
-  const canPayCost = payImmediateEffectCosts(game, player.id, cardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
-  ]);
-  if (!canPayCost) {
+  if (getEnergySelectionCandidates(game, player.id, 'TAP_ACTIVE_ENERGY').length < 1) {
     return game;
   }
 

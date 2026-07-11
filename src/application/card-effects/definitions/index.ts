@@ -1,5 +1,14 @@
 import { CardType, SlotPosition, TriggerCondition, ZoneType } from '../../../shared/types/enums.js';
 import {
+  SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
+  SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID,
+  SP_BP7_006_ON_ENTER_RETURN_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
+  SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID,
+  SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
+  SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID,
+  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+} from '../ability-ids.js';
+import {
   NOZOMI_ON_ENTER_ABILITY_ID,
   UMI_ON_ENTER_ABILITY_ID,
   HONOKA_ON_ENTER_ABILITY_ID,
@@ -10539,5 +10548,62 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       text: SP_BP2_006_ACTIVATED_EFFECT_TEXT,
     },
     notes: '单卡 wrapper；弃手费用成功后才记录回合次数，并优先直接委托能力。',
+  },
+  {
+    abilityId: SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
+    cardCodes: ['PL!SP-bp7-005-SEC'], category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER, triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true, implemented: true, perTurnLimit: 1, skipQueueWhenTurnLimitReached: true,
+    effectText: '【自动】【1回合1次】此成员登场时，或者自己的能量从能量区放置入能量卡组时，从自己的能量卡组将1张能量以待机状态放置入能量区。那张能量在下一个自己的活跃阶段不会自动变为活跃。',
+  },
+  {
+    abilityId: SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
+    cardCodes: ['PL!SP-bp7-005-SEC'], category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER, triggerCondition: TriggerCondition.ON_ENERGY_MOVED_TO_DECK,
+    queued: true, implemented: true, perTurnLimit: 1, skipQueueWhenTurnLimitReached: true,
+    effectText: '【自动】【1回合1次】此成员登场时，或者自己的能量从能量区放置入能量卡组时，从自己的能量卡组将1张能量以待机状态放置入能量区。那张能量在下一个自己的活跃阶段不会自动变为活跃。',
+  },
+  {
+    abilityId: SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID,
+    cardCodes: ['PL!SP-bp7-005-SEC'], category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER, triggerCondition: TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT,
+    queued: true, implemented: true, perTurnLimit: 2, skipQueueWhenTurnLimitReached: true,
+    energyPlacementCause: 'OWN_CARD_EFFECT',
+    effectText: '【自动】【1回合2次】因自己的卡牌效果，将能量放置入自己的能量区时，直到LIVE结束，此成员获得[BLADE]。',
+  },
+  {
+    abilityId: SP_BP7_006_ON_ENTER_RETURN_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
+    cardCodes: ['PL!SP-bp7-006-SEC'], category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER, triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true, implemented: true,
+    effectText: '【登场】可以将自己能量区的1张能量放置入能量卡组：从自己的休息室将1张『Liella!』成员卡加入手牌。',
+  },
+  {
+    abilityId: SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID,
+    cardCodes: ['PL!SP-bp7-006-SEC'], category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER, triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    requiredSourceSlots: [SlotPosition.CENTER], queued: true, implemented: true,
+    effectText: '【LIVE成功时】【中央】本回合自己的能量曾从能量区放置入能量卡组时，LIVE合计分数+1。',
+  },
+  {
+    abilityId: SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
+    cardCodes: ['PL!SP-bp7-007-SEC'], category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER, triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true, implemented: true,
+    effectText: '【LIVE开始时】可以将自己能量区的2张能量放置入能量卡组：直到LIVE结束，此成员获得[BLADE][BLADE][BLADE]。',
+  },
+  {
+    abilityId: SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID,
+    cardCodes: ['PL!SP-bp7-007-SEC'], category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER, triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true, implemented: true,
+    effectText: '【LIVE成功时】从自己的能量卡组将2张能量以待机状态放置入能量区。那些能量在下一个自己的活跃阶段不会自动变为活跃。',
+  },
+  {
+    abilityId: SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+    cardCodes: ['PL!SP-bp7-007-SEC'], category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER, triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true, implemented: true,
+    effectText: '【LIVE成功时】自己的能量多于对方时，将5张能量变为活跃状态。',
   },
 ];

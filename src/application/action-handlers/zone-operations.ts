@@ -6,7 +6,12 @@
 
 import type { GameState } from '../../domain/entities/game.js';
 import type { PlayerState } from '../../domain/entities/player.js';
-import { emitGameEvent, getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
+import {
+  emitGameEvent,
+  getCardById,
+  getPlayerById,
+  updatePlayer,
+} from '../../domain/entities/game.js';
 import { recordPositionMove } from '../../domain/entities/player.js';
 import {
   createEnterWaitingRoomEvent,
@@ -319,7 +324,15 @@ export function removeCardFromPlayerZone(
     return game;
   }
 
-  return updatePlayer(game, playerId, (player) => accessor.remove(player, cardId));
+  const state = updatePlayer(game, playerId, (player) => accessor.remove(player, cardId));
+  return zone === ZoneType.ENERGY_ZONE
+    ? {
+        ...state,
+        energyActivePhaseSkips: (state.energyActivePhaseSkips ?? []).filter(
+          (skip) => skip.energyCardId !== cardId
+        ),
+      }
+    : state;
 }
 
 /**

@@ -5,9 +5,10 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import { CardType, GamePhase, SlotPosition } from '../../../../shared/types/enums.js';
+import { CardType, GamePhase, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { moveEnergyZoneCardsToEnergyDeck } from '../../../effects/energy.js';
+import { moveEnergyZoneCardsToEnergyDeckByCardEffect } from '../../../effects/energy.js';
+import { resolveEnergySelectionForOperation } from '../../../effects/energy-selection.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 import { SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID } from '../../ability-ids.js';
@@ -20,18 +21,23 @@ import {
   recordPayCostAction,
 } from '../../runtime/workflow-helpers.js';
 
-const SELECT_ENERGY_COST_STEP_ID = 'SP_BP5_111_SELECT_TWO_ENERGY_COST';
 const SELECT_WAITING_ROOM_LIVE_STEP_ID = 'SP_BP5_111_SELECT_WAITING_ROOM_LIVE';
 
-export function registerSpBp5111MaoWorkflowHandlers(): void {
+interface EnergyCostContext {
+  readonly id: string;
+  readonly abilityId: string;
+  readonly sourceCardId: string;
+  readonly controllerId: string;
+  readonly effectText: string;
+}
+
+type Enqueue = (game: GameState, triggers: readonly TriggerCondition[]) => GameState;
+let enqueueTriggeredCardEffects: Enqueue = (game) => game;
+export function registerSpBp5111MaoWorkflowHandlers(deps?: { readonly enqueueTriggeredCardEffects: Enqueue }): void {
+  enqueueTriggeredCardEffects = deps?.enqueueTriggeredCardEffects ?? enqueueTriggeredCardEffects;
   registerActivatedAbilityHandler(
     SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID,
     (game, playerId, cardId) => startActivatedReturnEnergyRecoverLive(game, playerId, cardId)
-  );
-  registerActiveEffectStepHandler(
-    SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID,
-    SELECT_ENERGY_COST_STEP_ID,
-    (game, input) => finishEnergyCostSelection(game, input.selectedCardIds)
   );
   registerActiveEffectStepHandler(
     SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID,
@@ -60,68 +66,65 @@ function startActivatedReturnEnergyRecoverLive(
     return game;
   }
 
-  return {
-    ...game,
-    activeEffect: {
+  const selection = resolveEnergySelectionForOperation(
+    game,
+    player.id,
+    'RETURN_TO_ENERGY_DECK',
+    2
+  );
+  if (!selection) return game;
+  return finishEnergyCostSelection(
+    selection.gameState,
+    {
       id: `${SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID}:${sourceCardId}:turn-${game.turnCount}:action-${game.actionHistory.length}`,
       abilityId: SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID,
       sourceCardId,
       controllerId: player.id,
-      effectText: getAbilityEffectText(SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID),
-      stepId: SELECT_ENERGY_COST_STEP_ID,
-      stepText: '请选择要放回能量卡组的2张能量。',
-      awaitingPlayerId: player.id,
-      selectableCardIds: player.energyZone.cardIds,
-      selectableCardMode: 'ORDERED_MULTI',
-      minSelectableCards: 2,
-      maxSelectableCards: 2,
-      canSkipSelection: false,
+      effectText: getAbilityEffectText(
+        SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID
+      ),
     },
-  };
+    selection.selectedEnergyCardIds
+  );
 }
 
 function finishEnergyCostSelection(
   game: GameState,
-  selectedEnergyCardIds: readonly string[] | undefined
+  context: EnergyCostContext,
+  selectedEnergyCardIds: readonly string[]
 ): GameState {
-  const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID ||
-    effect.stepId !== SELECT_ENERGY_COST_STEP_ID
-  ) {
-    return game;
-  }
-  const player = getPlayerById(game, effect.controllerId);
-  const selectedCardIds = selectedEnergyCardIds ?? [];
-  if (!player || !sourceIsOwnStageBp5111(game, player.id, effect.sourceCardId)) {
+  const player = getPlayerById(game, context.controllerId);
+  if (!player || !sourceIsOwnStageBp5111(game, player.id, context.sourceCardId)) {
     return game;
   }
 
-  const costPayment = moveEnergyZoneCardsToEnergyDeck(game, player.id, selectedCardIds, {
-    exactCount: 2,
-  });
+  const costPayment = moveEnergyZoneCardsToEnergyDeckByCardEffect(
+    game, player.id, selectedEnergyCardIds,
+    { kind: 'CARD_EFFECT', playerId: player.id, sourceCardId: context.sourceCardId, abilityId: context.abilityId },
+    { exactCount: 2 }
+  );
   if (!costPayment) {
     return game;
   }
 
-  let state = recordPayCostAction(costPayment.gameState, player.id, {
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
+  let state = enqueueTriggeredCardEffects(costPayment.gameState, [TriggerCondition.ON_ENERGY_MOVED_TO_DECK]);
+  state = recordPayCostAction(state, player.id, {
+    abilityId: context.abilityId,
+    sourceCardId: context.sourceCardId,
     energyCardIds: costPayment.movedEnergyCardIds,
     amount: costPayment.movedEnergyCardIds.length,
     destinationZone: 'ENERGY_DECK',
   });
   state = recordAbilityUseForContext(state, player.id, {
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
+    abilityId: context.abilityId,
+    sourceCardId: context.sourceCardId,
   });
 
   const candidateCardIds = getWaitingRoomLiveCandidateIds(state, player.id);
   if (candidateCardIds.length === 0) {
     return addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
+      abilityId: context.abilityId,
+      sourceCardId: context.sourceCardId,
       step: 'RETURN_TWO_ENERGY_NO_WAITING_ROOM_LIVE',
       returnedEnergyCardIds: costPayment.movedEnergyCardIds,
       recoveredCardIds: [],
@@ -131,13 +134,15 @@ function finishEnergyCostSelection(
   return {
     ...state,
     activeEffect: {
-      ...effect,
+      id: context.id,
+      abilityId: context.abilityId,
+      sourceCardId: context.sourceCardId,
+      controllerId: context.controllerId,
+      effectText: context.effectText,
       stepId: SELECT_WAITING_ROOM_LIVE_STEP_ID,
       stepText: '请选择自己休息室中1张LIVE卡加入手牌。',
+      awaitingPlayerId: player.id,
       selectableCardIds: candidateCardIds,
-      selectableCardMode: undefined,
-      minSelectableCards: undefined,
-      maxSelectableCards: undefined,
       canSkipSelection: false,
       metadata: {
         returnedEnergyCardIds: costPayment.movedEnergyCardIds,

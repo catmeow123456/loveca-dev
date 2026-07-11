@@ -87,7 +87,14 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { SlotPosition, GamePhase, SubPhase, ZoneType, CardType } from '@game/shared/types/enums';
+import {
+  SlotPosition,
+  GamePhase,
+  SubPhase,
+  ZoneType,
+  CardType,
+  OrientationState,
+} from '@game/shared/types/enums';
 import { getPhaseConfig, getSubPhaseConfig } from '@game/shared/phase-config';
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { PlayerViewState, Seat } from '@game/online';
@@ -503,6 +510,9 @@ export const GameBoard = memo(function GameBoard({
     }
   }, [showSuccessLiveSelectionModal]);
   const activeEffectSelectableCardSignature = activeEffectSelectableCardIds.join('|');
+  const activeEffectHasEnergyCandidates = activeEffectSelectableCardIds.some(
+    (cardId) => getKnownCardType(cardId) === CardType.ENERGY
+  );
   const activeEffectRevealedCardIds =
     activeEffect?.revealedObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const canConfirmActiveEffect =
@@ -2688,10 +2698,27 @@ export const GameBoard = memo(function GameBoard({
                         {activeEffectSelectableBadgeLabel}
                       </span>
                     </div>
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[46vh] md:grid-cols-[repeat(auto-fill,minmax(76px,1fr))] md:gap-3 md:overflow-y-auto md:p-3">
+                    <div
+                      className={cn(
+                        'grid gap-2 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_54%,transparent)] p-2 md:max-h-[46vh] md:gap-3 md:overflow-y-auto md:p-3',
+                        activeEffectHasEnergyCandidates
+                          ? 'grid-cols-[repeat(auto-fill,minmax(90px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(105px,1fr))]'
+                          : 'grid-cols-[repeat(auto-fill,minmax(64px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(76px,1fr))]'
+                      )}
+                    >
                       {activeEffectSelectableCardIds.map((cardId, candidateIndex) => {
                         const presentation = getVisibleCardPresentation(cardId);
                         const cardData = presentation?.cardData;
+                        const candidateObjectId =
+                          activeEffect?.selectableObjectIds?.[candidateIndex];
+                        const candidateObject = candidateObjectId
+                          ? playerViewState?.objects[candidateObjectId]
+                          : undefined;
+                        const isEnergyCandidate = cardData?.cardType === CardType.ENERGY;
+                        const isWaitingEnergy =
+                          isEnergyCandidate &&
+                          candidateObject?.orientation === OrientationState.WAITING;
+                        const skipsNextActivePhase = candidateObject?.skipsNextActivePhase === true;
                         const candidateCanBeSelected =
                           activeEffectSelectableObjectsFaceDown || presentation !== null;
                         const selectedOrderIndex = activeEffectOrderedSelection.indexOf(cardId);
@@ -2702,6 +2729,12 @@ export const GameBoard = memo(function GameBoard({
                           : cardData
                             ? formatCardCompactLabel(cardData as AnyCardData)
                             : '选择此卡';
+                        const energyStatusLabel = isEnergyCandidate
+                          ? `；当前状态：${isWaitingEnergy ? '等待' : '活跃'}`
+                          : '';
+                        const candidateTitle = `${label}${energyStatusLabel}${
+                          skipsNextActivePhase ? '；下次活跃阶段不会自动变为活跃' : ''
+                        }`;
                         return (
                           <button
                             key={cardId}
@@ -2743,7 +2776,7 @@ export const GameBoard = memo(function GameBoard({
                                 ? 'hover:border-[var(--border-active)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
                                 : 'cursor-not-allowed opacity-50'
                             }`}
-                            title={label}
+                            title={candidateTitle}
                           >
                             {isOrderedSelected && (
                               <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-[var(--border-active)] bg-[var(--accent-primary)] px-1 text-[11px] font-bold text-white shadow">
@@ -2764,16 +2797,32 @@ export const GameBoard = memo(function GameBoard({
                                 />
                               </div>
                             ) : presentation ? (
-                              <CardDetailPressTarget cardId={presentation.instanceId} title={label}>
-                                <Card
-                                  cardData={presentation.cardData as AnyCardData}
-                                  instanceId={presentation.instanceId}
-                                  imagePath={presentation.imagePath}
-                                  size="sm"
-                                  faceUp={true}
-                                  showHover={false}
-                                  className="h-[90px] w-[64px] md:h-[105px] md:w-[75px]"
-                                />
+                              <CardDetailPressTarget
+                                cardId={presentation.instanceId}
+                                className="flex h-[90px] w-[90px] items-center justify-center md:h-[105px] md:w-[105px]"
+                                title={candidateTitle}
+                              >
+                                <div
+                                  className={cn(
+                                    'h-[90px] w-[64px] rounded-lg transition-transform md:h-[105px] md:w-[75px]',
+                                    isWaitingEnergy && 'rotate-90',
+                                    skipsNextActivePhase &&
+                                      'ring-2 ring-red-500 ring-offset-2 ring-offset-[var(--bg-surface)]'
+                                  )}
+                                >
+                                  <Card
+                                    cardData={presentation.cardData as AnyCardData}
+                                    instanceId={presentation.instanceId}
+                                    imagePath={presentation.imagePath}
+                                    size="sm"
+                                    faceUp={true}
+                                    showHover={false}
+                                    className={cn(
+                                      'h-full w-full transition-[filter,opacity]',
+                                      isWaitingEnergy && 'opacity-60 grayscale'
+                                    )}
+                                  />
+                                </div>
                               </CardDetailPressTarget>
                             ) : (
                               <div className="flex h-[90px] w-[64px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">

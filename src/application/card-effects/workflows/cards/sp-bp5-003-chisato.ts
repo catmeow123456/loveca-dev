@@ -12,9 +12,9 @@ import {
 } from '../../runtime/member-state-changed-triggers.js';
 import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
-import { setEnergyOrientation } from '../../../effects/energy.js';
 import { setMembersOrientation } from '../../../effects/member-state.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
+import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -60,7 +60,10 @@ function resolveChisatoLiveStartActivateAll(
   }
 
   const liellaMemberCardIds = getStageMemberCardIdsMatching(game, player.id, liellaMemberCard);
-  const energyCardIds = [...player.energyZone.cardIds];
+  const waitingEnergyCount = player.energyZone.cardIds.filter(
+    (cardId) =>
+      player.energyZone.cardStates.get(cardId)?.orientation === OrientationState.WAITING
+  ).length;
   const stateWithoutPending: GameState = {
     ...game,
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
@@ -83,11 +86,10 @@ function resolveChisatoLiveStartActivateAll(
     return game;
   }
 
-  const energyOrientationChange = setEnergyOrientation(
+  const energyOrientationChange = activateWaitingEnergyCardsForPlayer(
     memberOrientationChange.gameState,
     player.id,
-    energyCardIds,
-    OrientationState.ACTIVE
+    waitingEnergyCount
   );
   if (!energyOrientationChange) {
     return game;
@@ -110,7 +112,7 @@ function resolveChisatoLiveStartActivateAll(
           sourceSlot: ability.sourceSlot,
           activatedMemberCardIds: result.updatedMemberCardIds,
           previousMemberOrientations: result.previousOrientations,
-          activatedEnergyCardIds: energyOrientationChange.updatedEnergyCardIds,
+          activatedEnergyCardIds: energyOrientationChange.activatedEnergyCardIds,
           previousEnergyOrientations: energyOrientationChange.previousOrientations,
           nextOrientation: OrientationState.ACTIVE,
         }),

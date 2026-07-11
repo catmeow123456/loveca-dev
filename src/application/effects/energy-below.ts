@@ -8,7 +8,8 @@ import {
   popEnergyBelowMember,
   removeCardFromStatefulZone,
 } from '../../domain/entities/zone.js';
-import { OrientationState, type SlotPosition } from '../../shared/types/enums.js';
+import type { SlotPosition } from '../../shared/types/enums.js';
+import { resolveEnergySelectionForOperation } from './energy-selection.js';
 
 export interface StackEnergyBelowResult {
   readonly gameState: GameState;
@@ -47,18 +48,16 @@ export function stackEnergyFromEnergyZoneBelowMember(
     return { gameState: game, stackedEnergyCardIds: [] };
   }
 
-  const waitingEnergyCardIds = player.energyZone.cardIds.filter(
-    (cardId) => player.energyZone.cardStates.get(cardId)?.orientation === OrientationState.WAITING
+  const selection = resolveEnergySelectionForOperation(
+    game,
+    playerId,
+    'STACK_BELOW_MEMBER',
+    count
   );
-  const activeEnergyCardIds = player.energyZone.cardIds.filter(
-    (cardId) => player.energyZone.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
-  );
-  const stackedEnergyCardIds = [...waitingEnergyCardIds, ...activeEnergyCardIds].slice(0, count);
-  if (stackedEnergyCardIds.length < count) {
-    return null;
-  }
+  if (!selection) return null;
+  const stackedEnergyCardIds = selection.selectedEnergyCardIds;
 
-  const gameState = updatePlayer(game, playerId, (currentPlayer) => {
+  const gameState = updatePlayer(selection.gameState, playerId, (currentPlayer) => {
     let energyZone = currentPlayer.energyZone;
     let memberSlots = currentPlayer.memberSlots;
     for (const energyCardId of stackedEnergyCardIds) {
@@ -72,7 +71,15 @@ export function stackEnergyFromEnergyZoneBelowMember(
     };
   });
 
-  return { gameState, stackedEnergyCardIds };
+  return {
+    gameState: {
+      ...gameState,
+      energyActivePhaseSkips: (gameState.energyActivePhaseSkips ?? []).filter(
+        (skip) => !stackedEnergyCardIds.includes(skip.energyCardId)
+      ),
+    },
+    stackedEnergyCardIds,
+  };
 }
 
 export function returnEnergyBelowMemberToEnergyDeck(

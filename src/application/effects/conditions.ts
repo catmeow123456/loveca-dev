@@ -17,7 +17,20 @@ export {
   hasMemberMovedToStageThisTurn,
   hasMemberPositionMovedThisTurn,
 } from '../../domain/rules/member-turn-state.js';
-import { ZoneType } from '../../shared/types/enums.js';
+import { TriggerCondition, ZoneType } from '../../shared/types/enums.js';
+
+export function hasPlayerMovedEnergyFromZoneToDeckThisTurn(
+  game: GameState,
+  playerId: string
+): boolean {
+  return game.eventLog.some(
+    ({ event }) =>
+      event.eventType === TriggerCondition.ON_ENERGY_MOVED_TO_DECK &&
+      'movedEnergyCardIds' in event &&
+      event.playerId === playerId &&
+      event.turnCount === game.turnCount
+  );
+}
 import type { CardSelector } from './card-selectors.js';
 
 export type PlayerZoneQuery =

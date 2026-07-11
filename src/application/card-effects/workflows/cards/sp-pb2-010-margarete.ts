@@ -1,13 +1,15 @@
 import {
   addAction,
   getPlayerById,
-  updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addCardToZone, removeCardFromStatefulZone } from '../../../../domain/entities/zone.js';
 import { OrientationState, TriggerCondition } from '../../../../shared/types/enums.js';
-import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
+import {
+  moveEnergyZoneCardsToEnergyDeckByCardEffect,
+  placeEnergyFromDeckToZoneByCardEffect,
+} from '../../../effects/energy.js';
+import { shouldSelectEnergyForOperation } from '../../../effects/energy-selection.js';
 import {
   SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
   SP_PB2_010_LIVE_SUCCESS_DRAW_TWO_OR_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -23,6 +25,7 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const LIVE_START_DECISION_STEP_ID = 'SP_PB2_010_LIVE_START_DECISION';
 const LIVE_START_SELECT_DISCARD_STEP_ID = 'SP_PB2_010_SELECT_DISCARD';
+const LIVE_START_SELECT_RETURN_ENERGY_STEP_ID = 'SP_PB2_010_SELECT_RETURN_ENERGY';
 const LIVE_SUCCESS_SELECT_OPTION_STEP_ID = 'SP_PB2_010_LIVE_SUCCESS_SELECT_OPTION';
 
 const DISCARD_OPTION_ID = 'discard';
@@ -31,10 +34,12 @@ const DRAW_TWO_OPTION_ID = 'draw-two';
 const PLACE_WAITING_ENERGY_OPTION_ID = 'place-waiting-energy';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
+let enqueueEnergyReturnTriggers: EnqueueTriggeredCardEffectsForEnterWaitingRoom = (game) => game;
 
 export function registerSpPb2010MargareteWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
+  enqueueEnergyReturnTriggers = deps.enqueueTriggeredCardEffects;
   registerPendingAbilityStarterHandler(
     SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
     (game, ability, options, context) =>
@@ -52,6 +57,16 @@ export function registerSpPb2010MargareteWorkflowHandlers(deps: {
       finishLiveStartDecision(
         game,
         input.selectedOptionId ?? null,
+        context.continuePendingCardEffects
+      )
+  );
+  registerActiveEffectStepHandler(
+    SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
+    LIVE_START_SELECT_RETURN_ENERGY_STEP_ID,
+    (game, input, context) =>
+      finishSelectedEnergyReturn(
+        game,
+        input.selectedCardId ?? null,
         context.continuePendingCardEffects
       )
   );
@@ -262,6 +277,78 @@ function finishLiveStartReturnEnergyOrNoop(
     );
   }
 
+  if (shouldSelectEnergyForOperation(game, player.id, 'RETURN_TO_ENERGY_DECK', 1)) {
+    return {
+      ...game,
+      activeEffect: {
+        id: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        controllerId: player.id,
+        effectText: getAbilityEffectText(ability.abilityId),
+        stepId: LIVE_START_SELECT_RETURN_ENERGY_STEP_ID,
+        stepText: '请选择1张能量放回能量卡组。',
+        awaitingPlayerId: player.id,
+        selectableCardIds: player.energyZone.cardIds,
+        minSelectableCards: 1,
+        maxSelectableCards: 1,
+        confirmSelectionLabel: '放回能量卡组',
+        canSkipSelection: false,
+        metadata: { orderedResolution, noHand, declinedDiscard },
+      },
+    };
+  }
+
+  return resolveEnergyReturn(
+    game,
+    player.id,
+    ability,
+    energyCardId,
+    orderedResolution,
+    noHand,
+    declinedDiscard,
+    continuePendingCardEffects
+  );
+}
+
+function finishSelectedEnergyReturn(
+  game: GameState,
+  selectedCardId: string | null,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.stepId !== LIVE_START_SELECT_RETURN_ENERGY_STEP_ID ||
+    !selectedCardId ||
+    effect.selectableCardIds?.includes(selectedCardId) !== true
+  )
+    return game;
+  return resolveEnergyReturn(
+    game,
+    effect.controllerId,
+    effectToPendingAbility(effect),
+    selectedCardId,
+    effect.metadata?.orderedResolution === true,
+    effect.metadata?.noHand === true,
+    effect.metadata?.declinedDiscard === true,
+    continuePendingCardEffects
+  );
+}
+
+function resolveEnergyReturn(
+  game: GameState,
+  playerId: string,
+  ability: PendingAbilityState,
+  energyCardId: string,
+  orderedResolution: boolean,
+  noHand: boolean,
+  declinedDiscard: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, playerId);
+  if (!player || !player.energyZone.cardIds.includes(energyCardId)) return game;
+
   const returnResult = returnEnergyFromZoneToDeck(game, player.id, energyCardId);
   if (!returnResult) {
     return game;
@@ -412,17 +499,24 @@ function returnEnergyFromZoneToDeck(
   playerId: string,
   energyCardId: string
 ): { readonly gameState: GameState; readonly returnedEnergyCardId: string } | null {
-  const player = getPlayerById(game, playerId);
-  if (!player || !player.energyZone.cardIds.includes(energyCardId)) {
-    return null;
-  }
-
+  const result = moveEnergyZoneCardsToEnergyDeckByCardEffect(
+    game,
+    playerId,
+    [energyCardId],
+    {
+      kind: 'CARD_EFFECT',
+      playerId,
+      sourceCardId: game.activeEffect?.sourceCardId ?? 'unknown-source',
+      abilityId: SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
+      pendingAbilityId: game.activeEffect?.id,
+    },
+    { exactCount: 1 }
+  );
+  if (!result) return null;
   return {
-    gameState: updatePlayer(game, playerId, (currentPlayer) => ({
-      ...currentPlayer,
-      energyZone: removeCardFromStatefulZone(currentPlayer.energyZone, energyCardId),
-      energyDeck: addCardToZone(currentPlayer.energyDeck, energyCardId),
-    })),
+    gameState: enqueueEnergyReturnTriggers(result.gameState, [
+      TriggerCondition.ON_ENERGY_MOVED_TO_DECK,
+    ]),
     returnedEnergyCardId: energyCardId,
   };
 }

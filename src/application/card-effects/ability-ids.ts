@@ -1335,3 +1335,17 @@ export const SP_BP2_006_ON_ENTER_RELAY_RECOVER_REPLACED_LIELLA_MEMBER_ABILITY_ID
   'PL!SP-bp2-006:on-enter-relay-recover-replaced-liella-member';
 export const SP_BP2_006_ACTIVATED_DISCARD_LOW_COST_LIELLA_MEMBER_ACTIVATE_ON_ENTER_ABILITY_ID =
   'PL!SP-bp2-006:activated-discard-low-cost-liella-member-activate-on-enter';
+export const SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-bp7-005-SEC:auto-enter-or-return-place-waiting-energy';
+export const SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID =
+  'PL!SP-bp7-005-SEC:auto-own-effect-place-energy-gain-blade';
+export const SP_BP7_006_ON_ENTER_RETURN_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID =
+  'PL!SP-bp7-006-SEC:on-enter-return-energy-recover-liella-member';
+export const SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID =
+  'PL!SP-bp7-006-SEC:live-success-energy-returned-score';
+export const SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!SP-bp7-007-SEC:live-start-return-two-gain-three-blade';
+export const SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID =
+  'PL!SP-bp7-007-SEC:live-success-place-two-skipped-energy';
+export const SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID =
+  'PL!SP-bp7-007-SEC:live-success-more-energy-activate-five';

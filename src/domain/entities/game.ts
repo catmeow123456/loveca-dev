@@ -129,6 +129,13 @@ export interface MemberActivePhaseSkipState {
   readonly abilityId: string;
 }
 
+export interface EnergyActivePhaseSkipState {
+  readonly playerId: string;
+  readonly energyCardId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+}
+
 export interface MemberEffectActivationProhibitionState {
   readonly affectedPlayerIds: readonly string[];
   readonly sourceCardId: string;
@@ -757,6 +764,7 @@ export interface GameState {
    * 卡效造成的“下次自己的活跃阶段不变为活跃状态”临时标记。
    */
   readonly memberActivePhaseSkips: readonly MemberActivePhaseSkipState[];
+  readonly energyActivePhaseSkips?: readonly EnergyActivePhaseSkipState[];
   /** 本回合内禁止卡牌效果使指定玩家的待机成员变为活跃。 */
   readonly memberEffectActivationProhibitions?: readonly MemberEffectActivationProhibitionState[];
   /**
@@ -890,6 +898,7 @@ export function createGameState(
     liveProhibitions: [],
     liveStartSuppressions: [],
     memberActivePhaseSkips: [],
+    energyActivePhaseSkips: [],
     memberEffectActivationProhibitions: [],
     liveSetLimitReductions: [],
 

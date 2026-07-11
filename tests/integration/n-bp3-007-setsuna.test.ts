@@ -60,6 +60,52 @@ describe('PL!N-bp3-007 费用9「優木せつ菜」', () => {
     expect(done.actionHistory.find((action) => action.payload.step === 'PLAY_SETUNA_ATTACH_ENERGY')?.payload).toMatchObject({ playedCardId: 'target', sourceSlot: SlotPosition.CENTER, stackedEnergyCardIds: ['energy-0'] });
   });
 
+  it('特殊能量存在时分别选择支付能量与附着能量，并保持自送费用顺序', () => {
+    const base = setup({ active: 3, waiting: 1 });
+    const marked = {
+      ...base,
+      energyActivePhaseSkips: [
+        {
+          playerId: P1,
+          energyCardId: 'energy-2',
+          sourceCardId: 'marker-source',
+          abilityId: 'marker-ability',
+        },
+      ],
+    };
+    const selectingPayment = activate(marked);
+    expect(selectingPayment.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
+    expect(selectingPayment.players[0].waitingRoom.cardIds).not.toContain('source');
+    const paid = confirmActiveEffectStep(
+      selectingPayment,
+      P1,
+      selectingPayment.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ['energy-0', 'energy-2']
+    );
+    expect(paid.players[0].waitingRoom.cardIds).toContain('source');
+    expect(paid.activeEffect?.selectableCardIds).toEqual(['target']);
+
+    const selectingAttachment = choose(paid, 'target');
+    expect(selectingAttachment.activeEffect?.stepId).toBe(
+      'COMMON_ENERGY_OPERATION_SELECTION'
+    );
+    const done = confirmActiveEffectStep(
+      selectingAttachment,
+      P1,
+      selectingAttachment.activeEffect!.id,
+      'energy-1'
+    );
+    expect(done.activeEffect).toBeNull();
+    expect(done.players[0].memberSlots.energyBelow.CENTER).toEqual(['energy-1']);
+    expect(
+      done.actionHistory.find((action) => action.type === 'PAY_COST')?.payload.paidEnergyCardIds
+    ).toEqual(['energy-0', 'energy-2']);
+  });
+
   it('发动前要求合法目标、2张活跃能量且支付后仍有能量可附着', () => {
     const notEnoughActive = setup({ active: 1, waiting: 2 });
     expect(activate(notEnoughActive)).toBe(notEnoughActive);

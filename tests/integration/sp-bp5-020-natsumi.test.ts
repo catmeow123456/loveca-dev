@@ -157,6 +157,59 @@ describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
     expect(abilityUseCount(session.state!)).toBe(1);
   });
 
+  it('lets an activated ability choose exact energy when a special candidate exists', () => {
+    const { game, sourceId, drawCardId, energyIds } = setup({ activeEnergyCount: 3 });
+    const marked: GameState = {
+      ...game,
+      energyActivePhaseSkips: [
+        {
+          playerId: PLAYER1,
+          energyCardId: energyIds[2]!,
+          sourceCardId: 'marker-source',
+          abilityId: 'marker-ability',
+        },
+      ],
+    };
+    const session = createGameSession();
+    session.createGame('sp-bp5-020-activated-select-energy', PLAYER1, 'P1', PLAYER2, 'P2');
+    (session as unknown as { authorityState: GameState }).authorityState = marked;
+
+    expect(
+      session.executeCommand(
+        createActivateAbilityCommand(
+          PLAYER1,
+          sourceId,
+          SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+        )
+      ).success
+    ).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual(energyIds);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          [energyIds[0]!, energyIds[2]!]
+        )
+      ).success
+    ).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toContain(drawCardId);
+    expect(session.state?.players[0].energyZone.cardStates.get(energyIds[0])?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(session.state?.players[0].energyZone.cardStates.get(energyIds[1])?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+    expect(session.state?.players[0].energyZone.cardStates.get(energyIds[2])?.orientation).toBe(
+      OrientationState.WAITING
+    );
+  });
+
   it('activated ability does not record use when active energy is insufficient', () => {
     const { game, sourceId, energyIds } = setup({ activeEnergyCount: 1 });
     const session = createGameSession();
@@ -243,6 +296,49 @@ describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
     expect(resolved.activeEffect).toBeNull();
     expect(resolved.players[0].hand.cardIds).toContain(drawCardId);
     expect(resolved.players[0].energyZone.cardStates.get(energyIds[0])?.orientation).toBe(
+      OrientationState.WAITING
+    );
+  });
+
+  it('pauses a pending payment to choose between normal and special active energy', () => {
+    const { game, sourceId, drawCardId, energyIds } = setup({ activeEnergyCount: 2 });
+    const marked: GameState = {
+      ...game,
+      energyActivePhaseSkips: [
+        {
+          playerId: PLAYER1,
+          energyCardId: energyIds[1]!,
+          sourceCardId: 'marker-source',
+          abilityId: 'marker-ability',
+        },
+      ],
+    };
+    const started = resolvePendingCardEffects({
+      ...marked,
+      pendingAbilities: [pending(sourceId)],
+    }).gameState;
+    const selecting = confirmActiveEffectStep(
+      started,
+      PLAYER1,
+      started.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      'pay'
+    );
+    expect(selecting.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
+    const resolved = confirmActiveEffectStep(
+      selecting,
+      PLAYER1,
+      selecting.activeEffect!.id,
+      energyIds[1]
+    );
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.players[0].hand.cardIds).toContain(drawCardId);
+    expect(resolved.players[0].energyZone.cardStates.get(energyIds[0])?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+    expect(resolved.players[0].energyZone.cardStates.get(energyIds[1])?.orientation).toBe(
       OrientationState.WAITING
     );
   });

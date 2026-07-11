@@ -38,6 +38,7 @@ export const VALID_PRODUCTS = [
   'bp4',
   'bp5',
   'bp6',
+  'bp7',
   'cl1',
   'pb1',
   'pb2',

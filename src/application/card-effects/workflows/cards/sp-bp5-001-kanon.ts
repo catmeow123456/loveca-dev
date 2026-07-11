@@ -22,6 +22,7 @@ import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { costLte, typeIs, and } from '../../../effects/card-selectors.js';
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
+import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import {
   getStageMemberOrientationTargetMetadata,
@@ -183,9 +184,8 @@ function startPayEnergyChoice(
     });
   }
 
-  const canPay = payImmediateEffectCosts(game, player.id, ability.sourceCardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: 1 },
-  ]);
+  const canPay =
+    getEnergySelectionCandidates(game, player.id, 'TAP_ACTIVE_ENERGY').length >= 1;
   if (!canPay) {
     return consumePendingNoop(game, ability, orderedResolution, continuePendingCardEffects, {
       step: 'SKIP_NO_ACTIVE_ENERGY',

@@ -142,6 +142,12 @@ These helpers are intentionally small. If a proposed helper starts to own paymen
 
 `createOptionalDiscardHandToWaitingRoomActiveEffect` is only the reusable selection-window shell for optional single-card hand discard costs. The caller still decides when to remove the pending ability, what action payload starts the window, how skip resolves, and how the selected card is discarded later. Do not use it for windows with extra energy/source costs, grouped selection, discard-to-N hand adjustment, or other effects whose metadata would require a mini configuration interpreter.
 
+## Common Energy Operation Selection
+
+`runtime/energy-operation-selection.ts` owns the shared pre-step used when a card effect must distinguish ordinary energy from energy carrying an `energyActivePhaseSkips` marker. Workflows keep their original ability step and cost ordering; the adapter stores the original activated ability, pending starter, or activeEffect input, opens `COMMON_ENERGY_OPERATION_SELECTION`, then resumes the original path with exact selected energy card ids.
+
+The adapter is entered only when the operation has more legal candidates than its resolved count and at least one legal candidate is marked. It does not add an extra window when all legal candidates must be processed or when no legal candidate is marked. Consecutive energy operations replay previously confirmed selections from the original immutable state so a later selection cannot duplicate an earlier payment or prematurely commit another cost.
+
 ## Migration Target
 
 Priority:

@@ -10,6 +10,7 @@ import { createLeaveStageEvent } from '../../domain/events/game-events.js';
 import { OrientationState, SlotPosition, ZoneType } from '../../shared/types/enums.js';
 import { returnEnergyBelowMemberToEnergyDeckForPlayer } from './energy-below.js';
 import { setMemberOrientation } from './member-state.js';
+import { resolveEnergySelectionForOperation } from './energy-selection.js';
 
 export type EffectCostDefinition =
   | {
@@ -104,14 +105,15 @@ export function payImmediateEffectCosts(
 
     switch (cost.kind) {
       case 'TAP_ACTIVE_ENERGY': {
-        const activeEnergyCardIds = player.energyZone.cardIds.filter(
-          (energyCardId) =>
-            player.energyZone.cardStates.get(energyCardId)?.orientation !== OrientationState.WAITING
+        const selection = resolveEnergySelectionForOperation(
+          state,
+          playerId,
+          'TAP_ACTIVE_ENERGY',
+          cost.count
         );
-        if (activeEnergyCardIds.length < cost.count) {
-          return null;
-        }
-        const energyCardIdsForCost = activeEnergyCardIds.slice(0, cost.count);
+        if (!selection) return null;
+        state = selection.gameState;
+        const energyCardIdsForCost = selection.selectedEnergyCardIds;
         state = updatePlayer(state, playerId, (currentPlayer) => {
           const cardStates = new Map(currentPlayer.energyZone.cardStates);
           for (const energyCardId of energyCardIdsForCost) {
@@ -157,10 +159,7 @@ export function payImmediateEffectCosts(
             ...playerWithReturnedEnergy,
             waitingRoom: {
               ...playerWithReturnedEnergy.waitingRoom,
-              cardIds: [
-                ...playerWithReturnedEnergy.waitingRoom.cardIds,
-                ...cardIdsForWaitingRoom,
-              ],
+              cardIds: [...playerWithReturnedEnergy.waitingRoom.cardIds, ...cardIdsForWaitingRoom],
             },
             memberSlots: {
               ...memberSlotsWithoutSource,

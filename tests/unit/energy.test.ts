@@ -7,6 +7,7 @@ import { createGameSession } from '../../src/application/game-session';
 import {
   getEnergyCardIdsByOrientation,
   moveEnergyZoneCardsToEnergyDeck,
+  moveEnergyZoneCardsToEnergyDeckByCardEffect,
   placeEnergyFromDeckToZone,
   setEnergyOrientation,
   setFirstEnergyCardsOrientation,
@@ -17,6 +18,8 @@ import {
   toggleEnergyOrientation,
 } from '../../src/domain/entities/zone';
 import { CardType, FaceState, HeartColor, OrientationState } from '../../src/shared/types/enums';
+import { ZoneType } from '../../src/shared/types/enums';
+import { applyRuleActionResult, RuleActionType } from '../../src/domain/rules/rule-actions';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -194,6 +197,72 @@ describe('energy effect helpers', () => {
     expect(result?.gameState.players[0].energyZone.cardStates.has(energyCardIds[1])).toBe(false);
   });
 
+  it('emits one batch event and clears skip markers when energy returns to the deck', () => {
+    const state = createMutableState();
+    const energyCardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.ENERGY)
+      .slice(0, 2)
+      .map((card) => card.instanceId);
+    setPlayerEnergyZones(state, { energyDeckCardIds: [], energyZoneCardIds: energyCardIds });
+    const marked: GameState = {
+      ...state,
+      energyActivePhaseSkips: energyCardIds.map((energyCardId) => ({
+        playerId: PLAYER1,
+        energyCardId,
+        sourceCardId: 'source',
+        abilityId: 'ability',
+      })),
+    };
+    const result = moveEnergyZoneCardsToEnergyDeckByCardEffect(
+      marked,
+      PLAYER1,
+      energyCardIds,
+      { kind: 'CARD_EFFECT', playerId: PLAYER1, sourceCardId: 'source', abilityId: 'ability' },
+      { exactCount: 2 }
+    );
+    expect(result?.energyMovedEvent?.movedEnergyCardIds).toEqual(energyCardIds);
+    expect(result?.gameState.eventLog.at(-1)?.event).toMatchObject({
+      eventType: 'ON_ENERGY_MOVED_TO_DECK',
+      playerId: PLAYER1,
+      movedEnergyCardIds: energyCardIds,
+      fromZone: 'ENERGY_ZONE',
+      toZone: 'ENERGY_DECK',
+    });
+    expect(result?.gameState.energyActivePhaseSkips).toEqual([]);
+  });
+
+  it('emits one RULE_ACTION batch event for an authoritative energy-zone return', () => {
+    const state = createMutableState();
+    const energyCardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.ENERGY)
+      .slice(0, 2)
+      .map((card) => card.instanceId);
+    setPlayerEnergyZones(state, { energyDeckCardIds: [], energyZoneCardIds: energyCardIds });
+    const result = applyRuleActionResult(
+      state,
+      {
+        type: RuleActionType.ILLEGAL_CARD,
+        executed: true,
+        affectedPlayerId: PLAYER1,
+        description: 'test energy return',
+        movedCards: energyCardIds.map((cardId) => ({
+          cardId,
+          from: ZoneType.ENERGY_ZONE,
+          to: ZoneType.ENERGY_DECK,
+        })),
+      },
+      () => CardType.ENERGY
+    );
+    const events = result.eventLog
+      .map((entry) => entry.event)
+      .filter((event) => event.eventType === 'ON_ENERGY_MOVED_TO_DECK');
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      movedEnergyCardIds: energyCardIds,
+      cause: { kind: 'RULE_ACTION', playerId: PLAYER1 },
+    });
+  });
+
   it('rejects invalid selected energy zone cards for energy deck movement', () => {
     const state = createMutableState();
     const energyCardIds = [...state.cardRegistry.values()]
@@ -293,6 +362,8 @@ describe('energy effect helpers', () => {
         OrientationState.ACTIVE
       )
     ).toBeNull();
-    expect(setEnergyOrientation(state, PLAYER1, ['missing-card'], OrientationState.ACTIVE)).toBeNull();
+    expect(
+      setEnergyOrientation(state, PLAYER1, ['missing-card'], OrientationState.ACTIVE)
+    ).toBeNull();
   });
 });
