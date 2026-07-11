@@ -41,6 +41,27 @@ function setup(): { readonly game: GameState; readonly sourceId: string; readonl
 }
 
 describe('relay enter lower-cost unit condition helper', () => {
+  it('treats missing relay replacement metadata as a non-relay entry', () => {
+    const { game, sourceId } = setup();
+    const result = evaluateRelayEnterLowerCostUnitCondition(
+      game,
+      {
+        sourceCardId: sourceId,
+        controllerId: PLAYER1,
+        relayReplacements: undefined,
+      },
+      'DOLLCHESTRA'
+    );
+
+    expect(result).toMatchObject({
+      conditionMet: false,
+      reason: 'NOT_RELAY_ENTER',
+      relayReplacementCardIds: [],
+      matchingRelayReplacementCardIds: [],
+      capturedReplacementEffectiveCosts: [],
+    });
+  });
+
   it('uses event-captured replacement cost and accepts any matching replacement', () => {
     const { game, sourceId, ids } = setup();
     const result = evaluateRelayEnterLowerCostUnitCondition(

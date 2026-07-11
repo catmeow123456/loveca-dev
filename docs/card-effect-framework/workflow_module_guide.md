@@ -150,7 +150,7 @@ Rules:
 
 ## Runner Dispatch
 
-## LIVE_SUCCESS availability gate
+### LIVE_SUCCESS availability gate
 
 `runtime/live-success-ability-availability-gates.ts` 是只作用于入队前的窄 registry：按
 `abilityId` 注册 predicate，未注册的能力默认允许。runner 只在 LIVE_SUCCESS 循环中调用通用

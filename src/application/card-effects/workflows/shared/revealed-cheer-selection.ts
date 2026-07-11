@@ -91,6 +91,7 @@ interface RevealedCheerSelectionWorkflowConfig {
   readonly predicate?: CheerCardPredicate;
   readonly destination: RevealedCheerCardDestination;
   readonly optional: boolean;
+  readonly confirmWhenNoTargets?: boolean;
   readonly startCondition?: (
     game: GameState,
     playerId: string,
@@ -136,6 +137,7 @@ const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflo
     predicate: typeIs(CardType.LIVE),
     destination: 'MAIN_DECK_BOTTOM',
     optional: true,
+    confirmWhenNoTargets: true,
     selectMin: 0,
     selectMax: 1,
     skipSelectionLabel: '不放置',
@@ -394,13 +396,15 @@ function startRevealedCheerSelectionWorkflow(
 
   const selectableCardIds = selectRevealedCheerCardIds(game, player.id, config.predicate);
   if (selectableCardIds.length === 0) {
-    const manualConfirmation = maybeStartConfirmablePendingAbilityConfirmation(
-      game,
-      context.ability,
-      context.options
-    );
-    if (manualConfirmation) {
-      return manualConfirmation;
+    if (config.confirmWhenNoTargets === true) {
+      const manualConfirmation = maybeStartConfirmablePendingAbilityConfirmation(
+        game,
+        context.ability,
+        context.options
+      );
+      if (manualConfirmation) {
+        return manualConfirmation;
+      }
     }
     const state = {
       ...game,
